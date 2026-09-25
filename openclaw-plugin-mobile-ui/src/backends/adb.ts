@@ -136,6 +136,29 @@ async function runAdb(
   return runAdbRaw(adbArgs, timeoutMs);
 }
 
+export async function adb_shell(input: { args: string[]; timeoutMs?: number }) {
+  const args = Array.isArray(input?.args) ? input.args.map((value) => String(value)) : [];
+  if (args.length === 0) {
+    return { ok: false, code: -1, stdout: "", stderr: "shell args are required" };
+  }
+  return runAdb(["shell", ...args], input?.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+}
+
+export async function adb_open_uri(input: { uri: string; package?: string; waitMs?: number }) {
+  const uri = String(input?.uri || "").trim();
+  const pkg = String(input?.package || "").trim();
+  const waitMs = Math.min(Math.max(Math.round(Number(input?.waitMs ?? 500)), 0), 10_000);
+  if (!uri) {
+    return { ok: false, code: -1, stdout: "", stderr: "uri is required" };
+  }
+
+  const args = ["shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", uri];
+  if (pkg) args.push("-p", pkg);
+  const result = await runAdb(args, 30_000);
+  if (result.ok && waitMs > 0) await wait(waitMs);
+  return result;
+}
+
 function encodeInputText(text: string) {
   return text.replace(/ /g, "%s");
 }

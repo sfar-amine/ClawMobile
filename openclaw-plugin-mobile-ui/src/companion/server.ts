@@ -8,6 +8,7 @@ import { android_health } from "../tools/android";
 import { clearAgentConversationMessages, listAgentConversationMessages, listAgentConversations, markAgentMessageRead } from "./agentMessages";
 import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRuntime } from "./openclawGatewayClient";
 import { submitIntent } from "./intent";
+import { getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, startVoiceRecoveryWatchdog } from "./voiceRecovery";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
 import { archiveSession, deleteSession, getRunStatus, listRuns } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
@@ -79,6 +80,7 @@ export function startCompanionServer() {
 
   startTerminalShellSession();
   startWhatsAppListenerWatchdog();
+  startVoiceRecoveryWatchdog();
 
   return server;
 }
@@ -200,6 +202,9 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
         "/v1/extensions/android/terminal/session",
         "/v1/extensions/android/terminal/session/input",
         "/v1/extensions/android/terminal/session/reset",
+        "/v1/extensions/android/voice-recovery/intentional-stop",
+        "/v1/extensions/android/voice-recovery/probe",
+        "/v1/extensions/android/voice-recovery/status",
         "/v1/extensions/nostr/status",
         "/v1/extensions/nostr/setup-key",
         "/v1/extensions/nostr/contacts",
@@ -306,6 +311,23 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
     const session = startTerminalShellSession();
     appendTerminalShellText(session, "Shell restarted.\n");
     writeJson(res, 200, terminalSessionSnapshot("Shell restarted."));
+    return;
+  }
+
+  if (method === "GET" && routePath === "/voice-recovery/status") {
+    writeJson(res, 200, getVoiceRecoveryStatus());
+    return;
+  }
+
+  if (method === "GET" && routePath === "/voice-recovery/probe") {
+    writeJson(res, 200, await probeChatGptVoiceActive());
+    return;
+  }
+
+  if (method === "POST" && routePath === "/voice-recovery/intentional-stop") {
+    const body: Record<string, any> = await readJsonBody<Record<string, any>>(req).catch(() => ({}));
+    const ttlMs = Number.isFinite(Number(body.ttlMs)) ? Number(body.ttlMs) : undefined;
+    writeJson(res, 200, markVoiceIntentionalStop(ttlMs));
     return;
   }
 
@@ -778,6 +800,9 @@ async function capabilities(options: { trusted?: boolean } = {}) {
         routes: [
           { id: "terminal.command", method: "POST", path: "terminal/command", status: "local_only", risk: "high", requiresApproval: false, availabilityReason: "Loopback-only companion UI route; not an agent-callable tool." },
           { id: "terminal.session", method: "GET", path: "terminal/session", status: "local_only", risk: "medium", requiresApproval: false },
+          { id: "voice-recovery.status", method: "GET", path: "voice-recovery/status", status: "local_only", risk: "low", requiresApproval: false },
+          { id: "voice-recovery.probe", method: "GET", path: "voice-recovery/probe", status: "local_only", risk: "low", requiresApproval: false },
+          { id: "voice-recovery.intentional-stop", method: "POST", path: "voice-recovery/intentional-stop", status: "local_only", risk: "medium", requiresApproval: false },
         ],
       },
       {
