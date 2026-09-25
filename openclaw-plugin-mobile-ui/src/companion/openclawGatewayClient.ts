@@ -7,10 +7,13 @@ import type { GatewayStatus, RuntimeCommandResponse, RuntimeLogResponse } from "
 
 const DEFAULT_GATEWAY_HOST = "127.0.0.1";
 const DEFAULT_GATEWAY_PORT = 18789;
-const DEFAULT_RUNTIME_START_WAIT_MS = 90_000;
+const DEFAULT_RUNTIME_START_WAIT_MS = 180_000;
 const DEFAULT_RUNTIME_STOP_WAIT_MS = 10_000;
 const GATEWAY_LOG_FILE = "companion-openclaw-gateway.log";
 const GATEWAY_PID_FILE = "companion-openclaw-gateway.pid";
+const TERMUX_PREFIX = "/data/data/com.termux/files/usr";
+const TERMUX_TMPDIR = "/data/data/com.termux/files/usr/tmp";
+const EXISTING_GATEWAY_GRACE_MS = 30_000;
 let startInFlight: { startedAt: number; logPath: string } | null = null;
 
 export function gatewayHost() {
@@ -65,13 +68,49 @@ export async function startRuntime(): Promise<RuntimeCommandResponse> {
     };
   }
 
+  const existingGateways = await listGatewayProcessCandidates();
+  if (existingGateways.length > 0) {
+    const graceDeadline = Date.now() + EXISTING_GATEWAY_GRACE_MS;
+
+    while (Date.now() < graceDeadline) {
+      await delay(1_000);
+      const status = await getGatewayStatus(750);
+      if (status.reachable) {
+        return {
+          success: true,
+          state: "running",
+          message: "Existing OpenClaw gateway became reachable.",
+          gateway: status,
+        };
+      }
+    }
+
+    for (const candidate of existingGateways) {
+      killPidBestEffort(candidate.pid, "SIGTERM");
+    }
+    await delay(1_500);
+
+    for (const candidate of await listGatewayProcessCandidates()) {
+      killPidBestEffort(candidate.pid, "SIGKILL");
+    }
+    await delay(500);
+  }
+
   const configuredCommand = process.env.CLAWMOBILE_RUNTIME_START_COMMAND || "";
-  const command = configuredCommand || "clawmobile";
+  const command =
+    configuredCommand || "/data/data/com.termux/files/usr/bin/openclaw";
   const args = process.env.CLAWMOBILE_RUNTIME_START_ARGS
     ? process.env.CLAWMOBILE_RUNTIME_START_ARGS.split(/\s+/).filter(Boolean)
     : configuredCommand
       ? []
-      : ["run"];
+      : [
+          "gateway",
+          "--bind",
+          "loopback",
+          "--port",
+          String(gatewayPort()),
+          "--verbose",
+        ];
 
   try {
     const logPath = gatewayLogPath();
@@ -82,7 +121,7 @@ export async function startRuntime(): Promise<RuntimeCommandResponse> {
       const child = spawn(command, args, {
         detached: true,
         stdio: ["ignore", out, out],
-        env: process.env,
+        env: runtimeEnv(),
       });
       if (child.pid) {
         fs.writeFileSync(gatewayPidPath(), `${child.pid}\n`);
@@ -260,7 +299,7 @@ async function waitForGatewayStopped() {
 
 function runCommand(command: string, args: string[]) {
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: "ignore", env: process.env });
+    const child = spawn(command, args, { stdio: "ignore", env: runtimeEnv() });
     child.once("exit", (code) => (code === 0 ? resolve() : reject(new Error(`${command} exited ${code}`))));
     child.once("error", reject);
   });
@@ -313,7 +352,7 @@ function isGatewayRuntimeCommand(command: string) {
 
 function captureCommand(command: string, args: string[]) {
   return new Promise<string>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"], env: process.env });
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"], env: runtimeEnv() });
     let out = "";
     let err = "";
     child.stdout.on("data", (chunk) => {
@@ -356,6 +395,24 @@ function cleanupGatewayPidFile() {
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function runtimeEnv(): NodeJS.ProcessEnv {
+  const home = process.env.HOME || "/data/data/com.termux/files/home";
+  const currentPath = process.env.PATH || "";
+  const requiredPath = [
+    `${home}/.openclaw-android/bin`,
+    `${home}/.openclaw-android/node/bin`,
+    `${TERMUX_PREFIX}/bin`,
+  ].join(":");
+
+  return {
+    ...process.env,
+    HOME: home,
+    PREFIX: process.env.PREFIX || TERMUX_PREFIX,
+    TMPDIR: process.env.TMPDIR || TERMUX_TMPDIR,
+    PATH: currentPath ? `${requiredPath}:${currentPath}` : requiredPath,
+  };
 }
 
 function runtimeStartWaitMs() {

@@ -23,6 +23,8 @@ const MAX_TERMINAL_COMMAND_CHARS = 2000;
 const MAX_TERMINAL_OUTPUT_BYTES = 64 * 1024;
 const TERMINAL_COMMAND_TIMEOUT_MS = 30_000;
 const MAX_TERMINAL_SESSION_OUTPUT_CHARS = 128 * 1024;
+const DEFAULT_WHATSAPP_LISTENER_WATCHDOG_MS = 15_000;
+let whatsappListenerWatchdogBusy = false;
 const CWD_SENTINEL_PREFIX = "__CLAWMOBILE_CWD:";
 const CWD_SENTINEL_SUFFIX = "__";
 
@@ -76,8 +78,61 @@ export function startCompanionServer() {
   process.once("SIGTERM", shutdown);
 
   startTerminalShellSession();
+  startWhatsAppListenerWatchdog();
 
   return server;
+}
+
+function startWhatsAppListenerWatchdog() {
+  if (process.env.CLAWMOBILE_WHATSAPP_LISTENER_WATCHDOG === "0") {
+    console.log("[companion] WhatsApp listener watchdog disabled.");
+    return;
+  }
+
+  const configuredMs = Number.parseInt(
+    process.env.CLAWMOBILE_WHATSAPP_LISTENER_WATCHDOG_MS || "",
+    10,
+  );
+  const intervalMs =
+    Number.isFinite(configuredMs) && configuredMs >= 5_000
+      ? configuredMs
+      : DEFAULT_WHATSAPP_LISTENER_WATCHDOG_MS;
+
+  const ensureListener = async () => {
+    if (whatsappListenerWatchdogBusy) return;
+    whatsappListenerWatchdogBusy = true;
+
+    try {
+      const status = await getGatewayStatus(1_500);
+      if (status.reachable) return;
+
+      console.warn(
+        "[companion] OpenClaw gateway is unreachable; listener watchdog is starting it.",
+      );
+
+      const result = await startRuntime();
+      if (!result.success) {
+        console.error(
+          "[companion] listener watchdog could not restore OpenClaw: " +
+            result.message,
+        );
+      }
+    } catch (error: any) {
+      console.error(
+        "[companion] listener watchdog error: " +
+          (error?.message || String(error)),
+      );
+    } finally {
+      whatsappListenerWatchdogBusy = false;
+    }
+  };
+
+  setTimeout(() => void ensureListener(), 1_000).unref();
+  setInterval(() => void ensureListener(), intervalMs).unref();
+
+  console.log(
+    `[companion] WhatsApp listener watchdog enabled every ${intervalMs}ms.`,
+  );
 }
 
 async function route(req: http.IncomingMessage, res: http.ServerResponse) {
