@@ -8,7 +8,7 @@ HELP_NOTIFY="$STATE_DIR/adb-help-notified"
 LOCK="$STATE_DIR/adb-recovery.lock"
 INTERVAL="${ADB_RECOVERY_INTERVAL:-60}"
 HELP_AFTER="${ADB_RECOVERY_HELP_AFTER:-3}"
-STABLE_PORT="${ADB_RECOVERY_STABLE_PORT:-5555}"
+STABLE_PORT="${ADB_RECOVERY_STABLE_PORT:-5556}"
 mkdir -p "$STATE_DIR"
 exec 9>"$LOCK"
 flock -n 9 || exit 0
@@ -27,9 +27,8 @@ wifi_up(){
   timeout 4 ping -c1 1.1.1.1 >/dev/null 2>&1 && return 0
   return 1
 }
-notify(){
-  "$HOME/ClawMobile/installer/termux-lite/incident-notify.sh" "human_required" "$1"
-}
+notify_info(){ "$HOME/ClawMobile/installer/termux-lite/incident-notify.sh" info "$1"; }
+notify_help(){ "$HOME/ClawMobile/installer/termux-lite/incident-notify.sh" human_required "$1" "$2"; }
 
 recover_adb(){
   adb start-server >/dev/null 2>&1 || true
@@ -61,14 +60,14 @@ while :; do
   if adb_up; then
     if [ "$prev" != up ]; then
       log INFO recovered ok "ADB operational"
-      notify "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
+      notify_info "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
       "$HOME_DIR/ClawMobile/installer/termux-lite/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     fi
     printf up >"$STATE"; prev=up; recovery_tries=0
   elif ! wifi_up; then
     if [ "$prev" != waiting_wifi ]; then
       log WARN blocked waiting_wifi "ADB unavailable and Wi-Fi required"
-      notify "Samantha — J'ai besoin de ton aide pour rétablir ADB : aucun Wi-Fi exploitable n'est disponible. Connecte le téléphone à un Wi-Fi ; je reprendrai automatiquement dès qu'il sera disponible et je t'enverrai l'état final."
+      notify_help "Samantha — ADB est bloqué car aucun Wi-Fi exploitable n’est disponible." "Sur le S24 : ouvre le panneau rapide, active Wi-Fi, connecte-toi à un réseau fonctionnel, puis ne touche plus à rien. Je détecterai le retour du réseau et reprendrai automatiquement."
     fi
     printf waiting_wifi >"$STATE"; prev=waiting_wifi; recovery_tries=0
   else
@@ -77,7 +76,7 @@ while :; do
     if recover_adb; then
       log INFO recovered ok "ADB recovered automatically"
       printf up >"$STATE"; prev=up; recovery_tries=0
-      notify "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
+      notify_info "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
       "$HOME_DIR/ClawMobile/installer/termux-lite/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     else
       if [ "$prev" != recovery_needed ]; then log WARN recovery pending "trusted automatic ADB recovery did not succeed"; fi
@@ -86,9 +85,9 @@ while :; do
         # help_required remains unacknowledged until WhatsApp delivery succeeds.
         # Retry every watchdog cycle while the prerequisite is still blocked.
         if [ ! -f "$HELP_NOTIFY" ]; then
-          if notify "Samantha — Intervention requise pour rétablir ADB : ouvre Paramètres > Options développeur > Débogage sans fil. S'il est déjà activé mais ADB reste indisponible, appuie sur « Associer l’appareil avec un code d’association » et laisse la fenêtre code/port ouverte. Je continue à surveiller et je te confirmerai ici dès que la récupération est vérifiée."; then
+          if notify_help "Samantha — ADB nécessite une intervention physique après échec de la récupération automatique." "Sur le S24 : ouvre Paramètres > Options développeur > Débogage sans fil. Active-le s’il est désactivé. S’il est déjà activé, appuie sur « Associer l’appareil avec un code d’association » et laisse cet écran ouvert avec le code et le port visibles. Ne m’envoie pas le code par message ; je reprendrai la procédure depuis le téléphone."; then
             : >"$HELP_NOTIFY"
-            log INFO notify delivered "help_required WhatsApp delivered"
+            log INFO notify queued "help_required incident queued"
           fi
         fi
       fi
