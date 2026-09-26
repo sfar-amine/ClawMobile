@@ -12,6 +12,8 @@ STABLE_PORT="${ADB_RECOVERY_STABLE_PORT:-5555}"
 mkdir -p "$STATE_DIR"
 exec 9>"$LOCK"
 flock -n 9 || exit 0
+# Do not let long-lived notification/transport descendants inherit the watchdog lock.
+exec 9>&-
 log(){ printf '%s component=adb-recovery severity=%s event=%s result=%s detail="%s"\n' "$(date -Iseconds)" "$1" "$2" "$3" "$4" >>"$LOG"; }
 adb_up(){ adb devices 2>/dev/null | awk 'NR>1 && $2=="device"{found=1} END{exit !found}'; }
 wifi_up(){
