@@ -26,11 +26,9 @@ wifi_up(){
   return 1
 }
 notify(){
-  local msg="$1" target
-  target="$(openclaw config get commands.ownerAllowFrom 2>/dev/null | grep -oE '\+?[0-9]{8,15}' | head -1)"
-  [ -n "$target" ] || { log WARN notify skipped "owner WhatsApp target unavailable"; return 1; }
-  timeout 20 openclaw message send --channel whatsapp --target "$target" --message "$msg" >/dev/null 2>&1 || { log WARN notify failed "WhatsApp notification failed"; return 1; }
+  "$HOME/ClawMobile/installer/termux-lite/incident-notify.sh" "human_required" "$1"
 }
+
 recover_adb(){
   adb start-server >/dev/null 2>&1 || true
   adb connect "127.0.0.1:$STABLE_PORT" >/dev/null 2>&1 || true
