@@ -18,6 +18,10 @@ wifi_up(){
   # non-invasive signals; a positive result is enough to start recovery.
   [ "$(getprop wlan.driver.status 2>/dev/null)" = ok ] && return 0
   dumpsys wifi 2>/dev/null | grep -Eqi 'Wi-Fi is enabled|mWifiEnabled=true|WIFI_STATE_ENABLED|connected.*ssid|mNetworkInfo.*CONNECTED' && return 0
+  # Samsung/Android 16 can hide Wi-Fi state from the Termux UID. Network
+  # reachability is sufficient for ADB recovery attempts; it avoids a false
+  # waiting_wifi state without claiming which transport provides connectivity.
+  timeout 4 ping -c1 1.1.1.1 >/dev/null 2>&1 && return 0
   return 1
 }
 notify(){
