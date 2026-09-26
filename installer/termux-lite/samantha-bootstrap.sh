@@ -15,5 +15,6 @@ if ! pgrep -f 'openclaw-gateway' >/dev/null; then sleep 15; start_if_missing 'op
 start_if_missing 'dist/companion/server.js' "$ROOT/companion-server.sh" companion || rc=1
 start_if_missing 'remote-desktop-watchdog.sh' "$ROOT/remote-desktop-watchdog.sh" remote_watchdog || rc=1
 start_if_missing 'adb-recovery-watchdog.sh' "$ROOT/adb-recovery-watchdog.sh" adb_watchdog || rc=1
+"$ROOT/chat-continuity-restore.sh" || rc=1
 log INFO complete "$([ "$rc" -eq 0 ] && echo ok || echo degraded)" "idempotent bootstrap completed"
 exit "$rc"

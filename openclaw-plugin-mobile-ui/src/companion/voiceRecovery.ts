@@ -1,4 +1,5 @@
 import { adb_open_uri, adb_shell, adb_tap, adb_type, adb_ui_dump_xml } from "../backends/adb";
+import { chatConversationUrl, readChatContinuity } from "./chatContinuity";
 
 const CHATGPT_PACKAGE = "com.openai.chatgpt";
 const DEFAULT_POLL_MS = 1_500;
@@ -329,7 +330,8 @@ async function observeAndRecover() {
   status.armed = false;
   status.recoveryAttempts += 1;
   status.lastRecoveryAttemptAt = now;
-  const deepLink = (process.env.CLAWMOBILE_VOICE_RECOVERY_DEEP_LINK || DEFAULT_DEEP_LINK).trim();
+  const saved = readChatContinuity();
+  const deepLink = (process.env.CLAWMOBILE_VOICE_RECOVERY_DEEP_LINK || (saved?.mode === "voice" ? chatConversationUrl(saved.conversationId) : DEFAULT_DEEP_LINK)).trim();
   const launch = await adb_open_uri({ uri: deepLink, package: CHATGPT_PACKAGE, waitMs: 0 });
   if (!launch.ok) {
     status.state = "cooldown";

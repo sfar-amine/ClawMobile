@@ -57,6 +57,7 @@ while :; do
     if [ "$prev" != up ]; then
       log INFO recovered ok "ADB operational"
       notify "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée."
+      "$HOME_DIR/ClawMobile/installer/termux-lite/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     fi
     printf up >"$STATE"; prev=up; recovery_tries=0
   elif ! wifi_up; then
@@ -72,6 +73,7 @@ while :; do
       log INFO recovered ok "ADB recovered automatically"
       printf up >"$STATE"; prev=up; recovery_tries=0
       notify "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée."
+      "$HOME_DIR/ClawMobile/installer/termux-lite/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     else
       if [ "$prev" != recovery_needed ]; then log WARN recovery pending "trusted automatic ADB recovery did not succeed"; fi
       if [ "$recovery_tries" -eq "$HELP_AFTER" ]; then
