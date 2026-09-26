@@ -18,3 +18,5 @@ start_if_missing 'adb-recovery-supervisor.sh' "$ROOT/adb-recovery-supervisor.sh"
 "$ROOT/chat-continuity-restore.sh" || rc=1
 log INFO complete "$([ "$rc" -eq 0 ] && echo ok || echo degraded)" "idempotent bootstrap completed"
 exit "$rc"
+export TMPDIR="$HOME/.cache/tmp"
+mkdir -p "$TMPDIR" && chmod 700 "$TMPDIR"
