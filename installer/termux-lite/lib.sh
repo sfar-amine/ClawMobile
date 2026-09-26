@@ -104,10 +104,20 @@ clawmobile_load_openclaw_env() {
 }
 
 clawmobile_require_termux() {
-  if [ -z "${PREFIX:-}" ] || [[ "${PREFIX:-}" != *"/com.termux/"* ]]; then
-    echo "[lite] ERROR: this script must run inside Termux." >&2
-    exit 1
+  # Remote/non-login shells on Android may legitimately lose PREFIX and
+  # TERMUX_VERSION even though HOME and the Termux filesystem are authoritative.
+  # Detect the runtime from stable filesystem/package markers instead of a
+  # volatile inherited environment variable.
+  local termux_root="/data/data/com.termux/files"
+  if [ "${HOME:-}" = "$termux_root/home" ] && [ -x "$termux_root/usr/bin/bash" ]; then
+    export PREFIX="${PREFIX:-$termux_root/usr}"
+    return 0
   fi
+  if [ -n "${PREFIX:-}" ] && [[ "${PREFIX:-}" == "$termux_root/usr" ]]; then
+    return 0
+  fi
+  echo "[lite] ERROR: Termux runtime not detected." >&2
+  exit 1
 }
 
 clawmobile_android_cmd() {
