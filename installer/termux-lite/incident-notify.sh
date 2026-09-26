@@ -16,5 +16,9 @@ for n in 1 2 3; do
   printf "%s id=%s channel=whatsapp state=failed attempt=%s\n" "$(date -Iseconds)" "$id" "$n" >>"$log"
   sleep $((n*n*2))
 done
-printf "%s id=%s channel=email state=pending reason=transport_unconfigured\n" "$(date -Iseconds)" "$id" >>"$log"
+if "$HOME/ClawMobile/installer/termux-lite/incident-email.sh" "Samantha: intervention requise" "$msg"; then
+  printf "%s id=%s channel=email state=accepted\n" "$(date -Iseconds)" "$id" >>"$log"
+  exit 0
+fi
+printf "%s id=%s channel=email state=failed\n" "$(date -Iseconds)" "$id" >>"$log"
 exit 75
