@@ -6,6 +6,7 @@ log(){ printf '%s component=health-manager %s\n' "$(date -Iseconds)" "$*" >>"$LO
 proc(){ pgrep -f "$1" >/dev/null 2>&1; }
 http(){ timeout 3 curl -fsS "$1" >/dev/null 2>&1; }
 adb_ok(){ timeout 3 adb -s 127.0.0.1:5555 get-state 2>/dev/null | grep -qx device; }
+adb_repair(){ timeout 4 adb connect 127.0.0.1:5555 >/dev/null 2>&1 || true; sleep 1; adb_ok; }
 start(){ name="$1"; script="$2"; log "service=$name action=start"; nohup "$script" >>"$D/$name.stderr.log" 2>&1 </dev/null & }
 ensure_supervisor(){ name="$1"; pat="$2"; script="$3"; proc "$pat" && return; log "service=$name state=down"; start "$name" "$script"; sleep 3; proc "$pat" && log "service=$name state=recovered" || log "service=$name state=failed"; }
 ensure_http(){ name="$1"; url="$2"; pat="$3"; script="$4"; http "$url" && return; log "service=$name state=unhealthy"; proc "$pat" && pkill -f "$pat" 2>/dev/null || true; start "$name" "$script"; sleep 6; http "$url" && log "service=$name state=recovered probe=http" || log "service=$name state=failed probe=http"; }
@@ -13,7 +14,10 @@ log 'event=start result=ok'
 while :; do
  ensure_supervisor adb_supervisor '[a]db-recovery-supervisor.sh' "$ROOT/adb-recovery-supervisor.sh"
  ensure_supervisor remote_supervisor '[r]emote-desktop-supervisor.sh' "$ROOT/remote-desktop-supervisor.sh"
- if ! adb_ok; then log 'service=adb state=unhealthy action=delegate_recovery'; fi
+ if ! adb_ok; then
+   log 'service=adb state=unhealthy action=fast_reconnect'
+   if adb_repair; then log 'service=adb state=recovered method=stable_5555'; else log 'service=adb state=degraded action=delegate_recovery'; fi
+ fi
  ensure_http gateway http://127.0.0.1:18789/ '[o]penclaw-gateway' "$ROOT/gateway-start.sh"
  ensure_http companion http://127.0.0.1:8765/ 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh"
  sleep 15
