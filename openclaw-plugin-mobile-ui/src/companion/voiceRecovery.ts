@@ -1,4 +1,4 @@
-import { adb_open_uri, adb_shell } from "../backends/adb";
+import { adb_open_uri, adb_shell, adb_tap, adb_type, adb_ui_dump_xml } from "../backends/adb";
 
 const CHATGPT_PACKAGE = "com.openai.chatgpt";
 const DEFAULT_POLL_MS = 1_500;
@@ -7,7 +7,9 @@ const DEFAULT_VERIFY_TIMEOUT_MS = 15_000;
 const DEFAULT_RECOVERY_COOLDOWN_MS = 60_000;
 const DEFAULT_MAX_RECOVERY_ATTEMPTS = 1;
 const DEFAULT_DEEP_LINK = "https://chatgpt.com/voice";
-const DEFAULT_RECOVERY_PHRASE = "Amine, je t’ai perdu. T’es encore là ?";
+const DEFAULT_RECOVERY_PROMPT = "Reprise automatique apres coupure. Dis uniquement : Amine, ça a coupé, je t’ai perdu. T’es toujours là ?";
+const DEFAULT_RESUME_DELAY_MS = 1_500;
+const DEFAULT_RECOVERY_PHRASE = "Amine, ça a coupé, je t’ai perdu. T’es toujours là ?";
 
 type VoiceRecoveryState =
   | "disabled"
@@ -36,6 +38,8 @@ export type VoiceRecoveryStatus = {
   recoveryPendingSince?: number;
   recoveryPhrase?: string;
   suspendedReason?: string;
+  lastResumePromptAt?: number;
+  lastResumePromptError?: string;
   lastError?: string;
 };
 
@@ -79,6 +83,65 @@ export async function probeChatGptVoiceActive() {
 
 export function getVoiceRecoveryStatus(): VoiceRecoveryStatus {
   return { ...status };
+}
+
+function center(bounds: string) {
+  const m = bounds.match(/^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/);
+  if (!m) return null;
+  return { x: Math.round((Number(m[1]) + Number(m[3])) / 2), y: Math.round((Number(m[2]) + Number(m[4])) / 2) };
+}
+
+function nodeAttr(node: string, name: string) {
+  return node.match(new RegExp(`${name}="([^"]*)"`))?.[1] || "";
+}
+
+async function injectRecoveryPrompt() {
+  const delayMs = envMs("CLAWMOBILE_VOICE_RECOVERY_RESUME_DELAY_MS", DEFAULT_RESUME_DELAY_MS, 500);
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+  const dump = await adb_ui_dump_xml({ compressed: true, maxOutputBytes: 250_000 });
+  if (!dump.ok || !dump.xml) throw new Error("Unable to inspect ChatGPT UI after voice recovery.");
+  const nodes = dump.xml.match(/<node\b[^>]*>/g) || [];
+  const edit = nodes.find((n) => nodeAttr(n, "package") === CHATGPT_PACKAGE && nodeAttr(n, "class") === "android.widget.EditText" && nodeAttr(n, "enabled") !== "false");
+  if (!edit) throw new Error("ChatGPT reply field not found after voice recovery.");
+  const editPoint = center(nodeAttr(edit, "bounds"));
+  if (!editPoint) throw new Error("ChatGPT reply field bounds unavailable.");
+  await adb_tap(editPoint);
+  const prompt = process.env.CLAWMOBILE_VOICE_RECOVERY_PROMPT || DEFAULT_RECOVERY_PROMPT;
+  const typed = await adb_type({ text: prompt });
+  if (!typed.ok) throw new Error(typed.stderr || "Unable to type voice recovery prompt.");
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  const after = await adb_ui_dump_xml({ compressed: true, maxOutputBytes: 250_000 });
+  const afterNodes = after.xml?.match(/<node\b[^>]*>/g) || [];
+  const activeEdit = afterNodes.find((n) => nodeAttr(n, "package") === CHATGPT_PACKAGE && nodeAttr(n, "class") === "android.widget.EditText" && nodeAttr(n, "text").includes("Reprise automatique"));
+  if (!activeEdit) throw new Error("Recovery prompt was not present in ChatGPT reply field.");
+  const eb = nodeAttr(activeEdit, "bounds").match(/^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/);
+  if (!eb) throw new Error("ChatGPT reply field bounds unavailable after typing.");
+  const bottom = Number(eb[4]);
+  const candidates = afterNodes
+    .filter((n) => nodeAttr(n, "package") === CHATGPT_PACKAGE && nodeAttr(n, "clickable") === "true")
+    .map((n) => ({ n, p: center(nodeAttr(n, "bounds")) }))
+    .filter((v): v is { n: string; p: { x: number; y: number } } => Boolean(v.p))
+    .filter((v) => v.p.x > 850 && v.p.y >= bottom && v.p.y <= bottom + 220)
+    .sort((a, b) => b.p.x - a.p.x);
+  const send = candidates[0];
+  if (!send) throw new Error("ChatGPT send control not found after typing recovery prompt.");
+  const tapped = await adb_tap(send.p);
+  if (!tapped.ok) throw new Error(tapped.stderr || "Unable to submit voice recovery prompt.");
+  status.lastResumePromptAt = Date.now();
+  status.lastResumePromptError = undefined;
+  status.recoveryPending = false;
+}
+
+async function deliverRecoveryPromptOnce() {
+  if (!status.recoveryPending) return;
+  try {
+    await injectRecoveryPrompt();
+    console.warn("[companion] submitted one-shot ChatGPT recovery prompt.");
+  } catch (error: any) {
+    status.lastResumePromptError = error?.message || String(error);
+    status.recoveryPending = false;
+    console.error(`[companion] recovery prompt failed: ${status.lastResumePromptError}`);
+  }
 }
 
 export function markVoiceIntentionalStop(ttlMs = 20_000) {
@@ -176,6 +239,7 @@ async function observeAndRecover() {
     }
     status.state = "active";
     status.lastError = undefined;
+    if (status.recoveryPending) void deliverRecoveryPromptOnce();
     status.armed = !status.cooldownUntil || now >= status.cooldownUntil;
     return;
   }
