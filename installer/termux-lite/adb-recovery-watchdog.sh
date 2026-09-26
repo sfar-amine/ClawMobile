@@ -4,6 +4,7 @@ HOME_DIR="/data/data/com.termux/files/home"
 STATE_DIR="$HOME_DIR/.openclaw/watchdogs"
 LOG="$STATE_DIR/adb-recovery.log"
 STATE="$STATE_DIR/adb-recovery.state"
+HELP_NOTIFY="$STATE_DIR/adb-help-notified"
 LOCK="$STATE_DIR/adb-recovery.lock"
 INTERVAL="${ADB_RECOVERY_INTERVAL:-60}"
 HELP_AFTER="${ADB_RECOVERY_HELP_AFTER:-3}"
@@ -60,7 +61,7 @@ while :; do
   if adb_up; then
     if [ "$prev" != up ]; then
       log INFO recovered ok "ADB operational"
-      notify "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée."
+      notify "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
       "$HOME_DIR/ClawMobile/installer/termux-lite/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     fi
     printf up >"$STATE"; prev=up; recovery_tries=0
@@ -76,13 +77,20 @@ while :; do
     if recover_adb; then
       log INFO recovered ok "ADB recovered automatically"
       printf up >"$STATE"; prev=up; recovery_tries=0
-      notify "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée."
+      notify "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
       "$HOME_DIR/ClawMobile/installer/termux-lite/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     else
       if [ "$prev" != recovery_needed ]; then log WARN recovery pending "trusted automatic ADB recovery did not succeed"; fi
-      if [ "$recovery_tries" -eq "$HELP_AFTER" ]; then
+      if [ "$recovery_tries" -ge "$HELP_AFTER" ]; then
         log WARN blocked help_required "ADB recovery requires Wireless Debugging/pairing intervention"
-        notify "Samantha — Le Wi-Fi est disponible, mais ADB ne s'est pas reconnecté avec la confiance existante. J'ai besoin que tu ouvres Paramètres > Options développeur > Débogage sans fil et que tu laisses cet écran ouvert. Je continue à surveiller et je te confirmerai dès qu'ADB sera rétabli."
+        # help_required remains unacknowledged until WhatsApp delivery succeeds.
+        # Retry every watchdog cycle while the prerequisite is still blocked.
+        if [ ! -f "$HELP_NOTIFY" ]; then
+          if notify "Samantha — Intervention requise pour rétablir ADB : ouvre Paramètres > Options développeur > Débogage sans fil. S'il est déjà activé mais ADB reste indisponible, appuie sur « Associer l’appareil avec un code d’association » et laisse la fenêtre code/port ouverte. Je continue à surveiller et je te confirmerai ici dès que la récupération est vérifiée."; then
+            : >"$HELP_NOTIFY"
+            log INFO notify delivered "help_required WhatsApp delivered"
+          fi
+        fi
       fi
       printf recovery_needed >"$STATE"; prev=recovery_needed
     fi
