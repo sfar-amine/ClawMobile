@@ -8,7 +8,7 @@ check "Remote Desktop" pgrep -f '@wonderwhy-er/desktop-commander/dist/index.js r
 check "Remote watchdog" pgrep -f 'remote-desktop-watchdog.sh'
 check "ADB watchdog" pgrep -f 'adb-recovery-watchdog.sh'
 check "OpenClaw Gateway" sh -c 'command -v curl >/dev/null && curl -fsS --max-time 3 http://127.0.0.1:18789/ >/dev/null'
-check "Companion" sh -c 'command -v curl >/dev/null && curl -fsS --max-time 3 http://127.0.0.1:8765/health >/dev/null'
+check "Companion" sh -c 'command -v curl >/dev/null && curl -fsS --max-time 3 http://127.0.0.1:8765/v1/health >/dev/null'
 printf '%-24s ' "WhatsApp"
 ws="$(timeout 8 openclaw channels status 2>/dev/null || true)"
 if printf '%s' "$ws" | grep -qi 'connected'; then echo UP; ok=$((ok+1)); else echo DEGRADED; bad=$((bad+1)); fi
