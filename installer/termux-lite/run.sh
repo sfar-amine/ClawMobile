@@ -18,7 +18,11 @@ clawmobile_require_npm
 cd "$REPO_ROOT"
 clawmobile_select_adb_device
 clawmobile_build_plugin_lite "$REPO_ROOT"
-clawmobile_install_plugin "$PLUGIN_DIR"
+if [ "${CLAWMOBILE_GATEWAY_INSTALL_PLUGIN:-0}" = "1" ]; then
+  clawmobile_install_plugin "$PLUGIN_DIR"
+else
+  echo "[lite] Skipping plugin reinstall during gateway startup."
+fi
 clawmobile_sync_workspace_seed "$REPO_ROOT"
 
 ensure_gateway_config() {
