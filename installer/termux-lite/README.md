@@ -611,3 +611,21 @@ Recordings and generated skills may contain sensitive screenshots, input
 traces, app state, package/activity names, model-visible summaries, and
 API-key-adjacent configuration. Review those artifacts before sharing a
 workspace, recording directory, or repository snapshot.
+
+## Autonomous Engineering Shadow Diagnostics
+
+ClawMobile integrates the first failure-only Autonomous Engineering stage through
+`autonomous-engineering-shadow.sh`. The Health Manager launches it
+asynchronously when a managed component reaches its third failed deterministic
+recovery attempt.
+
+This stage is intentionally read-only. It collects compact Health Manager
+evidence, calls the dedicated low-context `engineering-lite` agent through the
+shared Skill Intelligence diagnostic CLI, and stores the JSON result under
+`~/.openclaw/autonomous-engineering/shadow/`. It does not restart services,
+modify production code, or send external messages.
+
+The existing Health Manager retry/backoff and Incident Manager notification
+paths remain authoritative. Autonomous repair/rebuild/rebirth must only be added
+after isolated candidate execution, independent verification, rollback, and E2E
+validation are in place.
