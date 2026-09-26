@@ -3,7 +3,7 @@ set -u
 ROOT="$HOME/ClawMobile/installer/termux-lite"; D="$HOME/.openclaw/incidents"; Q="$D/queue"; LOG="$D/events.log"; mkdir -p "$Q"
 exec 9>"$D/manager.lock"; flock -n 9 || exit 0; exec 9>&-
 log(){ printf '%s id=%s %s\n' "$(date -Iseconds)" "$1" "$2" >>"$LOG"; }
-process(){ dir="$1"; id=$(basename "$dir"); st=$(cat "$dir/status" 2>/dev/null||echo pending); [ "$st" = pending ] || return; kind=$(cat "$dir/kind"); msg=$(cat "$dir/message"); action=$(cat "$dir/action" 2>/dev/null||true); body="$msg"; if [ "$kind" = human_required ]; then body="$msg\n\nAction requise : $action"; fi;
+process(){ dir="$1"; id=$(basename "$dir"); st=$(cat "$dir/status" 2>/dev/null||echo pending); [ "$st" = pending ] || return; kind=$(cat "$dir/kind"); msg=$(cat "$dir/message"); action=$(cat "$dir/action" 2>/dev/null||true); body="$msg"; if [ "$kind" = human_required ]; then body="$msg\n\nÀ faire sur le S24 :\n$action\n\nEnsuite : aucune autre action. Samantha détectera le prérequis, reprendra automatiquement le traitement et confirmera la récupération."; fi;
   tries=$(cat "$dir/tries" 2>/dev/null||echo 0); now=$(date +%s); next=$(cat "$dir/next" 2>/dev/null||echo 0); [ "$now" -ge "$next" ] || return
   target=$(timeout 8 openclaw config get commands.ownerAllowFrom 2>/dev/null|grep -o 'whatsapp:[^" ]*'|head -1|cut -d: -f2-)
   if [ -n "$target" ] && timeout 20 openclaw message send --channel whatsapp --target "$target" --message "$body" >/dev/null 2>&1; then printf notified >"$dir/status"; printf whatsapp >"$dir/channel"; log "$id" "kind=$kind channel=whatsapp state=accepted"; return; fi
