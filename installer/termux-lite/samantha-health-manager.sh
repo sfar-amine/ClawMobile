@@ -10,7 +10,7 @@ fail(){ n="$1"; c=$(( $(get "$n" failures 0)+1 )); [ "$c" -gt 6 ] && c=6; delay=
 due(){ [ "$(now)" -ge "$(get "$1" next 0)" ]; }
 start(){ nohup "$2" >>"$D/$1.stderr.log" 2>&1 </dev/null & }
 check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat"; then healthy "$n"; return; fi; due "$n" || return; log "service=$n action=start"; start "$n" "$script"; sleep 3; proc "$pat" && healthy "$n" || fail "$n"; }
-check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; if http "$url"; then healthy "$n"; return; fi; due "$n" || return; f=$(get "$n" failures 0); if proc "$pat" && [ "$f" -lt 3 ]; then log "service=$n state=starting_or_unhealthy grace=active"; fail "$n"; return; fi; log "service=$n action=repair"; proc "$pat" && pkill -f "$pat" 2>/dev/null || true; start "$n" "$script"; sleep 6; http "$url" && healthy "$n" || fail "$n"; }
+check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; if http "$url"; then healthy "$n"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=starting_or_unhealthy grace_s=$grace"; sleep "$grace"; if http "$url"; then healthy "$n"; return; fi; fi; log "service=$n action=repair"; proc "$pat" && pkill -TERM -f "$pat" 2>/dev/null || true; sleep 8; start "$n" "$script"; sleep "$grace"; http "$url" && healthy "$n" || fail "$n"; }
 check_adb(){ if adb_ok; then healthy adb; return; fi; due adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1; adb_ok && healthy adb || fail adb; }
 log 'event=start result=ok state=persistent_backoff'
 while :; do
@@ -18,7 +18,7 @@ while :; do
  check_supervisor remote_watchdog '[r]emote-desktop-watchdog.sh' "$ROOT/remote-desktop-watchdog.sh"
  check_supervisor incident_manager '[i]ncident-manager.sh' "$ROOT/incident-manager.sh"
  check_adb
- check_http gateway http://127.0.0.1:18789/ '[o]penclaw-gateway' "$ROOT/gateway-start.sh"
- check_http companion http://127.0.0.1:8765/ 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh"
+ check_http gateway http://127.0.0.1:18789/ '[o]penclaw-gateway' "$ROOT/gateway-start.sh" 75
+ check_http companion http://127.0.0.1:8765/ 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 12
  sleep 15
 done
