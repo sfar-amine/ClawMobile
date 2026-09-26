@@ -1,6 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
 ROOT="$HOME/ClawMobile/installer/termux-lite"
+export TMPDIR="$HOME/.cache/tmp"
+mkdir -p "$TMPDIR" && chmod 700 "$TMPDIR"
 STATE="$HOME/.openclaw/bootstrap"
 LOG="$STATE/bootstrap.log"
 mkdir -p "$STATE"
@@ -15,8 +17,7 @@ if ! pgrep -f 'openclaw-gateway' >/dev/null; then sleep 15; start_if_missing 'op
 start_if_missing 'dist/companion/server.js' "$ROOT/companion-server.sh" companion || rc=1
 start_if_missing 'remote-desktop-supervisor.sh' "$ROOT/remote-desktop-supervisor.sh" remote_watchdog || rc=1
 start_if_missing 'adb-recovery-supervisor.sh' "$ROOT/adb-recovery-supervisor.sh" adb_watchdog || rc=1
+start_if_missing 'core-services-watchdog.sh' "$ROOT/core-services-watchdog.sh" core_services || rc=1
 "$ROOT/chat-continuity-restore.sh" || rc=1
 log INFO complete "$([ "$rc" -eq 0 ] && echo ok || echo degraded)" "idempotent bootstrap completed"
 exit "$rc"
-export TMPDIR="$HOME/.cache/tmp"
-mkdir -p "$TMPDIR" && chmod 700 "$TMPDIR"
