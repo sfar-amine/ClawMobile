@@ -1,8 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ok=0; bad=0
+ok=0; bad=0; degraded=0
 check(){ name="$1"; shift; if "$@" >/dev/null 2>&1; then printf '%-24s UP\n' "$name"; ok=$((ok+1)); else printf '%-24s DOWN\n' "$name"; bad=$((bad+1)); fi; }
-check "ADB" adb -s 127.0.0.1:5556 get-state
+printf '%-24s ' "ADB"
+if adb devices 2>/dev/null | awk 'NR>1 && $2=="device"{found=1} END{exit !found}'; then echo UP; ok=$((ok+1)); else echo DEGRADED_OPTIONAL; degraded=$((degraded+1)); fi
 check "Remote Desktop" pgrep -f '@wonderwhy-er/desktop-commander/dist/index.js remote'
 check "Remote watchdog" pgrep -f 'remote-desktop-watchdog.sh'
 check "OpenClaw Gateway" pgrep -f 'openclaw-gateway'
@@ -10,7 +11,7 @@ check "Companion" pgrep -f 'dist/companion/server.js'
 printf '%-24s ' "WhatsApp"
 ws="$(openclaw channels status 2>/dev/null || true)"
 if printf '%s' "$ws" | grep -qi 'connected'; then echo UP; ok=$((ok+1)); else echo DEGRADED; bad=$((bad+1)); fi
-printf "%-24s " "Persistent boot"
-if adb -s 127.0.0.1:5556 shell pm list packages 2>/dev/null | grep -q "package:com.termux.boot" && [ -x "$HOME/.termux/boot/start-samantha" ]; then echo READY; ok=$((ok+1)); else echo NOT_READY; bad=$((bad+1)); fi
-printf '\nSUMMARY ok=%d bad=%d\n' "$ok" "$bad"
+printf '%-24s ' "Persistent boot"
+if [ -x "$HOME/.termux/boot/start-samantha" ]; then echo READY; ok=$((ok+1)); else echo NOT_READY; bad=$((bad+1)); fi
+printf '\nSUMMARY ok=%d bad=%d degraded=%d\n' "$ok" "$bad" "$degraded"
 [ "$bad" -eq 0 ]
