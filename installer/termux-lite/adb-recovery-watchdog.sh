@@ -67,7 +67,7 @@ while :; do
   elif ! wifi_up; then
     if [ "$prev" != waiting_wifi ]; then
       log WARN blocked waiting_wifi "ADB unavailable and Wi-Fi required"
-      notify_help "Samantha — ADB est bloqué car aucun Wi-Fi exploitable n’est disponible." "Sur le S24 : ouvre le panneau rapide, active Wi-Fi, connecte-toi à un réseau fonctionnel, puis ne touche plus à rien. Je détecterai le retour du réseau et reprendrai automatiquement."
+      notify_help "Samantha — ADB est bloqué car aucun Wi-Fi exploitable n’est disponible." "1. Ouvre le panneau rapide du S24.\n2. Active le Wi-Fi et connecte-toi à un réseau fonctionnel.\n3. Laisse ensuite le téléphone allumé ; aucune autre action."
     fi
     printf waiting_wifi >"$STATE"; prev=waiting_wifi; recovery_tries=0
   else
@@ -85,7 +85,7 @@ while :; do
         # help_required remains unacknowledged until WhatsApp delivery succeeds.
         # Retry every watchdog cycle while the prerequisite is still blocked.
         if [ ! -f "$HELP_NOTIFY" ]; then
-          if notify_help "Samantha — ADB nécessite une intervention physique après échec de la récupération automatique." "Sur le S24 : ouvre Paramètres > Options développeur > Débogage sans fil. Active-le s’il est désactivé. S’il est déjà activé, appuie sur « Associer l’appareil avec un code d’association » et laisse cet écran ouvert avec le code et le port visibles. Ne m’envoie pas le code par message ; je reprendrai la procédure depuis le téléphone."; then
+          if notify_help "Samantha — ADB nécessite une intervention physique après échec de la récupération automatique." "1. Ouvre Paramètres > Options développeur > Débogage sans fil.\n2. Active Débogage sans fil s’il est désactivé ; s’il est déjà actif, ouvre « Associer l’appareil avec un code d’association ».\n3. Laisse cet écran ouvert avec le code et le port visibles ; ne m’envoie pas le code par message."; then
             : >"$HELP_NOTIFY"
             log INFO notify queued "help_required incident queued"
           fi
