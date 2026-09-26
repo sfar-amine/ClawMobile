@@ -8,7 +8,7 @@ import { android_health } from "../tools/android";
 import { clearAgentConversationMessages, listAgentConversationMessages, listAgentConversations, markAgentMessageRead } from "./agentMessages";
 import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRuntime } from "./openclawGatewayClient";
 import { submitIntent } from "./intent";
-import { getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, startVoiceRecoveryWatchdog } from "./voiceRecovery";
+import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
 import { archiveSession, deleteSession, getRunStatus, listRuns } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
@@ -205,6 +205,9 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
         "/v1/extensions/android/voice-recovery/intentional-stop",
         "/v1/extensions/android/voice-recovery/probe",
         "/v1/extensions/android/voice-recovery/status",
+        "/v1/extensions/android/voice-recovery/pending",
+        "/v1/extensions/android/voice-recovery/suspend",
+        "/v1/extensions/android/voice-recovery/resume",
         "/v1/extensions/nostr/status",
         "/v1/extensions/nostr/setup-key",
         "/v1/extensions/nostr/contacts",
@@ -321,6 +324,22 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
 
   if (method === "GET" && routePath === "/voice-recovery/probe") {
     writeJson(res, 200, await probeChatGptVoiceActive());
+    return;
+  }
+
+  if (method === "POST" && routePath === "/voice-recovery/pending") {
+    writeJson(res, 200, consumeRecoveryPending());
+    return;
+  }
+
+  if (method === "POST" && routePath === "/voice-recovery/suspend") {
+    const body: Record<string, any> = await readJsonBody<Record<string, any>>(req).catch(() => ({}));
+    writeJson(res, 200, suspendVoiceRecovery(String(body.reason || "manual")));
+    return;
+  }
+
+  if (method === "POST" && routePath === "/voice-recovery/resume") {
+    writeJson(res, 200, resumeVoiceRecovery());
     return;
   }
 
@@ -801,6 +820,9 @@ async function capabilities(options: { trusted?: boolean } = {}) {
           { id: "terminal.command", method: "POST", path: "terminal/command", status: "local_only", risk: "high", requiresApproval: false, availabilityReason: "Loopback-only companion UI route; not an agent-callable tool." },
           { id: "terminal.session", method: "GET", path: "terminal/session", status: "local_only", risk: "medium", requiresApproval: false },
           { id: "voice-recovery.status", method: "GET", path: "voice-recovery/status", status: "local_only", risk: "low", requiresApproval: false },
+          { id: "voice-recovery.pending", method: "POST", path: "voice-recovery/pending", status: "local_only", risk: "low", requiresApproval: false },
+          { id: "voice-recovery.suspend", method: "POST", path: "voice-recovery/suspend", status: "local_only", risk: "medium", requiresApproval: false },
+          { id: "voice-recovery.resume", method: "POST", path: "voice-recovery/resume", status: "local_only", risk: "medium", requiresApproval: false },
           { id: "voice-recovery.probe", method: "GET", path: "voice-recovery/probe", status: "local_only", risk: "low", requiresApproval: false },
           { id: "voice-recovery.intentional-stop", method: "POST", path: "voice-recovery/intentional-stop", status: "local_only", risk: "medium", requiresApproval: false },
         ],
