@@ -15,11 +15,9 @@ flock -n 9 || exit 0
 log(){ printf '%s %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
 alive(){ pgrep -f '@wonderwhy-er/desktop-commander/dist/index.js remote' >/dev/null 2>&1; }
 notify(){
-  local msg="$1" target
-  target="$(openclaw config get commands.ownerAllowFrom 2>/dev/null | grep -oE '\+?[0-9]{8,15}' | head -1)"
-  [ -n "$target" ] || { log "WARN owner WhatsApp target unavailable"; return 1; }
-  openclaw message send --channel whatsapp --target "$target" --message "$msg" >/dev/null 2>&1 || log "WARN whatsapp notification failed"
+  "$HOME_DIR/ClawMobile/installer/termux-lite/incident-notify.sh" "remote_desktop" "$1"
 }
+
 restart_dc(){
   local n=1
   while [ "$n" -le "$MAX_RESTARTS" ]; do

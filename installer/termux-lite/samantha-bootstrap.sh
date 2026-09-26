@@ -13,7 +13,7 @@ start_if_missing 'openclaw-gateway' "$ROOT/gateway-start.sh" gateway || rc=1
 # Retry gateway after Android/Termux settles; cold boot can be slower.
 if ! pgrep -f 'openclaw-gateway' >/dev/null; then sleep 15; start_if_missing 'openclaw-gateway' "$ROOT/gateway-start.sh" gateway_retry || rc=1; fi
 start_if_missing 'dist/companion/server.js' "$ROOT/companion-server.sh" companion || rc=1
-start_if_missing 'remote-desktop-watchdog.sh' "$ROOT/remote-desktop-watchdog.sh" remote_watchdog || rc=1
+start_if_missing 'remote-desktop-supervisor.sh' "$ROOT/remote-desktop-supervisor.sh" remote_watchdog || rc=1
 start_if_missing 'adb-recovery-supervisor.sh' "$ROOT/adb-recovery-supervisor.sh" adb_watchdog || rc=1
 "$ROOT/chat-continuity-restore.sh" || rc=1
 log INFO complete "$([ "$rc" -eq 0 ] && echo ok || echo degraded)" "idempotent bootstrap completed"
