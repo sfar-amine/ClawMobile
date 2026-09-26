@@ -7,6 +7,7 @@ const DEFAULT_VERIFY_TIMEOUT_MS = 15_000;
 const DEFAULT_RECOVERY_COOLDOWN_MS = 60_000;
 const DEFAULT_MAX_RECOVERY_ATTEMPTS = 1;
 const DEFAULT_DEEP_LINK = "https://chatgpt.com/voice";
+const DEFAULT_RECOVERY_PHRASE = "Amine, je t’ai perdu. T’es encore là ?";
 
 type VoiceRecoveryState =
   | "disabled"
@@ -33,6 +34,7 @@ export type VoiceRecoveryStatus = {
   recoveryAttempts: number;
   recoveryPending: boolean;
   recoveryPendingSince?: number;
+  recoveryPhrase?: string;
   suspendedReason?: string;
   lastError?: string;
 };
@@ -86,6 +88,7 @@ export function markVoiceIntentionalStop(ttlMs = 20_000) {
   status.recoveryAttempts = 0;
   status.recoveryPending = false;
   status.recoveryPendingSince = undefined;
+  status.recoveryPhrase = undefined;
   return getVoiceRecoveryStatus();
 }
 
@@ -111,8 +114,10 @@ export function consumeRecoveryPending() {
   const pending = status.recoveryPending;
   const since = status.recoveryPendingSince;
   status.recoveryPending = false;
+  const phrase = status.recoveryPhrase || DEFAULT_RECOVERY_PHRASE;
   status.recoveryPendingSince = undefined;
-  return { pending, since };
+  status.recoveryPhrase = undefined;
+  return { pending, since, phrase };
 }
 export function startVoiceRecoveryWatchdog() {
   if (timerStarted) return;
@@ -161,6 +166,7 @@ async function observeAndRecover() {
       status.lastRecoverySucceededAt = now;
       status.recoveryPending = true;
       status.recoveryPendingSince = now;
+      status.recoveryPhrase = (process.env.CLAWMOBILE_VOICE_RECOVERY_PHRASE || DEFAULT_RECOVERY_PHRASE).trim();
       status.recoveryAttempts = 0;
       status.cooldownUntil = now + envMs(
         "CLAWMOBILE_VOICE_RECOVERY_COOLDOWN_MS",
