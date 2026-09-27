@@ -27,4 +27,11 @@ if supersedes: obj["supersedes"]=supersedes
 with open(tmp,"x") as f: json.dump(obj,f,ensure_ascii=False,separators=(",",":"))
 os.chmod(tmp,0o600); os.replace(tmp,tmp[:-4])
 PY
+# Primary path: transactionally ingest now so the new revision is immediately visible.
+# Materialization is best-effort here; the periodic compactor remains reconciliation/recovery.
+R="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+if [ -e "$Q/$id.json" ]; then
+  python3 "$R/context-store.py" ingest-file "$Q/$id.json" >/dev/null
+fi
+"$R/context-compact.sh" >/dev/null 2>&1 || true
 printf '%s\n' "$id"

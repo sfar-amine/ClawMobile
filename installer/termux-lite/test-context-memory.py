@@ -13,11 +13,11 @@ def T(name,fn):
  except Exception as e: tests.append((name,'FAIL',str(e)))
 def event(surface='chat',kind='decision',text='TEST-ALPHA règle ORANGE-47',extra=()):
  return run('context-event.sh',surface,kind,*extra,text).stdout.strip()
-T('U01 valid event creates pending',lambda: (lambda i: (_ for _ in ()).throw(AssertionError()) if not (root/'pending'/f'{i}.json').exists() else None)(event()))
-T('U02 duplicate is idempotent',lambda: (_ for _ in ()).throw(AssertionError()) if event()=='' or len(list((root/'pending').glob('*.json')))!=1 else None)
+T('U01 valid event becomes durable immediately',lambda: (lambda i: (_ for _ in ()).throw(AssertionError()) if not ((root/'pending'/f'{i}.json').exists() or (root/'processed'/f'{i}.json').exists()) else None)(event()))
+T('U02 duplicate is idempotent',lambda: (_ for _ in ()).throw(AssertionError()) if event()=='' or len(list((root/'pending').glob('*.json')))+len(list((root/'processed').glob('*.json')))!=1 else None)
 def u03():
  for s in ('work','voice','openclaw'): event(s,'learning',f'unit surface {s}')
- assert len(list((root/'pending').glob('*.json'))) == 4
+ assert len(list((root/'pending').glob('*.json')))+len(list((root/'processed').glob('*.json'))) == 4
 T('U03 all surfaces accepted',u03)
 T('U04 invalid surface rejected',lambda: run('context-event.sh','bad','decision','x',ok=(64,)))
 T('U05 secret OTP rejected',lambda: run('context-event.sh','chat','decision','OTP 123456',ok=(65,)))

@@ -4,10 +4,16 @@ H=pathlib.Path.home(); D=pathlib.Path(os.environ.get('SAMANTHA_CONTEXT_ROOT',H/'
 Q=D/'pending'; P=D/'processed'; S=D/'state'; A=D/'history'
 HY=pathlib.Path(os.environ.get('SAMANTHA_HYBRID_PATH',H/'.openclaw/workspace/context/HYBRID_CONTEXT.md')); DB=D/'memory.db'
 for p in (D,Q,P,S,A,HY.parent): p.mkdir(parents=True,exist_ok=True)
-os.chmod(D,0o700); con=sqlite3.connect(DB); con.execute('PRAGMA journal_mode=WAL')
-con.execute('CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,surface TEXT,kind TEXT,text TEXT,created_at TEXT,ingested_at TEXT,supersedes TEXT)')
+os.chmod(D,0o700); con=sqlite3.connect(DB,timeout=30); con.execute('PRAGMA journal_mode=WAL'); con.execute('PRAGMA busy_timeout=30000')
+con.execute('CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,surface TEXT,kind TEXT,text TEXT,created_at TEXT,ingested_at TEXT,supersedes TEXT,revision INTEGER)')
 cols=[x[1] for x in con.execute('pragma table_info(events)')]
 if 'supersedes' not in cols: con.execute('ALTER TABLE events ADD COLUMN supersedes TEXT')
+if 'revision' not in cols: con.execute('ALTER TABLE events ADD COLUMN revision INTEGER')
+con.execute('CREATE TABLE IF NOT EXISTS memory_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL)')
+con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_events_revision ON events(revision)')
+head=con.execute("SELECT COALESCE(MAX(revision),0) FROM events").fetchone()[0]
+con.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('schema_version','2')")
+con.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('current_revision',?)",(str(head),))
 pending=sorted(Q.glob('*.json')); sources=sorted(P.glob('*.json'))+pending; accepted=[]; valid_pending=[]; invalid=[]
 for p in sources:
     try:
@@ -16,8 +22,13 @@ for p in sources:
         if e['surface'] not in ('chat','work','voice','openclaw'): raise ValueError('bad surface')
         if e['kind'] not in ('decision','learning','open_thread','completed_action','constraint','checkpoint'): raise ValueError('bad kind')
         now=datetime.datetime.now(datetime.timezone.utc).isoformat()
-        cur=con.execute('INSERT OR IGNORE INTO events VALUES(?,?,?,?,?,?,?)',(e['id'],e['surface'],e['kind'],' '.join(str(e['text']).split()),e['createdAt'],now,e.get('supersedes')))
-        if cur.rowcount: accepted.append(e)
+        exists=con.execute('SELECT revision FROM events WHERE id=?',(e['id'],)).fetchone()
+        if not exists:
+            head+=1
+            con.execute('INSERT INTO events(id,surface,kind,text,created_at,ingested_at,supersedes,revision) VALUES(?,?,?,?,?,?,?,?)',
+                        (e['id'],e['surface'],e['kind'],' '.join(str(e['text']).split()),e['createdAt'],now,e.get('supersedes'),head))
+            con.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('current_revision',?)",(str(head),))
+            e['revision']=head; accepted.append(e)
         if p.parent==Q: valid_pending.append(p)
     except Exception as ex:
         if p.parent==Q: invalid.append((p,str(ex)))
@@ -37,7 +48,7 @@ for r in rows:
     if r[2] in groups and len(groups[r[2]])<caps[r[2]]: groups[r[2]].append(r)
 start='<!-- SAMANTHA_MEMORY_VIEW_START -->'; end='<!-- SAMANTHA_MEMORY_VIEW_END -->'
 labels={'open_thread':'Open threads','decision':'Recent decisions','constraint':'Active constraints','learning':'Recent learnings','completed_action':'Recent completed actions','checkpoint':'Recent checkpoints'}
-out=[start,'## Bounded cross-surface memory view — '+datetime.datetime.now().astimezone().strftime('%Y-%m-%d %H:%M %z'),'','> Generated from the durable event store. Full history is retrieved on demand; this view is intentionally bounded.']
+out=[start,'## Bounded cross-surface memory view — '+datetime.datetime.now().astimezone().strftime('%Y-%m-%d %H:%M %z'),'','> Memory revision: '+str(head),'','> Generated from the durable event store. Full history is retrieved on demand; this view is intentionally bounded.']
 for k in caps:
     if groups[k]:
         out+=['','### '+labels[k]]
@@ -52,7 +63,7 @@ fd,tmp=tempfile.mkstemp(prefix='hybrid.',dir=str(D)); os.close(fd); pathlib.Path
 for p in valid_pending:
     if p.exists(): os.replace(p,P/p.name)
 (S/'last_compaction').write_text(datetime.datetime.now().astimezone().isoformat()+'\n')
-result={'pending_seen':len(pending),'accepted':len(accepted),'invalid':len(invalid),'indexed':con.execute('select count(*) from events').fetchone()[0],'view_events':sum(map(len,groups.values()))}
+result={'pending_seen':len(pending),'accepted':len(accepted),'invalid':len(invalid),'indexed':con.execute('select count(*) from events').fetchone()[0],'view_events':sum(map(len,groups.values())),'head_revision':head}
 print(json.dumps(result,separators=(',',':')))
 if invalid:
     for p,e in invalid: print(f'invalid pending event retained: {p.name}: {e}',file=__import__('sys').stderr)
