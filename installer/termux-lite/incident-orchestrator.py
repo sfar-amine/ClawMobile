@@ -3,15 +3,16 @@ from __future__ import annotations
 import argparse, hashlib, json, sqlite3, time
 from pathlib import Path
 DB=Path.home()/".openclaw"/"incidents"/"orchestrator.db"
-TERMINAL={"recovered","human_required","failed"}
+TERMINAL={"recovered","failed"}
 TRANSITIONS={
- "detected":{"deterministic_recovery","diagnosing","human_required","failed"},
+ "detected":{"deterministic_recovery","diagnosing","verifying","human_required","failed"},
  "deterministic_recovery":{"diagnosing","verifying","human_required","failed"},
- "diagnosing":{"planning","human_required","failed"},
- "planning":{"repairing","human_required","failed"},
+ "diagnosing":{"planning","verifying","human_required","failed"},
+ "planning":{"repairing","verifying","human_required","failed"},
  "repairing":{"verifying","rolling_back","diagnosing","human_required","failed"},
- "rolling_back":{"diagnosing","failed"},
+ "rolling_back":{"diagnosing","verifying","failed"},
  "verifying":{"recovered","diagnosing","human_required","failed"},
+ "human_required":{"diagnosing","verifying","recovered","failed"},
 }
 def connect():
  DB.parent.mkdir(parents=True,exist_ok=True);c=sqlite3.connect(DB);c.row_factory=sqlite3.Row
@@ -36,6 +37,15 @@ def transition(i,to,source,reason="",human_boundary=False):
  emit(c,i,source,"transition",{"from":fr,"to":to,"reason":reason,"human_boundary":bool(human_boundary)});c.commit();out=dict(c.execute("SELECT * FROM incidents WHERE id=?",(i,)).fetchone());c.close();return out
 def observe(i,source,kind,payload):
  c=connect();emit(c,i,source,kind,payload);c.execute("UPDATE incidents SET updated=? WHERE id=?",(time.time(),i));c.commit();c.close()
+
+def recover_incident(component,scope,source,reason="verified service recovery"):
+ c=connect();i=iid(component,scope);row=c.execute("SELECT * FROM incidents WHERE id=?",(i,)).fetchone();c.close()
+ if not row: return None
+ if row["state"]=="recovered": return dict(row)
+ if row["state"]=="failed": raise SystemExit("failed incident cannot recover without explicit reopen")
+ if row["state"]!="verifying": transition(i,"verifying",source,reason)
+ return transition(i,"recovered",source,reason)
+
 def show(i):
  c=connect();row=c.execute("SELECT * FROM incidents WHERE id=?",(i,)).fetchone();ev=[dict(x) for x in c.execute("SELECT * FROM events WHERE incident_id=? ORDER BY seq",(i,))];c.close();return {"incident":dict(row) if row else None,"events":ev}
 def main():
@@ -43,11 +53,13 @@ def main():
  o=s.add_parser("open");o.add_argument("component");o.add_argument("scope");o.add_argument("--source",required=True);o.add_argument("--summary",default="")
  t=s.add_parser("transition");t.add_argument("id");t.add_argument("state");t.add_argument("--source",required=True);t.add_argument("--reason",default="");t.add_argument("--human-boundary",action="store_true")
  e=s.add_parser("observe");e.add_argument("id");e.add_argument("kind");e.add_argument("--source",required=True);e.add_argument("--json",default="{}")
+ r=s.add_parser("recover");r.add_argument("component");r.add_argument("scope");r.add_argument("--source",required=True);r.add_argument("--reason",default="verified service recovery")
  g=s.add_parser("show");g.add_argument("id")
  a=p.parse_args()
  if a.cmd=="open": out=open_incident(a.component,a.scope,a.source,a.summary)
  elif a.cmd=="transition": out=transition(a.id,a.state,a.source,a.reason,a.human_boundary)
  elif a.cmd=="observe": observe(a.id,a.source,a.kind,json.loads(a.json));out=show(a.id)
+ elif a.cmd=="recover": out=recover_incident(a.component,a.scope,a.source,a.reason)
  else: out=show(a.id)
  print(json.dumps(out,ensure_ascii=False,indent=2))
 if __name__=="__main__": main()
