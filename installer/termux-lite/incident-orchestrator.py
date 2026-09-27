@@ -15,7 +15,7 @@ TRANSITIONS={
  "human_required":{"diagnosing","verifying","recovered","failed"},
 }
 def connect():
- DB.parent.mkdir(parents=True,exist_ok=True);c=sqlite3.connect(DB);c.row_factory=sqlite3.Row
+ DB.parent.mkdir(parents=True,exist_ok=True);c=sqlite3.connect(DB,timeout=5.0);c.row_factory=sqlite3.Row;c.execute("PRAGMA busy_timeout=5000")
  c.executescript("""CREATE TABLE IF NOT EXISTS incidents(id TEXT PRIMARY KEY,component TEXT,scope TEXT,state TEXT,created REAL,updated REAL,human_boundary INTEGER DEFAULT 0,human_reason TEXT,summary TEXT);
  CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,incident_id TEXT,ts REAL,source TEXT,kind TEXT,payload TEXT);
  CREATE INDEX IF NOT EXISTS idx_events_incident ON events(incident_id,seq);""");return c
