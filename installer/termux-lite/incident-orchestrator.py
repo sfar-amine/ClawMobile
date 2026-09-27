@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 from __future__ import annotations
-import argparse, hashlib, json, sqlite3, time
+import argparse, hashlib, json, sqlite3, time, subprocess, sys
 from pathlib import Path
 DB=Path.home()/".openclaw"/"incidents"/"orchestrator.db"
 TERMINAL={"recovered","failed"}
@@ -39,7 +39,11 @@ def transition(i,to,source,reason="",human_boundary=False):
  if to!=fr and to not in TRANSITIONS.get(fr,set()): raise SystemExit(f"invalid transition {fr}->{to}")
  if to=="human_required" and not human_boundary: raise SystemExit("human_required requires verified human boundary")
  c.execute("UPDATE incidents SET state=?,updated=?,human_boundary=?,human_reason=? WHERE id=?",(to,time.time(),1 if human_boundary else row["human_boundary"],reason if human_boundary else row["human_reason"],i))
- emit(c,i,source,"transition",{"from":fr,"to":to,"reason":reason,"human_boundary":bool(human_boundary)});c.commit();out=dict(c.execute("SELECT * FROM incidents WHERE id=?",(i,)).fetchone());c.close();return out
+ emit(c,i,source,"transition",{"from":fr,"to":to,"reason":reason,"human_boundary":bool(human_boundary)});c.commit();out=dict(c.execute("SELECT * FROM incidents WHERE id=?",(i,)).fetchone());c.close()
+ if to in {"recovered","failed","human_required"}:
+  helper=Path(__file__).with_name("incident-continuation.py")
+  subprocess.run([sys.executable,str(helper),"emit",i,to,out["component"],out["scope"],reason],check=False,stdout=subprocess.DEVNULL)
+ return out
 def observe(i,source,kind,payload):
  c=connect();emit(c,i,source,kind,payload);c.execute("UPDATE incidents SET updated=? WHERE id=?",(time.time(),i));c.commit();c.close()
 

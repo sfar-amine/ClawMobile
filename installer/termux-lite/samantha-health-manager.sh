@@ -21,6 +21,7 @@ while :; do
  check_supervisor adb_watchdog '[a]db-recovery-watchdog.sh' "$ROOT/adb-recovery-watchdog.sh"
  check_supervisor remote_watchdog '[r]emote-desktop-watchdog.sh' "$ROOT/remote-desktop-watchdog.sh"
  check_supervisor incident_manager '[i]ncident-manager.sh' "$ROOT/incident-manager.sh"
+ "$ROOT/incident-reconcile.sh" >/dev/null 2>&1 || true
  check_adb
  check_http gateway http://127.0.0.1:18789/healthz '[o]penclaw-gateway' "$ROOT/gateway-start.sh" 120 45
  check_http companion http://127.0.0.1:8765/ 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 12 20
