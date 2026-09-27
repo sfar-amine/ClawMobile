@@ -5,6 +5,7 @@ exec 9>"$D/guardian.lock"; flock -n 9 || exit 0
 log(){ printf '%s component=root-guardian %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
 log 'event=start result=ok'
 while :; do
+  printf '%s' "$(date +%s)" >"$HOME/.openclaw/health/root-guardian.heartbeat"
   if ! pgrep -f '[s]amantha-health-manager.sh' >/dev/null; then
     log 'event=health_manager_missing action=start'
     nohup "$ROOT/samantha-health-manager.sh" 9>&- >>"$D/health-manager.stderr.log" 2>&1 </dev/null &

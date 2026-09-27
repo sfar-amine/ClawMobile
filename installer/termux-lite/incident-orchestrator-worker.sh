@@ -4,6 +4,7 @@ ROOT="$HOME/ClawMobile/installer/termux-lite"; DB="$HOME/.openclaw/incidents/orc
 mkdir -p "$(dirname "$LOG")"; exec 9>"$HOME/.openclaw/incidents/orchestrator-worker.lock"; flock -n 9 || exit 0
 log(){ printf '%s component=incident-orchestrator %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
 while :; do
+  printf '%s' "$(date +%s)" >"$HOME/.openclaw/health/incident-orchestrator.heartbeat"
   row=$(python3 - "$DB" <<'PY'
 import sqlite3,sys
 try:
@@ -21,6 +22,15 @@ EOF
     log "incident=$iid component=$component transition=diagnosing"; continue
   fi
   if [ "$state" = diagnosing ]; then
+    case "$component" in
+      adb|gateway-secretref-exec|openclaw-agent-headless) ;;
+      *)
+        "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "no enabled managed repair handler" >/dev/null 2>&1 || true
+        log "incident=$iid component=$component terminal=failed reason=no_managed_handler"
+        sleep 5
+        continue
+        ;;
+    esac
     log "incident=$iid component=$component action=diagnose"
     if "$ROOT/autonomous-engineering-shadow.sh" "$component" 3 "$iid"; then
       log "incident=$iid component=$component diagnosis=completed"

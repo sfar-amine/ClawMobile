@@ -11,4 +11,4 @@ process(){ dir="$1"; id=$(basename "$dir"); st=$(cat "$dir/status" 2>/dev/null||
   if timeout 35 "$ROOT/incident-email.sh" "Samantha: intervention requise" "$body"; then printf notified >"$dir/status"; printf email >"$dir/channel"; log "$id" "kind=$kind channel=email state=accepted"; else printf '%s' $((now+300)) >"$dir/next"; log "$id" "kind=$kind channel=email state=failed retry_in_s=300"; fi
 }
 printf '%s component=incident-manager event=start state=ok\n' "$(date -Iseconds)" >>"$LOG"
-while :; do for dir in "$Q"/*; do [ -d "$dir" ] && process "$dir"; done; sleep 10; done
+while :; do printf '%s' "$(date +%s)" >"$HOME/.openclaw/health/incident-manager.heartbeat"; for dir in "$Q"/*; do [ -d "$dir" ] && process "$dir"; done; sleep 10; done
