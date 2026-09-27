@@ -1,3 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
-exec "$HOME/ClawMobile/installer/termux-lite/gateway-secretref-exec.sh" agent exec "$@"
+ROOT="$HOME/ClawMobile/installer/termux-lite"
+CFG="$($ROOT/openclaw-headless-config.py)"
+export OPENCLAW_DISABLE_BUNDLED_PLUGINS=1
+exec "$ROOT/gateway-secretref-exec.sh" agent exec --config "$CFG" "$@"

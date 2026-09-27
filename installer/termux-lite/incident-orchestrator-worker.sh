@@ -75,10 +75,25 @@ PY2
     elif [ "$component" = gateway-secretref-exec ]; then
       if "$ROOT/gateway-secretref-exec.sh" --help >/dev/null 2>&1; then
         "$ROOT/incident-orchestrator.py" transition "$iid" verifying --source orchestrator-worker --reason "secure gateway SecretRef execution wrapper installed" >/dev/null 2>&1 || true
-        "$ROOT/incident-orchestrator.py" recover "$iid" --source orchestrator-worker --reason "gateway SecretRef resolver verified without persisted secret" >/dev/null 2>&1 || true
-        log "incident=$iid component=$component terminal=recovered handler=secure_secretref_exec"
+        if "$ROOT/incident-orchestrator.py" recover "$component" "$scope" --source orchestrator-worker --reason "gateway SecretRef resolver verified without persisted secret" >/dev/null 2>&1; then
+          log "incident=$iid component=$component terminal=recovered handler=secure_secretref_exec"
+        else
+          log "incident=$iid component=$component state=verifying result=recover_transition_failed"
+        fi
       else
         "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "managed SecretRef repair verification failed" >/dev/null 2>&1 || true
+      fi
+    elif [ "$component" = openclaw-agent-headless ]; then
+      if "$ROOT/openclaw-headless-smoke.sh" >/dev/null 2>&1; then
+        "$ROOT/incident-orchestrator.py" transition "$iid" verifying --source orchestrator-worker --reason "headless profile regenerated with plugins disabled and bounded model policy" >/dev/null 2>&1 || true
+        if "$ROOT/incident-orchestrator.py" recover "$component" "$scope" --source orchestrator-worker --reason "headless agent smoke verified end-to-end" >/dev/null 2>&1; then
+          "$ROOT/capability-recovered.py" openclaw.agent.headless >/dev/null 2>&1 || true
+          log "incident=$iid component=$component terminal=recovered handler=headless_profile_smoke"
+        else
+          log "incident=$iid component=$component state=verifying result=recover_transition_failed"
+        fi
+      else
+        "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "managed headless smoke verification failed" >/dev/null 2>&1 || true
       fi
     else
       "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "no enabled managed repair handler" >/dev/null 2>&1 || true
