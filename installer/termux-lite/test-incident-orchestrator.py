@@ -15,6 +15,14 @@ class T(unittest.TestCase):
   a=io.open_incident("gateway","runtime","health","down");i=a["id"]
   for st in ["deterministic_recovery","diagnosing","planning","repairing","verifying","recovered"]:io.transition(i,st,"test")
   self.assertEqual(io.show(i)["incident"]["state"],"recovered")
+ def test_recurrence_after_recovery_opens_new_episode(self):
+  a=io.open_incident("adb","boot-1","watchdog","down");i=a["id"]
+  io.transition(i,"human_required","orchestrator","pairing required",True)
+  io.recover_incident("adb","boot-1","health","canonical adb verified")
+  b=io.open_incident("adb","boot-1","watchdog","down again")
+  self.assertNotEqual(i,b["id"]);self.assertEqual(b["state"],"detected")
+  self.assertEqual(io.open_incident("adb","boot-1","health","still down")["id"],b["id"])
+  self.assertEqual(io.recover_incident("adb","boot-1","health","recovered again")["id"],b["id"])
  def test_terminal(self):
   a=io.open_incident("gateway","runtime","health","down");i=a["id"];io.transition(i,"failed","test")
   with self.assertRaises(SystemExit):io.transition(i,"diagnosing","test")

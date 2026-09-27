@@ -23,8 +23,13 @@ def iid(component,scope): return hashlib.sha256(f"{component}:{scope}".encode())
 def emit(c,i,source,kind,payload):
  c.execute("INSERT INTO events(incident_id,ts,source,kind,payload) VALUES(?,?,?,?,?)",(i,time.time(),source,kind,json.dumps(payload,ensure_ascii=False,sort_keys=True)))
 def open_incident(component,scope,source,summary):
- c=connect();i=iid(component,scope);now=time.time()
- c.execute("INSERT OR IGNORE INTO incidents(id,component,scope,state,created,updated,summary) VALUES(?,?,?,?,?,?,?)",(i,component,scope,"detected",now,now,summary))
+ c=connect();now=time.time();c.execute("BEGIN IMMEDIATE")
+ row=c.execute("SELECT * FROM incidents WHERE component=? AND scope=? ORDER BY created DESC LIMIT 1",(component,scope)).fetchone()
+ if row and row["state"] not in TERMINAL:
+  i=row["id"]
+ else:
+  i=iid(component,scope) if row is None else hashlib.sha256(f"{component}:{scope}:{time.time_ns()}".encode()).hexdigest()[:20]
+  c.execute("INSERT INTO incidents(id,component,scope,state,created,updated,summary) VALUES(?,?,?,?,?,?,?)",(i,component,scope,"detected",now,now,summary))
  emit(c,i,source,"observed",{"summary":summary});c.commit();row=dict(c.execute("SELECT * FROM incidents WHERE id=?",(i,)).fetchone());c.close();return row
 def transition(i,to,source,reason="",human_boundary=False):
  c=connect();row=c.execute("SELECT * FROM incidents WHERE id=?",(i,)).fetchone()
@@ -39,8 +44,9 @@ def observe(i,source,kind,payload):
  c=connect();emit(c,i,source,kind,payload);c.execute("UPDATE incidents SET updated=? WHERE id=?",(time.time(),i));c.commit();c.close()
 
 def recover_incident(component,scope,source,reason="verified service recovery"):
- c=connect();i=iid(component,scope);row=c.execute("SELECT * FROM incidents WHERE id=?",(i,)).fetchone();c.close()
+ c=connect();row=c.execute("SELECT * FROM incidents WHERE component=? AND scope=? ORDER BY created DESC LIMIT 1",(component,scope)).fetchone();c.close()
  if not row: return None
+ i=row["id"]
  if row["state"]=="recovered": return dict(row)
  if row["state"]=="failed": raise SystemExit("failed incident cannot recover without explicit reopen")
  if row["state"]!="verifying": transition(i,"verifying",source,reason)
