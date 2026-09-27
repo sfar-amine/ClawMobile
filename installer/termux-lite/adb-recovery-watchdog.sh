@@ -14,12 +14,12 @@ exec 9>"$LOCK"
 flock -n 9 || exit 0
 # Keep the singleton lock for the full watchdog lifetime. Close fd 9 only on spawned descendants when needed.
 log(){ printf '%s component=adb-recovery severity=%s event=%s result=%s detail="%s"\n' "$(date -Iseconds)" "$1" "$2" "$3" "$4" >>"$LOG"; }
-adb_up(){ timeout 3 adb -s "127.0.0.1:$STABLE_PORT" get-state 2>/dev/null | grep -qx device; }
-adb_ep_up(){ timeout 3 adb -s "$1" get-state 2>/dev/null | grep -qx device; }
+adb_up(){ timeout 3 adb 9>&- -s "127.0.0.1:$STABLE_PORT" get-state 2>/dev/null | grep -qx device; }
+adb_ep_up(){ timeout 3 adb 9>&- -s "$1" get-state 2>/dev/null | grep -qx device; }
 ep_matches_expected(){
   ep="$1"; expected="$(cat "$STATE_DIR/adb-expected-serial" 2>/dev/null || true)"
   [ -n "$expected" ] || return 1
-  actual="$(timeout 4 adb -s "$ep" shell getprop ro.serialno 2>/dev/null | tr -d '\r\n')"
+  actual="$(timeout 4 adb 9>&- -s "$ep" shell getprop ro.serialno 2>/dev/null | tr -d '\r\n')"
   [ "$actual" = "$expected" ]
 }
 wifi_up(){
@@ -36,8 +36,8 @@ wifi_up(){
 notify_info(){ "$HOME/ClawMobile/installer/termux-lite/incident-notify.sh" info "$1"; }
 
 recover_adb(){
-  adb start-server >/dev/null 2>&1 || true
-  adb connect "127.0.0.1:$STABLE_PORT" >/dev/null 2>&1 || true
+  adb 9>&- start-server >/dev/null 2>&1 || true
+  adb 9>&- connect "127.0.0.1:$STABLE_PORT" >/dev/null 2>&1 || true
   adb_up && return 0
 
   # Retry the last trusted dynamic endpoint, then rediscover the current
@@ -56,12 +56,12 @@ recover_adb(){
     case "$ep" in
       127.0.0.1:$STABLE_PORT|localhost:$STABLE_PORT) continue ;;
       127.0.0.1:[0-9]*|localhost:[0-9]*|[0-9]*.[0-9]*.[0-9]*.[0-9]*:[0-9]*)
-        adb connect "$ep" >/dev/null 2>&1 || true
+        adb 9>&- connect "$ep" >/dev/null 2>&1 || true
         if adb_ep_up "$ep" && ep_matches_expected "$ep"; then
           printf '%s' "$ep" >"$STATE_DIR/adb-last-endpoint"
-          adb -s "$ep" tcpip "$STABLE_PORT" >/dev/null 2>&1 || true
+          adb 9>&- -s "$ep" tcpip "$STABLE_PORT" >/dev/null 2>&1 || true
           sleep 2
-          adb connect "127.0.0.1:$STABLE_PORT" >/dev/null 2>&1 || true
+          adb 9>&- connect "127.0.0.1:$STABLE_PORT" >/dev/null 2>&1 || true
           adb_up && return 0
         fi
         ;;
@@ -75,6 +75,7 @@ prev="$(cat "$STATE" 2>/dev/null || printf unknown)"
 recovery_tries=0
 log INFO start ok "watchdog started previous=$prev"
 while :; do
+  printf '%s' "$(date +%s)" >"$HOME_DIR/.openclaw/health/adb-watchdog.heartbeat"
   if adb_up; then
     if [ "$prev" != up ]; then
       log INFO recovered ok "ADB operational"
