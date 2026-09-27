@@ -5,8 +5,7 @@ exec 9>"$D/manager.lock"; flock -n 9 || exit 0
 log(){ printf '%s id=%s %s\n' "$(date -Iseconds)" "$1" "$2" >>"$LOG"; }
 process(){ dir="$1"; id=$(basename "$dir"); st=$(cat "$dir/status" 2>/dev/null||echo pending); [ "$st" = pending ] || return; kind=$(cat "$dir/kind"); msg=$(cat "$dir/message"); action=$(cat "$dir/action" 2>/dev/null||true); body="$msg"; if [ "$kind" = human_required ]; then body="$msg\n\nÀ faire sur le S24 :\n$action\n\nEnsuite : aucune autre action. Samantha détectera le prérequis, reprendra automatiquement le traitement et confirmera la récupération."; fi;
   tries=$(cat "$dir/tries" 2>/dev/null||echo 0); now=$(date +%s); next=$(cat "$dir/next" 2>/dev/null||echo 0); [ "$now" -ge "$next" ] || return
-  target=$(timeout 8 openclaw config get commands.ownerAllowFrom 2>/dev/null|grep -o 'whatsapp:[^" ]*'|head -1|cut -d: -f2-)
-  if [ -n "$target" ] && timeout 20 openclaw message send --channel whatsapp --target "$target" --message "$body" >/dev/null 2>&1; then printf notified >"$dir/status"; printf whatsapp >"$dir/channel"; log "$id" "kind=$kind channel=whatsapp state=accepted"; return; fi
+  if timeout 18 "$ROOT/whatsapp-owner-send.sh" "$body" "incident-$id" >/dev/null 2>&1; then printf notified >"$dir/status"; printf whatsapp >"$dir/channel"; log "$id" "kind=$kind channel=whatsapp state=accepted"; return; fi
   tries=$((tries+1)); printf '%s' "$tries" >"$dir/tries"; log "$id" "kind=$kind channel=whatsapp state=failed attempt=$tries"
   if [ "$tries" -lt 3 ]; then printf '%s' $((now+tries*tries*10)) >"$dir/next"; return; fi
   if timeout 35 "$ROOT/incident-email.sh" "Samantha: intervention requise" "$body"; then printf notified >"$dir/status"; printf email >"$dir/channel"; log "$id" "kind=$kind channel=email state=accepted"; else printf '%s' $((now+300)) >"$dir/next"; log "$id" "kind=$kind channel=email state=failed retry_in_s=300"; fi

@@ -17,7 +17,8 @@ check "OpenClaw Gateway" sh -c 'command -v curl >/dev/null && curl -fsS --max-ti
 check "Companion" sh -c 'command -v curl >/dev/null && curl -fsS --max-time 3 http://127.0.0.1:8765/v1/health >/dev/null'
 printf '%-24s ' "WhatsApp"
 ws="$(timeout 8 openclaw channels status 2>/dev/null || true)"
-last_wa="$(grep 'channel=whatsapp state=' "$HOME/.openclaw/incidents/events.log" 2>/dev/null | tail -n 1 || true)"
+last_wa="$(tail -n 1 "$HOME/.openclaw/health/whatsapp-outbound.log" 2>/dev/null || true)"
+[ -n "$last_wa" ] || last_wa="$(grep 'channel=whatsapp state=' "$HOME/.openclaw/incidents/events.log" 2>/dev/null | tail -n 1 || true)"
 if ! printf '%s' "$ws" | grep -qi 'connected'; then echo DOWN; bad=$((bad+1))
 elif printf '%s' "$last_wa" | grep -q 'state=failed'; then echo DEGRADED_OUTBOUND; degraded=$((degraded+1))
 else echo UP; ok=$((ok+1)); fi
