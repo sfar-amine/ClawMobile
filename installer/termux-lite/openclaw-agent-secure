@@ -1,5 +1,13 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 ROOT="$HOME/ClawMobile/installer/termux-lite"
-CFG="$($ROOT/openclaw-headless-config.py)"
-exec "$ROOT/gateway-secretref-exec.sh" agent exec --config "$CFG" "$@"
+args=()
+while (($#)); do
+  case "$1" in
+    --code-mode) shift; (($#)) && shift ;;
+    --config|--state-dir|--auth-env-only) shift; (($#)) && shift ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+session="agent:engineering-lite:headless-$(date +%s)-$$"
+exec "$ROOT/gateway-secretref-exec.sh" agent --agent engineering-lite --session-key "$session" "${args[@]}"

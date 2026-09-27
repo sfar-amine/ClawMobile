@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$HOME/ClawMobile/installer/termux-lite"
 PROMPT="$HOME/.cache/openclaw-headless-smoke.txt"
 mkdir -p "$HOME/.cache"
-printf '%s\n' 'Return exactly HEADLESS_OK and nothing else.' >"$PROMPT"
-out="$(timeout 45 "$ROOT/openclaw-agent-secure" --message-file "$PROMPT" --model openai/gpt-5.6-luna --thinking off --code-mode direct --timeout 25 --json 2>/dev/null)"
-python3 -c 'import json,sys; d=json.loads(sys.stdin.read()); assert d.get("ok") is True and d.get("final","").strip()=="HEADLESS_OK"' <<<"$out"
-printf '%s\n' HEADLESS_SMOKE_OK
+printf '%s\\n' 'Return exactly HEADLESS_OK and nothing else.' >"$PROMPT"
+out="$(timeout 55 "$ROOT/openclaw-agent-secure" --message-file "$PROMPT" --model openai/gpt-5.6-luna --thinking off --timeout 35 --json 2>/dev/null)"
+python3 -c 'import json,sys; d=json.loads(sys.stdin.read()); assert d.get("status")=="ok"; p=d.get("result",{}).get("payloads",[]); assert p and p[0].get("text","").strip()=="HEADLESS_OK"; m=d.get("result",{}).get("meta",{}).get("agentMeta",{}); assert m.get("provider")=="openai" and m.get("credentialSource",{}).get("kind")=="profile"' <<<"$out"
+printf '%s\\n' HEADLESS_SMOKE_OK
