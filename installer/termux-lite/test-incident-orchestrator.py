@@ -18,4 +18,9 @@ class T(unittest.TestCase):
  def test_terminal(self):
   a=io.open_incident("gateway","runtime","health","down");i=a["id"];io.transition(i,"failed","test")
   with self.assertRaises(SystemExit):io.transition(i,"diagnosing","test")
+ def test_human_required_can_resume_to_recovered(self):
+  a=io.open_incident("adb","boot-2","watchdog","down");i=a["id"]
+  io.transition(i,"human_required","orchestrator","pairing required",True)
+  r=io.recover_incident("adb","boot-2","health","canonical adb verified")
+  self.assertEqual(r["state"],"recovered")
 if __name__=="__main__":unittest.main()

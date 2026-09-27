@@ -15,7 +15,15 @@ flock -n 9 || exit 0
 # Do not let long-lived notification/transport descendants inherit the watchdog lock.
 exec 9>&-
 log(){ printf '%s component=adb-recovery severity=%s event=%s result=%s detail="%s"\n' "$(date -Iseconds)" "$1" "$2" "$3" "$4" >>"$LOG"; }
-adb_up(){ adb devices 2>/dev/null | awk 'NR>1 && $2=="device"{found=1} END{exit !found}'; }
+adb_up(){ timeout 3 adb -s "127.0.0.1:$STABLE_PORT" get-state 2>/dev/null | grep -qx device; }
+adb_ep_up(){ timeout 3 adb -s "$1" get-state 2>/dev/null | grep -qx device; }
+ep_matches_expected(){
+  ep="$1"; expected="$(cat "$STATE_DIR/adb-expected-serial" 2>/dev/null || true)"
+  [ -n "$expected" ] || return 1
+  actual="$(timeout 4 adb -s "$ep" shell getprop ro.serialno 2>/dev/null | tr -d '
+')"
+  [ "$actual" = "$expected" ]
+}
 wifi_up(){
   # Android may hide /sys/class/net and netlink from Termux. Try several
   # non-invasive signals; a positive result is enough to start recovery.
@@ -34,22 +42,37 @@ recover_adb(){
   adb connect "127.0.0.1:$STABLE_PORT" >/dev/null 2>&1 || true
   adb_up && return 0
 
-  # If a previously trusted dynamic Wireless Debugging endpoint was recorded,
-  # retry it. Never manufacture an endpoint or pairing credential.
+  # Retry the last trusted dynamic endpoint, then rediscover the current
+  # Android Wireless Debugging endpoint through local mDNS.
+  candidates=""
   if [ -s "$STATE_DIR/adb-last-endpoint" ]; then
-    ep="$(cat "$STATE_DIR/adb-last-endpoint" 2>/dev/null)"
+    candidates="$(cat "$STATE_DIR/adb-last-endpoint" 2>/dev/null)"
+  fi
+  expected="$(cat "$STATE_DIR/adb-expected-serial" 2>/dev/null || true)"
+  if [ -n "$expected" ]; then
+    discovered="$("$HOME_DIR/ClawMobile/installer/termux-lite/adb-discover-endpoint.py" --serial "$expected" --timeout 4 2>/dev/null || true)"
+    candidates="$(printf '%s
+%s
+' "$candidates" "$discovered" | awk 'NF && !seen[$0]++')"
+  fi
+  while IFS= read -r ep; do
+    [ -n "$ep" ] || continue
     case "$ep" in
-      127.0.0.1:[0-9]*|localhost:[0-9]*)
+      127.0.0.1:$STABLE_PORT|localhost:$STABLE_PORT) continue ;;
+      127.0.0.1:[0-9]*|localhost:[0-9]*|[0-9]*.[0-9]*.[0-9]*.[0-9]*:[0-9]*)
         adb connect "$ep" >/dev/null 2>&1 || true
-        if adb_up; then
-          adb tcpip "$STABLE_PORT" >/dev/null 2>&1 || true
+        if adb_ep_up "$ep" && ep_matches_expected "$ep"; then
+          printf '%s' "$ep" >"$STATE_DIR/adb-last-endpoint"
+          adb -s "$ep" tcpip "$STABLE_PORT" >/dev/null 2>&1 || true
           sleep 2
           adb connect "127.0.0.1:$STABLE_PORT" >/dev/null 2>&1 || true
           adb_up && return 0
         fi
         ;;
     esac
-  fi
+  done <<EOF
+$candidates
+EOF
   return 1
 }
 prev="$(cat "$STATE" 2>/dev/null || printf unknown)"
