@@ -20,8 +20,7 @@ adb_ep_up(){ timeout 3 adb -s "$1" get-state 2>/dev/null | grep -qx device; }
 ep_matches_expected(){
   ep="$1"; expected="$(cat "$STATE_DIR/adb-expected-serial" 2>/dev/null || true)"
   [ -n "$expected" ] || return 1
-  actual="$(timeout 4 adb -s "$ep" shell getprop ro.serialno 2>/dev/null | tr -d '
-')"
+  actual="$(timeout 4 adb -s "$ep" shell getprop ro.serialno 2>/dev/null | tr -d '\r\n')"
   [ "$actual" = "$expected" ]
 }
 wifi_up(){
@@ -51,9 +50,7 @@ recover_adb(){
   expected="$(cat "$STATE_DIR/adb-expected-serial" 2>/dev/null || true)"
   if [ -n "$expected" ]; then
     discovered="$("$HOME_DIR/ClawMobile/installer/termux-lite/adb-discover-endpoint.py" --serial "$expected" --timeout 4 2>/dev/null || true)"
-    candidates="$(printf '%s
-%s
-' "$candidates" "$discovered" | awk 'NF && !seen[$0]++')"
+    candidates="$(printf '%s\n%s\n' "$candidates" "$discovered" | awk 'NF && !seen[$0]++')"
   fi
   while IFS= read -r ep; do
     [ -n "$ep" ] || continue
