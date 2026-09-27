@@ -629,3 +629,18 @@ The existing Health Manager retry/backoff and Incident Manager notification
 paths remain authoritative. Autonomous repair/rebuild/rebirth must only be added
 after isolated candidate execution, independent verification, rollback, and E2E
 validation are in place.
+
+## Non-shell Incident Ingress
+
+`incident-ingress.py` provides a filesystem ingress for foreground blockers when
+the normal execution channel itself is unavailable or rejected before reaching
+the S24. A caller that still has non-exec Remote Desktop access can write a
+compact JSON request under `~/.openclaw/incidents/ingress/`. The Health Manager
+consumes the request into the canonical Incident Orchestrator.
+
+Use `diagnose: true` only for faults plausibly repairable in the authorized
+local environment. For a verified external/tool-plane boundary, use
+`diagnose: false`; the incident is recorded with evidence and terminalized
+without restarting or modifying healthy local services. This prevents a
+ChatGPT-side execution denial from being misclassified as an S24 or Remote
+Desktop outage.
