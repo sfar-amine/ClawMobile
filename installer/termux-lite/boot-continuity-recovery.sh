@@ -13,5 +13,6 @@ for n in $(seq 1 24); do
   fi
   sleep 10
 done
-"$ROOT/incident-notify.sh" human_required "Intervention requise — continuité ChatGPT après redémarrage\n\nLa restauration automatique de la conversation exacte n’a pas pu être vérifiée après le démarrage." "1. Déverrouille le S24 si Android demande le code après redémarrage.\n2. Ouvre Termux et laisse-le au premier plan.\n3. Ne modifie aucun autre réglage." || true
-log "event=human_required queued=true boot_id=$boot_id"
+iid=$("$ROOT/incident-orchestrator.py" open adb "boot-$boot_id" --source boot-continuity --summary "post-boot ADB/ChatGPT continuity not verified" 2>/dev/null | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
+"$ROOT/incident-orchestrator.py" observe "$iid" continuity_blocked --source boot-continuity --json "{\"restore_verified\":false}" >/dev/null 2>&1 || true
+log "event=escalated orchestrator=true incident_id=$iid boot_id=$boot_id"

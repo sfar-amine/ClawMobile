@@ -9,6 +9,7 @@ LOCKS="$BASE/locks"
 HEALTH_LOG="$HOME/.openclaw/health/health.log"
 component="${1:-}"
 failures="${2:-0}"
+canonical_incident_id="${3:-}"
 
 case "$component" in
   ""|*[!A-Za-z0-9._-]*) exit 64 ;;
@@ -22,7 +23,7 @@ chmod 700 "$BASE" "$SHADOW" "$LOCKS" 2>/dev/null || true
 exec 9>"$LOCKS/$component.lock"
 flock -n 9 || exit 0
 
-incident_id="health-$component-$(date +%s)"
+incident_id="${canonical_incident_id:-health-$component-$(date +%s)}"
 output="$SHADOW/$incident_id.json"
 evidence="$SHADOW/$incident_id.evidence.json"
 errfile="$SHADOW/$incident_id.stderr"
@@ -57,8 +58,19 @@ set -e
 if [ "$rc" -eq 0 ] && python3 -m json.tool "$tmp" >/dev/null 2>&1; then
   mv "$tmp" "$output"
   rm -f "$evidence" "$errfile"
-  printf '%s component=%s incident=%s state=diagnosed_shadow
-'     "$(date -Iseconds)" "$component" "$incident_id"     >>"$BASE/shadow.log"
+  printf '%s component=%s incident=%s state=diagnosed_shadow\n'     "$(date -Iseconds)" "$component" "$incident_id"     >>"$BASE/shadow.log"
+  if [ -n "$canonical_incident_id" ]; then
+    action=$(python3 - "$output" <<'PY2'
+import json,sys
+try: print(((json.load(open(sys.argv[1])).get("diagnosis") or {}).get("recommended_action_id")) or "")
+except Exception: print("")
+PY2
+)
+    "$ROOT/incident-orchestrator.py" observe "$incident_id" diagnosis --source autonomous-engineering --json "{\"recommended_action_id\":\"$action\"}" >/dev/null 2>&1 || true
+    if [ "$action" = diagnostics.collect_more ]; then
+      "$ROOT/incident-orchestrator.py" transition "$incident_id" planning --source autonomous-engineering --reason "additional diagnostics required" >/dev/null 2>&1 || true
+    fi
+  fi
   exit 0
 fi
 
