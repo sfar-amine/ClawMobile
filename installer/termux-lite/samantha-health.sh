@@ -7,7 +7,7 @@ if adb devices 2>/dev/null | awk 'NR>1 && $2=="device"{found=1} END{exit !found}
 check "Remote Desktop" pgrep -f '@wonderwhy-er/desktop-commander/dist/index.js remote'
 check "Remote watchdog" pgrep -f 'remote-desktop-watchdog.sh'
 check "ADB watchdog" pgrep -f 'adb-recovery-watchdog.sh'
-check "OpenClaw Gateway" sh -c 'command -v curl >/dev/null && curl -fsS --max-time 3 http://127.0.0.1:18789/ >/dev/null'
+check "OpenClaw Gateway" sh -c 'command -v curl >/dev/null && curl -fsS --max-time 3 http://127.0.0.1:18789/healthz >/dev/null'
 check "Companion" sh -c 'command -v curl >/dev/null && curl -fsS --max-time 3 http://127.0.0.1:8765/v1/health >/dev/null'
 printf '%-24s ' "WhatsApp"
 ws="$(timeout 8 openclaw channels status 2>/dev/null || true)"
