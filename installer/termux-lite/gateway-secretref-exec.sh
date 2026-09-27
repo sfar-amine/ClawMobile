@@ -12,4 +12,4 @@ test -n "$v"
 export OPENCLAW_GATEWAY_TOKEN="$v"
 export OPENCLAW_GATEWAY_URL=ws://127.0.0.1:18789
 unset v
-exec "$OC" agent exec "$@"
+exec "$OC" "$@"
