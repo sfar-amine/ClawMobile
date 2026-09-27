@@ -28,7 +28,6 @@ wifi_up(){
   return 1
 }
 notify_info(){ "$HOME/ClawMobile/installer/termux-lite/incident-notify.sh" info "$1"; }
-notify_help(){ "$HOME/ClawMobile/installer/termux-lite/incident-notify.sh" human_required "$1" "$2"; }
 
 recover_adb(){
   adb start-server >/dev/null 2>&1 || true
@@ -80,16 +79,11 @@ while :; do
       "$HOME_DIR/ClawMobile/installer/termux-lite/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     else
       if [ "$prev" != recovery_needed ]; then log WARN recovery pending "trusted automatic ADB recovery did not succeed"; fi
-      if [ "$recovery_tries" -ge "$HELP_AFTER" ]; then
-        log WARN blocked help_required "ADB recovery requires Wireless Debugging/pairing intervention"
-        # help_required remains unacknowledged until WhatsApp delivery succeeds.
-        # Retry every watchdog cycle while the prerequisite is still blocked.
-        if [ ! -f "$HELP_NOTIFY" ]; then
-          if notify_help "Samantha — ADB nécessite une intervention physique après échec de la récupération automatique." "1. Ouvre Paramètres > Options développeur > Débogage sans fil.\n2. Active Débogage sans fil s’il est désactivé ; s’il est déjà actif, ouvre « Associer l’appareil avec un code d’association ».\n3. Laisse cet écran ouvert avec le code et le port visibles ; ne m’envoie pas le code par message."; then
-            : >"$HELP_NOTIFY"
-            log INFO notify queued "help_required incident queued"
-          fi
-        fi
+      if [ "$recovery_tries" -eq "$HELP_AFTER" ]; then
+        boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)
+        iid=$("$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" open adb "boot-$boot_id" --source adb-watchdog --summary "trusted ADB recovery exhausted" 2>/dev/null | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
+        "$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" observe "$iid" deterministic_exhausted --source adb-watchdog --json "{\"attempts\":$recovery_tries}" >/dev/null 2>&1 || true
+        log WARN escalation orchestrator "deterministic ADB recovery exhausted incident_id=$iid"
       fi
       printf recovery_needed >"$STATE"; prev=recovery_needed
     fi

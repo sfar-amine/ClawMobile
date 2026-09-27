@@ -11,5 +11,9 @@ while :; do
     sleep 3
     pgrep -f '[s]amantha-health-manager.sh' >/dev/null && log 'event=health_manager_start result=ok' || log 'event=health_manager_start result=failed'
   fi
+  if ! pgrep -f '[i]ncident-orchestrator-worker.sh' >/dev/null; then
+    log 'event=incident_orchestrator_missing action=start'
+    nohup "$ROOT/incident-orchestrator-worker.sh" >>"$D/incident-orchestrator.stderr.log" 2>&1 </dev/null &
+  fi
   sleep 10
 done
