@@ -72,6 +72,14 @@ PY2
       "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source orchestrator-worker --reason "read-only diagnostics collected" >/dev/null 2>&1 || true
       log "incident=$iid component=$component action=collect_more result=done count=$((count+1))"
       sleep 5
+    elif [ "$component" = gateway-secretref-exec ]; then
+      if "$ROOT/gateway-secretref-exec.sh" --help >/dev/null 2>&1; then
+        "$ROOT/incident-orchestrator.py" transition "$iid" verifying --source orchestrator-worker --reason "secure gateway SecretRef execution wrapper installed" >/dev/null 2>&1 || true
+        "$ROOT/incident-orchestrator.py" recover "$iid" --source orchestrator-worker --reason "gateway SecretRef resolver verified without persisted secret" >/dev/null 2>&1 || true
+        log "incident=$iid component=$component terminal=recovered handler=secure_secretref_exec"
+      else
+        "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "managed SecretRef repair verification failed" >/dev/null 2>&1 || true
+      fi
     else
       "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "no enabled managed repair handler" >/dev/null 2>&1 || true
     fi
