@@ -29,8 +29,8 @@ def i04():
  cur=json.loads(run('context-retrieve.sh','I04 ALPHA','10').stdout); assert new in {x['id'] for x in cur} and old not in {x['id'] for x in cur}
 test('I04 cross-surface supersession',i04)
 def r01():
- eid=ev('chat','decision','R01 pending survives delayed processing'); assert (root/'pending'/f'{eid}.json').exists(); run('context-flush.sh'); assert (root/'processed'/f'{eid}.json').exists()
-test('R01 pending survives until recovery',r01)
+ eid=ev('chat','decision','R01 event-driven durable processing'); assert (root/'processed'/f'{eid}.json').exists(); assert int(run('context-head.sh').stdout.strip())>0
+test('R01 event becomes durable immediately',r01)
 def r02():
  def one(i): return ev(('chat','work','voice','openclaw')[i%4],'learning',f'R02 concurrent event {i:03d}')
  with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex: ids=list(ex.map(one,range(120)))
