@@ -12,8 +12,7 @@ STABLE_PORT="${ADB_RECOVERY_STABLE_PORT:-5556}"
 mkdir -p "$STATE_DIR"
 exec 9>"$LOCK"
 flock -n 9 || exit 0
-# Do not let long-lived notification/transport descendants inherit the watchdog lock.
-exec 9>&-
+# Keep the singleton lock for the full watchdog lifetime. Close fd 9 only on spawned descendants when needed.
 log(){ printf '%s component=adb-recovery severity=%s event=%s result=%s detail="%s"\n' "$(date -Iseconds)" "$1" "$2" "$3" "$4" >>"$LOG"; }
 adb_up(){ timeout 3 adb -s "127.0.0.1:$STABLE_PORT" get-state 2>/dev/null | grep -qx device; }
 adb_ep_up(){ timeout 3 adb -s "$1" get-state 2>/dev/null | grep -qx device; }

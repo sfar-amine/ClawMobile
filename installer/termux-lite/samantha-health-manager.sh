@@ -17,6 +17,7 @@ check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; stop_wa
 check_adb(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || "$ROOT/chat-continuity-restore.sh" >/dev/null 2>&1 || true; return; fi; due adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
 log 'event=start result=ok state=persistent_backoff'
 while :; do
+ check_supervisor root_guardian '[s]amantha-root-guardian.sh' "$ROOT/samantha-root-guardian.sh"
  check_supervisor adb_watchdog '[a]db-recovery-watchdog.sh' "$ROOT/adb-recovery-watchdog.sh"
  check_supervisor remote_watchdog '[r]emote-desktop-watchdog.sh' "$ROOT/remote-desktop-watchdog.sh"
  check_supervisor incident_manager '[i]ncident-manager.sh' "$ROOT/incident-manager.sh"
