@@ -66,7 +66,9 @@ while :; do
   elif ! wifi_up; then
     if [ "$prev" != waiting_wifi ]; then
       log WARN blocked waiting_wifi "ADB unavailable and Wi-Fi required"
-      notify_help "Samantha — ADB est bloqué car aucun Wi-Fi exploitable n’est disponible." "1. Ouvre le panneau rapide du S24.\n2. Active le Wi-Fi et connecte-toi à un réseau fonctionnel.\n3. Laisse ensuite le téléphone allumé ; aucune autre action."
+      boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)
+      iid=$("$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" open adb "boot-$boot_id" --source adb-watchdog --summary "ADB unavailable and network prerequisite missing" 2>/dev/null | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
+      "$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" observe "$iid" network_prerequisite_missing --source adb-watchdog --json '{"wifi_or_network":false}' >/dev/null 2>&1 || true
     fi
     printf waiting_wifi >"$STATE"; prev=waiting_wifi; recovery_tries=0
   else
