@@ -35,10 +35,14 @@ def live():
  x['companion']=item('healthy' if run('curl -fsS --max-time 3 http://127.0.0.1:8765/v1/health') else 'down',True,evidence='http://127.0.0.1:8765/v1/health')
  wa=run('timeout 8 openclaw channels status',10).lower(); ev=OC/'incidents/events.log'
  lastwa=''
- if ev.exists():
+ outbound=OC/'health/whatsapp-outbound.log'
+ if outbound.exists():
+  lines=[z for z in outbound.read_text(errors='ignore').splitlines() if 'state=' in z]
+  if lines:lastwa=lines[-1]
+ if not lastwa and ev.exists():
   for line in ev.read_text(errors='ignore').splitlines():
    if 'channel=whatsapp state=' in line:lastwa=line
- x['notification.whatsapp']=item('healthy' if 'connected' in wa and 'state=failed' not in lastwa else ('degraded' if 'connected' in wa else 'down'),False,evidence='channel status + outbound evidence')
+ x['notification.whatsapp']=item('healthy' if 'connected' in wa and 'state=failed' not in lastwa else ('degraded' if 'connected' in wa else 'down'),False,evidence='channel status + latest canonical outbound evidence')
  lastmail=''
  if ev.exists():
   for line in ev.read_text(errors='ignore').splitlines():
