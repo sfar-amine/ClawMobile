@@ -12,6 +12,31 @@ def age(p):
  except:return None
 def item(state,critical=True,reason='',evidence='',freshness=None):
  return {'state':state,'critical':critical,'reason':reason or None,'evidence':evidence or None,'freshness_s':round(freshness,1) if freshness is not None else None,'checked_at':int(NOW)}
+def whatsapp_health(raw,last_outbound=''):
+ lines=[z.strip().lower() for z in raw.splitlines()]
+ status=next((z for z in lines if z.startswith('- whatsapp ')), '')
+ terminal=('health:logged-out' in status or 'status=401 unauthorized' in status or 'session logged out' in raw.lower())
+ failed='state=failed' in last_outbound.lower()
+ connected=', connected' in status and 'stopped' not in status
+ if terminal:return 'down','terminal_auth_logout'
+ if connected and failed:return 'degraded','latest_outbound_failed'
+ if connected:return 'healthy','channel_connected'
+ return 'down','channel_not_connected'
+def latest_channel_event(path,channel):
+ if not path.exists():return ''
+ rows=[z for z in path.read_text(errors='ignore').splitlines() if f'channel={channel} state=' in z]
+ return rows[-1] if rows else ''
+def smtp_health(probe_path,events_path):
+ try:
+  probe=json.loads(probe_path.read_text()); fresh=NOW-float(probe.get('checked_at',0))
+  if fresh<=900 and probe.get('state') in ('ready','down'):
+   return probe['state'],probe.get('reason') or 'live_probe',fresh
+ except (OSError,ValueError,TypeError):
+  pass
+ last=latest_channel_event(events_path,'email')
+ if 'state=accepted' in last:return 'ready','latest_delivery_accepted',None
+ if 'state=failed' in last:return 'down','latest_delivery_failed',None
+ return 'unverified','no_delivery_or_probe_evidence',None
 def live():
  x={}
  expected=(OC/'watchdogs/adb-expected-serial').read_text().strip() if (OC/'watchdogs/adb-expected-serial').exists() else ''
@@ -33,21 +58,16 @@ def live():
  x['remote_desktop']=item('healthy' if proc('@wonderwhy-er/desktop-commander/dist/index.js remote') else 'down',True,evidence='desktop-commander remote')
  x['gateway']=item('healthy' if run('curl -fsS --max-time 3 http://127.0.0.1:18789/healthz') else 'down',True,evidence='http://127.0.0.1:18789/healthz')
  x['companion']=item('healthy' if run('curl -fsS --max-time 3 http://127.0.0.1:8765/v1/health') else 'down',True,evidence='http://127.0.0.1:8765/v1/health')
- wa=run('timeout 8 openclaw channels status',10).lower(); ev=OC/'incidents/events.log'
- lastwa=''
- outbound=OC/'health/whatsapp-outbound.log'
+ wa=run('timeout 8 openclaw channels status',10); ev=OC/'incidents/events.log'
+ outbound=OC/'health/whatsapp-outbound.log'; lastwa=''
  if outbound.exists():
   lines=[z for z in outbound.read_text(errors='ignore').splitlines() if 'state=' in z]
   if lines:lastwa=lines[-1]
- if not lastwa and ev.exists():
-  for line in ev.read_text(errors='ignore').splitlines():
-   if 'channel=whatsapp state=' in line:lastwa=line
- x['notification.whatsapp']=item('healthy' if 'connected' in wa and 'state=failed' not in lastwa else ('degraded' if 'connected' in wa else 'down'),False,evidence='channel status + latest canonical outbound evidence')
- lastmail=''
- if ev.exists():
-  for line in ev.read_text(errors='ignore').splitlines():
-   if 'channel=email state=accepted' in line:lastmail=line
- x['notification.smtp']=item('ready' if lastmail else 'unverified',False,evidence='accepted fallback evidence')
+ if not lastwa:lastwa=latest_channel_event(ev,'whatsapp')
+ wastate,wareason=whatsapp_health(wa,lastwa)
+ x['notification.whatsapp']=item(wastate,False,reason=wareason,evidence='channel status + latest canonical outbound evidence')
+ smstate,smreason,smfresh=smtp_health(OC/'health/smtp-probe.json',ev)
+ x['notification.smtp']=item(smstate,False,reason=smreason,evidence='live SMTP probe + latest delivery evidence',freshness=smfresh)
  tx=OC/'health/transaction-health.json'
  try:
   td=json.loads(tx.read_text()); ta=NOW-float(td.get('checked_at',0)); ts=td.get('status','unverified')
