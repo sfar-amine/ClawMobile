@@ -14,7 +14,13 @@ const GATEWAY_PID_FILE = "companion-openclaw-gateway.pid";
 const TERMUX_PREFIX = "/data/data/com.termux/files/usr";
 const TERMUX_TMPDIR = "/data/data/com.termux/files/usr/tmp";
 const EXISTING_GATEWAY_GRACE_MS = 30_000;
-let startInFlight: { startedAt: number; logPath: string } | null = null;
+type StartInFlight = {
+  startedAt: number;
+  logPath: string;
+  pid: number | null;
+};
+
+let startInFlight: StartInFlight | null = null;
 
 export function gatewayHost() {
   return process.env.CLAWMOBILE_GATEWAY_HOST || DEFAULT_GATEWAY_HOST;
@@ -57,6 +63,16 @@ export async function startRuntime(): Promise<RuntimeCommandResponse> {
       message: "OpenClaw gateway is already running.",
       gateway: before,
     };
+  }
+
+  if (startInFlight) {
+    const currentStart = startInFlight;
+    const stale =
+      Date.now() - currentStart.startedAt >= runtimeStartWaitMs() ||
+      (currentStart.pid !== null && !isProcessAlive(currentStart.pid));
+    if (stale) {
+      await clearTrackedStart(currentStart);
+    }
   }
 
   if (startInFlight) {
@@ -126,12 +142,17 @@ export async function startRuntime(): Promise<RuntimeCommandResponse> {
       if (child.pid) {
         fs.writeFileSync(gatewayPidPath(), `${child.pid}\n`);
       }
-      startInFlight = { startedAt: Date.now(), logPath };
+      const trackedStart: StartInFlight = {
+        startedAt: Date.now(),
+        logPath,
+        pid: child.pid ?? null,
+      };
+      startInFlight = trackedStart;
       child.once("exit", () => {
-        startInFlight = null;
+        if (startInFlight === trackedStart) startInFlight = null;
       });
       child.once("error", () => {
-        startInFlight = null;
+        if (startInFlight === trackedStart) startInFlight = null;
       });
       child.unref();
     } finally {
@@ -154,15 +175,21 @@ export async function startRuntime(): Promise<RuntimeCommandResponse> {
     }
 
     const after = await getGatewayStatus();
-    cleanupGatewayPidFile();
+    const timedOutStart = startInFlight;
+    if (timedOutStart) {
+      await clearTrackedStart(timedOutStart);
+    } else {
+      cleanupGatewayPidFile();
+    }
     return {
       success: false,
       state: "not_started",
-      message: `OpenClaw gateway start was requested but is not reachable yet. Logs: ${logPath}`,
+      message: `OpenClaw gateway start timed out and the tracked start process was cleaned up. Logs: ${logPath}`,
       gateway: after,
     };
   } catch (error: any) {
     const after = await getGatewayStatus();
+    startInFlight = null;
     cleanupGatewayPidFile();
     return {
       success: false,
@@ -213,11 +240,15 @@ export function getRuntimeLog(maxBytes = 64 * 1024): RuntimeLogResponse {
 export async function stopRuntime(): Promise<RuntimeCommandResponse> {
   const before = await getGatewayStatus();
   if (!before.reachable) {
-    cleanupGatewayPidFile();
+    if (startInFlight) {
+      await clearTrackedStart(startInFlight);
+    } else {
+      cleanupGatewayPidFile();
+    }
     return {
       success: true,
       state: "not_started",
-      message: "OpenClaw gateway is already stopped.",
+      message: "OpenClaw gateway is stopped and any pending tracked start was cleared.",
       gateway: before,
     };
   }
@@ -373,6 +404,31 @@ function killPidBestEffort(pid: number, signal: NodeJS.Signals) {
   } catch {
     // Best effort. The process may have already exited.
   }
+}
+
+function isProcessAlive(pid: number) {
+  if (!Number.isFinite(pid) || pid <= 0 || pid === process.pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function clearTrackedStart(current: StartInFlight) {
+  if (current.pid !== null && isProcessAlive(current.pid)) {
+    killPidBestEffort(current.pid, "SIGTERM");
+    await delay(750);
+    if (isProcessAlive(current.pid)) {
+      killPidBestEffort(current.pid, "SIGKILL");
+      await delay(250);
+    }
+  }
+  if (startInFlight === current) {
+    startInFlight = null;
+  }
+  cleanupGatewayPidFile();
 }
 
 function readGatewayPid() {
