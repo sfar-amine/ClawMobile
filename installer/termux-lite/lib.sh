@@ -21,17 +21,19 @@ clawmobile_lite_env() {
   export OA_GLIBC="${OA_GLIBC:-1}"
   export CONTAINER="${CONTAINER:-1}"
 
-  if [ -d "$openclaw_android_bin" ]; then
-    case ":$PATH:" in
-      *":$openclaw_android_bin:"*) ;;
-      *) export PATH="$openclaw_android_bin:$PATH" ;;
-    esac
-  fi
-
+  # Add the raw Node runtime first, then the Android-compatible wrappers so
+  # wrapper commands (notably npm/npx) stay ahead of node/bin on Termux.
   if [ -d "$openclaw_android_node" ]; then
     case ":$PATH:" in
       *":$openclaw_android_node:"*) ;;
       *) export PATH="$openclaw_android_node:$PATH" ;;
+    esac
+  fi
+
+  if [ -d "$openclaw_android_bin" ]; then
+    case ":$PATH:" in
+      *":$openclaw_android_bin:"*) ;;
+      *) export PATH="$openclaw_android_bin:$PATH" ;;
     esac
   fi
 
