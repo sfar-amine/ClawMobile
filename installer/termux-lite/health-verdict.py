@@ -43,6 +43,12 @@ def live():
  state=run('timeout 3 adb -s 127.0.0.1:5556 get-state')
  serial=run('timeout 3 adb -s 127.0.0.1:5556 shell getprop ro.serialno')
  x['device.adb']=item('healthy' if state=='device' and (not expected or serial==expected) else 'degraded',True,'canonical endpoint verified' if state=='device' else 'canonical endpoint unavailable','127.0.0.1:5556')
+ ns=OC/'health/network-mutation-safety.json'
+ try:
+  nd=json.loads(ns.read_text()); na=NOW-float(nd.get('checked_at',0)); nstate=nd.get('state','unverified')
+  x['device.network_safety']=item('healthy' if nstate=='healthy' and na<=90 else ('stale' if nstate=='healthy' else nstate),True,reason=nd.get('reason','network mutation safety receipt'),evidence=str(ns),freshness=na)
+ except (OSError,ValueError,TypeError):
+  x['device.network_safety']=item('unverified',True,reason='network mutation safety receipt absent or invalid',evidence=str(ns))
  checks={
   'immune.root_guardian':("[s]amantha-root-guardian.sh",OC/'health/root-guardian.heartbeat',30),
   'immune.health_manager':("[s]amantha-health-manager.sh",OC/'health/health-manager.heartbeat',45),
