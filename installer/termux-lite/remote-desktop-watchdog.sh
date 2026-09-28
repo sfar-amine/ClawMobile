@@ -6,20 +6,27 @@ INTERVAL="${REMOTE_DESKTOP_WATCHDOG_INTERVAL:-15}"; MAX_RESTARTS="${REMOTE_DESKT
 mkdir -p "$STATE_DIR"; exec 9>"$LOCK"; flock -n 9 || exit 0
 log(){ printf '%s %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
 alive(){ pgrep -f '@wonderwhy-er/desktop-commander/dist/index.js remote' >/dev/null 2>&1; }
-functional(){
-  alive || return 1
-  f="$STATE_DIR/remote-desktop-process.log"; [ -s "$f" ] || return 1
-  # Functional transport evidence: process log must contain a successful Remote MCP
-  # connection/device-ready marker, and the log must remain fresh.
-  now=$(date +%s); mt=$(stat -c %Y "$f" 2>/dev/null || echo 0)
-  [ $((now-mt)) -le 300 ] || return 1
-  tail -500 "$f" 2>/dev/null | grep -q 'Connected to Remote MCP' || return 1
-  tail -500 "$f" 2>/dev/null | grep -Eq 'Device ready|Connected to Desktop Commander MCP' || return 1
+functional(){ alive; }
+ready_since(){
+  off="$1"; f="$STATE_DIR/remote-desktop-process.log"; [ -s "$f" ] || return 1
+  tail -c +$((off+1)) "$f" 2>/dev/null | grep -q '^[[:space:]]*- 🔌 Connected to Remote MCP' || return 1
+  tail -c +$((off+1)) "$f" 2>/dev/null | grep -Eq '^[[:space:]]*(✅ Device ready:|- 🔌 Connected to Desktop Commander MCP)' || return 1
 }
 
 notify(){ "$HOME_DIR/ClawMobile/installer/termux-lite/incident-notify.sh" remote_desktop "$1"; }
-restart_dc(){ pkill -TERM -f '@wonderwhy-er/desktop-commander/dist/index.js remote' 2>/dev/null || true; sleep 2; n=1; while [ "$n" -le "$MAX_RESTARTS" ]; do log "restart attempt $n/$MAX_RESTARTS"; nohup "$DC" "$DC_SCRIPT" remote 9>&- >>"$STATE_DIR/remote-desktop-process.log" 2>&1 </dev/null & sleep 8; functional && return 0; n=$((n+1)); done; return 1; }
-prev="$(cat "$STATE" 2>/dev/null || printf unknown)"; log "watchdog started; previous=$prev functional_probe=v2"
+restart_dc(){
+  pkill -TERM -f '@wonderwhy-er/desktop-commander/dist/index.js remote' 2>/dev/null || true; sleep 2
+  n=1
+  while [ "$n" -le "$MAX_RESTARTS" ]; do
+    f="$STATE_DIR/remote-desktop-process.log"; before=$(wc -c <"$f" 2>/dev/null || echo 0)
+    log "restart attempt $n/$MAX_RESTARTS"
+    nohup "$DC" "$DC_SCRIPT" remote 9>&- >>"$f" 2>&1 </dev/null & sleep 8
+    alive && ready_since "$before" && return 0
+    n=$((n+1))
+  done
+  return 1
+}
+prev="$(cat "$STATE" 2>/dev/null || printf unknown)"; log "watchdog started; previous=$prev functional_probe=v3_process_steady_startup_transport"
 while :; do
  printf '%s' "$(date +%s)" >"$HOME_DIR/.openclaw/health/remote-watchdog.heartbeat"
  if functional; then

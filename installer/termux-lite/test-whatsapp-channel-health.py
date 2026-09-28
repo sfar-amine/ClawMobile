@@ -34,3 +34,10 @@ assert 'smtplib.SMTP_SSL' in email
 assert 'server.starttls' in email
 assert 'INCIDENT_EMAIL_MODE' in email
 print('whatsapp-channel-health: PASS')
+
+rd=(ROOT/'remote-desktop-watchdog.sh').read_text()
+assert 'functional(){ alive; }' in rd
+assert 'ready_since' in rd
+assert 'tail -500' not in rd
+assert 'functional_probe=v3_process_steady_startup_transport' in rd
+print('remote-desktop-watchdog-v3: PASS')
