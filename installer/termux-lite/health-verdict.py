@@ -48,6 +48,12 @@ def live():
   for line in ev.read_text(errors='ignore').splitlines():
    if 'channel=email state=accepted' in line:lastmail=line
  x['notification.smtp']=item('ready' if lastmail else 'unverified',False,evidence='accepted fallback evidence')
+ tx=OC/'health/transaction-health.json'
+ try:
+  td=json.loads(tx.read_text()); ta=NOW-float(td.get('checked_at',0)); ts=td.get('status','unverified')
+  x['transactions.runtime']=item(ts if ta<=660 else 'stale',True,reason=f"pending_archives={td.get('pending_archives',0)} repeated_failures={sum(1 for r in td.get('failures',{}).values() if int(r.get('count',0))>=2)}",evidence=str(tx),freshness=ta)
+ except (OSError,ValueError,TypeError):
+  x['transactions.runtime']=item('unverified',True,reason='transaction health receipt absent or invalid',evidence=str(tx))
  x['boot.persistence']=item('ready' if (H/'.termux/boot/start-samantha').exists() else 'down',True,evidence='Termux:Boot')
  x['chat.continuity']=item('ready' if (OC/'continuity/chatgpt-current.json').stat().st_size>0 else 'degraded',False,evidence='chat checkpoint') if (OC/'continuity/chatgpt-current.json').exists() else item('degraded',False,reason='checkpoint absent')
  return x
