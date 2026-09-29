@@ -75,6 +75,24 @@ class ClawLiveTests(unittest.TestCase):
             self.assertIn("[TERMUX][CHAT][SLACK]", out)
             self.assertIn("printf ok", out)
 
+    def test_live_idle_notice_does_not_mask_real_activity(self):
+        r = m.Renderer(Args())
+        r.last_activity = 10.0
+        original = m.time.monotonic
+        m.time.monotonic = lambda: 100.0
+        try:
+            with redirect_stdout(io.StringIO()):
+                r.emit(m.Event(["LIVE"], action="IDLE", detail="écoute active"))
+            self.assertEqual(r.last_activity, 10.0)
+            with redirect_stdout(io.StringIO()):
+                r.emit(m.Event(["BRIDGE", "SLACK"], action="OK", detail="ping"))
+            self.assertEqual(r.last_activity, 100.0)
+        finally:
+            m.time.monotonic = original
+        self.assertEqual(m.ACTION_COLOR["IDLE"], "\033[90m")
+        self.assertGreaterEqual(m.IDLE_NOTICE_AFTER_S, 30.0)
+        self.assertGreaterEqual(m.IDLE_NOTICE_EVERY_S, 60.0)
+
     def test_whatsapp_contact_resolution(self):
         with tempfile.TemporaryDirectory() as td:
             db = pathlib.Path(td)/"people.db"
