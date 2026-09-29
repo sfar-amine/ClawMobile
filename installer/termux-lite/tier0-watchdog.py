@@ -9,6 +9,7 @@ def load(p):
     try:return json.loads(p.read_text())
     except Exception:return {}
 def save(s):
+    s['updated_at']=time.time()
     tmp=STATE.with_suffix('.tmp');tmp.write_text(json.dumps(s,indent=2,sort_keys=True)+'\n');tmp.replace(STATE)
 def tick():
     s=load(STATE)
@@ -18,6 +19,11 @@ def tick():
     if bad:s['soak_bad_samples']=int(s.get('soak_bad_samples',0))+1;s['last_bad']=bad
     else:s['soak_bad_samples']=0;s.pop('last_bad',None)
     if s.get('soak_bad_samples',0)>=2 and not STOP.exists():
+        lkg=H/'.openclaw/releases/last-known-good'
+        if not lkg.exists():
+            STOP.parent.mkdir(parents=True,exist_ok=True)
+            STOP.write_text(json.dumps({'enabled':True,'reason':'soak_health_regression_without_lkg','created_at':time.time()},sort_keys=True)+'\n')
+            s['soak_state']='failed_no_lkg';save(s);return
         subprocess.run([str(CONTROL),'rollback','--reason','soak_health_regression'],check=True)
         subprocess.Popen([str(BOOT),'--restart-core'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         return
