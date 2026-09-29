@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="$HOME/ClawMobile/installer/termux-lite"; D="$HOME/.openclaw/guardian"; LOG="$D/guardian.log"; mkdir -p "$D" "$HOME/.cache/tmp"; export TMPDIR="$HOME/.cache/tmp"
+ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; D="$HOME/.openclaw/guardian"; LOG="$D/guardian.log"; mkdir -p "$D" "$HOME/.cache/tmp"; export TMPDIR="$HOME/.cache/tmp"
 exec 9>"$D/guardian.lock"; flock -n 9 || exit 0
 log(){ printf '%s component=root-guardian %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
 log 'event=start result=ok'

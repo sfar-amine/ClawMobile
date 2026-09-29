@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="$HOME/ClawMobile/installer/termux-lite"
+ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
 D="$HOME/.openclaw/autonomous-engineering"; LOG="$D/closure.log"; mkdir -p "$D"
 state="${1:-}"; component="${2:-unknown}"; summary="${3:-Autonomous Engineering update}"
 case "$state" in recovered|failed|human_required) ;; *) exit 64;; esac

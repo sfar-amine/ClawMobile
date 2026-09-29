@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="$HOME/ClawMobile/installer/termux-lite"; D="$HOME/.openclaw/watchdogs"; LOG="$D/core-services.log"
+ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; D="$HOME/.openclaw/watchdogs"; LOG="$D/core-services.log"
 mkdir -p "$D"; exec 9>"$D/core-services.lock"; flock -n 9 || exit 0; exec 9>&-
 log(){ printf '%s component=core-services %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
 alive_gw(){ pgrep -f 'openclaw-gateway' >/dev/null; }

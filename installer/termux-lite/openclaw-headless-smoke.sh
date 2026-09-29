@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
-ROOT="$HOME/ClawMobile/installer/termux-lite"
+ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
 PROMPT="$HOME/.cache/openclaw-headless-smoke.txt"
 mkdir -p "$HOME/.cache"
 printf '%s\\n' 'Return exactly HEADLESS_OK and nothing else.' >"$PROMPT"
