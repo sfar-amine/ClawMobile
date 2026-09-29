@@ -3,7 +3,15 @@ set -u
 ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
 D="$HOME/.openclaw/incidents"; Q="$D/queue"; LOG="$D/events.log"
 component="${1:-}"; message="${2:-Samantha — récupération vérifiée.}"
+learning_file="${CLAW_LEARNING_FILE:-}"
 [ -n "$component" ] || exit 64
+run_learning_gate(){
+  local incident_id="$1" summary="$2" final_fix="$3" gate_json
+  local args=(--source legacy_incident --closure-id "$incident_id" --component "$component" --status recovered --summary "$summary" --final-fix "$final_fix")
+  [ -z "$learning_file" ] || args+=(--learning-file "$learning_file")
+  gate_json="$("$ROOT/learning-gate-close.sh" "${args[@]}" 2>/dev/null)" || return 1
+  [ -n "$gate_json" ]
+}
 matched=0
 last_id=""
 for dir in "$Q"/*; do
@@ -15,6 +23,7 @@ for dir in "$Q"/*; do
   id="$(basename "$dir")"; matched=1; last_id="$id"
   printf recovered >"$dir/status"
   printf '%s id=%s component=%s event=recovered state=verified\n' "$(date -Iseconds)" "$id" "$component" >>"$LOG"
+  run_learning_gate "$id" "$msg" "$message" || continue
   printf closed >"$dir/status"
   printf '%s' "$(date -Iseconds)" >"$dir/closed"
   printf '%s id=%s component=%s event=closed state=ok\n' "$(date -Iseconds)" "$id" "$component" >>"$LOG"
