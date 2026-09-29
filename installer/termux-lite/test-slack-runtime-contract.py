@@ -37,7 +37,7 @@ class SlackRuntimeContractTests(unittest.TestCase):
         health=(ROOT/"samantha-health-manager.sh").read_text()
         tier0=(ROOT/"tier0-control.py").read_text()
         for token in ("HEALTH_HEARTBEAT_MS","heartbeatAt","runtimeRoot","healthHeartbeat.unref()"): self.assertIn(token,bridge)
-        for token in ("slack_bridge_on_current_root","state=stale_runtime","fail slack_bridge"): self.assertIn(token,health)
+        for token in ("slack_bridge_on_current_root","supervisor_on_current_root","stop_supervisor","state=stale_runtime","fail slack_bridge"): self.assertIn(token,health)
         self.assertNotIn("action=self_reconnect",health)
         self.assertIn("activate_current()",tier0)
 

@@ -109,6 +109,32 @@ class ClawLiveTests(unittest.TestCase):
         self.assertIn("acquire_single_instance()", source)
         self.assertIn("--allow-multiple", source)
 
+    def test_permanent_snapshot_is_one_shot_and_detects_stale_runtime(self):
+        rows = [
+            (1, "openclaw-gateway"),
+            (2, "spawn-broker/worker.js"),
+            (3, "dist/companion/server.js"),
+            (4, "/current/claw-slack-bridge.mjs"),
+            (5, "desktop-commander/dist/index.js remote"),
+            (6, "/current/samantha-root-guardian.sh"),
+            (7, "tier0/bin/tier0-watchdog.py"),
+            (8, "/current/samantha-health-manager.sh"),
+            (9, "/current/incident-manager.sh"),
+            (10, "/current/incident-orchestrator-worker.sh"),
+            (11, "/current/adb-recovery-watchdog.sh"),
+            (12, "/current/remote-desktop-watchdog.sh"),
+            (13, "/usr/bin/claw-live"),
+        ]
+        events = m.permanent_service_events(rows=rows, current_root="/current")
+        self.assertEqual(len(events), 4)
+        immune = next(e for e in events if "IMMUNE" in e.tags)
+        self.assertEqual(immune.action, "RUN")
+        self.assertEqual(immune.status, "CURRENT")
+        stale_rows = [(pid, args.replace("/current/incident-manager.sh", "/old/incident-manager.sh")) for pid, args in rows]
+        stale = next(e for e in m.permanent_service_events(rows=stale_rows, current_root="/current") if "IMMUNE" in e.tags)
+        self.assertEqual(stale.action, "WARN")
+        self.assertIn("stale=incident", stale.detail)
+
     def test_whatsapp_contact_resolution(self):
         with tempfile.TemporaryDirectory() as td:
             db = pathlib.Path(td)/"people.db"
