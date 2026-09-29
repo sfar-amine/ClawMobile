@@ -31,6 +31,9 @@ def connect():
     CREATE TABLE IF NOT EXISTS emails(person_id TEXT,email TEXT COLLATE NOCASE,
       UNIQUE(person_id,email));
     CREATE TABLE IF NOT EXISTS interactions(e164 TEXT PRIMARY KEY,last_interaction_ms INTEGER);
+    CREATE TABLE IF NOT EXISTS send_receipts(
+      idempotency_key TEXT PRIMARY KEY,target TEXT NOT NULL,message_sha256 TEXT NOT NULL,
+      state TEXT NOT NULL,message_id TEXT,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);""")
     return c
 
@@ -374,13 +377,46 @@ def restore_context(path,old):
         except FileNotFoundError: pass
     else: path.write_text(old)
 
+def send_digest(target,message):
+    return hashlib.sha256((target+"\0"+message).encode()).hexdigest()
+
+def reserve_send(key,target,digest):
+    if not key or len(key)>256: raise RuntimeError("invalid_idempotency_key")
+    c=connect(); now=int(time.time()); c.execute("BEGIN IMMEDIATE")
+    row=c.execute("""SELECT target,message_sha256,state,message_id FROM send_receipts
+                     WHERE idempotency_key=?""",(key,)).fetchone()
+    if row:
+        c.commit(); c.close()
+        if row["target"]!=target or row["message_sha256"]!=digest:
+            raise RuntimeError("idempotency_key_conflict")
+        if row["state"]=="accepted" and row["message_id"]:
+            return {"state":"accepted","messageId":row["message_id"],"replay":True}
+        raise RuntimeError("send_state_uncertain_no_retry")
+    c.execute("""INSERT INTO send_receipts(idempotency_key,target,message_sha256,state,message_id,created_at,updated_at)
+                 VALUES(?,?,?,'pending',NULL,?,?)""",(key,target,digest,now,now))
+    c.commit(); c.close(); return {"state":"reserved","replay":False}
+
+def finish_send(key,state,message_id=None):
+    c=connect(); now=int(time.time())
+    c.execute("UPDATE send_receipts SET state=?,message_id=?,updated_at=? WHERE idempotency_key=?",
+              (state,message_id,now,key))
+    c.commit(); c.close()
+
 def whatsapp_send(target,message,key):
     allow,_=whatsapp_state()
     if target not in allow: raise RuntimeError("target_not_allowlisted")
+    digest=send_digest(target,message)
+    reservation=reserve_send(key,target,digest)
+    if reservation["state"]=="accepted": return reservation["messageId"]
     params={"to":target,"message":message,"channel":"whatsapp","accountId":"default","idempotencyKey":key}
-    out=gateway_call("send",params,timeout_ms=10000)
-    mid=out.get("messageId")
-    if out.get("channel")!="whatsapp" or not mid: raise RuntimeError("invalid_send_response")
+    try:
+        out=gateway_call("send",params,timeout_ms=10000)
+        mid=out.get("messageId")
+        if out.get("channel")!="whatsapp" or not mid: raise RuntimeError("invalid_send_response")
+    except Exception:
+        finish_send(key,"uncertain")
+        raise
+    finish_send(key,"accepted",mid)
     return mid
 
 def local_plan(person,target,args):
