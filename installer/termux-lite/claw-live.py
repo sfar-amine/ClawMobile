@@ -77,7 +77,7 @@ ACTION_COLOR = {
     "CMD": "\033[93m", "TOOL": "\033[93m", "ACTION": "\033[93m",
     "MODEL": "\033[38;5;141m", "DIAGNOSIS": "\033[38;5;141m",
     "RECOVER": "\033[94m", "RETRY": "\033[94m", "VERIFY": "\033[96m",
-    "IN": "\033[96m", "INFO": "\033[96m", "START": "\033[96m",
+    "IN": "\033[96m", "INFO": "\033[96m", "START": "\033[96m", "IDLE": "\033[90m",
     "TRIGGER": "\033[38;5;214m", "PROMOTE": "\033[92m",
     "ROLLBACK": "\033[91m", "SHADOW": "\033[38;5;141m",
 }
@@ -88,6 +88,8 @@ KV_SECRET_RE = re.compile(r"(?i)((?:authorization|token|password|passwd|secret|a
 PHONE_RE = re.compile(r"^\+\d{7,15}$")
 lock = threading.Lock()
 stop_event = threading.Event()
+IDLE_NOTICE_AFTER_S = 30.0
+IDLE_NOTICE_EVERY_S = 60.0
 
 @dataclass
 class Event:
@@ -149,7 +151,10 @@ class Renderer:
     def __init__(self, args: argparse.Namespace):
         self.args = args
         self.color = not args.no_color and sys.stdout.isatty()
-        self.last_emit = time.monotonic()
+        now = time.monotonic()
+        self.last_emit = now
+        self.last_activity = now
+        self.last_heartbeat = 0.0
         self.counts: dict[str, int] = {}
         self.dedupe: dict[str, tuple[float, int]] = {}
 
@@ -205,16 +210,23 @@ class Renderer:
         line = " ".join(p for p in pieces if p)
         with lock:
             print(line, flush=True)
-        self.last_emit = time.monotonic()
+        now = time.monotonic()
+        self.last_emit = now
+        if "LIVE" not in {tag.upper() for tag in event.tags}:
+            self.last_activity = now
 
     def heartbeat(self) -> None:
         while not stop_event.wait(5):
-            idle = int(time.monotonic() - self.last_emit)
-            if idle < 5:
+            now = time.monotonic()
+            idle = int(now - self.last_activity)
+            if idle < IDLE_NOTICE_AFTER_S:
+                continue
+            if self.last_heartbeat and now - self.last_heartbeat < IDLE_NOTICE_EVERY_S:
                 continue
             counts = " ".join(f"{k}:{v}" for k, v in sorted(self.counts.items()) if v)
-            event = Event(["LIVE"], action="INFO", detail=f"écoute active · {counts or 'aucun événement'} · idle {idle}s")
+            event = Event(["LIVE"], action="IDLE", detail=f"écoute active · {counts or 'aucun événement'} · idle {idle}s")
             self.emit(event)
+            self.last_heartbeat = now
 
 class SurfaceRegistry:
     def __init__(self, renderer: Renderer):
