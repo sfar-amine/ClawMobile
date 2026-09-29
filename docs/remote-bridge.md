@@ -173,3 +173,16 @@ Wi-Fi↔mobile transition remains a resilience follow-up because no known Wi-Fi 
 - Active write `chatgpt-e2e-write-1790681337196` completed in 575.60 ms. Desktop Commander verified exact content and SHA-256 `5fcbe88fbba4f415defbdc4b689a14eb6fd9fd251647023e774add4ecee45573`. Reposting the exact same request ID returned the original stored completion without a second write. The test artifact was removed.
 - Twelve additional live pings: min 345.17 ms, p50 571.52 ms, p95/max 3938.20 ms.
 - Locked-screen ping `locked-ping-1790681928378` completed while the phone reported `Asleep`, keyguard showing and `deviceLocked=1`; parent→reply 1268.88 ms.
+
+### Slack control-channel housekeeping acceptance — 2026-09-29
+
+The housekeeping path is live and intentionally small: one script, one existing OpenClaw hourly command job, no database and no daemon.
+
+Acceptance:
+- fixture suite passes TTL, completed-vs-running/indeterminate, foreign human reply protection, user-token absence, already-missing/idempotent deletion and parent/reply identity split;
+- real 24-hour dry-run on `#claw-control` completed with no eligible messages and no errors;
+- disposable live RPC `purge-live-final-1790686658880` produced one Claw Bridge reply, then a TTL=0 acceptance run deleted exactly one parent and one bot reply with `failed=0`; exact Slack search returned no result afterward;
+- the installed OpenClaw job `samantha:slack-control-purge` was force-run with its normal 24-hour TTL and completed `status=ok` in 867 ms with zero eligible messages;
+- the purge log stores counters only and is capped to the most recent 200 lines.
+
+The Slack user token is stored locally mode 0600 and is used only for public-channel thread reads and deletion of ChatGPT/owner parent messages. Bot replies use the existing bot token.

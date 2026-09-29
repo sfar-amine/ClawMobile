@@ -24,10 +24,12 @@ fs.writeFileSync(path.join(stateDir, "config.json"), JSON.stringify({
 
 const now = 2000000000;
 const old = String(now - 90000);
+const oldHuman = String(now - 91000);
 const recent = String(now - 23 * 3600);
 const rpc = (id) => "CLAW_RPC_V1\n" + JSON.stringify({ requestId: id, method: "ping", params: {} });
 fs.writeFileSync(path.join(receiptDir, "done.json"), JSON.stringify({ requestId: "done", state: "completed" }));
 fs.writeFileSync(path.join(receiptDir, "running.json"), JSON.stringify({ requestId: "running", state: "running" }));
+fs.writeFileSync(path.join(receiptDir, "human-thread.json"), JSON.stringify({ requestId: "human-thread", state: "completed" }));
 
 assert.equal(parseRpcRequestId(rpc("abc")), "abc");
 assert.equal(parseRpcRequestId("hello"), "");
@@ -43,7 +45,15 @@ const server = http.createServer((req, res) => {
   let raw = "";
   req.on("data", (chunk) => { raw += chunk; });
   req.on("end", () => {
-    const body = raw ? JSON.parse(raw) : {};
+    const contentType = String(req.headers["content-type"] || "");
+    let body = {};
+    if (raw) {
+      if (contentType.includes("application/x-www-form-urlencoded")) {
+        body = Object.fromEntries(new URLSearchParams(raw));
+      } else {
+        body = JSON.parse(raw);
+      }
+    }
     const method = (req.url || "").split("/").pop();
     const reply = (value, status = 200) => {
       const text = JSON.stringify(value);
@@ -55,7 +65,8 @@ const server = http.createServer((req, res) => {
       return reply({ ok: true, messages: [
         { ts: old, user: "UOWNER", text: rpc("done"), reply_count: 1 },
         { ts: old, user: "UOWNER", text: rpc("running"), reply_count: 0 },
-        { ts: old, user: "UOWNER", text: "human note" },
+        { ts: oldHuman, user: "UOWNER", text: rpc("human-thread"), reply_count: 1 },
+        { ts: String(Number(old) - 2), user: "UOWNER", text: "human note" },
       ], response_metadata: { next_cursor: "" } });
     }
     if (method === "conversations.replies") {
@@ -63,6 +74,12 @@ const server = http.createServer((req, res) => {
         return reply({ ok: true, messages: [
           { ts: old, user: "UOWNER", text: rpc("done") },
           { ts: String(Number(old) + 1), user: "UBOT", bot_id: "BTEST", text: "CLAW_RPC_RESULT_V1 request=done state=completed" },
+        ], response_metadata: { next_cursor: "" } });
+      }
+      if (body.ts === oldHuman) {
+        return reply({ ok: true, messages: [
+          { ts: oldHuman, user: "UOWNER", text: rpc("human-thread") },
+          { ts: String(Number(oldHuman) + 1), user: "UOTHER", text: "human reply" },
         ], response_metadata: { next_cursor: "" } });
       }
       return reply({ ok: true, messages: [], response_metadata: { next_cursor: "" } });
@@ -109,6 +126,8 @@ assert.match(first, /eligible=1/);
 assert.match(first, /parents_deleted=1/);
 assert.match(first, /replies_deleted=1/);
 assert.match(first, /skipped_active=1/);
+assert.match(first, /skipped_foreign=2/);
+assert.ok(!deletes.some((x) => x.ts === oldHuman));
 assert.ok(deletes.some((x) => x.token === "Bearer xoxb-test"));
 assert.ok(deletes.some((x) => x.token === "Bearer xoxp-test"));
 
@@ -121,7 +140,7 @@ assert.match(second, /replies_deleted=1/);
 fs.unlinkSync(path.join(stateDir, "secrets", "user-token"));
 const third = await runOnce();
 assert.match(third, /failed=0/);
-assert.match(third, /skipped_no_user_token=1/);
+assert.match(third, /skipped_no_user_token=2/);
 assert.match(third, /parents_deleted=0/);
 
 await new Promise((resolve) => server.close(resolve));
