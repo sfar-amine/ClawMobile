@@ -1,0 +1,65 @@
+{
+  "schema": "claw.remote_bridge.acceptance.v1",
+  "date": "2026-09-29",
+  "status": "runtime_e2e_validated_slack_provider_pending",
+  "production": {
+    "companionUrl": "http://127.0.0.1:8765",
+    "bridgeProtocol": "claw-rpc-v1",
+    "bridgeState": "ready",
+    "desktopCommanderFallback": "available"
+  },
+  "runtimeAcceptance": {
+    "idempotentWrite": true,
+    "requestIdConflict": true,
+    "readFile": true,
+    "execWait": true,
+    "processStreaming": true,
+    "largeArtifact": true,
+    "artifactBytes": 70187,
+    "sequentialPing": {
+      "count": 120,
+      "p50Ms": 4.482,
+      "p95Ms": 5.883,
+      "maxMs": 6.939
+    },
+    "concurrentPing": {
+      "count": 100,
+      "workers": 10,
+      "wallMs": 328.101,
+      "rps": 304.78,
+      "p50Ms": 30.577,
+      "p95Ms": 38.694,
+      "maxMs": 45.274
+    }
+  },
+  "slackSimulatedAcceptance": {
+    "socketMode": true,
+    "shadowWriteRejected": true,
+    "activeWrite": true,
+    "duplicateWritePrevented": true,
+    "unauthorizedUserIgnored": true,
+    "rateLimitRetryAfter": true,
+    "slackDisconnectReconnect": true,
+    "healthRecovered": true
+  },
+  "liveSlack": {
+    "state": "setup_required",
+    "reason": "config_missing",
+    "secretsStored": false,
+    "promotion": "blocked"
+  },
+  "safety": {
+    "adbPortChanged": false,
+    "gatewayRestarted": false,
+    "productionCompanionRestarted": false,
+    "slackSecretsCommitted": false
+  },
+  "promotionGate": [
+    "Connect/authorize Slack for ChatGPT and create the dedicated Slack app/workspace channel",
+    "Store Slack tokens locally on S24 via claw-slack-setup.sh, never in chat",
+    "Run live ChatGPT -> Slack -> S24 -> ChatGPT interactive two-step test",
+    "Measure live p50/p95",
+    "Verify screen-off/locked and Wi-Fi/mobile transition",
+    "Run one shadow read comparison and one idempotent write verified independently via Desktop Commander"
+  ]
+}

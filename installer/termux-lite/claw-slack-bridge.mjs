@@ -30,6 +30,7 @@ const READ_ONLY = new Set(["ping", "request_status", "read_file", "artifact_read
 let socket = null;
 let stopping = false;
 let reconnectAttempt = 0;
+let reconnectTimer = null;
 let botUserId = "";
 let sendChain = Promise.resolve();
 
@@ -204,16 +205,23 @@ async function connect() {
     const auth = await slackApi("auth.test", BOT_TOKEN);
     botUserId = String(auth.user_id || "");
     const opened = await slackApi("apps.connections.open", APP_TOKEN);
-    socket = new WebSocket(opened.url);
-    socket.addEventListener("open", () => {
+    const currentSocket = new WebSocket(opened.url);
+    socket = currentSocket;
+    currentSocket.addEventListener("open", () => {
+      if (socket !== currentSocket) return;
       reconnectAttempt = 0;
       writeHealth("healthy", { botUserId });
     });
-    socket.addEventListener("message", (message) => {
+    currentSocket.addEventListener("message", (message) => {
+      if (socket !== currentSocket) return;
       void handleSocketMessage(String(message.data || ""));
     });
-    socket.addEventListener("close", () => scheduleReconnect("socket_closed"));
-    socket.addEventListener("error", () => writeHealth("degraded", { lastError: "socket_error" }));
+    currentSocket.addEventListener("close", () => {
+      if (socket === currentSocket) scheduleReconnect("socket_closed");
+    });
+    currentSocket.addEventListener("error", () => {
+      if (socket === currentSocket) scheduleReconnect("socket_error");
+    });
   } catch (error) {
     writeHealth("degraded", { lastError: error.message });
     scheduleReconnect(error.message);
@@ -231,7 +239,7 @@ async function handleSocketMessage(raw) {
     socket.send(JSON.stringify({ envelope_id: envelope.envelope_id }));
   }
   if (envelope.type === "disconnect") {
-    try { socket?.close(); } catch {}
+    scheduleReconnect("slack_disconnect");
     return;
   }
   if (envelope.type === "events_api") {
@@ -240,13 +248,17 @@ async function handleSocketMessage(raw) {
 }
 
 function scheduleReconnect(reason) {
-  if (stopping) return;
-  try { socket?.close(); } catch {}
+  if (stopping || reconnectTimer) return;
+  const previousSocket = socket;
   socket = null;
+  try { previousSocket?.close(); } catch {}
   reconnectAttempt += 1;
   const delay = Math.min(30000, 1000 * 2 ** Math.min(5, reconnectAttempt - 1));
   writeHealth("reconnecting", { reason, reconnectAttempt, retryInMs: delay });
-  setTimeout(() => void connect(), delay).unref();
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void connect();
+  }, delay);
 }
 
 function shutdown() {
