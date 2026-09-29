@@ -125,6 +125,11 @@
       "normalTtlFailed": 0
     },
     "logPolicy": "summary counters only, bounded to last 200 lines",
-    "userToken": "local secret mode 0600; not committed"
+    "userToken": "local secret mode 0600; not committed",
+    "apiUnavailableAcceptance": {
+      "result": "pass",
+      "deletions": 0,
+      "behavior": "cycle fails closed; next hourly cycle retries"
+    }
   }
 }

@@ -41,6 +41,7 @@ assert.equal(isOlderThan(recent, now - 86400), false);
 
 let deletes = [];
 let deletePass = 0;
+let apiDown = false;
 const server = http.createServer((req, res) => {
   let raw = "";
   req.on("data", (chunk) => { raw += chunk; });
@@ -60,6 +61,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(status, { "content-type": "application/json", "content-length": Buffer.byteLength(text) });
       res.end(text);
     };
+    if (apiDown) return reply({ ok: false, error: "service_unavailable" }, 503);
     if (method === "auth.test") return reply({ ok: true, user_id: "UBOT" });
     if (method === "conversations.history") {
       return reply({ ok: true, messages: [
@@ -142,6 +144,17 @@ const third = await runOnce();
 assert.match(third, /failed=0/);
 assert.match(third, /skipped_no_user_token=2/);
 assert.match(third, /parents_deleted=0/);
+
+apiDown = true;
+const deletesBeforeDown = deletes.length;
+let downFailed = false;
+try {
+  await runOnce();
+} catch (error) {
+  downFailed = /service_unavailable/.test(String(error.message));
+}
+assert.equal(downFailed, true);
+assert.equal(deletes.length, deletesBeforeDown);
 
 await new Promise((resolve) => server.close(resolve));
 console.log("slack-purge-tests: PASS");
