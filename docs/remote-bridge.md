@@ -102,6 +102,24 @@ Health Manager starts the Slack bridge only after complete local config and secr
 
 Missing configuration is `setup_required`, not a failure. Once configured, the adapter owns WebSocket reconnect with exponential backoff. Health Manager restarts the process if it disappears and records persistent local startup failure.
 
+## Slack control-channel housekeeping
+
+`installer/termux-lite/claw-slack-purge.mjs` is a small hourly housekeeping task for the dedicated control channel only. It has no database and no daemon.
+
+Rules:
+- only `CLAW_RPC_V1` parents with a local Remote Bridge receipt are considered;
+- messages younger than 24 hours are never touched;
+- receipts still `running`, `indeterminate`, `received` or `pending` are retained;
+- all thread replies must also be older than the TTL;
+- bot replies are deleted with the existing bot token, then the ChatGPT/owner parent is deleted with a scoped Slack user token;
+- missing/already-deleted messages are treated idempotently;
+- API failure on one transaction does not make another transaction eligible;
+- the log contains counters only and is bounded to the most recent 200 summary lines.
+
+The extra user token is required because Slack channel-thread reads and owner-message deletion cannot be completed with the bot identity alone. The app manifest therefore requests only `channels:history` and `chat:write` as user scopes in addition to the existing bot scopes. The token is stored locally with mode 0600 and is never committed.
+
+`claw-slack-purge-setup.sh` stores the user token, performs a dry-run, and installs one OpenClaw command job with declaration key `samantha:slack-control-purge` every hour.
+
 ## Acceptance evidence — 2026-09-29
 
 Core functional test passed:
