@@ -15,7 +15,11 @@ def main():
     if not a.apply: raise SystemExit('use --apply')
     BIN.mkdir(parents=True,exist_ok=True);os.chmod(T,0o700);os.chmod(BIN,0o700)
     for n in NAMES:
-        shutil.copy2(Path(a.source_root)/n,BIN/n);os.chmod(BIN/n,0o500)
+        src=Path(a.source_root)/n
+        tmp=BIN/(n+'.next')
+        try:tmp.unlink()
+        except FileNotFoundError:pass
+        shutil.copy2(src,tmp);os.chmod(tmp,0o500);os.replace(tmp,BIN/n)
     write_boot()
     source=Path(a.source_root)
     commit=subprocess.run(['git','-C',str(source.parents[2]),'rev-parse','HEAD'],capture_output=True,text=True).stdout.strip() or 'unknown'
