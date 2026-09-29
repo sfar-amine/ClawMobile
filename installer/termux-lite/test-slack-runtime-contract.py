@@ -53,7 +53,7 @@ class SlackRuntimeContractTests(unittest.TestCase):
         for token in ("patch_file","read_binary_file","write_binary_file"): self.assertIn(token,remote)
         self.assertEqual(policy["primary"],"slack_remote_bridge")
         self.assertIn("Routine bootstrap uses Slack", " ".join(policy["fallbackRules"]))
-        for token in ("PRIMARY_HEALTHY","PRIMARY_REPAIRED","PRIMARY_REPAIR_FAILED"): self.assertIn(token,repair)
+        for token in ("PRIMARY_HEALTHY","PRIMARY_REPAIRED","PRIMARY_REPAIR_FAILED","restart_companion","COMPANION_URL","companion_healthy"): self.assertIn(token,repair)
         for token in ("CLAWMOBILE_REPO_ROOT","$HOME/ClawMobile/openclaw-plugin-mobile-ui"): self.assertIn(token,lib)
 
 if __name__=="__main__": unittest.main()
