@@ -93,6 +93,22 @@ class ClawLiveTests(unittest.TestCase):
         self.assertGreaterEqual(m.IDLE_NOTICE_AFTER_S, 30.0)
         self.assertGreaterEqual(m.IDLE_NOTICE_EVERY_S, 60.0)
 
+    def test_renderer_bounds_long_detail(self):
+        r = m.Renderer(Args())
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            r.emit(m.Event(["TERMUX"], "Conversation", "CMD", "x" * 1200))
+        out = buf.getvalue()
+        self.assertIn("…", out)
+        self.assertLess(len(out), 650)
+
+    def test_performance_contracts(self):
+        source = MODULE_PATH.read_text()
+        self.assertIn("current_dir_stamp != dir_stamp", source)
+        self.assertIn("MAX_RENDER_DETAIL = 420", source)
+        self.assertIn("acquire_single_instance()", source)
+        self.assertIn("--allow-multiple", source)
+
     def test_whatsapp_contact_resolution(self):
         with tempfile.TemporaryDirectory() as td:
             db = pathlib.Path(td)/"people.db"

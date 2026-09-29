@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import glob
 import json
 import os
@@ -90,6 +91,9 @@ lock = threading.Lock()
 stop_event = threading.Event()
 IDLE_NOTICE_AFTER_S = 30.0
 IDLE_NOTICE_EVERY_S = 60.0
+MAX_RENDER_DETAIL = 420
+CLAW_LIVE_LOCK = OPENCLAW / "observability" / "claw-live.lock"
+_instance_lock = None
 
 @dataclass
 class Event:
@@ -147,6 +151,25 @@ def preview(text: Any, limit: int) -> str:
     s = re.sub(r"\s+", " ", scrub_text(text)).strip()
     return s if len(s) <= limit else s[: limit - 1] + "…"
 
+def acquire_single_instance() -> bool:
+    global _instance_lock
+    CLAW_LIVE_LOCK.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    handle = open(CLAW_LIVE_LOCK, "a+")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.seek(0)
+        pid = handle.read().strip() or "?"
+        print(f"claw-live déjà actif (pid {pid}) dans un autre terminal. Ferme cette instance avant d'en lancer une seconde.", flush=True)
+        handle.close()
+        return False
+    handle.seek(0)
+    handle.truncate()
+    handle.write(str(os.getpid()))
+    handle.flush()
+    _instance_lock = handle
+    return True
+
 class Renderer:
     def __init__(self, args: argparse.Namespace):
         self.args = args
@@ -189,7 +212,8 @@ class Renderer:
         context_c = ansi(context, "\033[97m", self.color, bold=True) if context else ""
         ac = ACTION_COLOR.get(event.action.upper(), "\033[93m")
         action_c = ansi(event.action.upper(), ac, self.color, bold=True)
-        detail_c = ansi(event.detail, "\033[97m", self.color)
+        detail = preview(event.detail, MAX_RENDER_DETAIL)
+        detail_c = ansi(detail, "\033[97m", self.color)
         status_c = ""
         if event.status:
             sc = ACTION_COLOR.get(event.status.upper(), "\033[92m")
@@ -732,12 +756,24 @@ class SlackBridgeStream:
     def _receipt_fallback_loop(self) -> None:
         request_mtime = self._request_snapshot()
         pending: dict[str, tuple[float, float]] = {}
-        while not stop_event.wait(0.4):
-            current = self._request_snapshot()
+        try:
+            dir_stamp = REMOTE_REQUEST_DIR.stat().st_mtime_ns
+        except OSError:
+            dir_stamp = 0
+        while not stop_event.wait(0.5):
             now = time.monotonic()
-            for path, mtime in current.items():
-                if mtime > request_mtime.get(path, 0):
-                    pending[path] = (mtime, now)
+            try:
+                current_dir_stamp = REMOTE_REQUEST_DIR.stat().st_mtime_ns
+            except OSError:
+                current_dir_stamp = 0
+
+            if current_dir_stamp != dir_stamp:
+                current = self._request_snapshot()
+                for path, mtime in current.items():
+                    if mtime > request_mtime.get(path, 0):
+                        pending[path] = (mtime, now)
+                request_mtime = current
+                dir_stamp = current_dir_stamp
 
             try:
                 audit_mtime = SLACK_EVENT_LOG.stat().st_mtime
@@ -750,7 +786,6 @@ class SlackBridgeStream:
                 if mtime > audit_mtime + 0.5:
                     self._emit_request_file(path)
                 pending.pop(path, None)
-            request_mtime = current
 
     def loop(self) -> None:
         if not SLACK_EVENT_LOG.exists():
@@ -982,6 +1017,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Semantic live observability for Claw on Termux.")
     parser.add_argument("--compact", action="store_true", help="Reduce message previews and tool details.")
     parser.add_argument("--raw", action="store_true", help="Tail raw Desktop Commander and OpenClaw logs.")
+    parser.add_argument("--allow-multiple", action="store_true", help="Allow an additional semantic claw-live instance intentionally.")
     parser.add_argument(
         "--only",
         choices=[
@@ -999,6 +1035,8 @@ def main() -> int:
     args = parse_args()
     if args.raw:
         return raw_mode()
+    if not args.allow_multiple and not acquire_single_instance():
+        return 2
     if args.compact:
         args.preview_chars = min(args.preview_chars, 80)
     renderer = Renderer(args)
