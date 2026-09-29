@@ -9,7 +9,9 @@ COMPANION="$ROOT/companion-server.sh"
 COMPANION_URL="http://127.0.0.1:8765/v1/health"
 LOG="$HOME/.openclaw/remote-bridge/primary-repair.log"
 mkdir -p "$(dirname "$LOG")"
+log(){ printf '%s component=primary-repair %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
 companion_healthy(){ timeout 3 curl -fsS "$COMPANION_URL" >/dev/null 2>&1; }
+
 if ! companion_healthy; then
   log 'action=restart_companion'
   pkill -TERM -f 'dist/companion/[s]erver.js' 2>/dev/null || true
@@ -20,13 +22,13 @@ if ! companion_healthy; then
     sleep 2
   done
 fi
-log(){ printf '%s component=primary-repair %s
-' "$(date -Iseconds)" "$*" >>"$LOG"; }
+
 if companion_healthy && "$PROBE" >/dev/null 2>&1; then
   log 'result=already_healthy'
   echo PRIMARY_HEALTHY
   exit 0
 fi
+
 log 'action=restart_slack_bridge'
 pkill -TERM -f '[c]law-slack-bridge.mjs' 2>/dev/null || true
 for _ in 1 2 3 4 5 6 7 8; do
