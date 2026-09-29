@@ -47,6 +47,7 @@ import { getSkillStatus as clawmobile_skill_status } from "./trace_induction/sta
 import { runSkillFastPath as clawmobile_skill_run_fast_path } from "./trace_induction/fastpath";
 import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } from "./trace_induction/repair";
 import { clawmobile_batch_execute } from "./tools/batch";
+import { handleOwnerFastPath } from "./modelFastPath";
 
 type JsonSchema = Record<string, any>;
 
@@ -176,6 +177,14 @@ function register(api: any) {
   // Public plugin surface for OpenClaw.
   // This file is the contract boundary between the OpenClaw runtime and the
   // mobile runtime implementation below.
+
+  api.on("inbound_claim", async (event: any, ctx: any) => {
+    const result = await handleOwnerFastPath(event, ctx);
+    if (result.handled) {
+      api.logger?.debug?.("[model-fast-path] owner read-only route handled before model");
+    }
+    return result;
+  });
 
   // ---- composite mobile runtime tools ----
   api.registerTool(
