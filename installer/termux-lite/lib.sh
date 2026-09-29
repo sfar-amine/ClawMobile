@@ -2,6 +2,14 @@
 
 clawmobile_lite_repo_root() {
   local script_dir
+  if [ -n "${CLAWMOBILE_REPO_ROOT:-}" ] && [ -d "${CLAWMOBILE_REPO_ROOT}/openclaw-plugin-mobile-ui" ]; then
+    printf '%s\n' "${CLAWMOBILE_REPO_ROOT}"
+    return 0
+  fi
+  if [ -d "$HOME/ClawMobile/openclaw-plugin-mobile-ui" ]; then
+    printf '%s\n' "$HOME/ClawMobile"
+    return 0
+  fi
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "${script_dir}/../.." && pwd
 }
