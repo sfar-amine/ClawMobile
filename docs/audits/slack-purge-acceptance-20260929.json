@@ -1,0 +1,71 @@
+{
+  "schema": "claw.slack_purge.acceptance.v1",
+  "date": "2026-09-29",
+  "status": "validated",
+  "scope": {
+    "channel": "claw-control",
+    "ttl_hours": 24,
+    "scheduler": "OpenClaw existing scheduler",
+    "frequency": "1h",
+    "daemon_added": false,
+    "database_added": false
+  },
+  "guards": {
+    "dedicated_channel_only": true,
+    "requires_claw_rpc_parent": true,
+    "requires_local_request_receipt": true,
+    "running_retained": true,
+    "indeterminate_retained": true,
+    "thread_replies_must_be_expired": true,
+    "foreign_human_message_ignored": true
+  },
+  "tests": {
+    "unit_fixture_suite": "pass",
+    "younger_than_24h_retained": "pass",
+    "older_terminal_transaction_eligible": "pass",
+    "running_transaction_retained": "pass",
+    "foreign_message_retained": "pass",
+    "duplicate_pass_idempotent": "pass",
+    "missing_user_token_fails_safe": "pass",
+    "live_dry_run_24h": "pass",
+    "live_parent_and_thread_delete": {
+      "result": "pass",
+      "request_id": "purge-final-test-1790687609921",
+      "parents_deleted": 1,
+      "replies_deleted": 1,
+      "failed": 0,
+      "post_delete_slack_read": "thread_not_found"
+    },
+    "live_second_pass": {
+      "result": "pass",
+      "eligible": 0,
+      "parents_deleted": 0,
+      "replies_deleted": 0,
+      "failed": 0
+    },
+    "scheduler_manual_run": {
+      "result": "pass",
+      "job_id": "1121f97a-0a06-4873-afaa-a25d17311150",
+      "status": "ok",
+      "consecutive_errors": 0,
+      "duration_ms": 1104
+    },
+    "slack_api_unavailable": {
+      "result": "pass",
+      "process_exit_nonzero": true,
+      "error": "fetch failed",
+      "purge_log_unchanged": true
+    }
+  },
+  "security": {
+    "user_token_file_mode": "0600",
+    "user_token_value_logged": false,
+    "message_payload_logged_by_purger": false,
+    "summary_log_only": true,
+    "summary_log_max_lines": 200
+  },
+  "notes": [
+    "Slack user token is necessary for public-channel thread reads and owner-parent deletion; bot token remains used for bot reply deletion.",
+    "No full S24 reboot was performed solely for housekeeping acceptance. Scheduler persistence is provided by the existing OpenClaw durable job registry and the job was manually executed successfully."
+  ]
+}
