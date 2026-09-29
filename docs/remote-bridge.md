@@ -186,3 +186,4 @@ Acceptance:
 - the purge log stores counters only and is capped to the most recent 200 lines.
 
 The Slack user token is stored locally mode 0600 and is used only for public-channel thread reads and deletion of ChatGPT/owner parent messages. Bot replies use the existing bot token.
+- simulated Slack API unavailability fails the purge cycle without deleting any message; the existing hourly scheduler provides the next retry.
