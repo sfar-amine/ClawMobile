@@ -40,6 +40,9 @@ class SlackRuntimeContractTests(unittest.TestCase):
         bootstrap=(ROOT/"tier0-bootstrap.sh").read_text()
         repair=(ROOT/"claw-primary-repair.sh").read_text()
         lib=(ROOT/"lib.sh").read_text()
+        learning_gate=(ROOT/"learning-gate.py").read_text()
+        engineering_close=(ROOT/"autonomous-engineering-close.sh").read_text()
+        incident_close=(ROOT/"incident-close.sh").read_text()
         policy=json.loads((ROOT/"claw-route-policy.json").read_text())
         remote_path=ROOT.parent.parent/"openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts"
         if not remote_path.exists():
@@ -64,5 +67,8 @@ class SlackRuntimeContractTests(unittest.TestCase):
         self.assertIn("Routine bootstrap uses Slack", " ".join(policy["fallbackRules"]))
         for token in ("PRIMARY_HEALTHY","PRIMARY_REPAIRED","PRIMARY_REPAIR_FAILED","restart_companion","COMPANION_URL","companion_healthy"): self.assertIn(token,repair)
         for token in ("CLAWMOBILE_REPO_ROOT","$HOME/ClawMobile/openclaw-plugin-mobile-ui"): self.assertIn(token,lib)
+        for token in ("closure_id_conflict","no_explicit_reusable_learning_supplied","registry_update_required","write_howto"): self.assertIn(token,learning_gate)
+        for token in ("learning-gate-close.sh","learning_gate="): self.assertIn(token,engineering_close)
+        self.assertIn("learning-gate-close.sh",incident_close)
 
 if __name__=="__main__": unittest.main()

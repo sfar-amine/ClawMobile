@@ -2,7 +2,8 @@
 from __future__ import annotations
 import argparse, hashlib, json, sqlite3, time, subprocess, sys
 from pathlib import Path
-DB=Path.home()/".openclaw"/"incidents"/"orchestrator.db"
+DEFAULT_DB=Path.home()/".openclaw"/"incidents"/"orchestrator.db"
+DB=DEFAULT_DB
 TERMINAL={"recovered","failed"}
 TRANSITIONS={
  "detected":{"deterministic_recovery","diagnosing","verifying","human_required","failed"},
@@ -22,6 +23,17 @@ def connect():
 def iid(component,scope): return hashlib.sha256(f"{component}:{scope}".encode()).hexdigest()[:20]
 def emit(c,i,source,kind,payload):
  c.execute("INSERT INTO events(incident_id,ts,source,kind,payload) VALUES(?,?,?,?,?)",(i,time.time(),source,kind,json.dumps(payload,ensure_ascii=False,sort_keys=True)))
+def run_learning_gate(i,out,state,reason):
+ if DB!=DEFAULT_DB: return {"state":"skipped_noncanonical_db"}
+ helper=Path(__file__).with_name("learning-gate-close.sh")
+ cmd=[str(helper),"--source","incident","--closure-id",i,"--component",out["component"],"--status",state,"--summary",out.get("summary") or "","--incident-id",i]
+ if state=="recovered" and reason: cmd.extend(["--final-fix",reason])
+ try:
+  p=subprocess.run(cmd,text=True,capture_output=True,timeout=15)
+  if p.returncode!=0: return {"state":"failed","error":(p.stderr or "learning_gate_failed")[:300]}
+  receipt=json.loads(p.stdout)
+  return {"state":"ok","receipt_id":receipt.get("receipt_id",""),"capability_id":receipt.get("capability_id",""),"confidence":receipt.get("confidence","")}
+ except Exception as exc: return {"state":"failed","error":str(exc)[:300]}
 def open_incident(component,scope,source,summary):
  c=connect();now=time.time();c.execute("BEGIN IMMEDIATE")
  row=c.execute("SELECT * FROM incidents WHERE component=? AND scope=? ORDER BY created DESC LIMIT 1",(component,scope)).fetchone()
@@ -43,6 +55,10 @@ def transition(i,to,source,reason="",human_boundary=False):
  if to in {"recovered","failed","human_required"}:
   helper=Path(__file__).with_name("incident-continuation.py")
   subprocess.run([sys.executable,str(helper),"emit",i,to,out["component"],out["scope"],reason],check=False,stdout=subprocess.DEVNULL)
+ if to in TERMINAL:
+  gate=run_learning_gate(i,out,to,reason)
+  gc=connect();emit(gc,i,"learning-gate","learning_gate",gate);gc.commit();gc.close()
+  out["learning_gate"]=gate
  return out
 def observe(i,source,kind,payload):
  c=connect();emit(c,i,source,kind,payload);c.execute("UPDATE incidents SET updated=? WHERE id=?",(time.time(),i));c.commit();c.close()

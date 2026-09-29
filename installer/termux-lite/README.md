@@ -630,6 +630,26 @@ paths remain authoritative. Autonomous repair/rebuild/rebirth must only be added
 after isolated candidate execution, independent verification, rollback, and E2E
 validation are in place.
 
+## Learning Gate
+
+Material incident and engineering closures pass through `learning-gate.py` via
+`learning-gate-close.sh`. Each closure gets a stable closure ID and idempotent
+receipt under `~/.openclaw/learning-gate/`. The gate maps lessons to a capability
+when possible, records compact evidence in the development journal and emits a
+structured context learning event for the existing Dreaming pipeline.
+
+A missing explicit lesson is captured as a provisional no-learning observation;
+it is not silently promoted. Validated/stable lessons may generate a
+capability-scoped HOW-TO. Only a stable lesson that explicitly declares a
+capability truth change can update the matching registry entry, and that update
+is limited to the target capability's notes/evidence.
+
+Canonical Incident Orchestrator terminal transitions, legacy incident closure,
+and Autonomous Engineering closure all use the same gate. Recovery state is
+kept separate from documentation: a legacy incident may be recovered but is
+not marked closed when the gate itself fails. No new daemon or scheduler is
+introduced.
+
 ## Non-shell Incident Ingress
 
 `incident-ingress.py` provides a filesystem ingress for foreground blockers when

@@ -13,8 +13,10 @@ class T(unittest.TestCase):
   r=io.transition(a["id"],"human_required","orchestrator","pairing UI requires user code",True);self.assertEqual(r["state"],"human_required")
  def test_recovery_path(self):
   a=io.open_incident("gateway","runtime","health","down");i=a["id"]
-  for st in ["deterministic_recovery","diagnosing","planning","repairing","verifying","recovered"]:io.transition(i,st,"test")
+  last=None
+  for st in ["deterministic_recovery","diagnosing","planning","repairing","verifying","recovered"]: last=io.transition(i,st,"test")
   self.assertEqual(io.show(i)["incident"]["state"],"recovered")
+  self.assertEqual(last["learning_gate"]["state"],"skipped_noncanonical_db")
  def test_recurrence_after_recovery_opens_new_episode(self):
   a=io.open_incident("adb","boot-1","watchdog","down");i=a["id"]
   io.transition(i,"human_required","orchestrator","pairing required",True)
