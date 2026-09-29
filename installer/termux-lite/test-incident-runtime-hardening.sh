@@ -17,6 +17,7 @@ grep -q 'grace_s=180' "$R/samantha-health-manager.sh"
 grep -q 'kill_stale' "$R/samantha-health-manager.sh"
 grep -q 'sleep.*9>&-' "$R/samantha-health-manager.sh"
 grep -q 'check_supervisor root_guardian' "$R/samantha-health-manager.sh"
+test "$(grep -c 'health-manager.heartbeat' "$R/samantha-health-manager.sh")" -ge 2
 test -x "$R/health-verdict.py"
 grep -q '127.0.0.1:5556 get-state' "$R/health-verdict.py"
 grep -q 'notification.whatsapp' "$R/health-verdict.py"
