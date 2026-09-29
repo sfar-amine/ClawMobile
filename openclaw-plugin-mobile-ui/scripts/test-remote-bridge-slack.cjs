@@ -12,6 +12,7 @@ const root = fs.mkdtempSync(path.join(tmpRoot, "claw-bridge-test-"));
 const bridgeDir = path.join(root, "bridge");
 const slackState = path.join(root, "slack");
 const testFile = path.join(root, "written.txt");
+const b64File = path.join(root, "b64.txt");
 const node = path.join(os.homedir(), ".openclaw-android", "bin", "node");
 const companion = path.resolve(__dirname, "..", "dist", "companion", "server.js");
 const adapter = path.resolve(__dirname, "..", "..", "installer", "termux-lite", "claw-slack-bridge.mjs");
@@ -63,7 +64,11 @@ wss.on("connection", (ws) => {
   sockets.add(ws);
   ws.on("close", () => sockets.delete(ws));
   ws.send(JSON.stringify({ type: "hello", num_connections: 1 }));
-});function sendEvent(text, options = {}) {
+});function rpcB64(payload) {
+  return "CLAW_RPC_V1_B64\n" + Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+}
+
+function sendEvent(text, options = {}) {
   const ws = [...sockets][0];
   if (!ws) throw new Error("no_socket");
   envelopeSeq += 1;
@@ -166,6 +171,14 @@ async function main() {
   adapterProc = startAdapter("active");
   await waitFor(() => sockets.size === 1);
 
+  const complexContent = "line1\n{\\\"quoted\\\":\\\"yes\\\"}";
+  await sendEvent(rpcB64({
+    requestId: "s-b64-write", method: "write_file",
+    params: { path: b64File, content: complexContent, mode: "rewrite" },
+  }));
+  await waitFor(() => posts.some((post) => String(post.text).includes("request=s-b64-write state=completed")));
+  assert.equal(fs.readFileSync(b64File, "utf8"), complexContent);
+
   const writeRpc = "CLAW_RPC_V1\n" + JSON.stringify({
     requestId: "s-write",
     method: "write_file",
@@ -193,6 +206,7 @@ async function main() {
     ok: true,
     posts: posts.length,
     shadowRejected: true,
+    b64Rpc: true,
     duplicateWritePrevented: true,
     unauthorizedUserIgnored: true,
     slackHealth: health.state,

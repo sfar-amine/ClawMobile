@@ -65,7 +65,7 @@ function sha256(value: Buffer | string) {
 
 function hashParams(method: string, params: Record<string, unknown>) {
   return sha256(JSON.stringify({ method, params }));
-}function atomicWrite(filePath: string, content: string) {
+}function atomicWrite(filePath: string, content: string | Buffer) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tempPath = `${filePath}.tmp-${process.pid}-${crypto.randomBytes(3).toString("hex")}`;
   fs.writeFileSync(tempPath, content, { mode: 0o600 });
@@ -83,12 +83,13 @@ function writeReceipt(receipt: RemoteBridgeReceipt) {
 }
 
 function mutationRisk(method: string): "read" | "write" | "unknown" {
-  if (["ping", "request_status", "read_file", "artifact_read"].includes(method)) return "read";
-  if (["write_file"].includes(method)) return "write";
+  if (["ping", "request_status", "read_file", "read_binary_file", "artifact_read"].includes(method)) return "read";
+  if (["write_file", "patch_file", "write_binary_file"].includes(method)) return "write";
   return "unknown";
 }const INLINE_LIMIT = 48 * 1024;
 const MAX_FILE_READ_LINES = 5000;
 const MAX_FILE_WRITE_BYTES = 4 * 1024 * 1024;
+const MAX_BINARY_CHUNK_BYTES = 16 * 1024;
 
 function allowedRoots() {
   const configured = String(process.env.CLAWMOBILE_REMOTE_BRIDGE_ALLOWED_DIRS || "")
@@ -163,7 +164,64 @@ function writeTextFile(params: Record<string, unknown>) {
   }
   const bytes = fs.readFileSync(filePath);
   return { path: filePath, mode, bytes: bytes.length, sha256: sha256(bytes) };
-}import {
+}
+
+function decodePatchValue(params: Record<string, unknown>, textKey: string, base64Key: string) {
+  if (params[base64Key] !== undefined) {
+    return Buffer.from(String(params[base64Key] || ""), "base64").toString("utf8");
+  }
+  return String(params[textKey] ?? "");
+}
+
+function patchTextFile(params: Record<string, unknown>) {
+  const filePath = resolveAllowedPath(String(params.path || ""));
+  const raw = fs.readFileSync(filePath);
+  const previousSha256 = String(params.previousSha256 || "");
+  if (previousSha256 && sha256(raw) !== previousSha256) {
+    throw statusError(409, "compare_and_set_failed");
+  }
+  const before = raw.toString("utf8");
+  const oldString = decodePatchValue(params, "oldString", "oldBase64");
+  const newString = decodePatchValue(params, "newString", "newBase64");
+  if (!oldString) throw new Error("old_string_required");
+  const rawExpected = Number(params.expectedReplacements ?? 1);
+  const expectedReplacements = Number.isFinite(rawExpected) ? Math.max(1, Math.min(1000, Math.trunc(rawExpected))) : 1;
+  const actualReplacements = before.split(oldString).length - 1;
+  if (actualReplacements !== expectedReplacements) throw statusError(409, `replacement_count_mismatch:${actualReplacements}`);
+  const after = before.split(oldString).join(newString);
+  if (Buffer.byteLength(after) > MAX_FILE_WRITE_BYTES) throw new Error("write_too_large");
+  atomicWrite(filePath, after);
+  const bytes = fs.readFileSync(filePath);
+  return { path: filePath, replacements: actualReplacements, bytes: bytes.length, sha256: sha256(bytes) };
+}
+
+function readBinaryFile(params: Record<string, unknown>) {
+  const filePath = resolveAllowedPath(String(params.path || ""));
+  const data = fs.readFileSync(filePath);
+  const rawOffset = Number(params.offset ?? 0);
+  const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.trunc(rawOffset)) : 0;
+  const rawMax = Number(params.maxBytes ?? 12 * 1024);
+  const maxBytes = Number.isFinite(rawMax) ? Math.max(1, Math.min(MAX_BINARY_CHUNK_BYTES, Math.trunc(rawMax))) : 12 * 1024;
+  const chunk = data.subarray(offset, Math.min(data.length, offset + maxBytes));
+  return { path: filePath, offset, nextOffset: offset + chunk.length, totalBytes: data.length, encoding: "base64", dataBase64: chunk.toString("base64"), sha256: sha256(data) };
+}
+
+function writeBinaryFile(params: Record<string, unknown>) {
+  const filePath = resolveAllowedPath(String(params.path || ""), true);
+  const encoded = String(params.dataBase64 || "").replace(/\s+/g, "");
+  if (!encoded || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length % 4 === 1) throw new Error("invalid_base64");
+  const chunk = Buffer.from(encoded, "base64");
+  const previousSha256 = String(params.previousSha256 || "");
+  if (previousSha256 && fs.existsSync(filePath) && sha256(fs.readFileSync(filePath)) !== previousSha256) throw statusError(409, "compare_and_set_failed");
+  const mode = params.mode === "append" ? "append" : "rewrite";
+  const currentBytes = mode === "append" && fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
+  if (currentBytes + chunk.length > MAX_FILE_WRITE_BYTES) throw new Error("write_too_large");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  if (mode === "append") fs.appendFileSync(filePath, chunk); else atomicWrite(filePath, chunk);
+  const bytes = fs.readFileSync(filePath);
+  return { path: filePath, mode, bytes: bytes.length, sha256: sha256(bytes) };
+}
+import {
   bridgeProcessInput,
   bridgeProcessStatus,
   bridgeProcessStop,
@@ -218,8 +276,14 @@ async function dispatch(request: RemoteBridgeRequest) {
     case "exec_wait":
       return runExecWait(params);    case "read_file":
       return readTextFile(params);
+    case "read_binary_file":
+      return readBinaryFile(params);
     case "write_file":
       return writeTextFile(params);
+    case "patch_file":
+      return patchTextFile(params);
+    case "write_binary_file":
+      return writeBinaryFile(params);
     case "artifact_read":
       return readArtifact(params);
     case "process_start":

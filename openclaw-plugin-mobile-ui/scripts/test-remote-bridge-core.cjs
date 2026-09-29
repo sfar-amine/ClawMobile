@@ -9,6 +9,7 @@ fs.mkdirSync(tmpRoot, { recursive: true });
 const root = fs.mkdtempSync(path.join(tmpRoot, "claw-core-test-"));
 const bridgeDir = path.join(root, "bridge");
 const testFile = path.join(root, "file.txt");
+const binaryFile = path.join(root, "binary.bin");
 const node = path.join(os.homedir(), ".openclaw-android", "bin", "node");
 const companion = path.resolve(__dirname, "..", "dist", "companion", "server.js");
 const base = "http://127.0.0.1:8880/v1/extensions/remote-bridge";
@@ -95,6 +96,21 @@ async function main() {
   assert.equal(result.code, 409);
 
   result = await submit({
+    requestId: "core-patch",
+    method: "patch_file",
+    params: { path: testFile, oldBase64: Buffer.from("X").toString("base64"), newBase64: Buffer.from("Y").toString("base64"), expectedReplacements: 1 },
+  });
+  assert.equal(result.body.state, "completed");
+  assert.equal(result.body.mutationRisk, "write");
+  assert.equal(fs.readFileSync(testFile, "utf8"), "Y");
+
+  const binaryBase64 = "AP8KDYAB";
+  result = await submit({ requestId: "core-binary-write", method: "write_binary_file", params: { path: binaryFile, dataBase64: binaryBase64, mode: "rewrite" } });
+  assert.equal(result.body.state, "completed");
+  result = await submit({ requestId: "core-binary-read", method: "read_binary_file", params: { path: binaryFile, offset: 0, maxBytes: 16 } });
+  assert.equal(result.body.result.dataBase64, binaryBase64);
+
+  result = await submit({
     requestId: "core-exec",
     method: "exec_wait",
     params: { command: "printf hello" },
@@ -152,6 +168,8 @@ async function main() {
     execWait: true,
     processStreaming: true,
     artifact: true,
+    patchFile: true,
+    binaryRoundTrip: true,
     staleRunningFailsClosed: true,
   }));
 
