@@ -15,6 +15,8 @@
     "companion:server": "node dist/companion/server.js",
     "test:companion-runs": "node scripts/test-companion-runs.cjs",
     "test:companion-sharing": "node scripts/test-companion-sharing.cjs",
+    "test:remote-bridge-core": "node scripts/test-remote-bridge-core.cjs",
+    "test:remote-bridge-slack": "node scripts/test-remote-bridge-slack.cjs",
     "test:trace-induction": "node scripts/test-trace-induction.cjs"
   },
 
@@ -24,6 +26,7 @@
 
   "devDependencies": {
     "typescript": "^5.0.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "ws": "^8.22.0"
   }
 }
