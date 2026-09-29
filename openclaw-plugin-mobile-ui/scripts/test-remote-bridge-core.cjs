@@ -95,6 +95,7 @@ async function main() {
   });
   assert.equal(result.code, 409);
 
+  fs.chmodSync(testFile, 0o755);
   result = await submit({
     requestId: "core-patch",
     method: "patch_file",
@@ -103,6 +104,7 @@ async function main() {
   assert.equal(result.body.state, "completed");
   assert.equal(result.body.mutationRisk, "write");
   assert.equal(fs.readFileSync(testFile, "utf8"), "Y");
+  assert.equal(fs.statSync(testFile).mode & 0o777, 0o755);
 
   const binaryBase64 = "AP8KDYAB";
   result = await submit({ requestId: "core-binary-write", method: "write_binary_file", params: { path: binaryFile, dataBase64: binaryBase64, mode: "rewrite" } });

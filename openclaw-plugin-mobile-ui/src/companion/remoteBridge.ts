@@ -67,8 +67,10 @@ function hashParams(method: string, params: Record<string, unknown>) {
   return sha256(JSON.stringify({ method, params }));
 }function atomicWrite(filePath: string, content: string | Buffer) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const existingMode = fs.existsSync(filePath) ? (fs.statSync(filePath).mode & 0o777) : 0o600;
   const tempPath = `${filePath}.tmp-${process.pid}-${crypto.randomBytes(3).toString("hex")}`;
-  fs.writeFileSync(tempPath, content, { mode: 0o600 });
+  fs.writeFileSync(tempPath, content, { mode: existingMode });
+  fs.chmodSync(tempPath, existingMode);
   fs.renameSync(tempPath, filePath);
 }
 
