@@ -48,3 +48,22 @@ Live acceptance requires:
 ## Rollback
 
 Revert the readiness commit and restore the prior `adb-recovery-watchdog.sh` and `health-verdict.py`. Removing `adb-recovery-readiness.py` is safe after the watchdog no longer references it. The feature creates only technical health/state files under `~/.openclaw`; no Android account or business data is changed.
+
+
+## Live acceptance — 2026-09-29
+
+Production acceptance was completed on the real S24 without replaying a second intrusive OFF/ON cycle after another active Zain-learning session was found to be using ADB concurrently.
+
+Observed lifecycle:
+
+1. Before the incident, canonical `127.0.0.1:5556` and a trusted Wireless Debugging endpoint were both verified and readiness was `ready`.
+2. Readiness then changed to `degraded` with `wireless_endpoint_not_discoverable` while canonical ADB was still available.
+3. Canonical ADB later disappeared and Android reported `adbd=stopped`. Because another Zain session was concurrently manipulating ADB, this acceptance does not attribute the initial trigger to the readiness test.
+4. The existing watchdog exhausted its bounded deterministic recovery budget and the canonical incident reached evidence-backed `human_required`.
+5. The owner intervention notification was accepted on WhatsApp.
+6. After Wireless Debugging was restored by the owner, the watchdog automatically recovered canonical ADB, discovered and verified a fresh dynamic endpoint, updated `adb-last-endpoint`, transitioned the incident to `recovered`, and sent the verified ADB recovery confirmation through WhatsApp.
+7. Final state: `device.adb=healthy`, `device.adb.recovery_readiness=ready`, network safety healthy, 18 healthy/ready capabilities, zero degraded/down capabilities, and zero active incidents.
+
+The three-consecutive-degraded hysteresis, proactive readiness notification deduplication and readiness-specific recovery confirmation are covered deterministically by `test-adb-recovery-readiness-watchdog.sh`. The real incident transitioned to full ADB loss before the readiness-only threshold was reached, so the live notification path exercised was the existing evidence-backed ADB `human_required` route rather than the readiness-only warning.
+
+This acceptance validates the readiness signal, fail-closed escalation and automatic recovery lifecycle under a real incident. It deliberately does not claim causal attribution for the original ADB loss while concurrent Zain work was active.
