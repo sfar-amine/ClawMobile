@@ -1,0 +1,34 @@
+{
+  "display_information": {
+    "name": "Claw Bridge",
+    "description": "Private RPC bridge between ChatGPT and the S24",
+    "background_color": "#111827"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Claw Bridge",
+      "always_online": true
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "channels:history",
+        "chat:write"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": [
+        "message.channels"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": false
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false
+  }
+}

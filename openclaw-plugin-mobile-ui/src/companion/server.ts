@@ -9,6 +9,7 @@ import { clearAgentConversationMessages, listAgentConversationMessages, listAgen
 import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRuntime } from "./openclawGatewayClient";
 import { submitIntent } from "./intent";
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
+import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
 import { archiveSession, deleteSession, getRunStatus, listRuns } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
@@ -202,6 +203,9 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
         "/v1/extensions/android/terminal/session",
         "/v1/extensions/android/terminal/session/input",
         "/v1/extensions/android/terminal/session/reset",
+        "/v1/extensions/remote-bridge/health",
+        "/v1/extensions/remote-bridge/requests",
+        "/v1/extensions/remote-bridge/requests/:requestId",
         "/v1/extensions/android/voice-recovery/intentional-stop",
         "/v1/extensions/android/voice-recovery/probe",
         "/v1/extensions/android/voice-recovery/status",
@@ -235,6 +239,26 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
 
   if (method === "GET" && routePath === "/capabilities") {
     writeJson(res, 200, await capabilities({ trusted: isLoopback }));
+    return;
+  }
+
+  if (method === "GET" && routePath === "/remote-bridge/health") {
+    writeJson(res, 200, remoteBridgeHealth());
+    return;
+  }
+
+  if (method === "POST" && routePath === "/remote-bridge/requests") {
+    const body = await readJsonBody<any>(req);
+    const result = await submitRemoteBridgeRequest(body);
+    writeJson(res, result.state === "failed" ? 400 : 200, result);
+    return;
+  }
+
+  const remoteBridgeRequestMatch = routePath.match(/^\/remote-bridge\/requests\/([^/]+)$/);
+  if (method === "GET" && remoteBridgeRequestMatch) {
+    const requestId = decodeURIComponent(remoteBridgeRequestMatch[1]);
+    const result = getRemoteBridgeRequest(requestId);
+    writeJson(res, result ? 200 : 404, result || { error: "request_not_found" });
     return;
   }
 
@@ -672,6 +696,7 @@ function normalizeProtocolPath(pathname: string): string | null {
     ["/extensions/android", ""],
     ["/extensions/nostr", "/nostr"],
     ["/extensions/agent", "/agent"],
+    ["/extensions/remote-bridge", "/remote-bridge"],
     ["/extensions/skill-sharing/imports", "/skill-imports"],
     ["/extensions/skill-sharing/skills", "/skills"],
   ];

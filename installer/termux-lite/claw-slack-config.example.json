@@ -1,0 +1,9 @@
+{
+  "mode": "shadow",
+  "channelId": "CXXXXXXXX",
+  "allowedUserIds": [
+    "UXXXXXXXX"
+  ],
+  "appTokenFile": "~/.openclaw/remote-bridge/slack/secrets/app-token",
+  "botTokenFile": "~/.openclaw/remote-bridge/slack/secrets/bot-token"
+}
