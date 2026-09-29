@@ -39,6 +39,7 @@ class SlackRuntimeContractTests(unittest.TestCase):
         guardian=(ROOT/"samantha-root-guardian.sh").read_text()
         bootstrap=(ROOT/"tier0-bootstrap.sh").read_text()
         repair=(ROOT/"claw-primary-repair.sh").read_text()
+        lib=(ROOT/"lib.sh").read_text()
         policy=json.loads((ROOT/"claw-route-policy.json").read_text())
         remote=(ROOT.parent.parent/"openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts").read_text()
         for token in ("HEALTH_HEARTBEAT_MS","heartbeatAt","runtimeRoot","healthHeartbeat.unref()"): self.assertIn(token,bridge)
@@ -53,5 +54,6 @@ class SlackRuntimeContractTests(unittest.TestCase):
         self.assertEqual(policy["primary"],"slack_remote_bridge")
         self.assertIn("Routine bootstrap uses Slack", " ".join(policy["fallbackRules"]))
         for token in ("PRIMARY_HEALTHY","PRIMARY_REPAIRED","PRIMARY_REPAIR_FAILED"): self.assertIn(token,repair)
+        for token in ("CLAWMOBILE_REPO_ROOT","$HOME/ClawMobile/openclaw-plugin-mobile-ui"): self.assertIn(token,lib)
 
 if __name__=="__main__": unittest.main()
