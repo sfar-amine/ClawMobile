@@ -23,6 +23,7 @@ const BRIDGE_URL = (
 const STATE_DIR = process.env.CLAW_SLACK_STATE_DIR ||
   path.join(os.homedir(), ".openclaw", "remote-bridge", "slack");
 const HEALTH_FILE = path.join(STATE_DIR, "health.json");
+const EVENT_LOG = path.join(STATE_DIR, "events.log");
 const MAX_REPLY_CHARS = 26000;
 const SLACK_API_BASE = (process.env.CLAW_SLACK_API_BASE || "https://slack.com/api").replace(/\/$/, "");
 const READ_ONLY = new Set(["ping", "request_status", "read_file", "artifact_read", "process_status"]);
@@ -52,6 +53,48 @@ function readSecret(filePath) {
   } catch {
     return "";
   }
+}
+
+function sanitizeAuditText(value) {
+  return String(value ?? "")
+    .replace(/((?:authorization|bearer|token|password|passwd|secret|api[_-]?key|cookie|credential)\s*[:=]\s*)[^\s,;}]+/gi, "$1<redacted>")
+    .replace(/\b(otp|2fa|verification\s*code|security\s*code)\b\s*[:=\-]?\s*\d{4,8}\b/gi, "$1 <redacted>")
+    .replace(/(?<!\d)(?:\d[ -]?){13,19}(?!\d)/g, "<redacted>");
+}
+
+function requestSummary(request) {
+  const method = String(request?.method || "");
+  const params = request?.params && typeof request.params === "object" ? request.params : {};
+  if (method === "exec_wait" || method === "process_start") {
+    return { command: sanitizeAuditText(params.command).slice(0, 1200), cwd: String(params.cwd || "").slice(0, 300) };
+  }
+  if (method === "read_file" || method === "write_file") {
+    return { path: String(params.path || "").slice(0, 600), mode: String(params.mode || "") };
+  }
+  if (method.startsWith("process_")) {
+    return { processId: String(params.processId || "").slice(0, 200) };
+  }
+  if (method === "artifact_read") {
+    return { artifactId: String(params.artifactId || "").slice(0, 200) };
+  }
+  return {};
+}
+
+function auditEvent(event, request, extra = {}) {
+  try {
+    const value = {
+      ts: Date.now(),
+      event,
+      transport: "slack",
+      requestId: String(request?.requestId || "unknown"),
+      taskId: String(request?.taskId || ""),
+      sessionId: String(request?.sessionId || ""),
+      method: String(request?.method || ""),
+      summary: requestSummary(request),
+      ...extra,
+    };
+    fs.appendFileSync(EVENT_LOG, JSON.stringify(value) + "\n", { mode: 0o600 });
+  } catch {}
 }
 
 function writeHealth(state, extra = {}) {
@@ -169,7 +212,9 @@ async function handleEvent(event) {
     return;
   }
   if (!request) return;
+  auditEvent("request", request, { mode: MODE });
   if (MODE !== "active" && !READ_ONLY.has(String(request.method || ""))) {
+    auditEvent("rejected", request, { state: "rejected_shadow" });
     queueReply(
       event.channel,
       event.thread_ts || event.ts,
@@ -180,8 +225,13 @@ async function handleEvent(event) {
 
   try {
     const receipt = await bridgeCall(request);
+    auditEvent("result", request, {
+      state: String(receipt?.state || "unknown"),
+      mutationRisk: String(receipt?.mutationRisk || ""),
+    });
     queueReply(event.channel, event.thread_ts || event.ts, compactReply(receipt));
   } catch (error) {
+    auditEvent("error", request, { state: "transport_error", error: sanitizeAuditText(error.message).slice(0, 500) });
     queueReply(
       event.channel,
       event.thread_ts || event.ts,
