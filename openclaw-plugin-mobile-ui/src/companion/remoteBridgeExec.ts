@@ -13,6 +13,7 @@ type BridgeProcess = {
   id: string;
   child: ChildProcessWithoutNullStreams;
   outputPath: string;
+  scriptPath: string;
   startedAt: number;
   command: string;
   cwd: string;
@@ -22,6 +23,17 @@ const processes = new Map<string, BridgeProcess>();
 
 function ensureDir() {
   fs.mkdirSync(PROCESS_DIR, { recursive: true, mode: 0o700 });
+}
+
+function createCommandScript(command: string) {
+  ensureDir();
+  const scriptPath = path.join(PROCESS_DIR, `cmd-${Date.now()}-${crypto.randomBytes(4).toString("hex")}.sh`);
+  fs.writeFileSync(scriptPath, command + "\n", { mode: 0o700 });
+  return scriptPath;
+}
+
+function removeCommandScript(scriptPath: string) {
+  try { fs.unlinkSync(scriptPath); } catch {}
 }
 
 function boundedInt(value: unknown, fallback: number, min: number, max: number) {
@@ -49,15 +61,18 @@ export async function runExecWait(params: Record<string, unknown>) {
   const cwd = resolveCwd(params.cwd);
   const timeoutMs = boundedInt(params.timeoutMs, 30_000, 100, 300_000);
   const shell = process.env.SHELL || "bash";
+  const scriptPath = createCommandScript(command);
   const startedAt = Date.now();
 
   return await new Promise((resolve) => {
-    execFile(shell, ["-lc", command], {
+    execFile(shell, [scriptPath], {
       cwd,
       env: process.env,
       timeout: timeoutMs,
       maxBuffer: MAX_EXEC_OUTPUT_BYTES,
-    }, (error: any, stdout = "", stderr = "") => {      resolve({
+    }, (error: any, stdout = "", stderr = "") => {
+      removeCommandScript(scriptPath);
+      resolve({
         success: !error,
         command,
         cwd,
@@ -80,8 +95,9 @@ export function startBridgeProcess(params: Record<string, unknown>) {
   const cwd = resolveCwd(params.cwd);
   const id = `proc-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
   const outputPath = path.join(PROCESS_DIR, `${id}.log`);
+  const scriptPath = createCommandScript(command);
   const shell = process.env.SHELL || "bash";
-  const child = spawn(shell, ["-lc", command], {
+  const child = spawn(shell, [scriptPath], {
     cwd,
     env: process.env,
     stdio: "pipe",
@@ -89,6 +105,7 @@ export function startBridgeProcess(params: Record<string, unknown>) {
     id,
     child,
     outputPath,
+    scriptPath,
     startedAt: Date.now(),
     command,
     cwd,
@@ -110,6 +127,7 @@ export function startBridgeProcess(params: Record<string, unknown>) {
       signal: signal || null,
       completedAt: Date.now(),
     });
+    removeCommandScript(scriptPath);
     processes.delete(id);
   });  child.once("error", (error) => {
     append(`\n[process error] ${error.message}\n`);
@@ -119,6 +137,7 @@ export function startBridgeProcess(params: Record<string, unknown>) {
       error: error.message,
       completedAt: Date.now(),
     });
+    removeCommandScript(scriptPath);
     processes.delete(id);
   });
 

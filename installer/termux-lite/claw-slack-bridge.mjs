@@ -158,9 +158,11 @@ function parseRpc(text) {
   const raw = String(text || "").trim();
   let jsonText = "";
   if (raw.startsWith("CLAW_RPC_V1_B64")) {
-    const encoded = raw.slice("CLAW_RPC_V1_B64".length).trim().replace(/\s+/g, "");
-    if (!encoded || encoded.length > 60000 || !/^[A-Za-z0-9_-]+={0,2}$/.test(encoded)) throw new Error("rpc_b64_invalid");
+    const encodedRaw = raw.slice("CLAW_RPC_V1_B64".length).trim();
+    const encoded = encodedRaw.replace(/[^A-Za-z0-9_-]/g, "");
+    if (!encoded || encoded.length > 60000) throw new Error("rpc_b64_invalid");
     jsonText = Buffer.from(encoded, "base64url").toString("utf8");
+    if (!jsonText.trim().startsWith("{")) throw new Error("rpc_b64_invalid");
   } else if (raw.startsWith("CLAW_RPC_V1")) {
     const start = raw.indexOf("{");
     const end = raw.lastIndexOf("}");
