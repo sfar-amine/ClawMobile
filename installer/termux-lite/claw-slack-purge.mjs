@@ -51,14 +51,23 @@ function readSecret(filePath) {
   }
 }
 
-async function slackApi(method, token, body = {}) {
+async function slackApi(method, token, body = {}, formEncoded = false) {
+  const headers = { Authorization: `Bearer ${token}` };
+  let encodedBody;
+  if (formEncoded) {
+    headers["Content-Type"] = "application/x-www-form-urlencoded";
+    encodedBody = new URLSearchParams(
+      Object.entries(body).filter(([, value]) => value !== undefined && value !== null)
+        .map(([key, value]) => [key, String(value)]),
+    );
+  } else {
+    headers["Content-Type"] = "application/json; charset=utf-8";
+    encodedBody = JSON.stringify(body);
+  }
   const response = await fetch(`${API_BASE}/${method}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json; charset=utf-8",
-    },
-    body: JSON.stringify(body),
+    headers,
+    body: encodedBody,
   });
   let value = {};
   try { value = await response.json(); } catch {}
@@ -70,13 +79,13 @@ async function slackApi(method, token, body = {}) {
   return value;
 }
 
-async function withRetry(method, token, body) {
+async function withRetry(method, token, body, formEncoded = false) {
   try {
-    return await slackApi(method, token, body);
+    return await slackApi(method, token, body, formEncoded);
   } catch (error) {
     if (!error.retryAfter) throw error;
     await new Promise((resolve) => setTimeout(resolve, Math.max(1000, error.retryAfter * 1000)));
-    return await slackApi(method, token, body);
+    return await slackApi(method, token, body, formEncoded);
   }
 }
 
@@ -99,7 +108,7 @@ async function listThread(channel, ts, botToken) {
   do {
     const body = { channel, ts, limit: 100 };
     if (cursor) body.cursor = cursor;
-    const page = await withRetry("conversations.replies", botToken, body);
+    const page = await withRetry("conversations.replies", botToken, body, true);
     out.push(...(Array.isArray(page.messages) ? page.messages : []));
     cursor = String(page.response_metadata?.next_cursor || "").trim();
   } while (cursor);
@@ -187,6 +196,10 @@ export async function runPurge(options = {}) {
     }
 
     const replies = thread.slice(1);
+    if (replies.some((message) => String(message.user || "") !== botUserId)) {
+      summary.skippedForeign += 1;
+      continue;
+    }
     if (replies.some((message) => !isOlderThan(message.ts, cutoffSeconds))) {
       summary.skippedActive += 1;
       continue;

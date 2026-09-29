@@ -94,5 +94,37 @@
     "Screen-off + deviceLocked=1: PASS",
     "Shadow/read comparison and active idempotent write independently verified via Desktop Commander: PASS",
     "Wi-Fi/mobile transition: PENDING until a known Wi-Fi network is available; do not retire Remote Desktop Commander fallback before this resilience test passes"
-  ]
+  ],
+  "slackHousekeeping": {
+    "status": "validated",
+    "ttlHours": 24,
+    "schedule": "hourly via OpenClaw existing scheduler",
+    "databaseAdded": false,
+    "daemonAdded": false,
+    "channel": "dedicated Claw control channel only",
+    "guards": [
+      "local requestId receipt required",
+      "running retained",
+      "indeterminate retained",
+      "foreign human thread retained"
+    ],
+    "liveAcceptance": {
+      "requestId": "purge-live-final-1790686658880",
+      "eligible": 1,
+      "parentsDeleted": 1,
+      "repliesDeleted": 1,
+      "failed": 0,
+      "postDeleteExactSearchResults": 0
+    },
+    "schedulerAcceptance": {
+      "declarationKey": "samantha:slack-control-purge",
+      "forcedRunStatus": "ok",
+      "durationMs": 867,
+      "normalTtlScanned": 0,
+      "normalTtlEligible": 0,
+      "normalTtlFailed": 0
+    },
+    "logPolicy": "summary counters only, bounded to last 200 lines",
+    "userToken": "local secret mode 0600; not committed"
+  }
 }
