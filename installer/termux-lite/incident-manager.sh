@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="$HOME/ClawMobile/installer/termux-lite"; D="$HOME/.openclaw/incidents"; Q="$D/queue"; LOG="$D/events.log"; mkdir -p "$Q"
+ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; D="$HOME/.openclaw/incidents"; Q="$D/queue"; LOG="$D/events.log"; mkdir -p "$Q"
 exec 9>"$D/manager.lock"; flock -n 9 || exit 0
 log(){ printf '%s id=%s %s\n' "$(date -Iseconds)" "$1" "$2" >>"$LOG"; }
 process(){ dir="$1"; id=$(basename "$dir"); st=$(cat "$dir/status" 2>/dev/null||echo pending); [ "$st" = pending ] || return; kind=$(cat "$dir/kind"); msg=$(cat "$dir/message"); action=$(cat "$dir/action" 2>/dev/null||true); body="$msg"; if [ "$kind" = human_required ]; then body="$msg\n\nÀ faire sur le S24 :\n$action\n\nEnsuite : aucune autre action. Samantha détectera le prérequis, reprendra automatiquement le traitement et confirmera la récupération."; fi;

@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="$HOME/ClawMobile/installer/termux-lite"
+ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
 LOG="$HOME/.openclaw/continuity/boot.log"
 log(){ printf '%s boot=continuity %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
 boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)

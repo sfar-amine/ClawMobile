@@ -1,5 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
+ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
 D="$HOME/.openclaw/incidents"; Q="$D/queue"; LOG="$D/events.log"
 component="${1:-}"; message="${2:-Samantha — récupération vérifiée.}"
 [ -n "$component" ] || exit 64
@@ -20,9 +21,9 @@ for dir in "$Q"/*; do
 done
 if [ "$matched" -eq 1 ]; then
   recovery_key="recovery-$(printf '%s' "$component:$last_id" | sha256sum | cut -c1-24)"
-  if timeout 18 "$HOME/ClawMobile/installer/termux-lite/whatsapp-owner-send.sh" "$message" "$recovery_key" >/dev/null 2>&1; then
+  if timeout 18 "$ROOT/whatsapp-owner-send.sh" "$message" "$recovery_key" >/dev/null 2>&1; then
     printf '%s component=%s recovery_channel=whatsapp state=accepted\n' "$(date -Iseconds)" "$component" >>"$LOG"
-  elif timeout 35 "$HOME/ClawMobile/installer/termux-lite/incident-email.sh" "Samantha: récupération vérifiée" "$message"; then
+  elif timeout 35 "$ROOT/incident-email.sh" "Samantha: récupération vérifiée" "$message"; then
     printf '%s component=%s recovery_channel=email state=accepted\n' "$(date -Iseconds)" "$component" >>"$LOG"
   else
     printf '%s component=%s recovery_channel=none state=failed\n' "$(date -Iseconds)" "$component" >>"$LOG"

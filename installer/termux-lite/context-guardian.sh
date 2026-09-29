@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="$HOME/ClawMobile/installer/termux-lite"
+ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
 D="$HOME/.openclaw/context-sync"; S="$D/state"; LOG="$D/context-guardian.log"
 mkdir -p "$D" "$S"; chmod 700 "$D" "$S"
 exec 9>"$D/context-guardian.lock"; flock -n 9 || exit 0
