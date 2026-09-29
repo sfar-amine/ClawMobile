@@ -27,6 +27,7 @@ const EVENT_LOG = path.join(STATE_DIR, "events.log");
 const MAX_REPLY_CHARS = 26000;
 const SLACK_API_BASE = (process.env.CLAW_SLACK_API_BASE || "https://slack.com/api").replace(/\/$/, "");
 const READ_ONLY = new Set(["ping", "request_status", "read_file", "artifact_read", "process_status"]);
+const HEALTH_HEARTBEAT_MS = Number(process.env.CLAW_SLACK_HEALTH_HEARTBEAT_MS || 15000);
 
 let socket = null;
 let stopping = false;
@@ -34,6 +35,8 @@ let reconnectAttempt = 0;
 let reconnectTimer = null;
 let botUserId = "";
 let sendChain = Promise.resolve();
+let healthState = "starting";
+let lastTransitionAt = Date.now();
 
 fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
 
@@ -98,12 +101,21 @@ function auditEvent(event, request, extra = {}) {
 }
 
 function writeHealth(state, extra = {}) {
+  const now = Date.now();
+  if (state !== healthState) {
+    healthState = state;
+    lastTransitionAt = now;
+  }
   const value = {
-    state,
+    state: healthState,
     mode: MODE,
     channelId: CHANNEL_ID,
     connected: socket?.readyState === WebSocket.OPEN,
-    updatedAt: Date.now(),
+    updatedAt: now,
+    heartbeatAt: now,
+    lastTransitionAt,
+    runtimeRoot: path.dirname(path.resolve(process.argv[1] || ".")),
+    pid: process.pid,
     ...extra,
   };
   const temp = `${HEALTH_FILE}.tmp-${process.pid}`;
@@ -317,6 +329,11 @@ function shutdown() {
   try { socket?.close(); } catch {}
   setTimeout(() => process.exit(0), 200).unref();
 }
+
+const healthHeartbeat = setInterval(() => {
+  if (!stopping) writeHealth(healthState, botUserId ? { botUserId } : {});
+}, Math.max(5000, HEALTH_HEARTBEAT_MS));
+healthHeartbeat.unref();
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

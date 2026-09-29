@@ -2,12 +2,12 @@
 import json
 import os
 import pathlib
-import sys
 import time
 
 BASE = pathlib.Path(os.environ.get("CLAW_SLACK_STATE_DIR", pathlib.Path.home() / ".openclaw" / "remote-bridge" / "slack"))
 CONFIG = pathlib.Path(os.environ.get("CLAW_SLACK_CONFIG", BASE / "config.json"))
 HEALTH = BASE / "health.json"
+MAX_HEARTBEAT_AGE_S = float(os.environ.get("CLAW_SLACK_MAX_HEARTBEAT_AGE_S", "60"))
 
 def expand(value):
     return pathlib.Path(os.path.expanduser(str(value)))
@@ -35,10 +35,13 @@ except Exception:
     output("degraded", reason="health_missing")
     raise SystemExit(1)
 
-age = max(0, time.time() - (float(health.get("updatedAt") or 0) / 1000))
-if health.get("state") == "healthy" and health.get("connected") is True and age <= 60:
-    output("healthy", ageSeconds=round(age, 3))
+heartbeat_ms = float(health.get("heartbeatAt") or health.get("updatedAt") or 0)
+age = max(0, time.time() - heartbeat_ms / 1000)
+runtime_root = str(health.get("runtimeRoot") or "")
+if health.get("state") == "healthy" and health.get("connected") is True and age <= MAX_HEARTBEAT_AGE_S:
+    output("healthy", ageSeconds=round(age, 3), runtimeRoot=runtime_root)
     raise SystemExit(0)
 
-output(str(health.get("state") or "degraded"), ageSeconds=round(age, 3))
+reason = "heartbeat_stale" if age > MAX_HEARTBEAT_AGE_S else "bridge_not_healthy"
+output("degraded", reason=reason, reportedState=str(health.get("state") or "unknown"), ageSeconds=round(age, 3), runtimeRoot=runtime_root)
 raise SystemExit(1)
