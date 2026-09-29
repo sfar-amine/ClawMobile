@@ -3,18 +3,30 @@ set -euo pipefail
 TIER0="$HOME/.openclaw/tier0"; CONTROL="$TIER0/bin/tier0-control.py"
 restart_core(){
 python3 - <<'PY'
-import os,signal,subprocess
+import os,signal,subprocess,time
 need=('samantha-root-guardian.sh','samantha-health-manager.sh','incident-orchestrator-worker.sh')
 me=os.getpid()
-for line in subprocess.run(['ps','-Ao','pid,args'],capture_output=True,text=True).stdout.splitlines()[1:]:
-    try: pid_s,args=line.strip().split(None,1);pid=int(pid_s)
-    except Exception: continue
-    if pid==me: continue
-    if any('/'+n in args for n in need):
+def matches():
+    out=[]
+    for line in subprocess.run(['ps','-Ao','pid,args'],capture_output=True,text=True).stdout.splitlines()[1:]:
+        try: pid_s,args=line.strip().split(None,1); pid=int(pid_s)
+        except Exception: continue
+        if pid!=me and any('/'+n in args for n in need): out.append(pid)
+    return out
+for _ in range(5):
+    rows=matches()
+    if not rows: break
+    for pid in rows:
         try: os.kill(pid,signal.SIGTERM)
         except ProcessLookupError: pass
+    time.sleep(1)
+rows=matches()
+for pid in rows:
+    try: os.kill(pid,signal.SIGKILL)
+    except ProcessLookupError: pass
+time.sleep(1)
+if matches(): raise SystemExit('core_processes_survived_restart_boundary')
 PY
-sleep 3
 nohup "$0" >/dev/null 2>&1 </dev/null &
 exit 0
 }
