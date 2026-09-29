@@ -4,7 +4,7 @@
 
 Claw Remote Bridge is the transport-independent execution layer used to replace Remote Desktop Commander without moving reasoning away from ChatGPT/Samantha.
 
-Remote Desktop Commander remains the validated fallback/break-glass path. Slack Socket Mode is the first experimental primary transport.
+Remote Desktop Commander remains the validated fallback/break-glass path. Slack Socket Mode is the live E2E-validated primary interactive transport while healthy.
 
 ## Runtime topology
 
@@ -134,18 +134,24 @@ Slack resilience simulation also passed:
 - Slack disconnect triggers bounded automatic Socket Mode reconnect;
 - a second RPC succeeds on the new connection and adapter health returns healthy.
 
-These numbers measure the local Bridge and simulated Slack transport only, not live Slack provider latency. Live Slack remains setup_required until the workspace/app is authorized and tokens are stored locally on the S24.
+Live Slack provider acceptance is now complete for the interactive chain. Twelve real pings measured Slack parent-message to Bridge thread-reply latency at min 345.17 ms, p50 571.52 ms, p95 3938.20 ms and max 3938.20 ms. The light-command p95 target (<5 s) passed. A real screen-off + locked-device ping also passed in 1268.88 ms and the device was restored to its initial awake/unlocked state.
 
-## Promotion gate
+## Promotion / resilience status
 
-Slack must not replace Desktop Commander as primary until a live ChatGPT↔Slack↔S24↔ChatGPT test verifies:
-- ChatGPT can write the dedicated Slack channel;
-- S24 receives and executes the RPC;
-- ChatGPT can read the result in the same interactive turn/workflow;
-- p50/p95 latency targets are met;
-- Wi-Fi/mobile transition and reconnect pass;
-- locked/screen-off state passes;
-- at least one shadow read comparison matches Remote Desktop Commander;
-- one idempotent write is independently verified by Remote Desktop Commander.
+The live ChatGPT↔Slack↔S24↔ChatGPT chain is promoted for primary interactive use while healthy:
+- ChatGPT writes and reads the dedicated `#claw-control` channel: PASS;
+- S24 receives and executes correlated RPCs: PASS;
+- ChatGPT reads the result and chooses a second RPC in the same workflow: PASS;
+- live latency sample p50/p95 target: PASS;
+- locked/screen-off state: PASS;
+- active idempotent write verified independently by Remote Desktop Commander: PASS.
 
-Until then Slack remains experimental and Desktop Commander remains primary.
+Wi-Fi↔mobile transition remains a resilience follow-up because no known Wi-Fi network was available during acceptance. A guarded attempt temporarily enabled Wi-Fi, observed `Wifi is not connected`, then restored the exact pre-state (`wifi_on=0`, mobile data on, airplane mode off) and revalidated connectivity. Do not retire Remote Desktop Commander as fallback/break-glass before this transition test can be completed.
+
+## Live provider evidence
+
+- Ping `chatgpt-e2e-1790681152756` completed on S24 and returned in its Slack thread in 651.84 ms.
+- ChatGPT read that response, reasoned on `pong=true`, then sent `chatgpt-e2e-read-1790681221519`; S24 returned the real Slack health file through the second Slack thread.
+- Active write `chatgpt-e2e-write-1790681337196` completed in 575.60 ms. Desktop Commander verified exact content and SHA-256 `5fcbe88fbba4f415defbdc4b689a14eb6fd9fd251647023e774add4ecee45573`. Reposting the exact same request ID returned the original stored completion without a second write. The test artifact was removed.
+- Twelve additional live pings: min 345.17 ms, p50 571.52 ms, p95/max 3938.20 ms.
+- Locked-screen ping `locked-ping-1790681928378` completed while the phone reported `Asleep`, keyguard showing and `deviceLocked=1`; parent→reply 1268.88 ms.
