@@ -155,7 +155,10 @@ async function bridgeCall(payload) {
 }
 
 function parseRpc(text) {
-  const raw = String(text || "").trim();
+  const original = String(text || "").trim();
+  const raw = original.startsWith("CLAW_RPC_V1_B64")
+    ? original
+    : original.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
   let jsonText = "";
   if (raw.startsWith("CLAW_RPC_V1_B64")) {
     const encodedRaw = raw.slice("CLAW_RPC_V1_B64".length).trim();

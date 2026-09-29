@@ -171,6 +171,13 @@ async function main() {
   adapterProc = startAdapter("active");
   await waitFor(() => sockets.size === 1);
 
+  await sendEvent("CLAW_RPC_V1\\n" + JSON.stringify({
+    requestId: "s-entity-exec", method: "exec_wait",
+    params: { command: "true &amp;&amp; echo ENTITY_OK" },
+  }));
+  const entityPost = await waitFor(() => posts.find((post) => String(post.text).includes("request=s-entity-exec state=completed")));
+  assert.ok(String(entityPost.text).includes("ENTITY_OK"));
+
   const complexContent = "line1\n{\\\"quoted\\\":\\\"yes\\\"}";
   await sendEvent(rpcB64({
     requestId: "s-b64-write", method: "write_file",
