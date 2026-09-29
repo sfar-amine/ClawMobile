@@ -155,6 +155,32 @@ class PeopleTrustedTests(unittest.TestCase):
   self.assertEqual(out["configPath"],"legacy")
   self.assertEqual(out["plan"]["configFallback"],"legacy")
   self.assertIn("rpc down",out["plan"]["fastPathError"])
+ def test_durable_send_replay_survives_old_receipt(self):
+  self.set_config(["+21653792744"])
+  with patch.object(m,"gateway_call",return_value={"channel":"whatsapp","messageId":"MID-DURABLE"}) as gw:
+   first=m.whatsapp_send("+21653792744","hello","durable-key")
+   c=m.connect(); c.execute("update send_receipts set updated_at=1 where idempotency_key='durable-key'"); c.commit(); c.close()
+   second=m.whatsapp_send("+21653792744","hello","durable-key")
+  self.assertEqual(first,"MID-DURABLE"); self.assertEqual(second,"MID-DURABLE")
+  self.assertEqual(gw.call_count,1)
+
+ def test_idempotency_key_conflict_rejected(self):
+  self.set_config(["+21653792744"])
+  with patch.object(m,"gateway_call",return_value={"channel":"whatsapp","messageId":"MID1"}) as gw:
+   m.whatsapp_send("+21653792744","hello","same-key")
+   with self.assertRaisesRegex(RuntimeError,"idempotency_key_conflict"):
+    m.whatsapp_send("+21653792744","different","same-key")
+  self.assertEqual(gw.call_count,1)
+
+ def test_uncertain_send_is_never_replayed_automatically(self):
+  self.set_config(["+21653792744"])
+  with patch.object(m,"gateway_call",side_effect=RuntimeError("timeout")) as gw:
+   with self.assertRaisesRegex(RuntimeError,"timeout"):
+    m.whatsapp_send("+21653792744","hello","uncertain-key")
+   with self.assertRaisesRegex(RuntimeError,"send_state_uncertain_no_retry"):
+    m.whatsapp_send("+21653792744","hello","uncertain-key")
+  self.assertEqual(gw.call_count,1)
+
  def test_send_rejects_target_outside_local_allowlist(self):
   with self.assertRaisesRegex(RuntimeError,"target_not_allowlisted"):
    m.whatsapp_send("+21699999999","hello","k")
