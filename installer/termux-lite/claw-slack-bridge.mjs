@@ -26,7 +26,7 @@ const HEALTH_FILE = path.join(STATE_DIR, "health.json");
 const EVENT_LOG = path.join(STATE_DIR, "events.log");
 const MAX_REPLY_CHARS = 26000;
 const SLACK_API_BASE = (process.env.CLAW_SLACK_API_BASE || "https://slack.com/api").replace(/\/$/, "");
-const READ_ONLY = new Set(["ping", "request_status", "read_file", "artifact_read", "process_status"]);
+const READ_ONLY = new Set(["ping", "request_status", "read_file", "read_binary_file", "artifact_read", "process_status"]);
 const HEALTH_HEARTBEAT_MS = Number(process.env.CLAW_SLACK_HEALTH_HEARTBEAT_MS || 15000);
 
 let socket = null;
@@ -71,7 +71,7 @@ function requestSummary(request) {
   if (method === "exec_wait" || method === "process_start") {
     return { command: sanitizeAuditText(params.command).slice(0, 1200), cwd: String(params.cwd || "").slice(0, 300) };
   }
-  if (method === "read_file" || method === "write_file") {
+  if (method === "read_file" || method === "read_binary_file" || method === "write_file" || method === "write_binary_file" || method === "patch_file") {
     return { path: String(params.path || "").slice(0, 600), mode: String(params.mode || "") };
   }
   if (method.startsWith("process_")) {
@@ -156,12 +156,21 @@ async function bridgeCall(payload) {
 
 function parseRpc(text) {
   const raw = String(text || "").trim();
-  if (!raw.startsWith("CLAW_RPC_V1")) return null;
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("rpc_json_missing");
-  const payload = JSON.parse(raw.slice(start, end + 1));
-  if (!payload || typeof payload !== "object") throw new Error("rpc_invalid");
+  let jsonText = "";
+  if (raw.startsWith("CLAW_RPC_V1_B64")) {
+    const encoded = raw.slice("CLAW_RPC_V1_B64".length).trim().replace(/\s+/g, "");
+    if (!encoded || encoded.length > 60000 || !/^[A-Za-z0-9_-]+={0,2}$/.test(encoded)) throw new Error("rpc_b64_invalid");
+    jsonText = Buffer.from(encoded, "base64url").toString("utf8");
+  } else if (raw.startsWith("CLAW_RPC_V1")) {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start < 0 || end <= start) throw new Error("rpc_json_missing");
+    jsonText = raw.slice(start, end + 1);
+  } else {
+    return null;
+  }
+  const payload = JSON.parse(jsonText);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("rpc_invalid");
   return payload;
 }
 

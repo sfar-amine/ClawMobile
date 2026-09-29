@@ -9,9 +9,11 @@
     "requireLivePing": true,
     "probeTimeoutMs": 5000
   },
-  "bootstrapException": "Remote Desktop Commander may be used only for the mandatory S24 bootstrap/read barrier before substantive work when required by the ChatGPT Claw bootstrap contract.",
+  "bootstrapPolicy": "Use Slack Remote Bridge for bootstrap whenever the connector is available and a live CLAW_RPC_V1 ping succeeds. Use RDC for bootstrap only when Slack is unavailable or degraded, or when a required bootstrap method is unsupported by the Bridge.",
+  "quotaPolicy": "Remote Desktop Commander is quota-constrained and must not be used for routine bootstrap or normal work when Slack can complete the request.",
   "fallbackRules": [
     "Use RDC only when Slack connector is unavailable, Slack/Bridge is degraded, or the required method cannot complete through Slack.",
+    "Routine bootstrap uses Slack after a live ping; RDC bootstrap is break-glass only.",
     "Record the fallback reason before substantive fallback execution.",
     "Never execute the same mutation independently on both transports; query the same requestId before retry.",
     "Restore Slack primary only after a fresh benign E2E ping succeeds."
