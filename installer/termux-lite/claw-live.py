@@ -68,7 +68,7 @@ TAG_COLOR = {
     "LIVE": "\033[90m",
 }
 ACTION_COLOR = {
-    "OK": "\033[92m", "PASS": "\033[92m", "DONE": "\033[92m",
+    "OK": "\033[92m", "PASS": "\033[92m", "DONE": "\033[92m", "RUN": "\033[92m",
     "RECOVERED": "\033[92m", "SENT": "\033[92m", "OUT": "\033[92m",
     "PUBLISHED": "\033[92m", "VERIFIED": "\033[92m", "VALIDATED": "\033[92m",
     "FAILED": "\033[91m", "FAIL": "\033[91m", "ERROR": "\033[91m",
@@ -169,6 +169,80 @@ def acquire_single_instance() -> bool:
     handle.flush()
     _instance_lock = handle
     return True
+
+def _process_rows() -> list[tuple[int, str]]:
+    try:
+        proc = subprocess.run(
+            ["ps", "-A", "-o", "pid=,args="],
+            text=True,
+            capture_output=True,
+            timeout=2,
+        )
+    except Exception:
+        return []
+    rows: list[tuple[int, str]] = []
+    for line in (proc.stdout or "").splitlines():
+        match = re.match(r"\s*(\d+)\s+(.*)", line)
+        if match:
+            rows.append((int(match.group(1)), match.group(2)))
+    return rows
+
+def permanent_service_events(
+    rows: list[tuple[int, str]] | None = None,
+    current_root: str | None = None,
+) -> list[Event]:
+    rows = rows if rows is not None else _process_rows()
+    if current_root is None:
+        try:
+            current_root = str((OPENCLAW / "releases" / "current" / "termux-lite").resolve())
+        except Exception:
+            current_root = ""
+    groups = [
+        ("OPENCLAW", [
+            ("gateway", "openclaw-gateway", False),
+            ("broker", "spawn-broker/worker.js", False),
+        ]),
+        ("BRIDGE", [
+            ("companion", "dist/companion/server.js", False),
+            ("slack", "claw-slack-bridge.mjs", True),
+            ("rdc", "desktop-commander/dist/index.js remote", False),
+        ]),
+        ("IMMUNE", [
+            ("root", "samantha-root-guardian.sh", True),
+            ("tier0", "tier0/bin/tier0-watchdog.py", False),
+            ("health", "samantha-health-manager.sh", True),
+            ("incident", "incident-manager.sh", True),
+            ("orchestrator", "incident-orchestrator-worker.sh", True),
+            ("adb", "adb-recovery-watchdog.sh", True),
+            ("rdc-watch", "remote-desktop-watchdog.sh", True),
+        ]),
+        ("LIVE", [
+            ("claw-live", "/usr/bin/claw-live", False),
+        ]),
+    ]
+    events: list[Event] = []
+    for tag, specs in groups:
+        parts: list[str] = []
+        missing: list[str] = []
+        stale: list[str] = []
+        for label, pattern, must_be_current in specs:
+            match = next(((pid, args) for pid, args in rows if pattern in args), None)
+            if not match:
+                missing.append(label)
+                continue
+            pid, args = match
+            parts.append(f"{label}={pid}")
+            if must_be_current and current_root and current_root not in args:
+                stale.append(label)
+        detail = " ".join(parts) or "aucun process"
+        if missing:
+            detail += " missing=" + ",".join(missing)
+        if stale:
+            detail += " stale=" + ",".join(stale)
+        action = "RUN" if not missing and not stale else "WARN"
+        status = "CURRENT" if tag == "IMMUNE" and not missing and not stale else ""
+        events.append(Event(["SYSTEM", tag], "permanent", action, detail, status=status))
+    return events
 
 class Renderer:
     def __init__(self, args: argparse.Namespace):
@@ -1050,6 +1124,8 @@ def main() -> int:
         print(legend, flush=True)
     else:
         print("[CHAT] [VOICE] [WHATSAPP] [IMMUNE] [IMPROVE] [TERMUX] [RDC] [SLACK] [ADB] [LOCAL] [OPENAI]", flush=True)
+    for event in permanent_service_events():
+        renderer.emit(event)
 
     threads = [
         threading.Thread(target=renderer.heartbeat, daemon=True, name="heartbeat"),
