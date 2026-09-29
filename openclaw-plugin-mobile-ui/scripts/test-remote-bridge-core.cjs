@@ -113,13 +113,13 @@ async function main() {
   result = await submit({
     requestId: "core-exec",
     method: "exec_wait",
-    params: { command: "printf hello" },
+    params: { command: "printf hello && printf world" },
   });
-  assert.equal(result.body.result.stdout, "hello");
+  assert.equal(result.body.result.stdout, "helloworld");
   assert.equal(result.body.result.exitCode, 0);  result = await submit({
     requestId: "core-process",
     method: "process_start",
-    params: { command: "printf A; sleep 0.2; printf B" },
+    params: { command: "printf A && sleep 0.2 && printf B" },
   });
   const processId = result.body.result.processId;
   await wait(350);
