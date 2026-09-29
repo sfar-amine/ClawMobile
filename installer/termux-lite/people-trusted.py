@@ -271,9 +271,39 @@ def gateway_mutate_whatsapp(target,prompt):
     if target not in got_allow: raise RuntimeError("allowlist_verify_failed")
     if prompt and got_direct.get(target,{}).get("systemPrompt")!=prompt:
         raise RuntimeError("direct_verify_failed")
-    return {"changed":True,"changedAllow":changed_allow,"changedDirect":changed_direct,
+    return {"changed":True,"source":"gateway","changedAllow":changed_allow,"changedDirect":changed_direct,
             "beforeAllow":allow,"beforeDirectTarget":direct.get(target),
             "allow":got_allow,"direct":got_direct,"changedPaths":out.get("changedPaths",[])}
+
+def legacy_cfg_get(path):
+    return json.loads(run(["openclaw","config","get",path],timeout=15).stdout)
+
+def legacy_cfg_set(path,new,old):
+    run(["openclaw","config","set",path,json.dumps(new,ensure_ascii=False,separators=(",",":")),
+         "--strict-json","--expect-current-json",json.dumps(old,ensure_ascii=False,separators=(",",":"))],timeout=25)
+
+def legacy_mutate_whatsapp(target,prompt):
+    allow=legacy_cfg_get("channels.whatsapp.allowFrom")
+    direct=legacy_cfg_get("channels.whatsapp.direct")
+    new_allow,new_direct=desired_whatsapp(allow,direct,target,prompt)
+    changed_allow=new_allow!=allow; changed_direct=new_direct!=direct
+    if changed_allow: legacy_cfg_set("channels.whatsapp.allowFrom",new_allow,allow)
+    try:
+        if changed_direct: legacy_cfg_set("channels.whatsapp.direct",new_direct,direct)
+    except Exception:
+        if changed_allow:
+            try: legacy_cfg_set("channels.whatsapp.allowFrom",allow,new_allow)
+            except Exception: pass
+        raise
+    got_allow=legacy_cfg_get("channels.whatsapp.allowFrom")
+    got_direct=legacy_cfg_get("channels.whatsapp.direct")
+    if target not in got_allow: raise RuntimeError("legacy_allowlist_verify_failed")
+    if prompt and got_direct.get(target,{}).get("systemPrompt")!=prompt:
+        raise RuntimeError("legacy_direct_verify_failed")
+    return {"changed":changed_allow or changed_direct,"source":"legacy",
+            "changedAllow":changed_allow,"changedDirect":changed_direct,
+            "beforeAllow":allow,"beforeDirectTarget":direct.get(target),
+            "allow":got_allow,"direct":got_direct}
 
 def gateway_rollback_whatsapp(target,mutation):
     if not mutation.get("changed"): return
@@ -288,6 +318,21 @@ def gateway_rollback_whatsapp(target,mutation):
             "baseHash":snap["hash"],"note":"people-trusted rollback"}
     if replace: params["replacePaths"]=replace
     gateway_call("config.patch",params)
+
+def rollback_whatsapp(target,mutation):
+    if not mutation.get("changed"): return
+    if mutation.get("source")!="legacy":
+        return gateway_rollback_whatsapp(target,mutation)
+    allow=legacy_cfg_get("channels.whatsapp.allowFrom")
+    direct=legacy_cfg_get("channels.whatsapp.direct")
+    if mutation.get("changedDirect"):
+        restored=dict(direct)
+        if mutation.get("beforeDirectTarget") is None: restored.pop(target,None)
+        else: restored[target]=mutation["beforeDirectTarget"]
+        legacy_cfg_set("channels.whatsapp.direct",restored,direct)
+    if mutation.get("changedAllow"):
+        current=legacy_cfg_get("channels.whatsapp.allowFrom")
+        legacy_cfg_set("channels.whatsapp.allowFrom",mutation["beforeAllow"],current)
 
 def scope_prompt(name,scope,custom=None):
     if scope=="standard": return None
@@ -352,16 +397,23 @@ def trusted_add(args):
     mutation={"changed":False}; path=oldctx=None
     try:
         if plan["allowChange"] or plan["directChange"]:
-            mutation=gateway_mutate_whatsapp(target,prompt)
+            try:
+                mutation=gateway_mutate_whatsapp(target,prompt)
+                plan["configFallback"]="none"
+            except Exception as fast_error:
+                mutation=legacy_mutate_whatsapp(target,prompt)
+                plan["configFallback"]="legacy"
+                plan["fastPathError"]=str(fast_error)[:160]
             plan["allowChange"]=bool(mutation.get("changedAllow"))
             plan["directChange"]=bool(mutation.get("changedDirect"))
         path,oldctx=update_context(person,target,effective_scope,args.scope_text)
     except Exception:
         if path: restore_context(path,oldctx)
-        try: gateway_rollback_whatsapp(target,mutation)
+        try: rollback_whatsapp(target,mutation)
         except Exception: pass
         raise
-    result={"state":"verified","plan":plan,"configPath":"local-noop" if not mutation.get("changed") else "gateway-cas",
+    source=mutation.get("source") if mutation.get("changed") else "local-noop"
+    result={"state":"verified","plan":plan,"configPath":source,
             "context":str(path),"welcome":"not_requested","after":"not_requested"}
     if not args.silent:
         first=person["displayName"].split()[0] if person["displayName"] else ""

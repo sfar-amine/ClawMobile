@@ -142,10 +142,19 @@ class PeopleTrustedTests(unittest.TestCase):
   self.assertEqual(out["welcome"],"MID1"); self.assertEqual(out["after"],"MID2")
 
  def test_context_failure_rolls_back_gateway_mutation(self):
-  mutation={"changed":True,"changedAllow":True,"changedDirect":False,"beforeAllow":[]}
-  with patch.object(m,"gateway_mutate_whatsapp",return_value=mutation), patch.object(m,"update_context",side_effect=RuntimeError("disk")), patch.object(m,"gateway_rollback_whatsapp") as rollback:
+  mutation={"changed":True,"source":"gateway","changedAllow":True,"changedDirect":False,"beforeAllow":[]}
+  with patch.object(m,"gateway_mutate_whatsapp",return_value=mutation), patch.object(m,"update_context",side_effect=RuntimeError("disk")), patch.object(m,"rollback_whatsapp") as rollback:
    with self.assertRaisesRegex(RuntimeError,"disk"): m.trusted_add(self.args())
   rollback.assert_called_once_with("+21653792744",mutation)
+
+ def test_fast_mutation_failure_uses_legacy_fallback(self):
+  legacy={"changed":True,"source":"legacy","changedAllow":True,"changedDirect":False}
+  with patch.object(m,"gateway_mutate_whatsapp",side_effect=RuntimeError("rpc down")), patch.object(m,"legacy_mutate_whatsapp",return_value=legacy) as fallback:
+   out=m.trusted_add(self.args())
+  fallback.assert_called_once()
+  self.assertEqual(out["configPath"],"legacy")
+  self.assertEqual(out["plan"]["configFallback"],"legacy")
+  self.assertIn("rpc down",out["plan"]["fastPathError"])
  def test_send_rejects_target_outside_local_allowlist(self):
   with self.assertRaisesRegex(RuntimeError,"target_not_allowlisted"):
    m.whatsapp_send("+21699999999","hello","k")
