@@ -12,6 +12,18 @@ class T(unittest.TestCase):
    (p/'retrieval-runs.json').write_text(json.dumps({'r':{'state':'blocked','updated_at':time.time()-600}}))
    self.assertEqual(hv.continuations()['stuck'],1)
   hv.OC=old
+ def test_adb_recovery_readiness_receipt(self):
+  with tempfile.TemporaryDirectory() as td:
+   path=Path(td)/'ready.json'
+   path.write_text(json.dumps({'checked_at':time.time(),'state':'degraded','reason':'wireless_debugging_disabled'}))
+   state,reason,fresh=hv.adb_recovery_readiness(path)
+   self.assertEqual(state,'degraded');self.assertEqual(reason,'wireless_debugging_disabled');self.assertLess(fresh,5)
+ def test_adb_recovery_readiness_stale(self):
+  with tempfile.TemporaryDirectory() as td:
+   path=Path(td)/'ready.json'
+   path.write_text(json.dumps({'checked_at':time.time()-400,'state':'ready','reason':'ok'}))
+   state,reason,_=hv.adb_recovery_readiness(path)
+   self.assertEqual(state,'stale');self.assertEqual(reason,'readiness_receipt_stale')
  def test_historical_failed_not_active(self):
   old=hv.OC
   with tempfile.TemporaryDirectory() as td:
