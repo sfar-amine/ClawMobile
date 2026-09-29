@@ -9,12 +9,12 @@ while :; do
   if ! pgrep -f '[s]amantha-health-manager.sh' >/dev/null; then
     log 'event=health_manager_missing action=start'
     nohup "$ROOT/samantha-health-manager.sh" 9>&- >>"$D/health-manager.stderr.log" 2>&1 </dev/null &
-    sleep 3
+    sleep 3 9>&-
     pgrep -f '[s]amantha-health-manager.sh' >/dev/null && log 'event=health_manager_start result=ok' || log 'event=health_manager_start result=failed'
   fi
   if ! pgrep -f '[i]ncident-orchestrator-worker.sh' >/dev/null; then
     log 'event=incident_orchestrator_missing action=start'
     nohup "$ROOT/incident-orchestrator-worker.sh" 9>&- >>"$D/incident-orchestrator.stderr.log" 2>&1 </dev/null &
   fi
-  sleep 10
+  sleep 10 9>&-
 done

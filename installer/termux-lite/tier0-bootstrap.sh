@@ -27,6 +27,9 @@ for pid in rows:
 time.sleep(1)
 if matches(): raise SystemExit('core_processes_survived_restart_boundary')
 PY
+wait_for_lock_release(){ lock="$1"; waited=0; while ! flock -n "$lock" true 2>/dev/null; do waited=$((waited+1)); [ "$waited" -ge 20 ] && { echo "lock_release_timeout:$lock" >&2; return 1; }; sleep 1; done; }
+wait_for_lock_release "$HOME/.openclaw/guardian/guardian.lock"
+wait_for_lock_release "$HOME/.openclaw/health/health.lock"
 nohup "$0" >/dev/null 2>&1 </dev/null &
 exit 0
 }
