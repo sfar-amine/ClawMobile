@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "primary": "slack_remote_bridge",
+  "fallback": "remote_desktop_commander",
+  "channelId": "C0C4S6P56F9",
+  "protocol": "CLAW_RPC_V1",
+  "primaryHealth": {
+    "requireConnector": true,
+    "requireLivePing": true,
+    "probeTimeoutMs": 5000
+  },
+  "bootstrapException": "Remote Desktop Commander may be used only for the mandatory S24 bootstrap/read barrier before substantive work when required by the ChatGPT Claw bootstrap contract.",
+  "fallbackRules": [
+    "Use RDC only when Slack connector is unavailable, Slack/Bridge is degraded, or the required method cannot complete through Slack.",
+    "Record the fallback reason before substantive fallback execution.",
+    "Never execute the same mutation independently on both transports; query the same requestId before retry.",
+    "Restore Slack primary only after a fresh benign E2E ping succeeds."
+  ]
+}
