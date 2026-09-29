@@ -55,6 +55,7 @@ TAG_COLOR = {
     "MEMORY": "\033[38;5;110m",
     "BRIDGE": "\033[38;5;117m",
     "RDC": "\033[38;5;51m",
+    "BOOTSTRAP": "\033[38;5;244m",
     "SLACK": "\033[38;5;201m",
     "ADB": "\033[38;5;214m",
     "LOCAL": "\033[38;5;118m",
@@ -508,7 +509,9 @@ class DesktopStream:
     def _tool(self, surface: str, ctx: str, tool: str, args: Any) -> None:
         if not isinstance(args, dict):
             args = {}
-        base_tags = ["TERMUX", surface, "RDC"]
+        markers = ("SOUL.md", "AGENTS.md", "OPERATING_RULES.md", "CAPABILITIES.md", "HYBRID_CONTEXT.md")
+        bootstrap = any(marker in compact_json(args, 4000) for marker in markers)
+        base_tags = ["TERMUX", surface, "RDC"] + (["BOOTSTRAP"] if bootstrap else [])
         if tool == "start_process":
             cmd = scrub_text(args.get("command", ""))
             tags = base_tags + command_backend_tags(cmd)
