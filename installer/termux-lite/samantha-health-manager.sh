@@ -27,7 +27,31 @@ check_gateway(){ if http http://127.0.0.1:18789/healthz; then put gateway first_
 check_whatsapp(){ st=$(verdict_field notification.whatsapp state); reason=$(verdict_field notification.whatsapp reason); prev=$(get whatsapp status unknown); if [ "$st" = healthy ]; then if [ "$prev" = human_required ]; then "$ROOT/incident-orchestrator.py" recover whatsapp runtime --source health-manager --reason "WhatsApp channel verified connected after relink" >/dev/null 2>&1 || true; "$ROOT/incident-close.sh" WhatsApp "Samantha — WhatsApp est de nouveau connecté et vérifié." || true; fi; put whatsapp terminal_notified 0; healthy whatsapp; return; fi; if [ "$reason" = terminal_auth_logout ]; then if [ "$(get whatsapp terminal_notified 0)" != 1 ]; then iid=$("$ROOT/incident-orchestrator.py" open whatsapp runtime --source health-manager --summary "WhatsApp terminal authentication logout (401 conflict)" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'); "$ROOT/incident-orchestrator.py" transition "$iid" human_required --source health-manager --reason "WhatsApp session logged out; QR relink required" --human-boundary >/dev/null 2>&1 || true; "$ROOT/incident-notify.sh" human_required "Samantha — WhatsApp est déconnecté (401 conflict / session logged out)." "Relier WhatsApp avec openclaw channels login --channel whatsapp puis scanner le QR." || true; put whatsapp terminal_notified 1; log "service=whatsapp state=human_required incident_id=$iid reason=terminal_auth_logout"; fi; put whatsapp status human_required; put whatsapp next 0; return; fi; due whatsapp || return; fail whatsapp; }
 check_smtp(){ due smtp || return; if timeout 25 "$ROOT/incident-email.sh" --probe >/dev/null 2>&1; then healthy smtp; put smtp next $(( $(now)+300 )); else fail smtp; fi; }
 check_network_safety(){ due network_safety || return; if "$ROOT/android-network-mutation-guard.py" check >/dev/null 2>&1; then healthy network_safety; else fail network_safety; fi; }
-check_slack_bridge(){ "$ROOT/claw-slack-bridge-health.py" >/dev/null 2>&1; rc=$?; if [ "$rc" -eq 2 ]; then proc '[c]law-slack-bridge.mjs' && pkill -TERM -f '[c]law-slack-bridge.mjs' 2>/dev/null || true; put slack_bridge status setup_required; put slack_bridge failures 0; put slack_bridge next 0; return; fi; if [ "$rc" -eq 0 ] && proc '[c]law-slack-bridge.mjs'; then healthy slack_bridge; return; fi; due slack_bridge || return; if ! proc '[c]law-slack-bridge.mjs'; then log 'service=slack_bridge action=start'; start slack_bridge "$ROOT/claw-slack-bridge.sh"; sleep 3 9>&-; "$ROOT/claw-slack-bridge-health.py" >/dev/null 2>&1 && proc '[c]law-slack-bridge.mjs' && { healthy slack_bridge; return; }; fail slack_bridge; return; fi; put slack_bridge status degraded; put slack_bridge next $(( $(now)+15 )); log 'service=slack_bridge state=degraded action=self_reconnect'; }
+slack_bridge_on_current_root(){ pgrep -af '[c]law-slack-bridge.mjs' | grep -F -- "$ROOT/claw-slack-bridge.mjs" >/dev/null 2>&1; }
+stop_slack_bridge(){ pkill -TERM -f '[c]law-slack-bridge.mjs' 2>/dev/null || true; waited=0; while proc '[c]law-slack-bridge.mjs' && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc '[c]law-slack-bridge.mjs'; then log "service=slack_bridge state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f '[c]law-slack-bridge.mjs' 2>/dev/null || true; sleep 1 9>&-; fi; }
+check_slack_bridge(){
+ "$ROOT/claw-slack-bridge-health.py" >/dev/null 2>&1; rc=$?
+ if [ "$rc" -eq 2 ]; then
+   proc '[c]law-slack-bridge.mjs' && stop_slack_bridge
+   put slack_bridge status setup_required; put slack_bridge failures 0; put slack_bridge next 0
+   return
+ fi
+ if [ "$rc" -eq 0 ] && slack_bridge_on_current_root; then healthy slack_bridge; return; fi
+ due slack_bridge || return
+ if proc '[c]law-slack-bridge.mjs'; then
+   if slack_bridge_on_current_root; then
+     log 'service=slack_bridge state=degraded action=restart'
+   else
+     log "service=slack_bridge state=stale_runtime action=replace expected_root=$ROOT"
+   fi
+   stop_slack_bridge
+ else
+   log 'service=slack_bridge action=start'
+ fi
+ start slack_bridge "$ROOT/claw-slack-bridge.sh"
+ sleep 3 9>&-
+ if "$ROOT/claw-slack-bridge-health.py" >/dev/null 2>&1 && slack_bridge_on_current_root; then healthy slack_bridge; else fail slack_bridge; fi
+}
 log 'event=start result=ok state=persistent_backoff'
 while :; do
  printf '%s' "$(date +%s)" >"$D/health-manager.heartbeat"

@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 from __future__ import annotations
-import argparse,datetime as dt,hashlib,json,os,shutil,tempfile
+import argparse,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile
 from pathlib import Path
 
 HOME=Path.home()
@@ -53,6 +53,18 @@ def link_atomic(link,target):
     tmp.symlink_to(Path(target))
     os.replace(tmp,link)
 
+def activate_current(delay_s=3):
+    boot=TIER0/'bin/tier0-bootstrap.sh'
+    if not boot.is_file():
+        return
+    bash=shutil.which('bash') or '/data/data/com.termux/files/usr/bin/bash'
+    subprocess.Popen(
+        [bash,'-c','sleep "$1"; exec "$2" --restart-core','tier0-activate',str(int(delay_s)),str(boot)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
 def load_state():
     return json.loads(STATE.read_text()) if STATE.exists() else {}
 
@@ -92,7 +104,7 @@ def cmd_promote(a):
         'soak_started_at':now(),'soak_deadline_epoch':epoch+int(meta.get('soak_seconds',300)),
         'soak_grace_until_epoch':epoch+int(meta.get('startup_grace_seconds',30)),
         'soak_bad_samples':0,'soak_state':'running','critical_capabilities':meta.get('critical_capabilities',[])})
-    save_state(s); print(json.dumps(s))
+    save_state(s); activate_current(); print(json.dumps(s))
 
 def cmd_rollback(a):
     if not LKG.exists(): raise SystemExit('no_last_known_good')
