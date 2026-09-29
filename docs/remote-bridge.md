@@ -88,6 +88,8 @@ Default runtime paths:
 
 The example config and Slack app manifest are shipped next to the installer scripts.
 
+After the Slack app has been created and authorized, run `installer/termux-lite/claw-slack-setup.sh` directly in Termux. It prompts locally for channel/user IDs and the two tokens, hides token input, writes secrets with mode 0600, configures `shadow` mode and starts the adapter. Tokens must never be pasted into ChatGPT.
+
 Slack app bot scopes in the initial public-channel design:
 - `channels:history`
 - `chat:write`
