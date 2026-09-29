@@ -65,7 +65,7 @@ wss.on("connection", (ws) => {
   ws.on("close", () => sockets.delete(ws));
   ws.send(JSON.stringify({ type: "hello", num_connections: 1 }));
 });function rpcB64(payload) {
-  return "CLAW_RPC_V1_B64\n" + Buffer.from(JSON.stringify(payload), "utf8").toString("base64url") + "\u200b";
+  return "CLAW_RPC_V1_B64\n" + Buffer.from(JSON.stringify(payload), "utf8").toString("base64url") + "\u200b\nSent using ChatGPT";
 }
 
 function sendEvent(text, options = {}) {
