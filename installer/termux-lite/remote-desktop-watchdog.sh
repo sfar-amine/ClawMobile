@@ -15,12 +15,12 @@ ready_since(){
 
 notify(){ "$HOME_DIR/ClawMobile/installer/termux-lite/incident-notify.sh" remote_desktop "$1"; }
 restart_dc(){
-  pkill -TERM -f '@wonderwhy-er/desktop-commander/dist/index.js remote' 2>/dev/null || true; sleep 2
+  pkill -TERM -f '@wonderwhy-er/desktop-commander/dist/index.js remote' 2>/dev/null || true; sleep 2 9>&-
   n=1
   while [ "$n" -le "$MAX_RESTARTS" ]; do
     f="$STATE_DIR/remote-desktop-process.log"; before=$(wc -c <"$f" 2>/dev/null || echo 0)
     log "restart attempt $n/$MAX_RESTARTS"
-    nohup "$DC" "$DC_SCRIPT" remote 9>&- >>"$f" 2>&1 </dev/null & sleep 8
+    nohup "$DC" "$DC_SCRIPT" remote 9>&- >>"$f" 2>&1 </dev/null & sleep 8 9>&-
     alive && ready_since "$before" && return 0
     n=$((n+1))
   done
@@ -37,5 +37,5 @@ while :; do
    if restart_dc; then log "SELF-HEAL SUCCESS functional=true"; printf up >"$STATE"; prev=up; notify "Samantha — Remote Desktop Commander était non fonctionnel ; redémarrage automatique effectué et heartbeat vérifié."
    else log "SELF-HEAL FAILED"; if [ "$prev" != down ]; then notify "Samantha — Remote Desktop Commander reste indisponible après redémarrage automatique ; la surveillance continue."; fi; printf down >"$STATE"; prev=down; fi
  fi
- sleep "$INTERVAL"
+ sleep "$INTERVAL" 9>&-
 done

@@ -109,7 +109,7 @@ recover_adb(){
         if adb_ep_up "$ep" && ep_matches_expected "$ep"; then
           printf '%s' "$ep" >"$STATE_DIR/adb-last-endpoint"
           adb 9>&- -s "$ep" tcpip "$STABLE_PORT" >/dev/null 2>&1 || true
-          sleep 2
+          sleep 2 9>&-
           adb 9>&- connect "127.0.0.1:$STABLE_PORT" >/dev/null 2>&1 || true
           adb_up && return 0
         fi
@@ -165,5 +165,5 @@ while :; do
     fi
   fi
   if [ "$MAX_LOOPS" -gt 0 ] && [ "$loops" -ge "$MAX_LOOPS" ]; then break; fi
-  sleep "$INTERVAL"
+  sleep "$INTERVAL" 9>&-
 done
