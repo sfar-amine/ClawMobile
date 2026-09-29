@@ -693,7 +693,8 @@ class SlackBridgeStream:
 
     def _emit_request_file(self, path: str) -> None:
         try:
-            obj = json.load(open(path))
+            with open(path) as handle:
+                obj = json.load(handle)
         except Exception:
             return
         surface, ctx = self.surfaces.label()
@@ -716,16 +717,38 @@ class SlackBridgeStream:
         else:
             self.r.emit(Event(["BRIDGE", "SLACK"], ctx, "OK" if state == "completed" else state.upper() or "INFO", method, metric=metric))
 
+    def _receipt_fallback_loop(self) -> None:
+        request_mtime = self._request_snapshot()
+        pending: dict[str, tuple[float, float]] = {}
+        while not stop_event.wait(0.4):
+            current = self._request_snapshot()
+            now = time.monotonic()
+            for path, mtime in current.items():
+                if mtime > request_mtime.get(path, 0):
+                    pending[path] = (mtime, now)
+
+            try:
+                audit_mtime = SLACK_EVENT_LOG.stat().st_mtime
+            except OSError:
+                audit_mtime = 0.0
+
+            for path, (mtime, first_seen) in list(pending.items()):
+                if now - first_seen < 1.2:
+                    continue
+                if mtime > audit_mtime + 0.5:
+                    self._emit_request_file(path)
+                pending.pop(path, None)
+            request_mtime = current
+
     def loop(self) -> None:
-        self.request_mtime = self._request_snapshot()
         if not SLACK_EVENT_LOG.exists():
-            while not stop_event.wait(0.8):
-                current = self._request_snapshot()
-                for path, mtime in current.items():
-                    if mtime > self.request_mtime.get(path, 0):
-                        self._emit_request_file(path)
-                self.request_mtime = current
+            self._receipt_fallback_loop()
             return
+        threading.Thread(
+            target=self._receipt_fallback_loop,
+            daemon=True,
+            name="slack-receipt-fallback",
+        ).start()
         for raw in tail_lines(SLACK_EVENT_LOG) or []:
             if not raw:
                 continue

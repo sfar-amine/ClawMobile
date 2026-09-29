@@ -51,6 +51,30 @@ class ClawLiveTests(unittest.TestCase):
         self.assertIn("CMD", out)
         self.assertIn("OK", out)
 
+    def test_slack_receipt_fallback_renders_slack(self):
+        class Surface:
+            def label(self):
+                return "CHAT", "Conversation"
+
+        renderer = m.Renderer(Args())
+        stream = m.SlackBridgeStream(renderer, Surface())
+        with tempfile.TemporaryDirectory() as td:
+            receipt = pathlib.Path(td) / "r1.json"
+            receipt.write_text(json.dumps({
+                "requestId": "r1",
+                "method": "exec_wait",
+                "state": "completed",
+                "startedAt": 1000,
+                "completedAt": 1025,
+                "result": {"command": "printf ok"},
+            }))
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                stream._emit_request_file(str(receipt))
+            out = buf.getvalue()
+            self.assertIn("[TERMUX][CHAT][SLACK]", out)
+            self.assertIn("printf ok", out)
+
     def test_whatsapp_contact_resolution(self):
         with tempfile.TemporaryDirectory() as td:
             db = pathlib.Path(td)/"people.db"
