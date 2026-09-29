@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import sys
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("gemini_request", HERE / "gemini-request.py")
@@ -132,6 +134,110 @@ class GeminiRequestTests(unittest.TestCase):
                     mod.compact_success(json.dumps(envelope), 7)
             finally:
                 mod.STATE = old
+
+
+    def test_transient_unavailable_is_distinct_from_quota(self):
+        self.assertEqual(
+            mod.classify_failure('503 code=UNAVAILABLE', ''),
+            'transient_unavailable',
+        )
+        self.assertEqual(
+            mod.classify_failure('429 RESOURCE_EXHAUSTED', ''),
+            'quota_exhausted',
+        )
+
+    def test_efficiency_policy_requires_minimal_workspace(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            workspace = root / "gemini"
+            (workspace / ".openclaw").mkdir(parents=True)
+            (workspace / ".openclaw/settings.json").write_text(json.dumps({
+                "retry": {"provider": {"maxRetries": 0}}
+            }))
+            value = config()
+            value["agents"]["entries"][mod.AGENT].update({
+                "workspace": str(workspace),
+                "contextInjection": "never",
+                "bootstrapMaxChars": mod.EXPECTED_BOOTSTRAP_MAX,
+                "bootstrapTotalMaxChars": mod.EXPECTED_BOOTSTRAP_TOTAL,
+                "thinkingDefault": "low",
+                "fastModeDefault": True,
+                "skills": [],
+                "tools": {"allow": []},
+            })
+            path = root / "config.json"
+            path.write_text(json.dumps(value))
+            mod.ensure_efficiency_policy(path, workspace)
+
+    def test_provider_call_forces_low_thinking(self):
+        completed = __import__("subprocess").CompletedProcess([], 0, "{}", "")
+        with mock.patch.object(mod.subprocess, "run", return_value=completed) as run:
+            mod.provider_call("hello", "s", 10)
+        command = run.call_args.args[0]
+        self.assertIn("--thinking", command)
+        self.assertEqual(command[command.index("--thinking") + 1], "low")
+
+    def test_fast_path_hit_does_not_call_provider(self):
+        import io
+        with tempfile.TemporaryDirectory() as td:
+            old_state = mod.STATE
+            mod.STATE = Path(td) / "state.json"
+            try:
+                with mock.patch.object(mod, "ensure_free_policy"),                      mock.patch.object(mod, "ensure_efficiency_policy"),                      mock.patch.object(mod, "fast_path_request", return_value={
+                         "status": "hit",
+                         "text": "Précise : recharge / balances",
+                         "target": "maxit-tunisie",
+                         "intent": "telecom.balance",
+                         "route": "orange.silent_first.balance",
+                     }),                      mock.patch.object(mod, "provider_call") as provider,                      mock.patch.object(sys, "argv", ["gemini-request.py", "mon", "solde", "maxit"]),                      mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+                    rc = mod.main()
+                result = json.loads(output.getvalue())
+            finally:
+                mod.STATE = old_state
+        self.assertEqual(rc, 0)
+        self.assertEqual(result["provider_attempts"], 0)
+        self.assertEqual(result["source"], "deterministic")
+        provider.assert_not_called()
+
+    def test_quota_failure_does_not_retry(self):
+        import io
+        import subprocess
+        failed = subprocess.CompletedProcess([], 1, "429 RESOURCE_EXHAUSTED", "")
+        with tempfile.TemporaryDirectory() as td:
+            old_state = mod.STATE
+            mod.STATE = Path(td) / "state.json"
+            try:
+                with mock.patch.object(mod, "ensure_free_policy"),                      mock.patch.object(mod, "ensure_efficiency_policy"),                      mock.patch.object(mod, "fast_path_request", return_value={"status": "miss"}),                      mock.patch.object(mod, "compact_memory", return_value=(7, [])),                      mock.patch.object(mod, "provider_call", return_value=failed) as provider,                      mock.patch.object(sys, "argv", ["gemini-request.py", "hello"]),                      mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+                    rc = mod.main()
+                result = json.loads(output.getvalue())
+            finally:
+                mod.STATE = old_state
+        self.assertEqual(rc, 75)
+        self.assertEqual(result["reason"], "quota_exhausted")
+        self.assertEqual(result["provider_attempts"], 1)
+        provider.assert_called_once()
+
+    def test_transient_failure_retries_once(self):
+        import io
+        import subprocess
+        failed = subprocess.CompletedProcess([], 1, "503 code=UNAVAILABLE", "")
+        success = subprocess.CompletedProcess([], 0, '{"status":"ok"}', "")
+        with tempfile.TemporaryDirectory() as td:
+            old_state = mod.STATE
+            mod.STATE = Path(td) / "state.json"
+            try:
+                with mock.patch.object(mod, "ensure_free_policy"),                      mock.patch.object(mod, "ensure_efficiency_policy"),                      mock.patch.object(mod, "fast_path_request", return_value={"status": "miss"}),                      mock.patch.object(mod, "compact_memory", return_value=(7, [])),                      mock.patch.object(mod, "provider_call", side_effect=[failed, success]) as provider,                      mock.patch.object(mod, "compact_success", return_value={
+                         "status": "ok",
+                         "text": "OK",
+                         "provider_attempts": 2,
+                     }),                      mock.patch.object(mod.time, "sleep"),                      mock.patch.object(sys, "argv", ["gemini-request.py", "hello"]),                      mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+                    rc = mod.main()
+                result = json.loads(output.getvalue())
+            finally:
+                mod.STATE = old_state
+        self.assertEqual(rc, 0)
+        self.assertEqual(result["provider_attempts"], 2)
+        self.assertEqual(provider.call_count, 2)
 
 
 if __name__ == "__main__":

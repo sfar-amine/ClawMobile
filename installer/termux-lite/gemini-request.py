@@ -19,6 +19,10 @@ MODEL = "google/gemini-3.5-flash-lite"
 MODEL_ID = "gemini-3.5-flash-lite"
 MAX_MESSAGE_CHARS = 12000
 COOLDOWN_S = 60
+TRANSIENT_RETRY_DELAY_S = 0.5
+EXPECTED_WORKSPACE = HOME / ".openclaw/workspaces/gemini"
+EXPECTED_BOOTSTRAP_MAX = 1600
+EXPECTED_BOOTSTRAP_TOTAL = 2600
 
 SECRET_PATTERNS = (
     re.compile(r"AIza[0-9A-Za-z_-]{20,}"),
@@ -85,6 +89,36 @@ def ensure_free_policy(config_path: Path = CONFIG) -> None:
         raise PolicyError("gemini_auth_profile_missing")
 
 
+def ensure_efficiency_policy(
+    config_path: Path = CONFIG,
+    workspace: Path = EXPECTED_WORKSPACE,
+) -> None:
+    cfg = json.loads(config_path.read_text())
+    agent = (((cfg.get("agents") or {}).get("entries") or {}).get(AGENT) or {})
+    expected = {
+        "workspace": str(workspace),
+        "contextInjection": "never",
+        "bootstrapMaxChars": EXPECTED_BOOTSTRAP_MAX,
+        "bootstrapTotalMaxChars": EXPECTED_BOOTSTRAP_TOTAL,
+        "thinkingDefault": "low",
+        "fastModeDefault": True,
+        "skills": [],
+        "tools": {"allow": []},
+    }
+    for key, value in expected.items():
+        if agent.get(key) != value:
+            raise PolicyError(f"gemini_efficiency_policy_mismatch:{key}")
+
+    settings_path = workspace / ".openclaw/settings.json"
+    try:
+        settings = json.loads(settings_path.read_text())
+    except (OSError, ValueError):
+        raise PolicyError("gemini_retry_policy_missing")
+    retry = ((settings.get("retry") or {}).get("provider") or {})
+    if retry.get("maxRetries") != 0:
+        raise PolicyError("gemini_native_retries_must_be_zero")
+
+
 def runtime_script(name: str) -> Path:
     current = HOME / ".openclaw/releases/current/termux-lite" / name
     if current.exists():
@@ -131,10 +165,37 @@ def load_status() -> dict:
         return {}
 
 
+def fast_path_request(message: str) -> dict:
+    script = Path(__file__).resolve().with_name("model-fast-path.py")
+    if not script.exists():
+        return {"status": "miss", "reason": "helper_missing"}
+    try:
+        run = subprocess.run(
+            [sys.executable, str(script), message],
+            capture_output=True,
+            text=True,
+            timeout=25,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"status": "error", "reason": type(exc).__name__}
+    try:
+        value = json.loads(run.stdout or "{}")
+    except ValueError:
+        return {"status": "error", "reason": "invalid_fast_path_result"}
+    return value if isinstance(value, dict) else {"status": "error", "reason": "invalid_fast_path_result"}
+
+
 def classify_failure(stdout: str, stderr: str) -> str:
     low = (stdout + "\n" + stderr).lower()
     if "resource_exhausted" in low or "current quota" in low or " 429" in low:
         return "quota_exhausted"
+    if (
+        " 503" in low
+        or "temporarily overloaded" in low
+        or "high demand" in low
+        or "code=unavailable" in low
+    ):
+        return "transient_unavailable"
     if "model was not found" in low or "model_not_found" in low:
         return "model_unavailable"
     if "unauthorized" in low or "invalid authentication" in low or " 401" in low:
@@ -152,10 +213,14 @@ def provider_call(prompt: str, session: str, timeout_s: int) -> subprocess.Compl
     cmd = [
         "openclaw", "agent", "--agent", AGENT,
         "--session-key", f"agent:{AGENT}:channel-{key}",
-        "--message", prompt, "--timeout", str(timeout_s), "--json",
+        "--message", prompt,
+        "--thinking", "low",
+        "--timeout", str(timeout_s),
+        "--json",
     ]
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s + 20, env=env)
-def compact_success(raw: str, revision: int) -> dict:
+
+def compact_success(raw: str, revision: int, provider_attempts: int = 1) -> dict:
     envelope = json.loads(raw)
     if envelope.get("status") != "ok":
         raise PolicyError("provider_result_not_ok")
@@ -189,6 +254,7 @@ def compact_success(raw: str, revision: int) -> dict:
         "status": "ok", "text": text, "provider": "google", "model": MODEL_ID,
         "rerouted": False, "reported_cost_usd": reported_cost or 0,
         "memory_revision": revision,
+        "provider_attempts": provider_attempts,
         "usage": {k: usage.get(k) for k in ("input", "output", "total")},
     }
 def main() -> int:
@@ -206,41 +272,93 @@ def main() -> int:
         raise SystemExit("message_too_large")
     if secret_like(message):
         raise SystemExit("secret_like_payload_refused")
+
     ensure_free_policy()
+    ensure_efficiency_policy()
+
+    fast = fast_path_request(message)
+    if fast.get("status") == "hit":
+        print(json.dumps({
+            "status": "ok",
+            "source": "deterministic",
+            "text": str(fast.get("text") or ""),
+            "provider": None,
+            "model": None,
+            "rerouted": False,
+            "reported_cost_usd": 0,
+            "provider_attempts": 0,
+            "fast_path": {
+                "target": fast.get("target"),
+                "intent": fast.get("intent"),
+                "route": fast.get("route"),
+            },
+        }, ensure_ascii=False))
+        return 0
+    if fast.get("status") == "error" and fast.get("reason") == "route_failed":
+        print(json.dumps({
+            "status": "degraded",
+            "reason": "deterministic_fast_path_failed",
+            "provider_attempts": 0,
+        }))
+        return 75
 
     now = int(time.time())
     prior = load_status()
     if prior.get("state") == "degraded" and int(prior.get("retry_after_epoch", 0)) > now:
         print(json.dumps({
-            "status": "degraded", "reason": prior.get("reason", "cooldown"),
+            "status": "degraded",
+            "reason": prior.get("reason", "cooldown"),
             "retry_after_s": int(prior["retry_after_epoch"]) - now,
+            "provider_attempts": 0,
         }))
         return 75
 
     revision, memory = compact_memory(message)
     prompt = build_prompt(message, revision, memory)
-    run = provider_call(prompt, args.session, max(10, min(args.timeout, 120)))
+    timeout_s = max(10, min(args.timeout, 120))
+    attempts = 1
+    run = provider_call(prompt, args.session, timeout_s)
+    reason = classify_failure(run.stdout or "", run.stderr or "") if run.returncode else ""
+    if run.returncode and reason == "transient_unavailable":
+        time.sleep(TRANSIENT_RETRY_DELAY_S)
+        attempts += 1
+        run = provider_call(prompt, args.session, timeout_s)
+        reason = classify_failure(run.stdout or "", run.stderr or "") if run.returncode else ""
+
     if run.returncode:
-        reason = classify_failure(run.stdout or "", run.stderr or "")
+        now = int(time.time())
         retry = now + COOLDOWN_S if reason == "quota_exhausted" else now
         atomic_json(STATE, {
-            "state": "degraded", "reason": reason, "retry_after_epoch": retry,
-            "provider": "google", "model": MODEL_ID, "updated_at": int(time.time()),
+            "state": "degraded",
+            "reason": reason,
+            "retry_after_epoch": retry,
+            "provider": "google",
+            "model": MODEL_ID,
+            "updated_at": now,
         })
         print(json.dumps({
-            "status": "degraded", "reason": reason,
+            "status": "degraded",
+            "reason": reason,
             "retry_after_s": COOLDOWN_S if reason == "quota_exhausted" else 0,
+            "provider_attempts": attempts,
         }))
         return 75
 
     try:
-        out = compact_success(run.stdout, revision)
+        out = compact_success(run.stdout, revision, provider_attempts=attempts)
     except (ValueError, PolicyError) as exc:
         atomic_json(STATE, {
-            "state": "blocked", "reason": str(exc), "provider": "google",
-            "model": MODEL_ID, "updated_at": int(time.time()),
+            "state": "blocked",
+            "reason": str(exc),
+            "provider": "google",
+            "model": MODEL_ID,
+            "updated_at": int(time.time()),
         })
-        print(json.dumps({"status": "blocked", "reason": str(exc)}))
+        print(json.dumps({
+            "status": "blocked",
+            "reason": str(exc),
+            "provider_attempts": attempts,
+        }))
         return 78
     print(json.dumps(out, ensure_ascii=False))
     return 0

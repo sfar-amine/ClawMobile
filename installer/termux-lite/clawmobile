@@ -98,6 +98,9 @@ configure_lite_defaults() {
   config_set_json "plugins.entries[\"codex\"].enabled" "false"
   config_set_json "skills.install.nodeManager" '"npm"'
   config_set_json "skills.install.preferBrew" "false"
+  if [ -f "$HOME/.openclaw/openclaw.json" ] && [ -f "$SCRIPT_DIR/model-efficiency-config.py" ]; then
+    python3 "$SCRIPT_DIR/model-efficiency-config.py" --apply >/dev/null
+  fi
 }
 
 upsert_env_var() {
