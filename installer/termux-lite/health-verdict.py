@@ -37,6 +37,14 @@ def smtp_health(probe_path,events_path):
  if 'state=accepted' in last:return 'ready','latest_delivery_accepted',None
  if 'state=failed' in last:return 'down','latest_delivery_failed',None
  return 'unverified','no_delivery_or_probe_evidence',None
+def adb_recovery_readiness(path):
+ try:
+  row=json.loads(path.read_text()); fresh=NOW-float(row.get('checked_at',0)); state=row.get('state','unverified')
+  if fresh>180:return 'stale','readiness_receipt_stale',fresh
+  if state not in ('ready','degraded','unverified'):return 'unverified','invalid_readiness_state',fresh
+  return state,row.get('reason') or 'readiness_probe',fresh
+ except (OSError,ValueError,TypeError):
+  return 'unverified','readiness_receipt_absent_or_invalid',None
 def live():
  x={}
  expected=(OC/'watchdogs/adb-expected-serial').read_text().strip() if (OC/'watchdogs/adb-expected-serial').exists() else ''
@@ -49,6 +57,8 @@ def live():
   x['device.network_safety']=item('healthy' if nstate=='healthy' and na<=90 else ('stale' if nstate=='healthy' else nstate),True,reason=nd.get('reason','network mutation safety receipt'),evidence=str(ns),freshness=na)
  except (OSError,ValueError,TypeError):
   x['device.network_safety']=item('unverified',True,reason='network mutation safety receipt absent or invalid',evidence=str(ns))
+ rr_state,rr_reason,rr_fresh=adb_recovery_readiness(OC/'health/adb-recovery-readiness.json')
+ x['device.adb.recovery_readiness']=item(rr_state,False,reason=rr_reason,evidence='trusted Wireless Debugging recovery path',freshness=rr_fresh)
  checks={
   'immune.root_guardian':("[s]amantha-root-guardian.sh",OC/'health/root-guardian.heartbeat',30),
   'immune.health_manager':("[s]amantha-health-manager.sh",OC/'health/health-manager.heartbeat',45),
