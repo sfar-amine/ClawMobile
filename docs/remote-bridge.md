@@ -124,11 +124,17 @@ Slack simulated E2E test passed:
 
 Manual real crash test passed: a running request interrupted by killing the Companion process was reported `indeterminate` after restart.
 
-Local Bridge performance benchmark:
-- 250 sequential pings: p50 5.06 ms, p95 7.31 ms, max 70.51 ms.
-- 100 requests with 10 workers: 386.4 ms wall time, ~258.8 RPC/s, p50 33.9 ms, p95 44.47 ms.
+Local Bridge performance benchmark on the production Companion (2026-09-29):
+- 120 sequential pings: p50 4.482 ms, p95 5.883 ms, max 6.939 ms.
+- 100 requests with 10 workers: 328.101 ms wall time, ~304.78 RPC/s, p50 30.577 ms, p95 38.694 ms.
+- production checks also passed idempotent write, request-id conflict, read, exec, process streaming and a 70,187-byte artifact.
 
-These numbers measure the local Bridge only, not Slack provider latency.
+Slack resilience simulation also passed:
+- HTTP 429 + Retry-After is retried without losing the queued result;
+- Slack disconnect triggers bounded automatic Socket Mode reconnect;
+- a second RPC succeeds on the new connection and adapter health returns healthy.
+
+These numbers measure the local Bridge and simulated Slack transport only, not live Slack provider latency. Live Slack remains setup_required until the workspace/app is authorized and tokens are stored locally on the S24.
 
 ## Promotion gate
 
