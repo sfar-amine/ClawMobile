@@ -1,13 +1,20 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-HOME_DIR="/data/data/com.termux/files/home"
+HOME_DIR="${ADB_RECOVERY_HOME:-/data/data/com.termux/files/home}"
 STATE_DIR="$HOME_DIR/.openclaw/watchdogs"
 LOG="$STATE_DIR/adb-recovery.log"
 STATE="$STATE_DIR/adb-recovery.state"
 HELP_NOTIFY="$STATE_DIR/adb-help-notified"
+READINESS_STATE="$STATE_DIR/adb-recovery-readiness.state"
+READINESS_FAILURES="$STATE_DIR/adb-recovery-readiness.failures"
+READINESS_NOTIFY="$STATE_DIR/adb-recovery-readiness-notified"
+READINESS_HELPER="${ADB_RECOVERY_READINESS_HELPER:-$HOME_DIR/ClawMobile/installer/termux-lite/adb-recovery-readiness.py}"
 LOCK="$STATE_DIR/adb-recovery.lock"
 INTERVAL="${ADB_RECOVERY_INTERVAL:-60}"
 HELP_AFTER="${ADB_RECOVERY_HELP_AFTER:-3}"
+READINESS_HELP_AFTER="${ADB_RECOVERY_READINESS_HELP_AFTER:-3}"
+READINESS_DISCOVER_TIMEOUT="${ADB_RECOVERY_READINESS_DISCOVER_TIMEOUT:-2}"
+MAX_LOOPS="${ADB_RECOVERY_MAX_LOOPS:-0}"
 STABLE_PORT="${ADB_RECOVERY_STABLE_PORT:-5556}"
 mkdir -p "$STATE_DIR"
 exec 9>"$LOCK"
@@ -33,7 +40,49 @@ wifi_up(){
   timeout 4 ping -c1 1.1.1.1 >/dev/null 2>&1 && return 0
   return 1
 }
-notify_info(){ "$HOME/ClawMobile/installer/termux-lite/incident-notify.sh" info "$1"; }
+notify_info(){ "$HOME_DIR/ClawMobile/installer/termux-lite/incident-notify.sh" info "$1"; }
+
+readiness_tick(){
+  [ -x "$READINESS_HELPER" ] || return 0
+  row="$("$READINESS_HELPER" --json --discover-timeout "$READINESS_DISCOVER_TIMEOUT" 9>&- 2>/dev/null || true)"
+  [ -n "$row" ] || return 0
+  state="$(printf '%s' "$row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("state","unverified"))' 2>/dev/null || echo unverified)"
+  reason="$(printf '%s' "$row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reason","unknown"))' 2>/dev/null || echo unknown)"
+  previous="$(cat "$READINESS_STATE" 2>/dev/null || echo unknown)"
+  failures="$(cat "$READINESS_FAILURES" 2>/dev/null || echo 0)"
+  case "$failures" in ''|*[!0-9]*) failures=0;; esac
+  case "$state" in
+    ready)
+      if [ -e "$READINESS_NOTIFY" ]; then
+        if notify_info "Samantha — capacité de reprise ADB rétablie : le Débogage sans fil est de nouveau redécouvrable et vérifié pour le S24."; then
+          rm -f "$READINESS_NOTIFY"
+        fi
+      fi
+      [ "$previous" = ready ] || log INFO readiness ready "trusted Wireless Debugging recovery path verified"
+      printf 0 >"$READINESS_FAILURES"
+      printf ready >"$READINESS_STATE"
+      ;;
+    degraded)
+      failures=$((failures+1))
+      printf '%s' "$failures" >"$READINESS_FAILURES"
+      printf degraded >"$READINESS_STATE"
+      if [ "$previous" != degraded ]; then
+        log WARN readiness degraded "recovery readiness degraded reason=$reason failures=$failures"
+      fi
+      if [ "$failures" -ge "$READINESS_HELP_AFTER" ] && [ ! -e "$READINESS_NOTIFY" ]; then
+        if notify_info "Samantha — ADB fonctionne encore, mais sa capacité de reprise automatique est dégradée ($reason). À faire sur le S24 : Paramètres > Options développeur > Débogage sans fil, puis active-le. Je vérifierai et confirmerai automatiquement le retour à l'état prêt."; then
+          : >"$READINESS_NOTIFY"
+          log WARN readiness notify "owner action requested after consecutive_failures=$failures reason=$reason"
+        fi
+      fi
+      ;;
+    *)
+      printf 0 >"$READINESS_FAILURES"
+      printf unverified >"$READINESS_STATE"
+      [ "$previous" = unverified ] || log WARN readiness unverified "recovery readiness could not be verified reason=$reason"
+      ;;
+  esac
+}
 
 recover_adb(){
   adb 9>&- start-server >/dev/null 2>&1 || true
@@ -73,10 +122,13 @@ EOF
 }
 prev="$(cat "$STATE" 2>/dev/null || printf unknown)"
 recovery_tries=0
+loops=0
 log INFO start ok "watchdog started previous=$prev"
 while :; do
+  loops=$((loops+1))
   printf '%s' "$(date +%s)" >"$HOME_DIR/.openclaw/health/adb-watchdog.heartbeat"
   if adb_up; then
+    readiness_tick
     if [ "$prev" != up ]; then
       log INFO recovered ok "ADB operational"
       notify_info "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
@@ -112,5 +164,6 @@ while :; do
       printf recovery_needed >"$STATE"; prev=recovery_needed
     fi
   fi
+  if [ "$MAX_LOOPS" -gt 0 ] && [ "$loops" -ge "$MAX_LOOPS" ]; then break; fi
   sleep "$INTERVAL"
 done
