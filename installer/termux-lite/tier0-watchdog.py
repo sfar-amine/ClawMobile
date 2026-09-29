@@ -14,6 +14,8 @@ def save(s):
 def tick():
     s=load(STATE)
     if not s or s.get('soak_state')!='running': return
+    if int(time.time()) < int(s.get('soak_grace_until_epoch',0)):
+        s['soak_bad_samples']=0;save(s);return
     h=load(HEALTH); caps=h.get('capabilities',{})
     bad=[c for c in s.get('critical_capabilities',[]) if str(caps.get(c,{}).get('state','')).lower() not in OK]
     if bad:s['soak_bad_samples']=int(s.get('soak_bad_samples',0))+1;s['last_bad']=bad

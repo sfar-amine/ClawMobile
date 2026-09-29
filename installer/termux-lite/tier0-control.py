@@ -68,7 +68,7 @@ def cmd_package(a):
     tmp=RELEASES/(release_id+'.tmp'); shutil.rmtree(tmp,ignore_errors=True); tmp.mkdir(parents=True)
     shutil.copytree(source,tmp/'termux-lite',dirs_exist_ok=True,symlinks=True)
     meta={'version':1,'release_id':release_id,'created_at':now(),'source':str(source),
-          'source_commit':a.source_commit,'soak_seconds':a.soak_seconds,
+          'source_commit':a.source_commit,'soak_seconds':a.soak_seconds,'startup_grace_seconds':a.startup_grace_seconds,
           'critical_capabilities':a.critical_capability or ['immune.root_guardian','immune.health_manager','immune.incident_orchestrator'],
           'files':manifest(tmp),'product_manifest':None}
     if a.product_manifest:
@@ -84,8 +84,13 @@ def cmd_promote(a):
     old=CURRENT.resolve() if CURRENT.exists() else None
     if old and old!=target.resolve(): link_atomic(LKG,old)
     link_atomic(CURRENT,target)
-    s=load_state(); s.update({'current':a.release_id,'last_known_good':LKG.resolve().name if LKG.exists() else None,
-        'soak_started_at':now(),'soak_deadline_epoch':int(dt.datetime.now().timestamp())+int(meta.get('soak_seconds',300)),
+    s=load_state()
+    for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad'):
+        s.pop(key,None)
+    epoch=int(dt.datetime.now().timestamp())
+    s.update({'current':a.release_id,'last_known_good':LKG.resolve().name if LKG.exists() else None,
+        'soak_started_at':now(),'soak_deadline_epoch':epoch+int(meta.get('soak_seconds',300)),
+        'soak_grace_until_epoch':epoch+int(meta.get('startup_grace_seconds',30)),
         'soak_bad_samples':0,'soak_state':'running','critical_capabilities':meta.get('critical_capabilities',[])})
     save_state(s); print(json.dumps(s))
 
@@ -116,7 +121,7 @@ def cmd_root(a):
 
 def main():
     p=argparse.ArgumentParser(); sp=p.add_subparsers(dest='cmd',required=True)
-    q=sp.add_parser('package'); q.add_argument('--source',required=True); q.add_argument('--source-commit'); q.add_argument('--release-id'); q.add_argument('--soak-seconds',type=int,default=300); q.add_argument('--critical-capability',action='append'); q.add_argument('--product-manifest')
+    q=sp.add_parser('package'); q.add_argument('--source',required=True); q.add_argument('--source-commit'); q.add_argument('--release-id'); q.add_argument('--soak-seconds',type=int,default=300); q.add_argument('--startup-grace-seconds',type=int,default=30); q.add_argument('--critical-capability',action='append'); q.add_argument('--product-manifest')
     q=sp.add_parser('promote'); q.add_argument('release_id')
     q=sp.add_parser('rollback'); q.add_argument('--reason',default='manual')
     q=sp.add_parser('stop'); q.add_argument('--reason',default='manual')

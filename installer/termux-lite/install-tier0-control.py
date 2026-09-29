@@ -11,7 +11,7 @@ def write_boot():
     text='#!/data/data/com.termux/files/usr/bin/bash\ntermux-wake-lock 2>/dev/null || true\nexec "$HOME/.openclaw/tier0/bin/tier0-bootstrap.sh"\n'
     tmp=BOOT.with_suffix('.tmp');tmp.write_text(text);os.chmod(tmp,0o700);os.replace(tmp,BOOT)
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--apply',action='store_true');p.add_argument('--source-root',default=str(SRC));p.add_argument('--soak-seconds',type=int,default=300);p.add_argument('--product-manifest');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--apply',action='store_true');p.add_argument('--source-root',default=str(SRC));p.add_argument('--soak-seconds',type=int,default=300);p.add_argument('--startup-grace-seconds',type=int,default=30);p.add_argument('--product-manifest');a=p.parse_args()
     if not a.apply: raise SystemExit('use --apply')
     BIN.mkdir(parents=True,exist_ok=True);os.chmod(T,0o700);os.chmod(BIN,0o700)
     for n in NAMES:
@@ -23,7 +23,7 @@ def main():
     write_boot()
     source=Path(a.source_root)
     commit=subprocess.run(['git','-C',str(source.parents[2]),'rev-parse','HEAD'],capture_output=True,text=True).stdout.strip() or 'unknown'
-    cmd=[str(BIN/'tier0-control.py'),'package','--source',str(source),'--source-commit',commit,'--soak-seconds',str(a.soak_seconds)]
+    cmd=[str(BIN/'tier0-control.py'),'package','--source',str(source),'--source-commit',commit,'--soak-seconds',str(a.soak_seconds),'--startup-grace-seconds',str(a.startup_grace_seconds)]
     if a.product_manifest: cmd += ['--product-manifest',a.product_manifest]
     rid=subprocess.run(cmd,capture_output=True,text=True,check=True).stdout.strip()
     subprocess.run([str(BIN/'tier0-control.py'),'promote',rid],check=True)
