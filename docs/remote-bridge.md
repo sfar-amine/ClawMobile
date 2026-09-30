@@ -24,6 +24,7 @@ Routes:
 Request body fields:
 - `requestId`: stable idempotency key, mandatory.
 - `taskId`: optional higher-level task correlation.
+- `stepId`: optional stable execution-step identifier; requires `taskId`. Reusing the same `taskId + stepId` with the same method/params returns the first durable receipt even from another Chat/session, while changed content is rejected.
 - `sessionId`: optional ChatGPT/session correlation.
 - `method`: RPC method.
 - `params`: method parameters.
@@ -31,6 +32,7 @@ Request body fields:
 Implemented methods:
 - `ping`
 - `request_status`
+- `task_status` (compact receipts for a `taskId`, without replaying work)
 - `exec_wait`
 - `read_file`
 - `write_file`
@@ -46,11 +48,15 @@ A request receipt is persisted under `~/.openclaw/remote-bridge/requests/`.
 
 Submitting the same `requestId` with the same method and parameters returns the existing receipt. Reusing the ID with different content is rejected with `request_id_conflict`.
 
+For engineering/multi-session work, `taskId + stepId` is the execution identity above transport-level `requestId`. The same logical step cannot execute twice merely because a new Chat/session generated a new request ID. A changed method or parameter set for the same task step fails closed with `task_step_conflict`. A deliberate retry after a classified failure must use a new step ID only after the task-level retry guard authorizes another execution.
+
+`task_status` returns bounded receipt metadata for one task (state, hashes/timestamps, risk, process ID) rather than raw outputs. It is the resume view used before deciding whether to observe, continue, revalidate, or submit another step.
+
 A request left `running` by a previous Bridge instance becomes `indeterminate` after restart. The caller must verify the effect before retrying. This is the key guard against duplicate mutations during Slack→Commander fallback.
 
 Large results are persisted under `~/.openclaw/remote-bridge/artifacts/` and returned as an artifact reference plus preview.
 
-Long-running interactive work should use `process_start` followed by bounded `process_status` reads instead of one long `exec_wait`.
+Long-running interactive work should use `process_start` followed by bounded `process_status` reads instead of one long `exec_wait`. Lack of stdout is not a stuck signal: an owned silent process remains `running`. If a process receipt says `running` but the current Companion instance no longer owns that process after restart/loss of process ownership, `process_status` persists `indeterminate`; mutations must then be effect-verified before any retry.
 
 ## Desktop Commander fallback
 
