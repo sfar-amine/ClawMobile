@@ -1,32 +1,43 @@
-import fs from "fs";
+import { execFile } from "child_process";
+import os from "os";
 import path from "path";
-import { pathToFileURL } from "url";
+import { promisify } from "util";
 
-const OPENCLAW_DIST = "/data/data/com.termux/files/usr/lib/node_modules/openclaw/dist";
+const execFileAsync = promisify(execFile);
 export const CLAW_LIVE_MODEL = "gemini-3.8-live";
 const TOKEN_URL = "https://generativelanguage.googleapis.com/v1beta/auth_tokens";
 
-async function resolveGeminiApiKey(): Promise<string> {
-  const names = fs.readdirSync(OPENCLAW_DIST)
-    .filter((name) => /^secret-store-.*\.mjs$/.test(name))
-    .sort();
-  for (const name of names) {
-    try {
-      const mod: any = await import(pathToFileURL(path.join(OPENCLAW_DIST, name)).href);
-      if (typeof mod.c !== "function") continue;
-      const result = mod.c({ name: "GEMINI_API_KEY", scope: { kind: "team", id: "" } });
-      if (result?.ok === true && typeof result.value === "string" && result.value) {
-        return result.value;
-      }
-    } catch {}
+function tokenHelperPath() {
+  return path.join(
+    os.homedir(),
+    ".openclaw",
+    "releases",
+    "current",
+    "termux-lite",
+    "gemini-live-client.mjs",
+  );
+}
+
+async function mintViaHelper(helperPath = tokenHelperPath()) {
+  const node = path.join(os.homedir(), ".openclaw-android", "bin", "node");
+  const raw: any = await execFileAsync(node, [helperPath, "--mint-token"], {
+    timeout: 15_000,
+    maxBuffer: 256 * 1024,
+    env: { ...process.env },
+  });
+  const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
+  const value = JSON.parse(stdout || "{}");
+  if (typeof value?.token !== "string" || !value.token) {
+    throw new Error("gemini_live_token_helper_failed");
   }
-  throw new Error("gemini_api_key_unavailable");
+  return value;
 }
 
 export async function createClawLiveToken(
   fetchImpl: typeof fetch = fetch,
-  keyResolver: () => Promise<string> = resolveGeminiApiKey,
+  keyResolver?: () => Promise<string>,
 ) {
+  if (!keyResolver) return mintViaHelper();
   const key = await keyResolver();
   const now = Date.now();
   const response = await fetchImpl(TOKEN_URL, {
@@ -43,7 +54,7 @@ export async function createClawLiveToken(
   });
   const value: any = await response.json().catch(() => ({}));
   if (!response.ok || typeof value?.name !== "string" || !value.name) {
-    throw new Error(`gemini_live_token_failed:${response.status}`);
+    throw new Error("gemini_live_token_failed:" + response.status);
   }
   return {
     token: value.name,
