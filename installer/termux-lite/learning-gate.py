@@ -113,8 +113,10 @@ def emit_context(record):
     if record["reusable_learning"]:
         payload={
             "target":record["capability_id"] or record["component"],
+            "capability":record["capability_id"] or None,
             "intent":f"Prevent recurrence after {record['source']} closure {record['closure_id']}",
-            "type":"closure_learning",
+            "type":"rule",
+            "learning_type":"closure_learning",
             "current_state":{
                 "symptom":record["symptom"],
                 "root_cause":record["root_cause"],
@@ -127,6 +129,10 @@ def emit_context(record):
                 "how_to":record["how_to"],
             },
             "evidence":record["evidence"],
+            "expected_gain":{"recurrence":"lower","reliability":"higher"},
+            "risk":"read",
+            "rollback":{"strategy":"retain_prior_operational_rule"},
+            "promotion_eligible":False,
             "confidence":record["confidence"],
             "requires_review":record["confidence"]=="provisional",
         }

@@ -235,7 +235,14 @@ async function handleEvent(event) {
   try {
     request = parseRpc(event.text);
   } catch (error) {
-    queueReply(event.channel, event.thread_ts || event.ts, `CLAW_RPC_ERROR_V1 ${error.message}`);
+    const original = String(event.text || "").trim();
+    const plain = original.startsWith("CLAW_RPC_V1") && !original.startsWith("CLAW_RPC_V1_B64");
+    const action = plain ? " action=use_b64" : "";
+    queueReply(
+      event.channel,
+      event.thread_ts || event.ts,
+      `CLAW_RPC_ERROR_V1 code=${sanitizeAuditText(error.message)}${action}`,
+    );
     return;
   }
   if (!request) return;

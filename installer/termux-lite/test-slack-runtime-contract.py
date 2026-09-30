@@ -61,7 +61,7 @@ class SlackRuntimeContractTests(unittest.TestCase):
         for token in ("wait_for_lock_release","guardian/guardian.lock","health/health.lock","lock_release_timeout"): self.assertIn(token,bootstrap)
         self.assertNotIn("action=self_reconnect",health)
         self.assertIn("activate_current()",tier0)
-        for token in ("CLAW_RPC_V1_B64","read_binary_file","patch_file"): self.assertIn(token,bridge)
+        for token in ("CLAW_RPC_V1_B64","read_binary_file","patch_file","action=use_b64"): self.assertIn(token,bridge)
         for token in ("patch_file","read_binary_file","write_binary_file"): self.assertIn(token,remote)
         self.assertEqual(policy["primary"],"slack_remote_bridge")
         self.assertIn("Routine bootstrap uses Slack", " ".join(policy["fallbackRules"]))

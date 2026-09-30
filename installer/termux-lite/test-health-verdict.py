@@ -24,6 +24,20 @@ class T(unittest.TestCase):
    path.write_text(json.dumps({'checked_at':time.time()-400,'state':'ready','reason':'ok'}))
    state,reason,_=hv.adb_recovery_readiness(path)
    self.assertEqual(state,'stale');self.assertEqual(reason,'readiness_receipt_stale')
+ def test_semantic_maintenance_degrades_overall(self):
+  old_oc,old_now=hv.OC,hv.NOW
+  with tempfile.TemporaryDirectory() as td:
+   hv.OC=Path(td);hv.NOW=1000
+   p=hv.OC/'autonomous-engineering';p.mkdir(parents=True)
+   (p/'maintenance-last.json').write_text(json.dumps({'checked_at':990,'task_health':{'state':'attention_required','unfinished':1},'semantic_health':{'state':'attention_required','attention':[{'component':'task_health','state':'attention_required'}]}}))
+   m=hv.maintenance_view();self.assertEqual(m['semantic_state'],'degraded')
+   old_live,old_inc,old_cont=hv.live,hv.incidents,hv.continuations
+   try:
+    hv.live=lambda:{};hv.incidents=lambda:([],[],[]);hv.continuations=lambda:{'blocked':0,'resuming':0,'stuck':0,'details':[]}
+    out=hv.build();self.assertEqual(out['capabilities']['control_plane.maintenance']['state'],'degraded');self.assertEqual(out['overall'],'degraded')
+   finally:
+    hv.live, hv.incidents, hv.continuations=old_live,old_inc,old_cont
+  hv.OC, hv.NOW=old_oc,old_now
  def test_historical_failed_not_active(self):
   old=hv.OC
   with tempfile.TemporaryDirectory() as td:

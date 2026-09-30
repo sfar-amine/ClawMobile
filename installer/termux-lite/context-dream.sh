@@ -28,6 +28,8 @@ python3 - "$dream_out" "$bridge_out" <<'PY'
 import json
 import sys
 dream = json.loads(sys.argv[1])
-dream["improvementBridge"] = json.loads(sys.argv[2])
+bridge = json.loads(sys.argv[2])
+dream["improvementBridge"] = bridge
+dream["state"] = "attention_required" if bridge.get("errors") else "healthy"
 print(json.dumps(dream, ensure_ascii=False, separators=(",", ":")))
 PY

@@ -114,8 +114,36 @@ def continuations():
    if st in ('blocked','resuming') and NOW-float(r.get('updated_at',NOW))>300:
     stuck+=1;details.append({'run_id':rid,'state':st})
  return {'blocked':blocked,'resuming':resuming,'stuck':stuck,'details':details}
+def maintenance_view():
+ p=OC/'autonomous-engineering/maintenance-last.json'
+ try:
+  row=json.loads(p.read_text())
+  stamp=row.get('checked_at',0)
+  if not isinstance(stamp,(int,float)) or NOW-stamp>660 or stamp>NOW+30:
+   return {'state':'stale','reason':'maintenance_receipt_stale'}
+  tasks=row.get('task_health')
+  if not isinstance(tasks,dict):return {'state':'unverified','reason':'task_accounting_absent'}
+  semantic=row.get('semantic_health')
+  semantic_state='unverified'; attention=[]
+  if isinstance(semantic,dict):
+   raw=str(semantic.get('state') or '')
+   semantic_state='healthy' if raw=='healthy' else ('degraded' if raw=='attention_required' else 'unverified')
+   attention=semantic.get('attention') if isinstance(semantic.get('attention'),list) else []
+  return {'state':'observed','semantic_state':semantic_state,'semantic_attention':attention,
+          'checked_at':stamp,'tasks':tasks,'delivery':row.get('delivery',{}),
+          'improvement_pipeline':row.get('improvement_pipeline',{})}
+ except (OSError,ValueError,TypeError):
+  return {'state':'unverified','reason':'maintenance_receipt_unreadable'}
+
 def build():
- caps=live(); active,failed,human=incidents(); cont=continuations(); warnings=[]
+ caps=live(); maintenance=maintenance_view(); active,failed,human=incidents(); cont=continuations(); warnings=[]
+ mstate=maintenance.get('state')
+ cstate=maintenance.get('semantic_state','unverified') if mstate=='observed' else mstate
+ reason='semantic maintenance healthy' if cstate=='healthy' else maintenance.get('reason') or ','.join(
+  str(x.get('component')) for x in maintenance.get('semantic_attention',[]) if isinstance(x,dict) and x.get('component')
+ ) or 'semantic maintenance requires attention'
+ caps['control_plane.maintenance']=item(cstate,True,reason=reason,evidence=str(OC/'autonomous-engineering/maintenance-last.json'),
+                                        freshness=(NOW-maintenance.get('checked_at')) if isinstance(maintenance.get('checked_at'),(int,float)) else None)
  live_components={k.split('.',1)[-1]:v for k,v in caps.items()}
  for i in active:
   ck=i['component']
@@ -124,7 +152,7 @@ def build():
  crit_bad=[k for k,v in caps.items() if v['critical'] and v['state'] not in ('healthy','ready')]
  noncrit_bad=[k for k,v in caps.items() if not v['critical'] and v['state'] not in ('healthy','ready')]
  overall='down' if any(caps[k]['state']=='down' for k in crit_bad) else ('degraded' if crit_bad or noncrit_bad or active or cont['stuck'] else 'healthy')
- return {'schema_version':1,'generated_at':int(NOW),'overall':overall,'summary':{'healthy_ready':sum(v['state'] in ('healthy','ready') for v in caps.values()),'degraded_stale_unverified':sum(v['state'] in ('degraded','stale','unverified') for v in caps.values()),'down':sum(v['state']=='down' for v in caps.values()),'active_incidents':len(active),'human_required':len(human),'stuck_continuations':cont['stuck']},'capabilities':caps,'incidents':{'active':active,'recent_failed':failed[:10],'human_required':human},'continuations':cont,'consistency_warnings':warnings}
+ return {'schema_version':1,'generated_at':int(NOW),'overall':overall,'summary':{'healthy_ready':sum(v['state'] in ('healthy','ready') for v in caps.values()),'degraded_stale_unverified':sum(v['state'] in ('degraded','stale','unverified') for v in caps.values()),'down':sum(v['state']=='down' for v in caps.values()),'active_incidents':len(active),'human_required':len(human),'stuck_continuations':cont['stuck']},'capabilities':caps,'incidents':{'active':active,'recent_failed':failed[:10],'human_required':human},'continuations':cont,'consistency_warnings':warnings,'maintenance':maintenance}
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--json',action='store_true');ap.add_argument('--write',action='store_true');a=ap.parse_args();v=build()
  if a.write:
