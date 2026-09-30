@@ -6,6 +6,12 @@ BASE="${CLAW_SLACK_STATE_DIR:-$HOME/.openclaw/remote-bridge/slack}"
 CONFIG="$BASE/config.json"
 SECRETS="$BASE/secrets"
 USER_TOKEN_FILE="$SECRETS/user-token"
+PURGE_TIMEOUT_SECONDS="${CLAW_SLACK_PURGE_TIMEOUT_SECONDS:-240}"
+
+if ! [[ "$PURGE_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || [ "$PURGE_TIMEOUT_SECONDS" -lt 30 ]; then
+  echo "Invalid CLAW_SLACK_PURGE_TIMEOUT_SECONDS: $PURGE_TIMEOUT_SECONDS" >&2
+  exit 2
+fi
 
 mkdir -p "$SECRETS"
 chmod 700 "$HOME/.openclaw/remote-bridge" "$BASE" "$SECRETS" 2>/dev/null || true
@@ -42,10 +48,21 @@ echo "Running purge dry-run..."
 export PATH="$HOME/.openclaw-android/bin:$PATH"
 existing="$(openclaw cron list --json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((j.get("id","") for j in d.get("jobs",[]) if j.get("declarationKey")=="samantha:slack-control-purge"),""))' 2>/dev/null || true)"
 if [ -n "$existing" ]; then
-  echo "Slack purge job already exists: $existing"
+  openclaw cron edit "$existing" \
+    --timeout-seconds "$PURGE_TIMEOUT_SECONDS" \
+    --no-output-timeout-seconds "$PURGE_TIMEOUT_SECONDS" >/dev/null
+  echo "Slack purge job reconciled: $existing timeout=${PURGE_TIMEOUT_SECONDS}s"
 else
-  openclaw cron add     --declaration-key "samantha:slack-control-purge"     --name "Slack Control Purge"     --description "Hourly housekeeping for completed Claw RPC messages older than 24h in the dedicated Slack control channel."     --every 1h     --command-argv "[\"$HOME/.openclaw-android/bin/node\",\"$ROOT/claw-slack-purge.mjs\"]"     --timeout-seconds 90     --no-deliver >/dev/null
-  echo "Slack purge job installed."
+  openclaw cron add \
+    --declaration-key "samantha:slack-control-purge" \
+    --name "Slack Control Purge" \
+    --description "Hourly housekeeping for completed Claw RPC messages older than 24h in the dedicated Slack control channel." \
+    --every 1h \
+    --command-argv "[\"$HOME/.openclaw-android/bin/node\",\"$ROOT/claw-slack-purge.mjs\"]" \
+    --timeout-seconds "$PURGE_TIMEOUT_SECONDS" \
+    --no-output-timeout-seconds "$PURGE_TIMEOUT_SECONDS" \
+    --no-deliver >/dev/null
+  echo "Slack purge job installed with timeout=${PURGE_TIMEOUT_SECONDS}s."
 fi
 
 echo "Slack purge setup complete."
