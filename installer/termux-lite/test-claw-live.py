@@ -194,6 +194,28 @@ class ClawLiveTests(unittest.TestCase):
         self.assertEqual(stale.action, "WARN")
         self.assertIn("stale=incident", stale.detail)
 
+    def test_openclaw_read_observation_is_deduped(self):
+        r = m.Renderer(Args())
+        stream = m.OpenClawStream(r, 160)
+        block = {"name": "read", "arguments": {"path": "/tmp/state.json"}}
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            stream.emit_tool("IMPROVE", "Autonomous Engineering", block)
+            stream.emit_tool("IMPROVE", "Autonomous Engineering", block)
+        out = buf.getvalue()
+        self.assertEqual(out.count("TOOL"), 1)
+        self.assertIn("read", out)
+
+    def test_renderer_keeps_mutating_tool_events_visible(self):
+        r = m.Renderer(Args())
+        stream = m.OpenClawStream(r, 160)
+        block = {"name": "write", "arguments": {"path": "/tmp/state.json", "content": "x"}}
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            stream.emit_tool("IMPROVE", "Autonomous Engineering", block)
+            stream.emit_tool("IMPROVE", "Autonomous Engineering", block)
+        self.assertEqual(buf.getvalue().count("TOOL"), 2)
+
     def test_whatsapp_contact_resolution(self):
         with tempfile.TemporaryDirectory() as td:
             db = pathlib.Path(td)/"people.db"

@@ -781,7 +781,14 @@ class OpenClawStream:
             metric = f"timeout={args.get('timeoutSeconds')}s" if args.get("timeoutSeconds") else ""
             self.r.emit(Event(tags, ctx, "CMD", "$ " + cmd, metric=metric))
         elif name in {"read", "edit", "ls", "write", "process"}:
-            self.r.emit(Event(tags, ctx, "TOOL", f"{name} {compact_json(args, 700)}"))
+            detail = f"{name} {compact_json(args, 700)}"
+            if name in {"read", "ls"}:
+                self.r.emit(
+                    Event(tags, ctx, "TOOL", detail, key=f"observe-tool:{source}:{ctx}:{detail}"),
+                    dedupe_window=10,
+                )
+            else:
+                self.r.emit(Event(tags, ctx, "TOOL", detail))
         else:
             self.r.emit(Event(tags, ctx, "TOOL", f"{name} {compact_json(args, 700)}"))
 
@@ -820,7 +827,13 @@ class OpenClawStream:
             if text:
                 action = "OUT" if source == "WHATSAPP" else "DONE" if source in {"JOB", "CRON"} else "INFO"
                 detail = f'"{preview(text, self.preview_chars)}"' if source == "WHATSAPP" else preview(text, self.preview_chars)
-                self.r.emit(Event([source], ctx, action, detail))
+                if action == "INFO":
+                    self.r.emit(
+                        Event([source], ctx, action, detail, key=f"assistant-info:{source}:{ctx}:{detail}"),
+                        dedupe_window=10,
+                    )
+                else:
+                    self.r.emit(Event([source], ctx, action, detail))
             return
         if role == "toolResult":
             name = str(msg.get("toolName") or "tool")
@@ -829,7 +842,14 @@ class OpenClawStream:
             detail = name
             if text:
                 detail += " " + preview(text, min(self.preview_chars, 220))
-            self.r.emit(Event(["TERMUX", source, "LOCAL"], ctx, "ERROR" if error else "OK", detail))
+            if name in {"read", "ls"} and not error:
+                self.r.emit(
+                    Event(["TERMUX", source, "LOCAL"], ctx, "OK", detail,
+                          key=f"observe-result:{source}:{ctx}:{detail}"),
+                    dedupe_window=10,
+                )
+            else:
+                self.r.emit(Event(["TERMUX", source, "LOCAL"], ctx, "ERROR" if error else "OK", detail))
 
     def loop(self) -> None:
         if not self.connect():
