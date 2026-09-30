@@ -9,6 +9,7 @@ import os
 import re
 import select
 import shlex
+import signal
 import shutil
 import sqlite3
 import subprocess
@@ -97,14 +98,14 @@ CLAW_LIVE_LOCK = OPENCLAW / "observability" / "claw-live.lock"
 _instance_lock = None
 
 def terminal_fd_alive(fd: int) -> bool:
-    """Return False only when a TTY-backed file descriptor is definitively detached."""
+    """Return False when a terminal descriptor is gone, including deleted Termux PTYs."""
     try:
-        if not os.isatty(fd):
-            return True
         target = os.readlink(f"/proc/self/fd/{fd}")
     except (OSError, ValueError):
         return False
-    return not target.endswith(" (deleted)")
+    if target.startswith("/dev/pts/") and target.endswith(" (deleted)"):
+        return False
+    return True
 
 @dataclass
 class Event:
@@ -162,6 +163,36 @@ def preview(text: Any, limit: int) -> str:
     s = re.sub(r"\s+", " ", scrub_text(text)).strip()
     return s if len(s) <= limit else s[: limit - 1] + "…"
 
+def detached_claw_live_owner(pid: int, cmdline: bytes | None = None, stdout_target: str | None = None) -> bool:
+    try:
+        if cmdline is None:
+            cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
+        if stdout_target is None:
+            stdout_target = os.readlink(f"/proc/{pid}/fd/1")
+    except (OSError, ValueError):
+        return False
+    argv = [part.decode("utf-8", "replace") for part in cmdline.split(b"\0") if part]
+    is_claw_live = any(Path(arg).name == "claw-live" for arg in argv)
+    return is_claw_live and stdout_target.endswith(" (deleted)")
+
+def recover_detached_lock_owner(handle, pid: int) -> bool:
+    if not detached_claw_live_owner(pid):
+        return False
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    except OSError:
+        return False
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except BlockingIOError:
+            time.sleep(0.1)
+    return False
+
 def acquire_single_instance() -> bool:
     global _instance_lock
     CLAW_LIVE_LOCK.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -170,10 +201,17 @@ def acquire_single_instance() -> bool:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         handle.seek(0)
-        pid = handle.read().strip() or "?"
-        print(f"claw-live déjà actif (pid {pid}) dans un autre terminal. Ferme cette instance avant d'en lancer une seconde.", flush=True)
-        handle.close()
-        return False
+        pid_text = handle.read().strip()
+        try:
+            pid = int(pid_text)
+        except ValueError:
+            pid = 0
+        if pid > 1 and recover_detached_lock_owner(handle, pid):
+            print(f"claw-live précédent détaché (pid {pid}) arrêté automatiquement.", flush=True)
+        else:
+            print(f"claw-live déjà actif (pid {pid_text or '?'}) dans un autre terminal. Ferme cette instance avant d'en lancer une seconde.", flush=True)
+            handle.close()
+            return False
     handle.seek(0)
     handle.truncate()
     handle.write(str(os.getpid()))
