@@ -120,6 +120,9 @@ clawmobile configure defaults
 lock prevents accidental duplicate viewers. When the terminal backing stdout is
 detached or deleted, `claw-live` stops itself, interrupts its log followers,
 and releases the lock instead of remaining as an invisible orphan process.
+If a legacy orphan still owns the lock, a new launch recovers it only when the
+recorded PID is demonstrably another `claw-live` whose stdout points to a
+deleted PTY; it sends that process `SIGTERM` and re-acquires the same lock.
 Redirected/non-TTY output is not treated as a detached terminal.
 
 ## Capability Stages

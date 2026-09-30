@@ -105,14 +105,33 @@ class ClawLiveTests(unittest.TestCase):
         self.assertIn("…", out)
         self.assertLess(len(out), 650)
 
-    def test_terminal_fd_alive_detects_deleted_pty(self):
-        with mock.patch.object(m.os, "isatty", return_value=True):
+    def test_terminal_fd_alive_detects_deleted_pty_even_when_isatty_is_false(self):
+        with mock.patch.object(m.os, "isatty", return_value=False):
             with mock.patch.object(m.os, "readlink", return_value="/dev/pts/0 (deleted)"):
                 self.assertFalse(m.terminal_fd_alive(1))
-            with mock.patch.object(m.os, "readlink", return_value="/dev/pts/0"):
-                self.assertTrue(m.terminal_fd_alive(1))
-        with mock.patch.object(m.os, "isatty", return_value=False):
+        with mock.patch.object(m.os, "readlink", return_value="/dev/pts/0"):
             self.assertTrue(m.terminal_fd_alive(1))
+        with mock.patch.object(m.os, "readlink", return_value="/tmp/output.log (deleted)"):
+            self.assertTrue(m.terminal_fd_alive(1))
+        with mock.patch.object(m.os, "readlink", side_effect=OSError):
+            self.assertFalse(m.terminal_fd_alive(1))
+
+    def test_detached_owner_requires_claw_live_and_deleted_tty(self):
+        claw = b"/data/data/com.termux/files/usr/bin/python3\0/data/data/com.termux/files/usr/bin/claw-live\0"
+        other = b"/data/data/com.termux/files/usr/bin/python3\0/tmp/worker.py\0"
+        self.assertTrue(m.detached_claw_live_owner(123, claw, "/dev/pts/0 (deleted)"))
+        self.assertFalse(m.detached_claw_live_owner(123, claw, "/dev/pts/0"))
+        self.assertFalse(m.detached_claw_live_owner(123, other, "/dev/pts/0 (deleted)"))
+
+    def test_recover_detached_owner_uses_sigterm_and_reacquires_lock(self):
+        handle = mock.Mock()
+        handle.fileno.return_value = 3
+        with mock.patch.object(m, "detached_claw_live_owner", return_value=True):
+            with mock.patch.object(m.os, "kill") as kill:
+                with mock.patch.object(m.fcntl, "flock") as flock:
+                    self.assertTrue(m.recover_detached_lock_owner(handle, 123))
+        kill.assert_called_once_with(123, m.signal.SIGTERM)
+        flock.assert_called_once()
 
     def test_tail_lines_stops_promptly_without_new_data(self):
         with tempfile.TemporaryDirectory() as td:
