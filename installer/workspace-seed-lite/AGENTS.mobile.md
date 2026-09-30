@@ -17,6 +17,10 @@ This is the ClawMobile Termux runtime:
 - Runtime tools come from the `openclaw-plugin-mobile-ui` plugin in
   capability-aware Termux runtime mode.
 - Capability lookup skill: `clawmobile-capabilities`
+- Cross-surface routing tool: `clawmobile_capability`. It resolves the single
+  canonical Claw capability/executor graph and returns the shortest currently
+  reachable validated path. A capability belongs to Claw, not to GPT, Gemini
+  or Bixby; native/delegated describes only the current executor.
 - Mobile policy skill: `clawmobile-policy` is a reference for complex
   recovery, high-risk actions, generated-skill diagnosis, and capability
   boundaries. Do not read it for routine UI lookup when these injected rules and
@@ -37,6 +41,10 @@ This is the ClawMobile Termux runtime:
 
 ## Execution Rules
 
+- Before concluding that a requested capability is unavailable, or before
+  manually chaining another assistant/runtime, use `clawmobile_capability`
+  when the graph is relevant. Prefer its selected healthy route; do not create
+  separate GPT/Gemini/Bixby capability truth.
 - Start a mobile task by checking `android_health` when the required permission
   stage is not already known.
 - Read `android_health.capabilities` before choosing tools. In Termux-only

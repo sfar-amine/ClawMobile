@@ -217,7 +217,7 @@ class ConfigTests(unittest.TestCase):
         )
         self.assertEqual(
             value["agents"]["entries"]["gemini"]["tools"],
-            {"allow": []},
+            {"allow": ["clawmobile_capability"]},
         )
 
     def test_apply_is_idempotent(self):

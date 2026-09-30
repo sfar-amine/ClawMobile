@@ -66,7 +66,7 @@ export async function runModelFastPath(
   let lastError = "helper_missing";
   for (const helper of helpers) {
     try {
-      const { stdout } = await execFileAsync(
+      const raw: any = await execFileAsync(
         "python3",
         [helper, message],
         {
@@ -75,6 +75,7 @@ export async function runModelFastPath(
           env: { ...process.env },
         },
       );
+      const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
       const parsed = JSON.parse(stdout || "{}");
       return typeof parsed === "object" && parsed !== null
         ? parsed as FastPathResult

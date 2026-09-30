@@ -10,6 +10,7 @@ import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRunt
 import { submitIntent } from "./intent";
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
+import { capabilityBridge } from "./capabilityBridge";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
 import { archiveSession, deleteSession, getRunStatus, listRuns } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
@@ -206,6 +207,8 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
         "/v1/extensions/remote-bridge/health",
         "/v1/extensions/remote-bridge/requests",
         "/v1/extensions/remote-bridge/requests/:requestId",
+        "/v1/extensions/capability-bridge/resolve",
+        "/v1/extensions/capability-bridge/execute",
         "/v1/extensions/android/voice-recovery/intentional-stop",
         "/v1/extensions/android/voice-recovery/probe",
         "/v1/extensions/android/voice-recovery/status",
@@ -259,6 +262,18 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
     const requestId = decodeURIComponent(remoteBridgeRequestMatch[1]);
     const result = getRemoteBridgeRequest(requestId);
     writeJson(res, result ? 200 : 404, result || { error: "request_not_found" });
+    return;
+  }
+
+  if (method === "POST" && (routePath === "/capability-bridge/resolve" || routePath === "/capability-bridge/execute")) {
+    const body = await readJsonBody<any>(req);
+    const result = await capabilityBridge(String(body?.request || body?.text || ""), {
+      execute: routePath.endsWith("/execute"),
+      surface: String(body?.surface || "bixby"),
+      caller: String(body?.caller || "owner"),
+      timeoutSeconds: Number(body?.timeoutSeconds || 30),
+    });
+    writeJson(res, result.success === false ? 400 : 200, result);
     return;
   }
 
@@ -697,6 +712,7 @@ function normalizeProtocolPath(pathname: string): string | null {
     ["/extensions/nostr", "/nostr"],
     ["/extensions/agent", "/agent"],
     ["/extensions/remote-bridge", "/remote-bridge"],
+    ["/extensions/capability-bridge", "/capability-bridge"],
     ["/extensions/skill-sharing/imports", "/skill-imports"],
     ["/extensions/skill-sharing/skills", "/skills"],
   ];

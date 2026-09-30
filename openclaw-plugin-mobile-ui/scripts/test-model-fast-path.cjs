@@ -1,4 +1,7 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 
 async function main() {
   const mod = require("../dist/modelFastPath.js");
@@ -97,6 +100,21 @@ async function main() {
   );
   assert.deepEqual(untrusted, { handled: false });
   assert.equal(untrustedCalls, 0);
+
+
+
+  const tempBase = path.join(os.homedir(), ".openclaw", "tmp");
+  fs.mkdirSync(tempBase, { recursive: true });
+  const helperRoot = fs.mkdtempSync(path.join(tempBase, "model-fast-path-test-"));
+  const helper = path.join(helperRoot, "helper.py");
+  fs.writeFileSync(helper, [
+    "import json",
+    "print(json.dumps({'status':'hit','text':'helper-ok','target':'x','intent':'y','route':'z'}))",
+    "",
+  ].join("\n"));
+  const helperResult = await mod.runModelFastPath("hello", { helperPath: helper });
+  assert.equal(helperResult.status, "hit");
+  assert.equal(helperResult.text, "helper-ok");
 
   console.log("model-fast-path plugin tests: PASS");
 }

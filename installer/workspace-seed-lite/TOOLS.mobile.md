@@ -8,6 +8,11 @@ ADB is configured.
 Use the capability-aware observation, input, shell, OCR, and generated-skill
 tools below for mobile tasks.
 
+For cross-surface routing, `clawmobile_capability` is the compact canonical
+entrypoint. It resolves the current Claw capability/executor graph and can
+execute a validated reachable Claw route without injecting the full registry
+into the model. Generated surface views are caches only.
+
 ## Health / Observation
 
 - `android_health` — reports the current capability stage, backend state,
