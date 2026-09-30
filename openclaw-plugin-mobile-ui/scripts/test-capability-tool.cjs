@@ -5,6 +5,14 @@ const path = require("node:path");
 
 async function main() {
   const mod = require("../dist/capabilityTool.js");
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "openclaw.plugin.json"), "utf8"),
+  );
+  assert.equal(
+    manifest.contracts.tools.includes("clawmobile_capability"),
+    true,
+    "plugin manifest must declare clawmobile_capability for strict tool allowlists",
+  );
   const tempBase = path.join(os.homedir(), ".openclaw", "tmp");
   fs.mkdirSync(tempBase, { recursive: true });
   const root = fs.mkdtempSync(path.join(tempBase, "claw-capability-test-"));

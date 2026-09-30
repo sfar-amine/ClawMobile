@@ -8,6 +8,7 @@
   },
   "contracts": {
     "tools": [
+      "clawmobile_capability",
       "android_health",
       "android_screenshot",
       "android_tap",
