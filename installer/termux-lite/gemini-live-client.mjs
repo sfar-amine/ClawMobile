@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const MODEL = "gemini-3.8-live";
 const WS_BASE = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
@@ -389,6 +389,8 @@ async function cli() {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
+const invokedPath = process.argv[1] ? fs.realpathSync(process.argv[1]) : "";
+const modulePath = fs.realpathSync(fileURLToPath(import.meta.url));
+if (invokedPath && invokedPath === modulePath) {
   await cli();
 }
