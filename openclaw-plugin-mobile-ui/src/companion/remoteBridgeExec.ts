@@ -8,6 +8,7 @@ const ROOT = process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR || path.join(os.homedir(),
 const PROCESS_DIR = path.join(ROOT, "processes");
 const MAX_COMMAND_CHARS = 32 * 1024;
 const MAX_EXEC_OUTPUT_BYTES = 8 * 1024 * 1024;
+const PROCESS_INSTANCE_ID = `${process.pid}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
 
 type BridgeProcess = {
   id: string;
@@ -154,7 +155,16 @@ export function bridgeProcessStatus(params: Record<string, unknown>) {
   const processId = validateProcessId(String(params.processId || ""));
   const metaPath = path.join(PROCESS_DIR, `${processId}.json`);
   if (!fs.existsSync(metaPath)) throw new Error("process_not_found");
-  const meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+  let meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+  if (meta.state === "running" && !processes.has(processId)) {
+    meta = {
+      ...meta,
+      state: "indeterminate",
+      completedAt: Date.now(),
+      error: "Process owner instance is no longer available. Verify external effects before retry.",
+    };
+    writeProcessMeta(processId, meta);
+  }
   const outputPath = path.join(PROCESS_DIR, `${processId}.log`);
   const buffer = fs.existsSync(outputPath) ? fs.readFileSync(outputPath) : Buffer.alloc(0);  const offset = Math.max(0, Number(params.offset || 0));
   const maxBytes = boundedInt(params.maxBytes, 32 * 1024, 1, 128 * 1024);
@@ -195,16 +205,21 @@ function validateProcessId(value: string) {
   return value;
 }
 
+function writeProcessMeta(processId: string, value: Record<string, unknown>) {
+  const finalPath = path.join(PROCESS_DIR, `${processId}.json`);
+  const tempPath = `${finalPath}.tmp-${process.pid}`;
+  fs.writeFileSync(tempPath, JSON.stringify(value, null, 2), { mode: 0o600 });
+  fs.renameSync(tempPath, finalPath);
+}
+
 function writeMeta(entry: BridgeProcess, state: Record<string, unknown>) {
   const value = {
     processId: entry.id,
+    ownerInstanceId: PROCESS_INSTANCE_ID,
     command: entry.command,
     cwd: entry.cwd,
     startedAt: entry.startedAt,
     ...state,
   };
-  const finalPath = path.join(PROCESS_DIR, `${entry.id}.json`);
-  const tempPath = `${finalPath}.tmp-${process.pid}`;
-  fs.writeFileSync(tempPath, JSON.stringify(value, null, 2), { mode: 0o600 });
-  fs.renameSync(tempPath, finalPath);
+  writeProcessMeta(entry.id, value);
 }

@@ -9,6 +9,7 @@ fs.mkdirSync(tmpRoot, { recursive: true });
 const root = fs.mkdtempSync(path.join(tmpRoot, "claw-core-test-"));
 const bridgeDir = path.join(root, "bridge");
 const testFile = path.join(root, "file.txt");
+const stepFile = path.join(root, "step.txt");
 const binaryFile = path.join(root, "binary.bin");
 const node = path.join(os.homedir(), ".openclaw-android", "bin", "node");
 const companion = path.resolve(__dirname, "..", "dist", "companion", "server.js");
@@ -95,6 +96,34 @@ async function main() {
   });
   assert.equal(result.code, 409);
 
+  const stepWrite = {
+    requestId: "core-step-write-1",
+    taskId: "task-a",
+    stepId: "append-once",
+    method: "write_file",
+    params: { path: stepFile, content: "S", mode: "append" },
+  };
+  result = await submit(stepWrite);
+  assert.equal(result.body.state, "completed");
+  result = await submit({ ...stepWrite, requestId: "core-step-write-2", sessionId: "other-session" });
+  assert.equal(result.body.requestId, "core-step-write-1");
+  assert.equal(fs.readFileSync(stepFile, "utf8"), "S");
+  result = await submit({
+    ...stepWrite,
+    requestId: "core-step-write-conflict",
+    params: { path: stepFile, content: "T", mode: "append" },
+  });
+  assert.equal(result.code, 409);
+  result = await submit({
+    requestId: "core-task-status",
+    method: "task_status",
+    params: { taskId: "task-a" },
+  });
+  assert.equal(result.body.mutationRisk, "read");
+  assert.equal(result.body.result.total, 1);
+  assert.equal(result.body.result.receipts[0].stepId, "append-once");
+  assert.equal(result.body.result.receipts[0].requestId, "core-step-write-1");
+
   fs.chmodSync(testFile, 0o755);
   result = await submit({
     requestId: "core-patch",
@@ -134,6 +163,30 @@ async function main() {
   assert.equal(result.body.result.output, "AB");
 
   result = await submit({
+    requestId: "core-quiet-process",
+    taskId: "task-quiet",
+    stepId: "long-test",
+    method: "process_start",
+    params: { command: "sleep 0.6" },
+  });
+  const quietProcessId = result.body.result.processId;
+  await wait(50);
+  result = await submit({
+    requestId: "core-quiet-status-1",
+    method: "process_status",
+    params: { processId: quietProcessId, offset: 0 },
+  });
+  assert.equal(result.body.result.state, "running");
+  assert.equal(result.body.result.output, "");
+  await wait(700);
+  result = await submit({
+    requestId: "core-quiet-status-2",
+    method: "process_status",
+    params: { processId: quietProcessId, offset: 0 },
+  });
+  assert.equal(result.body.result.state, "completed");
+
+  result = await submit({
     requestId: "core-large",
     method: "exec_wait",
     params: { command: "python3 -c 'print(\"Z\"*70000)'" },
@@ -163,12 +216,36 @@ async function main() {
   result = await request("GET", "/requests/core-stale");
   assert.equal(result.body.state, "indeterminate");
 
+  const processesDir = path.join(bridgeDir, "processes");
+  fs.mkdirSync(processesDir, { recursive: true });
+  fs.writeFileSync(path.join(processesDir, "proc-stale.json"), JSON.stringify({
+    processId: "proc-stale",
+    ownerInstanceId: "old-process-owner",
+    command: "sleep 10",
+    cwd: root,
+    startedAt: Date.now() - 1000,
+    state: "running",
+    pid: 999999,
+  }));
+  fs.writeFileSync(path.join(processesDir, "proc-stale.log"), "");
+  result = await submit({
+    requestId: "core-stale-process-status",
+    method: "process_status",
+    params: { processId: "proc-stale", offset: 0 },
+  });
+  assert.equal(result.body.result.state, "indeterminate");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(processesDir, "proc-stale.json"), "utf8")).state, "indeterminate");
+
   console.log(JSON.stringify({
     ok: true,
     idempotentWrite: true,
+    taskStepDedup: true,
+    taskStatus: true,
     requestConflict: true,
     execWait: true,
     processStreaming: true,
+    silentProcessStaysRunning: true,
+    staleProcessFailsClosed: true,
     artifact: true,
     patchFile: true,
     binaryRoundTrip: true,

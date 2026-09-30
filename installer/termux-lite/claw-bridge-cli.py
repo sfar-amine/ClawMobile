@@ -44,6 +44,7 @@ def build_parser():
     submit.add_argument("--request-id", required=True)
     submit.add_argument("--method", required=True)
     submit.add_argument("--task-id")
+    submit.add_argument("--step-id")
     submit.add_argument("--session-id")
     submit.add_argument("--params-json", default="{}")
     return parser
@@ -65,6 +66,8 @@ def main():
         }
         if args.task_id:
             payload["taskId"] = args.task_id
+        if args.step_id:
+            payload["stepId"] = args.step_id
         if args.session_id:
             payload["sessionId"] = args.session_id
         code, body = request("POST", "/requests", payload)

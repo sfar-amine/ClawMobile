@@ -24,6 +24,7 @@ type BridgeState = "received" | "running" | "completed" | "failed" | "indetermin
 export type RemoteBridgeRequest = {
   requestId: string;
   taskId?: string;
+  stepId?: string;
   sessionId?: string;
   method: string;
   params?: Record<string, unknown>;
@@ -32,6 +33,7 @@ export type RemoteBridgeRequest = {
 export type RemoteBridgeReceipt = {
   requestId: string;
   taskId?: string;
+  stepId?: string;
   sessionId?: string;
   method: string;
   paramsHash: string;
@@ -52,6 +54,12 @@ export type RemoteBridgeReceipt = {
 function validateRequestId(value: string) {
   if (!/^[A-Za-z0-9._:-]{1,128}$/.test(value)) {
     throw new Error("invalid_request_id");
+  }
+}
+
+function validateCorrelationId(value: string, kind: "task" | "step") {
+  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(value)) {
+    throw new Error(`invalid_${kind}_id`);
   }
 }
 
@@ -84,9 +92,79 @@ function writeReceipt(receipt: RemoteBridgeReceipt) {
   atomicWrite(requestPath(receipt.requestId), JSON.stringify(receipt, null, 2));
 }
 
+function normalizeStaleReceipt(receipt: RemoteBridgeReceipt) {
+  if (receipt.state !== "running" || receipt.instanceId === INSTANCE_ID) return receipt;
+  const next: RemoteBridgeReceipt = {
+    ...receipt,
+    state: "indeterminate",
+    completedAt: Date.now(),
+    error: "Bridge restarted while request was running. Verify effect before retry.",
+  };
+  writeReceipt(next);
+  return next;
+}
+
+function receiptFiles() {
+  ensureDirs();
+  return fs.readdirSync(REQUEST_DIR)
+    .filter((name) => /^[A-Za-z0-9._:-]{1,128}\.json$/.test(name))
+    .map((name) => path.join(REQUEST_DIR, name));
+}
+
+function findTaskStepReceipt(taskId: string, stepId: string) {
+  for (const filePath of receiptFiles()) {
+    try {
+      const receipt = JSON.parse(fs.readFileSync(filePath, "utf8")) as RemoteBridgeReceipt;
+      if (receipt.taskId === taskId && receipt.stepId === stepId) return receipt;
+    } catch {}
+  }
+  return null;
+}
+
+function summarizeReceipt(receipt: RemoteBridgeReceipt) {
+  const normalized = normalizeStaleReceipt(receipt);
+  const result = normalized.result && typeof normalized.result === "object"
+    ? normalized.result as Record<string, unknown>
+    : {};
+  return {
+    requestId: normalized.requestId,
+    taskId: normalized.taskId,
+    stepId: normalized.stepId,
+    method: normalized.method,
+    paramsHash: normalized.paramsHash,
+    state: normalized.state,
+    mutationRisk: normalized.mutationRisk,
+    receivedAt: normalized.receivedAt,
+    startedAt: normalized.startedAt,
+    completedAt: normalized.completedAt,
+    processId: typeof result.processId === "string" ? result.processId : undefined,
+    error: normalized.error,
+  };
+}
+
+export function getRemoteBridgeTask(taskId: string, rawLimit = 50) {
+  ensureDirs();
+  validateCorrelationId(taskId, "task");
+  const limit = Math.max(1, Math.min(100, Number.isFinite(rawLimit) ? Math.trunc(rawLimit) : 50));
+  const receipts: RemoteBridgeReceipt[] = [];
+  for (const filePath of receiptFiles()) {
+    try {
+      const receipt = JSON.parse(fs.readFileSync(filePath, "utf8")) as RemoteBridgeReceipt;
+      if (receipt.taskId === taskId) receipts.push(receipt);
+    } catch {}
+  }
+  receipts.sort((a, b) => a.receivedAt - b.receivedAt);
+  const selected = receipts.slice(Math.max(0, receipts.length - limit));
+  return {
+    taskId,
+    total: receipts.length,
+    receipts: selected.map(summarizeReceipt),
+  };
+}
+
 function mutationRisk(method: string): "read" | "write" | "unknown" {
-  if (["ping", "request_status", "read_file", "read_binary_file", "artifact_read"].includes(method)) return "read";
-  if (["write_file", "patch_file", "write_binary_file"].includes(method)) return "write";
+  if (["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status"].includes(method)) return "read";
+  if (["write_file", "patch_file", "write_binary_file", "process_input", "process_stop"].includes(method)) return "write";
   return "unknown";
 }const INLINE_LIMIT = 48 * 1024;
 const MAX_FILE_READ_LINES = 5000;
@@ -275,6 +353,8 @@ async function dispatch(request: RemoteBridgeRequest) {
       return { pong: true, at: Date.now(), instanceId: INSTANCE_ID };
     case "request_status":
       return { receipt: getRemoteBridgeRequest(String(params.requestId || "")) };
+    case "task_status":
+      return getRemoteBridgeTask(String(params.taskId || ""), Number(params.limit || 50));
     case "exec_wait":
       return runExecWait(params);    case "read_file":
       return readTextFile(params);
@@ -308,9 +388,17 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   if (!method || !/^[a-z][a-z0-9_]{1,63}$/.test(method)) {
     throw new Error("invalid_method");
   }
+  const taskId = body?.taskId ? String(body.taskId).trim() : undefined;
+  const stepId = body?.stepId ? String(body.stepId).trim() : undefined;
+  if (taskId) validateCorrelationId(taskId, "task");
+  if (stepId) {
+    if (!taskId) throw new Error("step_id_requires_task_id");
+    validateCorrelationId(stepId, "step");
+  }
   return {
     requestId,
-    taskId: body?.taskId ? String(body.taskId) : undefined,
+    taskId,
+    stepId,
     sessionId: body?.sessionId ? String(body.sessionId) : undefined,
     method,
     params: body?.params && typeof body.params === "object"
@@ -330,22 +418,29 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     if (existing.paramsHash !== paramsHash || existing.method !== request.method) {
       throw statusError(409, "request_id_conflict");
     }
-    if (existing.state === "running" && existing.instanceId !== INSTANCE_ID) {
-      const next: RemoteBridgeReceipt = {
-        ...existing,
-        state: "indeterminate",
-        completedAt: Date.now(),
-        error: "Previous bridge instance ended while request was running. Verify effect before retry.",
-      };
-      writeReceipt(next);
-      return next;
+    if (existing.taskId && request.taskId && existing.taskId !== request.taskId) {
+      throw statusError(409, "request_task_conflict");
     }
-    return existing;
+    if (existing.stepId && request.stepId && existing.stepId !== request.stepId) {
+      throw statusError(409, "request_step_conflict");
+    }
+    return normalizeStaleReceipt(existing);
+  }
+
+  if (request.taskId && request.stepId) {
+    const prior = findTaskStepReceipt(request.taskId, request.stepId);
+    if (prior) {
+      if (prior.paramsHash !== paramsHash || prior.method !== request.method) {
+        throw statusError(409, "task_step_conflict");
+      }
+      return normalizeStaleReceipt(prior);
+    }
   }
 
   let receipt: RemoteBridgeReceipt = {
     requestId: request.requestId,
     taskId: request.taskId,
+    stepId: request.stepId,
     sessionId: request.sessionId,
     method: request.method,
     paramsHash,    state: "received",
@@ -386,17 +481,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   validateRequestId(requestId);
   const receipt = readReceipt(requestId);
   if (!receipt) return null;
-  if (receipt.state === "running" && receipt.instanceId !== INSTANCE_ID) {
-    const next: RemoteBridgeReceipt = {
-      ...receipt,
-      state: "indeterminate",
-      completedAt: Date.now(),
-      error: "Bridge restarted while request was running. Verify effect before retry.",
-    };
-    writeReceipt(next);
-    return next;
-  }
-  return receipt;
+  return normalizeStaleReceipt(receipt);
 }
 
 function statusError(statusCode: number, message: string) {

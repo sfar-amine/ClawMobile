@@ -26,7 +26,7 @@ const HEALTH_FILE = path.join(STATE_DIR, "health.json");
 const EVENT_LOG = path.join(STATE_DIR, "events.log");
 const MAX_REPLY_CHARS = 26000;
 const SLACK_API_BASE = (process.env.CLAW_SLACK_API_BASE || "https://slack.com/api").replace(/\/$/, "");
-const READ_ONLY = new Set(["ping", "request_status", "read_file", "read_binary_file", "artifact_read", "process_status"]);
+const READ_ONLY = new Set(["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status"]);
 const HEALTH_HEARTBEAT_MS = Number(process.env.CLAW_SLACK_HEALTH_HEARTBEAT_MS || 15000);
 
 let socket = null;
