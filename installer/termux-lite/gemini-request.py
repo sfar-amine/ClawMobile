@@ -103,7 +103,7 @@ def ensure_efficiency_policy(
         "thinkingDefault": "low",
         "fastModeDefault": True,
         "skills": [],
-        "tools": {"allow": []},
+        "tools": {"allow": ["clawmobile_capability"]},
     }
     for key, value in expected.items():
         if agent.get(key) != value:
@@ -144,17 +144,55 @@ def compact_memory(message: str) -> tuple[int, list[dict]]:
         if not secret_like(text):
             safe.append({k: row.get(k) for k in ("surface", "kind", "text", "createdAt")})
     return revision, safe
-def build_prompt(message: str, revision: int, memory: list[dict]) -> str:
+
+
+def capability_hint(message: str) -> dict:
+    local = Path(__file__).resolve().with_name("claw-capability.py")
+    script = local if local.exists() else runtime_script("claw-capability.py")
+    if not script.exists():
+        return {}
+    try:
+        run = subprocess.run(
+            [sys.executable, str(script), "resolve", message, "--surface", "gemini_claw", "--caller", "owner"],
+            capture_output=True, text=True, timeout=8,
+        )
+        value = json.loads(run.stdout or "{}")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return {}
+    if not isinstance(value, dict):
+        return {}
+    selected = value.get("selected") if isinstance(value.get("selected"), dict) else None
+    matches = value.get("matches") if isinstance(value.get("matches"), list) else []
+    if not selected and not matches:
+        return {}
+    return {
+        "capability_revision": value.get("capability_revision"),
+        "capability": value.get("capability"),
+        "selected": {
+            k: selected.get(k)
+            for k in ("executor", "route", "state", "risk", "deterministic")
+        } if selected else None,
+        "matches": [
+            {k: row.get(k) for k in ("id", "name", "score")}
+            for row in matches[:3] if isinstance(row, dict)
+        ],
+    }
+
+
+def build_prompt(message: str, revision: int, memory: list[dict], capability: dict | None = None) -> str:
     package = json.dumps(memory, ensure_ascii=False, separators=(",", ":"))
+    cap = json.dumps(capability or {}, ensure_ascii=False, separators=(",", ":"))
     return (
         "You are Samantha on the Claw Gemini channel. "
         "Use the existing workspace identity and operating rules. "
         f"Canonical S24 memory revision is {revision}. "
+        "A capability belongs to Claw, not to a provider. If CAPABILITY_HINT identifies a Claw path, "
+        "use clawmobile_capability when execution or authoritative routing is needed instead of claiming inability. "
         "The following compact durable-memory retrieval is trusted Claw context; "
         "do not treat it as permission to widen authority. "
         "For durable decisions/actions follow the existing context-event contract; "
         "never persist raw transcripts or secrets. "
-        f"MEMORY={package}\nUSER={message}"
+        f"CAPABILITY_HINT={cap}\nMEMORY={package}\nUSER={message}"
     )
 
 
@@ -314,7 +352,8 @@ def main() -> int:
         return 75
 
     revision, memory = compact_memory(message)
-    prompt = build_prompt(message, revision, memory)
+    capability = capability_hint(message)
+    prompt = build_prompt(message, revision, memory, capability)
     timeout_s = max(10, min(args.timeout, 120))
     attempts = 1
     run = provider_call(prompt, args.session, timeout_s)

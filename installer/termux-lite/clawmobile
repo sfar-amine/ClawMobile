@@ -101,6 +101,11 @@ configure_lite_defaults() {
   if [ -f "$HOME/.openclaw/openclaw.json" ] && [ -f "$SCRIPT_DIR/model-efficiency-config.py" ]; then
     python3 "$SCRIPT_DIR/model-efficiency-config.py" --apply >/dev/null
   fi
+  # Surface views are derived caches only. Rebuild them from the canonical
+  # Claw registry/executor graph when that source is available.
+  if [ -f "$SCRIPT_DIR/claw-capability.py" ] && [ -f "$HOME/.openclaw/workspace/ui-playbooks/skill_intelligence/capability_graph.py" ]; then
+    python3 "$SCRIPT_DIR/claw-capability.py" compile >/dev/null 2>&1 || true
+  fi
 }
 
 upsert_env_var() {

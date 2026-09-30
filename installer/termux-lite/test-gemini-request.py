@@ -163,7 +163,7 @@ class GeminiRequestTests(unittest.TestCase):
                 "thinkingDefault": "low",
                 "fastModeDefault": True,
                 "skills": [],
-                "tools": {"allow": []},
+                "tools": {"allow": ["clawmobile_capability"]},
             })
             path = root / "config.json"
             path.write_text(json.dumps(value))
@@ -238,6 +238,43 @@ class GeminiRequestTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(result["provider_attempts"], 2)
         self.assertEqual(provider.call_count, 2)
+
+
+    def test_capability_hint_is_compact_and_surface_scoped(self):
+        import subprocess
+        payload = {
+            "capability_revision": "abc123",
+            "capability": "telecom.orange.consultation",
+            "selected": {
+                "executor": "claw.skill_route",
+                "route": "orange.silent_first.balance",
+                "state": "ready",
+                "risk": "read",
+                "deterministic": True,
+                "entrypoint": "hidden",
+            },
+            "matches": [
+                {"id": "telecom.orange.consultation", "name": "Orange", "score": 1.0, "notes": "hidden"}
+            ],
+        }
+        completed = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
+        with mock.patch.object(mod.subprocess, "run", return_value=completed) as run:
+            hint = mod.capability_hint("mon solde orange")
+        self.assertEqual(hint["capability"], "telecom.orange.consultation")
+        self.assertNotIn("entrypoint", hint["selected"])
+        self.assertNotIn("notes", hint["matches"][0])
+        argv = run.call_args.args[0]
+        self.assertIn("gemini_claw", argv)
+
+    def test_prompt_mentions_single_capability_tool_when_hint_present(self):
+        prompt = mod.build_prompt(
+            "mon solde orange",
+            42,
+            [],
+            {"capability": "telecom.orange.consultation", "selected": {"executor": "claw.skill_route"}},
+        )
+        self.assertIn("clawmobile_capability", prompt)
+        self.assertIn("CAPABILITY_HINT=", prompt)
 
 
 if __name__ == "__main__":
