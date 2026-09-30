@@ -123,7 +123,8 @@ def main():
             try:
                 payload = parse_improvement(row[4])
                 payload.setdefault("origin_class", "cross_surface:" + str(row[2]))
-                payload.setdefault("trust", "provisional")
+                confidence = str(payload.get("confidence") or "provisional").lower()
+                payload.setdefault("trust", {"stable":"authoritative","validated":"verified"}.get(confidence,"provisional"))
                 propose("improvement_candidate", [row[0]], payload)
                 improvement_events += 1
             except Exception as exc:

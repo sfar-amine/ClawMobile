@@ -94,6 +94,8 @@ Default runtime paths:
 
 The example config and Slack app manifest are shipped next to the installer scripts.
 
+For malformed plain `CLAW_RPC_V1` envelopes, the adapter now returns a bounded machine-actionable error with `action=use_b64`. This is a transport-format hint only: it does not retry the request. The caller must use `CLAW_RPC_V1_B64` for quoting-heavy/complex payloads and must still honor the same request/status-before-retry idempotence contract for mutations.
+
 After the Slack app has been created and authorized, run `installer/termux-lite/claw-slack-setup.sh` directly in Termux. It prompts locally for channel/user IDs and the two tokens, hides token input, writes secrets with mode 0600, configures `shadow` mode and starts the adapter. Tokens must never be pasted into ChatGPT.
 
 Slack app bot scopes in the initial public-channel design:
