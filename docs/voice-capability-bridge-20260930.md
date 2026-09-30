@@ -24,4 +24,4 @@
 - Until those two external gates are satisfied, `bixby_claw` is locally implemented/recettable but must not be represented as externally live.
 
 ## Live evidence
-A real Gemini 3.8 Live canary invoked `clawmobile_capability`, selected `telecom.orange.consultation` / `orange.silent_first.balance`, returned the bounded counter clarification, produced 24 kHz PCM audio, and completed in about 6.7 s end to end.
+Final live acceptance: a real Gemini 3.8 Live canary invoked exactly one `clawmobile_capability` call, selected `telecom.orange.consultation` / `orange.silent_first.balance`, returned `needs_clarification`, produced 24 kHz PCM audio, and completed in 6.985 s end to end. A prior conversational-wrapper canary exposed route-confidence loss; nested voice wrappers are now normalized in the canonical Capability Graph without lowering the deterministic execution confidence gate.
