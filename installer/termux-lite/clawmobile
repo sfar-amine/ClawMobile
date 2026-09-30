@@ -26,6 +26,8 @@ Commands:
   configure defaults  Apply ClawMobile Termux runtime defaults for tools/web search/skills.
   run | start         Start OpenClaw gateway in capability-aware Termux runtime mode.
   server | app-server Start the local HTTP server used by the Android companion app.
+  live [args]         Start an on-demand Gemini 3.8 Live session with Claw capability tool-calling.
+  live-voice [args]   Open the local Claw Live microphone UI in the phone browser.
   doctor | status     Print Termux runtime health checks.
   reset [args]        Run Termux runtime reset helper.
   repair              Force rebuild/reinstall plugin, sync seed, then start gateway.
@@ -618,6 +620,12 @@ case "$cmd" in
     ;;
   server|app-server|companion-server)
     exec "$SCRIPT_DIR/companion-server.sh" "$@"
+    ;;
+  live)
+    exec "$HOME/.openclaw-android/bin/node" "$SCRIPT_DIR/gemini-live-client.mjs" "$@"
+    ;;
+  live-voice)
+    exec "$SCRIPT_DIR/gemini-live-voice.sh" "$@"
     ;;
   doctor|status)
     exec "$SCRIPT_DIR/doctor.sh" "$@"

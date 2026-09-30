@@ -1,0 +1,10 @@
+capsule-info {
+  display-name (Claw)
+  dispatch-name (Claw)
+  developer-name (Amine)
+  description ("Accès vocal privé aux capacités Claw.")
+  search-keywords {
+    keyword (Claw)
+    keyword (Samantha)
+  }
+}

@@ -1,0 +1,12 @@
+action (AskClaw) {
+  description (Transmettre une demande à Claw et retourner sa réponse.)
+  type (Search)
+  collect {
+    input (request) {
+      type (Request)
+      min (Required)
+      max (One)
+    }
+  }
+  output (Response)
+}

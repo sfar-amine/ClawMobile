@@ -1,0 +1,3 @@
+text (Response) {
+  description (Réponse courte retournée par Claw.)
+}
