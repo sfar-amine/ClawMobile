@@ -114,6 +114,14 @@ hand-edit OpenClaw config, refresh once with:
 clawmobile configure defaults
 ```
 
+### Claw Live Observability
+
+`claw-live` is a foreground Termux observability surface. Its single-instance
+lock prevents accidental duplicate viewers. When the terminal backing stdout is
+detached or deleted, `claw-live` stops itself, interrupts its log followers,
+and releases the lock instead of remaining as an invisible orphan process.
+Redirected/non-TTY output is not treated as a detached terminal.
+
 ## Capability Stages
 
 The Termux runtime exposes one stable tool set and detects which capabilities

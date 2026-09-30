@@ -7,6 +7,7 @@ import glob
 import json
 import os
 import re
+import select
 import shlex
 import shutil
 import sqlite3
@@ -94,6 +95,16 @@ IDLE_NOTICE_EVERY_S = 60.0
 MAX_RENDER_DETAIL = 420
 CLAW_LIVE_LOCK = OPENCLAW / "observability" / "claw-live.lock"
 _instance_lock = None
+
+def terminal_fd_alive(fd: int) -> bool:
+    """Return False only when a TTY-backed file descriptor is definitively detached."""
+    try:
+        if not os.isatty(fd):
+            return True
+        target = os.readlink(f"/proc/self/fd/{fd}")
+    except (OSError, ValueError):
+        return False
+    return not target.endswith(" (deleted)")
 
 @dataclass
 class Event:
@@ -514,12 +525,24 @@ def tail_lines(path: Path):
                             stderr=subprocess.DEVNULL, text=True, bufsize=1)
     try:
         assert proc.stdout is not None
-        for line in proc.stdout:
-            if stop_event.is_set():
+        while not stop_event.is_set():
+            ready, _, _ = select.select([proc.stdout], [], [], 0.5)
+            if not ready:
+                continue
+            line = proc.stdout.readline()
+            if line:
+                yield line.rstrip("\n")
+                continue
+            if proc.poll() is not None:
                 break
-            yield line.rstrip("\n")
     finally:
         proc.terminate()
+        try:
+            proc.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            pass
+        if proc.stdout is not None:
+            proc.stdout.close()
 
 def parse_kv(line: str) -> tuple[str, list[tuple[str, str]]]:
     parts = line.split()
@@ -1071,6 +1094,7 @@ def memory_loop(renderer: Renderer) -> None:
 
 def raw_mode() -> int:
     procs: list[subprocess.Popen] = []
+    tty_fd = sys.stdout.fileno() if sys.stdout.isatty() else None
     try:
         if DC_LOG.exists():
             procs.append(subprocess.Popen(["tail", "-n", "0", "-F", str(DC_LOG)]))
@@ -1078,6 +1102,8 @@ def raw_mode() -> int:
         if logs:
             procs.append(subprocess.Popen(["tail", "-n", "0", "-F", max(logs, key=os.path.getmtime)]))
         while procs:
+            if tty_fd is not None and not terminal_fd_alive(tty_fd):
+                break
             time.sleep(1)
             procs = [proc for proc in procs if proc.poll() is None]
     except KeyboardInterrupt:
@@ -1141,15 +1167,21 @@ def main() -> int:
         threading.Thread(target=immune_source, args=(renderer, REMOTE_LOG, "bridge"), daemon=True, name="remote"),
         threading.Thread(target=immune_source, args=(renderer, ADB_LOG, "adb"), daemon=True, name="adb"),
     ]
+    tty_fd = sys.stdout.fileno() if sys.stdout.isatty() else None
     for thread in threads:
         thread.start()
     try:
         while any(thread.is_alive() for thread in threads[1:]):
+            if tty_fd is not None and not terminal_fd_alive(tty_fd):
+                break
             time.sleep(0.5)
     except KeyboardInterrupt:
         pass
     finally:
         stop_event.set()
+        deadline = time.monotonic() + 2.0
+        for thread in threads:
+            thread.join(timeout=max(0.0, deadline - time.monotonic()))
     return 0
 
 if __name__ == "__main__":

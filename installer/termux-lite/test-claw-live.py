@@ -4,10 +4,13 @@ import io
 import json
 import pathlib
 import tempfile
+import threading
+import time
 import types
 import unittest
 import sys
 from contextlib import redirect_stdout
+from unittest import mock
 
 MODULE_PATH = pathlib.Path(__file__).with_name("claw-live.py")
 spec = importlib.util.spec_from_file_location("claw_live_v2", MODULE_PATH)
@@ -102,12 +105,49 @@ class ClawLiveTests(unittest.TestCase):
         self.assertIn("…", out)
         self.assertLess(len(out), 650)
 
+    def test_terminal_fd_alive_detects_deleted_pty(self):
+        with mock.patch.object(m.os, "isatty", return_value=True):
+            with mock.patch.object(m.os, "readlink", return_value="/dev/pts/0 (deleted)"):
+                self.assertFalse(m.terminal_fd_alive(1))
+            with mock.patch.object(m.os, "readlink", return_value="/dev/pts/0"):
+                self.assertTrue(m.terminal_fd_alive(1))
+        with mock.patch.object(m.os, "isatty", return_value=False):
+            self.assertTrue(m.terminal_fd_alive(1))
+
+    def test_tail_lines_stops_promptly_without_new_data(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = pathlib.Path(td) / "events.log"
+            path.write_text("")
+            m.stop_event.clear()
+            gen = m.tail_lines(path)
+            done = threading.Event()
+            outcome = []
+
+            def consume():
+                try:
+                    next(gen)
+                except StopIteration:
+                    outcome.append("stopped")
+                finally:
+                    done.set()
+
+            worker = threading.Thread(target=consume)
+            worker.start()
+            time.sleep(0.1)
+            m.stop_event.set()
+            self.assertTrue(done.wait(1.5))
+            worker.join(timeout=0.2)
+            self.assertEqual(outcome, ["stopped"])
+            m.stop_event.clear()
+
     def test_performance_contracts(self):
         source = MODULE_PATH.read_text()
         self.assertIn("current_dir_stamp != dir_stamp", source)
         self.assertIn("MAX_RENDER_DETAIL = 420", source)
         self.assertIn("acquire_single_instance()", source)
         self.assertIn("--allow-multiple", source)
+        self.assertIn("terminal_fd_alive", source)
+        self.assertIn("select.select", source)
 
     def test_permanent_snapshot_is_one_shot_and_detects_stale_runtime(self):
         rows = [
