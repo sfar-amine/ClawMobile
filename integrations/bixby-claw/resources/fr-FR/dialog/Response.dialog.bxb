@@ -1,0 +1,6 @@
+dialog (Result) {
+  match: Response (this) {
+    from-output: AskClaw
+  }
+  template ("#{value(this)}")
+}

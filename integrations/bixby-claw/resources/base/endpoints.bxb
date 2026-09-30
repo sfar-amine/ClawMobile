@@ -1,0 +1,8 @@
+endpoints {
+  action-endpoints {
+    action-endpoint (AskClaw) {
+      accepted-inputs (request, $vivContext)
+      local-endpoint (AskClaw.js)
+    }
+  }
+}

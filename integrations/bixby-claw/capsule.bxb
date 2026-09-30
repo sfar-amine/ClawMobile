@@ -1,0 +1,15 @@
+capsule {
+  id (example.clawVoice)
+  version (0.1.0)
+  format (3)
+  targets {
+    target (bixby-mobile-fr-FR)
+  }
+  runtime-version (8)
+  store-countries {
+    all
+  }
+  store-sections {
+    section (Productivity)
+  }
+}

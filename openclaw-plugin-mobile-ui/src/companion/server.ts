@@ -11,6 +11,8 @@ import { submitIntent } from "./intent";
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
+import { createClawLiveToken, clawLivePageHtml } from "./clawLive";
+import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
 import { archiveSession, deleteSession, getRunStatus, listRuns } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
@@ -73,6 +75,7 @@ export function startCompanionServer() {
   const shutdown = () => {
     console.log("[companion] shutting down companion server");
     stopTerminalShellSession();
+    stopVoiceRelay();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 1500).unref();
   };
@@ -83,6 +86,7 @@ export function startCompanionServer() {
   startTerminalShellSession();
   startWhatsAppListenerWatchdog();
   startVoiceRecoveryWatchdog();
+  startVoiceRelay();
 
   return server;
 }
@@ -209,6 +213,10 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
         "/v1/extensions/remote-bridge/requests/:requestId",
         "/v1/extensions/capability-bridge/resolve",
         "/v1/extensions/capability-bridge/execute",
+        "/v1/extensions/voice-relay/health",
+        "/v1/extensions/claw-live",
+        "/v1/extensions/claw-live/token",
+        "/v1/extensions/claw-live/capability",
         "/v1/extensions/android/voice-recovery/intentional-stop",
         "/v1/extensions/android/voice-recovery/probe",
         "/v1/extensions/android/voice-recovery/status",
@@ -250,6 +258,11 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
     return;
   }
 
+  if (method === "GET" && routePath === "/voice-relay/health") {
+    writeJson(res, 200, voiceRelayHealth());
+    return;
+  }
+
   if (method === "POST" && routePath === "/remote-bridge/requests") {
     const body = await readJsonBody<any>(req);
     const result = await submitRemoteBridgeRequest(body);
@@ -273,6 +286,34 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
       caller: String(body?.caller || "owner"),
       timeoutSeconds: Number(body?.timeoutSeconds || 30),
     });
+    writeJson(res, result.success === false ? 400 : 200, result);
+    return;
+  }
+
+  if (method === "GET" && routePath === "/claw-live") {
+    writeHtml(res, 200, clawLivePageHtml());
+    return;
+  }
+
+  if (method === "POST" && routePath === "/claw-live/token") {
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      writeJson(res, 200, await createClawLiveToken());
+    } catch (error: any) {
+      writeJson(res, 502, { success: false, message: String(error?.message || "claw_live_token_failed").slice(0, 500) });
+    }
+    return;
+  }
+
+  if (method === "POST" && routePath === "/claw-live/capability") {
+    const body = await readJsonBody<any>(req);
+    const result = await capabilityBridge(String(body?.request || ""), {
+      execute: true,
+      surface: "claw_live",
+      caller: "owner",
+      timeoutSeconds: 35,
+    });
+    res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
   }
@@ -713,6 +754,8 @@ function normalizeProtocolPath(pathname: string): string | null {
     ["/extensions/agent", "/agent"],
     ["/extensions/remote-bridge", "/remote-bridge"],
     ["/extensions/capability-bridge", "/capability-bridge"],
+    ["/extensions/voice-relay", "/voice-relay"],
+    ["/extensions/claw-live", "/claw-live"],
     ["/extensions/skill-sharing/imports", "/skill-imports"],
     ["/extensions/skill-sharing/skills", "/skills"],
   ];
@@ -1356,6 +1399,18 @@ function skillRunStatusFromCompanionRun(run: CompanionRunStatus) {
   return "pending";
 }
 
+function writeHtml(res: http.ServerResponse, statusCode: number, body: string) {
+  res.statusCode = statusCode;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Permissions-Policy", "microphone=(self)");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' wss://generativelanguage.googleapis.com"
+  );
+  res.end(body);
+}
+
 function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
   const body = statusCode === 204 ? "" : JSON.stringify(value, null, 2);
   res.statusCode = statusCode;
@@ -1369,9 +1424,21 @@ function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
   res.end(body);
 }
 
+function isClawLiveBrowserRoute(pathname: string) {
+  return pathname === "/claw-live" ||
+    pathname === "/claw-live/token" ||
+    pathname === "/claw-live/capability";
+}
+
 function shouldBlockBrowserRequest(req: http.IncomingMessage, pathname: string) {
   if (process.env.CLAWMOBILE_COMPANION_ALLOW_BROWSER_ORIGIN === "1") {
     return false;
+  }
+  if (isClawLiveBrowserRoute(pathname) && isLoopbackRequest(req)) {
+    const origin = String(req.headers.origin || "").trim();
+    if (!origin || refererStartsWithLocalCompanion(origin)) {
+      return false;
+    }
   }
   if (!isSensitiveCompanionRoute(pathname)) {
     return false;
