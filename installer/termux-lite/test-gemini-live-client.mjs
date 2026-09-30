@@ -4,6 +4,7 @@ import {
   buildSetupMessage,
   buildToolResponse,
   compactCapabilityResult,
+  createEphemeralToken,
   executeCapability,
   resolveGeminiApiKey
 } from "./gemini-live-client.mjs";
@@ -68,6 +69,26 @@ const bridged = await executeCapability("mon solde orange", { fetchImpl: fakeFet
 assert.equal(captured.surface, "claw_live");
 assert.equal(captured.caller, "owner");
 assert.equal(bridged.capability, "telecom.orange.consultation");
+
+let tokenHeaders;
+const token = await createEphemeralToken({
+  apiKey: "test-google-key",
+  now: 1_000,
+  fetchImpl: async (_url, init) => {
+    tokenHeaders = init.headers;
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return { name: "ephemeral-test-token" };
+      }
+    };
+  }
+});
+assert.equal(token.token, "ephemeral-test-token");
+assert.equal(token.model, MODEL);
+assert.equal(tokenHeaders["x-goog-api-key"], "test-google-key");
+
 const secret = await resolveGeminiApiKey({});
 assert.equal(typeof secret, "string");
 assert.ok(secret.length >= 20);

@@ -10,6 +10,7 @@ const WS_BASE = "wss://generativelanguage.googleapis.com/ws/google.ai.generative
 const OPENCLAW_DIST = "/data/data/com.termux/files/usr/lib/node_modules/openclaw/dist";
 const CAPABILITY_URL = "http://127.0.0.1:8765/v1/extensions/capability-bridge/execute";
 const TOOL_NAME = "clawmobile_capability";
+const TOKEN_URL = "https://generativelanguage.googleapis.com/v1beta/auth_tokens";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -38,6 +39,36 @@ export async function resolveGeminiApiKey(env = process.env) {
     } catch {}
   }
   throw new Error("gemini_api_key_unavailable");
+}
+
+export async function createEphemeralToken({
+  fetchImpl = globalThis.fetch,
+  apiKey,
+  now = Date.now()
+} = {}) {
+  const key = apiKey || await resolveGeminiApiKey();
+  const response = await fetchImpl(TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-goog-api-key": key
+    },
+    body: JSON.stringify({
+      uses: 1,
+      expireTime: new Date(now + 30 * 60_000).toISOString(),
+      newSessionExpireTime: new Date(now + 60_000).toISOString()
+    })
+  });
+  const value = await response.json().catch(() => ({}));
+  if (!response.ok || typeof value?.name !== "string" || !value.name) {
+    throw new Error("gemini_live_token_failed:" + response.status);
+  }
+  return {
+    token: value.name,
+    model: MODEL,
+    expiresAt: value.expireTime || new Date(now + 30 * 60_000).toISOString(),
+    newSessionExpiresAt: value.newSessionExpireTime || new Date(now + 60_000).toISOString()
+  };
 }
 
 export function buildSetupMessage(surface = "claw_live") {
@@ -316,7 +347,7 @@ export async function runLiveSession({
   };
 }
 function parseArgs(argv) {
-  const out = { text: "", pcmFile: "", audioOut: "", surface: "claw_live", timeoutMs: 60000, paceAudio: false, play: false };
+  const out = { text: "", pcmFile: "", audioOut: "", surface: "claw_live", timeoutMs: 60000, paceAudio: false, play: false, mintToken: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--text") out.text = argv[++i] || "";
@@ -326,6 +357,7 @@ function parseArgs(argv) {
     else if (arg === "--timeout") out.timeoutMs = Math.max(5000, Number(argv[++i] || 60) * 1000);
     else if (arg === "--pace-audio") out.paceAudio = true;
     else if (arg === "--play") out.play = true;
+    else if (arg === "--mint-token") out.mintToken = true;
     else if (arg === "--help" || arg === "-h") out.help = true;
     else if (!out.text) out.text = arg;
   }
@@ -341,6 +373,10 @@ async function cli() {
     return;
   }
   try {
+    if (args.mintToken) {
+      console.log(JSON.stringify(await createEphemeralToken()));
+      return;
+    }
     const result = await runLiveSession(args);
     console.log(JSON.stringify(result));
     if (args.play && result.audio_out) {
