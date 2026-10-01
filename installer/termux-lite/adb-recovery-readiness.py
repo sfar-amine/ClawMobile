@@ -112,7 +112,7 @@ def probe(discover_timeout=2.0, persist=True):
             **base,
             "state": "degraded",
             "reason": "wifi_disabled_recovery_standby" if wifi is False else "wireless_debugging_disabled",
-            "requires_owner_action": False if wifi is False else True,
+            "requires_owner_action": True,
         }
         if persist:
             write_receipt(row)

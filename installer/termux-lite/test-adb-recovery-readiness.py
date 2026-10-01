@@ -44,7 +44,7 @@ class ReadinessTests(unittest.TestCase):
         self.assertTrue(row["requires_owner_action"])
         discover.assert_not_called()
 
-    def test_wifi_off_is_non_actionable_recovery_standby(self):
+    def test_wifi_off_is_degraded_and_requires_bounded_recovery(self):
         with patch.object(arr, "canonical_status", return_value=("device", "SERIAL1", True)), \
              patch.object(arr, "wifi_enabled", return_value=False), \
              patch.object(arr, "wireless_setting", return_value="0"), \
@@ -52,7 +52,7 @@ class ReadinessTests(unittest.TestCase):
             row = arr.probe(persist=False)
         self.assertEqual(row["state"], "degraded")
         self.assertEqual(row["reason"], "wifi_disabled_recovery_standby")
-        self.assertFalse(row["requires_owner_action"])
+        self.assertTrue(row["requires_owner_action"])
         discover.assert_not_called()
 
     def test_verified_dynamic_endpoint_is_ready_and_persisted(self):
