@@ -72,6 +72,7 @@ test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.failures")" = 0
 test ! -e "$T/notifications"
 
 rm -f "$T/notifications" "$T/orchestrator" "$T/closings"
+: >"$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
 printf up >"$H/.openclaw/watchdogs/adb-recovery.state"
 cat >"$H/fake-readiness-human" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash

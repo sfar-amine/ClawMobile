@@ -73,7 +73,7 @@ readiness_human_required(){
 }
 
 readiness_recover_incident(){
-  [ -e "$READINESS_NOTIFY" ] || return 0
+  if [ ! -s "$READINESS_NOTIFY" ]; then rm -f "$READINESS_NOTIFY"; return 0; fi
   "$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" recover device.adb.recovery_readiness runtime     --source adb-recovery-watchdog --reason "Wireless Debugging recovery path verified" >/dev/null 2>&1 || true
   "$HOME_DIR/ClawMobile/installer/termux-lite/incident-close.sh"     "ADB recovery readiness"     "Samantha — la capacité de reprise ADB est rétablie et vérifiée." >/dev/null 2>&1 || true
   rm -f "$READINESS_NOTIFY"
@@ -117,7 +117,8 @@ readiness_tick(){
         if [ "$previous" != degraded ]; then
           log WARN readiness degraded "recovery readiness degraded reason=$reason failures=$failures"
         fi
-        if [ "$failures" -ge "$READINESS_HELP_AFTER" ] && [ ! -e "$READINESS_NOTIFY" ]; then
+        if [ "$failures" -ge "$READINESS_HELP_AFTER" ] && [ ! -s "$READINESS_NOTIFY" ]; then
+          rm -f "$READINESS_NOTIFY"
           readiness_human_required "$reason" || true
         fi
       else
