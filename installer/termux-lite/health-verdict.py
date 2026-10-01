@@ -93,14 +93,44 @@ def live():
  x['boot.persistence']=item('ready' if (H/'.termux/boot/start-samantha').exists() else 'down',True,evidence='Termux:Boot')
  x['chat.continuity']=item('ready' if (OC/'continuity/chatgpt-current.json').stat().st_size>0 else 'degraded',False,evidence='chat checkpoint') if (OC/'continuity/chatgpt-current.json').exists() else item('degraded',False,reason='checkpoint absent')
  return x
-def incidents():
+def _incident_component_live_state(component,caps):
+ component=str(component or '')
+ aliases={
+  'whatsapp':'notification.whatsapp',
+  'smtp':'notification.smtp',
+  'remote_desktop':'remote_desktop',
+  'gateway':'gateway',
+  'companion':'companion',
+  'adb':'device.adb',
+ }
+ key=aliases.get(component,component)
+ if key in caps:return caps[key].get('state')
+ for cap_id,row in caps.items():
+  if cap_id.endswith('.'+component):return row.get('state')
+ if component=='slack_bridge':
+  try:
+   row=json.loads((OC/'remote-bridge/slack/health.json').read_text())
+   stamp=float(row.get('heartbeatAt') or row.get('updatedAt') or 0)/1000.0
+   if row.get('state')=='healthy':
+    if row.get('connected') is not True:return 'degraded'
+    age=NOW-stamp
+    if stamp<=0 or age<0 or age>120:return 'stale'
+    return 'healthy'
+   return row.get('state')
+  except (OSError,ValueError,TypeError):
+   return None
+ return None
+def incidents(caps=None):
  p=OC/'incidents/orchestrator.db'; active=[]; recent_failed=[]; human=[]
  if not p.exists():return active,recent_failed,human
+ caps=caps or {}
  c=sqlite3.connect(p);c.row_factory=sqlite3.Row
  for r in c.execute("select * from incidents order by updated desc"):
   d=dict(r)
   if d['state'] not in ('recovered','failed'):active.append(d)
-  if d['state']=='failed' and NOW-d['updated']<86400:recent_failed.append(d)
+  if d['state']=='failed' and NOW-d['updated']<86400:
+   live_state=_incident_component_live_state(d.get('component'),caps)
+   if live_state not in ('healthy','ready'):recent_failed.append(d)
   if d['state']=='human_required':human.append(d)
  c.close();return active,recent_failed,human
 def continuations():
@@ -136,7 +166,7 @@ def maintenance_view():
   return {'state':'unverified','reason':'maintenance_receipt_unreadable'}
 
 def build():
- caps=live(); maintenance=maintenance_view(); active,failed,human=incidents(); cont=continuations(); warnings=[]
+ caps=live(); maintenance=maintenance_view(); active,failed,human=incidents(caps); cont=continuations(); warnings=[]
  mstate=maintenance.get('state')
  cstate=maintenance.get('semantic_state','unverified') if mstate=='observed' else mstate
  reason='semantic maintenance healthy' if cstate=='healthy' else maintenance.get('reason') or ','.join(

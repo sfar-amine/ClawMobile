@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "id": "incident-history-projection-20261001",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Keep terminal incident failures in the audit ledger while removing live-resolved failures from the operational recent_failed projection.",
+  "reason": "health-verdict projected every failed incident from the last 24 hours even after the corresponding component had current healthy evidence, creating stale operational noise.",
+  "files": [
+    "docs/incident-health-projection.md",
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/test-health-verdict.py"
+  ],
+  "tests": [
+    {
+      "name": "health-verdict",
+      "status": "passed",
+      "evidence": {
+        "command": "python3 installer/termux-lite/test-health-verdict.py",
+        "result": "11/11 PASS"
+      }
+    },
+    {
+      "name": "incident-runtime-hardening",
+      "status": "passed",
+      "evidence": {
+        "command": "bash installer/termux-lite/test-incident-runtime-hardening.sh",
+        "result": "PASS"
+      }
+    },
+    {
+      "name": "tier0-control",
+      "status": "passed",
+      "evidence": {
+        "command": "python3 installer/termux-lite/test-tier0-control.py",
+        "result": "5/5 PASS"
+      }
+    },
+    {
+      "name": "live-shadow-projection",
+      "status": "passed",
+      "evidence": {
+        "command": "worktree health-verdict against live ledger",
+        "result": "recent_failed 6 -> 0 while ledger failed rows remained 6"
+      }
+    }
+  ],
+  "documentation": [
+    "docs/incident-health-projection.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "This is a maintenance correction to health projection semantics; it does not add or remove a capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the existing incident ledger and health probes; no schema change, store, daemon, scheduler, or service is added."
+  },
+  "rollback": "Revert the scoped commit and deploy the prior Tier-0 release. The canonical incident ledger is not mutated by this change.",
+  "limitations": [
+    "The unrelated Slack runtime contract test currently fails identically on the unmodified canonical baseline because its Root Guardian sleep expectation is stale; this change does not touch that contract."
+  ]
+}
