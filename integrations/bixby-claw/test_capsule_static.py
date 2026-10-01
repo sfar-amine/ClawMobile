@@ -26,13 +26,17 @@ answer_model = read('models/concepts/ClarificationAnswer.model.bxb')
 require(answer_model, 'name (ClarificationAnswer)', 'clarification answer concept')
 require(answer_model, 'transient', 'clarification answer must not leak into later turns')
 
-for action_name in ('AskClaw', 'ContinueClaw'):
-    model = read(f'models/actions/{action_name}.model.bxb')
-    require(model, 'error (NeedsClarification)', f'{action_name} checked error')
-    require(model, 'route: ContinueClaw', f'{action_name} continuation route')
-    require(model, 'goal: Response', f'{action_name} result goal')
+ask_model = read('models/actions/AskClaw.model.bxb')
+require(ask_model, 'error (NeedsClarification)', 'AskClaw checked error')
+require(ask_model, 'route: ContinueClaw', 'AskClaw continuation route')
+require(ask_model, 'goal: Response', 'AskClaw result goal')
 
 continue_model = read('models/actions/ContinueClaw.model.bxb')
+require(continue_model, 'error (NeedsClarification)', 'ContinueClaw checked error')
+require(continue_model, 'ordered-effects', 'ContinueClaw repeated clarification effects')
+require(continue_model, 'replace (question)', 'ContinueClaw refresh question')
+require(continue_model, 'prompt (answer)', 'ContinueClaw re-prompt answer')
+assert 'route: ContinueClaw' not in continue_model, 'ContinueClaw must not self-replan'
 require(continue_model, 'prompt-behavior (AlwaysElicitation)', 'clarification input prompt')
 require(continue_model, 'type (ConversationId)', 'conversation id input')
 require(continue_model, 'type (ClarificationAnswer)', 'clarification answer input')
