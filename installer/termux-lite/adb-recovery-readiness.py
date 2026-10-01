@@ -44,6 +44,14 @@ def wireless_setting():
     value = adb_out("shell", "settings", "get", "global", "adb_wifi_enabled", timeout=3).strip()
     return value if value in {"0", "1"} else None
 
+def wifi_enabled():
+    value = adb_out("shell", "cmd", "wifi", "status", timeout=3).lower()
+    if "wifi is enabled" in value:
+        return True
+    if "wifi is disabled" in value:
+        return False
+    return None
+
 def discover_endpoints(expected, timeout_s):
     if not expected or not DISCOVER.exists():
         return []
@@ -84,6 +92,7 @@ def probe(discover_timeout=2.0, persist=True):
         "canonical_state": state or "unavailable",
         "canonical_identity_verified": canonical_verified,
         "wireless_setting": None,
+        "wifi_enabled": None,
         "endpoint_discovered": False,
         "endpoint_verified": False,
         "requires_owner_action": False,
@@ -94,14 +103,16 @@ def probe(discover_timeout=2.0, persist=True):
             write_receipt(row)
         return row
 
+    wifi = wifi_enabled()
     setting = wireless_setting()
+    base["wifi_enabled"] = wifi
     base["wireless_setting"] = setting
     if setting == "0":
         row = {
             **base,
             "state": "degraded",
-            "reason": "wireless_debugging_disabled",
-            "requires_owner_action": True,
+            "reason": "wifi_disabled_recovery_standby" if wifi is False else "wireless_debugging_disabled",
+            "requires_owner_action": False if wifi is False else True,
         }
         if persist:
             write_receipt(row)

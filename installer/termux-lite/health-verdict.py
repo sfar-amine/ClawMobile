@@ -151,8 +151,8 @@ def build():
  if cont['stuck']:warnings.append({'type':'continuation_gap','count':cont['stuck']})
  crit_bad=[k for k,v in caps.items() if v['critical'] and v['state'] not in ('healthy','ready')]
  noncrit_bad=[k for k,v in caps.items() if not v['critical'] and v['state'] not in ('healthy','ready')]
- overall='down' if any(caps[k]['state']=='down' for k in crit_bad) else ('degraded' if crit_bad or noncrit_bad or active or cont['stuck'] else 'healthy')
- return {'schema_version':1,'generated_at':int(NOW),'overall':overall,'summary':{'healthy_ready':sum(v['state'] in ('healthy','ready') for v in caps.values()),'degraded_stale_unverified':sum(v['state'] in ('degraded','stale','unverified') for v in caps.values()),'down':sum(v['state']=='down' for v in caps.values()),'active_incidents':len(active),'human_required':len(human),'stuck_continuations':cont['stuck']},'capabilities':caps,'incidents':{'active':active,'recent_failed':failed[:10],'human_required':human},'continuations':cont,'consistency_warnings':warnings,'maintenance':maintenance}
+ overall='down' if any(caps[k]['state']=='down' for k in crit_bad) else ('degraded' if crit_bad or active or cont['stuck'] else 'healthy')
+ return {'schema_version':1,'generated_at':int(NOW),'overall':overall,'summary':{'healthy_ready':sum(v['state'] in ('healthy','ready') for v in caps.values()),'degraded_stale_unverified':sum(v['state'] in ('degraded','stale','unverified') for v in caps.values()),'noncritical_advisories':len(noncrit_bad),'down':sum(v['state']=='down' for v in caps.values()),'active_incidents':len(active),'human_required':len(human),'stuck_continuations':cont['stuck']},'capabilities':caps,'incidents':{'active':active,'recent_failed':failed[:10],'human_required':human},'continuations':cont,'consistency_warnings':warnings,'maintenance':maintenance}
 def main():
  ap=argparse.ArgumentParser();ap.add_argument('--json',action='store_true');ap.add_argument('--write',action='store_true');a=ap.parse_args();v=build()
  if a.write:
