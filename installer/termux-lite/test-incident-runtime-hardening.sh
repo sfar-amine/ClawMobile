@@ -3,8 +3,9 @@ set -euo pipefail
 R="$(cd "$(dirname "$0")" && pwd)"
 bash -n "$R/incident-orchestrator-worker.sh" "$R/adb-recovery-watchdog.sh" "$R/samantha-health-manager.sh" "$R/samantha-root-guardian.sh" "$R/incident-manager.sh" "$R/incident-close.sh" "$R/autonomous-engineering-close.sh" "$R/whatsapp-owner-send.sh"
 ! grep -q 'guardian.lock.*exec 9>&-' "$R/samantha-root-guardian.sh"
-grep -q 'samantha-health-manager.sh.*9>&-' "$R/samantha-root-guardian.sh"
-grep -q 'incident-orchestrator-worker.sh.*9>&-' "$R/samantha-root-guardian.sh"
+grep -q 'ensure_supervisor health_manager' "$R/samantha-root-guardian.sh"
+grep -q 'ensure_supervisor incident_orchestrator' "$R/samantha-root-guardian.sh"
+grep -q 'nohup env CLAW_RUNTIME_ROOT=.*9>&-' "$R/samantha-root-guardian.sh"
 ! grep -A2 'flock -n 9' "$R/adb-recovery-watchdog.sh" | grep -q '^exec 9>&-$'
 ! grep -q 'incident-notify.sh.*human_required' "$R/adb-recovery-watchdog.sh"
 ! grep -q 'incident-notify.sh.*human_required' "$R/samantha-health-manager.sh"

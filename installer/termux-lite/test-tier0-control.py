@@ -10,6 +10,16 @@ class Tier0Tests(unittest.TestCase):
         names=['samantha-bootstrap.sh','samantha-root-guardian.sh','samantha-health-manager.sh','incident-orchestrator-worker.sh']
         for n in names:self.assertIn('CLAW_RUNTIME_ROOT',(root/n).read_text(),n)
 
+    def test_bootstrap_and_guardian_enforce_canonical_runtime(self):
+        root=Path(__file__).resolve().parent
+        bootstrap=(root/'samantha-bootstrap.sh').read_text()
+        guardian=(root/'samantha-root-guardian.sh').read_text()
+        self.assertIn('tier0-control.py',bootstrap)
+        self.assertIn('process_uses_script',bootstrap)
+        self.assertIn('tier0-control.py',guardian)
+        self.assertIn('runtime_drift',guardian)
+        self.assertIn('process_uses_script',guardian)
+
     def test_soak_grace_is_declared(self):
         root=Path(__file__).resolve().parent
         self.assertIn('startup_grace_seconds',(root/'tier0-control.py').read_text())
