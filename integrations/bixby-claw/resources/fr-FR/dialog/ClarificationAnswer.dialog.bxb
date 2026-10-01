@@ -1,0 +1,8 @@
+dialog (Elicitation) {
+  match {
+    ClarificationAnswer (this) {
+      to-input: ContinueClaw (action)
+    }
+  }
+  template ("#{value(action.question)}")
+}

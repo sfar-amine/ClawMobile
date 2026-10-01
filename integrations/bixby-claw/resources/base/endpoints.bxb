@@ -4,5 +4,10 @@ endpoints {
       accepted-inputs (request, $vivContext)
       local-endpoint (AskClaw.js)
     }
+
+    action-endpoint (ContinueClaw) {
+      accepted-inputs (conversationId, question, answer, $vivContext)
+      local-endpoint (ContinueClaw.js)
+    }
   }
 }

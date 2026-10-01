@@ -1,10 +1,10 @@
 capsule-info {
-  display-name (Claw)
+  display-name (Samantha)
   dispatch-name (Claw)
   developer-name (Amine)
-  description ("Accès vocal privé aux capacités Claw.")
+  description ("Samantha, accès vocal privé aux capacités Claw.")
   search-keywords {
-    keyword (Claw)
     keyword (Samantha)
+    keyword (Claw)
   }
 }

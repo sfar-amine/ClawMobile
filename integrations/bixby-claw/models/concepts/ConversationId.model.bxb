@@ -1,0 +1,3 @@
+text (ConversationId) {
+  description (Identifiant opaque de conversation Claw à durée de vie courte.)
+}

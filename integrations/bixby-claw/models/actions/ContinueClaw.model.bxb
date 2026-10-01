@@ -1,13 +1,26 @@
-action (AskClaw) {
-  description (Transmettre une demande libre à Claw et retourner sa réponse.)
+action (ContinueClaw) {
+  description (Continuer une conversation Claw après une question de clarification.)
   type (Search)
 
   collect {
-    input (request) {
-      type (Request)
+    input (conversationId) {
+      type (ConversationId)
       min (Required)
       max (One)
       plan-behavior (Direct)
+    }
+    input (question) {
+      type (ClarificationQuestion)
+      min (Required)
+      max (One)
+      plan-behavior (Direct)
+    }
+    input (answer) {
+      type (ClarificationAnswer)
+      min (Required)
+      max (One)
+      plan-behavior (Never)
+      prompt-behavior (AlwaysElicitation)
     }
   }
 
