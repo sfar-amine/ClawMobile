@@ -2,8 +2,12 @@ const assert = require("node:assert/strict");
 const os = require("node:os");
 const path = require("node:path");
 
-process.env.CLAW_VOICE_RELAY_CONFIG =
-  path.join(os.homedir(), ".openclaw", "tmp", "voice-relay-test-missing.json");
+process.env.CLAW_VOICE_RELAY_CONFIG = path.join(
+  os.homedir(),
+  ".openclaw",
+  "tmp",
+  "voice-relay-test-missing.json",
+);
 
 const mod = require("../dist/companion/voiceRelay.js");
 
@@ -24,7 +28,7 @@ const recharge = mod.renderFastVoiceResult({
 assert.match(recharge, /solde de recharge/);
 assert.match(recharge, /1\.234 TND/);
 
-const clarification = mod.renderFastVoiceResult({
+const clarificationValue = {
   execution: {
     state: "completed",
     result: {
@@ -33,13 +37,49 @@ const clarification = mod.renderFastVoiceResult({
       choices: ["recharge", "balances"],
     },
   },
-});
-assert.match(clarification, /Précise/);
+};
+const clarification = mod.extractFastClarification(clarificationValue);
+assert.equal(
+  clarification.question,
+  "Précise : solde de recharge ou tous les soldes.",
+);
+assert.deepEqual(clarification.choices, ["recharge", "balances"]);
+assert.equal(mod.renderFastVoiceResult(clarificationValue), null);
+
+assert.equal(
+  mod.composeContinuationRequest("mon solde Orange", "tous les soldes"),
+  "mon solde Orange\nPrécision utilisateur : tous les soldes",
+);
+
+assert.equal(
+  mod.looksLikeClarificationQuestion("Quelle facture veux-tu payer ?"),
+  true,
+);
+assert.equal(
+  mod.looksLikeClarificationQuestion("La facture a été payée."),
+  false,
+);
+
+assert.deepEqual(
+  mod.classifyAgentTurn({
+    state: "needs_clarification",
+    question: "Quel compte veux-tu utiliser ?",
+  }),
+  {
+    state: "needs_clarification",
+    question: "Quel compte veux-tu utiliser ?",
+  },
+);
+
+assert.deepEqual(
+  mod.classifyAgentTurn({ final: { text: "C'est fait." } }),
+  { state: "done", text: "C'est fait." },
+);
 
 const health = mod.startVoiceRelay();
 assert.equal(health.state, "disabled");
 assert.equal(health.configured, false);
-assert.equal(health.connected, false);
+assert.equal(health.pendingConversations, 0);
 mod.stopVoiceRelay();
 
 console.log("voice-relay tests: PASS");

@@ -1,3 +1,6 @@
+const ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+const MAX_TEXT_CHARS = 12000;
+
 export function parseBearer(request) {
   const raw = String(request.headers.get("authorization") || "");
   const match = raw.match(/^Bearer\s+(.+)$/i);
@@ -7,13 +10,39 @@ export function parseBearer(request) {
 export function normalizeVoiceRequest(value) {
   const requestId = String(value?.requestId || "").trim();
   const request = String(value?.request || "").trim();
-  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(requestId)) {
+  const conversationId = String(value?.conversationId || "").trim();
+  const answer = String(value?.answer || "").trim();
+
+  if (!ID_RE.test(requestId)) {
     throw new Error("invalid_request_id");
   }
-  if (!request || request.length > 12000) {
+
+  const isContinuation = Boolean(conversationId || answer);
+  if (isContinuation) {
+    if (!ID_RE.test(conversationId)) {
+      throw new Error("invalid_conversation_id");
+    }
+    if (!answer || answer.length > MAX_TEXT_CHARS) {
+      throw new Error("invalid_answer");
+    }
+    if (request) {
+      throw new Error("ambiguous_voice_turn");
+    }
+    return { requestId, conversationId, answer };
+  }
+
+  if (!request || request.length > MAX_TEXT_CHARS) {
     throw new Error("invalid_request");
   }
   return { requestId, request };
+}
+
+export function voiceTurnKey(value) {
+  return JSON.stringify([
+    String(value?.request || ""),
+    String(value?.conversationId || ""),
+    String(value?.answer || ""),
+  ]);
 }
 
 function json(value, status = 200) {
@@ -32,6 +61,7 @@ export default {
     return env.VOICE_RELAY.get(id).fetch(request);
   },
 };
+
 export class VoiceRelay {
   constructor(ctx, env) {
     this.ctx = ctx;
@@ -64,6 +94,7 @@ export class VoiceRelay {
     const configured = String(this.env.OWNER_TOKEN || "");
     return configured.length >= 24 && parseBearer(request) === configured;
   }
+
   acceptDevice(request) {
     if (String(request.headers.get("upgrade") || "").toLowerCase() !== "websocket") {
       return json({ error: "websocket_required" }, 426);
@@ -90,41 +121,50 @@ export class VoiceRelay {
       if (now - value.at > 10 * 60_000) this.recent.delete(key);
     }
   }
+
   async handleVoice(request) {
     if (!this.ownerAuthorized(request)) {
       return json({ error: "unauthorized" }, 401);
     }
+
     let body;
     try {
       body = normalizeVoiceRequest(await request.json());
     } catch (error) {
       return json({ error: String(error?.message || "invalid_request") }, 400);
     }
+
     this.cleanupRecent();
+    const turnKey = voiceTurnKey(body);
     const prior = this.recent.get(body.requestId);
     if (prior) {
-      if (prior.request !== body.request) {
+      if (prior.turnKey !== turnKey) {
         return json({ error: "request_id_conflict" }, 409);
       }
       return json(prior.response, prior.response?.success === false ? 502 : 200);
     }
+
     const sockets = this.authenticatedSockets();
     if (!sockets.length) return json({ error: "device_offline" }, 503);
-    const response = await this.waitForResponse(body.requestId, sockets[0], JSON.stringify({
-      type: "request",
-      requestId: body.requestId,
-      request: body.request,
-    }));
+
+    const response = await this.waitForResponse(
+      body.requestId,
+      sockets[0],
+      JSON.stringify({ type: "request", ...body }),
+    );
+
     this.recent.set(body.requestId, {
-      request: body.request,
+      turnKey,
       response,
       at: Date.now(),
     });
     return json(response, response?.success === false ? 502 : 200);
   }
+
   waitForResponse(requestId, ws, message) {
     const existing = this.pending.get(requestId);
     if (existing) return existing.promise;
+
     let resolvePending;
     const promise = new Promise((resolve) => {
       resolvePending = resolve;
@@ -133,6 +173,7 @@ export class VoiceRelay {
       this.pending.delete(requestId);
       resolvePending({ success: false, error: "device_timeout" });
     }, 28000);
+
     this.pending.set(requestId, {
       promise,
       resolve: (value) => {
@@ -141,6 +182,7 @@ export class VoiceRelay {
         resolvePending(value);
       },
     });
+
     try {
       ws.send(message);
     } catch {
@@ -150,12 +192,15 @@ export class VoiceRelay {
     }
     return promise;
   }
+
   async webSocketMessage(ws, message) {
     if (typeof message !== "string") return;
+
     let attachment = {};
     try {
       attachment = ws.deserializeAttachment() || {};
     } catch {}
+
     if (!attachment.authenticated) {
       let value;
       try {
@@ -163,9 +208,11 @@ export class VoiceRelay {
       } catch {
         value = {};
       }
-      if (value?.type === "auth" &&
-          String(value?.token || "") === String(this.env.DEVICE_TOKEN || "") &&
-          String(this.env.DEVICE_TOKEN || "").length >= 24) {
+      if (
+        value?.type === "auth" &&
+        String(value?.token || "") === String(this.env.DEVICE_TOKEN || "") &&
+        String(this.env.DEVICE_TOKEN || "").length >= 24
+      ) {
         ws.serializeAttachment({ authenticated: true });
         ws.send(JSON.stringify({ type: "auth_ok" }));
       } else {
@@ -173,6 +220,7 @@ export class VoiceRelay {
       }
       return;
     }
+
     let value;
     try {
       value = JSON.parse(message);
@@ -180,13 +228,16 @@ export class VoiceRelay {
       return;
     }
     if (value?.type !== "response") return;
+
     const requestId = String(value?.requestId || "");
     const pending = this.pending.get(requestId);
-    if (pending) pending.resolve(value?.response || {
-      success: false,
-      error: "empty_response",
-    });
+    if (pending) {
+      pending.resolve(
+        value?.response || { success: false, error: "empty_response" },
+      );
+    }
   }
+
   async webSocketClose() {
     this.failPending("device_disconnected");
   }

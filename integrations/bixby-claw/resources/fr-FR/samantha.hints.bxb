@@ -1,0 +1,7 @@
+hints {
+  uncategorized {
+    hint ("Demande à Claw mon solde Orange")
+    hint ("Demande à Claw ce que j'ai demain")
+    hint ("Demande à Claw cherche le numéro de Sami")
+  }
+}

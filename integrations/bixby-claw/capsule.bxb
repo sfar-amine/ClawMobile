@@ -1,14 +1,20 @@
 capsule {
-  id (example.clawVoice)
-  version (0.1.0)
+  id (samantha.clawvoice)
+  version (0.2.0)
   format (3)
+
   targets {
     target (bixby-mobile-fr-FR)
   }
-  runtime-version (8)
+
+  runtime-version (9) {
+    js-runtime-version (2)
+  }
+
   store-countries {
     all
   }
+
   store-sections {
     section (Productivity)
   }

@@ -1,0 +1,6 @@
+name (ClarificationAnswer) {
+  description (Réponse libre fournie par l'utilisateur à une question de clarification Claw.)
+  features {
+    transient
+  }
+}

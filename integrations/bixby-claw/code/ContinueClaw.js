@@ -47,20 +47,21 @@ function finish(parsed) {
   return text || "Claw n'a pas retourné de réponse."
 }
 
-export default function ({ request }) {
-  const cleanRequest = String(request || '').trim()
-  if (!cleanRequest) {
-    return "Je n'ai pas reçu de demande."
+export default function ({ conversationId, answer }) {
+  const cleanConversationId = String(conversationId || '').trim()
+  const cleanAnswer = String(answer || '').trim()
+  if (!cleanConversationId || !cleanAnswer) {
+    return "Il manque la réponse de clarification."
   }
 
   const url = relayUrl()
   const token = relayToken()
   if (!/^https:\/\//.test(url)) {
-    console.error('AskClaw: invalid relay.url')
+    console.error('ContinueClaw: invalid relay.url')
     return "Le pont Claw n'est pas configuré."
   }
   if (token.length < 24) {
-    console.error('AskClaw: missing relay.token')
+    console.error('ContinueClaw: missing relay.token')
     return "Le pont Claw n'est pas authentifié."
   }
 
@@ -70,7 +71,8 @@ export default function ({ request }) {
       url + '/voice',
       {
         requestId: invocationId(),
-        request: cleanRequest
+        conversationId: cleanConversationId,
+        answer: cleanAnswer
       },
       {
         passAsJson: true,
@@ -83,19 +85,21 @@ export default function ({ request }) {
     )
   } catch (error) {
     console.error(
-      'AskClaw exception: ' +
+      'ContinueClaw exception: ' +
       String(error && error.message ? error.message : error)
     )
     return "Claw est momentanément indisponible."
   }
 
   if (!response) {
-    console.error('AskClaw: empty response')
+    console.error('ContinueClaw: empty response')
     return "Claw est momentanément indisponible."
   }
   const parsed = response.parsed || {}
   if (response.status < 200 || response.status >= 300) {
-    console.error('AskClaw: HTTP status=' + String(response.status))
+    console.error(
+      'ContinueClaw: HTTP status=' + String(response.status)
+    )
     if (parsed && parsed.error === 'conversation_expired') {
       return "La conversation a expiré. Relance ta demande à Claw."
     }
