@@ -41,10 +41,11 @@ class ReadinessTests(unittest.TestCase):
             row = arr.probe(persist=False)
         self.assertEqual(row["state"], "degraded")
         self.assertEqual(row["reason"], "wireless_debugging_disabled")
-        self.assertTrue(row["requires_owner_action"])
+        self.assertFalse(row["requires_owner_action"])
+        self.assertTrue(row["auto_repairable"])
         discover.assert_not_called()
 
-    def test_wifi_off_is_degraded_and_requires_bounded_recovery(self):
+    def test_wifi_off_is_advisory_and_not_auto_repaired(self):
         with patch.object(arr, "canonical_status", return_value=("device", "SERIAL1", True)), \
              patch.object(arr, "wifi_enabled", return_value=False), \
              patch.object(arr, "wireless_setting", return_value="0"), \
@@ -52,7 +53,8 @@ class ReadinessTests(unittest.TestCase):
             row = arr.probe(persist=False)
         self.assertEqual(row["state"], "degraded")
         self.assertEqual(row["reason"], "wifi_disabled_recovery_standby")
-        self.assertTrue(row["requires_owner_action"])
+        self.assertFalse(row["requires_owner_action"])
+        self.assertFalse(row["auto_repairable"])
         discover.assert_not_called()
 
     def test_verified_dynamic_endpoint_is_ready_and_persisted(self):
@@ -74,6 +76,8 @@ class ReadinessTests(unittest.TestCase):
             row = arr.probe(persist=False)
         self.assertEqual(row["state"], "degraded")
         self.assertEqual(row["reason"], "wireless_endpoint_not_discoverable")
+        self.assertFalse(row["requires_owner_action"])
+        self.assertFalse(row["auto_repairable"])
 
     def test_unknown_setting_without_endpoint_is_unverified(self):
         with patch.object(arr, "canonical_status", return_value=("device", "SERIAL1", True)), \

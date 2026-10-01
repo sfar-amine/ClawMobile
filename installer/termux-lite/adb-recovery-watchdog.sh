@@ -86,6 +86,7 @@ readiness_tick(){
   state="$(printf '%s' "$row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("state","unverified"))' 2>/dev/null || echo unverified)"
   reason="$(printf '%s' "$row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reason","unknown"))' 2>/dev/null || echo unknown)"
   requires_owner="$(printf '%s' "$row" | python3 -c 'import json,sys; print("true" if json.load(sys.stdin).get("requires_owner_action",False) else "false")' 2>/dev/null || echo false)"
+  auto_repairable="$(printf '%s' "$row" | python3 -c 'import json,sys; print("true" if json.load(sys.stdin).get("auto_repairable",False) else "false")' 2>/dev/null || echo false)"
   previous="$(cat "$READINESS_STATE" 2>/dev/null || echo unknown)"
   failures="$(cat "$READINESS_FAILURES" 2>/dev/null || echo 0)"
   case "$failures" in ''|*[!0-9]*) failures=0;; esac
@@ -98,7 +99,7 @@ readiness_tick(){
       ;;
     degraded)
       printf degraded >"$READINESS_STATE"
-      if [ "$requires_owner" = true ]; then
+      if [ "$auto_repairable" = true ]; then
         if readiness_try_repair "$reason"; then
           repaired_row="$("$READINESS_HELPER" --json --discover-timeout "$READINESS_DISCOVER_TIMEOUT" 9>&- 2>/dev/null || true)"
           repaired_state="$(printf '%s' "$repaired_row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("state","unverified"))' 2>/dev/null || echo unverified)"
@@ -112,6 +113,8 @@ readiness_tick(){
           fi
           [ "$repaired_state" = degraded ] && reason="$repaired_reason"
         fi
+      fi
+      if [ "$requires_owner" = true ]; then
         failures=$((failures+1))
         printf '%s' "$failures" >"$READINESS_FAILURES"
         if [ "$previous" != degraded ]; then

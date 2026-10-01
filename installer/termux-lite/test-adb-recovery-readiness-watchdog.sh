@@ -51,7 +51,7 @@ cat >"$H/fake-readiness-auto" <<EOF
 C="$T/auto-count"
 n=\$(cat "\$C" 2>/dev/null || echo 0); n=\$((n+1)); echo "\$n" >"\$C"
 if [ "\$n" -eq 1 ]; then
- echo '{"state":"degraded","reason":"wifi_disabled_recovery_standby","requires_owner_action":true}'
+ echo '{"state":"degraded","reason":"wireless_debugging_disabled","requires_owner_action":false,"auto_repairable":true}'
 else
  echo '{"state":"ready","reason":"trusted_wireless_endpoint_verified","requires_owner_action":false}'
 fi
@@ -65,8 +65,8 @@ ADB_RECOVERY_READINESS_HELP_AFTER=2 \
 ADB_RECOVERY_MAX_LOOPS=1 \
 "$R/adb-recovery-watchdog.sh"
 
-grep -q 'shell svc wifi enable' "$T/adb-calls"
 grep -q 'settings put global adb_wifi_enabled 1' "$T/adb-calls"
+! grep -q 'shell svc wifi enable' "$T/adb-calls"
 test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.state")" = ready
 test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.failures")" = 0
 test ! -e "$T/notifications"

@@ -25,11 +25,18 @@ A verified endpoint is stored as `~/.openclaw/watchdogs/adb-last-endpoint`. The 
 ## States and notification
 
 - `ready`: a trusted Wireless Debugging endpoint is discoverable and verified;
-- `degraded`: the recovery path is not ready. When Wi-Fi itself is disabled, the reason is `wifi_disabled_recovery_standby` and the state is advisory only (`requires_owner_action=false`). When Wi-Fi is available but Wireless Debugging is disabled or no trusted endpoint is discoverable, owner action may be required;
+- `degraded`: the recovery path is not ready, but canonical ADB remains authoritative. `wifi_disabled_recovery_standby`, `wireless_debugging_disabled` and `wireless_endpoint_not_discoverable` are advisory while canonical ADB is verified and therefore set `requires_owner_action=false`;
 - `unverified`: canonical ADB is unavailable or the Wireless Debugging state cannot be observed.
-Only degraded probes with `requires_owner_action=true` count toward the three-probe owner-notification threshold. Advisory standby while Wi-Fi is intentionally off resets the failure counter and never queues an owner notification. Recovery to `ready` queues one confirmation and clears the dedup marker. Unverified probes do not request physical intervention.
 
-The existing ADB incident path remains fail-closed for `HUMAN_REQUIRED` when canonical ADB is already lost.
+When Wi-Fi is active and Wireless Debugging is OFF, the watchdog treats the condition as `auto_repairable=true` and re-enables `adb_wifi_enabled` through the already verified canonical ADB channel. If Wi-Fi itself is OFF, the watchdog does not force Wi-Fi back ON. Missing mDNS discovery remains advisory because Android can transiently remove the Wireless Debugging endpoint during Wi-Fi/network churn.
+
+Readiness-only degradation never pages the owner while canonical ADB is healthy. The existing ADB incident path remains fail-closed for `HUMAN_REQUIRED` only after canonical ADB is actually lost and bounded deterministic recovery is exhausted.
+
+
+
+## Android 16 behavior
+
+On the S24 Android 16 build, Wireless Debugging is not a durable always-on control-plane guarantee. Android may clear `adb_wifi_enabled` after Wi-Fi disable/disconnect, access-point/BSSID change, or Wireless Debugging server loss. Claw therefore treats the local canonical `127.0.0.1:5556` route as primary and Wireless Debugging as a bootstrap/recovery path, not as a continuously mandatory health prerequisite.
 
 ## Health semantics
 

@@ -96,6 +96,7 @@ def probe(discover_timeout=2.0, persist=True):
         "endpoint_discovered": False,
         "endpoint_verified": False,
         "requires_owner_action": False,
+        "auto_repairable": False,
     }
     if not canonical_verified:
         row = {**base, "state": "unverified", "reason": "canonical_adb_unavailable"}
@@ -112,7 +113,8 @@ def probe(discover_timeout=2.0, persist=True):
             **base,
             "state": "degraded",
             "reason": "wifi_disabled_recovery_standby" if wifi is False else "wireless_debugging_disabled",
-            "requires_owner_action": True,
+            "requires_owner_action": False,
+            "auto_repairable": wifi is not False,
         }
         if persist:
             write_receipt(row)
@@ -137,7 +139,8 @@ def probe(discover_timeout=2.0, persist=True):
             **base,
             "state": "degraded",
             "reason": "wireless_endpoint_not_discoverable",
-            "requires_owner_action": True,
+            "requires_owner_action": False,
+            "auto_repairable": False,
         }
     else:
         row = {**base, "state": "unverified", "reason": "wireless_state_unobservable"}
