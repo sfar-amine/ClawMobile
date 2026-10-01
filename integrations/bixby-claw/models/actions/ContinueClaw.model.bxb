@@ -27,23 +27,23 @@ action (ContinueClaw) {
   output (Response) {
     throws {
       error (NeedsClarification) {
-        property (question) {
+        property (nextQuestion) {
           type (ClarificationQuestion)
           min (Required)
           max (One)
         }
-        property (conversationId) {
-          type (ConversationId)
-          min (Required)
-          max (One)
-        }
         on-catch {
-          replan {
-            intent {
-              goal: Response
-              route: ContinueClaw
-              value: $expr(question)
-              value: $expr(conversationId)
+          ordered-effects {
+            replace (question) {
+              intent {
+                goal: ClarificationQuestion
+                value: $expr(nextQuestion)
+              }
+            }
+            prompt (answer) {
+              required-value (true)
+              single-value (true)
+              prompt-behavior (AlwaysElicitation)
             }
           }
         }

@@ -30,8 +30,7 @@ function finish(parsed) {
       'Claw needs clarification',
       'NeedsClarification',
       {
-        question: String(parsed.question),
-        conversationId: String(parsed.conversationId)
+        nextQuestion: String(parsed.question)
       }
     )
   }
