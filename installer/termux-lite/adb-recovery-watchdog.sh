@@ -42,6 +42,43 @@ wifi_up(){
 }
 notify_info(){ "$HOME_DIR/ClawMobile/installer/termux-lite/incident-notify.sh" info "$1"; }
 
+readiness_try_repair(){
+  reason="$1"
+  case "$reason" in
+    wifi_disabled_recovery_standby)
+      timeout 5 adb 9>&- -s "127.0.0.1:$STABLE_PORT" shell svc wifi enable >/dev/null 2>&1 || true
+      sleep 2 9>&-
+      ;;&
+    wireless_debugging_disabled|wifi_disabled_recovery_standby)
+      timeout 5 adb 9>&- -s "127.0.0.1:$STABLE_PORT" shell settings put global adb_wifi_enabled 1 >/dev/null 2>&1 || true
+      sleep 2 9>&-
+      return 0
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+readiness_human_required(){
+  reason="$1"
+  ORCH="$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py"
+  iid="$("$ORCH" open device.adb.recovery_readiness runtime --source adb-recovery-watchdog --summary "ADB recovery readiness requires owner action" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' 2>/dev/null || true)"
+  [ -n "$iid" ] || return 1
+  "$ORCH" transition "$iid" human_required --source adb-recovery-watchdog --human-boundary --reason "$reason" >/dev/null 2>&1 || return 1
+  if "$HOME_DIR/ClawMobile/installer/termux-lite/incident-notify.sh" human_required       "Samantha — la reprise automatique ADB est épuisée ($reason)."       "Sur le S24, active le Wi-Fi puis Paramètres > Options développeur > Débogage sans fil. Je vérifierai automatiquement le retour à l'état prêt."; then
+    printf '%s' "$iid" >"$READINESS_NOTIFY"
+    log WARN readiness human_required "owner action required incident_id=$iid reason=$reason"
+    return 0
+  fi
+  return 1
+}
+
+readiness_recover_incident(){
+  [ -e "$READINESS_NOTIFY" ] || return 0
+  "$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" recover device.adb.recovery_readiness runtime     --source adb-recovery-watchdog --reason "Wireless Debugging recovery path verified" >/dev/null 2>&1 || true
+  "$HOME_DIR/ClawMobile/installer/termux-lite/incident-close.sh"     "ADB recovery readiness"     "Samantha — la capacité de reprise ADB est rétablie et vérifiée." >/dev/null 2>&1 || true
+  rm -f "$READINESS_NOTIFY"
+}
+
 readiness_tick(){
   [ -x "$READINESS_HELPER" ] || return 0
   row="$("$READINESS_HELPER" --json --discover-timeout "$READINESS_DISCOVER_TIMEOUT" 9>&- 2>/dev/null || true)"
@@ -54,11 +91,7 @@ readiness_tick(){
   case "$failures" in ''|*[!0-9]*) failures=0;; esac
   case "$state" in
     ready)
-      if [ -e "$READINESS_NOTIFY" ]; then
-        if notify_info "Samantha — capacité de reprise ADB rétablie : le Débogage sans fil est de nouveau redécouvrable et vérifié pour le S24."; then
-          rm -f "$READINESS_NOTIFY"
-        fi
-      fi
+      readiness_recover_incident
       [ "$previous" = ready ] || log INFO readiness ready "trusted Wireless Debugging recovery path verified"
       printf 0 >"$READINESS_FAILURES"
       printf ready >"$READINESS_STATE"
@@ -66,20 +99,29 @@ readiness_tick(){
     degraded)
       printf degraded >"$READINESS_STATE"
       if [ "$requires_owner" = true ]; then
+        if readiness_try_repair "$reason"; then
+          repaired_row="$("$READINESS_HELPER" --json --discover-timeout "$READINESS_DISCOVER_TIMEOUT" 9>&- 2>/dev/null || true)"
+          repaired_state="$(printf '%s' "$repaired_row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("state","unverified"))' 2>/dev/null || echo unverified)"
+          repaired_reason="$(printf '%s' "$repaired_row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reason","unknown"))' 2>/dev/null || echo unknown)"
+          if [ "$repaired_state" = ready ]; then
+            readiness_recover_incident
+            log INFO readiness repaired "automatic recovery readiness repair verified"
+            printf 0 >"$READINESS_FAILURES"
+            printf ready >"$READINESS_STATE"
+            return 0
+          fi
+          [ "$repaired_state" = degraded ] && reason="$repaired_reason"
+        fi
         failures=$((failures+1))
         printf '%s' "$failures" >"$READINESS_FAILURES"
         if [ "$previous" != degraded ]; then
           log WARN readiness degraded "recovery readiness degraded reason=$reason failures=$failures"
         fi
         if [ "$failures" -ge "$READINESS_HELP_AFTER" ] && [ ! -e "$READINESS_NOTIFY" ]; then
-          if notify_info "Samantha — ADB fonctionne encore, mais sa capacité de reprise automatique est dégradée ($reason). À faire sur le S24 : Paramètres > Options développeur > Débogage sans fil, puis active-le. Je vérifierai et confirmerai automatiquement le retour à l'état prêt."; then
-            : >"$READINESS_NOTIFY"
-            log WARN readiness notify "owner action requested after consecutive_failures=$failures reason=$reason"
-          fi
+          readiness_human_required "$reason" || true
         fi
       else
         printf 0 >"$READINESS_FAILURES"
-        rm -f "$READINESS_NOTIFY"
         [ "$previous" = degraded ] || log INFO readiness standby "non-critical recovery warning reason=$reason owner_action=false"
       fi
       ;;
