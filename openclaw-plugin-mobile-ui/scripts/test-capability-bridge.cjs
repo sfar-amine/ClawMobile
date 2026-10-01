@@ -11,7 +11,8 @@ async function main() {
   const helper = path.join(root, "helper.py");
   fs.writeFileSync(helper, [
     "import json,sys",
-    "print(json.dumps({'surface':sys.argv[sys.argv.index('--surface')+1],'selected':{'executor':'bixby.device'}}))",
+    "target=sys.argv[sys.argv.index('--target')+1] if '--target' in sys.argv else None",
+    "print(json.dumps({'surface':sys.argv[sys.argv.index('--surface')+1],'target':target,'selected':{'executor':'bixby.device'}}))",
     "",
   ].join("\n"));
 
@@ -19,10 +20,16 @@ async function main() {
     helperPath: helper,
     surface: "bixby",
     execute: false,
+    targetHint: "maxit-tunisie",
   });
   assert.equal(out.success, true);
   assert.equal(out.surface, "bixby");
+  assert.equal(out.target, "maxit-tunisie");
   assert.equal(out.selected.executor, "bixby.device");
+
+  const invalidTarget = await mod.capabilityBridge("test", { helperPath: helper, targetHint: "bad target" });
+  assert.equal(invalidTarget.success, false);
+  assert.equal(invalidTarget.error, "invalid_target_hint");
 
   const empty = await mod.capabilityBridge("", { helperPath: helper });
   assert.equal(empty.success, false);

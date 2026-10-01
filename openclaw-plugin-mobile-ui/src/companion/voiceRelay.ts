@@ -25,6 +25,7 @@ type RelayState =
 type PendingConversation = {
   kind: "deterministic" | "agent";
   originalRequest: string;
+  target?: string;
   agentSessionId?: string;
   at: number;
 };
@@ -38,7 +39,7 @@ const CONFIG_PATH =
   path.join(os.homedir(), ".openclaw", "voice-relay", "config.json");
 const MAX_REQUEST_CHARS = 12000;
 const RECENT_TTL_MS = 10 * 60_000;
-const CONVERSATION_TTL_MS = 10 * 60_000;
+const CONVERSATION_TTL_MS = 30 * 60_000;
 const ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 
 let config: RelayConfig | null = null;
@@ -300,12 +301,13 @@ export function composeContinuationRequest(
   );
 }
 
-async function resolveDeterministic(request: string) {
+async function resolveDeterministic(request: string, targetHint?: string) {
   const resolved: any = await capabilityBridge(request, {
     execute: false,
     surface: "bixby_claw",
     caller: "owner",
     timeoutSeconds: 20,
+    targetHint,
   });
   const selected = resolved?.selected;
   if (
@@ -322,6 +324,7 @@ async function resolveDeterministic(request: string) {
     surface: "bixby_claw",
     caller: "owner",
     timeoutSeconds: 30,
+    targetHint,
   });
 
   const clarification = extractFastClarification(executed);
@@ -332,6 +335,7 @@ async function resolveDeterministic(request: string) {
       choices: clarification.choices,
       capability: executed?.capability || null,
       route: executed?.selected?.route || executed?.execution?.route || null,
+      target: executed?.selected?.target || executed?.skill_plan?.target || targetHint || null,
     };
   }
 
@@ -342,6 +346,7 @@ async function resolveDeterministic(request: string) {
     text,
     capability: executed?.capability || null,
     route: executed?.selected?.route || executed?.execution?.route || null,
+    target: executed?.selected?.target || executed?.skill_plan?.target || targetHint || null,
   };
 }
 
@@ -390,6 +395,7 @@ async function runVoiceRequest(requestId: string, request: string) {
     conversations.set(conversationId, {
       kind: "deterministic",
       originalRequest: request,
+      target: deterministic.target || undefined,
       at: Date.now(),
     });
     return clarificationResponse(
@@ -449,10 +455,41 @@ async function runVoiceContinuation(
   pending.at = Date.now();
 
   if (pending.kind === "deterministic") {
+    const scoped = pending.target
+      ? await resolveDeterministic(answer, pending.target)
+      : null;
+    if (scoped?.state === "needs_clarification") {
+      pending.originalRequest = composeContinuationRequest(pending.originalRequest, answer);
+      pending.target = scoped.target || pending.target;
+      pending.at = Date.now();
+      return clarificationResponse(
+        conversationId,
+        "deterministic",
+        scoped.question,
+        {
+          choices: scoped.choices,
+          capability: scoped.capability,
+          route: scoped.route,
+        },
+      );
+    }
+    if (scoped?.state === "done") {
+      conversations.delete(conversationId);
+      return {
+        success: true,
+        state: "done",
+        source: "deterministic",
+        text: scoped.text,
+        capability: scoped.capability,
+        route: scoped.route,
+      };
+    }
+
     const refined = composeContinuationRequest(pending.originalRequest, answer);
     const deterministic = await resolveDeterministic(refined);
     if (deterministic?.state === "needs_clarification") {
       pending.originalRequest = refined;
+      pending.target = deterministic.target || pending.target;
       pending.at = Date.now();
       return clarificationResponse(
         conversationId,

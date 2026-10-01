@@ -19,6 +19,7 @@ export async function capabilityBridge(
     surface?: string;
     caller?: string;
     timeoutSeconds?: number;
+    targetHint?: string;
     helperPath?: string;
   } = {},
 ): Promise<Record<string, unknown>> {
@@ -29,6 +30,10 @@ export async function capabilityBridge(
   const execute = options.execute === true;
   const surface = String(options.surface || "bixby");
   const caller = String(options.caller || "owner");
+  const targetHint = String(options.targetHint || "").trim();
+  if (targetHint && !/^[A-Za-z0-9._-]{1,128}$/.test(targetHint)) {
+    return { success: false, error: "invalid_target_hint" };
+  }
   const timeout = Math.max(2, Math.min(Number(options.timeoutSeconds || 30), 120));
   const candidates = options.helperPath ? [options.helperPath] : helpers();
 
@@ -41,6 +46,7 @@ export async function capabilityBridge(
         "--surface", surface,
         "--caller", caller,
       ];
+      if (targetHint) argv.push("--target", targetHint);
       if (execute) argv.push("--timeout", String(timeout));
       const raw: any = await execFileAsync("python3", argv, {
         timeout: (timeout + 8) * 1000,

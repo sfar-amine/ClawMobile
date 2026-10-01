@@ -51,12 +51,14 @@ def main() -> int:
     r.add_argument("text")
     r.add_argument("--surface", default="chatgpt")
     r.add_argument("--caller", default="owner")
+    r.add_argument("--target")
 
     e = sub.add_parser("execute")
     e.add_argument("text")
     e.add_argument("--surface", default="chatgpt")
     e.add_argument("--caller", default="owner")
     e.add_argument("--timeout", type=int, default=30)
+    e.add_argument("--target")
 
     v = sub.add_parser("view")
     v.add_argument("--surface", default="chatgpt")
@@ -69,12 +71,18 @@ def main() -> int:
 
     args = parser.parse_args()
     if args.cmd == "resolve":
-        return call(["resolve", args.text, "--surface", args.surface, "--caller", args.caller])
+        forwarded = ["resolve", args.text, "--surface", args.surface, "--caller", args.caller]
+        if args.target:
+            forwarded.extend(["--target", args.target])
+        return call(forwarded)
     if args.cmd == "execute":
-        return call([
+        forwarded = [
             "execute", args.text, "--surface", args.surface, "--caller", args.caller,
             "--timeout", str(args.timeout),
-        ], timeout_s=args.timeout + 5)
+        ]
+        if args.target:
+            forwarded.extend(["--target", args.target])
+        return call(forwarded, timeout_s=args.timeout + 5)
     if args.cmd == "view":
         forwarded = ["view", "--surface", args.surface, "--caller", args.caller, "--max-chars", str(args.max_chars)]
         if args.compact:
