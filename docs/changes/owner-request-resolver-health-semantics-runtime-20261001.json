@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "id": "owner-request-resolver-health-semantics-runtime-20261001",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add direct AMINE-REQ memory resolution and make Wi-Fi-off ADB recovery readiness advisory without owner-notification spam.",
+  "reason": "AMINE-REQ citations were not a direct retrieval path, and Wi-Fi intentionally off was treated like an actionable Wireless Debugging failure.",
+  "files": [
+    "docs/adb-recovery-readiness.md",
+    "docs/owner-request-reference-resolution.md",
+    "installer/termux-lite/adb-recovery-readiness.py",
+    "installer/termux-lite/adb-recovery-watchdog.sh",
+    "installer/termux-lite/context-retrieve.sh",
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/test-adb-recovery-readiness-watchdog.sh",
+    "installer/termux-lite/test-adb-recovery-readiness.py",
+    "installer/termux-lite/test-context-integration.py",
+    "installer/termux-lite/test-health-verdict.py"
+  ],
+  "tests": [
+    {
+      "name": "context-integration",
+      "status": "passed",
+      "evidence": {
+        "command": "python3 installer/termux-lite/test-context-integration.py",
+        "result": "11/11 PASS"
+      }
+    },
+    {
+      "name": "context-memory",
+      "status": "passed",
+      "evidence": {
+        "command": "python3 installer/termux-lite/test-context-memory.py",
+        "result": "16/16 PASS"
+      }
+    },
+    {
+      "name": "context-coherence",
+      "status": "passed",
+      "evidence": {
+        "command": "python3 installer/termux-lite/test-context-coherence.py",
+        "result": "7/7 PASS"
+      }
+    },
+    {
+      "name": "adb-readiness",
+      "status": "passed",
+      "evidence": {
+        "command": "python3 installer/termux-lite/test-adb-recovery-readiness.py",
+        "result": "6/6 PASS"
+      }
+    },
+    {
+      "name": "adb-watchdog",
+      "status": "passed",
+      "evidence": {
+        "command": "bash installer/termux-lite/test-adb-recovery-readiness-watchdog.sh",
+        "result": "actionable and standby notification scenarios PASS"
+      }
+    },
+    {
+      "name": "health-verdict",
+      "status": "passed",
+      "evidence": {
+        "command": "python3 installer/termux-lite/test-health-verdict.py",
+        "result": "7/7 PASS"
+      }
+    },
+    {
+      "name": "incident-hardening",
+      "status": "passed",
+      "evidence": {
+        "command": "bash installer/termux-lite/test-incident-runtime-hardening.sh",
+        "result": "PASS"
+      }
+    }
+  ],
+  "documentation": [
+    "docs/adb-recovery-readiness.md",
+    "docs/owner-request-reference-resolution.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Canonical capability registry and user-facing capability documentation are maintained in the paired ui-playbooks delivery."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the existing context store, ADB watchdog, health verdict, and notification path without adding a component or scheduler."
+  },
+  "rollback": "Revert this scoped delivery and redeploy the previous immutable runtime release.",
+  "limitations": [
+    "When Wi-Fi is off, Wireless Debugging cannot be ready; the condition remains visible as a non-critical advisory."
+  ]
+}

@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import concurrent.futures,json,os,pathlib,shutil,sqlite3,subprocess,tempfile,time
-SRC=pathlib.Path.home()/'ClawMobile/installer/termux-lite'; tmp=pathlib.Path(tempfile.mkdtemp(prefix='samantha-integration.')); home=tmp/'home'; home.mkdir()
+SRC=pathlib.Path(__file__).resolve().parent; tmp=pathlib.Path(tempfile.mkdtemp(prefix='samantha-integration.')); home=tmp/'home'; home.mkdir()
 root=home/'.openclaw/context-sync'; hybrid=home/'.openclaw/workspace/context/HYBRID_CONTEXT.md'; hybrid.parent.mkdir(parents=True); hybrid.write_text('# Integration Hybrid\n')
 env=os.environ.copy(); env.update(HOME=str(home),SAMANTHA_CONTEXT_ROOT=str(root),SAMANTHA_HYBRID_PATH=str(hybrid))
 def run(name,*args,ok=(0,)):
@@ -28,6 +28,22 @@ def i04():
  old=ev('chat','decision','I04 ALPHA old ORANGE-47'); run('context-flush.sh'); new=ev('openclaw','decision','I04 ALPHA current BLUE-92','--supersedes',old); run('context-flush.sh')
  cur=json.loads(run('context-retrieve.sh','I04 ALPHA','10').stdout); assert new in {x['id'] for x in cur} and old not in {x['id'] for x in cur}
 test('I04 cross-surface supersession',i04)
+def i05():
+    opening=ev('chat','open_thread','I05 owner validation a valider')
+    con=sqlite3.connect(root/'memory.db'); rev=con.execute('select revision from events where id=?',(opening,)).fetchone()[0]; con.close()
+    done=ev('chat','completed_action','I05 owner validation approved','--supersedes',opening)
+    got=json.loads(run('context-retrieve.sh',f'AMINE-REQ-{rev} ok','10').stdout)
+    assert len(got)==1 and got[0]['found'] and got[0]['state']=='resolved'
+    assert got[0]['opening']['id']==opening and got[0]['current']['id']==done
+    assert [x['id'] for x in got[0]['chain']]==[opening,done]
+test('I05 AMINE-REQ direct resolution follows supersedes',i05)
+def i06():
+    a=ev('chat','open_thread','I06 first owner action'); b=ev('chat','open_thread','I06 second owner action')
+    con=sqlite3.connect(root/'memory.db'); ra=con.execute('select revision from events where id=?',(a,)).fetchone()[0]; rb=con.execute('select revision from events where id=?',(b,)).fetchone()[0]; con.close()
+    got=json.loads(run('context-retrieve.sh',f'AMINE-REQ-{ra} ok AMINE-REQ-{rb} fait','10').stdout)
+    assert [x['reference'] for x in got]==[f'AMINE-REQ-{ra}',f'AMINE-REQ-{rb}']
+    assert all(x['state']=='open' for x in got)
+test('I06 multiple AMINE-REQ references resolve in one turn',i06)
 def r01():
  eid=ev('chat','decision','R01 event-driven durable processing'); assert (root/'processed'/f'{eid}.json').exists(); assert int(run('context-head.sh').stdout.strip())>0
 test('R01 event becomes durable immediately',r01)

@@ -25,15 +25,15 @@ A verified endpoint is stored as `~/.openclaw/watchdogs/adb-last-endpoint`. The 
 ## States and notification
 
 - `ready`: a trusted Wireless Debugging endpoint is discoverable and verified;
-- `degraded`: Wireless Debugging is explicitly disabled, or enabled but no trusted endpoint is discoverable;
+- `degraded`: the recovery path is not ready. When Wi-Fi itself is disabled, the reason is `wifi_disabled_recovery_standby` and the state is advisory only (`requires_owner_action=false`). When Wi-Fi is available but Wireless Debugging is disabled or no trusted endpoint is discoverable, owner action may be required;
 - `unverified`: canonical ADB is unavailable or the Wireless Debugging state cannot be observed.
-Three consecutive degraded probes are required before the watchdog queues one actionable owner notification. Recovery to `ready` queues one confirmation and clears the dedup marker. Unverified probes do not request physical intervention.
+Only degraded probes with `requires_owner_action=true` count toward the three-probe owner-notification threshold. Advisory standby while Wi-Fi is intentionally off resets the failure counter and never queues an owner notification. Recovery to `ready` queues one confirmation and clears the dedup marker. Unverified probes do not request physical intervention.
 
 The existing ADB incident path remains fail-closed for `HUMAN_REQUIRED` when canonical ADB is already lost.
 
 ## Health semantics
 
-`health-verdict.py` publishes `device.adb.recovery_readiness` separately from `device.adb`. The readiness dimension is non-critical for immediate control, but a degraded/stale/unverified readiness state degrades the global immune verdict because resilience is reduced.
+`health-verdict.py` publishes `device.adb.recovery_readiness` separately from `device.adb`. The readiness dimension is non-critical for immediate control. A non-critical degraded/stale/unverified readiness state remains visible as an advisory but does not, by itself, downgrade the global operational verdict. Critical capability failures, active incidents and stuck continuations still govern the global verdict.
 
 ## Validation
 

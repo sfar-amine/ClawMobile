@@ -48,6 +48,7 @@ readiness_tick(){
   [ -n "$row" ] || return 0
   state="$(printf '%s' "$row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("state","unverified"))' 2>/dev/null || echo unverified)"
   reason="$(printf '%s' "$row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reason","unknown"))' 2>/dev/null || echo unknown)"
+  requires_owner="$(printf '%s' "$row" | python3 -c 'import json,sys; print("true" if json.load(sys.stdin).get("requires_owner_action",False) else "false")' 2>/dev/null || echo false)"
   previous="$(cat "$READINESS_STATE" 2>/dev/null || echo unknown)"
   failures="$(cat "$READINESS_FAILURES" 2>/dev/null || echo 0)"
   case "$failures" in ''|*[!0-9]*) failures=0;; esac
@@ -63,17 +64,23 @@ readiness_tick(){
       printf ready >"$READINESS_STATE"
       ;;
     degraded)
-      failures=$((failures+1))
-      printf '%s' "$failures" >"$READINESS_FAILURES"
       printf degraded >"$READINESS_STATE"
-      if [ "$previous" != degraded ]; then
-        log WARN readiness degraded "recovery readiness degraded reason=$reason failures=$failures"
-      fi
-      if [ "$failures" -ge "$READINESS_HELP_AFTER" ] && [ ! -e "$READINESS_NOTIFY" ]; then
-        if notify_info "Samantha — ADB fonctionne encore, mais sa capacité de reprise automatique est dégradée ($reason). À faire sur le S24 : Paramètres > Options développeur > Débogage sans fil, puis active-le. Je vérifierai et confirmerai automatiquement le retour à l'état prêt."; then
-          : >"$READINESS_NOTIFY"
-          log WARN readiness notify "owner action requested after consecutive_failures=$failures reason=$reason"
+      if [ "$requires_owner" = true ]; then
+        failures=$((failures+1))
+        printf '%s' "$failures" >"$READINESS_FAILURES"
+        if [ "$previous" != degraded ]; then
+          log WARN readiness degraded "recovery readiness degraded reason=$reason failures=$failures"
         fi
+        if [ "$failures" -ge "$READINESS_HELP_AFTER" ] && [ ! -e "$READINESS_NOTIFY" ]; then
+          if notify_info "Samantha — ADB fonctionne encore, mais sa capacité de reprise automatique est dégradée ($reason). À faire sur le S24 : Paramètres > Options développeur > Débogage sans fil, puis active-le. Je vérifierai et confirmerai automatiquement le retour à l'état prêt."; then
+            : >"$READINESS_NOTIFY"
+            log WARN readiness notify "owner action requested after consecutive_failures=$failures reason=$reason"
+          fi
+        fi
+      else
+        printf 0 >"$READINESS_FAILURES"
+        rm -f "$READINESS_NOTIFY"
+        [ "$previous" = degraded ] || log INFO readiness standby "non-critical recovery warning reason=$reason owner_action=false"
       fi
       ;;
     *)

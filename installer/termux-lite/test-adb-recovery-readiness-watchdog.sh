@@ -23,7 +23,7 @@ cat >"$H/fake-readiness" <<EOF
 C="$T/count"
 n=\$(cat "\$C" 2>/dev/null || echo 0); n=\$((n+1)); echo "\$n" >"\$C"
 if [ "\$n" -le 3 ]; then
-  echo '{"state":"degraded","reason":"wireless_debugging_disabled"}'
+  echo '{"state":"degraded","reason":"wireless_debugging_disabled","requires_owner_action":true}'
 else
   echo '{"state":"ready","reason":"trusted_wireless_endpoint_verified"}'
 fi
@@ -59,3 +59,24 @@ test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.state")" = ready
 test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.failures")" = 0
 test ! -e "$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
 echo 'adb recovery readiness watchdog: OK'
+
+# A non-actionable degraded readiness (for example Wi-Fi intentionally off)
+# must remain visible without spamming owner notifications.
+rm -f "$T/notifications" "$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
+printf up >"$H/.openclaw/watchdogs/adb-recovery.state"
+cat >"$H/fake-readiness-standby" <<'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
+echo '{"state":"degraded","reason":"wifi_disabled_recovery_standby","requires_owner_action":false}'
+EOF
+chmod +x "$H/fake-readiness-standby"
+PATH="$T/bin:$PATH" \
+ADB_RECOVERY_HOME="$H" \
+ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-standby" \
+ADB_RECOVERY_INTERVAL=0 \
+ADB_RECOVERY_READINESS_HELP_AFTER=2 \
+ADB_RECOVERY_MAX_LOOPS=3 \
+"$R/adb-recovery-watchdog.sh"
+test ! -e "$T/notifications"
+test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.failures")" = 0
+test ! -e "$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
+echo 'adb recovery readiness standby notification: OK'
