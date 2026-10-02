@@ -748,16 +748,23 @@ clawmobile_install_plugin() {
   help_text="$(openclaw plugins install --help </dev/null 2>/dev/null || true)"
 
   echo "[lite] Installing OpenClaw plugin: $plugin_dir"
-  if printf '%s\n' "$help_text" | grep -q -- "--dangerously-force-unsafe-install"; then
-    if openclaw plugins install --dangerously-force-unsafe-install "$plugin_dir" </dev/null; then
+  if printf '%s\n' "$help_text" | grep -q -- "--force"; then
+    local install_args=(--force)
+    if printf '%s\n' "$help_text" | grep -q -- "--accept-capabilities"; then
+      install_args+=(--accept-capabilities)
+    fi
+    if printf '%s\n' "$help_text" | grep -q -- "--acknowledge-install-policy-warning"; then
+      install_args+=(--acknowledge-install-policy-warning)
+    fi
+    if openclaw plugins install "${install_args[@]}" "$plugin_dir" </dev/null; then
       clawmobile_enable_plugin "$plugin_id"
       touch "$install_stamp"
       return 0
     fi
   fi
 
-  if printf '%s\n' "$help_text" | grep -q -- "--force"; then
-    if openclaw plugins install --force "$plugin_dir" </dev/null; then
+  if printf '%s\n' "$help_text" | grep -q -- "--dangerously-force-unsafe-install"; then
+    if openclaw plugins install --dangerously-force-unsafe-install "$plugin_dir" </dev/null; then
       clawmobile_enable_plugin "$plugin_id"
       touch "$install_stamp"
       return 0
