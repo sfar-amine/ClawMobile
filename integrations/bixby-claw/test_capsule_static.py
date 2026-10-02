@@ -46,6 +46,7 @@ require(continue_model, 'type (ClarificationAnswer)', 'clarification answer inpu
 training = read('resources/bixby-mobile-fr-FR/training/t-l.training.bxb')
 require(training, '[g:ClarificationAnswer:prompt]', 'prompt-specialized clarification training')
 require(training, '[v:ClarificationAnswer]', 'clarification answer training value')
+require(training, '[g:AskClaw] demande à Claw (mon solde Orange)[v:Request]', 'named-dispatch request training')
 
 info = read('resources/fr/capsule-info.bxb')
 require(info, 'icon-asset (/images/samantha-icon.png)', 'marketplace icon asset')

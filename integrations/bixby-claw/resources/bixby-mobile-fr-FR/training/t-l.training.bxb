@@ -7,3 +7,8 @@ train (t-clawclarifprompt20261001) {
   utterance ("[g:ClarificationAnswer:prompt] (tous les soldes)[v:ClarificationAnswer]")
   last-modified (1790877400000)
 }
+
+train (t-clawnameddispatch20261002) {
+  utterance ("[g:AskClaw] demande à Claw (mon solde Orange)[v:Request]")
+  last-modified (1790963000000)
+}
