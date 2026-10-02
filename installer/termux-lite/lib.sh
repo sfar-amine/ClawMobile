@@ -743,6 +743,18 @@ clawmobile_install_plugin() {
     return 0
   fi
 
+  if [ -d "$extension_dir" ] && command -v rsync >/dev/null 2>&1; then
+    echo "[lite] Updating existing OpenClaw plugin files in place: $extension_dir"
+    rsync -a --delete --checksum \
+      --exclude 'node_modules/' \
+      --exclude '.git/' \
+      --exclude '.openclaw-plugin-installed-lite.stamp' \
+      "$plugin_dir/" "$extension_dir/"
+    openclaw config set "plugins.entries[\"$plugin_id\"].enabled" true </dev/null >/dev/null 2>&1 || true
+    touch "$install_stamp"
+    return 0
+  fi
+
   clawmobile_remove_plugin_registration "$plugin_id" "$extension_dir"
 
   help_text="$(openclaw plugins install --help </dev/null 2>/dev/null || true)"
