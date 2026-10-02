@@ -653,10 +653,10 @@ clawmobile_remove_plugin_registration() {
   # Remove stale OpenClaw plugin config/index state before touching files.
   # This keeps a missing extension directory from producing
   # "plugins.entries.<id>: plugin not found" warnings on the next CLI call.
-  if openclaw plugins uninstall "$plugin_id" --keep-files </dev/null >/dev/null 2>&1; then
+  if openclaw plugins uninstall "$plugin_id" --keep-files --force </dev/null >/dev/null 2>&1; then
     echo "[lite] Removed existing plugin registration: $plugin_id"
   else
-    openclaw plugins uninstall "$plugin_id" </dev/null >/dev/null 2>&1 || true
+    openclaw plugins uninstall "$plugin_id" --force </dev/null >/dev/null 2>&1 || true
   fi
 
   openclaw config unset "plugins.entries[\"$plugin_id\"]" </dev/null >/dev/null 2>&1 || true
