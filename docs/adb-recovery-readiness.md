@@ -11,7 +11,7 @@ A stale or offline historical dynamic endpoint never makes canonical ADB unhealt
 
 ## Runtime flow
 
-`adb-recovery-watchdog.sh` keeps its existing recovery loop. While canonical ADB is healthy it additionally calls `adb-recovery-readiness.py`.
+`adb-recovery-watchdog.sh` keeps its existing recovery loop. While canonical ADB is healthy it additionally calls `adb-recovery-readiness.py`. All watchdog-owned helpers are resolved from the watchdog's own runtime directory, so an immutable Tier0 release never falls back to a stale mutable checkout under `~/ClawMobile`.
 
 The probe checks:
 1. canonical ADB and the expected Android serial;

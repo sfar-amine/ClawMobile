@@ -1,6 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
 HOME_DIR="${ADB_RECOVERY_HOME:-/data/data/com.termux/files/home}"
+RUNTIME_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 STATE_DIR="$HOME_DIR/.openclaw/watchdogs"
 LOG="$STATE_DIR/adb-recovery.log"
 STATE="$STATE_DIR/adb-recovery.state"
@@ -8,7 +9,7 @@ HELP_NOTIFY="$STATE_DIR/adb-help-notified"
 READINESS_STATE="$STATE_DIR/adb-recovery-readiness.state"
 READINESS_FAILURES="$STATE_DIR/adb-recovery-readiness.failures"
 READINESS_NOTIFY="$STATE_DIR/adb-recovery-readiness-notified"
-READINESS_HELPER="${ADB_RECOVERY_READINESS_HELPER:-$HOME_DIR/ClawMobile/installer/termux-lite/adb-recovery-readiness.py}"
+READINESS_HELPER="${ADB_RECOVERY_READINESS_HELPER:-$RUNTIME_DIR/adb-recovery-readiness.py}"
 LOCK="$STATE_DIR/adb-recovery.lock"
 INTERVAL="${ADB_RECOVERY_INTERVAL:-60}"
 HELP_AFTER="${ADB_RECOVERY_HELP_AFTER:-3}"
@@ -40,7 +41,7 @@ wifi_up(){
   timeout 4 ping -c1 1.1.1.1 >/dev/null 2>&1 && return 0
   return 1
 }
-notify_info(){ "$HOME_DIR/ClawMobile/installer/termux-lite/incident-notify.sh" info "$1"; }
+notify_info(){ "$RUNTIME_DIR/incident-notify.sh" info "$1"; }
 
 readiness_try_repair(){
   reason="$1"
@@ -60,11 +61,11 @@ readiness_try_repair(){
 
 readiness_human_required(){
   reason="$1"
-  ORCH="$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py"
+  ORCH="$RUNTIME_DIR/incident-orchestrator.py"
   iid="$("$ORCH" open device.adb.recovery_readiness runtime --source adb-recovery-watchdog --summary "ADB recovery readiness requires owner action" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' 2>/dev/null || true)"
   [ -n "$iid" ] || return 1
   "$ORCH" transition "$iid" human_required --source adb-recovery-watchdog --human-boundary --reason "$reason" >/dev/null 2>&1 || return 1
-  if "$HOME_DIR/ClawMobile/installer/termux-lite/incident-notify.sh" human_required       "Samantha — la reprise automatique ADB est épuisée ($reason)."       "Sur le S24, active le Wi-Fi puis Paramètres > Options développeur > Débogage sans fil. Je vérifierai automatiquement le retour à l'état prêt."; then
+  if "$RUNTIME_DIR/incident-notify.sh" human_required       "Samantha — la reprise automatique ADB est épuisée ($reason)."       "Sur le S24, active le Wi-Fi puis Paramètres > Options développeur > Débogage sans fil. Je vérifierai automatiquement le retour à l'état prêt."; then
     printf '%s' "$iid" >"$READINESS_NOTIFY"
     log WARN readiness human_required "owner action required incident_id=$iid reason=$reason"
     return 0
@@ -74,8 +75,8 @@ readiness_human_required(){
 
 readiness_recover_incident(){
   if [ ! -s "$READINESS_NOTIFY" ]; then rm -f "$READINESS_NOTIFY"; return 0; fi
-  "$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" recover device.adb.recovery_readiness runtime     --source adb-recovery-watchdog --reason "Wireless Debugging recovery path verified" >/dev/null 2>&1 || true
-  "$HOME_DIR/ClawMobile/installer/termux-lite/incident-close.sh"     "ADB recovery readiness"     "Samantha — la capacité de reprise ADB est rétablie et vérifiée." >/dev/null 2>&1 || true
+  "$RUNTIME_DIR/incident-orchestrator.py" recover device.adb.recovery_readiness runtime     --source adb-recovery-watchdog --reason "Wireless Debugging recovery path verified" >/dev/null 2>&1 || true
+  "$RUNTIME_DIR/incident-close.sh"     "ADB recovery readiness"     "Samantha — la capacité de reprise ADB est rétablie et vérifiée." >/dev/null 2>&1 || true
   rm -f "$READINESS_NOTIFY"
 }
 
@@ -150,7 +151,7 @@ recover_adb(){
   fi
   expected="$(cat "$STATE_DIR/adb-expected-serial" 2>/dev/null || true)"
   if [ -n "$expected" ]; then
-    discovered="$("$HOME_DIR/ClawMobile/installer/termux-lite/adb-discover-endpoint.py" --serial "$expected" --timeout 4 2>/dev/null || true)"
+    discovered="$("$RUNTIME_DIR/adb-discover-endpoint.py" --serial "$expected" --timeout 4 2>/dev/null || true)"
     candidates="$(printf '%s\n%s\n' "$candidates" "$discovered" | awk 'NF && !seen[$0]++')"
   fi
   while IFS= read -r ep; do
@@ -185,16 +186,16 @@ while :; do
     if [ "$prev" != up ]; then
       log INFO recovered ok "ADB operational"
       notify_info "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
-      "$HOME_DIR/ClawMobile/installer/termux-lite/capability-recovered.py" device.adb >/dev/null 2>&1 || log WARN recovery_dispatch failed "device.adb recovery dispatch failed"
-      "$HOME_DIR/ClawMobile/installer/termux-lite/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
+      "$RUNTIME_DIR/capability-recovered.py" device.adb >/dev/null 2>&1 || log WARN recovery_dispatch failed "device.adb recovery dispatch failed"
+      "$RUNTIME_DIR/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     fi
     printf up >"$STATE"; prev=up; recovery_tries=0
   elif ! wifi_up; then
     if [ "$prev" != waiting_wifi ]; then
       log WARN blocked waiting_wifi "ADB unavailable and Wi-Fi required"
       boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)
-      iid=$("$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" open adb "boot-$boot_id" --source adb-watchdog --summary "ADB unavailable and network prerequisite missing" 2>/dev/null | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
-      "$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" observe "$iid" network_prerequisite_missing --source adb-watchdog --json '{"wifi_or_network":false}' >/dev/null 2>&1 || true
+      iid=$("$RUNTIME_DIR/incident-orchestrator.py" open adb "boot-$boot_id" --source adb-watchdog --summary "ADB unavailable and network prerequisite missing" 2>/dev/null | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
+      "$RUNTIME_DIR/incident-orchestrator.py" observe "$iid" network_prerequisite_missing --source adb-watchdog --json '{"wifi_or_network":false}' >/dev/null 2>&1 || true
     fi
     printf waiting_wifi >"$STATE"; prev=waiting_wifi; recovery_tries=0
   else
@@ -204,14 +205,14 @@ while :; do
       log INFO recovered ok "ADB recovered automatically"
       printf up >"$STATE"; prev=up; recovery_tries=0
       notify_info "Samantha — ADB est de nouveau opérationnel. La récupération automatique est terminée et vérifiée." && rm -f "$HELP_NOTIFY"
-      "$HOME_DIR/ClawMobile/installer/termux-lite/capability-recovered.py" device.adb >/dev/null 2>&1 || log WARN recovery_dispatch failed "device.adb recovery dispatch failed"
-      "$HOME_DIR/ClawMobile/installer/termux-lite/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
+      "$RUNTIME_DIR/capability-recovered.py" device.adb >/dev/null 2>&1 || log WARN recovery_dispatch failed "device.adb recovery dispatch failed"
+      "$RUNTIME_DIR/chat-continuity-restore.sh" >/dev/null 2>&1 || log WARN continuity_restore failed "deferred ChatGPT restore failed"
     else
       if [ "$prev" != recovery_needed ]; then log WARN recovery pending "trusted automatic ADB recovery did not succeed"; fi
       if [ "$recovery_tries" -eq "$HELP_AFTER" ]; then
         boot_id=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)
-        iid=$("$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" open adb "boot-$boot_id" --source adb-watchdog --summary "trusted ADB recovery exhausted" 2>/dev/null | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
-        "$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" observe "$iid" deterministic_exhausted --source adb-watchdog --json "{\"attempts\":$recovery_tries}" >/dev/null 2>&1 || true
+        iid=$("$RUNTIME_DIR/incident-orchestrator.py" open adb "boot-$boot_id" --source adb-watchdog --summary "trusted ADB recovery exhausted" 2>/dev/null | python -c 'import sys,json; print(json.load(sys.stdin)["id"])')
+        "$RUNTIME_DIR/incident-orchestrator.py" observe "$iid" deterministic_exhausted --source adb-watchdog --json "{\"attempts\":$recovery_tries}" >/dev/null 2>&1 || true
         log WARN escalation orchestrator "deterministic ADB recovery exhausted incident_id=$iid"
       fi
       printf recovery_needed >"$STATE"; prev=recovery_needed
