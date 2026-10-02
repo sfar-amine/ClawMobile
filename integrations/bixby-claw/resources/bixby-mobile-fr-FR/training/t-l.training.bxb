@@ -1,0 +1,9 @@
+train (t-lctdqru32hij992xcx6jawsy3) {
+  utterance ("[g:AskClaw] (mon solde Orange)[v:Request]")
+  last-modified (1790806996628)
+}
+
+train (t-clawclarifprompt20261001) {
+  utterance ("[g:ClarificationAnswer:prompt] (tous les soldes)[v:ClarificationAnswer]")
+  last-modified (1790877400000)
+}

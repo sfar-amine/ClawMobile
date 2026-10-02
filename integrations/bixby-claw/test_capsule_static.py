@@ -33,13 +33,23 @@ require(ask_model, 'goal: Response', 'AskClaw result goal')
 
 continue_model = read('models/actions/ContinueClaw.model.bxb')
 require(continue_model, 'error (NeedsClarification)', 'ContinueClaw checked error')
-require(continue_model, 'ordered-effects', 'ContinueClaw repeated clarification effects')
-require(continue_model, 'replace (question)', 'ContinueClaw refresh question')
-require(continue_model, 'prompt (answer)', 'ContinueClaw re-prompt answer')
-assert 'route: ContinueClaw' not in continue_model, 'ContinueClaw must not self-replan'
+require(continue_model, 'replan', 'ContinueClaw repeated clarification replan')
+require(continue_model, 'subplan', 'ContinueClaw clarification answer subplan')
+require(continue_model, '@prompt-behavior(AlwaysElicitation) ClarificationAnswer', 'ContinueClaw explicit re-prompt')
+require(continue_model, 'route: ContinueClaw', 'ContinueClaw continuation route')
+require(continue_model, 'value: $expr(conversationId)', 'ContinueClaw preserves conversation id')
+require(continue_model, 'value: $expr(nextQuestion)', 'ContinueClaw refreshes question')
 require(continue_model, 'prompt-behavior (AlwaysElicitation)', 'clarification input prompt')
 require(continue_model, 'type (ConversationId)', 'conversation id input')
 require(continue_model, 'type (ClarificationAnswer)', 'clarification answer input')
+
+training = read('resources/bixby-mobile-fr-FR/training/t-l.training.bxb')
+require(training, '[g:ClarificationAnswer:prompt]', 'prompt-specialized clarification training')
+require(training, '[v:ClarificationAnswer]', 'clarification answer training value')
+
+info = read('resources/fr/capsule-info.bxb')
+require(info, 'icon-asset (/images/samantha-icon.png)', 'marketplace icon asset')
+assert (ROOT / 'assets/images/samantha-icon.png').is_file(), 'marketplace icon file missing'
 
 endpoints = read('resources/base/endpoints.bxb')
 require(endpoints, 'action-endpoint (AskClaw)', 'AskClaw endpoint')

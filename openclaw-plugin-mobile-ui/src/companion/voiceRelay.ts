@@ -202,20 +202,48 @@ export function renderFastVoiceResult(value: any): string | null {
   if (!data || typeof data !== "object") return null;
   const labels: Record<string, string> = {
     recharge: "solde de recharge",
+    forfait: "forfait",
+    forfait_bonus: "bonus sur recharge",
     data: "data restante",
     voice: "voix restante",
     phone_number: "numéro",
     offer: "offre",
   };
   const parts: string[] = [];
-  for (const [key, item] of Object.entries(data as Record<string, any>)) {
-    if (!item || typeof item !== "object") continue;
-    if (item.value !== undefined) {
-      const unit = item.unit ? " " + String(item.unit) : "";
-      parts.push((labels[key] || key) + " : " + String(item.value) + unit);
+  const pushValue = (label: string, item: any) => {
+    if (!item || typeof item !== "object" || item.value === undefined) return;
+    const unit = item.unit ? " " + String(item.unit) : "";
+    parts.push(label + " : " + String(item.value) + unit);
+  };
+
+  const balances = (data as Record<string, any>).balances;
+  if (balances && typeof balances === "object") {
+    for (const [key, item] of Object.entries(balances as Record<string, any>)) {
+      pushValue(labels[key] || key, item);
     }
   }
-  return parts.length ? parts.slice(0, 4).join(", ") + "." : null;
+
+  for (const [key, item] of Object.entries(data as Record<string, any>)) {
+    if (key === "balances" || key === "cards") continue;
+    pushValue(labels[key] || key, item);
+  }
+
+  const cards = (data as Record<string, any>).cards;
+  if (Array.isArray(cards)) {
+    const duplicateTitles = new Set([
+      "compte de recharge",
+      "forfait du mois en cours",
+      "bonus sur recharge",
+    ]);
+    for (const card of cards) {
+      if (!card || typeof card !== "object" || card.value === undefined) continue;
+      const title = String(card.title || "").trim();
+      if (!title || duplicateTitles.has(title.toLowerCase())) continue;
+      pushValue(title, card);
+    }
+  }
+
+  return parts.length ? [...new Set(parts)].slice(0, 8).join(", ") + "." : null;
 }
 
 function extractAgentText(value: any): string {

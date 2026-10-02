@@ -2,6 +2,7 @@ capsule-info {
   display-name (Samantha)
   dispatch-name (Claw)
   developer-name (Amine)
+  icon-asset (/images/samantha-icon.png)
   description ("Samantha, accès vocal privé aux capacités Claw.")
   search-keywords {
     keyword (Samantha)

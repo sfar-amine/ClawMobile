@@ -33,17 +33,15 @@ action (ContinueClaw) {
           max (One)
         }
         on-catch {
-          ordered-effects {
-            replace (question) {
-              intent {
-                goal: ClarificationQuestion
-                value: $expr(nextQuestion)
+          replan {
+            intent {
+              subplan {
+                goal { @prompt-behavior(AlwaysElicitation) ClarificationAnswer }
               }
-            }
-            prompt (answer) {
-              required-value (true)
-              single-value (true)
-              prompt-behavior (AlwaysElicitation)
+              goal: Response
+              route: ContinueClaw
+              value: $expr(conversationId)
+              value: $expr(nextQuestion)
             }
           }
         }
