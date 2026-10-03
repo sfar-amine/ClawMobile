@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-03",
+  "component": "claw-live",
+  "symptom": "When Termux stayed in background, the interactive terminal could later show a completed-process state requiring Enter and claw-live had to be relaunched.",
+  "evidence": {
+    "android_max_phantom_processes": 32,
+    "old_claw_live_persistent_processes": 8,
+    "old_layout": "1 python claw-live + 7 persistent tail -F children",
+    "observed_android_state": "Termux native children are tracked as PhantomProcessRecord; multiple child deaths were present in ActivityManager logs.",
+    "specific_old_pid_kill_receipt": "not retained in current logcat buffer",
+    "patched_layout": "1 python claw-live + 0 persistent tail -F children",
+    "background_acceptance_seconds": 120,
+    "background_samples_seconds": [0, 15, 30, 45, 60, 75, 90, 105, 120],
+    "shell_pid": 10284,
+    "claw_live_pid": 15610,
+    "same_pids_survived": true,
+    "patched_pid_kill_logs": 0
+  },
+  "fix": "Replace semantic-mode external tail -F followers with in-process Python file following, including file replacement and truncation handling. Raw break-glass mode remains unchanged.",
+  "security": "Android phantom-process monitoring was not disabled and Termux allow-external-apps was not enabled.",
+  "validation": [
+    "python3 -m py_compile installer/termux-lite/claw-live.py",
+    "python3 installer/termux-lite/test-claw-live.py: 17/17 PASS",
+    "git diff --check PASS",
+    "live S24 background/return acceptance PASS"
+  ],
+  "rollback": "Reinstall the previous claw-live backup from ~/.openclaw/backups/claw-live if needed."
+}

@@ -1,5 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import importlib.util
+import inspect
 import io
 import json
 import pathlib
@@ -159,6 +160,34 @@ class ClawLiveTests(unittest.TestCase):
             self.assertEqual(outcome, ["stopped"])
             m.stop_event.clear()
 
+    def test_tail_lines_reads_append_without_child_process(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = pathlib.Path(td) / "events.log"
+            path.write_text("")
+            m.stop_event.clear()
+            gen = m.tail_lines(path)
+            done = threading.Event()
+            outcome = []
+
+            def consume():
+                try:
+                    outcome.append(next(gen))
+                finally:
+                    done.set()
+
+            with mock.patch.object(m.subprocess, "Popen", side_effect=AssertionError("tail_lines must stay in-process")):
+                worker = threading.Thread(target=consume)
+                worker.start()
+                time.sleep(0.1)
+                with path.open("a") as handle:
+                    handle.write("hello\n")
+                    handle.flush()
+                self.assertTrue(done.wait(1.5))
+                worker.join(timeout=0.2)
+            gen.close()
+            self.assertEqual(outcome, ["hello"])
+            m.stop_event.clear()
+
     def test_performance_contracts(self):
         source = MODULE_PATH.read_text()
         self.assertIn("current_dir_stamp != dir_stamp", source)
@@ -166,7 +195,7 @@ class ClawLiveTests(unittest.TestCase):
         self.assertIn("acquire_single_instance()", source)
         self.assertIn("--allow-multiple", source)
         self.assertIn("terminal_fd_alive", source)
-        self.assertIn("select.select", source)
+        self.assertNotIn("subprocess.Popen", inspect.getsource(m.tail_lines))
 
     def test_permanent_snapshot_is_one_shot_and_detects_stale_runtime(self):
         rows = [
