@@ -8,6 +8,7 @@ import { android_health } from "../tools/android";
 import { clearAgentConversationMessages, listAgentConversationMessages, listAgentConversations, markAgentMessageRead } from "./agentMessages";
 import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRuntime } from "./openclawGatewayClient";
 import { submitIntent } from "./intent";
+import { payments } from "./payments";
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
@@ -143,7 +144,7 @@ function startWhatsAppListenerWatchdog() {
   );
 }
 
-async function route(req: http.IncomingMessage, res: http.ServerResponse) {
+export async function route(req: http.IncomingMessage, res: http.ServerResponse) {
   const method = req.method || "GET";
   const requestUrl = new URL(req.url || "/", "http://localhost");
   const routePath = normalizeProtocolPath(requestUrl.pathname);
@@ -178,6 +179,35 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
     return;
   }
 
+  if (routePath === "/payments/capabilities" || routePath === "/payments" || routePath.startsWith("/payments/")) {
+    // This native boundary never accepts browser-origin control, even when other routes opt in.
+    if (req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
+        req.headers["x-clawmobile-owner-flow"] !== "v1") {
+      writeJson(res, 403, {success:false, message:"native_owner_flow_required"}); return;
+    }
+    if (method === "GET" && routePath === "/payments/capabilities") {
+      writeJson(res, 200, payments.capabilities()); return;
+    }
+    if (method === "POST" && routePath === "/payments") {
+      writeJson(res, 200, await payments.prepare(await readJsonBody(req, 4096))); return;
+    }
+    const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|cancel))?$/.exec(routePath);
+    if (match) {
+      const [, id, action] = match;
+      if (method === "GET" && !action) { writeJson(res,200,await payments.status(id)); return; }
+      if (method === "GET" && action === "challenge") { writeJson(res,200,await payments.challenge(id)); return; }
+      if (method === "POST" && action === "cancel") {
+        const body=await readJsonBody(req,256);
+        if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).length)throw new HttpError(400,"invalid_cancellation_request");
+        writeJson(res,200,await payments.cancel(id)); return;
+      }
+      if (method === "POST" && action === "owner-confirmation") {
+        writeJson(res,200,await payments.confirm(id,await readJsonBody(req,2048))); return;
+      }
+    }
+    writeJson(res,404,{success:false,message:"payment_route_not_found"}); return;
+  }
+
   if (method === "GET" && routePath === "/") {
     writeJson(res, 200, {
       name: "ClawMobile Companion Server",
@@ -188,6 +218,9 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
         "/v1/capabilities",
         "/v1/attachments",
         "/v1/attachments/:attachmentId/content",
+        "/v1/payments",
+        "/v1/payments/:requestId/challenge",
+        "/v1/payments/:requestId/owner-confirmation",
         "/v1/runs",
         "/v1/runs/:runId",
         "/v1/sessions/:sessionId/archive",
@@ -885,6 +918,7 @@ async function capabilities(options: { trusted?: boolean } = {}) {
       attachments: "available",
       artifacts: "planned",
       approvals: "planned",
+      nativePaymentConfirmation: "experimental",
       events: "unavailable",
       runtimeLifecycle: "available",
       runtimeLog: "available",

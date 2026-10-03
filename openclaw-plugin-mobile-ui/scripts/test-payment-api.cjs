@@ -1,0 +1,38 @@
+const fs=require("fs"),os=require("os"),path=require("path"),http=require("http"),crypto=require("crypto"),assert=require("assert/strict");
+const root=fs.mkdtempSync(path.join(os.tmpdir(),"owner-flow-test-"));
+process.env.OPENCLAW_STATE_DIR=root;
+process.env.CLAWMOBILE_COMPANION_ALLOW_BROWSER_ORIGIN="1";
+const dir=path.join(root,"clawmobile-companion");fs.mkdirSync(dir);
+const keys=crypto.generateKeyPairSync("ec",{namedCurve:"prime256v1"});
+fs.writeFileSync(path.join(dir,"owner-confirmation-public.pem"),keys.publicKey.export({type:"spki",format:"pem"}));
+const {route}=require("../dist/companion/server.js"),runs=require("../dist/companion/runs.js");
+const server=http.createServer((req,res)=>route(req,res).catch(e=>{res.statusCode=e.statusCode||500;res.end(JSON.stringify({message:e.message}))}));
+const headers={"X-ClawMobile-Owner-Flow":"v1","Content-Type":"application/json"};
+let base;
+async function req(url,method="GET",body,h=headers){const r=await fetch(base+url,{method,headers:h,...(body?{body:JSON.stringify(body)}:{})});return {code:r.status,body:await r.json()}}
+(async()=>{
+ await new Promise(r=>server.listen(0,"127.0.0.1",r));base="http://127.0.0.1:"+server.address().port;
+ assert.equal((await req("/v1/payments/capabilities","GET",null,{})).code,403);
+ for(const field of ["Origin","Referer","Sec-Fetch-Site"])assert.equal((await req("/v1/payments/capabilities","GET",null,{...headers,[field]:"untrusted"})).code,403);
+ assert.equal((await req("/v1/payments/capabilities")).body.realPaymentsEnabled,false);
+ const draft={requestKey:crypto.randomUUID(),adapterId:"demo.confirmation",reference:"DEMO",mode:"demo",origin:{channel:"work",id:"test"}};
+ assert.equal((await req("/v1/payments","POST",{...draft,adapterId:"topnet",mode:"live"})).code,409);
+ const r=await req("/v1/payments","POST",draft);assert.equal(r.code,200);
+ const url="/v1/payments/"+r.body.requestId;
+ assert.equal((await req(url+"/owner-confirmation","POST",{approved:true})).code,400);
+ assert.equal((await req(url+"/cancel","POST",{unexpected:true})).code,400);
+ assert.equal((await req(url+"/cancel","POST",[])).code,400);
+ const c=(await req(url+"/challenge")).body;
+ const proof={keyId:c.keyId,nonce:c.nonce,quoteHash:c.quoteHash,signature:crypto.sign("sha256",Buffer.from(c.challenge),keys.privateKey).toString("base64")};
+ assert.equal((await req(url+"/owner-confirmation","POST",proof)).body.state,"demo_confirmed");
+ assert.equal((await req(url+"/owner-confirmation","POST",proof)).code,409);
+ assert.equal((await req(url)).body.financialSubmissionAttempted,false);
+ await Promise.all([runs.archiveSession("fixture-session"),runs.saveVoiceTurn("fixture-session-2",{runId:"voice-"+crypto.randomUUID(),revision:1,input:"test",output:"test",state:"completed"})]);
+ const saved=await runs.readPaymentRequests();assert.equal(saved.length,1);assert.equal(saved[0].state,"demo_confirmed");
+ const registry=path.join(dir,"runs.json"),before=fs.readFileSync(registry,"utf8");
+ fs.writeFileSync(registry,'{"runs":[],"paymentRequests":{}}');
+ await assert.rejects(()=>runs.readPaymentRequests(),/invalid_payment_registry/);
+ assert.equal(fs.readFileSync(registry,"utf8"),'{"runs":[],"paymentRequests":{}}');
+ fs.writeFileSync(registry,before);
+ console.log("PAYMENT_API_AND_REGISTRY_CHECKS_PASSED");
+})().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{server.closeAllConnections();server.close();fs.rmSync(root,{recursive:true,force:true})});

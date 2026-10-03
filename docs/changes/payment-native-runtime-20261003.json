@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "id": "payment-native-runtime-20261003",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add shared local native owner-confirmation program with demo-only execution.",
+  "reason": "Owner requests a reusable cross-channel payment component with explicit native approval; real provider contracts remain gated.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/paymentTypes.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-api.cjs",
+    "docs/runtime/native-payment-confirmation.md",
+    "docs/08-decisions/ADR-20261003-native-payment-runtime.md",
+    "docs/changes/payment-native-runtime-20261003.json"
+  ],
+  "tests": [
+    {
+      "name": "focused-contract-tests",
+      "status": "passed",
+      "evidence": "TypeScript compilation and 36 core cases passed. API and registry checks, conversation, sharing, run and Remote Bridge regressions recorded separately."
+    }
+  ],
+  "documentation": [
+    "docs/runtime/native-payment-confirmation.md",
+    "docs/08-decisions/ADR-20261003-native-payment-runtime.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability and activation limits are owned by ui-playbooks; implementation repositories do not duplicate its registry."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Extend existing Companion registry and existing Android app; no new database, daemon, scheduler or execution owner.",
+    "documents": [
+      "docs/08-decisions/ADR-20261003-native-payment-runtime.md"
+    ]
+  },
+  "rollback": "Restore scoped previous APK/runtime, retain payment guard records and do not replay any request.",
+  "limitations": [
+    "Only inert demo adapter enabled; real providers blocked before network.",
+    "Bank challenge handling, real success receipt and background notification fallback remain unimplemented.",
+    "Hardware confirmation acceptance and installation are separate from source tests.",
+    "Private S24 development build; no broad device or cross-channel availability claim."
+  ]
+}
