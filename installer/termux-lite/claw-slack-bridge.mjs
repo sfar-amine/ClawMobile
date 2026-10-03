@@ -2,6 +2,8 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { createHash } from "node:crypto";
+import { SlackJournal, fetchJson } from "./claw-slack-journal.mjs";
 
 const CONFIG_PATH = process.env.CLAW_SLACK_CONFIG || path.join(os.homedir(), ".openclaw", "remote-bridge", "slack", "config.json");
 const SECRET_DIR = path.join(os.homedir(), ".openclaw", "remote-bridge", "slack", "secrets");
@@ -34,7 +36,20 @@ let stopping = false;
 let reconnectAttempt = 0;
 let reconnectTimer = null;
 let botUserId = "";
-let sendChain = Promise.resolve();
+const duration = (value, fallback, max) => Number.isFinite(Number(value)) && Number(value) >= 100 && Number(value) <= max ? Number(value) : fallback;
+const HTTP_TIMEOUT_MS = duration(process.env.CLAW_SLACK_HTTP_TIMEOUT_MS, 10000, 120000);
+const BRIDGE_TIMEOUT_MS = duration(process.env.CLAW_SLACK_BRIDGE_TIMEOUT_MS, 35000, 180000);
+const MAX_ATTEMPTS = 6;
+const POST_INTERVAL_MS = 1000;
+const activeRequests = new Set();
+let publishing = false, nextPostAt = 0, historyBusy = false, nextHistoryAt = 0;
+let lastReceivedAt = 0, lastPublishedAt = 0, lastSocketEventAt = 0;
+let historyError = null, historyTruncated = false;
+const HISTORY_FILE = path.join(STATE_DIR, "history-cursor.json");
+const historySaved = readConfig(HISTORY_FILE);
+const historyFloor = Number(historySaved.since || Date.now() / 1000);
+let historySince = historyFloor, historyScan = historySaved.pending || null;
+const journal = new SlackJournal(path.join(STATE_DIR, "delivery"));
 let healthState = "starting";
 let lastTransitionAt = Date.now();
 
@@ -102,6 +117,9 @@ function auditEvent(event, request, extra = {}) {
 
 function writeHealth(state, extra = {}) {
   const now = Date.now();
+  const connected = socket?.readyState === WebSocket.OPEN;
+  const queue = journal.stats();
+  const deliveryAttention = queue.attention > 0 || queue.oldestPendingAgeMs > 60000 || (state === "degraded" && queue.pending > 0);
   if (state !== healthState) {
     healthState = state;
     lastTransitionAt = now;
@@ -110,12 +128,16 @@ function writeHealth(state, extra = {}) {
     state: healthState,
     mode: MODE,
     channelId: CHANNEL_ID,
-    connected: socket?.readyState === WebSocket.OPEN,
+    connected,
+    restartRecommended: !connected,
+    deliveryState: deliveryAttention ? "attention_required" : (queue.pending ? "pending" : "idle"),
     updatedAt: now,
     heartbeatAt: now,
     lastTransitionAt,
     runtimeRoot: path.dirname(path.resolve(process.argv[1] || ".")),
     pid: process.pid,
+    queue, lastReceivedAt, lastPublishedAt, lastSocketEventAt,
+    historyError, historyTruncated,
     ...extra,
   };
   const temp = `${HEALTH_FILE}.tmp-${process.pid}`;
@@ -124,32 +146,30 @@ function writeHealth(state, extra = {}) {
 }
 
 async function slackApi(method, token, body = {}) {
-  const response = await fetch(`${SLACK_API_BASE}/${method}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json; charset=utf-8",
-    },
+  const { response, value } = await fetchJson(`${SLACK_API_BASE}/${method}`, {
+    method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
     body: JSON.stringify(body),
-  });
-  const value = await response.json();
+  }, HTTP_TIMEOUT_MS);
   if (!response.ok || !value.ok) {
     const error = new Error(`slack_api_${method}:${value.error || response.status}`);
     error.retryAfter = Number(response.headers.get("retry-after") || 0);
+    error.status = response.status;
     throw error;
   }
   return value;
 }
 
-async function bridgeCall(payload) {
-  const response = await fetch(`${BRIDGE_URL}/requests`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const value = await response.json();
-  if (!response.ok && response.status !== 400) {
-    throw new Error(`bridge_http_${response.status}`);
+async function bridgeCall(payload, lookup = false) {
+  const { response, value } = await fetchJson(
+    lookup ? `${BRIDGE_URL}/requests/${encodeURIComponent(payload.requestId)}` : `${BRIDGE_URL}/requests`,
+    lookup ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+    lookup ? HTTP_TIMEOUT_MS : BRIDGE_TIMEOUT_MS,
+  );
+  if (lookup && response.status === 404 && value.error === "request_not_found") return null;
+  if (!response.ok) {
+    const error = new Error(`bridge_http_${response.status}:${value.error || "unknown"}`);
+    error.permanent = response.status >= 400 && response.status < 500 && response.status !== 429;
+    throw error;
   }
   return value;
 }
@@ -181,11 +201,15 @@ function parseRpc(text) {
 }
 
 function compactReply(receipt) {
+  if (receipt?.result && typeof receipt.result === "object") {
+    const { command, ...result } = receipt.result;
+    receipt = { ...receipt, result };
+  }
   const payload = JSON.stringify(receipt);
   const requestId = receipt?.requestId || "unknown";
   const state = receipt?.state || "unknown";
   const prefix = `CLAW_RPC_RESULT_V1 request=${requestId} state=${state}\n`;
-  if (prefix.length + payload.length <= MAX_REPLY_CHARS) {
+  if (prefix.length + payload.length + 12 <= MAX_REPLY_CHARS) {
     return prefix + "```json\n" + payload + "\n```";
   }
   const result = receipt?.result || {};
@@ -202,7 +226,7 @@ function compactReply(receipt) {
       success: result.success, exitCode: result.exitCode,
       timedOut: result.timedOut, durationMs: result.durationMs,
     },
-    receiptPath: /^[A-Za-z0-9._-]{1,128}$/.test(requestId)
+    receiptPath: /^[A-Za-z0-9._:-]{1,128}$/.test(requestId)
       ? path.join(os.homedir(), ".openclaw", "remote-bridge", "requests", requestId + ".json")
       : undefined,
     preview: String(result.preview ?? result.stdout ?? result.text ?? JSON.stringify(result)).slice(0, 8000),
@@ -215,78 +239,163 @@ function compactReply(receipt) {
   return prefix + "```json\n" + JSON.stringify(summary) + "\n```";
 }
 
-function queueReply(channel, threadTs, text) {
-  sendChain = sendChain.then(async () => {
-    for (;;) {
-      try {
-        await slackApi("chat.postMessage", BOT_TOKEN, {
-          channel,
-          thread_ts: threadTs,
-          text,
-          unfurl_links: false,
-          unfurl_media: false,
-        });
-        return;
-      } catch (error) {
-        const wait = Number(error.retryAfter || 0);
-        if (!wait) throw error;
-        await new Promise((resolve) => setTimeout(resolve, Math.max(1000, wait * 1000)));
-      }
-    }
-  }).catch((error) => {
-    writeHealth("degraded", { lastError: error.message });
-  });
+function allowedEvent(event) {
+  return event?.type === "message" && !event.subtype && !event.bot_id && event.user !== botUserId &&
+    event.channel === CHANNEL_ID && ALLOWED_USERS.has(String(event.user || ""));
 }
 
-async function handleEvent(event) {
-  if (!event || event.type !== "message") return;
-  if (event.subtype || event.bot_id) return;
-  if (event.user === botUserId) return;
-  if (event.channel !== CHANNEL_ID) return;
-  if (!ALLOWED_USERS.has(String(event.user || ""))) return;
-
+function receive(event) {
+  if (!allowedEvent(event)) return null;
+  const previous = journal.get(event.channel, event.ts);
+  if (previous) return previous;
   let request;
   try {
     request = parseRpc(event.text);
+    if (!request) return null;
+    if (Buffer.byteLength(JSON.stringify(request)) > 65536) throw new Error("request_too_large");
+    if (!/^[A-Za-z0-9._:-]{1,128}$/.test(request.requestId || "")) throw new Error("invalid_request_id");
   } catch (error) {
-    const original = String(event.text || "").trim();
-    const plain = original.startsWith("CLAW_RPC_V1") && !original.startsWith("CLAW_RPC_V1_B64");
-    const action = plain ? " action=use_b64" : "";
-    queueReply(
-      event.channel,
-      event.thread_ts || event.ts,
-      `CLAW_RPC_ERROR_V1 code=${sanitizeAuditText(error.message)}${action}`,
-    );
-    return;
+    if (!String(event.text || "").trim().startsWith("CLAW_RPC_V1")) return null;
+    return journal.add(event, null, `CLAW_RPC_ERROR_V1 code=${sanitizeAuditText(error.message)} action=use_b64`);
   }
-  if (!request) return;
+  lastReceivedAt = Date.now();
   auditEvent("request", request, { mode: MODE });
   if (MODE !== "active" && !READ_ONLY.has(String(request.method || ""))) {
-    auditEvent("rejected", request, { state: "rejected_shadow" });
-    queueReply(
-      event.channel,
-      event.thread_ts || event.ts,
-      `CLAW_RPC_RESULT_V1 request=${request.requestId || "unknown"} state=rejected_shadow\nMethod not allowed while Slack bridge is in shadow mode.`,
-    );
-    return;
+    return journal.add(event, request, compactReply({ requestId: request.requestId, state: "rejected_shadow" }));
   }
+  return journal.add(event, request);
+}
 
-  try {
-    const receipt = await bridgeCall(request);
-    auditEvent("result", request, {
-      state: String(receipt?.state || "unknown"),
-      mutationRisk: String(receipt?.mutationRisk || ""),
-    });
-    queueReply(event.channel, event.thread_ts || event.ts, compactReply(receipt));
-  } catch (error) {
-    auditEvent("error", request, { state: "transport_error", error: sanitizeAuditText(error.message).slice(0, 500) });
-    queueReply(
-      event.channel,
-      event.thread_ts || event.ts,
-      `CLAW_RPC_RESULT_V1 request=${request.requestId || "unknown"} state=transport_error\n${error.message}`,
-    );
-    writeHealth("degraded", { lastError: error.message });
+function retry(row, error) {
+  const attempts = row.attempts + 1;
+  const delay = Math.max(Number(error.retryAfter || 0) * 1000, Math.min(30000, 1000 * 2 ** attempts));
+  journal.update(row, { attempts, nextAt: Date.now() + delay,
+    state: attempts >= MAX_ATTEMPTS ? "attention_required" : row.state,
+    lastError: sanitizeAuditText(error.message).slice(0, 250) });
+  writeHealth("degraded", { lastError: sanitizeAuditText(error.message).slice(0, 250) });
+}
+
+function verifyReceipt(request, receipt) {
+  if (!receipt) return null;
+  const hash = createHash("sha256").update(JSON.stringify({ method: request.method, params: request.params || {} })).digest("hex");
+  if (receipt.method !== request.method || receipt.paramsHash !== hash ||
+      (request.taskId && receipt.taskId && request.taskId !== receipt.taskId) ||
+      (request.stepId && receipt.stepId && request.stepId !== receipt.stepId)) {
+    const error = new Error("receipt_conflict"); error.permanent = true; throw error;
   }
+  return receipt;
+}
+
+async function execute(row) {
+  activeRequests.add(row.key);
+  try {
+    // Restart/network retry: recover the canonical receipt before any submission.
+    let receipt = row.state === "submitted" ? verifyReceipt(row.request, await bridgeCall(row.request, true)) : null;
+    if (!receipt) {
+      row = journal.update(row, { state: "submitted" });
+      receipt = await bridgeCall(row.request);
+    }
+    if (receipt.state === "running" || receipt.state === "received") {
+      if (Date.now() - row.createdAt < 180000) {
+        journal.update(row, { nextAt: Date.now() + 1500 }); return;
+      }
+      // Report the true running state; never turn a timeout into execution failure.
+    }
+    auditEvent("result", row.request, { state: receipt.state, durationMs: Date.now() - row.createdAt });
+    journal.update(row, { state: "reply_pending", text: compactReply(receipt), attempts: 0,
+      nextAt: 0, resultAt: Date.now() });
+  } catch (error) {
+    if (error.permanent) {
+      journal.update(row, { state: "reply_pending", text: compactReply({ requestId: row.request.requestId,
+        state: "rejected", error: error.message }), attempts: 0, nextAt: 0 });
+    } else retry(row, error);
+  } finally { activeRequests.delete(row.key); }
+}
+
+async function publish(row) {
+  publishing = true;
+  try {
+    const posted = await slackApi("chat.postMessage", BOT_TOKEN, {
+      channel: row.channel, thread_ts: row.threadTs, text: row.text,
+      unfurl_links: false, unfurl_media: false,
+    });
+    lastPublishedAt = Date.now();
+    auditEvent("published", row.request, { queueMs: lastPublishedAt - (row.resultAt || row.createdAt) });
+    journal.delivered(row, posted.ts);
+  } catch (error) {
+    // A 429 applies to the API's publication budget, not only this one message.
+    nextPostAt = Math.max(nextPostAt, Date.now() + Number(error.retryAfter || 0) * 1000);
+    retry(row, error);
+  } finally { nextPostAt = Math.max(nextPostAt, Date.now() + POST_INTERVAL_MS); publishing = false; }
+}
+
+function drain() {
+  if (stopping || !botUserId) return;
+  for (const row of journal.rows.values()) {
+    if (row.state === "delivered" || row.state === "attention_required" || row.nextAt > Date.now()) continue;
+    if (row.channel !== CHANNEL_ID || !ALLOWED_USERS.has(row.user)) {
+      journal.update(row, { state: "attention_required", lastError: "owner_or_channel_changed" }); continue;
+    }
+    if (row.state === "reply_pending") {
+      if (!publishing && Date.now() >= nextPostAt) void publish(row);
+    } else if (!activeRequests.has(row.key) && activeRequests.size < 4) {
+      if (MODE !== "active" && !READ_ONLY.has(row.request?.method)) {
+        journal.update(row, { state: "attention_required", lastError: "shadow_mode" }); continue;
+      }
+      void execute(row);
+    }
+  }
+}
+
+function saveHistory() {
+  fs.writeFileSync(HISTORY_FILE + ".tmp", JSON.stringify({ since: historySince, pending: historyScan }), { mode: 0o600 });
+  fs.renameSync(HISTORY_FILE + ".tmp", HISTORY_FILE);
+}
+
+async function reconcileHistory() {
+  if (historyBusy || stopping || !botUserId || Date.now() < nextHistoryAt) return;
+  historyBusy = true; nextHistoryAt = Date.now() + 60000;
+  const began = Date.now(), until = Date.now() / 1000 - 5;
+  historyScan ||= { oldest: String(Math.max(historyFloor, historySince - 30, until - 300)), latest: String(until), cursor: "" };
+  saveHistory();
+  try {
+    // Paginated, bounded catch-up. Never execute a previously unseen command.
+    for (let pageNo = 0; pageNo < 3; pageNo++) {
+      const page = await slackApi("conversations.history", BOT_TOKEN, {
+        channel: CHANNEL_ID, oldest: historyScan.oldest, latest: historyScan.latest,
+        cursor: historyScan.cursor || undefined, limit: 100,
+      });
+      for (const event of page.messages || []) {
+        event.channel = CHANNEL_ID;
+        if (!allowedEvent(event) || journal.get(event.channel, event.ts)) continue;
+        let request;
+        try { request = parseRpc(event.text); } catch { continue; }
+        if (!request || !/^[A-Za-z0-9._:-]{1,128}$/.test(request.requestId || "")) continue;
+        if (Date.now() - began > 15000) throw new Error("history_budget_exhausted");
+        let receipt;
+        try { receipt = verifyReceipt(request, await bridgeCall(request, true)); }
+        catch (error) {
+          if (!error.permanent) throw error;
+          receipt = { requestId: request.requestId, state: "rejected", error: error.message };
+        }
+        if (journal.get(event.channel, event.ts)) continue;
+        journal.add(event, request, compactReply(receipt || { requestId: request.requestId,
+          state: "not_received", error: "Request absent from Bridge; revalidate intent, then resubmit the same requestId." }));
+      }
+      const cursor = page.response_metadata?.next_cursor || "";
+      historyTruncated = !!page.has_more || !!cursor;
+      if (!historyTruncated) {
+        historySince = Number(historyScan.latest); historyScan = null; saveHistory(); break;
+      }
+      if (!cursor) throw new Error("history_truncated_without_cursor");
+      historyScan.cursor = cursor; saveHistory();
+      if (Date.now() - began > 15000) break;
+    }
+    historyError = null;
+  } catch (error) {
+    historyError = sanitizeAuditText(error.message).slice(0, 200);
+    nextHistoryAt = Math.max(nextHistoryAt, Date.now() + Number(error.retryAfter || 0) * 1000);
+  } finally { historyBusy = false; }
 }
 
 async function connect() {
@@ -305,14 +414,24 @@ async function connect() {
     const opened = await slackApi("apps.connections.open", APP_TOKEN);
     const currentSocket = new WebSocket(opened.url);
     socket = currentSocket;
+    const handshakeTimer = setTimeout(() => {
+      if (socket === currentSocket && currentSocket.readyState !== WebSocket.OPEN) scheduleReconnect("socket_open_timeout");
+    }, HTTP_TIMEOUT_MS);
+    currentSocket.addEventListener("open", () => clearTimeout(handshakeTimer), { once: true });
+    currentSocket.addEventListener("close", () => clearTimeout(handshakeTimer), { once: true });
     currentSocket.addEventListener("open", () => {
       if (socket !== currentSocket) return;
       reconnectAttempt = 0;
+      auditEvent("socket_open", null);
       writeHealth("healthy", { botUserId });
+      nextHistoryAt = 0;
+      void reconcileHistory();
     });
     currentSocket.addEventListener("message", (message) => {
       if (socket !== currentSocket) return;
-      void handleSocketMessage(String(message.data || ""));
+      void handleSocketMessage(String(message.data || ""), currentSocket).catch(error => {
+        writeHealth("degraded", { lastError: sanitizeAuditText(error.message).slice(0, 250) });
+      });
     });
     currentSocket.addEventListener("close", () => {
       if (socket === currentSocket) scheduleReconnect("socket_closed");
@@ -326,22 +445,25 @@ async function connect() {
   }
 }
 
-async function handleSocketMessage(raw) {
+async function handleSocketMessage(raw, sourceSocket) {
   let envelope;
   try {
     envelope = JSON.parse(raw);
   } catch {
     return;
   }
-  if (envelope.envelope_id && socket?.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ envelope_id: envelope.envelope_id }));
+  lastSocketEventAt = Date.now();
+  // Persist allowed RPC input before acknowledging Slack's delivery envelope.
+  if (envelope.type === "events_api") receive(envelope.payload?.event);
+  if (envelope.envelope_id && sourceSocket?.readyState === WebSocket.OPEN) {
+    sourceSocket.send(JSON.stringify({ envelope_id: envelope.envelope_id }));
   }
   if (envelope.type === "disconnect") {
     scheduleReconnect("slack_disconnect");
     return;
   }
   if (envelope.type === "events_api") {
-    await handleEvent(envelope.payload?.event);
+    drain();
   }
 }
 
@@ -351,6 +473,7 @@ function scheduleReconnect(reason) {
   socket = null;
   try { previousSocket?.close(); } catch {}
   reconnectAttempt += 1;
+  auditEvent("socket_reconnect", null, { reason: sanitizeAuditText(reason).slice(0, 160) });
   const delay = Math.min(30000, 1000 * 2 ** Math.min(5, reconnectAttempt - 1));
   writeHealth("reconnecting", { reason, reconnectAttempt, retryInMs: delay });
   reconnectTimer = setTimeout(() => {
@@ -367,9 +490,17 @@ function shutdown() {
 }
 
 const healthHeartbeat = setInterval(() => {
-  if (!stopping) writeHealth(healthState, botUserId ? { botUserId } : {});
+  if (!stopping) {
+    const backlog = journal.stats();
+    const unhealthy = backlog.attention > 0 || backlog.oldestPendingAgeMs > 60000;
+    const state = socket?.readyState === WebSocket.OPEN ? (unhealthy ? "degraded" : "healthy") : healthState;
+    writeHealth(state, botUserId ? { botUserId } : {});
+    void reconcileHistory();
+  }
 }, Math.max(5000, HEALTH_HEARTBEAT_MS));
 healthHeartbeat.unref();
+const drainTimer = setInterval(drain, 100);
+drainTimer.unref();
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

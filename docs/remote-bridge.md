@@ -206,3 +206,8 @@ CLAW_RPC_V1_B64 means base64url without padding (Node: Buffer.from(JSON.stringif
 The regression sends an inline stdout above 33,000 characters with exitCode 7 and stderr KNOWN_ERROR, verifies the useful compact reply and confirms the full receipt remains readable. Existing owner filtering, shadow-mode, idempotence, 429 and reconnect tests pass.
 
 Paired latency analysis and measured results: samantha-ui-playbooks/telecom/BALANCE_LATENCY_AUDIT_20261003.md.
+
+
+## Durable Slack delivery (2026-10-03)
+
+See [transport behavior, recovery and activation](slack-transport-durability-20261003.md). Execution receipts remain canonical; history catch-up never executes old unseen requests.

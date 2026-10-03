@@ -42,6 +42,10 @@ check_slack_bridge(){
    return
  fi
  if [ "$rc" -eq 0 ] && slack_bridge_on_current_root; then healthy slack_bridge; return; fi
+ if [ "$rc" -eq 3 ] && slack_bridge_on_current_root; then
+   put slack_bridge status delivery_attention; put slack_bridge next 0
+   return
+ fi
  due slack_bridge || return
  if proc '[c]law-slack-bridge.mjs'; then
    if slack_bridge_on_current_root; then

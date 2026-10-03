@@ -1,0 +1,76 @@
+{
+  "version": 2,
+  "id": "slack-transport-process-20261003",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Durable Slack delivery and bounded owner-session context startup",
+  "reason": "Reduce avoidable transport loss, repeated context reads and ambiguity while preserving existing execution and authorization boundaries.",
+  "files": [
+    "docs/08-decisions/ADR-20261003-slack-delivery-context.md",
+    "docs/changes/slack-transport-process-20261003.json",
+    "docs/remote-bridge.md",
+    "docs/slack-transport-durability-20261003.md",
+    "installer/termux-lite/claw-primary-repair.sh",
+    "installer/termux-lite/claw-slack-bridge-health.py",
+    "installer/termux-lite/claw-slack-bridge.mjs",
+    "installer/termux-lite/claw-slack-journal.mjs",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-slack-journal.mjs",
+    "installer/termux-lite/test-slack-runtime-contract.py",
+    "openclaw-plugin-mobile-ui/scripts/test-slack-durable.cjs"
+  ],
+  "tests": [
+    {
+      "name": "durable-transport",
+      "status": "passed",
+      "evidence": "9 scenarios passed, including restart, timeout reconciliation and history pagination without replay"
+    },
+    {
+      "name": "private-journal",
+      "status": "passed",
+      "evidence": "3 tests passed"
+    },
+    {
+      "name": "runtime-contract",
+      "status": "passed",
+      "evidence": "6 tests passed; outdated fixed sleep assertion replaced by descriptor-release invariant"
+    },
+    {
+      "name": "slack-regression",
+      "status": "passed",
+      "evidence": "existing Slack core and resilience suites passed, including oversized output and 429 reconnect"
+    },
+    {
+      "name": "shell-syntax",
+      "status": "passed",
+      "evidence": "bash -n passed"
+    }
+  ],
+  "documentation": [
+    "docs/slack-transport-durability-20261003.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Paired ui-playbooks change updates device.remote_bridge registry and operating contract.",
+    "ids": [
+      "device.remote_bridge"
+    ]
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Extends the existing adapter with a transport-only journal and read-only context entrypoint; no new execution owner or service.",
+    "documents": [
+      "docs/08-decisions/ADR-20261003-slack-delivery-context.md"
+    ]
+  },
+  "rollback": "Restore preceding immutable release and installer backups; revert source commits while retaining private delivery records for inspection.",
+  "limitations": [
+    "ChatGPT client timing and platform confirmation policy are external.",
+    "Slack response publication is at least once; uncertain acknowledgment can duplicate a response.",
+    "History catch-up is bounded and never automatically executes unseen commands.",
+    "ChatGPT project settings are not edited by the local installer.",
+    "Runtime activation evidence is recorded separately after immutable release acceptance."
+  ]
+}

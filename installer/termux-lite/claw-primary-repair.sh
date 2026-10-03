@@ -23,7 +23,14 @@ if ! companion_healthy; then
   done
 fi
 
-if companion_healthy && "$PROBE" >/dev/null 2>&1; then
+probe_rc=0
+"$PROBE" >/dev/null 2>&1 || probe_rc=$?
+if companion_healthy && [ "$probe_rc" -eq 3 ]; then
+  log 'result=delivery_attention action=inspect_receipts_no_restart'
+  echo PRIMARY_DELIVERY_ATTENTION
+  exit 3
+fi
+if companion_healthy && [ "$probe_rc" -eq 0 ]; then
   log 'result=already_healthy'
   echo PRIMARY_HEALTHY
   exit 0

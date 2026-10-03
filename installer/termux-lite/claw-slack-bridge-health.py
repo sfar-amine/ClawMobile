@@ -38,6 +38,12 @@ except Exception:
 heartbeat_ms = float(health.get("heartbeatAt") or health.get("updatedAt") or 0)
 age = max(0, time.time() - heartbeat_ms / 1000)
 runtime_root = str(health.get("runtimeRoot") or "")
+if (age <= MAX_HEARTBEAT_AGE_S and health.get("connected") is True
+        and health.get("restartRecommended") is False
+        and health.get("deliveryState") == "attention_required"):
+    output("degraded", reason="delivery_attention", restartRecommended=False,
+           queue=health.get("queue", {}), ageSeconds=round(age, 3), runtimeRoot=runtime_root)
+    raise SystemExit(3)
 if health.get("state") == "healthy" and health.get("connected") is True and age <= MAX_HEARTBEAT_AGE_S:
     output("healthy", ageSeconds=round(age, 3), runtimeRoot=runtime_root)
     raise SystemExit(0)
