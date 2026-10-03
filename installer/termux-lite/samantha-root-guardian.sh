@@ -12,7 +12,16 @@ resolve_runtime_root(){
 }
 refresh_root(){ ROOT="$(resolve_runtime_root)"; }
 proc(){ pgrep -f "$1" >/dev/null 2>&1; }
-process_uses_script(){ pat="$1"; script="$2"; for pid in $(pgrep -f "$pat" 2>/dev/null); do [ -r "/proc/$pid/cmdline" ] || continue; tr "\0" "\n" <"/proc/$pid/cmdline" 2>/dev/null | grep -Fx -- "$script" >/dev/null 2>&1 && return 0; done; return 1; }
+process_uses_script(){
+  pat="$1"; script="$2"
+  for pid in $(pgrep -f "$pat" 2>/dev/null); do
+    [ -r "/proc/$pid/cmdline" ] || continue
+    while IFS= read -r -d '' arg; do
+      [ "$arg" = "$script" ] && return 0
+    done <"/proc/$pid/cmdline" 2>/dev/null
+  done
+  return 1
+}
 stop_supervisor(){ pat="$1"; pkill -TERM -f "$pat" 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc "$pat"; then pkill -KILL -f "$pat" 2>/dev/null || true; sleep 1 9>&-; fi; }
 log(){ printf "%s component=root-guardian %s\n" "$(date -Iseconds)" "$*" >>"$LOG"; }
 ensure_supervisor(){

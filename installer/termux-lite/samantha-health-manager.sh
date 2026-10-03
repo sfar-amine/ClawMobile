@@ -12,7 +12,16 @@ shadow(){ n="$1"; c="$2"; iid="$3"; nohup "$ROOT/autonomous-engineering-shadow.s
 fail(){ n="$1"; c=$(( $(get "$n" failures 0)+1 )); [ "$c" -gt 6 ] && c=6; delay=$((15*(1<<(c-1)))); [ "$delay" -gt 900 ] && delay=900; put "$n" failures "$c"; put "$n" status degraded; put "$n" next $(( $(now)+delay )); log "service=$n state=degraded failures=$c retry_in_s=$delay"; if [ "$c" -eq 3 ]; then iid=$(incident_open "$n"); log "service=$n action=autonomous_engineering_shadow incident_id=$iid"; "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source health-manager --reason "deterministic recovery exhausted" >/dev/null 2>&1 || true; shadow "$n" "$c" "$iid"; fi; }
 due(){ [ "$(now)" -ge "$(get "$1" next 0)" ]; }
 start(){ nohup "$2" 9>&- >>"$D/$1.stderr.log" 2>&1 </dev/null & }
-process_uses_script(){ pat="$1"; script="$2"; for pid in $(pgrep -f "$pat" 2>/dev/null); do [ -r "/proc/$pid/cmdline" ] || continue; tr '\0' '\n' <"/proc/$pid/cmdline" 2>/dev/null | grep -Fx -- "$script" >/dev/null 2>&1 && return 0; done; return 1; }
+process_uses_script(){
+  pat="$1"; script="$2"
+  for pid in $(pgrep -f "$pat" 2>/dev/null); do
+    [ -r "/proc/$pid/cmdline" ] || continue
+    while IFS= read -r -d '' arg; do
+      [ "$arg" = "$script" ] && return 0
+    done <"/proc/$pid/cmdline" 2>/dev/null
+  done
+  return 1
+}
 supervisor_on_current_root(){ process_uses_script "$1" "$2"; }
 stop_supervisor(){ pat="$1"; pkill -TERM -f "$pat" 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc "$pat"; then log "service=supervisor state=stop_timeout pattern=$pat action=kill_stale"; pkill -KILL -f "$pat" 2>/dev/null || true; sleep 1 9>&-; fi; }
 supervisor_lock(){ case "$1" in adb_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/adb-recovery.lock";; remote_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/remote-desktop.lock";; incident_manager) printf '%s' "$HOME/.openclaw/incidents/manager.lock";; *) return 1;; esac; }

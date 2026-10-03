@@ -3,29 +3,61 @@ set -euo pipefail
 TIER0="$HOME/.openclaw/tier0"; CONTROL="$TIER0/bin/tier0-control.py"
 restart_core(){
 python3 - <<'PY'
-import os,signal,subprocess,time
+from pathlib import Path
+import os,signal,time
+
 need=('samantha-root-guardian.sh','samantha-health-manager.sh','incident-orchestrator-worker.sh')
 me=os.getpid()
-def matches():
-    out=[]
-    for line in subprocess.run(['ps','-Ao','pid,args'],capture_output=True,text=True).stdout.splitlines()[1:]:
-        try: pid_s,args=line.strip().split(None,1); pid=int(pid_s)
-        except Exception: continue
-        if pid!=me and any('/'+n in args for n in need): out.append(pid)
-    return out
-for _ in range(5):
-    rows=matches()
-    if not rows: break
-    for pid in rows:
-        try: os.kill(pid,signal.SIGTERM)
-        except ProcessLookupError: pass
-    time.sleep(1)
-rows=matches()
-for pid in rows:
-    try: os.kill(pid,signal.SIGKILL)
-    except ProcessLookupError: pass
-time.sleep(1)
-if matches(): raise SystemExit('core_processes_survived_restart_boundary')
+
+def row(pid):
+    try:
+        p=Path('/proc')/str(pid)
+        fields=(p/'stat').read_text().rsplit(')',1)[1].split()
+        return {
+            'pid':int(pid),
+            'ppid':int(fields[1]),
+            'start':fields[19],
+            'args':(p/'cmdline').read_bytes().replace(b'\0',b' ').decode(errors='replace'),
+        }
+    except (OSError,ValueError,IndexError):
+        return None
+
+rows={}
+for p in Path('/proc').iterdir():
+    if p.name.isdigit():
+        r=row(p.name)
+        if r: rows[r['pid']]=r
+roots={pid for pid,r in rows.items() if pid!=me and any('/'+n in r['args'] for n in need)}
+targets=set(roots)
+changed=True
+while changed:
+    changed=False
+    for pid,r in rows.items():
+        if r['ppid'] in targets and pid not in targets:
+            targets.add(pid); changed=True
+identities={pid:rows[pid]['start'] for pid in targets}
+
+def same(pid):
+    r=row(pid)
+    return bool(r and r['start']==identities.get(pid))
+
+# Children first so helpers cannot outlive their supervisor and retain lock descriptors.
+depth={}
+def d(pid):
+    if pid in depth:return depth[pid]
+    parent=rows.get(pid,{}).get('ppid')
+    depth[pid]=1+d(parent) if parent in targets else 0
+    return depth[pid]
+order=sorted(targets,key=d,reverse=True)
+for sig,wait_s in ((signal.SIGTERM,1),(signal.SIGKILL,1)):
+    for pid in order:
+        if same(pid):
+            try: os.kill(pid,sig)
+            except ProcessLookupError: pass
+    time.sleep(wait_s)
+    if not any(same(pid) for pid in order):break
+survivors=[pid for pid in order if same(pid)]
+if survivors: raise SystemExit('core_processes_survived_restart_boundary:'+','.join(map(str,survivors)))
 PY
 wait_for_lock_release(){
   lock="$1"

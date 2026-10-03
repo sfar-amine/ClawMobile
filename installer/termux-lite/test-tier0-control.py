@@ -29,6 +29,21 @@ class Tier0Tests(unittest.TestCase):
         root=Path(__file__).resolve().parent
         for n in ['tier0-control.py','tier0-watchdog.py','tier0-bootstrap.sh','install-tier0-control.py']:self.assertTrue((root/n).is_file(),n)
 
+    def test_core_identity_checks_do_not_spawn_lock_inheriting_pipelines(self):
+        root=Path(__file__).resolve().parent
+        for name in ['samantha-root-guardian.sh','samantha-health-manager.sh']:
+            text=(root/name).read_text()
+            self.assertIn("read -r -d '' arg",text,name)
+            self.assertNotIn('| grep -Fx -- "$script"',text,name)
+
+    def test_restart_boundary_captures_core_descendants_before_termination(self):
+        root=Path(__file__).resolve().parent
+        text=(root/'tier0-bootstrap.sh').read_text()
+        self.assertIn("targets=set(roots)",text)
+        self.assertIn("r['ppid'] in targets",text)
+        self.assertIn("identities={pid:rows[pid]['start']",text)
+        self.assertIn("Children first",text)
+
     def test_restart_lock_wait_uses_toybox_fd_contract(self):
         root=Path(__file__).resolve().parent
         text=(root/'tier0-bootstrap.sh').read_text()

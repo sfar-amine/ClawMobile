@@ -47,3 +47,9 @@ Android ApplicationExitInfo proves the initial Termux loss was a system LOW_MEMO
 The S24 build policy is now enforced through a Gradle user guard: 768 MiB heap, ActiveProcessorCount=2, one worker, parallel=false and daemon=false. The guard owns only a marked block in ~/.gradle/gradle.properties, preserves unrelated properties, refuses conflicting managed keys outside the block and has an explicit remove rollback. doctor.sh reports its state.
 
 The private runtime source also reintegrates the previously validated claw-live in-process log follower and phantom-process RCA so immutable releases no longer regress to persistent tail -F followers. The installed /usr/bin/claw-live was already the corrected version; this change restores source/release convergence.
+
+## Tier0 activation lock-leak finding
+
+The first memory-convergence activation correctly rolled back because `immune.root_guardian` did not recover after the runtime switch. Live inspection found orphaned `tr` / `grep` helpers holding file descriptor 9 on `guardian.lock` and `health.lock`. The helpers came from `process_uses_script` pipelines inside Root Guardian and Health Manager; if the parent was terminated during a Tier0 restart, the pipeline children could outlive it and keep the supervisor lock open.
+
+The identity check now reads NUL-delimited `/proc/<pid>/cmdline` arguments directly with Bash `read -d ''`, eliminating the persistent pipeline and the inherited lock descriptor. This extends the earlier Android/Toybox lock portability fix to the core supervisor identity path.
