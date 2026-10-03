@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "rdc-immune-20261003",
+  "origin": "work",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Restore functional RDC recovery and bounded OpenAI/Claw incident continuity.",
+  "reason": "Duplicate retries and process-only health concealed failures; model dossiers omitted evidence; actual Android timeout syntax prevented code-controller launch.",
+  "rollback": "Promote prior immutable release; retain all incident and provider receipts.",
+  "files": [
+    "docs/audits/rdc-immune-20261003.md",
+    "installer/termux-lite/autonomous-engineering-shadow.sh",
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/incident-orchestrator-worker.sh",
+    "installer/termux-lite/learning-gate.py",
+    "installer/termux-lite/remote-desktop-control.py",
+    "installer/termux-lite/remote-desktop-health.mjs",
+    "installer/termux-lite/remote-desktop-watchdog.sh",
+    "installer/termux-lite/test-rdc-incident-loop.py",
+    "installer/termux-lite/test-remote-desktop-health.mjs",
+    "installer/termux-lite/test-remote-desktop-watchdog.py",
+    "installer/termux-lite/tier0-control.py"
+  ],
+  "tests": [
+    {
+      "name": "S24 focused runtime regression",
+      "status": "passed",
+      "evidence": "48 Python tests and 9 Node assertions; all 8 suites passed. Functional source unchanged by merge of native confirmation runtime."
+    },
+    {
+      "name": "real provider continuity",
+      "status": "passed",
+      "evidence": "rdc-loop-acceptance-20261003: two actual verified OpenAI GPT-5.6 Sol calls; collect_more then diagnosis of duplicates with managed action recommendation. No acceptance mutation."
+    }
+  ],
+  "documentation": [
+    "docs/audits/rdc-immune-20261003.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "device.remote_desktop",
+      "health.immune.verdict",
+      "engineering.autonomous",
+      "engineering.learning_gate"
+    ],
+    "reason": "Existing supervision now requires functional receipt; same canonical worker/incident store and private runtime branch. Registry updated in companion playbooks delivery."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Helpers consolidate existing watchdog and fixed managed repair; no new service, scheduler, database or provider permissions."
+  }
+}
