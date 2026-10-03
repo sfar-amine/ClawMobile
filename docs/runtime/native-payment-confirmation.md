@@ -12,3 +12,6 @@ Source et tests sont préparés en isolation. L'installation native et la recett
 
 ## Confirmation transverse
 OwnerConfirmationActivity est commune aux demandes génériques (/v1/confirmations, extra confirmation_request_id) et aux paiements spécialisés (/v1/payments, extra payment_request_id). Aucun titre ni décision dans les extras. NativeOwnerProtocol lie le texte, action/type/reference/payloadHash et origine ; domaine claw.owner.confirmation.v1 distinct de claw.payment.owner.v1. Le registre existant conserve ownerConfirmations. La route confirme seulement, sans exécuteur ni callback. Consommation atomique réservée aux consommateurs intégrés dans le processus de confiance. Le client Python commun est confirmations.cli. Les détails et limites canoniques résident dans ui-playbooks/confirmations/README.md.
+
+## Recette installée le 3 octobre 2026
+Application v0.6.0-native-dev installée en préservant les données. Clé publique provisionnée ; confirmation générique validée par le propriétaire sur S24 et signature reçue par Companion. Aucune opération exécutée. Préparation et demande d’ouverture 879 ms, retour avec geste humain 6 144 ms. Preuve canonique : ui-playbooks/confirmations/ACCEPTANCE.md. Paiement spécifique et étape bancaire non qualifiés par ce test.
