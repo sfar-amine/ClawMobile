@@ -39,6 +39,11 @@
       "name": "S24 real supervisor lock portability",
       "status": "passed",
       "evidence": "Actual shell free-lock and held-lock scenarios pass with the same Toybox-first PATH; first release rollback preserved as evidence."
+    },
+    {
+      "name": "Android Node wrapper and final watchdog",
+      "status": "passed",
+      "evidence": "Real wrapper --import=path preload smoke PASS; final watchdog suite 14 tests PASS. Both rejected activations retained; no claim of live recovery yet."
     }
   ],
   "documentation": [

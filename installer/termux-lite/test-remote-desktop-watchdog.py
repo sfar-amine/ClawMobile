@@ -61,6 +61,13 @@ class RepairTests(unittest.TestCase):
         with patch.object(self.c,'stop',side_effect=self.stop),patch.object(self.c,'launch',side_effect=self.launch),patch.object(self.c,'wait_ready',return_value=False):
             self.assertEqual(self.c.repair()['state'],'failed')
         self.assertFalse(self.running);self.assertEqual(self.events.count('launch'),2)
+    def test_launch_preserves_preload_argument_in_android_wrapper(self):
+        with patch.object(rdc.subprocess,'Popen') as popen:
+            self.c.launch()
+        args=popen.call_args.args[0]
+        self.assertEqual(sum(a.startswith('--import=') for a in args),1)
+        self.assertNotIn('--import',args)
+        self.assertTrue(popen.call_args.kwargs['close_fds'])
     def test_verified_recovery_does_not_replay_restart(self):
         with patch.object(self.c,'probe',return_value={'state':'healthy'}),patch.object(self.c,'launch') as launch:
             self.assertEqual(self.c.repair()['mutation'],'none_already_healthy');launch.assert_not_called()

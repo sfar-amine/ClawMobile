@@ -95,8 +95,8 @@ class Controller:
             with log.open('rb') as f: f.seek(-1048576, 2); tail = f.read()
             log.write_bytes(tail)
         with log.open('ab') as out:
-            subprocess.Popen([str(self.home/'.openclaw-android/bin/node'), '--import',
-                str(self.root/'remote-desktop-health.mjs'), SCRIPT, 'remote'], cwd=self.home,
+            subprocess.Popen([str(self.home/'.openclaw-android/bin/node'),
+                '--import='+str(self.root/'remote-desktop-health.mjs'), SCRIPT, 'remote'], cwd=self.home,
                 stdin=subprocess.DEVNULL, stdout=out, stderr=out, close_fds=True, start_new_session=True)
     def wait_ready(self):
         deadline = time.monotonic()+self.readiness; passed = 0
@@ -125,6 +125,14 @@ class Controller:
                '--source', 'remote-desktop-watchdog', '--summary' if action=='open' else '--reason', reason]
         try: return subprocess.run(cmd, capture_output=True, text=True, timeout=20).returncode == 0
         except subprocess.TimeoutExpired: return False
+    def notify(self, mode):
+        # Retain existing notification entrypoints; delivery stays owned by them.
+        if mode == 'recovered':
+            cmd=[str(self.root/'incident-close.sh'),'Remote Desktop Commander','Samantha — RDC est de nouveau operationnel; connexion et MCP verifies.']
+        else:
+            message='Samantha — RDC retabli automatiquement; connexion et MCP verifies.' if mode=='repaired' else 'Samantha — RDC indisponible apres reprises bornees; incident transmis au diagnostic gere.'
+            cmd=[str(self.root/'incident-notify.sh'),'remote_desktop',message]
+        subprocess.Popen(cmd,cwd=self.home,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,close_fds=True,start_new_session=True)
     def supervise(self):
         with self.lock('remote-desktop.lock') as acquired:
             if not acquired: return
@@ -138,6 +146,7 @@ class Controller:
                     if previous == 'down':
                         self.log('RECOVERED functional=true circuit=closed')
                         self.incident('recover', 'Singleton RDC: local MCP ping and current remote heartbeat verified')
+                        self.notify('recovered')
                     p.write_text('up'); previous = 'up'; failures = 0
                 elif previous != 'down':
                     failures += 1
@@ -148,11 +157,13 @@ class Controller:
                     result = self.repair()
                     if result['state'] == 'recovered':
                         self.log('SELF-HEAL SUCCESS functional=true'); p.write_text('up'); previous='up'
+                        self.notify('repaired')
                     elif result['state'] != 'busy':
                         self.log('SELF-HEAL FAILED circuit=open reason='+result['reason'])
                         # Persist open circuit only after canonical ingress acknowledgement.
                         if self.incident('open', 'Remote Desktop functional recovery exhausted: '+result['reason']):
                             p.write_text('down'); previous='down'
+                            self.notify('failed')
                         else:
                             self.log('INCIDENT_INGRESS_FAILED no_restart_replay=true')
                             p.write_text('down'); previous='down'

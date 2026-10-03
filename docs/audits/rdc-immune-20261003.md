@@ -37,3 +37,5 @@ Rollback: promote the previous verified immutable release and retain incident/pr
 ## Activation finding: supervisor lock portability
 
 First activation was correctly rolled back by Tier0: three supervisor replacements each waited 20 seconds because Toybox flock rejects the file-plus-command form. RDC started only after startup grace elapsed. The fixed Health Manager uses file-descriptor flock, like the existing Tier0 bootstrap, and keeps its heartbeat fresh while waiting. A real-lock test covers an available lock and an actual held lock under the S24 PATH. Slack remained reachable and provided canonical receipts during the RDC reconnection; no mutation was replayed between transports.
+
+Second activation found an introduced Node-wrapper incompatibility: separated --import and its value are split into NODE_OPTIONS by the installed wrapper. Tier0 again refused unhealthy RDC and rolled back. The launcher now uses --import=path; the exact wrapper preload smoke passed, and an argument-shape regression was added. Existing incident notification entrypoints are retained.
