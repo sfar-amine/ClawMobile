@@ -7,7 +7,6 @@ import glob
 import json
 import os
 import re
-import select
 import shlex
 import signal
 import shutil
@@ -557,30 +556,57 @@ def extract_text(content: Any) -> str:
     return "\n".join(texts)
 
 def tail_lines(path: Path):
+    """Follow appended lines in-process so claw-live does not create Android phantom children."""
     if not path.exists():
         return
-    proc = subprocess.Popen(["tail", "-n", "0", "-F", str(path)], stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL, text=True, bufsize=1)
+
+    handle = None
+    file_id: tuple[int, int] | None = None
     try:
-        assert proc.stdout is not None
+        try:
+            handle = path.open("r", encoding="utf-8", errors="replace")
+            stat = os.fstat(handle.fileno())
+            file_id = (stat.st_dev, stat.st_ino)
+            handle.seek(0, os.SEEK_END)
+        except OSError:
+            return
+
         while not stop_event.is_set():
-            ready, _, _ = select.select([proc.stdout], [], [], 0.5)
-            if not ready:
-                continue
-            line = proc.stdout.readline()
+            line = handle.readline()
             if line:
                 yield line.rstrip("\n")
                 continue
-            if proc.poll() is not None:
+
+            if stop_event.wait(0.25):
                 break
+
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+
+            current_id = (stat.st_dev, stat.st_ino)
+            try:
+                position = handle.tell()
+            except OSError:
+                position = 0
+
+            if current_id != file_id:
+                try:
+                    replacement = path.open("r", encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                handle.close()
+                handle = replacement
+                replacement_stat = os.fstat(handle.fileno())
+                file_id = (replacement_stat.st_dev, replacement_stat.st_ino)
+                continue
+
+            if stat.st_size < position:
+                handle.seek(0)
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            pass
-        if proc.stdout is not None:
-            proc.stdout.close()
+        if handle is not None:
+            handle.close()
 
 def parse_kv(line: str) -> tuple[str, list[tuple[str, str]]]:
     parts = line.split()

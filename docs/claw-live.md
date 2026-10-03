@@ -70,6 +70,16 @@ Primary runtime sources:
 
 The default view starts at the live tail/current SQLite rowid. It does not replay old transcripts.
 
+## Background resilience
+
+The semantic/default mode follows its log sources inside the claw-live Python process. It must not
+spawn one persistent `tail -F` child per source: on Android those native Termux children are tracked
+as phantom processes and consume the platform child-process budget while Termux is backgrounded.
+Keeping file followers in-process reduces that pressure without disabling Android process protections.
+
+Raw mode remains a break-glass diagnostic mode and may use external `tail` processes while it is
+actively observed.
+
 ## Modes
 
 claw-live
