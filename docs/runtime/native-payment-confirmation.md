@@ -15,3 +15,10 @@ OwnerConfirmationActivity est commune aux demandes génériques (/v1/confirmatio
 
 ## Recette installée le 3 octobre 2026
 Application v0.6.0-native-dev installée en préservant les données. Clé publique provisionnée ; confirmation générique validée par le propriétaire sur S24 et signature reçue par Companion. Aucune opération exécutée. Préparation et demande d’ouverture 879 ms, retour avec geste humain 6 144 ms. Preuve canonique : ui-playbooks/confirmations/ACCEPTANCE.md. Paiement spécifique et étape bancaire non qualifiés par ce test.
+
+## Reprise Topnet V1 — source 3 octobre 2026
+Le Payment Core distingue désormais l'unique soumission financière (`executorAttempts <= 1`) d'une unique continuation bancaire (`bankResumeAttempts <= 1`). Une demande en `requires_bank_action` conserve uniquement des références de corrélation non sensibles ; un redémarrage avant reprise peut conserver cet état, tandis qu'une interruption pendant la reprise devient `effect_unknown` et n'autorise aucun rejeu.
+
+La continuation exige une seconde confirmation native `payment.bank_2fa`, liée au même requestId, au fournisseur, à la référence et au montant. Cette preuve est à usage unique et ne peut pas autoriser un nouveau FORM1. L'activité Android sait enchaîner vers cette seconde confirmation lorsque le backend retourne `requires_bank_action`.
+
+Les paiements réels restent désactivés. Aucun code OTP/2FA bancaire n'est lu, injecté ou soumis par ChatGPT/Companion dans ce lot. ClicToPay/SMT reste en découverte structurée pour FORM2 et le reçu positif ; l'activation Topnet exige une recette E2E physique distincte.

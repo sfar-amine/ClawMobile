@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "id": "payment-topnet-v1-runtime-20261003",
+  "origin": "chat",
+  "kind": "capability_change",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add fail-closed same-request continuation to the existing payment core; live execution remains disabled.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/paymentTypes.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "openclaw-plugin-mobile-ui/package.json",
+    "docs/runtime/native-payment-confirmation.md",
+    "docs/changes/payment-topnet-v1-runtime-20261003.json"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "Companion TypeScript build passed on S24."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "43 payment-core assertions passed."
+    }
+  ],
+  "capabilities": {
+    "impact": "changed",
+    "ids": [
+      "payment.owner_native"
+    ],
+    "reason": "Adds a bounded continuation state and second owner-presence gate while keeping live providers unavailable."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Extends the existing payment core and confirmation boundary; no new service, scheduler or database."
+  },
+  "rollback": "Restore the prior runtime while retaining existing payment guard records.",
+  "limitations": [
+    "Live providers remain disabled.",
+    "Physical end-to-end acceptance remains separate."
+  ]
+}
