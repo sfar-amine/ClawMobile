@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "id": "samantha-conversation-continuity-20261003",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Persist and restore approved Samantha text/voice conversations in existing Companion history.",
+  "reason": "User confirmed one thread and transcript history across modalities, with no raw audio retention.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-continuity.cjs",
+    "docs/runtime/samantha-conversation-continuity.md",
+    "docs/08-decisions/ADR-20261003-samantha-conversation-continuity.md",
+    "docs/changes/samantha-conversation-continuity-20261003.json"
+  ],
+  "tests": [
+    {
+      "name": "runtime-targeted-regression",
+      "status": "passed",
+      "evidence": "TypeScript compile and test-companion-runs, test-companion-sqlite, test-claw-live, test-conversation-continuity passed; runtime-final-tests.txt."
+    }
+  ],
+  "documentation": [
+    "docs/runtime/samantha-conversation-continuity.md",
+    "docs/08-decisions/ADR-20261003-samantha-conversation-continuity.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Private runtime implementation; user-visible Android capability evidence is owned by the canonical ui-playbooks registry update in the same delivery lot."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Additive transcript boundary in existing Companion registry; no new store/service/scheduler.",
+    "documents": [
+      "docs/08-decisions/ADR-20261003-samantha-conversation-continuity.md"
+    ]
+  },
+  "rollback": "Restore exact pre-deployment source/compiled backup and restart only existing Companion; preserve additive transcript rows.",
+  "limitations": [
+    "Private S24; final Android acceptance pending.",
+    "40-turn app history / existing 100-row registry retention.",
+    "Partial voice transcript is not a verified completed action.",
+    "No automatic acoustic barge-in or general action retry/deduplication added."
+  ]
+}

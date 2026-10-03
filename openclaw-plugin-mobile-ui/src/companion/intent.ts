@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { markSubmittedRunFailed, rememberSubmittedRun } from "./runs";
+import { appendVoiceConversationContext, markSubmittedRunFailed, rememberSubmittedRun } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { IntentAttachment, IntentSubmitResponse } from "./types";
@@ -46,7 +46,7 @@ export async function submitIntent(
   const accepted = acceptedRun(runId, normalizedSessionId);
   const promptWithAttachments = appendAttachmentContext(normalized, attachments);
   const routed = buildAutoSkillContextForIntent(promptWithAttachments);
-  const submittedPrompt = routed?.prompt || promptWithAttachments;
+  const submittedPrompt = await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
   await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments });
   void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments);
 

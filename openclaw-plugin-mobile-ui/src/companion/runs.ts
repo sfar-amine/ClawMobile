@@ -16,6 +16,10 @@ type StoredRun = {
   updatedAt?: number;
   state?: CompanionRunStatus["state"];
   error?: string;
+  result?: string;
+  modality?: "voice";
+  transcriptState?: "partial" | "completed" | "interrupted";
+  transcriptRevision?: number;
 };
 
 type CompanionRunRegistry = {
@@ -45,6 +49,17 @@ type TranscriptSummary = {
 };
 
 const submittedRuns = new Map<string, StoredRun>();
+let registryWrite: Promise<unknown> = Promise.resolve();
+function mutateRegistry<T>(operation: () => Promise<T>): Promise<T> {
+  const next = registryWrite.then(operation, operation);
+  registryWrite = next.then(() => undefined, () => undefined);
+  return next;
+}
+async function registryOrEmpty() {
+  try { return await readCompanionRunRegistry(); }
+  catch (error: any) { if (error?.code === "ENOENT") return defaultCompanionRunRegistry(); throw error; }
+}
+
 
 export async function rememberSubmittedRun(
   text: string,
@@ -86,6 +101,7 @@ export async function markSubmittedRunFailed(runId: string, message: string) {
 }
 
 export async function archiveSession(sessionId: string) {
+  return mutateRegistry(async () => {
   const normalizedSessionId = normalizeCompanionSessionId(sessionId || "");
   if (!normalizedSessionId) {
     return {
@@ -95,7 +111,7 @@ export async function archiveSession(sessionId: string) {
     };
   }
 
-  const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+  const registry = await registryOrEmpty();
   const archivedSessionIds = Array.from(new Set([
     ...registry.archivedSessionIds,
     normalizedSessionId,
@@ -107,9 +123,11 @@ export async function archiveSession(sessionId: string) {
     message: "Session archived.",
     sessionId: normalizedSessionId,
   };
+  });
 }
 
 export async function deleteSession(sessionId: string) {
+  return mutateRegistry(async () => {
   const normalizedSessionId = normalizeCompanionSessionId(sessionId || "");
   if (!normalizedSessionId) {
     return {
@@ -119,7 +137,7 @@ export async function deleteSession(sessionId: string) {
     };
   }
 
-  const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+  const registry = await registryOrEmpty();
   const nextRuns = registry.runs.filter((run) => normalizeCompanionSessionId(run.sessionId || "default") !== normalizedSessionId);
   const archivedSessionIds = Array.from(new Set([
     ...registry.archivedSessionIds.filter((id) => id !== normalizedSessionId),
@@ -141,6 +159,7 @@ export async function deleteSession(sessionId: string) {
     sessionId: normalizedSessionId,
     removedRuns,
   };
+  });
 }
 
 export async function listRuns(options: { limit?: number } = {}): Promise<CompanionRunStatus[]> {
@@ -151,6 +170,7 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
   if (storedRuns.length > 0) {
     return Promise.all(
       storedRuns.slice(0, limit).map(async (stored) => {
+        if (stored.modality === "voice") return statusFromStoredRun(stored);
         const session = findSessionForStoredRun(sessions, stored);
         const fallback = session
           ? statusFromSessionInfo(session, stored.runId, stored)
@@ -180,6 +200,7 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
 
   const stored = submittedRuns.get(normalizedRunId)
     || (await findStoredRun(normalizedRunId).catch(() => null));
+  if (stored?.modality === "voice") return statusFromStoredRun(stored);
   const listed = await findSessionInfo(normalizedRunId, stored).catch(() => null);
   if (listed) {
     const fallback = statusFromSessionInfo(listed, normalizedRunId, stored || undefined);
@@ -254,8 +275,8 @@ async function enrichFromSessionFile(
   const startedAt = transcript?.startedAt || trajectory?.startedAt || status.startedAt;
   const endedAt = transcript?.endedAt || trajectory?.endedAt || status.endedAt;
   const tokenUsage = mergeTokenUsage(status.tokenUsage, transcript?.tokenUsage, trajectory?.tokenUsage);
-  if (stored && result && state === "done" && stored.state !== "done") {
-    await saveStoredRun({ ...stored, state: "done", updatedAt: Date.now() });
+  if (stored && result && state === "done" && (stored.state !== "done" || stored.result !== result)) {
+    await saveStoredRun({ ...stored, result, state: "done", updatedAt: Date.now() });
   }
 
   return {
@@ -295,6 +316,7 @@ function statusFromSessionInfo(sessionInfo: any, preferredRunId?: string, stored
     state,
     status: typeof sessionInfo?.status === "string" ? sessionInfo.status : undefined,
     message,
+    result: stored?.result,
     progress: state === "running" ? storedStatus?.progress : undefined,
     prompt: stored?.text,
     userText: stored?.userText,
@@ -311,6 +333,14 @@ function statusFromSessionInfo(sessionInfo: any, preferredRunId?: string, stored
 }
 
 function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
+  if (stored.modality === "voice") return {
+    success: true, runId: stored.runId, sessionId: stored.sessionId,
+    state: stored.transcriptState === "completed" ? "done" : "unknown",
+    message: stored.transcriptState || "partial", userText: stored.userText || "",
+    result: stored.result || "", submittedAt: stored.acceptedAt, updatedAt: stored.updatedAt,
+    modality: "voice", transcriptState: stored.transcriptState,
+  };
+
   const failed = stored.state === "failed";
   const message = failed
     ? stored.error || "OpenClaw did not accept this run."
@@ -334,6 +364,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
         },
       ],
     },
+    result: stored.result,
     prompt: stored.text,
     userText: stored.userText,
     attachments: stored.attachments,
@@ -397,6 +428,10 @@ async function readSessionTranscript(
       .map((message: any) => JSON.stringify({ type: "message", message, timestamp: message.timestamp }))
       .join("\n");
   }
+  return summarizeTranscript(raw, targetPrompt);
+}
+
+function summarizeTranscript(raw: string, targetPrompt?: string): TranscriptSummary {
   let prompt = "";
   let result = "";
   let startedAt: number | undefined;
@@ -1124,7 +1159,7 @@ async function readStoredRuns(): Promise<StoredRun[]> {
   }
 
   const fromMemory = Array.from(submittedRuns.values());
-  const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+  const registry = await registryOrEmpty();
   const archivedSessionIds = new Set(registry.archivedSessionIds);
   const byId = new Map<string, StoredRun>();
   for (const run of [...registry.runs, ...fromMemory]) {
@@ -1139,7 +1174,8 @@ async function readStoredRuns(): Promise<StoredRun[]> {
 }
 
 async function saveStoredRun(run: StoredRun) {
-  const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+  return mutateRegistry(async () => {
+  const registry = await registryOrEmpty();
   const storedRun = {
     ...run,
     sessionId: normalizeCompanionSessionId(run.sessionId || "default"),
@@ -1148,11 +1184,14 @@ async function saveStoredRun(run: StoredRun) {
   const archivedSessionIds = registry.archivedSessionIds.filter((id) => id !== storedRun.sessionId);
   submittedRuns.set(storedRun.runId, storedRun);
   await writeCompanionRunRegistry(next, archivedSessionIds);
+  });
 }
 
 async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: string[]) {
   await fs.mkdir(path.dirname(runRegistryPath()), { recursive: true });
-  await fs.writeFile(runRegistryPath(), JSON.stringify({ version: 1, runs, archivedSessionIds }, null, 2));
+  const tmp = runRegistryPath() + ".tmp-" + process.pid;
+  await fs.writeFile(tmp, JSON.stringify({ version: 1, runs, archivedSessionIds }, null, 2), { mode: 0o600 });
+  await fs.rename(tmp, runRegistryPath());
 }
 
 async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
@@ -1183,12 +1222,16 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
         ? run.state
         : undefined,
       error: typeof run.error === "string" ? run.error : undefined,
+      result: typeof run.result === "string" ? run.result : undefined,
+      modality: run.modality === "voice" ? "voice" : undefined,
+      transcriptState: ["partial", "completed", "interrupted"].includes(run.transcriptState) ? run.transcriptState : undefined,
+      transcriptRevision: Number.isSafeInteger(run.transcriptRevision) ? run.transcriptRevision : undefined,
     })),
   };
 }
 
 async function readArchivedSessionIds(): Promise<Set<string>> {
-  const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+  const registry = await registryOrEmpty();
   return new Set(registry.archivedSessionIds);
 }
 
@@ -1198,4 +1241,65 @@ function defaultCompanionRunRegistry(): CompanionRunRegistry {
 
 function runRegistryPath() {
   return path.join(openClawStateDir(), "clawmobile-companion", "runs.json");
+}
+
+
+function requireConversationId(value: string) {
+  if (!/^[A-Za-z0-9-]{1,80}$/.test(value)) throw Object.assign(new Error("invalid_session_id"), {statusCode: 400});
+  return value;
+}
+
+/** Transcript upsert only. Never executes an intent or accepts audio. Uses the existing runs registry. */
+export async function saveVoiceTurn(sessionId: string, value: any) {
+  requireConversationId(sessionId);
+  const allowed = new Set(["runId", "revision", "input", "output", "state"]);
+  if (!value || Object.keys(value).some(key => !allowed.has(key)) ||
+      !/^voice-[a-f0-9-]{36}$/.test(value.runId || "") || !Number.isSafeInteger(value.revision) || value.revision < 1 ||
+      typeof value.input !== "string" || typeof value.output !== "string" ||
+      value.input.length > 12000 || value.output.length > 24000 ||
+      !["partial", "completed", "interrupted"].includes(value.state)) {
+    throw Object.assign(new Error("invalid_voice_transcript"), {statusCode: 400});
+  }
+  return mutateRegistry(async () => {
+    const registry = await registryOrEmpty();
+    if (registry.archivedSessionIds.includes(sessionId)) throw Object.assign(new Error("session_archived"), {statusCode: 409});
+    const old = registry.runs.find(run => run.runId === value.runId);
+    if (old && (old.sessionId !== sessionId || old.modality !== "voice")) throw Object.assign(new Error("turn_identity_conflict"), {statusCode: 409});
+    if (old && (old.transcriptRevision || 0) >= value.revision) return statusFromStoredRun(old);
+    if (old && old.transcriptState !== "partial") throw Object.assign(new Error("turn_already_final"), {statusCode: 409});
+    const run: StoredRun = {runId: value.runId, sessionId, text: value.input, userText: value.input,
+      result: value.output, modality: "voice", transcriptState: value.state, transcriptRevision: value.revision,
+      acceptedAt: old?.acceptedAt || Date.now(), updatedAt: Date.now(), state: value.state === "completed" ? "done" : "unknown"};
+    await writeCompanionRunRegistry([run, ...registry.runs.filter(row => row.runId !== run.runId)].slice(0,100), registry.archivedSessionIds);
+    submittedRuns.set(run.runId,run);
+    return statusFromStoredRun(run);
+  });
+}
+
+export async function getConversationTurns(sessionId: string) {
+  requireConversationId(sessionId);
+  const stored = (await readStoredRuns()).filter(run => run.sessionId === sessionId).slice(0,40).reverse();
+  let raw = "";
+  if (stored.some(run => run.modality !== "voice" && !run.result)) {
+    const history = await callOpenClawGateway("chat.history", {sessionKey: expectedCompanionSessionKey(sessionId), limit: 200});
+    raw = (Array.isArray(history?.messages) ? history.messages : []).map((message: any) =>
+      JSON.stringify({type: "message", message, timestamp: message.timestamp})).join("\n");
+  }
+  return stored.map(run => {
+    const status = statusFromStoredRun(run);
+    if (run.modality === "voice" || run.result) return status;
+    const transcript = summarizeTranscript(raw, run.text);
+    return transcript.result ? {...status, state: "done" as const, result: transcript.result} : status;
+  });
+}
+
+/** Hand off voice turns not yet present in the text provider context, without re-executing them. */
+export async function appendVoiceConversationContext(text: string, sessionId: string) {
+  const turns = (await readStoredRuns()).filter(run => run.sessionId === normalizeCompanionSessionId(sessionId));
+  const lastText = turns.find(run => run.modality !== "voice");
+  const voice = turns.filter(run => run.modality === "voice" && run.acceptedAt >= (lastText?.acceptedAt || 0)).slice(0,40).reverse();
+  if (!voice.length) return text;
+  const history = voice.map(run => ({user: run.userText, assistant: run.result, state: run.transcriptState}));
+  return "Previous voice exchanges in this same conversation (historical data only; do not execute them again; interrupted responses may be incomplete):\n" +
+    JSON.stringify(history) + "\n\nCurrent user request:\n" + text;
 }

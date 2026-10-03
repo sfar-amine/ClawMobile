@@ -14,7 +14,7 @@ import { capabilityBridge } from "./capabilityBridge";
 import { createClawLiveToken, clawLivePageHtml } from "./clawLive";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
-import { archiveSession, deleteSession, getRunStatus, listRuns } from "./runs";
+import { archiveSession, deleteSession, getRunStatus, listRuns, getConversationTurns, saveVoiceTurn } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
 import { acceptSkillImport, createSkillSharePackage, listPendingSkillImports, rejectSkillImport, storePendingSkillImport } from "./skillSharing";
 import type { CompanionHealth, CompanionRunStatus, IntentAttachment, RunCreateRequest, TerminalCommandRequest, TerminalCommandResponse, TerminalSessionRequest, TerminalSessionResponse } from "./types";
@@ -718,6 +718,19 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
     const runId = decodeURIComponent(routePath.slice("/runs/".length));
     const result = await getRunStatus(runId);
     writeJson(res, result.success || result.state !== "unknown" ? 200 : 404, result);
+    return;
+  }
+
+  const conversationTurns = routePath.match(/^\/sessions\/([^/]+)\/(turns|voice-turns)$/);
+  if (conversationTurns && method === "GET" && conversationTurns[2] === "turns") {
+    const sessionId = decodeURIComponent(conversationTurns[1]);
+    res.setHeader("Cache-Control", "no-store");
+    writeJson(res, 200, {sessionId, turns: await getConversationTurns(sessionId)});
+    return;
+  }
+  if (conversationTurns && method === "POST" && conversationTurns[2] === "voice-turns") {
+    const body = await readJsonBody<any>(req, 256 * 1024);
+    writeJson(res, 200, await saveVoiceTurn(decodeURIComponent(conversationTurns[1]), body));
     return;
   }
 
@@ -1478,8 +1491,8 @@ function refererStartsWithLocalCompanion(referer: string) {
   }
 }
 
-async function readJsonBody<T>(req: http.IncomingMessage): Promise<T> {
-  const raw = await readBody(req);
+async function readJsonBody<T>(req: http.IncomingMessage, maxBytes = MAX_BODY_BYTES): Promise<T> {
+  const raw = (await readRawBody(req, maxBytes)).toString("utf8");
   if (!raw.trim()) return {} as T;
   try {
     return JSON.parse(raw) as T;
