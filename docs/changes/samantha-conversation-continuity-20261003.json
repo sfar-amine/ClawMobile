@@ -4,7 +4,7 @@
   "origin": "work",
   "kind": "maintenance",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "applied",
   "summary": "Persist and restore approved Samantha text/voice conversations in existing Companion history.",
   "reason": "User confirmed one thread and transcript history across modalities, with no raw audio retention.",
   "files": [
@@ -22,6 +22,11 @@
       "name": "runtime-targeted-regression",
       "status": "passed",
       "evidence": "TypeScript compile and test-companion-runs, test-companion-sqlite, test-claw-live, test-conversation-continuity passed; runtime-final-tests.txt."
+    },
+    {
+      "name": "private-s24-acceptance",
+      "status": "passed",
+      "evidence": "Native 0.5.0: real text/voice/text provider roundtrip, 9 targeted transport/continuity/handshake, 2 notifications, actual cold restart; core android/samantha/continuity-acceptance.json."
     }
   ],
   "documentation": [
@@ -42,7 +47,7 @@
   },
   "rollback": "Restore exact pre-deployment source/compiled backup and restart only existing Companion; preserve additive transcript rows.",
   "limitations": [
-    "Private S24; final Android acceptance pending.",
+    "Experimental private S24; physical acceptance completed under the recorded scoped limits.",
     "40-turn app history / existing 100-row registry retention.",
     "Partial voice transcript is not a verified completed action.",
     "No automatic acoustic barge-in or general action retry/deduplication added."
