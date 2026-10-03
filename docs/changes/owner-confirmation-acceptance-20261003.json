@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "id": "owner-confirmation-acceptance-20261003",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "applied",
+  "summary": "Record installed shared owner confirmation and successful inert S24 native acceptance.",
+  "reason": "Owner validated the generic biometric screen; record the signed result and measured latency without promoting real payments.",
+  "files": [
+    "docs/runtime/native-payment-confirmation.md",
+    "docs/changes/owner-confirmation-acceptance-20261003.json"
+  ],
+  "tests": [
+    {
+      "name": "native-s24-confirmation",
+      "status": "passed",
+      "evidence": "Owner confirmed on device; Companion verified signature; approved observed, no business action. 879 ms prepare/open and 6144 ms owner wait."
+    }
+  ],
+  "documentation": [
+    "docs/runtime/native-payment-confirmation.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability evidence lives in ui-playbooks; documentation only here."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Acceptance record only; executable source unchanged.",
+    "documents": []
+  },
+  "rollback": "Use preserved previous APK and runtime snapshots; preserve app data and confirmation guards. Do not replay a request.",
+  "limitations": [
+    "Generic native screen accepted only on direct S24 route.",
+    "Real payment, bank verification and final receipt remain unimplemented.",
+    "Each protected consumer must enforce signature scope and one-use consumption."
+  ]
+}

@@ -1,4 +1,6 @@
 import fs from "fs/promises";
+import type { PaymentRecord } from "./paymentTypes";
+import type { ConfirmationRecord } from "./confirmationCore";
 import os from "os";
 import path from "path";
 import { intentCanvas } from "./canvas";
@@ -23,6 +25,8 @@ type StoredRun = {
 };
 
 type CompanionRunRegistry = {
+  paymentRequests: PaymentRecord[];
+  ownerConfirmations: ConfirmationRecord[];
   runs: StoredRun[];
   archivedSessionIds: string[];
 };
@@ -1187,17 +1191,29 @@ async function saveStoredRun(run: StoredRun) {
   });
 }
 
-async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: string[]) {
+async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: string[], paymentRequests?: PaymentRecord[], ownerConfirmations?: ConfirmationRecord[]) {
+  // Payment guards share this registry but never inherit the 100-turn history eviction.
+  const current = await registryOrEmpty();
+  const payments = paymentRequests ?? current.paymentRequests;
+  const confirmations = ownerConfirmations ?? current.ownerConfirmations;
   await fs.mkdir(path.dirname(runRegistryPath()), { recursive: true });
   const tmp = runRegistryPath() + ".tmp-" + process.pid;
-  await fs.writeFile(tmp, JSON.stringify({ version: 1, runs, archivedSessionIds }, null, 2), { mode: 0o600 });
+  const file = await fs.open(tmp, "w", 0o600);
+  try { await file.writeFile(JSON.stringify({ version: 1, runs, archivedSessionIds, paymentRequests: payments, ownerConfirmations: confirmations }, null, 2)); await file.sync(); }
+  finally { await file.close(); }
   await fs.rename(tmp, runRegistryPath());
+  const directory = await fs.open(path.dirname(runRegistryPath()), "r");
+  try { await directory.sync(); } finally { await directory.close(); }
 }
 
 async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
   const raw = await fs.readFile(runRegistryPath(), "utf8");
   const data = JSON.parse(raw);
   const runs = Array.isArray(data?.runs) ? data.runs : [];
+  if (data.paymentRequests !== undefined && !Array.isArray(data.paymentRequests)) throw new Error("invalid_payment_registry");
+  const paymentRequests = (data.paymentRequests || []) as PaymentRecord[];
+  if (data.ownerConfirmations !== undefined && !Array.isArray(data.ownerConfirmations)) throw new Error("invalid_confirmation_registry");
+  const ownerConfirmations = (data.ownerConfirmations || []) as ConfirmationRecord[];
   const archivedSessionIds: string[] = Array.isArray(data?.archivedSessionIds)
     ? Array.from(new Set<string>(
       data.archivedSessionIds
@@ -1207,6 +1223,8 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
     : [];
   return {
     archivedSessionIds,
+    paymentRequests,
+    ownerConfirmations,
     runs: runs
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
@@ -1236,7 +1254,7 @@ async function readArchivedSessionIds(): Promise<Set<string>> {
 }
 
 function defaultCompanionRunRegistry(): CompanionRunRegistry {
-  return { runs: [], archivedSessionIds: [] };
+  return { runs: [], archivedSessionIds: [], paymentRequests: [], ownerConfirmations: [] };
 }
 
 function runRegistryPath() {
@@ -1302,4 +1320,32 @@ export async function appendVoiceConversationContext(text: string, sessionId: st
   const history = voice.map(run => ({user: run.userText, assistant: run.result, state: run.transcriptState}));
   return "Previous voice exchanges in this same conversation (historical data only; do not execute them again; interrupted responses may be incomplete):\n" +
     JSON.stringify(history) + "\n\nCurrent user request:\n" + text;
+}
+
+
+// Payment persistence stays inside the existing single-writer registry.
+export async function readPaymentRequests(): Promise<PaymentRecord[]> {
+  await registryWrite;
+  return (await registryOrEmpty()).paymentRequests;
+}
+export async function mutatePaymentRequests<T>(operation:(records:PaymentRecord[])=>T): Promise<T> {
+  return mutateRegistry(async () => {
+    const registry = await registryOrEmpty();
+    const result = operation(registry.paymentRequests);
+    await writeCompanionRunRegistry(registry.runs, registry.archivedSessionIds, registry.paymentRequests);
+    return result;
+  });
+}
+
+export async function readOwnerConfirmations(): Promise<ConfirmationRecord[]> {
+  await registryWrite;
+  return (await registryOrEmpty()).ownerConfirmations;
+}
+export async function mutateOwnerConfirmations<T>(operation:(records:ConfirmationRecord[])=>T): Promise<T> {
+  return mutateRegistry(async () => {
+    const registry = await registryOrEmpty();
+    const result = operation(registry.ownerConfirmations);
+    await writeCompanionRunRegistry(registry.runs, registry.archivedSessionIds, registry.paymentRequests, registry.ownerConfirmations);
+    return result;
+  });
 }
