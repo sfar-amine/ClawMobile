@@ -221,7 +221,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if (method === "POST" && routePath === "/payments") {
       writeJson(res, 200, await payments.prepare(await readJsonBody(req, 4096))); return;
     }
-    const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|cancel))?$/.exec(routePath);
+    const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|resume|cancel))?$/.exec(routePath);
     if (match) {
       const [, id, action] = match;
       if (method === "GET" && !action) { writeJson(res,200,await payments.status(id)); return; }
@@ -233,6 +233,17 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       }
       if (method === "POST" && action === "owner-confirmation") {
         writeJson(res,200,await payments.confirm(id,await readJsonBody(req,2048))); return;
+      }
+      if (method === "POST" && action === "bank-authorization") {
+        const body=await readJsonBody(req,256);
+        if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).length)throw new HttpError(400,"invalid_bank_authorization_request");
+        writeJson(res,200,await payments.bankAuthorization(id)); return;
+      }
+      if (method === "POST" && action === "resume") {
+        const body=await readJsonBody(req,512);
+        if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).sort().join(",")!=="confirmationRequestId"||typeof (body as any).confirmationRequestId!=="string")
+          throw new HttpError(400,"invalid_payment_resume_request");
+        writeJson(res,200,await payments.resume(id,(body as any).confirmationRequestId)); return;
       }
     }
     writeJson(res,404,{success:false,message:"payment_route_not_found"}); return;
@@ -254,6 +265,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/payments",
         "/v1/payments/:requestId/challenge",
         "/v1/payments/:requestId/owner-confirmation",
+        "/v1/payments/:requestId/bank-authorization",
+        "/v1/payments/:requestId/resume",
         "/v1/runs",
         "/v1/runs/:runId",
         "/v1/sessions/:sessionId/archive",
