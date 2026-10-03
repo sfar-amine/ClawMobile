@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import type { PaymentRecord } from "./paymentTypes";
 import os from "os";
 import path from "path";
 import { intentCanvas } from "./canvas";
@@ -19,6 +20,7 @@ type StoredRun = {
 };
 
 type CompanionRunRegistry = {
+  paymentRequests: PaymentRecord[];
   runs: StoredRun[];
   archivedSessionIds: string[];
 };
@@ -45,6 +47,12 @@ type TranscriptSummary = {
 };
 
 const submittedRuns = new Map<string, StoredRun>();
+let registryWrite: Promise<unknown> = Promise.resolve();
+function mutateRegistry<T>(operation:()=>Promise<T>):Promise<T> {
+  const next = registryWrite.then(operation, operation);
+  registryWrite = next.then(() => undefined, () => undefined);
+  return next;
+}
 
 export async function rememberSubmittedRun(
   text: string,
@@ -95,18 +103,19 @@ export async function archiveSession(sessionId: string) {
     };
   }
 
-  const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
-  const archivedSessionIds = Array.from(new Set([
-    ...registry.archivedSessionIds,
-    normalizedSessionId,
-  ]));
-  await writeCompanionRunRegistry(registry.runs, archivedSessionIds);
-
-  return {
-    success: true,
-    message: "Session archived.",
-    sessionId: normalizedSessionId,
-  };
+  return mutateRegistry(async () => {
+    const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+    const archivedSessionIds = Array.from(new Set([
+      ...registry.archivedSessionIds,
+      normalizedSessionId,
+    ]));
+    await writeCompanionRunRegistry(registry.runs, archivedSessionIds, registry.paymentRequests);
+    return {
+      success: true,
+      message: "Session archived.",
+      sessionId: normalizedSessionId,
+    };
+  });
 }
 
 export async function deleteSession(sessionId: string) {
@@ -119,28 +128,29 @@ export async function deleteSession(sessionId: string) {
     };
   }
 
-  const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
-  const nextRuns = registry.runs.filter((run) => normalizeCompanionSessionId(run.sessionId || "default") !== normalizedSessionId);
-  const archivedSessionIds = Array.from(new Set([
-    ...registry.archivedSessionIds.filter((id) => id !== normalizedSessionId),
-    normalizedSessionId,
-  ]));
-  let removedRuns = 0;
-  for (const [runId, run] of submittedRuns.entries()) {
-    if (normalizeCompanionSessionId(run.sessionId || "default") === normalizedSessionId) {
-      submittedRuns.delete(runId);
-      removedRuns += 1;
+  return mutateRegistry(async () => {
+    const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+    const nextRuns = registry.runs.filter((run) => normalizeCompanionSessionId(run.sessionId || "default") !== normalizedSessionId);
+    const archivedSessionIds = Array.from(new Set([
+      ...registry.archivedSessionIds.filter((id) => id !== normalizedSessionId),
+      normalizedSessionId,
+    ]));
+    let removedRuns = 0;
+    for (const [runId, run] of submittedRuns.entries()) {
+      if (normalizeCompanionSessionId(run.sessionId || "default") === normalizedSessionId) {
+        submittedRuns.delete(runId);
+        removedRuns += 1;
+      }
     }
-  }
-  removedRuns += registry.runs.length - nextRuns.length;
-  await writeCompanionRunRegistry(nextRuns, archivedSessionIds);
-
-  return {
-    success: true,
-    message: "Session deleted from companion history.",
-    sessionId: normalizedSessionId,
-    removedRuns,
-  };
+    removedRuns += registry.runs.length - nextRuns.length;
+    await writeCompanionRunRegistry(nextRuns, archivedSessionIds, registry.paymentRequests);
+    return {
+      success: true,
+      message: "Session deleted from companion history.",
+      sessionId: normalizedSessionId,
+      removedRuns,
+    };
+  });
 }
 
 export async function listRuns(options: { limit?: number } = {}): Promise<CompanionRunStatus[]> {
@@ -1119,26 +1129,40 @@ async function readStoredRuns(): Promise<StoredRun[]> {
 }
 
 async function saveStoredRun(run: StoredRun) {
-  const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
-  const storedRun = {
-    ...run,
-    sessionId: normalizeCompanionSessionId(run.sessionId || "default"),
-  };
-  const next = [storedRun, ...registry.runs.filter((existing) => existing.runId !== storedRun.runId)].slice(0, 100);
-  const archivedSessionIds = registry.archivedSessionIds.filter((id) => id !== storedRun.sessionId);
-  submittedRuns.set(storedRun.runId, storedRun);
-  await writeCompanionRunRegistry(next, archivedSessionIds);
+  return mutateRegistry(async () => {
+    const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+    const storedRun = {
+      ...run,
+      sessionId: normalizeCompanionSessionId(run.sessionId || "default"),
+    };
+    const next = [storedRun, ...registry.runs.filter((existing) => existing.runId !== storedRun.runId)].slice(0, 100);
+    const archivedSessionIds = registry.archivedSessionIds.filter((id) => id !== storedRun.sessionId);
+    submittedRuns.set(storedRun.runId, storedRun);
+    await writeCompanionRunRegistry(next, archivedSessionIds, registry.paymentRequests);
+  });
 }
 
-async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: string[]) {
+async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: string[], paymentRequests?: PaymentRecord[]) {
+  // Payment guards share this registry but never inherit the 100-turn history eviction.
+  const payments = paymentRequests ?? (await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry())).paymentRequests;
   await fs.mkdir(path.dirname(runRegistryPath()), { recursive: true });
-  await fs.writeFile(runRegistryPath(), JSON.stringify({ version: 1, runs, archivedSessionIds }, null, 2));
+  const tmp = runRegistryPath() + ".tmp-" + process.pid;
+  const file = await fs.open(tmp, "w", 0o600);
+  try {
+    await file.writeFile(JSON.stringify({ version: 1, runs, archivedSessionIds, paymentRequests: payments }, null, 2));
+    await file.sync();
+  } finally { await file.close(); }
+  await fs.rename(tmp, runRegistryPath());
+  const directory = await fs.open(path.dirname(runRegistryPath()), "r");
+  try { await directory.sync(); } finally { await directory.close(); }
 }
 
 async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
   const raw = await fs.readFile(runRegistryPath(), "utf8");
   const data = JSON.parse(raw);
   const runs = Array.isArray(data?.runs) ? data.runs : [];
+  if (data.paymentRequests !== undefined && !Array.isArray(data.paymentRequests)) throw new Error("invalid_payment_registry");
+  const paymentRequests = (data.paymentRequests || []) as PaymentRecord[];
   const archivedSessionIds: string[] = Array.isArray(data?.archivedSessionIds)
     ? Array.from(new Set<string>(
       data.archivedSessionIds
@@ -1148,6 +1172,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
     : [];
   return {
     archivedSessionIds,
+    paymentRequests,
     runs: runs
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
@@ -1173,9 +1198,25 @@ async function readArchivedSessionIds(): Promise<Set<string>> {
 }
 
 function defaultCompanionRunRegistry(): CompanionRunRegistry {
-  return { runs: [], archivedSessionIds: [] };
+  return { runs: [], archivedSessionIds: [], paymentRequests: [] };
 }
 
 function runRegistryPath() {
   return path.join(openClawStateDir(), "clawmobile-companion", "runs.json");
+}
+
+// Payment persistence stays inside the existing Companion registry.
+export async function readPaymentRequests(): Promise<PaymentRecord[]> {
+  await registryWrite;
+  return (await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry())).paymentRequests;
+}
+
+export async function mutatePaymentRequests<T>(operation:(records:PaymentRecord[])=>T): Promise<T> {
+  return mutateRegistry(async () => {
+    const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+    const records = structuredClone(registry.paymentRequests);
+    const result = operation(records);
+    await writeCompanionRunRegistry(registry.runs, registry.archivedSessionIds, records);
+    return result;
+  });
 }
