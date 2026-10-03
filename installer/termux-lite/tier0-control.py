@@ -39,6 +39,8 @@ def manifest(root):
 
 def verify_release(path):
     path=Path(path); m=json.loads((path/'manifest.json').read_text())
+    if m.get('engineering_bridge_required'):
+        validate_engineering_bridge(path/'termux-lite')
     for name,meta in m['files'].items():
         p=path/name
         if not p.is_file() or sha(p)!=meta['sha256']:
@@ -71,15 +73,31 @@ def load_state():
 def save_state(s):
     s['updated_at']=now(); atomic_json(STATE,s)
 
+def validate_engineering_bridge(source):
+    """Reject packaging a production worker that lost its existing repair path."""
+    root=Path(source); worker=root/'incident-orchestrator-worker.sh'
+    if not worker.exists():
+        return False  # Minimal non-production fixtures have no incident worker.
+    required=['engineering-repair.sh','engineering-incident-result.py','incident-orchestrator.py']
+    if any(not (root/name).is_file() for name in required):
+        raise RuntimeError('engineering_bridge_incomplete')
+    text=worker.read_text(); orchestrator=(root/'incident-orchestrator.py').read_text()
+    if 'engineering-repair.sh" supports "$component"' not in text or 'engineering-incident-result.py' not in text or 'next_retry' not in text:
+        raise RuntimeError('engineering_bridge_dispatch_missing')
+    if '"waiting_model"' not in orchestrator or 'retry_after_s' not in orchestrator:
+        raise RuntimeError('engineering_bridge_lifecycle_missing')
+    return True
+
 def cmd_package(a):
     source=Path(a.source).resolve()
     if not source.is_dir(): raise SystemExit('source_not_found')
+    engineering_bridge = validate_engineering_bridge(source)
     release_id=a.release_id or dt.datetime.now().strftime('%Y%m%dT%H%M%S')+'-'+hashlib.sha256(str(source).encode()).hexdigest()[:8]
     dest=RELEASES/release_id
     if dest.exists(): raise SystemExit('release_exists')
     tmp=RELEASES/(release_id+'.tmp'); shutil.rmtree(tmp,ignore_errors=True); tmp.mkdir(parents=True)
     shutil.copytree(source,tmp/'termux-lite',dirs_exist_ok=True,symlinks=True)
-    meta={'version':1,'release_id':release_id,'created_at':now(),'source':str(source),
+    meta={'version':1,'engineering_bridge_required':engineering_bridge,'release_id':release_id,'created_at':now(),'source':str(source),
           'source_commit':a.source_commit,'soak_seconds':a.soak_seconds,'startup_grace_seconds':a.startup_grace_seconds,
           'critical_capabilities':a.critical_capability or ['immune.root_guardian','immune.health_manager','immune.incident_orchestrator'],
           'files':manifest(tmp),'product_manifest':None}

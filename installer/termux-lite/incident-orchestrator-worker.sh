@@ -5,12 +5,28 @@ MAX_DIAG_FAILURES="${INCIDENT_MAX_DIAG_FAILURES:-2}"
 ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; DB="$HOME/.openclaw/incidents/orchestrator.db"; LOG="$HOME/.openclaw/incidents/orchestrator-worker.log"
 mkdir -p "$(dirname "$LOG")"; exec 9>"$HOME/.openclaw/incidents/orchestrator-worker.lock"; flock -n 9 || exit 0
 log(){ printf '%s component=incident-orchestrator %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
+# Keep supervisor liveness observable while a bounded engineering subprocess is running.
+run_observed(){
+  "$@" 9>&- &
+  child=$!
+  while kill -0 "$child" 2>/dev/null; do
+    printf '%s' "$(date +%s)" >"$HOME/.openclaw/health/incident-orchestrator.heartbeat"
+    sleep 2 9>&-
+  done
+  wait "$child"
+}
+# Perform the non-destructive schema migration before the selection loop.
+python3 - "$ROOT/incident-orchestrator.py" <<'PY_INIT'
+import importlib.util,sys
+spec=importlib.util.spec_from_file_location("orch",sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+m.connect().close()
+PY_INIT
 while :; do
   printf '%s' "$(date +%s)" >"$HOME/.openclaw/health/incident-orchestrator.heartbeat"
   row=$(python3 - "$DB" <<'PY'
-import sqlite3,sys
+import sqlite3,sys,time
 try:
- c=sqlite3.connect(sys.argv[1]);r=c.execute("select id,component,scope,state from incidents where state in ('detected','diagnosing','planning') order by updated limit 1").fetchone()
+ c=sqlite3.connect(sys.argv[1]);r=c.execute("select id,component,scope,state from incidents where state in ('detected','diagnosing','planning','repairing') or (state='waiting_model' and next_retry<=?) order by updated limit 1",(time.time(),)).fetchone()
  print("|".join(map(str,r)) if r else "")
 except Exception: print("")
 PY
@@ -19,9 +35,38 @@ PY
   IFS='|' read -r iid component scope state <<EOF
 $row
 EOF
+  if [ "$state" = waiting_model ]; then
+    "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source orchestrator-worker --reason "bounded model retry due; checkpoint preserved" >/dev/null 2>&1 || true
+    continue
+  fi
   if [ "$state" = detected ]; then
     "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source orchestrator-worker --reason "deterministic recovery exhausted" >/dev/null 2>&1 || true
     log "incident=$iid component=$component transition=diagnosing"; continue
+  fi
+  if [ "$state" = diagnosing ] || [ "$state" = planning ] || [ "$state" = repairing ]; then
+    if "$ROOT/engineering-repair.sh" supports "$component" >/dev/null 2>&1; then
+      if [ "$state" = diagnosing ]; then
+        "$ROOT/incident-orchestrator.py" transition "$iid" planning --source orchestrator-worker --reason "trusted repair profile resolved" >/dev/null 2>&1 || true
+        continue
+      fi
+      if [ "$state" = planning ]; then
+        "$ROOT/incident-orchestrator.py" transition "$iid" repairing --source orchestrator-worker --reason "isolated code repair using fixed acceptance contract" >/dev/null 2>&1 || true
+      fi
+      result="$HOME/.openclaw/autonomous-engineering/shadow/$iid.repair.json"
+      mkdir -p "$(dirname "$result")"
+      if run_observed timeout --kill-after=10 420 "$ROOT/engineering-repair.sh" run "$iid" >"$result.tmp" 2>/dev/null && python3 -m json.tool "$result.tmp" >/dev/null 2>&1; then
+        mv "$result.tmp" "$result"
+      else
+        printf '{"status":"interrupted","reason":"bounded controller interruption"}\n' >"$result"
+        rm -f "$result.tmp"
+      fi
+      "$ROOT/engineering-incident-result.py" "$iid" "$result" >/dev/null 2>&1 || true
+      continue
+    fi
+  fi
+  if [ "$state" = repairing ]; then
+    "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "no registered resumable repair profile" >/dev/null 2>&1 || true
+    continue
   fi
   if [ "$state" = diagnosing ]; then
     case "$component" in
