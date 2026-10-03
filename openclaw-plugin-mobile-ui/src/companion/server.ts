@@ -364,7 +364,11 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   if (method === "POST" && routePath === "/claw-live/token") {
     res.setHeader("Cache-Control", "no-store");
     try {
-      writeJson(res, 200, await createClawLiveToken());
+      const body = await readJsonBody<any>(req);
+      writeJson(res, 200, await createClawLiveToken(undefined, undefined, {
+        locale: String(body?.locale || "fr"),
+        client: String(body?.client || "browser"),
+      }));
     } catch (error: any) {
       writeJson(res, 502, { success: false, message: String(error?.message || "claw_live_token_failed").slice(0, 500) });
     }

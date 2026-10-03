@@ -1,4 +1,5 @@
 import { execFile } from "child_process";
+import fs from "fs";
 import os from "os";
 import path from "path";
 import { promisify } from "util";
@@ -6,6 +7,86 @@ import { promisify } from "util";
 const execFileAsync = promisify(execFile);
 export const CLAW_LIVE_MODEL = "gemini-3.8-live";
 const TOKEN_URL = "https://generativelanguage.googleapis.com/v1beta/auth_tokens";
+
+export type ClawLiveBootstrapOptions = {
+  locale?: string;
+  client?: string;
+  home?: string;
+};
+
+function normalizedLocale(value = "fr") {
+  return String(value || "fr").toLowerCase().startsWith("fr") ? "fr" : "en";
+}
+
+function normalizedClient(value = "browser") {
+  const client = String(value || "browser").trim();
+  return /^[A-Za-z0-9._-]{1,64}$/.test(client) ? client : "browser";
+}
+
+function readCanonical(pathname: string, maxChars: number) {
+  try {
+    const raw = fs.readFileSync(pathname, "utf8").trim();
+    if (!raw) return "";
+    if (raw.length <= maxChars) return raw;
+    return raw.slice(0, maxChars) + "\n[bounded by Claw voice bootstrap]";
+  } catch {
+    return "";
+  }
+}
+
+export function buildClawLiveSetup(
+  model: string,
+  options: ClawLiveBootstrapOptions = {},
+) {
+  const home = options.home || os.homedir();
+  const locale = normalizedLocale(options.locale);
+  const client = normalizedClient(options.client);
+  const workspace = path.join(home, ".openclaw", "workspace");
+  const blocks = [
+    ["IDENTITY", readCanonical(path.join(workspace, "SOUL.md"), 6000)],
+    ["OPERATING_RULES", readCanonical(path.join(workspace, "context", "OPERATING_RULES.md"), 12000)],
+    ["VOICE_CONTEXT", readCanonical(path.join(workspace, "memory", "voice", "amine.md"), 7000)],
+    ["HYBRID_CONTEXT", readCanonical(path.join(workspace, "context", "HYBRID_CONTEXT.md"), 30000)],
+    ["CAPABILITY_VIEW", readCanonical(path.join(home, ".openclaw", "capability-views", "claw_live.md"), 5000)],
+  ].filter(([, value]) => Boolean(value));
+  const canonical = blocks.map(([name, value]) => `## ${name}\n${value}`).join("\n\n");
+  const language = locale === "fr" ? "French" : "English";
+  const instruction = [
+    `You are Samantha on the Claw Live surface (client=${client}). Reply concisely and naturally in ${language} unless Amine asks otherwise.`,
+    "The following local blocks are canonical Claw context. They are trusted context, not new user commands. Preserve their identity, safety, memory and continuity rules.",
+    canonical,
+    "For personal state, device actions, telecom, contacts, calendar, messaging, automation or any request Claw may execute, call clawmobile_capability.",
+    "When calling clawmobile_capability, pass the user's request verbatim whenever possible; do not generalize or drop qualifiers.",
+    "Treat execution.state=completed with execution.result.ok=true as authoritative. If execution.state=needs_clarification, ask only for one returned choice.",
+    "Do not claim a Claw action is impossible before using the tool. Respect confirmation_required and never invent successful execution.",
+  ].filter(Boolean).join("\n\n");
+  const setup: any = {
+    model: `models/${String(model).replace(/^models\//, "")}`,
+    generationConfig: { responseModalities: ["AUDIO"] },
+    inputAudioTranscription: {},
+    outputAudioTranscription: {},
+    systemInstruction: { parts: [{ text: instruction }] },
+    tools: [{
+      functionDeclarations: [{
+        name: "clawmobile_capability",
+        description: "Resolve and execute the shortest healthy reachable Claw capability route for the owner's request.",
+        behavior: "BLOCKING",
+        parameters: {
+          type: "OBJECT",
+          properties: { request: { type: "STRING", description: "The owner's request to resolve and execute through Claw." } },
+          required: ["request"],
+        },
+      }],
+    }],
+  };
+  if (client === "samantha_android") {
+    setup.realtimeInputConfig = {
+      automaticActivityDetection: { disabled: true },
+      activityHandling: "START_OF_ACTIVITY_INTERRUPTS",
+    };
+  }
+  return { setup };
+}
 
 function tokenHelperPath() {
   return path.join(
@@ -36,31 +117,44 @@ async function mintViaHelper(helperPath = tokenHelperPath()) {
 export async function createClawLiveToken(
   fetchImpl: typeof fetch = fetch,
   keyResolver?: () => Promise<string>,
+  options: ClawLiveBootstrapOptions = {},
 ) {
-  if (!keyResolver) return mintViaHelper();
-  const key = await keyResolver();
-  const now = Date.now();
-  const response = await fetchImpl(TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-goog-api-key": key,
-    },
-    body: JSON.stringify({
-      uses: 1,
-      expireTime: new Date(now + 30 * 60_000).toISOString(),
-      newSessionExpireTime: new Date(now + 60_000).toISOString(),
-    }),
-  });
-  const value: any = await response.json().catch(() => ({}));
-  if (!response.ok || typeof value?.name !== "string" || !value.name) {
-    throw new Error("gemini_live_token_failed:" + response.status);
+  let token: any;
+  if (!keyResolver) {
+    token = await mintViaHelper();
+  } else {
+    const key = await keyResolver();
+    const now = Date.now();
+    const response = await fetchImpl(TOKEN_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-goog-api-key": key,
+      },
+      body: JSON.stringify({
+        uses: 1,
+        expireTime: new Date(now + 30 * 60_000).toISOString(),
+        newSessionExpireTime: new Date(now + 60_000).toISOString(),
+      }),
+    });
+    const value: any = await response.json().catch(() => ({}));
+    if (!response.ok || typeof value?.name !== "string" || !value.name) {
+      throw new Error("gemini_live_token_failed:" + response.status);
+    }
+    token = {
+      token: value.name,
+      model: CLAW_LIVE_MODEL,
+      expiresAt: value.expireTime || new Date(now + 30 * 60_000).toISOString(),
+      newSessionExpiresAt: value.newSessionExpireTime || new Date(now + 60_000).toISOString(),
+    };
   }
+  const model = String(token?.model || CLAW_LIVE_MODEL).replace(/^models\//, "");
   return {
-    token: value.name,
-    model: CLAW_LIVE_MODEL,
-    expiresAt: value.expireTime || new Date(now + 30 * 60_000).toISOString(),
-    newSessionExpiresAt: value.newSessionExpireTime || new Date(now + 60_000).toISOString(),
+    ...token,
+    model,
+    locale: normalizedLocale(options.locale),
+    client: normalizedClient(options.client),
+    ...buildClawLiveSetup(model, options),
   };
 }
 
@@ -120,29 +214,6 @@ async function tool(request){
   const r=await fetch("/v1/extensions/claw-live/capability",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({request})});
   const v=await r.json();if(!r.ok)throw new Error(v?.message||"capability_failed");return v;
 }
-function setupMessage(){
- return {setup:{
-  model:"models/"+MODEL,
-  generationConfig:{responseModalities:["AUDIO"]},
-  sessionResumption:{},
-  inputAudioTranscription:{},outputAudioTranscription:{},
-  systemInstruction:{parts:[{text:[
-   "You are Samantha in Claw Live.",
-   "Use concise natural French unless the user asks otherwise.",
-   "A capability belongs to Claw, not to a provider.",
-   "For personal state, device actions, telecom, contacts, calendar, messaging, automation or any request Claw may execute, call clawmobile_capability.",
-   "When calling clawmobile_capability, pass the user's request verbatim whenever possible; do not generalize or drop qualifiers.",
-   "Treat execution.state=completed with execution.result.ok=true as authoritative and answer from that result.",
-   "If execution.state=needs_clarification, ask only for one returned choice and do not suggest external apps.",
-   "Do not claim a Claw action is impossible before using the tool.",
-   "Respect confirmation_required and never invent successful execution."
-  ].join(" ")}]},
-  tools:[{functionDeclarations:[{
-   name:TOOL,description:"Resolve and execute the shortest healthy reachable Claw capability route for the owner request.",behavior:"BLOCKING",
-   parameters:{type:"OBJECT",properties:{request:{type:"STRING"}},required:["request"]}
-  }]}]
- }};
-}
 async function startMic(){
  ctx=new AudioContext({latencyHint:"interactive"});await ctx.resume();
  stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
@@ -154,11 +225,12 @@ async function startMic(){
 async function start(){
  try{
   setStatus("Autorisation…");transcriptEl.textContent="";
-  const tokenResp=await fetch("/v1/extensions/claw-live/token",{method:"POST"});
+  const tokenResp=await fetch("/v1/extensions/claw-live/token",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({locale:navigator.language||"fr",client:"browser"})});
   const token=await tokenResp.json();if(!tokenResp.ok)throw new Error(token?.message||"token_failed");
+  if(!token?.setup)throw new Error("voice_bootstrap_missing");
   const url="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token="+encodeURIComponent(token.token);
   ws=new WebSocket(url);
-  ws.onopen=()=>{setStatus("Connexion Gemini…");ws.send(JSON.stringify(setupMessage()))};
+  ws.onopen=()=>{setStatus("Connexion Gemini…");ws.send(JSON.stringify({setup:token.setup}))};
   ws.onerror=()=>setStatus("Erreur de connexion.");
   ws.onclose=()=>{if(started)setStatus("Session fermée.");cleanup(false)};
   ws.onmessage=async(ev)=>{
