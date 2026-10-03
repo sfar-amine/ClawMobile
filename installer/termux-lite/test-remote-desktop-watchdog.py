@@ -1,38 +1,78 @@
 #!/data/data/com.termux/files/usr/bin/python3
-import unittest
+import importlib.util, json, tempfile, unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT=Path(__file__).parent
-WD=(ROOT/"remote-desktop-watchdog.sh").read_text()
-WK=(ROOT/"incident-orchestrator-worker.sh").read_text()
+spec=importlib.util.spec_from_file_location('rdc',ROOT/'remote-desktop-control.py')
+rdc=importlib.util.module_from_spec(spec);spec.loader.exec_module(rdc)
 
-class RemoteDesktopHardeningTests(unittest.TestCase):
-    def test_watchdog_moves_to_stable_cwd(self):
-        self.assertIn('cd "$HOME_DIR" || exit 70', WD)
-        self.assertLess(WD.index('cd "$HOME_DIR" || exit 70'), WD.index('while :; do'))
-        self.assertIn('cd "$HOME_DIR" || return 1', WD)
+class HealthTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+        self.home=Path(self.tmp.name);self.proc=self.home/'proc'
+        (self.proc/'sys/kernel/random').mkdir(parents=True)
+        (self.proc/'sys/kernel/random/boot_id').write_text('boot-a')
+        self.pid=123;self.add_process(self.pid)
+        self.folder=self.home/'.openclaw/watchdogs';self.folder.mkdir(parents=True)
+        self.receipt={'pid':123,'start_ticks':'100','boot_id':'boot-a','checked_at':990,
+            'local_mcp':True,'remote_channel':True,'healthy':True}
+        self.write()
+    def add_process(self,pid):
+        p=self.proc/str(pid);p.mkdir()
+        fields=['S','1']+['0']*17+['100']
+        (p/'stat').write_text(str(pid)+' (node) '+' '.join(fields))
+        (p/'cmdline').write_bytes(('node\0'+rdc.SCRIPT+'\0remote\0').encode())
+    def write(self): (self.folder/'remote-desktop-123.json').write_text(json.dumps(self.receipt))
+    def probe(self): return rdc.health(self.home,self.proc,1000)
+    def test_singleton_with_both_proofs(self): self.assertEqual(self.probe()['state'],'healthy')
+    def test_duplicate_is_never_healthy(self):
+        self.add_process(456);self.assertEqual(self.probe()['reason'],'duplicate_instances')
+    def test_missing_receipt_is_not_health(self):
+        (self.folder/'remote-desktop-123.json').unlink();self.assertEqual(self.probe()['state'],'unverified')
+    def test_stale_and_future_receipts_rejected(self):
+        for ts in [900,1001]:
+            self.receipt['checked_at']=ts;self.write();self.assertEqual(self.probe()['reason'],'functional_receipt_stale')
+    def test_pid_reuse_and_reboot_rejected(self):
+        for key,value in [('start_ticks','99'),('boot_id','old'),('pid',999)]:
+            with self.subTest(key=key):
+                before=self.receipt[key];self.receipt[key]=value;self.write()
+                self.assertEqual(self.probe()['reason'],'receipt_identity_mismatch');self.receipt[key]=before
+    def test_each_functional_layer_required(self):
+        for key in ['local_mcp','remote_channel','healthy']:
+            self.receipt[key]=False;self.write();self.assertNotEqual(self.probe()['state'],'healthy');self.receipt[key]=True
+    def test_process_args_are_exact(self):
+        (self.proc/'123/cmdline').write_text('bash\0-c\0echo '+rdc.SCRIPT+' remote\0')
+        self.assertEqual(self.probe()['reason'],'process_missing')
 
-    def test_watchdog_opens_circuit_after_bounded_restart(self):
-        self.assertIn('SELF-HEAL FAILED circuit=open', WD)
-        self.assertIn('open_incident "Remote Desktop Commander unavailable after $MAX_RESTARTS bounded deterministic restart attempts"', WD)
-        self.assertIn('if [ "$prev" = down ]; then\n     sleep "$INTERVAL"', WD)
+class RepairTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+        self.c=rdc.Controller(self.tmp.name);self.events=[];self.running=False
+    def stop(self): self.events.append('stop');self.running=False;return True
+    def launch(self):
+        self.assertFalse(self.running,'retry started before previous process stopped')
+        self.events.append('launch');self.running=True
+    def test_slow_first_attempt_cannot_create_duplicate(self):
+        with patch.object(self.c,'stop',side_effect=self.stop),patch.object(self.c,'launch',side_effect=self.launch),patch.object(self.c,'wait_ready',side_effect=[False,True]),patch.object(self.c,'probe',side_effect=[{'state':'degraded'},{'state':'healthy'}]):
+            self.assertEqual(self.c.repair()['state'],'recovered')
+        self.assertEqual(self.events,['stop','launch','stop','stop','launch'])
+    def test_exhausted_attempt_is_cleaned(self):
+        with patch.object(self.c,'stop',side_effect=self.stop),patch.object(self.c,'launch',side_effect=self.launch),patch.object(self.c,'wait_ready',return_value=False):
+            self.assertEqual(self.c.repair()['state'],'failed')
+        self.assertFalse(self.running);self.assertEqual(self.events.count('launch'),2)
+    def test_verified_recovery_does_not_replay_restart(self):
+        with patch.object(self.c,'probe',return_value={'state':'healthy'}),patch.object(self.c,'launch') as launch:
+            self.assertEqual(self.c.repair()['mutation'],'none_already_healthy');launch.assert_not_called()
+    def test_stop_failure_forbids_launch(self):
+        with patch.object(self.c,'stop',return_value=False),patch.object(self.c,'launch') as launch:
+            self.assertEqual(self.c.repair()['reason'],'previous_instance_survived');launch.assert_not_called()
+    def test_concurrent_owners_cannot_restart(self):
+        with self.c.lock('remote-desktop-repair.lock') as held,patch.object(self.c,'launch') as launch:
+            self.assertTrue(held);self.assertEqual(self.c.repair()['state'],'busy');launch.assert_not_called()
+    def test_readiness_is_bounded_and_requires_consecutive_proofs(self):
+        self.c.readiness=4
+        with patch.object(self.c,'beat'),patch.object(self.c,'probe',side_effect=[{'state':'degraded','reason':'local_mcp_unresponsive'},{'state':'healthy','reason':'ok'},{'state':'healthy','reason':'ok'}]),patch.object(rdc.time,'sleep'):
+            self.assertTrue(self.c.wait_ready())
 
-    def test_watchdog_uses_canonical_incident_orchestrator(self):
-        self.assertIn('open remote_desktop runtime --source remote-desktop-watchdog', WD)
-        self.assertIn('recover remote_desktop runtime --source remote-desktop-watchdog', WD)
-
-    def test_process_log_is_bounded(self):
-        self.assertIn('-gt 4194304', WD)
-        self.assertIn('tail -c 1048576', WD)
-
-    def test_remote_desktop_is_managed_by_orchestrator(self):
-        self.assertIn('openclaw-agent-headless|remote_desktop', WK)
-        self.assertIn('runtime.managed_repair|diagnostics.collect_more', WK)
-        self.assertIn('handler=remote_desktop_stable_cwd', WK)
-
-    def test_model_diagnosis_failures_are_bounded(self):
-        self.assertIn('MAX_DIAG_FAILURES="${INCIDENT_MAX_DIAG_FAILURES:-2}"', WK)
-        self.assertIn('bounded model diagnosis budget exhausted', WK)
-
-if __name__=="__main__":
-    unittest.main(verbosity=2)
+if __name__=='__main__':unittest.main(verbosity=2)

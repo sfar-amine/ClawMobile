@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/python3
-import argparse,json,os,sqlite3,subprocess,time
+import argparse,json,os,sqlite3,subprocess,time,importlib.util
 from pathlib import Path
 H=Path.home(); OC=H/'.openclaw'; ROOT=H/'ClawMobile/installer/termux-lite'; OUT=OC/'health/current.json'
 NOW=time.time()
@@ -71,7 +71,12 @@ def live():
   a=age(log); up=proc(pat)
   st='healthy' if up and a is not None and a<=ttl else ('stale' if up else 'down')
   x[k]=item(st,True,'process and loop evidence healthy' if st=='healthy' else ('loop evidence stale' if up else 'process missing'),str(log),a)
- x['remote_desktop']=item('healthy' if proc('@wonderwhy-er/desktop-commander/dist/index.js remote') else 'down',True,evidence='desktop-commander remote')
+ try:
+  spec=importlib.util.spec_from_file_location('rdc_control',Path(__file__).with_name('remote-desktop-control.py'))
+  rdc=importlib.util.module_from_spec(spec); spec.loader.exec_module(rdc); rd=rdc.health()
+  x['remote_desktop']=item(rd['state'],True,reason=rd['reason'],evidence='RDC singleton + process-bound MCP/remote heartbeat receipt',freshness=rd.get('freshness_s'))
+ except Exception:
+  x['remote_desktop']=item('unverified',True,reason='RDC functional probe unavailable')
  x['gateway']=item('healthy' if run('curl -fsS --max-time 3 http://127.0.0.1:18789/healthz') else 'down',True,evidence='http://127.0.0.1:18789/healthz')
  x['companion']=item('healthy' if run('curl -fsS --max-time 3 http://127.0.0.1:8765/v1/health') else 'down',True,evidence='http://127.0.0.1:8765/v1/health')
  wa=run('timeout 8 openclaw channels status',10); ev=OC/'incidents/events.log'

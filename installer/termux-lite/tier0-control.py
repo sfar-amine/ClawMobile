@@ -82,6 +82,10 @@ def validate_engineering_bridge(source):
     if any(not (root/name).is_file() for name in required):
         raise RuntimeError('engineering_bridge_incomplete')
     text=worker.read_text(); orchestrator=(root/'incident-orchestrator.py').read_text()
+    watchdog=root/'remote-desktop-watchdog.sh'
+    if watchdog.exists() and 'remote-desktop-control.py' in watchdog.read_text():
+        if any(not (root/n).is_file() for n in ('remote-desktop-control.py','remote-desktop-health.mjs')):
+            raise RuntimeError('rdc_functional_probe_incomplete')
     if 'engineering-repair.sh" supports "$component"' not in text or 'engineering-incident-result.py' not in text or 'next_retry' not in text:
         raise RuntimeError('engineering_bridge_dispatch_missing')
     if '"waiting_model"' not in orchestrator or 'retry_after_s' not in orchestrator:

@@ -19,6 +19,7 @@ COMPONENT_MAP={
     "companion":"device.remote_bridge",
     "remote_bridge":"device.remote_bridge",
     "remote_desktop_commander":"device.remote_desktop",
+    "remote_desktop":"device.remote_desktop",
     "adb":"device.adb",
 }
 
