@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-03",
+  "scope": "S24 Termux claw-live background resilience",
+  "root_cause": {
+    "android_effective_max_phantom_processes_before": 32,
+    "device_config_override_before": null,
+    "evidence": "ActivityManager killed Termux shell 17081, claw-live 17706 and tail 17724 with reason Trimming phantom processes at 15:00:50"
+  },
+  "existing_software_fix": {
+    "commit": "1f6463735eed281d694b09402042a23eb1460161",
+    "effect": "semantic log following is in-process; no persistent tail -F children"
+  },
+  "runtime_change": {
+    "device_config_key": "activity_manager/max_phantom_processes",
+    "value": 128,
+    "monitor_disabled": false
+  },
+  "acceptance": {
+    "temporary_sleep_children": 50,
+    "observed_termux_processes": 78,
+    "backgrounded": true,
+    "claw_live_pid": "15610",
+    "claw_live_survived": true,
+    "new_trim_events": 0
+  },
+  "rollback": "adb shell device_config delete activity_manager max_phantom_processes"
+}
