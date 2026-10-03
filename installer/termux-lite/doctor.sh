@@ -58,6 +58,13 @@ section "node/npm"
 command -v node >/dev/null 2>&1 && node --version || echo "node missing"
 command -v npm >/dev/null 2>&1 && npm --version || echo "npm missing"
 
+section "android build guard"
+if [ -f "$SCRIPT_DIR/android-build-guard.py" ]; then
+  python3 "$SCRIPT_DIR/android-build-guard.py" --check || true
+else
+  echo "android build guard missing"
+fi
+
 section "adb"
 if command -v adb >/dev/null 2>&1; then
   adb devices -l || true

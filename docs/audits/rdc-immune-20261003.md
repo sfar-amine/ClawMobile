@@ -39,3 +39,11 @@ Rollback: promote the previous verified immutable release and retain incident/pr
 First activation was correctly rolled back by Tier0: three supervisor replacements each waited 20 seconds because Toybox flock rejects the file-plus-command form. RDC started only after startup grace elapsed. The fixed Health Manager uses file-descriptor flock, like the existing Tier0 bootstrap, and keeps its heartbeat fresh while waiting. A real-lock test covers an available lock and an actual held lock under the S24 PATH. Slack remained reachable and provided canonical receipts during the RDC reconnection; no mutation was replayed between transports.
 
 Second activation found an introduced Node-wrapper incompatibility: separated --import and its value are split into NODE_OPTIONS by the installed wrapper. Tier0 again refused unhealthy RDC and rolled back. The launcher now uses --import=path; the exact wrapper preload smoke passed, and an argument-shape regression was added. Existing incident notification entrypoints are retained.
+
+## Root-cause refinement and convergence — 2026-10-03
+
+Android ApplicationExitInfo proves the initial Termux loss was a system LOW_MEMORY event: com.termux was killed at 18:10:38.640 during a broad kill wave. A payment-native Gradle build had started at 18:08:30 with a single-use daemon configured at -Xmx1536m and its log ended without normal shutdown at 18:09:59. This is a strongly correlated contributing factor, not a uniquely attributed Android cause because the device already showed earlier LOW_MEMORY pressure.
+
+The S24 build policy is now enforced through a Gradle user guard: 768 MiB heap, ActiveProcessorCount=2, one worker, parallel=false and daemon=false. The guard owns only a marked block in ~/.gradle/gradle.properties, preserves unrelated properties, refuses conflicting managed keys outside the block and has an explicit remove rollback. doctor.sh reports its state.
+
+The private runtime source also reintegrates the previously validated claw-live in-process log follower and phantom-process RCA so immutable releases no longer regress to persistent tail -F followers. The installed /usr/bin/claw-live was already the corrected version; this change restores source/release convergence.

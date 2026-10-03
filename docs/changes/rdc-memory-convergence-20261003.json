@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-03",
+  "scope": "S24 RDC root-cause hardening and Android build memory guard",
+  "root_cause": {
+    "primary": "Android system LOW_MEMORY pressure killed com.termux and ai.openclaw.app.",
+    "evidence": "ApplicationExitInfo recorded com.termux LOW_MEMORY at 18:10:38.640 after a broad LOW_MEMORY kill wave.",
+    "contributing_factor": "A payment-native Gradle single-use daemon was running with -Xmx1536m immediately before the kill wave; Android does not attribute the global pressure to one process, so this remains a contributing factor rather than a uniquely proven cause."
+  },
+  "changes": [
+    "Reintegrate the previously validated claw-live in-process log follower and phantom-process documentation into the private runtime branch.",
+    "Install a Gradle user guard limiting Android builds to 768 MiB heap, two active processors, one worker, no parallel execution and no persistent daemon.",
+    "Expose the build guard in doctor.sh and keep rollback as removal of the managed Gradle block."
+  ],
+  "boundaries": [
+    "The Android phantom-process monitor remains enabled; max_phantom_processes remains 128.",
+    "The build guard preserves unrelated Gradle user properties and refuses conflicting managed keys outside its own block.",
+    "No new daemon, scheduler or memory store is introduced."
+  ],
+  "rollback": "Run android-build-guard.py --remove and promote the previous verified Tier0 release if runtime rollback is required."
+}
