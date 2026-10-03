@@ -9,6 +9,7 @@ import { clearAgentConversationMessages, listAgentConversationMessages, listAgen
 import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRuntime } from "./openclawGatewayClient";
 import { submitIntent } from "./intent";
 import { payments } from "./payments";
+import { confirmations } from "./confirmations";
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
@@ -179,6 +180,35 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if (routePath === "/confirmations" || routePath.startsWith("/confirmations/")) {
+    if (req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
+        req.headers["x-clawmobile-owner-flow"] !== "v1") {
+      writeJson(res,403,{success:false,message:"native_owner_flow_required"}); return;
+    }
+    if (method === "GET" && routePath === "/confirmations/capabilities") {
+      writeJson(res,200,confirmations.capabilities()); return;
+    }
+    if (method === "POST" && routePath === "/confirmations") {
+      writeJson(res,200,await confirmations.prepare(await readJsonBody(req,4096))); return;
+    }
+    const match = /^\/confirmations\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|cancel))?$/.exec(routePath);
+    if (match) {
+      const [,id,action] = match;
+      if (method === "GET" && !action) {writeJson(res,200,await confirmations.status(id)); return;}
+      if (method === "GET" && action === "challenge") {writeJson(res,200,await confirmations.challenge(id)); return;}
+      if (method === "POST" && action === "owner-confirmation") {
+        writeJson(res,200,await confirmations.confirm(id,await readJsonBody(req,2048))); return;
+      }
+      if (method === "POST" && action === "cancel") {
+        const body=await readJsonBody(req,256);
+        if (!body || typeof body!=="object" || Array.isArray(body) || Object.keys(body).length)
+          throw new HttpError(400,"invalid_cancellation_request");
+        writeJson(res,200,await confirmations.cancel(id)); return;
+      }
+    }
+    writeJson(res,404,{success:false,message:"confirmation_route_not_found"}); return;
+  }
+
   if (routePath === "/payments/capabilities" || routePath === "/payments" || routePath.startsWith("/payments/")) {
     // This native boundary never accepts browser-origin control, even when other routes opt in.
     if (req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
@@ -218,6 +248,9 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/capabilities",
         "/v1/attachments",
         "/v1/attachments/:attachmentId/content",
+        "/v1/confirmations",
+        "/v1/confirmations/:requestId/challenge",
+        "/v1/confirmations/:requestId/owner-confirmation",
         "/v1/payments",
         "/v1/payments/:requestId/challenge",
         "/v1/payments/:requestId/owner-confirmation",
@@ -906,6 +939,7 @@ async function capabilities(options: { trusted?: boolean } = {}) {
       artifacts: "planned",
       approvals: "planned",
       nativePaymentConfirmation: "experimental",
+      nativeOwnerConfirmation: "experimental",
       events: "unavailable",
       runtimeLifecycle: "available",
       runtimeLog: "available",
