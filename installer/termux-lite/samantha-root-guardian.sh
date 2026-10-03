@@ -5,16 +5,16 @@ D="$HOME/.openclaw/guardian"; LOG="$D/guardian.log"; mkdir -p "$D" "$HOME/.cache
 resolve_runtime_root(){
   control="$HOME/.openclaw/tier0/bin/tier0-control.py"
   if [ -x "$control" ]; then
-    root="$("$control" root 2>/dev/null || true)"
-    [ -n "$root" ] && [ -d "$root" ] && { readlink -f "$root"; return; }
+    root="$("$control" root 9>&- 2>/dev/null || true)"
+    [ -n "$root" ] && [ -d "$root" ] && { readlink -f "$root" 9>&-; return; }
   fi
   printf "%s\n" "$SELF_ROOT"
 }
 refresh_root(){ ROOT="$(resolve_runtime_root)"; }
-proc(){ pgrep -f "$1" >/dev/null 2>&1; }
+proc(){ pgrep -f "$1" 9>&- >/dev/null 2>&1; }
 process_uses_script(){
   pat="$1"; script="$2"
-  for pid in $(pgrep -f "$pat" 2>/dev/null); do
+  for pid in $(pgrep -f "$pat" 9>&- 2>/dev/null); do
     [ -r "/proc/$pid/cmdline" ] || continue
     while IFS= read -r -d '' arg; do
       [ "$arg" = "$script" ] && return 0
@@ -22,7 +22,7 @@ process_uses_script(){
   done
   return 1
 }
-stop_supervisor(){ pat="$1"; pkill -TERM -f "$pat" 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc "$pat"; then pkill -KILL -f "$pat" 2>/dev/null || true; sleep 1 9>&-; fi; }
+stop_supervisor(){ pat="$1"; pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc "$pat"; then pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 1 9>&-; fi; }
 log(){ printf "%s component=root-guardian %s\n" "$(date -Iseconds)" "$*" >>"$LOG"; }
 ensure_supervisor(){
   name="$1"; pat="$2"; script="$3"; stderr="$4"

@@ -44,6 +44,18 @@ class Tier0Tests(unittest.TestCase):
         self.assertIn("identities={pid:rows[pid]['start']",text)
         self.assertIn("Children first",text)
 
+    def test_core_supervisor_long_lived_children_close_lock_fd(self):
+        root=Path(__file__).resolve().parent
+        guardian=(root/'samantha-root-guardian.sh').read_text()
+        manager=(root/'samantha-health-manager.sh').read_text()
+        self.assertIn('pgrep -f "$1" 9>&-',guardian)
+        self.assertIn('pgrep -f "$pat" 9>&-',guardian)
+        self.assertIn('pgrep -f "$1" 9>&-',manager)
+        self.assertIn('pgrep -f "$pat" 9>&-',manager)
+        self.assertIn('health-verdict.py" --write 9>&-',manager)
+        self.assertIn('incident-ingress.py" 9>&-',manager)
+        self.assertIn('incident-reconcile.sh" 9>&-',manager)
+
     def test_restart_lock_wait_uses_toybox_fd_contract(self):
         root=Path(__file__).resolve().parent
         text=(root/'tier0-bootstrap.sh').read_text()
