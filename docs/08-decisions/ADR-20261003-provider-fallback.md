@@ -24,6 +24,8 @@ OpenAI provider cooldown can still yield a conversational answer when Google Fre
 
 The fallback is deliberately narrower than a general multi-provider router. This keeps the runtime simple and preserves the existing canonical capability/memory architecture.
 
+On Android/Termux, the Python wrapper must be launched with `spawn()` plus explicit pipes. `execFile()` was reproduced losing stdout while still returning success, so retaining that API would silently defeat the fallback. The process collector remains bounded and is not a new runtime owner.
+
 ## Alternatives rejected
 
 - Adding another OpenAI model only: does not protect against provider-wide OpenAI cooldown.

@@ -1,4 +1,7 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 
 async function main() {
   const mod = require("../dist/providerFallback.js");
@@ -145,6 +148,43 @@ async function main() {
     attachmentCtx,
   );
   assert.equal(attachmentCoordinator._stateSize(), 0);
+
+  // Exercise the real default child-process runner. On Android/Termux,
+  // promisified execFile can report exit=0 with empty stdout; spawn+pipe must
+  // preserve the wrapper JSON contract. A PATH-local shim keeps this test
+  // provider-free while verifying the actual process collection path.
+  const tempRoot = process.env.TMPDIR || path.join(os.homedir(), ".cache", "tmp");
+  fs.mkdirSync(tempRoot, { recursive: true });
+  const shimDir = fs.mkdtempSync(path.join(tempRoot, "provider-fallback-runner-"));
+  const shim = path.join(shimDir, "python3");
+  fs.writeFileSync(
+    shim,
+    `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({status:"ok",text:"default runner answer",provider:"google",model:"gemini-3.5-flash-lite",rerouted:false,reported_cost_usd:0}));\n`,
+    { mode: 0o755 },
+  );
+  const oldPath = process.env.PATH;
+  process.env.PATH = shimDir + path.delimiter + (oldPath || "");
+  try {
+    const defaultCoordinator = mod.createProviderFallbackCoordinator(api);
+    const defaultCtx = { ...ctx, runId: "run-default-runner" };
+    defaultCoordinator.beforeModelResolve({ prompt: "question text" }, defaultCtx);
+    defaultCoordinator.modelCallEnded(
+      { runId: "run-default-runner", provider: "openai", outcome: "error" },
+      defaultCtx,
+    );
+    const defaultRecovered = await defaultCoordinator.beforeAgentReply(
+      { cleanedBody: "Provider openai is in cooldown" },
+      defaultCtx,
+    );
+    assert.deepEqual(defaultRecovered, {
+      handled: true,
+      reply: { text: "default runner answer" },
+      reason: "provider_fallback_google_free",
+    });
+  } finally {
+    process.env.PATH = oldPath;
+    fs.rmSync(shimDir, { recursive: true, force: true });
+  }
 
   console.log("provider-fallback plugin tests: PASS");
 }

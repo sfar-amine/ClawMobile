@@ -1,9 +1,6 @@
-import { execFile as execFileCb } from "child_process";
+import { spawn } from "child_process";
 import { homedir } from "os";
 import { join } from "path";
-import { promisify } from "util";
-
-const execFile = promisify(execFileCb);
 const TURN_TTL_MS = 5 * 60 * 1000;
 const GOOGLE_FALLBACK_SESSION_PREFIX = "agent:gemini:channel-provider-fallback-";
 
@@ -85,22 +82,68 @@ function safeSessionToken(sessionKey: string): string {
 
 async function runGeminiFallback(prompt: string, sessionKey: string): Promise<GeminiResult> {
   const script = join(homedir(), "ClawMobile", "installer", "termux-lite", "gemini-request.py");
-  const { stdout } = await execFile(
-    "python3",
-    [
-      script,
-      "--provider-fallback",
-      "--caller",
-      "trusted",
-      "--session",
-      "provider-fallback-trusted-" + safeSessionToken(sessionKey),
-      "--timeout",
-      "45",
-      prompt,
-    ],
-    { timeout: 70000, maxBuffer: 1024 * 1024 },
-  );
-  return JSON.parse(stdout || "{}");
+  const args = [
+    script,
+    "--provider-fallback",
+    "--caller",
+    "trusted",
+    "--session",
+    "provider-fallback-trusted-" + safeSessionToken(sessionKey),
+    "--timeout",
+    "45",
+    prompt,
+  ];
+  const stdout = await new Promise<string>((resolve, reject) => {
+    const child = spawn("python3", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    let err = "";
+    let settled = false;
+    const limit = 1024 * 1024;
+    const finishError = (message: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(new Error(message));
+    };
+    const timer = setTimeout(() => {
+      if (!settled) {
+        child.kill("SIGTERM");
+        finishError("gemini_provider_fallback_timeout");
+      }
+    }, 70000);
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      out += chunk;
+      if (out.length > limit) {
+        child.kill("SIGTERM");
+        finishError("gemini_provider_fallback_stdout_limit");
+      }
+    });
+    child.stderr.on("data", (chunk: string) => {
+      err += chunk;
+      if (err.length > limit) {
+        child.kill("SIGTERM");
+        finishError("gemini_provider_fallback_stderr_limit");
+      }
+    });
+    child.on("error", () => finishError("gemini_provider_fallback_spawn_error"));
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (code !== 0) {
+        reject(new Error(`gemini_provider_fallback_exit_${code ?? "unknown"}`));
+        return;
+      }
+      resolve(out);
+    });
+  });
+  try {
+    return JSON.parse(stdout || "{}");
+  } catch {
+    throw new Error("gemini_provider_fallback_invalid_json");
+  }
 }
 
 export function createProviderFallbackCoordinator(
