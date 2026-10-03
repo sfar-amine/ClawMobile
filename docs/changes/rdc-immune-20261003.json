@@ -20,7 +20,9 @@
     "installer/termux-lite/test-rdc-incident-loop.py",
     "installer/termux-lite/test-remote-desktop-health.mjs",
     "installer/termux-lite/test-remote-desktop-watchdog.py",
-    "installer/termux-lite/tier0-control.py"
+    "installer/termux-lite/tier0-control.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-supervisor-lock-portability.py"
   ],
   "tests": [
     {
@@ -32,6 +34,11 @@
       "name": "real provider continuity",
       "status": "passed",
       "evidence": "rdc-loop-acceptance-20261003: two actual verified OpenAI GPT-5.6 Sol calls; collect_more then diagnosis of duplicates with managed action recommendation. No acceptance mutation."
+    },
+    {
+      "name": "S24 real supervisor lock portability",
+      "status": "passed",
+      "evidence": "Actual shell free-lock and held-lock scenarios pass with the same Toybox-first PATH; first release rollback preserved as evidence."
     }
   ],
   "documentation": [

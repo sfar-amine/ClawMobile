@@ -33,3 +33,7 @@ Targeted execution covers duplicate instances, stale/mismatched receipts, dead l
 Controlled real-provider acceptance: rdc-loop-acceptance-20261003, two verified OpenAI GPT-5.6 Sol calls. First requested diagnostics; second consumed fresh evidence and identified duplicate instances, recommending the existing managed repair. No production action was executed by these acceptance calls. Actual activation and external transport checks are recorded separately.
 
 Rollback: promote the previous verified immutable release and retain incident/provider receipts. Revert the scoped source commit only after checking concurrent changes. Source publication, activation, and live acceptance are separate states.
+
+## Activation finding: supervisor lock portability
+
+First activation was correctly rolled back by Tier0: three supervisor replacements each waited 20 seconds because Toybox flock rejects the file-plus-command form. RDC started only after startup grace elapsed. The fixed Health Manager uses file-descriptor flock, like the existing Tier0 bootstrap, and keeps its heartbeat fresh while waiting. A real-lock test covers an available lock and an actual held lock under the S24 PATH. Slack remained reachable and provided canonical receipts during the RDC reconnection; no mutation was replayed between transports.
