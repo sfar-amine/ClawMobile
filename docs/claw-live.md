@@ -113,3 +113,20 @@ Acceptance requires syntax and test pass plus a live Termux run showing at least
 2. an [IMMUNE] or [BRIDGE] runtime event,
 3. a real OpenClaw SQLite event when one occurs,
 4. no raw secret payloads in the rendered output.
+
+### Android phantom-process headroom — S24
+
+On the validated S24 runtime, Android ActivityManager's default effective
+max_phantom_processes=32 was proven to trim a background Termux shell and its
+claw-live child. The semantic in-process log followers reduce the process
+footprint, but concurrent Claw workflows can still approach the platform limit.
+
+The S24 runtime therefore uses the bounded DeviceConfig value
+activity_manager/max_phantom_processes=128. This raises headroom without
+disabling Android's phantom-process monitor. The exact pre-state was an absent
+DeviceConfig override with effective default 32. Rollback is deletion of the
+DeviceConfig override, restoring the OEM default.
+
+Acceptance on 2026-10-03 used 50 temporary sleeping children (78 Termux
+processes total), moved Termux to background, and verified that the same
+claw-live PID survived with no new Trimming phantom processes event.
