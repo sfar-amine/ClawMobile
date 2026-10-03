@@ -1,9 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import datetime,json,os,pathlib,sqlite3,sys
+from context_memory import ensure_indexes, search
 H=pathlib.Path.home()
 D=pathlib.Path(os.environ.get("SAMANTHA_CONTEXT_ROOT",H/".openclaw/context-sync"))
 DB=D/"memory.db"
-SCHEMA_VERSION=2
+SCHEMA_VERSION=3
 
 def connect():
     D.mkdir(parents=True,exist_ok=True); os.chmod(D,0o700)
@@ -33,6 +34,7 @@ def migrate(c):
             head+=1; c.execute("UPDATE events SET revision=? WHERE rowid=?",(head,rowid))
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_events_revision ON events(revision)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at)")
+        ensure_indexes(c)
         c.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('schema_version',?)",(str(SCHEMA_VERSION),))
         c.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('current_revision',?)",(str(head),))
         c.execute("COMMIT")
@@ -45,12 +47,16 @@ def head(c):
     return int(c.execute("SELECT value FROM memory_meta WHERE key='current_revision'").fetchone()[0])
 
 def delta(c,after,limit=500):
-    h=head(c); after=max(0,int(after)); limit=max(1,min(int(limit),5000))
-    rows=c.execute("""SELECT id,revision,surface,kind,text,created_at,supersedes
-                      FROM events WHERE revision>? ORDER BY revision LIMIT ?""",(after,limit)).fetchall()
+    migrate(c); after=max(0,int(after)); limit=max(1,min(int(limit),5000))
+    c.execute('BEGIN')
+    try:
+        h=c.execute('SELECT COALESCE(MAX(revision),0) FROM events').fetchone()[0]
+        rows=c.execute("""SELECT id,revision,surface,kind,text,created_at,supersedes
+                          FROM events WHERE revision>? AND revision<=? ORDER BY revision LIMIT ?""",(after,h,limit)).fetchall()
+    finally: c.execute('COMMIT')
     return {"changed":h>after,"fromRevision":after,"toRevision":h,"events":[
         {"id":r[0],"revision":r[1],"surface":r[2],"kind":r[3],"text":r[4],"createdAt":r[5],"supersedes":r[6]}
-        for r in rows],"truncated": bool(rows and rows[-1][1] < h)}
+        for r in rows],"lastReturnedRevision":rows[-1][1] if rows else after,"truncated": bool(rows and rows[-1][1] < h)}
 
 def ingest_file(c,path):
     p=pathlib.Path(path)
