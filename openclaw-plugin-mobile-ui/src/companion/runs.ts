@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import type { PaymentRecord } from "./paymentTypes";
+import type { ConfirmationRecord } from "./confirmationCore";
 import os from "os";
 import path from "path";
 import { intentCanvas } from "./canvas";
@@ -25,6 +26,7 @@ type StoredRun = {
 
 type CompanionRunRegistry = {
   paymentRequests: PaymentRecord[];
+  ownerConfirmations: ConfirmationRecord[];
   runs: StoredRun[];
   archivedSessionIds: string[];
 };
@@ -1189,13 +1191,15 @@ async function saveStoredRun(run: StoredRun) {
   });
 }
 
-async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: string[], paymentRequests?: PaymentRecord[]) {
+async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: string[], paymentRequests?: PaymentRecord[], ownerConfirmations?: ConfirmationRecord[]) {
   // Payment guards share this registry but never inherit the 100-turn history eviction.
-  const payments = paymentRequests ?? (await registryOrEmpty()).paymentRequests;
+  const current = await registryOrEmpty();
+  const payments = paymentRequests ?? current.paymentRequests;
+  const confirmations = ownerConfirmations ?? current.ownerConfirmations;
   await fs.mkdir(path.dirname(runRegistryPath()), { recursive: true });
   const tmp = runRegistryPath() + ".tmp-" + process.pid;
   const file = await fs.open(tmp, "w", 0o600);
-  try { await file.writeFile(JSON.stringify({ version: 1, runs, archivedSessionIds, paymentRequests: payments }, null, 2)); await file.sync(); }
+  try { await file.writeFile(JSON.stringify({ version: 1, runs, archivedSessionIds, paymentRequests: payments, ownerConfirmations: confirmations }, null, 2)); await file.sync(); }
   finally { await file.close(); }
   await fs.rename(tmp, runRegistryPath());
   const directory = await fs.open(path.dirname(runRegistryPath()), "r");
@@ -1208,6 +1212,8 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
   const runs = Array.isArray(data?.runs) ? data.runs : [];
   if (data.paymentRequests !== undefined && !Array.isArray(data.paymentRequests)) throw new Error("invalid_payment_registry");
   const paymentRequests = (data.paymentRequests || []) as PaymentRecord[];
+  if (data.ownerConfirmations !== undefined && !Array.isArray(data.ownerConfirmations)) throw new Error("invalid_confirmation_registry");
+  const ownerConfirmations = (data.ownerConfirmations || []) as ConfirmationRecord[];
   const archivedSessionIds: string[] = Array.isArray(data?.archivedSessionIds)
     ? Array.from(new Set<string>(
       data.archivedSessionIds
@@ -1218,6 +1224,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
   return {
     archivedSessionIds,
     paymentRequests,
+    ownerConfirmations,
     runs: runs
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
@@ -1247,7 +1254,7 @@ async function readArchivedSessionIds(): Promise<Set<string>> {
 }
 
 function defaultCompanionRunRegistry(): CompanionRunRegistry {
-  return { runs: [], archivedSessionIds: [], paymentRequests: [] };
+  return { runs: [], archivedSessionIds: [], paymentRequests: [], ownerConfirmations: [] };
 }
 
 function runRegistryPath() {
@@ -1326,6 +1333,19 @@ export async function mutatePaymentRequests<T>(operation:(records:PaymentRecord[
     const registry = await registryOrEmpty();
     const result = operation(registry.paymentRequests);
     await writeCompanionRunRegistry(registry.runs, registry.archivedSessionIds, registry.paymentRequests);
+    return result;
+  });
+}
+
+export async function readOwnerConfirmations(): Promise<ConfirmationRecord[]> {
+  await registryWrite;
+  return (await registryOrEmpty()).ownerConfirmations;
+}
+export async function mutateOwnerConfirmations<T>(operation:(records:ConfirmationRecord[])=>T): Promise<T> {
+  return mutateRegistry(async () => {
+    const registry = await registryOrEmpty();
+    const result = operation(registry.ownerConfirmations);
+    await writeCompanionRunRegistry(registry.runs, registry.archivedSessionIds, registry.paymentRequests, registry.ownerConfirmations);
     return result;
   });
 }

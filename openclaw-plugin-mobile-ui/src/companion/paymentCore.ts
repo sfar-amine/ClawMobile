@@ -1,4 +1,4 @@
-import {createHash, createPublicKey, randomBytes, randomUUID, verify, KeyObject} from "crypto";
+import {createHash, randomBytes, randomUUID, verify, KeyObject} from "crypto";
 import type {PaymentAdapter, PaymentDraft, PaymentQuote, PaymentRecord, PaymentStore, PaymentExecutionResult} from "./paymentTypes";
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const HEX=/^[a-f0-9]{64}$/;
@@ -29,11 +29,7 @@ export function quoteDigest(adapterId:string,mode:string,q:PaymentQuote) {
 export function confirmationMessage(r:PaymentRecord) {
  return ["claw.payment.owner.v1",r.id,r.nonce,r.quoteHash,r.expiresAt,r.keyId].join("\n");
 }
-export function ownerKey(value:string|Buffer) {
- const key=createPublicKey(value);
- if(key.asymmetricKeyType!=="ec"||key.asymmetricKeyDetails?.namedCurve!=="prime256v1") paymentError("invalid_owner_key",503);
- return {key,id:hash(key.export({type:"spki",format:"der"}) as Buffer)};
-}
+export {ownerKey} from "./ownerConfirmationProtocol";
 function validateStored(r:PaymentRecord) {
  if(!r||r.version!==1||!UUID.test(r.id)||!STATES.has(r.state)||!HEX.test(r.nonce)||!HEX.test(r.keyId)||
  !HEX.test(r.quoteHash)||!HEX.test(r.fingerprint)||!Number.isSafeInteger(r.createdAt)||!Number.isSafeInteger(r.expiresAt)||
