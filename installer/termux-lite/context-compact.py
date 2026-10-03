@@ -1,70 +1,84 @@
 #!/data/data/com.termux/files/usr/bin/python3
-import datetime,json,os,pathlib,sqlite3,tempfile
-H=pathlib.Path.home(); D=pathlib.Path(os.environ.get('SAMANTHA_CONTEXT_ROOT',H/'.openclaw/context-sync'))
-Q=D/'pending'; P=D/'processed'; S=D/'state'; A=D/'history'
-HY=pathlib.Path(os.environ.get('SAMANTHA_HYBRID_PATH',H/'.openclaw/workspace/context/HYBRID_CONTEXT.md')); DB=D/'memory.db'
-for p in (D,Q,P,S,A,HY.parent): p.mkdir(parents=True,exist_ok=True)
-os.chmod(D,0o700); con=sqlite3.connect(DB,timeout=30); con.execute('PRAGMA journal_mode=WAL'); con.execute('PRAGMA busy_timeout=30000')
-con.execute('CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY,surface TEXT,kind TEXT,text TEXT,created_at TEXT,ingested_at TEXT,supersedes TEXT,revision INTEGER)')
-cols=[x[1] for x in con.execute('pragma table_info(events)')]
-if 'supersedes' not in cols: con.execute('ALTER TABLE events ADD COLUMN supersedes TEXT')
-if 'revision' not in cols: con.execute('ALTER TABLE events ADD COLUMN revision INTEGER')
-con.execute('CREATE TABLE IF NOT EXISTS memory_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL)')
-con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_events_revision ON events(revision)')
-head=con.execute("SELECT COALESCE(MAX(revision),0) FROM events").fetchone()[0]
-con.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('schema_version','2')")
-con.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('current_revision',?)",(str(head),))
-pending=sorted(Q.glob('*.json')); sources=sorted(P.glob('*.json'))+pending; accepted=[]; valid_pending=[]; invalid=[]
-for p in sources:
+"""Materialize a bounded, all-age active view through the existing writer lock."""
+import datetime
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+
+from context_memory import build_view, VIEW_BUDGET_BYTES
+
+HERE = Path(__file__).resolve().parent
+spec = importlib.util.spec_from_file_location('context_store', HERE / 'context-store.py')
+store = importlib.util.module_from_spec(spec); spec.loader.exec_module(store)
+D = store.D; Q = D / 'pending'; P = D / 'processed'; S = D / 'state'; A = D / 'history'
+HY = Path(os.environ.get('SAMANTHA_HYBRID_PATH', Path.home() / '.openclaw/workspace/context/HYBRID_CONTEXT.md'))
+START = '<!-- SAMANTHA_MEMORY_VIEW_START -->'; END = '<!-- SAMANTHA_MEMORY_VIEW_END -->'
+
+
+def main():
+    for p in (D, Q, P, S, A, HY.parent): p.mkdir(parents=True, exist_ok=True)
+    con = store.connect(); store.migrate(con)
+    marker = con.execute("SELECT value FROM memory_meta WHERE key='processed_reconciled_v1'").fetchone()
+    pending = sorted(Q.glob('*.json'))
+    # A fresh/restored DB reconstructs all accepted events. Routine compaction
+    # never reopens every processed JSON file on each user turn.
+    reconcile = marker is None or '--reconcile-history' in sys.argv
+    sources = (sorted(P.glob('*.json')) if reconcile else []) + pending
+    invalid = []; accepted = 0
+    for p in sources:
+        try:
+            result = store.ingest_file(con, p)
+            accepted += int(result['inserted'])
+        except Exception as exc:
+            invalid.append((str(p), str(exc)))
+    if reconcile and not invalid:
+        con.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('processed_reconciled_v1','1')")
+    old = HY.read_text() if HY.exists() else '# Claw Hybrid Conversation Context — Amine\n'
+    if old.count(START) == 1 and old.count(END) == 1:
+        pre, rest = old.split(START, 1); _, post = rest.split(END, 1)
+        pre = pre.rstrip(); post = post.lstrip()
+    elif START in old or END in old:
+        raise ValueError('ambiguous_global_view_markers')
+    else:
+        # Legacy foundation is retained, not silently erased.
+        pre, post = old.rstrip(), ''
+    now = datetime.datetime.now().astimezone()
+    prefix = START + '\n## Bounded cross-surface memory view — ' + now.strftime('%Y-%m-%d %H:%M %z') + '\n\n'
+    foundation_bytes = len((pre + '\n\n' + prefix + '\n' + END + '\n' + post).encode())
+    con.execute('BEGIN')
     try:
-        e=json.loads(p.read_text())
-        if not all(e.get(k) for k in ('id','surface','kind','text','createdAt')): raise ValueError('missing required field')
-        if e['surface'] not in ('chat','work','voice','openclaw'): raise ValueError('bad surface')
-        if e['kind'] not in ('decision','learning','open_thread','completed_action','constraint','checkpoint'): raise ValueError('bad kind')
-        now=datetime.datetime.now(datetime.timezone.utc).isoformat()
-        exists=con.execute('SELECT revision FROM events WHERE id=?',(e['id'],)).fetchone()
-        if not exists:
-            head+=1
-            con.execute('INSERT INTO events(id,surface,kind,text,created_at,ingested_at,supersedes,revision) VALUES(?,?,?,?,?,?,?,?)',
-                        (e['id'],e['surface'],e['kind'],' '.join(str(e['text']).split()),e['createdAt'],now,e.get('supersedes'),head))
-            con.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('current_revision',?)",(str(head),))
-            e['revision']=head; accepted.append(e)
-        if p.parent==Q: valid_pending.append(p)
-    except Exception as ex:
-        if p.parent==Q: invalid.append((p,str(ex)))
-con.commit()
-# Archive only newly ingested events.
-if accepted:
-    ap=A/(datetime.datetime.now().astimezone().strftime('%Y-%m')+'.jsonl')
-    with ap.open('a') as f:
-        for e in accepted: f.write(json.dumps(e,ensure_ascii=False,separators=(',',':'))+'\n')
-    os.chmod(ap,0o600)
-# Superseded facts remain in history but are excluded from the current materialized view.
-sup=set(r[0] for r in con.execute('select supersedes from events where supersedes is not null and supersedes!=""'))
-rows=con.execute('SELECT id,surface,kind,text,created_at FROM events ORDER BY created_at DESC LIMIT 500').fetchall()
-caps={'open_thread':12,'decision':18,'constraint':12,'learning':16,'completed_action':12,'checkpoint':6}; groups={k:[] for k in caps}
-for r in rows:
-    if r[0] in sup: continue
-    if r[2] in groups and len(groups[r[2]])<caps[r[2]]: groups[r[2]].append(r)
-start='<!-- SAMANTHA_MEMORY_VIEW_START -->'; end='<!-- SAMANTHA_MEMORY_VIEW_END -->'
-labels={'open_thread':'Open threads','decision':'Recent decisions','constraint':'Active constraints','learning':'Recent learnings','completed_action':'Recent completed actions','checkpoint':'Recent checkpoints'}
-out=[start,'## Bounded cross-surface memory view — '+datetime.datetime.now().astimezone().strftime('%Y-%m-%d %H:%M %z'),'','> Memory revision: '+str(head),'','> Generated from the durable event store. Full history is retrieved on demand; this view is intentionally bounded.']
-for k in caps:
-    if groups[k]:
-        out+=['','### '+labels[k]]
-        for eid,surface,kind,text,created in reversed(groups[k]): out.append(f'- [{surface}/{kind}] {text} <!-- context-event:{eid} -->')
-out+=['',end]; block='\n'.join(out)
-old=HY.read_text() if HY.exists() else '# Claw Hybrid Conversation Context — Amine\n'
-if start in old and end in old:
-    pre=old.split(start,1)[0].rstrip(); post=old.split(end,1)[1].lstrip(); new=pre+'\n\n'+block+'\n'+(('\n'+post) if post else '')
-else:
-    marker='## Cross-surface checkpoint events'; base=old.split(marker,1)[0].rstrip() if marker in old else old.rstrip(); new=base+'\n\n'+block+'\n'
-fd,tmp=tempfile.mkstemp(prefix='hybrid.',dir=str(D)); os.close(fd); pathlib.Path(tmp).write_text(new); os.chmod(tmp,0o600); os.replace(tmp,HY)
-for p in valid_pending:
-    if p.exists(): os.replace(p,P/p.name)
-(S/'last_compaction').write_text(datetime.datetime.now().astimezone().isoformat()+'\n')
-result={'pending_seen':len(pending),'accepted':len(accepted),'invalid':len(invalid),'indexed':con.execute('select count(*) from events').fetchone()[0],'view_events':sum(map(len,groups.values())),'head_revision':head}
-print(json.dumps(result,separators=(',',':')))
-if invalid:
-    for p,e in invalid: print(f'invalid pending event retained: {p.name}: {e}',file=__import__('sys').stderr)
-    raise SystemExit(65)
+        head = con.execute('SELECT COALESCE(MAX(revision),0) FROM events').fetchone()[0]
+        body, meta = build_view(con, head, foundation_bytes=foundation_bytes,
+                                budget_bytes=int(os.environ.get('SAMANTHA_CONTEXT_VIEW_BYTES', VIEW_BUDGET_BYTES)))
+        indexed = con.execute('SELECT count(*) FROM events').fetchone()[0]
+    finally:
+        con.execute('COMMIT')
+    new = pre + '\n\n' + prefix + body + '\n' + END + '\n' + (('\n' + post) if post else '')
+    meta.update(bytes=len(new.encode()), sha256=hashlib.sha256(new.encode()).hexdigest())
+    if meta['bytes'] > meta['budget_bytes']:
+        meta['coverage_complete'] = False
+        meta['budget_exceeded'] = True
+    fd, tmp = tempfile.mkstemp(prefix='hybrid.', dir=str(HY.parent))
+    try:
+        with os.fdopen(fd, 'w') as f: f.write(new)
+        os.chmod(tmp, 0o600); os.replace(tmp, HY)
+    finally:
+        if os.path.exists(tmp): os.unlink(tmp)
+    con.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('view_projection_v1',?)", (json.dumps(meta, separators=(',', ':')),))
+    con.close()
+    (S / 'last_compaction').write_text(now.isoformat() + '\n')
+    print(json.dumps({'pending_seen': len(pending), 'accepted': accepted, 'invalid': len(invalid),
+                      'indexed': indexed, 'view_events': meta['rendered_events'], 'head_revision': head,
+                      'processed_reconciled': reconcile, 'projection': meta}, separators=(',', ':')))
+    if invalid:
+        for p, error in invalid: print(f'invalid event retained: {p}: {error}', file=sys.stderr)
+        return 65
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -161,6 +161,7 @@ index($0, end_marker) {inblock=0; next}
 reset_workspace() {
   log "Resetting Termux runtime workspace seed..."
   clean_seeded_prompt_file "$WORKSPACE/AGENTS.md"
+  clean_seeded_prompt_file "$WORKSPACE/context/rules/mobile.md"
   clean_seeded_prompt_file "$WORKSPACE/TOOLS.md"
   run_best_effort rm -rf -- "$WORKSPACE/AGENTS.mobile.md" "$WORKSPACE/TOOLS.mobile.md"
   local skill=""

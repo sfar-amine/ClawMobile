@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import concurrent.futures,json,os,pathlib,shutil,sqlite3,subprocess,tempfile
-SRC=pathlib.Path.home()/'ClawMobile/installer/termux-lite'
+SRC=pathlib.Path(os.environ.get('SAMANTHA_TERMUX_LITE_SRC',pathlib.Path(__file__).resolve().parent))
 tmp=pathlib.Path(tempfile.mkdtemp(prefix='samantha-coherence.')); home=tmp/'home'; home.mkdir()
 root=home/'.openclaw/context-sync'; hybrid=home/'.openclaw/workspace/context/HYBRID_CONTEXT.md'; hybrid.parent.mkdir(parents=True); hybrid.write_text('# Coherence\n')
 env=os.environ.copy(); env.update(HOME=str(home),SAMANTHA_CONTEXT_ROOT=str(root),SAMANTHA_HYBRID_PATH=str(hybrid))

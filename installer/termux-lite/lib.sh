@@ -551,6 +551,11 @@ clawmobile_sync_marked_block() {
   local action="Injected"
 
   [ -f "$block" ] || return 0
+  # Compacted rules keep the mobile installer block in its canonical module.
+  if [ "$(basename "$target")" = "AGENTS.md" ] && grep -qF '<!-- CONTEXT_RULES_COMPACT_V1 -->' "$target" 2>/dev/null; then
+    target="$(dirname "$target")/context/rules/mobile.md"
+    [ -f "$target" ] || { echo "[lite] ERROR: compact mobile rule module missing." >&2; return 1; }
+  fi
   mkdir -p "$(dirname "$target")"
   touch "$target"
 

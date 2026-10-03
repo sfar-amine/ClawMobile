@@ -61,12 +61,13 @@ with closing(sqlite3.connect(root / "memory.db")) as conn:
     actions = [x[0] for x in conn.execute("select action from dream_proposals order by action")]
 
 assert before == after == 5
-assert actions == ["confirm_supersession", "consolidate_duplicate", "improvement_candidate"], actions
-assert r1["newProposals"] == 3
+assert actions == ["confirm_supersession", "consolidate_duplicate", "improvement_candidate", "memory_digest"], actions
+assert r1["newProposals"] == 4
 assert r1["improvementEvents"] == 1
 assert r1["invalidImprovementEvents"] == []
 assert r1["improvementBridge"]["state"] == "noop"
 assert r2["newProposals"] == 0
+assert r2["eventsScanned"] == 0
 print("PASS D01 shadow proposals immutable + idempotent + structured improvement")
 print("RESULT 1/1 PASS")
 shutil.rmtree(tmp, ignore_errors=True)
