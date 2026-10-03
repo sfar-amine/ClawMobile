@@ -196,8 +196,22 @@ function compactReply(receipt) {
     mutationRisk: receipt?.mutationRisk,
     error: receipt?.error,
     artifact,
-    preview: String(result?.preview || "").slice(0, 8000),
+    truncated: true,
+    resultChars: JSON.stringify(result).length,
+    execution: {
+      success: result.success, exitCode: result.exitCode,
+      timedOut: result.timedOut, durationMs: result.durationMs,
+    },
+    receiptPath: /^[A-Za-z0-9._-]{1,128}$/.test(requestId)
+      ? path.join(os.homedir(), ".openclaw", "remote-bridge", "requests", requestId + ".json")
+      : undefined,
+    preview: String(result.preview ?? result.stdout ?? result.text ?? JSON.stringify(result)).slice(0, 8000),
+    stderrPreview: String(result.stderr || "").slice(0, 1000),
   };
+  // JSON escaping can inflate a preview. Keep the entire reply bounded.
+  while (prefix.length + JSON.stringify(summary).length + 20 > MAX_REPLY_CHARS && summary.preview.length) {
+    summary.preview = summary.preview.slice(0, Math.floor(summary.preview.length / 2));
+  }
   return prefix + "```json\n" + JSON.stringify(summary) + "\n```";
 }
 

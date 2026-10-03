@@ -195,3 +195,14 @@ Acceptance:
 
 The Slack user token is stored locally mode 0600 and is used only for public-channel thread reads and deletion of ChatGPT/owner parent messages. Bot replies use the existing bot token.
 - simulated Slack API unavailability fails the purge cycle without deleting any message; the existing hourly scheduler provides the next retry.
+
+## Reply truncation repair — 2026-10-03
+Results between the adapter's 26,000-character threshold and the core's 48-KiB artifact threshold used to lose stdout, exitCode and stderr in compactReply. The adapter now includes a real bounded preview, execution metadata, stderrPreview and truncated=true. The complete local receipt is unchanged. A completed RPC with truncated=true is not a transport outage; recover its stored result instead of replaying execution.
+
+Use small file ranges and intent-specific projections. For artifacts, call artifact_read with a bounded maxBytes such as 6000. Large context concatenation increases connector/model work and should not be on a warm balance request path.
+
+CLAW_RPC_V1_B64 means base64url without padding (Node: Buffer.from(JSON.stringify(payload),"utf8").toString("base64url")). Standard Base64 containing + or / is not this envelope. Use plain JSON only for simple payloads that do not depend on Markdown-sensitive punctuation.
+
+The regression sends an inline stdout above 33,000 characters with exitCode 7 and stderr KNOWN_ERROR, verifies the useful compact reply and confirms the full receipt remains readable. Existing owner filtering, shadow-mode, idempotence, 429 and reconnect tests pass.
+
+Paired latency analysis and measured results: samantha-ui-playbooks/telecom/BALANCE_LATENCY_AUDIT_20261003.md.

@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "architecture": {
+    "changed": false,
+    "reason": "Extends existing read client and Slack reply adapter; no new service, scheduler, provider or business rule."
+  },
+  "id": "slack-results-20261003",
+  "summary": "Preserve output preview and execution status for oversized inline Slack RPC replies.",
+  "reason": "26-48 KB inline receipts were replaced by completed plus an empty preview because only artifact previews were considered.",
+  "files": [
+    "installer/termux-lite/claw-slack-bridge.mjs",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-slack.cjs",
+    "docs/remote-bridge.md",
+    "docs/changes/slack-results-20261003.json"
+  ],
+  "tests": [
+    {
+      "name": "remote-bridge-slack",
+      "status": "passed",
+      "evidence": {
+        "command": "node scripts/test-remote-bridge-slack.cjs",
+        "result": "PASS including 33 KB output with exitCode 7"
+      }
+    },
+    {
+      "name": "remote-bridge-slack-resilience",
+      "status": "passed",
+      "evidence": {
+        "command": "node scripts/test-remote-bridge-slack-resilience.cjs",
+        "result": "PASS 429 retry and reconnect"
+      }
+    }
+  ],
+  "documentation": [
+    "docs/remote-bridge.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Capability registry and audit are in paired ui-playbooks change balance-fast-20261003; RPC methods and permission boundaries unchanged."
+  },
+  "rollback": "Revert this commit and restore the preceding immutable runtime release.",
+  "limitations": [
+    "Replies remain deliberately truncated; full receipts/artifacts are retained and must be retrieved in bounded reads.",
+    "This change does not reduce connector latency or the model orchestration time by itself."
+  ]
+}

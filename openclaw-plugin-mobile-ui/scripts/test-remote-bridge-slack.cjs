@@ -197,6 +197,19 @@ async function main() {
   await waitFor(() => posts.filter((post) => String(post.text).includes("request=s-write state=completed")).length === 2);
   assert.equal(fs.readFileSync(testFile, "utf8"), "X");
 
+  // Regression: 26-48 KB inline results used to become an empty preview.
+  await sendEvent(rpcB64({
+    requestId: "s-medium-output", method: "exec_wait",
+    params: { command: "python -c \"import sys; print('MEDIUM_OUTPUT_' + 'x' * 33000); print('KNOWN_ERROR', file=sys.stderr); sys.exit(7)\"" },
+  }));
+  const mediumPost = await waitFor(() => posts.find((post) => String(post.text).includes("request=s-medium-output state=completed")));
+  assert.ok(mediumPost.text.includes("MEDIUM_OUTPUT_"));
+  assert.ok(mediumPost.text.includes("KNOWN_ERROR"));
+  assert.ok(mediumPost.text.includes('"exitCode":7'));
+  assert.ok(mediumPost.text.includes('"truncated":true'));
+  assert.ok(mediumPost.text.length <= 26000);
+  assert.ok(JSON.parse(fs.readFileSync(path.join(bridgeDir, "requests", "s-medium-output.json"), "utf8")).result.stdout.length > 33000);
+
   const before = posts.length;
   await sendEvent(
     'CLAW_RPC_V1\n{"requestId":"s-wrong-user","method":"ping","params":{}}',
