@@ -49,6 +49,7 @@ import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } 
 import { clawmobile_batch_execute } from "./tools/batch";
 import { handleOwnerFastPath } from "./modelFastPath";
 import { clawmobile_capability } from "./capabilityTool";
+import { createProviderFallbackCoordinator } from "./providerFallback";
 
 type JsonSchema = Record<string, any>;
 
@@ -178,6 +179,25 @@ function register(api: any) {
   // Public plugin surface for OpenClaw.
   // This file is the contract boundary between the OpenClaw runtime and the
   // mobile runtime implementation below.
+
+  const providerFallback = createProviderFallbackCoordinator(api);
+  api.on("before_model_resolve", (event: any, ctx: any) =>
+    providerFallback.beforeModelResolve(event, ctx),
+  );
+  api.on("model_call_ended", (event: any, ctx: any) =>
+    providerFallback.modelCallEnded(event, ctx),
+  );
+  api.on("before_tool_call", (event: any, ctx: any) =>
+    providerFallback.beforeToolCall(event, ctx),
+  );
+  api.on("before_prompt_build", (event: any, ctx: any) =>
+    providerFallback.beforePromptBuild(event, ctx),
+  );
+  api.on(
+    "before_agent_reply",
+    (event: any, ctx: any) => providerFallback.beforeAgentReply(event, ctx),
+    { eligibleTriggers: ["user"], timeoutMs: 70000 },
+  );
 
   api.on("inbound_claim", async (event: any, ctx: any) => {
     const result = await handleOwnerFastPath(event, ctx);

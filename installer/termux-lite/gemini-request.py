@@ -23,6 +23,7 @@ TRANSIENT_RETRY_DELAY_S = 0.5
 EXPECTED_WORKSPACE = HOME / ".openclaw/workspaces/gemini"
 EXPECTED_BOOTSTRAP_MAX = 1600
 EXPECTED_BOOTSTRAP_TOTAL = 2600
+PROVIDER_FALLBACK_SESSION_PREFIX = "provider-fallback-"
 
 SECRET_PATTERNS = (
     re.compile(r"AIza[0-9A-Za-z_-]{20,}"),
@@ -127,6 +128,17 @@ def runtime_script(name: str) -> Path:
     return fallback
 
 
+def current_memory_revision() -> int:
+    try:
+        run = subprocess.run(
+            [str(runtime_script("context-head.sh"))],
+            capture_output=True, text=True, timeout=8, check=True,
+        )
+        return int(run.stdout.strip())
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0
+
+
 def compact_memory(message: str) -> tuple[int, list[dict]]:
     head_run = subprocess.run(
         [str(runtime_script("context-head.sh"))],
@@ -146,14 +158,14 @@ def compact_memory(message: str) -> tuple[int, list[dict]]:
     return revision, safe
 
 
-def capability_hint(message: str) -> dict:
+def capability_hint(message: str, caller: str = "owner") -> dict:
     local = Path(__file__).resolve().with_name("claw-capability.py")
     script = local if local.exists() else runtime_script("claw-capability.py")
     if not script.exists():
         return {}
     try:
         run = subprocess.run(
-            [sys.executable, str(script), "resolve", message, "--surface", "gemini_claw", "--caller", "owner"],
+            [sys.executable, str(script), "resolve", message, "--surface", "gemini_claw", "--caller", caller],
             capture_output=True, text=True, timeout=8,
         )
         value = json.loads(run.stdout or "{}")
@@ -193,6 +205,19 @@ def build_prompt(message: str, revision: int, memory: list[dict], capability: di
         "For durable decisions/actions follow the existing context-event contract; "
         "never persist raw transcripts or secrets. "
         f"CAPABILITY_HINT={cap}\nMEMORY={package}\nUSER={message}"
+    )
+
+
+def build_provider_fallback_prompt(message: str, caller: str, revision: int) -> str:
+    return (
+        "You are Samantha on Claw's emergency provider fallback. "
+        "OpenAI could not complete this text turn, so answer the current user message directly. "
+        "This is answer-only recovery: do not call tools, do not claim an action was executed, "
+        "do not claim access to private owner context, and do not infer or expose private data. "
+        "Use only the current message plus the generic workspace identity/safety rules. "
+        f"Caller class is {caller}; canonical memory revision {revision} is trace metadata only "
+        "and no private memory payload is supplied. "
+        f"USER={message}"
     )
 
 
@@ -299,6 +324,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Free-only Claw Gemini request entrypoint")
     parser.add_argument("--session", default="default")
     parser.add_argument("--timeout", type=int, default=60)
+    parser.add_argument("--provider-fallback", action="store_true")
+    parser.add_argument("--caller", choices=("owner", "trusted"), default="owner")
     parser.add_argument("message", nargs="*")
     args = parser.parse_args()
     message = " ".join(args.message).strip()
@@ -314,31 +341,32 @@ def main() -> int:
     ensure_free_policy()
     ensure_efficiency_policy()
 
-    fast = fast_path_request(message)
-    if fast.get("status") == "hit":
-        print(json.dumps({
-            "status": "ok",
-            "source": "deterministic",
-            "text": str(fast.get("text") or ""),
-            "provider": None,
-            "model": None,
-            "rerouted": False,
-            "reported_cost_usd": 0,
-            "provider_attempts": 0,
-            "fast_path": {
-                "target": fast.get("target"),
-                "intent": fast.get("intent"),
-                "route": fast.get("route"),
-            },
-        }, ensure_ascii=False))
-        return 0
-    if fast.get("status") == "error" and fast.get("reason") == "route_failed":
-        print(json.dumps({
-            "status": "degraded",
-            "reason": "deterministic_fast_path_failed",
-            "provider_attempts": 0,
-        }))
-        return 75
+    if not args.provider_fallback:
+        fast = fast_path_request(message)
+        if fast.get("status") == "hit":
+            print(json.dumps({
+                "status": "ok",
+                "source": "deterministic",
+                "text": str(fast.get("text") or ""),
+                "provider": None,
+                "model": None,
+                "rerouted": False,
+                "reported_cost_usd": 0,
+                "provider_attempts": 0,
+                "fast_path": {
+                    "target": fast.get("target"),
+                    "intent": fast.get("intent"),
+                    "route": fast.get("route"),
+                },
+            }, ensure_ascii=False))
+            return 0
+        if fast.get("status") == "error" and fast.get("reason") == "route_failed":
+            print(json.dumps({
+                "status": "degraded",
+                "reason": "deterministic_fast_path_failed",
+                "provider_attempts": 0,
+            }))
+            return 75
 
     now = int(time.time())
     prior = load_status()
@@ -351,9 +379,16 @@ def main() -> int:
         }))
         return 75
 
-    revision, memory = compact_memory(message)
-    capability = capability_hint(message)
-    prompt = build_prompt(message, revision, memory, capability)
+    if args.provider_fallback:
+        if not args.session.startswith(PROVIDER_FALLBACK_SESSION_PREFIX):
+            args.session = f"{PROVIDER_FALLBACK_SESSION_PREFIX}{args.caller}-{args.session}"
+        revision = current_memory_revision()
+        prompt = build_provider_fallback_prompt(message, args.caller, revision)
+    else:
+        revision, memory = compact_memory(message)
+        capability = capability_hint(message, args.caller)
+        prompt = build_prompt(message, revision, memory, capability)
+
     timeout_s = max(10, min(args.timeout, 120))
     attempts = 1
     run = provider_call(prompt, args.session, timeout_s)

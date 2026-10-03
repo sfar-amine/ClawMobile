@@ -19,7 +19,8 @@
     "test:remote-bridge-slack": "node scripts/test-remote-bridge-slack.cjs",
     "test:remote-bridge-slack-resilience": "node scripts/test-remote-bridge-slack-resilience.cjs",
     "accept:remote-bridge-runtime": "python3 scripts/accept-remote-bridge-runtime.py",
-    "test:trace-induction": "node scripts/test-trace-induction.cjs"
+    "test:trace-induction": "node scripts/test-trace-induction.cjs",
+    "test:provider-fallback": "node scripts/test-provider-fallback.cjs"
   },
 
   "dependencies": {

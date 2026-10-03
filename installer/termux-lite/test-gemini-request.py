@@ -277,5 +277,51 @@ class GeminiRequestTests(unittest.TestCase):
         self.assertIn("CAPABILITY_HINT=", prompt)
 
 
+    def test_provider_fallback_prompt_is_answer_only_without_memory_payload(self):
+        prompt = mod.build_provider_fallback_prompt("hello", "trusted", 42)
+        self.assertIn("answer-only", prompt)
+        self.assertIn("USER=hello", prompt)
+        self.assertNotIn("MEMORY=", prompt)
+        self.assertNotIn("CAPABILITY_HINT=", prompt)
+        self.assertIn("do not call tools", prompt)
+
+    def test_provider_fallback_skips_fast_path_memory_and_capability(self):
+        import io
+        import subprocess
+        completed = subprocess.CompletedProcess([], 0, '{"status":"ok"}', "")
+        with tempfile.TemporaryDirectory() as td:
+            old_state = mod.STATE
+            mod.STATE = Path(td) / "state.json"
+            try:
+                with mock.patch.object(mod, "ensure_free_policy"),                      mock.patch.object(mod, "ensure_efficiency_policy"),                      mock.patch.object(mod, "fast_path_request") as fast,                      mock.patch.object(mod, "compact_memory") as memory,                      mock.patch.object(mod, "capability_hint") as capability,                      mock.patch.object(mod, "current_memory_revision", return_value=77),                      mock.patch.object(mod, "provider_call", return_value=completed) as provider,                      mock.patch.object(mod, "compact_success", return_value={
+                         "status": "ok",
+                         "text": "fallback-ok",
+                         "provider": "google",
+                         "model": mod.MODEL_ID,
+                         "rerouted": False,
+                         "reported_cost_usd": 0,
+                         "provider_attempts": 1,
+                     }),                      mock.patch.object(sys, "argv", [
+                         "gemini-request.py",
+                         "--provider-fallback",
+                         "--caller", "trusted",
+                         "--session", "acceptance",
+                         "hello",
+                     ]),                      mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+                    rc = mod.main()
+                result = json.loads(output.getvalue())
+            finally:
+                mod.STATE = old_state
+        self.assertEqual(rc, 0)
+        self.assertEqual(result["provider"], "google")
+        fast.assert_not_called()
+        memory.assert_not_called()
+        capability.assert_not_called()
+        args = provider.call_args.args
+        self.assertIn("answer-only", args[0])
+        self.assertTrue(args[1].startswith(mod.PROVIDER_FALLBACK_SESSION_PREFIX))
+
+
+
 if __name__ == "__main__":
     unittest.main()

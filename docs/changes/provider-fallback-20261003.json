@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "id": "provider-fallback-20261003",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add bounded OpenAI-to-Google-Free answer-only provider fallback after terminal OpenAI cooldown/failure.",
+  "reason": "The existing main fallback Sol-to-Luna stays inside OpenAI and therefore cannot recover from provider-wide OpenAI cooldown.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/providerFallback.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-provider-fallback.cjs",
+    "openclaw-plugin-mobile-ui/package.json",
+    "installer/termux-lite/gemini-request.py",
+    "installer/termux-lite/test-gemini-request.py",
+    "docs/runtime/provider-fallback.md",
+    "docs/08-decisions/ADR-20261003-provider-fallback.md",
+    "docs/changes/provider-fallback-20261003.json"
+  ],
+  "tests": [
+    {"name": "typescript-build", "status": "passed", "evidence": "openclaw-plugin-mobile-ui npm run build passed."},
+    {"name": "provider-fallback-plugin", "status": "passed", "evidence": "test-provider-fallback.cjs passed recovery, no-tool-replay, zero-cost rejection, session tool-disable and attachment boundaries."},
+    {"name": "gemini-wrapper", "status": "passed", "evidence": "test-gemini-request.py: 19 tests passed, including answer-only fallback without memory/capability retrieval."},
+    {"name": "model-fast-path-and-capability-regression", "status": "passed", "evidence": "test-model-fast-path.cjs and test-capability-tool.cjs passed."}
+  ],
+  "documentation": ["docs/runtime/provider-fallback.md", "docs/08-decisions/ADR-20261003-provider-fallback.md"],
+  "capabilities": {"impact": "none", "ids": [], "reason": "No new user capability is introduced; this adds availability recovery to the existing conversational provider path."},
+  "architecture": {"changed": true, "reason": "Adds bounded inter-provider coordination while reusing the existing mobile plugin, Gemini agent and wrapper; no new execution owner or persistent subsystem.", "documents": ["docs/08-decisions/ADR-20261003-provider-fallback.md"]},
+  "rollback": "Revert the provider-fallback commit, rebuild/reinstall the previous mobile plugin and reload OpenClaw.",
+  "limitations": [
+    "Fallback is answer-only and skips any turn that already called a tool.",
+    "Fallback currently covers direct allowlisted WhatsApp text turns on the main agent.",
+    "Attachments do not use provider fallback.",
+    "If Google Free Tier is unavailable or quota-exhausted, no paid fallback is attempted."
+  ]
+}
