@@ -1,9 +1,9 @@
 import {createHash, randomBytes, randomUUID, verify, KeyObject} from "crypto";
-import type {PaymentAdapter, PaymentDraft, PaymentQuote, PaymentRecord, PaymentStore, PaymentExecutionResult} from "./paymentTypes";
+import type {PaymentAdapter, PaymentDraft, PaymentQuote, PaymentRecord, PaymentStore, PaymentExecutionResult, PaymentContinuation} from "./paymentTypes";
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const HEX=/^[a-f0-9]{64}$/;
 const STATES=new Set(["awaiting_owner","executing","demo_confirmed","confirmed","failed","cancelled","expired","blocked","effect_unknown","requires_bank_action"]);
-const REASONS=new Set(["gateway_and_provider_confirmed","bank_declined","payment_cancelled","session_expired","bank_verification_required","payment_effect_unverified"]);
+const REASONS=new Set(["gateway_and_provider_confirmed","bank_declined","payment_cancelled","session_expired","bank_verification_required","bank_verification_failed","payment_effect_unverified"]);
 export function paymentError(code:string,statusCode=400):never {throw Object.assign(new Error(code),{statusCode});}
 function object(value:any,keys:string[]) {
  if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).length!==keys.length||keys.some(k=>!Object.prototype.hasOwnProperty.call(value,k))) paymentError("invalid_payment_request");
@@ -26,6 +26,13 @@ export function validateQuote(v:any):PaymentQuote {
 export function quoteDigest(adapterId:string,mode:string,q:PaymentQuote) {
  return hash(["claw.payment.quote.v1",adapterId,mode,q.payee,q.reference,q.amountMinor,q.currency,q.decimals].join("\n"));
 }
+function validateContinuation(v:any):PaymentContinuation {
+ object(v,["provider","checkoutId","gatewayOrderId"]);
+ if(typeof v.provider!=="string"||!/^[a-z][a-z0-9_.-]{1,60}$/.test(v.provider)||
+  typeof v.checkoutId!=="string"||!/^[0-9]{1,32}$/.test(v.checkoutId)||
+  typeof v.gatewayOrderId!=="string"||!UUID.test(v.gatewayOrderId))paymentError("invalid_payment_continuation",502);
+ return {provider:v.provider,checkoutId:v.checkoutId,gatewayOrderId:v.gatewayOrderId};
+}
 export function confirmationMessage(r:PaymentRecord) {
  return ["claw.payment.owner.v1",r.id,r.nonce,r.quoteHash,r.expiresAt,r.keyId].join("\n");
 }
@@ -33,8 +40,10 @@ export {ownerKey} from "./ownerConfirmationProtocol";
 function validateStored(r:PaymentRecord) {
  if(!r||r.version!==1||!UUID.test(r.id)||!STATES.has(r.state)||!HEX.test(r.nonce)||!HEX.test(r.keyId)||
  !HEX.test(r.quoteHash)||!HEX.test(r.fingerprint)||!Number.isSafeInteger(r.createdAt)||!Number.isSafeInteger(r.expiresAt)||
- r.expiresAt-r.createdAt!==120000||!Number.isSafeInteger(r.executorAttempts)||r.executorAttempts<0||r.executorAttempts>1) paymentError("payment_record_invalid",503);
+ r.expiresAt-r.createdAt!==120000||!Number.isSafeInteger(r.executorAttempts)||r.executorAttempts<0||r.executorAttempts>1||
+ !Number.isSafeInteger(r.bankResumeAttempts)||r.bankResumeAttempts<0||r.bankResumeAttempts>1) paymentError("payment_record_invalid",503);
  const d=validateDraft(r.draft),q=validateQuote(r.quote);
+ if(r.continuation!==undefined){const c=validateContinuation(r.continuation);if(c.provider!==d.adapterId)paymentError("payment_record_invalid",503);}
  if(quoteDigest(d.adapterId,d.mode,q)!==r.quoteHash||hash(JSON.stringify(d))!==r.fingerprint) paymentError("payment_record_invalid",503);
 }
 export function paymentView(r:PaymentRecord) {
@@ -44,17 +53,18 @@ export function paymentView(r:PaymentRecord) {
  receipt:r.state==="confirmed"?r.receipt:undefined,
  metrics:{preparationMs:r.preparationMs,ownerWaitMs:r.acceptedAt===undefined?null:Math.max(0,r.acceptedAt-r.createdAt),
  executionMs:r.endedAt===undefined||r.executionStartedAt===undefined?null:Math.max(0,r.endedAt-r.executionStartedAt),
- totalMs:r.endedAt===undefined?null:Math.max(0,r.endedAt-r.createdAt+r.preparationMs),executorAttempts:r.executorAttempts}};
+ bankWaitMs:r.resumedAt===undefined||r.bankActionRequiredAt===undefined?null:Math.max(0,r.resumedAt-r.bankActionRequiredAt),
+ totalMs:r.endedAt===undefined?null:Math.max(0,r.endedAt-r.createdAt+r.preparationMs),executorAttempts:r.executorAttempts,bankResumeAttempts:r.bankResumeAttempts??0}};
 }
 export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAdapter[];key:()=>{key:KeyObject;id:string};clock?:()=>number;timeouts?:{quoteMs?:number;executionMs?:number}}) {
  const now=options.clock||Date.now,bootId=randomUUID(),adapters=new Map<string,PaymentAdapter>();
  for(const a of options.adapters) {
   if(adapters.has(a.id)||!/^[a-z][a-z0-9_.-]{1,60}$/.test(a.id)||!["demo","live"].includes(a.mode)||
-   (a.executionValidated&&(!a.quote||!a.revalidate||!a.execute))) paymentError("invalid_payment_adapter",503);
+   (a.executionValidated&&(!a.quote||!a.revalidate||!a.execute||(a.mode==="live"&&!a.resume)))) paymentError("invalid_payment_adapter",503);
   adapters.set(a.id,a);
  }
  const quoteMs=options.timeouts?.quoteMs??10000,executionMs=options.timeouts?.executionMs??45000;
- for(const ms of [quoteMs,executionMs]) if(!Number.isInteger(ms)||ms<1||ms>45000)paymentError("invalid_payment_timeout",503);
+ if(!Number.isInteger(quoteMs)||quoteMs<1||quoteMs>45000||!Number.isInteger(executionMs)||executionMs<1||executionMs>90000)paymentError("invalid_payment_timeout",503);
  async function bounded<T>(operation:()=>Promise<T>,ms:number):Promise<T> {
   let timer:ReturnType<typeof setTimeout>|undefined;
   try {return await Promise.race([Promise.resolve().then(operation),new Promise<never>((_,reject)=>{
@@ -69,6 +79,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
   return a;
  };
  const normalize=(r:PaymentRecord)=>{
+  if(r.bankResumeAttempts===undefined)r.bankResumeAttempts=0;
   validateStored(r);
   if(r.state==="awaiting_owner"&&(now()>=r.expiresAt||now()<r.createdAt)) {
    r.state="expired";r.reasonCode="owner_confirmation_expired";r.endedAt=now();r.updatedAt=now();
@@ -84,11 +95,41 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
   if(!r)paymentError("payment_request_not_found",404);
   return normalize(r);
  };
- const finish=async(id:string,state:PaymentRecord["state"],reason:string,receipt?:PaymentRecord["receipt"])=>options.store.change(rows=>{
+ const finish=async(id:string,state:PaymentRecord["state"],reason:string,receipt?:PaymentRecord["receipt"],continuation?:PaymentContinuation)=>options.store.change(rows=>{
   const r=locate(rows,id);
   if(r.state!=="executing")return paymentView(r);
-  r.state=state;r.reasonCode=reason;r.receipt=receipt;r.updatedAt=now();r.endedAt=now();return paymentView(r);
+  r.state=state;r.reasonCode=reason;r.receipt=receipt;r.updatedAt=now();
+  if(state==="requires_bank_action"){
+   if(!continuation)paymentError("invalid_payment_continuation",502);
+   const c=validateContinuation(continuation);if(c.provider!==r.draft.adapterId)paymentError("invalid_payment_continuation",502);
+   r.continuation=c;r.bankActionRequiredAt=now();delete r.endedAt;
+  } else r.endedAt=now();
+  return paymentView(r);
  });
+ const applyResult=async(id:string,mode:PaymentDraft["mode"],result:PaymentExecutionResult)=>{
+  if(!result||!["confirmed","failed","effect_unknown","requires_bank_action"].includes(result.state)||!REASONS.has(result.reasonCode))
+   return finish(id,"effect_unknown","invalid_payment_adapter_result");
+  const reasons:Record<string,string[]>={confirmed:["gateway_and_provider_confirmed"],
+   failed:["bank_declined","bank_verification_failed","payment_cancelled","session_expired"],
+   requires_bank_action:["bank_verification_required"],effect_unknown:["payment_effect_unverified"]};
+  if(!reasons[result.state].includes(result.reasonCode))return finish(id,"effect_unknown","invalid_payment_adapter_result");
+  if(result.state==="failed"&&result.rejectionVerified!==true)return finish(id,"effect_unknown","payment_rejection_unverified");
+  if(mode==="demo") {
+   if(result.state!=="confirmed")return finish(id,"effect_unknown","demo_result_unverified");
+   return finish(id,"demo_confirmed","demo_only_no_payment");
+  }
+  if(result.state==="requires_bank_action") {
+   if(!result.continuation)return finish(id,"effect_unknown","payment_effect_unverified");
+   return finish(id,"requires_bank_action",result.reasonCode,undefined,result.continuation);
+  }
+  if(result.state==="confirmed") {
+   const receipt=result.receipt;
+   if(!receipt||!safeText(receipt.reference)||receipt.transactionCorrelated!==true||receipt.providerReconciled!==true)
+    return finish(id,"effect_unknown","payment_receipt_unverified");
+   return finish(id,"confirmed",result.reasonCode,{reference:receipt.reference,transactionCorrelated:true,providerReconciled:true});
+  }
+  return finish(id,result.state,result.reasonCode);
+ };
  return {
   capabilities:()=>({schemaVersion:1,capability:"payment.owner_native",ownerConfirmation:"native_key_required",
    realPaymentsEnabled:[...adapters.values()].some(a=>a.mode==="live"&&a.executionValidated),
@@ -114,7 +155,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
     if(rows.length>=1000)paymentError("payment_registry_capacity_reached",409);
     const r:PaymentRecord={version:1,id:randomUUID(),draft,fingerprint,quote,quoteHash:quoteDigest(draft.adapterId,draft.mode,quote),
      nonce:randomBytes(32).toString("hex"),keyId:key.id,createdAt:created,expiresAt:created+120000,updatedAt:created,
-     state:"awaiting_owner",reasonCode:"owner_confirmation_required",preparationMs:Math.max(0,created-started),executorAttempts:0};
+     state:"awaiting_owner",reasonCode:"owner_confirmation_required",preparationMs:Math.max(0,created-started),executorAttempts:0,bankResumeAttempts:0};
     rows.push(r);return paymentView(r);
    });
   },
@@ -167,24 +208,24 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
    }); } catch { return finish(id,"blocked","payment_dispatch_precondition_changed"); }
    try {
     const result:PaymentExecutionResult=await bounded(()=>adapter.execute!(claimed.quote,id),executionMs);
-    if(!result||!["confirmed","failed","effect_unknown","requires_bank_action"].includes(result.state)||!REASONS.has(result.reasonCode))
-     return finish(id,"effect_unknown","invalid_payment_adapter_result");
-    const reasons:Record<string,string[]>={confirmed:["gateway_and_provider_confirmed"],
-     failed:["bank_declined","payment_cancelled","session_expired"],
-     requires_bank_action:["bank_verification_required"],effect_unknown:["payment_effect_unverified"]};
-    if(!reasons[result.state].includes(result.reasonCode))return finish(id,"effect_unknown","invalid_payment_adapter_result");
-    if(result.state==="failed"&&result.rejectionVerified!==true)return finish(id,"effect_unknown","payment_rejection_unverified");
-    if(claimed.draft.mode==="demo") {
-     if(result.state!=="confirmed")return finish(id,"effect_unknown","demo_result_unverified");
-     return finish(id,"demo_confirmed","demo_only_no_payment");
-    }
-    if(result.state==="confirmed") {
-     const receipt=result.receipt;
-     if(!receipt||!safeText(receipt.reference)||receipt.transactionCorrelated!==true||receipt.providerReconciled!==true)
-      return finish(id,"effect_unknown","payment_receipt_unverified");
-     return finish(id,"confirmed",result.reasonCode,{reference:receipt.reference,transactionCorrelated:true,providerReconciled:true});
-    }
-    return finish(id,result.state,result.reasonCode);
+    return applyResult(id,claimed.draft.mode,result);
+   } catch {return finish(id,"effect_unknown","payment_effect_unverified");}
+  },
+  async resume(id:string) {
+   const claimed=await options.store.change(rows=>{
+    const r=locate(rows,id);
+    if(r.state!=="requires_bank_action"||r.executorAttempts!==1||r.bankResumeAttempts!==0)
+     paymentError("payment_resume_not_available",409);
+    const adapter=available(r.draft.adapterId,r.draft.mode);
+    if(typeof adapter.resume!=="function"||!r.continuation)paymentError("payment_resume_not_available",409);
+    r.state="executing";r.reasonCode="bank_action_resuming";r.executionBootId=bootId;
+    r.bankResumeAttempts=1;r.resumedAt=now();r.updatedAt=now();
+    return JSON.parse(JSON.stringify(r)) as PaymentRecord;
+   });
+   const adapter=available(claimed.draft.adapterId,claimed.draft.mode);
+   try {
+    const result:PaymentExecutionResult=await bounded(()=>adapter.resume!(claimed.quote,id,claimed.continuation),executionMs);
+    return applyResult(id,claimed.draft.mode,result);
    } catch {return finish(id,"effect_unknown","payment_effect_unverified");}
   }
  };

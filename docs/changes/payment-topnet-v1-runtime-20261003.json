@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "id": "payment-topnet-v1-runtime-20261003",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add fail-closed same-request continuation to the existing payment core; live execution remains disabled.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/paymentTypes.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "openclaw-plugin-mobile-ui/package.json",
+    "docs/runtime/native-payment-confirmation.md",
+    "docs/changes/payment-topnet-v1-runtime-20261003.json"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "Companion TypeScript build passed on S24."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "43 payment-core assertions passed."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability truth and activation status are owned by ui-playbooks; this repository implements that existing contract."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The change reuses the existing Payment Core, Companion HTTP boundary and confirmation subsystem defined by the canonical ADR."
+  },
+  "rollback": "Restore the prior runtime while retaining existing payment guard records.",
+  "limitations": [
+    "Live providers remain disabled.",
+    "Physical end-to-end acceptance remains separate."
+  ],
+  "reason": "Implement the already approved bounded payment continuation contract in the existing Companion runtime.",
+  "documentation": [
+    "docs/runtime/native-payment-confirmation.md"
+  ]
+}
