@@ -23,12 +23,12 @@
     {
       "name": "typescript-build",
       "status": "passed",
-      "evidence": "Companion TypeScript build passed on S24 before final clean-branch validation."
+      "evidence": "Companion TypeScript build passed on the clean S24 delivery branch after integration with current main."
     },
     {
       "name": "payment-core",
       "status": "passed",
-      "evidence": "43 payment-core assertions passed before final clean-branch validation."
+      "evidence": "43 payment-core assertions, 21 owner-confirmation assertions and the API/registry fail-closed acceptance passed on the clean delivery branch."
     }
   ],
   "documentation": [

@@ -189,7 +189,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       writeJson(res,200,confirmations.capabilities()); return;
     }
     if (method === "POST" && routePath === "/confirmations") {
-      writeJson(res,200,await confirmations.prepare(await readJsonBody(req,4096))); return;
+      writeJson(res,200,await confirmations.prepare(await readJsonBodyLimited(req,4096))); return;
     }
     const match = /^\/confirmations\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|cancel))?$/.exec(routePath);
     if (match) {
@@ -197,10 +197,10 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if (method === "GET" && !action) {writeJson(res,200,await confirmations.status(id)); return;}
       if (method === "GET" && action === "challenge") {writeJson(res,200,await confirmations.challenge(id)); return;}
       if (method === "POST" && action === "owner-confirmation") {
-        writeJson(res,200,await confirmations.confirm(id,await readJsonBody(req,2048))); return;
+        writeJson(res,200,await confirmations.confirm(id,await readJsonBodyLimited(req,2048))); return;
       }
       if (method === "POST" && action === "cancel") {
-        const body=await readJsonBody(req,256);
+        const body=await readJsonBodyLimited(req,256);
         if (!body || typeof body!=="object" || Array.isArray(body) || Object.keys(body).length)
           throw new HttpError(400,"invalid_cancellation_request");
         writeJson(res,200,await confirmations.cancel(id)); return;
@@ -219,7 +219,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       writeJson(res, 200, payments.capabilities()); return;
     }
     if (method === "POST" && routePath === "/payments") {
-      writeJson(res, 200, await payments.prepare(await readJsonBody(req, 4096))); return;
+      writeJson(res, 200, await payments.prepare(await readJsonBodyLimited(req,4096))); return;
     }
     const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|resume|cancel))?$/.exec(routePath);
     if (match) {
@@ -227,20 +227,20 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if (method === "GET" && !action) { writeJson(res,200,await payments.status(id)); return; }
       if (method === "GET" && action === "challenge") { writeJson(res,200,await payments.challenge(id)); return; }
       if (method === "POST" && action === "cancel") {
-        const body=await readJsonBody(req,256);
+        const body=await readJsonBodyLimited(req,256);
         if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).length)throw new HttpError(400,"invalid_cancellation_request");
         writeJson(res,200,await payments.cancel(id)); return;
       }
       if (method === "POST" && action === "owner-confirmation") {
-        writeJson(res,200,await payments.confirm(id,await readJsonBody(req,2048))); return;
+        writeJson(res,200,await payments.confirm(id,await readJsonBodyLimited(req,2048))); return;
       }
       if (method === "POST" && action === "bank-authorization") {
-        const body=await readJsonBody(req,256);
+        const body=await readJsonBodyLimited(req,256);
         if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).length)throw new HttpError(400,"invalid_bank_authorization_request");
         writeJson(res,200,await payments.bankAuthorization(id)); return;
       }
       if (method === "POST" && action === "resume") {
-        const body=await readJsonBody(req,512);
+        const body=await readJsonBodyLimited(req,512);
         if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).sort().join(",")!=="confirmationRequestId"||typeof (body as any).confirmationRequestId!=="string")
           throw new HttpError(400,"invalid_payment_resume_request");
         writeJson(res,200,await payments.resume(id,(body as any).confirmationRequestId)); return;
@@ -1560,7 +1560,13 @@ function refererStartsWithLocalCompanion(referer: string) {
 }
 
 async function readJsonBody<T>(req: http.IncomingMessage): Promise<T> {
-  const raw = await readBody(req);
+  return readJsonBodyLimited<T>(req, MAX_BODY_BYTES);
+}
+
+async function readJsonBodyLimited<T>(req: http.IncomingMessage, maxBytes: number): Promise<T> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_BODY_BYTES)
+    throw new HttpError(500, "Invalid body limit.");
+  const raw = (await readRawBody(req, maxBytes)).toString("utf8");
   if (!raw.trim()) return {} as T;
   try {
     return JSON.parse(raw) as T;

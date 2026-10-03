@@ -27,7 +27,7 @@ async function req(url,method="GET",body,h=headers){const r=await fetch(base+url
  assert.equal((await req(url+"/owner-confirmation","POST",proof)).body.state,"demo_confirmed");
  assert.equal((await req(url+"/owner-confirmation","POST",proof)).code,409);
  assert.equal((await req(url)).body.financialSubmissionAttempted,false);
- await Promise.all([runs.archiveSession("fixture-session"),runs.saveVoiceTurn("fixture-session-2",{runId:"voice-"+crypto.randomUUID(),revision:1,input:"test",output:"test",state:"completed"})]);
+ await Promise.all([runs.archiveSession("fixture-session"),runs.mutatePaymentRequests(records=>records)]);
  const saved=await runs.readPaymentRequests();assert.equal(saved.length,1);assert.equal(saved[0].state,"demo_confirmed");
  const general={requestKey:crypto.randomUUID(),action:{type:"demo.confirmation",reference:"DEMO",payloadHash:"a".repeat(64)},presentation:{title:"Confirmer le test",subtitle:"Aucune action",description:"Tester la confirmation commune."},origin:{channel:"work",id:"test"}};
  assert.equal((await req("/v1/confirmations/capabilities","GET",null,{})).code,403);
@@ -42,7 +42,7 @@ async function req(url,method="GET",body,h=headers){const r=await fetch(base+url
  assert.equal((await req(gu+"/owner-confirmation","POST",gp)).body.approved,true);
  assert.equal((await req(gu+"/owner-confirmation","POST",gp)).code,409);
  assert.equal((await req(url+"/owner-confirmation","POST",gp)).code,400);
- await Promise.all([runs.archiveSession("generic-test"),runs.saveVoiceTurn("generic-voice",{runId:"voice-"+crypto.randomUUID(),revision:1,input:"test",output:"test",state:"completed"})]);
+ await Promise.all([runs.archiveSession("generic-test"),runs.mutateOwnerConfirmations(records=>records)]);
  assert.equal((await runs.readOwnerConfirmations())[0].state,"approved");
  assert.equal((await runs.readPaymentRequests())[0].state,"demo_confirmed");
  const registry=path.join(dir,"runs.json"),before=fs.readFileSync(registry,"utf8");

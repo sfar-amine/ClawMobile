@@ -55,6 +55,13 @@ function mutateRegistry<T>(operation:()=>Promise<T>):Promise<T> {
   registryWrite = next.then(() => undefined, () => undefined);
   return next;
 }
+async function registryOrEmpty():Promise<CompanionRunRegistry> {
+  try { return await readCompanionRunRegistry(); }
+  catch(error:any) {
+    if(error?.code==="ENOENT")return defaultCompanionRunRegistry();
+    throw error;
+  }
+}
 
 export async function rememberSubmittedRun(
   text: string,
@@ -106,7 +113,7 @@ export async function archiveSession(sessionId: string) {
   }
 
   return mutateRegistry(async () => {
-    const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+    const registry = await registryOrEmpty();
     const archivedSessionIds = Array.from(new Set([
       ...registry.archivedSessionIds,
       normalizedSessionId,
@@ -131,7 +138,7 @@ export async function deleteSession(sessionId: string) {
   }
 
   return mutateRegistry(async () => {
-    const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+    const registry = await registryOrEmpty();
     const nextRuns = registry.runs.filter((run) => normalizeCompanionSessionId(run.sessionId || "default") !== normalizedSessionId);
     const archivedSessionIds = Array.from(new Set([
       ...registry.archivedSessionIds.filter((id) => id !== normalizedSessionId),
@@ -1116,7 +1123,7 @@ async function readStoredRuns(): Promise<StoredRun[]> {
   }
 
   const fromMemory = Array.from(submittedRuns.values());
-  const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+  const registry = await registryOrEmpty();
   const archivedSessionIds = new Set(registry.archivedSessionIds);
   const byId = new Map<string, StoredRun>();
   for (const run of [...registry.runs, ...fromMemory]) {
@@ -1132,7 +1139,7 @@ async function readStoredRuns(): Promise<StoredRun[]> {
 
 async function saveStoredRun(run: StoredRun) {
   return mutateRegistry(async () => {
-    const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+    const registry = await registryOrEmpty();
     const storedRun = {
       ...run,
       sessionId: normalizeCompanionSessionId(run.sessionId || "default"),
@@ -1146,7 +1153,7 @@ async function saveStoredRun(run: StoredRun) {
 
 async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: string[], paymentRequests?: PaymentRecord[], ownerConfirmations?: ConfirmationRecord[]) {
   // Payment and confirmation guards share this registry but never inherit the 100-turn history eviction.
-  const current = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+  const current = await registryOrEmpty();
   const payments = paymentRequests ?? current.paymentRequests;
   const confirmations = ownerConfirmations ?? current.ownerConfirmations;
   await fs.mkdir(path.dirname(runRegistryPath()), { recursive: true });
@@ -1200,7 +1207,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
 }
 
 async function readArchivedSessionIds(): Promise<Set<string>> {
-  const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+  const registry = await registryOrEmpty();
   return new Set(registry.archivedSessionIds);
 }
 
@@ -1215,12 +1222,12 @@ function runRegistryPath() {
 // Payment persistence stays inside the existing Companion registry.
 export async function readPaymentRequests(): Promise<PaymentRecord[]> {
   await registryWrite;
-  return (await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry())).paymentRequests;
+  return (await registryOrEmpty()).paymentRequests;
 }
 
 export async function mutatePaymentRequests<T>(operation:(records:PaymentRecord[])=>T): Promise<T> {
   return mutateRegistry(async () => {
-    const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+    const registry = await registryOrEmpty();
     const records = structuredClone(registry.paymentRequests);
     const result = operation(records);
     await writeCompanionRunRegistry(registry.runs, registry.archivedSessionIds, records);
@@ -1230,11 +1237,11 @@ export async function mutatePaymentRequests<T>(operation:(records:PaymentRecord[
 
 export async function readOwnerConfirmations(): Promise<ConfirmationRecord[]> {
   await registryWrite;
-  return (await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry())).ownerConfirmations;
+  return (await registryOrEmpty()).ownerConfirmations;
 }
 export async function mutateOwnerConfirmations<T>(operation:(records:ConfirmationRecord[])=>T): Promise<T> {
   return mutateRegistry(async () => {
-    const registry = await readCompanionRunRegistry().catch(() => defaultCompanionRunRegistry());
+    const registry = await registryOrEmpty();
     const records = structuredClone(registry.ownerConfirmations);
     const result = operation(records);
     await writeCompanionRunRegistry(registry.runs, registry.archivedSessionIds, registry.paymentRequests, records);
