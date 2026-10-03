@@ -155,7 +155,7 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
         const fallback = session
           ? statusFromSessionInfo(session, stored.runId, stored)
           : statusFromStoredRun(stored);
-        return enrichFromSessionFile(fallback, session, stored);
+        return enrichFromSessionFile(fallback, session, stored, false);
       }),
     );
   }
@@ -167,7 +167,7 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
       .slice(0, limit)
       .map(async (session: any) => {
       const fallback = statusFromSessionInfo(session);
-      return enrichFromSessionFile(fallback, session);
+      return enrichFromSessionFile(fallback, session, undefined, false);
     }),
   );
 }
@@ -234,12 +234,13 @@ async function enrichFromSessionFile(
   status: CompanionRunStatus,
   sessionInfo: any,
   stored?: StoredRun,
+  allowGatewayHistory = true,
 ): Promise<CompanionRunStatus> {
   const sessionId = String(sessionInfo?.sessionId || "");
   if (!sessionId) return status;
 
   const [transcript, trajectory] = await Promise.all([
-    readSessionTranscript(sessionId, stored?.text).catch(() => null),
+    readSessionTranscript(sessionId, stored?.text, allowGatewayHistory ? String(sessionInfo?.key || "") : undefined).catch(() => null),
     readSessionTrajectory(sessionId, status.runId, stored?.text).catch(() => null),
   ]);
   if (!transcript && !trajectory) return status;
@@ -253,6 +254,9 @@ async function enrichFromSessionFile(
   const startedAt = transcript?.startedAt || trajectory?.startedAt || status.startedAt;
   const endedAt = transcript?.endedAt || trajectory?.endedAt || status.endedAt;
   const tokenUsage = mergeTokenUsage(status.tokenUsage, transcript?.tokenUsage, trajectory?.tokenUsage);
+  if (stored && result && state === "done" && stored.state !== "done") {
+    await saveStoredRun({ ...stored, state: "done", updatedAt: Date.now() });
+  }
 
   return {
     ...status,
@@ -315,7 +319,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     success: !failed,
     runId: stored.runId,
     sessionId: stored.sessionId,
-    state: failed ? "failed" : "running",
+    state: failed ? "failed" : stored.state === "done" ? "done" : "running",
     message,
     progress: {
       text: failed ? "OpenClaw submit failed." : "Working...",
@@ -360,8 +364,14 @@ function normalizedStoredSessionKey(sessionId: string, sessionKey?: string) {
 
 async function readSessionsIndex(): Promise<any[]> {
   const filePath = path.join(openClawStateDir(), "agents", agentId(), "sessions", "sessions.json");
-  const raw = await fs.readFile(filePath, "utf8");
-  const data = JSON.parse(raw);
+  let data: any;
+  try {
+    data = JSON.parse(await fs.readFile(filePath, "utf8"));
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") throw error;
+    // OpenClaw SQLite migration removed the legacy index. Use the owner Gateway API.
+    data = await callOpenClawGateway("sessions.list", { search: "companion-", limit: 100 });
+  }
   if (Array.isArray(data?.sessions)) return data.sessions;
   if (Array.isArray(data)) return data;
   if (!data || typeof data !== "object") return [];
@@ -374,9 +384,19 @@ async function readSessionsIndex(): Promise<any[]> {
 async function readSessionTranscript(
   sessionId: string,
   targetPrompt?: string,
+  sessionKey?: string,
 ): Promise<TranscriptSummary> {
   const filePath = path.join(openClawStateDir(), "agents", agentId(), "sessions", `${sessionId}.jsonl`);
-  const raw = await fs.readFile(filePath, "utf8");
+  let raw: string;
+  try {
+    raw = await fs.readFile(filePath, "utf8");
+  } catch (error: any) {
+    if (error?.code !== "ENOENT" || !sessionKey) throw error;
+    const history = await callOpenClawGateway("chat.history", { sessionKey, limit: 200 });
+    raw = (Array.isArray(history?.messages) ? history.messages : [])
+      .map((message: any) => JSON.stringify({ type: "message", message, timestamp: message.timestamp }))
+      .join("\n");
+  }
   let prompt = "";
   let result = "";
   let startedAt: number | undefined;

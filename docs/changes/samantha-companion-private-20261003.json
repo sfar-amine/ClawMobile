@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "id": "samantha-companion-private-20261003",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "applied",
+  "summary": "Reconcile the already installed private Companion SQLite compatibility source into a durable private runtime branch.",
+  "reason": "Amine requested Git finalization and cleanup while retaining the working private S24 release; public ClawMobile must not receive private overlays.",
+  "files": [
+    "docs/changes/samantha-companion-private-20261003.json",
+    "docs/runtime/samantha-companion-private.md",
+    "openclaw-plugin-mobile-ui/scripts/test-companion-sqlite.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts"
+  ],
+  "tests": [
+    {
+      "name": "companion-typescript-and-history",
+      "status": "passed",
+      "evidence": "Isolated TypeScript compilation and existing companion-runs suite passed; source/test baseline unchanged through public e7f5576."
+    },
+    {
+      "name": "sqlite-compatibility",
+      "status": "passed",
+      "evidence": "7 assertions passed, including no per-session N+1 and corrupt legacy store behavior."
+    },
+    {
+      "name": "installed-payload-match",
+      "status": "passed",
+      "evidence": "Both installed source and compiled module match the checksum-gated private manifest; no runtime file changed by reconciliation."
+    }
+  ],
+  "documentation": [
+    "docs/runtime/samantha-companion-private.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing implemented/accepted behavior only; no new capability or registry status change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Git reconciliation of the existing Companion/Gateway fallback; no runtime boundary or service change.",
+    "documents": []
+  },
+  "rollback": "Use the checksum-gated private installer and retained backups. Do not restore public source over the runtime casually or alter unrelated worktrees.",
+  "limitations": [
+    "Private branch only; never push to public ClawMobile origin/upstream.",
+    "No runtime restart or new deployment in this reconciliation.",
+    "Private Android limitations remain documented in Samantha Core main."
+  ]
+}
