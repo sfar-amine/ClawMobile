@@ -46,7 +46,18 @@ async function main() {
   assert.equal(seenBody.uses, 1);
   assert.equal(token.setup.model, "models/gemini-3.8-live");
   assert.equal(token.setup.realtimeInputConfig.automaticActivityDetection.disabled, true);
+  assert.deepEqual(token.setup.inputAudioTranscription.languageCodes, []);
   const prompt = token.setup.systemInstruction.parts[0].text;
+  assert.ok(prompt.includes("Detect the language actually spoken by Amine on every turn"));
+  assert.ok(prompt.includes("Never translate French speech into English"));
+  assert.equal(prompt.includes("Reply concisely and naturally in French unless Amine asks otherwise."), false);
+  const englishToken = await mod.createClawLiveToken(fakeFetch, async () => "secret-test-key", {
+    home, locale: "en-US", client: "samantha_android",
+  });
+  const englishPrompt = englishToken.setup.systemInstruction.parts[0].text;
+  assert.ok(englishPrompt.includes("The UI locale is English"));
+  assert.ok(englishPrompt.includes("Detect the language actually spoken by Amine on every turn"));
+  assert.deepEqual(englishToken.setup.inputAudioTranscription.languageCodes, []);
   for (const marker of ["IDENTITY_CANONICAL", "OPERATING_CANONICAL", "VOICE_CANONICAL", "MEMORY_CANONICAL", "CAPABILITY_CANONICAL"]) {
     assert.ok(prompt.includes(marker), marker);
   }

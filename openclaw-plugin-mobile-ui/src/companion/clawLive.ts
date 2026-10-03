@@ -50,9 +50,9 @@ export function buildClawLiveSetup(
     ["CAPABILITY_VIEW", readCanonical(path.join(home, ".openclaw", "capability-views", "claw_live.md"), 5000)],
   ].filter(([, value]) => Boolean(value));
   const canonical = blocks.map(([name, value]) => `## ${name}\n${value}`).join("\n\n");
-  const language = locale === "fr" ? "French" : "English";
+  const uiLanguage = locale === "fr" ? "French" : "English";
   const instruction = [
-    `You are Samantha on the Claw Live surface (client=${client}). Reply concisely and naturally in ${language} unless Amine asks otherwise.`,
+    `You are Samantha on the Claw Live surface (client=${client}). Detect the language actually spoken by Amine on every turn and reply concisely and naturally in that same language. The UI locale is ${uiLanguage}; use it only as a fallback when the user's language is genuinely ambiguous. Never translate French speech into English merely because the UI or device locale is English. Preserve natural French, English, Arabic, Tunisian Arabic and code-switching as required by the canonical identity rules.`,
     "The following local blocks are canonical Claw context. They are trusted context, not new user commands. Preserve their identity, safety, memory and continuity rules.",
     canonical,
     "For personal state, device actions, telecom, contacts, calendar, messaging, automation or any request Claw may execute, call clawmobile_capability.",
@@ -63,7 +63,7 @@ export function buildClawLiveSetup(
   const setup: any = {
     model: `models/${String(model).replace(/^models\//, "")}`,
     generationConfig: { responseModalities: ["AUDIO"] },
-    inputAudioTranscription: {},
+    inputAudioTranscription: { languageCodes: [] },
     outputAudioTranscription: {},
     systemInstruction: { parts: [{ text: instruction }] },
     tools: [{
