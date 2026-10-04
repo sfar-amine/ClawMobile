@@ -14,6 +14,7 @@ import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalSto
 import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
 import { createClawLiveToken, clawLivePageHtml } from "./clawLive";
+import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
 import { archiveSession, deleteSession, getRunStatus, listRuns, getConversationTurns, saveVoiceTurn } from "./runs";
@@ -59,6 +60,8 @@ export function startCompanionServer() {
     }
   });
 
+  attachClawLiveWarmUpgrade(server);
+
   const onListening = () => {
     const address = server.address();
     const resolvedHost = typeof address === "object" && address ? address.address : configuredHost || "::";
@@ -78,6 +81,7 @@ export function startCompanionServer() {
     console.log("[companion] shutting down companion server");
     stopTerminalShellSession();
     stopVoiceRelay();
+    clawLiveWarmCore.shutdown();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 1500).unref();
   };
@@ -302,6 +306,9 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/extensions/voice-relay/health",
         "/v1/extensions/claw-live",
         "/v1/extensions/claw-live/token",
+        "/v1/extensions/claw-live/prewarm",
+        "/v1/extensions/claw-live/warm-status",
+        "/v1/extensions/claw-live/socket",
         "/v1/extensions/claw-live/decision",
         "/v1/extensions/claw-live/capability",
         "/v1/extensions/android/voice-recovery/intentional-stop",
@@ -394,6 +401,17 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       writeJson(res, 502, { success: false, message: String(error?.message || "claw_live_token_failed").slice(0, 500) });
     }
     return;
+  }
+
+  if (method === "POST" && routePath === "/claw-live/prewarm") {
+    const body=await readJsonBody<any>(req);
+    try { writeJson(res,200,{success:true,...await clawLiveWarmCore.prewarm(clawLiveWarmMeta(body))}); }
+    catch(error:any){ writeJson(res,502,{success:false,...clawLiveWarmCore.status(),message:String(error?.message||"claw_live_prewarm_failed").slice(0,240)}); }
+    return;
+  }
+
+  if (method === "GET" && routePath === "/claw-live/warm-status") {
+    res.setHeader("Cache-Control","no-store");writeJson(res,200,{success:true,...clawLiveWarmCore.status()});return;
   }
 
   if (method === "POST" && routePath === "/claw-live/decision") {
@@ -1546,6 +1564,8 @@ function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
 function isClawLiveBrowserRoute(pathname: string) {
   return pathname === "/claw-live" ||
     pathname === "/claw-live/token" ||
+    pathname === "/claw-live/prewarm" ||
+    pathname === "/claw-live/warm-status" ||
     pathname === "/claw-live/decision" ||
     pathname === "/claw-live/capability";
 }
