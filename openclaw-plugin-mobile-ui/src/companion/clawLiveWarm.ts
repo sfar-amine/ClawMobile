@@ -2,6 +2,7 @@ import http from "http";
 import type { Duplex } from "stream";
 import WebSocket, { WebSocketServer } from "ws";
 import { createClawLiveToken, type ClawLiveBootstrapOptions } from "./clawLive";
+import { reconnectDelay } from "./reconnectPolicy";
 
 const PROVIDER_URL="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
 const SOCKET_PATH="/v1/extensions/claw-live/socket";
@@ -18,6 +19,7 @@ type WarmDeps={
   WebSocketImpl?:typeof WebSocket;
   idleMs?:number;
   now?:()=>number;
+  retryDelay?:(attempt:number)=>number;
 };
 
 function safeMeta(req:http.IncomingMessage):LocalMeta {
@@ -38,6 +40,7 @@ export class ClawLiveWarmCore {
   private readonly WebSocketImpl:typeof WebSocket;
   private readonly idleMs:number;
   private readonly now:()=>number;
+  private readonly retryDelay:(attempt:number)=>number;
   private provider:WebSocket|null=null;
   private providerReady=false;
   private state:WarmState="cold";
@@ -60,6 +63,7 @@ export class ClawLiveWarmCore {
   private connectStartedAt=0;
   private lastSetupMs:number|null=null;
   private resumedLast=false;
+  private reconnectAttempts=0;
   private stopped=false;
 
   constructor(deps:WarmDeps={}) {
@@ -67,6 +71,7 @@ export class ClawLiveWarmCore {
     this.WebSocketImpl=deps.WebSocketImpl||WebSocket;
     this.idleMs=Math.max(60_000,deps.idleMs||Number(process.env.CLAW_LIVE_WARM_IDLE_MS)||DEFAULT_IDLE_MS);
     this.now=deps.now||(()=>Date.now());
+    this.retryDelay=deps.retryDelay||reconnectDelay;
   }
 
   status(){
@@ -74,7 +79,8 @@ export class ClawLiveWarmCore {
       state:this.state,stage:this.stage,providerReady:this.providerReady,clients:this.localClients.size,
       conversationBound:Boolean(this.conversationId&&this.conversationId!=="__prewarm__"),resumable:this.hasValidResumeHandle(),historyLoaded:this.historyLoaded,
       connectedAt:this.connectedAt||null,readyAt:this.readyAt||null,lastUsedAt:this.lastUsedAt||null,
-      lastSetupMs:this.lastSetupMs,resumedLast:this.resumedLast,lastError:this.lastError||null,idleMs:this.idleMs,
+      lastSetupMs:this.lastSetupMs,resumedLast:this.resumedLast,reconnectAttempts:this.reconnectAttempts,
+      lastError:this.lastError||null,idleMs:this.idleMs,
     };
   }
 
@@ -131,8 +137,32 @@ export class ClawLiveWarmCore {
     this.locale=meta.locale;this.client=meta.client;
     if(this.providerReady)return;
     if(this.connectPromise)return this.connectPromise;
-    this.connectPromise=this.connectProvider(this.hasValidResumeHandle()).finally(()=>{this.connectPromise=null;});
+    this.connectPromise=this.connectForeground().finally(()=>{this.connectPromise=null;});
     return this.connectPromise;
+  }
+
+  private delayForRetry(attempt:number){
+    const ms=Math.max(0,this.retryDelay(attempt));
+    if(ms===0)return Promise.resolve();
+    return new Promise<void>((resolve)=>{const timer=setTimeout(resolve,ms);timer.unref();});
+  }
+
+  /** Foreground Voice gets a bounded fast retry window; pre-roll keeps microphone capture lossless in RAM meanwhile. */
+  private async connectForeground(maxAttempts=3):Promise<void>{
+    let last:any=new Error("gemini_live_connect_failed");
+    for(let attempt=0;attempt<maxAttempts;attempt++){
+      try{
+        await this.connectProvider(this.hasValidResumeHandle());
+        return;
+      }catch(error:any){
+        last=error;
+        if(this.stopped)throw error;
+        if(attempt+1>=maxAttempts)break;
+        this.state="reconnecting";this.stage="backoff";
+        await this.delayForRetry(attempt);
+      }
+    }
+    throw last;
   }
 
   private async connectProvider(resume:boolean):Promise<void>{
@@ -169,7 +199,7 @@ export class ClawLiveWarmCore {
         if(m.error){if(!this.providerReady)fail("provider_error",new Error(String(m.error?.message||"provider_error")));else this.broadcast(raw);return;}
         if(m.setupComplete!==undefined){
           if(settled)return;settled=true;if(this.setupTimer)clearTimeout(this.setupTimer);this.setupTimer=null;
-          this.providerReady=true;this.state="warm";this.stage="ready";this.readyAt=this.now();this.lastSetupMs=this.readyAt-this.connectStartedAt;this.resumedLast=resume;this.armIdleTimer();
+          this.providerReady=true;this.state="warm";this.stage="ready";this.readyAt=this.now();this.lastSetupMs=this.readyAt-this.connectStartedAt;this.resumedLast=resume;this.reconnectAttempts=0;this.armIdleTimer();
           const historyRequired=!resume&&!this.historyLoaded;
           for(const client of this.localClients)this.sendReady(client,historyRequired);
           resolve();return;
@@ -201,12 +231,22 @@ export class ClawLiveWarmCore {
 
   private broadcast(raw:string){for(const c of this.localClients)if(c.readyState===WebSocket.OPEN)c.send(raw);}
   private failStage(stage:string,e:any){this.state="error";this.stage=stage;this.lastError=String(e?.message||e||stage).slice(0,160);console.warn(`[claw-live-warm] ${stage}: ${this.lastError}`);}
-  private scheduleReconnect(){if(this.reconnectTimer||this.stopped)return;this.state="reconnecting";this.reconnectTimer=setTimeout(()=>{this.reconnectTimer=null;void this.connectProvider(this.hasValidResumeHandle()).catch(()=>{});},250).unref();}
+  private scheduleReconnect(){
+    if(this.reconnectTimer||this.stopped)return;
+    if(this.localClients.size===0&&this.now()-this.lastUsedAt>=this.idleMs){this.state="cold";return;}
+    this.state="reconnecting";this.stage="backoff";
+    const delay=Math.max(0,this.retryDelay(this.reconnectAttempts++));
+    this.reconnectTimer=setTimeout(()=>{
+      this.reconnectTimer=null;
+      void this.connectProvider(this.hasValidResumeHandle()).catch(()=>this.scheduleReconnect());
+    },delay);
+    this.reconnectTimer.unref();
+  }
   private resetProvider(_reason:string,preserveResume=false){
     if(this.reconnectTimer)clearTimeout(this.reconnectTimer);this.reconnectTimer=null;if(this.setupTimer)clearTimeout(this.setupTimer);this.setupTimer=null;
     const p=this.provider;this.provider=null;this.providerReady=false;
     if(!preserveResume){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;this.conversationId="";}
-    this.state="cold";this.stage=preserveResume&&this.hasValidResumeHandle()?"resumable_idle":"idle";this.resumedLast=false;
+    this.state="cold";this.stage=preserveResume&&this.hasValidResumeHandle()?"resumable_idle":"idle";this.resumedLast=false;this.reconnectAttempts=0;
     try{p?.close();}catch{}
   }
   cool(reason="manual",preserveResume=false){this.resetProvider(reason,preserveResume);}

@@ -3,6 +3,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { capabilityBridge } from "./capabilityBridge";
+import { reconnectDelay } from "./reconnectPolicy";
+export { reconnectDelay } from "./reconnectPolicy";
 import {
   callOpenClawGateway,
   expectedCompanionSessionKey,
@@ -92,13 +94,6 @@ function deviceToken(cfg: RelayConfig) {
   const value = fs.readFileSync(cfg.tokenFile, "utf8").trim();
   if (value.length < 24) throw new Error("voice_relay_token_invalid");
   return value;
-}
-
-export function reconnectDelay(attempt: number) {
-  if (attempt <= 0) return 0;
-  if (attempt === 1) return 750;
-  if (attempt === 2) return 2000;
-  return Math.min(60_000, 3000 * 2 ** Math.min(5, attempt - 3));
 }
 
 function requestHash(value: unknown) {

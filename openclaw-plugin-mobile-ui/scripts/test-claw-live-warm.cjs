@@ -29,6 +29,27 @@ class FakeLocal extends EventEmitter {
   send(v){this.sent.push(String(v));return true}
   close(){this.readyState=3;this.emit("close")}
 }
+class FlakyProvider extends EventEmitter {
+  static OPEN=1;
+  static instances=[];
+  constructor(url){
+    super();this.url=url;this.readyState=0;this.sent=[];FlakyProvider.instances.push(this);
+    const n=FlakyProvider.instances.length;
+    setTimeout(()=>{
+      if(n<=2){this.emit("error",new Error("transient_connect_"+n));return}
+      this.readyState=1;this.emit("open");
+    },1);
+  }
+  send(raw){
+    this.sent.push(String(raw));const v=JSON.parse(String(raw));
+    if(v.setup)setTimeout(()=>{
+      this.emit("message",Buffer.from(JSON.stringify({setupComplete:{}})));
+      this.emit("message",Buffer.from(JSON.stringify({sessionResumptionUpdate:{resumable:true,newHandle:"resume-flaky"}})));
+    },1);
+    return true;
+  }
+  close(){const was=this.readyState;this.readyState=3;if(was!==3)setTimeout(()=>this.emit("close"),0)}
+}
 const tokenFactory=async()=>({token:"ephemeral",setup:{model:"models/gemini-3.8-live",generationConfig:{responseModalities:["AUDIO"]}}});
 const wait=(ms=8)=>new Promise(r=>setTimeout(r,ms));
 
@@ -75,5 +96,14 @@ const wait=(ms=8)=>new Promise(r=>setTimeout(r,ms));
   assert.equal(FakeProvider.instances.length,3);
   assert.equal(core.status().historyLoaded,false);
   core.shutdown();
-  console.log(JSON.stringify({ok:true,warm:true,compression:true,resumption:true,softIdleResume:true,historyGate:true,conversationReset:true}));
+
+  const flaky=new ClawLiveWarmCore({tokenFactory,WebSocketImpl:FlakyProvider,idleMs:60000,retryDelay:()=>0});
+  const flakyStatus=await flaky.prewarmDefault("fr");
+  assert.equal(FlakyProvider.instances.length,3);
+  assert.equal(flakyStatus.state,"warm");
+  assert.equal(flakyStatus.providerReady,true);
+  assert.equal(flakyStatus.reconnectAttempts,0);
+  flaky.shutdown();
+
+  console.log(JSON.stringify({ok:true,warm:true,compression:true,resumption:true,softIdleResume:true,sharedBackoff:true,foregroundRetry:true,historyGate:true,conversationReset:true}));
 })().catch(e=>{console.error(e);process.exit(1)});
