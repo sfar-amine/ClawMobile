@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "id": "native-recovery-plane-runtime-20261004",
+  "origin": "chat",
+  "kind": "feature",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add a closed deterministic Tier0 recovery entrypoint callable from the native Samantha UID.",
+  "reason": "Provide an out-of-Termux-UID actuator without duplicating Claw orchestration or recovery state.",
+  "files": [
+    "installer/termux-lite/native-recovery-entrypoint.py",
+    "installer/termux-lite/test-native-recovery-entrypoint.py",
+    "installer/termux-lite/install-tier0-control.py",
+    "installer/termux-lite/test-tier0-control.py",
+    "docs/changes/native-recovery-plane-runtime-20261004.md",
+    "docs/changes/native-recovery-plane-runtime-20261004.json"
+  ],
+  "tests": [
+    {
+      "name": "runtime-targeted",
+      "status": "passed",
+      "evidence": "4 native-recovery entrypoint tests + 12 Tier0 tests PASS."
+    },
+    {
+      "name": "live-shadow-dispatch",
+      "status": "passed",
+      "evidence": "Samantha UID dispatched to Tier0 entrypoint; emergency stop produced deferred receipt and prevented runtime mutation."
+    }
+  ],
+  "documentation": [
+    "docs/changes/native-recovery-plane-runtime-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "device.native_recovery"
+    ],
+    "reason": "Provides the fixed Termux-side recovery actuator invoked by the native failure domain."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Adds a static Tier0 entrypoint but no new daemon/scheduler/store/orchestrator; canonical ADR is maintained in ui-playbooks.",
+    "documents": [
+      "ui-playbooks/docs/08-decisions/ADR-20261004-native-recovery-plane.md"
+    ]
+  },
+  "rollback": "Promote previous Tier0 LKG, remove/revert the entrypoint commit, and restore the installer-backed-up Termux properties only if the native recovery feature is retired.",
+  "limitations": [
+    "Full Tier0 release promotion follows source publication.",
+    "V1 native triggers do not include cloud push."
+  ]
+}

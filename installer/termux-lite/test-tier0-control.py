@@ -29,6 +29,13 @@ class Tier0Tests(unittest.TestCase):
         self.assertLess(loop.index(' check_adb\n'),loop.index(' check_network_safety\n'))
         self.assertIn('android-network-mutation-guard.py" check',manager)
 
+
+    def test_installer_includes_static_native_recovery_entrypoint(self):
+        root=Path(__file__).resolve().parent
+        text=(root/'install-tier0-control.py').read_text()
+        self.assertIn("'native-recovery-entrypoint.py'",text)
+        self.assertIn('allow-external-apps=true',text)
+
     def test_soak_grace_is_declared(self):
         root=Path(__file__).resolve().parent
         self.assertIn('startup_grace_seconds',(root/'tier0-control.py').read_text())

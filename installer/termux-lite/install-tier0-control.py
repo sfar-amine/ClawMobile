@@ -2,8 +2,26 @@
 from __future__ import annotations
 import argparse,json,os,shutil,subprocess
 from pathlib import Path
-H=Path.home(); SRC=Path(__file__).resolve().parent; T=H/'.openclaw/tier0'; BIN=T/'bin'; BOOT=H/'.termux/boot/start-samantha'
-NAMES=('tier0-control.py','tier0-watchdog.py','tier0-bootstrap.sh')
+H=Path.home(); SRC=Path(__file__).resolve().parent; T=H/'.openclaw/tier0'; BIN=T/'bin'; BOOT=H/'.termux/boot/start-samantha'; TERMUX_PROPERTIES=H/'.termux/termux.properties'
+NAMES=('tier0-control.py','tier0-watchdog.py','tier0-bootstrap.sh','native-recovery-entrypoint.py')
+def ensure_termux_external_apps(path:Path=TERMUX_PROPERTIES):
+    path.parent.mkdir(parents=True,exist_ok=True)
+    old=path.read_text() if path.exists() else ''
+    lines=old.splitlines(); out=[]; seen=False
+    for line in lines:
+        stripped=line.strip()
+        if stripped.startswith('allow-external-apps=') and not stripped.startswith('#'):
+            if not seen: out.append('allow-external-apps=true');seen=True
+        else: out.append(line)
+    if not seen: out.append('allow-external-apps=true')
+    new='\n'.join(out).rstrip()+"\n"
+    if new==old:return False
+    backup=T/'backups/termux.properties.pre-native-recovery'
+    if path.exists() and not backup.exists():
+        backup.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(path,backup)
+    tmp=path.with_suffix('.tmp');tmp.write_text(new);os.chmod(tmp,0o600);os.replace(tmp,path)
+    return True
+
 def write_boot():
     BOOT.parent.mkdir(parents=True,exist_ok=True)
     if BOOT.exists() and 'tier0-bootstrap.sh' not in BOOT.read_text():
@@ -21,6 +39,9 @@ def main():
         except FileNotFoundError:pass
         shutil.copy2(src,tmp);os.chmod(tmp,0o500);os.replace(tmp,BIN/n)
     write_boot()
+    changed=ensure_termux_external_apps()
+    if changed:
+        subprocess.run(['termux-reload-settings'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=5,check=False)
     source=Path(a.source_root)
     commit=subprocess.run(['git','-C',str(source),'rev-parse','HEAD'],capture_output=True,text=True).stdout.strip() or 'unknown'
     critical=a.critical_capability
