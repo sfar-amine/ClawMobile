@@ -34,6 +34,12 @@ class Tier0Tests(unittest.TestCase):
         self.assertIn('startup_grace_seconds',(root/'tier0-control.py').read_text())
         self.assertIn('soak_grace_until_epoch',(root/'tier0-watchdog.py').read_text())
 
+    def test_tier0_installer_resolves_source_commit_from_nested_source(self):
+        root=Path(__file__).resolve().parent
+        text=(root/'install-tier0-control.py').read_text()
+        self.assertIn("['git','-C',str(source),'rev-parse','HEAD']",text)
+        self.assertNotIn('source.parents[2]',text)
+
     def test_tier0_installer_preserves_or_accepts_critical_capabilities(self):
         root=Path(__file__).resolve().parent
         text=(root/'install-tier0-control.py').read_text()

@@ -19,3 +19,6 @@ Promote the previous immutable Tier0 LKG and revert this scoped runtime commit. 
 
 ## Tier0 activation correction
 The first candidate activation exposed a pre-existing installer gap: `install-tier0-control.py` packaged with the tier0-control default critical list and therefore reduced the active soak set from five capabilities to three, dropping `device.adb` and `remote_desktop`. The candidate was not accepted in that state. The installer now accepts repeated `--critical-capability` arguments and otherwise preserves the current Tier0 list. Final activation explicitly restores the five previously validated critical capabilities.
+
+## Release attribution correction
+The second activation verified the five-capability soak set but exposed `source_commit=unknown` in the immutable release manifest. The installer derived the repository root with `source.parents[2]`, which is wrong for a nested `installer/termux-lite` worktree path. It now asks Git directly from the nested source directory (`git -C <source> rev-parse HEAD`), which walks to the owning worktree and records the exact commit. The final activation must show the published runtime commit in its manifest.

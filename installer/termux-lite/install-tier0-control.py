@@ -22,7 +22,7 @@ def main():
         shutil.copy2(src,tmp);os.chmod(tmp,0o500);os.replace(tmp,BIN/n)
     write_boot()
     source=Path(a.source_root)
-    commit=subprocess.run(['git','-C',str(source.parents[2]),'rev-parse','HEAD'],capture_output=True,text=True).stdout.strip() or 'unknown'
+    commit=subprocess.run(['git','-C',str(source),'rev-parse','HEAD'],capture_output=True,text=True).stdout.strip() or 'unknown'
     critical=a.critical_capability
     if critical is None:
         try:

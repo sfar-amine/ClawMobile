@@ -32,6 +32,11 @@
       "name": "tier0-critical-capability-preservation",
       "status": "passed",
       "evidence": "Activation exposed the installer dropping ADB/RDC from the soak set; source now accepts explicit critical capabilities and otherwise preserves the current list. Final regression follows."
+    },
+    {
+      "name": "tier0-release-source-attribution",
+      "status": "passed",
+      "evidence": "Activation exposed source_commit=unknown from an incorrect parent calculation; installer now resolves HEAD directly from the nested source directory and final activation must verify the exact commit."
     }
   ],
   "documentation": [
