@@ -11,18 +11,46 @@
     "installer/termux-lite/android-network-mutation-guard.py",
     "installer/termux-lite/samantha-health-manager.sh",
     "installer/termux-lite/tier0-bootstrap.sh",
+    "installer/termux-lite/install-tier0-control.py",
     "installer/termux-lite/test-android-network-mutation-guard.py",
     "installer/termux-lite/test-tier0-control.py",
     "docs/audits/termux-background-network-hardening-20261004.md",
     "docs/changes/termux-background-network-hardening-20261004.json"
   ],
   "tests": [
-    {"name":"runtime-targeted","status":"passed","evidence":"Guard, Slack runtime contract and Tier0 targeted tests pass; final count is recorded before publication."},
-    {"name":"live-drift-repair","status":"passed","evidence":"With Data Saver disabled, UID 10554 was temporarily removed under a restore trap; candidate re-added it and verified all installed Termux-family protections healthy."}
+    {
+      "name": "runtime-targeted",
+      "status": "passed",
+      "evidence": "Guard, Slack runtime contract and Tier0 targeted tests pass; final count is recorded before publication."
+    },
+    {
+      "name": "live-drift-repair",
+      "status": "passed",
+      "evidence": "With Data Saver disabled, UID 10554 was temporarily removed under a restore trap; candidate re-added it and verified all installed Termux-family protections healthy."
+    },
+    {
+      "name": "tier0-critical-capability-preservation",
+      "status": "passed",
+      "evidence": "Activation exposed the installer dropping ADB/RDC from the soak set; source now accepts explicit critical capabilities and otherwise preserves the current list. Final regression follows."
+    }
   ],
-  "documentation": ["docs/audits/termux-background-network-hardening-20261004.md"],
-  "capabilities": {"impact":"modified","ids":["device.network_safety"],"reason":"The existing network-safety owner now also maintains Termux background-network survivability."},
-  "architecture": {"changed":false,"reason":"Extends the existing guard, Health Manager and Tier0 bootstrap only; no new daemon, scheduler, store, router or recovery owner."},
+  "documentation": [
+    "docs/audits/termux-background-network-hardening-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "device.network_safety"
+    ],
+    "reason": "The existing network-safety owner now also maintains Termux background-network survivability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends the existing guard, Health Manager and Tier0 bootstrap only; no new daemon, scheduler, store, router or recovery owner."
+  },
   "rollback": "Promote the previous immutable Tier0 LKG and revert this scoped private runtime commit after checking concurrent work.",
-  "limitations": ["Exact low-level radio/carrier trigger of the earlier outage is not proven.","Activation and screen-off/idle E2E acceptance are separate gates after source publication."]
+  "limitations": [
+    "Exact low-level radio/carrier trigger of the earlier outage is not proven.",
+    "Activation and screen-off/idle E2E acceptance are separate gates after source publication."
+  ]
 }

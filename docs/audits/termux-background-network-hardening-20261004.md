@@ -16,3 +16,6 @@ The guard never disables Android/Samsung power management globally and does not 
 
 ## Rollback
 Promote the previous immutable Tier0 LKG and revert this scoped runtime commit. The guard's policy mutations are additive exemptions for the Termux UID/packages; rollback of code does not silently remove owner-approved exemptions.
+
+## Tier0 activation correction
+The first candidate activation exposed a pre-existing installer gap: `install-tier0-control.py` packaged with the tier0-control default critical list and therefore reduced the active soak set from five capabilities to three, dropping `device.adb` and `remote_desktop`. The candidate was not accepted in that state. The installer now accepts repeated `--critical-capability` arguments and otherwise preserves the current Tier0 list. Final activation explicitly restores the five previously validated critical capabilities.
