@@ -16,7 +16,7 @@ async function main() {
   fs.writeFileSync(path.join(workspace, "context", "OPERATING_RULES.md"), "OPERATING_CANONICAL\n");
   fs.writeFileSync(path.join(workspace, "memory", "voice", "amine.md"), "VOICE_CANONICAL\n");
   fs.writeFileSync(path.join(workspace, "context", "HYBRID_CONTEXT.md"), "MEMORY_CANONICAL\n");
-  fs.writeFileSync(path.join(home, ".openclaw", "capability-views", "claw_live.md"), "CAPABILITY_CANONICAL\n");
+  fs.writeFileSync(path.join(home, ".openclaw", "capability-views", "claw_live.md"), "STALE_CAPABILITY_LIST_MUST_NOT_LOAD\n");
 
   let seenHeaders;
   let seenBody;
@@ -58,9 +58,12 @@ async function main() {
   assert.ok(englishPrompt.includes("The UI locale is English"));
   assert.ok(englishPrompt.includes("Detect the language actually spoken by Amine on every turn"));
   assert.deepEqual(englishToken.setup.inputAudioTranscription.languageCodes, []);
-  for (const marker of ["IDENTITY_CANONICAL", "OPERATING_CANONICAL", "VOICE_CANONICAL", "MEMORY_CANONICAL", "CAPABILITY_CANONICAL"]) {
+  for (const marker of ["IDENTITY_CANONICAL", "OPERATING_CANONICAL", "VOICE_CANONICAL", "MEMORY_CANONICAL"]) {
     assert.ok(prompt.includes(marker), marker);
   }
+  assert.equal(prompt.includes("STALE_CAPABILITY_LIST_MUST_NOT_LOAD"), false);
+  assert.ok(prompt.includes("Capability discovery is query-scoped inside the Claw harness"));
+  assert.ok(prompt.includes("harness.tool_policy"));
   assert.equal(token.setup.tools[0].functionDeclarations[0].name, "clawmobile_capability");
 
   const html = mod.clawLivePageHtml();

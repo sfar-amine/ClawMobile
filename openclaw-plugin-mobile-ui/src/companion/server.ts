@@ -295,6 +295,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/extensions/voice-relay/health",
         "/v1/extensions/claw-live",
         "/v1/extensions/claw-live/token",
+        "/v1/extensions/claw-live/decision",
         "/v1/extensions/claw-live/capability",
         "/v1/extensions/android/voice-recovery/intentional-stop",
         "/v1/extensions/android/voice-recovery/probe",
@@ -385,6 +386,19 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     } catch (error: any) {
       writeJson(res, 502, { success: false, message: String(error?.message || "claw_live_token_failed").slice(0, 500) });
     }
+    return;
+  }
+
+  if (method === "POST" && routePath === "/claw-live/decision") {
+    const body = await readJsonBody<any>(req);
+    const result = await capabilityBridge(String(body?.request || ""), {
+      execute: false,
+      surface: "claw_live",
+      caller: "owner",
+      timeoutSeconds: 10,
+    });
+    res.setHeader("Cache-Control", "no-store");
+    writeJson(res, result.success === false ? 400 : 200, result);
     return;
   }
 
@@ -1525,6 +1539,7 @@ function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
 function isClawLiveBrowserRoute(pathname: string) {
   return pathname === "/claw-live" ||
     pathname === "/claw-live/token" ||
+    pathname === "/claw-live/decision" ||
     pathname === "/claw-live/capability";
 }
 

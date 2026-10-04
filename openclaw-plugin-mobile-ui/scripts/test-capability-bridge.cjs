@@ -12,7 +12,7 @@ async function main() {
   fs.writeFileSync(helper, [
     "import json,sys",
     "target=sys.argv[sys.argv.index('--target')+1] if '--target' in sys.argv else None",
-    "print(json.dumps({'surface':sys.argv[sys.argv.index('--surface')+1],'target':target,'selected':{'executor':'bixby.device'}}))",
+    "print(json.dumps({'surface':sys.argv[sys.argv.index('--surface')+1],'target':target,'harness':{'tool_policy':'required','evidence_required':True,'shortlist':[{'id':'device.assistance','score':1.0}]},'selected':{'executor':'bixby.device'}}))",
     "",
   ].join("\n"));
 
@@ -26,6 +26,9 @@ async function main() {
   assert.equal(out.surface, "bixby");
   assert.equal(out.target, "maxit-tunisie");
   assert.equal(out.selected.executor, "bixby.device");
+  assert.equal(out.harness.tool_policy, "required");
+  assert.equal(out.harness.evidence_required, true);
+  assert.equal(out.harness.shortlist[0].id, "device.assistance");
 
   const invalidTarget = await mod.capabilityBridge("test", { helperPath: helper, targetHint: "bad target" });
   assert.equal(invalidTarget.success, false);

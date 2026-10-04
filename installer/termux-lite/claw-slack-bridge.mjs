@@ -29,6 +29,8 @@ const EVENT_LOG = path.join(STATE_DIR, "events.log");
 const MAX_REPLY_CHARS = 26000;
 const SLACK_API_BASE = (process.env.CLAW_SLACK_API_BASE || "https://slack.com/api").replace(/\/$/, "");
 const READ_ONLY = new Set(["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status"]);
+const CORRELATION_REQUIRED = new Set(["exec_wait","process_start","write_file","patch_file","write_binary_file","process_input","process_stop"]);
+const CORRELATION_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 const HEALTH_HEARTBEAT_MS = Number(process.env.CLAW_SLACK_HEALTH_HEARTBEAT_MS || 15000);
 
 let socket = null;
@@ -98,6 +100,15 @@ function requestSummary(request) {
   return {};
 }
 
+function validateExecutionCorrelation(request) {
+  const method=String(request?.method||"");
+  if (!CORRELATION_REQUIRED.has(method)) return;
+  const taskId=String(request?.taskId||"").trim(), stepId=String(request?.stepId||"").trim();
+  if (!taskId || !stepId) throw new Error(`correlation_required:${method}`);
+  if (!CORRELATION_ID.test(taskId)) throw new Error("invalid_task_id");
+  if (!CORRELATION_ID.test(stepId)) throw new Error("invalid_step_id");
+  request.taskId=taskId; request.stepId=stepId;
+}
 function auditEvent(event, request, extra = {}) {
   try {
     const value = {
@@ -106,6 +117,7 @@ function auditEvent(event, request, extra = {}) {
       transport: "slack",
       requestId: String(request?.requestId || "unknown"),
       taskId: String(request?.taskId || ""),
+      stepId: String(request?.stepId || ""),
       sessionId: String(request?.sessionId || ""),
       method: String(request?.method || ""),
       summary: requestSummary(request),
@@ -216,6 +228,8 @@ function compactReply(receipt) {
   const artifact = result?.artifact;
   const summary = {
     requestId,
+    taskId: receipt?.taskId,
+    stepId: receipt?.stepId,
     state,
     mutationRisk: receipt?.mutationRisk,
     error: receipt?.error,
@@ -254,6 +268,7 @@ function receive(event) {
     if (!request) return null;
     if (Buffer.byteLength(JSON.stringify(request)) > 65536) throw new Error("request_too_large");
     if (!/^[A-Za-z0-9._:-]{1,128}$/.test(request.requestId || "")) throw new Error("invalid_request_id");
+    validateExecutionCorrelation(request);
   } catch (error) {
     if (!String(event.text || "").trim().startsWith("CLAW_RPC_V1")) return null;
     return journal.add(event, null, `CLAW_RPC_ERROR_V1 code=${sanitizeAuditText(error.message)} action=use_b64`);

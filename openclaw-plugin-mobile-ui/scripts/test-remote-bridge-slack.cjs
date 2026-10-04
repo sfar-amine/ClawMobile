@@ -158,7 +158,7 @@ async function main() {
 
   await sendEvent(
     "CLAW_RPC_V1\n" + JSON.stringify({
-      requestId: "s-shadow-write",
+      requestId: "s-shadow-write", taskId: "slack-e2e", stepId: "shadow-write",
       method: "write_file",
       params: { path: testFile, content: "X", mode: "append" },
     }),
@@ -172,7 +172,14 @@ async function main() {
   await waitFor(() => sockets.size === 1);
 
   await sendEvent("CLAW_RPC_V1\\n" + JSON.stringify({
-    requestId: "s-entity-exec", method: "exec_wait",
+    requestId: "s-uncorrelated-exec", method: "exec_wait",
+    params: { command: `printf forbidden > ${testFile}` },
+  }));
+  await waitFor(() => posts.some((post) => String(post.text).includes("correlation_required:exec_wait")));
+  assert.equal(fs.existsSync(testFile), false);
+
+  await sendEvent("CLAW_RPC_V1\\n" + JSON.stringify({
+    requestId: "s-entity-exec", taskId: "slack-e2e", stepId: "entity-exec", method: "exec_wait",
     params: { command: "true &amp;&amp; echo ENTITY_OK" },
   }));
   const entityPost = await waitFor(() => posts.find((post) => String(post.text).includes("request=s-entity-exec state=completed")));
@@ -180,14 +187,14 @@ async function main() {
 
   const complexContent = "line1\n{\\\"quoted\\\":\\\"yes\\\"}";
   await sendEvent(rpcB64({
-    requestId: "s-b64-write", method: "write_file",
+    requestId: "s-b64-write", taskId: "slack-e2e", stepId: "b64-write", method: "write_file",
     params: { path: b64File, content: complexContent, mode: "rewrite" },
   }));
   await waitFor(() => posts.some((post) => String(post.text).includes("request=s-b64-write state=completed")));
   assert.equal(fs.readFileSync(b64File, "utf8"), complexContent);
 
   const writeRpc = "CLAW_RPC_V1\n" + JSON.stringify({
-    requestId: "s-write",
+    requestId: "s-write", taskId: "slack-e2e", stepId: "write-once",
     method: "write_file",
     params: { path: testFile, content: "X", mode: "append" },
   });
@@ -199,7 +206,7 @@ async function main() {
 
   // Regression: 26-48 KB inline results used to become an empty preview.
   await sendEvent(rpcB64({
-    requestId: "s-medium-output", method: "exec_wait",
+    requestId: "s-medium-output", taskId: "slack-e2e", stepId: "medium-output", method: "exec_wait",
     params: { command: "python -c \"import sys; print('MEDIUM_OUTPUT_' + 'x' * 33000); print('KNOWN_ERROR', file=sys.stderr); sys.exit(7)\"" },
   }));
   const mediumPost = await waitFor(() => posts.find((post) => String(post.text).includes("request=s-medium-output state=completed")));
