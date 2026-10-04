@@ -1,3 +1,4 @@
+import { handleControl } from "./control";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import fs from "fs";
 import http from "http";
@@ -267,6 +268,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     }
     writeJson(res,404,{success:false,message:"payment_route_not_found"}); return;
   }
+
+  if (await handleControl(req, res, routePath)) return;
 
   if (method === "GET" && routePath === "/") {
     writeJson(res, 200, {
@@ -900,6 +903,7 @@ function normalizeProtocolPath(pathname: string): string | null {
     ["/extensions/capability-bridge", "/capability-bridge"],
     ["/extensions/voice-relay", "/voice-relay"],
     ["/extensions/claw-live", "/claw-live"],
+    ["/extensions/samantha-control", "/control"],
     ["/extensions/skill-sharing/imports", "/skill-imports"],
     ["/extensions/skill-sharing/skills", "/skills"],
   ];
