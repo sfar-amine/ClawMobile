@@ -1,4 +1,5 @@
 const assert=require("assert/strict"),crypto=require("crypto");
+const {createHash, createPublicKey} = crypto;
 const {createPaymentCore,ownerKey,confirmationMessage,quoteDigest}=require("../dist/companion/paymentCore.js");
 const {bankAuthorizationIntent,bindPaymentAuthorizations}=require("../dist/companion/payments.js");
 let count=0;
