@@ -192,6 +192,7 @@ export const payments = {
   resume,
   bankReturn,
   prepareLocalIntent,
+  localIntentStatus,
   localStart,
   startBankTimeoutReconciler
 };
