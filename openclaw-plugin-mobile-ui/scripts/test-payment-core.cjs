@@ -169,5 +169,154 @@ const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
   const bound=bindPaymentAuthorizations(core,confirmationCore),auth=await bound.bankAuthorization(payment.requestId);
   assert.equal((await bound.resume(payment.requestId,auth.confirmationRequestId)).state,"confirmed");
   assert.deepEqual(events,["prepare","consume","resume"])});
- console.log("PAYMENT_CORE_TESTS_PASSED="+count);
+ 
+await test("local owner authorization source is durable and validates stored", async () => {
+  const f = fixture({mode:"live"});
+  const r = await f.prepared();
+  assert.equal(r.authorizationSource, undefined); // prepare() externe n'a pas encore ce champ dans la vue publique
+  const saved = await f.store.read();
+  assert.equal(saved[0].authorizationSource, "payment_owner_native");
+});
+
+await test("startLocalAuthorized creates full validateStored-compatible record", async () => {
+  const f = fixture({mode:"live"});
+  const quote = await f.adapter.quote("DEMO");
+  const confId = crypto.randomUUID();
+  const out = await f.core.startLocalAuthorized({
+    confirmationRequestId: confId,
+    adapterId: "fixture.payment",
+    reference: "DEMO",
+    quote
+  });
+  assert.equal(out.state, "confirmed");
+  assert.equal(out.metrics.executorAttempts, 1);
+  const saved = await f.store.read();
+  const rec = saved.find(x => x.id === out.requestId);
+  assert.ok(rec);
+  assert.equal(rec.authorizationSource, "local_owner_confirmation");
+  assert.equal(rec.ownerConfirmationId, confId);
+  assert.equal(rec.draft.mode, "live");
+  assert.equal(rec.draft.origin.channel, "samantha");
+  assert.equal(rec.draft.origin.id, "local-owner:" + confId);
+  assert.equal(rec.expiresAt - rec.createdAt, 120000);
+  assert.match(rec.nonce, /^[a-f0-9]{64}$/);
+  assert.match(rec.keyId, /^[a-f0-9]{64}$/);
+  assert.match(rec.quoteHash, /^[a-f0-9]{64}$/);
+  assert.match(rec.fingerprint, /^[a-f0-9]{64}$/);
+});
+
+await test("startLocalAuthorized persists executorAttempts before executeLocal", async () => {
+  let dispatchSeen = false;
+  const f = fixture({
+    mode:"live",
+    executeLocal: async () => {
+      dispatchSeen = true;
+      const rows = await f.store.read();
+      const rec = rows.find(x => x.draft.requestKey === confId);
+      assert.ok(rec, "record must exist before executeLocal");
+      assert.equal(rec.executorAttempts, 1);
+      return {state:"requires_bank_action", reasonCode:"bank_verification_required"};
+    }
+  });
+  const quote = await f.adapter.quote("DEMO");
+  const confId = crypto.randomUUID();
+  const out = await f.core.startLocalAuthorized({
+    confirmationRequestId: confId,
+    adapterId: "fixture.payment",
+    reference: "DEMO",
+    quote
+  });
+  assert.equal(dispatchSeen, true);
+  assert.equal(out.state, "requires_bank_action");
+});
+
+await test("resume uses availableForRecord for local owner records", async () => {
+  const f = fixture({
+    mode:"live",
+    executeLocal: async () => ({state:"requires_bank_action", reasonCode:"bank_verification_required"}),
+    resume: async () => ({state:"confirmed", reasonCode:"gateway_and_provider_confirmed", receipt:{reference:"LOCAL-RESUME", transactionCorrelated:true, providerReconciled:true}})
+  });
+  const quote = await f.adapter.quote("DEMO");
+  const confId = crypto.randomUUID();
+  const started = await f.core.startLocalAuthorized({
+    confirmationRequestId: confId,
+    adapterId: "fixture.payment",
+    reference: "DEMO",
+    quote
+  });
+  assert.equal(started.state, "requires_bank_action");
+  f.setTime(f.time() + 4000);
+  const done = await f.core.resume(started.requestId);
+  assert.equal(done.state, "confirmed");
+  assert.equal(done.metrics.bankResumeAttempts, 1);
+});
+
+await test("resumeFromBankReturn uses availableForRecord for local owner records", async () => {
+  let capturedToken;
+  const f = fixture({
+    mode:"live",
+    executeLocal: async (_q,_id,ctx) => {
+      capturedToken = ctx?.bankReturnToken;
+      return {state:"requires_bank_action", reasonCode:"bank_verification_required"};
+    },
+    resume: async () => ({state:"confirmed", reasonCode:"gateway_and_provider_confirmed", receipt:{reference:"BANK-RETURN-LOCAL", transactionCorrelated:true, providerReconciled:true}})
+  });
+  const quote = await f.adapter.quote("DEMO");
+  const confId = crypto.randomUUID();
+  const started = await f.core.startLocalAuthorized({
+    confirmationRequestId: confId,
+    adapterId: "fixture.payment",
+    reference: "DEMO",
+    quote
+  });
+  assert.equal(started.state, "requires_bank_action");
+  assert.match(capturedToken, /^[A-Za-z0-9_-]{43}$/);
+  const done = await f.core.resumeFromBankReturn(started.requestId, capturedToken);
+  assert.equal(done.state, "confirmed");
+  assert.equal(done.metrics.bankResumeAttempts, 1);
+});
+
+await test("external topnet live remains blocked when executionValidated=false", async () => {
+  const f = fixture({mode:"live", validated:false});
+  await reject(() => f.prepared(), "payment_contract_unverified");
+});
+
+await test("localOwnerValidated allows startLocalAuthorized without external validation", async () => {
+  const f = fixture({mode:"live", validated:false});
+  const localAdapter = {...f.adapter, localOwnerValidated:true, executeLocal:f.adapter.execute};
+  const core = createPaymentCore({store:f.store, adapters:[localAdapter], key:()=>f.key, clock:()=>f.time(), timeouts:f.timeouts});
+  const quote = await localAdapter.quote("DEMO");
+  const out = await core.startLocalAuthorized({
+    confirmationRequestId: crypto.randomUUID(),
+    adapterId: "fixture.payment",
+    reference: "DEMO",
+    quote
+  });
+  assert.equal(out.state, "confirmed");
+});
+
+await test("status never exposes bankReturnToken or raw continuation", async () => {
+  let capturedToken;
+  const f = fixture({
+    mode:"live",
+    executeLocal: async (_q,_id,ctx) => {
+      capturedToken = ctx?.bankReturnToken;
+      return {state:"requires_bank_action", reasonCode:"bank_verification_required"};
+    }
+  });
+  const quote = await f.adapter.quote("DEMO");
+  const confId = crypto.randomUUID();
+  const started = await f.core.startLocalAuthorized({
+    confirmationRequestId: confId,
+    adapterId: "fixture.payment",
+    reference: "DEMO",
+    quote
+  });
+  const json = JSON.stringify(started);
+  assert.equal(json.includes(capturedToken), false);
+  assert.equal(json.includes("checkoutId"), false);
+  assert.equal(json.includes("gatewayOrderId"), false);
+});
+
+console.log("PAYMENT_CORE_TESTS_PASSED="+count);
 })().catch(e=>{console.error(e);process.exitCode=1});
