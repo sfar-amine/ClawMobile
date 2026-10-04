@@ -57,7 +57,7 @@
   "rollback": "Revert this scoped commit with the live Topnet gate absent. Do not replay any previously engaged payment request.",
   "limitations": [
     "Topnet live remains disabled by default.",
-    "OTP/3DS remains human and is never captured by Companion.",
+    "Issuer authentication remains human and is never captured by Companion.",
     "A positive live receipt still requires separate controlled acceptance."
   ]
 }
