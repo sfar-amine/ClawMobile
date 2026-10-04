@@ -11,6 +11,8 @@ type LiveRunFn=(script:string,payload:Record<string,unknown>,timeoutMs:number)=>
 const MAX=65536;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const INVOICE=/^[A-Za-z0-9._-]{1,100}$/;
+const START_TIMEOUT_MS=225000;
+const RESUME_TIMEOUT_MS=45000;
 
 function runExec(file:string,args:string[],timeoutMs:number):Promise<ExecResult>{
   return new Promise((resolve,reject)=>{
@@ -108,7 +110,7 @@ export function createTopnetLivePaymentAdapter(options:{
       return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
 
     const result=await live(liveCli,{operation:"start",paymentRequestId:requestId,bankReturnToken:context.bankReturnToken,
-      request:{invoice_id:quote.reference,expected_amount_millimes:quote.amountMinor,currency:quote.currency,expected_last4:card.last4}},30000);
+      request:{invoice_id:quote.reference,expected_amount_millimes:quote.amountMinor,currency:quote.currency,expected_last4:card.last4}},START_TIMEOUT_MS);
 
     if(result?.state==="requires_bank_action"&&result.reason_code==="bank_verification_required"){
       const c=result.continuation as PaymentContinuation|undefined;
@@ -145,7 +147,7 @@ export function createTopnetLivePaymentAdapter(options:{
         return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
 
       const result=await live(liveCli,{operation:"resume",request:{invoice_id:quote.reference,
-        expected_amount_millimes:quote.amountMinor,currency:quote.currency},continuation},30000);
+        expected_amount_millimes:quote.amountMinor,currency:quote.currency},continuation},RESUME_TIMEOUT_MS);
 
       if(result?.state==="confirmed"&&result.gateway_return_correlated===true&&result.fresh_provider_read===true&&result.invoice_state==="settled"){
         if(!UUID.test(requestId))return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};

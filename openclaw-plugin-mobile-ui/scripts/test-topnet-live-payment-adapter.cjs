@@ -27,8 +27,8 @@ function fixture({enabled=true,startResult,resumeResult}={}){
   throw Error("unexpected_exec");
  };
  let liveCalls=0;
- const liveRun=async(_script,payload)=>{
-  liveCalls++;calls.push(["live",payload]);
+ const liveRun=async(_script,payload,timeoutMs)=>{
+  liveCalls++;calls.push(["live",payload,timeoutMs]);
   if(payload.operation==="resume")return resumeResult??{state:"confirmed",gateway_return_correlated:true,fresh_provider_read:true,invoice_state:"settled"};
   return startResult??{state:"requires_bank_action",reason_code:"bank_verification_required",continuation};
  };
@@ -55,6 +55,7 @@ test("FORM1 stage returns durable continuation after exactly one live dispatch",
   assert.equal(payload.paymentRequestId,requestId);
   assert.equal(payload.bankReturnToken,context.bankReturnToken);
   assert.deepEqual(payload.request,{invoice_id:invoice,expected_amount_millimes:60900,currency:"TND",expected_last4:"8503"});
+  assert.equal(f.calls.find(x=>x[0]==="live")[2],225000);
  }finally{f.cleanup();}
 });
 
@@ -83,6 +84,7 @@ test("resume is read-only and does not consume a new gate or card status",async(
   assert.equal(resumePayload.operation,"resume");
   assert.deepEqual(resumePayload.continuation,continuation);
   assert.deepEqual(resumePayload.request,{invoice_id:invoice,expected_amount_millimes:60900,currency:"TND"});
+  assert.equal(f.calls.filter(x=>x[0]==="live").at(-1)[2],45000);
  }finally{f.cleanup();}
 });
 
