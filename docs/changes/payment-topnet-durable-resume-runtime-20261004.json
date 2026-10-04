@@ -44,11 +44,9 @@
     "docs/changes/payment-topnet-durable-resume-runtime-20261004.md"
   ],
   "capabilities": {
-    "impact": "modified",
-    "ids": [
-      "payment.owner_native"
-    ],
-    "reason": "Adds token-bound bank-return and durable same-transaction read-only resume."
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability truth and registry updates are delivered in samantha-ui-playbooks; this repository contains only the matching Companion runtime implementation."
   },
   "architecture": {
     "changed": false,
