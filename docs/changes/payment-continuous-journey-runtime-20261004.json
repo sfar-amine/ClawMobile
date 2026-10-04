@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "id": "payment-continuous-journey-runtime-20261004",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose read-only local-intent/payment status for the continuous foreground observer.",
+  "reason": "The channel must follow one confirmationRequestId into its PaymentRecord without reading runs.json directly.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "docs/changes/payment-continuous-journey-runtime-20261004.json",
+    "docs/changes/payment-continuous-journey-runtime-20261004.md"
+  ],
+  "tests": [
+    {
+      "name": "build",
+      "status": "passed",
+      "evidence": "TypeScript build passed."
+    },
+    {
+      "name": "core",
+      "status": "passed",
+      "evidence": "54/54 Payment Core tests passed."
+    },
+    {
+      "name": "adapter",
+      "status": "passed",
+      "evidence": "9/9 Topnet adapter tests passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/payment-continuous-journey-runtime-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Runtime implements canonical UI capability contract."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "One loopback read-only endpoint backed by existing stores."
+  },
+  "rollback": "Revert the two runtime files.",
+  "limitations": [
+    "Endpoint cannot approve, resume or submit a payment."
+  ]
+}

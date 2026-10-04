@@ -121,6 +121,18 @@ async function prepareLocalIntent(input:any) {
   return {schemaVersion:1, state:"awaiting_owner", confirmationRequestId:prepared.requestId, quote, expiresAt:prepared.expiresAt};
 }
 
+async function localIntentStatus(id:string) {
+  if(typeof id!=="string"||!ownerUuid.test(id)) paymentError("invalid_payment_request");
+  const payment=await core.statusByRequestKey(id);
+  if(payment) return {
+    schemaVersion:1, confirmationRequestId:id, state:payment.state,
+    financialSubmissionAttempted:payment.financialSubmissionAttempted, payment
+  };
+  const confirmation=await confirmations.status(id);
+  return {schemaVersion:1, confirmationRequestId:id, state:confirmation.state,
+    financialSubmissionAttempted:false};
+}
+
 async function localStart(input:any) {
   exactPaymentObject(input,["confirmationRequestId"]);
   if(typeof input.confirmationRequestId!=="string"||!ownerUuid.test(input.confirmationRequestId)) paymentError("invalid_payment_request");

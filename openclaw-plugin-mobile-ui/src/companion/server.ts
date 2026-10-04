@@ -241,6 +241,10 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if (method === "POST" && routePath === "/payments/local-intents") {
       writeJson(res, 200, await payments.prepareLocalIntent(await readJsonBody(req, 4096))); return;
     }
+    const localIntentStatusMatch = /^\/payments\/local-intents\/([a-f0-9-]{36})$/.exec(routePath);
+    if (method === "GET" && localIntentStatusMatch) {
+      writeJson(res, 200, await payments.localIntentStatus(localIntentStatusMatch[1])); return;
+    }
     if (method === "POST" && routePath === "/payments/local-start") {
       writeJson(res, 200, await payments.localStart(await readJsonBody(req, 512))); return;
     }
