@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "id": "native-recovery-idempotent-20261004",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Make the native recovery repair path a strict no-op when Tier0 and Slack are already healthy.",
+  "reason": "Network callbacks can occur during normal operation; healthy callbacks must not spawn redundant Tier0 bootstrap attempts.",
+  "files": [
+    "installer/termux-lite/native-recovery-entrypoint.py",
+    "installer/termux-lite/test-native-recovery-entrypoint.py",
+    "docs/changes/native-recovery-idempotent-20261004.md",
+    "docs/changes/native-recovery-idempotent-20261004.json"
+  ],
+  "tests": [
+    {
+      "name": "native-recovery-targeted",
+      "status": "passed",
+      "evidence": "Updated unit suite covers healthy no-op and degraded bounded repair; final run recorded before publication."
+    }
+  ],
+  "documentation": [
+    "docs/changes/native-recovery-idempotent-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "device.native_recovery"
+    ],
+    "reason": "Operational idempotence only; capability scope and failure-domain ownership are unchanged."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Refines the existing deterministic entrypoint; no new component or owner."
+  },
+  "rollback": "Revert this maintenance commit and promote the previous native-recovery release if required.",
+  "limitations": [
+    "Does not change V1 trigger coverage; FCM/cloud wake remains a separate follow-up."
+  ]
+}

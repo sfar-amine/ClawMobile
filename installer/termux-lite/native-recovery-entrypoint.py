@@ -68,7 +68,10 @@ def repair(wait_s=30):
         try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:return _write({'state':'already_running','action':'repair'})
         if emergency_stop():return _write({'state':'deferred','action':'repair','reason':'tier0_emergency_stop'})
-        root=runtime_root(); network=network_reconcile(root); boot=start_tier0(); deadline=time.monotonic()+max(2,min(int(wait_s),45)); snap={}
+        root=runtime_root(); snap=snapshot(root)
+        if not snap['bad_critical'] and snap['slack_bridge'] in {'healthy','delivery_attention'}:
+            return _write({'state':'healthy','action':'repair','mutation':'none_already_healthy','snapshot':snap})
+        network=network_reconcile(root); boot=start_tier0(); deadline=time.monotonic()+max(2,min(int(wait_s),45))
         while time.monotonic()<deadline:
             root=runtime_root();snap=snapshot(root)
             if not snap['bad_critical'] and snap['slack_bridge'] in {'healthy','delivery_attention'}:

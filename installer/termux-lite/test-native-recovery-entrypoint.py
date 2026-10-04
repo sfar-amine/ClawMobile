@@ -21,10 +21,17 @@ class NativeRecoveryTests(unittest.TestCase):
   class R:returncode=1;stdout='';stderr=''
   with patch.object(m,'_run',return_value=R()):out=m.network_reconcile(Path('/runtime'))
   self.assertEqual(out['reason'],'adb_unavailable')
- def test_repair_is_bounded_and_uses_existing_tier0(self):
+ def test_healthy_repair_is_noop(self):
   root=Path(self.t.name)/'runtime';root.mkdir()
   good={'critical_capabilities':['immune.health_manager'],'bad_critical':{},'slack_bridge':'healthy','emergency_stop':False,'runtime_root':str(root)}
-  with patch.object(m,'runtime_root',return_value=root),patch.object(m,'network_reconcile',return_value={'state':'healthy'}),patch.object(m,'start_tier0',return_value={'state':'started'}),patch.object(m,'snapshot',return_value=good):
+  with patch.object(m,'runtime_root',return_value=root),patch.object(m,'snapshot',return_value=good),patch.object(m,'network_reconcile') as network,patch.object(m,'start_tier0') as start:
+   out=m.repair(2)
+  self.assertEqual(out['mutation'],'none_already_healthy');network.assert_not_called();start.assert_not_called()
+ def test_repair_is_bounded_and_uses_existing_tier0(self):
+  root=Path(self.t.name)/'runtime';root.mkdir()
+  bad={'critical_capabilities':['immune.health_manager'],'bad_critical':{'immune.health_manager':'down'},'slack_bridge':'degraded','emergency_stop':False,'runtime_root':str(root)}
+  good={'critical_capabilities':['immune.health_manager'],'bad_critical':{},'slack_bridge':'healthy','emergency_stop':False,'runtime_root':str(root)}
+  with patch.object(m,'runtime_root',return_value=root),patch.object(m,'network_reconcile',return_value={'state':'healthy'}),patch.object(m,'start_tier0',return_value={'state':'started'}),patch.object(m,'snapshot',side_effect=[bad,good]):
    out=m.repair(2)
   self.assertEqual(out['state'],'healthy');self.assertEqual(out['boot']['state'],'started')
  def test_only_health_and_repair_actions_are_cli_choices(self):
