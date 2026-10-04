@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "payment-local-owner-start-runtime-20261004",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Implement the Companion local-owner payment boundary for Topnet V1.1 on the current canonical runtime.",
+  "reason": "The conversational channel must not create the live payment before the owner biometric. The runtime now prepares inert owner intent data, creates the live PaymentRecord only after trusted local-start, persists the single dispatch guard first, and carries the local authorization contract through bank continuation.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/localPaymentIntent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentTypes.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/topnetLivePaymentAdapter.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-local-payment-intent.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-api.cjs",
+    "docs/changes/payment-local-owner-start-runtime-20261004.json",
+    "docs/changes/payment-local-owner-start-runtime-20261004.md"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "Final candidate based on runtime 683e86f built successfully."
+    },
+    {
+      "name": "local-intent-builder",
+      "status": "passed",
+      "evidence": "3/3 deterministic builder/reference tests passed."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "50/50 tests passed including local authorization persistence, validateStored-compatible record, dispatch guard, local resume selection and redaction."
+    },
+    {
+      "name": "topnet-adapter",
+      "status": "passed",
+      "evidence": "6/6 tests passed for one dispatch, gate behavior, read-only resume, uncertain result and verified rejection."
+    },
+    {
+      "name": "payment-api-and-bridge",
+      "status": "passed",
+      "evidence": "Payment API/registry checks and capability bridge regression passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/payment-local-owner-start-runtime-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability truth and user-facing contract are owned by ui-playbooks payment.owner_native."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses existing owner.confirmation, Payment Core, runs store, Topnet adapter and bank-return flow."
+  },
+  "rollback": "Revert the scoped runtime commits while keeping external live disabled; engaged or indeterminate payment records must never be replayed.",
+  "limitations": [
+    "No real positive financial acceptance was executed during this engineering validation.",
+    "External live payment creation remains disabled.",
+    "A positive owner-initiated Topnet V1.1 acceptance is still required before capability promotion."
+  ]
+}
