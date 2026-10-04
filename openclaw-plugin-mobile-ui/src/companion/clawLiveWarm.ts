@@ -70,18 +70,24 @@ export class ClawLiveWarmCore {
   status(){
     return {
       state:this.state,stage:this.stage,providerReady:this.providerReady,clients:this.localClients.size,
-      conversationBound:Boolean(this.conversationId),resumable:Boolean(this.resumeHandle),historyLoaded:this.historyLoaded,
+      conversationBound:Boolean(this.conversationId&&this.conversationId!=="__prewarm__"),resumable:Boolean(this.resumeHandle),historyLoaded:this.historyLoaded,
       connectedAt:this.connectedAt||null,readyAt:this.readyAt||null,lastUsedAt:this.lastUsedAt||null,
       lastSetupMs:this.lastSetupMs,resumedLast:this.resumedLast,lastError:this.lastError||null,idleMs:this.idleMs,
     };
   }
 
-  private touch(){
-    this.lastUsedAt=this.now();
+  private armIdleTimer(){
     if(this.idleTimer)clearTimeout(this.idleTimer);
+    if(!this.lastUsedAt)return;
+    const remaining=Math.max(100,this.idleMs-(this.now()-this.lastUsedAt)+100);
     this.idleTimer=setTimeout(()=>{
       if(this.localClients.size===0&&this.now()-this.lastUsedAt>=this.idleMs)this.cool("idle_timeout");
-    },this.idleMs+100).unref();
+    },remaining).unref();
+  }
+  private touch(){this.lastUsedAt=this.now();this.armIdleTimer();}
+
+  async prewarmDefault(locale="fr"){
+    return this.prewarm({locale,client:"samantha_android",sessionId:"__prewarm__"});
   }
 
   async prewarm(meta:LocalMeta){
@@ -94,10 +100,10 @@ export class ClawLiveWarmCore {
     this.localClients.add(ws);this.touch();
     ws.once("close",()=>{this.localClients.delete(ws);this.touch();});
     ws.on("message",(data)=>this.onLocalMessage(ws,data));
-    const alreadyWarm=this.providerReady&&this.conversationId===meta.sessionId;
+    const readyBefore=this.providerReady;
     try{
       await this.ensureConversation(meta);
-      if(alreadyWarm&&this.providerReady)this.sendReady(ws,!this.historyLoaded);
+      if(readyBefore&&this.providerReady)this.sendReady(ws,!this.historyLoaded);
     }catch{
       if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({warmError:{stage:this.stage,code:this.lastError||"warm_unavailable"}}));
     }
@@ -109,9 +115,11 @@ export class ClawLiveWarmCore {
   }
 
   private async ensureConversation(meta:LocalMeta){
-    const changed=this.conversationId&&this.conversationId!==meta.sessionId;
+    const unbound=this.conversationId==="__prewarm__";
+    const changed=this.conversationId&&!unbound&&this.conversationId!==meta.sessionId;
     if(changed)this.resetProvider("conversation_changed");
-    this.conversationId=meta.sessionId;this.locale=meta.locale;this.client=meta.client;
+    if(!this.conversationId||unbound||meta.sessionId==="__prewarm__")this.conversationId=meta.sessionId;
+    this.locale=meta.locale;this.client=meta.client;
     if(this.providerReady)return;
     if(this.connectPromise)return this.connectPromise;
     this.connectPromise=this.connectProvider(Boolean(this.resumeHandle)).finally(()=>{this.connectPromise=null;});
@@ -151,7 +159,7 @@ export class ClawLiveWarmCore {
         if(m.error){if(!this.providerReady)fail("provider_error",new Error(String(m.error?.message||"provider_error")));else this.broadcast(raw);return;}
         if(m.setupComplete!==undefined){
           if(settled)return;settled=true;if(this.setupTimer)clearTimeout(this.setupTimer);this.setupTimer=null;
-          this.providerReady=true;this.state="warm";this.stage="ready";this.readyAt=this.now();this.lastSetupMs=this.readyAt-this.connectStartedAt;this.resumedLast=resume;this.touch();
+          this.providerReady=true;this.state="warm";this.stage="ready";this.readyAt=this.now();this.lastSetupMs=this.readyAt-this.connectStartedAt;this.resumedLast=resume;this.armIdleTimer();
           const historyRequired=!resume&&!this.historyLoaded;
           for(const client of this.localClients)this.sendReady(client,historyRequired);
           resolve();return;

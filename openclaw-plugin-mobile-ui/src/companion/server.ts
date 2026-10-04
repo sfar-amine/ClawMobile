@@ -93,6 +93,15 @@ export function startCompanionServer() {
   startWhatsAppListenerWatchdog();
   startVoiceRecoveryWatchdog();
   startVoiceRelay();
+  // Bounded provider prewarm: no microphone and no user session context. The first Android session
+  // can claim this connection without reconnecting; it cools automatically after the warm idle TTL.
+  setTimeout(() => {
+    void clawLiveWarmCore.prewarmDefault().then((status) => {
+      console.log(`[claw-live-warm] startup prewarm state=${status.state} setupMs=${status.lastSetupMs ?? -1}`);
+    }).catch((error: any) => {
+      console.warn("[claw-live-warm] startup prewarm failed: " + String(error?.message || error).slice(0, 160));
+    });
+  }, 1_000).unref();
 
   return server;
 }

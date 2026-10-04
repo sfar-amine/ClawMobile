@@ -35,9 +35,10 @@ const wait=(ms=8)=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
   const core=new ClawLiveWarmCore({tokenFactory,WebSocketImpl:FakeProvider,idleMs:60000});
   const meta={locale:"fr",client:"samantha_android",sessionId:"session-a"};
-  const st=await core.prewarm(meta);
+  const st=await core.prewarmDefault("fr");
   assert.equal(st.state,"warm");
   assert.equal(st.providerReady,true);
+  assert.equal(st.conversationBound,false);
   assert.equal(FakeProvider.instances.length,1);
   assert.deepEqual(FakeProvider.instances[0].setup.contextWindowCompression,{slidingWindow:{}});
   assert.deepEqual(FakeProvider.instances[0].setup.sessionResumption,{});
@@ -46,6 +47,8 @@ const wait=(ms=8)=>new Promise(r=>setTimeout(r,ms));
 
   const local=new FakeLocal();
   await core.attach(local,meta);
+  assert.equal(FakeProvider.instances.length,1);
+  assert.equal(core.status().conversationBound,true);
   const ready=local.sent.map(JSON.parse).find(x=>x.warmReady)?.warmReady;
   assert.ok(ready);
   assert.equal(ready.historyRequired,true);
