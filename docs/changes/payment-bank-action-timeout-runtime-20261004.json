@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "payment-bank-action-timeout-runtime-20261004",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Bound bank verification to 60 seconds and reconcile stale bank-action payments deterministically without another financial submission.",
+  "reason": "A real Topnet acceptance reached the original issuer 3DS2 form and SMS stage. After the owner cancelled the issuer screen, the canonical PaymentRecord stayed requires_bank_action indefinitely because no bank-return callback was observed. Amine requested a 60-second no-response transition to cancelled.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "docs/changes/payment-bank-action-timeout-runtime-20261004.json",
+    "docs/changes/payment-bank-action-timeout-runtime-20261004.md"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "Companion TypeScript build passed."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "54/54 Payment Core cases passed, including 60-second threshold, unpaid cancellation, read-only ambiguity reconciliation and bank-return race."
+    },
+    {
+      "name": "topnet-adapter",
+      "status": "passed",
+      "evidence": "9/9 Topnet live adapter cases passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/payment-bank-action-timeout-runtime-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability truth is updated in ui-playbooks; this repository implements that contract."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the existing Companion process, PaymentRecord store, adapter quote/readback and resume path. No scheduler, daemon, ledger or second transaction owner is added."
+  },
+  "rollback": "Revert this scoped runtime commit and reactivate the previous Companion while preserving existing no-replay guards and payment records.",
+  "limitations": [
+    "A 60-second timeout becomes cancelled only after a fresh provider quote proves the same invoice is still unpaid.",
+    "If provider state is no longer definitely unpaid, the existing read-only resume path is used; unresolved evidence remains effect_unknown.",
+    "No timeout path sends a second FORM1."
+  ]
+}

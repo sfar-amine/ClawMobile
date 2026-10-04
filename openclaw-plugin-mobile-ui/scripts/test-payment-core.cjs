@@ -121,6 +121,33 @@ const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
   assert.equal(done.state,"confirmed");assert.equal(done.metrics.executorAttempts,1);assert.equal(done.metrics.bankResumeAttempts,1);
   assert.equal(done.metrics.bankWaitMs,4000);assert.equal(f.calls(),1);assert.equal(f.resumes(),1);
   await reject(()=>f.core.resume(r.requestId),"payment_resume_not_available");assert.equal(f.resumes(),1)});
+ await test("bank action timeout cancels after 60s only when provider is still unpaid",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"})});
+  const r=await f.prepared(),pending=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  assert.equal(pending.state,"requires_bank_action");
+  f.setTime(f.time()+59999);await reject(()=>f.core.timeoutBankAction(r.requestId),"payment_bank_timeout_not_available");
+  f.setTime(f.time()+1);const done=await f.core.timeoutBankAction(r.requestId);
+  assert.equal(done.state,"cancelled");assert.equal(done.reasonCode,"payment_cancelled");
+  assert.equal(done.metrics.executorAttempts,1);assert.equal(done.metrics.bankResumeAttempts,0);
+  assert.equal(f.calls(),1);assert.equal(f.resumes(),0);
+  assert.deepEqual(done.timeline.slice(-3).map(e=>e.stage),["bank_timeout_reconciliation_started","provider_readback","state_transition"]);
+ });
+ await test("bank timeout uses one read-only resume when provider is no longer definitely unpaid",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"}),
+   resume:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"TIMEOUT-RECON",transactionCorrelated:true,providerReconciled:true}})});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  f.adapter.quote=async()=>{throw Error("invoice_no_longer_pending")};f.setTime(f.time()+60000);
+  const done=await f.core.timeoutBankAction(r.requestId);
+  assert.equal(done.state,"confirmed");assert.equal(done.metrics.executorAttempts,1);assert.equal(done.metrics.bankResumeAttempts,1);
+  assert.equal(f.calls(),1);assert.equal(f.resumes(),1);
+ });
+ await test("bank return wins before timeout and timeout cannot replay",async()=>{
+  let token=null;
+  const f=fixture({mode:"live",execute:async(_q,_id,context)=>{token=context?.bankReturnToken;return {state:"requires_bank_action",reasonCode:"bank_verification_required"}}});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));f.setTime(f.time()+60000);
+  const done=await f.core.resumeFromBankReturn(r.requestId,token);assert.equal(done.state,"confirmed");
+  await reject(()=>f.core.timeoutBankAction(r.requestId),"payment_bank_timeout_not_available");assert.equal(f.calls(),1);assert.equal(f.resumes(),1);
+ });
  await test("bank return token resumes once without a second owner gesture",async()=>{
   let token=null;
   const f=fixture({mode:"live",execute:async(_q,_id,context)=>{token=context?.bankReturnToken;return {state:"requires_bank_action",reasonCode:"bank_verification_required"}},

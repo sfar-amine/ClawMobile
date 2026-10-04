@@ -4,9 +4,10 @@ const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]
 const HEX=/^[a-f0-9]{64}$/;
 const STATES=new Set(["awaiting_owner","executing","demo_confirmed","confirmed","failed","cancelled","expired","blocked","effect_unknown","requires_bank_action"]);
 const REASONS=new Set(["gateway_and_provider_confirmed","bank_declined","payment_cancelled","session_expired","bank_verification_required","bank_verification_failed","payment_rejected_reason_unavailable","payment_effect_unverified"]);
-const TRACE_STAGES=new Set(["owner_confirmation_consumed","payment_record_created","financial_dispatch_committed","provider_session_started","provider_session_authenticated","invoice_revalidated","checkout_prepared","browser_context_ready","three_ds2_preflight","gateway_submission_started","gateway_submission_result","bank_ui_opened","provider_callback_correlated","provider_readback","completion_classified","execution_error","bank_resume_started","state_transition","http_exchange"]);
+const TRACE_STAGES=new Set(["owner_confirmation_consumed","payment_record_created","financial_dispatch_committed","provider_session_started","provider_session_authenticated","invoice_revalidated","checkout_prepared","browser_context_ready","three_ds2_preflight","gateway_submission_started","gateway_submission_result","bank_ui_opened","provider_callback_correlated","provider_readback","completion_classified","execution_error","bank_timeout_reconciliation_started","bank_resume_started","state_transition","http_exchange"]);
 const TRACE_INVOICE_STATES=new Set(["unpaid","settled","balance_changed","not_observed","unknown"]);
 const TRACE_CAPACITY=160,TRACE_SNAPSHOT_MAX=65536;
+export const BANK_ACTION_TIMEOUT_MS=60_000;
 export function paymentError(code:string,statusCode=400):never {throw Object.assign(new Error(code),{statusCode});}
 function object(value:any,keys:string[]) {
   if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).length!==keys.length||keys.some(k=>!Object.prototype.hasOwnProperty.call(value,k))) paymentError("invalid_payment_request");
@@ -397,6 +398,48 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
         const result:PaymentExecutionResult=await bounded(()=>adapter.execute!(claimed.quote,id,context),executionMs);
         return applyResult(id,claimed.draft.mode,result);
       } catch {return finish(id,"effect_unknown","payment_effect_unverified");}
+    },
+    async timeoutBankAction(id:string) {
+      const claimed=await options.store.change(rows=>{
+        const r=locate(rows,id);
+        if(r.state!=="requires_bank_action"||r.executorAttempts!==1||r.bankResumeAttempts!==0||!r.continuation||
+          !Number.isSafeInteger(r.bankActionRequiredAt)||now()-r.bankActionRequiredAt<BANK_ACTION_TIMEOUT_MS)
+          paymentError("payment_bank_timeout_not_available",409);
+        availableForRecord(r);
+        const at=now();
+        r.state="executing";r.reasonCode="bank_timeout_reconciling";r.executionBootId=bootId;r.updatedAt=at;
+        delete r.bankReturnTokenHash;
+        appendTrace(r,{stage:"bank_timeout_reconciliation_started"},at);
+        return JSON.parse(JSON.stringify(r)) as PaymentRecord;
+      });
+      const adapter=availableForRecord(claimed);
+      const traceSink={trace:async(event:PaymentTraceInput)=>options.store.change(rows=>{
+        const current=locate(rows,id),at=now();if(current.state!=="executing")return;
+        appendTrace(current,event,at);current.updatedAt=at;
+      })};
+      try {
+        const fresh=validateQuote(await bounded(()=>adapter.quote!(claimed.quote.reference),quoteMs));
+        if(quoteDigest(claimed.draft.adapterId,claimed.draft.mode,fresh)===claimed.quoteHash){
+          await traceSink.trace({stage:"provider_readback",invoiceState:"unpaid"});
+          return finish(id,"cancelled","payment_cancelled");
+        }
+      } catch {}
+      const resumed=await options.store.change(rows=>{
+        const r=locate(rows,id);
+        if(r.state!=="executing"||r.bankResumeAttempts!==0||!r.continuation)paymentError("payment_resume_not_available",409);
+        const at=now();r.bankResumeAttempts=1;r.resumedAt=at;r.updatedAt=at;
+        appendTrace(r,{stage:"bank_resume_started",outcome:"timeout_reconciliation"},at);
+        return JSON.parse(JSON.stringify(r)) as PaymentRecord;
+      });
+      try {
+        const result:PaymentExecutionResult=await bounded(()=>adapter.resume!(resumed.quote,id,resumed.continuation,traceSink),executionMs);
+        if(result?.state==="failed"&&result.rejectionVerified===true&&["payment_cancelled","session_expired"].includes(result.reasonCode))
+          return finish(id,"cancelled","payment_cancelled");
+        return applyResult(id,resumed.draft.mode,result);
+      } catch {
+        await traceSink.trace({stage:"execution_error",reasonCode:"payment_effect_unverified"}).catch(()=>{});
+        return finish(id,"effect_unknown","payment_effect_unverified");
+      }
     },
     async resume(id:string) {
       const claimed=await options.store.change(rows=>{

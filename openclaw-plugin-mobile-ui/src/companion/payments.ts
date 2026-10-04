@@ -1,7 +1,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import {createPaymentCore, ownerKey, paymentError} from "./paymentCore";
+import {BANK_ACTION_TIMEOUT_MS, createPaymentCore, ownerKey, paymentError} from "./paymentCore";
 import {readPaymentRequests, mutatePaymentRequests} from "./runs";
 import type {PaymentAdapter} from "./paymentTypes";
 import type {OwnerIntent, OwnerOrigin} from "./ownerConfirmationProtocol";
@@ -77,6 +77,39 @@ function validateLocalIntentInput(v:any):{requestKey:string;adapterId:string;ref
 }
 
 const core=createPaymentCore({store:{read:readPaymentRequests,change:mutatePaymentRequests},adapters,key,timeouts:{executionMs:225000}});
+const bankTimeoutTimers=new Map<string,ReturnType<typeof setTimeout>>();
+function clearBankTimeout(id:string){
+  const timer=bankTimeoutTimers.get(id);
+  if(timer)clearTimeout(timer);
+  bankTimeoutTimers.delete(id);
+}
+async function bankTimeoutDueAt(id:string){
+  const rows=await readPaymentRequests();
+  const r=rows.find(x=>x.id===id);
+  if(!r||r.state!=="requires_bank_action"||r.executorAttempts!==1||(r.bankResumeAttempts??0)!==0||
+    !Number.isSafeInteger(r.bankActionRequiredAt))return null;
+  return r.bankActionRequiredAt!+BANK_ACTION_TIMEOUT_MS;
+}
+async function scheduleBankTimeout(id:string){
+  clearBankTimeout(id);
+  const due=await bankTimeoutDueAt(id);
+  if(due===null)return false;
+  const delay=Math.max(0,due-Date.now())+25;
+  const timer=setTimeout(()=>{
+    bankTimeoutTimers.delete(id);
+    void core.timeoutBankAction(id).catch(()=>{});
+  },delay);
+  timer.unref();bankTimeoutTimers.set(id,timer);return true;
+}
+async function startBankTimeoutReconciler(){
+  const rows=await readPaymentRequests();let scheduled=0;
+  for(const r of rows){
+    if(r.state==="requires_bank_action"&&r.executorAttempts===1&&(r.bankResumeAttempts??0)===0&&Number.isSafeInteger(r.bankActionRequiredAt)){
+      if(await scheduleBankTimeout(r.id))scheduled++;
+    }
+  }
+  return {scheduled,timeoutMs:BANK_ACTION_TIMEOUT_MS};
+}
 const bound=bindPaymentAuthorizations(core, confirmations);
 
 async function prepareLocalIntent(input:any) {
@@ -121,16 +154,32 @@ async function localStart(input:any) {
   });
 
   await confirmations.consume(id, expectedIntent);
-  return core.startLocalAuthorized({
+  const result=await core.startLocalAuthorized({
     confirmationRequestId:id,
     adapterId:parsedRef.adapterId,
     reference:parsedRef.providerReference,
     quote:freshQuote
   });
+  if(result.state==="requires_bank_action")await scheduleBankTimeout(result.requestId);
+  return result;
+}
+
+async function bankReturn(id:string,bankReturnToken:string){
+  const result=await bound.bankReturn(id,bankReturnToken);
+  clearBankTimeout(id);
+  return result;
+}
+async function resume(id:string,confirmationRequestId:string){
+  const result=await bound.resume(id,confirmationRequestId);
+  clearBankTimeout(id);
+  return result;
 }
 
 export const payments = {
   ...bound,
+  resume,
+  bankReturn,
   prepareLocalIntent,
-  localStart
+  localStart,
+  startBankTimeoutReconciler
 };

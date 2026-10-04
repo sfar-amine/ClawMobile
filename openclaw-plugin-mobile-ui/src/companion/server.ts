@@ -94,6 +94,9 @@ export function startCompanionServer() {
   startWhatsAppListenerWatchdog();
   startVoiceRecoveryWatchdog();
   startVoiceRelay();
+  void payments.startBankTimeoutReconciler().then((status:any)=>{
+    if(status?.scheduled)console.log(`[payments] scheduled ${status.scheduled} bank timeout reconciliation(s) at ${status.timeoutMs}ms.`);
+  }).catch((error:any)=>console.warn(`[payments] bank timeout reconciler unavailable: ${String(error?.message||error).slice(0,160)}`));
   // Bounded provider prewarm: no microphone and no user session context. The first Android session
   // can claim this connection without reconnecting; it cools automatically after the warm idle TTL.
   setTimeout(() => {
