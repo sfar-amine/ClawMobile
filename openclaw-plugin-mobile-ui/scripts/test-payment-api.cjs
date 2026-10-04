@@ -53,5 +53,17 @@ async function req(url,method="GET",body,h=headers){const r=await fetch(base+url
  fs.writeFileSync(registry,'{"runs":[],"ownerConfirmations":{}}');
  await assert.rejects(()=>runs.readOwnerConfirmations(),/invalid_confirmation_registry/);
  fs.writeFileSync(registry,before);
- console.log("OWNER_CONFIRMATION_PAYMENT_API_AND_REGISTRY_CHECKS_PASSED");
+ 
+// ===== V1.1 local owner flow guards =====
+assert.equal((await req("/v1/payments/local-intents","POST",{requestKey:crypto.randomUUID(),adapterId:"topnet",reference:"X"},{})).code,403);
+for(const field of ["Origin","Referer","Sec-Fetch-Site"])
+  assert.equal((await req("/v1/payments/local-intents","POST",{requestKey:crypto.randomUUID(),adapterId:"topnet",reference:"X"},{...headers,[field]:"untrusted"})).code,403);
+assert.equal((await req("/v1/payments/local-intents","POST",{requestKey:crypto.randomUUID(),adapterId:"topnet",reference:"X",extra:"bad"},headers)).code,400);
+assert.equal((await req("/v1/payments/local-start","POST",{confirmationRequestId:crypto.randomUUID()},{})).code,403);
+for(const field of ["Origin","Referer","Sec-Fetch-Site"])
+  assert.equal((await req("/v1/payments/local-start","POST",{confirmationRequestId:crypto.randomUUID()},{...headers,[field]:"untrusted"})).code,403);
+assert.equal((await req("/v1/payments/local-start","POST",{confirmationRequestId:crypto.randomUUID(),amount:1},{...headers})).code,400);
+assert.equal((await req("/v1/payments/local-start","POST",{confirmationRequestId:crypto.randomUUID()},headers)).body.message,"confirmation_not_found");
+
+console.log("OWNER_CONFIRMATION_PAYMENT_API_AND_REGISTRY_CHECKS_PASSED");
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{server.closeAllConnections();server.close();fs.rmSync(root,{recursive:true,force:true})});
