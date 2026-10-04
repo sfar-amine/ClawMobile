@@ -16,6 +16,7 @@
     "test:companion-runs": "node scripts/test-companion-runs.cjs",
     "test:companion-sharing": "node scripts/test-companion-sharing.cjs",
     "test:payment-core": "node scripts/test-payment-core.cjs",
+    "test:topnet-live-payment": "node scripts/test-topnet-live-payment-adapter.cjs",
     "test:remote-bridge-core": "node scripts/test-remote-bridge-core.cjs",
     "test:remote-bridge-slack": "node scripts/test-remote-bridge-slack.cjs",
     "test:remote-bridge-slack-resilience": "node scripts/test-remote-bridge-slack-resilience.cjs",

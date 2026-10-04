@@ -64,7 +64,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
   adapters.set(a.id,a);
  }
  const quoteMs=options.timeouts?.quoteMs??10000,executionMs=options.timeouts?.executionMs??45000;
- if(!Number.isInteger(quoteMs)||quoteMs<1||quoteMs>45000||!Number.isInteger(executionMs)||executionMs<1||executionMs>90000)paymentError("invalid_payment_timeout",503);
+ if(!Number.isInteger(quoteMs)||quoteMs<1||quoteMs>45000||!Number.isInteger(executionMs)||executionMs<1||executionMs>240000)paymentError("invalid_payment_timeout",503);
  async function bounded<T>(operation:()=>Promise<T>,ms:number):Promise<T> {
   let timer:ReturnType<typeof setTimeout>|undefined;
   try {return await Promise.race([Promise.resolve().then(operation),new Promise<never>((_,reject)=>{

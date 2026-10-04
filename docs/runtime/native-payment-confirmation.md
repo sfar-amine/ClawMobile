@@ -22,3 +22,10 @@ Le Payment Core distingue désormais l'unique soumission financière (`executorA
 La continuation exige une seconde confirmation native `payment.bank_2fa`, liée au même requestId, au fournisseur, à la référence et au montant. Cette preuve est à usage unique et ne peut pas autoriser un nouveau FORM1. L'activité Android sait enchaîner vers cette seconde confirmation lorsque le backend retourne `requires_bank_action`.
 
 Les paiements réels restent désactivés. Aucun code OTP/2FA bancaire n'est lu, injecté ou soumis par ChatGPT/Companion dans ce lot. ClicToPay/SMT reste en découverte structurée pour FORM2 et le reçu positif ; l'activation Topnet exige une recette E2E physique distincte.
+
+## Candidat live Topnet background — 4 octobre 2026
+Le Companion peut désormais enregistrer un adaptateur Topnet live **uniquement** lorsque le marqueur privé `clawmobile-companion/topnet-live-acceptance.enabled` contient exactement `topnet-v1-live-acceptance`. Sans ce marqueur, `executionValidated=false` et le comportement historique reste inchangé.
+
+Après la confirmation propriétaire, le Payment Core réserve le dispatch avant d'appeler l'adaptateur. L'adaptateur relit la facture exacte via Billing, vérifie la carte locale par métadonnées, puis appelle le runner Topnet/ClicToPay. Il n'expose ni carte ni code bancaire. Le runner peut garder la requête ouverte pendant un challenge bancaire borné; l'exécution Companion est limitée à 225 secondes. Un résultat `confirmed` n'est accepté que si le runner fournit à la fois une corrélation gateway exacte et une relecture Topnet fraîche `settled`. Sinon le noyau reste `effect_unknown`, sans rejeu.
+
+La frontière OTP/3DS reste humaine. Aucun code OTP n'est lu ou injecté par Companion. STEG/SONEDE restent indisponibles.

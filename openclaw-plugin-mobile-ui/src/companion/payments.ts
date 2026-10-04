@@ -7,13 +7,14 @@ import type {PaymentAdapter} from "./paymentTypes";
 import type {OwnerIntent} from "./ownerConfirmationProtocol";
 import {ownerHash} from "./ownerConfirmationProtocol";
 import {confirmations} from "./confirmations";
+import {createTopnetLivePaymentAdapter} from "./topnetLivePaymentAdapter";
 
-// No real executor is registered until its complete bank/result contract is validated.
 const adapters:PaymentAdapter[]=[
  {id:"demo.confirmation",label:"Test de confirmation — aucun paiement",mode:"demo",executionValidated:true,
   async quote(reference){if(reference!=="DEMO")paymentError("invalid_demo_reference");return {payee:"Test sans paiement",reference,amountMinor:0,currency:"TND",decimals:3};},
   async revalidate(q){return {...q};},async execute(){return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed"};}},
- ...["topnet","steg","sonede"].map(id=>({id,label:id.toUpperCase(),mode:"live" as const,executionValidated:false,unavailableReason:"provider_payment_contract_unverified"}))
+ createTopnetLivePaymentAdapter(),
+ ...["steg","sonede"].map(id=>({id,label:id.toUpperCase(),mode:"live" as const,executionValidated:false,unavailableReason:"provider_payment_contract_unverified"}))
 ];
 
 function key() {
@@ -57,5 +58,5 @@ export function bindPaymentAuthorizations(core:any,confirmationCore:any) {
  };
 }
 
-const core=createPaymentCore({store:{read:readPaymentRequests,change:mutatePaymentRequests},adapters,key,timeouts:{executionMs:65000}});
+const core=createPaymentCore({store:{read:readPaymentRequests,change:mutatePaymentRequests},adapters,key,timeouts:{executionMs:225000}});
 export const payments=bindPaymentAuthorizations(core,confirmations);

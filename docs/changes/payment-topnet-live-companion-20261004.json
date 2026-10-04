@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "payment-topnet-live-companion-20261004",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add a gated Topnet live adapter to the existing Companion Payment Core.",
+  "reason": "The agreed Topnet journey requires the first native owner biometric to trigger one deterministic background payment attempt, keeping the same payment request through any issuer-required challenge and provider reconciliation.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/topnetLivePaymentAdapter.ts",
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-topnet-live-payment-adapter.cjs",
+    "openclaw-plugin-mobile-ui/package.json",
+    "docs/runtime/native-payment-confirmation.md",
+    "docs/changes/payment-topnet-live-companion-20261004.json"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "Companion TypeScript build passed after adding the adapter and bounded 225 second execution window."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "43/43 Payment Core assertions passed."
+    },
+    {
+      "name": "topnet-live-adapter",
+      "status": "passed",
+      "evidence": "4/4 adapter tests passed: gate-off default, exact quote and single dispatch, unmatched settlement fail-closed, verified rejection mapping."
+    }
+  ],
+  "documentation": [
+    "docs/runtime/native-payment-confirmation.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability truth remains in samantha-ui-playbooks; this repository implements the gated runtime contract."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the existing Payment Core, Companion process, Billing runner and native owner confirmation. No new daemon, scheduler, database or execution owner."
+  },
+  "rollback": "Remove the private acceptance marker, restore the prior Companion runtime and preserve all payment guard records. Never replay an engaged payment.",
+  "limitations": [
+    "Topnet live execution is disabled unless the exact private acceptance marker exists.",
+    "STEG and SONEDE remain disabled.",
+    "bank challenge authentication is not automated or exposed to the model.",
+    "An interrupted live attempt remains effect_unknown and is never replayed automatically."
+  ]
+}
