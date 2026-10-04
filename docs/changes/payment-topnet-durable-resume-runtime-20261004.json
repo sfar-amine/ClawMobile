@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "id": "payment-topnet-durable-resume-runtime-20261004",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Persist Topnet continuation and bind bank return to the first owner authorization without replaying FORM1.",
+  "reason": "Controlled live acceptance reached one FORM1 dispatch but lost actionable correlation after the PSP response. The runtime must persist checkout/order internally and let the exact bank return perform one read-only resume.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/paymentTypes.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/topnetLivePaymentAdapter.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-topnet-live-payment-adapter.cjs",
+    "docs/changes/payment-topnet-durable-resume-runtime-20261004.json",
+    "docs/changes/payment-topnet-durable-resume-runtime-20261004.md"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "openclaw-plugin-mobile-ui build passed."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "44/44 Payment Core assertions passed including one-shot bank-return resume."
+    },
+    {
+      "name": "topnet-live-adapter",
+      "status": "passed",
+      "evidence": "6/6 adapter tests passed; resume performs no card-status read and consumes no new live gate."
+    },
+    {
+      "name": "payment-api-registry",
+      "status": "passed",
+      "evidence": "Owner confirmation payment API and registry checks passed with Termux-private TMPDIR."
+    }
+  ],
+  "documentation": [
+    "docs/changes/payment-topnet-durable-resume-runtime-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "payment.owner_native"
+    ],
+    "reason": "Adds token-bound bank-return and durable same-transaction read-only resume."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends the existing Payment Core and Companion routes only; no new service, database or scheduler."
+  },
+  "rollback": "Revert this scoped commit with the live Topnet gate absent. Do not replay any previously engaged payment request.",
+  "limitations": [
+    "Topnet live remains disabled by default.",
+    "OTP/3DS remains human and is never captured by Companion.",
+    "A positive live receipt still requires separate controlled acceptance."
+  ]
+}

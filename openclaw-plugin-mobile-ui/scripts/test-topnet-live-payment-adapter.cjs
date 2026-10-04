@@ -5,8 +5,10 @@ const {createTopnetLivePaymentAdapter}=require("../dist/companion/topnetLivePaym
 
 const invoice="20263531507";
 const requestId="11111111-1111-4111-8111-111111111111";
+const context={bankReturnToken:"A".repeat(43)};
+const continuation={provider:"topnet",checkoutId:"12345",gatewayOrderId:"22222222-2222-4222-8222-222222222222"};
 
-function fixture({enabled=true,liveResult}={}){
+function fixture({enabled=true,startResult,resumeResult}={}){
  const tmp=path.join(os.homedir(),".cache","claw-tests");fs.mkdirSync(tmp,{recursive:true});
  const root=fs.mkdtempSync(path.join(tmp,"topnet-adapter-"));
  const state=path.join(root,"state"),billing=path.join(root,"billing");
@@ -25,9 +27,10 @@ function fixture({enabled=true,liveResult}={}){
   throw Error("unexpected_exec");
  };
  let liveCalls=0;
- const liveRun=async(_script,request)=>{
-  liveCalls++;calls.push(["live",request]);
-  return liveResult??{state:"confirmed",gateway_return_correlated:true,fresh_provider_read:true,invoice_state:"settled"};
+ const liveRun=async(_script,payload)=>{
+  liveCalls++;calls.push(["live",payload]);
+  if(payload.operation==="resume")return resumeResult??{state:"confirmed",gateway_return_correlated:true,fresh_provider_read:true,invoice_state:"settled"};
+  return startResult??{state:"requires_bank_action",reason_code:"bank_verification_required",continuation};
  };
  const adapter=createTopnetLivePaymentAdapter({billingRoot:billing,stateDir:state,exec,liveRun});
  return {adapter,calls,liveCalls:()=>liveCalls,cleanup:()=>fs.rmSync(root,{recursive:true,force:true})};
@@ -40,48 +43,62 @@ test("gate keeps Topnet unavailable until acceptance flag exists",()=>{
  f.cleanup();
 });
 
-test("quote is exact and live execution dispatches once",async()=>{
+test("FORM1 stage returns durable continuation after exactly one live dispatch",async()=>{
  const f=fixture();
  try{
-  assert.equal(f.adapter.executionValidated,true);
   const q=await f.adapter.quote(invoice);
-  assert.deepEqual(q,{payee:"TOPNET",reference:invoice,amountMinor:60900,currency:"TND",decimals:3});
-  const result=await f.adapter.execute(q,requestId);
-  assert.equal(result.state,"confirmed");
-  assert.equal(result.reasonCode,"gateway_and_provider_confirmed");
-  assert.equal(result.receipt.transactionCorrelated,true);
-  assert.equal(result.receipt.providerReconciled,true);
+  const result=await f.adapter.execute(q,requestId,context);
+  assert.deepEqual(result,{state:"requires_bank_action",reasonCode:"bank_verification_required",continuation});
   assert.equal(f.liveCalls(),1);
-  const live=f.calls.find(x=>x[0]==="live")[1];
-  assert.deepEqual(live,{invoice_id:invoice,expected_amount_millimes:60900,currency:"TND",expected_last4:"8503"});
+  const payload=f.calls.find(x=>x[0]==="live")[1];
+  assert.equal(payload.operation,"start");
+  assert.equal(payload.paymentRequestId,requestId);
+  assert.equal(payload.bankReturnToken,context.bankReturnToken);
+  assert.deepEqual(payload.request,{invoice_id:invoice,expected_amount_millimes:60900,currency:"TND",expected_last4:"8503"});
  }finally{f.cleanup();}
 });
 
-test("acceptance gate is consumed before the only live dispatch",async()=>{
+test("acceptance gate is consumed before the only FORM1 dispatch",async()=>{
  const f=fixture();
  try{
   const q=await f.adapter.quote(invoice);
-  assert.equal((await f.adapter.execute(q,requestId)).state,"confirmed");
-  assert.equal((await f.adapter.execute(q,"22222222-2222-4222-8222-222222222222")).state,"effect_unknown");
+  assert.equal((await f.adapter.execute(q,requestId,context)).state,"requires_bank_action");
+  assert.equal((await f.adapter.execute(q,"33333333-3333-4333-8333-333333333333",context)).state,"effect_unknown");
   assert.equal(f.liveCalls(),1);
  }finally{f.cleanup();}
 });
 
-test("unattributed settlement never confirms",async()=>{
- const f=fixture({liveResult:{state:"confirmed",gateway_return_correlated:false,fresh_provider_read:true,invoice_state:"settled"}});
+test("resume is read-only and does not consume a new gate or card status",async()=>{
+ const f=fixture();
  try{
-  const q=await f.adapter.quote(invoice),result=await f.adapter.execute(q,requestId);
+  const q=await f.adapter.quote(invoice);
+  await f.adapter.execute(q,requestId,context);
+  const beforeCard=f.calls.filter(x=>x[0]==="exec"&&String(x[1]).endsWith("payment-card-cli.mjs")).length;
+  const out=await f.adapter.resume(q,requestId,continuation);
+  assert.equal(out.state,"confirmed");
+  assert.equal(out.reasonCode,"gateway_and_provider_confirmed");
+  const afterCard=f.calls.filter(x=>x[0]==="exec"&&String(x[1]).endsWith("payment-card-cli.mjs")).length;
+  assert.equal(afterCard,beforeCard);
+  const resumePayload=f.calls.filter(x=>x[0]==="live").at(-1)[1];
+  assert.equal(resumePayload.operation,"resume");
+  assert.deepEqual(resumePayload.continuation,continuation);
+  assert.deepEqual(resumePayload.request,{invoice_id:invoice,expected_amount_millimes:60900,currency:"TND"});
+ }finally{f.cleanup();}
+});
+
+test("unattributed resume result never confirms",async()=>{
+ const f=fixture({resumeResult:{state:"confirmed",gateway_return_correlated:false,fresh_provider_read:true,invoice_state:"settled"}});
+ try{
+  const q=await f.adapter.quote(invoice),result=await f.adapter.resume(q,requestId,continuation);
   assert.equal(result.state,"effect_unknown");
   assert.equal(result.reasonCode,"payment_effect_unverified");
-  assert.equal(f.liveCalls(),1);
  }finally{f.cleanup();}
 });
 
 test("verified correlated rejection maps to failed without retry",async()=>{
- const f=fixture({liveResult:{state:"failed",gateway_return_correlated:true,fresh_provider_read:true,invoice_state:"unpaid"}});
+ const f=fixture({resumeResult:{state:"failed",gateway_return_correlated:true,fresh_provider_read:true,invoice_state:"unpaid"}});
  try{
-  const q=await f.adapter.quote(invoice),result=await f.adapter.execute(q,requestId);
+  const q=await f.adapter.quote(invoice),result=await f.adapter.resume(q,requestId,continuation);
   assert.deepEqual(result,{state:"failed",reasonCode:"bank_declined",rejectionVerified:true});
-  assert.equal(f.liveCalls(),1);
  }finally{f.cleanup();}
 });

@@ -221,7 +221,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if (method === "POST" && routePath === "/payments") {
       writeJson(res, 200, await payments.prepare(await readJsonBody(req, 4096))); return;
     }
-    const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|resume|cancel))?$/.exec(routePath);
+    const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|bank-return|resume|cancel))?$/.exec(routePath);
     if (match) {
       const [, id, action] = match;
       if (method === "GET" && !action) { writeJson(res,200,await payments.status(id)); return; }
@@ -238,6 +238,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         const body=await readJsonBody(req,256);
         if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).length)throw new HttpError(400,"invalid_bank_authorization_request");
         writeJson(res,200,await payments.bankAuthorization(id)); return;
+      }
+      if (method === "POST" && action === "bank-return") {
+        const body=await readJsonBody(req,256);
+        if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).sort().join(",")!=="bankReturnToken"||typeof (body as any).bankReturnToken!=="string")
+          throw new HttpError(400,"invalid_bank_return_request");
+        writeJson(res,200,await payments.bankReturn(id,(body as any).bankReturnToken)); return;
       }
       if (method === "POST" && action === "resume") {
         const body=await readJsonBody(req,512);
@@ -266,6 +272,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/payments/:requestId/challenge",
         "/v1/payments/:requestId/owner-confirmation",
         "/v1/payments/:requestId/bank-authorization",
+        "/v1/payments/:requestId/bank-return",
         "/v1/payments/:requestId/resume",
         "/v1/runs",
         "/v1/runs/:runId",

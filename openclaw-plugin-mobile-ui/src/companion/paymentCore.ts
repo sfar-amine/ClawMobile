@@ -1,5 +1,5 @@
 import {createHash, randomBytes, randomUUID, verify, KeyObject} from "crypto";
-import type {PaymentAdapter, PaymentDraft, PaymentQuote, PaymentRecord, PaymentStore, PaymentExecutionResult, PaymentContinuation} from "./paymentTypes";
+import type {PaymentAdapter, PaymentDraft, PaymentQuote, PaymentRecord, PaymentStore, PaymentExecutionResult, PaymentContinuation, PaymentExecutionContext} from "./paymentTypes";
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const HEX=/^[a-f0-9]{64}$/;
 const STATES=new Set(["awaiting_owner","executing","demo_confirmed","confirmed","failed","cancelled","expired","blocked","effect_unknown","requires_bank_action"]);
@@ -41,7 +41,8 @@ function validateStored(r:PaymentRecord) {
  if(!r||r.version!==1||!UUID.test(r.id)||!STATES.has(r.state)||!HEX.test(r.nonce)||!HEX.test(r.keyId)||
  !HEX.test(r.quoteHash)||!HEX.test(r.fingerprint)||!Number.isSafeInteger(r.createdAt)||!Number.isSafeInteger(r.expiresAt)||
  r.expiresAt-r.createdAt!==120000||!Number.isSafeInteger(r.executorAttempts)||r.executorAttempts<0||r.executorAttempts>1||
- !Number.isSafeInteger(r.bankResumeAttempts)||r.bankResumeAttempts<0||r.bankResumeAttempts>1) paymentError("payment_record_invalid",503);
+ !Number.isSafeInteger(r.bankResumeAttempts)||r.bankResumeAttempts<0||r.bankResumeAttempts>1||
+ (r.bankReturnTokenHash!==undefined&&!HEX.test(r.bankReturnTokenHash))) paymentError("payment_record_invalid",503);
  const d=validateDraft(r.draft),q=validateQuote(r.quote);
  if(r.continuation!==undefined){const c=validateContinuation(r.continuation);if(c.provider!==d.adapterId)paymentError("payment_record_invalid",503);}
  if(quoteDigest(d.adapterId,d.mode,q)!==r.quoteHash||hash(JSON.stringify(d))!==r.fingerprint) paymentError("payment_record_invalid",503);
@@ -103,7 +104,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
    if(!continuation)paymentError("invalid_payment_continuation",502);
    const c=validateContinuation(continuation);if(c.provider!==r.draft.adapterId)paymentError("invalid_payment_continuation",502);
    r.continuation=c;r.bankActionRequiredAt=now();delete r.endedAt;
-  } else r.endedAt=now();
+  } else {r.endedAt=now();delete r.bankReturnTokenHash;}
   return paymentView(r);
  });
  const applyResult=async(id:string,mode:PaymentDraft["mode"],result:PaymentExecutionResult)=>{
@@ -198,16 +199,20 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
      return finish(id,"blocked","payment_quote_changed");
    } catch {return finish(id,"blocked","payment_revalidation_failed");}
    // Persist dispatch BEFORE calling an adapter. An uncertain effect is never replayed.
+   const bankReturnToken=claimed.draft.mode==="live"?randomBytes(32).toString("base64url"):undefined;
    try { await options.store.change(rows=>{
     const r=locate(rows,id);
     if(r.state!=="executing"||r.executorAttempts!==0)paymentError("payment_dispatch_not_available",409);
     if(now()>=r.expiresAt||now()<r.createdAt)paymentError("payment_authorization_expired",409);
     available(r.draft.adapterId,r.draft.mode);
     if(options.key().id!==r.keyId)paymentError("owner_key_changed",409);
-    r.executionStartedAt=now();r.executorAttempts=1;r.updatedAt=now();return true;
+    r.executionStartedAt=now();r.executorAttempts=1;
+    if(bankReturnToken)r.bankReturnTokenHash=hash(bankReturnToken);
+    r.updatedAt=now();return true;
    }); } catch { return finish(id,"blocked","payment_dispatch_precondition_changed"); }
    try {
-    const result:PaymentExecutionResult=await bounded(()=>adapter.execute!(claimed.quote,id),executionMs);
+    const context:PaymentExecutionContext|undefined=bankReturnToken?{bankReturnToken}:undefined;
+    const result:PaymentExecutionResult=await bounded(()=>adapter.execute!(claimed.quote,id,context),executionMs);
     return applyResult(id,claimed.draft.mode,result);
    } catch {return finish(id,"effect_unknown","payment_effect_unverified");}
   },
@@ -219,7 +224,25 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
     const adapter=available(r.draft.adapterId,r.draft.mode);
     if(typeof adapter.resume!=="function"||!r.continuation)paymentError("payment_resume_not_available",409);
     r.state="executing";r.reasonCode="bank_action_resuming";r.executionBootId=bootId;
-    r.bankResumeAttempts=1;r.resumedAt=now();r.updatedAt=now();
+    r.bankResumeAttempts=1;r.resumedAt=now();delete r.bankReturnTokenHash;r.updatedAt=now();
+    return JSON.parse(JSON.stringify(r)) as PaymentRecord;
+   });
+   const adapter=available(claimed.draft.adapterId,claimed.draft.mode);
+   try {
+    const result:PaymentExecutionResult=await bounded(()=>adapter.resume!(claimed.quote,id,claimed.continuation),executionMs);
+    return applyResult(id,claimed.draft.mode,result);
+   } catch {return finish(id,"effect_unknown","payment_effect_unverified");}
+  },
+  async resumeFromBankReturn(id:string,bankReturnToken:string) {
+   if(typeof bankReturnToken!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(bankReturnToken))paymentError("invalid_bank_return_token",403);
+   const claimed=await options.store.change(rows=>{
+    const r=locate(rows,id);
+    if(r.state!=="requires_bank_action"||r.executorAttempts!==1||r.bankResumeAttempts!==0||!r.bankReturnTokenHash||
+      hash(bankReturnToken)!==r.bankReturnTokenHash)paymentError("payment_bank_return_not_available",409);
+    const adapter=available(r.draft.adapterId,r.draft.mode);
+    if(typeof adapter.resume!=="function"||!r.continuation)paymentError("payment_resume_not_available",409);
+    r.state="executing";r.reasonCode="bank_action_resuming";r.executionBootId=bootId;
+    r.bankResumeAttempts=1;r.resumedAt=now();delete r.bankReturnTokenHash;r.updatedAt=now();
     return JSON.parse(JSON.stringify(r)) as PaymentRecord;
    });
    const adapter=available(claimed.draft.adapterId,claimed.draft.mode);

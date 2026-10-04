@@ -118,6 +118,18 @@ const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
   assert.equal(done.state,"confirmed");assert.equal(done.metrics.executorAttempts,1);assert.equal(done.metrics.bankResumeAttempts,1);
   assert.equal(done.metrics.bankWaitMs,4000);assert.equal(f.calls(),1);assert.equal(f.resumes(),1);
   await reject(()=>f.core.resume(r.requestId),"payment_resume_not_available");assert.equal(f.resumes(),1)});
+ await test("bank return token resumes once without a second owner gesture",async()=>{
+  let token=null;
+  const f=fixture({mode:"live",execute:async(_q,_id,context)=>{token=context?.bankReturnToken;return {state:"requires_bank_action",reasonCode:"bank_verification_required"}},
+   resume:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"BANK-RETURN",transactionCorrelated:true,providerReconciled:true}})});
+  const r=await f.prepared(),pending=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  assert.equal(pending.state,"requires_bank_action");assert.match(token,/^[A-Za-z0-9_-]{43}$/);
+  assert.equal(JSON.stringify(await f.core.status(r.requestId)).includes(token),false);
+  const done=await f.core.resumeFromBankReturn(r.requestId,token);
+  assert.equal(done.state,"confirmed");assert.equal(done.metrics.executorAttempts,1);assert.equal(done.metrics.bankResumeAttempts,1);
+  assert.equal(f.calls(),1);assert.equal(f.resumes(),1);
+  await reject(()=>f.core.resumeFromBankReturn(r.requestId,token),"payment_bank_return_not_available");
+ });
  await test("continuation refs stay internal and are passed only to resume",async()=>{
   const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"}),
    resume:async(_quote,_id,continuation)=>{assert.equal(continuation.provider,"fixture.payment");assert.equal(continuation.checkoutId,"12345");

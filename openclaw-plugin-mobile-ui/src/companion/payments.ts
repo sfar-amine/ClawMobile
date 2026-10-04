@@ -54,6 +54,9 @@ export function bindPaymentAuthorizations(core:any,confirmationCore:any) {
    if(typeof confirmationRequestId!=="string")paymentError("invalid_payment_resume_request");
    await confirmationCore.consume(confirmationRequestId,intent);
    return core.resume(id);
+  },
+  async bankReturn(id:string,bankReturnToken:string) {
+   return core.resumeFromBankReturn(id,bankReturnToken);
   }
  };
 }
