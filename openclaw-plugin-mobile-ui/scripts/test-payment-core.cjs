@@ -181,7 +181,7 @@ await test("V1.1 local owner authorization source is durable", async () => {
 });
 
 await test("V1.1 startLocalAuthorized creates compliant record", async () => {
-  const store={read:async()=>[],change:async op=>op([])};
+  const rows=[];const store={async read(){return structuredClone(rows)},change(op){return op(rows)}};
   const key=crypto.generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const pub=key.publicKey.export({type:"spki",format:"der"});
   const kid=createHash("sha256").update(pub).digest("hex");
@@ -218,7 +218,7 @@ await test("V1.1 startLocalAuthorized creates compliant record", async () => {
 });
 
 await test("V1.1 executorAttempts persisted before executeLocal", async () => {
-  const store={read:async()=>[],change:async op=>op([])};
+  const rows=[];const store={async read(){return structuredClone(rows)},change(op){return op(rows)}};
   const key=crypto.generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const pub=key.publicKey.export({type:"spki",format:"der"});
   const kid=createHash("sha256").update(pub).digest("hex");
@@ -248,7 +248,7 @@ await test("V1.1 executorAttempts persisted before executeLocal", async () => {
 });
 
 await test("V1.1 resume uses availableForRecord for local records", async () => {
-  const store={read:async()=>[],change:async op=>op([])};
+  const rows=[];const store={async read(){return structuredClone(rows)},change(op){return op(rows)}};
   const key=crypto.generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const pub=key.publicKey.export({type:"spki",format:"der"});
   const kid=createHash("sha256").update(pub).digest("hex");
@@ -280,7 +280,7 @@ await test("V1.1 external topnet remains blocked", async () => {
 });
 
 await test("V1.1 status hides bankReturnToken and continuation", async () => {
-  const store={read:async()=>[],change:async op=>op([])};
+  const rows=[];const store={async read(){return structuredClone(rows)},change(op){return op(rows)}};
   const key=crypto.generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const pub=key.publicKey.export({type:"spki",format:"der"});
   const kid=createHash("sha256").update(pub).digest("hex");
