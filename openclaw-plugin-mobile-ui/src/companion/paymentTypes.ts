@@ -3,7 +3,10 @@ export type PaymentOrigin = {channel:"chatgpt"|"work"|"claw"|"samantha"; id:stri
 export type PaymentDraft = {requestKey:string; adapterId:string; reference:string; mode:"demo"|"live"; origin:PaymentOrigin};
 export type PaymentState = "awaiting_owner"|"executing"|"demo_confirmed"|"confirmed"|"failed"|"cancelled"|"expired"|"blocked"|"effect_unknown"|"requires_bank_action";
 export type PaymentContinuation = {provider:string; checkoutId:string; gatewayOrderId:string};
-export type PaymentExecutionContext = {bankReturnToken:string};
+export type PaymentTraceInput = {stage:string; outcome?:string; reasonCode?:string; invoiceState?:string};
+export type PaymentTraceEvent = PaymentTraceInput & {seq:number; at:number};
+export type PaymentTraceSink = {trace?:(event:PaymentTraceInput)=>Promise<void>|void};
+export type PaymentExecutionContext = PaymentTraceSink & {bankReturnToken:string};
 export type PaymentAuthorizationSource = "payment_owner_native" | "local_owner_confirmation";
 
 export type PaymentRecord = {
@@ -14,6 +17,7 @@ export type PaymentRecord = {
   executorAttempts:number; bankResumeAttempts?:number; executionBootId?:string; continuation?:PaymentContinuation; bankReturnTokenHash?:string;
   authorizationSource:PaymentAuthorizationSource;
   ownerConfirmationId?:string;
+  trace?:PaymentTraceEvent[];
   receipt?:{reference:string; transactionCorrelated:true; providerReconciled:true};
 };
 
@@ -29,7 +33,7 @@ export type PaymentAdapter = {
   revalidate?:(quote:PaymentQuote)=>Promise<PaymentQuote>;
   execute?:(quote:PaymentQuote,requestId:string,context?:PaymentExecutionContext)=>Promise<PaymentExecutionResult>;
   executeLocal?:(quote:PaymentQuote,requestId:string,context?:PaymentExecutionContext)=>Promise<PaymentExecutionResult>;
-  resume?:(quote:PaymentQuote,requestId:string,continuation?:PaymentContinuation)=>Promise<PaymentExecutionResult>;
+  resume?:(quote:PaymentQuote,requestId:string,continuation?:PaymentContinuation,traceSink?:PaymentTraceSink)=>Promise<PaymentExecutionResult>;
 };
 
 export interface PaymentStore {

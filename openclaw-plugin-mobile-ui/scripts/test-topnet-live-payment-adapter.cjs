@@ -8,7 +8,7 @@ const requestId="11111111-1111-4111-8111-111111111111";
 const context={bankReturnToken:"A".repeat(43)};
 const continuation={provider:"topnet",checkoutId:"12345",gatewayOrderId:"22222222-2222-4222-8222-222222222222"};
 
-function fixture({enabled=true,startResult,resumeResult}={}){
+function fixture({enabled=true,startResult,resumeResult,startEvents=[]}={}){
  const tmp=path.join(os.homedir(),".cache","claw-tests");fs.mkdirSync(tmp,{recursive:true});
  const root=fs.mkdtempSync(path.join(tmp,"topnet-adapter-"));
  const state=path.join(root,"state"),billing=path.join(root,"billing");
@@ -27,9 +27,10 @@ function fixture({enabled=true,startResult,resumeResult}={}){
   throw Error("unexpected_exec");
  };
  let liveCalls=0;
- const liveRun=async(_script,payload,timeoutMs)=>{
+ const liveRun=async(_script,payload,timeoutMs,onEvent)=>{
   liveCalls++;calls.push(["live",payload,timeoutMs]);
   if(payload.operation==="resume")return resumeResult??{state:"confirmed",gateway_return_correlated:true,fresh_provider_read:true,invoice_state:"settled"};
+  for(const event of startEvents)if(onEvent)await onEvent(event);
   return startResult??{state:"requires_bank_action",reason_code:"bank_verification_required",continuation};
  };
  const adapter=createTopnetLivePaymentAdapter({billingRoot:billing,stateDir:state,exec,liveRun});
@@ -97,10 +98,38 @@ test("unattributed resume result never confirms",async()=>{
  }finally{f.cleanup();}
 });
 
-test("verified correlated rejection maps to failed without retry",async()=>{
- const f=fixture({resumeResult:{state:"failed",gateway_return_correlated:true,fresh_provider_read:true,invoice_state:"unpaid"}});
+test("verified correlated generic rejection stays generic",async()=>{
+ const f=fixture({resumeResult:{state:"failed",reason_code:"payment_rejected_reason_unavailable",gateway_return_correlated:true,fresh_provider_read:true,invoice_state:"unpaid"}});
+ try{
+  const q=await f.adapter.quote(invoice),result=await f.adapter.resume(q,requestId,continuation);
+  assert.deepEqual(result,{state:"failed",reasonCode:"payment_rejected_reason_unavailable",rejectionVerified:true});
+ }finally{f.cleanup();}
+});
+
+test("verified specific bank decline is preserved only when supplied",async()=>{
+ const f=fixture({resumeResult:{state:"failed",reason_code:"bank_declined",gateway_return_correlated:true,fresh_provider_read:true,invoice_state:"unpaid"}});
  try{
   const q=await f.adapter.quote(invoice),result=await f.adapter.resume(q,requestId,continuation);
   assert.deepEqual(result,{state:"failed",reasonCode:"bank_declined",rejectionVerified:true});
+ }finally{f.cleanup();}
+});
+
+test("live runner events are forwarded as sanitized payment trace",async()=>{
+ const trace=[];
+ const f=fixture({startEvents:[
+  {event:"provider_session_started"},
+  {event:"gateway_submission_result",outcome:"redirect",reason_code:"provider_reconciliation_required"},
+  {event:"provider_readback",invoice_state:"unpaid",secret:"never"}
+ ]});
+ try{
+  const q=await f.adapter.quote(invoice);
+  const result=await f.adapter.executeLocal(q,requestId,{bankReturnToken:"A".repeat(43),trace:e=>trace.push(e)});
+  assert.equal(result.state,"requires_bank_action");
+  assert.deepEqual(trace,[
+   {stage:"provider_session_started"},
+   {stage:"gateway_submission_result",outcome:"redirect",reasonCode:"provider_reconciliation_required"},
+   {stage:"provider_readback",invoiceState:"unpaid"}
+  ]);
+  assert.equal(JSON.stringify(trace).includes("never"),false);
  }finally{f.cleanup();}
 });

@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "payment-path-observability-bank-classification-runtime-20261004",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Persist sanitized payment stage events in the canonical PaymentRecord and preserve verified rejection reasons.",
+  "reason": "The Topnet adapter incorrectly relabeled a generic correlated rejection as bank_declined. PaymentRecord also exposed only terminal state, making the exact live branch unavailable after completion.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/paymentTypes.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/src/companion/topnetLivePaymentAdapter.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-topnet-live-payment-adapter.cjs",
+    "docs/changes/payment-path-observability-bank-classification-runtime-20261004.json",
+    "docs/changes/payment-path-observability-bank-classification-runtime-20261004.md"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "openclaw-plugin-mobile-ui npm run build PASS."
+    },
+    {
+      "name": "topnet-live-adapter",
+      "status": "passed",
+      "evidence": "8/8 direct node:test cases PASS, including generic rejection preservation, explicit bank_declined preservation and sanitized event forwarding."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "51/51 cases PASS, including durable timeline, no token exposure and bank-return resume tracing."
+    }
+  ],
+  "documentation": [
+    "docs/changes/payment-path-observability-bank-classification-runtime-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability truth is owned by ui-playbooks; runtime behavior implements that contract."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends the existing PaymentRecord and existing runner event channel. No parallel log store or execution plane."
+  },
+  "rollback": "Revert this runtime commit and redeploy the prior Companion extension. Existing payment records remain valid because trace is optional and backward compatible.",
+  "limitations": [
+    "Existing historical records do not acquire fabricated intermediate events.",
+    "The exact external reason for the pre-instrumentation Topnet failure remains unknown."
+  ]
+}

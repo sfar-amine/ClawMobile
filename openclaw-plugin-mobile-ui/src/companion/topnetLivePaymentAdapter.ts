@@ -2,11 +2,11 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import {execFile, spawn} from "child_process";
-import type {PaymentAdapter,PaymentContinuation,PaymentExecutionContext,PaymentExecutionResult,PaymentQuote} from "./paymentTypes";
+import type {PaymentAdapter,PaymentContinuation,PaymentExecutionContext,PaymentExecutionResult,PaymentQuote,PaymentTraceSink} from "./paymentTypes";
 
 type ExecResult={stdout:string;stderr:string};
 type ExecFn=(file:string,args:string[],timeoutMs:number)=>Promise<ExecResult>;
-type LiveRunFn=(script:string,payload:Record<string,unknown>,timeoutMs:number)=>Promise<any>;
+type LiveRunFn=(script:string,payload:Record<string,unknown>,timeoutMs:number,onEvent?:(event:any)=>Promise<void>|void)=>Promise<any>;
 
 const MAX=65536;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -23,10 +23,10 @@ function runExec(file:string,args:string[],timeoutMs:number):Promise<ExecResult>
   });
 }
 
-function runLive(script:string,payload:Record<string,unknown>,timeoutMs:number):Promise<any>{
+function runLive(script:string,payload:Record<string,unknown>,timeoutMs:number,onEvent?:(event:any)=>Promise<void>|void):Promise<any>{
   return new Promise((resolve,reject)=>{
     const child=spawn(process.execPath,[script],{stdio:["pipe","pipe","ignore"]});
-    let buffer="",final:any=null,settled=false;
+    let buffer="",final:any=null,settled=false,eventWrites=Promise.resolve();
     const timer=setTimeout(()=>{if(!settled){settled=true;child.kill("SIGKILL");reject(new Error("payment_live_timeout"));}},timeoutMs);
     child.stdout.setEncoding("utf8");
     child.stdout.on("data",(chunk:string)=>{
@@ -35,12 +35,13 @@ function runLive(script:string,payload:Record<string,unknown>,timeoutMs:number):
       let index;
       while((index=buffer.indexOf("\n"))>=0){
         const line=buffer.slice(0,index);buffer=buffer.slice(index+1);
-        try{const event=JSON.parse(line);if(event?.event==="final"&&event.result&&typeof event.result==="object")final=event.result;}catch{}
+        try{const event=JSON.parse(line);if(event?.event==="final"&&event.result&&typeof event.result==="object")final=event.result;else if(onEvent&&typeof event?.event==="string")eventWrites=eventWrites.then(()=>Promise.resolve(onEvent(event))).catch(()=>{});}catch{}
       }
     });
     child.once("error",()=>{if(!settled){settled=true;clearTimeout(timer);reject(new Error("payment_live_runner_unavailable"));}});
-    child.once("close",()=>{
+    child.once("close",async()=>{
       if(settled)return;settled=true;clearTimeout(timer);
+      await eventWrites.catch(()=>{});
       if(!final)return reject(new Error("payment_live_result_missing"));
       resolve(final);
     });
@@ -53,6 +54,27 @@ function parsed(text:string){
   const value=JSON.parse(text);
   if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("billing_output_invalid");
   return value;
+}
+
+const VERIFIED_FAILURE_REASONS=new Set([
+  "bank_declined","bank_verification_failed","payment_cancelled","session_expired","payment_rejected_reason_unavailable"
+]);
+const LIVE_TRACE_STAGES=new Set([
+  "provider_session_started","provider_session_authenticated","invoice_revalidated","checkout_prepared",
+  "gateway_submission_started","gateway_submission_result","bank_ui_opened","provider_callback_correlated",
+  "provider_readback","completion_classified","execution_error"
+]);
+function verifiedFailureReason(value:any){
+  return typeof value==="string"&&VERIFIED_FAILURE_REASONS.has(value)?value:"payment_rejected_reason_unavailable";
+}
+async function forwardLiveTrace(context:PaymentTraceSink|undefined,event:any){
+  if(!context?.trace||!event||typeof event!=="object"||!LIVE_TRACE_STAGES.has(event.event))return;
+  const trace:any={stage:event.event};
+  if(typeof event.outcome==="string"&&/^[a-z0-9_.-]{1,64}$/.test(event.outcome))trace.outcome=event.outcome;
+  if(typeof event.reason_code==="string"&&/^[a-z0-9_.-]{1,96}$/.test(event.reason_code))trace.reasonCode=event.reason_code;
+  if(typeof event.invoice_state==="string"&&["unpaid","settled","balance_changed","not_observed","unknown"].includes(event.invoice_state))
+    trace.invoiceState=event.invoice_state;
+  await context.trace(trace);
 }
 
 export function createTopnetLivePaymentAdapter(options:{
@@ -110,7 +132,8 @@ export function createTopnetLivePaymentAdapter(options:{
       return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
 
     const result=await live(liveCli,{operation:"start",paymentRequestId:requestId,bankReturnToken:context.bankReturnToken,
-      request:{invoice_id:quote.reference,expected_amount_millimes:quote.amountMinor,currency:quote.currency,expected_last4:card.last4}},START_TIMEOUT_MS);
+      request:{invoice_id:quote.reference,expected_amount_millimes:quote.amountMinor,currency:quote.currency,expected_last4:card.last4}},START_TIMEOUT_MS,
+      event=>forwardLiveTrace(context,event));
 
     if(result?.state==="requires_bank_action"&&result.reason_code==="bank_verification_required"){
       const c=result.continuation as PaymentContinuation|undefined;
@@ -126,7 +149,7 @@ export function createTopnetLivePaymentAdapter(options:{
     }
 
     if(result?.state==="failed"&&result.gateway_return_correlated===true&&result.fresh_provider_read===true&&result.invoice_state==="unpaid")
-      return {state:"failed",reasonCode:"bank_declined",rejectionVerified:true};
+      return {state:"failed",reasonCode:verifiedFailureReason(result.reason_code),rejectionVerified:true};
 
     return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
   }
@@ -142,12 +165,13 @@ export function createTopnetLivePaymentAdapter(options:{
     revalidate:async quote=>readQuote(quote.reference),
     execute:async (quote,requestId,context)=>executeTopnet(quote,requestId,context,true),
     executeLocal:async (quote,requestId,context)=>executeTopnet(quote,requestId,context,false),
-    async resume(quote,requestId,continuation):Promise<PaymentExecutionResult>{
+    async resume(quote,requestId,continuation,traceSink):Promise<PaymentExecutionResult>{
       if(!continuation||continuation.provider!=="topnet"||!/^[0-9]{1,32}$/.test(continuation.checkoutId)||!UUID.test(continuation.gatewayOrderId))
         return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
 
       const result=await live(liveCli,{operation:"resume",request:{invoice_id:quote.reference,
-        expected_amount_millimes:quote.amountMinor,currency:quote.currency},continuation},RESUME_TIMEOUT_MS);
+        expected_amount_millimes:quote.amountMinor,currency:quote.currency},continuation},RESUME_TIMEOUT_MS,
+        event=>forwardLiveTrace(traceSink,event));
 
       if(result?.state==="confirmed"&&result.gateway_return_correlated===true&&result.fresh_provider_read===true&&result.invoice_state==="settled"){
         if(!UUID.test(requestId))return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
@@ -156,7 +180,7 @@ export function createTopnetLivePaymentAdapter(options:{
       }
 
       if(result?.state==="failed"&&result.gateway_return_correlated===true&&result.fresh_provider_read===true&&result.invoice_state==="unpaid")
-        return {state:"failed",reasonCode:"bank_declined",rejectionVerified:true};
+        return {state:"failed",reasonCode:verifiedFailureReason(result.reason_code),rejectionVerified:true};
 
       return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
     }

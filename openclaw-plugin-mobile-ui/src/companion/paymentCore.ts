@@ -1,15 +1,30 @@
 import {createHash, randomBytes, randomUUID, verify, KeyObject} from "crypto";
-import type {PaymentAdapter, PaymentDraft, PaymentQuote, PaymentRecord, PaymentStore, PaymentExecutionResult, PaymentContinuation, PaymentExecutionContext} from "./paymentTypes";
+import type {PaymentAdapter, PaymentDraft, PaymentQuote, PaymentRecord, PaymentStore, PaymentExecutionResult, PaymentContinuation, PaymentExecutionContext, PaymentTraceInput} from "./paymentTypes";
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const HEX=/^[a-f0-9]{64}$/;
 const STATES=new Set(["awaiting_owner","executing","demo_confirmed","confirmed","failed","cancelled","expired","blocked","effect_unknown","requires_bank_action"]);
-const REASONS=new Set(["gateway_and_provider_confirmed","bank_declined","payment_cancelled","session_expired","bank_verification_required","bank_verification_failed","payment_effect_unverified"]);
+const REASONS=new Set(["gateway_and_provider_confirmed","bank_declined","payment_cancelled","session_expired","bank_verification_required","bank_verification_failed","payment_rejected_reason_unavailable","payment_effect_unverified"]);
+const TRACE_STAGES=new Set(["owner_confirmation_consumed","payment_record_created","financial_dispatch_committed","provider_session_started","provider_session_authenticated","invoice_revalidated","checkout_prepared","gateway_submission_started","gateway_submission_result","bank_ui_opened","provider_callback_correlated","provider_readback","completion_classified","execution_error","bank_resume_started","state_transition"]);
+const TRACE_INVOICE_STATES=new Set(["unpaid","settled","balance_changed","not_observed","unknown"]);
 export function paymentError(code:string,statusCode=400):never {throw Object.assign(new Error(code),{statusCode});}
 function object(value:any,keys:string[]) {
   if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).length!==keys.length||keys.some(k=>!Object.prototype.hasOwnProperty.call(value,k))) paymentError("invalid_payment_request");
 }
 function safeText(v:any,max=120) {return typeof v==="string"&&v.length>0&&v.length<=max&&!/[\p{C}]/u.test(v)&&v===v.trim();}
 const hash=(s:string|Buffer)=>createHash("sha256").update(s).digest("hex");
+function cleanTraceInput(value:PaymentTraceInput):PaymentTraceInput {
+  if(!value||typeof value!=="object"||Array.isArray(value)||!TRACE_STAGES.has(value.stage))paymentError("invalid_payment_trace",503);
+  const out:PaymentTraceInput={stage:value.stage};
+  if(value.outcome!==undefined){if(!safeText(value.outcome,64))paymentError("invalid_payment_trace",503);out.outcome=value.outcome;}
+  if(value.reasonCode!==undefined){if(!safeText(value.reasonCode,96))paymentError("invalid_payment_trace",503);out.reasonCode=value.reasonCode;}
+  if(value.invoiceState!==undefined){if(!TRACE_INVOICE_STATES.has(value.invoiceState))paymentError("invalid_payment_trace",503);out.invoiceState=value.invoiceState;}
+  return out;
+}
+function appendTrace(r:PaymentRecord,value:PaymentTraceInput,at:number){
+  const item=cleanTraceInput(value),trace=r.trace??(r.trace=[]);
+  if(trace.length>=64)paymentError("payment_trace_capacity_reached",503);
+  trace.push({...item,seq:trace.length+1,at});
+}
 export function validateDraft(v:any):PaymentDraft {
   object(v,["requestKey","adapterId","reference","mode","origin"]);
   object(v.origin,["channel","id"]);
@@ -45,6 +60,14 @@ function validateStored(r:PaymentRecord) {
     (r.bankReturnTokenHash!==undefined&&!HEX.test(r.bankReturnTokenHash))) paymentError("payment_record_invalid",503);
   if(r.authorizationSource!=="payment_owner_native"&&r.authorizationSource!=="local_owner_confirmation") paymentError("payment_record_invalid",503);
   if(r.authorizationSource==="local_owner_confirmation"&&(!r.ownerConfirmationId||!UUID.test(r.ownerConfirmationId))) paymentError("payment_record_invalid",503);
+  if(r.trace!==undefined){
+    if(!Array.isArray(r.trace)||r.trace.length>64)paymentError("payment_record_invalid",503);
+    for(let i=0;i<r.trace.length;i++){
+      const e=r.trace[i] as any;
+      if(!e||e.seq!==i+1||!Number.isSafeInteger(e.at)||e.at<r.createdAt-120000||e.at>r.updatedAt+120000)paymentError("payment_record_invalid",503);
+      cleanTraceInput(e);
+    }
+  }
   const d=validateDraft(r.draft),q=validateQuote(r.quote);
   if(r.continuation!==undefined){const c=validateContinuation(r.continuation);if(c.provider!==d.adapterId)paymentError("payment_record_invalid",503);}
   if(quoteDigest(d.adapterId,d.mode,q)!==r.quoteHash||hash(JSON.stringify(d))!==r.fingerprint) paymentError("payment_record_invalid",503);
@@ -53,6 +76,7 @@ export function paymentView(r:PaymentRecord) {
   return {schemaVersion:1,requestId:r.id,adapterId:r.draft.adapterId,mode:r.draft.mode,origin:r.draft.origin,
     quote:r.quote,state:r.state,reasonCode:r.reasonCode,expiresAt:r.expiresAt,canRetry:false,
     financialSubmissionAttempted:r.draft.mode==="live"&&r.executorAttempts>0,
+    timeline:(r.trace??[]).map(e=>({...e})),
     receipt:r.state==="confirmed"?r.receipt:undefined,
     metrics:{preparationMs:r.preparationMs,ownerWaitMs:r.acceptedAt===undefined?null:Math.max(0,r.acceptedAt-r.createdAt),
       executionMs:r.endedAt===undefined||r.executionStartedAt===undefined?null:Math.max(0,r.endedAt-r.executionStartedAt),
@@ -122,7 +146,9 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
   const finish=async(id:string,state:PaymentRecord["state"],reason:string,receipt?:PaymentRecord["receipt"],continuation?:PaymentContinuation)=>options.store.change(rows=>{
     const r=locate(rows,id);
     if(r.state!=="executing")return paymentView(r);
-    r.state=state;r.reasonCode=reason;r.receipt=receipt;r.updatedAt=now();
+    const at=now();
+    r.state=state;r.reasonCode=reason;r.receipt=receipt;r.updatedAt=at;
+    appendTrace(r,{stage:"state_transition",outcome:state,reasonCode:reason},at);
     if(state==="requires_bank_action"){
       if(!continuation)paymentError("invalid_payment_continuation",502);
       const c=validateContinuation(continuation);if(c.provider!==r.draft.adapterId)paymentError("invalid_payment_continuation",502);
@@ -134,7 +160,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
     if(!result||!["confirmed","failed","effect_unknown","requires_bank_action"].includes(result.state)||!REASONS.has(result.reasonCode))
       return finish(id,"effect_unknown","invalid_payment_adapter_result");
     const reasons:Record<string,string[]>={confirmed:["gateway_and_provider_confirmed"],
-      failed:["bank_declined","bank_verification_failed","payment_cancelled","session_expired"],
+      failed:["bank_declined","bank_verification_failed","payment_cancelled","session_expired","payment_rejected_reason_unavailable"],
       requires_bank_action:["bank_verification_required"],effect_unknown:["payment_effect_unverified"]};
     if(!reasons[result.state].includes(result.reasonCode))return finish(id,"effect_unknown","invalid_payment_adapter_result");
     if(result.state==="failed"&&result.rejectionVerified!==true)return finish(id,"effect_unknown","payment_rejection_unverified");
@@ -221,17 +247,30 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
           executionBootId:bootId,
           authorizationSource:"local_owner_confirmation",
           ownerConfirmationId:input.confirmationRequestId,
-          bankReturnTokenHash:hash(bankReturnToken)
+          bankReturnTokenHash:hash(bankReturnToken),
+          trace:[
+            {seq:1,at:createdAt,stage:"owner_confirmation_consumed"},
+            {seq:2,at:createdAt,stage:"payment_record_created"},
+            {seq:3,at:createdAt,stage:"financial_dispatch_committed"}
+          ]
         };
         rows.push(record);
         return {kind:"created", record, bankReturnToken};
       });
       if(prepared.kind==="existing") return prepared.view;
       const {record,bankReturnToken}=prepared;
+      const trace=async(event:PaymentTraceInput)=>options.store.change(rows=>{
+        const current=locate(rows,record.id),at=now();
+        if(current.state!=="executing")return;
+        appendTrace(current,event,at);current.updatedAt=at;
+      });
       try {
-        const result:PaymentExecutionResult=await bounded(()=>adapter.executeLocal!(record.quote,record.id,{bankReturnToken}),executionMs);
+        const result:PaymentExecutionResult=await bounded(()=>adapter.executeLocal!(record.quote,record.id,{bankReturnToken,trace}),executionMs);
         return applyResult(record.id,"live",result);
-      } catch {return finish(record.id,"effect_unknown","payment_effect_unverified");}
+      } catch {
+        await trace({stage:"execution_error",reasonCode:"payment_effect_unverified"}).catch(()=>{});
+        return finish(record.id,"effect_unknown","payment_effect_unverified");
+      }
     },
     async prepare(input:any) {
       const draft=validateDraft(input),fingerprint=hash(JSON.stringify(draft)),started=now();
@@ -321,15 +360,24 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
           paymentError("payment_resume_not_available",409);
         const adapter=availableForRecord(r);
         if(typeof adapter.resume!=="function"||!r.continuation)paymentError("payment_resume_not_available",409);
+        const at=now();
         r.state="executing";r.reasonCode="bank_action_resuming";r.executionBootId=bootId;
-        r.bankResumeAttempts=1;r.resumedAt=now();delete r.bankReturnTokenHash;r.updatedAt=now();
+        r.bankResumeAttempts=1;r.resumedAt=at;delete r.bankReturnTokenHash;r.updatedAt=at;
+        appendTrace(r,{stage:"bank_resume_started"},at);
         return JSON.parse(JSON.stringify(r)) as PaymentRecord;
       });
       const adapter=availableForRecord(claimed);
+      const traceSink={trace:async(event:PaymentTraceInput)=>options.store.change(rows=>{
+        const current=locate(rows,id),at=now();if(current.state!=="executing")return;
+        appendTrace(current,event,at);current.updatedAt=at;
+      })};
       try {
-        const result:PaymentExecutionResult=await bounded(()=>adapter.resume!(claimed.quote,id,claimed.continuation),executionMs);
+        const result:PaymentExecutionResult=await bounded(()=>adapter.resume!(claimed.quote,id,claimed.continuation,traceSink),executionMs);
         return applyResult(id,claimed.draft.mode,result);
-      } catch {return finish(id,"effect_unknown","payment_effect_unverified");}
+      } catch {
+        await traceSink.trace({stage:"execution_error",reasonCode:"payment_effect_unverified"}).catch(()=>{});
+        return finish(id,"effect_unknown","payment_effect_unverified");
+      }
     },
     async resumeFromBankReturn(id:string,bankReturnToken:string) {
       if(typeof bankReturnToken!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(bankReturnToken))paymentError("invalid_bank_return_token",403);
@@ -339,15 +387,24 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
           hash(bankReturnToken)!==r.bankReturnTokenHash)paymentError("payment_bank_return_not_available",409);
         const adapter=availableForRecord(r);
         if(typeof adapter.resume!=="function"||!r.continuation)paymentError("payment_resume_not_available",409);
+        const at=now();
         r.state="executing";r.reasonCode="bank_action_resuming";r.executionBootId=bootId;
-        r.bankResumeAttempts=1;r.resumedAt=now();delete r.bankReturnTokenHash;r.updatedAt=now();
+        r.bankResumeAttempts=1;r.resumedAt=at;delete r.bankReturnTokenHash;r.updatedAt=at;
+        appendTrace(r,{stage:"bank_resume_started"},at);
         return JSON.parse(JSON.stringify(r)) as PaymentRecord;
       });
       const adapter=availableForRecord(claimed);
+      const traceSink={trace:async(event:PaymentTraceInput)=>options.store.change(rows=>{
+        const current=locate(rows,id),at=now();if(current.state!=="executing")return;
+        appendTrace(current,event,at);current.updatedAt=at;
+      })};
       try {
-        const result:PaymentExecutionResult=await bounded(()=>adapter.resume!(claimed.quote,id,claimed.continuation),executionMs);
+        const result:PaymentExecutionResult=await bounded(()=>adapter.resume!(claimed.quote,id,claimed.continuation,traceSink),executionMs);
         return applyResult(id,claimed.draft.mode,result);
-      } catch {return finish(id,"effect_unknown","payment_effect_unverified");}
+      } catch {
+        await traceSink.trace({stage:"execution_error",reasonCode:"payment_effect_unverified"}).catch(()=>{});
+        return finish(id,"effect_unknown","payment_effect_unverified");
+      }
     }
   };
 }

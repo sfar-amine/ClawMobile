@@ -86,6 +86,8 @@ const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
   assert.equal((await f.core.confirm(r.requestId,await f.proof(r.requestId))).reasonCode,"payment_rejection_unverified")});
  await test("verified rejection can report failure",async()=>{const f=fixture({mode:"live",execute:async()=>({state:"failed",reasonCode:"bank_declined",rejectionVerified:true})}),r=await f.prepared();
   assert.equal((await f.core.confirm(r.requestId,await f.proof(r.requestId))).state,"failed")});
+ await test("verified generic rejection is not relabeled bank decline",async()=>{const f=fixture({mode:"live",execute:async()=>({state:"failed",reasonCode:"payment_rejected_reason_unavailable",rejectionVerified:true})}),r=await f.prepared();
+  const out=await f.core.confirm(r.requestId,await f.proof(r.requestId));assert.equal(out.state,"failed");assert.equal(out.reasonCode,"payment_rejected_reason_unavailable")});
  await test("inconsistent status and reason remain unknown",async()=>{const f=fixture({mode:"live",execute:async()=>({state:"confirmed",reasonCode:"bank_declined"})}),r=await f.prepared();
   assert.equal((await f.core.confirm(r.requestId,await f.proof(r.requestId))).reasonCode,"invalid_payment_adapter_result")});
  await test("hanging quote is bounded",async()=>{const f=fixture({quote:()=>new Promise(()=>{}),timeouts:{quoteMs:5}});
@@ -122,12 +124,13 @@ const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
  await test("bank return token resumes once without a second owner gesture",async()=>{
   let token=null;
   const f=fixture({mode:"live",execute:async(_q,_id,context)=>{token=context?.bankReturnToken;return {state:"requires_bank_action",reasonCode:"bank_verification_required"}},
-   resume:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"BANK-RETURN",transactionCorrelated:true,providerReconciled:true}})});
+   resume:async(_q,_id,_continuation,traceSink)=>{await traceSink.trace?.({stage:"provider_readback",invoiceState:"settled"});return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"BANK-RETURN",transactionCorrelated:true,providerReconciled:true}};}});
   const r=await f.prepared(),pending=await f.core.confirm(r.requestId,await f.proof(r.requestId));
   assert.equal(pending.state,"requires_bank_action");assert.match(token,/^[A-Za-z0-9_-]{43}$/);
   assert.equal(JSON.stringify(await f.core.status(r.requestId)).includes(token),false);
   const done=await f.core.resumeFromBankReturn(r.requestId,token);
   assert.equal(done.state,"confirmed");assert.equal(done.metrics.executorAttempts,1);assert.equal(done.metrics.bankResumeAttempts,1);
+  assert.deepEqual(done.timeline.map(e=>e.stage),["state_transition","bank_resume_started","provider_readback","state_transition"]);
   assert.equal(f.calls(),1);assert.equal(f.resumes(),1);
   await reject(()=>f.core.resumeFromBankReturn(r.requestId,token),"payment_bank_return_not_available");
  });
@@ -193,7 +196,7 @@ await test("V1.1 startLocalAuthorized creates compliant record", async () => {
     quote:async ref=>({payee:"TOPNET",reference:ref,amountMinor:60900,currency:"TND",decimals:3}),
     revalidate:async q=>q,
     execute:async()=>{dispatched=true;return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}};},
-    executeLocal:async()=>{dispatched=true;return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}};},
+    executeLocal:async(_q,_id,ctx)=>{dispatched=true;await ctx.trace?.({stage:"provider_session_started"});return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}};},
     resume:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}})
   };
   const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:key.publicKey,id:kid})});
@@ -215,6 +218,11 @@ await test("V1.1 startLocalAuthorized creates compliant record", async () => {
   assert.equal(rec.draft.origin.channel,"samantha");
   assert.match(rec.draft.origin.id,/^local-owner:/);
   assert.equal(rec.expiresAt-rec.createdAt,120000);
+  assert.deepEqual(out.timeline.map(e=>e.stage),[
+    "owner_confirmation_consumed","payment_record_created","financial_dispatch_committed",
+    "provider_session_started","state_transition"
+  ]);
+  assert.equal(JSON.stringify(out.timeline).includes("bankReturnToken"),false);
 });
 
 await test("V1.1 executorAttempts persisted before executeLocal", async () => {
