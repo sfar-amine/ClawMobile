@@ -148,6 +148,22 @@ const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
   const done=await f.core.resumeFromBankReturn(r.requestId,token);assert.equal(done.state,"confirmed");
   await reject(()=>f.core.timeoutBankAction(r.requestId),"payment_bank_timeout_not_available");assert.equal(f.calls(),1);assert.equal(f.resumes(),1);
  });
+ await test("bank UI telemetry stays sanitized in the canonical PaymentRecord",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"})});
+  const r=await f.prepared(),pending=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  assert.equal(pending.state,"requires_bank_action");
+  await f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",
+    navigation:{origin:"https://www.topnet.tn",path:"/moncompte/facture_payment_check/{id}"}});
+  await f.core.recordBankUiEvent(r.requestId,{stage:"bank_return_detected",outcome:"page_started",
+    navigation:{origin:"https://www.topnet.tn",path:"/moncompte/facture_payment_check/{id}"}});
+  const status=await f.core.status(r.requestId);
+  assert.equal(status.timeline.at(-2).stage,"bank_ui_navigation");
+  assert.deepEqual(status.timeline.at(-2).navigation,{origin:"https://www.topnet.tn",path:"/moncompte/facture_payment_check/{id}"});
+  assert.equal(status.timeline.at(-1).stage,"bank_return_detected");
+  await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",
+    navigation:{origin:"https://evil.test",path:"/x"}}),"invalid_payment_trace");
+  await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"provider_readback",invoiceState:"unpaid"}),"invalid_bank_ui_trace");
+ });
  await test("bank return token resumes once without a second owner gesture",async()=>{
   let token=null;
   const f=fixture({mode:"live",execute:async(_q,_id,context)=>{token=context?.bankReturnToken;return {state:"requires_bank_action",reasonCode:"bank_verification_required"}},

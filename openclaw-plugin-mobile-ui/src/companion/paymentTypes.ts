@@ -8,7 +8,8 @@ export type PaymentHttpTrace = {
   durationMs:number; responseStatus?:number; responseOrigin?:string; responsePath?:string; responseBytes?:number;
   responseSnapshot?:string; responseSha256?:string; responseTruncated?:boolean; errorCode?:string;
 };
-export type PaymentTraceInput = {stage:string; outcome?:string; reasonCode?:string; invoiceState?:string; http?:PaymentHttpTrace};
+export type PaymentNavigationTrace = {origin:string; path:string};
+export type PaymentTraceInput = {stage:string; outcome?:string; reasonCode?:string; invoiceState?:string; http?:PaymentHttpTrace; navigation?:PaymentNavigationTrace};
 export type PaymentTraceEvent = PaymentTraceInput & {seq:number; at:number};
 export type PaymentTraceSink = {trace?:(event:PaymentTraceInput)=>Promise<void>|void};
 export type PaymentExecutionContext = PaymentTraceSink & {bankReturnToken:string};

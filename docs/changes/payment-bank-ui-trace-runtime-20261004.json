@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "id": "payment-bank-ui-trace-runtime-20261004",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Accept bounded sanitized bank UI telemetry into the existing PaymentRecord timeline.",
+  "reason": "The prior real run lacked evidence of WebView navigation and callback detection.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/paymentTypes.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "docs/changes/payment-bank-ui-trace-runtime-20261004.json",
+    "docs/changes/payment-bank-ui-trace-runtime-20261004.md"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "Companion TypeScript build passed."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "55/55 Payment Core tests passed including allowlisted normalized bank navigation and rejection of unsafe origin/stages."
+    },
+    {
+      "name": "topnet-adapter",
+      "status": "passed",
+      "evidence": "9/9 Topnet adapter tests passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/payment-bank-ui-trace-runtime-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Capability truth is owned by ui-playbooks; runtime implements its trace contract."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Adds a loopback/native-owner-flow trace endpoint that only appends validated events to the existing PaymentRecord."
+  },
+  "rollback": "Revert this scoped runtime commit; existing records remain readable.",
+  "limitations": [
+    "Endpoint accepts only allowlisted stages and origins with query-free normalized paths."
+  ]
+}

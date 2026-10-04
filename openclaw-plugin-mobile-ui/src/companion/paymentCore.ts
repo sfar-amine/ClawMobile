@@ -4,7 +4,7 @@ const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]
 const HEX=/^[a-f0-9]{64}$/;
 const STATES=new Set(["awaiting_owner","executing","demo_confirmed","confirmed","failed","cancelled","expired","blocked","effect_unknown","requires_bank_action"]);
 const REASONS=new Set(["gateway_and_provider_confirmed","bank_declined","payment_cancelled","session_expired","bank_verification_required","bank_verification_failed","payment_rejected_reason_unavailable","payment_effect_unverified"]);
-const TRACE_STAGES=new Set(["owner_confirmation_consumed","payment_record_created","financial_dispatch_committed","provider_session_started","provider_session_authenticated","invoice_revalidated","checkout_prepared","browser_context_ready","three_ds2_preflight","gateway_submission_started","gateway_submission_result","bank_ui_opened","provider_callback_correlated","provider_readback","completion_classified","execution_error","bank_timeout_reconciliation_started","bank_resume_started","state_transition","http_exchange"]);
+const TRACE_STAGES=new Set(["owner_confirmation_consumed","payment_record_created","financial_dispatch_committed","provider_session_started","provider_session_authenticated","invoice_revalidated","checkout_prepared","browser_context_ready","three_ds2_preflight","gateway_submission_started","gateway_submission_result","bank_ui_opened","bank_ui_navigation","bank_return_detected","bank_return_requested","bank_return_response","bank_result_presented","provider_callback_correlated","provider_readback","completion_classified","execution_error","bank_timeout_reconciliation_started","bank_resume_started","state_transition","http_exchange"]);
 const TRACE_INVOICE_STATES=new Set(["unpaid","settled","balance_changed","not_observed","unknown"]);
 const TRACE_CAPACITY=160,TRACE_SNAPSHOT_MAX=65536;
 export const BANK_ACTION_TIMEOUT_MS=60_000;
@@ -56,6 +56,16 @@ function cleanHttpTrace(value:any){
   if(value.responseStatus===undefined&&value.errorCode===undefined)paymentError("invalid_payment_trace",503);
   return out;
 }
+const BANK_UI_TRACE_STAGES=new Set(["bank_ui_navigation","bank_return_detected","bank_return_requested","bank_return_response","bank_result_presented"]);
+const BANK_NAV_ORIGINS=new Set(["https://3ds2.clictopay.com","https://ipay.clictopay.com","https://www.topnet.tn"]);
+function cleanNavigationTrace(value:any){
+  if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).sort().join(",")!=="origin,path"||
+     typeof value.origin!=="string"||!BANK_NAV_ORIGINS.has(value.origin)||
+     typeof value.path!=="string"||value.path.length<1||value.path.length>256||!value.path.startsWith("/")||
+     value.path.includes("?")||value.path.includes("#")||!/^\/[A-Za-z0-9_{}./-]*$/.test(value.path))
+    paymentError("invalid_payment_trace",503);
+  return {origin:value.origin,path:value.path};
+}
 function cleanTraceInput(value:PaymentTraceInput):PaymentTraceInput {
   if(!value||typeof value!=="object"||Array.isArray(value)||!TRACE_STAGES.has(value.stage))paymentError("invalid_payment_trace",503);
   const out:PaymentTraceInput={stage:value.stage};
@@ -64,6 +74,11 @@ function cleanTraceInput(value:PaymentTraceInput):PaymentTraceInput {
   if(value.invoiceState!==undefined){if(!TRACE_INVOICE_STATES.has(value.invoiceState))paymentError("invalid_payment_trace",503);out.invoiceState=value.invoiceState;}
   if(value.http!==undefined){if(value.stage!=="http_exchange")paymentError("invalid_payment_trace",503);out.http=cleanHttpTrace(value.http);}
   if(value.stage==="http_exchange"&&!out.http)paymentError("invalid_payment_trace",503);
+  if(value.navigation!==undefined){
+    if(!["bank_ui_navigation","bank_return_detected"].includes(value.stage))paymentError("invalid_payment_trace",503);
+    out.navigation=cleanNavigationTrace(value.navigation);
+  }
+  if(value.stage==="bank_ui_navigation"&&!out.navigation)paymentError("invalid_payment_trace",503);
   return out;
 }
 function appendTrace(r:PaymentRecord,value:PaymentTraceInput,at:number){
@@ -440,6 +455,19 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
         await traceSink.trace({stage:"execution_error",reasonCode:"payment_effect_unverified"}).catch(()=>{});
         return finish(id,"effect_unknown","payment_effect_unverified");
       }
+    },
+    async recordBankUiEvent(id:string,event:PaymentTraceInput) {
+      if(!event||!BANK_UI_TRACE_STAGES.has(event.stage))paymentError("invalid_bank_ui_trace",400);
+      return options.store.change(rows=>{
+        const r=locate(rows,id);
+        if(r.draft.mode!=="live"||r.executorAttempts!==1||
+           !["executing","requires_bank_action","confirmed","failed","cancelled","blocked","effect_unknown"].includes(r.state))
+          paymentError("payment_bank_ui_trace_not_available",409);
+        const at=now();
+        appendTrace(r,event,at);
+        r.updatedAt=at;
+        return paymentView(r);
+      });
     },
     async resume(id:string) {
       const claimed=await options.store.change(rows=>{

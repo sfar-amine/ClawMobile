@@ -176,6 +176,9 @@ async function localStart(input:any) {
   return result;
 }
 
+async function bankUiEvent(id:string,event:any){
+  return core.recordBankUiEvent(id,event);
+}
 async function bankReturn(id:string,bankReturnToken:string){
   const result=await bound.bankReturn(id,bankReturnToken);
   clearBankTimeout(id);
@@ -191,6 +194,7 @@ export const payments = {
   ...bound,
   resume,
   bankReturn,
+  bankUiEvent,
   prepareLocalIntent,
   localIntentStatus,
   localStart,

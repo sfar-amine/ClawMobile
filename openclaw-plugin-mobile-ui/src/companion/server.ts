@@ -248,7 +248,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if (method === "POST" && routePath === "/payments/local-start") {
       writeJson(res, 200, await payments.localStart(await readJsonBody(req, 512))); return;
     }
-    const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|bank-return|resume|cancel))?$/.exec(routePath);
+    const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|bank-return|bank-ui-event|resume|cancel))?$/.exec(routePath);
     if (match) {
       const [, id, action] = match;
       if (method === "GET" && !action) { writeJson(res,200,await payments.status(id)); return; }
@@ -265,6 +265,9 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         const body=await readJsonBody(req,256);
         if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).length)throw new HttpError(400,"invalid_bank_authorization_request");
         writeJson(res,200,await payments.bankAuthorization(id)); return;
+      }
+      if (method === "POST" && action === "bank-ui-event") {
+        writeJson(res,200,await payments.bankUiEvent(id,await readJsonBody(req,1024))); return;
       }
       if (method === "POST" && action === "bank-return") {
         const body=await readJsonBody(req,256);
