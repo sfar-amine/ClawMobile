@@ -157,10 +157,13 @@ const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
     navigation:{origin:"https://www.topnet.tn",path:"/moncompte/facture_payment_check/{id}"}});
   await f.core.recordBankUiEvent(r.requestId,{stage:"bank_return_detected",outcome:"page_started",
     navigation:{origin:"https://www.topnet.tn",path:"/moncompte/facture_payment_check/{id}"}});
+  await f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_lifecycle",outcome:"paused"});
   const status=await f.core.status(r.requestId);
-  assert.equal(status.timeline.at(-2).stage,"bank_ui_navigation");
-  assert.deepEqual(status.timeline.at(-2).navigation,{origin:"https://www.topnet.tn",path:"/moncompte/facture_payment_check/{id}"});
-  assert.equal(status.timeline.at(-1).stage,"bank_return_detected");
+  assert.equal(status.timeline.at(-3).stage,"bank_ui_navigation");
+  assert.deepEqual(status.timeline.at(-3).navigation,{origin:"https://www.topnet.tn",path:"/moncompte/facture_payment_check/{id}"});
+  assert.equal(status.timeline.at(-2).stage,"bank_return_detected");
+  assert.equal(status.timeline.at(-1).stage,"bank_ui_lifecycle");
+  assert.equal(status.timeline.at(-1).outcome,"paused");
   await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",
     navigation:{origin:"https://evil.test",path:"/x"}}),"invalid_payment_trace");
   await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"provider_readback",invoiceState:"unpaid"}),"invalid_bank_ui_trace");

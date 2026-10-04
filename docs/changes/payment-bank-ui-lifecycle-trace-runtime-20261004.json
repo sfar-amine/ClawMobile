@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "id": "payment-bank-ui-lifecycle-trace-runtime-20261004",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Persist bounded bank-surface lifecycle transitions in the canonical PaymentRecord timeline.",
+  "reason": "A real acceptance run showed the bank surface moved out of the foreground before any merchant return was observed. Without lifecycle events this required external Android inspection.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "docs/changes/payment-bank-ui-lifecycle-trace-runtime-20261004.json",
+    "docs/changes/payment-bank-ui-lifecycle-trace-runtime-20261004.md"
+  ],
+  "tests": [{"name":"payment-core","status":"passed","evidence":"Payment Core accepts allowlisted bank_ui_lifecycle transitions inside the existing PaymentRecord and keeps navigation validation unchanged."}],
+  "documentation": ["docs/changes/payment-bank-ui-lifecycle-trace-runtime-20261004.md"],
+  "capabilities": {"impact":"none","ids":[],"reason":"This extends diagnostic evidence only; payment state transitions and replay guards are unchanged."},
+  "architecture": {"changed":false,"reason":"Events append to the existing bounded PaymentRecord timeline."},
+  "rollback": "Revert this scoped runtime commit.",
+  "limitations": ["Lifecycle evidence is best-effort and does not replace gateway/provider transaction evidence."]
+}
