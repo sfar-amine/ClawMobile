@@ -58,7 +58,7 @@ class GuardTests(unittest.TestCase):
         lease = guard.LEASES / "stale.json"
         lease.write_text(json.dumps({"created_at": 1, "owner_pid": 999999, "settings": blank()}))
         with patch.object(guard, "lease_alive", return_value=False),              patch.object(guard, "restore_state") as restore,              patch.object(guard, "settings_state", return_value=blank()):
-            rc = guard.check_and_reconcile()
+            rc = guard.check_and_reconcile(False)
         self.assertEqual(rc, 0)
         restore.assert_called_once()
         self.assertFalse(lease.exists())
@@ -70,7 +70,7 @@ class GuardTests(unittest.TestCase):
         state["global_http_proxy_host"] = {"exists": True, "value": "127.0.0.1"}
         state["global_http_proxy_port"] = {"exists": True, "value": "8888"}
         with patch.object(guard, "settings_state", return_value=state),              patch.object(guard, "restore_state") as restore:
-            rc = guard.check_and_reconcile()
+            rc = guard.check_and_reconcile(False)
         self.assertEqual(rc, 2)
         restore.assert_not_called()
         receipt = json.loads(guard.RECEIPT.read_text())
@@ -83,12 +83,54 @@ class GuardTests(unittest.TestCase):
         active_state = blank()
         active_state["http_proxy"] = {"exists": True, "value": "127.0.0.1:8888"}
         with patch.object(guard, "lease_alive", return_value=True),              patch.object(guard, "settings_state", return_value=active_state),              patch.object(guard, "restore_state") as restore:
-            rc = guard.check_and_reconcile()
+            rc = guard.check_and_reconcile(False)
         self.assertEqual(rc, 0)
         restore.assert_not_called()
         self.assertTrue(lease.exists())
         receipt = json.loads(guard.RECEIPT.read_text())
         self.assertEqual(receipt["reason"], "temporary_lease_active")
+
+
+    def test_termux_background_repair_is_bounded_and_verified(self):
+        bad = {
+            "healthy": False,
+            "packages": {
+                "com.termux": {"uid":10554,"doze_whitelisted":False,"run_any_in_background":False,
+                                "run_in_background":False,"inactive":True,"standby_bucket":40,
+                                "hibernation_supported":True,"hibernated":True,"healthy":False}
+            },
+            "data_saver_whitelisted": {"10554": False},
+        }
+        good = {
+            "healthy": True,
+            "packages": {
+                "com.termux": {"uid":10554,"doze_whitelisted":True,"run_any_in_background":True,
+                                "run_in_background":True,"inactive":False,"standby_bucket":5,
+                                "hibernation_supported":True,"hibernated":False,"healthy":True}
+            },
+            "data_saver_whitelisted": {"10554": True},
+        }
+        calls=[]
+        def fake_adb(*args, **kwargs):
+            calls.append(args)
+            class P: returncode=0; stdout=""
+            return P()
+        with patch.object(guard,"termux_background_state",side_effect=[bad,good]), patch.object(guard,"adb",side_effect=fake_adb):
+            out=guard.ensure_termux_background_network()
+        self.assertEqual(out["mutation"],"repaired")
+        self.assertIn(("shell","dumpsys","deviceidle","whitelist","+com.termux"),calls)
+        self.assertIn(("shell","cmd","appops","set","com.termux","RUN_ANY_IN_BACKGROUND","allow"),calls)
+        self.assertIn(("shell","cmd","appops","set","com.termux","RUN_IN_BACKGROUND","allow"),calls)
+        self.assertIn(("shell","am","set-inactive","com.termux","false"),calls)
+        self.assertIn(("shell","am","set-standby-bucket","com.termux","active"),calls)
+        self.assertIn(("shell","cmd","app_hibernation","set-state","com.termux","false"),calls)
+        self.assertIn(("shell","cmd","netpolicy","add","restrict-background-whitelist","10554"),calls)
+
+    def test_termux_background_healthy_state_has_no_mutation(self):
+        good={"healthy":True,"packages":{},"data_saver_whitelisted":{}}
+        with patch.object(guard,"termux_background_state",return_value=good), patch.object(guard,"repair_termux_background") as repair:
+            out=guard.ensure_termux_background_network()
+        self.assertEqual(out["mutation"],"none"); repair.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -90,10 +90,10 @@ while :; do
  check_supervisor incident_manager '[i]ncident-manager.sh' "$ROOT/incident-manager.sh"
  "$ROOT/incident-ingress.py" 9>&- >/dev/null 2>&1 || true
  "$ROOT/incident-reconcile.sh" 9>&- >/dev/null 2>&1 || true
+ check_adb
  check_network_safety
  printf '%s' "$(date +%s)" >"$D/health-manager.heartbeat"
  "$ROOT/health-verdict.py" --write 9>&- >/dev/null 2>&1 || true
- check_adb
  check_gateway
  check_whatsapp
  check_smtp

@@ -20,6 +20,15 @@ class Tier0Tests(unittest.TestCase):
         self.assertIn('runtime_drift',guardian)
         self.assertIn('process_uses_script',guardian)
 
+    def test_termux_background_policy_is_reconciled_by_tier0_and_health_manager(self):
+        root=Path(__file__).resolve().parent
+        bootstrap=(root/'tier0-bootstrap.sh').read_text()
+        manager=(root/'samantha-health-manager.sh').read_text()
+        self.assertIn('android-network-mutation-guard.py" ensure-termux-background',bootstrap)
+        loop=manager.split("while :; do",1)[1]
+        self.assertLess(loop.index(' check_adb\n'),loop.index(' check_network_safety\n'))
+        self.assertIn('android-network-mutation-guard.py" check',manager)
+
     def test_soak_grace_is_declared(self):
         root=Path(__file__).resolve().parent
         self.assertIn('startup_grace_seconds',(root/'tier0-control.py').read_text())
