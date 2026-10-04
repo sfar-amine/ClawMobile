@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "rdc-recovery-hardening-20261004",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Close the RDC open-circuit recovery gap, preserve verified recovery after terminal failure, and restore the approved production Sol/Luna/Google Free diagnostic path.",
+  "reason": "A transient outbound dependency outage exhausted deterministic RDC restart attempts while the dependency remained unavailable. The open circuit never half-opened after connectivity returned, the production diagnose CLI excluded Google Free despite the approved policy, and failed incidents could not later emit canonical recovery.",
+  "files": [
+    "installer/termux-lite/remote-desktop-control.py",
+    "installer/termux-lite/incident-orchestrator.py",
+    "installer/termux-lite/incident-continuation.py",
+    "installer/termux-lite/autonomous-engineering-shadow.sh",
+    "installer/termux-lite/test-remote-desktop-watchdog.py",
+    "installer/termux-lite/test-incident-orchestrator.py",
+    "installer/termux-lite/test-incident-continuation.py",
+    "installer/termux-lite/test-engineering-runtime-bridge.py",
+    "installer/termux-lite/test-slack-runtime-contract.py",
+    "docs/audits/rdc-recovery-hardening-20261004.md",
+    "docs/changes/rdc-recovery-hardening-20261004.json"
+  ],
+  "tests": [
+    {
+      "name": "runtime-focused-regression",
+      "status": "passed",
+      "evidence": "67 focused Python tests passed; incident runtime hardening shell PASS; 9 Node remote/local health assertions PASS."
+    },
+    {
+      "name": "rdc-managed-repair-live-recurrence",
+      "status": "passed",
+      "evidence": "Old runtime reproduced presence-online/external-ping-timeout during correction; existing managed repair recovered one functionally healthy RDC instance in 17.621 s and external ping subsequently passed. This validates the observed gap, not candidate activation."
+    },
+    {
+      "name": "ui-playbooks-full-final-regression",
+      "status": "passed",
+      "evidence": "832 tests passed on the final frozen UI Playbooks candidate after documentation, registry and production CLI test updates."
+    }
+  ],
+  "documentation": [
+    "docs/audits/rdc-recovery-hardening-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "device.remote_desktop",
+      "engineering.autonomous"
+    ],
+    "reason": "RDC gains bounded half-open recovery using its existing controller; engineering diagnostics regain the already-approved provider-independent fallback on the real production entrypoint."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends existing watchdog, controller, Incident Orchestrator and provider policy only; no daemon, scheduler, store, router or mutation authority is added."
+  },
+  "rollback": "Promote the prior immutable Tier0 release, retain incident/model evidence, and revert the scoped private runtime commit after checking concurrent work.",
+  "limitations": [
+    "The lower-level network trigger for the 05:45 outage is not proven; only the cross-service outbound dependency failure is evidenced.",
+    "Anonymous endpoint reachability authorizes a bounded retry only; it never establishes RDC health.",
+    "Candidate source is not production until immutable activation and external E2E acceptance complete."
+  ]
+}

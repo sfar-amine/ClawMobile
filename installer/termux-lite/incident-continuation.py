@@ -8,6 +8,11 @@ def load_links():
 def save_links(x): BASE.mkdir(parents=True,exist_ok=True);LINKS.write_text(json.dumps(x,indent=2,sort_keys=True)+'\n')
 def link(i,cap,run='',ledger=''):
  x=load_links();x[i]={'affected_capability':cap,'run_id':run or None,'ledger':ledger or None,'linked_at':int(time.time())};save_links(x);return x[i]
+def inherit(old_i,new_i):
+ x=load_links();prior=x.get(old_i)
+ if not prior:return {}
+ current=dict(prior);current.pop('last_reconciled_state',None);current['linked_at']=int(time.time());current['inherited_from']=old_i
+ x[new_i]=current;save_links(x);return current
 def emit(i,state,component='',scope='',reason=''):
  x=load_links();meta=x.get(i,{})
  ev={'incident_id':i,'component':component,'scope':scope,'state':state,'affected_capability':meta.get('affected_capability'),'run_id':meta.get('run_id'),'ledger':meta.get('ledger'),'reason':reason,'ts':int(time.time())}
@@ -30,7 +35,8 @@ def reconcile():
    links=load_links();links[i]['last_reconciled_state']=r['state'];n+=1
  save_links(links);c.close();return {'checked':len(links),'emitted':n}
 if __name__=='__main__':
- if len(sys.argv)<2:raise SystemExit('usage: incident-continuation.py link|emit|reconcile ...')
+ if len(sys.argv)<2:raise SystemExit('usage: incident-continuation.py link|inherit|emit|reconcile ...')
  if sys.argv[1]=='link': print(json.dumps(link(*sys.argv[2:6])))
+ elif sys.argv[1]=='inherit': print(json.dumps(inherit(*sys.argv[2:4])))
  elif sys.argv[1]=='emit': print(json.dumps(emit(*sys.argv[2:7])))
  elif sys.argv[1]=='reconcile': print(json.dumps(reconcile()))

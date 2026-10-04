@@ -80,8 +80,15 @@ def recover_incident(component,scope,source,reason="verified service recovery"):
  if not row: return None
  i=row["id"]
  if row["state"]=="recovered": return dict(row)
- if row["state"]=="failed": raise SystemExit("failed incident cannot recover without explicit reopen")
- if row["state"]!="verifying": transition(i,"verifying",source,reason)
+ if row["state"]=="failed":
+  prior=i
+  reopened=open_incident(component,scope,source,f"verified recovery after failed incident: {reason}")
+  i=reopened["id"]
+  if DB==DEFAULT_DB:
+   helper=Path(__file__).with_name("incident-continuation.py")
+   subprocess.run([sys.executable,str(helper),"inherit",prior,i],check=False,stdout=subprocess.DEVNULL)
+  observe(i,source,"recovery_after_failed",{"prior_incident_id":prior,"reason":reason})
+ if row["state"]!="verifying" or i!=row["id"]: transition(i,"verifying",source,reason)
  return transition(i,"recovered",source,reason)
 
 def show(i):

@@ -65,7 +65,7 @@ class SlackRuntimeContractTests(unittest.TestCase):
             remote_path=Path.home()/"ClawMobile/openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts"
         remote=remote_path.read_text()
         for token in ("HEALTH_HEARTBEAT_MS","heartbeatAt","runtimeRoot","healthHeartbeat.unref()"): self.assertIn(token,bridge)
-        for token in ("process_uses_script","/proc/$pid/cmdline","grep -Fx","slack_bridge_on_current_root","supervisor_on_current_root","stop_supervisor","state=stale_runtime","fail slack_bridge"): self.assertIn(token,health)
+        for token in ("process_uses_script","/proc/$pid/cmdline",'[ "$arg" = "$script" ]',"slack_bridge_on_current_root","supervisor_on_current_root","stop_supervisor","state=stale_runtime","fail slack_bridge"): self.assertIn(token,health)
         self.assertNotIn('pgrep -af "$pat" | grep -F -- "$script"',health)
         # The contract is descriptor release, independent of the current delay value.
         for delay in re.finditer(r'\bsleep\s+\d+',guardian):

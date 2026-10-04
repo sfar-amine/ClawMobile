@@ -28,6 +28,14 @@ class T(unittest.TestCase):
  def test_terminal(self):
   a=io.open_incident("gateway","runtime","health","down");i=a["id"];io.transition(i,"failed","test")
   with self.assertRaises(SystemExit):io.transition(i,"diagnosing","test")
+ def test_verified_recovery_after_failed_incident_opens_recovery_episode(self):
+  a=io.open_incident("remote_desktop","runtime","watchdog","down");old=a["id"]
+  io.transition(old,"failed","orchestrator","deterministic recovery exhausted")
+  r=io.recover_incident("remote_desktop","runtime","watchdog","functional health verified")
+  self.assertNotEqual(old,r["id"]);self.assertEqual(r["state"],"recovered")
+  self.assertEqual(io.show(old)["incident"]["state"],"failed")
+  kinds=[e["kind"] for e in io.show(r["id"])["events"]]
+  self.assertIn("recovery_after_failed",kinds)
  def test_human_required_can_resume_to_recovered(self):
   a=io.open_incident("adb","boot-2","watchdog","down");i=a["id"]
   io.transition(i,"human_required","orchestrator","pairing required",True)

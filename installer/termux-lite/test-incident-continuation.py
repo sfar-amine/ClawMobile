@@ -14,6 +14,11 @@ class T(unittest.TestCase):
  def test_terminal_event(self):
   a=io.open_incident('x','runtime','test','x');ic.link(a['id'],'cap.x')
   ev=ic.emit(a['id'],'failed','x','runtime','boom');self.assertEqual(ev['state'],'failed');self.assertEqual(ev['affected_capability'],'cap.x')
+ def test_inherit_preserves_capability_and_run_link(self):
+  a=io.open_incident('x','runtime','test','x');ic.link(a['id'],'cap.x','R1','runs.json')
+  b=io.open_incident('y','runtime','test','y');m=ic.inherit(a['id'],b['id'])
+  self.assertEqual(m['affected_capability'],'cap.x');self.assertEqual(m['run_id'],'R1');self.assertEqual(m['inherited_from'],a['id'])
+  self.assertEqual(ic.load_links()[b['id']]['ledger'],'runs.json')
  def test_reconcile_emits_state(self):
   a=io.open_incident('x','runtime','test','x');ic.link(a['id'],'cap.x')
   r=ic.reconcile();self.assertEqual(r['emitted'],1);self.assertTrue(ic.EVENTS.exists())

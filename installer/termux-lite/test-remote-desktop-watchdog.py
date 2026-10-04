@@ -81,5 +81,15 @@ class RepairTests(unittest.TestCase):
         self.c.readiness=4
         with patch.object(self.c,'beat'),patch.object(self.c,'probe',side_effect=[{'state':'degraded','reason':'local_mcp_unresponsive'},{'state':'healthy','reason':'ok'},{'state':'healthy','reason':'ok'}]),patch.object(rdc.time,'sleep'):
             self.assertTrue(self.c.wait_ready())
+    def test_half_open_defers_without_restart_while_dependency_is_unreachable(self):
+        c=rdc.Controller(self.tmp.name,dependency_probe=lambda:False)
+        with patch.object(c,'repair') as repair:
+            self.assertEqual(c.half_open(),{'state':'deferred','reason':'remote_dependency_unreachable'})
+            repair.assert_not_called()
+    def test_half_open_reuses_bounded_repair_after_dependency_returns(self):
+        c=rdc.Controller(self.tmp.name,dependency_probe=lambda:True)
+        with patch.object(c,'repair',return_value={'state':'recovered','evidence':{'state':'healthy'}}) as repair:
+            self.assertEqual(c.half_open()['state'],'recovered')
+            repair.assert_called_once_with()
 
 if __name__=='__main__':unittest.main(verbosity=2)

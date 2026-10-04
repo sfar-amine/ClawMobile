@@ -17,6 +17,10 @@ class RuntimeBridgeTests(unittest.TestCase):
         (src/'incident-orchestrator-worker.sh').write_text('legacy worker')
         with self.assertRaisesRegex(RuntimeError,'engineering_bridge_incomplete'):m.validate_engineering_bridge(src)
         self.assertTrue(m.validate_engineering_bridge(ROOT))
+    def test_rdc_shadow_budget_preserves_third_provider_curtain(self):
+        text=(ROOT/'autonomous-engineering-shadow.sh').read_text()
+        self.assertIn('[ "$component" = remote_desktop ] && max_calls=4',text)
+        self.assertIn('existing four-call incident budget',text)
     def test_waiting_model_migrates_and_resumes_without_human_boundary(self):
         m=load('orch',ROOT/'incident-orchestrator.py');m.DB=self.home/'db.sqlite'
         row=m.open_incident('fixture','test','test','test')
