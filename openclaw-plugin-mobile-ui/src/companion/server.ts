@@ -235,6 +235,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if (method === "POST" && routePath === "/payments") {
       writeJson(res, 200, await payments.prepare(await readJsonBody(req, 4096))); return;
     }
+    if (method === "POST" && routePath === "/payments/local-intents") {
+      writeJson(res, 200, await payments.prepareLocalIntent(await readJsonBody(req, 4096))); return;
+    }
+    if (method === "POST" && routePath === "/payments/local-start") {
+      writeJson(res, 200, await payments.localStart(await readJsonBody(req, 512))); return;
+    }
     const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|bank-return|resume|cancel))?$/.exec(routePath);
     if (match) {
       const [, id, action] = match;
@@ -285,6 +291,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/confirmations/:requestId/challenge",
         "/v1/confirmations/:requestId/owner-confirmation",
         "/v1/payments",
+        "/v1/payments/local-intents",
+        "/v1/payments/local-start",
         "/v1/payments/:requestId/challenge",
         "/v1/payments/:requestId/owner-confirmation",
         "/v1/payments/:requestId/bank-authorization",
