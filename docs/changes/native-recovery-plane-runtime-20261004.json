@@ -2,7 +2,7 @@
   "version": 2,
   "id": "native-recovery-plane-runtime-20261004",
   "origin": "chat",
-  "kind": "feature",
+  "kind": "capability",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Add a closed deterministic Tier0 recovery entrypoint callable from the native Samantha UID.",
