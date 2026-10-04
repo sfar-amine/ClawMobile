@@ -290,7 +290,7 @@ await test("V1.1 status hides bankReturnToken and continuation", async () => {
     quote:async ref=>({payee:"TOPNET",reference:ref,amountMinor:1,currency:"TND",decimals:3}),
     revalidate:async q=>q,
     execute:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}}),
-    executeLocal:async(_q,_id,ctx)=>({state:"requires_bank_action",reasonCode:"bank_verification_required",continuation:{provider:"topnet",checkoutId:"CHK",gatewayOrderId:"11111111-1111-4111-8111-111111111111"},_tok:ctx?.bankReturnToken}),
+    executeLocal:async(_q,_id,ctx)=>({state:"requires_bank_action",reasonCode:"bank_verification_required",continuation:{provider:"topnet",checkoutId:"12345",gatewayOrderId:"11111111-1111-4111-8111-111111111111"},_tok:ctx?.bankReturnToken}),
     resume:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}})
   };
   const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:key.publicKey,id:kid})});
