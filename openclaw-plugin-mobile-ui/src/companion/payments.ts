@@ -114,23 +114,11 @@ async function localStart(input:any) {
   if(freshQuote.reference!==parsedRef.providerReference) paymentError("invalid_payment_quote",502);
   if(conf.intent.action.payloadHash!==localPaymentPayloadHash(parsedRef.adapterId, freshQuote)) paymentError("payment_quote_changed",409);
 
-  const expectedIntent:OwnerIntent={
-    audience:"confirmation",
-    action:{
-      type:conf.intent.action.type,
-      reference:conf.intent.action.reference,
-      payloadHash:conf.intent.action.payloadHash
-    },
-    presentation:{
-      title:conf.intent.presentation.title,
-      subtitle:conf.intent.presentation.subtitle,
-      description:conf.intent.presentation.description
-    },
-    origin:{
-      channel:conf.intent.origin.channel,
-      id:conf.intent.origin.id
-    }
-  };
+  const expectedIntent=buildLocalPaymentIntent({
+    adapterId:parsedRef.adapterId,
+    quote:freshQuote,
+    origin:{channel:conf.intent.origin.channel,id:conf.intent.origin.id}
+  });
 
   await confirmations.consume(id, expectedIntent);
   return core.startLocalAuthorized({
