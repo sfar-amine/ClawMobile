@@ -23,7 +23,11 @@ class Args:
     no_color = True
     only = None
     compact = False
+    raw = False
     preview_chars = 160
+
+class RawArgs(Args):
+    raw = True
 
 class ClawLiveTests(unittest.TestCase):
     def test_scrub_secrets(self):
@@ -78,6 +82,49 @@ class ClawLiveTests(unittest.TestCase):
             out = buf.getvalue()
             self.assertIn("[TERMUX][CHAT][SLACK]", out)
             self.assertIn("printf ok", out)
+
+    def test_correlated_slack_receipt_is_task_centric_and_deduped(self):
+        class Surface:
+            def label(self):
+                return "CHAT", "Conversation"
+        renderer = m.Renderer(Args())
+        stream = m.SlackBridgeStream(renderer, Surface())
+        with tempfile.TemporaryDirectory() as td:
+            receipt = pathlib.Path(td) / "r-task.json"
+            receipt.write_text(json.dumps({
+                "requestId":"r-task","taskId":"task-a","stepId":"build-tests",
+                "method":"exec_wait","state":"completed","startedAt":1000,"completedAt":1025,
+                "result":{"command":"printf ok"},
+            }))
+            buf=io.StringIO()
+            with redirect_stdout(buf):
+                stream._emit_request_file(str(receipt))
+                stream._emit_request_file(str(receipt))
+            out=buf.getvalue()
+            self.assertIn("[CHAT][SLACK]",out)
+            self.assertIn("[task-a]",out)
+            self.assertEqual(out.count("build-tests"),1)
+            self.assertEqual(out.count("printf ok"),1)
+
+    def test_correlated_slack_receipt_raw_keeps_low_level_events(self):
+        class Surface:
+            def label(self):
+                return "CHAT", "Conversation"
+        renderer=m.Renderer(RawArgs())
+        stream=m.SlackBridgeStream(renderer,Surface())
+        with tempfile.TemporaryDirectory() as td:
+            receipt=pathlib.Path(td)/"r-task.json"
+            receipt.write_text(json.dumps({
+                "requestId":"r-task","taskId":"task-a","stepId":"build-tests",
+                "method":"exec_wait","state":"completed","result":{"command":"printf ok"},
+            }))
+            buf=io.StringIO()
+            with redirect_stdout(buf):
+                stream._emit_request_file(str(receipt))
+                stream._emit_request_file(str(receipt))
+            out=buf.getvalue()
+            self.assertEqual(out.count("printf ok"),2)
+            self.assertGreaterEqual(out.count("exec_wait"),2)
 
     def test_live_idle_notice_does_not_mask_real_activity(self):
         r = m.Renderer(Args())

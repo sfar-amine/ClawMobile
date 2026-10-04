@@ -918,6 +918,9 @@ class SlackBridgeStream:
         method = str(obj.get("method") or "")
         state = str(obj.get("state") or "")
         request_id = str(obj.get("requestId") or "")
+        task_id = str(obj.get("taskId") or "")
+        step_id = str(obj.get("stepId") or "")
+        raw_mode = bool(getattr(self.r.args, "raw", False))
         result = obj.get("result") if isinstance(obj.get("result"), dict) else {}
         metric_parts = []
         if obj.get("completedAt") and obj.get("startedAt"):
@@ -925,6 +928,15 @@ class SlackBridgeStream:
         if request_id:
             metric_parts.append(f"request={request_id[:18]}")
         metric = " ".join(metric_parts)
+        if task_id and step_id and not raw_mode:
+            status = "OK" if state == "completed" else state.upper() or "INFO"
+            detail = f"{step_id} -> {method}"
+            cmd = scrub_text(result.get("command") or "")
+            if cmd:
+                detail += " -> $ " + preview(cmd, min(self.r.args.preview_chars, 180))
+            self.r.emit(Event([surface, "SLACK"], task_id, status, detail, metric=metric,
+                              key=f"slack-task:{task_id}:{step_id}:receipt"), dedupe_window=300)
+            return
         if method in {"exec_wait", "process_start"}:
             cmd = scrub_text(result.get("command") or "")
             tags = ["TERMUX", surface, "SLACK"] + command_backend_tags(cmd)
@@ -987,11 +999,21 @@ class SlackBridgeStream:
             event_name = str(obj.get("event") or "")
             method = str(obj.get("method") or "")
             request_id = str(obj.get("requestId") or "")
+            task_id = str(obj.get("taskId") or "")
+            step_id = str(obj.get("stepId") or "")
+            raw_mode = bool(getattr(self.r.args, "raw", False))
             summary = obj.get("summary") if isinstance(obj.get("summary"), dict) else {}
             surface, ctx = self.surfaces.label()
             metric = f"request={request_id[:18]}" if request_id else ""
 
             if event_name == "request":
+                if task_id and step_id and not raw_mode:
+                    detail = f"{step_id} -> {method}"
+                    hint = summary.get("command") or summary.get("path") or summary.get("processId") or summary.get("artifactId") or ""
+                    if hint: detail += " -> " + preview(hint, min(self.r.args.preview_chars, 180))
+                    self.r.emit(Event([surface, "SLACK"], task_id, "START", detail, metric=metric,
+                                      key=f"slack-task:{task_id}:{step_id}:request"), dedupe_window=300)
+                    continue
                 if method in {"exec_wait", "process_start"}:
                     cmd = scrub_text(summary.get("command", ""))
                     tags = ["TERMUX", surface, "SLACK"] + command_backend_tags(cmd)
@@ -1007,10 +1029,18 @@ class SlackBridgeStream:
             state = str(obj.get("state") or "")
             if event_name == "result":
                 status = "OK" if state in {"completed", "accepted", "ready"} else state.upper() or "OK"
-                self.r.emit(Event(["BRIDGE", "SLACK"], ctx, status, method, metric=metric))
+                if task_id and step_id and not raw_mode:
+                    self.r.emit(Event([surface, "SLACK"], task_id, status, f"{step_id} -> {method}", metric=metric,
+                                      key=f"slack-task:{task_id}:{step_id}:result"), dedupe_window=300)
+                else:
+                    self.r.emit(Event(["BRIDGE", "SLACK"], ctx, status, method, metric=metric))
             elif event_name in {"error", "rejected"}:
                 detail = scrub_text(obj.get("error") or state or method)
-                self.r.emit(Event(["BRIDGE", "SLACK"], ctx, "ERROR", detail, metric=metric))
+                if task_id and step_id and not raw_mode:
+                    self.r.emit(Event([surface, "SLACK"], task_id, "ERROR", f"{step_id} -> {detail}", metric=metric,
+                                      key=f"slack-task:{task_id}:{step_id}:error"), dedupe_window=300)
+                else:
+                    self.r.emit(Event(["BRIDGE", "SLACK"], ctx, "ERROR", detail, metric=metric))
 
 class ImprovementStream:
     def __init__(self, renderer: Renderer):

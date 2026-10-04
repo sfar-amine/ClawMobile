@@ -49,7 +49,7 @@ const server=http.createServer((req,res)=>{
 });
 const wss=new WebSocketServer({port:0});
 wss.on('connection',ws=>{sockets.add(ws);ws.on('close',()=>sockets.delete(ws));});
-const request=(id,params={})=>({requestId:id,method:'exec_wait',params});
+const request=(id,params={})=>({requestId:id,taskId:'durable-e2e',stepId:id,method:'exec_wait',params});
 function event(request, ts=String(Date.now()/1000+(++seq)/10000)) {return {type:'message',channel:'TEST',user:'OWNER',ts,text:'CLAW_RPC_V1 '+JSON.stringify(request)};}
 async function send(ev) {
   const ws=[...sockets][0], envelope_id='env'+(++seq);
