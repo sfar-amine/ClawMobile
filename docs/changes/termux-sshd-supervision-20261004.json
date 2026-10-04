@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "id": "termux-sshd-supervision-20261004",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Supervise canonical Termux OpenSSH listener on port 8022 with the existing Samantha Health Manager.",
+  "reason": "RDC-launched ad-hoc sshd processes disappeared after the launching session ended, causing repeated Connection refused from the laptop. Termux sshd_config already defines canonical port 8022.",
+  "files": [
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-tier0-control.py",
+    "docs/changes/termux-sshd-supervision-20261004.json"
+  ],
+  "tests": [
+    {"name":"tier0-control","status":"passed","evidence":"13 tests PASS"},
+    {"name":"incident-runtime-hardening","status":"passed","evidence":"PASS"}
+  ],
+  "capabilities": {
+    "impact": "reliability",
+    "ids": ["device.remote_desktop"],
+    "reason": "Extends the existing Health Manager to restore the already-installed Termux OpenSSH listener; no new execution plane."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new daemon, scheduler, store, router or orchestrator. Reuses existing Health Manager."
+  },
+  "rollback": "Revert this commit and promote the previous immutable Tier0 release.",
+  "limitations": ["Tailscale must remain connected for remote laptop access."]
+}

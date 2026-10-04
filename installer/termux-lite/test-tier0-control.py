@@ -29,6 +29,15 @@ class Tier0Tests(unittest.TestCase):
         self.assertLess(loop.index(' check_adb\n'),loop.index(' check_network_safety\n'))
         self.assertIn('android-network-mutation-guard.py" check',manager)
 
+    def test_health_manager_supervises_termux_sshd_on_canonical_port(self):
+        root=Path(__file__).resolve().parent
+        manager=(root/'samantha-health-manager.sh').read_text()
+        self.assertIn('check_sshd(){',manager)
+        self.assertIn('/data/data/com.termux/files/usr/bin/sshd',manager)
+        self.assertIn('/dev/tcp/127.0.0.1/8022',manager)
+        loop=manager.split("while :; do",1)[1]
+        self.assertIn(' check_sshd\n',loop)
+
 
     def test_installer_includes_static_native_recovery_entrypoint(self):
         root=Path(__file__).resolve().parent
