@@ -1,6 +1,5 @@
 const assert=require("assert/strict"),crypto=require("crypto");
-const {createHash, createPublicKey} = crypto;
-const {createHash, createPublicKey} = crypto;
+const {createHash} = crypto;
 const {createPaymentCore,ownerKey,confirmationMessage,quoteDigest}=require("../dist/companion/paymentCore.js");
 const {bankAuthorizationIntent,bindPaymentAuthorizations}=require("../dist/companion/payments.js");
 let count=0;
@@ -197,7 +196,7 @@ await test("V1.1 startLocalAuthorized creates compliant record", async () => {
     executeLocal:async()=>{dispatched=true;return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}};},
     resume:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}})
   };
-  const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:createPublicKey(key.publicKey),id:kid})});
+  const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:key.publicKey,id:kid})});
   const confId=crypto.randomUUID();
   const out=await core.startLocalAuthorized({
     confirmationRequestId:confId,
@@ -237,7 +236,7 @@ await test("V1.1 executorAttempts persisted before executeLocal", async () => {
     },
     resume:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}})
   };
-  const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:createPublicKey(key.publicKey),id:kid})});
+  const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:key.publicKey,id:kid})});
   const out=await core.startLocalAuthorized({
     confirmationRequestId:crypto.randomUUID(),
     adapterId:"topnet",
@@ -262,7 +261,7 @@ await test("V1.1 resume uses availableForRecord for local records", async () => 
     executeLocal:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required",continuation:{provider:"topnet",checkoutId:"1",gatewayOrderId:"11111111-1111-4111-8111-111111111111"}}),
     resume:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}})
   };
-  const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:createPublicKey(key.publicKey),id:kid})});
+  const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:key.publicKey,id:kid})});
   const started=await core.startLocalAuthorized({
     confirmationRequestId:crypto.randomUUID(),
     adapterId:"topnet",
@@ -294,7 +293,7 @@ await test("V1.1 status hides bankReturnToken and continuation", async () => {
     executeLocal:async(_q,_id,ctx)=>({state:"requires_bank_action",reasonCode:"bank_verification_required",continuation:{provider:"topnet",checkoutId:"CHK",gatewayOrderId:"11111111-1111-4111-8111-111111111111"},_tok:ctx?.bankReturnToken}),
     resume:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}})
   };
-  const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:createPublicKey(key.publicKey),id:kid})});
+  const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:key.publicKey,id:kid})});
   const out=await core.startLocalAuthorized({
     confirmationRequestId:crypto.randomUUID(),
     adapterId:"topnet",
