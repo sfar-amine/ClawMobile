@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "capability",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "applied",
   "summary": "Persist Topnet continuation and bind bank return to the first owner authorization without replaying FORM1.",
   "reason": "Controlled live acceptance reached one FORM1 dispatch but lost actionable correlation after the PSP response. The runtime must persist checkout/order internally and let the exact bank return perform one read-only resume.",
   "files": [
@@ -38,6 +38,11 @@
       "name": "payment-api-registry",
       "status": "passed",
       "evidence": "Owner confirmation payment API and registry checks passed with Termux-private TMPDIR."
+    },
+    {
+      "name": "runtime-deployment",
+      "status": "passed",
+      "evidence": "Companion restarted from the published runtime, reports connected, exposes bank-return, and keeps realPaymentsEnabled false with Topnet unavailable by default."
     }
   ],
   "documentation": [
