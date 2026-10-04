@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "maintenance",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "verified",
   "summary": "Require stable taskId+stepId at Slack admission for execution-grade Chat/Work RPCs and render correlated work task-centrically in claw-live.",
   "reason": "Remote Bridge already supported task-step idempotence, but recent Chat RPC receipts omitted correlation fields, so execution dedupe and task-level anti-loop controls were not consistently exercised.",
   "files": [
@@ -78,5 +78,17 @@
     "Task-level no_progress policy remains owned by skill_intelligence.task_checkpoint; this runtime guard prevents exact logical-step replay but does not invent retry policy.",
     "Pure read methods remain usable without taskId+stepId unless the caller voluntarily correlates them.",
     "Runtime activation and live Chat-to-S24 acceptance are recorded separately after publication."
-  ]
+  ],
+  "runtime_evidence": {
+    "release_id": "20261004-chat-correlation-b5bd741",
+    "tier0_state": "stable",
+    "soak_bad_samples": 0,
+    "slack_bridge_health": "healthy",
+    "claw_live_sha256": "17232031c4be69c7f1b001bf15d94677ed843f0cd4a4b6cd03bd4a9eb6541d14",
+    "live_canary": {
+      "uncorrelated_exec_wait": "rejected:correlation_required:exec_wait",
+      "correlated_exec_wait": "completed:REPEAT_GUARD_OK",
+      "duplicate_task_step": "original_receipt_reused:repeat-fix-live-correlated-20261004-0101"
+    }
+  }
 }
