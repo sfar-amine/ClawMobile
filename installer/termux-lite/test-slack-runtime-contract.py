@@ -76,7 +76,7 @@ class SlackRuntimeContractTests(unittest.TestCase):
         self.assertIn("activate_current()",tier0)
         self.assertIn('"$rc" -eq 3',health)
         self.assertIn("PRIMARY_DELIVERY_ATTENTION",repair)
-        for token in ("CLAW_RPC_V1_B64","read_binary_file","patch_file","action=use_b64"): self.assertIn(token,bridge)
+        for token in ("CLAW_RPC_V1_B64","read_binary_file","patch_file","action=use_b64","CORRELATION_REQUIRED","correlation_required:","stepId: String(request?.stepId"): self.assertIn(token,bridge)
         for token in ("patch_file","read_binary_file","write_binary_file"): self.assertIn(token,remote)
         self.assertEqual(policy["primary"],"slack_remote_bridge")
         self.assertIn("Routine bootstrap uses Slack", " ".join(policy["fallbackRules"]))

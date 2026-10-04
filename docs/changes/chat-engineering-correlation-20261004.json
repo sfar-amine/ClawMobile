@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "id": "chat-engineering-correlation-20261004",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Require stable taskId+stepId at Slack admission for execution-grade Chat/Work RPCs and render correlated work task-centrically in claw-live.",
+  "reason": "Remote Bridge already supported task-step idempotence, but recent Chat RPC receipts omitted correlation fields, so execution dedupe and task-level anti-loop controls were not consistently exercised.",
+  "files": [
+    "installer/termux-lite/claw-slack-bridge.mjs",
+    "installer/termux-lite/claw-live.py",
+    "installer/termux-lite/test-claw-live.py",
+    "installer/termux-lite/test-slack-runtime-contract.py",
+    "docs/remote-bridge.md",
+    "docs/changes/chat-engineering-correlation-20261004.json",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-slack.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-slack-durable.cjs"
+  ],
+  "tests": [
+    {
+      "name": "claw-live-targeted",
+      "status": "passed",
+      "evidence": "19 tests passed"
+    },
+    {
+      "name": "slack-runtime-contract",
+      "status": "passed",
+      "evidence": "6 tests passed"
+    },
+    {
+      "name": "remote-bridge-core",
+      "status": "passed",
+      "evidence": "taskStepDedup/taskStatus/idempotence/process streaming/stale fail-closed passed"
+    },
+    {
+      "name": "remote-bridge-slack",
+      "status": "passed",
+      "evidence": "uncorrelated execution rejected before effect; correlated active write, B64, duplicate idempotence, unauthorized user and health passed"
+    },
+    {
+      "name": "remote-bridge-slack-resilience",
+      "status": "passed",
+      "evidence": "429 retry and reconnect passed"
+    },
+    {
+      "name": "slack-durable",
+      "status": "passed",
+      "evidence": "9 durable scenarios passed"
+    },
+    {
+      "name": "claw-live-node",
+      "status": "passed",
+      "evidence": "browser/token smoke passed"
+    },
+    {
+      "name": "slack-journal",
+      "status": "passed",
+      "evidence": "3/3 tests passed"
+    }
+  ],
+  "documentation": [
+    "docs/remote-bridge.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "device.remote_bridge"
+    ],
+    "reason": "Slack admission now enforces task-step correlation for execution-grade methods; no new executor or permission."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing Slack adapter, Remote Bridge receipts and claw-live renderer are extended in place; no new daemon, scheduler, store or execution owner."
+  },
+  "rollback": "Restore the preceding immutable release or revert this source commit. Core Remote Bridge receipts remain compatible because taskId/stepId were already supported.",
+  "limitations": [
+    "Task-level no_progress policy remains owned by skill_intelligence.task_checkpoint; this runtime guard prevents exact logical-step replay but does not invent retry policy.",
+    "Pure read methods remain usable without taskId+stepId unless the caller voluntarily correlates them.",
+    "Runtime activation and live Chat-to-S24 acceptance are recorded separately after publication."
+  ]
+}

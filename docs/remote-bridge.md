@@ -23,8 +23,8 @@ Routes:
 
 Request body fields:
 - `requestId`: stable idempotency key, mandatory.
-- `taskId`: optional higher-level task correlation.
-- `stepId`: optional stable execution-step identifier; requires `taskId`. Reusing the same `taskId + stepId` with the same method/params returns the first durable receipt even from another Chat/session, while changed content is rejected.
+- `taskId`: higher-level task correlation. It remains optional at the core protocol level for pure reads, but the Slack adapter now requires it for execution-grade methods.
+- `stepId`: stable execution-step identifier; requires `taskId`. The Slack adapter requires `taskId + stepId` for `exec_wait`, `process_start` and mutation methods before the request can reach the Bridge. Reusing the same pair with the same method/params returns the first durable receipt even from another Chat/session, while changed content is rejected.
 - `sessionId`: optional ChatGPT/session correlation.
 - `method`: RPC method.
 - `params`: method parameters.
@@ -95,6 +95,15 @@ Default runtime paths:
 The example config and Slack app manifest are shipped next to the installer scripts.
 
 For malformed plain `CLAW_RPC_V1` envelopes, the adapter now returns a bounded machine-actionable error with `action=use_b64`. This is a transport-format hint only: it does not retry the request. The caller must use `CLAW_RPC_V1_B64` for quoting-heavy/complex payloads and must still honor the same request/status-before-retry idempotence contract for mutations.
+
+
+### Execution correlation guard — 2026-10-04
+
+The Slack adapter is now the hard admission boundary for Chat/Work execution identity. Requests using `exec_wait`, `process_start`, `write_file`, `patch_file`, `write_binary_file`, `process_input` or `process_stop` are rejected before execution unless both a valid stable `taskId` and `stepId` are present. This closes the prior gap where the core supported step-level idempotence but Chat-created RPCs often omitted the correlation fields.
+
+This guard does not create a second workflow engine. Remote Bridge remains execution truth, while `skill_intelligence.task_checkpoint` remains the task-level authority for whether a new retry step is allowed. A new `requestId` cannot be used to bypass the same logical `taskId + stepId`.
+
+For observability, correlated Slack execution is task-centric by default in `claw-live`: the task is the context, the step and method are the action detail, and repeated receipt observations are compacted. `claw-live --raw` preserves low-level command/result events for diagnosis.
 
 After the Slack app has been created and authorized, run `installer/termux-lite/claw-slack-setup.sh` directly in Termux. It prompts locally for channel/user IDs and the two tokens, hides token input, writes secrets with mode 0600, configures `shadow` mode and starts the adapter. Tokens must never be pasted into ChatGPT.
 
