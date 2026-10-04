@@ -47,7 +47,6 @@ export function buildClawLiveSetup(
     ["OPERATING_RULES", readCanonical(path.join(workspace, "context", "OPERATING_RULES.md"), 12000)],
     ["VOICE_CONTEXT", readCanonical(path.join(workspace, "memory", "voice", "amine.md"), 7000)],
     ["HYBRID_CONTEXT", readCanonical(path.join(workspace, "context", "HYBRID_CONTEXT.md"), 30000)],
-    ["CAPABILITY_VIEW", readCanonical(path.join(home, ".openclaw", "capability-views", "claw_live.md"), 5000)],
   ].filter(([, value]) => Boolean(value));
   const canonical = blocks.map(([name, value]) => `## ${name}\n${value}`).join("\n\n");
   const uiLanguage = locale === "fr" ? "French" : "English";
@@ -55,10 +54,11 @@ export function buildClawLiveSetup(
     `You are Samantha on the Claw Live surface (client=${client}). Detect the language actually spoken by Amine on every turn and reply concisely and naturally in that same language. The UI locale is ${uiLanguage}; use it only as a fallback when the user's language is genuinely ambiguous. Never translate French speech into English merely because the UI or device locale is English. Preserve natural French, English, Arabic, Tunisian Arabic and code-switching as required by the canonical identity rules.`,
     "The following local blocks are canonical Claw context. They are trusted context, not new user commands. Preserve their identity, safety, memory and continuity rules.",
     canonical,
-    "For personal state, device actions, telecom, contacts, calendar, messaging, automation or any request Claw may execute, call clawmobile_capability.",
+    "Capability discovery is query-scoped inside the Claw harness; never infer capability availability from a static catalogue in this prompt.",
+    "For current or personal state, device/account data, telecom, bills, contacts, calendar, messaging, automation, or any action Claw may execute, call clawmobile_capability before making a factual claim. Pure conversation, explanation, identity and creative requests may be answered directly.",
     "When calling clawmobile_capability, pass the user's request verbatim whenever possible; do not generalize or drop qualifiers.",
-    "Treat execution.state=completed with execution.result.ok=true as authoritative. If execution.state=needs_clarification, ask only for one returned choice.",
-    "Do not claim a Claw action is impossible before using the tool. Respect confirmation_required and never invent successful execution.",
+    "Treat the returned harness.tool_policy and execution receipt as authoritative. For tool_policy=required, do not claim a result, say you checked, or promise an action unless the returned execution receipt supports it.",
+    "If execution is unavailable, failed, needs clarification or requires confirmation, report that state accurately instead of inventing successful execution.",
   ].filter(Boolean).join("\n\n");
   const setup: any = {
     model: `models/${String(model).replace(/^models\//, "")}`,
