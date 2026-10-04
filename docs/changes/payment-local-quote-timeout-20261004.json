@@ -1,0 +1,44 @@
+{
+  "version": 2,
+  "id": "payment-local-quote-timeout-20261004",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Increase the bounded local-owner provider quote window from 10 to 20 seconds for post-biometric Topnet revalidation.",
+  "reason": "Two real pre-dispatch attempts exceeded the 10-second core quote bound even though normal Topnet reads complete around 3-5 seconds. The second case had 46 seconds of owner-confirmation validity remaining, proving the failure was the quote bound rather than late owner approval.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "docs/changes/payment-local-quote-timeout-20261004.json",
+    "docs/changes/payment-local-quote-timeout-20261004.md"
+  ],
+  "tests": [
+    {
+      "name": "runtime-build",
+      "status": "passed",
+      "evidence": "TypeScript build passed after configuring the explicit 20-second quote bound."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "Payment Core regression includes the explicit quote-window invariant and all payment tests pass."
+    }
+  ],
+  "documentation": [
+    "docs/changes/payment-local-quote-timeout-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "The payment capability contract is unchanged; only a bounded runtime timeout is corrected."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new component, retry path or store; the existing core timeout is adjusted."
+  },
+  "rollback": "Revert this scoped commit to restore the 10-second quote bound.",
+  "limitations": [
+    "A provider read that exceeds 20 seconds still fails closed before financial dispatch."
+  ]
+}

@@ -1,7 +1,7 @@
 const assert=require("assert/strict"),crypto=require("crypto");
 const {createHash} = crypto;
 const {createPaymentCore,ownerKey,confirmationMessage,quoteDigest}=require("../dist/companion/paymentCore.js");
-const {bankAuthorizationIntent,bindPaymentAuthorizations}=require("../dist/companion/payments.js");
+const {PAYMENT_QUOTE_TIMEOUT_MS,bankAuthorizationIntent,bindPaymentAuthorizations}=require("../dist/companion/payments.js");
 let count=0;
 async function test(name,fn){await fn();count++;console.log("PASS "+name)}
 function fixture({mode="demo",execute,resume,revalidate,quote,validated=true,timeouts}={}){
@@ -29,6 +29,7 @@ function fixture({mode="demo",execute,resume,revalidate,quote,validated=true,tim
 }
 const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
 (async()=>{
+ await test("local owner provider quote window tolerates bounded slow reads",async()=>{assert.equal(PAYMENT_QUOTE_TIMEOUT_MS,20000)});
  await test("demo confirmation is explicitly not a payment",async()=>{const f=fixture(),r=await f.prepared();f.setTime(f.time()+500);
   const out=await f.core.confirm(r.requestId,await f.proof(r.requestId));assert.equal(out.state,"demo_confirmed");assert.equal(out.financialSubmissionAttempted,false);
   assert.equal(out.metrics.ownerWaitMs,500);assert.equal(f.calls(),1);assert.equal(out.canRetry,false)});

@@ -10,6 +10,8 @@ import {confirmations} from "./confirmations";
 import {createTopnetLivePaymentAdapter} from "./topnetLivePaymentAdapter";
 import {LOCAL_PAYMENT_ACTION_TYPE, buildLocalPaymentIntent, localPaymentPayloadHash, parseLocalPaymentReference} from "./localPaymentIntent";
 
+export const PAYMENT_QUOTE_TIMEOUT_MS=20_000;
+
 const adapters:PaymentAdapter[]=[
   {id:"demo.confirmation",label:"Test de confirmation — aucun paiement",mode:"demo",executionValidated:true,
     async quote(reference){if(reference!=="DEMO")paymentError("invalid_demo_reference");return {payee:"Test sans paiement",reference,amountMinor:0,currency:"TND",decimals:3};},
@@ -76,7 +78,7 @@ function validateLocalIntentInput(v:any):{requestKey:string;adapterId:string;ref
   return {requestKey:v.requestKey,adapterId:v.adapterId,reference:v.reference,origin:{channel:v.origin.channel,id:v.origin.id}};
 }
 
-const core=createPaymentCore({store:{read:readPaymentRequests,change:mutatePaymentRequests},adapters,key,timeouts:{executionMs:225000}});
+const core=createPaymentCore({store:{read:readPaymentRequests,change:mutatePaymentRequests},adapters,key,timeouts:{quoteMs:PAYMENT_QUOTE_TIMEOUT_MS,executionMs:225000}});
 const bankTimeoutTimers=new Map<string,ReturnType<typeof setTimeout>>();
 function clearBankTimeout(id:string){
   const timer=bankTimeoutTimers.get(id);
