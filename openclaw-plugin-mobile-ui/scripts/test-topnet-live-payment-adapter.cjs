@@ -57,6 +57,16 @@ test("quote is exact and live execution dispatches once",async()=>{
  }finally{f.cleanup();}
 });
 
+test("acceptance gate is consumed before the only live dispatch",async()=>{
+ const f=fixture();
+ try{
+  const q=await f.adapter.quote(invoice);
+  assert.equal((await f.adapter.execute(q,requestId)).state,"confirmed");
+  assert.equal((await f.adapter.execute(q,"22222222-2222-4222-8222-222222222222")).state,"effect_unknown");
+  assert.equal(f.liveCalls(),1);
+ }finally{f.cleanup();}
+});
+
 test("unattributed settlement never confirms",async()=>{
  const f=fixture({liveResult:{state:"confirmed",gateway_return_correlated:false,fresh_provider_read:true,invoice_state:"settled"}});
  try{

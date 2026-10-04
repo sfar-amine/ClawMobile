@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "id": "payment-topnet-live-one-shot-20261004",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Consume the private Topnet live-acceptance gate before the only financial dispatch.",
+  "reason": "The controlled real acceptance must remain non-replayable even if the Chat turn or Companion execution is interrupted after owner authorization.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/topnetLivePaymentAdapter.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-topnet-live-payment-adapter.cjs",
+    "docs/runtime/native-payment-confirmation.md",
+    "docs/changes/payment-topnet-live-one-shot-20261004.json"
+  ],
+  "tests": [
+    {
+      "name": "topnet-live-adapter",
+      "status": "passed",
+      "evidence": "5/5 adapter tests passed, including one-shot gate consumption and proof that a second execute call does not invoke the live runner."
+    },
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "Companion TypeScript build passed after the one-shot gate change."
+    }
+  ],
+  "documentation": ["docs/runtime/native-payment-confirmation.md"],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "This hardens the already documented gated Topnet acceptance candidate; canonical capability truth is unchanged."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The existing private gate file is consumed atomically; no new storage, daemon, scheduler or execution owner is introduced."
+  },
+  "rollback": "Remove this one-shot hardening only before any live acceptance. After any engaged payment, preserve guard state and verify the effect instead of replaying.",
+  "limitations": [
+    "This gate is for the single controlled Topnet acceptance only.",
+    "Issuer-required bank authentication remains a human boundary."
+  ]
+}

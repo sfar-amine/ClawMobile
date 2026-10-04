@@ -59,9 +59,22 @@ export function createTopnetLivePaymentAdapter(options:{
  const billingRoot=options.billingRoot??path.join(os.homedir(),".openclaw","workspace","ui-playbooks","billing","direct-runtime");
  const stateDir=options.stateDir??process.env.OPENCLAW_STATE_DIR??path.join(os.homedir(),".openclaw");
  const execute=options.exec??runExec,live=options.liveRun??runLive;
+ const gatePath=path.join(stateDir,"clawmobile-companion","topnet-live-acceptance.enabled");
  const enabled=()=>{
-  try{return fs.readFileSync(path.join(stateDir,"clawmobile-companion","topnet-live-acceptance.enabled"),"utf8").trim()==="topnet-v1-live-acceptance";}
+  try{return fs.readFileSync(gatePath,"utf8").trim()==="topnet-v1-live-acceptance";}
   catch{return false;}
+ };
+ const consumeGate=()=>{
+  const consumed=gatePath+".consumed-"+process.pid;
+  try{
+   fs.renameSync(gatePath,consumed);
+   const valid=fs.readFileSync(consumed,"utf8").trim()==="topnet-v1-live-acceptance";
+   fs.unlinkSync(consumed);
+   return valid;
+  }catch{
+   try{fs.unlinkSync(consumed);}catch{}
+   return false;
+  }
  };
  const billingCli=path.join(billingRoot,"billing-cli.mjs");
  const cardCli=path.join(billingRoot,"payment-card-cli.mjs");
@@ -85,7 +98,7 @@ export function createTopnetLivePaymentAdapter(options:{
   quote:readQuote,
   revalidate:async quote=>readQuote(quote.reference),
   async execute(quote,requestId):Promise<PaymentExecutionResult>{
-   if(!enabled())return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
+   if(!consumeGate())return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
    const card=parsed((await execute(process.execPath,[cardCli,"status"],15000)).stdout);
    if(card.state!=="ready"||typeof card.last4!=="string"||!/^[0-9]{4}$/.test(card.last4)||card.cvc_stored!==true)
     return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};

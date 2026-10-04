@@ -29,3 +29,5 @@ Le Companion peut désormais enregistrer un adaptateur Topnet live **uniquement*
 Après la confirmation propriétaire, le Payment Core réserve le dispatch avant d'appeler l'adaptateur. L'adaptateur relit la facture exacte via Billing, vérifie la carte locale par métadonnées, puis appelle le runner Topnet/ClicToPay. Il n'expose ni carte ni code bancaire. Le runner peut garder la requête ouverte pendant un challenge bancaire borné; l'exécution Companion est limitée à 225 secondes. Un résultat `confirmed` n'est accepté que si le runner fournit à la fois une corrélation gateway exacte et une relecture Topnet fraîche `settled`. Sinon le noyau reste `effect_unknown`, sans rejeu.
 
 La frontière OTP/3DS reste humaine. Aucun code OTP n'est lu ou injecté par Companion. STEG/SONEDE restent indisponibles.
+### Garde one-shot de recette
+Le marqueur privé de recette Topnet est consommé atomiquement avant FORM1. Une seconde exécution live ne peut donc pas réutiliser la même activation, même après interruption du tour.
