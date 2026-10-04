@@ -57,14 +57,23 @@ const wait=(ms=8)=>new Promise(r=>setTimeout(r,ms));
   local.close();
   assert.equal(core.status().providerReady,true);
 
+  core.cool("idle_timeout",true);
+  assert.equal(core.status().state,"cold");
+  assert.equal(core.status().stage,"resumable_idle");
+  assert.equal(core.status().resumable,true);
+  assert.equal(core.status().historyLoaded,true);
+
   const local2=new FakeLocal();
   await core.attach(local2,meta);
+  assert.equal(FakeProvider.instances.length,2);
+  assert.equal(FakeProvider.instances[1].setup.sessionResumption.handle,"resume-1");
   const ready2=local2.sent.map(JSON.parse).find(x=>x.warmReady)?.warmReady;
   assert.equal(ready2.historyRequired,false);
+  assert.equal(ready2.resumed,true);
 
   await core.prewarm({...meta,sessionId:"session-b"});
-  assert.equal(FakeProvider.instances.length,2);
+  assert.equal(FakeProvider.instances.length,3);
   assert.equal(core.status().historyLoaded,false);
   core.shutdown();
-  console.log(JSON.stringify({ok:true,warm:true,compression:true,resumption:true,historyGate:true,conversationReset:true}));
+  console.log(JSON.stringify({ok:true,warm:true,compression:true,resumption:true,softIdleResume:true,historyGate:true,conversationReset:true}));
 })().catch(e=>{console.error(e);process.exit(1)});

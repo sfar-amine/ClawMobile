@@ -6,6 +6,7 @@ import { createClawLiveToken, type ClawLiveBootstrapOptions } from "./clawLive";
 const PROVIDER_URL="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
 const SOCKET_PATH="/v1/extensions/claw-live/socket";
 const DEFAULT_IDLE_MS=15*60_000;
+const RESUME_HANDLE_TTL_MS=110*60_000;
 const SETUP_TIMEOUT_MS=15_000;
 
 type WarmState="cold"|"connecting"|"warm"|"reconnecting"|"error";
@@ -46,6 +47,7 @@ export class ClawLiveWarmCore {
   private locale="fr";
   private client="samantha_android";
   private resumeHandle="";
+  private resumeHandleAt=0;
   private historyLoaded=false;
   private localClients=new Set<WebSocket>();
   private connectPromise:Promise<void>|null=null;
@@ -70,7 +72,7 @@ export class ClawLiveWarmCore {
   status(){
     return {
       state:this.state,stage:this.stage,providerReady:this.providerReady,clients:this.localClients.size,
-      conversationBound:Boolean(this.conversationId&&this.conversationId!=="__prewarm__"),resumable:Boolean(this.resumeHandle),historyLoaded:this.historyLoaded,
+      conversationBound:Boolean(this.conversationId&&this.conversationId!=="__prewarm__"),resumable:this.hasValidResumeHandle(),historyLoaded:this.historyLoaded,
       connectedAt:this.connectedAt||null,readyAt:this.readyAt||null,lastUsedAt:this.lastUsedAt||null,
       lastSetupMs:this.lastSetupMs,resumedLast:this.resumedLast,lastError:this.lastError||null,idleMs:this.idleMs,
     };
@@ -81,10 +83,17 @@ export class ClawLiveWarmCore {
     if(!this.lastUsedAt)return;
     const remaining=Math.max(100,this.idleMs-(this.now()-this.lastUsedAt)+100);
     this.idleTimer=setTimeout(()=>{
-      if(this.localClients.size===0&&this.now()-this.lastUsedAt>=this.idleMs)this.cool("idle_timeout");
+      if(this.localClients.size===0&&this.now()-this.lastUsedAt>=this.idleMs)this.cool("idle_timeout",true);
     },remaining).unref();
   }
   private touch(){this.lastUsedAt=this.now();this.armIdleTimer();}
+  private hasValidResumeHandle(){
+    if(!this.resumeHandle)return false;
+    if(!this.resumeHandleAt||this.now()-this.resumeHandleAt>RESUME_HANDLE_TTL_MS){
+      this.resumeHandle="";this.resumeHandleAt=0;return false;
+    }
+    return true;
+  }
 
   async prewarmDefault(locale="fr"){
     return this.prewarm({locale,client:"samantha_android",sessionId:"__prewarm__"});
@@ -122,7 +131,7 @@ export class ClawLiveWarmCore {
     this.locale=meta.locale;this.client=meta.client;
     if(this.providerReady)return;
     if(this.connectPromise)return this.connectPromise;
-    this.connectPromise=this.connectProvider(Boolean(this.resumeHandle)).finally(()=>{this.connectPromise=null;});
+    this.connectPromise=this.connectProvider(this.hasValidResumeHandle()).finally(()=>{this.connectPromise=null;});
     return this.connectPromise;
   }
 
@@ -152,7 +161,8 @@ export class ClawLiveWarmCore {
         if(this.provider!==ws)return;
         let m:any;const raw=data.toString();try{m=JSON.parse(raw);}catch{return;}
         if(m.sessionResumptionUpdate){
-          const u=m.sessionResumptionUpdate;if(u.resumable&&typeof u.newHandle==="string"&&u.newHandle)this.resumeHandle=u.newHandle;
+          const u=m.sessionResumptionUpdate;
+          if(u.resumable&&typeof u.newHandle==="string"&&u.newHandle){this.resumeHandle=u.newHandle;this.resumeHandleAt=this.now();}
           return;
         }
         if(m.goAway){this.stage="goaway";return;}
@@ -174,7 +184,7 @@ export class ClawLiveWarmCore {
         if(this.localClients.size>0||this.now()-this.lastUsedAt<this.idleMs)this.scheduleReconnect();else this.state="cold";
       });
     }).catch(async(e)=>{
-      if(resume&&this.resumeHandle){this.resumeHandle="";this.historyLoaded=false;return this.connectProvider(false);}
+      if(resume&&this.resumeHandle){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;return this.connectProvider(false);}
       throw e;
     });
   }
@@ -191,14 +201,16 @@ export class ClawLiveWarmCore {
 
   private broadcast(raw:string){for(const c of this.localClients)if(c.readyState===WebSocket.OPEN)c.send(raw);}
   private failStage(stage:string,e:any){this.state="error";this.stage=stage;this.lastError=String(e?.message||e||stage).slice(0,160);console.warn(`[claw-live-warm] ${stage}: ${this.lastError}`);}
-  private scheduleReconnect(){if(this.reconnectTimer||this.stopped)return;this.state="reconnecting";this.reconnectTimer=setTimeout(()=>{this.reconnectTimer=null;void this.connectProvider(Boolean(this.resumeHandle)).catch(()=>{});},250).unref();}
-  private resetProvider(_reason:string){
+  private scheduleReconnect(){if(this.reconnectTimer||this.stopped)return;this.state="reconnecting";this.reconnectTimer=setTimeout(()=>{this.reconnectTimer=null;void this.connectProvider(this.hasValidResumeHandle()).catch(()=>{});},250).unref();}
+  private resetProvider(_reason:string,preserveResume=false){
     if(this.reconnectTimer)clearTimeout(this.reconnectTimer);this.reconnectTimer=null;if(this.setupTimer)clearTimeout(this.setupTimer);this.setupTimer=null;
-    const p=this.provider;this.provider=null;this.providerReady=false;this.resumeHandle="";this.historyLoaded=false;this.state="cold";this.stage="idle";this.resumedLast=false;
+    const p=this.provider;this.provider=null;this.providerReady=false;
+    if(!preserveResume){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;this.conversationId="";}
+    this.state="cold";this.stage=preserveResume&&this.hasValidResumeHandle()?"resumable_idle":"idle";this.resumedLast=false;
     try{p?.close();}catch{}
   }
-  cool(reason="manual"){this.resetProvider(reason);this.conversationId="";}
-  shutdown(){this.stopped=true;if(this.idleTimer)clearTimeout(this.idleTimer);this.idleTimer=null;this.cool("shutdown");for(const c of this.localClients)try{c.close(1001,"shutdown");}catch{}this.localClients.clear();}
+  cool(reason="manual",preserveResume=false){this.resetProvider(reason,preserveResume);}
+  shutdown(){this.stopped=true;if(this.idleTimer)clearTimeout(this.idleTimer);this.idleTimer=null;this.cool("shutdown",false);for(const c of this.localClients)try{c.close(1001,"shutdown");}catch{}this.localClients.clear();}
 }
 
 export const clawLiveWarmCore=new ClawLiveWarmCore();
