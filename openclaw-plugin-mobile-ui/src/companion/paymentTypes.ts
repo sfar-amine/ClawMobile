@@ -3,7 +3,12 @@ export type PaymentOrigin = {channel:"chatgpt"|"work"|"claw"|"samantha"; id:stri
 export type PaymentDraft = {requestKey:string; adapterId:string; reference:string; mode:"demo"|"live"; origin:PaymentOrigin};
 export type PaymentState = "awaiting_owner"|"executing"|"demo_confirmed"|"confirmed"|"failed"|"cancelled"|"expired"|"blocked"|"effect_unknown"|"requires_bank_action";
 export type PaymentContinuation = {provider:string; checkoutId:string; gatewayOrderId:string};
-export type PaymentTraceInput = {stage:string; outcome?:string; reasonCode?:string; invoiceState?:string};
+export type PaymentHttpTrace = {
+  method:string; origin:string; path:string; requestBytes:number; requestSnapshot:string; requestSha256:string; requestTruncated:boolean;
+  durationMs:number; responseStatus?:number; responseOrigin?:string; responsePath?:string; responseBytes?:number;
+  responseSnapshot?:string; responseSha256?:string; responseTruncated?:boolean; errorCode?:string;
+};
+export type PaymentTraceInput = {stage:string; outcome?:string; reasonCode?:string; invoiceState?:string; http?:PaymentHttpTrace};
 export type PaymentTraceEvent = PaymentTraceInput & {seq:number; at:number};
 export type PaymentTraceSink = {trace?:(event:PaymentTraceInput)=>Promise<void>|void};
 export type PaymentExecutionContext = PaymentTraceSink & {bankReturnToken:string};

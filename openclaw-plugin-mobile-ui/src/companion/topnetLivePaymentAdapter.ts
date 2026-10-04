@@ -9,6 +9,8 @@ type ExecFn=(file:string,args:string[],timeoutMs:number)=>Promise<ExecResult>;
 type LiveRunFn=(script:string,payload:Record<string,unknown>,timeoutMs:number,onEvent?:(event:any)=>Promise<void>|void)=>Promise<any>;
 
 const MAX=65536;
+const LIVE_MAX=524288;
+const FORENSIC_SNAPSHOT_MAX=65536;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const INVOICE=/^[A-Za-z0-9._-]{1,100}$/;
 const START_TIMEOUT_MS=225000;
@@ -31,7 +33,7 @@ function runLive(script:string,payload:Record<string,unknown>,timeoutMs:number,o
     child.stdout.setEncoding("utf8");
     child.stdout.on("data",(chunk:string)=>{
       buffer+=chunk;
-      if(Buffer.byteLength(buffer)>MAX){if(!settled){settled=true;clearTimeout(timer);child.kill("SIGKILL");reject(new Error("payment_live_output_invalid"));}return;}
+      if(Buffer.byteLength(buffer)>LIVE_MAX){if(!settled){settled=true;clearTimeout(timer);child.kill("SIGKILL");reject(new Error("payment_live_output_invalid"));}return;}
       let index;
       while((index=buffer.indexOf("\n"))>=0){
         const line=buffer.slice(0,index);buffer=buffer.slice(index+1);
@@ -61,9 +63,59 @@ const VERIFIED_FAILURE_REASONS=new Set([
 ]);
 const LIVE_TRACE_STAGES=new Set([
   "provider_session_started","provider_session_authenticated","invoice_revalidated","checkout_prepared",
-  "gateway_submission_started","gateway_submission_result","bank_ui_opened","provider_callback_correlated",
-  "provider_readback","completion_classified","execution_error"
+  "browser_context_ready","three_ds2_preflight","gateway_submission_started","gateway_submission_result",
+  "bank_ui_opened","provider_callback_correlated","provider_readback","completion_classified","execution_error","http_exchange"
 ]);
+const FORENSIC_SECRET_NAME=/(?:^|[_$.-])(pan|cvc|cvv|expir(?:y|ation)?|password|passwd|pwd|pin|otp|one.?time|creq|pareq|threedsmethoddata(?:packed)?|csrf|xsrf|nonce|signature|secret|auth(?:orization)?|cookie|session(?:id)?|sid|token)(?:$|[_$.-])/i;
+const FORENSIC_PERSONAL_NAME=/^(?:text|cardholder|holder|email|phone|postalcode|streetaddress|login|username|user)$/i;
+const FORENSIC_PAN=/\b(?:\d ?){13,19}\b/;
+const FORENSIC_BEARER=/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/i;
+function forensicRedaction(value:any){
+  return !!value&&typeof value==="object"&&!Array.isArray(value)&&value.redacted===true&&
+    Number.isSafeInteger(value.bytes)&&value.bytes>=0&&value.bytes<=2000000&&Object.keys(value).sort().join(",")==="bytes,redacted";
+}
+function forensicSensitiveName(value:any){
+  return typeof value==="string"&&(FORENSIC_SECRET_NAME.test(value)||FORENSIC_PERSONAL_NAME.test(value)||["$PAN","$CVC","$EXPIRY","MM","YYYY"].includes(value));
+}
+function forensicNodeSafe(value:any,key=""):boolean{
+  if(forensicSensitiveName(key))return forensicRedaction(value);
+  if(value===null||typeof value==="boolean"||typeof value==="number")return true;
+  if(typeof value==="string")return value.length<=FORENSIC_SNAPSHOT_MAX&&!FORENSIC_PAN.test(value)&&!FORENSIC_BEARER.test(value)&&!value.includes("\u0000");
+  if(Array.isArray(value))return value.length<=512&&value.every(v=>forensicNodeSafe(v));
+  if(!value||typeof value!=="object")return false;
+  if(typeof value.name==="string"&&forensicSensitiveName(value.name)&&Object.prototype.hasOwnProperty.call(value,"value")&&!forensicRedaction(value.value))return false;
+  return Object.entries(value).every(([k,v])=>forensicNodeSafe(v,k));
+}
+function forensicSnapshotSafe(value:any){
+  if(typeof value!=="string"||Buffer.byteLength(value)>FORENSIC_SNAPSHOT_MAX||value.includes("\u0000"))return false;
+  try{return forensicNodeSafe(JSON.parse(value));}catch{return false;}
+}
+function forensicHttp(value:any){
+  if(!value||typeof value!=="object"||Array.isArray(value)||!["GET","POST"].includes(value.method)||
+    typeof value.origin!=="string"||!/^https:\/\/[^\s/]+$/.test(value.origin)||
+    typeof value.path!=="string"||!value.path.startsWith("/")||value.path.length>512||
+    !Number.isSafeInteger(value.requestBytes)||value.requestBytes<0||value.requestBytes>2000000||
+    !forensicSnapshotSafe(value.requestSnapshot)||typeof value.requestSha256!=="string"||!/^[a-f0-9]{64}$/.test(value.requestSha256)||
+    typeof value.requestTruncated!=="boolean"||!Number.isSafeInteger(value.durationMs)||value.durationMs<0||value.durationMs>120000)return null;
+  const out:any={method:value.method,origin:value.origin,path:value.path,requestBytes:value.requestBytes,
+    requestSnapshot:value.requestSnapshot,requestSha256:value.requestSha256,requestTruncated:value.requestTruncated,durationMs:value.durationMs};
+  if(value.responseStatus!==undefined){
+    if(!Number.isSafeInteger(value.responseStatus)||value.responseStatus<0||value.responseStatus>599||
+      typeof value.responseOrigin!=="string"||!/^https:\/\/[^\s/]+$/.test(value.responseOrigin)||
+      typeof value.responsePath!=="string"||!value.responsePath.startsWith("/")||value.responsePath.length>512||
+      !Number.isSafeInteger(value.responseBytes)||value.responseBytes<0||value.responseBytes>2000000||
+      !forensicSnapshotSafe(value.responseSnapshot)||typeof value.responseSha256!=="string"||!/^[a-f0-9]{64}$/.test(value.responseSha256)||
+      typeof value.responseTruncated!=="boolean")return null;
+    Object.assign(out,{responseStatus:value.responseStatus,responseOrigin:value.responseOrigin,responsePath:value.responsePath,
+      responseBytes:value.responseBytes,responseSnapshot:value.responseSnapshot,responseSha256:value.responseSha256,responseTruncated:value.responseTruncated});
+  }
+  if(value.errorCode!==undefined){
+    if(typeof value.errorCode!=="string"||!/^[A-Za-z0-9_.-]{1,96}$/.test(value.errorCode))return null;
+    out.errorCode=value.errorCode;
+  }
+  if(out.responseStatus===undefined&&out.errorCode===undefined)return null;
+  return out;
+}
 function verifiedFailureReason(value:any){
   return typeof value==="string"&&VERIFIED_FAILURE_REASONS.has(value)?value:"payment_rejected_reason_unavailable";
 }
@@ -74,6 +126,11 @@ async function forwardLiveTrace(context:PaymentTraceSink|undefined,event:any){
   if(typeof event.reason_code==="string"&&/^[a-z0-9_.-]{1,96}$/.test(event.reason_code))trace.reasonCode=event.reason_code;
   if(typeof event.invoice_state==="string"&&["unpaid","settled","balance_changed","not_observed","unknown"].includes(event.invoice_state))
     trace.invoiceState=event.invoice_state;
+  if(event.event==="http_exchange"){
+    const http=forensicHttp(event.exchange);
+    if(!http)return;
+    trace.http=http;
+  }
   await context.trace(trace);
 }
 

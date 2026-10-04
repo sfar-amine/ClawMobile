@@ -114,6 +114,29 @@ test("verified specific bank decline is preserved only when supplied",async()=>{
  }finally{f.cleanup();}
 });
 
+
+test("forensic HTTP exchanges are forwarded only after safe-envelope validation",async()=>{
+ const trace=[];
+ const req=JSON.stringify({headers:[{name:"cookie",value:{redacted:true,bytes:24}}],body:{kind:"form",fields:[
+  {name:"$PAN",value:{redacted:true,bytes:16}},{name:"language",value:"fr"}]}});
+ const res=JSON.stringify({headers:[{name:"set-cookie",value:{redacted:true,bytes:30}}],body:{kind:"json",value:{lookup:true}}});
+ const exchange={method:"POST",origin:"https://ipay.clictopay.com",path:"/epg/rest/processform.do",
+  requestBytes:120,requestSnapshot:req,requestSha256:require("crypto").createHash("sha256").update(req).digest("hex"),requestTruncated:false,
+  durationMs:42,responseStatus:200,responseOrigin:"https://ipay.clictopay.com",responsePath:"/epg/rest/processform.do",
+  responseBytes:15,responseSnapshot:res,responseSha256:require("crypto").createHash("sha256").update(res).digest("hex"),responseTruncated:false};
+ const f=fixture({startEvents:[{event:"http_exchange",exchange}]});
+ try{
+  const q=await f.adapter.quote(invoice);
+  await f.adapter.executeLocal(q,requestId,{bankReturnToken:"A".repeat(43),trace:e=>trace.push(e)});
+  assert.equal(trace.length,1);
+  assert.equal(trace[0].stage,"http_exchange");
+  assert.equal(trace[0].http.method,"POST");
+  assert.equal(trace[0].http.responseStatus,200);
+  assert.equal(JSON.stringify(trace).includes("4111111111111111"),false);
+  assert.equal(JSON.stringify(trace).includes("secret"),false);
+ }finally{f.cleanup();}
+});
+
 test("live runner events are forwarded as sanitized payment trace",async()=>{
  const trace=[];
  const f=fixture({startEvents:[

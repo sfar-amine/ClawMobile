@@ -196,7 +196,14 @@ await test("V1.1 startLocalAuthorized creates compliant record", async () => {
     quote:async ref=>({payee:"TOPNET",reference:ref,amountMinor:60900,currency:"TND",decimals:3}),
     revalidate:async q=>q,
     execute:async()=>{dispatched=true;return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}};},
-    executeLocal:async(_q,_id,ctx)=>{dispatched=true;await ctx.trace?.({stage:"provider_session_started"});return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}};},
+    executeLocal:async(_q,_id,ctx)=>{dispatched=true;await ctx.trace?.({stage:"provider_session_started"});
+      const requestSnapshot=JSON.stringify({headers:[{name:"cookie",value:{redacted:true,bytes:12}}],body:{kind:"form",fields:[{name:"$PAN",value:{redacted:true,bytes:16}},{name:"language",value:"fr"}]}});
+      const responseSnapshot=JSON.stringify({headers:[],body:{kind:"json",value:{lookup:true}}});
+      await ctx.trace?.({stage:"http_exchange",http:{method:"POST",origin:"https://ipay.clictopay.com",path:"/epg/rest/processform.do",
+        requestBytes:99,requestSnapshot,requestSha256:createHash("sha256").update(requestSnapshot).digest("hex"),requestTruncated:false,durationMs:21,
+        responseStatus:200,responseOrigin:"https://ipay.clictopay.com",responsePath:"/epg/rest/processform.do",responseBytes:15,
+        responseSnapshot,responseSha256:createHash("sha256").update(responseSnapshot).digest("hex"),responseTruncated:false}});
+      return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}};},
     resume:async()=>({state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}})
   };
   const core=createPaymentCore({store,adapters:[adapter],key:()=>({key:key.publicKey,id:kid})});
@@ -220,8 +227,11 @@ await test("V1.1 startLocalAuthorized creates compliant record", async () => {
   assert.equal(rec.expiresAt-rec.createdAt,120000);
   assert.deepEqual(out.timeline.map(e=>e.stage),[
     "owner_confirmation_consumed","payment_record_created","financial_dispatch_committed",
-    "provider_session_started","state_transition"
+    "provider_session_started","http_exchange","state_transition"
   ]);
+  const httpEvent=out.timeline.find(e=>e.stage==="http_exchange");
+  assert.equal(httpEvent.http.responseStatus,200);
+  assert.equal(JSON.stringify(httpEvent).includes("4111111111111111"),false);
   assert.equal(JSON.stringify(out.timeline).includes("bankReturnToken"),false);
 });
 

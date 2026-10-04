@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "payment-deterministic-3ds2-forensic-trace-runtime-20261004",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Persist bounded sanitized HTTP exchange evidence and deterministic 3DS2 stages in the canonical payment runtime trace.",
+  "reason": "The billing runner now emits browser-context, 3DS2 and sanitized HTTP exchange events. Companion must validate and persist them in the existing PaymentRecord without exposing raw transaction or authentication values.",
+  "files": [
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-topnet-live-payment-adapter.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentTypes.ts",
+    "openclaw-plugin-mobile-ui/src/companion/topnetLivePaymentAdapter.ts",
+    "docs/changes/payment-deterministic-3ds2-forensic-trace-runtime-20261004.json",
+    "docs/changes/payment-deterministic-3ds2-forensic-trace-runtime-20261004.md"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "openclaw-plugin-mobile-ui npm run build passed."
+    },
+    {
+      "name": "topnet-adapter",
+      "status": "passed",
+      "evidence": "8/8 targeted adapter cases passed."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "51/51 Payment Core cases passed including trace validation and no-replay invariants."
+    }
+  ],
+  "documentation": [
+    "docs/changes/payment-deterministic-3ds2-forensic-trace-runtime-20261004.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability truth is owned by ui-playbooks; this runtime change implements that contract."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The existing PaymentRecord timeline remains the only durable transaction trace; no parallel observability store or executor is added."
+  },
+  "rollback": "Revert this runtime commit and redeploy the previous Companion extension. Existing records remain backward compatible.",
+  "limitations": [
+    "Historical records cannot gain request/response events retroactively.",
+    "Positive live acceptance remains separate from implementation closure."
+  ]
+}

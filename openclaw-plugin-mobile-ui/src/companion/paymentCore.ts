@@ -4,25 +4,70 @@ const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]
 const HEX=/^[a-f0-9]{64}$/;
 const STATES=new Set(["awaiting_owner","executing","demo_confirmed","confirmed","failed","cancelled","expired","blocked","effect_unknown","requires_bank_action"]);
 const REASONS=new Set(["gateway_and_provider_confirmed","bank_declined","payment_cancelled","session_expired","bank_verification_required","bank_verification_failed","payment_rejected_reason_unavailable","payment_effect_unverified"]);
-const TRACE_STAGES=new Set(["owner_confirmation_consumed","payment_record_created","financial_dispatch_committed","provider_session_started","provider_session_authenticated","invoice_revalidated","checkout_prepared","gateway_submission_started","gateway_submission_result","bank_ui_opened","provider_callback_correlated","provider_readback","completion_classified","execution_error","bank_resume_started","state_transition"]);
+const TRACE_STAGES=new Set(["owner_confirmation_consumed","payment_record_created","financial_dispatch_committed","provider_session_started","provider_session_authenticated","invoice_revalidated","checkout_prepared","browser_context_ready","three_ds2_preflight","gateway_submission_started","gateway_submission_result","bank_ui_opened","provider_callback_correlated","provider_readback","completion_classified","execution_error","bank_resume_started","state_transition","http_exchange"]);
 const TRACE_INVOICE_STATES=new Set(["unpaid","settled","balance_changed","not_observed","unknown"]);
+const TRACE_CAPACITY=160,TRACE_SNAPSHOT_MAX=65536;
 export function paymentError(code:string,statusCode=400):never {throw Object.assign(new Error(code),{statusCode});}
 function object(value:any,keys:string[]) {
   if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).length!==keys.length||keys.some(k=>!Object.prototype.hasOwnProperty.call(value,k))) paymentError("invalid_payment_request");
 }
 function safeText(v:any,max=120) {return typeof v==="string"&&v.length>0&&v.length<=max&&!/[\p{C}]/u.test(v)&&v===v.trim();}
 const hash=(s:string|Buffer)=>createHash("sha256").update(s).digest("hex");
+const TRACE_SECRET_NAME=/(?:^|[_$.-])(pan|cvc|cvv|expir(?:y|ation)?|password|passwd|pwd|pin|otp|one.?time|creq|pareq|threedsmethoddata(?:packed)?|csrf|xsrf|nonce|signature|secret|auth(?:orization)?|cookie|session(?:id)?|sid|token)(?:$|[_$.-])/i;
+const TRACE_PERSONAL_NAME=/^(?:text|cardholder|holder|email|phone|postalcode|streetaddress|login|username|user)$/i;
+const TRACE_PAN=/\b(?:\d ?){13,19}\b/,TRACE_BEARER=/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/i;
+function traceSensitiveName(v:any){return typeof v==="string"&&(TRACE_SECRET_NAME.test(v)||TRACE_PERSONAL_NAME.test(v)||["$PAN","$CVC","$EXPIRY","MM","YYYY"].includes(v));}
+function traceRedaction(v:any){return !!v&&typeof v==="object"&&!Array.isArray(v)&&v.redacted===true&&Number.isSafeInteger(v.bytes)&&v.bytes>=0&&v.bytes<=2000000&&Object.keys(v).sort().join(",")==="bytes,redacted";}
+function traceNodeSafe(v:any,key=""):boolean{
+  if(traceSensitiveName(key))return traceRedaction(v);
+  if(v===null||typeof v==="boolean"||typeof v==="number")return true;
+  if(typeof v==="string")return v.length<=TRACE_SNAPSHOT_MAX&&!TRACE_PAN.test(v)&&!TRACE_BEARER.test(v)&&!v.includes("\u0000");
+  if(Array.isArray(v))return v.length<=512&&v.every(x=>traceNodeSafe(x));
+  if(!v||typeof v!=="object")return false;
+  if(typeof v.name==="string"&&traceSensitiveName(v.name)&&Object.prototype.hasOwnProperty.call(v,"value")&&!traceRedaction(v.value))return false;
+  return Object.entries(v).every(([k,x])=>traceNodeSafe(x,k));
+}
+function safeSnapshot(v:any){
+  if(typeof v!=="string"||Buffer.byteLength(v)>TRACE_SNAPSHOT_MAX||v.includes("\u0000"))return false;
+  try{return traceNodeSafe(JSON.parse(v));}catch{return false;}
+}
+function cleanHttpTrace(value:any){
+  if(!value||typeof value!=="object"||Array.isArray(value))paymentError("invalid_payment_trace",503);
+  const out:any={};
+  if(!["GET","POST"].includes(value.method)||typeof value.origin!=="string"||!/^https:\/\/[^\s/]+$/.test(value.origin)||
+    typeof value.path!=="string"||!value.path.startsWith("/")||value.path.length>512||
+    !Number.isSafeInteger(value.requestBytes)||value.requestBytes<0||value.requestBytes>2000000||
+    !safeSnapshot(value.requestSnapshot)||!HEX.test(value.requestSha256)||typeof value.requestTruncated!=="boolean"||
+    !Number.isSafeInteger(value.durationMs)||value.durationMs<0||value.durationMs>120000)paymentError("invalid_payment_trace",503);
+  Object.assign(out,{method:value.method,origin:value.origin,path:value.path,requestBytes:value.requestBytes,
+    requestSnapshot:value.requestSnapshot,requestSha256:value.requestSha256,requestTruncated:value.requestTruncated,durationMs:value.durationMs});
+  if(value.responseStatus!==undefined){
+    if(!Number.isSafeInteger(value.responseStatus)||value.responseStatus<0||value.responseStatus>599||
+      typeof value.responseOrigin!=="string"||!/^https:\/\/[^\s/]+$/.test(value.responseOrigin)||
+      typeof value.responsePath!=="string"||!value.responsePath.startsWith("/")||value.responsePath.length>512||
+      !Number.isSafeInteger(value.responseBytes)||value.responseBytes<0||value.responseBytes>2000000||
+      !safeSnapshot(value.responseSnapshot)||!HEX.test(value.responseSha256)||typeof value.responseTruncated!=="boolean")
+      paymentError("invalid_payment_trace",503);
+    Object.assign(out,{responseStatus:value.responseStatus,responseOrigin:value.responseOrigin,responsePath:value.responsePath,
+      responseBytes:value.responseBytes,responseSnapshot:value.responseSnapshot,responseSha256:value.responseSha256,responseTruncated:value.responseTruncated});
+  }
+  if(value.errorCode!==undefined){if(!safeText(value.errorCode,96))paymentError("invalid_payment_trace",503);out.errorCode=value.errorCode;}
+  if(value.responseStatus===undefined&&value.errorCode===undefined)paymentError("invalid_payment_trace",503);
+  return out;
+}
 function cleanTraceInput(value:PaymentTraceInput):PaymentTraceInput {
   if(!value||typeof value!=="object"||Array.isArray(value)||!TRACE_STAGES.has(value.stage))paymentError("invalid_payment_trace",503);
   const out:PaymentTraceInput={stage:value.stage};
   if(value.outcome!==undefined){if(!safeText(value.outcome,64))paymentError("invalid_payment_trace",503);out.outcome=value.outcome;}
   if(value.reasonCode!==undefined){if(!safeText(value.reasonCode,96))paymentError("invalid_payment_trace",503);out.reasonCode=value.reasonCode;}
   if(value.invoiceState!==undefined){if(!TRACE_INVOICE_STATES.has(value.invoiceState))paymentError("invalid_payment_trace",503);out.invoiceState=value.invoiceState;}
+  if(value.http!==undefined){if(value.stage!=="http_exchange")paymentError("invalid_payment_trace",503);out.http=cleanHttpTrace(value.http);}
+  if(value.stage==="http_exchange"&&!out.http)paymentError("invalid_payment_trace",503);
   return out;
 }
 function appendTrace(r:PaymentRecord,value:PaymentTraceInput,at:number){
   const item=cleanTraceInput(value),trace=r.trace??(r.trace=[]);
-  if(trace.length>=64)paymentError("payment_trace_capacity_reached",503);
+  if(trace.length>=TRACE_CAPACITY)paymentError("payment_trace_capacity_reached",503);
   trace.push({...item,seq:trace.length+1,at});
 }
 export function validateDraft(v:any):PaymentDraft {
@@ -61,7 +106,7 @@ function validateStored(r:PaymentRecord) {
   if(r.authorizationSource!=="payment_owner_native"&&r.authorizationSource!=="local_owner_confirmation") paymentError("payment_record_invalid",503);
   if(r.authorizationSource==="local_owner_confirmation"&&(!r.ownerConfirmationId||!UUID.test(r.ownerConfirmationId))) paymentError("payment_record_invalid",503);
   if(r.trace!==undefined){
-    if(!Array.isArray(r.trace)||r.trace.length>64)paymentError("payment_record_invalid",503);
+    if(!Array.isArray(r.trace)||r.trace.length>TRACE_CAPACITY)paymentError("payment_record_invalid",503);
     for(let i=0;i<r.trace.length;i++){
       const e=r.trace[i] as any;
       if(!e||e.seq!==i+1||!Number.isSafeInteger(e.at)||e.at<r.createdAt-120000||e.at>r.updatedAt+120000)paymentError("payment_record_invalid",503);
