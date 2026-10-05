@@ -12,8 +12,9 @@ test("local handoff accepts only inert quote/origin fields",()=>{
   assert.throws(()=>validateLocalHandoffInput({requestKey:id,adapterId:"topnet",quote,origin:{channel:"chatgpt",id:"turn-1"},notify:true,...extra}));
 });
 
-test("handoff notification contains only safe display data and confirmation identity",()=>{
+test("handoff notification is passive and contains only safe display data",()=>{
  const args=localHandoffNotificationArgs(id,quote),joined=args.join(" ");
- assert.match(joined,/Samantha · Paiement prêt/);assert.match(joined,/TOPNET · 60,900 TND/);assert.match(joined,new RegExp(id));
+ assert.match(joined,/Samantha · Paiement/);assert.match(joined,/TOPNET · 60,900 TND/);
+ assert.equal(args.includes("--action"),false);assert.equal(joined.includes(id),false);assert.equal(/toucher|autoriser/i.test(joined),false);
  for(const forbidden of ["INV-1","cvc","otp","cookie","gatewayOrderId"])assert.equal(joined.toLowerCase().includes(forbidden.toLowerCase()),false);
 });

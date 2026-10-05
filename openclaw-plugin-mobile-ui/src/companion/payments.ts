@@ -94,8 +94,7 @@ function formatPayableAmount(q:PaymentQuote){
 export function localHandoffNotificationArgs(confirmationRequestId:string,quote:PaymentQuote){
   if(!ownerUuid.test(confirmationRequestId))paymentError("invalid_payment_request");
   const id=String(parseInt(confirmationRequestId.slice(0,8),16)%2000000000);
-  const action=`am start -n ai.samantha.android.dev/ai.samantha.android.OwnerConfirmationActivity --es confirmation_request_id ${confirmationRequestId}`;
-  return ["--id",id,"--title","Samantha · Paiement prêt","--content",`${quote.payee} · ${formatPayableAmount(quote)} ${quote.currency} — toucher pour autoriser`,"--action",action];
+  return ["--id",id,"--title","Samantha · Paiement","--content",`${quote.payee} · ${formatPayableAmount(quote)} ${quote.currency}`];
 }
 async function notifyLocalHandoff(confirmationRequestId:string,quote:PaymentQuote){
   const res=await runTermuxCommand("termux-notification",localHandoffNotificationArgs(confirmationRequestId,quote),5000);

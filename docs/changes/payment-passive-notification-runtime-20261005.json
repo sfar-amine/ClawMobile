@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "id": "payment-passive-notification-runtime-20261005",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Remove the notification action from Chat payment handoffs while preserving the same inert local handoff and Payment Core.",
+  "reason": "The notification must be informational only; native biometric presentation is triggered separately by the existing local client.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-handoff.cjs",
+    "docs/runtime/samantha-companion-private.md",
+    "docs/changes/payment-passive-notification-runtime-20261005.md",
+    "docs/changes/payment-passive-notification-runtime-20261005.json"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": {
+        "command": "npm run build",
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "payment-handoff",
+      "status": "passed",
+      "evidence": {
+        "count": 2
+      }
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": {
+        "count": 57
+      }
+    },
+    {
+      "name": "topnet-live-payment",
+      "status": "passed",
+      "evidence": {
+        "count": 9
+      }
+    },
+    {
+      "name": "clictopay-provider-adapter",
+      "status": "passed",
+      "evidence": {
+        "count": 2
+      }
+    },
+    {
+      "name": "payment-api-registry-guard",
+      "status": "passed",
+      "evidence": {
+        "result": "OWNER_CONFIRMATION_PAYMENT_API_AND_REGISTRY_CHECKS_PASSED"
+      }
+    }
+  ],
+  "documentation": [
+    "docs/runtime/samantha-companion-private.md",
+    "docs/changes/payment-passive-notification-runtime-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "payment.owner_native"
+    ],
+    "reason": "Notification presentation only; payment authorization semantics remain unchanged."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new service, store, scheduler, router, payment engine or Android component."
+  },
+  "rollback": "Revert the scoped notification argument change; no transaction data migration is required.",
+  "limitations": [
+    "Live positive payment acceptance remains human-gated.",
+    "Bank verification input is not read, copied, injected or logged."
+  ]
+}
