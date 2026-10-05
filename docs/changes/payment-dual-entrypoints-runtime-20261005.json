@@ -1,12 +1,22 @@
 {
   "change": "payment-dual-entrypoints-runtime-20261005",
   "component": "openclaw-plugin-mobile-ui",
-  "status": "implemented_pending_deployment",
+  "status": "deployed_verification_required",
   "endpoints": [
     "GET /v1/payments/payables",
     "POST /v1/payments/local-handoffs"
   ],
   "financial_effect_before_biometric": false,
   "new_store": false,
-  "new_daemon": false
+  "new_daemon": false,
+  "commit": "0594743d385763fe601329d277ffd3e68700da99",
+  "compiled_sha256": {
+    "payments.js": "8375122519876af9b73661417429345c114423351d20bb8029948ca52ff8d3bd",
+    "server.js": "da449a73d926d33994364628912b48fdca7dd0d09a0e1acda6d13873635c2f76"
+  },
+  "companion_pid": 13458,
+  "health": "connected",
+  "targeted_tests": 73,
+  "api_guard": "passed",
+  "runtime_ui_acceptance": "blocked_external_tool_plane"
 }
