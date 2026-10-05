@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "maintenance",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "applied",
   "summary": "Add bounded Android client timestamps to canonical payment bank-ui lifecycle telemetry.",
   "reason": "The next live payment test needs precise UX timing for the three deterministic loading states without introducing a parallel logger.",
   "files": [
