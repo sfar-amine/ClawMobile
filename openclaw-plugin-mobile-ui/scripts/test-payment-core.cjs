@@ -157,15 +157,18 @@ const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
     navigation:{origin:"https://bank.fixture.test",path:"/return/{id}"}});
   await f.core.recordBankUiEvent(r.requestId,{stage:"bank_return_detected",outcome:"page_started",
     navigation:{origin:"https://bank.fixture.test",path:"/return/{id}"}});
-  await f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_lifecycle",outcome:"paused"});
+  const clientAt=f.time()-250;
+  await f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_lifecycle",outcome:"bank_form_visible",clientAt});
   const status=await f.core.status(r.requestId);
   assert.equal(status.timeline.at(-3).stage,"bank_ui_navigation");
   assert.deepEqual(status.timeline.at(-3).navigation,{origin:"https://bank.fixture.test",path:"/return/{id}"});
   assert.equal(status.timeline.at(-2).stage,"bank_return_detected");
   assert.equal(status.timeline.at(-1).stage,"bank_ui_lifecycle");
-  assert.equal(status.timeline.at(-1).outcome,"paused");
+  assert.equal(status.timeline.at(-1).outcome,"bank_form_visible");
+  assert.equal(status.timeline.at(-1).clientAt,clientAt);
   await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",
-    navigation:{origin:"https://evil.test",path:"/x"}}),"invalid_payment_trace");
+    clientAt, navigation:{origin:"https://bank.fixture.test",path:"/x"}}),"invalid_payment_trace");
+  await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_lifecycle",outcome:"too_old",clientAt:f.time()-120001}),"invalid_payment_trace");
   await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"provider_readback",invoiceState:"unpaid"}),"invalid_bank_ui_trace");
  });
  await test("bank UI origin policy belongs to the selected adapter",async()=>{

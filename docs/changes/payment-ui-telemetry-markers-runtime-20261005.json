@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "payment-ui-telemetry-markers-runtime-20261005",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add bounded Android client timestamps to canonical payment bank-ui lifecycle telemetry.",
+  "reason": "The next live payment test needs precise UX timing for the three deterministic loading states without introducing a parallel logger.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/paymentTypes.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-core.cjs",
+    "docs/runtime/samantha-companion-private.md",
+    "docs/changes/payment-ui-telemetry-markers-runtime-20261005.md",
+    "docs/changes/payment-ui-telemetry-markers-runtime-20261005.json"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": {
+        "command": "npm run build"
+      }
+    },
+    {
+      "name": "payment-regression",
+      "status": "passed",
+      "evidence": {
+        "payment_core": 57,
+        "handoff": 2,
+        "topnet": 9,
+        "clictopay": 2
+      }
+    },
+    {
+      "name": "payment-api-guard",
+      "status": "passed",
+      "evidence": {
+        "result": "OWNER_CONFIRMATION_PAYMENT_API_AND_REGISTRY_CHECKS_PASSED"
+      }
+    }
+  ],
+  "documentation": [
+    "docs/runtime/samantha-companion-private.md",
+    "docs/changes/payment-ui-telemetry-markers-runtime-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Observability schema extension only; payment authorization and execution semantics are unchanged."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same PaymentRecord timeline and same Companion endpoint; no new logger, store, service or route."
+  },
+  "rollback": "Revert the scoped clientAt trace fields; existing PaymentRecords remain readable because the field is optional.",
+  "limitations": [
+    "clientAt is accepted only for bank_ui_lifecycle and must remain within the bounded server receipt window."
+  ]
+}

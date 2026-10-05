@@ -71,6 +71,10 @@ function cleanTraceInput(value:PaymentTraceInput,allowedOrigins:ReadonlySet<stri
   if(value.outcome!==undefined){if(!safeText(value.outcome,64))paymentError("invalid_payment_trace",503);out.outcome=value.outcome;}
   if(value.reasonCode!==undefined){if(!safeText(value.reasonCode,96))paymentError("invalid_payment_trace",503);out.reasonCode=value.reasonCode;}
   if(value.invoiceState!==undefined){if(!TRACE_INVOICE_STATES.has(value.invoiceState))paymentError("invalid_payment_trace",503);out.invoiceState=value.invoiceState;}
+  if(value.clientAt!==undefined){
+    if(value.stage!=="bank_ui_lifecycle"||!Number.isSafeInteger(value.clientAt)||value.clientAt<=0)paymentError("invalid_payment_trace",503);
+    out.clientAt=value.clientAt;
+  }
   if(value.http!==undefined){if(value.stage!=="http_exchange")paymentError("invalid_payment_trace",503);out.http=cleanHttpTrace(value.http);}
   if(value.stage==="http_exchange"&&!out.http)paymentError("invalid_payment_trace",503);
   if(value.navigation!==undefined){
@@ -82,6 +86,7 @@ function cleanTraceInput(value:PaymentTraceInput,allowedOrigins:ReadonlySet<stri
 }
 function appendTrace(r:PaymentRecord,value:PaymentTraceInput,at:number,allowedOrigins:ReadonlySet<string>=new Set()){
   const item=cleanTraceInput(value,allowedOrigins),trace=r.trace??(r.trace=[]);
+  if(item.clientAt!==undefined&&(item.clientAt<at-120000||item.clientAt>at+5000))paymentError("invalid_payment_trace",503);
   if(trace.length>=TRACE_CAPACITY)paymentError("payment_trace_capacity_reached",503);
   trace.push({...item,seq:trace.length+1,at});
 }
@@ -125,7 +130,8 @@ function validateStored(r:PaymentRecord,allowedOrigins:ReadonlySet<string>=new S
     for(let i=0;i<r.trace.length;i++){
       const e=r.trace[i] as any;
       if(!e||e.seq!==i+1||!Number.isSafeInteger(e.at)||e.at<r.createdAt-120000||e.at>r.updatedAt+120000)paymentError("payment_record_invalid",503);
-      cleanTraceInput(e,allowedOrigins);
+      const cleaned=cleanTraceInput(e,allowedOrigins);
+      if(cleaned.clientAt!==undefined&&(cleaned.clientAt<e.at-120000||cleaned.clientAt>e.at+5000))paymentError("payment_record_invalid",503);
     }
   }
   const d=validateDraft(r.draft),q=validateQuote(r.quote);
