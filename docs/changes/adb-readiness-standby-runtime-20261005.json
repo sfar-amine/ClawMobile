@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "id": "adb-readiness-standby-runtime-20261005",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "applied",
+  "summary": "Record verified Tier-0 and live E2E acceptance for ADB recovery-readiness standby semantics.",
+  "reason": "Runtime deployment completed after the functional source commit; this separate record preserves the original source change scope while recording deployment evidence.",
+  "files": [
+    "docs/changes/adb-readiness-standby-runtime-20261005.md",
+    "docs/changes/adb-readiness-standby-runtime-20261005.json"
+  ],
+  "tests": [
+    {
+      "name": "tier0-soak",
+      "status": "passed",
+      "evidence": "Release 20261005T115511-d3beb769 completed stable soak with 0 bad samples and became Current/LKG."
+    },
+    {
+      "name": "live-runtime",
+      "status": "passed",
+      "evidence": "Canonical ADB and serial verified; readiness failure counter 0; no active incidents; RDC healthy; final Immune verdict fully healthy."
+    }
+  ],
+  "documentation": [
+    "docs/changes/adb-readiness-standby-runtime-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Deployment evidence only; no additional runtime behavior or capability scope change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No architecture change."
+  },
+  "rollback": "Promote the prior Tier-0 Last Known Good release and revert the functional commit de4f9c1 if rollback is required."
+}
