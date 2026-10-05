@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "maintenance",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "verified",
   "summary": "Stop no-progress Immune diagnosis loops and keep the existing Tier-0 watchdog supervised.",
   "reason": "A boot-scoped ADB incident repeatedly emitted budget_exhausted while remaining in diagnosing, and the installed Tier-0 watchdog could disappear without a supervisor restarting it.",
   "files": [
@@ -47,6 +47,14 @@
     "reason": "Uses the existing Incident Orchestrator state translator, Root Guardian and Tier-0 watchdog; no new owner, daemon, scheduler, database or route."
   },
   "rollback": "Revert the maintenance commit and promote the previous immutable Tier-0 runtime release.",
+  "runtime": {
+    "release_id": "20261005T015457-d3beb769",
+    "source_commit": "7ca54a60f893956e97470cedc0026080eacd01e9",
+    "soak_state": "stable",
+    "soak_bad_samples": 0,
+    "live_e2e": "Critical immune services healthy; RDC singleton healthy; Claw Live IMMUNE RUN CURRENT; ADB diagnosis loop stable with no new events; zero active incidents.",
+    "acceptance_note": "The first package with 30-second startup grace rolled back safely on transient Remote Desktop convergence. The exact same source commit passed with 90-second startup grace."
+  },
   "limitations": [
     "Does not eliminate legitimate scheduler attention caused by a business job that is still rate-limited.",
     "Does not change model quotas or provider policy."
