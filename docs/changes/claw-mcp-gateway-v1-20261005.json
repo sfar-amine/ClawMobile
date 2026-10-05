@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Generic Claw MCP V1 is source-ready after current-head integration and non-regression; Claude remains the first live client.",
-  "reason": "The earlier external write boundary is resolved. Current Claude Pro/Max connector documentation supports fixed request headers, so V1 uses per-client bearer auth and the existing outbound relay without adding OAuth or a provider-specific subsystem.",
+  "reason": "The earlier external write boundary is resolved. Current Claude Pro/Max connector documentation supports fixed request headers, so V1 uses per-client fixed-header authentication and the existing outbound relay without adding OAuth or a provider-specific subsystem.",
   "files": [
     "cloud/voice-relay/.gitignore",
     "cloud/voice-relay/package-lock.json",
@@ -64,7 +64,7 @@
       "status": "passed",
       "evidence": {
         "tools": 5,
-        "auth": "per-client bearer hash",
+        "auth": "per-client fixed-credential hash",
         "exit_code": 0
       }
     },
