@@ -65,6 +65,8 @@ export class ClawLiveWarmCore {
   private resumedLast=false;
   private reconnectAttempts=0;
   private stopped=false;
+  private connectionGeneration=0;
+  private pendingConnects=new Set<()=>void>();
 
   constructor(deps:WarmDeps={}) {
     this.tokenFactory=deps.tokenFactory||((options)=>createClawLiveToken(fetch,undefined,options) as Promise<TokenBundle>);
@@ -130,6 +132,9 @@ export class ClawLiveWarmCore {
   }
 
   private async ensureConversation(meta:LocalMeta){
+    if(this.stopped)throw new Error("warm_connect_cancelled");
+    // Lifecycle prewarm must not unbind an active conversation.
+    if(meta.sessionId==="__prewarm__"&&this.conversationId)meta={...meta,sessionId:this.conversationId};
     const unbound=this.conversationId==="__prewarm__";
     const changed=this.conversationId&&!unbound&&this.conversationId!==meta.sessionId;
     if(changed)this.resetProvider("conversation_changed");
@@ -137,8 +142,11 @@ export class ClawLiveWarmCore {
     this.locale=meta.locale;this.client=meta.client;
     if(this.providerReady)return;
     if(this.connectPromise)return this.connectPromise;
-    this.connectPromise=this.connectForeground().finally(()=>{this.connectPromise=null;});
-    return this.connectPromise;
+    if(this.reconnectTimer)clearTimeout(this.reconnectTimer);this.reconnectTimer=null;
+    const generation=this.connectionGeneration;
+    const pending=this.connectForeground(3,generation).finally(()=>{if(this.connectPromise===pending)this.connectPromise=null;});
+    this.connectPromise=pending;
+    return pending;
   }
 
   private delayForRetry(attempt:number){
@@ -148,15 +156,16 @@ export class ClawLiveWarmCore {
   }
 
   /** Foreground Voice gets a bounded fast retry window; pre-roll keeps microphone capture lossless in RAM meanwhile. */
-  private async connectForeground(maxAttempts=3):Promise<void>{
+  private async connectForeground(maxAttempts=3,generation=this.connectionGeneration):Promise<void>{
     let last:any=new Error("gemini_live_connect_failed");
     for(let attempt=0;attempt<maxAttempts;attempt++){
       try{
-        await this.connectProvider(this.hasValidResumeHandle());
+        if(this.stopped||generation!==this.connectionGeneration)throw new Error("warm_connect_cancelled");
+        await this.connectProvider(this.hasValidResumeHandle(),generation);
         return;
       }catch(error:any){
         last=error;
-        if(this.stopped)throw error;
+        if(this.stopped||generation!==this.connectionGeneration)throw error;
         if(attempt+1>=maxAttempts)break;
         this.state="reconnecting";this.stage="backoff";
         await this.delayForRetry(attempt);
@@ -165,13 +174,22 @@ export class ClawLiveWarmCore {
     throw last;
   }
 
-  private async connectProvider(resume:boolean):Promise<void>{
+  private async connectProvider(resume:boolean,generation=this.connectionGeneration):Promise<void>{
+    if(this.stopped||generation!==this.connectionGeneration)throw new Error("warm_connect_cancelled");
+    let cancel!:()=>void;
+    const cancelled=new Promise<void>((_resolve,reject)=>{cancel=()=>reject(new Error("warm_connect_cancelled"));});
+    this.pendingConnects.add(cancel);
+    try{await Promise.race([this.connectProviderAttempt(resume,generation),cancelled]);}
+    finally{this.pendingConnects.delete(cancel);}
+  }
+
+  private async connectProviderAttempt(resume:boolean,generation:number):Promise<void>{
     this.state=resume?"reconnecting":"connecting";this.stage="token";this.lastError="";this.connectStartedAt=this.now();
     let bundle:TokenBundle;
     try{
       bundle=await this.tokenFactory({locale:this.locale,client:"samantha_android"});
-    }catch(e:any){this.failStage("token",e);throw e;}
-    if(this.stopped)return;
+    }catch(e:any){if(generation===this.connectionGeneration&&!this.stopped)this.failStage("token",e);throw e;}
+    if(this.stopped||generation!==this.connectionGeneration)throw new Error("warm_connect_cancelled");
     const setup=JSON.parse(JSON.stringify(bundle.setup||{}));
     setup.sessionResumption=resume&&this.resumeHandle?{handle:this.resumeHandle}:{};
     setup.contextWindowCompression={slidingWindow:{}};
@@ -185,7 +203,7 @@ export class ClawLiveWarmCore {
         this.failStage(stage,error);try{ws.close();}catch{};reject(error instanceof Error?error:new Error(String(error)));
       };
       this.setupTimer=setTimeout(()=>fail("setup_timeout",new Error("gemini_live_setup_timeout")),SETUP_TIMEOUT_MS).unref();
-      ws.on("open",()=>{opened=true;this.connectedAt=this.now();this.stage="setup";ws.send(JSON.stringify({setup}));});
+      ws.on("open",()=>{if(this.provider!==ws||generation!==this.connectionGeneration)return;opened=true;this.connectedAt=this.now();this.stage="setup";ws.send(JSON.stringify({setup}));});
       ws.on("error",(e)=>{if(this.provider!==ws)return;if(!this.providerReady)fail(opened?"websocket":"connect",e);});
       ws.on("message",(data)=>{
         if(this.provider!==ws)return;
@@ -214,7 +232,8 @@ export class ClawLiveWarmCore {
         if(this.localClients.size>0||this.now()-this.lastUsedAt<this.idleMs)this.scheduleReconnect();else this.state="cold";
       });
     }).catch(async(e)=>{
-      if(resume&&this.resumeHandle){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;return this.connectProvider(false);}
+      if(this.stopped||generation!==this.connectionGeneration)throw e;
+      if(resume&&this.resumeHandle){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;return this.connectProvider(false,generation);}
       throw e;
     });
   }
@@ -238,11 +257,18 @@ export class ClawLiveWarmCore {
     const delay=Math.max(0,this.retryDelay(this.reconnectAttempts++));
     this.reconnectTimer=setTimeout(()=>{
       this.reconnectTimer=null;
-      void this.connectProvider(this.hasValidResumeHandle()).catch(()=>this.scheduleReconnect());
+      if(this.connectPromise)return;
+      const generation=this.connectionGeneration;
+      const pending=this.connectProvider(this.hasValidResumeHandle(),generation).finally(()=>{if(this.connectPromise===pending)this.connectPromise=null;});
+      this.connectPromise=pending;
+      void pending.catch(()=>{if(generation===this.connectionGeneration&&!this.stopped)this.scheduleReconnect();});
     },delay);
     this.reconnectTimer.unref();
   }
   private resetProvider(_reason:string,preserveResume=false){
+    this.connectionGeneration++;
+    for(const cancel of this.pendingConnects)cancel();
+    this.pendingConnects.clear();this.connectPromise=null;
     if(this.reconnectTimer)clearTimeout(this.reconnectTimer);this.reconnectTimer=null;if(this.setupTimer)clearTimeout(this.setupTimer);this.setupTimer=null;
     const p=this.provider;this.provider=null;this.providerReady=false;
     if(!preserveResume){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;this.conversationId="";}

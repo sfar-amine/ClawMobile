@@ -1,8 +1,15 @@
 # OpenAI → Google Free provider fallback
 
-## Runtime contract
+## Native Samantha route — 6 October 2026
 
-The normal `main` agent remains unchanged:
+The main agent now uses the native chain Sol → Luna → Gemini Free, with the named `google:claw-gemini-free` profile. The scoped config patch and verified canary are documented in `../changes/samantha-native-fallback-warm-20261006.md`. The primary model, other agents and credentials remain unchanged. Native session history and execution/refusal semantics remain owned by OpenClaw.
+
+The WhatsApp-only answer recovery described below remains a legacy guard; it must not make a second Google attempt after native fallback or process a terminal policy refusal.
+
+
+## Legacy answer-only recovery contract
+
+Before the native route correction, the main agent used only:
 
 1. `openai/gpt-5.6-sol`
 2. `openai/gpt-5.6-luna`

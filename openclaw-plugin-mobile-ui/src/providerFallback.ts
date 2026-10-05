@@ -10,6 +10,8 @@ type TurnState = {
   createdAt: number;
   toolCalled: boolean;
   openAiFailure: boolean;
+  googleAttempted: boolean;
+  terminalRefusal: boolean;
 };
 
 type GeminiResult = {
@@ -58,8 +60,12 @@ export function isEligibleTrustedWhatsApp(ctx: any, cfg: any): boolean {
   return Boolean(peer && allowedWhatsAppPeers(cfg).has(peer));
 }
 
+export function isTerminalProviderRefusal(content: unknown): boolean {
+  return typeof content === "string" && /safety_refusal|policy_refusal|provider_policy_violation|content_policy_violation|safety policy|policy violation/i.test(content);
+}
+
 export function isOpenAiTerminalError(content: unknown): boolean {
-  if (typeof content !== "string") return false;
+  if (typeof content !== "string" || isTerminalProviderRefusal(content)) return false;
   const text = content.toLowerCase();
   return (
     text.includes("provider openai is in cooldown") ||
@@ -172,11 +178,15 @@ export function createProviderFallbackCoordinator(
         createdAt: Date.now(),
         toolCalled: false,
         openAiFailure: false,
+        googleAttempted: false,
+        terminalRefusal: false,
       });
     },
 
     modelCallEnded(event: any, ctx: any) {
       const state = turns.get(stateKey(ctx, event));
+      if(state && String(event?.provider || "").toLowerCase()==="google")state.googleAttempted=true;
+      if(state && isTerminalProviderRefusal(JSON.stringify({outcome:event?.outcome,error:event?.error})))state.terminalRefusal=true;
       if (
         state &&
         String(event?.provider || "").toLowerCase() === "openai" &&
@@ -207,7 +217,8 @@ export function createProviderFallbackCoordinator(
       if (!state) return;
 
       const body = String(event?.cleanedBody || "");
-      if (!isOpenAiTerminalError(body)) {
+      // Native main fallback now already includes Google: never call it twice.
+      if (state.googleAttempted || state.terminalRefusal || /all models failed[\s\S]*google\//i.test(body) || !isOpenAiTerminalError(body)) {
         turns.delete(key);
         return;
       }

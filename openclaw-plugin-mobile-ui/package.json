@@ -26,7 +26,9 @@
     "test:provider-fallback": "node scripts/test-provider-fallback.cjs",
     "test:claw-live-warm": "node scripts/test-claw-live-warm.cjs",
     "test:clictopay-provider-adapter": "node scripts/test-clictopay-provider-adapter.cjs",
-    "test:payment-handoff": "node scripts/test-payment-handoff.cjs"
+    "test:payment-handoff": "node scripts/test-payment-handoff.cjs",
+    "test:samantha-provider-fallback": "node scripts/test-samantha-provider-fallback.cjs",
+    "test:claw-live-warm-cancellation": "node scripts/test-claw-live-warm-cancellation.cjs"
   },
   "dependencies": {
     "nostr-tools": "^2.23.5",

@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "samantha-native-fallback-warm-20261006",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Repair native Samantha fallback coverage and cancellable Warm Core connection lifecycle.",
+  "reason": "Owner-requested UX closure uncovered a missing native Gemini fallback and an independently reproduced unresolved prewarm promise.",
+  "files": [
+    "openclaw-plugin-mobile-ui/package.json",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/providerFallback.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-claw-live-warm-cancellation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-samantha-provider-fallback.cjs",
+    "docs/runtime/config/samantha-provider-fallback.json",
+    "docs/runtime/provider-fallback.md",
+    "docs/changes/samantha-native-fallback-warm-20261006.md",
+    "docs/changes/samantha-native-fallback-warm-20261006.json"
+  ],
+  "merge_eligibility": "allowed",
+  "deployment_state": "applied",
+  "tests": [
+    {
+      "name": "runtime_regression",
+      "status": "passed",
+      "evidence": "runtime-regression.log: plugin build; provider, native policy, Warm original and cancellation, Claw Live, Companion runs and MCP tests pass; Gemini wrapper 19 tests pass."
+    },
+    {
+      "name": "native_fallback_canary",
+      "status": "passed",
+      "evidence": "run_1791242547526_3605dba9: Google Gemini 3.5 Flash Lite configured fallback succeeds at position3 after Sol cooldown and Luna429; exact marker and zero reported cost."
+    },
+    {
+      "name": "config_validation",
+      "status": "passed",
+      "evidence": "openclaw config patch --dry-run --json: schema and reference resolvability true, two scoped operations."
+    }
+  ],
+  "documentation": [
+    "docs/changes/samantha-native-fallback-warm-20261006.md",
+    "docs/runtime/provider-fallback.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Repairs existing inference.model_efficiency and samantha.android.ui_dev integration; no new public capability. Canonical registry evidence is updated separately in ui-playbooks."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Native OpenClaw owns fallback; existing Warm Core owns cancellation/retry; no parallel store, daemon or router."
+  },
+  "runtime_reservations": [
+    "Native config is applied and live-verified; Warm code still awaits activation and physical acceptance."
+  ],
+  "rollback": "Apply the privately recorded two-array config rollback, or revert only this source commit after checking concurrent changes; never reset shared worktrees or replay requests."
+}
