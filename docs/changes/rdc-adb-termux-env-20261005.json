@@ -50,9 +50,8 @@
   },
   "rollback": "Pre-state was verified as no ~/.bash_profile, ~/.bash_login or ~/.profile. If the generated ~/.bash_profile is still only the managed bootstrap block, remove it; otherwise remove only that managed block. Then revert the source commit and promote the prior Tier-0 Last Known Good release.",
   "runtime": {
-    "release_id": "20261005T094153-d3beb769",
-    "source_commit": "9011d1319a6dc33c3794b7c2b42d72f312ab1e89",
-    "source_fix_commit": "2a0a546",
+    "release_id": "20261005T100412-d3beb769",
+    "source_commit": "2a0a5462647652085142973e71eacf6217efbcc7",
     "soak_state": "stable",
     "soak_bad_samples": 0,
     "rdc_pid": 21434,

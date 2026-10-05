@@ -34,8 +34,8 @@ The verified pre-state had no `~/.bash_profile`, `~/.bash_login`, or `~/.profile
 
 ## Live acceptance
 
-- Runtime release source commit: `9011d1319a6dc33c3794b7c2b42d72f312ab1e89`; durable installer/profile fix published in `2a0a546`.
-- Runtime release: `20261005T094153-d3beb769`; Tier-0 soak completed `stable` with 0 bad samples and the release is both current and Last Known Good.
+- Final source commit: `2a0a5462647652085142973e71eacf6217efbcc7`, including the canonical `SHELL=$PREFIX/bin/bash` environment invariant.
+- Final runtime release: `20261005T100412-d3beb769`; Tier-0 soak completed `stable` with 0 bad samples and the release is both current and Last Known Good.
 - Core supervisor environment was normalized once after the earlier rolled-back wrapper experiment: Root Guardian, Health Manager and the RDC watchdog now inherit `SHELL=/data/data/com.termux/files/usr/bin/bash`.
 - Stale RDC parent PID `13362` was stopped through the existing controller and replaced by PID `21434`.
 - The replacement parent has canonical `SHELL`, `PREFIX`, `TMPDIR`, `TMP` and `TEMP`; a fresh RDC `start_process` and a nested real `bash -l -c` expose the same values.
