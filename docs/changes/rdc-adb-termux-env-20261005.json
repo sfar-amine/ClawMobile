@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "rdc-adb-termux-env-20261005",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Pin the managed RDC process to the private Termux temporary directory so ADB can restart independently of the remote caller environment.",
+  "reason": "RDC remained healthy while a raw ADB command could not restart a missing ADB server because the remote shell fell back to an unwritable global temporary path.",
+  "files": [
+    "installer/termux-lite/remote-desktop-control.py",
+    "installer/termux-lite/test-remote-desktop-watchdog.py",
+    "installer/termux-lite/README.md",
+    "docs/changes/rdc-adb-termux-env-20261005.md",
+    "docs/changes/rdc-adb-termux-env-20261005.json"
+  ],
+  "tests": [
+    {
+      "name": "remote-desktop-watchdog",
+      "status": "passed",
+      "evidence": "test-remote-desktop-watchdog.py passed 16 tests including private temporary-directory environment inheritance."
+    },
+    {
+      "name": "remote-desktop-health",
+      "status": "passed",
+      "evidence": "test-remote-desktop-health.mjs passed 9 remote/local health assertions."
+    },
+    {
+      "name": "tier0-control",
+      "status": "passed",
+      "evidence": "test-tier0-control.py passed 13 tests."
+    }
+  ],
+  "documentation": [
+    "installer/termux-lite/README.md",
+    "docs/changes/rdc-adb-termux-env-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Restores reliable execution for the existing remote_desktop and device.adb capabilities without changing scope, entrypoints or health semantics."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Uses the existing RDC controller and Tier-0 release owner; no new daemon, scheduler, database, router or source of truth."
+  },
+  "rollback": "Revert the source commit and promote the prior immutable Tier-0 last-known-good release.",
+  "limitations": [
+    "The change governs processes spawned through managed RDC; unrelated unmanaged shells retain their own environment.",
+    "No Android payment activity or banking journey is modified.",
+    "No live payment is executed by this maintenance change."
+  ]
+}

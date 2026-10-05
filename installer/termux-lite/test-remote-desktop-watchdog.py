@@ -68,6 +68,12 @@ class RepairTests(unittest.TestCase):
         self.assertEqual(sum(a.startswith('--import=') for a in args),1)
         self.assertNotIn('--import',args)
         self.assertTrue(popen.call_args.kwargs['close_fds'])
+        expected=str(self.c.home/'.cache/tmp')
+        env=popen.call_args.kwargs['env']
+        self.assertEqual(env['TMPDIR'],expected)
+        self.assertEqual(env['TMP'],expected)
+        self.assertEqual(env['TEMP'],expected)
+        self.assertTrue((self.c.home/'.cache/tmp').is_dir())
     def test_verified_recovery_does_not_replay_restart(self):
         with patch.object(self.c,'probe',return_value={'state':'healthy'}),patch.object(self.c,'launch') as launch:
             self.assertEqual(self.c.repair()['mutation'],'none_already_healthy');launch.assert_not_called()

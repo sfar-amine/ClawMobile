@@ -141,6 +141,8 @@ backend states, and booleans such as `local_shell`, `termux_api`, `ui_input`,
 `ui_observe`, `screenshot`, `android_shell`, `local_ocr`, `ocr`, and
 `screen_ocr`.
 
+Managed Remote Desktop Commander processes pin `TMPDIR`, `TMP`, and `TEMP` to the private S24 cache under `~/.cache/tmp`. This keeps ADB server restart behavior independent from the environment of the remote caller and avoids fallback to an unwritable global `/tmp`.
+
 ## Android Companion Server
 
 The native Android companion app talks to a small local HTTP facade running in

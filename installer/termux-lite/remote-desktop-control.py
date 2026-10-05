@@ -107,10 +107,14 @@ class Controller:
         if log.exists() and log.stat().st_size > 4194304:
             with log.open('rb') as f: f.seek(-1048576, 2); tail = f.read()
             log.write_bytes(tail)
+        tmp = self.home/'.cache/tmp'
+        tmp.mkdir(parents=True, exist_ok=True, mode=0o700)
+        env = os.environ.copy()
+        env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
         with log.open('ab') as out:
             subprocess.Popen([str(self.home/'.openclaw-android/bin/node'),
                 '--import='+str(self.root/'remote-desktop-health.mjs'), SCRIPT, 'remote'], cwd=self.home,
-                stdin=subprocess.DEVNULL, stdout=out, stderr=out, close_fds=True, start_new_session=True)
+                stdin=subprocess.DEVNULL, stdout=out, stderr=out, close_fds=True, start_new_session=True, env=env)
     def wait_ready(self):
         deadline = time.monotonic()+self.readiness; passed = 0
         while time.monotonic() < deadline:
