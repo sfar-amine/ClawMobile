@@ -33,26 +33,26 @@ class ReadinessTests(unittest.TestCase):
         self.assertEqual(row["state"], "unverified")
         self.assertEqual(row["reason"], "canonical_adb_unavailable")
 
-    def test_wireless_disabled_is_degraded_without_discovery(self):
+    def test_wireless_disabled_is_standby_without_discovery(self):
         with patch.object(arr, "canonical_status", return_value=("device", "SERIAL1", True)), \
              patch.object(arr, "wifi_enabled", return_value=True), \
              patch.object(arr, "wireless_setting", return_value="0"), \
              patch.object(arr, "discover_endpoints") as discover:
             row = arr.probe(persist=False)
-        self.assertEqual(row["state"], "degraded")
-        self.assertEqual(row["reason"], "wireless_debugging_disabled")
-        self.assertTrue(row["requires_owner_action"])
+        self.assertEqual(row["state"], "standby")
+        self.assertEqual(row["reason"], "wireless_debugging_disabled_primary_healthy")
+        self.assertFalse(row["requires_owner_action"])
         discover.assert_not_called()
 
-    def test_wifi_off_is_degraded_and_requires_bounded_recovery(self):
+    def test_wifi_off_is_standby_while_primary_is_healthy(self):
         with patch.object(arr, "canonical_status", return_value=("device", "SERIAL1", True)), \
              patch.object(arr, "wifi_enabled", return_value=False), \
              patch.object(arr, "wireless_setting", return_value="0"), \
              patch.object(arr, "discover_endpoints") as discover:
             row = arr.probe(persist=False)
-        self.assertEqual(row["state"], "degraded")
+        self.assertEqual(row["state"], "standby")
         self.assertEqual(row["reason"], "wifi_disabled_recovery_standby")
-        self.assertTrue(row["requires_owner_action"])
+        self.assertFalse(row["requires_owner_action"])
         discover.assert_not_called()
 
     def test_verified_dynamic_endpoint_is_ready_and_persisted(self):
@@ -66,14 +66,15 @@ class ReadinessTests(unittest.TestCase):
         self.assertEqual(arr.LAST_ENDPOINT.read_text(), "10.0.0.2:37123")
         self.assertTrue(arr.RECEIPT.exists())
 
-    def test_enabled_but_missing_endpoint_is_degraded(self):
+    def test_enabled_but_missing_endpoint_is_standby_while_primary_is_healthy(self):
         with patch.object(arr, "canonical_status", return_value=("device", "SERIAL1", True)), \
              patch.object(arr, "wifi_enabled", return_value=True), \
              patch.object(arr, "wireless_setting", return_value="1"), \
              patch.object(arr, "discover_endpoints", return_value=[]):
             row = arr.probe(persist=False)
-        self.assertEqual(row["state"], "degraded")
-        self.assertEqual(row["reason"], "wireless_endpoint_not_discoverable")
+        self.assertEqual(row["state"], "standby")
+        self.assertEqual(row["reason"], "wireless_endpoint_not_discoverable_primary_healthy")
+        self.assertFalse(row["requires_owner_action"])
 
     def test_unknown_setting_without_endpoint_is_unverified(self):
         with patch.object(arr, "canonical_status", return_value=("device", "SERIAL1", True)), \

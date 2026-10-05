@@ -110,9 +110,13 @@ def probe(discover_timeout=2.0, persist=True):
     if setting == "0":
         row = {
             **base,
-            "state": "degraded",
-            "reason": "wifi_disabled_recovery_standby" if wifi is False else "wireless_debugging_disabled",
-            "requires_owner_action": True,
+            "state": "standby",
+            "reason": (
+                "wifi_disabled_recovery_standby"
+                if wifi is False
+                else "wireless_debugging_disabled_primary_healthy"
+            ),
+            "requires_owner_action": False,
         }
         if persist:
             write_receipt(row)
@@ -135,9 +139,9 @@ def probe(discover_timeout=2.0, persist=True):
     if setting == "1":
         row = {
             **base,
-            "state": "degraded",
-            "reason": "wireless_endpoint_not_discoverable",
-            "requires_owner_action": True,
+            "state": "standby",
+            "reason": "wireless_endpoint_not_discoverable_primary_healthy",
+            "requires_owner_action": False,
         }
     else:
         row = {**base, "state": "unverified", "reason": "wireless_state_unobservable"}
@@ -154,7 +158,7 @@ def main():
     row = probe(args.discover_timeout, persist=not args.no_write)
     if args.json:
         print(json.dumps(row, sort_keys=True))
-    raise SystemExit(0 if row["state"] == "ready" else 2)
+    raise SystemExit(0 if row["state"] in {"ready", "standby"} else 2)
 
 if __name__ == "__main__":
     main()

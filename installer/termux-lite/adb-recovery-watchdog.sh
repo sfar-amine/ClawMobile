@@ -79,6 +79,13 @@ readiness_recover_incident(){
   rm -f "$READINESS_NOTIFY"
 }
 
+readiness_enter_standby(){
+  reason="$1"
+  "$HOME_DIR/ClawMobile/installer/termux-lite/incident-orchestrator.py" recover device.adb.recovery_readiness runtime     --source adb-recovery-watchdog --reason "Primary ADB healthy; Wireless Debugging recovery path is advisory standby ($reason)" >/dev/null 2>&1 || true
+  rm -f "$READINESS_NOTIFY"
+  log INFO readiness standby "primary ADB healthy; recovery path advisory reason=$reason"
+}
+
 readiness_tick(){
   [ -x "$READINESS_HELPER" ] || return 0
   row="$("$READINESS_HELPER" --json --discover-timeout "$READINESS_DISCOVER_TIMEOUT" 9>&- 2>/dev/null || true)"
@@ -96,7 +103,20 @@ readiness_tick(){
       printf 0 >"$READINESS_FAILURES"
       printf ready >"$READINESS_STATE"
       ;;
+    standby)
+      [ "$previous" = standby ] || readiness_enter_standby "$reason"
+      printf 0 >"$READINESS_FAILURES"
+      printf standby >"$READINESS_STATE"
+      ;;
     degraded)
+      case "$reason" in
+        wireless_debugging_disabled|wireless_debugging_disabled_primary_healthy|wireless_endpoint_not_discoverable|wireless_endpoint_not_discoverable_primary_healthy|wifi_disabled_recovery_standby)
+          [ "$previous" = standby ] || readiness_enter_standby "$reason"
+          printf 0 >"$READINESS_FAILURES"
+          printf standby >"$READINESS_STATE"
+          return 0
+          ;;
+      esac
       printf degraded >"$READINESS_STATE"
       if [ "$requires_owner" = true ]; then
         if readiness_try_repair "$reason"; then

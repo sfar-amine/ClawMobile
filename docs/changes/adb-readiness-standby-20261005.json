@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "id": "adb-readiness-standby-20261005",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Represent unavailable Wireless Debugging as non-critical standby while canonical ADB is healthy, with zero readiness retry/human escalation.",
+  "reason": "Samsung repeatedly resets adb_wifi_enabled while canonical 127.0.0.1:5556 remains healthy; proactive recovery readiness must not behave like a current service failure.",
+  "files": [
+    "installer/termux-lite/adb-recovery-readiness.py",
+    "installer/termux-lite/adb-recovery-watchdog.sh",
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/test-adb-recovery-readiness.py",
+    "installer/termux-lite/test-adb-recovery-readiness-watchdog.sh",
+    "installer/termux-lite/test-health-verdict.py",
+    "docs/adb-recovery-readiness.md",
+    "docs/changes/adb-readiness-standby-20261005.md",
+    "docs/changes/adb-readiness-standby-20261005.json"
+  ],
+  "tests": [
+    {
+      "name": "adb-readiness-targeted",
+      "status": "passed",
+      "evidence": "test-adb-recovery-readiness.py, test-adb-recovery-readiness-watchdog.sh and test-health-verdict.py pass on the isolated candidate."
+    },
+    {
+      "name": "live-standby-acceptance",
+      "status": "pending",
+      "evidence": "Pending immutable release deployment and live receipt verification."
+    }
+  ],
+  "documentation": [
+    "docs/adb-recovery-readiness.md",
+    "docs/changes/adb-readiness-standby-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": ["device.adb.recovery_readiness"],
+    "reason": "Existing readiness semantics change from proactive degraded/hysteresis behavior to explicit non-critical standby while primary ADB is healthy."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Uses the existing readiness helper, ADB watchdog, Incident Orchestrator and health verdict; no new owner or control plane."
+  },
+  "rollback": "Promote the prior Tier-0 LKG and revert this source commit.",
+  "limitations": [
+    "Standby does not claim that future Wireless Debugging recovery will succeed.",
+    "Actual canonical ADB loss still depends on the existing bounded recovery path and may require owner action after deterministic exhaustion."
+  ]
+}

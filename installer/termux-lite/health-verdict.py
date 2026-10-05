@@ -41,7 +41,7 @@ def adb_recovery_readiness(path):
  try:
   row=json.loads(path.read_text()); fresh=NOW-float(row.get('checked_at',0)); state=row.get('state','unverified')
   if fresh>180:return 'stale','readiness_receipt_stale',fresh
-  if state not in ('ready','degraded','unverified'):return 'unverified','invalid_readiness_state',fresh
+  if state not in ('ready','standby','degraded','unverified'):return 'unverified','invalid_readiness_state',fresh
   return state,row.get('reason') or 'readiness_probe',fresh
  except (OSError,ValueError,TypeError):
   return 'unverified','readiness_receipt_absent_or_invalid',None

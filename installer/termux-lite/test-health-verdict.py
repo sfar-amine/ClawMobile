@@ -18,6 +18,12 @@ class T(unittest.TestCase):
    path.write_text(json.dumps({'checked_at':time.time(),'state':'degraded','reason':'wireless_debugging_disabled'}))
    state,reason,fresh=hv.adb_recovery_readiness(path)
    self.assertEqual(state,'degraded');self.assertEqual(reason,'wireless_debugging_disabled');self.assertLess(fresh,5)
+ def test_adb_recovery_readiness_standby_receipt(self):
+  with tempfile.TemporaryDirectory() as td:
+   path=Path(td)/'ready.json'
+   path.write_text(json.dumps({'checked_at':time.time(),'state':'standby','reason':'wireless_debugging_disabled_primary_healthy'}))
+   state,reason,fresh=hv.adb_recovery_readiness(path)
+   self.assertEqual(state,'standby');self.assertEqual(reason,'wireless_debugging_disabled_primary_healthy');self.assertLess(fresh,5)
  def test_adb_recovery_readiness_stale(self):
   with tempfile.TemporaryDirectory() as td:
    path=Path(td)/'ready.json'
@@ -41,7 +47,7 @@ class T(unittest.TestCase):
  def test_noncritical_advisory_does_not_degrade_overall(self):
   old_live,old_inc,old_cont,old_maint=hv.live,hv.incidents,hv.continuations,hv.maintenance_view
   try:
-   hv.live=lambda:{'device.adb':hv.item('healthy',True),'device.adb.recovery_readiness':hv.item('degraded',False,reason='wifi_disabled_recovery_standby')}
+   hv.live=lambda:{'device.adb':hv.item('healthy',True),'device.adb.recovery_readiness':hv.item('standby',False,reason='wireless_debugging_disabled_primary_healthy')}
    hv.incidents=lambda caps=None:([],[],[]);hv.continuations=lambda:{'blocked':0,'resuming':0,'stuck':0,'details':[]}
    hv.maintenance_view=lambda:{'state':'observed','semantic_state':'healthy','checked_at':hv.NOW,'task_health':{}}
    out=hv.build();self.assertEqual(out['overall'],'healthy');self.assertEqual(out['summary']['noncritical_advisories'],1)

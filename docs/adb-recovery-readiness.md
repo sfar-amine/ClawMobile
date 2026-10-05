@@ -25,25 +25,27 @@ A verified endpoint is stored as `~/.openclaw/watchdogs/adb-last-endpoint`. The 
 ## States and notification
 
 - `ready`: a trusted Wireless Debugging endpoint is discoverable and verified;
-- `degraded`: the recovery path is not ready. When Wi-Fi itself is disabled, the reason is `wifi_disabled_recovery_standby` and the state is advisory only (`requires_owner_action=false`). When Wi-Fi is available but Wireless Debugging is disabled or no trusted endpoint is discoverable, owner action may be required;
+- `standby`: canonical ADB is healthy, but the future Wireless Debugging recovery path is not currently armed or discoverable. This is a non-critical advisory, `requires_owner_action=false`, and the readiness failure counter is reset;
+- `degraded`: reserved for an actual readiness fault that is not one of the known primary-healthy standby conditions;
 - `unverified`: canonical ADB is unavailable or the Wireless Debugging state cannot be observed.
-Only degraded probes with `requires_owner_action=true` count toward the three-probe owner-notification threshold. Advisory standby while Wi-Fi is intentionally off resets the failure counter and never queues an owner notification. Recovery to `ready` queues one confirmation and clears the dedup marker. Unverified probes do not request physical intervention.
 
-The existing ADB incident path remains fail-closed for `HUMAN_REQUIRED` when canonical ADB is already lost.
+While canonical ADB is healthy, `wireless_debugging_disabled`, Wi-Fi-off standby, and a missing dynamic Wireless endpoint all normalize to `standby`. The watchdog does not toggle Wireless Debugging, increment readiness failures, or open `human_required` for those states. A stale readiness-specific incident is recovered/superseded when the primary path is independently healthy.
+
+The existing primary ADB recovery loop remains fail-closed: only after canonical ADB is actually lost and the bounded deterministic recovery attempts are exhausted can the existing ADB incident reach `HUMAN_REQUIRED`.
 
 ## Health semantics
 
-`health-verdict.py` publishes `device.adb.recovery_readiness` separately from `device.adb`. The readiness dimension is non-critical for immediate control. A non-critical degraded/stale/unverified readiness state remains visible as an advisory but does not, by itself, downgrade the global operational verdict. Critical capability failures, active incidents and stuck continuations still govern the global verdict.
+`health-verdict.py` publishes `device.adb.recovery_readiness` separately from `device.adb`. The readiness dimension is non-critical for immediate control. `standby` is accepted as an explicit advisory state and does not, by itself, downgrade the global operational verdict. `degraded`, `stale` and `unverified` remain available for genuine readiness uncertainty/failure. Critical capability failures, active incidents and stuck continuations still govern the global verdict.
 
 ## Validation
 
-Deterministic coverage includes canonical-down, Wireless Debugging disabled, verified dynamic endpoint, missing dynamic endpoint, stale receipt, three-failure notification deduplication, and recovery confirmation.
+Deterministic coverage includes canonical-down, primary-healthy Wireless Debugging standby, verified dynamic endpoint, primary-healthy missing endpoint standby, stale receipt, backward compatibility for historical degraded advisory receipts, stale readiness-incident supersession, and recovery confirmation.
 
-Live acceptance requires:
-- canonical ADB identity verified;
-- Wireless Debugging enabled;
-- a dynamic endpoint discovered and serial-verified;
-- controlled OFF/ON validation that preserves canonical ADB and restores the original Wireless Debugging state.
+Live acceptance distinguishes two valid conditions:
+- **standby acceptance**: canonical ADB identity is verified, Wireless Debugging is unavailable/disabled, the receipt is `standby`, the readiness failure counter is zero, and no readiness `human_required` incident is active;
+- **ready acceptance**: canonical ADB identity is verified and a dynamic Wireless Debugging endpoint is discovered and serial-verified.
+
+A destructive OFF/ON cycle is not required to prove standby semantics. Actual primary-ADB loss continues to be validated separately by the bounded recovery/exhaustion tests.
 
 ## Rollback
 

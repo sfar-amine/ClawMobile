@@ -46,33 +46,30 @@ EOF
  chmod +x "$H/ClawMobile/installer/termux-lite/$x"
 done
 
-cat >"$H/fake-readiness-auto" <<EOF
+cat >"$H/fake-readiness-standby" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
-C="$T/auto-count"
-n=\$(cat "\$C" 2>/dev/null || echo 0); n=\$((n+1)); echo "\$n" >"\$C"
-if [ "\$n" -eq 1 ]; then
- echo '{"state":"degraded","reason":"wifi_disabled_recovery_standby","requires_owner_action":true}'
-else
- echo '{"state":"ready","reason":"trusted_wireless_endpoint_verified","requires_owner_action":false}'
-fi
+echo '{"state":"standby","reason":"wireless_debugging_disabled_primary_healthy","requires_owner_action":false}'
 EOF
-chmod +x "$H/fake-readiness-auto"
+chmod +x "$H/fake-readiness-standby"
 PATH="$T/bin:$PATH" \
 ADB_RECOVERY_HOME="$H" \
-ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-auto" \
+ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-standby" \
 ADB_RECOVERY_INTERVAL=0 \
 ADB_RECOVERY_READINESS_HELP_AFTER=2 \
 ADB_RECOVERY_MAX_LOOPS=1 \
 "$R/adb-recovery-watchdog.sh"
 
-grep -q 'shell svc wifi enable' "$T/adb-calls"
-grep -q 'settings put global adb_wifi_enabled 1' "$T/adb-calls"
-test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.state")" = ready
+test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.state")" = standby
 test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.failures")" = 0
+! grep -q 'shell svc wifi enable' "$T/adb-calls"
+! grep -q 'settings put global adb_wifi_enabled 1' "$T/adb-calls"
 test ! -e "$T/notifications"
+grep -q 'recover device.adb.recovery_readiness runtime' "$T/orchestrator"
+grep -q 'event=readiness result=standby' "$H/.openclaw/watchdogs/adb-recovery.log"
 
 rm -f "$T/notifications" "$T/orchestrator" "$T/closings"
-: >"$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
+printf ready >"$H/.openclaw/watchdogs/adb-recovery-readiness.state"
+printf 9 >"$H/.openclaw/watchdogs/adb-recovery-readiness.failures"
 printf up >"$H/.openclaw/watchdogs/adb-recovery.state"
 cat >"$H/fake-readiness-advisory" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -87,9 +84,25 @@ ADB_RECOVERY_READINESS_HELP_AFTER=2 \
 ADB_RECOVERY_MAX_LOOPS=3 \
 "$R/adb-recovery-watchdog.sh"
 test ! -e "$T/notifications"
-test ! -e "$T/orchestrator"
-test ! -s "$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
-grep -q 'event=readiness result=advisory' "$H/.openclaw/watchdogs/adb-recovery.log"
+test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.state")" = standby
+test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.failures")" = 0
+grep -q 'recover device.adb.recovery_readiness runtime' "$T/orchestrator"
+! grep -q 'human_required' "$T/orchestrator"
+
+# A historical readiness human-required marker is superseded silently when
+# primary ADB is healthy and recovery readiness is only standby.
+rm -f "$T/orchestrator" "$T/closings"
+printf inc-readiness >"$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
+printf degraded >"$H/.openclaw/watchdogs/adb-recovery-readiness.state"
+PATH="$T/bin:$PATH" \
+ADB_RECOVERY_HOME="$H" \
+ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-standby" \
+ADB_RECOVERY_INTERVAL=0 \
+ADB_RECOVERY_MAX_LOOPS=1 \
+"$R/adb-recovery-watchdog.sh"
+grep -q 'recover device.adb.recovery_readiness runtime' "$T/orchestrator"
+test ! -e "$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
+test ! -e "$T/closings"
 
 # A historical human-required readiness incident still closes once real readiness returns.
 printf inc-readiness >"$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
