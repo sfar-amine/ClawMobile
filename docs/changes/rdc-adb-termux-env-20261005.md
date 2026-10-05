@@ -24,4 +24,4 @@ Revert the source commit and promote the previous immutable Tier-0 last-known-go
 
 ## First candidate and rollback
 
-The first immutable candidate set the temporary variables only on the Remote parent. Live E2E proved that the MCP SDK filtered them before the local Desktop Commander child, so a real `start_process` still saw empty temporary variables. Tier-0 rollback restored the previous LKG before the candidate could become stable. The final candidate must prove the child command environment directly.
+The first immutable candidate set the temporary variables only on the Remote parent. Live E2E proved that the MCP SDK filtered them before the local Desktop Commander child, so a real `start_process` still saw empty temporary variables. Tier-0 rollback restored the previous LKG before the candidate could become stable. The final candidate must prove the child command environment directly. Canonical RDC health also treats a process whose inherited `SHELL` does not match the wrapper from the active immutable release as `runtime_environment_stale`, forcing bounded replacement instead of preserving a semantically stale but otherwise reachable process.

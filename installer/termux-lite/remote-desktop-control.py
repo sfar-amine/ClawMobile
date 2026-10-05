@@ -43,7 +43,22 @@ def health(home=None, proc=Path('/proc'), now=None):
     if len(rows) != 1:
         if rows: result.update(state='degraded', reason='duplicate_instances')
         return result
-    r = rows[0]; p = home/'.openclaw/watchdogs'/f"remote-desktop-{r['pid']}.json"
+    r = rows[0]
+    expected_shell = str(ROOT/'remote-desktop-bash')
+    if (ROOT/'remote-desktop-bash').exists():
+        try:
+            env = {}
+            for item in (proc/str(r['pid'])/'environ').read_bytes().split(b'\0'):
+                if b'=' in item:
+                    key, value = item.split(b'=', 1)
+                    if key == b'SHELL': env['SHELL'] = value.decode(errors='replace')
+            if env.get('SHELL') != expected_shell:
+                result.update(state='degraded', reason='runtime_environment_stale')
+                return result
+        except OSError:
+            result.update(state='unverified', reason='runtime_environment_unreadable')
+            return result
+    p = home/'.openclaw/watchdogs'/f"remote-desktop-{r['pid']}.json"
     try:
         d = json.loads(p.read_text()); age = now-float(d['checked_at'])
         boot = (proc/'sys/kernel/random/boot_id').read_text().strip()

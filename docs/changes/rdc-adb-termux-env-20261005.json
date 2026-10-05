@@ -5,8 +5,8 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Restore a minimal Termux environment at the managed RDC shell boundary so filtered child commands can restart ADB reliably.",
-  "reason": "A live RDC child command proved that the MCP SDK filters TMPDIR/PREFIX before spawning its local Desktop Commander server; raw ADB therefore fell back to an unwritable global temporary path when its server needed restart.",
+  "summary": "Restore a minimal Termux environment at the managed RDC shell boundary and reject stale RDC processes whose shell contract predates the active release.",
+  "reason": "Live activation showed two distinct failure modes: the MCP SDK filters TMPDIR/PREFIX before its local child, and the new supervisor can otherwise retain a healthy pre-release RDC process whose inherited shell contract is stale.",
   "files": [
     "installer/termux-lite/remote-desktop-control.py",
     "installer/termux-lite/remote-desktop-bash",
@@ -25,7 +25,7 @@
     {
       "name": "remote-desktop-watchdog",
       "status": "passed",
-      "evidence": "test-remote-desktop-watchdog.py passed 16/16 including the inherited SHELL wrapper contract."
+      "evidence": "test-remote-desktop-watchdog.py passes 17 tests including inherited SHELL wrapper and stale-runtime-environment detection."
     },
     {
       "name": "remote-desktop-health",
@@ -53,7 +53,7 @@
   },
   "rollback": "Revert the source commit and promote the prior immutable Tier-0 last-known-good release.",
   "limitations": [
-    "The first parent-only environment candidate was rolled back after live child-process acceptance failed; it did not become LKG.",
+    "Two pre-final candidates were rolled back after live acceptance exposed, respectively, SDK environment filtering and stale healthy-process retention; neither became LKG.",
     "The wrapper intentionally restores only a minimal secret-free Termux environment rather than sourcing user shell profiles.",
     "No Android payment activity or banking journey is modified.",
     "No live payment is executed by this maintenance change."

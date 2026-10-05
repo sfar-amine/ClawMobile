@@ -23,6 +23,7 @@ class HealthTests(unittest.TestCase):
         fields=['S','1']+['0']*17+['100']
         (p/'stat').write_text(str(pid)+' (node) '+' '.join(fields))
         (p/'cmdline').write_bytes(('node\0'+rdc.SCRIPT+'\0remote\0').encode())
+        (p/'environ').write_bytes(('SHELL='+str(rdc.ROOT/'remote-desktop-bash')+'\0').encode())
     def write(self): (self.folder/'remote-desktop-123.json').write_text(json.dumps(self.receipt))
     def probe(self): return rdc.health(self.home,self.proc,1000)
     def test_singleton_with_both_proofs(self): self.assertEqual(self.probe()['state'],'healthy')
@@ -44,6 +45,10 @@ class HealthTests(unittest.TestCase):
     def test_process_args_are_exact(self):
         (self.proc/'123/cmdline').write_text('bash\0-c\0echo '+rdc.SCRIPT+' remote\0')
         self.assertEqual(self.probe()['reason'],'process_missing')
+    def test_stale_runtime_shell_is_not_healthy(self):
+        (self.proc/'123/environ').write_bytes(b'SHELL=/data/data/com.termux/files/usr/bin/bash\0')
+        self.assertEqual(self.probe()['reason'],'runtime_environment_stale')
+
 
 class RepairTests(unittest.TestCase):
     def setUp(self):
