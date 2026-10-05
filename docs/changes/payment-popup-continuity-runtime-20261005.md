@@ -9,3 +9,5 @@ Android-facing action/status responses now use a compact payment projection cont
 Affected UI-facing operations: local-intent status, local-start, bank-return, bank resume and bank-ui-event acknowledgements. The financial engine, one-FORM1 guard, PaymentRecord persistence and callback/readback semantics are unchanged.
 
 The compact projection selects only meaningful progress stages and ignores noisy HTTP exchanges. This lets Android update the popup while local-start is still running without moving model reasoning into the payment path.
+
+Activation evidence: implementation commit `51e833857b58e6cd5972017934cb1be0c0d35858` is active in the canonical runtime checkout. Companion restarted as one healthy process; live local-intent status for the previously confirmed payment is 841 bytes, preserves terminal receipt/progress, and contains no forensic timeline.

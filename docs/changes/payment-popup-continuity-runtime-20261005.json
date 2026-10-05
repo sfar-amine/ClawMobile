@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "capability",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "applied",
   "summary": "Return compact Android payment projections with latest deterministic progress while preserving the full canonical PaymentRecord trace.",
   "reason": "Live acceptance confirmed the transaction but Android rejected 19-43 KiB action responses against its 16 KiB guard, which suppressed the terminal result UI.",
   "files": [
