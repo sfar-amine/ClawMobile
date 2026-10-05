@@ -14,6 +14,9 @@ process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR = path.join(stateRoot, "remote-bridge")
 process.env.CLAW_UI_PLAYBOOKS_ROOT =
   process.env.CLAW_MCP_TEST_UI_ROOT ||
   path.join(os.homedir(), ".openclaw", "workspace", "ui-playbooks");
+process.env.CLAW_CAPABILITY_HELPER =
+  process.env.CLAW_MCP_TEST_HELPER ||
+  path.resolve(process.cwd(), "../../installer/termux-lite/claw-capability.py");
 
 const companionModule =
   process.env.CLAW_MCP_TEST_COMPANION_MODULE ||
@@ -105,9 +108,8 @@ result = await mcp({
 });
 assert.equal(result.status, 200);
 const execution = result.body.result.structuredContent;
-assert.equal(execution.state, "completed");
-assert.equal(execution.result.state, "blocked");
-assert.equal(execution.result.reason, "mcp_shadow_read_only");
+assert.equal(execution.state, "blocked");
+assert.equal(execution.reason, "read_only_policy");
 
 result = await mcp({
   jsonrpc: "2.0",
@@ -119,7 +121,7 @@ result = await mcp({
   },
 });
 assert.equal(result.status, 200);
-assert.equal(result.body.result.structuredContent.state, "completed");
+assert.equal(result.body.result.structuredContent.state, "blocked");
 
 console.log(JSON.stringify({
   ok: true,

@@ -10,6 +10,9 @@ process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR = path.join(root, "remote-bridge");
 process.env.CLAW_UI_PLAYBOOKS_ROOT =
   process.env.CLAW_MCP_TEST_UI_ROOT ||
   path.join(os.homedir(), ".openclaw", "worktrees", "claw-mcp-gateway-ui-20261005");
+process.env.CLAW_CAPABILITY_HELPER =
+  process.env.CLAW_MCP_TEST_HELPER ||
+  path.join(os.homedir(), ".openclaw", "worktrees", "claw-mcp-gateway-mobile-20261005", "installer", "termux-lite", "claw-capability.py");
 
 const { handleMcpRelayRequest } = require("../dist/companion/mcpBridge.js");
 
@@ -36,10 +39,8 @@ async function main() {
       action_key: "wifi-write",
     },
   });
-  assert.equal(result.state, "completed");
-  assert.equal(result.mutation_risk, "read");
-  assert.equal(result.result.state, "blocked");
-  assert.equal(result.result.reason, "mcp_shadow_read_only");
+  assert.equal(result.state, "blocked");
+  assert.equal(result.reason, "read_only_policy");
 
   const repeated = await handleMcpRelayRequest({
     requestId: "mcp-claude-chat-wifi-write-execute",
@@ -52,7 +53,8 @@ async function main() {
     },
   });
   assert.equal(repeated.request_id, result.request_id);
-  assert.deepEqual(repeated.result, result.result);
+  assert.equal(repeated.state, "blocked");
+  assert.equal(repeated.reason, "read_only_policy");
 
   const status = await handleMcpRelayRequest({
     requestId: "mcp:claude-chat:status-1",
@@ -61,12 +63,30 @@ async function main() {
     tool: "claw_status",
     arguments: { action_key: "wifi-write" },
   });
-  assert.equal(status.state, "completed");
+  assert.equal(status.state, "blocked");
+  assert.equal(status.reason, "read_only_policy");
   assert.equal(status.request_id, "mcp-claude-chat-wifi-write-execute");
 
   const artifactDir = path.join(process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR, "artifacts");
+  const requestDir = path.join(process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR, "requests");
   fs.mkdirSync(artifactDir, { recursive: true });
+  fs.mkdirSync(requestDir, { recursive: true });
   fs.writeFileSync(path.join(artifactDir, "mcp-test.json"), "ABCDEFGHIJ");
+  const sourceRequestId = "mcp-claude-chat-artifact-source-execute";
+  fs.writeFileSync(path.join(requestDir, sourceRequestId + ".json"), JSON.stringify({
+    requestId: sourceRequestId,
+    taskId: "mcp:claude-chat:artifact-source",
+    stepId: "execute",
+    sessionId: "external_mcp:claude-chat",
+    method: "mcp_capability_execute_readonly",
+    paramsHash: "fixture",
+    state: "completed",
+    instanceId: "fixture",
+    receivedAt: Date.now(),
+    completedAt: Date.now(),
+    mutationRisk: "read",
+    result: { artifact: { artifactId: "mcp-test.json", bytes: 10, contentType: "application/json" } },
+  }));
   const artifact = await handleMcpRelayRequest({
     requestId: "mcp:claude-chat:artifact-call",
     clientId: "claude-chat",
@@ -74,6 +94,7 @@ async function main() {
     tool: "claw_artifact_read",
     arguments: {
       artifact_id: "mcp-test.json",
+      source_request_id: sourceRequestId,
       offset: 2,
       max_bytes: 4,
     },

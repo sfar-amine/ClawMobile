@@ -61,7 +61,7 @@ Long-running interactive work should use `process_start` followed by bounded `pr
 
 ## External MCP execution receipt
 
-The generic external MCP adapter reuses Remote Bridge receipts instead of creating an MCP-specific execution ledger. In V1, `mcp_capability_execute_readonly` resolves the request on the canonical `external_mcp` surface and executes only when the selected path is deterministic, owner-authorized, risk `read`, and requires no confirmation. All other requests return a bounded `mcp_shadow_read_only` result without executing a business effect.
+The generic external MCP adapter reuses Remote Bridge receipts instead of creating an MCP-specific execution ledger. In V1, `mcp_capability_execute_readonly` resolves the request on the canonical `external_mcp` surface and executes only when the selected path is deterministic, owner-authorized, risk `read`, and requires no confirmation. All other requests return the bounded `read_only_policy` result from the canonical Capability Graph guard without executing a business effect.
 
 The stable MCP action identity is translated to the existing `requestId + taskId + stepId` contract, so reconnecting an external client cannot create a second execution merely by opening a new MCP session. The public MCP edge never calls raw Remote Bridge shell/file methods in the V1 chat profile.
 

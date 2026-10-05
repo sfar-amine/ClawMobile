@@ -6,10 +6,12 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 function helpers(home = os.homedir()): string[] {
+  const configured = String(process.env.CLAW_CAPABILITY_HELPER || "").trim();
   return [
+    configured,
     path.join(home, ".openclaw/releases/current/termux-lite/claw-capability.py"),
     path.join(home, "ClawMobile/installer/termux-lite/claw-capability.py"),
-  ];
+  ].filter(Boolean);
 }
 
 export async function capabilityBridge(

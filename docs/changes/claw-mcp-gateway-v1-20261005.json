@@ -5,8 +5,8 @@
   "kind": "capability",
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
-  "summary": "Isolated generic MCP V1 candidate; closure blocked before authenticated Claude integration.",
-  "reason": "Preserve source work and exact evidence after an external tool-plane write denial; Claude remains the first client.",
+  "summary": "Generic MCP V1 hardened in isolation; awaiting current-head integration, full regression and live Claude acceptance.",
+  "reason": "Resume the preserved candidate after verifying the earlier external write denial had no effect. Current Claude Pro/Max connector documentation supports fixed request headers, so V1 keeps per-client bearer authentication and does not add an OAuth server.",
   "files": [
     "cloud/voice-relay/.gitignore",
     "cloud/voice-relay/package-lock.json",
@@ -37,18 +37,56 @@
       }
     },
     {
-      "name": "edge-protocol",
+      "name": "companion-mcp-bridge",
+      "status": "passed",
+      "evidence": {
+        "exit_code": 0,
+        "coverage": [
+          "read-only admission",
+          "durable receipt/status",
+          "source-bound artifact",
+          "bounded context"
+        ]
+      }
+    },
+    {
+      "name": "remote-bridge-core",
       "status": "passed",
       "evidence": {
         "exit_code": 0
       }
     },
     {
-      "name": "typescript-final-build",
+      "name": "voice-relay-regression",
+      "status": "passed",
+      "evidence": {
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "edge-mcp-protocol",
       "status": "passed",
       "evidence": {
         "exit_code": 0,
-        "note": "Unintegrated OAuth/context drafts archived outside build"
+        "tools": 5,
+        "auth": "per-client bearer hash"
+      }
+    },
+    {
+      "name": "edge-to-s24-local-e2e",
+      "status": "passed",
+      "evidence": {
+        "exit_code": 0,
+        "surface": "external_mcp",
+        "write_blocked": true
+      }
+    },
+    {
+      "name": "cloudflare-worker-dry-run",
+      "status": "passed",
+      "evidence": {
+        "exit_code": 0,
+        "gzip_kib": 167.94
       }
     }
   ],
@@ -61,18 +99,18 @@
       "inference.surface_awareness",
       "gateway.mcp.external"
     ],
-    "reason": "Candidate-only MCP surface and exact-resolution read-only admission; not deployed."
+    "reason": "Provider-neutral external_mcp surface with exact-resolution read-only admission; business result projection and artifact access are bounded to canonical receipts. Not deployed yet."
   },
   "architecture": {
     "changed": true,
-    "reason": "Generic external MCP adapter candidate; OAuth and live client acceptance incomplete.",
+    "reason": "Generic external MCP adapter reuses existing edge relay, Capability Harness/Graph, Remote Bridge receipts and Memory Core; no provider-specific router or OAuth subsystem is introduced.",
     "adr": "docs/08-decisions/ADR-20261005-claw-mcp-gateway.md"
   },
-  "rollback": "No production changes. Preserve isolated candidates and backups; do not merge while blocked.",
+  "rollback": "Before deployment, discard/revert the isolated branch. After deployment, disable the MCP client secret/edge route and revert the scoped commits; Samantha/Slack/RDC paths are independent.",
   "limitations": [
-    "External write denial f376015263d4004361ba is terminal failed, not ongoing repair.",
-    "OAuth integration and real Claude E2E not completed.",
-    "Full regression and authentication/security acceptance not complete.",
-    "Runtime is unchanged."
+    "Full regression after reconciliation with current canonical heads is pending.",
+    "Real Claude custom-connector E2E and latency are pending.",
+    "Production runtime is unchanged until explicit deployment and runtime verification.",
+    "Only chat-owner-shadow read-only execution is in scope for V1."
   ]
 }

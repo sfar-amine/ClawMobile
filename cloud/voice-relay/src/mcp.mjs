@@ -193,8 +193,9 @@ function registerTools(server, auth, invoke) {
     description: "Read a bounded chunk of a Claw artifact returned by an execution receipt.",
     inputSchema: {
       artifact_id: z.string().regex(ARTIFACT_ID_RE),
+      source_request_id: z.string().min(1).max(128),
       offset: z.number().int().nonnegative().optional(),
-      max_bytes: z.number().int().min(1).max(131072).optional(),
+      max_bytes: z.number().int().min(1).max(49152).optional(),
     },
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   }, run("claw_artifact_read"));

@@ -11,6 +11,7 @@ import {
 } from "./remoteBridge";
 
 const execFileAsync = promisify(execFile);
+// External MCP V1 stays read-only until live Claude acceptance.
 const CLIENT_ID_RE = /^[A-Za-z0-9._-]{1,24}$/;
 const ACTION_ID_RE = /^[A-Za-z0-9._-]{1,40}$/;
 const STEP_ID_RE = /^[A-Za-z0-9._-]{1,24}$/;
@@ -36,6 +37,54 @@ function cleanObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+function safeValue(value: any, depth = 0): any {
+  if (depth > 20) return "[depth_limit]";
+  if (Array.isArray(value)) return value.map((item) => safeValue(item, depth + 1));
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (/^(authorization|cookie|set-cookie|password|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|credentials|private[_-]?key|stderr)$/i.test(key)) continue;
+    out[key] = safeValue(item, depth + 1);
+  }
+  return out;
+}
+
+function projectReceipt(receipt: any) {
+  const base = {
+    request_id: receipt.requestId,
+    task_id: receipt.taskId,
+    step_id: receipt.stepId,
+    retry_allowed: false,
+  };
+  if (receipt.state !== "completed") {
+    return { ...base, state: receipt.state, error: receipt.error ? "claw_execution_failed" : undefined };
+  }
+  const value = receipt.result;
+  if (value?.artifact) {
+    return { ...base, state: "result_available", artifact: safeValue(value.artifact), preview: String(value.preview || "").slice(0, 8000) };
+  }
+  if (receipt.method === "mcp_capability_execute_readonly") {
+    const execution = value?.execution || {};
+    const domain = execution?.result;
+    let state = "blocked";
+    if (execution.state === "completed") state = domain?.ok === false || domain?.success === false ? "failed" : "completed";
+    else if (execution.state === "failed") state = "failed";
+    else if (execution.state === "running" || execution.state === "indeterminate") state = execution.state;
+    else if (execution.state === "low_confidence" || domain?.state === "needs_counter" || domain?.state === "needs_clarification") state = "needs_clarification";
+    return {
+      ...base,
+      state,
+      capability: value?.capability,
+      route: value?.selected?.route,
+      reason: state === "blocked" ? (execution.reason || execution.state) : undefined,
+      result: safeValue(domain),
+      question: domain?.question,
+      choices: safeValue(domain?.choices),
+    };
+  }
+  return { ...base, state: "completed", result: safeValue(value) };
 }
 
 function requiredString(
@@ -206,15 +255,7 @@ async function executeReadonly(
     },
   });
 
-  return {
-    state: receipt.state,
-    request_id: receipt.requestId,
-    task_id: receipt.taskId,
-    step_id: receipt.stepId,
-    mutation_risk: receipt.mutationRisk,
-    result: receipt.result,
-    error: receipt.error,
-  };
+  return projectReceipt(receipt);
 }
 
 function statusFor(
@@ -232,15 +273,7 @@ function statusFor(
       retry_allowed: false,
     };
   }
-  return {
-    state: receipt.state,
-    request_id: receipt.requestId,
-    task_id: receipt.taskId,
-    step_id: receipt.stepId,
-    mutation_risk: receipt.mutationRisk,
-    result: receipt.result,
-    error: receipt.error,
-  };
+  return projectReceipt(receipt);
 }
 
 async function readArtifact(
@@ -249,15 +282,19 @@ async function readArtifact(
   args: Record<string, unknown>,
 ) {
   const artifactId = requiredString(args.artifact_id, "artifact_id", 128, ARTIFACT_ID_RE);
+  const sourceRequestId = requiredString(args.source_request_id, "source_request_id", 128, REQUEST_ID_RE);
+  const source = getRemoteBridgeRequest(sourceRequestId);
+  if (!source || source.sessionId !== `external_mcp:${clientId}`) throw new Error("artifact_source_not_allowed");
+  if ((source.result as any)?.artifact?.artifactId !== artifactId) throw new Error("artifact_not_allowed");
   const offset = args.offset === undefined ? 0 : Number(args.offset);
   const maxBytes = args.max_bytes === undefined ? 48 * 1024 : Number(args.max_bytes);
   if (!Number.isInteger(offset) || offset < 0) throw new Error("invalid_offset");
-  if (!Number.isInteger(maxBytes) || maxBytes < 1 || maxBytes > 128 * 1024) {
+  if (!Number.isInteger(maxBytes) || maxBytes < 1 || maxBytes > 48 * 1024) {
     throw new Error("invalid_max_bytes");
   }
   const stableId = `mcp-artifact:${crypto
     .createHash("sha256")
-    .update(JSON.stringify([clientId, artifactId, offset, maxBytes]))
+    .update(JSON.stringify([clientId, sourceRequestId, artifactId, offset, maxBytes]))
     .digest("hex")
     .slice(0, 32)}`;
 
@@ -268,9 +305,9 @@ async function readArtifact(
     params: { artifactId, offset, maxBytes },
   });
   if (receipt.state !== "completed") {
-    return { state: receipt.state, error: receipt.error, request_id: receipt.requestId };
+    return { state: receipt.state, error: receipt.error ? "artifact_read_failed" : undefined, request_id: receipt.requestId };
   }
-  return { state: "completed", request_id: receipt.requestId, result: receipt.result };
+  return { state: "completed", request_id: receipt.requestId, result: safeValue(receipt.result) };
 }
 
 export async function handleMcpRelayRequest(message: McpRelayMessage) {
