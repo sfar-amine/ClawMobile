@@ -168,17 +168,27 @@ export function createClicToPayLivePaymentAdapter(config:ClicToPayProviderConfig
   const cardCli=path.join(billingRoot,"payment-card-cli.mjs");
   const liveCli=path.join(billingRoot,"payment-live-acceptance-cli.mjs");
 
-  async function readQuote(reference:string):Promise<PaymentQuote>{
-    config.referencePattern.lastIndex=0;
-    if(!config.referencePattern.test(reference))throw new Error("invalid_provider_reference");
+  async function readProviderRow(){
     const out=parsed((await execute(process.execPath,[billingCli,config.billingProvider??config.id,"--exhaustive","--details"],20000)).stdout);
     if(out.coverage_complete!==true||!Array.isArray(out.providers)||out.providers.length!==1)throw new Error("billing_read_unverified");
     const row=out.providers[0];
     if(row?.provider!==(config.billingProvider??config.id)||row.coverage_complete!==true||!Array.isArray(row.items))throw new Error("billing_read_unverified");
-    const matches=row.items.filter((item:any)=>item?.provider_invoice_id===reference);
-    if(matches.length!==1||!Number.isSafeInteger(matches[0].amount_pending_millimes)||matches[0].amount_pending_millimes<=0)
-      throw new Error("selected_invoice_changed");
-    return {payee:config.payee,reference,amountMinor:matches[0].amount_pending_millimes,currency:matches[0].currency??row.currency??"TND",decimals:3};
+    return row;
+  }
+  function itemQuote(item:any,row:any):PaymentQuote|null{
+    const reference=item?.provider_invoice_id;config.referencePattern.lastIndex=0;
+    if(typeof reference!=="string"||!config.referencePattern.test(reference)||!Number.isSafeInteger(item?.amount_pending_millimes)||item.amount_pending_millimes<=0)return null;
+    const currency=item.currency??row.currency??"TND";if(typeof currency!=="string"||! /^[A-Z]{3}$/.test(currency))return null;
+    return {payee:config.payee,reference,amountMinor:item.amount_pending_millimes,currency,decimals:3};
+  }
+  async function listPayables():Promise<PaymentQuote[]>{
+    const row=await readProviderRow();return row.items.map((item:any)=>itemQuote(item,row)).filter((q:any)=>q!==null);
+  }
+  async function readQuote(reference:string):Promise<PaymentQuote>{
+    config.referencePattern.lastIndex=0;if(!config.referencePattern.test(reference))throw new Error("invalid_provider_reference");
+    const row=await readProviderRow(),matches=row.items.filter((item:any)=>item?.provider_invoice_id===reference);
+    if(matches.length!==1)throw new Error("selected_invoice_changed");
+    const quote=itemQuote(matches[0],row);if(!quote)throw new Error("selected_invoice_changed");return quote;
   }
 
   async function executeProvider(
@@ -228,6 +238,7 @@ export function createClicToPayLivePaymentAdapter(config:ClicToPayProviderConfig
     localOwnerValidated:config.localOwnerValidated===true,
     unavailableReason:config.unavailableReason??"provider_payment_contract_unverified",
     bankNavigationOrigins:config.bankNavigationOrigins,
+    listPayables,
     quote:readQuote,
     revalidate:async quote=>readQuote(quote.reference),
     execute:async (quote,requestId,context)=>executeProvider(quote,requestId,context,true),

@@ -1,0 +1,12 @@
+{
+  "change": "payment-dual-entrypoints-runtime-20261005",
+  "component": "openclaw-plugin-mobile-ui",
+  "status": "implemented_pending_deployment",
+  "endpoints": [
+    "GET /v1/payments/payables",
+    "POST /v1/payments/local-handoffs"
+  ],
+  "financial_effect_before_biometric": false,
+  "new_store": false,
+  "new_daemon": false
+}

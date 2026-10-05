@@ -1,14 +1,15 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import {BANK_ACTION_TIMEOUT_MS, createPaymentCore, ownerKey, paymentError} from "./paymentCore";
+import {BANK_ACTION_TIMEOUT_MS, createPaymentCore, ownerKey, paymentError, validateQuote} from "./paymentCore";
 import {readPaymentRequests, mutatePaymentRequests} from "./runs";
-import type {PaymentAdapter} from "./paymentTypes";
+import type {PaymentAdapter,PaymentPayable,PaymentQuote} from "./paymentTypes";
 import type {OwnerIntent, OwnerOrigin} from "./ownerConfirmationProtocol";
 import {ownerHash, ownerUuid, ownerText} from "./ownerConfirmationProtocol";
 import {confirmations} from "./confirmations";
 import {createTopnetLivePaymentAdapter} from "./topnetLivePaymentAdapter";
 import {LOCAL_PAYMENT_ACTION_TYPE, buildLocalPaymentIntent, localPaymentPayloadHash, parseLocalPaymentReference} from "./localPaymentIntent";
+import {runTermuxCommand} from "../backends/termux";
 
 export const PAYMENT_QUOTE_TIMEOUT_MS=20_000;
 
@@ -68,14 +69,45 @@ function exactPaymentObject(v:any,keys:string[]) {
   if(!v||typeof v!=="object"||Array.isArray(v)||Object.keys(v).length!==keys.length||keys.some(k=>!Object.prototype.hasOwnProperty.call(v,k))) paymentError("invalid_payment_request");
 }
 
+function validateOrigin(v:any):OwnerOrigin {
+  exactPaymentObject(v,["channel","id"]);
+  if(!["chatgpt","work","claw","samantha"].includes(v.channel)||!ownerText(v.id,120)) paymentError("invalid_payment_request");
+  return {channel:v.channel,id:v.id};
+}
+
+export function validateLocalHandoffInput(v:any):{requestKey:string;adapterId:string;quote:PaymentQuote;origin:OwnerOrigin;notify:boolean} {
+  exactPaymentObject(v,["requestKey","adapterId","quote","origin","notify"]);
+  if(typeof v.requestKey!=="string"||!ownerUuid.test(v.requestKey)||typeof v.adapterId!=="string"||!/^[a-z][a-z0-9_.-]{1,60}$/.test(v.adapterId)||typeof v.notify!=="boolean")
+    paymentError("invalid_payment_request");
+  const adapter=adapters.find(a=>a.id===v.adapterId);
+  if(!adapter||adapter.mode!=="live"||adapter.localOwnerValidated!==true) paymentError("local_owner_payment_contract_unverified",409);
+  const quote=validateQuote(v.quote);
+  if(!/^[A-Za-z0-9._-]{1,100}$/.test(quote.reference))paymentError("invalid_payment_quote",502);
+  return {requestKey:v.requestKey,adapterId:v.adapterId,quote,origin:validateOrigin(v.origin),notify:v.notify};
+}
+
+function formatPayableAmount(q:PaymentQuote){
+  const scale=10**q.decimals,whole=Math.floor(q.amountMinor/scale),frac=q.amountMinor%scale;
+  return q.decimals?String(whole)+","+String(frac).padStart(q.decimals,"0"):String(whole);
+}
+
+export function localHandoffNotificationArgs(confirmationRequestId:string,quote:PaymentQuote){
+  if(!ownerUuid.test(confirmationRequestId))paymentError("invalid_payment_request");
+  const id=String(parseInt(confirmationRequestId.slice(0,8),16)%2000000000);
+  const action=`am start -n ai.samantha.android.dev/ai.samantha.android.OwnerConfirmationActivity --es confirmation_request_id ${confirmationRequestId}`;
+  return ["--id",id,"--title","Samantha · Paiement prêt","--content",`${quote.payee} · ${formatPayableAmount(quote)} ${quote.currency} — toucher pour autoriser`,"--action",action];
+}
+async function notifyLocalHandoff(confirmationRequestId:string,quote:PaymentQuote){
+  const res=await runTermuxCommand("termux-notification",localHandoffNotificationArgs(confirmationRequestId,quote),5000);
+  return res.ok;
+}
+
 function validateLocalIntentInput(v:any):{requestKey:string;adapterId:string;reference:string;origin:OwnerOrigin} {
   exactPaymentObject(v,["requestKey","adapterId","reference","origin"]);
   if(typeof v.requestKey!=="string"||!ownerUuid.test(v.requestKey)) paymentError("invalid_payment_request");
   if(typeof v.adapterId!=="string"||!/^[a-z][a-z0-9_.-]{1,60}$/.test(v.adapterId)) paymentError("invalid_payment_request");
   if(typeof v.reference!=="string"||!/^[A-Za-z0-9._-]{1,100}$/.test(v.reference)) paymentError("invalid_payment_request");
-  exactPaymentObject(v.origin,["channel","id"]);
-  if(!["chatgpt","work","claw","samantha"].includes(v.origin.channel)||!ownerText(v.origin.id,120)) paymentError("invalid_payment_request");
-  return {requestKey:v.requestKey,adapterId:v.adapterId,reference:v.reference,origin:{channel:v.origin.channel,id:v.origin.id}};
+  return {requestKey:v.requestKey,adapterId:v.adapterId,reference:v.reference,origin:validateOrigin(v.origin)};
 }
 
 const core=createPaymentCore({store:{read:readPaymentRequests,change:mutatePaymentRequests},adapters,key,timeouts:{quoteMs:PAYMENT_QUOTE_TIMEOUT_MS,executionMs:225000}});
@@ -113,6 +145,25 @@ async function startBankTimeoutReconciler(){
   return {scheduled,timeoutMs:BANK_ACTION_TIMEOUT_MS};
 }
 const bound=bindPaymentAuthorizations(core, confirmations);
+
+async function listPayables(adapterId?:string){
+  if(adapterId!==undefined&&(!/^[a-z][a-z0-9_.-]{1,60}$/.test(adapterId)))paymentError("invalid_payment_request");
+  const targets=adapters.filter(a=>a.mode==="live"&&a.localOwnerValidated===true&&typeof a.listPayables==="function"&&(!adapterId||a.id===adapterId));
+  if(adapterId&&targets.length!==1)paymentError("local_owner_payment_contract_unverified",409);
+  const settled=await Promise.all(targets.map(async adapter=>{
+    try{return {adapter,quotes:await adapter.listPayables!(),error:null};}catch{return {adapter,quotes:[] as PaymentQuote[],error:"provider_read_unavailable"};}
+  }));
+  const items:PaymentPayable[]=settled.flatMap(({adapter,quotes})=>quotes.map(q=>({adapterId:adapter.id,...validateQuote(q)})));
+  return {schemaVersion:1,items,providers:settled.map(x=>({adapterId:x.adapter.id,state:x.error?"unavailable":"ok",count:x.quotes.length,reasonCode:x.error}))};
+}
+
+async function prepareLocalHandoff(input:any){
+  const v=validateLocalHandoffInput(input);
+  const intent=buildLocalPaymentIntent({adapterId:v.adapterId,quote:v.quote,origin:v.origin});
+  const prepared=await confirmations.prepare({requestKey:v.requestKey,action:intent.action,presentation:intent.presentation,origin:intent.origin});
+  const notificationSent=v.notify?await notifyLocalHandoff(prepared.requestId,v.quote):false;
+  return {schemaVersion:1,state:"awaiting_owner",confirmationRequestId:prepared.requestId,quote:v.quote,expiresAt:prepared.expiresAt,notificationSent};
+}
 
 async function prepareLocalIntent(input:any) {
   const v=validateLocalIntentInput(input);
@@ -197,6 +248,8 @@ export const payments = {
   resume,
   bankReturn,
   bankUiEvent,
+  listPayables,
+  prepareLocalHandoff,
   prepareLocalIntent,
   localIntentStatus,
   localStart,

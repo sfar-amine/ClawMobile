@@ -65,5 +65,16 @@ for(const field of ["Origin","Referer","Sec-Fetch-Site"])
 assert.equal((await req("/v1/payments/local-start","POST",{confirmationRequestId:crypto.randomUUID(),amount:1},{...headers})).code,400);
 assert.equal((await req("/v1/payments/local-start","POST",{confirmationRequestId:crypto.randomUUID()},headers)).body.message,"confirmation_not_found");
 
+// ===== inert local handoff boundary =====
+const handoff={requestKey:crypto.randomUUID(),adapterId:"topnet",quote:{payee:"TOPNET",reference:"INV-1",amountMinor:60900,currency:"TND",decimals:3},origin:{channel:"chatgpt",id:"handoff-api"},notify:false};
+assert.equal((await req("/v1/payments/local-handoffs","POST",handoff,{})).code,403);
+for(const field of ["Origin","Referer","Sec-Fetch-Site"])
+  assert.equal((await req("/v1/payments/local-handoffs","POST",handoff,{...headers,[field]:"untrusted"})).code,403);
+const paymentsBefore=(await runs.readPaymentRequests()).length;
+const handoffResult=await req("/v1/payments/local-handoffs","POST",handoff,headers);
+assert.equal(handoffResult.code,200);assert.equal(handoffResult.body.state,"awaiting_owner");assert.equal(handoffResult.body.notificationSent,false);
+assert.equal((await runs.readPaymentRequests()).length,paymentsBefore);
+assert.equal((await req("/v1/payments/local-handoffs","POST",{...handoff,mode:"live"},headers)).code,400);
+
 console.log("OWNER_CONFIRMATION_PAYMENT_API_AND_REGISTRY_CHECKS_PASSED");
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>{server.closeAllConnections();server.close();fs.rmSync(root,{recursive:true,force:true})});

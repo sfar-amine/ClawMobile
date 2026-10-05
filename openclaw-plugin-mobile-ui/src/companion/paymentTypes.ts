@@ -1,4 +1,5 @@
 export type PaymentQuote = {payee:string; reference:string; amountMinor:number; currency:string; decimals:number};
+export type PaymentPayable = PaymentQuote & {adapterId:string};
 export type PaymentOrigin = {channel:"chatgpt"|"work"|"claw"|"samantha"; id:string};
 export type PaymentDraft = {requestKey:string; adapterId:string; reference:string; mode:"demo"|"live"; origin:PaymentOrigin};
 export type PaymentState = "awaiting_owner"|"executing"|"demo_confirmed"|"confirmed"|"failed"|"cancelled"|"expired"|"blocked"|"effect_unknown"|"requires_bank_action";
@@ -36,6 +37,7 @@ export type PaymentExecutionResult = {
 export type PaymentAdapter = {
   id:string; label:string; mode:"demo"|"live"; executionValidated:boolean; localOwnerValidated?:boolean; unavailableReason?:string;
   bankNavigationOrigins?:readonly string[];
+  listPayables?:()=>Promise<PaymentQuote[]>;
   quote?:(reference:string)=>Promise<PaymentQuote>;
   revalidate?:(quote:PaymentQuote)=>Promise<PaymentQuote>;
   execute?:(quote:PaymentQuote,requestId:string,context?:PaymentExecutionContext)=>Promise<PaymentExecutionResult>;

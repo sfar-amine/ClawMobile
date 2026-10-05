@@ -235,11 +235,18 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if (method === "GET" && routePath === "/payments/capabilities") {
       writeJson(res, 200, payments.capabilities()); return;
     }
+    if (method === "GET" && routePath === "/payments/payables") {
+      const adapterId=requestUrl.searchParams.get("adapterId")||undefined;
+      writeJson(res,200,await payments.listPayables(adapterId)); return;
+    }
     if (method === "POST" && routePath === "/payments") {
       writeJson(res, 200, await payments.prepare(await readJsonBody(req, 4096))); return;
     }
     if (method === "POST" && routePath === "/payments/local-intents") {
       writeJson(res, 200, await payments.prepareLocalIntent(await readJsonBody(req, 4096))); return;
+    }
+    if (method === "POST" && routePath === "/payments/local-handoffs") {
+      writeJson(res,200,await payments.prepareLocalHandoff(await readJsonBody(req,4096))); return;
     }
     const localIntentStatusMatch = /^\/payments\/local-intents\/([a-f0-9-]{36})$/.exec(routePath);
     if (method === "GET" && localIntentStatusMatch) {

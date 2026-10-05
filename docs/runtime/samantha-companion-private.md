@@ -11,3 +11,6 @@ Verification in the isolated candidate: TypeScript compilation, existing compani
 The runtime checkout stays on runtime/samantha-companion-private, with its upstream and push remote set to the existing private samantha-core repository. Never push this branch to origin/upstream (public ClawMobile), reset it to public main, or replace its source with the upstream version while preparing a release. Integrate later public changes into this private branch in isolation and revalidate the patch.
 
 Rollback uses the private checksum-gated installer and verified backups; Git integration alone never implies restarting or replacing a running service.
+
+## Payment dual entrypoints — 5 October 2026
+The private Companion keeps a single Payment Core. New read-only `GET /v1/payments/payables` exposes quotes only for `localOwnerValidated` adapters. `POST /v1/payments/local-handoffs` accepts only requestKey, adapterId, displayed quote, requester origin and a notification flag; it creates only an owner confirmation and never a PaymentRecord. Chat notification actions carry only the confirmation UUID into Samantha Android. `local-start` remains the sole transition across the financial boundary and re-reads the provider quote after local biometric authentication before any FORM1. No new daemon/store/router is introduced.

@@ -28,6 +28,8 @@ test("generic ClicToPay provider factory carries provider identity end to end",a
  };
  const adapter=createClicToPayLivePaymentAdapter({id:"utility_fixture",label:"Utility",payee:"UTILITY",referencePattern:/^U-[0-9]+$/,localOwnerValidated:true},{billingRoot:billing,stateDir:state,exec,liveRun});
  try{
+  const payables=await adapter.listPayables();
+  assert.deepEqual(payables,[{payee:"UTILITY",reference:"U-42",amountMinor:12345,currency:"TND",decimals:3}]);
   const quote=await adapter.quote("U-42");
   assert.deepEqual(quote,{payee:"UTILITY",reference:"U-42",amountMinor:12345,currency:"TND",decimals:3});
   const started=await adapter.executeLocal(quote,requestId,{bankReturnToken});
