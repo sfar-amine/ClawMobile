@@ -5,20 +5,27 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Pin the managed RDC process to the private Termux temporary directory so ADB can restart independently of the remote caller environment.",
-  "reason": "RDC remained healthy while a raw ADB command could not restart a missing ADB server because the remote shell fell back to an unwritable global temporary path.",
+  "summary": "Restore a minimal Termux environment at the managed RDC shell boundary so filtered child commands can restart ADB reliably.",
+  "reason": "A live RDC child command proved that the MCP SDK filters TMPDIR/PREFIX before spawning its local Desktop Commander server; raw ADB therefore fell back to an unwritable global temporary path when its server needed restart.",
   "files": [
     "installer/termux-lite/remote-desktop-control.py",
+    "installer/termux-lite/remote-desktop-bash",
     "installer/termux-lite/test-remote-desktop-watchdog.py",
+    "installer/termux-lite/test-remote-desktop-shell.py",
     "installer/termux-lite/README.md",
     "docs/changes/rdc-adb-termux-env-20261005.md",
     "docs/changes/rdc-adb-termux-env-20261005.json"
   ],
   "tests": [
     {
+      "name": "remote-desktop-shell",
+      "status": "passed",
+      "evidence": "test-remote-desktop-shell.py passed 1/1 against a filtered environment and bash -l -c."
+    },
+    {
       "name": "remote-desktop-watchdog",
       "status": "passed",
-      "evidence": "test-remote-desktop-watchdog.py passed 16 tests including private temporary-directory environment inheritance."
+      "evidence": "test-remote-desktop-watchdog.py passed 16/16 including the inherited SHELL wrapper contract."
     },
     {
       "name": "remote-desktop-health",
@@ -28,7 +35,7 @@
     {
       "name": "tier0-control",
       "status": "passed",
-      "evidence": "test-tier0-control.py passed 13 tests."
+      "evidence": "test-tier0-control.py passed 13/13."
     }
   ],
   "documentation": [
@@ -42,11 +49,12 @@
   },
   "architecture": {
     "changed": false,
-    "reason": "Uses the existing RDC controller and Tier-0 release owner; no new daemon, scheduler, database, router or source of truth."
+    "reason": "Uses the existing RDC controller, MCP SDK inherited SHELL boundary and Tier-0 release owner; no user profile change and no new daemon, scheduler, database, router or source of truth."
   },
   "rollback": "Revert the source commit and promote the prior immutable Tier-0 last-known-good release.",
   "limitations": [
-    "The change governs processes spawned through managed RDC; unrelated unmanaged shells retain their own environment.",
+    "The first parent-only environment candidate was rolled back after live child-process acceptance failed; it did not become LKG.",
+    "The wrapper intentionally restores only a minimal secret-free Termux environment rather than sourcing user shell profiles.",
     "No Android payment activity or banking journey is modified.",
     "No live payment is executed by this maintenance change."
   ]

@@ -110,7 +110,8 @@ class Controller:
         tmp = self.home/'.cache/tmp'
         tmp.mkdir(parents=True, exist_ok=True, mode=0o700)
         env = os.environ.copy()
-        env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp))
+        env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp),
+                   SHELL=str(self.root/'remote-desktop-bash'))
         with log.open('ab') as out:
             subprocess.Popen([str(self.home/'.openclaw-android/bin/node'),
                 '--import='+str(self.root/'remote-desktop-health.mjs'), SCRIPT, 'remote'], cwd=self.home,

@@ -6,13 +6,14 @@ A final payment-runtime verification caught an infrastructure-only failure: when
 
 ## Correction
 
-`remote-desktop-control.py` now creates the existing private S24 cache `~/.cache/tmp` and passes only `TMPDIR`, `TMP`, and `TEMP` to the managed Desktop Commander Remote process. Every command spawned through RDC therefore inherits a writable Termux temporary directory. No shell rc file, user payment flow, Android activity, router, daemon, scheduler, store or authorization boundary is changed.
+`remote-desktop-control.py` now creates the existing private S24 cache `~/.cache/tmp`, passes the temporary variables to the Remote process, and sets its inherited `SHELL` to the bundled `remote-desktop-bash` boundary. The MCP SDK intentionally filters most environment variables before spawning the local Desktop Commander server but preserves `SHELL`; the wrapper therefore restores only `PREFIX`, `TMPDIR`, `TMP`, and `TEMP` before delegating to the real Termux bash. No shell rc file, user payment flow, Android activity, router, daemon, scheduler, store or authorization boundary is changed.
 
 The payment/confirmation Python clients also keep their scoped ADB environment guard, so both the transport owner and the caller fail closed independently.
 
 ## Verification
 
-- `test-remote-desktop-watchdog.py`: 16/16 pass, including explicit environment inheritance assertions.
+- `test-remote-desktop-shell.py`: 1/1 pass against a filtered environment and `bash -l -c`.
+- `test-remote-desktop-watchdog.py`: 16/16 pass, including the wrapper `SHELL` inheritance assertion.
 - `test-remote-desktop-health.mjs`: 9 remote/local health assertions pass.
 - `test-tier0-control.py`: 13/13 pass.
 - Live activation acceptance must verify the promoted RDC process environment, external RDC ping, canonical ADB selection and a read-only payment capability canary.
@@ -20,3 +21,7 @@ The payment/confirmation Python clients also keep their scoped ADB environment g
 ## Rollback
 
 Revert the source commit and promote the previous immutable Tier-0 last-known-good release.
+
+## First candidate and rollback
+
+The first immutable candidate set the temporary variables only on the Remote parent. Live E2E proved that the MCP SDK filtered them before the local Desktop Commander child, so a real `start_process` still saw empty temporary variables. Tier-0 rollback restored the previous LKG before the candidate could become stable. The final candidate must prove the child command environment directly.

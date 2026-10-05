@@ -141,7 +141,7 @@ backend states, and booleans such as `local_shell`, `termux_api`, `ui_input`,
 `ui_observe`, `screenshot`, `android_shell`, `local_ocr`, `ocr`, and
 `screen_ocr`.
 
-Managed Remote Desktop Commander processes pin `TMPDIR`, `TMP`, and `TEMP` to the private S24 cache under `~/.cache/tmp`. This keeps ADB server restart behavior independent from the environment of the remote caller and avoids fallback to an unwritable global `/tmp`.
+Managed Remote Desktop Commander processes use the bundled `remote-desktop-bash` boundary as their inherited `SHELL`. The wrapper restores the minimal Termux runtime variables (`PREFIX`, `TMPDIR`, `TMP`, `TEMP`) before delegating to bash, including for the filtered local MCP child used by `start_process`. This keeps ADB server restart behavior independent from the environment of the remote caller and avoids fallback to an unwritable global `/tmp`.
 
 ## Android Companion Server
 

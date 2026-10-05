@@ -73,6 +73,7 @@ class RepairTests(unittest.TestCase):
         self.assertEqual(env['TMPDIR'],expected)
         self.assertEqual(env['TMP'],expected)
         self.assertEqual(env['TEMP'],expected)
+        self.assertEqual(env['SHELL'],str(self.c.root/'remote-desktop-bash'))
         self.assertTrue((self.c.home/'.cache/tmp').is_dir())
     def test_verified_recovery_does_not_replay_restart(self):
         with patch.object(self.c,'probe',return_value={'state':'healthy'}),patch.object(self.c,'launch') as launch:
