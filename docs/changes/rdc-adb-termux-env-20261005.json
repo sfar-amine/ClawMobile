@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "maintenance",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "verified",
   "summary": "Make Bash login shells load the canonical ClawMobile Termux environment and remove non-activated RDC-specific environment wrappers.",
   "reason": "Live RDC evidence confirmed Desktop Commander executes bash -l -c while ClawMobile configured only ~/.bashrc; no login profile sourced it, leaving PREFIX/TMPDIR/TMP/TEMP empty.",
   "files": [
@@ -48,9 +48,18 @@
     "changed": false,
     "reason": "Extends the existing OpenClaw installer shell bootstrap; removes the non-activated RDC-specific workaround instead of adding a new owner."
   },
-  "rollback": "Restore the exact pre-change login profile, revert the source commit, and promote the prior Tier-0 Last Known Good release.",
+  "rollback": "Pre-state was verified as no ~/.bash_profile, ~/.bash_login or ~/.profile. If the generated ~/.bash_profile is still only the managed bootstrap block, remove it; otherwise remove only that managed block. Then revert the source commit and promote the prior Tier-0 Last Known Good release.",
+  "runtime": {
+    "release_id": "20261005T094153-d3beb769",
+    "source_commit": "9011d1319a6dc33c3794b7c2b42d72f312ab1e89",
+    "soak_state": "stable",
+    "soak_bad_samples": 0,
+    "rdc_pid": 21434,
+    "live_e2e": "A real RDC start_process and nested bash -l -c both see canonical SHELL/PREFIX/TMPDIR/TMP/TEMP; ADB is device; readiness is READY; RDC singleton local MCP + remote heartbeat is healthy; zero active incidents.",
+    "cleanup": "Core supervisors and the replacement RDC parent use /data/data/com.termux/files/usr/bin/bash; the stale rollback-candidate shell environment is no longer present in the active execution path."
+  },
   "limitations": [
     "No live payment is executed by this maintenance change.",
-    "Activation changes only the managed Bash login bootstrap after taking an exact local snapshot."
+    "Activation changed only the managed Bash login bootstrap after verifying the exact pre-state: ~/.bash_profile, ~/.bash_login and ~/.profile were all absent."
   ]
 }

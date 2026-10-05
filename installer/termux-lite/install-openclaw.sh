@@ -363,6 +363,7 @@ write_shell_env() {
     echo ""
     echo "$start"
     echo "export PREFIX=\"$PREFIX\""
+    echo "export SHELL=\"$PREFIX/bin/bash\""
     echo "export PATH=\"$BIN_DIR:$NODE_DIR/bin:\$HOME/.local/bin:\$PATH\""
     echo "export TMPDIR=\"$PREFIX/tmp\""
     echo "export TMP=\"\$TMPDIR\""

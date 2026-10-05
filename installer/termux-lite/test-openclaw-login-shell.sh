@@ -32,11 +32,12 @@ write_shell_env
 write_login_shell_bootstrap
 
 grep -Fqx "export PREFIX=\"$TERMUX_PREFIX\"" "$HOME/.bashrc"
+grep -Fqx "export SHELL=\"$TERMUX_PREFIX/bin/bash\"" "$HOME/.bashrc"
 grep -Fqx '# >>> ClawMobile Termux Login Bootstrap >>>' "$HOME/.bash_profile"
 grep -Fqx '[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"' "$HOME/.bash_profile"
 
-actual="$(HOME="$HOME" "$TERMUX_BASH" -l -c 'printf "%s|%s|%s|%s" "$PREFIX" "$TMPDIR" "$TMP" "$TEMP"')"
-expected="$TERMUX_PREFIX|$TERMUX_PREFIX/tmp|$TERMUX_PREFIX/tmp|$TERMUX_PREFIX/tmp"
+actual="$(HOME="$HOME" "$TERMUX_BASH" -l -c 'printf "%s|%s|%s|%s|%s" "$SHELL" "$PREFIX" "$TMPDIR" "$TMP" "$TEMP"')"
+expected="$TERMUX_PREFIX/bin/bash|$TERMUX_PREFIX|$TERMUX_PREFIX/tmp|$TERMUX_PREFIX/tmp|$TERMUX_PREFIX/tmp"
 [ "$actual" = "$expected" ] || {
   printf 'login_env_mismatch expected=%s actual=%s\n' "$expected" "$actual" >&2
   exit 1
