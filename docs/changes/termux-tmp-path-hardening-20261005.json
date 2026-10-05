@@ -1,0 +1,84 @@
+{
+  "version": 2,
+  "id": "termux-tmp-path-hardening-20261005",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "verified",
+  "summary": "Remove unsafe top-level /tmp fallbacks from the ClawMobile Termux runtime and extend the OpenClaw compatibility patcher to rewrite escaped shell fallbacks.",
+  "reason": "Android /tmp is owned by the shell domain and is not writable by the Termux application UID. Live audit showed the active runtime is protected by TMPDIR, but latent fallback expressions and escaped Crabbox shell strings could still select /tmp if the environment was missing.",
+  "files": [
+    "installer/termux-lite/bootstrap.sh",
+    "installer/termux-lite/clawmobile",
+    "installer/termux-lite/lib.sh",
+    "installer/termux-lite/openclaw-compat/patch-openclaw-paths.sh",
+    "installer/termux-lite/test-termux-tmp-paths.sh",
+    "installer/termux-lite/README.md",
+    "docs/runtime-protocol-v1.md",
+    "docs/changes/termux-tmp-path-hardening-20261005.md",
+    "docs/changes/termux-tmp-path-hardening-20261005.json"
+  ],
+  "tests": [
+    {
+      "name": "termux-tmp-paths",
+      "status": "passed",
+      "evidence": "test-termux-tmp-paths.sh verified the no-env fallback resolves to /data/data/com.termux/files/usr/tmp, rejected unsafe source fallbacks, and proved escaped Crabbox /tmp shell snippets are rewritten."
+    },
+    {
+      "name": "shell-syntax",
+      "status": "passed",
+      "evidence": "bash -n passed for all modified executable shell files and the new regression test."
+    },
+    {
+      "name": "openclaw-login-shell",
+      "status": "passed",
+      "evidence": "test-openclaw-login-shell.sh passed, preserving the canonical login-shell PREFIX/TMPDIR contract."
+    },
+    {
+      "name": "openclaw-archive-copy",
+      "status": "passed",
+      "evidence": "test-openclaw-archive-copy.sh passed, confirming the existing OpenClaw compatibility patch remains intact."
+    },
+    {
+      "name": "plugin-install-noninteractive",
+      "status": "passed",
+      "evidence": "test-plugin-install-noninteractive.sh passed through remove, update-in-place and first-install paths."
+    },
+    {
+      "name": "tier0-control",
+      "status": "passed",
+      "evidence": "test-tier0-control.py passed 13/13."
+    }
+  ],
+  "documentation": [
+    "installer/termux-lite/README.md",
+    "docs/runtime-protocol-v1.md",
+    "docs/changes/termux-tmp-path-hardening-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Hardens filesystem compatibility for existing Termux/OpenClaw runtime capabilities without changing scope, authorization, routing or entrypoints."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Keeps the existing Termux environment and OpenClaw compatibility owner; no new service, registry, daemon, scheduler or source of truth is introduced."
+  },
+  "rollback": "Revert the source commit. If the compatibility patch has already been applied to the installed OpenClaw package, reinstall the prior known-good OpenClaw runtime or promote the previous immutable Tier-0 Last Known Good release.",
+  "limitations": [
+    "Android /tmp permissions are intentionally unchanged.",
+    "/data/local/tmp remains unchanged for files intentionally created through adb shell on the device side."
+  ],
+  "runtime": {
+    "release_id": "20261005T133850-d3beb769",
+    "source_commit": "9091cbb39fabba3ba1e5d7b1d4765a2bb515be99",
+    "soak_state": "stable",
+    "soak_bad_samples": 0,
+    "openclaw_crabbox_sha256": "feb0a3012234f8829ff7400f09f861fd1ea5f60efafff349fe9c1ca7ec41181c",
+    "adb": "device",
+    "remote_desktop": "healthy_ping",
+    "companion": "healthy_http",
+    "tmp_top_level": "non_writable_expected",
+    "process_tmpdir": "$HOME/.cache/tmp"
+  }
+}
