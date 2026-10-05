@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { capabilityBridge } from "./capabilityBridge";
 
 const ROOT = process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR || path.join(os.homedir(), ".openclaw", "remote-bridge");
 const REQUEST_DIR = path.join(ROOT, "requests");
@@ -163,7 +164,7 @@ export function getRemoteBridgeTask(taskId: string, rawLimit = 50) {
 }
 
 function mutationRisk(method: string): "read" | "write" | "unknown" {
-  if (["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status"].includes(method)) return "read";
+  if (["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status", "mcp_capability_execute_readonly"].includes(method)) return "read";
   if (["write_file", "patch_file", "write_binary_file", "process_input", "process_stop"].includes(method)) return "write";
   return "unknown";
 }const INLINE_LIMIT = 48 * 1024;
@@ -346,6 +347,24 @@ function readArtifact(params: Record<string, unknown>) {
   };
 }
 
+async function runMcpCapabilityReadonly(params: Record<string, unknown>) {
+  const request = String(params.request || "").trim();
+  if (!request || request.length > 12000) throw new Error("invalid_mcp_request");
+  const rawTargetHint = String(params.targetHint || "").trim();
+  if (rawTargetHint && !/^[A-Za-z0-9._-]{1,128}$/.test(rawTargetHint)) {
+    throw new Error("invalid_target_hint");
+  }
+  const targetHint = rawTargetHint || undefined;
+  return capabilityBridge(request, {
+    execute: true,
+    readOnly: true,
+    surface: "external_mcp",
+    caller: "owner",
+    timeoutSeconds: 30,
+    targetHint,
+  });
+}
+
 async function dispatch(request: RemoteBridgeRequest) {
   const params = (request.params || {}) as Record<string, unknown>;
   switch (request.method) {
@@ -368,6 +387,8 @@ async function dispatch(request: RemoteBridgeRequest) {
       return writeBinaryFile(params);
     case "artifact_read":
       return readArtifact(params);
+    case "mcp_capability_execute_readonly":
+      return runMcpCapabilityReadonly(params);
     case "process_start":
       return startBridgeProcess(params);
     case "process_status":

@@ -59,6 +59,7 @@ def main() -> int:
     e.add_argument("--caller", default="owner")
     e.add_argument("--timeout", type=int, default=30)
     e.add_argument("--target")
+    e.add_argument("--read-only", action="store_true")
 
     v = sub.add_parser("view")
     v.add_argument("--surface", default="chatgpt")
@@ -82,6 +83,8 @@ def main() -> int:
         ]
         if args.target:
             forwarded.extend(["--target", args.target])
+        if args.read_only:
+            forwarded.append("--read-only")
         return call(forwarded, timeout_s=args.timeout + 5)
     if args.cmd == "view":
         forwarded = ["view", "--surface", args.surface, "--caller", args.caller, "--max-chars", str(args.max_chars)]

@@ -1,3 +1,5 @@
+import { handleMcpHttp } from "./mcp.mjs";
+
 const ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 const MAX_TEXT_CHARS = 12000;
 
@@ -78,6 +80,11 @@ export class VoiceRelay {
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === "/device") return this.acceptDevice(request);
+    if (url.pathname === "/mcp") {
+      return handleMcpHttp(request, this.env, (tool, args, auth, meta) =>
+        this.handleMcpTool(tool, args, auth, meta),
+      );
+    }
     if (url.pathname === "/health") {
       if (!this.ownerAuthorized(request)) {
         return json({ error: "unauthorized" }, 401);
@@ -159,6 +166,41 @@ export class VoiceRelay {
       at: Date.now(),
     });
     return json(response, response?.success === false ? 502 : 200);
+  }
+
+  async handleMcpTool(tool, args, auth, meta) {
+    const requestId = String(meta?.requestId || "").trim();
+    if (!ID_RE.test(requestId)) throw new Error("invalid_request_id");
+
+    this.cleanupRecent();
+    const turnKey = JSON.stringify([
+      "mcp",
+      String(auth?.clientId || ""),
+      String(tool || ""),
+      args || {},
+    ]);
+    const prior = this.recent.get(requestId);
+    if (prior) {
+      if (prior.turnKey !== turnKey) throw new Error("request_id_conflict");
+      return prior.response;
+    }
+
+    const sockets = this.authenticatedSockets();
+    if (!sockets.length) throw new Error("device_offline");
+    const response = await this.waitForResponse(
+      requestId,
+      sockets[0],
+      JSON.stringify({
+        type: "mcp_request",
+        requestId,
+        clientId: String(auth.clientId || ""),
+        profile: String(auth.profile || ""),
+        tool: String(tool || ""),
+        arguments: args || {},
+      }),
+    );
+    this.recent.set(requestId, { turnKey, response, at: Date.now() });
+    return response;
   }
 
   waitForResponse(requestId, ws, message) {

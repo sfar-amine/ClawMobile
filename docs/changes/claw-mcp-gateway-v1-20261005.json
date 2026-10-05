@@ -1,0 +1,113 @@
+{
+  "version": 2,
+  "id": "claw-mcp-gateway-v1-20261005",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Generic Claw MCP V1 is source-ready after current-head integration and non-regression; Claude remains the first live client.",
+  "reason": "The earlier external write boundary is resolved. Current Claude Pro/Max connector documentation supports fixed request headers, so V1 uses per-client fixed-header authentication and the existing outbound relay without adding OAuth or a provider-specific subsystem.",
+  "files": [
+    "cloud/voice-relay/.gitignore",
+    "cloud/voice-relay/package-lock.json",
+    "cloud/voice-relay/package.json",
+    "cloud/voice-relay/src/index.mjs",
+    "cloud/voice-relay/src/mcp.mjs",
+    "cloud/voice-relay/test-e2e-local.mjs",
+    "cloud/voice-relay/test-mcp.mjs",
+    "docs/changes/claw-mcp-gateway-closure-checkpoint-20261005.md",
+    "docs/changes/claw-mcp-gateway-v1-20261005.json",
+    "docs/changes/claw-mcp-gateway-v1-20261005.md",
+    "docs/remote-bridge.md",
+    "installer/termux-lite/claw-capability.py",
+    "openclaw-plugin-mobile-ui/package.json",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-bridge.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts"
+  ],
+  "tests": [
+    {
+      "name": "readonly-graph-registry",
+      "status": "passed",
+      "evidence": {
+        "count": 56,
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "full-python-nonregression",
+      "status": "passed",
+      "evidence": {
+        "candidate_tests": 913,
+        "candidate_failures": 4,
+        "candidate_specific_failures": 0,
+        "baseline_failures_identical": true,
+        "baseline_scope": [
+          "device.laptop_termux_access dependency coverage",
+          "Topnet biometric/payment terminal-contract expectations"
+        ]
+      }
+    },
+    {
+      "name": "companion-runtime-regression",
+      "status": "passed",
+      "evidence": {
+        "node_tests": 25,
+        "failed": 0,
+        "build_exit_code": 0
+      }
+    },
+    {
+      "name": "edge-mcp-protocol",
+      "status": "passed",
+      "evidence": {
+        "tools": 5,
+        "auth": "per-client fixed-credential hash",
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "edge-to-s24-local-e2e",
+      "status": "passed",
+      "evidence": {
+        "surface": "external_mcp",
+        "write_blocked": true,
+        "durable_status": true,
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "cloudflare-worker-dry-run",
+      "status": "passed",
+      "evidence": {
+        "exit_code": 0,
+        "gzip_kib": 167.94
+      }
+    }
+  ],
+  "documentation": [
+    "docs/remote-bridge.md",
+    "docs/changes/claw-mcp-gateway-v1-20261005.md",
+    "docs/changes/claw-mcp-gateway-closure-checkpoint-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "inference.surface_awareness",
+      "gateway.mcp.external"
+    ],
+    "reason": "external_mcp is provider-neutral and read-only; admission is enforced on the exact route resolution, transport completion is projected to bounded business state, and artifacts require their originating client receipt."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "This private runtime commit implements the architecture decision owned and documented in ui-playbooks ADR-20261005-claw-mcp-gateway; it does not introduce a separate runtime architecture decision."
+  },
+  "rollback": "Disable/remove the MCP client secret or /mcp edge route, revert the scoped source commits, and restore the prior Companion release. Samantha, Slack Remote Bridge and RDC remain independent.",
+  "limitations": [
+    "Real Claude custom-connector E2E and latency require deployment and account-side connector configuration.",
+    "V1 exposes only chat-owner-shadow read-only execution.",
+    "Four unrelated Python-suite failures reproduce identically on canonical main and are not fixed by this delivery."
+  ]
+}

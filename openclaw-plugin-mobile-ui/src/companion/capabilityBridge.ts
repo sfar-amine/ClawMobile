@@ -6,16 +6,19 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 function helpers(home = os.homedir()): string[] {
+  const configured = String(process.env.CLAW_CAPABILITY_HELPER || "").trim();
   return [
+    configured,
     path.join(home, ".openclaw/releases/current/termux-lite/claw-capability.py"),
     path.join(home, "ClawMobile/installer/termux-lite/claw-capability.py"),
-  ];
+  ].filter(Boolean);
 }
 
 export async function capabilityBridge(
   request: string,
   options: {
     execute?: boolean;
+    readOnly?: boolean;
     surface?: string;
     caller?: string;
     timeoutSeconds?: number;
@@ -48,6 +51,7 @@ export async function capabilityBridge(
       ];
       if (targetHint) argv.push("--target", targetHint);
       if (execute) argv.push("--timeout", String(timeout));
+      if (execute && options.readOnly === true) argv.push("--read-only");
       const raw: any = await execFileAsync("python3", argv, {
         timeout: (timeout + 8) * 1000,
         maxBuffer: 2 * 1024 * 1024,
