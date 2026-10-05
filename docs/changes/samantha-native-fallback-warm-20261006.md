@@ -28,7 +28,7 @@ Evidence directory: private S24 `~/.openclaw/backups/samantha-ux-ui-20261005/fal
 
 ## Deployment gate
 
-The native configuration is applied and its live fallback is verified. Warm source is tested but requires activation in the existing Companion owner, followed by the unchanged physical handshake and full text/voice/text acceptance. Source publication alone does not close the UX task. Test-owned sessions must be removed through the existing session API after final verification.
+The native configuration and runtime code are activated and verified. Gateway restart and existing-supervisor Companion restart have independent receipts. Startup prewarm became ready in 4,157 ms. The installed Android0.7.1 passed its unchanged Warm handshake and full text/voice/text round-trip plus four focused UI checks (6 tests, 43.006 s). Canonical recovery supersedes the prior Warm failure. Final UX closure evidence is maintained in canonical ui-playbooks `docs/changes/samantha-ux-closure-20261006.md`.
 
 ## Ownership and rollback
 

@@ -33,6 +33,11 @@
       "name": "config_validation",
       "status": "passed",
       "evidence": "openclaw config patch --dry-run --json: schema and reference resolvability true, two scoped operations."
+    },
+    {
+      "name": "activated_android_acceptance",
+      "status": "passed",
+      "evidence": "Existing-supervisor Companion activation; startup Warm4157ms; Android0.7.1 six focused physical tests passed, including real Warm handshake and full text voice text continuity."
     }
   ],
   "documentation": [
@@ -47,8 +52,6 @@
     "changed": false,
     "reason": "Native OpenClaw owns fallback; existing Warm Core owns cancellation/retry; no parallel store, daemon or router."
   },
-  "runtime_reservations": [
-    "Native config is applied and live-verified; Warm code still awaits activation and physical acceptance."
-  ],
+  "runtime_reservations": [],
   "rollback": "Apply the privately recorded two-array config rollback, or revert only this source commit after checking concurrent changes; never reset shared worktrees or replay requests."
 }
