@@ -32,9 +32,14 @@ A source scan found no remaining `${TMPDIR:-/tmp}` or `${PREFIX:-/tmp}` fallback
 
 No capability, route, authorization boundary, scheduler, daemon, registry or source of truth changes. This is a compatibity hardening of the existing ClawMobile Termux/OpenClaw owner.
 
-## Deployment
+## Live acceptance
 
-The source candidate is publishable with deployment state `not_applied`. Runtime activation must apply the existing compatibility patch to the installed OpenClaw package and promote a fresh immutable Tier-0 release before this record can be marked runtime-verified.
+- Source commit `9091cbb39fabba3ba1e5d7b1d4765a2bb515be99` was published to the private runtime branch and verified remotely.
+- Installed OpenClaw Crabbox was patched once from SHA-256 `c57ec8f9f32fb85ee7718e064f1ec2388f375747b9b3072ba9200620cf1fe47c` to `feb0a3012234f8829ff7400f09f861fd1ea5f60efafff349fe9c1ca7ec41181c`; the dangerous exact and parameter fallbacks are absent.
+- Immutable Tier-0 release `20261005T133850-d3beb769` embeds the source commit, completed its 300-second soak with 0 bad samples, and is both Current and Last Known Good.
+- ADB is `device`, Remote Desktop responds to a live ping, Companion answers its local HTTP probe, and the critical supervisors run from the new release.
+- Long-running Claw processes retain `TMPDIR=$HOME/.cache/tmp`; Android `/tmp` remains non-writable by the Termux UID as intended.
+- The regression test and login-shell test both pass from the deployed immutable release.
 
 ## Rollback
 

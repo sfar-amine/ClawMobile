@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "maintenance",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "verified",
   "summary": "Remove unsafe top-level /tmp fallbacks from the ClawMobile Termux runtime and extend the OpenClaw compatibility patcher to rewrite escaped shell fallbacks.",
   "reason": "Android /tmp is owned by the shell domain and is not writable by the Termux application UID. Live audit showed the active runtime is protected by TMPDIR, but latent fallback expressions and escaped Crabbox shell strings could still select /tmp if the environment was missing.",
   "files": [
@@ -67,7 +67,18 @@
   "rollback": "Revert the source commit. If the compatibility patch has already been applied to the installed OpenClaw package, reinstall the prior known-good OpenClaw runtime or promote the previous immutable Tier-0 Last Known Good release.",
   "limitations": [
     "Android /tmp permissions are intentionally unchanged.",
-    "/data/local/tmp remains unchanged for files intentionally created through adb shell on the device side.",
-    "This source commit does not itself mutate the installed OpenClaw package; runtime activation is recorded separately after publication."
-  ]
+    "/data/local/tmp remains unchanged for files intentionally created through adb shell on the device side."
+  ],
+  "runtime": {
+    "release_id": "20261005T133850-d3beb769",
+    "source_commit": "9091cbb39fabba3ba1e5d7b1d4765a2bb515be99",
+    "soak_state": "stable",
+    "soak_bad_samples": 0,
+    "openclaw_crabbox_sha256": "feb0a3012234f8829ff7400f09f861fd1ea5f60efafff349fe9c1ca7ec41181c",
+    "adb": "device",
+    "remote_desktop": "healthy_ping",
+    "companion": "healthy_http",
+    "tmp_top_level": "non_writable_expected",
+    "process_tmpdir": "$HOME/.cache/tmp"
+  }
 }
