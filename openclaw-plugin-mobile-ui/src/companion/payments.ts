@@ -101,6 +101,42 @@ async function notifyLocalHandoff(confirmationRequestId:string,quote:PaymentQuot
   return res.ok;
 }
 
+const UI_PROGRESS_STAGES=new Set([
+  "owner_confirmation_consumed","payment_record_created","financial_dispatch_committed",
+  "provider_session_started","provider_session_authenticated","invoice_revalidated",
+  "checkout_prepared","browser_context_ready","three_ds2_preflight",
+  "gateway_submission_started","gateway_submission_result","bank_ui_opened",
+  "bank_resume_started","provider_readback","provider_callback_correlated",
+  "completion_classified","state_transition"
+]);
+function latestUiProgress(payment:any){
+  const timeline=Array.isArray(payment?.timeline)?payment.timeline:[];
+  for(let i=timeline.length-1;i>=0;i--){
+    const e=timeline[i];
+    if(e&&UI_PROGRESS_STAGES.has(e.stage))return {
+      stage:e.stage,
+      ...(typeof e.outcome==="string"?{outcome:e.outcome}:{}),
+      ...(typeof e.invoiceState==="string"?{invoiceState:e.invoiceState}:{}),
+      ...(Number.isSafeInteger(e.at)?{at:e.at}:{})
+    };
+  }
+  return null;
+}
+export function compactPaymentUiView(payment:any){
+  if(!payment||payment.schemaVersion!==1||typeof payment.requestId!=="string")paymentError("invalid_payment_response",503);
+  return {
+    schemaVersion:1,
+    requestId:payment.requestId,
+    adapterId:payment.adapterId,
+    state:payment.state,
+    reasonCode:payment.reasonCode,
+    quote:payment.quote,
+    financialSubmissionAttempted:payment.financialSubmissionAttempted===true,
+    progress:latestUiProgress(payment),
+    ...(payment.receipt?{receipt:payment.receipt}:{})
+  };
+}
+
 function validateLocalIntentInput(v:any):{requestKey:string;adapterId:string;reference:string;origin:OwnerOrigin} {
   exactPaymentObject(v,["requestKey","adapterId","reference","origin"]);
   if(typeof v.requestKey!=="string"||!ownerUuid.test(v.requestKey)) paymentError("invalid_payment_request");
@@ -178,7 +214,8 @@ async function localIntentStatus(id:string) {
   const payment=await core.statusByRequestKey(id);
   if(payment) return {
     schemaVersion:1, confirmationRequestId:id, state:payment.state,
-    financialSubmissionAttempted:payment.financialSubmissionAttempted, payment
+    financialSubmissionAttempted:payment.financialSubmissionAttempted,
+    payment:compactPaymentUiView(payment)
   };
   const confirmation=await confirmations.status(id);
   return {schemaVersion:1, confirmationRequestId:id, state:confirmation.state,
@@ -191,7 +228,7 @@ async function localStart(input:any) {
   const id=input.confirmationRequestId;
 
   const existing=await core.statusByRequestKey(id);
-  if(existing) return existing;
+  if(existing) return compactPaymentUiView(existing);
 
   const conf=await confirmations.status(id);
 
@@ -225,21 +262,21 @@ async function localStart(input:any) {
     quote:freshQuote
   });
   if(result.state==="requires_bank_action")await scheduleBankTimeout(result.requestId);
-  return result;
+  return compactPaymentUiView(result);
 }
 
 async function bankUiEvent(id:string,event:any){
-  return core.recordBankUiEvent(id,event);
+  return compactPaymentUiView(await core.recordBankUiEvent(id,event));
 }
 async function bankReturn(id:string,bankReturnToken:string){
   const result=await bound.bankReturn(id,bankReturnToken);
   clearBankTimeout(id);
-  return result;
+  return compactPaymentUiView(result);
 }
 async function resume(id:string,confirmationRequestId:string){
   const result=await bound.resume(id,confirmationRequestId);
   clearBankTimeout(id);
-  return result;
+  return compactPaymentUiView(result);
 }
 
 export const payments = {

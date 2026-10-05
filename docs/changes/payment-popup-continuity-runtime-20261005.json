@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "id": "payment-popup-continuity-runtime-20261005",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "applied",
+  "summary": "Return compact Android payment projections with latest deterministic progress while preserving the full canonical PaymentRecord trace.",
+  "reason": "Live acceptance confirmed the transaction but Android rejected 19-43 KiB action responses against its 16 KiB guard, which suppressed the terminal result UI.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-handoff.cjs",
+    "docs/runtime/samantha-companion-private.md",
+    "docs/changes/payment-popup-continuity-runtime-20261005.md",
+    "docs/changes/payment-popup-continuity-runtime-20261005.json"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": {
+        "command": "npm run build"
+      }
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": {
+        "tests": 57
+      }
+    },
+    {
+      "name": "payment-handoff",
+      "status": "passed",
+      "evidence": {
+        "tests": 3
+      }
+    },
+    {
+      "name": "topnet-live-payment",
+      "status": "passed",
+      "evidence": {
+        "tests": 9
+      }
+    },
+    {
+      "name": "clictopay-provider",
+      "status": "passed",
+      "evidence": {
+        "tests": 2
+      }
+    },
+    {
+      "name": "api-registry-guard",
+      "status": "passed",
+      "evidence": {
+        "result": "OWNER_CONFIRMATION_PAYMENT_API_AND_REGISTRY_CHECKS_PASSED"
+      }
+    },
+    {
+      "name": "real-record-projection-size",
+      "status": "passed",
+      "evidence": {
+        "full_bytes": 43010,
+        "compact_bytes": 511,
+        "request_id": "94f94c0f-049d-4156-b06c-f65798dc2fa0"
+      }
+    }
+  ],
+  "documentation": [
+    "docs/runtime/samantha-companion-private.md",
+    "docs/changes/payment-popup-continuity-runtime-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "payment.owner_native"
+    ],
+    "reason": "UI projection and progress observation changed; payment execution semantics did not."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same Payment Core, PaymentRecord, local-intent endpoint and bank-return path; no new route, store, logger or orchestrator."
+  },
+  "rollback": "Revert the compact projection commit. Full PaymentRecord history requires no migration.",
+  "limitations": [
+    "Full forensic timeline intentionally remains out of Android action responses and must be read via status/trace-report."
+  ]
+}

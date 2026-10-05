@@ -17,3 +17,6 @@ The private Companion keeps a single Payment Core. New read-only `GET /v1/paymen
 
 ## Payment UI telemetry markers — 5 October 2026
 The existing PaymentRecord timeline accepts optional `clientAt` only for `bank_ui_lifecycle`. Companion records its own receipt time as `at` and rejects client timestamps outside the bounded local-device window. Android uses this for `preparing_loading_visible`, `bank_form_visible`, and `finalizing_loading_visible`. No bank input, token, URL query, cookie, card data or challenge payload is added; the markers are diagnostic-only and cannot mutate, resume or retry a payment.
+
+## Compact Android payment projection — 5 October 2026
+Android-facing payment action/status responses no longer return the full forensic timeline. They return a bounded projection with request/state/reason/quote/receipt and the latest deterministic progress stage. The complete PaymentRecord timeline remains available through canonical status/trace-report. This keeps UI responses below the Android body guard even when forensic telemetry grows, and allows a read-only popup observer to update copy during local-start without creating a new route or execution path.
