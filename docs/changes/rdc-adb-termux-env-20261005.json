@@ -5,7 +5,7 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "verified",
-  "summary": "Make Bash login shells load the canonical ClawMobile Termux environment and remove non-activated RDC-specific environment wrappers.",
+  "summary": "Make Bash login shells load the canonical ClawMobile Termux environment, including canonical SHELL, and remove non-activated RDC-specific environment wrappers.",
   "reason": "Live RDC evidence confirmed Desktop Commander executes bash -l -c while ClawMobile configured only ~/.bashrc; no login profile sourced it, leaving PREFIX/TMPDIR/TMP/TEMP empty.",
   "files": [
     "installer/termux-lite/install-openclaw.sh",
@@ -52,6 +52,7 @@
   "runtime": {
     "release_id": "20261005T094153-d3beb769",
     "source_commit": "9011d1319a6dc33c3794b7c2b42d72f312ab1e89",
+    "source_fix_commit": "2a0a546",
     "soak_state": "stable",
     "soak_bad_samples": 0,
     "rdc_pid": 21434,

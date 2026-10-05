@@ -13,7 +13,7 @@ The durable owner of the Termux environment is the OpenClaw installer, but it co
 ## Correction
 
 - Keep the existing ClawMobile environment block in `~/.bashrc`.
-- Add the canonical Termux `PREFIX` to that managed block.
+- Add the canonical Termux `PREFIX` and `SHELL=$PREFIX/bin/bash` to that managed block, so a login shell cannot retain a shell path from a rolled-back release.
 - Make the first existing Bash login profile, in Bash precedence order (`~/.bash_profile`, `~/.bash_login`, `~/.profile`), source `~/.bashrc`.
 - If no login profile exists, create only `~/.bash_profile`.
 - Preserve unrelated user profile content and keep the managed login block idempotent.
@@ -34,7 +34,7 @@ The verified pre-state had no `~/.bash_profile`, `~/.bash_login`, or `~/.profile
 
 ## Live acceptance
 
-- Source commit: `9011d1319a6dc33c3794b7c2b42d72f312ab1e89`.
+- Runtime release source commit: `9011d1319a6dc33c3794b7c2b42d72f312ab1e89`; durable installer/profile fix published in `2a0a546`.
 - Runtime release: `20261005T094153-d3beb769`; Tier-0 soak completed `stable` with 0 bad samples and the release is both current and Last Known Good.
 - Core supervisor environment was normalized once after the earlier rolled-back wrapper experiment: Root Guardian, Health Manager and the RDC watchdog now inherit `SHELL=/data/data/com.termux/files/usr/bin/bash`.
 - Stale RDC parent PID `13362` was stopped through the existing controller and replaced by PID `21434`.
