@@ -18,6 +18,12 @@ The OpenClaw-on-Android bootstrap follows the same core approach as:
 
 The small compatibility subset used by this runtime is kept in
 `openclaw-compat/`, with MIT attribution in `openclaw-compat/NOTICE.md`.
+Besides path normalization, the compatibility patcher carries Android filesystem
+adaptations that OpenClaw itself does not own. In particular, canonical SQLite
+transcript archives use exclusive copy + fsync instead of hard-link publication
+because app-private Termux storage can reject `link(2)` with `EACCES`; OpenClaw's
+existing collision handling, directory sync and SHA-256 verification remain the
+authority after the copy.
 
 ## Install Source
 

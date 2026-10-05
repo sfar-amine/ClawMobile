@@ -118,8 +118,17 @@ readiness_tick(){
           log WARN readiness degraded "recovery readiness degraded reason=$reason failures=$failures"
         fi
         if [ "$failures" -ge "$READINESS_HELP_AFTER" ] && [ ! -s "$READINESS_NOTIFY" ]; then
-          rm -f "$READINESS_NOTIFY"
-          readiness_human_required "$reason" || true
+          case "$reason" in
+            wireless_debugging_disabled|wireless_endpoint_not_discoverable|wifi_disabled_recovery_standby)
+              if [ "$failures" -eq "$READINESS_HELP_AFTER" ]; then
+                log WARN readiness advisory "non-critical recovery readiness requires owner action reason=$reason"
+              fi
+              ;;
+            *)
+              rm -f "$READINESS_NOTIFY"
+              readiness_human_required "$reason" || true
+              ;;
+          esac
         fi
       else
         printf 0 >"$READINESS_FAILURES"

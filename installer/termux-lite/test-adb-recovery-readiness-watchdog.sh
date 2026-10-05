@@ -74,23 +74,25 @@ test ! -e "$T/notifications"
 rm -f "$T/notifications" "$T/orchestrator" "$T/closings"
 : >"$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
 printf up >"$H/.openclaw/watchdogs/adb-recovery.state"
-cat >"$H/fake-readiness-human" <<'EOF'
+cat >"$H/fake-readiness-advisory" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 echo '{"state":"degraded","reason":"wireless_endpoint_not_discoverable","requires_owner_action":true}'
 EOF
-chmod +x "$H/fake-readiness-human"
+chmod +x "$H/fake-readiness-advisory"
 PATH="$T/bin:$PATH" \
 ADB_RECOVERY_HOME="$H" \
-ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-human" \
+ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-advisory" \
 ADB_RECOVERY_INTERVAL=0 \
 ADB_RECOVERY_READINESS_HELP_AFTER=2 \
 ADB_RECOVERY_MAX_LOOPS=3 \
 "$R/adb-recovery-watchdog.sh"
-test "$(wc -l <"$T/notifications")" -eq 1
-grep -q '^human_required ' "$T/notifications"
-grep -q 'transition inc-readiness human_required' "$T/orchestrator"
-test -s "$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
+test ! -e "$T/notifications"
+test ! -e "$T/orchestrator"
+test ! -s "$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
+grep -q 'event=readiness result=advisory' "$H/.openclaw/watchdogs/adb-recovery.log"
 
+# A historical human-required readiness incident still closes once real readiness returns.
+printf inc-readiness >"$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
 cat >"$H/fake-readiness-ready" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 echo '{"state":"ready","reason":"trusted_wireless_endpoint_verified","requires_owner_action":false}'

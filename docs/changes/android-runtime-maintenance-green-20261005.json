@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "id": "android-runtime-maintenance-green-20261005",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Use an Android-compatible exclusive copy for OpenClaw transcript archive publication and stop escalating non-critical proactive ADB readiness into blocking incidents.",
+  "reason": "Termux app-private storage rejects the OpenClaw hard-link publish with EACCES, and proactive ADB readiness created human_required incidents despite canonical ADB remaining healthy.",
+  "files": [
+    "installer/termux-lite/openclaw-compat/patch-openclaw-paths.sh",
+    "installer/termux-lite/test-openclaw-archive-copy.sh",
+    "installer/termux-lite/adb-recovery-watchdog.sh",
+    "installer/termux-lite/test-adb-recovery-readiness-watchdog.sh",
+    "installer/termux-lite/README.md",
+    "docs/changes/android-runtime-maintenance-green-20261005.md",
+    "docs/changes/android-runtime-maintenance-green-20261005.json"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-archive-copy",
+      "status": "passed",
+      "evidence": "Synthetic compatibility patch and COPYFILE_EXCL/fsync contract passed."
+    },
+    {
+      "name": "adb-readiness-watchdog",
+      "status": "passed",
+      "evidence": "Closed-loop watchdog test passed: automatic repair still works, proactive degraded readiness emits advisory without incident, and a historical readiness incident still closes on verified readiness."
+    },
+    {
+      "name": "final-runtime-regression",
+      "status": "passed",
+      "evidence": "Archive compatibility test, ADB readiness watchdog, health verdict 11/11, Tier-0 13/13 and incident runtime hardening passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/android-runtime-maintenance-green-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "health.transaction.runtime",
+      "device.adb.recovery_readiness"
+    ],
+    "reason": "Existing Android runtime compatibility and readiness escalation semantics are corrected without changing ownership or entrypoints."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the existing OpenClaw compatibility patcher and ADB watchdog; no new owner or control plane."
+  },
+  "runtime": {
+    "hard_link_canary": "EACCES",
+    "exclusive_copy_canary": "ok",
+    "adb_canonical_state": "device",
+    "adb_wireless_setting": "0",
+    "deployment_evidence": "pending"
+  },
+  "rollback": "Revert this commit and promote the previous immutable Tier-0 Last Known Good release.",
+  "limitations": [
+    "Wireless Debugging readiness can remain advisory degraded while Android refuses to enable it; current canonical ADB remains independently verified.",
+    "No payment or user Android application code is modified."
+  ]
+}
