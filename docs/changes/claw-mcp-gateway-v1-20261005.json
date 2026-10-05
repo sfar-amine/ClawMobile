@@ -3,10 +3,10 @@
   "id": "claw-mcp-gateway-v1-20261005",
   "origin": "chat",
   "kind": "capability",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Generic MCP V1 hardened in isolation; awaiting current-head integration, full regression and live Claude acceptance.",
-  "reason": "Resume the preserved candidate after verifying the earlier external write denial had no effect. Current Claude Pro/Max connector documentation supports fixed request headers, so V1 keeps per-client bearer authentication and does not add an OAuth server.",
+  "summary": "Generic Claw MCP V1 is source-ready after current-head integration and non-regression; Claude remains the first live client.",
+  "reason": "The earlier external write boundary is resolved. Current Claude Pro/Max connector documentation supports fixed request headers, so V1 uses per-client bearer auth and the existing outbound relay without adding OAuth or a provider-specific subsystem.",
   "files": [
     "cloud/voice-relay/.gitignore",
     "cloud/voice-relay/package-lock.json",
@@ -37,48 +37,45 @@
       }
     },
     {
-      "name": "companion-mcp-bridge",
+      "name": "full-python-nonregression",
       "status": "passed",
       "evidence": {
-        "exit_code": 0,
-        "coverage": [
-          "read-only admission",
-          "durable receipt/status",
-          "source-bound artifact",
-          "bounded context"
+        "candidate_tests": 913,
+        "candidate_failures": 4,
+        "candidate_specific_failures": 0,
+        "baseline_failures_identical": true,
+        "baseline_scope": [
+          "device.laptop_termux_access dependency coverage",
+          "Topnet biometric/payment terminal-contract expectations"
         ]
       }
     },
     {
-      "name": "remote-bridge-core",
+      "name": "companion-runtime-regression",
       "status": "passed",
       "evidence": {
-        "exit_code": 0
-      }
-    },
-    {
-      "name": "voice-relay-regression",
-      "status": "passed",
-      "evidence": {
-        "exit_code": 0
+        "node_tests": 25,
+        "failed": 0,
+        "build_exit_code": 0
       }
     },
     {
       "name": "edge-mcp-protocol",
       "status": "passed",
       "evidence": {
-        "exit_code": 0,
         "tools": 5,
-        "auth": "per-client bearer hash"
+        "auth": "per-client bearer hash",
+        "exit_code": 0
       }
     },
     {
       "name": "edge-to-s24-local-e2e",
       "status": "passed",
       "evidence": {
-        "exit_code": 0,
         "surface": "external_mcp",
-        "write_blocked": true
+        "write_blocked": true,
+        "durable_status": true,
+        "exit_code": 0
       }
     },
     {
@@ -91,6 +88,8 @@
     }
   ],
   "documentation": [
+    "docs/remote-bridge.md",
+    "docs/changes/claw-mcp-gateway-v1-20261005.md",
     "docs/changes/claw-mcp-gateway-closure-checkpoint-20261005.md"
   ],
   "capabilities": {
@@ -99,18 +98,17 @@
       "inference.surface_awareness",
       "gateway.mcp.external"
     ],
-    "reason": "Provider-neutral external_mcp surface with exact-resolution read-only admission; business result projection and artifact access are bounded to canonical receipts. Not deployed yet."
+    "reason": "external_mcp is provider-neutral and read-only; admission is enforced on the exact route resolution, transport completion is projected to bounded business state, and artifacts require their originating client receipt."
   },
   "architecture": {
     "changed": true,
-    "reason": "Generic external MCP adapter reuses existing edge relay, Capability Harness/Graph, Remote Bridge receipts and Memory Core; no provider-specific router or OAuth subsystem is introduced.",
+    "reason": "One external MCP adapter reuses the existing Cloudflare relay, Capability Harness/Graph, Remote Bridge receipts and Memory Core. Samantha remains on its local path; no second router, memory, scheduler, retry engine or OAuth server.",
     "adr": "docs/08-decisions/ADR-20261005-claw-mcp-gateway.md"
   },
-  "rollback": "Before deployment, discard/revert the isolated branch. After deployment, disable the MCP client secret/edge route and revert the scoped commits; Samantha/Slack/RDC paths are independent.",
+  "rollback": "Disable/remove the MCP client secret or /mcp edge route, revert the scoped source commits, and restore the prior Companion release. Samantha, Slack Remote Bridge and RDC remain independent.",
   "limitations": [
-    "Full regression after reconciliation with current canonical heads is pending.",
-    "Real Claude custom-connector E2E and latency are pending.",
-    "Production runtime is unchanged until explicit deployment and runtime verification.",
-    "Only chat-owner-shadow read-only execution is in scope for V1."
+    "Real Claude custom-connector E2E and latency require deployment and account-side connector configuration.",
+    "V1 exposes only chat-owner-shadow read-only execution.",
+    "Four unrelated Python-suite failures reproduce identically on canonical main and are not fixed by this delivery."
   ]
 }
