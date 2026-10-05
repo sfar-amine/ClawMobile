@@ -43,22 +43,7 @@ def health(home=None, proc=Path('/proc'), now=None):
     if len(rows) != 1:
         if rows: result.update(state='degraded', reason='duplicate_instances')
         return result
-    r = rows[0]
-    expected_shell = str(ROOT/'remote-desktop-bash')
-    if (ROOT/'remote-desktop-bash').exists():
-        try:
-            env = {}
-            for item in (proc/str(r['pid'])/'environ').read_bytes().split(b'\0'):
-                if b'=' in item:
-                    key, value = item.split(b'=', 1)
-                    if key == b'SHELL': env['SHELL'] = value.decode(errors='replace')
-            if env.get('SHELL') != expected_shell:
-                result.update(state='degraded', reason='runtime_environment_stale')
-                return result
-        except OSError:
-            result.update(state='unverified', reason='runtime_environment_unreadable')
-            return result
-    p = home/'.openclaw/watchdogs'/f"remote-desktop-{r['pid']}.json"
+    r = rows[0]; p = home/'.openclaw/watchdogs'/f"remote-desktop-{r['pid']}.json"
     try:
         d = json.loads(p.read_text()); age = now-float(d['checked_at'])
         boot = (proc/'sys/kernel/random/boot_id').read_text().strip()
@@ -122,15 +107,10 @@ class Controller:
         if log.exists() and log.stat().st_size > 4194304:
             with log.open('rb') as f: f.seek(-1048576, 2); tail = f.read()
             log.write_bytes(tail)
-        tmp = self.home/'.cache/tmp'
-        tmp.mkdir(parents=True, exist_ok=True, mode=0o700)
-        env = os.environ.copy()
-        env.update(TMPDIR=str(tmp), TMP=str(tmp), TEMP=str(tmp),
-                   SHELL=str(self.root/'remote-desktop-bash'))
         with log.open('ab') as out:
             subprocess.Popen([str(self.home/'.openclaw-android/bin/node'),
                 '--import='+str(self.root/'remote-desktop-health.mjs'), SCRIPT, 'remote'], cwd=self.home,
-                stdin=subprocess.DEVNULL, stdout=out, stderr=out, close_fds=True, start_new_session=True, env=env)
+                stdin=subprocess.DEVNULL, stdout=out, stderr=out, close_fds=True, start_new_session=True)
     def wait_ready(self):
         deadline = time.monotonic()+self.readiness; passed = 0
         while time.monotonic() < deadline:

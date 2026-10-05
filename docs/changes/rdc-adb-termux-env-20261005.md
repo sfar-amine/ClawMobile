@@ -1,27 +1,32 @@
-# RDC / ADB Termux environment hardening — 2026-10-05
+# RDC / ADB login-shell environment hardening — 2026-10-05
 
 ## Incident
 
-A final payment-runtime verification caught an infrastructure-only failure: when the ADB server was absent, an RDC shell inherited no Termux temporary-directory variables. The ADB client attempted to start its server using a global `/tmp` path and failed before device discovery. This was independent of the payment UI and business flow.
+A live RDC command path exposed an infrastructure defect when ADB had to start its local server. Desktop Commander launches commands through `bash -l -c`. On the S24, the ClawMobile Termux environment was present only in `~/.bashrc`, while `~/.bash_profile`, `~/.bash_login`, and `~/.profile` were absent. A Bash login shell therefore skipped the managed environment and saw empty `PREFIX`, `TMPDIR`, `TMP`, and `TEMP`.
+
+Two RDC-specific candidates attempted to compensate by injecting parent-process variables and then by setting an RDC-specific shell wrapper. Live acceptance showed that the MCP child still launched the configured Bash login shell, so those candidates were rolled back and never became Last Known Good.
+
+## Root cause
+
+The durable owner of the Termux environment is the OpenClaw installer, but it configured only non-login Bash startup. The defect is therefore a login-shell bootstrap gap, not an RDC process-specific environment contract.
 
 ## Correction
 
-`remote-desktop-control.py` now creates the existing private S24 cache `~/.cache/tmp`, passes the temporary variables to the Remote process, and sets its inherited `SHELL` to the bundled `remote-desktop-bash` boundary. The MCP SDK intentionally filters most environment variables before spawning the local Desktop Commander server but preserves `SHELL`; the wrapper therefore restores only `PREFIX`, `TMPDIR`, `TMP`, and `TEMP` before delegating to the real Termux bash. No shell rc file, user payment flow, Android activity, router, daemon, scheduler, store or authorization boundary is changed.
+- Keep the existing ClawMobile environment block in `~/.bashrc`.
+- Add the canonical Termux `PREFIX` to that managed block.
+- Make the first existing Bash login profile, in Bash precedence order (`~/.bash_profile`, `~/.bash_login`, `~/.profile`), source `~/.bashrc`.
+- If no login profile exists, create only `~/.bash_profile`.
+- Preserve unrelated user profile content and keep the managed login block idempotent.
+- Remove the non-activated RDC-specific wrapper/environment candidate changes.
 
-The payment/confirmation Python clients also keep their scoped ADB environment guard, so both the transport owner and the caller fail closed independently.
+No daemon, scheduler, database, router, payment journey, Android activity, or authorization boundary is added or changed.
 
 ## Verification
 
-- `test-remote-desktop-shell.py`: 1/1 pass against a filtered environment and `bash -l -c`.
-- `test-remote-desktop-watchdog.py`: 16/16 pass, including the wrapper `SHELL` inheritance assertion.
-- `test-remote-desktop-health.mjs`: 9 remote/local health assertions pass.
-- `test-tier0-control.py`: 13/13 pass.
-- Live activation acceptance must verify the promoted RDC process environment, external RDC ping, canonical ADB selection and a read-only payment capability canary.
+- `test-openclaw-login-shell.sh` executes a real `bash -l -c` in isolated HOME directories and verifies `PREFIX/TMPDIR/TMP/TEMP`, idempotence, and preservation of an existing `~/.profile`.
+- Existing RDC watchdog/health, Tier-0, incident-loop, and Claw Live regressions must remain green.
+- Live activation must snapshot the current profile state, apply the managed login block, verify a real RDC `start_process` sees the canonical Termux environment, restart RDC through the existing controller, verify singleton + local MCP + remote heartbeat, then complete Tier-0 soak.
 
 ## Rollback
 
-Revert the source commit and promote the previous immutable Tier-0 last-known-good release.
-
-## First candidate and rollback
-
-The first immutable candidate set the temporary variables only on the Remote parent. Live E2E proved that the MCP SDK filtered them before the local Desktop Commander child, so a real `start_process` still saw empty temporary variables. Tier-0 rollback restored the previous LKG before the candidate could become stable. The final candidate must prove the child command environment directly. Canonical RDC health also treats a process whose inherited `SHELL` does not match the wrapper from the active immutable release as `runtime_environment_stale`, forcing bounded replacement instead of preserving a semantically stale but otherwise reachable process.
+Restore the exact pre-change login-profile snapshot, revert the source commit, and promote the prior immutable Tier-0 Last Known Good release.

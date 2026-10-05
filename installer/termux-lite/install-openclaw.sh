@@ -322,6 +322,33 @@ remove_bashrc_block() {
   fi
 }
 
+write_login_shell_bootstrap() {
+  local profile=""
+  local candidate
+  local start="# >>> ClawMobile Termux Login Bootstrap >>>"
+  local end="# <<< ClawMobile Termux Login Bootstrap <<<"
+
+  for candidate in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
+    if [ -f "$candidate" ]; then
+      profile="$candidate"
+      break
+    fi
+  done
+  [ -n "$profile" ] || profile="$HOME/.bash_profile"
+
+  touch "$profile"
+  if grep -qF "$start" "$profile"; then
+    sed -i "\|$start|,\|$end|d" "$profile"
+  fi
+
+  {
+    echo ""
+    echo "$start"
+    echo '[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"'
+    echo "$end"
+  } >> "$profile"
+}
+
 write_shell_env() {
   local bashrc="$HOME/.bashrc"
   local start="# >>> ClawMobile Termux OpenClaw Android >>>"
@@ -335,6 +362,7 @@ write_shell_env() {
   {
     echo ""
     echo "$start"
+    echo "export PREFIX=\"$PREFIX\""
     echo "export PATH=\"$BIN_DIR:$NODE_DIR/bin:\$HOME/.local/bin:\$PATH\""
     echo "export TMPDIR=\"$PREFIX/tmp\""
     echo "export TMP=\"\$TMPDIR\""
@@ -438,6 +466,7 @@ install_compat_files
 install_nodejs
 resolve_npm_registry
 write_shell_env
+write_login_shell_bootstrap
 install_openclaw_package
 verify_install
 

@@ -5,37 +5,34 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Restore a minimal Termux environment at the managed RDC shell boundary and reject stale RDC processes whose shell contract predates the active release.",
-  "reason": "Live activation showed two distinct failure modes: the MCP SDK filters TMPDIR/PREFIX before its local child, and the new supervisor can otherwise retain a healthy pre-release RDC process whose inherited shell contract is stale.",
+  "summary": "Make Bash login shells load the canonical ClawMobile Termux environment and remove non-activated RDC-specific environment wrappers.",
+  "reason": "Live RDC evidence confirmed Desktop Commander executes bash -l -c while ClawMobile configured only ~/.bashrc; no login profile sourced it, leaving PREFIX/TMPDIR/TMP/TEMP empty.",
   "files": [
-    "installer/termux-lite/remote-desktop-control.py",
-    "installer/termux-lite/remote-desktop-bash",
-    "installer/termux-lite/test-remote-desktop-watchdog.py",
-    "installer/termux-lite/test-remote-desktop-shell.py",
+    "installer/termux-lite/install-openclaw.sh",
+    "installer/termux-lite/test-openclaw-login-shell.sh",
     "installer/termux-lite/README.md",
+    "installer/termux-lite/remote-desktop-control.py",
+    "installer/termux-lite/test-remote-desktop-watchdog.py",
+    "installer/termux-lite/remote-desktop-bash",
+    "installer/termux-lite/test-remote-desktop-shell.py",
     "docs/changes/rdc-adb-termux-env-20261005.md",
     "docs/changes/rdc-adb-termux-env-20261005.json"
   ],
   "tests": [
     {
-      "name": "remote-desktop-shell",
+      "name": "openclaw-login-shell",
       "status": "passed",
-      "evidence": "test-remote-desktop-shell.py passed 1/1 against a filtered environment and bash -l -c."
+      "evidence": "test-openclaw-login-shell.sh passed against isolated fresh and existing-profile HOME directories with real bash -l -c."
     },
     {
-      "name": "remote-desktop-watchdog",
+      "name": "rdc-regression",
       "status": "passed",
-      "evidence": "test-remote-desktop-watchdog.py passes 17 tests including inherited SHELL wrapper and stale-runtime-environment detection."
+      "evidence": "remote-desktop-watchdog 16/16, remote-desktop-health 9/9, RDC incident-loop 5/5, Claw Live 19/19, and incident runtime hardening passed."
     },
     {
-      "name": "remote-desktop-health",
+      "name": "tier0-regression",
       "status": "passed",
-      "evidence": "test-remote-desktop-health.mjs passed 9 remote/local health assertions."
-    },
-    {
-      "name": "tier0-control",
-      "status": "passed",
-      "evidence": "test-tier0-control.py passed 13/13."
+      "evidence": "test-tier0-control.py passed 13/13 on the isolated candidate."
     }
   ],
   "documentation": [
@@ -45,17 +42,15 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Restores reliable execution for the existing remote_desktop and device.adb capabilities without changing scope, entrypoints or health semantics."
+    "reason": "Restores the environment required by existing remote_desktop/device.adb execution without changing their scope or entrypoints."
   },
   "architecture": {
     "changed": false,
-    "reason": "Uses the existing RDC controller, MCP SDK inherited SHELL boundary and Tier-0 release owner; no user profile change and no new daemon, scheduler, database, router or source of truth."
+    "reason": "Extends the existing OpenClaw installer shell bootstrap; removes the non-activated RDC-specific workaround instead of adding a new owner."
   },
-  "rollback": "Revert the source commit and promote the prior immutable Tier-0 last-known-good release.",
+  "rollback": "Restore the exact pre-change login profile, revert the source commit, and promote the prior Tier-0 Last Known Good release.",
   "limitations": [
-    "Two pre-final candidates were rolled back after live acceptance exposed, respectively, SDK environment filtering and stale healthy-process retention; neither became LKG.",
-    "The wrapper intentionally restores only a minimal secret-free Termux environment rather than sourcing user shell profiles.",
-    "No Android payment activity or banking journey is modified.",
-    "No live payment is executed by this maintenance change."
+    "No live payment is executed by this maintenance change.",
+    "Activation changes only the managed Bash login bootstrap after taking an exact local snapshot."
   ]
 }

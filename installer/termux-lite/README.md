@@ -93,9 +93,17 @@ prints the next command. Full diagnostics are skipped by default for faster
 Termux setup; run `clawmobile doctor` when you want the detailed check.
 
 Package installs run in non-interactive mode and keep existing Termux config
-files by default. If the configured Termux mirror reports an integrity or sync
-error, the installer backs up `$PREFIX/etc/apt/sources.list`, tries a small set
-of Termux mirrors, clears stale apt lists, and retries the package command.
+files by default. The OpenClaw setup writes its managed Termux environment to
+`~/.bashrc` and makes the first existing Bash login profile
+(`~/.bash_profile`, `~/.bash_login`, then `~/.profile`) source that file; if
+none exists it creates only `~/.bash_profile`. This keeps `bash -l -c`
+consumers such as Remote Desktop Commander on the same canonical Termux
+`PREFIX`/temporary-directory contract without replacing unrelated profile
+content.
+
+If the configured Termux mirror reports an integrity or sync error, the
+installer backs up `$PREFIX/etc/apt/sources.list`, tries a small set of Termux
+mirrors, clears stale apt lists, and retries the package command.
 
 Useful mirror overrides:
 
@@ -140,8 +148,6 @@ Inside OpenClaw, call `android_health` first. It returns the current `stage`,
 backend states, and booleans such as `local_shell`, `termux_api`, `ui_input`,
 `ui_observe`, `screenshot`, `android_shell`, `local_ocr`, `ocr`, and
 `screen_ocr`.
-
-Managed Remote Desktop Commander processes use the bundled `remote-desktop-bash` boundary as their inherited `SHELL`. The wrapper restores the minimal Termux runtime variables (`PREFIX`, `TMPDIR`, `TMP`, `TEMP`) before delegating to bash, including for the filtered local MCP child used by `start_process`. This keeps ADB server restart behavior independent from the environment of the remote caller and avoids fallback to an unwritable global `/tmp`.
 
 ## Android Companion Server
 
