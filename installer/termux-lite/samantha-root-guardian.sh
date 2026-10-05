@@ -47,6 +47,7 @@ log "event=start result=ok runtime_root=$ROOT self_root=$SELF_ROOT"
 while :; do
   refresh_root
   printf "%s" "$(date +%s)" >"$HOME/.openclaw/health/root-guardian.heartbeat"
+  ensure_supervisor tier0_watchdog "[t]ier0-watchdog.py" "$HOME/.openclaw/tier0/bin/tier0-watchdog.py" "$HOME/.openclaw/tier0/watchdog.stderr.log"
   ensure_supervisor health_manager "[s]amantha-health-manager.sh" "$ROOT/samantha-health-manager.sh" "$D/health-manager.stderr.log"
   ensure_supervisor incident_orchestrator "[i]ncident-orchestrator-worker.sh" "$ROOT/incident-orchestrator-worker.sh" "$D/incident-orchestrator.stderr.log"
   sleep 10 9>&-

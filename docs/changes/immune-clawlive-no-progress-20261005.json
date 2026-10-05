@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "immune-clawlive-no-progress-20261005",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Stop no-progress Immune diagnosis loops and keep the existing Tier-0 watchdog supervised.",
+  "reason": "A boot-scoped ADB incident repeatedly emitted budget_exhausted while remaining in diagnosing, and the installed Tier-0 watchdog could disappear without a supervisor restarting it.",
+  "files": [
+    "installer/termux-lite/incident-orchestrator-worker.sh",
+    "installer/termux-lite/samantha-root-guardian.sh",
+    "installer/termux-lite/test-incident-runtime-hardening.sh",
+    "installer/termux-lite/test-tier0-control.py",
+    "docs/continuous-improvement-control-plane.md",
+    "docs/changes/immune-clawlive-no-progress-20261005.md",
+    "docs/changes/immune-clawlive-no-progress-20261005.json"
+  ],
+  "tests": [
+    {
+      "name": "incident-runtime-hardening",
+      "status": "passed",
+      "evidence": "test-incident-runtime-hardening.sh, test-incident-orchestrator.py and test-rdc-incident-loop.py passed on the isolated candidate."
+    },
+    {
+      "name": "tier0-control",
+      "status": "passed",
+      "evidence": "test-tier0-control.py and test-native-recovery-entrypoint.py passed on the isolated candidate."
+    },
+    {
+      "name": "claw-live-regression",
+      "status": "passed",
+      "evidence": "test-claw-live.py passed 19 tests; live E2E is recorded separately after deployment."
+    }
+  ],
+  "documentation": [
+    "docs/continuous-improvement-control-plane.md",
+    "docs/changes/immune-clawlive-no-progress-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Bug fix restores the already-documented bounded supervision/recovery contract; capability scope and entrypoints are unchanged."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Uses the existing Incident Orchestrator state translator, Root Guardian and Tier-0 watchdog; no new owner, daemon, scheduler, database or route."
+  },
+  "rollback": "Revert the maintenance commit and promote the previous immutable Tier-0 runtime release.",
+  "limitations": [
+    "Does not eliminate legitimate scheduler attention caused by a business job that is still rate-limited.",
+    "Does not change model quotas or provider policy."
+  ]
+}

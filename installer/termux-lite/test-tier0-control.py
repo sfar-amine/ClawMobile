@@ -19,6 +19,8 @@ class Tier0Tests(unittest.TestCase):
         self.assertIn('tier0-control.py',guardian)
         self.assertIn('runtime_drift',guardian)
         self.assertIn('process_uses_script',guardian)
+        self.assertIn('ensure_supervisor tier0_watchdog',guardian)
+        self.assertIn('.openclaw/tier0/bin/tier0-watchdog.py',guardian)
 
     def test_termux_background_policy_is_reconciled_by_tier0_and_health_manager(self):
         root=Path(__file__).resolve().parent

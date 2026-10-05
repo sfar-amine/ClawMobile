@@ -84,6 +84,33 @@ PY_FAILURE
     continue
   fi
   if [ "$state" = diagnosing ]; then
+    if [ "$component" = adb ]; then
+      # Fresh canonical ADB proof supersedes stale boot-continuity diagnosis.
+      if timeout 3 adb -s 127.0.0.1:5556 get-state 2>/dev/null | grep -qx device; then
+        "$ROOT/incident-orchestrator.py" transition "$iid" verifying --source orchestrator-worker --reason "canonical ADB transport recovered during diagnosis" >/dev/null 2>&1 || true
+        "$ROOT/incident-orchestrator.py" recover "$component" "$scope" --source orchestrator-worker --reason "canonical 127.0.0.1:5556 ADB transport independently verified" >/dev/null 2>&1 || true
+        log "incident=$iid component=$component terminal=recovered handler=adb_live_precheck"
+        continue
+      fi
+      # Reuse the validated bounded diagnostics action instead of replaying model diagnosis.
+      reuse=$(python3 - "$DB" "$iid" <<'PY_ADB_REUSE'
+import json,sqlite3,sys
+c=sqlite3.connect(sys.argv[1])
+diagnosis=c.execute("select payload from events where incident_id=? and kind='diagnosis' order by seq desc limit 1",(sys.argv[2],)).fetchone()
+count=c.execute("select count(*) from events where incident_id=? and kind='diagnostics_collected'",(sys.argv[2],)).fetchone()[0]
+try:
+    action=(json.loads(diagnosis[0]).get("recommended_action_id") if diagnosis else "") or ""
+except Exception:
+    action=""
+print("yes" if count >= 1 and action == "diagnostics.collect_more" else "no")
+PY_ADB_REUSE
+)
+      if [ "$reuse" = yes ]; then
+        "$ROOT/incident-orchestrator.py" transition "$iid" planning --source orchestrator-worker --reason "reuse verified bounded diagnostics action; no model replay" >/dev/null 2>&1 || true
+        log "incident=$iid component=$component transition=planning source=verified_diagnostics_reuse"
+        continue
+      fi
+    fi
     case "$component" in
       adb|gateway-secretref-exec|openclaw-agent-headless|remote_desktop) ;;
       *)
@@ -102,6 +129,22 @@ c=sqlite3.connect(sys.argv[1]);r=c.execute('select state from incidents where id
 PY_CURRENT
 )
       case "$current" in recovered|failed|human_required|missing) log "incident=$iid model_result=late_no_action"; continue;; esac
+      shadow_result="$HOME/.openclaw/autonomous-engineering/shadow/$iid.json"
+      model_status=$(python3 - "$shadow_result" <<'PY_STATUS'
+import json,sys
+try: print(str(json.load(open(sys.argv[1])).get("status") or "invalid_output"))
+except Exception: print("invalid_output")
+PY_STATUS
+)
+      if [ "$model_status" != success ]; then
+        if "$ROOT/engineering-incident-result.py" "$iid" "$shadow_result" >/dev/null 2>&1; then
+          log "incident=$iid component=$component diagnosis=non_success status=$model_status action=canonicalize"
+        else
+          "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "non-success model result could not be canonicalized" >/dev/null 2>&1 || true
+          log "incident=$iid component=$component terminal=failed reason=model_result_canonicalization"
+        fi
+        continue
+      fi
       log "incident=$iid component=$component diagnosis=completed"
       if [ "$component" = remote_desktop ]; then
         action=$(python3 - "$HOME/.openclaw/autonomous-engineering/shadow/$iid.json" <<'PY3'
