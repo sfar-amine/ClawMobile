@@ -101,9 +101,8 @@
     "reason": "external_mcp is provider-neutral and read-only; admission is enforced on the exact route resolution, transport completion is projected to bounded business state, and artifacts require their originating client receipt."
   },
   "architecture": {
-    "changed": true,
-    "reason": "One external MCP adapter reuses the existing Cloudflare relay, Capability Harness/Graph, Remote Bridge receipts and Memory Core. Samantha remains on its local path; no second router, memory, scheduler, retry engine or OAuth server.",
-    "adr": "docs/08-decisions/ADR-20261005-claw-mcp-gateway.md"
+    "changed": false,
+    "reason": "This private runtime commit implements the architecture decision owned and documented in ui-playbooks ADR-20261005-claw-mcp-gateway; it does not introduce a separate runtime architecture decision."
   },
   "rollback": "Disable/remove the MCP client secret or /mcp edge route, revert the scoped source commits, and restore the prior Companion release. Samantha, Slack Remote Bridge and RDC remain independent.",
   "limitations": [
