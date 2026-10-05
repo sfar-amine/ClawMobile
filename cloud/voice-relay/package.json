@@ -1,0 +1,17 @@
+{
+  "name": "claw-edge-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test.mjs && node test-mcp.mjs",
+    "build": "wrangler deploy --dry-run --outdir .wrangler-dry-run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

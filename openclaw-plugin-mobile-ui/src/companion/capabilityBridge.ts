@@ -16,6 +16,7 @@ export async function capabilityBridge(
   request: string,
   options: {
     execute?: boolean;
+    readOnly?: boolean;
     surface?: string;
     caller?: string;
     timeoutSeconds?: number;
@@ -48,6 +49,7 @@ export async function capabilityBridge(
       ];
       if (targetHint) argv.push("--target", targetHint);
       if (execute) argv.push("--timeout", String(timeout));
+      if (execute && options.readOnly === true) argv.push("--read-only");
       const raw: any = await execFileAsync("python3", argv, {
         timeout: (timeout + 8) * 1000,
         maxBuffer: 2 * 1024 * 1024,

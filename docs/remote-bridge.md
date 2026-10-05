@@ -41,6 +41,7 @@ Implemented methods:
 - `process_status`
 - `process_input`
 - `process_stop`
+- `mcp_capability_execute_readonly` (internal external-MCP admission method; deterministic read-only routes only)
 
 ## Idempotence and failover
 
@@ -57,6 +58,12 @@ A request left `running` by a previous Bridge instance becomes `indeterminate` a
 Large results are persisted under `~/.openclaw/remote-bridge/artifacts/` and returned as an artifact reference plus preview.
 
 Long-running interactive work should use `process_start` followed by bounded `process_status` reads instead of one long `exec_wait`. Lack of stdout is not a stuck signal: an owned silent process remains `running`. If a process receipt says `running` but the current Companion instance no longer owns that process after restart/loss of process ownership, `process_status` persists `indeterminate`; mutations must then be effect-verified before any retry.
+
+## External MCP execution receipt
+
+The generic external MCP adapter reuses Remote Bridge receipts instead of creating an MCP-specific execution ledger. In V1, `mcp_capability_execute_readonly` resolves the request on the canonical `external_mcp` surface and executes only when the selected path is deterministic, owner-authorized, risk `read`, and requires no confirmation. All other requests return a bounded `mcp_shadow_read_only` result without executing a business effect.
+
+The stable MCP action identity is translated to the existing `requestId + taskId + stepId` contract, so reconnecting an external client cannot create a second execution merely by opening a new MCP session. The public MCP edge never calls raw Remote Bridge shell/file methods in the V1 chat profile.
 
 ## Desktop Commander fallback
 

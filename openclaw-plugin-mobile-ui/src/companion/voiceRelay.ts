@@ -3,6 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { capabilityBridge } from "./capabilityBridge";
+import { handleMcpRelayRequest } from "./mcpBridge";
 import { reconnectDelay } from "./reconnectPolicy";
 export { reconnectDelay } from "./reconnectPolicy";
 import {
@@ -672,6 +673,20 @@ function scheduleReconnect() {
   reconnectTimer.unref?.();
 }
 
+async function handleMcpMessage(message: any) {
+  const requestId = String(message?.requestId || "").slice(0, 128);
+  let response: any;
+  try {
+    response = await handleMcpRelayRequest(message);
+  } catch (error: any) {
+    response = {
+      state: "failed",
+      error: String(error?.message || error || "mcp_bridge_failed").slice(0, 500),
+    };
+  }
+  socket?.send(JSON.stringify({ type: "response", requestId, response }));
+}
+
 function connect() {
   if (!config) return;
   const WS: any = (globalThis as any).WebSocket;
@@ -719,6 +734,11 @@ function connect() {
         lastConnectedAt = Date.now();
         lastPongAt = Date.now();
         startHeartbeat();
+        return;
+      }
+
+      if (message.type === "mcp_request" && authenticated) {
+        void handleMcpMessage(message);
         return;
       }
 

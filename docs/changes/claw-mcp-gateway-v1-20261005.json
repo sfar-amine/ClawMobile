@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "id": "claw-mcp-gateway-v1-20261005",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Isolated generic MCP V1 candidate; closure blocked before authenticated Claude integration.",
+  "reason": "Preserve source work and exact evidence after an external tool-plane write denial; Claude remains the first client.",
+  "files": [
+    "cloud/voice-relay/.gitignore",
+    "cloud/voice-relay/package-lock.json",
+    "cloud/voice-relay/package.json",
+    "cloud/voice-relay/src/index.mjs",
+    "cloud/voice-relay/src/mcp.mjs",
+    "cloud/voice-relay/test-e2e-local.mjs",
+    "cloud/voice-relay/test-mcp.mjs",
+    "docs/changes/claw-mcp-gateway-closure-checkpoint-20261005.md",
+    "docs/changes/claw-mcp-gateway-v1-20261005.json",
+    "docs/changes/claw-mcp-gateway-v1-20261005.md",
+    "docs/remote-bridge.md",
+    "installer/termux-lite/claw-capability.py",
+    "openclaw-plugin-mobile-ui/package.json",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-bridge.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts"
+  ],
+  "tests": [
+    {
+      "name": "readonly-graph-registry",
+      "status": "passed",
+      "evidence": {
+        "count": 56,
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "edge-protocol",
+      "status": "passed",
+      "evidence": {
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "typescript-final-build",
+      "status": "passed",
+      "evidence": {
+        "exit_code": 0,
+        "note": "Unintegrated OAuth/context drafts archived outside build"
+      }
+    }
+  ],
+  "documentation": [
+    "docs/changes/claw-mcp-gateway-closure-checkpoint-20261005.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "inference.surface_awareness",
+      "gateway.mcp.external"
+    ],
+    "reason": "Candidate-only MCP surface and exact-resolution read-only admission; not deployed."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Generic external MCP adapter candidate; OAuth and live client acceptance incomplete.",
+    "adr": "docs/08-decisions/ADR-20261005-claw-mcp-gateway.md"
+  },
+  "rollback": "No production changes. Preserve isolated candidates and backups; do not merge while blocked.",
+  "limitations": [
+    "External write denial f376015263d4004361ba is terminal failed, not ongoing repair.",
+    "OAuth integration and real Claude E2E not completed.",
+    "Full regression and authentication/security acceptance not complete.",
+    "Runtime is unchanged."
+  ]
+}
