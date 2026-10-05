@@ -385,7 +385,7 @@ clawmobile_termux_apt_retry_with_fallback() {
   local update_log=""
   local command_log=""
   local status=1
-  local tmp_dir="${TMPDIR:-${PREFIX:-/tmp}/tmp}"
+  local tmp_dir="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
 
   [ "${CLAWMOBILE_TERMUX_APT_FALLBACK:-1}" = "1" ] || return 1
   [ -n "${PREFIX:-}" ] || return 1
@@ -468,7 +468,7 @@ clawmobile_apt_error_needs_mirror_fallback() {
 clawmobile_pkg() {
   local status=0
   local log_file=""
-  local tmp_dir="${TMPDIR:-${PREFIX:-/tmp}/tmp}"
+  local tmp_dir="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
 
   mkdir -p "$tmp_dir" 2>/dev/null || true
   log_file="$(mktemp "$tmp_dir/clawmobile-apt.XXXXXX")"
@@ -580,7 +580,7 @@ clawmobile_prompt_file_needs_openclaw_default() {
   grep -q '[^[:space:]]' "$file" || return 0
 
   if grep -qF "$start" "$file"; then
-    tmp="$(mktemp "${TMPDIR:-/tmp}/clawmobile-prompt-check.XXXXXX")" || return 1
+    tmp="$(mktemp "${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}/clawmobile-prompt-check.XXXXXX")" || return 1
     awk -v start="$start" -v end="$end" '
       index($0, start) { inblock=1; next }
       index($0, end) { inblock=0; next }
@@ -614,7 +614,7 @@ clawmobile_seed_openclaw_workspace_defaults() {
   [ "$need_defaults" -eq 1 ] || return 0
   command -v openclaw >/dev/null 2>&1 || return 0
 
-  tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/clawmobile-openclaw-defaults.XXXXXX")" || return 0
+  tmp_root="$(mktemp -d "${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}/clawmobile-openclaw-defaults.XXXXXX")" || return 0
   defaults_workspace="$tmp_root/workspace"
   mkdir -p "$tmp_root/home"
 

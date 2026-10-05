@@ -11,6 +11,7 @@ echo "=== Patching Hardcoded Paths ==="
 echo ""
 
 # Ensure required environment variables are set (for standalone use)
+export PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
 export TMPDIR="${TMPDIR:-$PREFIX/tmp}"
 
 # Find OpenClaw installation directory
@@ -36,6 +37,28 @@ for f in $TMP_FILES; do
         sed -i "s|\"\/tmp/|\"$PREFIX/tmp/|g" "$f"
         sed -i "s|'\/tmp/|'$PREFIX/tmp/|g" "$f"
         sed -i "s|\`\/tmp/|\`$PREFIX/tmp/|g" "$f"
+        # JavaScript strings can embed shell snippets with escaped quotes or
+        # parameter fallbacks that the quote-anchored sed rules above do not
+        # see (for example \"/tmp\" and ${TMPDIR:-/tmp}).
+        python3 - "$f" "$PREFIX" <<'PY_PATCH_TMP'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+prefix = sys.argv[2]
+before = path.read_text()
+after = before
+for old, new in (
+    (r'\"/tmp/', rf'\"{prefix}/tmp/'),
+    (r'\"/tmp\"', rf'\"{prefix}/tmp\"'),
+    (r"\'/tmp/", rf"\'{prefix}/tmp/"),
+    (r"\'/tmp\'", rf"\'{prefix}/tmp\'"),
+    ('${TMPDIR:-/tmp}', '${TMPDIR:-' + prefix + '/tmp}'),
+):
+    after = after.replace(old, new)
+if after != before:
+    path.write_text(after)
+PY_PATCH_TMP
         # Patch exact /tmp references (e.g. "/tmp")
         sed -i "s|\"\/tmp\"|\"$PREFIX/tmp\"|g" "$f"
         sed -i "s|'\/tmp'|'$PREFIX/tmp'|g" "$f"

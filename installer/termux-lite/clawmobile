@@ -122,7 +122,7 @@ upsert_env_var() {
   mkdir -p "$(dirname "$env_file")"
   touch "$env_file"
   chmod 600 "$env_file" 2>/dev/null || true
-  tmp_file="$(mktemp "${TMPDIR:-/tmp}/clawmobile-env.XXXXXX")"
+  tmp_file="$(mktemp "${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}/clawmobile-env.XXXXXX")"
   grep -v "^${name}=" "$env_file" > "$tmp_file" 2>/dev/null || true
   printf '%s=%s\n' "$name" "$value" >> "$tmp_file"
   cat "$tmp_file" > "$env_file"

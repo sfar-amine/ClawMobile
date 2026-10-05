@@ -107,6 +107,13 @@ consumers such as Remote Desktop Commander on the same canonical Termux
 `PREFIX`/temporary-directory contract without replacing unrelated profile
 content.
 
+Temporary files in the Termux runtime must never depend on Android's top-level
+`/tmp`, which is not writable by the Termux application UID. Runtime code
+resolves temporary storage in this order: an existing `TMPDIR`, then
+`$PREFIX/tmp`, then the canonical Termux path
+`/data/data/com.termux/files/usr/tmp`. `/data/local/tmp` remains valid only for
+files intentionally created through `adb shell` on the Android device side.
+
 If the configured Termux mirror reports an integrity or sync error, the
 installer backs up `$PREFIX/etc/apt/sources.list`, tries a small set of Termux
 mirrors, clears stale apt lists, and retries the package command.

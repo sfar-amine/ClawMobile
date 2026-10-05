@@ -52,7 +52,7 @@ repo_archive_url() {
 
 download_repo_archive() {
   local archive_url=""
-  local tmp_root="${TMPDIR:-${PREFIX:-/tmp}/tmp}"
+  local tmp_root="${TMPDIR:-${PREFIX:-/data/data/com.termux/files/usr}/tmp}"
   local tmp_dir=""
   local archive=""
   local extract_dir=""

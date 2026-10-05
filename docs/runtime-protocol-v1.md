@@ -676,7 +676,7 @@ Log response:
   "success": true,
   "message": "Runtime log loaded.",
   "text": "...",
-  "path": "/tmp/openclaw-gateway.log",
+  "path": "/data/data/com.termux/files/usr/tmp/openclaw-gateway.log",
   "exists": true,
   "size": 2048,
   "truncated": false,
