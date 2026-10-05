@@ -53,6 +53,7 @@ test("FORM1 stage returns durable continuation after exactly one live dispatch",
   assert.equal(f.liveCalls(),1);
   const payload=f.calls.find(x=>x[0]==="live")[1];
   assert.equal(payload.operation,"start");
+  assert.equal(payload.provider,"topnet");
   assert.equal(payload.paymentRequestId,requestId);
   assert.equal(payload.bankReturnToken,context.bankReturnToken);
   assert.deepEqual(payload.request,{invoice_id:invoice,expected_amount_millimes:60900,currency:"TND",expected_last4:"8503"});
@@ -83,6 +84,7 @@ test("resume is read-only and does not consume a new gate or card status",async(
   assert.equal(afterCard,beforeCard);
   const resumePayload=f.calls.filter(x=>x[0]==="live").at(-1)[1];
   assert.equal(resumePayload.operation,"resume");
+  assert.equal(resumePayload.provider,"topnet");
   assert.deepEqual(resumePayload.continuation,continuation);
   assert.deepEqual(resumePayload.request,{invoice_id:invoice,expected_amount_millimes:60900,currency:"TND"});
   assert.equal(f.calls.filter(x=>x[0]==="live").at(-1)[2],45000);

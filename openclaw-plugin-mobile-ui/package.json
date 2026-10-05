@@ -23,7 +23,8 @@
     "accept:remote-bridge-runtime": "python3 scripts/accept-remote-bridge-runtime.py",
     "test:trace-induction": "node scripts/test-trace-induction.cjs",
     "test:provider-fallback": "node scripts/test-provider-fallback.cjs",
-    "test:claw-live-warm": "node scripts/test-claw-live-warm.cjs"
+    "test:claw-live-warm": "node scripts/test-claw-live-warm.cjs",
+    "test:clictopay-provider-adapter": "node scripts/test-clictopay-provider-adapter.cjs"
   },
   "dependencies": {
     "nostr-tools": "^2.23.5",

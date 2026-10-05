@@ -14,7 +14,7 @@ function fixture({mode="demo",execute,resume,revalidate,quote,validated=true,tim
  }};
  const q={payee:"Marchand de test",reference:"DEMO",amountMinor:mode==="demo"?0:2345,currency:"TND",decimals:3};
  const continuation={provider:"fixture.payment",checkoutId:"12345",gatewayOrderId:"11111111-1111-4111-8111-111111111111"};
- const adapter={id:"fixture.payment",label:"Synthetic adapter",mode,executionValidated:validated,
+ const adapter={id:"fixture.payment",label:"Synthetic adapter",mode,executionValidated:validated,bankNavigationOrigins:["https://bank.fixture.test"],
   quote:quote||asyncRef,revalidate:revalidate||(async value=>({...value})),
   async execute(...args){calls++;const value=execute?await execute(...args):{state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"TEST-RECEIPT",transactionCorrelated:true,providerReconciled:true}};return value?.state==="requires_bank_action"&&!value.continuation?{...value,continuation}:value},
   async resume(...args){resumes++;return resume?resume(...args):{state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"TEST-RECEIPT",transactionCorrelated:true,providerReconciled:true}}}};
@@ -154,19 +154,25 @@ const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
   const r=await f.prepared(),pending=await f.core.confirm(r.requestId,await f.proof(r.requestId));
   assert.equal(pending.state,"requires_bank_action");
   await f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",
-    navigation:{origin:"https://www.topnet.tn",path:"/moncompte/facture_payment_check/{id}"}});
+    navigation:{origin:"https://bank.fixture.test",path:"/return/{id}"}});
   await f.core.recordBankUiEvent(r.requestId,{stage:"bank_return_detected",outcome:"page_started",
-    navigation:{origin:"https://www.topnet.tn",path:"/moncompte/facture_payment_check/{id}"}});
+    navigation:{origin:"https://bank.fixture.test",path:"/return/{id}"}});
   await f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_lifecycle",outcome:"paused"});
   const status=await f.core.status(r.requestId);
   assert.equal(status.timeline.at(-3).stage,"bank_ui_navigation");
-  assert.deepEqual(status.timeline.at(-3).navigation,{origin:"https://www.topnet.tn",path:"/moncompte/facture_payment_check/{id}"});
+  assert.deepEqual(status.timeline.at(-3).navigation,{origin:"https://bank.fixture.test",path:"/return/{id}"});
   assert.equal(status.timeline.at(-2).stage,"bank_return_detected");
   assert.equal(status.timeline.at(-1).stage,"bank_ui_lifecycle");
   assert.equal(status.timeline.at(-1).outcome,"paused");
   await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",
     navigation:{origin:"https://evil.test",path:"/x"}}),"invalid_payment_trace");
   await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"provider_readback",invoiceState:"unpaid"}),"invalid_bank_ui_trace");
+ });
+ await test("bank UI origin policy belongs to the selected adapter",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"})});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  await f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",navigation:{origin:"https://bank.fixture.test",path:"/challenge"}});
+  await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",navigation:{origin:"https://www.topnet.tn",path:"/challenge"}}),"invalid_payment_trace");
  });
  await test("bank return token resumes once without a second owner gesture",async()=>{
   let token=null;

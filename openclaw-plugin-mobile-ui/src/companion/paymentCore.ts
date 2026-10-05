@@ -57,16 +57,15 @@ function cleanHttpTrace(value:any){
   return out;
 }
 const BANK_UI_TRACE_STAGES=new Set(["bank_ui_navigation","bank_ui_lifecycle","bank_return_detected","bank_return_requested","bank_return_response","bank_result_presented"]);
-const BANK_NAV_ORIGINS=new Set(["https://3ds2.clictopay.com","https://ipay.clictopay.com","https://www.topnet.tn"]);
-function cleanNavigationTrace(value:any){
+function cleanNavigationTrace(value:any,allowedOrigins:ReadonlySet<string>){
   if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).sort().join(",")!=="origin,path"||
-     typeof value.origin!=="string"||!BANK_NAV_ORIGINS.has(value.origin)||
+     typeof value.origin!=="string"||!allowedOrigins.has(value.origin)||
      typeof value.path!=="string"||value.path.length<1||value.path.length>256||!value.path.startsWith("/")||
      value.path.includes("?")||value.path.includes("#")||!/^\/[A-Za-z0-9_{}./-]*$/.test(value.path))
     paymentError("invalid_payment_trace",503);
   return {origin:value.origin,path:value.path};
 }
-function cleanTraceInput(value:PaymentTraceInput):PaymentTraceInput {
+function cleanTraceInput(value:PaymentTraceInput,allowedOrigins:ReadonlySet<string>=new Set()):PaymentTraceInput {
   if(!value||typeof value!=="object"||Array.isArray(value)||!TRACE_STAGES.has(value.stage))paymentError("invalid_payment_trace",503);
   const out:PaymentTraceInput={stage:value.stage};
   if(value.outcome!==undefined){if(!safeText(value.outcome,64))paymentError("invalid_payment_trace",503);out.outcome=value.outcome;}
@@ -76,13 +75,13 @@ function cleanTraceInput(value:PaymentTraceInput):PaymentTraceInput {
   if(value.stage==="http_exchange"&&!out.http)paymentError("invalid_payment_trace",503);
   if(value.navigation!==undefined){
     if(!["bank_ui_navigation","bank_return_detected"].includes(value.stage))paymentError("invalid_payment_trace",503);
-    out.navigation=cleanNavigationTrace(value.navigation);
+    out.navigation=cleanNavigationTrace(value.navigation,allowedOrigins);
   }
   if(value.stage==="bank_ui_navigation"&&!out.navigation)paymentError("invalid_payment_trace",503);
   return out;
 }
-function appendTrace(r:PaymentRecord,value:PaymentTraceInput,at:number){
-  const item=cleanTraceInput(value),trace=r.trace??(r.trace=[]);
+function appendTrace(r:PaymentRecord,value:PaymentTraceInput,at:number,allowedOrigins:ReadonlySet<string>=new Set()){
+  const item=cleanTraceInput(value,allowedOrigins),trace=r.trace??(r.trace=[]);
   if(trace.length>=TRACE_CAPACITY)paymentError("payment_trace_capacity_reached",503);
   trace.push({...item,seq:trace.length+1,at});
 }
@@ -113,7 +112,7 @@ export function confirmationMessage(r:PaymentRecord) {
   return ["claw.payment.owner.v1",r.id,r.nonce,r.quoteHash,r.expiresAt,r.keyId].join("\n");
 }
 export {ownerKey} from "./ownerConfirmationProtocol";
-function validateStored(r:PaymentRecord) {
+function validateStored(r:PaymentRecord,allowedOrigins:ReadonlySet<string>=new Set()) {
   if(!r||r.version!==1||!UUID.test(r.id)||!STATES.has(r.state)||!HEX.test(r.nonce)||!HEX.test(r.keyId)||
     !HEX.test(r.quoteHash)||!HEX.test(r.fingerprint)||!Number.isSafeInteger(r.createdAt)||!Number.isSafeInteger(r.expiresAt)||
     r.expiresAt-r.createdAt!==120000||!Number.isSafeInteger(r.executorAttempts)||r.executorAttempts<0||r.executorAttempts>1||
@@ -126,7 +125,7 @@ function validateStored(r:PaymentRecord) {
     for(let i=0;i<r.trace.length;i++){
       const e=r.trace[i] as any;
       if(!e||e.seq!==i+1||!Number.isSafeInteger(e.at)||e.at<r.createdAt-120000||e.at>r.updatedAt+120000)paymentError("payment_record_invalid",503);
-      cleanTraceInput(e);
+      cleanTraceInput(e,allowedOrigins);
     }
   }
   const d=validateDraft(r.draft),q=validateQuote(r.quote);
@@ -149,9 +148,17 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
   for(const a of options.adapters) {
     if(adapters.has(a.id)||!/^[a-z][a-z0-9_.-]{1,60}$/.test(a.id)||!["demo","live"].includes(a.mode)) paymentError("invalid_payment_adapter",503);
     if(a.executionValidated&&(!a.quote||!a.revalidate||!a.execute||(a.mode==="live"&&!a.resume))) paymentError("invalid_payment_adapter",503);
+    if(a.bankNavigationOrigins!==undefined){
+      if(!Array.isArray(a.bankNavigationOrigins)||a.bankNavigationOrigins.length>12||new Set(a.bankNavigationOrigins).size!==a.bankNavigationOrigins.length) paymentError("invalid_payment_adapter",503);
+      for(const raw of a.bankNavigationOrigins){
+        try{const u=new URL(raw);if(u.protocol!=="https:"||u.username||u.password||u.search||u.hash||u.pathname!=="/"||u.port)paymentError("invalid_payment_adapter",503);}
+        catch{paymentError("invalid_payment_adapter",503);}
+      }
+    }
     if(a.localOwnerValidated===true&&(a.mode!=="live"||!a.quote||typeof a.executeLocal!=="function"||typeof a.resume!=="function")) paymentError("invalid_payment_adapter",503);
     adapters.set(a.id,a);
   }
+  const bankOriginsFor=(adapterId:string)=>new Set(adapters.get(adapterId)?.bankNavigationOrigins??[]);
   const quoteMs=options.timeouts?.quoteMs??10000,executionMs=options.timeouts?.executionMs??45000;
   if(!Number.isInteger(quoteMs)||quoteMs<1||quoteMs>45000||!Number.isInteger(executionMs)||executionMs<1||executionMs>240000)paymentError("invalid_payment_timeout",503);
   async function bounded<T>(operation:()=>Promise<T>,ms:number):Promise<T> {
@@ -189,7 +196,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
   const normalize=(r:PaymentRecord)=>{
     if(r.bankResumeAttempts===undefined)r.bankResumeAttempts=0;
     if(!r.authorizationSource)(r as any).authorizationSource="payment_owner_native";
-    validateStored(r);
+    validateStored(r,bankOriginsFor(r.draft?.adapterId));
     if(r.state==="awaiting_owner"&&(now()>=r.expiresAt||now()<r.createdAt)) {
       r.state="expired";r.reasonCode="owner_confirmation_expired";r.endedAt=now();r.updatedAt=now();
     }
@@ -464,7 +471,7 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
            !["executing","requires_bank_action","confirmed","failed","cancelled","blocked","effect_unknown"].includes(r.state))
           paymentError("payment_bank_ui_trace_not_available",409);
         const at=now();
-        appendTrace(r,event,at);
+        appendTrace(r,event,at,bankOriginsFor(r.draft.adapterId));
         r.updatedAt=at;
         return paymentView(r);
       });

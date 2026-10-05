@@ -35,6 +35,7 @@ export type PaymentExecutionResult = {
 
 export type PaymentAdapter = {
   id:string; label:string; mode:"demo"|"live"; executionValidated:boolean; localOwnerValidated?:boolean; unavailableReason?:string;
+  bankNavigationOrigins?:readonly string[];
   quote?:(reference:string)=>Promise<PaymentQuote>;
   revalidate?:(quote:PaymentQuote)=>Promise<PaymentQuote>;
   execute?:(quote:PaymentQuote,requestId:string,context?:PaymentExecutionContext)=>Promise<PaymentExecutionResult>;
