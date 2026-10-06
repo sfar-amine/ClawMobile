@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/python3
-import importlib.util, json, tempfile, unittest
+import importlib.util, json, os, tempfile, unittest
 from pathlib import Path
 from unittest.mock import patch
 
@@ -68,6 +68,35 @@ class RepairTests(unittest.TestCase):
         self.assertEqual(sum(a.startswith('--import=') for a in args),1)
         self.assertNotIn('--import',args)
         self.assertTrue(popen.call_args.kwargs['close_fds'])
+    def test_launch_forces_ipv4_first_only_for_rdc_child(self):
+        with patch.dict(os.environ,{'NODE_OPTIONS':'--dns-result-order=verbatim --max-old-space-size=128'},clear=False):
+            before=os.environ['NODE_OPTIONS']
+            with patch.object(rdc.subprocess,'Popen') as popen:
+                self.c.launch()
+            env=popen.call_args.kwargs['env']
+            self.assertIn('--dns-result-order=ipv4first',env['NODE_OPTIONS'])
+            self.assertNotIn('--dns-result-order=verbatim',env['NODE_OPTIONS'])
+            self.assertIn('--max-old-space-size=128',env['NODE_OPTIONS'])
+            self.assertEqual(os.environ['NODE_OPTIONS'],before)
+    def test_node_dependency_probe_uses_same_node_ipv4_stack(self):
+        node=self.c.home/'.openclaw-android/bin/node';node.parent.mkdir(parents=True);node.write_text('')
+        result=type('Result',(),{'returncode':0})()
+        with patch.object(rdc.subprocess,'run',return_value=result) as run:
+            self.assertTrue(self.c.node_dependency_reachable())
+        args=run.call_args.args[0];env=run.call_args.kwargs['env']
+        self.assertEqual(args[0],str(node))
+        self.assertIn('/api/mcp-info',args[-1])
+        self.assertIn('--dns-result-order=ipv4first',env['NODE_OPTIONS'])
+    def test_circuit_backoff_persists_across_watchdog_restart(self):
+        self.c.half_open_probe_s=60
+        with patch.object(rdc.time,'time',return_value=1000):
+            first=self.c.schedule_half_open(failed=True)
+        self.assertEqual(first['failures'],1);self.assertEqual(first['next_at'],1060)
+        restarted=rdc.Controller(self.tmp.name,half_open_probe_s=60)
+        self.assertEqual(restarted.read_circuit()['next_at'],1060)
+        with patch.object(rdc.time,'time',return_value=1060):
+            second=restarted.schedule_half_open(failed=True)
+        self.assertEqual(second['failures'],2);self.assertEqual(second['next_at'],1180)
     def test_verified_recovery_does_not_replay_restart(self):
         with patch.object(self.c,'probe',return_value={'state':'healthy'}),patch.object(self.c,'launch') as launch:
             self.assertEqual(self.c.repair()['mutation'],'none_already_healthy');launch.assert_not_called()

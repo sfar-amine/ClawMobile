@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "id": "openclaw-rdc-self-heal-hardening-20261006",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Harden OpenClaw gateway startup and RDC self-heal against plugin-schema drift, orphaned Android gateway locks, Node network-path mismatch and watchdog restart loops.",
+  "reason": "A real outage combined installed-plugin schema drift, an orphaned gateway lock that Android Node misclassified because kill(0) returned EPERM, and an RDC remote fetch timeout that curl did not reproduce.",
+  "files": [
+    "installer/termux-lite/gateway-preflight.py",
+    "installer/termux-lite/run.sh",
+    "installer/termux-lite/remote-desktop-control.py",
+    "installer/termux-lite/test-gateway-preflight.py",
+    "installer/termux-lite/test-remote-desktop-watchdog.py",
+    "installer/termux-lite/README.md",
+    "docs/changes/openclaw-rdc-self-heal-hardening-20261006.md",
+    "docs/changes/openclaw-rdc-self-heal-hardening-20261006.json"
+  ],
+  "tests": [
+    {
+      "name": "gateway-preflight",
+      "status": "passed",
+      "evidence": "7/7 isolated tests passed, covering schema drift, unsupported config, reversible stale-lock quarantine, live owner, PID reuse, active listener and run.sh preflight order."
+    },
+    {
+      "name": "remote-desktop-watchdog",
+      "status": "passed",
+      "evidence": "19/19 tests passed, including scoped IPv4-first Node environment, same-stack dependency probe and persistent circuit backoff across watchdog restart."
+    },
+    {
+      "name": "rdc-incident-loop",
+      "status": "passed",
+      "evidence": "5/5 incident-loop tests passed; verified repair remains bounded and replay-safe."
+    },
+    {
+      "name": "live-read-only-preflight",
+      "status": "passed",
+      "evidence": "Current plugin schema returned ok; current gateway lock returned active_owner; OpenClaw healthz live and RDC functional health healthy."
+    }
+  ],
+  "documentation": [
+    "installer/termux-lite/README.md",
+    "docs/changes/openclaw-rdc-self-heal-hardening-20261006.md"
+  ],
+  "capabilities": {
+    "impact": "existing_behavior_hardened",
+    "ids": [
+      "device.remote_desktop",
+      "immune.supervision.recovery"
+    ],
+    "reason": "Existing recovery owners and entrypoints are unchanged; only deterministic admission, same-stack reachability and bounded retry semantics are strengthened."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new daemon, scheduler, router, database, orchestrator or source of truth. Existing Companion, Health Manager, RDC controller/watchdog and Tier-0 owners are retained."
+  },
+  "mcp_owner_parity": {
+    "impact": "none",
+    "primitives": {
+      "claw_context": "no impact",
+      "claw_resolve": "no impact",
+      "claw_execute": "no impact",
+      "claw_exec": "no impact",
+      "claw_status": "no impact",
+      "claw_artifact_read": "no impact"
+    }
+  },
+  "rollback": "Revert this maintenance commit and promote the previous immutable Tier-0 runtime release.",
+  "limitations": [
+    "This change does not alter OpenClaw's upstream process.kill(pid,0) EPERM semantics globally; the Termux runtime preflight applies the safer recovery decision at the canonical S24 gateway entrypoint.",
+    "Gateway startup can remain slow under high session materialization or memory pressure; that performance concern is separate from this outage hardening."
+  ]
+}

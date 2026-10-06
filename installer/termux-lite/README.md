@@ -662,6 +662,12 @@ paths remain authoritative. Autonomous repair/rebuild/rebirth must only be added
 after isolated candidate execution, independent verification, rollback, and E2E
 validation are in place.
 
+## Runtime recovery invariants
+
+The existing Companion and Remote Desktop watchdogs remain the only owners of their respective recovery loops. Gateway startup now performs a deterministic preflight before entering OpenClaw: the configured mobile-plugin keys must exist in the canonical source schema, an installed schema drift is reconciled only from a clean canonical plugin source, and OpenClaw configuration validation must pass. On Android/Termux, an old gateway lock is quarantined only after PID/start identity, process-table and port checks prove that no live gateway owns it; ambiguous ownership fails closed.
+
+Remote Desktop launches its existing Node runtime with IPv4-first DNS ordering scoped to that child and probes remote reachability through the same Node/fetch stack before a half-open repair. Circuit backoff is persisted by the existing controller so watchdog restarts cannot reset an exhausted recovery loop. Recovery is complete only after singleton local MCP and a fresh remote heartbeat are both verified. No additional daemon, scheduler, router or state database is introduced.
+
 ## Learning Gate
 
 Material incident and engineering closures pass through `learning-gate.py` via

@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 """RDC watchdog primitives shared with managed repair and canonical health."""
-import argparse, contextlib, datetime, fcntl, json, os, signal, sqlite3
+import argparse, contextlib, datetime, fcntl, json, os, shlex, signal, sqlite3
 import subprocess, time
 import urllib.error, urllib.request
 from pathlib import Path
@@ -67,13 +67,60 @@ class Controller:
         self.state = self.home/'.openclaw/watchdogs'; self.state.mkdir(parents=True, exist_ok=True)
         self.readiness = readiness; self.attempts = attempts
         self.half_open_probe_s = max(15, int(half_open_probe_s))
-        self.dependency_probe = dependency_probe or remote_dependency_reachable
+        self.dependency_probe = dependency_probe
+        self.circuit_file = self.state/'remote-desktop-circuit.json'
     def log(self, text):
         with (self.state/'remote-desktop.log').open('a') as f:
             f.write(datetime.datetime.now().astimezone().isoformat(timespec='seconds')+' '+text+'\n')
     def beat(self):
         p = self.home/'.openclaw/health/remote-watchdog.heartbeat'
         p.parent.mkdir(parents=True, exist_ok=True); p.write_text(str(int(time.time())))
+    def node_env(self):
+        env = dict(os.environ)
+        try:
+            options = shlex.split(env.get('NODE_OPTIONS', ''))
+        except ValueError:
+            options = env.get('NODE_OPTIONS', '').split()
+        options = [x for x in options if not x.startswith('--dns-result-order=')]
+        options.append('--dns-result-order=ipv4first')
+        env['NODE_OPTIONS'] = ' '.join(options)
+        return env
+    def node_dependency_reachable(self, timeout=7):
+        node = self.home/'.openclaw-android/bin/node'
+        if not node.is_file(): return False
+        target = REMOTE_ENDPOINT.rstrip('/') + '/api/mcp-info'
+        script = """const u=process.argv[1];fetch(u,{redirect:'error',signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.status>=200&&r.status<500?0:1)).catch(()=>process.exit(1));"""
+        try:
+            r = subprocess.run([str(node), '-e', script, target], cwd=self.home,
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                close_fds=True, env=self.node_env(), timeout=timeout)
+            return r.returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+    def read_circuit(self):
+        try:
+            d=json.loads(self.circuit_file.read_text())
+            return {'failures':max(0,int(d.get('failures',0))),
+                    'next_at':max(0.0,float(d.get('next_at',0)))}
+        except (OSError, ValueError, TypeError):
+            return {'failures':0,'next_at':0.0}
+    def write_circuit(self, failures, next_at):
+        data={'failures':max(0,int(failures)),'next_at':float(next_at),'updated_at':time.time()}
+        tmp=self.circuit_file.with_suffix('.tmp')
+        tmp.write_text(json.dumps(data,sort_keys=True)); os.replace(tmp,self.circuit_file)
+        return data
+    def schedule_half_open(self, failed=False):
+        current=self.read_circuit()
+        failures=current['failures'] + (1 if failed else 0)
+        if failures <= 0: failures=1
+        delay=min(self.half_open_probe_s*(2**(failures-1)),900)
+        return self.write_circuit(failures,time.time()+delay)
+    def defer_half_open(self):
+        current=self.read_circuit(); failures=max(1,current['failures'])
+        return self.write_circuit(failures,time.time()+self.half_open_probe_s)
+    def clear_circuit(self):
+        try: self.circuit_file.unlink()
+        except FileNotFoundError: pass
     @contextlib.contextmanager
     def lock(self, name):
         with (self.state/name).open('a') as f:
@@ -110,7 +157,8 @@ class Controller:
         with log.open('ab') as out:
             subprocess.Popen([str(self.home/'.openclaw-android/bin/node'),
                 '--import='+str(self.root/'remote-desktop-health.mjs'), SCRIPT, 'remote'], cwd=self.home,
-                stdin=subprocess.DEVNULL, stdout=out, stderr=out, close_fds=True, start_new_session=True)
+                stdin=subprocess.DEVNULL, stdout=out, stderr=out, close_fds=True, start_new_session=True,
+                env=self.node_env())
     def wait_ready(self):
         deadline = time.monotonic()+self.readiness; passed = 0
         while time.monotonic() < deadline:
@@ -134,9 +182,10 @@ class Controller:
                 if not self.stop(): return {'state':'failed','reason':'attempt_cleanup_failed'}
             return {'state':'failed','reason':'bounded_functional_readiness_exhausted'}
     def half_open(self):
-        if not self.dependency_probe():
+        reachable = self.dependency_probe() if self.dependency_probe is not None else self.node_dependency_reachable()
+        if not reachable:
             return {'state':'deferred','reason':'remote_dependency_unreachable'}
-        self.log('HALF-OPEN dependency_reachable=true action=repair')
+        self.log('HALF-OPEN dependency_reachable=true stack=node action=repair')
         return self.repair()
     def incident(self, action, reason):
         cmd = [str(self.root/'incident-orchestrator.py'), action, 'remote_desktop', 'runtime',
@@ -156,8 +205,8 @@ class Controller:
             if not acquired: return
             p = self.state/'remote-desktop.state'
             previous = p.read_text().strip() if p.exists() else 'unknown'
-            failures = 0; next_half_open = None
-            self.log(f'watchdog started; previous={previous} functional_probe=v4_mcp_remote_receipt')
+            failures = 0
+            self.log(f'watchdog started; previous={previous} functional_probe=v5_mcp_remote_receipt_ipv4 circuit=persistent')
             while True:
                 self.beat(); current = self.probe()
                 if current['state'] == 'healthy':
@@ -165,7 +214,8 @@ class Controller:
                         self.log('RECOVERED functional=true circuit=closed')
                         self.incident('recover', 'Singleton RDC: local MCP ping and current remote heartbeat verified')
                         self.notify('recovered')
-                    p.write_text('up'); previous = 'up'; failures = 0; next_half_open = None
+                    self.clear_circuit()
+                    p.write_text('up'); previous = 'up'; failures = 0
                 elif previous != 'down':
                     failures += 1
                     if current['reason'] not in ('duplicate_instances','process_missing','functional_receipt_missing_or_invalid') and failures < 3:
@@ -174,17 +224,20 @@ class Controller:
                     self.log('DOWN confirmed: '+current['reason'])
                     result = self.repair()
                     if result['state'] == 'recovered':
+                        self.clear_circuit()
                         self.log('SELF-HEAL SUCCESS functional=true'); p.write_text('up'); previous='up'
                         self.notify('repaired')
                     elif result['state'] != 'busy':
                         self.log('SELF-HEAL FAILED circuit=open reason='+result['reason'])
                         # Persist open circuit only after canonical ingress acknowledgement.
                         if self.incident('open', 'Remote Desktop functional recovery exhausted: '+result['reason']):
-                            p.write_text('down'); previous='down'; next_half_open=time.monotonic()+self.half_open_probe_s
+                            self.schedule_half_open(failed=True)
+                            p.write_text('down'); previous='down'
                             self.notify('failed')
                         else:
                             self.log('INCIDENT_INGRESS_FAILED no_restart_replay=true')
-                            p.write_text('down'); previous='down'; next_half_open=time.monotonic()+self.half_open_probe_s
+                            self.schedule_half_open(failed=True)
+                            p.write_text('down'); previous='down'
                 else:
                     # Reconcile lost ingress without repeating the failed recovery mutation.
                     db=self.home/'.openclaw/incidents/orchestrator.db'
@@ -193,19 +246,24 @@ class Controller:
                             row=c.execute("select state from incidents where component='remote_desktop' and scope='runtime' order by created desc limit 1").fetchone()
                         if row is None or row[0]=='recovered': self.incident('open', 'RDC remains unhealthy with circuit open')
                     except sqlite3.Error: pass
-                    now = time.monotonic()
-                    if next_half_open is None:
-                        next_half_open = now + self.half_open_probe_s
-                    if now >= next_half_open:
-                        next_half_open = now + self.half_open_probe_s
+                    circuit=self.read_circuit()
+                    if circuit['next_at'] <= 0:
+                        circuit=self.schedule_half_open(failed=False)
+                    if time.time() >= circuit['next_at']:
                         result = self.half_open()
                         if result['state'] == 'recovered':
+                            self.clear_circuit()
                             self.log('RECOVERED functional=true circuit=closed source=half_open')
-                            self.incident('recover', 'Half-open RDC: remote dependency reachable, local MCP ping and remote heartbeat verified')
+                            self.incident('recover', 'Half-open RDC: remote dependency reachable through Node, local MCP ping and remote heartbeat verified')
                             self.notify('recovered')
-                            p.write_text('up'); previous='up'; failures=0; next_half_open=None
-                        elif result['state'] not in ('busy','deferred'):
-                            self.log('HALF-OPEN FAILED circuit=open reason='+result['reason'])
+                            p.write_text('up'); previous='up'; failures=0
+                        elif result['state'] == 'deferred':
+                            self.defer_half_open()
+                            self.log('HALF-OPEN DEFERRED circuit=open reason='+result['reason'])
+                        elif result['state'] != 'busy':
+                            backoff=self.schedule_half_open(failed=True)
+                            self.log('HALF-OPEN FAILED circuit=open reason='+result['reason']+
+                                     ' next_retry_s='+str(max(0,int(backoff['next_at']-time.time()))))
                 for _ in range(15): self.beat(); time.sleep(1)
 
 def diagnostics(home=None):
@@ -215,6 +273,10 @@ def diagnostics(home=None):
         with p.open('rb') as f:
             f.seek(max(0,p.stat().st_size-8192)); lines=f.read().decode(errors='replace').splitlines()
         d['watchdog_events']=lines[-12:]
+    circuit=home/'.openclaw/watchdogs/remote-desktop-circuit.json'
+    if circuit.exists():
+        try: d['circuit']=json.loads(circuit.read_text())
+        except (OSError,ValueError): d['circuit']={'state':'invalid'}
     d['managed_action_contract']={'action':'runtime.managed_repair','scope':'RDC only',
         'behavior':'serialized stop, verify exit, restart, bounded local MCP and remote heartbeat check',
         'code_editing':False,'max_attempts':2}
