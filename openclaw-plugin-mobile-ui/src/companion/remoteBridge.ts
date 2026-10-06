@@ -167,6 +167,18 @@ function mutationRisk(method: string): "read" | "write" | "unknown" {
   if (["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status", "mcp_capability_execute_readonly"].includes(method)) return "read";
   if (["write_file", "patch_file", "write_binary_file", "process_input", "process_stop"].includes(method)) return "write";
   return "unknown";
+}
+
+function resolvedMutationRisk(
+  method: string,
+  result: unknown,
+  fallback: "read" | "write" | "unknown",
+): "read" | "write" | "unknown" {
+  if (method !== "mcp_capability_execute_owner" || !result || typeof result !== "object") return fallback;
+  const risk = String((result as any)?.selected?.risk || "").trim();
+  if (risk === "read") return "read";
+  if (risk) return "write";
+  return fallback;
 }const INLINE_LIMIT = 48 * 1024;
 const MAX_FILE_READ_LINES = 5000;
 const MAX_FILE_WRITE_BYTES = 4 * 1024 * 1024;
@@ -347,7 +359,7 @@ function readArtifact(params: Record<string, unknown>) {
   };
 }
 
-async function runMcpCapabilityReadonly(params: Record<string, unknown>) {
+async function runMcpCapability(params: Record<string, unknown>, readOnly: boolean) {
   const request = String(params.request || "").trim();
   if (!request || request.length > 12000) throw new Error("invalid_mcp_request");
   const rawTargetHint = String(params.targetHint || "").trim();
@@ -357,7 +369,7 @@ async function runMcpCapabilityReadonly(params: Record<string, unknown>) {
   const targetHint = rawTargetHint || undefined;
   return capabilityBridge(request, {
     execute: true,
-    readOnly: true,
+    readOnly,
     surface: "external_mcp",
     caller: "owner",
     timeoutSeconds: 30,
@@ -388,7 +400,9 @@ async function dispatch(request: RemoteBridgeRequest) {
     case "artifact_read":
       return readArtifact(params);
     case "mcp_capability_execute_readonly":
-      return runMcpCapabilityReadonly(params);
+      return runMcpCapability(params, true);
+    case "mcp_capability_execute_owner":
+      return runMcpCapability(params, false);
     case "process_start":
       return startBridgeProcess(params);
     case "process_status":
@@ -478,11 +492,13 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   writeReceipt(receipt);
 
   try {
-    const result = compactResult(request.requestId, await dispatch(request));
+    const rawResult = await dispatch(request);
+    const result = compactResult(request.requestId, rawResult);
     receipt = {
       ...receipt,
       state: "completed",
       completedAt: Date.now(),
+      mutationRisk: resolvedMutationRisk(request.method, rawResult, receipt.mutationRisk),
       result,
     };
   } catch (error: any) {

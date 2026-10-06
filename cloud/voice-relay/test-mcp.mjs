@@ -20,7 +20,7 @@ async function invoke(tool, args, auth, meta) {
   return { state: "ok", tool, client: auth.clientId, args };
 }
 
-async function post(body, authToken = token) {
+async function post(body, authToken = token, targetEnv = env) {
   const response = await handleMcpHttp(
     new Request("https://claw.example/mcp", {
       method: "POST",
@@ -32,7 +32,7 @@ async function post(body, authToken = token) {
       },
       body: JSON.stringify(body),
     }),
-    env,
+    targetEnv,
     invoke,
   );
   const text = await response.text();
@@ -67,6 +67,9 @@ assert.deepEqual(names, [
   "claw_resolve",
   "claw_status",
 ]);
+const shadowExecuteTool = result.body.result.tools.find((tool) => tool.name === "claw_execute");
+assert.equal(shadowExecuteTool.annotations.readOnlyHint, true);
+assert.equal(shadowExecuteTool.annotations.openWorldHint, false);
 
 result = await post({
   jsonrpc: "2.0",
@@ -96,6 +99,35 @@ result = await post({
 });
 assert.equal(result.status, 200);
 assert.equal(calls.at(-1).meta.requestId, "mcp-claude-chat-balance-001-execute");
+assert.equal(calls.at(-1).auth.profile, "chat-owner-shadow");
+
+const ownerEnv = {
+  MCP_CLIENTS_JSON: JSON.stringify({
+    "claude-chat": { tokenSha256, profile: "chat-owner", enabled: true },
+  }),
+};
+const ownerList = await post({
+  jsonrpc: "2.0",
+  id: 40,
+  method: "tools/list",
+  params: {},
+}, token, ownerEnv);
+assert.equal(ownerList.status, 200);
+const ownerExecuteTool = ownerList.body.result.tools.find((tool) => tool.name === "claw_execute");
+assert.equal(ownerExecuteTool.annotations.readOnlyHint, false);
+assert.equal(ownerExecuteTool.annotations.openWorldHint, true);
+const ownerCall = await post({
+  jsonrpc: "2.0",
+  id: 41,
+  method: "tools/call",
+  params: {
+    name: "claw_execute",
+    arguments: { request: "active le wifi", action_key: "owner-write-001" },
+  },
+}, token, ownerEnv);
+assert.equal(ownerCall.status, 200);
+assert.equal(calls.at(-1).auth.profile, "chat-owner");
+assert.equal(calls.at(-1).meta.requestId, "mcp-claude-chat-owner-write-001-execute");
 
 result = await post({
   jsonrpc: "2.0",

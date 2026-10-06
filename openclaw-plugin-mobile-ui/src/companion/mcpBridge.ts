@@ -11,7 +11,8 @@ import {
 } from "./remoteBridge";
 
 const execFileAsync = promisify(execFile);
-// External MCP V1 stays read-only until live Claude acceptance.
+// External MCP keeps a read-only shadow profile and an owner profile that reuses canonical Claw authorization.
+const SUPPORTED_PROFILES = new Set(["chat-owner-shadow", "chat-owner"]);
 const CLIENT_ID_RE = /^[A-Za-z0-9._-]{1,24}$/;
 const ACTION_ID_RE = /^[A-Za-z0-9._-]{1,40}$/;
 const STEP_ID_RE = /^[A-Za-z0-9._-]{1,24}$/;
@@ -65,7 +66,7 @@ function projectReceipt(receipt: any) {
   if (value?.artifact) {
     return { ...base, state: "result_available", artifact: safeValue(value.artifact), preview: String(value.preview || "").slice(0, 8000) };
   }
-  if (receipt.method === "mcp_capability_execute_readonly") {
+  if (receipt.method === "mcp_capability_execute_readonly" || receipt.method === "mcp_capability_execute_owner") {
     const execution = value?.execution || {};
     const domain = execution?.result;
     let state = "blocked";
@@ -231,9 +232,10 @@ async function resolveCapability(args: Record<string, unknown>) {
   });
 }
 
-async function executeReadonly(
+async function executeCapability(
   requestId: string,
   clientId: string,
+  profile: string,
   args: Record<string, unknown>,
 ) {
   const request = requiredString(args.request, "request", 12000);
@@ -248,7 +250,7 @@ async function executeReadonly(
     taskId: actionTaskId(clientId, actionKey),
     stepId: stepKey,
     sessionId: `external_mcp:${clientId}`,
-    method: "mcp_capability_execute_readonly",
+    method: profile === "chat-owner" ? "mcp_capability_execute_owner" : "mcp_capability_execute_readonly",
     params: {
       request,
       targetHint: targetHint || "",
@@ -317,7 +319,7 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
   const tool = requiredString(message.tool, "tool", 64, /^[a-z][a-z0-9_]{1,63}$/);
   const args = cleanObject(message.arguments);
 
-  if (profile !== "chat-owner-shadow") {
+  if (!SUPPORTED_PROFILES.has(profile)) {
     return { state: "failed", error: "unsupported_profile" };
   }
 
@@ -327,7 +329,7 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
     case "claw_resolve":
       return { state: "resolved", result: await resolveCapability(args) };
     case "claw_execute":
-      return executeReadonly(requestId, clientId, args);
+      return executeCapability(requestId, clientId, profile, args);
     case "claw_status":
       return statusFor(clientId, args);
     case "claw_artifact_read":

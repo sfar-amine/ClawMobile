@@ -9,6 +9,7 @@ const ARTIFACT_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 const TOKEN_HASH_RE = /^[a-f0-9]{64}$/;
 const MAX_BODY_BYTES = 128 * 1024;
 
+const SUPPORTED_PROFILES = new Set(["chat-owner-shadow", "chat-owner"]);
 const CHAT_TOOLS = new Set([
   "claw_context",
   "claw_resolve",
@@ -83,7 +84,7 @@ export async function authenticateMcpClient(request, env) {
     if (!TOKEN_HASH_RE.test(expected)) continue;
     if (!constantTimeHexEqual(tokenHash, expected)) continue;
     const profile = String(config.profile || "chat-owner-shadow");
-    if (profile !== "chat-owner-shadow") {
+    if (!SUPPORTED_PROFILES.has(profile)) {
       return { ok: false, status: 403, error: "unsupported_profile" };
     }
     return { ok: true, clientId, profile };
@@ -92,7 +93,7 @@ export async function authenticateMcpClient(request, env) {
 }
 
 function toolAllowed(profile, tool) {
-  return profile === "chat-owner-shadow" && CHAT_TOOLS.has(tool);
+  return SUPPORTED_PROFILES.has(profile) && CHAT_TOOLS.has(tool);
 }
 
 function toolResult(value) {
@@ -166,16 +167,19 @@ function registerTools(server, auth, invoke) {
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   }, run("claw_resolve"));
 
+  const ownerProfile = auth.profile === "chat-owner";
   server.registerTool("claw_execute", {
     title: "Execute Claw request",
-    description: "Execute a known Claw route. V1 is shadow/read-only: only deterministic read routes without confirmation are admitted. Reuse action_key for retries; use a new stable step_key only for a materially new clarification/refinement step.",
+    description: ownerProfile
+      ? "Execute a Claw request with canonical owner authorization. Route-specific confirmations, human-only boundaries, idempotence and execution receipts still apply. Reuse action_key for retries; use a new stable step_key only for a materially new clarification/refinement step."
+      : "Execute a known Claw route in shadow/read-only mode: only deterministic read routes without confirmation are admitted. Reuse action_key for retries; use a new stable step_key only for a materially new clarification/refinement step.",
     inputSchema: {
       request: z.string().min(1).max(12000),
       action_key: z.string().regex(ACTION_ID_RE),
       step_key: z.string().regex(STEP_ID_RE).optional(),
       target_hint: z.string().max(128).optional(),
     },
-    annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: !ownerProfile, idempotentHint: true, openWorldHint: ownerProfile },
   }, run("claw_execute"));
 
   server.registerTool("claw_status", {

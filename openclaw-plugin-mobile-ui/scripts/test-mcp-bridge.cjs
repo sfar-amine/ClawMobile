@@ -12,7 +12,7 @@ process.env.CLAW_UI_PLAYBOOKS_ROOT =
   path.join(os.homedir(), ".openclaw", "worktrees", "claw-mcp-gateway-ui-20261005");
 process.env.CLAW_CAPABILITY_HELPER =
   process.env.CLAW_MCP_TEST_HELPER ||
-  path.join(os.homedir(), ".openclaw", "worktrees", "claw-mcp-gateway-mobile-20261005", "installer", "termux-lite", "claw-capability.py");
+  path.join(__dirname, "fixtures", "fake-claw-capability.py");
 
 const { handleMcpRelayRequest } = require("../dist/companion/mcpBridge.js");
 
@@ -66,6 +66,27 @@ async function main() {
   assert.equal(status.state, "blocked");
   assert.equal(status.reason, "read_only_policy");
   assert.equal(status.request_id, "mcp-claude-chat-wifi-write-execute");
+
+  const ownerResult = await handleMcpRelayRequest({
+    requestId: "mcp-claude-chat-wifi-write-owner-execute",
+    clientId: "claude-chat",
+    profile: "chat-owner",
+    tool: "claw_execute",
+    arguments: {
+      request: "active le wifi",
+      action_key: "wifi-write-owner",
+    },
+  });
+  assert.notEqual(ownerResult.reason, "read_only_policy");
+  const ownerReceiptPath = path.join(
+    process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR,
+    "requests",
+    "mcp-claude-chat-wifi-write-owner-execute.json",
+  );
+  const ownerReceipt = JSON.parse(fs.readFileSync(ownerReceiptPath, "utf8"));
+  assert.equal(ownerReceipt.method, "mcp_capability_execute_owner");
+  assert.equal(ownerReceipt.mutationRisk, "write");
+  assert.notEqual(ownerReceipt.result?.execution?.reason, "read_only_policy");
 
   const artifactDir = path.join(process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR, "artifacts");
   const requestDir = path.join(process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR, "requests");
