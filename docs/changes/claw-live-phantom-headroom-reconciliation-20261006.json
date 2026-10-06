@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "repair",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "live_verified",
   "summary": "Reconcile the validated S24 Android phantom-process headroom so claw-live and other Termux children are not trimmed again after DeviceConfig drift.",
   "reason": "The documented 128 override disappeared while the S24 stayed up; ActivityManager returned to effective 32 and live logs again showed Termux PhantomProcessRecord kills with reason Trimming phantom processes.",
   "files": [
@@ -60,7 +60,21 @@
   },
   "rollback": "Promote the previous verified immutable Tier0 release and revert this scoped commit after checking concurrent work. DeviceConfig deletion returns Android to OEM default 32 but reintroduces the proven trimming risk.",
   "limitations": [
-    "The exact actor that removed the prior DeviceConfig override is not proven; no attribution is made.",
-    "Immutable Tier0 activation and live drift/background acceptance remain separate gates before closure."
-  ]
+    "The exact actor that removed the prior DeviceConfig override is not proven; no attribution is made."
+  ],
+  "activation": {
+    "release": "20261006-clawlive-headroom-051c0c2",
+    "tier0_current": true,
+    "tier0_last_known_good": true,
+    "soak_state": "stable",
+    "soak_bad_samples": 0
+  },
+  "live_acceptance": {
+    "status": "passed",
+    "controlled_drift": "128->64->128 automatic reconciliation verified",
+    "background_return": "claw-live PID 19617 survived 120s background interval and return to Termux",
+    "phantom_kill_for_pid": false,
+    "final_effective_max_phantom_processes": 128,
+    "press_enter_prompt_observed": false
+  }
 }

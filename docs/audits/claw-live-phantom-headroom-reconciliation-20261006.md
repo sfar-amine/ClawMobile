@@ -43,7 +43,17 @@ Les suites existantes Claw Live, Tier-0, RDC, Health, incidents, supervision et 
 
 ## Activation et recette live
 
-État initial du change record : source candidate testée, activation immutable Tier-0 et recette live encore séparées. La clôture mettra à jour le change record avec le commit publié, la release active, la dérive contrôlée 64 → 128 et la survie du processus `claw-live` en arrière-plan.
+Clôture vérifiée le 6 octobre 2026 :
+- source publiée sur la branche runtime privée et intégrée dans la release immutable Tier-0 `20261006-clawlive-headroom-051c0c2` ;
+- release `current` et `last-known-good`, soak `stable`, `0` bad sample ;
+- SHA du `samantha-health-manager.sh` actif identique au correctif publié ;
+- dérive contrôlée `128 → 64` détectée par le Health Manager, puis restauration et vérification automatique à `128` (`state=drift` puis `state=recovered`) ;
+- recette réelle aller-retour : Termux/claw-live mis au premier plan, Samantha ouverte pendant 120 s, puis retour Termux ; le PID `claw-live` est resté `19617` avant/après ;
+- aucune occurrence de kill correspondant `Trimming phantom processes` sur ce PID pendant la fenêtre ;
+- valeur effective finale `max_phantom_processes=128` ;
+- UI de retour sans `Process completed`, `Press Enter` ni demande `Entrée`.
+
+Le symptôme propriétaire est donc reproduit par sa cause d'infrastructure (dérive du headroom) et la correction durable est activée et recettée.
 
 ## Retour arrière
 
