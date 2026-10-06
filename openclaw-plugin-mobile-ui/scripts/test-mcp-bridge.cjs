@@ -13,6 +13,13 @@ process.env.CLAW_UI_PLAYBOOKS_ROOT =
 process.env.CLAW_CAPABILITY_HELPER =
   process.env.CLAW_MCP_TEST_HELPER ||
   path.join(__dirname, "fixtures", "fake-claw-capability.py");
+const ownerDelegate = path.join(root, "owner-delegate.py");
+const ownerDelegateCount = path.join(root, "owner-delegate.count");
+fs.writeFileSync(ownerDelegate, `#!/usr/bin/env python3\nimport json, os\np=os.environ.get("CLAWMOBILE_MCP_OWNER_DELEGATE_COUNT_FILE")\nif p:\n    open(p,"a").write("1\\n")\nprint(json.dumps({"ok":True,"result":{"payloads":[{"text":"delegated owner result"}]}}))\n`);
+fs.chmodSync(ownerDelegate, 0o700);
+process.env.CLAWMOBILE_MCP_OWNER_DELEGATE_HELPER = ownerDelegate;
+process.env.CLAWMOBILE_MCP_OWNER_DELEGATE_COUNT_FILE = ownerDelegateCount;
+process.env.CLAWMOBILE_MCP_OWNER_DELEGATE_AGENT = "main";
 
 const { handleMcpRelayRequest } = require("../dist/companion/mcpBridge.js");
 
@@ -87,6 +94,45 @@ async function main() {
   assert.equal(ownerReceipt.method, "mcp_capability_execute_owner");
   assert.equal(ownerReceipt.mutationRisk, "write");
   assert.notEqual(ownerReceipt.result?.execution?.reason, "read_only_policy");
+
+  const shadowDelegate = await handleMcpRelayRequest({
+    requestId: "mcp-claude-chat-delegate-shadow-execute",
+    clientId: "claude-chat",
+    profile: "chat-owner-shadow",
+    tool: "claw_execute",
+    arguments: { request: "delegate recap", action_key: "delegate-shadow" },
+  });
+  assert.equal(shadowDelegate.state, "blocked");
+  assert.equal(shadowDelegate.reason, "read_only_policy");
+  assert.equal(fs.existsSync(ownerDelegateCount), false);
+
+  const ownerDelegateResult = await handleMcpRelayRequest({
+    requestId: "mcp-claude-chat-delegate-owner-execute",
+    clientId: "claude-chat",
+    profile: "chat-owner",
+    tool: "claw_execute",
+    arguments: { request: "delegate recap", action_key: "delegate-owner" },
+  });
+  assert.equal(ownerDelegateResult.state, "completed");
+  assert.equal(ownerDelegateResult.result?.delegated, true);
+  assert.equal(ownerDelegateResult.result?.text, "delegated owner result");
+  const delegatedReceipt = JSON.parse(fs.readFileSync(path.join(
+    process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR,
+    "requests",
+    "mcp-claude-chat-delegate-owner-execute.json",
+  ), "utf8"));
+  assert.equal(delegatedReceipt.method, "mcp_capability_execute_owner");
+  assert.equal(delegatedReceipt.mutationRisk, "unknown");
+  assert.equal(delegatedReceipt.result?.execution?.delegated, true);
+  const ownerDelegateRepeat = await handleMcpRelayRequest({
+    requestId: "mcp-claude-chat-delegate-owner-execute",
+    clientId: "claude-chat",
+    profile: "chat-owner",
+    tool: "claw_execute",
+    arguments: { request: "delegate recap", action_key: "delegate-owner" },
+  });
+  assert.equal(ownerDelegateRepeat.state, "completed");
+  assert.equal(fs.readFileSync(ownerDelegateCount, "utf8").trim().split(/\n/).length, 1);
 
   const artifactDir = path.join(process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR, "artifacts");
   const requestDir = path.join(process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR, "requests");

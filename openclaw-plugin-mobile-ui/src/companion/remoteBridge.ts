@@ -3,6 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { capabilityBridge } from "./capabilityBridge";
+import { delegateMcpOwnerRequest } from "./mcpOwnerDelegate";
 
 const ROOT = process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR || path.join(os.homedir(), ".openclaw", "remote-bridge");
 const REQUEST_DIR = path.join(ROOT, "requests");
@@ -175,6 +176,7 @@ function resolvedMutationRisk(
   fallback: "read" | "write" | "unknown",
 ): "read" | "write" | "unknown" {
   if (method !== "mcp_capability_execute_owner" || !result || typeof result !== "object") return fallback;
+  if ((result as any)?.execution?.delegated === true) return "unknown";
   const risk = String((result as any)?.selected?.risk || "").trim();
   if (risk === "read") return "read";
   if (risk) return "write";
@@ -359,7 +361,11 @@ function readArtifact(params: Record<string, unknown>) {
   };
 }
 
-async function runMcpCapability(params: Record<string, unknown>, readOnly: boolean) {
+async function runMcpCapability(
+  params: Record<string, unknown>,
+  readOnly: boolean,
+  requestId: string,
+) {
   const request = String(params.request || "").trim();
   if (!request || request.length > 12000) throw new Error("invalid_mcp_request");
   const rawTargetHint = String(params.targetHint || "").trim();
@@ -367,7 +373,7 @@ async function runMcpCapability(params: Record<string, unknown>, readOnly: boole
     throw new Error("invalid_target_hint");
   }
   const targetHint = rawTargetHint || undefined;
-  return capabilityBridge(request, {
+  const result: any = await capabilityBridge(request, {
     execute: true,
     readOnly,
     surface: "external_mcp",
@@ -375,6 +381,14 @@ async function runMcpCapability(params: Record<string, unknown>, readOnly: boole
     timeoutSeconds: 30,
     targetHint,
   });
+  if (!readOnly && result?.execution?.state === "delegation_required") {
+    const capability = String(result?.capability || result?.selected?.capability || "");
+    return {
+      ...result,
+      execution: await delegateMcpOwnerRequest(request, requestId, capability),
+    };
+  }
+  return result;
 }
 
 async function dispatch(request: RemoteBridgeRequest) {
@@ -400,9 +414,9 @@ async function dispatch(request: RemoteBridgeRequest) {
     case "artifact_read":
       return readArtifact(params);
     case "mcp_capability_execute_readonly":
-      return runMcpCapability(params, true);
+      return runMcpCapability(params, true, request.requestId);
     case "mcp_capability_execute_owner":
-      return runMcpCapability(params, false);
+      return runMcpCapability(params, false, request.requestId);
     case "process_start":
       return startBridgeProcess(params);
     case "process_status":
