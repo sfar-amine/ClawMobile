@@ -30,7 +30,10 @@
     "test:samantha-provider-fallback": "node scripts/test-samantha-provider-fallback.cjs",
     "test:claw-live-warm-cancellation": "node scripts/test-claw-live-warm-cancellation.cjs",
     "test:companion-history-cache": "node scripts/test-companion-history-cache.cjs",
-    "test:voice-barge-in": "node scripts/test-voice-turn-protocol.cjs && node scripts/test-warm-v2-ownership.cjs"
+    "test:voice-barge-in": "node scripts/test-voice-turn-protocol.cjs && node scripts/test-warm-v2-ownership.cjs",
+    "test:control-v2": "node scripts/test-control-v2.cjs",
+    "test:conversation-pages": "node scripts/test-conversation-pages.cjs",
+    "test:conversation-backfill-races": "node scripts/test-conversation-backfill-races.cjs"
   },
   "dependencies": {
     "nostr-tools": "^2.23.5",

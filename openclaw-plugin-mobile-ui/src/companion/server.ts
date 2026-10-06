@@ -18,7 +18,7 @@ import { createClawLiveToken, clawLivePageHtml } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
-import { archiveSession, deleteSession, getRunStatus, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn } from "./runs";
+import { archiveSession, deleteSession, getRunStatus, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
 import { acceptSkillImport, createSkillSharePackage, listPendingSkillImports, rejectSkillImport, storePendingSkillImport } from "./skillSharing";
 import type { CompanionHealth, CompanionRunStatus, IntentAttachment, RunCreateRequest, TerminalCommandRequest, TerminalCommandResponse, TerminalSessionRequest, TerminalSessionResponse } from "./types";
@@ -861,6 +861,40 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     const runId = decodeURIComponent(routePath.slice("/skill-runs/".length));
     const result = await getRunStatus(runId);
     writeJson(res, result.success || result.state !== "unknown" ? 200 : 404, toSkillRunSummary(result));
+    return;
+  }
+
+  if(method === "GET" && routePath === "/sessions/changes") {
+    if(!isLoopback||req.headers.origin||req.headers["sec-fetch-site"]){writeJson(res,403,{error:"native_loopback_required"});return;}
+    if(process.env.SAMANTHA_CONVERSATION_EVENTS === "0"){writeJson(res,404,{error:"unsupported_contract"});return;}
+    const last=req.headers["last-event-id"];
+    if(Array.isArray(last)||(last?.length||0)>120){writeJson(res,400,{error:"invalid_cursor"});return;}
+    let subscription:ReturnType<typeof subscribeConversationChanges>|undefined;
+    let heartbeat:ReturnType<typeof setInterval>|undefined;let closed=false;
+    const close=()=>{if(closed)return;closed=true;subscription?.close();if(heartbeat)clearInterval(heartbeat);if(!res.writableEnded)res.end();};
+    const send=(event:any)=>{if(closed)return;if(!res.write("id: "+event.id+"\nevent: invalidated\ndata: "+JSON.stringify(event)+"\n\n"))close();};
+    try{subscription=subscribeConversationChanges(send,last as string|undefined);}
+    catch{writeJson(res,429,{error:"conversation_stream_busy"});return;}
+    res.writeHead(200,{"Content-Type":"text/event-stream; charset=utf-8","Cache-Control":"no-store","Connection":"keep-alive"});res.flushHeaders();
+    res.write("event: ready\ndata: "+JSON.stringify({...subscription.current,resyncRequired:subscription.resyncRequired})+"\n\n");
+    for(const event of subscription.replay)send(event);
+    if(!closed){heartbeat=setInterval(()=>{if(!res.write(": keep-alive\n\n"))close();},10000);heartbeat.unref();}
+    res.once("close",close);req.once("aborted",close);if(res.destroyed||req.aborted)close();return;
+  }
+  const pagedTurns=routePath.match(/^\/sessions\/([^/]+)\/turns$/);
+  if(method === "GET" && requestUrl.searchParams.get("contract") === "2" && (routePath === "/runs" || pagedTurns)) {
+    if(!isLoopback||req.headers.origin||req.headers["sec-fetch-site"]){writeJson(res,403,{error:"native_loopback_required"});return;}
+    if(process.env.SAMANTHA_HISTORY_V2 === "0"){writeJson(res,404,{error:"unsupported_contract"});return;}
+    try{
+      for(const [key] of requestUrl.searchParams)if(!["contract","view","limit","cursor","q"].includes(key))throw Object.assign(Error(),{statusCode:400});
+      const rawLimit=requestUrl.searchParams.get("limit")||"20";
+      if(!/^[0-9]{1,2}$/.test(rawLimit))throw Object.assign(Error(),{statusCode:400});
+      const options={limit:Number(rawLimit),cursor:requestUrl.searchParams.get("cursor")||undefined,query:requestUrl.searchParams.get("q")||undefined};
+      if(routePath === "/runs" && requestUrl.searchParams.get("view")!=="conversations")throw Object.assign(Error(),{statusCode:400});
+      const value=pagedTurns?await conversationTurnsPage(decodeURIComponent(pagedTurns[1]),options):await conversationSummariesPage(options);
+      res.setHeader("Cache-Control","no-store");writeJson(res,200,value);
+    }catch(e:any){const code=e?.statusCode===400?400:e?.statusCode===409?409:503;
+      res.setHeader("Cache-Control","no-store");writeJson(res,code,{error:code===409?"pagination_invalidated":code===400?"invalid_pagination":"history_unavailable"});}
     return;
   }
 

@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "crypto";
 import {validateVoicePlayback,type VoicePlaybackMetadata} from "./voicePlaybackMetadata";
 import type { PaymentRecord } from "./paymentTypes";
 import type { ConfirmationRecord } from "./confirmationCore";
@@ -1217,6 +1218,7 @@ async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: 
   await fs.rename(tmp, runRegistryPath());
   const directory = await fs.open(path.dirname(runRegistryPath()), "r");
   try { await directory.sync(); } finally { await directory.close(); }
+  publishConversationChanges(current.runs, runs, current.archivedSessionIds, archivedSessionIds);
 }
 
 async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
@@ -1257,6 +1259,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       modality: run.modality === "voice" ? "voice" : undefined,
       transcriptState: ["partial", "completed", "interrupted"].includes(run.transcriptState) ? run.transcriptState : undefined,
       transcriptRevision: Number.isSafeInteger(run.transcriptRevision) ? run.transcriptRevision : undefined,
+      playback: run.playback ? validateVoicePlayback(run.playback) : undefined,
     })),
   };
 }
@@ -1313,44 +1316,58 @@ export async function saveVoiceTurn(sessionId: string, value: any) {
   });
 }
 
-export async function getConversationTurns(sessionId: string) {
-  requireConversationId(sessionId);
-  const stored = (await readStoredRuns()).filter(run => run.sessionId === sessionId).slice(0,40).reverse();
-  let raw = "";
-  if (stored.some(run => run.modality !== "voice" && !run.result)) {
-    const history = await callOpenClawGateway("chat.history", {sessionKey: expectedCompanionSessionKey(sessionId), limit: 200});
-    raw = (Array.isArray(history?.messages) ? history.messages : []).map((message: any) =>
-      JSON.stringify({type: "message", message, timestamp: message.timestamp})).join("\n");
-  }
-  const resolved = stored.map(run => {
-    const status = statusFromStoredRun(run);
-    if (run.modality === "voice" || run.result) return status;
-    const transcript = summarizeTranscript(raw, run.text);
-    return transcript.result ? {...status, state: "done" as const, result: transcript.result} : status;
+/** A text fragment is not a terminal result. Only a unique, explicitly stopped turn qualifies. */
+export function terminalConversationResult(raw:string, target:string):{result:string;endedAt?:number}|undefined {
+  const messages=raw.split(/\r?\n/).flatMap(line=>{
+    try{const v=JSON.parse(line);return v.type==="message"?[v]:[];}catch{return [];}
   });
-  const backfill = resolved.filter((status, index) =>
-    Boolean(status.result) && stored[index]?.modality !== "voice" && !stored[index]?.result
-  );
-  if (backfill.length > 0) await backfillConversationResults(sessionId, backfill);
-  return resolved;
+  const matches=messages.map((v,i)=>v.message?.role==="user"&&stripOpenClawTimestamp(contentText(v.message.content))===target?i:-1).filter(i=>i>=0);
+  if(matches.length!==1)return undefined;
+  let end=messages.findIndex((v,i)=>i>matches[0]&&v.message?.role==="user");if(end<0)end=messages.length;
+  const turn=messages.slice(matches[0]+1,end),last=turn[turn.length-1];
+  if(last?.message?.role!=="assistant"||last.message.stopReason!=="stop")return undefined;
+  if(Array.isArray(last.message.content)&&last.message.content.some((c:any)=>c?.type==="toolCall"))return undefined;
+  const result=contentText(last.message.content);
+  return result?{result,endedAt:messageTimestamp(last)}:undefined;
 }
 
-async function backfillConversationResults(sessionId: string, resolved: CompanionRunStatus[]) {
-  const byId = new Map(resolved.filter(row => row.runId && row.result).map(row => [row.runId, row]));
-  if (byId.size === 0) return;
-  await mutateRegistry(async () => {
-    const registry = await registryOrEmpty();
-    let changed = false;
-    const now = Date.now();
-    const next = registry.runs.map(run => {
-      const row = run.sessionId === sessionId ? byId.get(run.runId) : undefined;
-      if (!row?.result || run.result === row.result && run.state === "done") return run;
-      const updated = {...run, result: row.result, state: "done" as const, updatedAt: now};
-      submittedRuns.set(run.runId, updated);
-      changed = true;
-      return updated;
+function runIdentity(run:StoredRun){return JSON.stringify([run.runId,run.sessionId,run.acceptedAt,run.updatedAt,run.state,run.result,run.text,run.modality,run.transcriptRevision]);}
+
+export async function getConversationTurns(sessionId: string) {
+  requireConversationId(sessionId);
+  await registryWrite;
+  const stored=(await readStoredRuns()).filter(run=>run.sessionId===sessionId).slice(0,40).reverse();
+  const unresolved=stored.filter(run=>run.modality!=="voice"&&!run.result&&run.state!=="failed");
+  if(!unresolved.length)return stored.map(statusFromStoredRun);
+  const history=await callOpenClawGateway("chat.history",{sessionKey:expectedCompanionSessionKey(sessionId),limit:200});
+  const raw=(Array.isArray(history?.messages)?history.messages:[]).map((message:any)=>JSON.stringify({type:"message",message,timestamp:message.timestamp})).join("\n");
+  const proofs=unresolved.flatMap(run=>{
+    // Repeated equal requests require a stronger owner correlation, never guess the last match.
+    if(stored.filter(x=>x.text===run.text).length!==1)return [];
+    const proof=terminalConversationResult(raw,run.text);
+    return proof?[{before:run,...proof}]:[];
+  });
+  if(proofs.length)await backfillConversationResults(sessionId,proofs);
+  // A concurrent delete/archive/revision wins over the old read and its candidate proof.
+  await registryWrite;
+  return (await readStoredRuns()).filter(run=>run.sessionId===sessionId).slice(0,40).reverse().map(statusFromStoredRun);
+}
+
+async function backfillConversationResults(sessionId:string,proofs:{before:StoredRun;result:string;endedAt?:number}[]) {
+  await mutateRegistry(async()=>{
+    const registry=await registryOrEmpty();
+    if(registry.archivedSessionIds.includes(sessionId))return;
+    const byId=new Map(proofs.map(p=>[p.before.runId,p]));const updates:StoredRun[]=[];
+    const next=registry.runs.map(run=>{
+      const proof=byId.get(run.runId);
+      if(!proof||run.sessionId!==sessionId||run.modality==="voice"||run.result||run.state==="failed"||runIdentity(run)!==runIdentity(proof.before))return run;
+      const updated={...run,result:proof.result,state:"done" as const,
+        updatedAt:proof.endedAt&&proof.endedAt>=run.acceptedAt?proof.endedAt:run.updatedAt||run.acceptedAt};
+      updates.push(updated);return updated;
     });
-    if (changed) await writeCompanionRunRegistry(next, registry.archivedSessionIds);
+    if(!updates.length)return;
+    await writeCompanionRunRegistry(next,registry.archivedSessionIds);
+    for(const row of updates)submittedRuns.set(row.runId,row);
   });
 }
 
@@ -1391,4 +1408,111 @@ export async function mutateOwnerConfirmations<T>(operation:(records:Confirmatio
     await writeCompanionRunRegistry(registry.runs, registry.archivedSessionIds, registry.paymentRequests, registry.ownerConfirmations);
     return result;
   });
+}
+
+// Presentation-only retained-history contract. No new durable store or wider retention.
+type PageOptions={limit?:number;cursor?:string;query?:string};
+const pageSecret=randomBytes(32);
+const pageEpoch=randomUUID();
+const digest=(value:unknown)=>createHash("sha256").update(JSON.stringify(value)).digest("hex");
+function pageError(message:string,statusCode=409){return Object.assign(new Error(message),{statusCode});}
+function normalizedPageOptions(options:PageOptions){
+  const limit=options.limit??20,query=options.query??"";
+  if(!Number.isSafeInteger(limit)||limit<1||limit>40||query.length>512||(options.cursor?.length??0)>2048)throw pageError("invalid_pagination",400);
+  return {limit,query,cursor:options.cursor};
+}
+function pageScope(view:string,query:string,limit:number){return digest(["native-loopback",openClawStateDir(),agentId(),2,view,query,limit]);}
+function cursorFor(scope:string,revision:string,anchor:string){
+  const payload=Buffer.from(JSON.stringify({v:2,epoch:pageEpoch,scope,revision,anchor,createdAt:Date.now()})).toString("base64url");
+  return payload+"."+createHmac("sha256",pageSecret).update(payload).digest("base64url");
+}
+function cursorAnchor(cursor:string|undefined,scope:string,revision:string):string|undefined {
+  if(!cursor)return undefined;
+  const parts=cursor.split(".");
+  if(parts.length!==2)throw pageError("invalid_pagination",400);
+  const expected=createHmac("sha256",pageSecret).update(parts[0]).digest();
+  let signature:Buffer,value:any;
+  try{signature=Buffer.from(parts[1],"base64url");value=JSON.parse(Buffer.from(parts[0],"base64url").toString("utf8"));}catch{throw pageError("invalid_pagination",400);}
+  if(signature.length!==expected.length||!timingSafeEqual(signature,expected)||value.epoch!==pageEpoch||value.scope!==scope||value.revision!==revision||value.v!==2||typeof value.anchor!=="string"||!Number.isFinite(value.createdAt)||Date.now()-value.createdAt>900000)
+    throw pageError("pagination_invalidated");
+  return value.anchor;
+}
+async function retainedRuns():Promise<StoredRun[]> {
+  await registryWrite;
+  const registry=await registryOrEmpty(),archived=new Set(registry.archivedSessionIds);
+  return registry.runs.filter(x=>!archived.has(x.sessionId)).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
+}
+
+export async function conversationSummariesPage(options:PageOptions={}){
+  const {limit,query,cursor}=normalizedPageOptions(options);
+  const runs=await retainedRuns();const grouped=new Map<string,StoredRun[]>();
+  for(const run of runs){const rows=grouped.get(run.sessionId)||[];rows.push(run);grouped.set(run.sessionId,rows);}
+  const items=[...grouped.entries()].filter(([,rows])=>!query||rows.some(r=>(r.userText||r.text||"").toLocaleLowerCase().includes(query.toLocaleLowerCase())||(r.result||"").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+    .map(([sessionId,rows])=>{
+      const latest=rows[0],status=statusFromStoredRun(latest);
+      return {sessionId,lastRunId:latest.runId,titlePreview:(latest.userText||latest.text||"").slice(0,160),
+        lastResultPreview:(latest.result||"").slice(0,140),lastRunState:status.state,
+        lastActivityAt:latest.updatedAt||latest.acceptedAt,sortAt:latest.acceptedAt,
+        modality:latest.modality||"text",transcriptState:latest.transcriptState||"",
+        availableTurnCount:rows.length,previewTruncated:(latest.result?.length||0)>140||(latest.userText||latest.text||"").length>160};
+    }).sort((a,b)=>b.sortAt-a.sortAt||a.sessionId.localeCompare(b.sessionId));
+  const revision=digest({items,retainedRunCount:runs.length,availableConversations:grouped.size}),scope=pageScope("conversations",query,limit),anchor=cursorAnchor(cursor,scope,revision);
+  const index=anchor?items.findIndex(x=>x.sessionId===anchor):-1;
+  if(anchor&&index<0)throw pageError("pagination_invalidated");
+  const start=index+1,page=items.slice(start,start+limit),more=start+page.length<items.length;
+  return {schemaVersion:2,resourceKey:"conversations",dataRevision:revision,items:page.map(({sortAt,...row})=>row),
+    nextCursor:more?cursorFor(scope,revision,page[page.length-1].sessionId):null,
+    hasMore:more,coverage:{source:"companion_retained_registry",fullHistory:false,retainedRunCount:runs.length,
+      availableConversations:grouped.size,matchingConversations:items.length,persistedRunLimit:100},sort:"latest_accepted_desc_session_id_asc"};
+}
+export async function conversationTurnsPage(sessionId:string,options:PageOptions={}){
+  requireConversationId(sessionId);const {limit,cursor}=normalizedPageOptions(options);
+  if(options.query)throw pageError("unsupported_turn_query",400);
+  // Keep the canonical full preparation path separate from this UI page.
+  let partial=false;
+  if(!cursor)try{await getConversationTurns(sessionId);}catch{partial=true;}
+  const all=(await retainedRuns()).filter(x=>x.sessionId===sessionId).sort((a,b)=>a.acceptedAt-b.acceptedAt||a.runId.localeCompare(b.runId));
+  const revision=digest(all.map(statusFromStoredRun));
+  const scope=pageScope("turns:"+sessionId,"",limit),anchor=cursorAnchor(cursor,scope,revision);
+  const end=anchor?all.findIndex(x=>x.runId===anchor):all.length;
+  if(end<0)throw pageError("pagination_invalidated");
+  const start=Math.max(0,end-limit),selected=all.slice(start,end);
+  return {schemaVersion:2,resourceKey:"turns/"+sessionId,sessionId,dataRevision:revision,
+    turns:selected.map(statusFromStoredRun),hasMore:start>0,partial,
+    issues:partial?["history_resolution_unavailable"]:[],
+    nextCursor:start>0?cursorFor(scope,revision,selected[0].runId):null,
+    coverage:{source:"companion_retained_registry",fullHistory:false,availableTurnCount:all.length,
+      unresolvedResults:selected.filter(r=>r.modality!=="voice"&&!r.result).length,persistedRunLimit:100},sort:"accepted_asc_run_id_asc"};
+}
+
+type ConversationChange={id:string;epoch:string;sequence:number;scope:"conversations";sessionIds:string[];resyncRequired:boolean};
+const changeEpoch=randomUUID();let changeSequence=0;
+const changeRing:ConversationChange[]=[];
+const changeListeners=new Set<(event:ConversationChange)=>void>();
+function publishConversationChanges(before:StoredRun[],after:StoredRun[],oldArchived:string[],newArchived:string[]){
+  const left=new Map(before.map(r=>[r.runId,r])),right=new Map(after.map(r=>[r.runId,r]));
+  const sessions=new Set<string>();
+  for(const id of new Set([...left.keys(),...right.keys()])){
+    const a=left.get(id),b=right.get(id);
+    if(JSON.stringify(a)!==JSON.stringify(b)){if(a)sessions.add(a.sessionId);if(b)sessions.add(b.sessionId);}
+  }
+  for(const id of new Set([...oldArchived,...newArchived]))if(oldArchived.includes(id)!==newArchived.includes(id))sessions.add(id);
+  if(!sessions.size)return;
+  const tooMany=sessions.size>32;
+  const sequence=++changeSequence;
+  const event:ConversationChange={id:changeEpoch+":"+sequence,epoch:changeEpoch,sequence,scope:"conversations",sessionIds:tooMany?[]:[...sessions],resyncRequired:tooMany};
+  changeRing.push(event);while(changeRing.length>128)changeRing.shift();
+  for(const listener of [...changeListeners]){try{listener(event);}catch{changeListeners.delete(listener);}}
+}
+export function subscribeConversationChanges(listener:(event:ConversationChange)=>void,lastId?:string){
+  if(changeListeners.size>=4)throw pageError("conversation_stream_busy",429);
+  changeListeners.add(listener);
+  const current={epoch:changeEpoch,sequence:changeSequence,id:changeEpoch+":"+changeSequence};
+  let replay:ConversationChange[]=[];let resyncRequired=false;
+  if(lastId){
+    const prefix=changeEpoch+":";const number=lastId.startsWith(prefix)?Number(lastId.slice(prefix.length)):-1;
+    if(!Number.isSafeInteger(number)||number<0||number>changeSequence||number<(changeRing[0]?.sequence??changeSequence)-1)resyncRequired=true;
+    else replay=changeRing.filter(e=>e.sequence>number);
+  }
+  return {current,replay,resyncRequired,close:()=>changeListeners.delete(listener)};
 }

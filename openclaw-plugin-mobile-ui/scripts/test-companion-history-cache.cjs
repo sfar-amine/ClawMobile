@@ -31,7 +31,7 @@ const fake = path.join(root, "fake-openclaw.sh");
 fs.writeFileSync(fake, `#!/bin/sh
 echo call >> "${calls}"
 cat <<'JSON'
-{"messages":[{"role":"user","content":[{"type":"text","text":"Cache question"}],"timestamp":2000},{"role":"assistant","content":[{"type":"text","text":"Cached answer"}],"timestamp":3000}]}
+{"messages":[{"role":"user","content":[{"type":"text","text":"Cache question"}],"timestamp":2000},{"role":"assistant","content":[{"type":"text","text":"Cached answer"}],"timestamp":3000,"stopReason":"stop"}]}
 JSON
 `);
 fs.chmodSync(fake, 0o700);
