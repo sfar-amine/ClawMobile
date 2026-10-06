@@ -13,9 +13,8 @@ Prevent temporary debugging or interception changes from outliving their task an
 - Never auto-remove an unmanaged proxy that Claw did not create.
 
 ## Guard
-`installer/termux-lite/android-network-mutation-guard.py` owns temporary global-proxy leases.
-It snapshots all Android global proxy keys before mutation and restores them exactly afterward.
-A stale owned lease is automatically reconciled by the existing Health Manager loop.
+`installer/termux-lite/android-network-mutation-guard.py` owns temporary network-mutation leases.
+It snapshots all Android global proxy keys before mutation and restores them exactly afterward. For `with-wifi-off`, the same lease also snapshots whether Wi‑Fi was enabled, disables Wi‑Fi only when necessary, and restores/verifies the exact initial Wi‑Fi state after the child command. A stale owned lease is automatically reconciled by the existing Health Manager loop, including Wi‑Fi restoration when the lease contains that snapshot.
 An unmanaged proxy is reported as degraded rather than silently overwritten.
 
 ## Required checks
@@ -31,7 +30,10 @@ Health Manager treats a persistent failure as component `network_safety` and use
 
 ## Safe invocation
 Use:
-`android-network-mutation-guard.py with-global-proxy HOST:PORT --purpose <reason> -- <command...>`
+- proxy lease: `android-network-mutation-guard.py with-global-proxy HOST:PORT --purpose <reason> -- <command...>`
+- temporary Wi‑Fi OFF: `android-network-mutation-guard.py with-wifi-off --purpose <reason> -- <command...>`
+
+`with-wifi-off` is intended for workflows such as Orange/Maxit that require mobile-network execution. It does not change the default SIM or mobile-data setting and restores Wi‑Fi only to the state observed at entry.
 
 Do not issue raw `settings put global http_proxy ...` in Claw experiments.
 For any other temporary system setting outside this helper, apply the same snapshot / exact-restore / post-check contract before mutation.

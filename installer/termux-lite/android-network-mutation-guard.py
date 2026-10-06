@@ -48,6 +48,26 @@ def settings_state() -> dict:
             rows[key] = value
     return {key: {"exists": key in rows, "value": rows.get(key)} for key in KEYS}
 
+def wifi_enabled() -> bool:
+    raw = adb("shell", "cmd", "wifi", "status", check=True).stdout.strip().lower()
+    if "wi-fi is enabled" in raw or "wifi is enabled" in raw:
+        return True
+    if "wi-fi is disabled" in raw or "wifi is disabled" in raw:
+        return False
+    raise RuntimeError("wifi_state_unknown")
+
+def set_wifi(enabled: bool, timeout_s: float = 8.0) -> None:
+    adb("shell", "svc", "wifi", "enable" if enabled else "disable", check=True)
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            if wifi_enabled() is enabled:
+                return
+        except RuntimeError:
+            pass
+        time.sleep(.25)
+    raise RuntimeError("wifi_state_change_timeout")
+
 def write_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".lease-", suffix=".tmp", dir=path.parent)
@@ -76,6 +96,15 @@ def restore_state(state: dict) -> None:
             adb("shell", "settings", "delete", "global", key, check=True)
     if settings_state() != state:
         raise RuntimeError("network_settings_restore_mismatch")
+
+def restore_lease(row: dict) -> None:
+    restore_state(row["settings"])
+    if row.get("type") == "wifi_off":
+        expected = bool(row.get("wifi_enabled"))
+        if wifi_enabled() is not expected:
+            set_wifi(expected)
+        if wifi_enabled() is not expected:
+            raise RuntimeError("wifi_restore_mismatch")
 
 def proxy_active(state: dict) -> bool:
     hp = (state["http_proxy"]["value"] or "").strip().lower()
@@ -175,17 +204,23 @@ def lease_alive(row: dict) -> bool:
     except OSError:
         return False
 
-def create_lease(purpose: str) -> Path:
+def create_lease(purpose: str, *, lease_type: str = "global_proxy", include_wifi: bool = False) -> Path:
+    if lease_type not in {"global_proxy", "wifi_off"}:
+        raise ValueError("unsupported_network_lease_type")
+    if include_wifi != (lease_type == "wifi_off"):
+        raise ValueError("wifi_lease_contract_mismatch")
     LEASES.mkdir(parents=True, exist_ok=True)
     lease = LEASES / (uuid.uuid4().hex + ".json")
     row = {
         "schema_version": 1,
-        "type": "global_proxy",
+        "type": lease_type,
         "created_at": time.time(),
         "owner_pid": os.getpid(),
         "purpose": purpose,
         "settings": settings_state(),
     }
+    if include_wifi:
+        row["wifi_enabled"] = wifi_enabled()
     write_json(lease, row)
     return lease
 
@@ -555,14 +590,15 @@ def check_and_reconcile(reconcile_background: bool = True) -> int:
                     else:
                         errors.append({"lease": lease.name, "error": result["reason"]})
                     continue
-                if kind != "global_proxy":
+                if kind not in {"global_proxy", "wifi_off"}:
                     raise ValueError("unsupported_network_lease_type")
                 age = max(0, now - float(row.get("created_at", 0)))
                 if lease_alive(row) and age <= MAX_LEASE_AGE:
                     active.append(lease.name)
-                    active_proxy.append(lease.name)
+                    if kind == "global_proxy":
+                        active_proxy.append(lease.name)
                     continue
-                restore_state(row["settings"])
+                restore_lease(row)
                 lease.unlink()
                 recovered.append(lease.name)
             except Exception as exc:
@@ -605,7 +641,7 @@ def with_global_proxy(endpoint: str, purpose: str, command: list[str]) -> int:
         return child.returncode
     finally:
         try:
-            restore_state(row["settings"])
+            restore_lease(row)
             lease.unlink(missing_ok=True)
             write_receipt("healthy", "temporary_proxy_restored")
         except Exception as exc:
@@ -613,6 +649,30 @@ def with_global_proxy(endpoint: str, purpose: str, command: list[str]) -> int:
             write_receipt("degraded", "temporary_proxy_restore_failed", lease=lease.name, error=restore_error)
         if restore_error:
             raise RuntimeError("temporary_proxy_restore_failed")
+
+def with_wifi_off(purpose: str, command: list[str]) -> int:
+    lease = create_lease(purpose, lease_type="wifi_off", include_wifi=True)
+    row = json.loads(lease.read_text())
+    restore_error = None
+    def interrupted(_sig, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGINT, interrupted)
+    try:
+        if row["wifi_enabled"] is True:
+            set_wifi(False)
+        child = subprocess.run(command)
+        return child.returncode
+    finally:
+        try:
+            restore_lease(row)
+            lease.unlink(missing_ok=True)
+            write_receipt("healthy", "temporary_wifi_restored", wifi_initially_enabled=bool(row["wifi_enabled"]))
+        except Exception as exc:
+            restore_error = type(exc).__name__
+            write_receipt("degraded", "temporary_wifi_restore_failed", lease=lease.name, error=restore_error)
+        if restore_error:
+            raise RuntimeError("temporary_wifi_restore_failed")
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -627,6 +687,9 @@ def main() -> int:
     w.add_argument("endpoint")
     w.add_argument("--purpose", default="temporary-proxy")
     w.add_argument("command", nargs="+")
+    wf = sub.add_parser("with-wifi-off")
+    wf.add_argument("--purpose", default="temporary-wifi-off")
+    wf.add_argument("command", nargs="+")
     fa = sub.add_parser("forward-acquire")
     fa.add_argument("--serial", required=True)
     fa.add_argument("--local", default="tcp:0")
@@ -675,15 +738,17 @@ def main() -> int:
             result = release_adb_forward(lease.stem)
             print(json.dumps(result, sort_keys=True))
             return 0 if result["cleanup_verified"] else 2
-        if row.get("type", "global_proxy") != "global_proxy":
+        if row.get("type", "global_proxy") not in {"global_proxy", "wifi_off"}:
             raise ValueError("unsupported_network_lease_type")
-        restore_state(row["settings"])
+        restore_lease(row)
         lease.unlink(missing_ok=True)
         write_receipt("healthy", "manual_restore_verified")
         return 0
     command = args.command[1:] if args.command and args.command[0] == "--" else args.command
     if not command:
-        raise SystemExit("with-global-proxy requires a command")
+        raise SystemExit(f"{args.cmd} requires a command")
+    if args.cmd == "with-wifi-off":
+        return with_wifi_off(args.purpose, command)
     return with_global_proxy(args.endpoint, args.purpose, command)
 
 if __name__ == "__main__":

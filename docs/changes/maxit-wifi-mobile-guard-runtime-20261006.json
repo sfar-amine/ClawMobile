@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "id": "maxit-wifi-mobile-guard-runtime-20261006",
+  "date": "2026-10-06",
+  "origin": "chat",
+  "summary": "Extend the existing Android network mutation guard with crash-safe temporary Wi-Fi-off leases and exact restoration.",
+  "scope": {
+    "files": [
+      "installer/termux-lite/android-network-mutation-guard.py",
+      "installer/termux-lite/test-android-network-mutation-guard.py",
+      "docs/network-mutation-safety.md"
+    ]
+  },
+  "tests": {
+    "status": "passed",
+    "evidence": [
+      "10/10 network mutation guard tests passed"
+    ]
+  },
+  "capability_impact": {
+    "changed": true,
+    "ids": [
+      "device.network_safety"
+    ],
+    "detail": "Adds with-wifi-off to the existing guard; no new capability or owner."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "reason": "Extends the existing guard/lease/Health Manager ownership; no new service or state store."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "No MCP tool or adapter change; external business requests continue through canonical claw_execute."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert this commit. Existing global-proxy and background-network guard behavior remains unchanged."
+}

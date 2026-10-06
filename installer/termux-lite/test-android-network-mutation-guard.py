@@ -135,6 +135,49 @@ class GuardTests(unittest.TestCase):
             out=guard.ensure_termux_background_network()
         self.assertEqual(out["mutation"],"none"); repair.assert_not_called()
 
+    def test_wifi_state_parser(self):
+        class P: returncode=0
+        with patch.object(guard,"adb") as adb:
+            P.stdout="Wi-Fi is enabled\n"; adb.return_value=P(); self.assertTrue(guard.wifi_enabled())
+            P.stdout="Wi-Fi is disabled\n"; adb.return_value=P(); self.assertFalse(guard.wifi_enabled())
+
+    def test_wifi_lease_restores_initial_enabled_state(self):
+        row={"type":"wifi_off","settings":blank(),"wifi_enabled":True}
+        with patch.object(guard,"restore_state"), patch.object(guard,"wifi_enabled",side_effect=[False,True]), patch.object(guard,"set_wifi") as set_wifi:
+            guard.restore_lease(row)
+        set_wifi.assert_called_once_with(True)
+
+    def test_with_wifi_off_restores_even_after_child(self):
+        guard.LEASES.mkdir(parents=True,exist_ok=True)
+        lease=guard.LEASES/"wifi.json"
+        lease.write_text(json.dumps({"type":"wifi_off","created_at":1,"owner_pid":1,"purpose":"test","settings":blank(),"wifi_enabled":True}))
+        child=type("P",(),{"returncode":0})()
+        with patch.object(guard,"create_lease",return_value=lease), patch.object(guard,"set_wifi") as set_wifi, patch.object(guard,"restore_lease") as restore, patch.object(guard.subprocess,"run",return_value=child):
+            rc=guard.with_wifi_off("test",["echo","ok"])
+        self.assertEqual(rc,0)
+        set_wifi.assert_called_once_with(False)
+        restore.assert_called_once()
+        self.assertFalse(lease.exists())
+
+    def test_active_wifi_lease_does_not_hide_unmanaged_proxy(self):
+        guard.LEASES.mkdir(parents=True,exist_ok=True)
+        lease=guard.LEASES/"wifi-active.json"
+        lease.write_text(json.dumps({"type":"wifi_off","created_at":9999999999,"owner_pid":1,"purpose":"test","settings":blank(),"wifi_enabled":True}))
+        state=blank(); state["http_proxy"]={"exists":True,"value":"127.0.0.1:8888"}
+        with patch.object(guard,"lease_alive",return_value=True), patch.object(guard,"settings_state",return_value=state), patch.object(guard,"restore_lease") as restore:
+            rc=guard.check_and_reconcile(False)
+        self.assertEqual(rc,2); restore.assert_not_called()
+        self.assertEqual(json.loads(guard.RECEIPT.read_text())["reason"],"unmanaged_global_proxy_detected")
+
+    def test_stale_wifi_lease_is_restored_exactly(self):
+        guard.LEASES.mkdir(parents=True,exist_ok=True)
+        lease=guard.LEASES/"wifi-stale.json"
+        lease.write_text(json.dumps({"type":"wifi_off","created_at":1,"owner_pid":999999,"purpose":"test","settings":blank(),"wifi_enabled":False}))
+        with patch.object(guard,"lease_alive",return_value=False), patch.object(guard,"restore_lease") as restore, patch.object(guard,"settings_state",return_value=blank()):
+            rc=guard.check_and_reconcile(False)
+        self.assertEqual(rc,0); restore.assert_called_once()
+        self.assertFalse(lease.exists())
+
 class FakeAdb:
     """Protocol fixture only. No subprocess, real ADB, proxy or UI is used."""
     def __init__(self, testcase):
