@@ -6,7 +6,7 @@ A physical S24 reboot on 2026-10-06 left canonical `127.0.0.1:5556` unavailable 
 
 ## Change
 
-While canonical ADB is healthy, `adb-recovery-watchdog.sh` now proactively re-enables Android Wireless Debugging when the readiness probe reports it disabled. The action uses the already-authorized canonical ADB path, immediately re-probes identity, and accepts success only when the dynamic endpoint is serial-verified. A 15-minute cooldown bounds retries and prevents setting churn.
+While canonical ADB is healthy, `adb-recovery-watchdog.sh` now proactively re-enables Android Wireless Debugging when the readiness probe reports it disabled. The action uses the already-authorized canonical ADB path, immediately re-probes identity, and accepts success only when the dynamic endpoint is serial-verified. A 15-minute cooldown bounds only failed or not-yet-verifiable retries; a verified arm clears the cooldown so a later real disable is re-armed on the next watchdog cycle.
 
 No daemon, scheduler, registry, memory store or alternate ADB truth was added. `127.0.0.1:5556` remains canonical.
 

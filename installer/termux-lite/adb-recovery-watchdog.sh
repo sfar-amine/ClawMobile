@@ -114,6 +114,7 @@ readiness_arm_primary(){
   armed_reason="$(printf '%s' "$armed_row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reason","unknown"))' 2>/dev/null || echo unknown)"
   if [ "$armed_state" = ready ]; then
     readiness_recover_incident
+    rm -f "$READINESS_ARM_LAST"
     printf 0 >"$READINESS_FAILURES"
     printf ready >"$READINESS_STATE"
     log INFO readiness armed "trusted Wireless Debugging recovery path verified"

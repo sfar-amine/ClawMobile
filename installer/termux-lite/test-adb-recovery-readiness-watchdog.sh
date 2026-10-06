@@ -70,6 +70,7 @@ test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.failures")" = 0
 grep -q 'settings put global adb_wifi_enabled 1' "$T/adb-calls"
 test ! -e "$T/notifications"
 grep -q 'event=readiness result=armed' "$H/.openclaw/watchdogs/adb-recovery.log"
+test ! -e "$H/.openclaw/watchdogs/adb-recovery-readiness-arm.last"
 
 # Cooldown prevents repeated enable churn when Android has not exposed the
 # trusted endpoint yet.
