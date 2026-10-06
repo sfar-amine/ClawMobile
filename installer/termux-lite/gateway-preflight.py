@@ -43,10 +43,14 @@ def plugin_schema_status(source_manifest: Path, installed_manifest: Path, config
     unsupported = sorted(keys - source)
     if unsupported:
         return {"state": "unsupported", "unsupported": unsupported}
-    installed = _schema_properties(installed_manifest) if installed_manifest.is_file() else set()
+    if not installed_manifest.is_file():
+        return {"state": "repairable", "reason": "installed_manifest_missing",
+                "missing_installed": sorted(keys)}
+    installed = _schema_properties(installed_manifest)
     missing = sorted(keys - installed)
     if missing:
-        return {"state": "repairable", "missing_installed": missing}
+        return {"state": "repairable", "reason": "installed_schema_stale",
+                "missing_installed": missing}
     return {"state": "ok", "configured_keys": sorted(keys)}
 
 
