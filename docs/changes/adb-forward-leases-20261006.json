@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "id": "adb-forward-leases-20261006",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add typed ADB forward leases to the existing device.network_safety authority.",
+  "reason": "Autonomous QA campaigns need temporary CDP forwarding whose ownership and cleanup survive worker interruption.",
+  "files": [
+    "installer/termux-lite/android-network-mutation-guard.py",
+    "installer/termux-lite/test-android-network-mutation-guard.py",
+    "docs/audits/adb-forward-leases-20261006.md",
+    "docs/changes/adb-forward-leases-20261006.json"
+  ],
+  "tests": [
+    {
+      "name": "guard-unit-and-protocol",
+      "status": "passed",
+      "command": "python3 installer/termux-lite/test-android-network-mutation-guard.py",
+      "evidence": "29 tests PASS locally and on S24 (1.036 s). Seven existing proxy/background tests and 22 fake ADB tests; every ADB operation is replaced. Helper SHA256 7d5c5cef3dd4dfb8ef28a9f4c9e6b3f69ab42eb04bf8b947b61f8f440f09a6af; test SHA256 36a7e3117e85de8b329132bd1bbaef18a0adf176f2e1b9f4cbe8a5d35cd72fc1."
+    },
+    {
+      "name": "independent-contract-review",
+      "status": "passed",
+      "evidence": "Independent reviewer confirmed all 29 tests and three separate fake ADB probes: lost-observation divergence preserved without removal, legacy active proxy with abandoned forward does not restore proxy, unreadable owner beyond TTL preserved. No remaining blocking defect in the reviewed boundaries."
+    },
+    {
+      "name": "scoped-diff-check",
+      "status": "passed",
+      "command": "git diff --check",
+      "evidence": "No whitespace error in the isolated guard change."
+    },
+    {
+      "name": "external-mcp-owner-palette-parity",
+      "status": "passed",
+      "command": "test_capability_graph.CapabilityGraphTests.test_external_mcp_owner_palette_matches_chatgpt_owner",
+      "evidence": "Canonical ui-playbooks HEAD 81c4ac8bc1fd6be0402312ab60d6fbbcd9fc09fe, RDC PID22704: 1 test PASS, zero failure/error/skip, 0.033 s. No gateway change requires MCP edge/Companion tests."
+    }
+  ],
+  "documentation": [
+    "docs/audits/adb-forward-leases-20261006.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "device.network_safety"
+    ],
+    "reason": "The existing internal guard gains a typed forward lease API. Shared registry/dependency documentation is coordinated in the QA ui-playbooks delivery; no separate capability registry is created."
+  },
+  "mcp_owner_parity": {
+    "owner_palette": "passed",
+    "claw_context": "no_impact",
+    "claw_resolve": "no_impact",
+    "claw_execute": "no_impact",
+    "claw_exec": "no_impact",
+    "claw_status": "no_impact",
+    "claw_artifact_read": "no_impact",
+    "reason": "Internal platform lease lifecycle only. No MCP schema, adapter, gateway authorization, Graph routing, generic status or artifact protocol is modified. QA business ingress and artifact behavior are assessed separately in its ui-playbooks delivery."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends the existing network-mutation lease authority and its reconciler. No new daemon, scheduler, generic store, router or cleanup owner."
+  },
+  "source_branch": "feature/qa-adb-forward-lease-20261006",
+  "initial_base": "9559da87fe96cab45fd00bfe17f95279423a5eca",
+  "private_integration_base_observed": "051c0c26e3a498def60b1bc1a828fc3844c359ba",
+  "activation": "Source-qualified before immutable Tier0 activation. Live activation and QA consumer evidence remain separate pending steps.",
+  "limits": [
+    "Unknown create/remove results are never replayed",
+    "Raw external ADB cannot be atomically compare-and-deleted by the CLI",
+    "Worker must renew before bounded steps within the 900-second default TTL"
+  ],
+  "rollback": "existing immutable Tier0 last-known-good workflow"
+}

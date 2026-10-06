@@ -1,12 +1,17 @@
 #!/data/data/com.termux/files/usr/bin/python3
 from __future__ import annotations
 import argparse
+from contextlib import contextmanager
+import fcntl
 import json
 import os
 import re
+import shutil
 import signal
+import socket
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -27,8 +32,9 @@ KEYS = (
 MAX_LEASE_AGE = int(os.environ.get("NETWORK_MUTATION_MAX_LEASE_AGE", "900"))
 TERMUX_PACKAGES = ("com.termux", "com.termux.api", "com.termux.boot")
 
-def adb(*args: str, timeout: int = 6, check: bool = False) -> subprocess.CompletedProcess:
-    p = subprocess.run(ADB + list(args), text=True, capture_output=True, timeout=timeout)
+def adb(*args: str, timeout: int = 6, check: bool = False, serial: str | None = None) -> subprocess.CompletedProcess:
+    command = [ADB[0], "-s", serial] if serial is not None else ADB
+    p = subprocess.run(command + list(args), text=True, capture_output=True, timeout=timeout)
     if check and p.returncode:
         raise RuntimeError("adb_command_failed")
     return p
@@ -44,10 +50,22 @@ def settings_state() -> dict:
 
 def write_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, path)
+    fd, temporary = tempfile.mkstemp(prefix=".lease-", suffix=".tmp", dir=path.parent)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w") as stream:
+            stream.write(json.dumps(value, indent=2, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 def restore_state(state: dict) -> None:
     for key in KEYS:
@@ -149,6 +167,8 @@ def lease_alive(row: dict) -> bool:
     pid = int(row.get("owner_pid") or 0)
     if pid <= 0:
         return False
+    if row.get("type") == "adb_forward":
+        return forward_owner_state(row) == "ALIVE"
     try:
         os.kill(pid, 0)
         return True
@@ -160,6 +180,7 @@ def create_lease(purpose: str) -> Path:
     lease = LEASES / (uuid.uuid4().hex + ".json")
     row = {
         "schema_version": 1,
+        "type": "global_proxy",
         "created_at": time.time(),
         "owner_pid": os.getpid(),
         "purpose": purpose,
@@ -167,6 +188,325 @@ def create_lease(purpose: str) -> Path:
     }
     write_json(lease, row)
     return lease
+
+def process_identity(pid: int) -> dict | None:
+    """PID alone is not an ownership receipt: include birth and boot identity."""
+    try:
+        proc = Path("/proc") / str(pid)
+        fields = (proc / "stat").read_text().rsplit(")", 1)[1].split()
+        if fields[0] == "Z" or proc.stat().st_uid != os.getuid():
+            return None
+        return {"start_ticks": fields[19], "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip()}
+    except (OSError, IndexError, ValueError):
+        return None
+
+def forward_owner_state(row: dict) -> str:
+    """An unreadable identity is UNKNOWN, never proof that its owner died."""
+    pid = row.get("owner_pid")
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0 or not row.get("owner_identity"):
+        return "UNKNOWN"
+    observed = process_identity(pid)
+    if observed is not None:
+        return "ALIVE" if observed == row["owner_identity"] else "REPLACED"
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return "DEAD"
+    except OSError:
+        return "UNKNOWN"
+    return "UNKNOWN"
+
+@contextmanager
+def mutation_lock():
+    """Serialize mutations and reconciliation in this existing authority."""
+    ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd = os.open(ROOT / "guard.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    deadline = time.monotonic() + 5
+    try:
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("network_mutation_guard_busy")
+                time.sleep(0.025)
+        yield
+    finally:
+        os.close(fd)
+
+def forward_lease_path(lease_id: str) -> Path:
+    if not isinstance(lease_id, str) or not re.fullmatch(r"[a-f0-9]{32}", lease_id):
+        raise ValueError("invalid_forward_lease_id")
+    path = LEASES / (lease_id + ".json")
+    if path.is_symlink() or LEASES.is_symlink():
+        raise ValueError("invalid_forward_lease_path")
+    return path
+
+def forward_server_identity() -> dict:
+    # A changed ADB host/socket configuration must never redirect cleanup.
+    binary = shutil.which(ADB[0])
+    return {"binary": str(Path(binary).resolve()) if binary else None, **{key: os.environ.get(key) for key in (
+        "ADB_SERVER_SOCKET", "ANDROID_ADB_SERVER_ADDRESS", "ANDROID_ADB_SERVER_PORT")}}
+
+def validate_forward_resource(serial: str, local: str, remote: str) -> None:
+    if not isinstance(serial, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:\[\]-]{0,199}", serial):
+        raise ValueError("invalid_forward_serial")
+    match = re.fullmatch(r"tcp:(0|[1-9]\d{0,4})", local) if isinstance(local, str) else None
+    if not match or not 0 <= int(match[1]) <= 65535:
+        raise ValueError("invalid_forward_local")
+    tcp = re.fullmatch(r"tcp:([1-9]\d{0,4})", remote) if isinstance(remote, str) else None
+    unix = re.fullmatch(r"localabstract:[A-Za-z0-9_.:-]{1,200}", remote) if isinstance(remote, str) else None
+    if not unix and not (tcp and 1 <= int(tcp[1]) <= 65535):
+        raise ValueError("unsupported_forward_remote")
+
+def forward_state(serial: str) -> list[dict]:
+    # --list is server-wide, even when -s is supplied. Retain all identities.
+    text = adb("forward", "--list", serial=serial, check=True).stdout
+    result = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        fields = line.split()
+        if len(fields) != 3 or len(result) >= 1000:
+            raise RuntimeError("invalid_forward_observation")
+        result.append(dict(zip(("serial", "local", "remote"), fields)))
+    return result
+
+def _forward_at(rows: list[dict], local: str) -> list[dict]:
+    return [item for item in rows if item["local"] == local]
+
+def _forward_save(path: Path, row: dict, state: str, reason: str, **extra) -> None:
+    row.update(state=state, reason=reason, updated_at=time.time(), **extra)
+    events = row.setdefault("events", [])
+    events.append({"at": row["updated_at"], "state": state, "reason": reason})
+    if len(events) > 64:
+        row["events"] = events[:1] + events[-63:]
+        row["events_truncated"] = True
+    write_json(path, row)
+
+def _forward_load(path: Path) -> dict:
+    if path.is_symlink():
+        raise ValueError("invalid_forward_lease_path")
+    row = json.loads(path.read_text())
+    if row.get("type") != "adb_forward" or row.get("lease_id") != path.stem:
+        raise ValueError("invalid_forward_lease_type")
+    resource = row["resource"]
+    validate_forward_resource(resource["serial"], resource["local"], resource["remote"])
+    return row
+
+def _forward_expired(row: dict) -> bool:
+    return time.time() - float(row.get("last_renewed_at", row["created_at"])) > MAX_LEASE_AGE
+
+def _forward_result(row: dict, observed: list[dict] | None = None) -> dict:
+    resource = row["resource"]
+    if observed is None:
+        observed = row.get("observed_after")
+    matches = observed == [resource]
+    owner_state = forward_owner_state(row)
+    ready = (row["state"] in {"ACTIVE", "REUSED"} and matches and owner_state == "ALIVE"
+             and not _forward_expired(row) and row.get("ownership_lost") is not True)
+    return {"lease_id": row["lease_id"], "lease_path": str(forward_lease_path(row["lease_id"])),
+            "type": "adb_forward", "state": row["state"], "reason": row.get("reason"), **resource,
+            "ready": ready, "verified": ready or row.get("cleanup_verified") is True,
+            "created": row.get("ownership_proven") is True, "reused": row.get("reused") is True,
+            "mutation_dispatched": row.get("mutation_dispatched", False),
+            "ownership_lost": row.get("ownership_lost", False), "restored_exact": row.get("restored_exact"),
+            "cleanup_verified": row.get("cleanup_verified", False),
+            "observed_matches": matches, "owner_alive": owner_state == "ALIVE", "owner_state": owner_state,
+            "ttl_seconds": MAX_LEASE_AGE, "last_renewed_at": row.get("last_renewed_at"),
+            "endpoint": "http://127.0.0.1:" + resource["local"].split(":", 1)[1] if ready else None}
+
+def _forward_observe(row: dict) -> list[dict]:
+    if row.get("adb_server") != forward_server_identity():
+        raise RuntimeError("adb_server_identity_changed")
+    resource = row["resource"]
+    return _forward_at(forward_state(resource["serial"]), resource["local"])
+
+def _forward_inspect(path: Path, row: dict) -> dict:
+    try:
+        after = _forward_observe(row)
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        return {**_forward_result(row, []), "ready": False, "verified": False, "reason": "forward_observation_unavailable"}
+    if (row["state"] not in {"CLOSED", "BLOCKED", "PRESERVED"}
+            and (row.get("ownership_proven") is True or row.get("reused") is True)
+            and after != [row["resource"]]):
+        _forward_save(path, row, "VERIFY_REQUIRED", "forward_mapping_changed", observed_after=after,
+                      ownership_lost=row.get("ownership_proven") is True)
+    return _forward_result(row, after)
+
+def acquire_adb_forward(serial: str, local: str = "tcp:0", remote: str = "localabstract:chrome_devtools_remote",
+                        purpose: str = "temporary-adb-forward", owner_pid: int | None = None,
+                        lease_id: str | None = None) -> dict:
+    """Acquire once. A stable caller-provided lease_id makes retries observational.
+
+    tcp:0 selects/reserves a concrete local port BEFORE the durable lease and
+    --no-rebind command. The lease never guesses a port from a lost ADB reply.
+    An existing unique matching TCP forward is reused without taking ownership.
+    """
+    validate_forward_resource(serial, local, remote)
+    owner_pid = os.getpid() if owner_pid is None else owner_pid
+    if isinstance(owner_pid, bool) or not isinstance(owner_pid, int) or owner_pid <= 0:
+        raise ValueError("invalid_forward_owner_pid")
+    owner = process_identity(owner_pid)
+    if owner is None:
+        raise ValueError("forward_owner_not_alive")
+    lease_id = uuid.uuid4().hex if lease_id is None else lease_id
+    path = forward_lease_path(lease_id)
+    request = {"serial": serial, "local": local, "remote": remote, "owner_pid": owner_pid, "owner_identity": owner}
+    with mutation_lock():
+        if path.exists():
+            row = _forward_load(path)
+            if row.get("request") != request:
+                raise ValueError("forward_lease_identity_conflict")
+            return _forward_inspect(path, row)
+        rows = forward_state(serial)
+        reservation = None
+        ambiguous = False
+        if local == "tcp:0":
+            existing = [item for item in rows if item["serial"] == serial and item["remote"] == remote and re.fullmatch(r"tcp:[1-9]\d{0,4}", item["local"])]
+            if len(existing) == 1:
+                local = existing[0]["local"]
+            elif len(existing) > 1:
+                ambiguous = True
+            else:
+                reservation = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                reservation.bind(("127.0.0.1", 0))
+                local = "tcp:" + str(reservation.getsockname()[1])
+        resource = {"serial": serial, "local": local, "remote": remote}
+        before = _forward_at(rows, local)
+        row = {"schema_version": 2, "type": "adb_forward", "lease_id": lease_id,
+               "created_at": time.time(), "last_renewed_at": time.time(), "owner_pid": owner_pid,
+               "owner_identity": owner, "purpose": str(purpose)[:240], "request": request,
+               "resource": resource, "adb_server": forward_server_identity(), "before": before,
+               "ownership_proven": False, "ownership_lost": False, "mutation_dispatched": False,
+               "reused": False, "renewals": 0}
+        try:
+            _forward_save(path, row, "PREPARED", "exact_snapshot_durable_before_mutation")
+            if ambiguous:
+                _forward_save(path, row, "BLOCKED", "multiple_preexisting_forwards", observed_after=before,
+                              cleanup_verified=True, restored_exact=True)
+            elif before:
+                if before == [resource]:
+                    _forward_save(path, row, "REUSED", "preexisting_forward_not_owned", reused=True, observed_after=before)
+                else:
+                    _forward_save(path, row, "BLOCKED", "preexisting_local_preserved", observed_after=before,
+                                  cleanup_verified=True, restored_exact=True)
+            else:
+                _forward_save(path, row, "CREATE_REQUESTED", "forward_creation_dispatched_once", mutation_dispatched=True)
+                if reservation is not None:
+                    reservation.close()
+                    reservation = None
+                try:
+                    outcome = adb("forward", "--no-rebind", local, remote, serial=serial)
+                except (OSError, subprocess.SubprocessError) as exc:
+                    _forward_save(path, row, "VERIFY_REQUIRED", "forward_creation_result_unknown", command_error=type(exc).__name__)
+                else:
+                    if outcome.returncode == 0:
+                        _forward_save(path, row, "CREATE_ACKNOWLEDGED", "forward_creation_acknowledged",
+                                      ownership_proven=True, create_returncode=0)
+                    else:
+                        _forward_save(path, row, "VERIFY_REQUIRED", "forward_creation_not_acknowledged", create_returncode=outcome.returncode)
+                try:
+                    after = _forward_observe(row)
+                except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                    _forward_save(path, row, "VERIFY_REQUIRED", "forward_post_observation_unavailable", observation_error=type(exc).__name__)
+                else:
+                    if row.get("ownership_proven") is True and after == [resource]:
+                        _forward_save(path, row, "ACTIVE", "owned_forward_verified", observed_after=after)
+                    else:
+                        _forward_save(path, row, "VERIFY_REQUIRED", "forward_creation_requires_verification", observed_after=after,
+                                      ownership_lost=row.get("ownership_proven") is True and after != [resource])
+            return _forward_result(row)
+        finally:
+            if reservation is not None:
+                reservation.close()
+
+def inspect_adb_forward(lease_id: str) -> dict:
+    """Observe mapping and journal divergence; never create/remove a forward."""
+    with mutation_lock():
+        path = forward_lease_path(lease_id)
+        return _forward_inspect(path, _forward_load(path))
+
+def renew_adb_forward(lease_id: str, owner_pid: int | None = None) -> dict:
+    """Renew from the live worker between bounded steps; no scheduler is added."""
+    with mutation_lock():
+        path = forward_lease_path(lease_id)
+        row = _forward_load(path)
+        owner_pid = os.getpid() if owner_pid is None else owner_pid
+        if owner_pid != row["owner_pid"] or not lease_alive(row):
+            raise ValueError("forward_lease_owner_mismatch")
+        if row["state"] not in {"ACTIVE", "REUSED"} or _forward_expired(row):
+            return {**_forward_result(row, []), "ready": False, "verified": False, "reason": "forward_lease_not_renewable"}
+        try:
+            after = _forward_observe(row)
+        except (OSError, RuntimeError, subprocess.SubprocessError):
+            return {**_forward_result(row, []), "ready": False, "verified": False, "reason": "forward_observation_unavailable"}
+        if after != [row["resource"]]:
+            _forward_save(path, row, "VERIFY_REQUIRED", "forward_changed_before_renewal", observed_after=after,
+                          ownership_lost=row.get("ownership_proven") is True)
+        else:
+            row.update(last_renewed_at=time.time(), renewals=row.get("renewals", 0) + 1, observed_after=after)
+            write_json(path, row)
+        return _forward_result(row, after)
+
+def _release_adb_forward(path: Path, row: dict) -> dict:
+    """Under mutation_lock; unknown ownership never authorizes --remove."""
+    if row["state"] in {"CLOSED", "BLOCKED"}:
+        return _forward_result(row)
+    try:
+        current = _forward_observe(row)
+    except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+        _forward_save(path, row, "VERIFY_REQUIRED", "forward_cleanup_observation_unavailable", observation_error=type(exc).__name__)
+        return _forward_result(row, [])
+    if row.get("reused") is True:
+        same = current == row["before"]
+        _forward_save(path, row, "CLOSED" if same else "PRESERVED", "preexisting_forward_preserved" if same else "preexisting_forward_changed_externally",
+                      observed_after=current, cleanup_verified=same, restored_exact=same)
+    elif not current:
+        _forward_save(path, row, "CLOSED", "forward_absence_observed", observed_after=[], cleanup_verified=True, restored_exact=row["before"] == [])
+    elif current != [row["resource"]] or row.get("ownership_lost") is True or row["state"] == "PRESERVED":
+        _forward_save(path, row, "PRESERVED", "repointed_or_foreign_forward_preserved", observed_after=current,
+                      cleanup_verified=False, restored_exact=False, ownership_lost=True)
+    elif row.get("ownership_proven") is not True or row.get("before") != []:
+        _forward_save(path, row, "VERIFY_REQUIRED", "forward_ownership_not_proven", observed_after=current, cleanup_verified=False)
+    elif row.get("remove_dispatched") is True:
+        _forward_save(path, row, "VERIFY_REQUIRED", "prior_forward_remove_result_unknown", observed_after=current, cleanup_verified=False)
+    else:
+        # ADB removal accepts only LOCAL, not a compare-and-delete tuple. Guard
+        # users share this lock; fresh full identity is mandatory before removal.
+        _forward_save(path, row, "REMOVE_REQUESTED", "owned_forward_cleanup_dispatched_once",
+                      observed_before_cleanup=current, remove_dispatched=True)
+        try:
+            outcome = adb("forward", "--remove", row["resource"]["local"], serial=row["resource"]["serial"])
+            row["remove_returncode"] = outcome.returncode
+        except (OSError, subprocess.SubprocessError) as exc:
+            row["remove_error"] = type(exc).__name__
+        try:
+            after = _forward_observe(row)
+        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            _forward_save(path, row, "VERIFY_REQUIRED", "forward_cleanup_post_observation_unavailable", observation_error=type(exc).__name__)
+        else:
+            if not after:
+                _forward_save(path, row, "CLOSED", "owned_forward_removal_verified", observed_after=after, cleanup_verified=True, restored_exact=True)
+            elif after != [row["resource"]]:
+                _forward_save(path, row, "PRESERVED", "forward_changed_during_cleanup_preserved", observed_after=after,
+                              cleanup_verified=False, restored_exact=False, ownership_lost=True)
+            else:
+                _forward_save(path, row, "VERIFY_REQUIRED", "forward_cleanup_not_verified", observed_after=after, cleanup_verified=False)
+    return _forward_result(row)
+
+def release_adb_forward(lease_id: str, owner_pid: int | None = None) -> dict:
+    with mutation_lock():
+        path = forward_lease_path(lease_id)
+        row = _forward_load(path)
+        owner_pid = os.getpid() if owner_pid is None else owner_pid
+        owner_state = forward_owner_state(row)
+        if owner_state == "UNKNOWN":
+            return {**_forward_result(row, []), "ready": False, "verified": False, "reason": "forward_owner_identity_unavailable"}
+        if owner_state == "ALIVE" and owner_pid != row["owner_pid"]:
+            raise ValueError("forward_lease_owner_mismatch")
+        return _release_adb_forward(path, row)
 
 def write_receipt(state: str, reason: str, **extra) -> None:
     write_json(RECEIPT, {
@@ -178,27 +518,60 @@ def write_receipt(state: str, reason: str, **extra) -> None:
     })
 
 def check_and_reconcile(reconcile_background: bool = True) -> int:
-    LEASES.mkdir(parents=True, exist_ok=True)
     active = []
+    active_proxy = []
     recovered = []
+    forward_results = []
     errors = []
     now = time.time()
-    for lease in sorted(LEASES.glob("*.json")):
-        try:
-            row = json.loads(lease.read_text())
-            age = max(0, now - float(row.get("created_at", 0)))
-            if lease_alive(row) and age <= MAX_LEASE_AGE:
-                active.append(lease.name)
-                continue
-            restore_state(row["settings"])
-            lease.unlink()
-            recovered.append(lease.name)
-        except Exception as exc:
-            errors.append({"lease": lease.name, "error": type(exc).__name__})
+    with mutation_lock():
+        LEASES.mkdir(parents=True, exist_ok=True)
+        for lease in sorted(LEASES.glob("*.json")):
+            try:
+                if lease.is_symlink():
+                    raise ValueError("invalid_lease_path")
+                row = json.loads(lease.read_text())
+                kind = row.get("type", "global_proxy")
+                if kind == "adb_forward":
+                    row = _forward_load(forward_lease_path(lease.stem))
+                    if row["state"] in {"CLOSED", "BLOCKED"}:
+                        continue  # Retain the existing lease as its bounded journal.
+                    owner_state = forward_owner_state(row)
+                    if owner_state == "UNKNOWN":
+                        errors.append({"lease": lease.name, "error": "forward_owner_identity_unavailable"})
+                        continue
+                    if owner_state == "ALIVE" and not _forward_expired(row):
+                        result = _forward_inspect(lease, row)
+                        forward_results.append(result)
+                        if result["ready"]:
+                            active.append(lease.name)
+                        else:
+                            errors.append({"lease": lease.name, "error": result["reason"]})
+                        continue
+                    result = _release_adb_forward(lease, row)
+                    forward_results.append(result)
+                    if result["cleanup_verified"]:
+                        recovered.append(lease.name)
+                    else:
+                        errors.append({"lease": lease.name, "error": result["reason"]})
+                    continue
+                if kind != "global_proxy":
+                    raise ValueError("unsupported_network_lease_type")
+                age = max(0, now - float(row.get("created_at", 0)))
+                if lease_alive(row) and age <= MAX_LEASE_AGE:
+                    active.append(lease.name)
+                    active_proxy.append(lease.name)
+                    continue
+                restore_state(row["settings"])
+                lease.unlink()
+                recovered.append(lease.name)
+            except Exception as exc:
+                errors.append({"lease": lease.name, "error": type(exc).__name__})
     current = settings_state()
-    unmanaged = proxy_active(current) and not active
+    unmanaged = proxy_active(current) and not active_proxy
     if errors:
-        write_receipt("degraded", "stale_lease_restore_failed", active_leases=active, errors=errors)
+        write_receipt("degraded", "stale_lease_restore_failed", active_leases=active, errors=errors,
+                      forward_leases=forward_results, unmanaged_global_proxy=unmanaged)
         return 2
     if unmanaged:
         write_receipt("degraded", "unmanaged_global_proxy_detected", active_leases=active)
@@ -214,7 +587,8 @@ def check_and_reconcile(reconcile_background: bool = True) -> int:
         reason = "termux_background_policy_repaired"
     else:
         reason = "temporary_lease_active" if active else ("stale_lease_restored" if recovered else "network_settings_clean")
-    write_receipt("healthy", reason, active_leases=active, recovered_leases=recovered, termux_background=background)
+    write_receipt("healthy", reason, active_leases=active, recovered_leases=recovered,
+                  forward_leases=forward_results, termux_background=background)
     return 0
 
 def with_global_proxy(endpoint: str, purpose: str, command: list[str]) -> int:
@@ -253,7 +627,37 @@ def main() -> int:
     w.add_argument("endpoint")
     w.add_argument("--purpose", default="temporary-proxy")
     w.add_argument("command", nargs="+")
+    fa = sub.add_parser("forward-acquire")
+    fa.add_argument("--serial", required=True)
+    fa.add_argument("--local", default="tcp:0")
+    fa.add_argument("--remote", default="localabstract:chrome_devtools_remote")
+    fa.add_argument("--purpose", default="temporary-adb-forward")
+    fa.add_argument("--lease-id", required=True)
+    fa.add_argument("--owner-pid", type=int, required=True)
+    for command_name in ("forward-status", "forward-renew", "forward-release"):
+        command_parser = sub.add_parser(command_name)
+        command_parser.add_argument("lease_id")
+        if command_name != "forward-status":
+            command_parser.add_argument("--owner-pid", type=int, required=True)
     args = ap.parse_args()
+    if args.cmd.startswith("forward-"):
+        try:
+            if args.cmd == "forward-acquire":
+                result = acquire_adb_forward(args.serial, args.local, args.remote, args.purpose,
+                                             args.owner_pid, args.lease_id)
+            elif args.cmd == "forward-status":
+                result = inspect_adb_forward(args.lease_id)
+            elif args.cmd == "forward-renew":
+                result = renew_adb_forward(args.lease_id, args.owner_pid)
+            else:
+                result = release_adb_forward(args.lease_id, args.owner_pid)
+        except (ValueError, OSError, RuntimeError, subprocess.SubprocessError, KeyError, TypeError) as exc:
+            # No raw ADB stdout/stderr, environment or process identity is emitted.
+            print(json.dumps({"type": "adb_forward", "state": "VERIFY_REQUIRED", "ready": False,
+                              "verified": False, "error": type(exc).__name__}))
+            return 2
+        print(json.dumps(result, sort_keys=True))
+        return 0 if (result["cleanup_verified"] if args.cmd == "forward-release" else result["ready"]) else 2
     if args.cmd == "check":
         return check_and_reconcile()
     if args.cmd == "ensure-termux-background":
@@ -265,6 +669,14 @@ def main() -> int:
     if args.cmd == "restore":
         lease = Path(args.lease)
         row = json.loads(lease.read_text())
+        if row.get("type") == "adb_forward":
+            if lease.resolve() != forward_lease_path(lease.stem).resolve():
+                raise ValueError("invalid_forward_lease_path")
+            result = release_adb_forward(lease.stem)
+            print(json.dumps(result, sort_keys=True))
+            return 0 if result["cleanup_verified"] else 2
+        if row.get("type", "global_proxy") != "global_proxy":
+            raise ValueError("unsupported_network_lease_type")
         restore_state(row["settings"])
         lease.unlink(missing_ok=True)
         write_receipt("healthy", "manual_restore_verified")
