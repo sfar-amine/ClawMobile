@@ -101,6 +101,7 @@ export type IntentSubmitResponse = {
 export type CompanionRunStatus = {
   modality?: "voice";
   transcriptState?: "partial" | "completed" | "interrupted";
+  playback?: import("./voicePlaybackMetadata").VoicePlaybackMetadata;
   success: boolean;
   runId: string;
   sessionId?: string;

@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "samantha-barge-in-candidate-20261006",
+  "origin": "chat",
+  "kind": "capability",
+  "summary": "Implemented inactive barge-in candidate; provider and acoustic gates remain open.",
+  "reason": "Owner requested implementation and actual acceptance through RDC; candidate is preserved without unsupported activation.",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "tests": [
+    {
+      "name": "typescript_build",
+      "status": "passed",
+      "evidence": "tsc -p tsconfig.json completed."
+    },
+    {
+      "name": "protocol_and_owners",
+      "status": "passed",
+      "evidence": "13 protocol scenarios plus Warm v2 owner/schema tests passed."
+    },
+    {
+      "name": "existing_runtime_regressions",
+      "status": "passed",
+      "evidence": "runtime-regression-1.log: Warm, cancellation, runs, Claw Live and MCP passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/samantha-barge-in-candidate-20261006.md",
+    "docs/08-decisions/ADR-20261006-voice-turn-protocol-v2.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No active capability change. Existing Android/Companion owners extended only in inactive candidate branches; no capability promotion."
+  },
+  "architecture": {
+    "changed": true,
+    "adr": "docs/08-decisions/ADR-20261006-voice-turn-protocol-v2.md",
+    "reason": "Versioned local contract extension inside the existing Warm owner; no additional service, scheduler, route or store."
+  },
+  "rollback": "No active change to undo. Preserve 0.7.1; keep unmerged candidate for continuation, never reset unrelated work.",
+  "acceptance_reservations": [
+    "Provider final-transcript boundary not emitted in two real probes.",
+    "Five native tests compiled but not run while S24 locked.",
+    "Real acoustic campaign and activation not performed."
+  ],
+  "files": [
+    "docs/08-decisions/ADR-20261006-voice-turn-protocol-v2.md",
+    "docs/changes/samantha-barge-in-candidate-20261006.json",
+    "docs/changes/samantha-barge-in-candidate-20261006.md",
+    "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+    "openclaw-plugin-mobile-ui/package.json",
+    "openclaw-plugin-mobile-ui/scripts/test-claw-live-warm.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-turn-protocol.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-warm-v2-ownership.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voicePlaybackMetadata.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts"
+  ]
+}

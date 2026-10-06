@@ -53,6 +53,29 @@
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {}
+    "properties": {
+      "voiceBargeIn": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "qualifiedRoutes": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "protocolModel": {
+            "type": "string",
+            "maxLength": 160
+          }
+        }
+      }
+    }
   }
 }
