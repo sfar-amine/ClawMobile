@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "id": "samantha-barge-in-runtime-closure-20261006",
+  "origin": "chat",
+  "kind": "capability",
+  "summary": "Activate the private Companion v2 barge-in protocol with Android on-device final transcript gating.",
+  "reason": "Owner requested final deployment and closure through RDC.",
+  "merge_eligibility": "allowed",
+  "deployment_state": "applied",
+  "tests": [
+    {"name":"typescript_build","status":"passed","evidence":"npm run build completed on the private runtime lineage."},
+    {"name":"voice_turn_protocol","status":"passed","evidence":"14 deterministic protocol scenarios pass with Android local final transcript boundary."},
+    {"name":"warm_owner_and_regression","status":"passed","evidence":"Warm v2 ownership and existing Warm regression tests pass."},
+    {"name":"live_runtime_health","status":"passed","evidence":"Active Companion observed live: Companion/ADB/Gateway online; prewarm returns warm/ready, providerReady=true, protocolVersion=2, bargeIn enabled with android_speech_service boundary."}
+  ],
+  "documentation": ["docs/changes/samantha-barge-in-runtime-closure-20261006.md"],
+  "capabilities": {"impact":"none","reason":"Existing private Samantha Companion owner extended; no new public capability or authorization."},
+  "architecture": {"changed":false,"reason":"The v2 local contract architecture is already recorded by ADR-20261006-voice-turn-protocol-v2."},
+  "rollback": "Restore the retained pre-barge-in dist and previous private runtime commit, then disable voiceBargeIn.enabled.",
+  "limitations": ["Automatic barge-in is qualified only on the S24 built-in audio route; Bluetooth remains outside activation."],
+  "files": ["docs/changes/samantha-barge-in-runtime-closure-20261006.json","docs/changes/samantha-barge-in-runtime-closure-20261006.md"]
+}
