@@ -74,6 +74,17 @@ async function main() {
   assert.equal(status.reason, "read_only_policy");
   assert.equal(status.request_id, "mcp-claude-chat-wifi-write-execute");
 
+  await assert.rejects(
+    handleMcpRelayRequest({
+      requestId: "mcp-claude-chat-shadow-raw-execute",
+      clientId: "claude-chat",
+      profile: "chat-owner-shadow",
+      tool: "claw_exec",
+      arguments: { command: "printf SHOULD_NOT_RUN", action_key: "shadow-raw" },
+    }),
+    /owner_profile_required/,
+  );
+
   const ownerResult = await handleMcpRelayRequest({
     requestId: "mcp-claude-chat-wifi-write-owner-execute",
     clientId: "claude-chat",
@@ -94,6 +105,28 @@ async function main() {
   assert.equal(ownerReceipt.method, "mcp_capability_execute_owner");
   assert.equal(ownerReceipt.mutationRisk, "write");
   assert.notEqual(ownerReceipt.result?.execution?.reason, "read_only_policy");
+
+  const ownerRawExec = await handleMcpRelayRequest({
+    requestId: "mcp-claude-chat-owner-raw-execute",
+    clientId: "claude-chat",
+    profile: "chat-owner",
+    tool: "claw_exec",
+    arguments: {
+      command: "printf MCP_OWNER_EXEC_OK",
+      action_key: "owner-raw",
+      cwd: os.homedir(),
+      timeout_ms: 5000,
+    },
+  });
+  assert.equal(ownerRawExec.state, "completed");
+  assert.equal(ownerRawExec.result?.success, true);
+  assert.equal(ownerRawExec.result?.stdout, "MCP_OWNER_EXEC_OK");
+  const ownerRawReceipt = JSON.parse(fs.readFileSync(path.join(
+    process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR,
+    "requests",
+    "mcp-claude-chat-owner-raw-execute.json",
+  ), "utf8"));
+  assert.equal(ownerRawReceipt.method, "exec_wait");
 
   const shadowDelegate = await handleMcpRelayRequest({
     requestId: "mcp-claude-chat-delegate-shadow-execute",

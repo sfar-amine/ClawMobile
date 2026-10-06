@@ -117,7 +117,14 @@ const ownerList = await post({
 }, token, ownerEnv);
 assert.equal(ownerList.status, 200);
 const ownerNames = ownerList.body.result.tools.map((tool) => tool.name).sort();
-assert.ok(ownerNames.includes("claw_exec"));
+assert.deepEqual(ownerNames, [
+  "claw_artifact_read",
+  "claw_context",
+  "claw_exec",
+  "claw_execute",
+  "claw_resolve",
+  "claw_status",
+]);
 const ownerExecuteTool = ownerList.body.result.tools.find((tool) => tool.name === "claw_execute");
 assert.equal(ownerExecuteTool.annotations.readOnlyHint, false);
 assert.equal(ownerExecuteTool.annotations.openWorldHint, true);

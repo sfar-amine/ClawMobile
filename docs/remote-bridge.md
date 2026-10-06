@@ -61,9 +61,9 @@ Long-running interactive work should use `process_start` followed by bounded `pr
 
 ## External MCP execution receipt
 
-The generic external MCP adapter reuses Remote Bridge receipts instead of creating an MCP-specific execution ledger. In V1, `mcp_capability_execute_readonly` resolves the request on the canonical `external_mcp` surface and executes only when the selected path is deterministic, owner-authorized, risk `read`, and requires no confirmation. All other requests return the bounded `read_only_policy` result from the canonical Capability Graph guard without executing a business effect.
+The generic external MCP adapter reuses Remote Bridge receipts instead of creating an MCP-specific execution ledger. `chat-owner-shadow` keeps deterministic read-only admission through `mcp_capability_execute_readonly`; `chat-owner` uses the canonical owner Capability Graph path and may also use the single owner-only `claw_exec` terminal primitive backed by Remote Bridge `exec_wait`. Business requests remain on `claw_execute`; `claw_exec` is not a parallel business router.
 
-The stable MCP action identity is translated to the existing `requestId + taskId + stepId` contract, so reconnecting an external client cannot create a second execution merely by opening a new MCP session. The public MCP edge never calls raw Remote Bridge shell/file methods in the V1 chat profile.
+The canonical owner MCP contract has six primitives: `claw_context`, `claw_resolve`, `claw_execute`, `claw_exec`, `claw_status`, `claw_artifact_read`. The stable MCP action identity is translated to the existing `requestId + taskId + stepId` contract, so reconnecting an external client cannot create a second execution merely by opening a new MCP session. Shadow does not expose `claw_exec`. After capability/route/executor changes, edge and Companion tests must revalidate this contract plus owner capability-surface parity before closure.
 
 ## Desktop Commander fallback
 

@@ -123,10 +123,43 @@ result = await mcp({
 assert.equal(result.status, 200);
 assert.equal(result.body.result.structuredContent.state, "completed");
 
+result = await mcp({
+  jsonrpc: "2.0",
+  id: 5,
+  method: "tools/call",
+  params: {
+    name: "claw_exec",
+    arguments: {
+      command: "printf MCP_E2E_OWNER_EXEC_OK",
+      action_key: "e2e-owner-raw",
+      cwd: os.homedir(),
+      timeout_ms: 5000,
+    },
+  },
+});
+assert.equal(result.status, 200);
+assert.equal(result.body.result.structuredContent.state, "completed");
+assert.equal(result.body.result.structuredContent.result.success, true);
+assert.equal(result.body.result.structuredContent.result.stdout, "MCP_E2E_OWNER_EXEC_OK");
+
+result = await mcp({
+  jsonrpc: "2.0",
+  id: 6,
+  method: "tools/call",
+  params: {
+    name: "claw_status",
+    arguments: { action_key: "e2e-owner-raw" },
+  },
+});
+assert.equal(result.status, 200);
+assert.equal(result.body.result.structuredContent.state, "completed");
+assert.equal(result.body.result.structuredContent.result.stdout, "MCP_E2E_OWNER_EXEC_OK");
+
 console.log(JSON.stringify({
   ok: true,
   chain: "MCP SDK -> edge Durable Object -> outbound-device protocol -> Companion mcpBridge -> Capability Graph/Remote Bridge",
   surface: "external_mcp",
   ownerWriteAdmission: true,
   durableStatus: true,
+  ownerRawExec: true,
 }));
