@@ -12,6 +12,7 @@ During recovery, Remote Desktop Commander also became unavailable. Its local MCP
 - A stale installed plugin schema is reconciled only from a clean canonical plugin source; unknown source-side keys or dirty source fail closed.
 - OpenClaw configuration validation is mandatory after reconciliation.
 - Android stale gateway locks are quarantined, never deleted blindly, only after exact lock identity, PID/start identity, process table and port checks prove no live gateway owns them. Ambiguous ownership fails closed.
+- If gateway startup then returns the explicit `gateway.maintenance_required` marker, Companion executes the supported `openclaw doctor --fix --non-interactive` path with a 60-second timeout, at most two attempts, refuses any remaining gateway process ownership, and retries startup once. Other failures are not rewritten as maintenance.
 - RDC launches its existing Node runtime with IPv4-first DNS ordering scoped to the RDC child only.
 - RDC half-open dependency probes use that same Node/fetch stack rather than a different curl/Python network path.
 - RDC half-open retry state is persisted by the existing controller with bounded exponential backoff, so restarting the watchdog cannot reset an exhausted circuit.
@@ -24,7 +25,7 @@ Existing capabilities are strengthened without changing their public entrypoints
 
 ## Verification before deployment
 
-- Gateway preflight tests: 7/7 passed.
+- Gateway preflight / Companion maintenance contract tests: 10/10 passed.
 - RDC controller/watchdog tests: 19/19 passed.
 - RDC incident-loop tests: 5/5 passed.
 - Shell/Python syntax checks passed.

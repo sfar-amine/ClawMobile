@@ -14,6 +14,14 @@ const GATEWAY_PID_FILE = "companion-openclaw-gateway.pid";
 const TERMUX_PREFIX = "/data/data/com.termux/files/usr";
 const TERMUX_TMPDIR = "/data/data/com.termux/files/usr/tmp";
 const EXISTING_GATEWAY_GRACE_MS = 30_000;
+const STARTUP_MAINTENANCE_REPAIR_ATTEMPTS = 2;
+const STARTUP_MAINTENANCE_REPAIR_TIMEOUT_S = 60;
+const STARTUP_MAINTENANCE_MARKERS = [
+  "gateway.maintenance_required",
+  "requires state migration",
+  "sqlite-maintenance-unavailable",
+] as const;
+
 type StartInFlight = {
   startedAt: number;
   logPath: string;
@@ -54,7 +62,70 @@ export async function getGatewayStatus(timeoutMs = 500): Promise<GatewayStatus> 
   });
 }
 
+export function runtimeLogNeedsMaintenance(text: string) {
+  return STARTUP_MAINTENANCE_MARKERS.some((marker) => text.includes(marker));
+}
+
+type StartupMaintenanceRepair = {
+  success: boolean;
+  message: string;
+};
+
+async function repairStartupMaintenance(): Promise<StartupMaintenanceRepair> {
+  const openclaw =
+    process.env.CLAWMOBILE_OPENCLAW_COMMAND || `${TERMUX_PREFIX}/bin/openclaw`;
+  const timeout = `${TERMUX_PREFIX}/bin/timeout`;
+  let lastError = "";
+
+  for (let attempt = 1; attempt <= STARTUP_MAINTENANCE_REPAIR_ATTEMPTS; attempt++) {
+    const status = await getGatewayStatus(750);
+    if (status.reachable) {
+      return { success: true, message: "Gateway recovered before Doctor repair was needed." };
+    }
+
+    const candidates = await listGatewayProcessCandidates();
+    if (candidates.length > 0) {
+      return {
+        success: false,
+        message: `Refusing Doctor repair while gateway process ownership is still present: ${candidates
+          .map((candidate) => candidate.pid)
+          .join(",")}.`,
+      };
+    }
+
+    try {
+      await runCommand(timeout, [
+        String(STARTUP_MAINTENANCE_REPAIR_TIMEOUT_S),
+        openclaw,
+        "doctor",
+        "--fix",
+        "--non-interactive",
+      ]);
+      return {
+        success: true,
+        message: `OpenClaw Doctor repair completed on attempt ${attempt}/${STARTUP_MAINTENANCE_REPAIR_ATTEMPTS}.`,
+      };
+    } catch (error: any) {
+      lastError = String(error?.message || error);
+      if (attempt < STARTUP_MAINTENANCE_REPAIR_ATTEMPTS) {
+        await delay(2_000);
+      }
+    }
+  }
+
+  return {
+    success: false,
+    message: `OpenClaw Doctor repair exhausted its bounded attempts: ${lastError}`,
+  };
+}
+
 export async function startRuntime(): Promise<RuntimeCommandResponse> {
+  return startRuntimeInternal(true);
+}
+
+async function startRuntimeInternal(
+  allowMaintenanceRepair: boolean,
+): Promise<RuntimeCommandResponse> {
   const before = await getGatewayStatus();
   if (before.reachable) {
     return {
@@ -128,6 +199,9 @@ export async function startRuntime(): Promise<RuntimeCommandResponse> {
           "--verbose",
         ];
 
+  let childExited = false;
+  let childExitCode: number | null = null;
+
   try {
     const logPath = gatewayLogPath();
     let out: number | null = null;
@@ -148,7 +222,9 @@ export async function startRuntime(): Promise<RuntimeCommandResponse> {
         pid: child.pid ?? null,
       };
       startInFlight = trackedStart;
-      child.once("exit", () => {
+      child.once("exit", (code) => {
+        childExited = true;
+        childExitCode = code;
         if (startInFlight === trackedStart) startInFlight = null;
       });
       child.once("error", () => {
@@ -169,6 +245,31 @@ export async function startRuntime(): Promise<RuntimeCommandResponse> {
           success: true,
           state: "running",
           message: `Started OpenClaw gateway. Logs: ${logPath}`,
+          gateway: status,
+        };
+      }
+
+      if (childExited) {
+        await delay(100);
+        cleanupGatewayPidFile();
+        const failedLog = getRuntimeLog();
+        if (allowMaintenanceRepair && runtimeLogNeedsMaintenance(failedLog.text)) {
+          const maintenance = await repairStartupMaintenance();
+          if (!maintenance.success) {
+            return {
+              success: false,
+              state: "failed",
+              message: `${maintenance.message} Gateway log: ${logPath}`,
+              gateway: status,
+            };
+          }
+          return startRuntimeInternal(false);
+        }
+
+        return {
+          success: false,
+          state: "failed",
+          message: `OpenClaw gateway start exited before readiness (code ${childExitCode ?? "unknown"}). Logs: ${logPath}`,
           gateway: status,
         };
       }
