@@ -24,6 +24,13 @@
     "claw_live_control_tests": "6/6 passed",
     "python_compile": "passed"
   },
+  "activation": {
+    "edge_version_id": "8d0bdce1-9857-4c31-986f-231650ccde11",
+    "claw_live_installed_sha256": "af2a3be6df87e6df9886ba64e29a2d0b65441bda9f1e092b7e8acba453510cd9",
+    "runtime_render_owner": "[CLAUDE][MCP][OWNER]",
+    "runtime_render_shadow": "[CLAUDE][MCP][SHADOW]",
+    "runtime_render_chat_rdc": "[CHAT][RDC][TERMUX]"
+  },
   "safety": {
     "credentials_exposed": false,
     "message_payload_logging_expanded": false,
