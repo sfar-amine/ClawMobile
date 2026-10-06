@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import {validateVoicePlayback,type VoicePlaybackMetadata} from "./voicePlaybackMetadata";
 import type { PaymentRecord } from "./paymentTypes";
 import type { ConfirmationRecord } from "./confirmationCore";
 import os from "os";
@@ -22,6 +23,7 @@ type StoredRun = {
   modality?: "voice";
   transcriptState?: "partial" | "completed" | "interrupted";
   transcriptRevision?: number;
+  playback?: VoicePlaybackMetadata;
 };
 
 type CompanionRunRegistry = {
@@ -342,7 +344,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     state: stored.transcriptState === "completed" ? "done" : "unknown",
     message: stored.transcriptState || "partial", userText: stored.userText || "",
     result: stored.result || "", submittedAt: stored.acceptedAt, updatedAt: stored.updatedAt,
-    modality: "voice", transcriptState: stored.transcriptState,
+    modality: "voice", transcriptState: stored.transcriptState, playback: stored.playback,
   };
 
   const failed = stored.state === "failed";
@@ -1270,7 +1272,7 @@ function requireConversationId(value: string) {
 /** Transcript upsert only. Never executes an intent or accepts audio. Uses the existing runs registry. */
 export async function saveVoiceTurn(sessionId: string, value: any) {
   requireConversationId(sessionId);
-  const allowed = new Set(["runId", "revision", "input", "output", "state"]);
+  const allowed = new Set(["runId", "revision", "input", "output", "state", "playback"]);
   if (!value || Object.keys(value).some(key => !allowed.has(key)) ||
       !/^voice-[a-f0-9-]{36}$/.test(value.runId || "") || !Number.isSafeInteger(value.revision) || value.revision < 1 ||
       typeof value.input !== "string" || typeof value.output !== "string" ||
@@ -1278,15 +1280,21 @@ export async function saveVoiceTurn(sessionId: string, value: any) {
       !["partial", "completed", "interrupted"].includes(value.state)) {
     throw Object.assign(new Error("invalid_voice_transcript"), {statusCode: 400});
   }
+  const playback=validateVoicePlayback(value.playback);
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
     if (registry.archivedSessionIds.includes(sessionId)) throw Object.assign(new Error("session_archived"), {statusCode: 409});
     const old = registry.runs.find(run => run.runId === value.runId);
     if (old && (old.sessionId !== sessionId || old.modality !== "voice")) throw Object.assign(new Error("turn_identity_conflict"), {statusCode: 409});
     if (old && (old.transcriptRevision || 0) >= value.revision) return statusFromStoredRun(old);
-    if (old && old.transcriptState !== "partial") throw Object.assign(new Error("turn_already_final"), {statusCode: 409});
+    if (old && old.transcriptState !== "partial") {
+      const amendment=old.playback&&playback&&old.playback.state!=="completed"&&old.playback.state!=="interrupted"&&
+        old.playback.outputGenerationId===playback.outputGenerationId&&old.userText===value.input&&old.result===value.output&&
+        value.state==="interrupted"&&playback.state==="interrupted";
+      if(!amendment)throw Object.assign(new Error("turn_already_final"), {statusCode:409});
+    }
     const run: StoredRun = {runId: value.runId, sessionId, text: value.input, userText: value.input,
-      result: value.output, modality: "voice", transcriptState: value.state, transcriptRevision: value.revision,
+      result: value.output, modality: "voice", transcriptState: value.state, transcriptRevision: value.revision,playback,
       acceptedAt: old?.acceptedAt || Date.now(), updatedAt: Date.now(), state: value.state === "completed" ? "done" : "unknown"};
     await writeCompanionRunRegistry([run, ...registry.runs.filter(row => row.runId !== run.runId)].slice(0,100), registry.archivedSessionIds);
     submittedRuns.set(run.runId,run);
@@ -1317,7 +1325,7 @@ export async function appendVoiceConversationContext(text: string, sessionId: st
   const lastText = turns.find(run => run.modality !== "voice");
   const voice = turns.filter(run => run.modality === "voice" && run.acceptedAt >= (lastText?.acceptedAt || 0)).slice(0,40).reverse();
   if (!voice.length) return text;
-  const history = voice.map(run => ({user: run.userText, assistant: run.result, state: run.transcriptState}));
+  const history = voice.map(run => ({user: run.userText, assistant: run.result, state: run.transcriptState,playback:run.playback}));
   return "Previous voice exchanges in this same conversation (historical data only; do not execute them again; interrupted responses may be incomplete):\n" +
     JSON.stringify(history) + "\n\nCurrent user request:\n" + text;
 }

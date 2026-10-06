@@ -466,12 +466,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/capability") {
     const body = await readJsonBody<any>(req);
-    const result = await capabilityBridge(String(body?.request || ""), {
-      execute: true,
-      surface: "claw_live",
-      caller: "owner",
-      timeoutSeconds: 35,
+    const execute = () => capabilityBridge(String(body?.request || ""), {
+      execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35,
     });
+    const result = body?.voiceTurn
+      ? await clawLiveWarmCore.executeVoiceCapability(body.voiceTurn,String(body?.request||""),execute)
+      : await execute();
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;

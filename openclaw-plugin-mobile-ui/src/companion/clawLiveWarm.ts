@@ -1,7 +1,11 @@
 import http from "http";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import {VoiceTurnProtocol} from "./voiceTurnProtocol";
 import type { Duplex } from "stream";
 import WebSocket, { WebSocketServer } from "ws";
-import { createClawLiveToken, type ClawLiveBootstrapOptions } from "./clawLive";
+import { createClawLiveToken, CLAW_LIVE_MODEL, type ClawLiveBootstrapOptions } from "./clawLive";
 import { reconnectDelay } from "./reconnectPolicy";
 
 const PROVIDER_URL="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
@@ -12,7 +16,7 @@ const SETUP_TIMEOUT_MS=15_000;
 
 type WarmState="cold"|"connecting"|"warm"|"reconnecting"|"error";
 type TokenBundle={token:string;setup:any;expiresAt?:string;model?:string};
-type LocalMeta={locale:string;client:string;sessionId:string};
+type LocalMeta={locale:string;client:string;sessionId:string;protocol?:number;sessionEpoch?:string};
 
 type WarmDeps={
   tokenFactory?:(options:ClawLiveBootstrapOptions)=>Promise<TokenBundle>;
@@ -28,7 +32,9 @@ function safeMeta(req:http.IncomingMessage):LocalMeta {
   const client=String(u.searchParams.get("client")||"samantha_android").replace(/[^A-Za-z0-9._-]/g,"").slice(0,64)||"samantha_android";
   const raw=String(u.searchParams.get("session")||"default");
   const sessionId=/^[A-Za-z0-9._:-]{1,160}$/.test(raw)?raw:"default";
-  return {locale,client,sessionId};
+  const sessionEpoch=String(u.searchParams.get("epoch")||"");
+  const protocol=u.searchParams.get("protocol")==="2"?2:1;
+  return {locale,client,sessionId,protocol,sessionEpoch};
 }
 
 function loopback(address?:string|null){
@@ -53,6 +59,8 @@ export class ClawLiveWarmCore {
   private resumeHandleAt=0;
   private historyLoaded=false;
   private localClients=new Set<WebSocket>();
+  private protocols=new Map<WebSocket,VoiceTurnProtocol>();
+  private clientMeta=new Map<WebSocket,LocalMeta>();
   private connectPromise:Promise<void>|null=null;
   private idleTimer:NodeJS.Timeout|null=null;
   private reconnectTimer:NodeJS.Timeout|null=null;
@@ -79,6 +87,7 @@ export class ClawLiveWarmCore {
   status(){
     return {
       state:this.state,stage:this.stage,providerReady:this.providerReady,clients:this.localClients.size,
+      bargeIn:readBargeInProfile(),protocolVersion:2,
       conversationBound:Boolean(this.conversationId&&this.conversationId!=="__prewarm__"),resumable:this.hasValidResumeHandle(),historyLoaded:this.historyLoaded,
       connectedAt:this.connectedAt||null,readyAt:this.readyAt||null,lastUsedAt:this.lastUsedAt||null,
       lastSetupMs:this.lastSetupMs,resumedLast:this.resumedLast,reconnectAttempts:this.reconnectAttempts,
@@ -114,8 +123,10 @@ export class ClawLiveWarmCore {
   }
 
   async attach(ws:WebSocket,meta:LocalMeta){
-    this.localClients.add(ws);this.touch();
-    ws.once("close",()=>{this.localClients.delete(ws);this.touch();});
+    if(this.localClients.size>0) {ws.close(1008,"voice_owner_busy");return;}
+    if(meta.protocol===2&&!/^[A-Za-z0-9._:-]{1,160}$/.test(meta.sessionEpoch||"")) {ws.close(1008,"invalid_voice_epoch");return;}
+    this.localClients.add(ws);this.clientMeta.set(ws,meta);this.touch();
+    ws.once("close",()=>{this.localClients.delete(ws);this.protocols.get(ws)?.close();this.protocols.delete(ws);this.clientMeta.delete(ws);this.touch();if(meta.protocol===2)this.resetProvider("v2_owner_detached");});
     ws.on("message",(data)=>this.onLocalMessage(ws,data));
     const readyBefore=this.providerReady;
     try{
@@ -128,7 +139,13 @@ export class ClawLiveWarmCore {
 
   private sendReady(ws:WebSocket,historyRequired:boolean){
     if(ws.readyState!==WebSocket.OPEN)return;
-    ws.send(JSON.stringify({warmReady:{historyRequired,resumed:this.resumedLast,setupMs:this.lastSetupMs,state:"warm"}}));
+    const meta=this.clientMeta.get(ws);
+    if(meta?.protocol===2&&!this.protocols.has(ws))this.protocols.set(ws,new VoiceTurnProtocol(this.connectionGeneration,meta.sessionEpoch!,
+      value=>{if(this.providerReady&&this.provider?.readyState===WebSocket.OPEN)this.provider.send(JSON.stringify(value));},
+      value=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(value));}));
+    ws.send(JSON.stringify({warmReady:{historyRequired,resumed:this.resumedLast,setupMs:this.lastSetupMs,state:"warm",
+      protocolVersion:meta?.protocol===2?2:1,connectionEpoch:this.connectionGeneration,sessionEpoch:meta?.sessionEpoch,
+      bargeIn:readBargeInProfile()}}));
   }
 
   private async ensureConversation(meta:LocalMeta){
@@ -137,6 +154,7 @@ export class ClawLiveWarmCore {
     if(meta.sessionId==="__prewarm__"&&this.conversationId)meta={...meta,sessionId:this.conversationId};
     const unbound=this.conversationId==="__prewarm__";
     const changed=this.conversationId&&!unbound&&this.conversationId!==meta.sessionId;
+    if(changed&&this.localClients.size>0&&![...this.clientMeta.values()].every(v=>v.sessionId===meta.sessionId))throw new Error("voice_owner_busy");
     if(changed)this.resetProvider("conversation_changed");
     if(!this.conversationId||unbound||meta.sessionId==="__prewarm__")this.conversationId=meta.sessionId;
     this.locale=meta.locale;this.client=meta.client;
@@ -227,6 +245,8 @@ export class ClawLiveWarmCore {
       ws.on("close",()=>{
         if(this.provider!==ws)return;
         const wasReady=this.providerReady;this.providerReady=false;this.provider=null;
+        for(const [client] of this.protocols)client.close(1012,"voice_connection_replaced");
+        this.protocols.clear();
         if(this.stopped)return;
         if(!wasReady&&!settled){fail("closed_before_ready",new Error("gemini_live_closed_before_ready"));return;}
         if(this.localClients.size>0||this.now()-this.lastUsedAt<this.idleMs)this.scheduleReconnect();else this.state="cold";
@@ -239,16 +259,32 @@ export class ClawLiveWarmCore {
   }
 
   private onLocalMessage(_client:WebSocket,data:WebSocket.RawData){
+    if(!this.localClients.has(_client))return;
     this.touch();const raw=data.toString();
+    const version2=this.clientMeta.get(_client)?.protocol===2;
+    if(version2&&!this.protocols.has(_client))return;
+    if(version2&&raw.length>2_000_000){_client.close(1009,"voice_message_budget");return;}
     try{
       const m=JSON.parse(raw);
       if(m?.warmControl?.historyLoaded===true){this.historyLoaded=true;return;}
       if(m?.warmControl?.touch===true)return;
-    }catch{}
+      const protocol=this.protocols.get(_client);if(protocol){protocol.receive(m);return;}
+    }catch{if(version2){_client.close(1008,"invalid_voice_message");return;}}
     if(this.providerReady&&this.provider?.readyState===WebSocket.OPEN)this.provider.send(raw);
   }
 
-  private broadcast(raw:string){for(const c of this.localClients)if(c.readyState===WebSocket.OPEN)c.send(raw);}
+  private broadcast(raw:string){
+    for(const c of this.localClients)if(c.readyState===WebSocket.OPEN) {
+      const protocol=this.protocols.get(c);
+      if(protocol) {try{protocol.provider(JSON.parse(raw));}catch{c.close(1011,"voice_protocol_error");}}
+      else c.send(raw);
+    }
+  }
+  executeVoiceCapability(meta:any,request:string,run:()=>Promise<any>):Promise<any> {
+    const entry=[...this.protocols.values()].find(p=>p.sessionEpoch===meta?.sessionEpoch&&p.connectionEpoch===meta?.connectionEpoch);
+    if(!entry)throw Object.assign(new Error("voice_session_not_owned"),{statusCode:409});
+    return entry.execute(String(meta?.turnId||""),request,run);
+  }
   private failStage(stage:string,e:any){this.state="error";this.stage=stage;this.lastError=String(e?.message||e||stage).slice(0,160);console.warn(`[claw-live-warm] ${stage}: ${this.lastError}`);}
   private scheduleReconnect(){
     if(this.reconnectTimer||this.stopped)return;
@@ -280,13 +316,13 @@ export class ClawLiveWarmCore {
 }
 
 export const clawLiveWarmCore=new ClawLiveWarmCore();
-const localServer=new WebSocketServer({noServer:true});
+const localServer=new WebSocketServer({noServer:true,maxPayload:2*1024*1024});
 localServer.on("connection",(ws,req)=>{void clawLiveWarmCore.attach(ws,safeMeta(req));});
 
 export function attachClawLiveWarmUpgrade(server:http.Server){
   server.on("upgrade",(req: http.IncomingMessage,socket:Duplex,head:Buffer)=>{
     let pathname="";try{pathname=new URL(req.url||"/","http://127.0.0.1").pathname;}catch{}
-    if(pathname!==SOCKET_PATH||!loopback(req.socket.remoteAddress)){socket.destroy();return;}
+    if(pathname!==SOCKET_PATH||!loopback(req.socket.remoteAddress)||req.headers.origin){socket.destroy();return;}
     localServer.handleUpgrade(req,socket,head,(ws)=>localServer.emit("connection",ws,req));
   });
 }
@@ -294,4 +330,14 @@ export function attachClawLiveWarmUpgrade(server:http.Server){
 export function clawLiveWarmMeta(body:any):LocalMeta{
   const locale=String(body?.locale||"fr").slice(0,32);const client=String(body?.client||"samantha_android").replace(/[^A-Za-z0-9._-]/g,"").slice(0,64)||"samantha_android";
   const raw=String(body?.sessionId||body?.session||"default");const sessionId=/^[A-Za-z0-9._:-]{1,160}$/.test(raw)?raw:"default";return {locale,client,sessionId};
+}
+
+/** Optional fields in the existing plugin configuration, not a second settings store. */
+function readBargeInProfile(){
+  try {
+    const config=JSON.parse(fs.readFileSync(path.join(os.homedir(),".openclaw/openclaw.json"),"utf8"));
+    const profile=config?.plugins?.entries?.["openclaw-plugin-mobile-ui"]?.config?.voiceBargeIn;
+    const routes=Array.isArray(profile?.qualifiedRoutes)?profile.qualifiedRoutes.filter((v:any)=>typeof v==="string"&&v.length<=512).slice(0,16):[];
+    return {supported:true,enabled:profile?.enabled===true&&profile?.protocolModel===CLAW_LIVE_MODEL,qualifiedRoutes:routes,protocolModel:profile?.protocolModel||null,transcriptionBoundary:"finished_required"};
+  } catch {return {supported:true,enabled:false,qualifiedRoutes:[],transcriptionBoundary:"finished_required"};}
 }

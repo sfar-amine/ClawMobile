@@ -92,6 +92,9 @@ const wait=(ms=8)=>new Promise(r=>setTimeout(r,ms));
   assert.equal(ready2.historyRequired,false);
   assert.equal(ready2.resumed,true);
 
+  await assert.rejects(core.prewarm({...meta,sessionId:"session-b"}),/voice_owner_busy/);
+  assert.equal(FakeProvider.instances.length,2);
+  local2.close();
   await core.prewarm({...meta,sessionId:"session-b"});
   assert.equal(FakeProvider.instances.length,3);
   assert.equal(core.status().historyLoaded,false);

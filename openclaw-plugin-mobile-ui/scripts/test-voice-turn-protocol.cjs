@@ -1,0 +1,27 @@
+const assert=require('node:assert/strict');
+const {VoiceTurnProtocol}=require('../dist/companion/voiceTurnProtocol.js');
+let passed=0;
+function test(name,run){return Promise.resolve().then(run).then(()=>{passed++;console.log('PASS '+name);});}
+function setup(){const sent=[],events=[];return {sent,events,p:new VoiceTurnProtocol(1,'session-1',v=>sent.push(v),v=>events.push(v))};}
+function control(kind,turn,extra={}){return {warmControl:{[kind]:{operationId:kind+'-'+turn,sessionEpoch:'session-1',turnId:turn,...extra}}};}
+function start(s,id='voice-a',first=0){s.p.receive(control('turnStart',id,{firstSample:first}));}
+function audio(s,id='voice-a',first=0,n=320,value=0){s.p.receive({warmInput:{audio:{turnId:id,sessionEpoch:'session-1',firstSample:first,samples:n,sampleRate:16000,data:Buffer.alloc(n*2,value).toString('base64')}}});}
+function end(s,id='voice-a',last=320){s.p.receive(control('turnEnd',id,{lastSampleExclusive:last}));}
+function finishAsr(s,text='Bonjour'){s.p.provider({serverContent:{inputTranscription:{text,finished:true}}});}
+function error(s){return s.events.flatMap(x=>x.warmEvent?.payload?.protocolError?.code||[]);}
+(async()=>{
+ await test('start/end replay is idempotent',()=>{const s=setup();start(s);start(s);audio(s);audio(s);end(s);end(s);assert.equal(s.sent.length,3);assert.deepEqual(error(s),[]);});
+ await test('sample discontinuity is fatal, not a truncated request',async()=>{const s=setup();start(s);audio(s,'voice-a',20);end(s);finishAsr(s);assert(error(s).includes('noncontiguous_input'));assert.throws(()=>s.p.execute('voice-a','Bonjour',async()=>1));assert.equal(s.sent.length,1);});
+ await test('conflicting audio retry is never forwarded',()=>{const s=setup();start(s);audio(s);audio(s,'voice-a',0,320,1);assert(error(s).includes('audio_identity_conflict'));assert.equal(s.sent.length,2);});
+ await test('next ASR is deferred until explicit final marker',()=>{const s=setup();start(s);audio(s);end(s);start(s,'voice-b',4800);assert.equal(s.sent.filter(v=>v.realtimeInput?.activityStart).length,1);s.p.provider({serverContent:{inputTranscription:{text:'Bon'}}});assert.equal(s.sent.length,3);finishAsr(s,'jour');assert.equal(s.sent.filter(v=>v.realtimeInput?.activityStart).length,2);assert(s.events.some(x=>x.warmEvent?.payload?.turnAdmitted?.turnId==='voice-b'));});
+ await test('unowned transcript disables execution',()=>{const s=setup();s.p.provider({serverContent:{inputTranscription:{text:'late',finished:true}}});start(s);assert(s.p.snapshot().ambiguous);assert.equal(s.sent.length,0);});
+ await test('tools await final transcription',()=>{const s=setup();start(s);audio(s);end(s);s.p.provider({toolCall:{functionCalls:[{id:'fc1',name:'clawmobile_capability',args:{request:'Bonjour'}}]}});assert(!s.events.some(x=>x.warmEvent?.payload?.toolCall));finishAsr(s);assert(s.events.some(x=>x.warmEvent?.payload?.toolCall));});
+ await test('execution is exactly once for the admitted turn',async()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);let count=0;const run=()=>{count++;return Promise.resolve({ok:true});};const a=s.p.execute('voice-a','Bonjour',run),b=s.p.execute('voice-a','Bonjour',run);assert.equal(a,b);await a;assert.equal(count,1);assert.throws(()=>s.p.execute('voice-a','Other',run));});
+ await test('interruption preserves admitted execution but rejects new old-turn execution',async()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);let complete;const execution=s.p.execute('voice-a','Bonjour',()=>new Promise(r=>complete=r));await Promise.resolve();s.p.receive(control('interrupt','voice-a',{outputGenerationId:'out-voice-a'}));complete({done:true});assert.deepEqual(await execution,{done:true});const t=setup();start(t);audio(t);end(t);finishAsr(t);t.p.receive(control('interrupt','voice-a',{outputGenerationId:'out-voice-a'}));assert.throws(()=>t.p.execute('voice-a','Bonjour',async()=>1));});
+ await test('late tool from interrupted generation is not exposed',()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);s.p.receive(control('interrupt','voice-a',{outputGenerationId:'out-voice-a'}));start(s,'voice-b',5000);s.p.provider({toolCall:{functionCalls:[{id:'late',name:'clawmobile_capability',args:{request:'Bonjour'}}]}});assert(!s.events.some(x=>x.warmEvent?.payload?.toolCall));});
+ await test('output crosses turns only at provider completion',()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);start(s,'voice-b',5000);s.p.provider({serverContent:{interrupted:true,turnComplete:true}});s.p.provider({serverContent:{outputTranscription:{text:'new'}}});const e=s.events.filter(x=>x.warmEvent?.payload?.serverContent?.outputTranscription).at(-1);assert.equal(e.warmEvent.turnId,'voice-b');});
+ await test('metadata never reaches provider payload',()=>{const s=setup();start(s);audio(s);end(s);assert(!JSON.stringify(s.sent).includes('sessionEpoch'));assert(!JSON.stringify(s.sent).includes('turnId'));});
+ await test('new provider generation cannot be opened by raw client content',()=>{const s=setup();s.p.receive({clientContent:{turnComplete:true,turns:[]}});assert.equal(s.sent.length,0);assert(error(s).includes('unsupported_v2_message'));});
+ await test('short segment marker before input end does not close ASR',()=>{const s=setup();start(s);s.p.provider({serverContent:{inputTranscription:{text:'oui',finished:true}}});assert(s.p.snapshot().asrPending);assert.deepEqual(error(s),[]);});
+ console.log(JSON.stringify({passed,failed:0,scope:'deterministic_protocol_not_acoustic'}));
+})().catch(e=>{console.error(e);process.exitCode=1});
