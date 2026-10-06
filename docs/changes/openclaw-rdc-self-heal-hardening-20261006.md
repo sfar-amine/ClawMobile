@@ -33,6 +33,18 @@ Existing capabilities are strengthened without changing their public entrypoints
 - Live read-only preflight: plugin schema `ok`; live gateway lock recognized as `active_owner`, therefore not reclaimed.
 - Existing runtime restored before source deployment: OpenClaw `/healthz` returned `{"ok":true,"status":"live"}`; gateway deep connectivity probe passed; RDC singleton local MCP + fresh remote heartbeat healthy.
 
+## Runtime activation and live acceptance
+
+- Final source commit: `5e94d8c951177218cbfe61138420af6db342e7f1`.
+- Final immutable Tier-0 release: `20261006-openclaw-auto-maintenance-5e94d8c`.
+- Tier-0 soak: `stable`, `0` bad samples; the release became Last Known Good.
+- Deployed Tier-0 regression: gateway preflight 8/8 PASS; RDC controller/watchdog 19/19 PASS.
+- Companion build includes the bounded maintenance-repair function and was restarted through the existing Health Manager; `/v1/health` reports connected, `adb_shell`, gateway reachable.
+- OpenClaw `/healthz` remained live through activation. RDC reports singleton functional health with local MCP + fresh remote heartbeat, the same-Node dependency probe succeeds, and an external RDC ping returns pong.
+- Slack Remote Bridge health is healthy on the final runtime root.
+- MCP owner parity: external MCP bridge contract PASS and `test_mcp_delivery_parity` 2/2 PASS; all six owner primitives remain no-impact.
+- No destructive synthetic outage was injected after final activation because other S24 engineering tasks were active. The real incident exercised plugin drift, stale-lock and RDC network recovery; deterministic isolated tests cover the new bounded Doctor path.
+
 ## Rollback
 
 Revert the source commit and promote the previous immutable Tier-0 release. Lock recovery evidence remains in OpenClaw backups; the new logic never deletes an ambiguous lock.

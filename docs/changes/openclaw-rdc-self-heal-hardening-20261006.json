@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "maintenance",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "verified",
   "summary": "Harden OpenClaw gateway startup and RDC self-heal against plugin-schema drift, orphaned Android gateway locks, required offline state migration, Node network-path mismatch and watchdog restart loops.",
   "reason": "A real outage combined installed-plugin schema drift, an orphaned gateway lock that Android Node misclassified because kill(0) returned EPERM, and an RDC remote fetch timeout that curl did not reproduce.",
   "files": [
@@ -50,6 +50,21 @@
       "name": "companion-build-and-regression",
       "status": "passed",
       "evidence": "TypeScript build and existing Companion run-control regression passed on the isolated candidate."
+    },
+    {
+      "name": "deployed-tier0-self-tests",
+      "status": "passed",
+      "evidence": "Final immutable release passed 8/8 self-contained gateway-preflight tests and 19/19 RDC controller/watchdog tests after promotion."
+    },
+    {
+      "name": "mcp-owner-parity",
+      "status": "passed",
+      "evidence": "Companion external MCP bridge contract returned ok with shadow-write blocking, durable receipt/status/artifact/context support; ui-playbooks MCP delivery parity ran 2/2 PASS. All six owner primitives remain no-impact."
+    },
+    {
+      "name": "tier0-live-soak",
+      "status": "passed",
+      "evidence": "Release 20261006-openclaw-auto-maintenance-5e94d8c completed stable soak with 0 bad samples and became Last Known Good."
     }
   ],
   "documentation": [
@@ -84,5 +99,18 @@
     "This change does not alter OpenClaw's upstream process.kill(pid,0) EPERM semantics globally; the Termux runtime preflight applies the safer recovery decision at the canonical S24 gateway entrypoint.",
     "Automatic Doctor repair runs only after the exact startup maintenance marker, is time-bounded, refuses concurrent gateway ownership, and retries startup once; other failures remain on the canonical incident path.",
     "Gateway startup can remain slow under high session materialization or memory pressure; that performance concern is separate from this outage hardening."
-  ]
+  ],
+  "runtime": {
+    "release_id": "20261006-openclaw-auto-maintenance-5e94d8c",
+    "source_commit": "5e94d8c951177218cbfe61138420af6db342e7f1",
+    "soak_state": "stable",
+    "soak_bad_samples": 0,
+    "gateway": "healthz live",
+    "companion": "connected; adb_shell stage; gateway reachable; Health Manager restored Companion after promotion",
+    "remote_desktop": "functional healthy singleton with local MCP + fresh remote heartbeat; external RDC ping returned pong; Node same-stack dependency probe true",
+    "slack_bridge": "healthy on final Tier-0 runtime root",
+    "mcp_owner_parity": "external_mcp bridge contract PASS and ui-playbooks parity 2/2 PASS",
+    "live_e2e": "OpenClaw gateway remained live through both Tier-0 promotions; final Companion build contains bounded maintenance repair; final release became Last Known Good with zero bad soak samples.",
+    "verification_scope": "No synthetic destructive gateway outage was injected after activation because other S24 tasks were active. Failure classes were exercised by the real incident plus isolated deterministic regression tests."
+  }
 }
