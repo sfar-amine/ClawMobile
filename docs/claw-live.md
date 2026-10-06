@@ -146,6 +146,22 @@ disabling Android's phantom-process monitor. The exact pre-state was an absent
 DeviceConfig override with effective default 32. Rollback is deletion of the
 DeviceConfig override, restoring the OEM default.
 
+Since 2026-10-06 this value is also an explicit runtime invariant owned by the
+existing Health Manager. After canonical ADB health is available, it checks the
+effective ActivityManager value at most once per minute. Healthy values are
+read-only. A drift below 128 is restored through DeviceConfig and then verified
+against the effective ActivityManager setting; failed repair uses the existing
+health backoff/incident path. No new daemon, scheduler or state store is added.
+
+This reconciliation closes a regression where the one-time 128 override had
+disappeared while the device remained up, allowing Android to resume
+`Trimming phantom processes` kills. The actor that removed the override was
+not proven, so the invariant is repaired at the owning runtime boundary rather
+than attributed speculatively.
+
 Acceptance on 2026-10-03 used 50 temporary sleeping children (78 Termux
 processes total), moved Termux to background, and verified that the same
-claw-live PID survived with no new Trimming phantom processes event.
+claw-live PID survived with no new Trimming phantom processes event. The
+2026-10-06 regression acceptance additionally injects a bounded 64-value drift,
+verifies automatic restoration to 128 and rechecks a live background
+`claw-live` process without changing the semantic renderer.

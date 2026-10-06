@@ -1,6 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
 ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; D="$HOME/.openclaw/health"; LOG="$D/health.log"; S="$D/state"; mkdir -p "$D" "$S"; export TMPDIR="$HOME/.cache/tmp"
+PHANTOM_HEADROOM_TARGET=128; PHANTOM_HEADROOM_CHECK_S=60
 exec 9>"$D/health.lock"; flock -n 9 || exit 0
 log(){ printf '%s component=health-manager %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
 proc(){ pgrep -f "$1" 9>&- >/dev/null 2>&1; }; http(){ timeout 3 curl -fsS "$1" 9>&- >/dev/null 2>&1; }; adb_ok(){ timeout 3 adb 9>&- -s 127.0.0.1:5556 get-state 2>/dev/null|grep -qx device 9>&-; }
@@ -52,6 +53,26 @@ check_gateway(){ if http http://127.0.0.1:18789/healthz; then put gateway first_
 check_whatsapp(){ st=$(verdict_field notification.whatsapp state); reason=$(verdict_field notification.whatsapp reason); prev=$(get whatsapp status unknown); if [ "$st" = healthy ]; then if [ "$prev" = human_required ]; then "$ROOT/incident-orchestrator.py" recover whatsapp runtime --source health-manager --reason "WhatsApp channel verified connected after relink" >/dev/null 2>&1 || true; "$ROOT/incident-close.sh" WhatsApp "Samantha — WhatsApp est de nouveau connecté et vérifié." || true; fi; put whatsapp terminal_notified 0; healthy whatsapp; return; fi; if [ "$reason" = terminal_auth_logout ]; then if [ "$(get whatsapp terminal_notified 0)" != 1 ]; then iid=$("$ROOT/incident-orchestrator.py" open whatsapp runtime --source health-manager --summary "WhatsApp terminal authentication logout (401 conflict)" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'); "$ROOT/incident-orchestrator.py" transition "$iid" human_required --source health-manager --reason "WhatsApp session logged out; QR relink required" --human-boundary >/dev/null 2>&1 || true; "$ROOT/incident-notify.sh" human_required "Samantha — WhatsApp est déconnecté (401 conflict / session logged out)." "Relier WhatsApp avec openclaw channels login --channel whatsapp puis scanner le QR." || true; put whatsapp terminal_notified 1; log "service=whatsapp state=human_required incident_id=$iid reason=terminal_auth_logout"; fi; put whatsapp status human_required; put whatsapp next 0; return; fi; due whatsapp || return; fail whatsapp; }
 check_smtp(){ due smtp || return; if timeout 25 "$ROOT/incident-email.sh" --probe 9>&- >/dev/null 2>&1; then healthy smtp; put smtp next $(( $(now)+300 )); else fail smtp; fi; }
 check_network_safety(){ due network_safety || return; if "$ROOT/android-network-mutation-guard.py" check 9>&- >/dev/null 2>&1; then healthy network_safety; else fail network_safety; fi; }
+check_android_phantom_headroom(){
+ due android_phantom_headroom || return
+ if ! adb_ok; then put android_phantom_headroom next $(( $(now)+PHANTOM_HEADROOM_CHECK_S )); return; fi
+ effective=$(exec 9>&-; timeout 4 adb -s 127.0.0.1:5556 shell dumpsys activity settings 2>/dev/null | sed -n 's/.*max_phantom_processes=\([0-9][0-9]*\).*/\1/p' | head -n 1)
+ case "$effective" in ''|*[!0-9]*) log "service=android_phantom_headroom state=probe_failed"; fail android_phantom_headroom; return;; esac
+ if [ "$effective" -ge "$PHANTOM_HEADROOM_TARGET" ]; then healthy android_phantom_headroom; put android_phantom_headroom next $(( $(now)+PHANTOM_HEADROOM_CHECK_S )); return; fi
+ override=$(exec 9>&-; timeout 3 adb -s 127.0.0.1:5556 shell device_config get activity_manager max_phantom_processes 2>/dev/null | tr -d '\r\n')
+ log "service=android_phantom_headroom state=drift override=${override:-unknown} effective=$effective target=$PHANTOM_HEADROOM_TARGET action=restore"
+ if timeout 5 adb 9>&- -s 127.0.0.1:5556 shell device_config put activity_manager max_phantom_processes "$PHANTOM_HEADROOM_TARGET" >/dev/null 2>&1; then
+   verified=$(exec 9>&-; timeout 4 adb -s 127.0.0.1:5556 shell dumpsys activity settings 2>/dev/null | sed -n 's/.*max_phantom_processes=\([0-9][0-9]*\).*/\1/p' | head -n 1)
+   case "$verified" in ''|*[!0-9]*) verified=0;; esac
+   if [ "$verified" -ge "$PHANTOM_HEADROOM_TARGET" ]; then
+     healthy android_phantom_headroom
+     put android_phantom_headroom next $(( $(now)+PHANTOM_HEADROOM_CHECK_S ))
+     log "service=android_phantom_headroom state=recovered effective=$verified target=$PHANTOM_HEADROOM_TARGET"
+     return
+   fi
+ fi
+ fail android_phantom_headroom
+}
 ssh_ok(){ timeout 2 bash -c 'exec 3<>/dev/tcp/127.0.0.1/8022' 9>&- >/dev/null 2>&1; }
 check_sshd(){
  if ssh_ok; then healthy sshd; return; fi
@@ -100,6 +121,7 @@ while :; do
  "$ROOT/incident-ingress.py" 9>&- >/dev/null 2>&1 || true
  "$ROOT/incident-reconcile.sh" 9>&- >/dev/null 2>&1 || true
  check_adb
+ check_android_phantom_headroom
  check_network_safety
  check_sshd
  printf '%s' "$(date +%s)" >"$D/health-manager.heartbeat"

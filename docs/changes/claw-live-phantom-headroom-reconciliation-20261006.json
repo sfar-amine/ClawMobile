@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "claw-live-phantom-headroom-reconciliation-20261006",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Reconcile the validated S24 Android phantom-process headroom so claw-live and other Termux children are not trimmed again after DeviceConfig drift.",
+  "reason": "The documented 128 override disappeared while the S24 stayed up; ActivityManager returned to effective 32 and live logs again showed Termux PhantomProcessRecord kills with reason Trimming phantom processes.",
+  "files": [
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-android-phantom-headroom.py",
+    "docs/claw-live.md",
+    "docs/audits/claw-live-phantom-headroom-reconciliation-20261006.md",
+    "docs/changes/claw-live-phantom-headroom-reconciliation-20261006.json"
+  ],
+  "tests": [
+    {
+      "name": "phantom-headroom-unit",
+      "status": "passed",
+      "evidence": "3/3 deterministic fake-ADB cases passed: healthy read-only, 32->128 verified repair, failed repair using existing backoff."
+    },
+    {
+      "name": "health-and-supervision-regression",
+      "status": "passed",
+      "evidence": "Incident runtime hardening PASS; supervisor lock 1/1; health verdict 12/12."
+    },
+    {
+      "name": "tier0-clawlive-rdc-slack-regression",
+      "status": "passed",
+      "evidence": "Tier0 13/13, Claw Live 22/22, RDC watchdog 16/16, capability recovery PASS, Slack runtime contract 6/6."
+    },
+    {
+      "name": "external-mcp-owner-palette-parity",
+      "status": "passed",
+      "evidence": "tests.test_capability_graph.CapabilityGraphTests.test_external_mcp_owner_palette_matches_chatgpt_owner PASS on canonical ui-playbooks."
+    }
+  ],
+  "documentation": [
+    "docs/claw-live.md",
+    "docs/audits/claw-live-phantom-headroom-reconciliation-20261006.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Restores an already documented runtime invariant for the existing Claw Live/Termux execution plane; no capability interface, authorization, MCP tool or routing contract changes."
+  },
+  "mcp_owner_parity": {
+    "owner_palette": "passed",
+    "claw_context": "no_impact",
+    "claw_resolve": "no_impact",
+    "claw_execute": "no_impact",
+    "claw_exec": "no_impact",
+    "claw_status": "no_impact",
+    "claw_artifact_read": "no_impact",
+    "reason": "The repair changes only Android phantom-process headroom reconciliation inside the existing Health Manager. No MCP schema, adapter, authorization, capability graph, route, receipt, status or artifact behavior changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses the existing Health Manager, canonical ADB check and existing backoff/incident path; no new daemon, scheduler, store, router or recovery owner."
+  },
+  "rollback": "Promote the previous verified immutable Tier0 release and revert this scoped commit after checking concurrent work. DeviceConfig deletion returns Android to OEM default 32 but reintroduces the proven trimming risk.",
+  "limitations": [
+    "The exact actor that removed the prior DeviceConfig override is not proven; no attribution is made.",
+    "Immutable Tier0 activation and live drift/background acceptance remain separate gates before closure."
+  ]
+}
