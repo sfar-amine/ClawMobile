@@ -35,7 +35,10 @@
   "architecture": {
     "changed": true,
     "adr": "docs/08-decisions/ADR-20261006-voice-turn-protocol-v2.md",
-    "reason": "Versioned local contract extension inside the existing Warm owner; no additional service, scheduler, route or store."
+    "reason": "Versioned local contract extension inside the existing Warm owner; no additional service, scheduler, route or store.",
+    "documents": [
+      "docs/08-decisions/ADR-20261006-voice-turn-protocol-v2.md"
+    ]
   },
   "rollback": "No active change to undo. Preserve 0.7.1; keep unmerged candidate for continuation, never reset unrelated work.",
   "acceptance_reservations": [
