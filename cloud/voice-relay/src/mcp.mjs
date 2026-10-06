@@ -211,7 +211,7 @@ function registerTools(server, auth, invoke) {
 
   server.registerTool("claw_status", {
     title: "Read Claw execution status",
-    description: "Read the canonical receipt for a previously submitted claw_execute action. This never retries or replays execution.",
+    description: "Read the canonical receipt for a previously submitted claw_execute or claw_exec action. This never retries or replays execution.",
     inputSchema: {
       action_key: z.string().regex(ACTION_ID_RE),
       step_key: z.string().regex(STEP_ID_RE).optional(),

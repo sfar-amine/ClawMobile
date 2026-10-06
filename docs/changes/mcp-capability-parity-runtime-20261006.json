@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "id": "mcp-capability-parity-runtime-20261006",
+  "date": "2026-10-06",
+  "origin": "chat",
+  "summary": "Harden the existing six-primitive external MCP owner contract with explicit edge/Companion regressions and accurate claw_status metadata.",
+  "scope": {
+    "files": [
+      "cloud/voice-relay/src/mcp.mjs",
+      "cloud/voice-relay/test-mcp.mjs",
+      "openclaw-plugin-mobile-ui/scripts/test-mcp-bridge.cjs",
+      "docs/remote-bridge.md",
+      "cloud/voice-relay/test-e2e-owner-local.mjs"
+    ]
+  },
+  "tests": {
+    "status": "passed",
+    "evidence": [
+      "edge MCP contract PASS (shadow five tools; owner exact six tools)",
+      "Companion MCP bridge PASS including owner raw exec and shadow denial",
+      "local E2E edge -> Companion -> Capability Graph/Remote Bridge PASS including claw_exec + claw_status",
+      "git diff --check PASS"
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [
+      "gateway.mcp.external"
+    ],
+    "detail": "No runtime capability added; claw_exec already exists. Tests and metadata now enforce current six-tool owner truth."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "reason": "Uses existing MCP edge, Companion and Remote Bridge owners; no new component."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert this commit; no business route or authorization rule changed."
+}
