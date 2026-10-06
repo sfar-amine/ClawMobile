@@ -20,7 +20,7 @@
   "validation": {
     "voice_relay_tests": "passed",
     "voice_relay_dry_run_build": "passed",
-    "claw_live_tests": "21/21 passed",
+    "claw_live_tests": "22/22 passed",
     "claw_live_control_tests": "6/6 passed",
     "python_compile": "passed"
   },

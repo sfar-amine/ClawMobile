@@ -102,6 +102,32 @@ MAX_RENDER_DETAIL = 420
 CLAW_LIVE_LOCK = OPENCLAW / "observability" / "claw-live.lock"
 _instance_lock = None
 
+TAG_ORDER = {
+    # 1) actor / entry surface
+    "CHAT": 10, "VOICE": 11, "WHATSAPP": 12, "CLAUDE": 13,
+    "AGENT": 14, "JOB": 15, "CRON": 16,
+    # 2) transport / execution path
+    "MCP": 30, "RDC": 31, "SLACK": 32, "ADB": 33, "LOCAL": 34,
+    # 3) authenticated access scope
+    "OWNER": 40, "SHADOW": 41,
+    # 4) execution engine / semantic domain
+    "OPENCLAW": 50, "TERMUX": 51, "OPENAI": 52,
+    "IMMUNE": 60, "IMPROVE": 61, "MEMORY": 62, "SYNC": 63, "BRIDGE": 64,
+    "REPAIR": 65, "DREAM": 66, "SKILL": 67, "BOOTSTRAP": 68,
+    "SYSTEM": 80, "LIVE": 90,
+}
+
+def normalize_tags(tags: list[str]) -> list[str]:
+    unique: list[str] = []
+    seen: set[str] = set()
+    for raw in tags:
+        tag = str(raw or "").upper()
+        if not tag or tag in seen:
+            continue
+        seen.add(tag)
+        unique.append(tag)
+    return sorted(unique, key=lambda tag: (TAG_ORDER.get(tag, 70), unique.index(tag)))
+
 def terminal_fd_alive(fd: int) -> bool:
     """Return False when a terminal descriptor is gone, including deleted Termux PTYs."""
     try:
@@ -332,10 +358,11 @@ class Renderer:
         stamp = time.strftime("%H:%M:%S", when)
         stamp_c = ansi(stamp, "\033[90m", self.color)
         tag_parts = []
-        for tag in event.tags:
-            color = TAG_COLOR.get(tag.upper(), "\033[37m")
-            tag_parts.append(ansi(f"[{tag.upper()}]", color, self.color, bold=True))
-            self.counts[tag.upper()] = self.counts.get(tag.upper(), 0) + 1
+        normalized_tags = normalize_tags(event.tags)
+        for tag in normalized_tags:
+            color = TAG_COLOR.get(tag, "\033[37m")
+            tag_parts.append(ansi(f"[{tag}]", color, self.color, bold=True))
+            self.counts[tag] = self.counts.get(tag, 0) + 1
         context = f"[{event.context}]" if event.context else ""
         context_c = ansi(context, "\033[97m", self.color, bold=True) if context else ""
         ac = ACTION_COLOR.get(event.action.upper(), "\033[93m")

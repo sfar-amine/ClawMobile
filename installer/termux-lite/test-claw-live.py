@@ -48,13 +48,19 @@ class ClawLiveTests(unittest.TestCase):
         self.assertIn("SLACK", m.command_backend_tags("claw-slack-bridge.sh status"))
         self.assertEqual(m.command_backend_tags("printf ok"), [])
 
+    def test_normalize_tags_orders_actor_transport_access_engine(self):
+        self.assertEqual(
+            m.normalize_tags(["TERMUX", "OWNER", "MCP", "CLAUDE", "MCP"]),
+            ["CLAUDE", "MCP", "OWNER", "TERMUX"],
+        )
+
     def test_renderer_multitag(self):
         r = m.Renderer(Args())
         buf = io.StringIO()
         with redirect_stdout(buf):
             r.emit(m.Event(["TERMUX","CHAT","RDC"], "Conversation", "CMD", "$ printf ok", status="OK", metric="12ms"))
         out = buf.getvalue()
-        self.assertIn("[TERMUX][CHAT][RDC]", out)
+        self.assertIn("[CHAT][RDC][TERMUX]", out)
         self.assertIn("[Conversation]", out)
         self.assertIn("CMD", out)
         self.assertIn("OK", out)
@@ -80,7 +86,7 @@ class ClawLiveTests(unittest.TestCase):
             with redirect_stdout(buf):
                 stream._emit_request_file(str(receipt))
             out = buf.getvalue()
-            self.assertIn("[TERMUX][CHAT][SLACK]", out)
+            self.assertIn("[CHAT][SLACK][TERMUX]", out)
             self.assertIn("printf ok", out)
 
     def test_mcp_owner_receipt_is_not_mislabeled_as_slack(self):

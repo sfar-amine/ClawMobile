@@ -155,7 +155,7 @@ function registerTools(server, auth, invoke) {
 
   server.registerTool("claw_context", {
     title: "Claw context",
-    description: "Load the canonical S24/Claw context needed for this request. Call at the start of a substantive owner session and use returned revisions/hashes for later delta calls.",
+    description: "Load the canonical S24/Claw context needed for this request. Call at the start of a substantive owner session and use returned revisions/hashes for later delta calls. The returned _claw_access object is authoritative for the currently authenticated MCP profile; do not infer owner/shadow from cached client text or prior tool metadata.",
     inputSchema: {
       query: z.string().min(1).max(2000),
       after_revision: z.number().int().nonnegative().optional(),
