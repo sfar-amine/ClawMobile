@@ -59,6 +59,11 @@ TAG_COLOR = {
     "RDC": "\033[38;5;51m",
     "BOOTSTRAP": "\033[38;5;244m",
     "SLACK": "\033[38;5;201m",
+    "MCP": "\033[38;5;81m",
+    "CLAUDE": "\033[38;5;180m",
+    "OWNER": "\033[38;5;82m",
+    "SHADOW": "\033[38;5;141m",
+    "OPENCLAW": "\033[38;5;75m",
     "ADB": "\033[38;5;214m",
     "LOCAL": "\033[38;5;118m",
     "OPENAI": "\033[38;5;141m",
@@ -82,6 +87,7 @@ ACTION_COLOR = {
     "IN": "\033[96m", "INFO": "\033[96m", "START": "\033[96m", "IDLE": "\033[90m",
     "TRIGGER": "\033[38;5;214m", "PROMOTE": "\033[92m",
     "ROLLBACK": "\033[91m", "SHADOW": "\033[38;5;141m",
+    "OWNER": "\033[92m", "READ_ONLY": "\033[38;5;244m", "DELEGATED": "\033[94m",
 }
 SENSITIVE_KEY = re.compile(r"(?i)(authorization|bearer|token|password|passwd|secret|api[_-]?key|cookie|credential|private[_-]?key)")
 CARD_RE = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
@@ -899,6 +905,71 @@ class SlackBridgeStream:
         self.surfaces = surfaces
         self.request_mtime: dict[str, float] = {}
 
+    @staticmethod
+    def _is_mcp_receipt(obj: dict[str, Any]) -> bool:
+        request_id = str(obj.get("requestId") or "")
+        session_id = str(obj.get("sessionId") or "")
+        method = str(obj.get("method") or "")
+        return request_id.startswith("mcp-") or session_id.startswith("external_mcp:") or method.startswith("mcp_")
+
+    @staticmethod
+    def _mcp_profile(method: str) -> str:
+        if method.endswith("_owner"):
+            return "OWNER"
+        if method.endswith("_readonly"):
+            return "SHADOW"
+        return ""
+
+    @staticmethod
+    def _mcp_context(task_id: str, request_id: str) -> str:
+        prefix = "mcp:claude-chat:"
+        if task_id.startswith(prefix):
+            return task_id[len(prefix):]
+        if request_id.startswith("mcp-claude-chat-"):
+            value = request_id[len("mcp-claude-chat-"):]
+            return value.rsplit("-execute", 1)[0]
+        return "Claude"
+
+    def _emit_mcp_receipt(self, obj: dict[str, Any]) -> None:
+        method = str(obj.get("method") or "")
+        state = str(obj.get("state") or "")
+        request_id = str(obj.get("requestId") or "")
+        task_id = str(obj.get("taskId") or "")
+        result = obj.get("result") if isinstance(obj.get("result"), dict) else {}
+        execution = result.get("execution") if isinstance(result.get("execution"), dict) else {}
+        selected = result.get("selected") if isinstance(result.get("selected"), dict) else {}
+        profile = self._mcp_profile(method)
+        tags = ["CLAUDE", "MCP"] + ([profile] if profile else [])
+        if execution.get("delegated") is True or str(execution.get("executor") or "").startswith("openclaw.agent"):
+            tags.append("OPENCLAW")
+        context = self._mcp_context(task_id, request_id)
+        action = {
+            "completed": "DONE",
+            "failed": "FAILED",
+            "running": "RUN",
+            "indeterminate": "WARN",
+        }.get(state, state.upper() or "INFO")
+        capability = str(result.get("capability") or selected.get("capability") or execution.get("capability") or "Claw request")
+        route = str(selected.get("route") or execution.get("route") or "")
+        executor = str(execution.get("executor") or selected.get("executor") or "")
+        detail_parts = [capability]
+        if route:
+            detail_parts.append(route)
+        if executor:
+            detail_parts.append(f"via {executor}")
+        detail = " · ".join(detail_parts)
+        status = "DELEGATED" if execution.get("delegated") is True else "OWNER" if profile == "OWNER" else "READ_ONLY" if profile == "SHADOW" else ""
+        metric_parts = []
+        if obj.get("completedAt") and obj.get("startedAt"):
+            metric_parts.append(f"{int(obj['completedAt']) - int(obj['startedAt'])}ms")
+        if request_id:
+            metric_parts.append(f"request={request_id[:24]}")
+        self.r.emit(
+            Event(tags, context, action, detail, status=status, metric=" ".join(metric_parts),
+                  key=f"mcp:{request_id}:{state}"),
+            dedupe_window=300,
+        )
+
     def _request_snapshot(self) -> dict[str, float]:
         if not REMOTE_REQUEST_DIR.exists():
             return {}
@@ -913,6 +984,9 @@ class SlackBridgeStream:
             with open(path) as handle:
                 obj = json.load(handle)
         except Exception:
+            return
+        if self._is_mcp_receipt(obj):
+            self._emit_mcp_receipt(obj)
             return
         surface, ctx = self.surfaces.label()
         method = str(obj.get("method") or "")
@@ -1239,7 +1313,7 @@ def parse_args() -> argparse.Namespace:
         choices=[
             "immune", "improve", "whatsapp", "chat", "voice", "termux",
             "agent", "job", "cron", "sync", "memory", "bridge", "system",
-            "rdc", "slack", "adb", "local", "openai",
+            "rdc", "slack", "mcp", "claude", "owner", "shadow", "openclaw", "adb", "local", "openai",
         ],
     )
     parser.add_argument("--preview-chars", type=int, default=160)
@@ -1267,11 +1341,11 @@ def main() -> int:
     if renderer.color:
         legend = " ".join(
             ansi(f"[{tag}]", TAG_COLOR[tag], True, bold=True)
-            for tag in ("CHAT", "VOICE", "WHATSAPP", "IMMUNE", "IMPROVE", "TERMUX", "RDC", "SLACK", "ADB", "LOCAL", "OPENAI")
+            for tag in ("CHAT", "VOICE", "WHATSAPP", "CLAUDE", "IMMUNE", "IMPROVE", "TERMUX", "MCP", "RDC", "SLACK", "ADB", "OPENCLAW")
         )
         print(legend, flush=True)
     else:
-        print("[CHAT] [VOICE] [WHATSAPP] [IMMUNE] [IMPROVE] [TERMUX] [RDC] [SLACK] [ADB] [LOCAL] [OPENAI]", flush=True)
+        print("[CHAT] [VOICE] [WHATSAPP] [CLAUDE] [IMMUNE] [IMPROVE] [TERMUX] [MCP] [RDC] [SLACK] [ADB] [OPENCLAW]", flush=True)
     for event in permanent_service_events():
         renderer.emit(event)
 

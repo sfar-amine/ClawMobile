@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "id": "claude-owner-profile-claw-live-alignment-20261006",
+  "date": "2026-10-06",
+  "summary": "Expose authenticated MCP access profile in every tool result and make claw-live distinguish Claude/MCP/owner-shadow events from Slack.",
+  "files": [
+    "cloud/voice-relay/src/mcp.mjs",
+    "cloud/voice-relay/test-mcp.mjs",
+    "installer/termux-lite/claw-live.py",
+    "installer/termux-lite/test-claw-live.py",
+    "docs/claw-live.md"
+  ],
+  "behavior": {
+    "mcp_tool_results": "_claw_access identifies client_id, profile, owner and read_only",
+    "claw_live_owner_example": "[CLAUDE][MCP][OWNER]",
+    "claw_live_shadow_example": "[CLAUDE][MCP][SHADOW]",
+    "delegated_example": "[CLAUDE][MCP][OWNER][OPENCLAW] ... DELEGATED",
+    "mcp_mislabeled_as_slack": false
+  },
+  "validation": {
+    "voice_relay_tests": "passed",
+    "voice_relay_dry_run_build": "passed",
+    "claw_live_tests": "21/21 passed",
+    "claw_live_control_tests": "6/6 passed",
+    "python_compile": "passed"
+  },
+  "safety": {
+    "credentials_exposed": false,
+    "message_payload_logging_expanded": false,
+    "authorization_changed": false
+  }
+}

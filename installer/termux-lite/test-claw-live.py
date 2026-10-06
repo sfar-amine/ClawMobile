@@ -83,6 +83,61 @@ class ClawLiveTests(unittest.TestCase):
             self.assertIn("[TERMUX][CHAT][SLACK]", out)
             self.assertIn("printf ok", out)
 
+    def test_mcp_owner_receipt_is_not_mislabeled_as_slack(self):
+        class Surface:
+            def label(self):
+                return "CHAT", "Conversation"
+        renderer = m.Renderer(Args())
+        stream = m.SlackBridgeStream(renderer, Surface())
+        with tempfile.TemporaryDirectory() as td:
+            receipt = pathlib.Path(td) / "mcp.json"
+            receipt.write_text(json.dumps({
+                "requestId":"mcp-claude-chat-owner-test-execute",
+                "taskId":"mcp:claude-chat:owner-test",
+                "stepId":"execute",
+                "sessionId":"external_mcp:claude-chat",
+                "method":"mcp_capability_execute_owner",
+                "state":"completed","startedAt":1000,"completedAt":1025,
+                "result":{
+                    "capability":"memory.cross_surface",
+                    "execution":{"state":"completed","executor":"openclaw.agent.main","delegated":True},
+                },
+            }))
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                stream._emit_request_file(str(receipt))
+            out = buf.getvalue()
+            self.assertIn("[CLAUDE][MCP][OWNER][OPENCLAW]", out)
+            self.assertNotIn("[SLACK]", out)
+            self.assertIn("[owner-test]", out)
+            self.assertIn("memory.cross_surface", out)
+            self.assertIn("DELEGATED", out)
+
+    def test_mcp_shadow_receipt_is_explicitly_read_only(self):
+        class Surface:
+            def label(self):
+                return "CHAT", "Conversation"
+        renderer = m.Renderer(Args())
+        stream = m.SlackBridgeStream(renderer, Surface())
+        with tempfile.TemporaryDirectory() as td:
+            receipt = pathlib.Path(td) / "mcp-shadow.json"
+            receipt.write_text(json.dumps({
+                "requestId":"mcp-claude-chat-shadow-test-execute",
+                "taskId":"mcp:claude-chat:shadow-test",
+                "stepId":"execute",
+                "sessionId":"external_mcp:claude-chat",
+                "method":"mcp_capability_execute_readonly",
+                "state":"completed",
+                "result":{"capability":"memory.cross_surface","execution":{"state":"completed"}},
+            }))
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                stream._emit_request_file(str(receipt))
+            out = buf.getvalue()
+            self.assertIn("[CLAUDE][MCP][SHADOW]", out)
+            self.assertIn("READ_ONLY", out)
+            self.assertNotIn("[SLACK]", out)
+
     def test_correlated_slack_receipt_is_task_centric_and_deduped(self):
         class Surface:
             def label(self):

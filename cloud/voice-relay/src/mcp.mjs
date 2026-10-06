@@ -96,8 +96,17 @@ function toolAllowed(profile, tool) {
   return SUPPORTED_PROFILES.has(profile) && CHAT_TOOLS.has(tool);
 }
 
-function toolResult(value) {
-  const normalized = value && typeof value === "object" ? value : { value };
+function toolResult(value, auth) {
+  const base = value && typeof value === "object" ? value : { value };
+  const normalized = {
+    ...base,
+    _claw_access: {
+      client_id: String(auth?.clientId || ""),
+      profile: String(auth?.profile || ""),
+      owner: auth?.profile === "chat-owner",
+      read_only: auth?.profile !== "chat-owner",
+    },
+  };
   return {
     content: [{ type: "text", text: JSON.stringify(normalized) }],
     structuredContent: normalized,
@@ -138,7 +147,7 @@ function registerTools(server, auth, invoke) {
         requestId,
         mcpRequestId: extra?.requestId ?? null,
       });
-      return toolResult(value);
+      return toolResult(value, auth);
     } catch (error) {
       return toolError(error);
     }

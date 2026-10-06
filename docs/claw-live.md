@@ -8,21 +8,35 @@ or adding a daemon or scheduler.
 
 Run: claw-live
 
-The default detailed view shows:
-- [CHAT] ChatGPT text surface activity.
-- [VOICE] ChatGPT Voice state and recovery activity.
-- [WHATSAPP] inbound/outbound message previews and model turns.
-- [IMMUNE] health, incident, diagnosis, recovery and human-required transitions.
-- [IMPROVE] autonomous repair, Dreaming and Skill Intelligence improvement stages.
-- [TERMUX] detailed commands and tools issued by ChatGPT or OpenClaw.
-- [JOB] and [CRON] OpenClaw background model-backed sessions.
-- [SYNC] autonomous engineering delivery and publication receipts.
-- [MEMORY] new canonical Memory Core durable events.
-- [BRIDGE] Remote Desktop Commander lifecycle and recovery events.
+The default detailed view uses a consistent four-part vocabulary:
+
+1. **Surface / actor** — who initiated or owns the interaction: `[CHAT]`, `[VOICE]`, `[WHATSAPP]`, `[CLAUDE]`, `[AGENT]`, `[JOB]`, `[CRON]`.
+2. **Transport / execution path** — how it reached Claw: `[MCP]`, `[RDC]`, `[SLACK]`, `[ADB]`, `[LOCAL]`, `[OPENCLAW]`, `[TERMUX]`.
+3. **Access scope when relevant** — `[OWNER]` or `[SHADOW]` for authenticated MCP execution. These are authorization labels, not health states.
+4. **Action / state** — `START`, `CMD`, `TOOL`, `MODEL`, `DONE`, `FAILED`, `WARN`, `DELEGATED`, etc.
+
+Examples:
+
+```text
+09:42:10 [CLAUDE][MCP][OWNER] [wifi-check] DONE device.assistance → OWNER
+09:42:14 [CLAUDE][MCP][OWNER][OPENCLAW] [daily-recap] DONE memory.cross_surface · via openclaw.agent.main → DELEGATED
+09:42:18 [CLAUDE][MCP][SHADOW] [old-check] DONE memory.cross_surface → READ_ONLY
+09:42:22 [CHAT][RDC] [Claw] CMD $ python3 ...
+09:42:30 [WHATSAPP] [Contact] IN "message preview"
+```
+
+This distinction is intentional: an MCP receipt must never be labeled `[SLACK]` merely because both transports share the Remote Bridge receipt directory.
+
+Other semantic domains remain:
+- `[IMMUNE]` health, incident, diagnosis, recovery and human-required transitions;
+- `[IMPROVE]` autonomous repair, Dreaming and Skill Intelligence improvement stages;
+- `[SYNC]` engineering delivery/publication receipts;
+- `[MEMORY]` canonical Memory Core durable events;
+- `[BRIDGE]` generic bridge lifecycle/recovery events when no more specific transport applies.
 
 Colors are semantic: stream tags keep stable colors, while action and result colors encode
 success, recovery, warning, command/model activity, or failure. A single line may use
-multiple colors to preserve both source and state meaning.
+multiple tags only when each tag answers a different question (actor, path, access or engine).
 
 ## Message and command detail
 
@@ -91,6 +105,9 @@ claw-live --only whatsapp
 claw-live --only chat
 claw-live --only voice
 claw-live --only termux
+claw-live --only claude
+claw-live --only mcp
+claw-live --only owner
 claw-live --history 80 --only agent
 claw-live --no-color
 

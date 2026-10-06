@@ -82,6 +82,9 @@ result = await post({
 });
 assert.equal(result.status, 200);
 assert.equal(result.body.result.structuredContent.state, "ok");
+assert.equal(result.body.result.structuredContent._claw_access.profile, "chat-owner-shadow");
+assert.equal(result.body.result.structuredContent._claw_access.owner, false);
+assert.equal(result.body.result.structuredContent._claw_access.read_only, true);
 assert.equal(calls.at(-1).tool, "claw_resolve");
 assert.equal(calls.at(-1).auth.clientId, "claude-chat");
 
@@ -126,6 +129,9 @@ const ownerCall = await post({
   },
 }, token, ownerEnv);
 assert.equal(ownerCall.status, 200);
+assert.equal(ownerCall.body.result.structuredContent._claw_access.profile, "chat-owner");
+assert.equal(ownerCall.body.result.structuredContent._claw_access.owner, true);
+assert.equal(ownerCall.body.result.structuredContent._claw_access.read_only, false);
 assert.equal(calls.at(-1).auth.profile, "chat-owner");
 assert.equal(calls.at(-1).meta.requestId, "mcp-claude-chat-owner-write-001-execute");
 
