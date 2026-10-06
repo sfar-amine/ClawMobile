@@ -38,6 +38,13 @@ class PluginSchemaTests(unittest.TestCase):
         self.assertEqual(result["state"], "repairable")
         self.assertEqual(result["missing_installed"], ["voiceBargeIn"])
 
+    def test_missing_installed_manifest_forces_reconciliation(self):
+        self.write(self.source, self.manifest({}))
+        self.write(self.config, {"plugins": {"entries": {guard.PLUGIN_ID: {"config": {}}}}})
+        result = guard.plugin_schema_status(self.source, self.installed, self.config)
+        self.assertEqual(result["state"], "repairable")
+        self.assertEqual(result["reason"], "installed_manifest_missing")
+
     def test_refuses_config_unknown_to_canonical_source(self):
         self.write(self.source, self.manifest({}))
         self.write(self.installed, self.manifest({}))
