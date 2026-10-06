@@ -32,12 +32,13 @@ class GuardTests(unittest.TestCase):
 
     def test_restore_absent_keys_uses_delete_not_literal_null(self):
         expected = blank()
+        current = {k: {"exists": True, "value": "sentinel"} for k in guard.KEYS}
         calls = []
         def fake_adb(*args, **kwargs):
             calls.append(args)
             class P: returncode=0; stdout=""
             return P()
-        with patch.object(guard, "adb", side_effect=fake_adb), patch.object(guard, "settings_state", return_value=expected):
+        with patch.object(guard, "adb", side_effect=fake_adb), patch.object(guard, "settings_state", side_effect=[current, expected]):
             guard.restore_state(expected)
         deletes = [c for c in calls if c[:4] == ("shell","settings","delete","global")]
         puts = [c for c in calls if c[:4] == ("shell","settings","put","global")]
@@ -47,14 +48,36 @@ class GuardTests(unittest.TestCase):
     def test_restore_existing_sentinel_is_exact(self):
         expected = blank()
         expected["http_proxy"] = {"exists": True, "value": ":0"}
+        current = blank()
         calls = []
         def fake_adb(*args, **kwargs):
             calls.append(args)
             class P: returncode=0; stdout=""
             return P()
-        with patch.object(guard, "adb", side_effect=fake_adb), patch.object(guard, "settings_state", return_value=expected):
+        with patch.object(guard, "adb", side_effect=fake_adb), patch.object(guard, "settings_state", side_effect=[current, expected]):
             guard.restore_state(expected)
-        self.assertIn(("shell","settings","put","global","http_proxy",":0"), calls)
+        self.assertEqual(calls, [("shell","settings","put","global","http_proxy",":0")])
+
+    def test_restore_identical_empty_proxy_sentinels_is_noop(self):
+        expected = blank()
+        expected["http_proxy"] = {"exists": True, "value": ":0"}
+        expected["global_http_proxy_host"] = {"exists": True, "value": ""}
+        expected["global_http_proxy_port"] = {"exists": True, "value": "0"}
+        expected["global_http_proxy_exclusion_list"] = {"exists": True, "value": ""}
+        expected["global_proxy_pac_url"] = {"exists": True, "value": ""}
+        with patch.object(guard, "adb") as adb, patch.object(guard, "settings_state", return_value=expected):
+            guard.restore_state(expected)
+        adb.assert_not_called()
+        self.assertFalse(guard.proxy_active(expected))
+
+    def test_restore_changed_empty_existing_value_fails_closed(self):
+        expected = blank()
+        expected["global_http_proxy_host"] = {"exists": True, "value": ""}
+        current = blank()
+        with patch.object(guard, "adb") as adb, patch.object(guard, "settings_state", return_value=current):
+            with self.assertRaisesRegex(RuntimeError, "empty_network_setting_restore_unsupported"):
+                guard.restore_state(expected)
+        adb.assert_not_called()
 
     def test_stale_owned_lease_is_restored_and_removed(self):
         guard.LEASES.mkdir(parents=True)

@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "id": "network-wifi-restore-sentinel-fix-20261006",
+  "date": "2026-10-06",
+  "origin": "chat",
+  "summary": "Fix false degraded restoration after temporary Wi-Fi-off by making network setting restore idempotent and treating Android proxy port 0 as inactive.",
+  "scope": {
+    "files": [
+      "installer/termux-lite/android-network-mutation-guard.py",
+      "installer/termux-lite/test-android-network-mutation-guard.py",
+      "docs/network-mutation-safety.md"
+    ]
+  },
+  "tests": {
+    "status": "passed",
+    "evidence": [
+      "36/36 network mutation guard tests passed"
+    ]
+  },
+  "capability_impact": {
+    "changed": true,
+    "ids": [
+      "device.network_safety"
+    ],
+    "detail": "No new capability. Corrects sentinel interpretation and exact-restore verification for existing temporary network leases."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "reason": "Existing Network Mutation Guard remains sole owner; no new daemon, registry, scheduler or state store."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "No MCP primitive, schema, adapter or owner-surface change."
+  },
+  "live_evidence": {
+    "observed_issue": "Maxit live read succeeded but wrapper exited non-zero because Android rejected direct writes of unchanged empty proxy settings and port=0 was misclassified as active.",
+    "restored_state": "Wi-Fi and proxy settings independently verified equal to pre-run snapshot before patch."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert this commit; previous guard behavior returns, including the false degraded sentinel case."
+}

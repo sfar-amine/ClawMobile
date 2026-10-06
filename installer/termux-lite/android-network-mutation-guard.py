@@ -88,10 +88,16 @@ def write_json(path: Path, value: dict) -> None:
             os.unlink(temporary)
 
 def restore_state(state: dict) -> None:
+    current = settings_state()
     for key in KEYS:
-        row = state[key]
-        if row["exists"]:
-            adb("shell", "settings", "put", "global", key, row["value"] or "", check=True)
+        wanted = state[key]
+        if current[key] == wanted:
+            continue
+        if wanted["exists"]:
+            value = wanted["value"] or ""
+            if value == "":
+                raise RuntimeError("empty_network_setting_restore_unsupported")
+            adb("shell", "settings", "put", "global", key, value, check=True)
         else:
             adb("shell", "settings", "delete", "global", key, check=True)
     if settings_state() != state:
@@ -111,7 +117,7 @@ def proxy_active(state: dict) -> bool:
     host = (state["global_http_proxy_host"]["value"] or "").strip().lower()
     port = (state["global_http_proxy_port"]["value"] or "").strip().lower()
     pac = (state["global_proxy_pac_url"]["value"] or "").strip().lower()
-    return hp not in ("", "null", ":0") or host not in ("", "null") or port not in ("", "null") or pac not in ("", "null")
+    return hp not in ("", "null", ":0") or host not in ("", "null") or port not in ("", "null", "0") or pac not in ("", "null")
 
 def _allow_mode(text: str, op: str) -> bool:
     return f"{op}: allow" in text or "Default mode: allow" in text
