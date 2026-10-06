@@ -116,9 +116,14 @@ const ownerList = await post({
   params: {},
 }, token, ownerEnv);
 assert.equal(ownerList.status, 200);
+const ownerNames = ownerList.body.result.tools.map((tool) => tool.name).sort();
+assert.ok(ownerNames.includes("claw_exec"));
 const ownerExecuteTool = ownerList.body.result.tools.find((tool) => tool.name === "claw_execute");
 assert.equal(ownerExecuteTool.annotations.readOnlyHint, false);
 assert.equal(ownerExecuteTool.annotations.openWorldHint, true);
+const ownerExecTool = ownerList.body.result.tools.find((tool) => tool.name === "claw_exec");
+assert.equal(ownerExecTool.annotations.readOnlyHint, false);
+assert.equal(ownerExecTool.annotations.openWorldHint, true);
 const ownerCall = await post({
   jsonrpc: "2.0",
   id: 41,
@@ -134,6 +139,26 @@ assert.equal(ownerCall.body.result.structuredContent._claw_access.owner, true);
 assert.equal(ownerCall.body.result.structuredContent._claw_access.read_only, false);
 assert.equal(calls.at(-1).auth.profile, "chat-owner");
 assert.equal(calls.at(-1).meta.requestId, "mcp-claude-chat-owner-write-001-execute");
+
+const rawExecCall = await post({
+  jsonrpc: "2.0",
+  id: 42,
+  method: "tools/call",
+  params: {
+    name: "claw_exec",
+    arguments: {
+      command: "printf CLAUDE_S24_EXEC_OK",
+      action_key: "owner-raw-001",
+      cwd: "/data/data/com.termux/files/home",
+      timeout_ms: 5000,
+    },
+  },
+}, token, ownerEnv);
+assert.equal(rawExecCall.status, 200);
+assert.equal(rawExecCall.body.result.structuredContent._claw_access.profile, "chat-owner");
+assert.equal(calls.at(-1).tool, "claw_exec");
+assert.equal(calls.at(-1).args.command, "printf CLAUDE_S24_EXEC_OK");
+assert.equal(calls.at(-1).meta.requestId, "mcp-claude-chat-owner-raw-001-execute");
 
 result = await post({
   jsonrpc: "2.0",
