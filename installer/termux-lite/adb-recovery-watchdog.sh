@@ -14,6 +14,8 @@ INTERVAL="${ADB_RECOVERY_INTERVAL:-60}"
 HELP_AFTER="${ADB_RECOVERY_HELP_AFTER:-3}"
 READINESS_HELP_AFTER="${ADB_RECOVERY_READINESS_HELP_AFTER:-3}"
 READINESS_DISCOVER_TIMEOUT="${ADB_RECOVERY_READINESS_DISCOVER_TIMEOUT:-2}"
+READINESS_ARM_INTERVAL="${ADB_RECOVERY_READINESS_ARM_INTERVAL:-900}"
+READINESS_ARM_LAST="$STATE_DIR/adb-recovery-readiness-arm.last"
 MAX_LOOPS="${ADB_RECOVERY_MAX_LOOPS:-0}"
 STABLE_PORT="${ADB_RECOVERY_STABLE_PORT:-5556}"
 mkdir -p "$STATE_DIR"
@@ -86,6 +88,41 @@ readiness_enter_standby(){
   log INFO readiness standby "primary ADB healthy; recovery path advisory reason=$reason"
 }
 
+readiness_arm_due(){
+  now="$(date +%s)"
+  last="$(cat "$READINESS_ARM_LAST" 2>/dev/null || echo 0)"
+  case "$last" in ''|*[!0-9]*) last=0;; esac
+  [ $((now-last)) -ge "$READINESS_ARM_INTERVAL" ]
+}
+
+readiness_arm_primary(){
+  reason="$1"
+  case "$reason" in
+    wireless_debugging_disabled|wireless_debugging_disabled_primary_healthy) ;;
+    *) return 1 ;;
+  esac
+  readiness_arm_due || return 1
+  date +%s >"$READINESS_ARM_LAST"
+  log INFO readiness arm_attempt "primary ADB healthy; enabling Wireless Debugging for future recovery"
+  if ! timeout 5 adb 9>&- -s "127.0.0.1:$STABLE_PORT" shell settings put global adb_wifi_enabled 1 >/dev/null 2>&1; then
+    log WARN readiness arm_failed "Wireless Debugging enable command failed"
+    return 1
+  fi
+  sleep 2 9>&-
+  armed_row="$("$READINESS_HELPER" --json --discover-timeout "$READINESS_DISCOVER_TIMEOUT" 9>&- 2>/dev/null || true)"
+  armed_state="$(printf '%s' "$armed_row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("state","unverified"))' 2>/dev/null || echo unverified)"
+  armed_reason="$(printf '%s' "$armed_row" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reason","unknown"))' 2>/dev/null || echo unknown)"
+  if [ "$armed_state" = ready ]; then
+    readiness_recover_incident
+    printf 0 >"$READINESS_FAILURES"
+    printf ready >"$READINESS_STATE"
+    log INFO readiness armed "trusted Wireless Debugging recovery path verified"
+    return 0
+  fi
+  log WARN readiness arm_unverified "Wireless Debugging enabled but recovery path not yet ready reason=$armed_reason"
+  return 1
+}
+
 readiness_tick(){
   [ -x "$READINESS_HELPER" ] || return 0
   row="$("$READINESS_HELPER" --json --discover-timeout "$READINESS_DISCOVER_TIMEOUT" 9>&- 2>/dev/null || true)"
@@ -104,6 +141,9 @@ readiness_tick(){
       printf ready >"$READINESS_STATE"
       ;;
     standby)
+      if readiness_arm_primary "$reason"; then
+        return 0
+      fi
       [ "$previous" = standby ] || readiness_enter_standby "$reason"
       printf 0 >"$READINESS_FAILURES"
       printf standby >"$READINESS_STATE"

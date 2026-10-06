@@ -29,7 +29,7 @@ A verified endpoint is stored as `~/.openclaw/watchdogs/adb-last-endpoint`. The 
 - `degraded`: reserved for an actual readiness fault that is not one of the known primary-healthy standby conditions;
 - `unverified`: canonical ADB is unavailable or the Wireless Debugging state cannot be observed.
 
-While canonical ADB is healthy, `wireless_debugging_disabled`, Wi-Fi-off standby, and a missing dynamic Wireless endpoint all normalize to `standby`. The watchdog does not toggle Wireless Debugging, increment readiness failures, or open `human_required` for those states. A stale readiness-specific incident is recovered/superseded when the primary path is independently healthy.
+While canonical ADB is healthy, a disabled Wireless Debugging setting triggers one bounded proactive arm attempt through the already-authorized canonical ADB path. Successful arming must produce a serial-verified dynamic endpoint and `ready`. Failed or not-yet-discoverable arming falls back to non-critical `standby` with a 15-minute cooldown, so the watchdog does not churn Android settings or open `human_required` while primary control remains healthy. Wi-Fi-off or a missing dynamic endpoint with Wireless Debugging already enabled remain advisory `standby`. A stale readiness-specific incident is recovered/superseded when the primary path is independently healthy.
 
 The existing primary ADB recovery loop remains fail-closed: only after canonical ADB is actually lost and the bounded deterministic recovery attempts are exhausted can the existing ADB incident reach `HUMAN_REQUIRED`.
 
@@ -42,7 +42,7 @@ The existing primary ADB recovery loop remains fail-closed: only after canonical
 Deterministic coverage includes canonical-down, primary-healthy Wireless Debugging standby, verified dynamic endpoint, primary-healthy missing endpoint standby, stale receipt, backward compatibility for historical degraded advisory receipts, stale readiness-incident supersession, and recovery confirmation.
 
 Live acceptance distinguishes two valid conditions:
-- **standby acceptance**: canonical ADB identity is verified, Wireless Debugging is unavailable/disabled, the receipt is `standby`, the readiness failure counter is zero, and no readiness `human_required` incident is active;
+- **standby acceptance**: canonical ADB identity is verified, a bounded arm attempt is cooling down or cannot yet expose a trusted endpoint, the receipt is `standby`, the readiness failure counter is zero, and no readiness `human_required` incident is active;
 - **ready acceptance**: canonical ADB identity is verified and a dynamic Wireless Debugging endpoint is discovered and serial-verified.
 
 A destructive OFF/ON cycle is not required to prove standby semantics. Actual primary-ADB loss continues to be validated separately by the bounded recovery/exhaustion tests.

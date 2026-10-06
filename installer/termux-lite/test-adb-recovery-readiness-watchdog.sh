@@ -14,6 +14,7 @@ printf '%s\n' "\$*" >>"$T/adb-calls"
 case "\$*" in
  *"get-state"*) echo device;;
  *"getprop ro.serialno"*) echo SERIAL1;;
+ *"settings put global adb_wifi_enabled 1"*) touch "$T/armed"; exit 0;;
  *) exit 0;;
 esac
 EOF
@@ -46,9 +47,13 @@ EOF
  chmod +x "$H/ClawMobile/installer/termux-lite/$x"
 done
 
-cat >"$H/fake-readiness-standby" <<'EOF'
+cat >"$H/fake-readiness-standby" <<EOF
 #!/data/data/com.termux/files/usr/bin/bash
-echo '{"state":"standby","reason":"wireless_debugging_disabled_primary_healthy","requires_owner_action":false}'
+if [ -e "$T/armed" ]; then
+  echo '{"state":"ready","reason":"trusted_wireless_endpoint_verified","requires_owner_action":false}'
+else
+  echo '{"state":"standby","reason":"wireless_debugging_disabled_primary_healthy","requires_owner_action":false}'
+fi
 EOF
 chmod +x "$H/fake-readiness-standby"
 PATH="$T/bin:$PATH" \
@@ -59,13 +64,27 @@ ADB_RECOVERY_READINESS_HELP_AFTER=2 \
 ADB_RECOVERY_MAX_LOOPS=1 \
 "$R/adb-recovery-watchdog.sh"
 
-test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.state")" = standby
+test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.state")" = ready
 test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.failures")" = 0
 ! grep -q 'shell svc wifi enable' "$T/adb-calls"
-! grep -q 'settings put global adb_wifi_enabled 1' "$T/adb-calls"
+grep -q 'settings put global adb_wifi_enabled 1' "$T/adb-calls"
 test ! -e "$T/notifications"
-grep -q 'recover device.adb.recovery_readiness runtime' "$T/orchestrator"
-grep -q 'event=readiness result=standby' "$H/.openclaw/watchdogs/adb-recovery.log"
+grep -q 'event=readiness result=armed' "$H/.openclaw/watchdogs/adb-recovery.log"
+
+# Cooldown prevents repeated enable churn when Android has not exposed the
+# trusted endpoint yet.
+rm -f "$T/armed" "$T/adb-calls"
+date +%s >"$H/.openclaw/watchdogs/adb-recovery-readiness-arm.last"
+printf standby >"$H/.openclaw/watchdogs/adb-recovery-readiness.state"
+PATH="$T/bin:$PATH" \
+ADB_RECOVERY_HOME="$H" \
+ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-standby" \
+ADB_RECOVERY_READINESS_ARM_INTERVAL=900 \
+ADB_RECOVERY_INTERVAL=0 \
+ADB_RECOVERY_MAX_LOOPS=1 \
+"$R/adb-recovery-watchdog.sh"
+! grep -q 'settings put global adb_wifi_enabled 1' "$T/adb-calls"
+test "$(cat "$H/.openclaw/watchdogs/adb-recovery-readiness.state")" = standby
 
 rm -f "$T/notifications" "$T/orchestrator" "$T/closings"
 printf ready >"$H/.openclaw/watchdogs/adb-recovery-readiness.state"
