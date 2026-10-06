@@ -34,6 +34,26 @@
     "reason": "Uses existing MCP edge, Companion and Remote Bridge owners; no new component."
   },
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
-  "rollback": "Revert this commit; no business route or authorization rule changed."
+  "deployment_state": "verified",
+  "rollback": "Revert this commit; no business route or authorization rule changed.",
+  "deployment_evidence": {
+    "worker": "claw-voice-relay",
+    "version_id": "a9c86e3a-82aa-4075-903f-c16cbf487fc3",
+    "created_at": "2026-10-06T13:28:12.983Z",
+    "traffic_percent": 100,
+    "bundle_contract": [
+      "claw_context",
+      "claw_resolve",
+      "claw_execute",
+      "claw_exec",
+      "claw_status",
+      "claw_artifact_read"
+    ],
+    "runtime_tests": [
+      "edge contract PASS",
+      "Companion bridge PASS",
+      "local E2E owner raw exec+status PASS"
+    ],
+    "live_auth_probe": "not_replayed: ChatGPT RDC safety boundary rejected a command that would read the protected bearer; existing live Claude owner acceptance remains the external-client evidence because tool exposure/authorization semantics were not changed."
+  }
 }
