@@ -166,6 +166,17 @@ export async function deleteSession(sessionId: string) {
   });
 }
 
+export async function listRunSummaries(options: { limit?: number } = {}): Promise<CompanionRunStatus[]> {
+  const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
+  const storedRuns = await readStoredRuns();
+  if (storedRuns.length > 0) {
+    return storedRuns.slice(0, limit).map(statusFromStoredRun);
+  }
+  // Legacy/no-registry fallback only. Normal Samantha history uses the existing registry and avoids
+  // sessions.list, transcript and trajectory enrichment on every visible list refresh.
+  return listRuns({ limit });
+}
+
 export async function listRuns(options: { limit?: number } = {}): Promise<CompanionRunStatus[]> {
   const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
   const storedRuns = await readStoredRuns();
@@ -1303,11 +1314,35 @@ export async function getConversationTurns(sessionId: string) {
     raw = (Array.isArray(history?.messages) ? history.messages : []).map((message: any) =>
       JSON.stringify({type: "message", message, timestamp: message.timestamp})).join("\n");
   }
-  return stored.map(run => {
+  const resolved = stored.map(run => {
     const status = statusFromStoredRun(run);
     if (run.modality === "voice" || run.result) return status;
     const transcript = summarizeTranscript(raw, run.text);
     return transcript.result ? {...status, state: "done" as const, result: transcript.result} : status;
+  });
+  const backfill = resolved.filter((status, index) =>
+    Boolean(status.result) && stored[index]?.modality !== "voice" && !stored[index]?.result
+  );
+  if (backfill.length > 0) await backfillConversationResults(sessionId, backfill);
+  return resolved;
+}
+
+async function backfillConversationResults(sessionId: string, resolved: CompanionRunStatus[]) {
+  const byId = new Map(resolved.filter(row => row.runId && row.result).map(row => [row.runId, row]));
+  if (byId.size === 0) return;
+  await mutateRegistry(async () => {
+    const registry = await registryOrEmpty();
+    let changed = false;
+    const now = Date.now();
+    const next = registry.runs.map(run => {
+      const row = run.sessionId === sessionId ? byId.get(run.runId) : undefined;
+      if (!row?.result || run.result === row.result && run.state === "done") return run;
+      const updated = {...run, result: row.result, state: "done" as const, updatedAt: now};
+      submittedRuns.set(run.runId, updated);
+      changed = true;
+      return updated;
+    });
+    if (changed) await writeCompanionRunRegistry(next, registry.archivedSessionIds);
   });
 }
 

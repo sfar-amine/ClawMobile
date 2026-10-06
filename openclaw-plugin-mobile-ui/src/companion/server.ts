@@ -18,7 +18,7 @@ import { createClawLiveToken, clawLivePageHtml } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
-import { archiveSession, deleteSession, getRunStatus, listRuns, getConversationTurns, saveVoiceTurn } from "./runs";
+import { archiveSession, deleteSession, getRunStatus, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
 import { acceptSkillImport, createSkillSharePackage, listPendingSkillImports, rejectSkillImport, storePendingSkillImport } from "./skillSharing";
 import type { CompanionHealth, CompanionRunStatus, IntentAttachment, RunCreateRequest, TerminalCommandRequest, TerminalCommandResponse, TerminalSessionRequest, TerminalSessionResponse } from "./types";
@@ -867,8 +867,10 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   if (method === "GET" && routePath === "/runs") {
     const rawLimit = Number.parseInt(requestUrl.searchParams.get("limit") || "", 10);
     const limit = Number.isFinite(rawLimit) ? rawLimit : undefined;
+    const summary = ["1", "true", "yes"].includes((requestUrl.searchParams.get("summary") || "").toLowerCase());
+    res.setHeader("Cache-Control", "no-store");
     writeJson(res, 200, {
-      runs: await listRuns({ limit }),
+      runs: summary ? await listRunSummaries({ limit }) : await listRuns({ limit }),
     });
     return;
   }

@@ -28,7 +28,8 @@
     "test:clictopay-provider-adapter": "node scripts/test-clictopay-provider-adapter.cjs",
     "test:payment-handoff": "node scripts/test-payment-handoff.cjs",
     "test:samantha-provider-fallback": "node scripts/test-samantha-provider-fallback.cjs",
-    "test:claw-live-warm-cancellation": "node scripts/test-claw-live-warm-cancellation.cjs"
+    "test:claw-live-warm-cancellation": "node scripts/test-claw-live-warm-cancellation.cjs",
+    "test:companion-history-cache": "node scripts/test-companion-history-cache.cjs"
   },
   "dependencies": {
     "nostr-tools": "^2.23.5",
