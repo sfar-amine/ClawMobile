@@ -338,6 +338,6 @@ function readBargeInProfile(){
     const config=JSON.parse(fs.readFileSync(path.join(os.homedir(),".openclaw/openclaw.json"),"utf8"));
     const profile=config?.plugins?.entries?.["openclaw-plugin-mobile-ui"]?.config?.voiceBargeIn;
     const routes=Array.isArray(profile?.qualifiedRoutes)?profile.qualifiedRoutes.filter((v:any)=>typeof v==="string"&&v.length<=512).slice(0,16):[];
-    return {supported:true,enabled:profile?.enabled===true&&profile?.protocolModel===CLAW_LIVE_MODEL,qualifiedRoutes:routes,protocolModel:profile?.protocolModel||null,transcriptionBoundary:"provider_response_boundary"};
-  } catch {return {supported:true,enabled:false,qualifiedRoutes:[],transcriptionBoundary:"provider_response_boundary"};}
+    return {supported:true,enabled:profile?.enabled===true&&profile?.protocolModel===CLAW_LIVE_MODEL,qualifiedRoutes:routes,protocolModel:profile?.protocolModel||null,transcriptionBoundary:"android_speech_service"};
+  } catch {return {supported:true,enabled:false,qualifiedRoutes:[],transcriptionBoundary:"android_speech_service"};}
 }

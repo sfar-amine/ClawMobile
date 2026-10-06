@@ -31,8 +31,8 @@ export class VoiceTurnProtocol {
       if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("invalid_message");
       if(value.warmInput?.audio) {this.audio(value.warmInput.audio);return;}
       const control=value.warmControl;
-      if(control?.turnStart||control?.turnEnd||control?.interrupt) {
-        const names=["turnStart","turnEnd","interrupt"].filter(k=>control[k]);
+      if(control?.turnStart||control?.turnEnd||control?.transcriptFinal||control?.interrupt) {
+        const names=["turnStart","turnEnd","transcriptFinal","interrupt"].filter(k=>control[k]);
         if(names.length!==1)throw new Error("one_control_required");
         const kind=names[0],body=control[kind];const op=this.requireId(body.operationId);
         if(body.sessionEpoch!==this.sessionEpoch)throw new Error("stale_session");
@@ -42,6 +42,7 @@ export class VoiceTurnProtocol {
         let state="accepted";
         if(kind==="turnStart")state=this.start(body);
         else if(kind==="turnEnd")this.end(body);
+        else if(kind==="transcriptFinal")this.transcriptFinal(body);
         else this.interrupt(body);
         const reply={warmAck:{version:2,operationId:op,state,connectionEpoch:this.connectionEpoch,sessionEpoch:this.sessionEpoch}};
         this.operations.set(op,{hash,reply});this.emit(reply);return;
@@ -101,6 +102,26 @@ export class VoiceTurnProtocol {
     if(!t||t.id!==this.asrOwner||t.inputEnded||body.lastSampleExclusive!==t.end)throw new Error("invalid_turn_end");
     t.inputEnded=true;this.forward({realtimeInput:{activityEnd:{}}});
   }
+  private transcriptFinal(body:any) {
+    const t=this.turns.get(this.requireId(body.turnId));
+    if(!t||t.id!==this.asrOwner||!t.inputEnded||t.asrFinished)throw new Error("invalid_transcript_final");
+    if(body.source!=="android_speech_service"||typeof body.text!=="string")throw new Error("invalid_transcript_source");
+    const text=body.text.trim();
+    if(!text||text.length>12000)throw new Error("invalid_transcript_text");
+    t.input=text;t.asrFinished=true;this.asrOwner=null;
+    this.event({inputFinal:{text:t.input,source:"android_speech_service"}},t.id,t.generation);
+    if(!t.interrupted)for(const calls of this.pendingTools.get(t.id)||[])this.event({toolCall:{functionCalls:calls}},t.id,t.generation);
+    this.pendingTools.delete(t.id);
+    if(this.waiting&&!this.nextOutput&&!this.ambiguous) {
+      const pending=this.waiting;this.waiting=null;
+      const activeOutput=this.outputOwner?this.turns.get(this.outputOwner):null;
+      if(activeOutput&&!activeOutput.outputEnded) {
+        activeOutput.interrupted=true;this.nextOutput=pending.id;pending.activityStarted=true;this.waiting=pending;
+        this.forward({realtimeInput:{activityStart:{}}});
+        this.event({turnPending:{turnId:pending.id,firstSample:pending.first,reason:"output_boundary"}},pending.id,"out-"+pending.id);
+      } else this.admit(pending);
+    }
+  }
   private interrupt(body:any) {
     const t=this.turns.get(this.requireId(body.turnId));
     if(!t||body.outputGenerationId!==t.generation)throw new Error("invalid_output_generation");
@@ -125,27 +146,11 @@ export class VoiceTurnProtocol {
     const content=value.serverContent;
     const transcriptOwner=this.asrOwner?this.turns.get(this.asrOwner):null;
     if(content?.inputTranscription) {
-      if(transcriptOwner&&!transcriptOwner.asrFinished) {
-        const text=content.inputTranscription.text;
-        if(typeof text==="string")transcriptOwner.input+=text;
-        if(transcriptOwner.input.length>12000){this.ambiguous=true;this.error("input_transcript_budget");return;}
+      if(transcriptOwner&&!transcriptOwner.asrFinished)
         this.event({serverContent:{inputTranscription:content.inputTranscription}},transcriptOwner.id,transcriptOwner.generation);
-      } else {
-        // A transcript arriving after its response boundary is stale by construction; never attach it to a newer turn.
-        this.event({lateInputTranscriptionIgnored:{}},null,null,"stale_ignored");
-      }
+      else this.event({lateInputTranscriptionIgnored:{}},null,null,"stale_ignored");
     }
     const id=this.outputOwner,t=id?this.turns.get(id):null;
-    const responseStarted=Boolean(value.toolCall?.functionCalls)||(content&&(
-      content.modelTurn||content.outputTranscription||content.turnComplete||content.interrupted
-    ));
-    if(responseStarted&&t&&this.asrOwner===t.id&&t.inputEnded&&!t.asrFinished) {
-      if(!t.input.trim()){this.ambiguous=true;this.error("missing_input_transcription");return;}
-      t.asrFinished=true;this.asrOwner=null;
-      this.event({inputFinal:{text:t.input,source:"provider_response_boundary"}},t.id,t.generation);
-      for(const calls of this.pendingTools.get(t.id)||[])this.event({toolCall:{functionCalls:calls}},t.id,t.generation);
-      this.pendingTools.delete(t.id);
-    }
     if(value.toolCall?.functionCalls) {
       if(!t) {this.error("unowned_tool_call");return;}
       const calls=value.toolCall.functionCalls;
@@ -167,7 +172,7 @@ export class VoiceTurnProtocol {
         if(!t) {this.error("unowned_provider_output");return;}
         if(output.interrupted)t.interrupted=true;
         this.event({serverContent:output},t.id,t.generation);
-        if(output.turnComplete) {
+        if(output.interrupted||output.turnComplete) {
           t.outputEnded=true;
           if(this.nextOutput) {
             const next=this.nextOutput;this.nextOutput=null;this.outputOwner=null;
