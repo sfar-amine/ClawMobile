@@ -60,23 +60,23 @@ export class VoiceTurnProtocol {
     if(this.turns.has(id)||this.waiting?.id===id)throw new Error("turn_identity_conflict");
     if(this.turns.size>=64)throw new Error("session_turn_budget");
     if(this.waiting)throw new Error("input_already_waiting");
-    const request={id,first};
-    if(this.asrOwner) {
-      // No time heuristic: the preceding provider ASR must explicitly finish before another audio turn is forwarded.
-      this.waiting=request;return "waiting_for_transcription_boundary";
+    const request:Start={id,first,activityStarted:false};
+    if(this.asrOwner) {this.waiting=request;return "waiting_for_transcription_boundary";}
+    const activeOutput=this.outputOwner?this.turns.get(this.outputOwner):null;
+    if(activeOutput&&!activeOutput.outputEnded) {
+      if(this.waiting||this.nextOutput)throw new Error("input_already_waiting");
+      activeOutput.interrupted=true;this.nextOutput=id;request.activityStarted=true;this.waiting=request;
+      this.forward({realtimeInput:{activityStart:{}}});
+      this.event({turnPending:{turnId:id,firstSample:first,reason:"output_boundary"}},id,"out-"+id);
+      return "waiting_for_output_boundary";
     }
     this.admit(request);return "accepted";
   }
   private admit(request:Start) {
-    if(this.nextOutput)throw new Error("output_boundary_pending");
     const t:Turn={id:request.id,end:request.first,inputEnded:false,asrFinished:false,outputEnded:false,
       interrupted:false,generation:"out-"+request.id,audio:new Map(),input:""};
-    this.turns.set(t.id,t);this.asrOwner=t.id;
-    if(this.outputOwner&&!this.turns.get(this.outputOwner)!.outputEnded) {
-      if(this.nextOutput)throw new Error("output_boundary_pending");
-      this.nextOutput=t.id;this.turns.get(this.outputOwner)!.interrupted=true;
-    } else this.outputOwner=t.id;
-    this.forward({realtimeInput:{activityStart:{}}});
+    this.turns.set(t.id,t);this.asrOwner=t.id;this.outputOwner=t.id;
+    if(!request.activityStarted)this.forward({realtimeInput:{activityStart:{}}});
     this.event({turnAdmitted:{turnId:t.id,firstSample:request.first}},t.id,t.generation);
   }
   private audio(body:any) {
@@ -123,23 +123,29 @@ export class VoiceTurnProtocol {
   provider(value:any) {
     if(this.ambiguous)return;
     const content=value.serverContent;
+    const transcriptOwner=this.asrOwner?this.turns.get(this.asrOwner):null;
     if(content?.inputTranscription) {
-      const t=this.asrOwner?this.turns.get(this.asrOwner):null;
-      if(!t||t.asrFinished) {this.ambiguous=true;this.error("unowned_input_transcription");return;}
-      const transcription=content.inputTranscription;
-      if(typeof transcription.text==="string")t.input+=transcription.text;
-      if(t.input.length>12000) {this.ambiguous=true;this.error("input_transcript_budget");return;}
-      if(transcription.finished===true&&t.inputEnded) {
-        t.asrFinished=true;this.asrOwner=null;
-      }
-      this.event({serverContent:{inputTranscription:transcription}},t.id,t.generation);
-      if(t.asrFinished) {
-        this.event({inputFinal:{text:t.input}},t.id,t.generation);
-        if(!t.interrupted)for(const calls of this.pendingTools.get(t.id)||[])this.event({toolCall:{functionCalls:calls}},t.id,t.generation);
-        this.pendingTools.delete(t.id);
+      if(transcriptOwner&&!transcriptOwner.asrFinished) {
+        const text=content.inputTranscription.text;
+        if(typeof text==="string")transcriptOwner.input+=text;
+        if(transcriptOwner.input.length>12000){this.ambiguous=true;this.error("input_transcript_budget");return;}
+        this.event({serverContent:{inputTranscription:content.inputTranscription}},transcriptOwner.id,transcriptOwner.generation);
+      } else {
+        // A transcript arriving after its response boundary is stale by construction; never attach it to a newer turn.
+        this.event({lateInputTranscriptionIgnored:{}},null,null,"stale_ignored");
       }
     }
     const id=this.outputOwner,t=id?this.turns.get(id):null;
+    const responseStarted=Boolean(value.toolCall?.functionCalls)||(content&&(
+      content.modelTurn||content.outputTranscription||content.turnComplete||content.interrupted
+    ));
+    if(responseStarted&&t&&this.asrOwner===t.id&&t.inputEnded&&!t.asrFinished) {
+      if(!t.input.trim()){this.ambiguous=true;this.error("missing_input_transcription");return;}
+      t.asrFinished=true;this.asrOwner=null;
+      this.event({inputFinal:{text:t.input,source:"provider_response_boundary"}},t.id,t.generation);
+      for(const calls of this.pendingTools.get(t.id)||[])this.event({toolCall:{functionCalls:calls}},t.id,t.generation);
+      this.pendingTools.delete(t.id);
+    }
     if(value.toolCall?.functionCalls) {
       if(!t) {this.error("unowned_tool_call");return;}
       const calls=value.toolCall.functionCalls;
@@ -163,11 +169,14 @@ export class VoiceTurnProtocol {
         this.event({serverContent:output},t.id,t.generation);
         if(output.turnComplete) {
           t.outputEnded=true;
-          if(this.nextOutput) {this.outputOwner=this.nextOutput;this.nextOutput=null;}
+          if(this.nextOutput) {
+            const next=this.nextOutput;this.nextOutput=null;this.outputOwner=null;
+            if(this.waiting?.id===next&&!this.asrOwner){const pending=this.waiting;this.waiting=null;this.admit(pending);}
+          }
         }
       }
     } else if(!value.toolCall&&!value.toolCallCancellation) this.event(value,t?.id||null,t?.generation||null);
-    if(!this.asrOwner&&this.waiting&&!this.ambiguous) {const pending=this.waiting;this.waiting=null;this.admit(pending);}
+    if(!this.asrOwner&&this.waiting&&!this.nextOutput&&!this.ambiguous) {const pending=this.waiting;this.waiting=null;this.admit(pending);}
   }
   execute(turnId:string,request:string,run:()=>Promise<any>):Promise<any> {
     const t=this.turns.get(turnId),existing=this.executions.get(turnId);
@@ -196,7 +205,7 @@ export class VoiceTurnProtocol {
   snapshot(){return {version:2,turns:this.turns.size,asrPending:Boolean(this.asrOwner),inputWaiting:Boolean(this.waiting),ambiguous:this.ambiguous};}
 }
 
-type Start={id:string;first:number};
+type Start={id:string;first:number;activityStarted:boolean};
 type Turn={id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
 const ID=/^[A-Za-z0-9._:-]{1,160}$/;
 const BASE64=/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;

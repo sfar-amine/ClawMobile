@@ -26,7 +26,7 @@ class Local extends EventEmitter {
  send({warmControl:{turnStart:{operationId:'start-a',sessionEpoch:'epoch-a',turnId:'voice-a',firstSample:0}}});
  send({warmInput:{audio:{sessionEpoch:'epoch-a',turnId:'voice-a',firstSample:0,samples:320,sampleRate:16000,data:Buffer.alloc(640).toString('base64')}}});
  send({warmControl:{turnEnd:{operationId:'end-a',sessionEpoch:'epoch-a',turnId:'voice-a',lastSampleExclusive:320}}});
- Provider.instances[0].emit('message',Buffer.from(JSON.stringify({serverContent:{inputTranscription:{text:'Bonjour',finished:true}}})));
+ send({warmControl:{transcriptFinal:{operationId:'transcript-a',sessionEpoch:'epoch-a',turnId:'voice-a',source:'android_speech_service',text:'Bonjour'}}});
  let effects=0;const run=()=>{effects++;return Promise.resolve({execution:{state:'completed'}});};
  const one=core.executeVoiceCapability({sessionEpoch:'epoch-a',connectionEpoch:ready.connectionEpoch,turnId:'voice-a'},'Bonjour',run);
  const two=core.executeVoiceCapability({sessionEpoch:'epoch-a',connectionEpoch:ready.connectionEpoch,turnId:'voice-a'},'Bonjour',run);
