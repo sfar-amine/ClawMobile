@@ -44,7 +44,7 @@ RESET = "\033[0m"
 BOLD = "\033[1m"
 DIM = "\033[2m"
 TAG_COLOR = {
-    "CHAT": "\033[96m",
+    "GPT-CHAT": "\033[96m",
     "VOICE": "\033[94m",
     "WHATSAPP": "\033[92m",
     "IMMUNE": "\033[95m",
@@ -60,7 +60,7 @@ TAG_COLOR = {
     "BOOTSTRAP": "\033[38;5;244m",
     "SLACK": "\033[38;5;201m",
     "MCP": "\033[38;5;81m",
-    "CLAUDE": "\033[38;5;180m",
+    "CLAUDE-CHAT": "\033[38;5;180m",
     "OWNER": "\033[38;5;82m",
     "SHADOW": "\033[38;5;141m",
     "OPENCLAW": "\033[38;5;75m",
@@ -104,7 +104,7 @@ _instance_lock = None
 
 TAG_ORDER = {
     # 1) actor / entry surface
-    "CHAT": 10, "VOICE": 11, "WHATSAPP": 12, "CLAUDE": 13,
+    "GPT-CHAT": 10, "VOICE": 11, "WHATSAPP": 12, "CLAUDE-CHAT": 13,
     "AGENT": 14, "JOB": 15, "CRON": 16,
     # 2) transport / execution path
     "MCP": 30, "RDC": 31, "SLACK": 32, "ADB": 33, "LOCAL": 34,
@@ -120,8 +120,10 @@ TAG_ORDER = {
 def normalize_tags(tags: list[str]) -> list[str]:
     unique: list[str] = []
     seen: set[str] = set()
+    aliases = {"CHAT": "GPT-CHAT", "CLAUDE": "CLAUDE-CHAT"}
     for raw in tags:
         tag = str(raw or "").upper()
+        tag = aliases.get(tag, tag)
         if not tag or tag in seen:
             continue
         seen.add(tag)
@@ -339,6 +341,8 @@ class Renderer:
         if not self.args.only:
             return True
         requested = self.args.only.upper()
+        aliases = {"CHAT": "GPT-CHAT", "CLAUDE": "CLAUDE-CHAT"}
+        requested = aliases.get(requested, requested)
         return requested in {t.upper() for t in event.tags}
 
     def emit(self, event: Event, dedupe_window: float = 0) -> None:
@@ -446,7 +450,7 @@ class SurfaceRegistry:
         if mode == "voice":
             fallback = self.state.get("voice_started") or time.strftime("%H:%M")
             return "VOICE", visible_title or f"session {fallback}"
-        return "CHAT", visible_title or "ChatGPT"
+        return "GPT-CHAT", visible_title or "ChatGPT"
 
     def _run_adb(self, args: list[str], timeout: float = 4) -> str:
         try:
@@ -966,7 +970,7 @@ class SlackBridgeStream:
         execution = result.get("execution") if isinstance(result.get("execution"), dict) else {}
         selected = result.get("selected") if isinstance(result.get("selected"), dict) else {}
         profile = self._mcp_profile(method)
-        tags = ["CLAUDE", "MCP"] + ([profile] if profile else [])
+        tags = ["CLAUDE-CHAT", "MCP"] + ([profile] if profile else [])
         if execution.get("delegated") is True or str(execution.get("executor") or "").startswith("openclaw.agent"):
             tags.append("OPENCLAW")
         context = self._mcp_context(task_id, request_id)
@@ -1338,9 +1342,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--only",
         choices=[
-            "immune", "improve", "whatsapp", "chat", "voice", "termux",
+            "immune", "improve", "whatsapp", "chat", "gpt-chat", "voice", "termux",
             "agent", "job", "cron", "sync", "memory", "bridge", "system",
-            "rdc", "slack", "mcp", "claude", "owner", "shadow", "openclaw", "adb", "local", "openai",
+            "rdc", "slack", "mcp", "claude", "claude-chat", "owner", "shadow", "openclaw", "adb", "local", "openai",
         ],
     )
     parser.add_argument("--preview-chars", type=int, default=160)
@@ -1368,11 +1372,11 @@ def main() -> int:
     if renderer.color:
         legend = " ".join(
             ansi(f"[{tag}]", TAG_COLOR[tag], True, bold=True)
-            for tag in ("CHAT", "VOICE", "WHATSAPP", "CLAUDE", "IMMUNE", "IMPROVE", "TERMUX", "MCP", "RDC", "SLACK", "ADB", "OPENCLAW")
+            for tag in ("GPT-CHAT", "CLAUDE-CHAT", "VOICE", "WHATSAPP", "IMMUNE", "IMPROVE", "TERMUX", "MCP", "RDC", "SLACK", "ADB", "OPENCLAW")
         )
         print(legend, flush=True)
     else:
-        print("[CHAT] [VOICE] [WHATSAPP] [CLAUDE] [IMMUNE] [IMPROVE] [TERMUX] [MCP] [RDC] [SLACK] [ADB] [OPENCLAW]", flush=True)
+        print("[GPT-CHAT] [CLAUDE-CHAT] [VOICE] [WHATSAPP] [IMMUNE] [IMPROVE] [TERMUX] [MCP] [RDC] [SLACK] [ADB] [OPENCLAW]", flush=True)
     for event in permanent_service_events():
         renderer.emit(event)
 

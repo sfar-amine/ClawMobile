@@ -51,7 +51,7 @@ class ClawLiveTests(unittest.TestCase):
     def test_normalize_tags_orders_actor_transport_access_engine(self):
         self.assertEqual(
             m.normalize_tags(["TERMUX", "OWNER", "MCP", "CLAUDE", "MCP"]),
-            ["CLAUDE", "MCP", "OWNER", "TERMUX"],
+            ["CLAUDE-CHAT", "MCP", "OWNER", "TERMUX"],
         )
 
     def test_renderer_multitag(self):
@@ -60,7 +60,7 @@ class ClawLiveTests(unittest.TestCase):
         with redirect_stdout(buf):
             r.emit(m.Event(["TERMUX","CHAT","RDC"], "Conversation", "CMD", "$ printf ok", status="OK", metric="12ms"))
         out = buf.getvalue()
-        self.assertIn("[CHAT][RDC][TERMUX]", out)
+        self.assertIn("[GPT-CHAT][RDC][TERMUX]", out)
         self.assertIn("[Conversation]", out)
         self.assertIn("CMD", out)
         self.assertIn("OK", out)
@@ -86,7 +86,7 @@ class ClawLiveTests(unittest.TestCase):
             with redirect_stdout(buf):
                 stream._emit_request_file(str(receipt))
             out = buf.getvalue()
-            self.assertIn("[CHAT][SLACK][TERMUX]", out)
+            self.assertIn("[GPT-CHAT][SLACK][TERMUX]", out)
             self.assertIn("printf ok", out)
 
     def test_mcp_owner_receipt_is_not_mislabeled_as_slack(self):
@@ -113,7 +113,7 @@ class ClawLiveTests(unittest.TestCase):
             with redirect_stdout(buf):
                 stream._emit_request_file(str(receipt))
             out = buf.getvalue()
-            self.assertIn("[CLAUDE][MCP][OWNER][OPENCLAW]", out)
+            self.assertIn("[CLAUDE-CHAT][MCP][OWNER][OPENCLAW]", out)
             self.assertNotIn("[SLACK]", out)
             self.assertIn("[owner-test]", out)
             self.assertIn("memory.cross_surface", out)
@@ -140,7 +140,7 @@ class ClawLiveTests(unittest.TestCase):
             with redirect_stdout(buf):
                 stream._emit_request_file(str(receipt))
             out = buf.getvalue()
-            self.assertIn("[CLAUDE][MCP][SHADOW]", out)
+            self.assertIn("[CLAUDE-CHAT][MCP][SHADOW]", out)
             self.assertIn("READ_ONLY", out)
             self.assertNotIn("[SLACK]", out)
 
@@ -162,7 +162,7 @@ class ClawLiveTests(unittest.TestCase):
                 stream._emit_request_file(str(receipt))
                 stream._emit_request_file(str(receipt))
             out=buf.getvalue()
-            self.assertIn("[CHAT][SLACK]",out)
+            self.assertIn("[GPT-CHAT][SLACK]",out)
             self.assertIn("[task-a]",out)
             self.assertEqual(out.count("build-tests"),1)
             self.assertEqual(out.count("printf ok"),1)

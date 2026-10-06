@@ -12,9 +12,10 @@
   ],
   "behavior": {
     "mcp_tool_results": "_claw_access identifies client_id, profile, owner and read_only",
-    "claw_live_owner_example": "[CLAUDE][MCP][OWNER]",
-    "claw_live_shadow_example": "[CLAUDE][MCP][SHADOW]",
-    "delegated_example": "[CLAUDE][MCP][OWNER][OPENCLAW] ... DELEGATED",
+    "claw_live_gpt_chat_example": "[GPT-CHAT][RDC][TERMUX]",
+    "claw_live_owner_example": "[CLAUDE-CHAT][MCP][OWNER]",
+    "claw_live_shadow_example": "[CLAUDE-CHAT][MCP][SHADOW]",
+    "delegated_example": "[CLAUDE-CHAT][MCP][OWNER][OPENCLAW] ... DELEGATED",
     "mcp_mislabeled_as_slack": false
   },
   "validation": {

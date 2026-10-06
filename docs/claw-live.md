@@ -10,7 +10,7 @@ Run: claw-live
 
 The default detailed view uses a consistent four-part vocabulary:
 
-1. **Surface / actor** — who initiated or owns the interaction: `[CHAT]`, `[VOICE]`, `[WHATSAPP]`, `[CLAUDE]`, `[AGENT]`, `[JOB]`, `[CRON]`.
+1. **Surface / actor** — who initiated or owns the interaction: `[GPT-CHAT]` for ChatGPT text, `[CLAUDE-CHAT]` for Claude text via MCP, plus `[VOICE]`, `[WHATSAPP]`, `[AGENT]`, `[JOB]`, `[CRON]`.
 2. **Transport / execution path** — how it reached Claw: `[MCP]`, `[RDC]`, `[SLACK]`, `[ADB]`, `[LOCAL]`, `[OPENCLAW]`, `[TERMUX]`.
 3. **Access scope when relevant** — `[OWNER]` or `[SHADOW]` for authenticated MCP execution. These are authorization labels, not health states.
 4. **Action / state** — `START`, `CMD`, `TOOL`, `MODEL`, `DONE`, `FAILED`, `WARN`, `DELEGATED`, etc.
@@ -18,10 +18,10 @@ The default detailed view uses a consistent four-part vocabulary:
 Examples:
 
 ```text
-09:42:10 [CLAUDE][MCP][OWNER] [wifi-check] DONE device.assistance → OWNER
-09:42:14 [CLAUDE][MCP][OWNER][OPENCLAW] [daily-recap] DONE memory.cross_surface · via openclaw.agent.main → DELEGATED
-09:42:18 [CLAUDE][MCP][SHADOW] [old-check] DONE memory.cross_surface → READ_ONLY
-09:42:22 [CHAT][RDC] [Claw] CMD $ python3 ...
+09:42:10 [CLAUDE-CHAT][MCP][OWNER] [wifi-check] DONE device.assistance → OWNER
+09:42:14 [CLAUDE-CHAT][MCP][OWNER][OPENCLAW] [daily-recap] DONE memory.cross_surface · via openclaw.agent.main → DELEGATED
+09:42:18 [CLAUDE-CHAT][MCP][SHADOW] [old-check] DONE memory.cross_surface → READ_ONLY
+09:42:22 [GPT-CHAT][RDC][TERMUX] [Claw] CMD $ python3 ...
 09:42:30 [WHATSAPP] [Contact] IN "message preview"
 ```
 
@@ -102,10 +102,12 @@ claw-live --raw
 claw-live --only immune
 claw-live --only improve
 claw-live --only whatsapp
-claw-live --only chat
+claw-live --only gpt-chat
+claw-live --only chat        # alias compatible de gpt-chat
+claw-live --only claude-chat
+claw-live --only claude      # alias compatible de claude-chat
 claw-live --only voice
 claw-live --only termux
-claw-live --only claude
 claw-live --only mcp
 claw-live --only owner
 claw-live --history 80 --only agent
