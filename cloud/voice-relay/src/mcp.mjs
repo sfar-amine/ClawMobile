@@ -16,6 +16,7 @@ const CHAT_TOOLS = new Set([
   "claw_execute",
   "claw_status",
   "claw_artifact_read",
+  "claw_exec",
 ]);
 
 function json(value, status = 200, headers = {}) {
@@ -93,7 +94,9 @@ export async function authenticateMcpClient(request, env) {
 }
 
 function toolAllowed(profile, tool) {
-  return SUPPORTED_PROFILES.has(profile) && CHAT_TOOLS.has(tool);
+  if (!SUPPORTED_PROFILES.has(profile) || !CHAT_TOOLS.has(tool)) return false;
+  if (tool === "claw_exec") return profile === "chat-owner";
+  return true;
 }
 
 function toolResult(value, auth) {
@@ -134,7 +137,7 @@ function stableActionRequestId(clientId, args) {
 }
 
 function relayRequestId(clientId, tool, args) {
-  if (tool === "claw_execute") return stableActionRequestId(clientId, args);
+  if (tool === "claw_execute" || tool === "claw_exec") return stableActionRequestId(clientId, args);
   return `mcp:${clientId}:${crypto.randomUUID()}`;
 }
 
@@ -190,6 +193,21 @@ function registerTools(server, auth, invoke) {
     },
     annotations: { readOnlyHint: !ownerProfile, idempotentHint: true, openWorldHint: ownerProfile },
   }, run("claw_execute"));
+
+  if (ownerProfile) {
+    server.registerTool("claw_exec", {
+      title: "Execute arbitrary S24 command",
+      description: "Execute an arbitrary shell command directly on the S24/Termux owner runtime through the existing Claw Remote Bridge. This is a generic owner terminal primitive, not a business capability route. Reuse action_key for retries of the same command; use a new stable step_key only for a materially new command.",
+      inputSchema: {
+        command: z.string().min(1).max(32768),
+        action_key: z.string().regex(ACTION_ID_RE),
+        step_key: z.string().regex(STEP_ID_RE).optional(),
+        cwd: z.string().min(1).max(4096).optional(),
+        timeout_ms: z.number().int().min(100).max(300000).optional(),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: true, openWorldHint: true },
+    }, run("claw_exec"));
+  }
 
   server.registerTool("claw_status", {
     title: "Read Claw execution status",

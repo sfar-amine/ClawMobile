@@ -260,6 +260,41 @@ async function executeCapability(
   return projectReceipt(receipt);
 }
 
+async function executeRawCommand(
+  requestId: string,
+  clientId: string,
+  profile: string,
+  args: Record<string, unknown>,
+) {
+  if (profile !== "chat-owner") throw new Error("owner_profile_required");
+  const command = requiredString(args.command, "command", 32768);
+  const actionKey = requiredString(args.action_key, "action_key", 40, ACTION_ID_RE);
+  const stepKey = optionalString(args.step_key, "step_key", 24, STEP_ID_RE) || "execute";
+  const expectedRequestId = actionRequestId(clientId, actionKey, stepKey);
+  if (requestId !== expectedRequestId) throw new Error("action_request_id_mismatch");
+
+  const cwd = optionalString(args.cwd, "cwd", 4096);
+  const timeoutMs = args.timeout_ms === undefined ? 30_000 : Number(args.timeout_ms);
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 300_000) {
+    throw new Error("invalid_timeout_ms");
+  }
+
+  const receipt = await submitRemoteBridgeRequest({
+    requestId,
+    taskId: actionTaskId(clientId, actionKey),
+    stepId: stepKey,
+    sessionId: `external_mcp:${clientId}`,
+    method: "exec_wait",
+    params: {
+      command,
+      ...(cwd ? { cwd } : {}),
+      timeoutMs,
+    },
+  });
+
+  return projectReceipt(receipt);
+}
+
 function statusFor(
   clientId: string,
   args: Record<string, unknown>,
@@ -330,6 +365,8 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
       return { state: "resolved", result: await resolveCapability(args) };
     case "claw_execute":
       return executeCapability(requestId, clientId, profile, args);
+    case "claw_exec":
+      return executeRawCommand(requestId, clientId, profile, args);
     case "claw_status":
       return statusFor(clientId, args);
     case "claw_artifact_read":
