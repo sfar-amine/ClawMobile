@@ -71,45 +71,42 @@ type StartupMaintenanceRepair = {
   message: string;
 };
 
-async function repairStartupMaintenance(): Promise<StartupMaintenanceRepair> {
-  const openclaw =
-    process.env.CLAWMOBILE_OPENCLAW_COMMAND || `${TERMUX_PREFIX}/bin/openclaw`;
-  const timeout = `${TERMUX_PREFIX}/bin/timeout`;
-  let lastError = "";
+type StartupMaintenanceRepairDeps = {
+  gatewayReachable: () => Promise<boolean>;
+  gatewayOwnerPids: () => Promise<number[]>;
+  runDoctor: () => Promise<void>;
+  wait: (ms: number) => Promise<void>;
+};
 
-  for (let attempt = 1; attempt <= STARTUP_MAINTENANCE_REPAIR_ATTEMPTS; attempt++) {
-    const status = await getGatewayStatus(750);
-    if (status.reachable) {
+export async function runBoundedStartupMaintenanceRepair(
+  deps: StartupMaintenanceRepairDeps,
+  attempts = STARTUP_MAINTENANCE_REPAIR_ATTEMPTS,
+): Promise<StartupMaintenanceRepair> {
+  let lastError = "";
+  const boundedAttempts = Math.max(1, Math.min(attempts, STARTUP_MAINTENANCE_REPAIR_ATTEMPTS));
+
+  for (let attempt = 1; attempt <= boundedAttempts; attempt++) {
+    if (await deps.gatewayReachable()) {
       return { success: true, message: "Gateway recovered before Doctor repair was needed." };
     }
 
-    const candidates = await listGatewayProcessCandidates();
-    if (candidates.length > 0) {
+    const ownerPids = await deps.gatewayOwnerPids();
+    if (ownerPids.length > 0) {
       return {
         success: false,
-        message: `Refusing Doctor repair while gateway process ownership is still present: ${candidates
-          .map((candidate) => candidate.pid)
-          .join(",")}.`,
+        message: `Refusing Doctor repair while gateway process ownership is still present: ${ownerPids.join(",")}.`,
       };
     }
 
     try {
-      await runCommand(timeout, [
-        String(STARTUP_MAINTENANCE_REPAIR_TIMEOUT_S),
-        openclaw,
-        "doctor",
-        "--fix",
-        "--non-interactive",
-      ]);
+      await deps.runDoctor();
       return {
         success: true,
-        message: `OpenClaw Doctor repair completed on attempt ${attempt}/${STARTUP_MAINTENANCE_REPAIR_ATTEMPTS}.`,
+        message: `OpenClaw Doctor repair completed on attempt ${attempt}/${boundedAttempts}.`,
       };
     } catch (error: any) {
       lastError = String(error?.message || error);
-      if (attempt < STARTUP_MAINTENANCE_REPAIR_ATTEMPTS) {
-        await delay(2_000);
-      }
+      if (attempt < boundedAttempts) await deps.wait(2_000);
     }
   }
 
@@ -117,6 +114,28 @@ async function repairStartupMaintenance(): Promise<StartupMaintenanceRepair> {
     success: false,
     message: `OpenClaw Doctor repair exhausted its bounded attempts: ${lastError}`,
   };
+}
+
+async function repairStartupMaintenance(): Promise<StartupMaintenanceRepair> {
+  const openclaw =
+    process.env.CLAWMOBILE_OPENCLAW_COMMAND || `${TERMUX_PREFIX}/bin/openclaw`;
+  const timeout = `${TERMUX_PREFIX}/bin/timeout`;
+  return runBoundedStartupMaintenanceRepair({
+    gatewayReachable: async () => (await getGatewayStatus(750)).reachable,
+    gatewayOwnerPids: async () => (await listGatewayProcessCandidates()).map((candidate) => candidate.pid),
+    runDoctor: async () => {
+      await runCommand(timeout, [
+        String(STARTUP_MAINTENANCE_REPAIR_TIMEOUT_S),
+        openclaw,
+        "doctor",
+        "--fix",
+        "--non-interactive",
+      ]);
+    },
+    wait: async (ms) => {
+      await delay(ms);
+    },
+  });
 }
 
 export async function startRuntime(): Promise<RuntimeCommandResponse> {

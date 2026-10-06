@@ -16,13 +16,15 @@
     "installer/termux-lite/README.md",
     "docs/changes/openclaw-rdc-self-heal-hardening-20261006.md",
     "docs/changes/openclaw-rdc-self-heal-hardening-20261006.json",
-    "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts"
+    "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-gateway-maintenance-recovery.cjs",
+    "openclaw-plugin-mobile-ui/package.json"
   ],
   "tests": [
     {
       "name": "gateway-preflight",
       "status": "passed",
-      "evidence": "10/10 isolated tests passed, covering schema drift, missing installed manifest, unsupported config, reversible stale-lock quarantine, live owner, PID reuse, active listener, run.sh preflight order and bounded Companion maintenance-repair contract."
+      "evidence": "8/8 self-contained Tier-0 gateway preflight tests passed, covering schema drift, missing installed manifest, unsupported config, reversible stale-lock quarantine, live owner, PID reuse, active listener and run.sh preflight order."
     },
     {
       "name": "remote-desktop-watchdog",
@@ -40,9 +42,14 @@
       "evidence": "Current plugin schema returned ok; current gateway lock returned active_owner; OpenClaw healthz live and RDC functional health healthy."
     },
     {
-      "name": "companion-build",
+      "name": "companion-maintenance-recovery",
       "status": "passed",
-      "evidence": "TypeScript build and existing Companion run-control regression pass on the isolated candidate before activation."
+      "evidence": "Deterministic compiled Companion test passed: detects only maintenance markers; skips Doctor when already recovered; refuses live gateway ownership; retries Doctor at most twice; caller cannot widen the two-attempt budget."
+    },
+    {
+      "name": "companion-build-and-regression",
+      "status": "passed",
+      "evidence": "TypeScript build and existing Companion run-control regression passed on the isolated candidate."
     }
   ],
   "documentation": [

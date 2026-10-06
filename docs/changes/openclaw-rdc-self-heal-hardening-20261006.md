@@ -25,7 +25,8 @@ Existing capabilities are strengthened without changing their public entrypoints
 
 ## Verification before deployment
 
-- Gateway preflight / Companion maintenance contract tests: 10/10 passed.
+- Gateway preflight tests: 8/8 passed from the self-contained Tier-0 package.
+- Companion bounded maintenance recovery deterministic test: passed (already-recovered, live-owner refusal, second-attempt recovery, two-attempt exhaustion).
 - RDC controller/watchdog tests: 19/19 passed.
 - RDC incident-loop tests: 5/5 passed.
 - Shell/Python syntax checks passed.

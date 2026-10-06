@@ -144,23 +144,5 @@ class RunScriptContractTests(unittest.TestCase):
         self.assertIn('Recovered an orphaned Android gateway lock',text)
 
 
-class CompanionMaintenanceRecoveryContractTests(unittest.TestCase):
-    def test_companion_uses_bounded_doctor_repair_for_explicit_maintenance(self):
-        text=(ROOT.parent.parent/'openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts').read_text()
-        self.assertIn('STARTUP_MAINTENANCE_REPAIR_ATTEMPTS = 2', text)
-        self.assertIn('STARTUP_MAINTENANCE_REPAIR_TIMEOUT_S = 60', text)
-        self.assertIn('"gateway.maintenance_required"', text)
-        self.assertIn('"doctor"', text)
-        self.assertIn('"--fix"', text)
-        self.assertIn('"--non-interactive"', text)
-        self.assertIn('startRuntimeInternal(false)', text)
-
-    def test_companion_fails_closed_when_gateway_ownership_remains(self):
-        text=(ROOT.parent.parent/'openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts').read_text()
-        self.assertIn('Refusing Doctor repair while gateway process ownership is still present', text)
-        self.assertIn('if (childExited)', text)
-        self.assertIn('runtimeLogNeedsMaintenance(failedLog.text)', text)
-
-
 if __name__ == "__main__":
     unittest.main(verbosity=2)

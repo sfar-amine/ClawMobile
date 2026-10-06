@@ -33,7 +33,8 @@
     "test:voice-barge-in": "node scripts/test-voice-turn-protocol.cjs && node scripts/test-warm-v2-ownership.cjs",
     "test:control-v2": "node scripts/test-control-v2.cjs",
     "test:conversation-pages": "node scripts/test-conversation-pages.cjs",
-    "test:conversation-backfill-races": "node scripts/test-conversation-backfill-races.cjs"
+    "test:conversation-backfill-races": "node scripts/test-conversation-backfill-races.cjs",
+    "test:gateway-maintenance-recovery": "node scripts/test-gateway-maintenance-recovery.cjs"
   },
   "dependencies": {
     "nostr-tools": "^2.23.5",
