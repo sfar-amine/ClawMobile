@@ -130,6 +130,16 @@ class StaleLockTests(unittest.TestCase):
         self.assertEqual(result["state"], "active_listener")
 
 
+class GatewayRecoveryScriptContractTests(unittest.TestCase):
+    def test_recovery_start_is_lightweight_and_preserves_lock_preflight(self):
+        text=(ROOT/'gateway-start.sh').read_text()
+        self.assertIn('stale-locks', text)
+        self.assertIn('exec openclaw gateway', text)
+        self.assertNotIn('exec \"$SCRIPT_DIR/run.sh\"', text)
+        self.assertNotIn('clawmobile_sync_workspace_seed', text)
+        self.assertNotIn('clawmobile_build_plugin_lite', text)
+
+
 class RunScriptContractTests(unittest.TestCase):
     def test_preflights_precede_gateway_exec(self):
         text=(ROOT/'run.sh').read_text()
