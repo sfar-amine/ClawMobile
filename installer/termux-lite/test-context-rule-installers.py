@@ -33,5 +33,22 @@ class InstallerTests(unittest.TestCase):
             subprocess.run(['bash', '-c', command, 'test', str(core), str(block)], check=True, capture_output=True)
             self.assertIn('Original constraints.', core.read_text()); self.assertIn('Rule.', core.read_text())
 
+    def test_tools_block_supports_distinct_markers(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); target = root / 'mobile.md'; target.write_text('Agent rules.\n')
+            block = root / 'tools.md'; block.write_text('<!-- CLAWMOBILE_BEGIN -->\nTool rules.\n<!-- CLAWMOBILE_END -->\n')
+            cmd = 'clawmobile_sync_marked_block() {' + function + '\n}\nclawmobile_sync_marked_block "$1" "$2" "<!-- CLAWMOBILE_TOOLS_BEGIN -->" "<!-- CLAWMOBILE_TOOLS_END -->"'
+            for _ in range(2):
+                subprocess.run(['bash', '-c', cmd, 'test', str(target), str(block)], check=True, capture_output=True)
+            content = target.read_text()
+            self.assertEqual(content.count('CLAWMOBILE_TOOLS_BEGIN'), 1)
+            self.assertEqual(content.count('Tool rules.'), 1)
+
+    def test_compact_sync_archives_legacy_tools(self):
+        lib = (ROOT / 'lib.sh').read_text()
+        self.assertIn('CLAWMOBILE_TOOLS_BEGIN', lib)
+        self.assertIn('Archived legacy TOOLS.md after compact rule migration', lib)
+        self.assertIn('compact_rules', lib)
+
 
 if __name__ == '__main__': unittest.main(verbosity=2)

@@ -546,8 +546,10 @@ clawmobile_build_plugin_lite() {
 clawmobile_sync_marked_block() {
   local target="$1"
   local block="$2"
-  local start="<!-- CLAWMOBILE_BEGIN -->"
-  local end="<!-- CLAWMOBILE_END -->"
+  local default_start="<!-- CLAWMOBILE_BEGIN -->"
+  local default_end="<!-- CLAWMOBILE_END -->"
+  local start="${3:-$default_start}"
+  local end="${4:-$default_end}"
   local action="Injected"
 
   [ -f "$block" ] || return 0
@@ -565,7 +567,11 @@ clawmobile_sync_marked_block() {
   fi
 
   printf "\n\n" >> "$target"
-  cat "$block" >> "$target"
+  if [ "$start" = "$default_start" ] && [ "$end" = "$default_end" ]; then
+    cat "$block" >> "$target"
+  else
+    sed -e "s|$default_start|$start|" -e "s|$default_end|$end|" "$block" >> "$target"
+  fi
   printf "\n" >> "$target"
   echo "[lite] $action mobile block in $(basename "$target")"
 }
@@ -603,8 +609,13 @@ clawmobile_seed_openclaw_workspace_defaults() {
   local defaults_workspace=""
   local need_defaults=0
   local name=""
+  local compact_rules=0
 
+  grep -qF '<!-- CONTEXT_RULES_COMPACT_V1 -->' "$workspace/AGENTS.md" 2>/dev/null && compact_rules=1
   for name in AGENTS.md TOOLS.md; do
+    if [ "$compact_rules" -eq 1 ] && [ "$name" = "TOOLS.md" ]; then
+      continue
+    fi
     if clawmobile_prompt_file_needs_openclaw_default "$workspace/$name"; then
       need_defaults=1
       break
@@ -639,6 +650,9 @@ clawmobile_seed_openclaw_workspace_defaults() {
       </dev/null >/dev/null 2>&1
   ); then
     for name in AGENTS.md TOOLS.md; do
+      if [ "$compact_rules" -eq 1 ] && [ "$name" = "TOOLS.md" ]; then
+        continue
+      fi
       if clawmobile_prompt_file_needs_openclaw_default "$workspace/$name" && [ -f "$defaults_workspace/$name" ]; then
         cp "$defaults_workspace/$name" "$workspace/$name"
         echo "[lite] Restored OpenClaw starter $name"
@@ -828,7 +842,21 @@ clawmobile_sync_workspace_seed() {
 
   clawmobile_seed_openclaw_workspace_defaults "$workspace"
   clawmobile_sync_marked_block "$workspace/AGENTS.md" "$seed_dir/AGENTS.mobile.md"
-  clawmobile_sync_marked_block "$workspace/TOOLS.md" "$seed_dir/TOOLS.mobile.md"
+  if grep -qF '<!-- CONTEXT_RULES_COMPACT_V1 -->' "$workspace/AGENTS.md" 2>/dev/null; then
+    local mobile_rules="$workspace/context/rules/mobile.md"
+    local archive_dir="$workspace/context/archive"
+    local archive_path="$archive_dir/TOOLS.md.pre-compact"
+    [ -f "$mobile_rules" ] || { echo "[lite] ERROR: compact mobile rule module missing." >&2; return 1; }
+    clawmobile_sync_marked_block "$mobile_rules" "$seed_dir/TOOLS.mobile.md" '<!-- CLAWMOBILE_TOOLS_BEGIN -->' '<!-- CLAWMOBILE_TOOLS_END -->'
+    if [ -f "$workspace/TOOLS.md" ]; then
+      mkdir -p "$archive_dir"
+      [ -f "$archive_path" ] || cp "$workspace/TOOLS.md" "$archive_path"
+      mv "$workspace/TOOLS.md" "$archive_path.latest"
+      echo "[lite] Archived legacy TOOLS.md after compact rule migration"
+    fi
+  else
+    clawmobile_sync_marked_block "$workspace/TOOLS.md" "$seed_dir/TOOLS.mobile.md"
+  fi
 
   if [ -d "$skills_src" ]; then
     mkdir -p "$skills_dst"

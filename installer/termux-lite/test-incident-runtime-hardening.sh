@@ -3,6 +3,8 @@ set -euo pipefail
 R="$(cd "$(dirname "$0")" && pwd)"
 bash -n "$R/incident-orchestrator-worker.sh" "$R/adb-recovery-watchdog.sh" "$R/samantha-health-manager.sh" "$R/samantha-root-guardian.sh" "$R/incident-manager.sh" "$R/incident-close.sh" "$R/autonomous-engineering-close.sh" "$R/whatsapp-owner-send.sh"
 ! grep -q 'guardian.lock.*exec 9>&-' "$R/samantha-root-guardian.sh"
+grep -q 'ensure_supervisor core_services' "$R/samantha-root-guardian.sh"
+grep -q 'core-services-watchdog.sh' "$R/samantha-root-guardian.sh"
 grep -q 'ensure_supervisor health_manager' "$R/samantha-root-guardian.sh"
 grep -q 'ensure_supervisor incident_orchestrator' "$R/samantha-root-guardian.sh"
 grep -q 'nohup env CLAW_RUNTIME_ROOT=.*9>&-' "$R/samantha-root-guardian.sh"

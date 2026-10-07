@@ -55,8 +55,8 @@ This is the ClawMobile Termux runtime:
   `android_shell backend="termux"` to run local `adb pair`, `adb connect`, and
   `adb devices` commands. Do not use `android_shell backend="adb"` until
   `android_health` reports ADB is ready.
-- For routine ClawMobile UI tasks, use the rules in this file and
-  `TOOLS.mobile.md` directly instead of first reading `clawmobile-policy`.
+- For routine ClawMobile UI tasks, use the rules and tool guidance in the
+  compact mobile rule module directly instead of first reading `clawmobile-policy`.
 - Do not claim a navigation, screen change, or action unless a tool was called
   and the result was verified.
 - Use checkpoint verification instead of observing after every low-risk UI

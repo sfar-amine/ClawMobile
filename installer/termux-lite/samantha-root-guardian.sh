@@ -48,6 +48,7 @@ while :; do
   refresh_root
   printf "%s" "$(date +%s)" >"$HOME/.openclaw/health/root-guardian.heartbeat"
   ensure_supervisor tier0_watchdog "[t]ier0-watchdog.py" "$HOME/.openclaw/tier0/bin/tier0-watchdog.py" "$HOME/.openclaw/tier0/watchdog.stderr.log"
+  ensure_supervisor core_services "[c]ore-services-watchdog.sh" "$ROOT/core-services-watchdog.sh" "$D/core-services.stderr.log"
   ensure_supervisor health_manager "[s]amantha-health-manager.sh" "$ROOT/samantha-health-manager.sh" "$D/health-manager.stderr.log"
   ensure_supervisor incident_orchestrator "[i]ncident-orchestrator-worker.sh" "$ROOT/incident-orchestrator-worker.sh" "$D/incident-orchestrator.stderr.log"
   sleep 10 9>&-
