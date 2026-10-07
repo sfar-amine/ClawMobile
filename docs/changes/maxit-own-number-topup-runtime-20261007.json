@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "capability",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "verified",
   "summary": "Add staged Maxit own-number top-up adapter to the existing private Companion payment runtime.",
   "reason": "Maxit must use its own provider order contract while reusing the canonical Payment Core and ClicToPay issuer rail.",
   "rollback": "Revert the scoped runtime commit and keep the Maxit live-acceptance gate absent. Never replay an engaged or indeterminate PaymentRecord.",
@@ -57,5 +57,21 @@
     "The Maxit live-acceptance gate is absent.",
     "No real Maxit order, bank submission or recharge is part of this runtime delivery.",
     "Real financial certification remains the next explicit owner test."
-  ]
+  ],
+  "activation": {
+    "companion_pid": 30439,
+    "health": "connected",
+    "gateway_reachable": true,
+    "adb_ready": true,
+    "gate": "absent",
+    "maxit_local_owner_validated": false,
+    "reason_code": "maxit_live_acceptance_not_armed",
+    "installed_hashes_match_canonical_build": true,
+    "installed_tests": [
+      "maxit adapter 3/3",
+      "MCP bridge ok"
+    ],
+    "financial_effect": "none",
+    "real_acceptance": "pending_explicit_owner_test"
+  }
 }
