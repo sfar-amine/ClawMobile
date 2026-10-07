@@ -1,4 +1,5 @@
 const assert = require("assert");
+const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -11,7 +12,33 @@ const bridgeDir = path.join(root, "bridge");
 const testFile = path.join(root, "file.txt");
 const stepFile = path.join(root, "step.txt");
 const binaryFile = path.join(root, "binary.bin");
+const continuumDir = path.join(root, "continuum");
 const node = path.join(os.homedir(), ".openclaw-android", "bin", "node");
+
+function bridgeParamsHash(method, params) {
+  return crypto.createHash("sha256").update(JSON.stringify({ method, params })).digest("hex");
+}
+
+function makeContinuumState({ taskId, stepId, attemptId, requestId, effectKey, method, params,
+  epoch = 1, ownerId = "owner-a", bootId = "boot-a", leaseUntil = Date.now() / 1000 + 120 }) {
+  const fence = { version: 1, attemptId, effectKey, ownershipEpoch: epoch, ownerId, bootId };
+  return {
+    version: 3, run_id: taskId, state: "running",
+    owner: { id: ownerId, boot_id: bootId, lease_until: leaseUntil },
+    continuum: { control: "active", ownership_epoch: epoch, current_attempt: attemptId, attempts: {
+      [attemptId]: { state: "submitted", request_id: requestId, effect_key: effectKey,
+        transport_binding: { version: 1, taskId, stepId, requestId, method, paramsHash: bridgeParamsHash(method, params) },
+        dispatch_fence: fence },
+    } },
+  };
+}
+
+function writeContinuumState(state, projection = state) {
+  fs.mkdirSync(continuumDir, { recursive: true });
+  fs.writeFileSync(path.join(continuumDir, state.run_id + ".json"), JSON.stringify(projection));
+  fs.writeFileSync(path.join(continuumDir, state.run_id + ".events.jsonl"),
+    JSON.stringify({ taskId: state.run_id, after: state }) + "\n");
+}
 const companion = path.resolve(__dirname, "..", "dist", "companion", "server.js");
 const base = "http://127.0.0.1:8880/v1/extensions/remote-bridge";
 
@@ -60,6 +87,7 @@ async function main() {
       CLAWMOBILE_WHATSAPP_LISTENER_WATCHDOG: "0",
       CLAWMOBILE_CHATGPT_VOICE_RECOVERY: "0",
       CLAWMOBILE_REMOTE_BRIDGE_DIR: bridgeDir,
+      CLAW_CONTINUUM_FOREGROUND_DIR: continuumDir,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -123,6 +151,99 @@ async function main() {
   assert.equal(result.body.result.total, 1);
   assert.equal(result.body.result.receipts[0].stepId, "append-once");
   assert.equal(result.body.result.receipts[0].requestId, "core-step-write-1");
+
+  // Continuum effect-boundary fence: executor validates the latest journal state
+  // immediately before creating a new receipt/dispatching the mutation.
+  const fencedFile = path.join(root, "continuum-fenced.txt");
+  const fencedParams = { path: fencedFile, content: "F", mode: "append" };
+  const fencedTask = "continuum-task";
+  const fencedStep = "continuum-step";
+  const fencedAttempt = "attempt-1";
+  const fencedRequest = "continuum-write";
+  const fencedEffect = "effect-1";
+  let fencedState = makeContinuumState({ taskId: fencedTask, stepId: fencedStep,
+    attemptId: fencedAttempt, requestId: fencedRequest, effectKey: fencedEffect,
+    method: "write_file", params: fencedParams });
+  writeContinuumState(fencedState);
+  const fencedEnvelope = { requestId: fencedRequest, taskId: fencedTask, stepId: fencedStep,
+    method: "write_file", params: fencedParams,
+    continuumFence: fencedState.continuum.attempts[fencedAttempt].dispatch_fence };
+  result = await submit(fencedEnvelope);
+  assert.equal(result.code, 200);
+  assert.equal(result.body.state, "completed");
+  assert.deepEqual(result.body.continuumFence,
+    { version: 1, attemptId: fencedAttempt, effectKey: fencedEffect, ownershipEpoch: 1 });
+  assert.equal(fs.readFileSync(fencedFile, "utf8"), "F");
+
+  // A newer owner epoch cannot cause the old duplicate to replay: existing
+  // receipt wins first and the file remains append-once.
+  fencedState = makeContinuumState({ taskId: fencedTask, stepId: fencedStep,
+    attemptId: fencedAttempt, requestId: fencedRequest, effectKey: fencedEffect,
+    method: "write_file", params: fencedParams, epoch: 2, ownerId: "owner-b", bootId: "boot-b" });
+  writeContinuumState(fencedState);
+  result = await submit(fencedEnvelope);
+  assert.equal(result.code, 200);
+  assert.equal(result.body.requestId, fencedRequest);
+  assert.equal(fs.readFileSync(fencedFile, "utf8"), "F");
+
+  const staleFile = path.join(root, "continuum-stale.txt");
+  const staleParams = { path: staleFile, content: "S", mode: "append" };
+  const staleState = makeContinuumState({ taskId: "continuum-stale-task", stepId: "stale-step",
+    attemptId: "stale-attempt", requestId: "stale-request", effectKey: "stale-effect",
+    method: "write_file", params: staleParams, epoch: 2, ownerId: "owner-b", bootId: "boot-b" });
+  writeContinuumState(staleState);
+  result = await submit({ requestId: "stale-request", taskId: "continuum-stale-task",
+    stepId: "stale-step", method: "write_file", params: staleParams,
+    continuumFence: { version: 1, attemptId: "stale-attempt", effectKey: "stale-effect",
+      ownershipEpoch: 1, ownerId: "owner-a", bootId: "boot-a" } });
+  assert.equal(result.code, 409);
+  assert.equal(fs.existsSync(staleFile), false);
+
+  const missingFenceFile = path.join(root, "continuum-missing-fence.txt");
+  const missingFenceParams = { path: missingFenceFile, content: "M", mode: "append" };
+  const missingFenceState = makeContinuumState({ taskId: "continuum-missing-task", stepId: "missing-step",
+    attemptId: "missing-attempt", requestId: "missing-request", effectKey: "missing-effect",
+    method: "write_file", params: missingFenceParams });
+  writeContinuumState(missingFenceState);
+  result = await submit({ requestId: "missing-request", taskId: "continuum-missing-task",
+    stepId: "missing-step", method: "write_file", params: missingFenceParams });
+  assert.equal(result.code, 409);
+  assert.equal(fs.existsSync(missingFenceFile), false);
+
+  const expiredFile = path.join(root, "continuum-expired.txt");
+  const expiredParams = { path: expiredFile, content: "E", mode: "append" };
+  const expiredState = makeContinuumState({ taskId: "continuum-expired-task", stepId: "expired-step",
+    attemptId: "expired-attempt", requestId: "expired-request", effectKey: "expired-effect",
+    method: "write_file", params: expiredParams, leaseUntil: Date.now() / 1000 - 1 });
+  writeContinuumState(expiredState);
+  result = await submit({ requestId: "expired-request", taskId: "continuum-expired-task",
+    stepId: "expired-step", method: "write_file", params: expiredParams,
+    continuumFence: expiredState.continuum.attempts["expired-attempt"].dispatch_fence });
+  assert.equal(result.code, 409);
+  assert.equal(fs.existsSync(expiredFile), false);
+
+  // Journal tail is execution truth if projection lags after journal-first crash.
+  const journalFile = path.join(root, "continuum-journal-truth.txt");
+  const journalParams = { path: journalFile, content: "J", mode: "append" };
+  const journalCurrent = makeContinuumState({ taskId: "continuum-journal-task", stepId: "journal-step",
+    attemptId: "journal-attempt", requestId: "journal-request", effectKey: "journal-effect",
+    method: "write_file", params: journalParams, epoch: 2, ownerId: "owner-b", bootId: "boot-b" });
+  const staleProjection = makeContinuumState({ taskId: "continuum-journal-task", stepId: "journal-step",
+    attemptId: "journal-attempt", requestId: "journal-request", effectKey: "journal-effect",
+    method: "write_file", params: journalParams, epoch: 1, ownerId: "owner-a", bootId: "boot-a" });
+  writeContinuumState(journalCurrent, staleProjection);
+  result = await submit({ requestId: "journal-request", taskId: "continuum-journal-task",
+    stepId: "journal-step", method: "write_file", params: journalParams,
+    continuumFence: staleProjection.continuum.attempts["journal-attempt"].dispatch_fence });
+  assert.equal(result.code, 409);
+  assert.equal(fs.existsSync(journalFile), false);
+
+  // Read methods stay compatible and do not require an effect fence.
+  result = await submit({ requestId: "continuum-read", taskId: fencedTask,
+    stepId: "continuum-read-step", method: "read_file",
+    params: { path: fencedFile, offset: 0, length: 10 } });
+  assert.equal(result.code, 200);
+  assert.equal(result.body.result.text, "F");
 
   fs.chmodSync(testFile, 0o755);
   result = await submit({
@@ -250,6 +371,10 @@ async function main() {
     patchFile: true,
     binaryRoundTrip: true,
     staleRunningFailsClosed: true,
+    continuumFenceAccepted: true,
+    continuumStaleEpochRejected: true,
+    continuumFenceRequired: true,
+    continuumJournalTailAuthoritative: true,
   }));
 
   await stop(proc);

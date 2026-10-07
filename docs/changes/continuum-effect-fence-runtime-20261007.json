@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "continuum-effect-fence-runtime-20261007",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Enforce Claw Continuum ownership/effect fencing inside the existing Remote Bridge immediately before new effect dispatch.",
+  "reason": "A client-side guard cannot prevent a stale worker from arriving after takeover. The executor must validate the current Continuum epoch and bound Attempt at its own effect boundary.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-core.cjs",
+    "installer/termux-lite/claw-bridge-cli.py",
+    "docs/changes/continuum-effect-fence-runtime-20261007.md",
+    "docs/changes/continuum-effect-fence-runtime-20261007.json"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "npm run build"
+    },
+    {
+      "name": "remote-bridge-core",
+      "status": "passed",
+      "evidence": "Includes valid fence, stale epoch, missing fence, expired lease, journal-tail authority and duplicate-effect guards."
+    },
+    {
+      "name": "remote-bridge-slack",
+      "status": "passed",
+      "evidence": "Existing Slack active/shadow/idempotence suite passed."
+    },
+    {
+      "name": "remote-bridge-slack-resilience",
+      "status": "passed",
+      "evidence": "Existing rate-limit/reconnect suite passed."
+    },
+    {
+      "name": "mcp-bridge",
+      "status": "passed",
+      "evidence": "Existing external MCP durable receipt/status/artifact suite passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/continuum-effect-fence-runtime-20261007.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability truth remains in ui-playbooks device.remote_bridge; this runtime commit implements its executor boundary only."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends the existing Remote Bridge executor and its receipt store. Continuum journal remains mission truth; no new runtime owner or persistence subsystem is introduced."
+  },
+  "rollback": "Revert this scoped runtime commit, rebuild the Companion and restart through the existing supervised path. Continuum automatic production routing remains disabled.",
+  "limitations": [
+    "No business capability is enrolled into Continuum by this runtime change.",
+    "Live synthetic response-loss and stale-fence acceptance is required after deployment.",
+    "The current effect admission reads the bounded journal tail from the existing journal file; performance optimization is deferred."
+  ]
+}

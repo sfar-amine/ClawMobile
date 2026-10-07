@@ -47,6 +47,7 @@ def build_parser():
     submit.add_argument("--step-id")
     submit.add_argument("--session-id")
     submit.add_argument("--params-json", default="{}")
+    submit.add_argument("--continuum-fence-json")
     return parser
 
 
@@ -70,6 +71,11 @@ def main():
             payload["stepId"] = args.step_id
         if args.session_id:
             payload["sessionId"] = args.session_id
+        if args.continuum_fence_json:
+            fence = json.loads(args.continuum_fence_json)
+            if not isinstance(fence, dict):
+                raise ValueError("invalid_continuum_fence")
+            payload["continuumFence"] = fence
         code, body = request("POST", "/requests", payload)
 
     print(json.dumps(body, indent=2, ensure_ascii=False))

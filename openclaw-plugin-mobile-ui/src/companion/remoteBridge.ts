@@ -8,6 +8,9 @@ import { delegateMcpOwnerRequest } from "./mcpOwnerDelegate";
 const ROOT = process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR || path.join(os.homedir(), ".openclaw", "remote-bridge");
 const REQUEST_DIR = path.join(ROOT, "requests");
 const ARTIFACT_DIR = path.join(ROOT, "artifacts");
+const CONTINUUM_DIR = process.env.CLAW_CONTINUUM_FOREGROUND_DIR ||
+  path.join(os.homedir(), ".openclaw", "continuations", "foreground");
+const MAX_CONTINUUM_JOURNAL_BYTES = 4 * 1024 * 1024;
 const INSTANCE_ID = `${process.pid}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
 
 export function remoteBridgeHealth() {
@@ -23,6 +26,15 @@ export function remoteBridgeHealth() {
 }
 type BridgeState = "received" | "running" | "completed" | "failed" | "indeterminate";
 
+export type ContinuumFence = {
+  version: 1;
+  attemptId: string;
+  effectKey: string;
+  ownershipEpoch: number;
+  ownerId: string;
+  bootId: string;
+};
+
 export type RemoteBridgeRequest = {
   requestId: string;
   taskId?: string;
@@ -30,6 +42,7 @@ export type RemoteBridgeRequest = {
   sessionId?: string;
   method: string;
   params?: Record<string, unknown>;
+  continuumFence?: ContinuumFence;
 };
 
 export type RemoteBridgeReceipt = {
@@ -45,6 +58,7 @@ export type RemoteBridgeReceipt = {
   startedAt?: number;
   completedAt?: number;
   mutationRisk: "read" | "write" | "unknown";
+  continuumFence?: { version: 1; attemptId: string; effectKey: string; ownershipEpoch: number };
   result?: unknown;
   error?: string;
 };function ensureDirs() {
@@ -75,7 +89,118 @@ function sha256(value: Buffer | string) {
 
 function hashParams(method: string, params: Record<string, unknown>) {
   return sha256(JSON.stringify({ method, params }));
-}function atomicWrite(filePath: string, content: string | Buffer) {
+}
+
+function continuumJournalPath(taskId: string) {
+  return path.join(CONTINUUM_DIR, `${taskId}.events.jsonl`);
+}
+
+function continuumProjectionPath(taskId: string) {
+  return path.join(CONTINUUM_DIR, `${taskId}.json`);
+}
+
+function readContinuumState(taskId: string): any | null {
+  const projectionPath = continuumProjectionPath(taskId);
+  const journalPath = continuumJournalPath(taskId);
+  const projectionExists = fs.existsSync(projectionPath);
+  const journalExists = fs.existsSync(journalPath);
+  if (!projectionExists && !journalExists) return null;
+  if (projectionExists) {
+    try {
+      const projection = JSON.parse(fs.readFileSync(projectionPath, "utf8"));
+      if (!projection?.continuum && !journalExists) return null;
+      if (projection?.run_id && projection.run_id !== taskId) {
+        throw statusError(409, "continuum_task_mismatch");
+      }
+    } catch (error: any) {
+      if (!journalExists) throw statusError(409, "continuum_projection_invalid");
+    }
+  }
+  if (!journalExists) throw statusError(409, "continuum_journal_missing");
+  const stat = fs.statSync(journalPath);
+  if (stat.size <= 0 || stat.size > MAX_CONTINUUM_JOURNAL_BYTES) {
+    throw statusError(409, "continuum_journal_invalid");
+  }
+  const raw = fs.readFileSync(journalPath, "utf8").trimEnd();
+  const line = raw.split(/\r?\n/).at(-1) || "";
+  let event: any;
+  try { event = JSON.parse(line); }
+  catch { throw statusError(409, "continuum_journal_invalid"); }
+  const state = event?.after;
+  const seqMismatch = event?.seq !== undefined && event.seq !== state?.continuum?.event_seq;
+  const revisionMismatch = event?.revision !== undefined && event.revision !== state?.continuum?.revision;
+  if (event?.taskId !== taskId || state?.run_id !== taskId || !state?.continuum || seqMismatch || revisionMismatch) {
+    throw statusError(409, "continuum_journal_invalid");
+  }
+  return state;
+}
+
+function normalizeContinuumFence(value: any): ContinuumFence {
+  if (!value || typeof value !== "object" || value.version !== 1) {
+    throw statusError(409, "continuum_fence_required");
+  }
+  const attemptId = String(value.attemptId || "");
+  const effectKey = String(value.effectKey || "");
+  const ownerId = String(value.ownerId || "");
+  const bootId = String(value.bootId || "");
+  for (const [kind, ident] of [["attempt", attemptId], ["effect", effectKey], ["owner", ownerId], ["boot", bootId]]) {
+    if (!/^[A-Za-z0-9._:-]{1,128}$/.test(ident)) throw statusError(409, `invalid_continuum_${kind}`);
+  }
+  const ownershipEpoch = Number(value.ownershipEpoch);
+  if (!Number.isSafeInteger(ownershipEpoch) || ownershipEpoch < 1) {
+    throw statusError(409, "invalid_continuum_epoch");
+  }
+  return { version: 1, attemptId, effectKey, ownershipEpoch, ownerId, bootId };
+}
+
+function validateContinuumFence(
+  request: RemoteBridgeRequest,
+  paramsHash: string,
+): RemoteBridgeReceipt["continuumFence"] | undefined {
+  if (mutationRisk(request.method) === "read") return undefined;
+  if (!request.taskId) {
+    if (request.continuumFence) throw statusError(409, "continuum_task_required");
+    return undefined;
+  }
+  const state = readContinuumState(request.taskId);
+  if (!state) {
+    if (request.continuumFence) throw statusError(409, "continuum_task_not_found");
+    return undefined;
+  }
+  const fence = normalizeContinuumFence(request.continuumFence);
+  const continuum = state.continuum || {};
+  const owner = state.owner || {};
+  const attempts = continuum.attempts || {};
+  const row = attempts[fence.attemptId];
+  const binding = row?.transport_binding;
+  const now = Date.now() / 1000;
+  if (state.state !== "running" || continuum.control !== "active") {
+    throw statusError(409, "continuum_not_runnable");
+  }
+  if (continuum.ownership_epoch !== fence.ownershipEpoch || owner.id !== fence.ownerId ||
+      owner.boot_id !== fence.bootId || Number(owner.lease_until || 0) <= now) {
+    throw statusError(409, "continuum_owner_stale");
+  }
+  if (continuum.current_attempt !== fence.attemptId || !row || row.state !== "submitted") {
+    throw statusError(409, "continuum_attempt_not_armed");
+  }
+  if (row.effect_key !== fence.effectKey) throw statusError(409, "continuum_effect_mismatch");
+  const persistedFence = row.dispatch_fence;
+  if (!persistedFence || persistedFence.version !== 1 ||
+      persistedFence.attemptId !== fence.attemptId || persistedFence.effectKey !== fence.effectKey ||
+      persistedFence.ownershipEpoch !== fence.ownershipEpoch || persistedFence.ownerId !== fence.ownerId ||
+      persistedFence.bootId !== fence.bootId) {
+    throw statusError(409, "continuum_fence_mismatch");
+  }
+  if (!binding || binding.version !== 1 || binding.requestId !== request.requestId ||
+      binding.taskId !== request.taskId || binding.stepId !== request.stepId ||
+      binding.method !== request.method || binding.paramsHash !== paramsHash) {
+    throw statusError(409, "continuum_transport_binding_mismatch");
+  }
+  return { version: 1, attemptId: fence.attemptId, effectKey: fence.effectKey,
+           ownershipEpoch: fence.ownershipEpoch };
+}
+function atomicWrite(filePath: string, content: string | Buffer) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const existingMode = fs.existsSync(filePath) ? (fs.statSync(filePath).mode & 0o777) : 0o600;
   const tempPath = `${filePath}.tmp-${process.pid}-${crypto.randomBytes(3).toString("hex")}`;
@@ -136,6 +261,7 @@ function summarizeReceipt(receipt: RemoteBridgeReceipt) {
     paramsHash: normalized.paramsHash,
     state: normalized.state,
     mutationRisk: normalized.mutationRisk,
+    continuumFence: normalized.continuumFence,
     receivedAt: normalized.receivedAt,
     startedAt: normalized.startedAt,
     completedAt: normalized.completedAt,
@@ -453,6 +579,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     params: body?.params && typeof body.params === "object"
       ? body.params
       : {},
+    continuumFence: body?.continuumFence,
   };
 }export async function submitRemoteBridgeRequest(
   body: RemoteBridgeRequest,
@@ -467,10 +594,10 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     if (existing.paramsHash !== paramsHash || existing.method !== request.method) {
       throw statusError(409, "request_id_conflict");
     }
-    if (existing.taskId && request.taskId && existing.taskId !== request.taskId) {
+    if (request.taskId && existing.taskId !== request.taskId) {
       throw statusError(409, "request_task_conflict");
     }
-    if (existing.stepId && request.stepId && existing.stepId !== request.stepId) {
+    if (request.stepId && existing.stepId !== request.stepId) {
       throw statusError(409, "request_step_conflict");
     }
     return normalizeStaleReceipt(existing);
@@ -486,6 +613,8 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     }
   }
 
+  const continuumFence = validateContinuumFence(request, paramsHash);
+
   let receipt: RemoteBridgeReceipt = {
     requestId: request.requestId,
     taskId: request.taskId,
@@ -496,6 +625,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     instanceId: INSTANCE_ID,
     receivedAt: Date.now(),
     mutationRisk: mutationRisk(request.method),
+    continuumFence,
   };
   writeReceipt(receipt);
   receipt = {
