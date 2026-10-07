@@ -56,6 +56,23 @@ type TranscriptSummary = {
 };
 
 const submittedRuns = new Map<string, StoredRun>();
+const MAX_PERSISTED_RUNS = 500;
+const MAX_PERSISTED_RUN_BYTES = 8 * 1024 * 1024;
+
+function retainStoredRuns(rows: StoredRun[]): StoredRun[] {
+  const retained: StoredRun[] = [];
+  const seen = new Set<string>();
+  let bytes = 2;
+  for (const row of rows) {
+    if (seen.has(row.runId) || retained.length >= MAX_PERSISTED_RUNS) continue;
+    const encoded = Buffer.byteLength(JSON.stringify(row), "utf8") + 1;
+    // Always keep the newest row even if it is unusually large; subsequent rows are bounded by bytes.
+    if (retained.length > 0 && bytes + encoded > MAX_PERSISTED_RUN_BYTES) break;
+    retained.push(row); seen.add(row.runId); bytes += encoded;
+  }
+  return retained;
+}
+
 let registryWrite: Promise<unknown> = Promise.resolve();
 function mutateRegistry<T>(operation: () => Promise<T>): Promise<T> {
   const next = registryWrite.then(operation, operation);
@@ -1198,7 +1215,7 @@ async function saveStoredRun(run: StoredRun) {
     ...run,
     sessionId: normalizeCompanionSessionId(run.sessionId || "default"),
   };
-  const next = [storedRun, ...registry.runs.filter((existing) => existing.runId !== storedRun.runId)].slice(0, 100);
+  const next = retainStoredRuns([storedRun, ...registry.runs.filter((existing) => existing.runId !== storedRun.runId)]);
   const archivedSessionIds = registry.archivedSessionIds.filter((id) => id !== storedRun.sessionId);
   submittedRuns.set(storedRun.runId, storedRun);
   await writeCompanionRunRegistry(next, archivedSessionIds);
@@ -1210,15 +1227,16 @@ async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: 
   const current = await registryOrEmpty();
   const payments = paymentRequests ?? current.paymentRequests;
   const confirmations = ownerConfirmations ?? current.ownerConfirmations;
+  const boundedRuns = retainStoredRuns(runs);
   await fs.mkdir(path.dirname(runRegistryPath()), { recursive: true });
   const tmp = runRegistryPath() + ".tmp-" + process.pid;
   const file = await fs.open(tmp, "w", 0o600);
-  try { await file.writeFile(JSON.stringify({ version: 1, runs, archivedSessionIds, paymentRequests: payments, ownerConfirmations: confirmations }, null, 2)); await file.sync(); }
+  try { await file.writeFile(JSON.stringify({ version: 1, runs: boundedRuns, archivedSessionIds, paymentRequests: payments, ownerConfirmations: confirmations }, null, 2)); await file.sync(); }
   finally { await file.close(); }
   await fs.rename(tmp, runRegistryPath());
   const directory = await fs.open(path.dirname(runRegistryPath()), "r");
   try { await directory.sync(); } finally { await directory.close(); }
-  publishConversationChanges(current.runs, runs, current.archivedSessionIds, archivedSessionIds);
+  publishConversationChanges(current.runs, boundedRuns, current.archivedSessionIds, archivedSessionIds);
 }
 
 async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
@@ -1310,7 +1328,7 @@ export async function saveVoiceTurn(sessionId: string, value: any) {
     const run: StoredRun = {runId: value.runId, sessionId, text: value.input, userText: value.input,
       result: value.output, modality: "voice", transcriptState: value.state, transcriptRevision: value.revision,playback,
       acceptedAt: old?.acceptedAt || Date.now(), updatedAt: Date.now(), state: value.state === "completed" ? "done" : "unknown"};
-    await writeCompanionRunRegistry([run, ...registry.runs.filter(row => row.runId !== run.runId)].slice(0,100), registry.archivedSessionIds);
+    await writeCompanionRunRegistry([run, ...registry.runs.filter(row => row.runId !== run.runId)], registry.archivedSessionIds);
     submittedRuns.set(run.runId,run);
     return statusFromStoredRun(run);
   });
@@ -1463,7 +1481,7 @@ export async function conversationSummariesPage(options:PageOptions={}){
   return {schemaVersion:2,resourceKey:"conversations",dataRevision:revision,items:page.map(({sortAt,...row})=>row),
     nextCursor:more?cursorFor(scope,revision,page[page.length-1].sessionId):null,
     hasMore:more,coverage:{source:"companion_retained_registry",fullHistory:false,retainedRunCount:runs.length,
-      availableConversations:grouped.size,matchingConversations:items.length,persistedRunLimit:100},sort:"latest_accepted_desc_session_id_asc"};
+      availableConversations:grouped.size,matchingConversations:items.length,persistedRunLimit:MAX_PERSISTED_RUNS,persistedRunBytesLimit:MAX_PERSISTED_RUN_BYTES},sort:"latest_accepted_desc_session_id_asc"};
 }
 export async function conversationTurnsPage(sessionId:string,options:PageOptions={}){
   requireConversationId(sessionId);const {limit,cursor}=normalizedPageOptions(options);
@@ -1482,7 +1500,7 @@ export async function conversationTurnsPage(sessionId:string,options:PageOptions
     issues:partial?["history_resolution_unavailable"]:[],
     nextCursor:start>0?cursorFor(scope,revision,selected[0].runId):null,
     coverage:{source:"companion_retained_registry",fullHistory:false,availableTurnCount:all.length,
-      unresolvedResults:selected.filter(r=>r.modality!=="voice"&&!r.result).length,persistedRunLimit:100},sort:"accepted_asc_run_id_asc"};
+      unresolvedResults:selected.filter(r=>r.modality!=="voice"&&!r.result).length,persistedRunLimit:MAX_PERSISTED_RUNS,persistedRunBytesLimit:MAX_PERSISTED_RUN_BYTES},sort:"accepted_asc_run_id_asc"};
 }
 
 type ConversationChange={id:string;epoch:string;sequence:number;scope:"conversations";sessionIds:string[];resyncRequired:boolean};

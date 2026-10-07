@@ -26,11 +26,18 @@ const line=(role,text,stopReason)=>JSON.stringify({type:'message',message:{role,
  await api.conversationSummariesPage({limit:20,cursor:first.nextCursor}); // Same visible projection: cursor remains valid.
  mutated.runs[1].result='Latest preview changed';fs.writeFileSync(file,JSON.stringify(mutated));
  await assert.rejects(api.conversationSummariesPage({limit:20,cursor:first.nextCursor}),/pagination_invalidated/);
- const turnRows=Array.from({length:65},(_,i)=>({...initial[0],runId:'long-'+i,sessionId:'long-session',acceptedAt:5000+i,updatedAt:6000+i,result:'Full '+i}));
- mutated.runs=turnRows;fs.writeFileSync(file,JSON.stringify(mutated));
- const turns=await api.conversationTurnsPage('long-session',{limit:20});assert.equal(turns.turns.length,20);assert.equal(turns.turns[0].runId,'long-45');assert.equal(turns.coverage.availableTurnCount,65);
- const older=await api.conversationTurnsPage('long-session',{limit:20,cursor:turns.nextCursor});assert.equal(older.turns[0].runId,'long-25');assert.equal(older.turns.length,20);
+ const turnRows=Array.from({length:500},(_,i)=>({...initial[0],runId:'long-'+i,sessionId:'long-session',acceptedAt:5000+i,updatedAt:6000+i,result:'Full '+i}));
+ mutated.runs=[...turnRows].reverse();fs.writeFileSync(file,JSON.stringify(mutated));
+ const turns=await api.conversationTurnsPage('long-session',{limit:20});assert.equal(turns.turns.length,20);assert.equal(turns.turns[0].runId,'long-480');assert.equal(turns.coverage.availableTurnCount,500);assert.equal(turns.coverage.persistedRunLimit,500);
+ let cursor=turns.nextCursor,pages=1;const seen=new Set(turns.turns.map(x=>x.runId));
+ while(cursor){const page=await api.conversationTurnsPage('long-session',{limit:20,cursor});page.turns.forEach(x=>seen.add(x.runId));cursor=page.nextCursor;pages++;}
+ assert.equal(pages,25);assert.equal(seen.size,500);assert.equal(seen.has('long-0'),true);assert.equal(seen.has('long-499'),true);
  const legacy=await api.getConversationTurns('long-session');assert.equal(legacy.length,40,'Voice canonical window must remain separate from UI pages');
+ const largeRows=Array.from({length:500},(_,i)=>({...initial[0],runId:'large-'+i,sessionId:'large-session',acceptedAt:9000+i,updatedAt:10000+i,result:'X'.repeat(20000)}));
+ mutated.runs=[...largeRows].reverse();fs.writeFileSync(file,JSON.stringify(mutated));
+ const boundedId='voice-'+randomUUID();await api.saveVoiceTurn('bounded-session',{runId:boundedId,revision:1,input:'Bounded',output:'Bounded result',state:'completed'});
+ const bounded=JSON.parse(fs.readFileSync(file));assert.equal(bounded.runs[0].runId,boundedId);assert.ok(bounded.runs.length<500);assert.ok(Buffer.byteLength(JSON.stringify(bounded.runs))<=8*1024*1024+25000);
+ mutated.runs=[...turnRows].reverse();fs.writeFileSync(file,JSON.stringify(mutated));
  assert.equal(api.terminalConversationResult(line('user','Q')+'\n'+line('assistant','Fragment'),'Q'),undefined);
  assert.equal(api.terminalConversationResult(line('user','Q')+'\n'+line('assistant','Done','stop'),'Q').result,'Done');
  assert.equal(api.terminalConversationResult(line('user','Q')+'\n'+line('assistant','Old','stop')+'\n'+line('user','Q')+'\n'+line('assistant','New','stop'),'Q'),undefined);
@@ -39,10 +46,10 @@ const line=(role,text,stopReason)=>JSON.stringify({type:'message',message:{role,
  await api.conversationSummariesPage({limit:20});assert.equal(events.length,0,'Read-only pages must not emit fake changes');
  const voiceId='voice-'+randomUUID();
  await api.saveVoiceTurn('voice-fixture',{runId:voiceId,revision:1,input:'Fixture',output:'Fixture result',state:'completed'});
- assert.equal(events.length,1);assert.deepEqual(events[0].sessionIds,['voice-fixture']);assert.equal(JSON.stringify(events).includes('Fixture result'),false);
+ assert.equal(events.length,1);assert.deepEqual(events[0].sessionIds,['long-session','voice-fixture']);assert.equal(JSON.stringify(events).includes('Fixture result'),false);
  const persisted=JSON.parse(fs.readFileSync(file));assert.deepEqual(persisted.paymentRequests,registry.paymentRequests);assert.deepEqual(persisted.ownerConfirmations,registry.ownerConfirmations);
  const replay=api.subscribeConversationChanges(()=>{},subscription.current.id);assert.equal(replay.replay.length,1);replay.close();
  const reset=api.subscribeConversationChanges(()=>{},'unknown-epoch:0');assert.equal(reset.resyncRequired,true);reset.close();
  subscription.close();
- console.log(JSON.stringify({suite:'conversation-pages',passed:true,retainedRows:100,distinctSessions:50,voiceContextWindow:40,paymentGuardsPreserved:true}));
+ console.log(JSON.stringify({suite:'conversation-pages',passed:true,retainedRows:500,distinctSessions:50,longConversationPages:25,voiceContextWindow:40,paymentGuardsPreserved:true}));
 })().catch(e=>{console.error(e);process.exitCode=1});
