@@ -34,7 +34,8 @@
     "test:control-v2": "node scripts/test-control-v2.cjs",
     "test:conversation-pages": "node scripts/test-conversation-pages.cjs",
     "test:conversation-backfill-races": "node scripts/test-conversation-backfill-races.cjs",
-    "test:gateway-maintenance-recovery": "node scripts/test-gateway-maintenance-recovery.cjs"
+    "test:gateway-maintenance-recovery": "node scripts/test-gateway-maintenance-recovery.cjs",
+    "test:maxit-topup-payment": "node scripts/test-maxit-topup-payment-adapter.cjs"
   },
   "dependencies": {
     "nostr-tools": "^2.23.5",

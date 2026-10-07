@@ -445,13 +445,15 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
         const current=locate(rows,id),at=now();if(current.state!=="executing")return;
         appendTrace(current,event,at);current.updatedAt=at;
       })};
-      try {
-        const fresh=validateQuote(await bounded(()=>adapter.quote!(claimed.quote.reference),quoteMs));
-        if(quoteDigest(claimed.draft.adapterId,claimed.draft.mode,fresh)===claimed.quoteHash){
-          await traceSink.trace({stage:"provider_readback",invoiceState:"unpaid"});
-          return finish(id,"cancelled","payment_cancelled");
-        }
-      } catch {}
+      if(typeof adapter.timeoutReconcile!=="function"){
+        try {
+          const fresh=validateQuote(await bounded(()=>adapter.quote!(claimed.quote.reference),quoteMs));
+          if(quoteDigest(claimed.draft.adapterId,claimed.draft.mode,fresh)===claimed.quoteHash){
+            await traceSink.trace({stage:"provider_readback",invoiceState:"unpaid"});
+            return finish(id,"cancelled","payment_cancelled");
+          }
+        } catch {}
+      }
       const resumed=await options.store.change(rows=>{
         const r=locate(rows,id);
         if(r.state!=="executing"||r.bankResumeAttempts!==0||!r.continuation)paymentError("payment_resume_not_available",409);
@@ -460,7 +462,9 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
         return JSON.parse(JSON.stringify(r)) as PaymentRecord;
       });
       try {
-        const result:PaymentExecutionResult=await bounded(()=>adapter.resume!(resumed.quote,id,resumed.continuation,traceSink),executionMs);
+        const reconcile=adapter.timeoutReconcile??adapter.resume;
+        if(typeof reconcile!=="function")paymentError("payment_resume_not_available",409);
+        const result:PaymentExecutionResult=await bounded(()=>reconcile(resumed.quote,id,resumed.continuation,traceSink),executionMs);
         if(result?.state==="failed"&&result.rejectionVerified===true&&["payment_cancelled","session_expired"].includes(result.reasonCode))
           return finish(id,"cancelled","payment_cancelled");
         return applyResult(id,resumed.draft.mode,result);

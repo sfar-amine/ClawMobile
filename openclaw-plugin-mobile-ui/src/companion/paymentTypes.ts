@@ -43,6 +43,7 @@ export type PaymentAdapter = {
   execute?:(quote:PaymentQuote,requestId:string,context?:PaymentExecutionContext)=>Promise<PaymentExecutionResult>;
   executeLocal?:(quote:PaymentQuote,requestId:string,context?:PaymentExecutionContext)=>Promise<PaymentExecutionResult>;
   resume?:(quote:PaymentQuote,requestId:string,continuation?:PaymentContinuation,traceSink?:PaymentTraceSink)=>Promise<PaymentExecutionResult>;
+  timeoutReconcile?:(quote:PaymentQuote,requestId:string,continuation?:PaymentContinuation,traceSink?:PaymentTraceSink)=>Promise<PaymentExecutionResult>;
 };
 
 export interface PaymentStore {

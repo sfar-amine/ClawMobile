@@ -4,7 +4,7 @@ const {createPaymentCore,ownerKey,confirmationMessage,quoteDigest}=require("../d
 const {PAYMENT_QUOTE_TIMEOUT_MS,bankAuthorizationIntent,bindPaymentAuthorizations}=require("../dist/companion/payments.js");
 let count=0;
 async function test(name,fn){await fn();count++;console.log("PASS "+name)}
-function fixture({mode="demo",execute,resume,revalidate,quote,validated=true,timeouts}={}){
+function fixture({mode="demo",execute,resume,timeoutReconcile,revalidate,quote,validated=true,timeouts}={}){
  const pair=crypto.generateKeyPairSync("ec",{namedCurve:"prime256v1"});
  const key=ownerKey(pair.publicKey.export({type:"spki",format:"pem"}));
  let rows=[],clock=1000000,calls=0,resumes=0,writes=Promise.resolve();
@@ -17,7 +17,8 @@ function fixture({mode="demo",execute,resume,revalidate,quote,validated=true,tim
  const adapter={id:"fixture.payment",label:"Synthetic adapter",mode,executionValidated:validated,bankNavigationOrigins:["https://bank.fixture.test"],
   quote:quote||asyncRef,revalidate:revalidate||(async value=>({...value})),
   async execute(...args){calls++;const value=execute?await execute(...args):{state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"TEST-RECEIPT",transactionCorrelated:true,providerReconciled:true}};return value?.state==="requires_bank_action"&&!value.continuation?{...value,continuation}:value},
-  async resume(...args){resumes++;return resume?resume(...args):{state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"TEST-RECEIPT",transactionCorrelated:true,providerReconciled:true}}}};
+  async resume(...args){resumes++;return resume?resume(...args):{state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"TEST-RECEIPT",transactionCorrelated:true,providerReconciled:true}}},
+  ...(timeoutReconcile?{timeoutReconcile}: {})};
  async function asyncRef(reference){return {...q,reference}}
  const make=()=>createPaymentCore({store,adapters:[adapter],key:()=>key,clock:()=>clock,timeouts});
  const core=make();
@@ -141,6 +142,16 @@ const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
   const done=await f.core.timeoutBankAction(r.requestId);
   assert.equal(done.state,"confirmed");assert.equal(done.metrics.executorAttempts,1);assert.equal(done.metrics.bankResumeAttempts,1);
   assert.equal(f.calls(),1);assert.equal(f.resumes(),1);
+ });
+ await test("provider timeoutReconcile bypasses invoice quote inference",async()=>{
+  let reconciles=0;
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"}),
+   timeoutReconcile:async()=>{reconciles++;return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",
+    receipt:{reference:"PROVIDER-RECON",transactionCorrelated:true,providerReconciled:true}};}});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  f.adapter.quote=async()=>{throw Error("quote_must_not_drive_transaction_reconcile")};
+  f.setTime(f.time()+60000);const done=await f.core.timeoutBankAction(r.requestId);
+  assert.equal(done.state,"confirmed");assert.equal(reconciles,1);assert.equal(f.resumes(),0);
  });
  await test("bank return wins before timeout and timeout cannot replay",async()=>{
   let token=null;

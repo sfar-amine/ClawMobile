@@ -46,7 +46,7 @@ export function buildLocalPaymentIntent(args:{
     presentation:{
       title:"Autoriser le paiement",
       subtitle:amount+" "+quote.currency+" à "+quote.payee,
-      description:"Facture "+quote.reference+". Le paiement sera créé et envoyé uniquement après cette biométrie."
+      description:"Référence "+quote.reference+". Le paiement sera créé et envoyé uniquement après cette biométrie."
     },
     origin
   };

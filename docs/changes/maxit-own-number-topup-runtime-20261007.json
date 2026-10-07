@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "maxit-own-number-topup-runtime-20261007",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add staged Maxit own-number top-up adapter to the existing private Companion payment runtime.",
+  "reason": "Maxit must use its own provider order contract while reusing the canonical Payment Core and ClicToPay issuer rail.",
+  "rollback": "Revert the scoped runtime commit and keep the Maxit live-acceptance gate absent. Never replay an engaged or indeterminate PaymentRecord.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/maxitTopupLivePaymentAdapter.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentTypes.ts",
+    "openclaw-plugin-mobile-ui/src/companion/paymentCore.ts",
+    "openclaw-plugin-mobile-ui/src/companion/payments.ts",
+    "openclaw-plugin-mobile-ui/src/companion/localPaymentIntent.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-maxit-topup-payment-adapter.cjs",
+    "openclaw-plugin-mobile-ui/package.json",
+    "docs/changes/maxit-own-number-topup-runtime-20261007.md",
+    "docs/changes/maxit-own-number-topup-runtime-20261007.json"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "Companion TypeScript build passed using deterministic worktree dependency hydration."
+    },
+    {
+      "name": "maxit-adapter",
+      "status": "passed",
+      "evidence": "3/3 tests prove default gate closure, Maxit-specific start payload with no Topnet invoice fields, and read-only same-transaction resume/timeout reconciliation."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "58/58 tests passed; Topnet timeout behavior remains unchanged while providers may supply explicit timeoutReconcile."
+    },
+    {
+      "name": "clictopay-provider",
+      "status": "passed",
+      "evidence": "2/2 generic ClicToPay provider adapter tests passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/maxit-own-number-topup-runtime-20261007.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability truth and MCP routing are owned by ui-playbooks payment.owner_native."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends the existing provider adapter interface and Payment Core; no new runtime owner, registry, store, daemon, scheduler or retry engine."
+  },
+  "limitations": [
+    "The Maxit live-acceptance gate is absent.",
+    "No real Maxit order, bank submission or recharge is part of this runtime delivery.",
+    "Real financial certification remains the next explicit owner test."
+  ]
+}
