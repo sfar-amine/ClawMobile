@@ -66,7 +66,8 @@ check_whatsapp(){
   if [ "$lock_rc" -eq 10 ]; then
    log "service=whatsapp state=stale_lock_quarantined action=gateway_restart detail=$lock_out"
    put whatsapp status recovering; put whatsapp failures 0; put whatsapp next $(( $(now)+45 ))
-   timeout 30 openclaw gateway restart 9>&- >>"$D/whatsapp-recovery.log" 2>&1 || log 'service=whatsapp state=recovery_restart_failed'
+   nohup timeout --kill-after=5 30 openclaw gateway restart 9>&- >>"$D/whatsapp-recovery.log" 2>&1 </dev/null &
+   log "service=whatsapp state=recovery_restart_started pid=$!"
    return
   fi
   if [ "$lock_rc" -eq 30 ]; then log "service=whatsapp state=lock_recovery_refused detail=$lock_out"; fail whatsapp; return; fi

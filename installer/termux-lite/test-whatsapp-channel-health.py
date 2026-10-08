@@ -30,6 +30,8 @@ assert 'terminal_auth_logout' in hm
 assert 'check_http gateway http://127.0.0.1:18789/healthz' not in hm
 assert 'incident-notify.sh" human_required' in hm
 assert 'incident-email.sh" --probe' in hm
+assert 'nohup timeout --kill-after=5 30 openclaw gateway restart' in hm
+assert 'recovery_restart_started' in hm
 assert 'smtplib.SMTP_SSL' in email
 assert 'server.starttls' in email
 assert 'INCIDENT_EMAIL_MODE' in email
