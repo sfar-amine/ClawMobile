@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "repair",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "applied",
   "summary": "Surface canonical intent ambiguity as a local Capability-First clarification before any Gateway/model or executor call.",
   "reason": "The canonical router can now return needs_clarification; Samantha must preserve that state instead of treating it as a model fallback or capability-state failure.",
   "rollback": "Revert this runtime commit. The UI routing commit can remain; older runtime will not understand clarification and should therefore be rolled back together for product behavior.",
@@ -58,5 +58,16 @@
   "limitations": [
     "Clarification itself never executes a capability or financial effect.",
     "Provider selection/business rules remain owned by canonical manifests and the Capability Graph."
-  ]
+  ],
+  "runtime_activation": {
+    "runtime_commit": "c4fddcd9456044df14850aef526a3c285c2282d9",
+    "tier0_release": "20261008T212442-d3beb769",
+    "soak_state": "stable",
+    "soak_bad_samples": 0,
+    "companion_state": "online",
+    "gateway_state": "online",
+    "adb_state": "device",
+    "live_clarification_run": "run_1791491119902_dceef30c",
+    "financial_effect_tested": false
+  }
 }

@@ -10,3 +10,6 @@ Acceptance covers helper classification, Companion submit reconciliation, conver
 
 ## Terminal status projection
 A live clarification acceptance exposed a presentation inconsistency: by-client lookup returned `state=done` and the correct result but retained the generic running message. `statusFromStoredRun` now projects terminal local runs with the terminal result/message and `Completed.` progress/event metadata. This changes presentation only; run identity, execution, retry and effect semantics are unchanged.
+
+## Deployment
+Runtime commit `c4fddcd9456044df14850aef526a3c285c2282d9` is active. Tier-0 release `20261008T212442-d3beb769` completed its 300-second soak as stable with zero bad samples and the critical capabilities unchanged. Live Companion clarification returned a terminal local question with zero model transcript rows and no financial effect; terminal by-client projection also reports the same result with `Completed.` progress.
