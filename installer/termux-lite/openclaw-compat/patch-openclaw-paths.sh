@@ -188,6 +188,70 @@ else
     echo -e "  ${YELLOW}[INFO]${NC} fs-safe publication module not present; no compatibility patch required"
 fi
 
+# Final backup archives are fully written, fsynced and verified inside a private
+# sibling staging directory. Android forbids hard links on app-private storage,
+# but fs-safe exposes native renameat2(RENAME_NOREPLACE), which atomically moves
+# that completed file without replacing an existing destination. Reuse that
+# stronger no-clobber primitive and treat the consumed staging pathname as clean.
+echo "Patching OpenClaw atomic backup publication..."
+BACKUP_CREATE_FILES=$(find "$OPENCLAW_DIR/dist" -maxdepth 1 -type f -name 'backup-create-*.mjs' 2>/dev/null || true)
+backup_state="$(python3 - $BACKUP_CREATE_FILES <<'PY_PATCH_BACKUP_PUBLISH'
+from pathlib import Path
+import sys
+
+paths=[Path(x) for x in sys.argv[1:] if x]
+if not paths:
+    print("absent")
+    raise SystemExit(0)
+old_strategy='strategy: "link-required",'
+new_strategy='strategy: "rename-noreplace",'
+old_cleanup='\t} catch {\n\t\treturn false;\n\t}\n\tif (!currentIdentity.isFile()'
+new_cleanup='\t} catch (error) {\n\t\treturn hasErrnoCode(error, "ENOENT");\n\t}\n\tif (!currentIdentity.isFile()'
+old_message='Atomic backup publication requires hard-link support in ${plan.requestedParentPath}.'
+new_message='Atomic backup publication requires atomic no-replace rename support in ${plan.requestedParentPath}.'
+seen=0
+changed=0
+for path in paths:
+    text=path.read_text()
+    if old_strategy not in text and new_strategy not in text:
+        continue
+    seen += 1
+    if old_strategy in text:
+        if text.count(old_strategy) != 1:
+            raise SystemExit(f"backup_strategy_anchor_count={text.count(old_strategy)}:{path}")
+        text=text.replace(old_strategy,new_strategy,1)
+        changed += 1
+    elif text.count(new_strategy) != 1:
+        raise SystemExit(f"backup_rename_strategy_count={text.count(new_strategy)}:{path}")
+    if old_cleanup in text:
+        if text.count(old_cleanup) != 1:
+            raise SystemExit(f"backup_cleanup_anchor_count={text.count(old_cleanup)}:{path}")
+        text=text.replace(old_cleanup,new_cleanup,1)
+        changed += 1
+    elif text.count(new_cleanup) != 1:
+        raise SystemExit(f"backup_cleanup_state_invalid:{path}")
+    if old_message in text:
+        if text.count(old_message) != 1:
+            raise SystemExit(f"backup_message_anchor_count={text.count(old_message)}:{path}")
+        text=text.replace(old_message,new_message,1)
+        changed += 1
+    elif text.count(new_message) != 1:
+        raise SystemExit(f"backup_message_state_invalid:{path}")
+    path.write_text(text)
+if seen != 1:
+    raise SystemExit(f"backup_publish_module_count={seen}")
+print("patched" if changed else "already")
+PY_PATCH_BACKUP_PUBLISH
+)"
+if [ "$backup_state" = "patched" ]; then
+    echo -e "  ${GREEN}[PATCHED]${NC} OpenClaw backup publication (atomic rename-noreplace)"
+    PATCHED=$((PATCHED + 1))
+elif [ "$backup_state" = "already" ]; then
+    echo -e "  ${GREEN}[OK]${NC} OpenClaw backup publication already uses atomic rename-noreplace"
+else
+    echo -e "  ${YELLOW}[INFO]${NC} OpenClaw archive backup module not present; no final-publication patch required"
+fi
+
 echo ""
 if [ "$PATCHED" -eq 0 ]; then
     echo -e "${YELLOW}[INFO]${NC} No hardcoded paths found to patch."
