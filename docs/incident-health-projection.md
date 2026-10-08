@@ -7,7 +7,8 @@ Le ledger canonique `~/.openclaw/incidents/orchestrator.db` reste immuable du po
 - un `failed` de moins de 24 h reste dans `recent_failed` tant qu'aucune preuve live saine n'existe ;
 - si la capacité correspondante est actuellement `healthy` ou `ready`, l'ancien `failed` n'est plus projeté dans `recent_failed` ;
 - pour Slack Bridge, la preuve doit être `state=healthy`, `connected=true` et le heartbeat doit dater de 120 secondes ou moins ;
-- une preuve dégradée, absente, future ou périmée ne masque jamais l'incident.
+- une preuve dégradée, absente, future ou périmée ne masque jamais l'incident ;
+- un incident explicitement annoté `test_fixture` par l'Incident Manager reste dans le ledger et ses événements d'audit, mais est exclu des listes opérationnelles `active`, `recent_failed` et `human_required`. Aucun filtrage ne repose sur le texte du résumé.
 
 Cette règle nettoie la vue opérationnelle sans perdre la RCA, les événements, les Learning Gate ou les références d'incident.
 

@@ -125,8 +125,11 @@ def incidents(caps=None):
  if not p.exists():return active,recent_failed,human
  caps=caps or {}
  c=sqlite3.connect(p);c.row_factory=sqlite3.Row
+ try:synthetic={str(r[0]) for r in c.execute("select distinct incident_id from events where kind='test_fixture' and incident_id is not null")}
+ except sqlite3.OperationalError:synthetic=set()
  for r in c.execute("select * from incidents order by updated desc"):
   d=dict(r)
+  if str(d.get('id') or '') in synthetic:continue
   if d['state'] not in ('recovered','failed'):active.append(d)
   if d['state']=='failed' and NOW-d['updated']<86400:
    live_state=_incident_component_live_state(d.get('component'),caps)

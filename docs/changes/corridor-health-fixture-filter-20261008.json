@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "id": "corridor-health-fixture-filter-20261008",
+  "date": "2026-10-08",
+  "summary": "Exclude canonically annotated test fixtures from operational incident health while preserving the incident ledger and audit events.",
+  "owner": "health.immune.verdict",
+  "source": "installer/termux-lite/health-verdict.py",
+  "behavior": {
+    "marker": "events.kind=test_fixture",
+    "history": "preserved",
+    "operational_projection": "excluded from active/recent_failed/human_required",
+    "text_heuristic": false
+  },
+  "tests": [
+    "installer/termux-lite/test-health-verdict.py: 11/11 PASS",
+    "installer/termux-lite/test-health-verdict-fixture-filter.py: 1/1 PASS",
+    "private runtime branch ba56568: 13/13 PASS",
+    "active release overlay: 13/13 PASS and one Health Manager cycle retained synthetic_visible=[] with active=0/human_required=0"
+  ],
+  "rollback": "Revert filter; test_fixture observations remain harmless audit metadata.",
+  "deployment_state": "applied_and_supervised",
+  "publication": {
+    "public_source_branch": "origin/main",
+    "private_runtime_commit": "ba5656870c00988f7b5ca3552491f94551d02db6",
+    "active_release": "20261008-capability-first-06e2b82",
+    "ui_attestation_commit": "24909ada222897b7a249bb1c98df47d273171568"
+  }
+}
