@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "id": "capability-decision-contract-v2-runtime-deployment-20261008",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "applied",
+  "summary": "Record verified Tier-0 and Companion activation of Capability Decision Contract V2 runtime.",
+  "reason": "Functional runtime is published and live; this receipt records exact active release/source identity and no-effect E2E acceptance.",
+  "rollback": "Revert this documentation-only receipt if evidence must be withdrawn. Functional rollback remains the paired V2 runtime/UI rollback.",
+  "files": [
+    "docs/changes/capability-decision-contract-v2-runtime-deployment-20261008.md",
+    "docs/changes/capability-decision-contract-v2-runtime-deployment-20261008.json"
+  ],
+  "tests": [
+    {
+      "name": "runtime-expanded",
+      "status": "passed",
+      "evidence": "19 helper tests, Companion submit/run/history, durable fast path, Payment Core 58/58, payment handoff 3/3, Topnet 9/9, Maxit 3/3, MCP, Capability Bridge and Continuum all passed."
+    },
+    {
+      "name": "tier0-live",
+      "status": "passed",
+      "evidence": "Tier-0 release 20261008T231005-d3beb769 source_commit=7cdb7cb366d97b13d12adb415a3df2e883136c65, soak stable, bad samples 0."
+    },
+    {
+      "name": "decision-e2e-live",
+      "status": "passed",
+      "evidence": "Known EXECUTE, CLARIFY and linked child EXECUTE all completed capability_first with zero model transcript rows and no financial effect."
+    }
+  ],
+  "documentation": [
+    "docs/changes/capability-decision-contract-v2-runtime-deployment-20261008.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Documentation-only runtime deployment closure."
+  },
+  "architecture": {
+    "changed": false,
+    "documents": [],
+    "reason": "No architecture change in this closure receipt."
+  },
+  "runtime_activation": {
+    "runtime_commit": "7cdb7cb366d97b13d12adb415a3df2e883136c65",
+    "ui_commit": "4deae593178e2ae2e85d13d4e13952f93cd9d0e3",
+    "tier0_release": "20261008T231005-d3beb769",
+    "soak_state": "stable",
+    "soak_bad_samples": 0,
+    "financial_effect_tested": false
+  },
+  "limitations": [
+    "No financial effect was executed during acceptance."
+  ]
+}
