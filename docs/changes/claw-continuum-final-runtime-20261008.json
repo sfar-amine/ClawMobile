@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "maintenance",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "applied",
   "summary": "Complete Continuum durable ingestion for MCP and Capability-First and expose read-only Missions through the existing Companion Control facade.",
   "reason": "FAST/DURABLE classification must be consumed at stable-identity ingresses and effectful execution must cross the existing fenced Remote Bridge boundary.",
   "files": [
@@ -85,5 +85,11 @@
     "No Mission state is stored in Companion.",
     "Business-domain effect verification remains owned by each capability.",
     "Android presentation is delivered separately on samantha-private/main."
-  ]
+  ],
+  "activation": {
+    "commit": "a69e74add647c8a60da9ffbfde47c33e95eb3b37",
+    "companion_pid": 14409,
+    "health": "healthy",
+    "final_live_acceptance": "passed"
+  }
 }

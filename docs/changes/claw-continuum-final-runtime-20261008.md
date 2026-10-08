@@ -33,3 +33,6 @@ The existing Samantha Control facade accepts the read-only `missions` section an
 ## Activation
 
 `deployment_state=not_applied` until the exact private runtime commit is published, built and the supervised Companion has restarted. Live final acceptance must run after activation.
+
+## Activation verified
+Published commit `a69e74add647c8a60da9ffbfde47c33e95eb3b37` is active in supervised Companion PID `14409`, health `healthy`. Final response-loss read/write acceptance passed after activation.
