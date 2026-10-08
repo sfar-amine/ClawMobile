@@ -10,13 +10,22 @@ const helper = path.join(root, "model-fast-path.py");
 const helperLog = path.join(root, "model-fast-path.log");
 fs.writeFileSync(helper, [
   "import json, os, sys",
-  "mode = 'check' if '--check' in sys.argv else 'execute'",
+  "mode = 'clarify' if '--resolve-clarification' in sys.argv else 'execute_decision' if '--execute-decision' in sys.argv else 'check' if '--check' in sys.argv else 'execute'",
   "message = sys.argv[-1] if sys.argv else ''",
   "with open(os.environ['CLAWMOBILE_TEST_FAST_PATH_LOG'], 'a', encoding='utf-8') as h: h.write(mode + '\\n')",
-  "if 'ambiguous capability' in message:",
-  " print(json.dumps({'status':'clarification','text':'Tu veux consulter ou agir ?','model_bypassed':True}))",
+  "def decision(kind, ident):",
+  " return {'version':2,'type':kind,'decisionId':ident,'requestId':ident,'textHash':'x','capabilityRevision':'rev','contractHash':'hash'}",
+  "if mode == 'clarify':",
+  " print(json.dumps({'status':'eligible','model_bypassed':True,'decision':decision('EXECUTE','child-decision'),'resolution':{'text':'resolved capability'}}))",
+  "elif 'ambiguous capability' in message:",
+  " print(json.dumps({'status':'clarification','text':'Tu veux consulter ou agir ?','model_bypassed':True,'decision':{**decision('CLARIFY','parent-decision'),'clarification':{'question':'Tu veux consulter ou agir ?','choices':[{'intent':'read','label':'consulter'},{'intent':'act','label':'agir'}]}}}))",
+  "elif mode == 'check':",
+  " print(json.dumps({'status':'eligible','model_bypassed':True,'decision':decision('EXECUTE','direct-decision')}))",
+  "elif mode == 'execute_decision':",
+  " assert os.environ.get('CLAW_PREPARED_DECISION_B64')",
+  " print(json.dumps({'status':'hit','text':'CAPABILITY_FIRST_DIRECT_OK','model_bypassed':True}))",
   "else:",
-  " print(json.dumps({'status':'eligible','model_bypassed':True} if mode == 'check' else {'status':'hit','text':'CAPABILITY_FIRST_DIRECT_OK','model_bypassed':True}))",
+  " raise SystemExit('unexpected_unprepared_execute')",
   "",
 ].join("\n"));
 process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER = helper;
@@ -135,7 +144,7 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   )).runs.find((run) => run.runId === direct.runId);
   assert.equal(afterEnrichmentAttempt.result, "CAPABILITY_FIRST_DIRECT_OK");
   const callsAfterFirst = fs.readFileSync(helperLog, "utf8").trim().split(/\s+/);
-  assert.deepEqual(callsAfterFirst, ["check", "execute"]);
+  assert.deepEqual(callsAfterFirst, ["check", "execute_decision"]);
   const directDuplicate = await submitIntent("known direct capability", "session-direct-capability", [], {
     userText: "known direct capability", clientRunId: directClientRunId,
   });
@@ -161,8 +170,30 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   ));
   const clarificationDurable = clarificationRegistry.runs.find((run) => run.clientRunId === clarificationClientRunId);
   assert.equal(clarificationDurable.executionSource, "capability_first");
+  assert.equal(clarificationDurable.decision.type, "CLARIFY");
+  assert.equal(clarificationDurable.clarificationState, "pending");
+  assert.ok(clarificationDurable.clarificationExpiresAt > Date.now());
   const clarificationCalls = fs.readFileSync(helperLog, "utf8").trim().split(/\s+/);
   assert.equal(clarificationCalls.at(-1), "check");
+
+  const childClientRunId = "samantha-615eec1e-c749-4ecc-b70b-193cb52d85fa";
+  const child = await submitIntent("la première", "session-clarification", [], {
+    userText: "la première", clientRunId: childClientRunId,
+  });
+  assert.equal(child.accepted, true);
+  assert.equal(child.state, "done");
+  assert.equal(child.result, "CAPABILITY_FIRST_DIRECT_OK");
+  const afterChild = JSON.parse(fs.readFileSync(
+    path.join(process.env.OPENCLAW_STATE_DIR, "clawmobile-companion", "runs.json"), "utf8",
+  ));
+  const parentStored = afterChild.runs.find((run) => run.clientRunId === clarificationClientRunId);
+  const childStored = afterChild.runs.find((run) => run.clientRunId === childClientRunId);
+  assert.equal(parentStored.clarificationState, "resolved");
+  assert.equal(childStored.parentClarificationRunId, parentStored.runId);
+  assert.equal(childStored.decision.decisionId, "child-decision");
+  assert.equal(childStored.executionSource, "capability_first");
+  const childCalls = fs.readFileSync(helperLog, "utf8").trim().split(/\s+/);
+  assert.deepEqual(childCalls.slice(-2), ["clarify", "execute_decision"]);
 
   const rejected = notSubmitted(sessionId, clientRunId, "gateway unavailable");
   assert.equal(rejected.accepted, false);

@@ -190,6 +190,7 @@ function registerTools(server, auth, invoke) {
       action_key: z.string().regex(ACTION_ID_RE),
       step_key: z.string().regex(STEP_ID_RE).optional(),
       target_hint: z.string().max(128).optional(),
+      decision: z.record(z.string(), z.unknown()).optional(),
     },
     annotations: { readOnlyHint: !ownerProfile, idempotentHint: true, openWorldHint: ownerProfile },
   }, run("claw_execute"));

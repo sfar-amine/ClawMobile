@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
@@ -24,7 +25,7 @@ def ui_root() -> Path:
     raise SystemExit("capability_graph_unavailable")
 
 
-def call(args: list[str], timeout_s: int = 35) -> int:
+def call(args: list[str], timeout_s: int = 35, input_text: str | None = None) -> int:
     root = ui_root()
     env = os.environ.copy()
     env["PYTHONPATH"] = str(root) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
@@ -35,6 +36,7 @@ def call(args: list[str], timeout_s: int = 35) -> int:
         timeout=max(2, min(timeout_s, 125)),
         text=True,
         capture_output=True,
+        input=input_text,
     )
     if run.stdout:
         sys.stdout.write(run.stdout)
@@ -52,6 +54,7 @@ def main() -> int:
     r.add_argument("--surface", default="chatgpt")
     r.add_argument("--caller", default="owner")
     r.add_argument("--target")
+    r.add_argument("--request-id")
 
     e = sub.add_parser("execute")
     e.add_argument("text")
@@ -60,6 +63,16 @@ def main() -> int:
     e.add_argument("--timeout", type=int, default=30)
     e.add_argument("--target")
     e.add_argument("--read-only", action="store_true")
+
+    ed = sub.add_parser("execute-decision")
+    ed.add_argument("text")
+    ed.add_argument("--decision-b64", required=True)
+    ed.add_argument("--timeout", type=int, default=30)
+    ed.add_argument("--read-only", action="store_true")
+
+    vd = sub.add_parser("validate-decision")
+    vd.add_argument("text")
+    vd.add_argument("--decision-b64", required=True)
 
     v = sub.add_parser("view")
     v.add_argument("--surface", default="chatgpt")
@@ -75,6 +88,8 @@ def main() -> int:
         forwarded = ["resolve", args.text, "--surface", args.surface, "--caller", args.caller]
         if args.target:
             forwarded.extend(["--target", args.target])
+        if args.request_id:
+            forwarded.extend(["--request-id", args.request_id])
         return call(forwarded)
     if args.cmd == "execute":
         forwarded = [
@@ -86,6 +101,27 @@ def main() -> int:
         if args.read_only:
             forwarded.append("--read-only")
         return call(forwarded, timeout_s=args.timeout + 5)
+    if args.cmd == "execute-decision":
+        try:
+            raw = base64.b64decode(args.decision_b64.encode("ascii"), validate=True).decode("utf-8")
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise ValueError("decision_object_required")
+        except Exception:
+            raise SystemExit("invalid_decision_b64")
+        forwarded = ["execute-decision", args.text, "--decision-stdin", "--timeout", str(args.timeout)]
+        if args.read_only:
+            forwarded.append("--read-only")
+        return call(forwarded, timeout_s=args.timeout + 5, input_text=json.dumps(parsed, ensure_ascii=False))
+    if args.cmd == "validate-decision":
+        try:
+            raw = base64.b64decode(args.decision_b64.encode("ascii"), validate=True).decode("utf-8")
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise ValueError("decision_object_required")
+        except Exception:
+            raise SystemExit("invalid_decision_b64")
+        return call(["validate-decision", args.text, "--decision-stdin"], timeout_s=20, input_text=json.dumps(parsed, ensure_ascii=False))
     if args.cmd == "view":
         forwarded = ["view", "--surface", args.surface, "--caller", args.caller, "--max-chars", str(args.max_chars)]
         if args.compact:

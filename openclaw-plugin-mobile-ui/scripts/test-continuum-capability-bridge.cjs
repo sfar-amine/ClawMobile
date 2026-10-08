@@ -12,12 +12,16 @@ const bridgeDir=path.join(root,"bridge");
 const continuumDir=path.join(root,"continuum");
 const helper=path.join(root,"fake-capability.py");
 fs.writeFileSync(helper,[
-"import json,sys",
+"import base64,json,sys",
 "mode=sys.argv[1];request=sys.argv[2];args=sys.argv[3:]",
-"surface=args[args.index('--surface')+1];caller=args[args.index('--caller')+1]",
 "write='write' in request",
-"out={'surface':surface,'caller':caller,'capability':'device.assistance','selected':{'capability':'device.assistance','risk':'write' if write else 'read','authorized':True,'deterministic':True,'state':'ready'}}",
-"if mode=='execute': out['execution']={'state':'completed','result':{'ok':True,'kind':'write' if write else 'read'}}",
+"if mode=='execute-decision':",
+" decision=json.loads(base64.b64decode(args[args.index('--decision-b64')+1]).decode())",
+" out={'mode':mode,'decisionId':decision.get('decisionId'),'capability':decision.get('capability'),'execution':{'state':'completed','result':{'ok':True,'kind':'write' if write else 'read','decisionId':decision.get('decisionId')}}}",
+"else:",
+" surface=args[args.index('--surface')+1];caller=args[args.index('--caller')+1]",
+" out={'surface':surface,'caller':caller,'capability':'device.assistance','selected':{'capability':'device.assistance','risk':'write' if write else 'read','authorized':True,'deterministic':True,'state':'ready'}}",
+" if mode=='execute': out['execution']={'state':'completed','result':{'ok':True,'kind':'write' if write else 'read'}}",
 "print(json.dumps(out))",""
 ].join("\n"));
 fs.chmodSync(helper,0o700);
@@ -59,19 +63,23 @@ async function stop(p){if(p.exitCode===null){p.kill("SIGTERM");await Promise.rac
   CLAW_CAPABILITY_HELPER:helper},stdio:["ignore","pipe","pipe"]});
  try{
   await waitHealth();
-  const readParams={request:"durable read fixture",targetHint:"",surface:"claw_live",caller:"owner"};
+  const readDecision={version:2,type:"EXECUTE",decisionId:"decision-read",requestId:"cap-read-request",capability:"device.assistance",risk:"read"};
+  const readParams={request:"durable read fixture",targetHint:"",surface:"claw_live",caller:"owner",decision:readDecision};
   const readState=state({taskId:"cap-read",stepId:"continuum-read",requestId:"cap-read-request",method:"capability_execute_readonly",params:readParams,risk:"read"});
   writeState(readState);
   let out=await req({requestId:"cap-read-request",taskId:"cap-read",stepId:"continuum-read",method:"capability_execute_readonly",params:readParams});
   assert.equal(out.code,200);assert.equal(out.body.state,"completed");assert.equal(out.body.mutationRisk,"read");
-  assert.equal(out.body.result?.surface,"claw_live");assert.equal(out.body.result?.execution?.result?.kind,"read");
+  assert.equal(out.body.result?.mode,"execute-decision");assert.equal(out.body.result?.decisionId,"decision-read");
+  assert.equal(out.body.result?.execution?.result?.kind,"read");assert.equal(out.body.result?.execution?.result?.decisionId,"decision-read");
 
-  const writeParams={request:"write fixture",targetHint:"",surface:"claw_live",caller:"owner"};
+  const writeDecision={version:2,type:"EXECUTE",decisionId:"decision-write",requestId:"cap-write-request",capability:"device.assistance",risk:"write"};
+  const writeParams={request:"write fixture",targetHint:"",surface:"claw_live",caller:"owner",decision:writeDecision};
   const writeStateValue=state({taskId:"cap-write",stepId:"continuum-write",requestId:"cap-write-request",method:"capability_execute_owner",params:writeParams,risk:"write"});
   writeState(writeStateValue);
   const fence=writeStateValue.continuum.attempts.a1.dispatch_fence;
   out=await req({requestId:"cap-write-request",taskId:"cap-write",stepId:"continuum-write",method:"capability_execute_owner",params:writeParams,continuumFence:fence});
   assert.equal(out.code,200);assert.equal(out.body.state,"completed");assert.equal(out.body.mutationRisk,"write");
+  assert.equal(out.body.result?.mode,"execute-decision");assert.equal(out.body.result?.decisionId,"decision-write");
   assert.equal(out.body.result?.execution?.result?.kind,"write");assert.equal(out.body.continuumFence?.attemptId,"a1");
 
   const staleParams={request:"write stale",targetHint:"",surface:"claw_live",caller:"owner"};

@@ -37,6 +37,22 @@ async function main() {
   assert.equal(result.result.surface, "external_mcp");
   assert.equal(result.result.caller, "owner");
   assert.ok(result.result.selected);
+  const resolvedDecision = result.result.decision;
+  assert.equal(resolvedDecision?.version, 2);
+
+  const executeResolvedDecision = await handleMcpRelayRequest({
+    requestId: "mcp-claude-chat-resolved-decision-execute",
+    clientId: "claude-chat",
+    profile: "chat-owner-shadow",
+    tool: "claw_execute",
+    arguments: {
+      request: "mon solde orange",
+      action_key: "resolved-decision",
+      decision: resolvedDecision,
+    },
+  });
+  assert.equal(executeResolvedDecision.state, "completed");
+  assert.equal(executeResolvedDecision.result?.decisionId, resolvedDecision.decisionId);
 
   result = await handleMcpRelayRequest({
     requestId: "mcp-claude-chat-wifi-write-execute",

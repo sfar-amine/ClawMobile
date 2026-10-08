@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -40,6 +41,7 @@ def _run_json(
     cwd: Path,
     timeout: int = 35,
     env: dict[str, str] | None = None,
+    input_text: str | None = None,
 ) -> tuple[int, dict[str, Any], str]:
     run = subprocess.run(
         cmd,
@@ -48,6 +50,7 @@ def _run_json(
         capture_output=True,
         text=True,
         timeout=timeout,
+        input=input_text,
     )
     try:
         value = json.loads(run.stdout or "{}")
@@ -66,6 +69,7 @@ def _graph_cmd(
     surface: str,
     caller: str,
     timeout: int = 30,
+    request_id: str | None = None,
 ) -> tuple[int, dict[str, Any], str]:
     args = [
         sys.executable,
@@ -80,6 +84,8 @@ def _graph_cmd(
     ]
     if action == "execute":
         args.extend(["--timeout", str(timeout)])
+    if action == "resolve" and request_id:
+        args.extend(["--request-id", str(request_id)[:160]])
     return _run_json(
         args,
         cwd=ui_root,
@@ -88,12 +94,77 @@ def _graph_cmd(
     )
 
 
+def _graph_decision_cmd(
+    action: str,
+    message: str,
+    decision: dict[str, Any],
+    *,
+    ui_root: Path,
+    timeout: int = 30,
+    read_only: bool = False,
+) -> tuple[int, dict[str, Any], str]:
+    if action not in {"validate-decision", "execute-decision"}:
+        raise ValueError("invalid_decision_action")
+    args = [sys.executable, "-m", "skill_intelligence.capability_graph", action, message, "--decision-stdin"]
+    if action == "execute-decision":
+        args.extend(["--timeout", str(timeout)])
+        if read_only:
+            args.append("--read-only")
+    return _run_json(
+        args, cwd=ui_root, timeout=timeout + 5, env=_python_env(ui_root),
+        input_text=json.dumps(decision, ensure_ascii=False, separators=(",", ":")),
+    )
+
+
+def validate_prepared_decision(
+    message: str, decision: dict[str, Any], ui_root: Path = UI_ROOT, *, timeout: int = 15,
+) -> dict[str, Any]:
+    rc, value, _ = _graph_decision_cmd(
+        "validate-decision", message, decision, ui_root=ui_root, timeout=timeout,
+    )
+    if rc:
+        raise RuntimeError("decision_validation_failed")
+    return value
+
+
+def execute_capability_decision(
+    message: str, decision: dict[str, Any], ui_root: Path = UI_ROOT, *, timeout: int = 30,
+    read_only: bool = False,
+) -> dict[str, Any]:
+    _, value, stderr = _graph_decision_cmd(
+        "execute-decision", message, decision, ui_root=ui_root, timeout=timeout, read_only=read_only,
+    )
+    if stderr:
+        value.setdefault("_runtime_warning", stderr[:800])
+    return value
+
+
+def resolve_clarification(
+    answer: str, original_text: str, decision: dict[str, Any], ui_root: Path = UI_ROOT, *,
+    request_id: str | None = None, timeout: int = 15,
+) -> dict[str, Any]:
+    args = [
+        sys.executable, "-m", "skill_intelligence.capability_graph",
+        "resolve-clarification", answer, "--original-text", original_text, "--decision-stdin",
+    ]
+    if request_id:
+        args.extend(["--request-id", str(request_id)[:160]])
+    rc, value, _ = _run_json(
+        args, cwd=ui_root, timeout=timeout + 5, env=_python_env(ui_root),
+        input_text=json.dumps(decision, ensure_ascii=False, separators=(",", ":")),
+    )
+    if rc:
+        raise RuntimeError("clarification_resolve_failed")
+    return value
+
+
 def resolve_capability(
     message: str,
     ui_root: Path = UI_ROOT,
     *,
     surface: str = "claw_live",
     caller: str = "owner",
+    request_id: str | None = None,
 ) -> dict[str, Any]:
     rc, value, _ = _graph_cmd(
         "resolve",
@@ -102,6 +173,7 @@ def resolve_capability(
         surface=surface,
         caller=caller,
         timeout=12,
+        request_id=request_id,
     )
     if rc:
         raise RuntimeError("capability_resolve_failed")
@@ -110,6 +182,17 @@ def resolve_capability(
 
 def capability_first_eligibility(value: dict[str, Any]) -> tuple[str, str]:
     harness = value.get("harness") if isinstance(value.get("harness"), dict) else {}
+    prepared = value.get("decision") if isinstance(value.get("decision"), dict) else {}
+    decision_type = str(prepared.get("type") or "")
+    decision_reason = str(prepared.get("reason") or harness.get("reason") or "")
+    if decision_type == "EXECUTE":
+        return "eligible", decision_reason or "capability_first"
+    if decision_type == "CLARIFY":
+        return "clarification", decision_reason or "intent_clarification_required"
+    if decision_type == "STOP":
+        return "known_error", decision_reason or "known_capability_stopped"
+    if decision_type == "REASON":
+        return ("miss" if harness.get("tool_policy") != "required" else "assist"), decision_reason or "model_allowed"
     selected = value.get("selected") if isinstance(value.get("selected"), dict) else None
     plan = value.get("skill_plan") if isinstance(value.get("skill_plan"), dict) else {}
     if harness.get("tool_policy") != "required":
@@ -171,6 +254,7 @@ def _execute_declared_handoff(
     caller: str,
     origin_id: str,
     timeout: int,
+    decision: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     handoff = _handoff_contract(resolution)
     if not handoff:
@@ -339,6 +423,7 @@ def _durable_capability_execute(
     caller: str,
     origin_id: str,
     timeout: int,
+    decision: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     selected = resolution.get("selected") if isinstance(resolution.get("selected"), dict) else {}
     capability = str(selected.get("capability") or resolution.get("capability") or "").strip()
@@ -352,6 +437,8 @@ def _durable_capability_execute(
     request_id = "capfirst-" + hashlib.sha256((task_id + ":" + step_id).encode()).hexdigest()[:32]
     method = "capability_execute_readonly" if risk == "read" else "capability_execute_owner"
     params = {"request": message, "targetHint": "", "surface": surface, "caller": caller}
+    if isinstance(decision, dict):
+        params["decision"] = decision
     owner_id = "capfirst-" + hashlib.sha256(origin_id.encode()).hexdigest()[:24]
     prepared = _continuum_call(ui_root, [
         "prepare", "--task-id", task_id, "--step-id", step_id,
@@ -428,65 +515,95 @@ def try_fast_path(
     caller: str = "owner",
     origin_id: str = "capability-first",
     timeout: int = 30,
+    prepared_decision: dict[str, Any] | None = None,
+    clarification_decision: dict[str, Any] | None = None,
+    clarification_original_text: str | None = None,
 ) -> dict[str, Any]:
     try:
-        resolution = resolve_capability(message, ui_root, surface=surface, caller=caller)
-        decision, reason = capability_first_eligibility(resolution)
-        if decision == "miss":
-            return {"status": "miss", "reason": reason, "resolution": resolution}
-        if decision == "assist":
-            return {"status": "assist", "reason": reason, "resolution": resolution}
-        if decision == "clarification":
+        if clarification_decision is not None:
+            if not clarification_original_text:
+                raise ValueError("clarification_original_text_required")
+            resolved_clarification = resolve_clarification(
+                message, clarification_original_text, clarification_decision, ui_root,
+                request_id=origin_id, timeout=min(timeout, 15),
+            )
+            clarification_meta = resolved_clarification.get("clarification_resolution") if isinstance(resolved_clarification.get("clarification_resolution"), dict) else {}
+            clarification_state = str(clarification_meta.get("state") or "")
+            if clarification_state == "unrelated":
+                return {"status": "clarification_unrelated", "reason": "new_topic", "model_bypassed": True}
+            if clarification_state == "pending":
+                return {
+                    "status": "clarification",
+                    "reason": "intent_clarification_required",
+                    "text": str(clarification_meta.get("question") or "Précise ce que tu veux faire."),
+                    "clarification": {"question": clarification_meta.get("question"), "choices": clarification_meta.get("choices") or []},
+                    "decision": clarification_decision,
+                    "model_bypassed": True,
+                }
+            if clarification_state != "resolved":
+                return {"status": "known_error", "reason": "clarification_invalid", "text": "La clarification Claw n'est plus valide.", "model_bypassed": True}
+            resolution = resolved_clarification
+            decision = resolution.get("decision") if isinstance(resolution.get("decision"), dict) else {}
+        elif prepared_decision is not None:
+            checked = validate_prepared_decision(message, prepared_decision, ui_root, timeout=min(timeout, 15))
+            if checked.get("state") != "valid":
+                return {
+                    "status": "known_error",
+                    "reason": str(checked.get("reason") or checked.get("state") or "decision_invalid"),
+                    "text": "La décision Claw doit être revalidée avant toute exécution.",
+                    "decision": prepared_decision,
+                    "model_bypassed": True,
+                }
+            decision = checked.get("decision") if isinstance(checked.get("decision"), dict) else prepared_decision
+            resolution = checked.get("resolution") if isinstance(checked.get("resolution"), dict) else {}
+        else:
+            resolution = resolve_capability(
+                message, ui_root, surface=surface, caller=caller, request_id=origin_id,
+            )
+            decision = resolution.get("decision") if isinstance(resolution.get("decision"), dict) else {}
+
+        decision_state, reason = capability_first_eligibility(resolution)
+        if decision_state == "miss":
+            return {"status": "miss", "reason": reason, "resolution": resolution, "decision": decision or None}
+        if decision_state == "assist":
+            return {"status": "assist", "reason": reason, "resolution": resolution, "decision": decision or None}
+        if decision_state == "clarification":
             clarification = resolution.get("clarification") if isinstance(resolution.get("clarification"), dict) else {}
             question = str(clarification.get("question") or "Précise ce que tu veux faire.").strip()
             return {
-                "status": "clarification",
-                "reason": reason,
-                "text": question,
-                "clarification": clarification,
-                "resolution": resolution,
+                "status": "clarification", "reason": reason, "text": question,
+                "clarification": clarification, "resolution": resolution, "decision": decision or None,
                 "model_bypassed": True,
             }
-        if decision == "known_error":
+        if decision_state == "known_error":
             return {
-                "status": "known_error",
-                "reason": reason,
+                "status": "known_error", "reason": reason,
                 "text": _known_error_text(reason, resolution),
-                "resolution": resolution,
-                "model_bypassed": True,
+                "resolution": resolution, "decision": decision or None, "model_bypassed": True,
             }
         if not execute:
             return {
-                "status": "eligible",
-                "reason": reason,
-                "resolution": resolution,
-                "model_bypassed": True,
+                "status": "eligible", "reason": reason, "resolution": resolution,
+                "decision": decision or None, "model_bypassed": True,
             }
 
         if resolution.get("confirmation_required") is True:
             return _execute_declared_handoff(
-                resolution,
-                message,
-                ui_root=ui_root,
-                surface=surface,
-                caller=caller,
-                origin_id=origin_id,
-                timeout=timeout,
-            )
+                resolution, message, ui_root=ui_root, surface=surface, caller=caller,
+                origin_id=origin_id, timeout=timeout,
+            ) | {"decision": decision or None}
 
         continuum = resolution.get("continuum") if isinstance(resolution.get("continuum"), dict) else {}
         if continuum.get("mode") == "durable":
             executed = _durable_capability_execute(
                 resolution, message, ui_root=ui_root, surface=surface, caller=caller,
-                origin_id=origin_id, timeout=timeout,
+                origin_id=origin_id, timeout=timeout, decision=decision or None,
             )
         else:
-            executed = execute_capability(
-                message,
-                ui_root,
-                surface=surface,
-                caller=caller,
-                timeout=timeout,
+            executed = (
+                execute_capability_decision(message, decision, ui_root, timeout=timeout)
+                if decision
+                else execute_capability(message, ui_root, surface=surface, caller=caller, timeout=timeout)
             )
         execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
         state = str(execution.get("state") or "")
@@ -494,50 +611,34 @@ def try_fast_path(
         if state in SAFE_EXECUTION_STATES:
             payload = execution.get("result")
             return {
-                "status": "hit",
-                "source": "capability",
-                "text": _display_text(payload),
-                "result": payload,
-                "target": selected.get("target"),
-                "intent": selected.get("intent"),
-                "route": selected.get("route"),
-                "capability": selected.get("capability"),
-                "execution_state": state,
+                "status": "hit", "source": "capability", "text": _display_text(payload),
+                "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
+                "route": selected.get("route"), "capability": selected.get("capability"),
+                "execution_state": state, "decision": executed.get("decision") or decision or None,
                 "model_bypassed": True,
             }
         if state in ASSISTED_EXECUTION_STATES:
-            return {
-                "status": "assist",
-                "reason": state,
-                "resolution": executed,
-            }
+            return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None}
         if state == "confirmation_required":
             return _execute_declared_handoff(
-                executed,
-                message,
-                ui_root=ui_root,
-                surface=surface,
-                caller=caller,
-                origin_id=origin_id,
-                timeout=timeout,
-            )
+                executed, message, ui_root=ui_root, surface=surface, caller=caller,
+                origin_id=origin_id, timeout=timeout,
+            ) | {"decision": executed.get("decision") or decision or None}
         return {
-            "status": "known_error",
-            "reason": state or "known_execution_failed",
+            "status": "known_error", "reason": state or "known_execution_failed",
             "text": "Claw a identifié la capacité mais son exécution n'a pas atteint un état terminal vérifié.",
-            "resolution": executed,
+            "resolution": executed, "decision": executed.get("decision") or decision or None,
+            "model_bypassed": True,
         }
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
-        return {
-            "status": "error",
-            "reason": type(exc).__name__,
-            "detail": str(exc)[:800],
-        }
+        return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
     parser.add_argument("--check", action="store_true", help="Resolve only; do not execute or open a human boundary.")
+    parser.add_argument("--execute-decision", action="store_true", help="Execute the prepared decision from CLAW_PREPARED_DECISION_B64 without re-resolving.")
+    parser.add_argument("--resolve-clarification", action="store_true", help="Resolve the reply against the pending clarification decision.")
     parser.add_argument("--ui-root", type=Path, default=UI_ROOT)
     parser.add_argument("--surface", default="claw_live")
     parser.add_argument("--caller", choices=("owner", "trusted", "other"), default="owner")
@@ -550,14 +651,30 @@ def main() -> int:
         message = sys.stdin.read().strip()
     if not message:
         raise SystemExit("message_required")
+    prepared = None
+    clarification_decision = None
+    clarification_original = None
+    if args.execute_decision or args.resolve_clarification:
+        raw = os.environ.get("CLAW_PREPARED_DECISION_B64", "")
+        try:
+            parsed = json.loads(base64.b64decode(raw.encode("ascii"), validate=True).decode("utf-8"))
+            if not isinstance(parsed, dict):
+                raise ValueError("decision_object_required")
+        except Exception:
+            raise SystemExit("invalid_prepared_decision")
+        if args.execute_decision:
+            prepared = parsed
+        else:
+            clarification_decision = parsed
+            original_raw = os.environ.get("CLAW_CLARIFICATION_ORIGINAL_B64", "")
+            try:
+                clarification_original = base64.b64decode(original_raw.encode("ascii"), validate=True).decode("utf-8")
+            except Exception:
+                raise SystemExit("invalid_clarification_original")
     result = try_fast_path(
-        message,
-        args.ui_root,
-        execute=not args.check,
-        surface=args.surface,
-        caller=args.caller,
-        origin_id=args.origin_id,
-        timeout=max(2, min(args.timeout, 120)),
+        message, args.ui_root, execute=not args.check, surface=args.surface, caller=args.caller,
+        origin_id=args.origin_id, timeout=max(2, min(args.timeout, 120)), prepared_decision=prepared,
+        clarification_decision=clarification_decision, clarification_original_text=clarification_original,
     )
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("status") in {"hit", "eligible", "miss", "assist", "clarification", "known_error"} else 75

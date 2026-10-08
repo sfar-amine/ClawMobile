@@ -1,0 +1,110 @@
+{
+  "version": 2,
+  "id": "capability-decision-contract-v2-runtime-20261008",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Transport and execute immutable Capability DecisionEnvelope V2 through Samantha Companion, Continuum, Remote Bridge and external MCP.",
+  "reason": "Capability-First admission previously resolved intent before model but execution could later resolve the same text again; V2 carries one validated semantic decision to the effect boundary.",
+  "rollback": "Revert the runtime V2 commit together with the UI V2 commit. Existing submission reconciliation, Capability-First, Continuum and Payment Core stores need no migration.",
+  "files": [
+    "cloud/voice-relay/src/mcp.mjs",
+    "cloud/voice-relay/test-mcp.mjs",
+    "docs/changes/capability-decision-contract-v2-runtime-20261008.json",
+    "docs/changes/capability-decision-contract-v2-runtime-20261008.md",
+    "docs/remote-bridge.md",
+    "installer/termux-lite/claw-capability.py",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-efficiency.py",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/fake-claw-capability.py",
+    "openclaw-plugin-mobile-ui/scripts/test-capability-bridge.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-continuum-capability-bridge.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-bridge.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-submit-reconciliation.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts"
+  ],
+  "tests": [
+    {
+      "name": "helper-v2",
+      "status": "passed",
+      "evidence": "18 model-fast-path tests pass including prepared decision no-resolve and clarification reply handling."
+    },
+    {
+      "name": "companion-submit-v2",
+      "status": "passed",
+      "evidence": "Submit reconciliation proves check→execute_decision, persistent CLARIFY parent, linked child decision and duplicate reuse."
+    },
+    {
+      "name": "runtime-bridges",
+      "status": "passed",
+      "evidence": "Capability Bridge and Continuum bridge pass with decision transport; read/write fence and stale epoch guards remain intact."
+    },
+    {
+      "name": "payment-core",
+      "status": "passed",
+      "evidence": "Payment Core 58/58 passes unchanged."
+    },
+    {
+      "name": "mcp-parity-runtime",
+      "status": "passed",
+      "evidence": "Companion MCP and edge MCP tests pass; claw_execute decision schema/forwarding is validated."
+    },
+    {
+      "name": "expanded-runtime-regression",
+      "status": "passed",
+      "evidence": "18 helper tests, TypeScript build, submit reconciliation, companion runs/sharing/history, conversation pages/backfill races, durable fast path, Payment Core 58/58, payment handoff 3/3, Topnet live adapter 9/9, Maxit adapter 3/3, Companion MCP, Continuum capability bridge, capability bridge and edge MCP all passed against UI commit 4deae593178e2ae2e85d13d4e13952f93cd9d0e3."
+    }
+  ],
+  "documentation": [
+    "docs/changes/capability-decision-contract-v2-runtime-20261008.md",
+    "docs/remote-bridge.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "skill.intelligence",
+      "payment.owner_native"
+    ],
+    "reason": "Execution semantics now consume the canonical frozen decision through Companion/MCP/Continuum; payment owner selection cannot be reclassified before its human boundary."
+  },
+  "architecture": {
+    "changed": true,
+    "documents": [
+      "docs/08-decisions/ADR-20261008-capability-decision-contract-v2.md"
+    ],
+    "reason": "Cross-surface semantic/execution boundary is versioned as DecisionEnvelope V2; existing owners are extended without a new component."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "updated",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "updated",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "cloud/voice-relay/test-mcp.mjs",
+      "openclaw-plugin-mobile-ui/scripts/test-mcp-bridge.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-capability-bridge.cjs",
+      "docs/remote-bridge.md"
+    ]
+  },
+  "limitations": [
+    "No financial effect is executed during architecture acceptance.",
+    "The rollout compatibility branch accepts pre-V2 resolutions until the installed UI floor is verified."
+  ]
+}

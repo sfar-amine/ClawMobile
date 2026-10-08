@@ -227,3 +227,10 @@ Paired latency analysis and measured results: samantha-ui-playbooks/telecom/BALA
 ## Durable Slack delivery (2026-10-03)
 
 See [transport behavior, recovery and activation](slack-transport-durability-20261003.md). Execution receipts remain canonical; history catch-up never executes old unseen requests.
+
+## Capability Decision Contract V2 — 2026-10-08
+Capability execution may now carry the canonical Skill Intelligence `decision` envelope. For `capability_execute_owner` and `capability_execute_readonly`, Remote Bridge includes that envelope in the existing params hash and therefore in the existing Continuum transport binding/fence. `capabilityBridge` invokes `execute-decision` instead of re-resolving the request text when a V2 envelope is present.
+
+The MCP owner surface exposes the same contract: `claw_resolve` returns the envelope and `claw_execute` accepts it as an optional argument. A supplied decision is validated locally against the canonical Capability Graph before risk classification or Continuum admission. A direct `claw_execute` without a supplied decision resolves once in Companion, captures the resulting envelope and carries it downstream. `claw_context`, `claw_exec`, `claw_status` and `claw_artifact_read` are unchanged.
+
+Samantha Companion persists the envelope only in the existing run registry. A `CLARIFY` decision is the latest bounded pending clarification for that session; a related next turn produces a child decision linked to the parent run, while an unrelated turn abandons the clarification. No second ledger, retry engine or workflow daemon is introduced.

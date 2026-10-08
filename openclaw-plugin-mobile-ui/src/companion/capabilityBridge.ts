@@ -24,6 +24,7 @@ export async function capabilityBridge(
     timeoutSeconds?: number;
     targetHint?: string;
     helperPath?: string;
+    decision?: Record<string, unknown>;
   } = {},
 ): Promise<Record<string, unknown>> {
   const text = String(request || "").trim();
@@ -42,15 +43,12 @@ export async function capabilityBridge(
 
   for (const helper of candidates) {
     try {
-      const argv = [
-        helper,
-        execute ? "execute" : "resolve",
-        text,
-        "--surface", surface,
-        "--caller", caller,
-      ];
-      if (targetHint) argv.push("--target", targetHint);
-      if (execute) argv.push("--timeout", String(timeout));
+      const prepared = execute && options.decision && typeof options.decision === "object";
+      const argv = prepared
+        ? [helper, "execute-decision", text, "--decision-b64", Buffer.from(JSON.stringify(options.decision), "utf8").toString("base64"), "--timeout", String(timeout)]
+        : [helper, execute ? "execute" : "resolve", text, "--surface", surface, "--caller", caller];
+      if (!prepared && targetHint) argv.push("--target", targetHint);
+      if (!prepared && execute) argv.push("--timeout", String(timeout));
       if (execute && options.readOnly === true) argv.push("--read-only");
       const raw: any = await execFileAsync("python3", argv, {
         timeout: (timeout + 8) * 1000,
@@ -68,6 +66,41 @@ export async function capabilityBridge(
         return { success: false, ...parsed };
       } catch {}
       return { success: false, error: String(error?.message || "capability_bridge_failed").slice(0, 800) };
+    }
+  }
+  return { success: false, error: "capability_bridge_unavailable" };
+}
+export async function validateCapabilityDecision(
+  request: string,
+  decision: Record<string, unknown>,
+  options: { helperPath?: string; timeoutSeconds?: number } = {},
+): Promise<Record<string, unknown>> {
+  const text = String(request || "").trim();
+  if (!text) return { success: false, error: "request_required" };
+  if (!decision || typeof decision !== "object" || Number(decision.version) !== 2) {
+    return { success: false, error: "invalid_decision" };
+  }
+  const timeout = Math.max(2, Math.min(Number(options.timeoutSeconds || 20), 120));
+  const candidates = options.helperPath ? [options.helperPath] : helpers();
+  const encoded = Buffer.from(JSON.stringify(decision), "utf8").toString("base64");
+  for (const helper of candidates) {
+    try {
+      const raw: any = await execFileAsync("python3", [helper, "validate-decision", text, "--decision-b64", encoded], {
+        timeout: (timeout + 8) * 1000,
+        maxBuffer: 2 * 1024 * 1024,
+        env: { ...process.env },
+      });
+      const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
+      const parsed = JSON.parse(stdout || "{}");
+      return { success: true, ...parsed };
+    } catch (error: any) {
+      if (error?.code === "ENOENT") continue;
+      const stdout = typeof error?.stdout === "string" ? error.stdout : "";
+      try {
+        const parsed = JSON.parse(stdout || "{}");
+        return { success: false, ...parsed };
+      } catch {}
+      return { success: false, error: String(error?.message || "decision_validation_failed").slice(0, 800) };
     }
   }
   return { success: false, error: "capability_bridge_unavailable" };

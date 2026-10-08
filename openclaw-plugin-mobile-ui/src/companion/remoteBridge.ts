@@ -290,9 +290,15 @@ export function getRemoteBridgeTask(taskId: string, rawLimit = 50) {
   };
 }
 
-function mutationRisk(method: string): "read" | "write" | "unknown" {
+function mutationRisk(method: string, params?: Record<string, unknown>): "read" | "write" | "unknown" {
   if (["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status", "mcp_capability_execute_readonly", "capability_execute_readonly"].includes(method)) return "read";
   if (["write_file", "patch_file", "write_binary_file", "process_input", "process_stop"].includes(method)) return "write";
+  if (["mcp_capability_execute_owner", "capability_execute_owner"].includes(method)) {
+    const decision = params?.decision && typeof params.decision === "object" ? params.decision as Record<string, unknown> : undefined;
+    const risk = String(decision?.risk || "").trim();
+    if (risk === "read") return "read";
+    if (risk) return "write";
+  }
   return "unknown";
 }
 
@@ -303,7 +309,7 @@ function resolvedMutationRisk(
 ): "read" | "write" | "unknown" {
   if (!["mcp_capability_execute_owner", "capability_execute_owner"].includes(method) || !result || typeof result !== "object") return fallback;
   if ((result as any)?.execution?.delegated === true) return "unknown";
-  const risk = String((result as any)?.selected?.risk || "").trim();
+  const risk = String((result as any)?.selected?.risk || (result as any)?.decision?.risk || "").trim();
   if (risk === "read") return "read";
   if (risk) return "write";
   return fallback;
@@ -505,6 +511,10 @@ async function runCapabilityAtSurface(
   if (!allowedSurfaces.has(surface)) throw new Error("invalid_capability_surface");
   if (!["owner", "trusted", "other"].includes(caller)) throw new Error("invalid_capability_caller");
   const targetHint = rawTargetHint || undefined;
+  const decision = params.decision && typeof params.decision === "object"
+    ? params.decision as Record<string, unknown>
+    : undefined;
+  if (decision && Number(decision.version) !== 2) throw new Error("invalid_capability_decision");
   const result: any = await capabilityBridge(request, {
     execute: true,
     readOnly,
@@ -512,6 +522,7 @@ async function runCapabilityAtSurface(
     caller,
     timeoutSeconds: 30,
     targetHint,
+    decision,
   });
   if (surface === "external_mcp" && !readOnly && result?.execution?.state === "delegation_required") {
     const capability = String(result?.capability || result?.selected?.capability || "");
@@ -642,7 +653,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     paramsHash,    state: "received",
     instanceId: INSTANCE_ID,
     receivedAt: Date.now(),
-    mutationRisk: mutationRisk(request.method),
+    mutationRisk: mutationRisk(request.method, params),
     continuumFence,
   };
   writeReceipt(receipt);

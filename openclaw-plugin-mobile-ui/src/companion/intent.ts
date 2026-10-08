@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { appendVoiceConversationContext, findSubmittedRunByClientRunId, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun } from "./runs";
+import { appendVoiceConversationContext, findPendingClarificationRun, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
@@ -32,19 +32,37 @@ export async function submitIntent(
     if (existing) return responseFromExisting(existing, visibleUserText);
   }
 
-  const fastPathCheck: FastPathResult = attachments.length === 0
-    ? await runModelFastPath(normalized, {
-        surface: "claw_live",
-        caller: "owner",
-        originId: clientRunId || normalizedSessionId,
-        timeoutSeconds: 12,
-        checkOnly: true,
-      })
-    : { status: "miss", reason: "attachments_require_model" };
+  let routingText = normalized;
+  let parentClarificationRunId: string | undefined;
+  let fastPathCheck: FastPathResult = { status: "miss", reason: "attachments_require_model" };
+  if (attachments.length === 0) {
+    const pending = await findPendingClarificationRun(normalizedSessionId);
+    if (pending) {
+      const clarified = await runModelFastPath(normalized, {
+        surface: "claw_live", caller: "owner", originId: clientRunId || normalizedSessionId,
+        timeoutSeconds: 12, checkOnly: true,
+        clarificationDecision: pending.decision, clarificationOriginalText: pending.text,
+      });
+      if (clarified.status === "clarification_unrelated") {
+        await markClarificationRun(pending.runId, "abandoned");
+      } else {
+        parentClarificationRunId = pending.runId;
+        fastPathCheck = clarified;
+        routingText = String((clarified.resolution as any)?.text || normalized);
+      }
+    }
+    if (!parentClarificationRunId) {
+      fastPathCheck = await runModelFastPath(normalized, {
+        surface: "claw_live", caller: "owner", originId: clientRunId || normalizedSessionId,
+        timeoutSeconds: 12, checkOnly: true,
+      });
+    }
+  }
 
   if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
     return executeCapabilityFirst(
-      normalized, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
+      routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
+      parentClarificationRunId,
     );
   }
   if (fastPathCheck.status === "error") {
@@ -54,12 +72,16 @@ export async function submitIntent(
     );
   }
 
+  if (parentClarificationRunId) {
+    await markClarificationRun(parentClarificationRunId, "resolved");
+  }
+
   const gateway = await getGatewayStatus();
   if (!gateway.reachable) {
     return notSubmitted(normalizedSessionId, clientRunId, gateway.message);
   }
 
-  const promptWithAttachments = appendAttachmentContext(normalized, attachments);
+  const promptWithAttachments = appendAttachmentContext(parentClarificationRunId ? routingText : normalized, attachments);
   const routed = buildAutoSkillContextForIntent(promptWithAttachments);
   const submittedPrompt = await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
 
@@ -110,18 +132,25 @@ async function executeCapabilityFirst(
   attachments: IntentAttachment[],
   clientRunId: string | undefined,
   check: FastPathResult,
+  parentClarificationRunId?: string,
 ): Promise<IntentSubmitResponse> {
   let runId = `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
   if (clientRunId) {
     const reservation = await reserveSubmittedRun(text, sessionId, clientRunId, {
       userText, attachments, requestText: text, executionSource: "capability_first",
+      decision: check.decision, parentClarificationRunId,
     });
     runId = reservation.status.runId;
     duplicate = !reservation.created;
     if (duplicate) return responseFromExisting(reservation.status, userText);
   } else {
-    await rememberSubmittedRun(text, acceptedRun(runId, sessionId), { userText, attachments });
+    await rememberSubmittedRun(text, acceptedRun(runId, sessionId), {
+      userText, attachments, decision: check.decision, parentClarificationRunId,
+    });
+  }
+  if (parentClarificationRunId) {
+    await markClarificationRun(parentClarificationRunId, "resolved");
   }
 
   let state: "done" | "failed";
@@ -138,6 +167,7 @@ async function executeCapabilityFirst(
       caller: "owner",
       originId: clientRunId || runId,
       timeoutSeconds: 75,
+      preparedDecision: check.decision,
     });
     if (result.status === "hit") {
       state = "done";

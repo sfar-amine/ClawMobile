@@ -70,6 +70,7 @@ assert.deepEqual(names, [
 const shadowExecuteTool = result.body.result.tools.find((tool) => tool.name === "claw_execute");
 assert.equal(shadowExecuteTool.annotations.readOnlyHint, true);
 assert.equal(shadowExecuteTool.annotations.openWorldHint, false);
+assert.ok(shadowExecuteTool.inputSchema.properties.decision);
 
 result = await post({
   jsonrpc: "2.0",
@@ -128,6 +129,7 @@ assert.deepEqual(ownerNames, [
 const ownerExecuteTool = ownerList.body.result.tools.find((tool) => tool.name === "claw_execute");
 assert.equal(ownerExecuteTool.annotations.readOnlyHint, false);
 assert.equal(ownerExecuteTool.annotations.openWorldHint, true);
+assert.ok(ownerExecuteTool.inputSchema.properties.decision);
 const ownerExecTool = ownerList.body.result.tools.find((tool) => tool.name === "claw_exec");
 assert.equal(ownerExecTool.annotations.readOnlyHint, false);
 assert.equal(ownerExecTool.annotations.openWorldHint, true);
@@ -146,6 +148,16 @@ assert.equal(ownerCall.body.result.structuredContent._claw_access.owner, true);
 assert.equal(ownerCall.body.result.structuredContent._claw_access.read_only, false);
 assert.equal(calls.at(-1).auth.profile, "chat-owner");
 assert.equal(calls.at(-1).meta.requestId, "mcp-claude-chat-owner-write-001-execute");
+
+const decisionForward = {version:2,type:"EXECUTE",decisionId:"decision-forward",requestId:"decision-forward",risk:"read"};
+const ownerDecisionCall = await post({
+  jsonrpc: "2.0", id: 42, method: "tools/call", params: {
+    name: "claw_execute",
+    arguments: { request: "mon solde orange", action_key: "owner-decision-001", decision: decisionForward },
+  },
+}, token, ownerEnv);
+assert.equal(ownerDecisionCall.status, 200);
+assert.deepEqual(calls.at(-1).args.decision, decisionForward);
 
 const rawExecCall = await post({
   jsonrpc: "2.0",

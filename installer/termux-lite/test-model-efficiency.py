@@ -130,6 +130,36 @@ class FastPathTests(unittest.TestCase):
         self.assertTrue(out["model_bypassed"])
         execute.assert_called_once()
 
+    def test_prepared_decision_executes_without_resolve(self):
+        decision={"version":2,"type":"EXECUTE","decisionId":"d","requestId":"r"}
+        resolved=self.resolution(decision=decision)
+        executed={**resolved,"decision":decision,"execution":{"state":"completed","result":{"message":"done"}}}
+        with mock.patch.object(fast,"resolve_capability",side_effect=AssertionError("must not resolve")), \
+             mock.patch.object(fast,"validate_prepared_decision",return_value={"state":"valid","decision":decision,"resolution":resolved}), \
+             mock.patch.object(fast,"execute_capability_decision",return_value=executed) as execute:
+            out=fast.try_fast_path("known read",prepared_decision=decision)
+        self.assertEqual(out["status"],"hit")
+        self.assertEqual(out["text"],"done")
+        execute.assert_called_once()
+
+    def test_clarification_reply_builds_new_decision_without_model(self):
+        parent={"version":2,"type":"CLARIFY","decisionId":"parent","requestId":"r"}
+        child={"version":2,"type":"EXECUTE","decisionId":"child","requestId":"r2"}
+        resolved=self.resolution(decision=child)
+        resolved["clarification_resolution"]={"state":"resolved"}
+        with mock.patch.object(fast,"resolve_clarification",return_value=resolved):
+            out=fast.try_fast_path("recharger",execute=False,clarification_decision=parent,clarification_original_text="maxit mon numero")
+        self.assertEqual(out["status"],"eligible")
+        self.assertEqual(out["decision"]["decisionId"],"child")
+        self.assertTrue(out["model_bypassed"])
+
+    def test_clarification_unrelated_answer_releases_new_topic(self):
+        parent={"version":2,"type":"CLARIFY","decisionId":"parent","requestId":"r"}
+        with mock.patch.object(fast,"resolve_clarification",return_value={"clarification_resolution":{"state":"unrelated"}}):
+            out=fast.try_fast_path("niveau batterie",execute=False,clarification_decision=parent,clarification_original_text="maxit mon numero")
+        self.assertEqual(out["status"],"clarification_unrelated")
+        self.assertTrue(out["model_bypassed"])
+
     def test_assisted_execution_returns_to_model_without_fake_result(self):
         resolved=self.resolution()
         executed={**resolved,"execution":{"state":"delegation_required"}}

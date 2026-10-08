@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { capabilityBridge } from "./capabilityBridge";
+import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge";
 import {
   getRemoteBridgeRequest,
   submitRemoteBridgeRequest,
@@ -264,18 +264,35 @@ async function executeCapability(
 
   const taskId = actionTaskId(clientId, actionKey);
   const method = profile === "chat-owner" ? "mcp_capability_execute_owner" : "mcp_capability_execute_readonly";
-  const params = { request, targetHint: targetHint || "" };
-  const resolved: any = await capabilityBridge(request, {
-    execute: false,
-    surface: "external_mcp",
-    caller: "owner",
-    timeoutSeconds: 20,
-    targetHint,
-  });
+  const suppliedDecision = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision)
+    ? args.decision as Record<string, unknown>
+    : undefined;
+  let resolved: any = undefined;
+  let preparedDecision: any = suppliedDecision;
+  if (preparedDecision) {
+    const validation: any = await validateCapabilityDecision(request, preparedDecision, { timeoutSeconds: 20 });
+    if (validation?.state !== "valid" || !validation?.decision) {
+      return {
+        state: "revalidation_required", request_id: requestId, task_id: taskId, retry_allowed: false,
+        reason: validation?.reason || validation?.state || validation?.error || "decision_validation_failed",
+      };
+    }
+    preparedDecision = validation.decision;
+    resolved = validation.resolution || {};
+  } else {
+    resolved = await capabilityBridge(request, {
+      execute: false, surface: "external_mcp", caller: "owner", timeoutSeconds: 20, targetHint,
+    });
+    preparedDecision = resolved?.decision && typeof resolved.decision === "object" ? resolved.decision : undefined;
+  }
   const selected = resolved?.selected || {};
-  const decision = resolved?.continuum || resolved?.harness?.continuum || {};
-  const selectedRisk = String(selected?.risk || "read");
-  const durable = decision?.mode === "durable";
+  const selectedRisk = String(preparedDecision?.risk || selected?.risk || "read");
+  const continuumDecision = preparedDecision?.continuum || resolved?.continuum || resolved?.harness?.continuum || {};
+  const durable = continuumDecision?.mode === "durable";
+  const params = {
+    request, targetHint: targetHint || "",
+    ...(preparedDecision ? { decision: preparedDecision } : {}),
+  };
 
   // Shadow writes keep the existing read-only denial and never create a durable write mission.
   if (profile === "chat-owner-shadow" && selectedRisk !== "read") {
@@ -290,7 +307,7 @@ async function executeCapability(
   let continuumFence: any = undefined;
   let continuumState: any = undefined;
   if (durable) {
-    const capability = requiredString(selected?.capability || resolved?.capability, "capability", 128, /^[A-Za-z0-9._-]+$/);
+    const capability = requiredString(preparedDecision?.capability || selected?.capability || resolved?.capability, "capability", 128, /^[A-Za-z0-9._-]+$/);
     const prepared = await continuumIngress([
       "prepare",
       "--task-id", taskId,

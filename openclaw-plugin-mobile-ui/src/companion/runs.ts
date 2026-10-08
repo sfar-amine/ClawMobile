@@ -14,6 +14,10 @@ type StoredRun = {
   clientRunId?: string;
   requestHash?: string;
   executionSource?: "gateway" | "capability_first";
+  decision?: Record<string, unknown>;
+  clarificationState?: "pending" | "resolved" | "abandoned";
+  clarificationExpiresAt?: number;
+  parentClarificationRunId?: string;
   sessionId: string;
   sessionKey?: string;
   text: string;
@@ -119,6 +123,8 @@ export async function reserveSubmittedRun(
     attachments?: IntentAttachment[];
     requestText?: string;
     executionSource?: "gateway" | "capability_first";
+    decision?: Record<string, unknown>;
+    parentClarificationRunId?: string;
   } = {},
 ): Promise<{ created: boolean; status: CompanionRunStatus }> {
   const clientId = requireClientRunId(clientRunId);
@@ -146,6 +152,10 @@ export async function reserveSubmittedRun(
       clientRunId: clientId,
       requestHash,
       executionSource: options.executionSource || "gateway",
+      decision: options.decision && typeof options.decision === "object" ? options.decision : undefined,
+      clarificationState: String(options.decision?.type || "") === "CLARIFY" ? "pending" : undefined,
+      clarificationExpiresAt: String(options.decision?.type || "") === "CLARIFY" ? now + 10 * 60 * 1000 : undefined,
+      parentClarificationRunId: options.parentClarificationRunId,
       sessionId: normalizedSessionId,
       sessionKey: expectedCompanionSessionKey(normalizedSessionId),
       text,
@@ -166,7 +176,7 @@ export async function reserveSubmittedRun(
 export async function rememberSubmittedRun(
   text: string,
   result: OpenClawAgentSubmitResult,
-  options: { userText?: string; attachments?: IntentAttachment[] } = {},
+  options: { userText?: string; attachments?: IntentAttachment[]; decision?: Record<string, unknown>; parentClarificationRunId?: string } = {},
 ) {
   const existing = submittedRuns.get(result.runId)
     || (await findStoredRun(result.runId).catch(() => null));
@@ -178,6 +188,10 @@ export async function rememberSubmittedRun(
     text,
     userText: options.userText || existing?.userText,
     attachments: options.attachments && options.attachments.length > 0 ? options.attachments : existing?.attachments,
+    decision: options.decision || existing?.decision,
+    clarificationState: String(options.decision?.type || existing?.decision?.type || "") === "CLARIFY" ? (existing?.clarificationState || "pending") : existing?.clarificationState,
+    clarificationExpiresAt: String(options.decision?.type || existing?.decision?.type || "") === "CLARIFY" ? (existing?.clarificationExpiresAt || Date.now() + 10 * 60 * 1000) : existing?.clarificationExpiresAt,
+    parentClarificationRunId: options.parentClarificationRunId || existing?.parentClarificationRunId,
     acceptedAt: existing?.acceptedAt || result.acceptedAt || Date.now(),
     updatedAt: Date.now(),
     state: "running" as const,
@@ -324,6 +338,41 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
       return enrichFromSessionFile(fallback, session, undefined, false);
     }),
   );
+}
+
+export async function findPendingClarificationRun(sessionId: string): Promise<{
+  runId: string; text: string; userText: string; decision: Record<string, unknown>; expiresAt: number;
+} | null> {
+  const normalizedSessionId = normalizeCompanionSessionId(sessionId || "default");
+  const runs = await readStoredRuns();
+  const latest = runs.find((run) => run.sessionId === normalizedSessionId && run.modality !== "voice");
+  if (!latest || latest.clarificationState !== "pending" || !latest.decision || String(latest.decision.type || "") !== "CLARIFY") {
+    return null;
+  }
+  const expiresAt = Number(latest.clarificationExpiresAt || 0);
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+    await markClarificationRun(latest.runId, "abandoned");
+    return null;
+  }
+  return {
+    runId: latest.runId,
+    text: latest.text,
+    userText: latest.userText || latest.text,
+    decision: latest.decision,
+    expiresAt,
+  };
+}
+
+export async function markClarificationRun(
+  runId: string, state: "resolved" | "abandoned",
+): Promise<void> {
+  const existing = submittedRuns.get(runId) || (await findStoredRun(runId).catch(() => null));
+  if (!existing || existing.clarificationState !== "pending") return;
+  const stored: StoredRun = {
+    ...existing, clarificationState: state, clarificationExpiresAt: undefined, updatedAt: Date.now(),
+  };
+  submittedRuns.set(runId, stored);
+  await saveStoredRun(stored);
 }
 
 export async function findSubmittedRunByClientRunId(
@@ -1406,6 +1455,14 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       executionSource: ["gateway", "capability_first"].includes(String(run.executionSource || ""))
         ? run.executionSource
         : undefined,
+      decision: run.decision && typeof run.decision === "object" && Number(run.decision.version) === 2
+        ? run.decision
+        : undefined,
+      clarificationState: ["pending", "resolved", "abandoned"].includes(String(run.clarificationState || ""))
+        ? run.clarificationState
+        : undefined,
+      clarificationExpiresAt: typeof run.clarificationExpiresAt === "number" ? run.clarificationExpiresAt : undefined,
+      parentClarificationRunId: typeof run.parentClarificationRunId === "string" ? run.parentClarificationRunId : undefined,
       sessionId: normalizeCompanionSessionId(String(run.sessionId || "default")),
       sessionKey: typeof run.sessionKey === "string" ? run.sessionKey : undefined,
       text: typeof run.text === "string" ? run.text : "",

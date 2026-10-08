@@ -17,6 +17,9 @@ export type FastPathResult = {
   capability?: string;
   source?: string;
   model_bypassed?: boolean;
+  decision?: Record<string, unknown>;
+  clarification?: Record<string, unknown>;
+  resolution?: Record<string, unknown>;
 };
 
 type InboundEvent = {
@@ -48,6 +51,9 @@ type RunnerOptions = {
   originId?: string;
   timeoutSeconds?: number;
   checkOnly?: boolean;
+  preparedDecision?: Record<string, unknown>;
+  clarificationDecision?: Record<string, unknown>;
+  clarificationOriginalText?: string;
 };
 
 function helperCandidates(home = os.homedir()): string[] {
@@ -117,6 +123,7 @@ export async function runModelFastPath(
   for (const helper of helpers) {
     try {
       const argv = [
+        ...(options.clarificationDecision ? ["--resolve-clarification"] : options.preparedDecision ? ["--execute-decision"] : []),
         ...(options.checkOnly ? ["--check"] : []),
         "--surface", options.surface || "claw_live",
         "--caller", options.caller || "owner",
@@ -130,7 +137,15 @@ export async function runModelFastPath(
         {
           timeout: (Math.max(2, Math.min(options.timeoutSeconds || 30, 120)) + 8) * 1000,
           maxBuffer: 2 * 1024 * 1024,
-          env: { ...process.env },
+          env: {
+            ...process.env,
+            ...((options.preparedDecision || options.clarificationDecision) ? {
+              CLAW_PREPARED_DECISION_B64: Buffer.from(JSON.stringify(options.preparedDecision || options.clarificationDecision), "utf8").toString("base64"),
+            } : {}),
+            ...(options.clarificationDecision ? {
+              CLAW_CLARIFICATION_ORIGINAL_B64: Buffer.from(String(options.clarificationOriginalText || ""), "utf8").toString("base64"),
+            } : {}),
+          },
         },
       );
       const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
