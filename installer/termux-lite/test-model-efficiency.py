@@ -49,82 +49,96 @@ def route(**overrides):
 
 
 class FastPathTests(unittest.TestCase):
-    def test_safe_read_route_is_eligible(self):
-        self.assertEqual(fast.eligible(plan(), route()), (True, "eligible"))
+    def resolution(self, **overrides):
+        value = {
+            "harness": {"tool_policy": "required", "reason": "known_route"},
+            "selected": {
+                "state": "ready", "authorized": True, "deterministic": True,
+                "model_required": False, "risk": "read", "capability": "x",
+                "target": "t", "intent": "i", "route": "r",
+                "execution_contract": {},
+            },
+            "confirmation_required": False,
+        }
+        for key, item in overrides.items():
+            if key == "selected":
+                value["selected"].update(item)
+            elif key == "harness":
+                value["harness"].update(item)
+            else:
+                value[key] = item
+        return value
 
-    def test_write_route_is_refused(self):
-        self.assertEqual(
-            fast.eligible(plan(risk="external_send"), route())[1],
-            "not_read_only",
-        )
+    def test_required_deterministic_authorized_capability_is_eligible(self):
+        self.assertEqual(fast.capability_first_eligibility(self.resolution()), ("eligible", "capability_first"))
 
-    def test_low_confidence_is_refused(self):
-        self.assertEqual(
-            fast.eligible(plan(confidence=0.7), route())[1],
-            "low_confidence",
-        )
-    def test_fallback_is_refused(self):
-        self.assertEqual(
-            fast.eligible(plan(fallback={"id": "x"}), route())[1],
-            "fallback_selected",
-        )
+    def test_optional_conversation_is_model_miss(self):
+        value=self.resolution(harness={"tool_policy":"optional","reason":"conversation_or_unknown"})
+        self.assertEqual(fast.capability_first_eligibility(value), ("miss", "conversation_or_unknown"))
 
-    def test_browser_route_is_refused(self):
-        self.assertEqual(
-            fast.eligible(plan(), route(layer="browser"))[1],
-            "not_script_route",
-        )
+    def test_model_required_capability_is_assisted(self):
+        value=self.resolution(selected={"model_required":True})
+        self.assertEqual(fast.capability_first_eligibility(value), ("assist", "selected_requires_model"))
 
-    def test_shell_composition_is_refused(self):
-        self.assertEqual(
-            fast.eligible(plan(), route(entrypoint="python -m x read; rm -rf /"))[1],
-            "entrypoint_not_static",
-        )
+    def test_unauthorized_known_capability_is_terminal_without_model(self):
+        value=self.resolution(selected={"authorized":False})
+        self.assertEqual(fast.capability_first_eligibility(value), ("known_error", "selected_not_authorized"))
 
-    def test_needs_counter_is_human_readable(self):
-        self.assertEqual(
-            fast._display_text(
-                {"state": "needs_counter", "choices": ["recharge", "balances"]}
-            ),
-            "Précise : recharge / balances",
-        )
-
-    def test_selected_route_executes_once(self):
-        with mock.patch.object(fast, "resolve_plan", return_value=plan()),              mock.patch.object(fast, "_route_from_manifest", return_value=route()),              mock.patch.object(
-                 fast,
-                 "_execute_route",
-                 return_value=(0, '{"ok":true,"message":"done"}', ""),
-             ) as execute:
-            out = fast.try_fast_path("mon solde maxit")
-        self.assertEqual(out["status"], "hit")
-        self.assertEqual(out["text"], "done")
+    def test_completed_known_execution_bypasses_model(self):
+        resolved=self.resolution()
+        executed={**resolved,"execution":{"state":"completed","result":{"message":"done"}}}
+        with mock.patch.object(fast,"resolve_capability",return_value=resolved), \
+             mock.patch.object(fast,"execute_capability",return_value=executed) as execute:
+            out=fast.try_fast_path("known read")
+        self.assertEqual(out["status"],"hit")
+        self.assertEqual(out["text"],"done")
+        self.assertTrue(out["model_bypassed"])
         execute.assert_called_once()
 
-    def test_needs_counter_nonzero_is_bounded_hit(self):
-        payload = json.dumps({
-            "ok": False,
-            "state": "needs_counter",
-            "choices": ["recharge", "balances"],
-            "sent": False,
-        })
-        with mock.patch.object(fast, "resolve_plan", return_value=plan()),              mock.patch.object(fast, "_route_from_manifest", return_value=route()),              mock.patch.object(
-                 fast,
-                 "_execute_route",
-                 return_value=(4, payload, ""),
-             ):
-            out = fast.try_fast_path("mon solde maxit")
-        self.assertEqual(out["status"], "hit")
-        self.assertEqual(out["text"], "Précise : recharge / balances")
+    def test_assisted_execution_returns_to_model_without_fake_result(self):
+        resolved=self.resolution()
+        executed={**resolved,"execution":{"state":"delegation_required"}}
+        with mock.patch.object(fast,"resolve_capability",return_value=resolved), \
+             mock.patch.object(fast,"execute_capability",return_value=executed):
+            out=fast.try_fast_path("assisted")
+        self.assertEqual(out["status"],"assist")
+        self.assertEqual(out["reason"],"delegation_required")
 
-    def test_other_nonzero_remains_error(self):
-        with mock.patch.object(fast, "resolve_plan", return_value=plan()),              mock.patch.object(fast, "_route_from_manifest", return_value=route()),              mock.patch.object(
-                 fast,
-                 "_execute_route",
-                 return_value=(3, '{"ok":false,"state":"failed","sent":false}', "boom"),
-             ):
-            out = fast.try_fast_path("mon solde maxit")
-        self.assertEqual(out["status"], "error")
-        self.assertEqual(out["reason"], "route_failed")
+    def test_known_failed_execution_does_not_fall_through_to_model_refusal(self):
+        resolved=self.resolution()
+        executed={**resolved,"execution":{"state":"failed"}}
+        with mock.patch.object(fast,"resolve_capability",return_value=resolved), \
+             mock.patch.object(fast,"execute_capability",return_value=executed):
+            out=fast.try_fast_path("known failure")
+        self.assertEqual(out["status"],"known_error")
+        self.assertIn("Claw",out["text"])
+
+    def test_confirmation_without_declared_inert_handoff_is_assisted(self):
+        resolved=self.resolution(confirmation_required=True)
+        with mock.patch.object(fast,"resolve_capability",return_value=resolved):
+            out=fast.try_fast_path("needs confirmation")
+        self.assertEqual(out["status"],"assist")
+        self.assertEqual(out["reason"],"confirmation_requires_assisted_handoff")
+
+    def test_declared_inert_handoff_is_model_bypass(self):
+        resolved=self.resolution(
+            confirmation_required=True,
+            selected={"execution_contract":{
+                "pre_model_handoff":{
+                    "entrypoint":"python3 -m payments.request_handoff",
+                    "input_mode":"request_arg",
+                    "effect_before_boundary":"none",
+                    "boundary":"owner_biometric",
+                }
+            }},
+        )
+        with mock.patch.object(fast,"resolve_capability",return_value=resolved), \
+             mock.patch.object(fast,"_execute_declared_handoff",return_value={"status":"hit","text":"confirm","model_bypassed":True}) as handoff:
+            out=fast.try_fast_path("top up maxit 5 tnd",origin_id="run-1")
+        self.assertEqual(out["status"],"hit")
+        self.assertTrue(out["model_bypassed"])
+        handoff.assert_called_once()
+
 
 
 class ConfigTests(unittest.TestCase):

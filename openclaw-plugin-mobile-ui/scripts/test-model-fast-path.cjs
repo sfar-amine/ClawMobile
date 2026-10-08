@@ -8,20 +8,47 @@ async function main() {
 
   assert.equal(
     mod.isOwnerFastPathEligible(
-      {
-        content: "mon solde maxit",
-        senderIsOwner: true,
-        isGroup: false,
-      },
+      { content: "mon solde maxit", senderIsOwner: true, isGroup: false },
       { agentId: "main" },
     ),
     true,
   );
 
   assert.equal(
+    mod.isTrustedLocalCompanionSession(
+      {
+        content: "top up maxit 5 tnd",
+        senderIsOwner: false,
+        isGroup: false,
+        sessionKey: "agent:main:companion-chat-session-1429e381",
+      },
+      { agentId: "main", sessionKey: "agent:main:companion-chat-session-1429e381" },
+    ),
+    true,
+  );
+
+  assert.equal(
     mod.isOwnerFastPathEligible(
-      { content: "mon solde maxit", senderIsOwner: false, isGroup: false },
-      { agentId: "main" },
+      {
+        content: "top up maxit 5 tnd",
+        senderIsOwner: false,
+        isGroup: false,
+        sessionKey: "agent:main:companion-chat-session-1429e381",
+      },
+      { agentId: "main", sessionKey: "agent:main:companion-chat-session-1429e381" },
+    ),
+    true,
+  );
+
+  assert.equal(
+    mod.isOwnerFastPathEligible(
+      {
+        content: "mon solde maxit",
+        senderIsOwner: false,
+        isGroup: false,
+        sessionKey: "agent:main:whatsapp:direct:21600000000",
+      },
+      { agentId: "main", sessionKey: "agent:main:whatsapp:direct:21600000000", channel: "whatsapp" },
     ),
     false,
   );
@@ -44,44 +71,52 @@ async function main() {
 
   assert.equal(
     mod.isOwnerFastPathEligible(
-      {
-        content: "mon solde maxit",
-        senderIsOwner: true,
-        isGroup: false,
-        media: [{}],
-      },
+      { content: "mon solde maxit", senderIsOwner: true, isGroup: false, media: [{}] },
       { agentId: "main" },
     ),
     false,
   );
 
-  let calls = 0;
+  let receivedOptions = null;
   const hit = await mod.handleOwnerFastPath(
     {
-      content: "mon solde maxit",
+      content: "active le wifi",
       senderIsOwner: true,
       isGroup: false,
+      runId: "run-1",
     },
-    { agentId: "main" },
-    async () => {
-      calls += 1;
-      return { status: "hit", text: "Précise : recharge / balances" };
+    { agentId: "main", runId: "run-1" },
+    async (_message, options) => {
+      receivedOptions = options;
+      return { status: "hit", text: "Wi-Fi activé", model_bypassed: true };
     },
   );
-  assert.deepEqual(hit, {
+  assert.deepEqual(hit, { handled: true, reply: { text: "Wi-Fi activé" } });
+  assert.equal(receivedOptions.surface, "claw_live");
+  assert.equal(receivedOptions.caller, "owner");
+  assert.equal(receivedOptions.originId, "run-1");
+
+  const knownError = await mod.handleOwnerFastPath(
+    { content: "action connue", senderIsOwner: true, isGroup: false },
+    { agentId: "main" },
+    async () => ({ status: "known_error", text: "Capacité connue mais indisponible." }),
+  );
+  assert.deepEqual(knownError, {
     handled: true,
-    reply: { text: "Précise : recharge / balances" },
+    reply: { text: "Capacité connue mais indisponible." },
   });
-  assert.equal(calls, 1);
+
+  const assist = await mod.handleOwnerFastPath(
+    { content: "question complexe", senderIsOwner: true, isGroup: false },
+    { agentId: "main" },
+    async () => ({ status: "assist", reason: "selected_requires_model" }),
+  );
+  assert.deepEqual(assist, { handled: false });
 
   const miss = await mod.handleOwnerFastPath(
-    {
-      content: "question complexe",
-      senderIsOwner: true,
-      isGroup: false,
-    },
+    { content: "raconte moi une histoire", senderIsOwner: true, isGroup: false },
     { agentId: "main" },
-    async () => ({ status: "miss", reason: "low_confidence" }),
+    async () => ({ status: "miss", reason: "conversation_or_unknown" }),
   );
   assert.deepEqual(miss, { handled: false });
 
@@ -91,8 +126,9 @@ async function main() {
       content: "mon solde maxit",
       senderIsOwner: false,
       isGroup: false,
+      sessionKey: "agent:main:whatsapp:direct:21600000000",
     },
-    { agentId: "main" },
+    { agentId: "main", sessionKey: "agent:main:whatsapp:direct:21600000000", channel: "whatsapp" },
     async () => {
       untrustedCalls += 1;
       return { status: "hit", text: "should not run" };
@@ -101,22 +137,34 @@ async function main() {
   assert.deepEqual(untrusted, { handled: false });
   assert.equal(untrustedCalls, 0);
 
-
-
   const tempBase = path.join(os.homedir(), ".openclaw", "tmp");
   fs.mkdirSync(tempBase, { recursive: true });
-  const helperRoot = fs.mkdtempSync(path.join(tempBase, "model-fast-path-test-"));
+  const helperRoot = fs.mkdtempSync(path.join(tempBase, "capability-first-test-"));
   const helper = path.join(helperRoot, "helper.py");
   fs.writeFileSync(helper, [
-    "import json",
-    "print(json.dumps({'status':'hit','text':'helper-ok','target':'x','intent':'y','route':'z'}))",
+    "import json,sys",
+    "print(json.dumps({'status':'hit','text':'helper-ok','argv':sys.argv[1:]}))",
     "",
   ].join("\n"));
-  const helperResult = await mod.runModelFastPath("hello", { helperPath: helper });
+  const helperResult = await mod.runModelFastPath("hello", {
+    helperPath: helper,
+    surface: "claw_live",
+    caller: "owner",
+    originId: "run-helper",
+    timeoutSeconds: 10,
+  });
   assert.equal(helperResult.status, "hit");
   assert.equal(helperResult.text, "helper-ok");
+  assert.deepEqual(helperResult.argv, [
+    "--surface", "claw_live",
+    "--caller", "owner",
+    "--origin-id", "run-helper",
+    "--timeout", "10",
+    "hello",
+  ]);
+  fs.rmSync(helperRoot, { recursive: true, force: true });
 
-  console.log("model-fast-path plugin tests: PASS");
+  console.log("capability-first plugin tests: PASS");
 }
 
 main().catch((error) => {

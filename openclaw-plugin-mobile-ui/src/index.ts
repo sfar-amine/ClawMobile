@@ -202,7 +202,7 @@ function register(api: any) {
   api.on("inbound_claim", async (event: any, ctx: any) => {
     const result = await handleOwnerFastPath(event, ctx);
     if (result.handled) {
-      api.logger?.debug?.("[model-fast-path] owner read-only route handled before model");
+      api.logger?.debug?.("[capability-first] owner capability handled before model");
     }
     return result;
   });

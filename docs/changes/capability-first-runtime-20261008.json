@@ -1,0 +1,81 @@
+{
+  "version": 2,
+  "id": "capability-first-runtime-20261008",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Generalize the existing ClawMobile inbound pre-model fast path into Capability-First dispatch backed by the canonical Capability Graph.",
+  "reason": "Known capabilities could reach a provider before Claw routing, allowing provider-generated refusals and unnecessary model calls. Local Companion turns could also lose senderIsOwner and skip the pre-model path.",
+  "files": [
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/gemini-request.py",
+    "installer/termux-lite/test-model-efficiency.py",
+    "installer/termux-lite/test-gemini-request.py",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path.cjs",
+    "docs/changes/capability-first-runtime-20261008.md",
+    "docs/changes/capability-first-runtime-20261008.json"
+  ],
+  "tests": [
+    {
+      "name": "model-efficiency",
+      "status": "passed",
+      "evidence": "13 Python tests passed."
+    },
+    {
+      "name": "gemini-request",
+      "status": "passed",
+      "evidence": "20 Python tests passed; Known hit/error bypass provider while miss/assist retain model path."
+    },
+    {
+      "name": "slack-runtime-contract",
+      "status": "passed",
+      "evidence": "6 Python tests passed."
+    },
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "openclaw-plugin-mobile-ui npm run build passed."
+    },
+    {
+      "name": "capability-first-plugin",
+      "status": "passed",
+      "evidence": "Local Companion owner fallback, remote isolation, hit/known_error handling and assist/miss fallthrough passed."
+    },
+    {
+      "name": "provider-fallback",
+      "status": "passed",
+      "evidence": "Existing provider-fallback plugin suite passed."
+    },
+    {
+      "name": "mcp-bridge",
+      "status": "passed",
+      "evidence": "Existing external MCP shadow/write/status/artifact/context suite passed."
+    },
+    {
+      "name": "remote-bridge-core",
+      "status": "passed",
+      "evidence": "Existing idempotence, task/step receipt, process, artifact and Continuum effect-fence suite passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/capability-first-runtime-20261008.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Capability truth and execution contracts remain in ui-playbooks; this runtime consumes the canonical Graph before model invocation."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends the existing inbound_claim/model-fast-path hook and existing Capability Graph. The architecture decision is owned by ui-playbooks ADR-20261008-capability-first; no new component or source of truth is introduced."
+  },
+  "rollback": "Revert this scoped runtime commit, rebuild/install the existing mobile-ui plugin and restart Companion through the supervised path.",
+  "limitations": [
+    "Only declared inert pre_model_handoff contracts can cross a confirmation-required pre-model path.",
+    "Remote channels do not inherit the local Companion owner fallback.",
+    "Live transactional acceptance remains a separate human-boundary test; this delivery does not remove biometric or issuer controls."
+  ]
+}

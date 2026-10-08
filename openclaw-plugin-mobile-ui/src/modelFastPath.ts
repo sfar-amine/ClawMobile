@@ -4,7 +4,8 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const MAX_MESSAGE_CHARS = 2000;
+const MAX_MESSAGE_CHARS = 12000;
+const LOCAL_COMPANION_SESSION = /^agent:main:companion-chat-[A-Za-z0-9-]{1,96}$/;
 
 type FastPathResult = {
   status?: string;
@@ -13,9 +14,15 @@ type FastPathResult = {
   target?: string;
   intent?: string;
   route?: string;
+  capability?: string;
+  source?: string;
+  model_bypassed?: boolean;
 };
 
 type InboundEvent = {
+  id?: string;
+  runId?: string;
+  idempotencyKey?: string;
   content?: string;
   bodyForAgent?: string;
   isGroup?: boolean;
@@ -26,8 +33,20 @@ type InboundEvent = {
 };
 
 type InboundContext = {
+  runId?: string;
   agentId?: string;
   sessionKey?: string;
+  channel?: string;
+  messageProvider?: string;
+};
+
+type RunnerOptions = {
+  helperPath?: string;
+  home?: string;
+  surface?: string;
+  caller?: "owner" | "trusted" | "other";
+  originId?: string;
+  timeoutSeconds?: number;
 };
 
 function helperCandidates(home = os.homedir()): string[] {
@@ -43,11 +62,23 @@ function isMainSession(event: InboundEvent, ctx: InboundContext): boolean {
   return key.startsWith("agent:main:");
 }
 
+export function isTrustedLocalCompanionSession(
+  event: InboundEvent,
+  ctx: InboundContext,
+): boolean {
+  if (!isMainSession(event, ctx) || event.isGroup === true) return false;
+  const key = String(ctx.sessionKey ?? event.sessionKey ?? "");
+  if (!LOCAL_COMPANION_SESSION.test(key)) return false;
+  const channel = String(ctx.channel || ctx.messageProvider || "").toLowerCase();
+  return !channel || channel === "openclaw" || channel === "companion" || channel === "android";
+}
+
 export function isOwnerFastPathEligible(
   event: InboundEvent,
   ctx: InboundContext,
 ): boolean {
-  if (event.senderIsOwner !== true || event.isGroup === true) return false;
+  const owner = event.senderIsOwner === true || isTrustedLocalCompanionSession(event, ctx);
+  if (!owner || event.isGroup === true) return false;
   if (!isMainSession(event, ctx)) return false;
   if ((event.media?.length ?? 0) > 0 || (event.originalMedia?.length ?? 0) > 0) {
     return false;
@@ -56,9 +87,26 @@ export function isOwnerFastPathEligible(
   return message.length > 0 && message.length <= MAX_MESSAGE_CHARS;
 }
 
+function surfaceFor(ctx: InboundContext): string {
+  const channel = String(ctx.channel || ctx.messageProvider || "").toLowerCase();
+  return channel === "whatsapp" ? "whatsapp" : "claw_live";
+}
+
+function originId(event: InboundEvent, ctx: InboundContext): string {
+  return String(
+    ctx.runId ||
+    event.runId ||
+    event.idempotencyKey ||
+    event.id ||
+    ctx.sessionKey ||
+    event.sessionKey ||
+    "capability-first",
+  ).slice(0, 120);
+}
+
 export async function runModelFastPath(
   message: string,
-  options: { helperPath?: string; home?: string } = {},
+  options: RunnerOptions = {},
 ): Promise<FastPathResult> {
   const helpers = options.helperPath
     ? [options.helperPath]
@@ -66,12 +114,19 @@ export async function runModelFastPath(
   let lastError = "helper_missing";
   for (const helper of helpers) {
     try {
+      const argv = [
+        "--surface", options.surface || "claw_live",
+        "--caller", options.caller || "owner",
+        "--origin-id", options.originId || "capability-first",
+        "--timeout", String(Math.max(2, Math.min(options.timeoutSeconds || 30, 120))),
+        message,
+      ];
       const raw: any = await execFileAsync(
         "python3",
-        [helper, message],
+        [helper, ...argv],
         {
-          timeout: 25000,
-          maxBuffer: 1024 * 1024,
+          timeout: (Math.max(2, Math.min(options.timeoutSeconds || 30, 120)) + 8) * 1000,
+          maxBuffer: 2 * 1024 * 1024,
           env: { ...process.env },
         },
       );
@@ -85,6 +140,11 @@ export async function runModelFastPath(
         lastError = "helper_missing";
         continue;
       }
+      const stdout = typeof error?.stdout === "string" ? error.stdout : "";
+      try {
+        const parsed = JSON.parse(stdout || "{}");
+        if (parsed && typeof parsed === "object") return parsed as FastPathResult;
+      } catch {}
       lastError = "helper_failed";
       break;
     }
@@ -95,15 +155,22 @@ export async function runModelFastPath(
 export async function handleOwnerFastPath(
   event: InboundEvent,
   ctx: InboundContext,
-  runner: (message: string) => Promise<FastPathResult> = runModelFastPath,
+  runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
 ): Promise<{ handled: boolean; reply?: { text: string } }> {
   if (!isOwnerFastPathEligible(event, ctx)) return { handled: false };
   const message = (event.bodyForAgent ?? event.content ?? "").trim();
   try {
-    const result = await runner(message);
+    const result = await runner(message, {
+      surface: surfaceFor(ctx),
+      caller: "owner",
+      originId: originId(event, ctx),
+      timeoutSeconds: 30,
+    });
     const text = typeof result.text === "string" ? result.text.trim() : "";
-    if (result.status !== "hit" || !text) return { handled: false };
-    return { handled: true, reply: { text } };
+    if ((result.status === "hit" || result.status === "known_error") && text) {
+      return { handled: true, reply: { text } };
+    }
+    return { handled: false };
   } catch {
     return { handled: false };
   }

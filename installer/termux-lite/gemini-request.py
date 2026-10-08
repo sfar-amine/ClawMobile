@@ -228,16 +228,17 @@ def load_status() -> dict:
         return {}
 
 
-def fast_path_request(message: str) -> dict:
+def fast_path_request(message: str, caller: str = "owner", origin_id: str = "gemini-direct") -> dict:
     script = Path(__file__).resolve().with_name("model-fast-path.py")
     if not script.exists():
         return {"status": "miss", "reason": "helper_missing"}
     try:
         run = subprocess.run(
-            [sys.executable, str(script), message],
+            [sys.executable, str(script), "--surface", "gemini_claw",
+             "--caller", caller, "--origin-id", origin_id[:120], message],
             capture_output=True,
             text=True,
-            timeout=25,
+            timeout=38,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return {"status": "error", "reason": type(exc).__name__}
@@ -342,8 +343,8 @@ def main() -> int:
     ensure_efficiency_policy()
 
     if not args.provider_fallback:
-        fast = fast_path_request(message)
-        if fast.get("status") == "hit":
+        fast = fast_path_request(message, args.caller, "gemini-" + args.session)
+        if fast.get("status") in {"hit", "known_error"}:
             print(json.dumps({
                 "status": "ok",
                 "source": "deterministic",

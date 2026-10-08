@@ -13,100 +13,115 @@ from typing import Any
 
 HOME = Path.home()
 UI_ROOT = HOME / ".openclaw/workspace/ui-playbooks"
-MIN_CONFIDENCE = 0.95
-SAFE_ROUTE_STATUSES = {"validated", "stable"}
-SAFE_RISK = "read"
-MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+STATIC_BAD = ("{", "}", "$(", "`", ";", "&&", "||", "|", ">", "<")
+SAFE_EXECUTION_STATES = {"completed"}
+ASSISTED_EXECUTION_STATES = {
+    "native_handoff",
+    "delegation_required",
+    "route_not_directly_executable",
+    "runtime_not_directly_executable",
+    "unsupported_runtime_input_mode",
+    "low_confidence",
+}
 
 
-def _run_json(cmd: list[str], *, cwd: Path, timeout: int = 12) -> dict[str, Any]:
-    run = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
-    if run.returncode:
-        raise RuntimeError((run.stderr or run.stdout or "command_failed").strip()[:1200])
-    value = json.loads(run.stdout or "{}")
-    if not isinstance(value, dict):
-        raise RuntimeError("expected_json_object")
-    return value
-
-
-def resolve_plan(message: str, ui_root: Path = UI_ROOT) -> dict[str, Any]:
-    cmd = [sys.executable, "-m", "skill_intelligence.cli", "resolve", message]
-    return _run_json(cmd, cwd=ui_root)
-
-
-def _manifest_path(target: str, ui_root: Path) -> Path:
-    safe = re.sub(r"[^A-Za-z0-9._-]", "", target)
-    if not safe or safe != target:
-        raise RuntimeError("unsafe_target")
-    return ui_root / "skill_intelligence" / "manifests" / f"{safe}.json"
-
-
-def _route_from_manifest(plan: dict[str, Any], ui_root: Path) -> dict[str, Any] | None:
-    target = str(plan.get("target") or "")
-    raw_intent = plan.get("intent")
-    intent_id = str(raw_intent if isinstance(raw_intent, str) else (raw_intent or {}).get("id") or "")
-    raw_route = plan.get("route")
-    route_id = str(raw_route if isinstance(raw_route, str) else (raw_route or {}).get("id") or "")
-    if not target or not intent_id or not route_id:
-        return None
-    path = _manifest_path(target, ui_root)
-    if not path.is_file():
-        return None
-    data = json.loads(path.read_text())
-    intent = (data.get("intents") or {}).get(intent_id) or {}
-    for route in intent.get("routes") or []:
-        if str(route.get("id") or "") == route_id:
-            return route
-    return None
-
-
-def eligible(plan: dict[str, Any], route: dict[str, Any] | None) -> tuple[bool, str]:
-    if plan.get("mode") != "known":
-        return False, "not_known"
-    if float(plan.get("confidence") or 0) < MIN_CONFIDENCE:
-        return False, "low_confidence"
-    if str(plan.get("risk") or "") != SAFE_RISK:
-        return False, "not_read_only"
-    if plan.get("confirmation_required") is True:
-        return False, "confirmation_required"
-    if plan.get("fallback"):
-        return False, "fallback_selected"
-    raw_route = plan.get("route")
-    route_id = str(raw_route if isinstance(raw_route, str) else (raw_route or {}).get("id") or "")
-    route_health = plan.get("route_health") or {}
-    health = str(route_health.get(route_id) or ((raw_route or {}).get("health") if isinstance(raw_route, dict) else "") or "")
-    if health and health != "healthy":
-        return False, "route_unhealthy"
-    if not route:
-        return False, "route_missing"
-    if str(route.get("status") or "") not in SAFE_ROUTE_STATUSES:
-        return False, "route_not_validated"
-    if str(route.get("layer") or "") != "script":
-        return False, "not_script_route"
-    entrypoint = str(route.get("entrypoint") or "").strip()
-    if not entrypoint:
-        return False, "entrypoint_missing"
-    if any(mark in entrypoint for mark in ("{", "}", "$(", "`", ";", "&&", "||", "|")):
-        return False, "entrypoint_not_static"
-    try:
-        parts = shlex.split(entrypoint)
-    except ValueError:
-        return False, "entrypoint_invalid"
-    if len(parts) < 3 or parts[0] not in {"python", "python3"} or parts[1] != "-m":
-        return False, "entrypoint_not_python_module"
-    if not MODULE_RE.fullmatch(parts[2]):
-        return False, "module_invalid"
-    return True, "eligible"
-
-
-def _execute_route(route: dict[str, Any], ui_root: Path) -> tuple[int, str, str]:
-    parts = shlex.split(str(route["entrypoint"]))
-    parts[0] = sys.executable
+def _python_env(ui_root: Path) -> dict[str, str]:
     env = os.environ.copy()
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = str(ui_root) + (os.pathsep + existing if existing else "")
-    run = subprocess.run(parts, cwd=ui_root, env=env, capture_output=True, text=True, timeout=20)
-    return run.returncode, run.stdout.strip(), run.stderr.strip()
+    return env
+
+
+def _run_json(
+    cmd: list[str],
+    *,
+    cwd: Path,
+    timeout: int = 35,
+    env: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any], str]:
+    run = subprocess.run(
+        cmd,
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    try:
+        value = json.loads(run.stdout or "{}")
+    except ValueError as exc:
+        raise RuntimeError("invalid_json_result") from exc
+    if not isinstance(value, dict):
+        raise RuntimeError("expected_json_object")
+    return run.returncode, value, (run.stderr or "").strip()
+
+
+def _graph_cmd(
+    action: str,
+    message: str,
+    *,
+    ui_root: Path,
+    surface: str,
+    caller: str,
+    timeout: int = 30,
+) -> tuple[int, dict[str, Any], str]:
+    args = [
+        sys.executable,
+        "-m",
+        "skill_intelligence.capability_graph",
+        action,
+        message,
+        "--surface",
+        surface,
+        "--caller",
+        caller,
+    ]
+    if action == "execute":
+        args.extend(["--timeout", str(timeout)])
+    return _run_json(
+        args,
+        cwd=ui_root,
+        timeout=timeout + 5,
+        env=_python_env(ui_root),
+    )
+
+
+def resolve_capability(
+    message: str,
+    ui_root: Path = UI_ROOT,
+    *,
+    surface: str = "claw_live",
+    caller: str = "owner",
+) -> dict[str, Any]:
+    rc, value, _ = _graph_cmd(
+        "resolve",
+        message,
+        ui_root=ui_root,
+        surface=surface,
+        caller=caller,
+        timeout=12,
+    )
+    if rc:
+        raise RuntimeError("capability_resolve_failed")
+    return value
+
+
+def capability_first_eligibility(value: dict[str, Any]) -> tuple[str, str]:
+    harness = value.get("harness") if isinstance(value.get("harness"), dict) else {}
+    selected = value.get("selected") if isinstance(value.get("selected"), dict) else None
+    if harness.get("tool_policy") != "required":
+        return "miss", str(harness.get("reason") or "model_allowed")
+    if not selected:
+        return "assist", "required_but_unresolved"
+    if selected.get("state") != "ready":
+        return "assist", "selected_not_ready"
+    if selected.get("authorized") is not True:
+        return "known_error", "selected_not_authorized"
+    if selected.get("deterministic") is not True:
+        return "assist", "selected_not_deterministic"
+    if selected.get("model_required") is True:
+        return "assist", "selected_requires_model"
+    return "eligible", "capability_first"
 
 
 def _display_text(value: Any) -> str:
@@ -119,53 +134,255 @@ def _display_text(value: Any) -> str:
             choices = [str(x) for x in value["choices"] if str(x).strip()]
             if choices:
                 return "Précise : " + " / ".join(choices)
+        if value.get("state") == "needs_parameter":
+            question = value.get("question")
+            if isinstance(question, str) and question.strip():
+                return question.strip()
         return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     if isinstance(value, list):
         return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     return str(value).strip()
 
 
-def try_fast_path(message: str, ui_root: Path = UI_ROOT, *, execute: bool = True) -> dict[str, Any]:
-    try:
-        plan = resolve_plan(message, ui_root)
-        route = _route_from_manifest(plan, ui_root)
-        ok, reason = eligible(plan, route)
-        if not ok:
-            return {"status": "miss", "reason": reason, "plan": plan}
-        if not execute:
-            return {"status": "eligible", "reason": reason, "plan": plan, "route": route}
-        rc, stdout, stderr = _execute_route(route or {}, ui_root)
-        try:
-            payload: Any = json.loads(stdout)
-        except ValueError:
-            payload = stdout
+def _handoff_contract(resolution: dict[str, Any]) -> dict[str, Any] | None:
+    selected = resolution.get("selected") if isinstance(resolution.get("selected"), dict) else {}
+    contract = selected.get("execution_contract") if isinstance(selected.get("execution_contract"), dict) else {}
+    value = contract.get("pre_model_handoff")
+    return value if isinstance(value, dict) else None
 
-        bounded_nonzero = (
-            rc != 0
-            and isinstance(payload, dict)
-            and payload.get("state") == "needs_counter"
-            and payload.get("sent") is False
-            and isinstance(payload.get("choices"), list)
-        )
-        if rc and not bounded_nonzero:
-            return {"status": "error", "reason": "route_failed", "exit_code": rc, "stderr": stderr[:1200]}
+
+def _execute_declared_handoff(
+    resolution: dict[str, Any],
+    message: str,
+    *,
+    ui_root: Path,
+    surface: str,
+    caller: str,
+    origin_id: str,
+    timeout: int,
+) -> dict[str, Any]:
+    handoff = _handoff_contract(resolution)
+    if not handoff:
         return {
-            "status": "hit",
-            "source": "deterministic",
-            "text": _display_text(payload),
+            "status": "assist",
+            "reason": "confirmation_requires_assisted_handoff",
+            "resolution": resolution,
+        }
+    if handoff.get("effect_before_boundary") not in (False, "none"):
+        return {
+            "status": "known_error",
+            "reason": "unsafe_pre_model_handoff_contract",
+            "text": "La capacité est connue mais son handoff avant confirmation n'est pas qualifié.",
+            "resolution": resolution,
+        }
+    entrypoint = str(handoff.get("entrypoint") or "").strip()
+    input_mode = str(handoff.get("input_mode") or "")
+    if not entrypoint or any(mark in entrypoint for mark in STATIC_BAD):
+        return {
+            "status": "known_error",
+            "reason": "invalid_pre_model_handoff_entrypoint",
+            "text": "La capacité est connue mais son handoff local n'est pas exécutable.",
+            "resolution": resolution,
+        }
+    try:
+        argv = shlex.split(entrypoint)
+    except ValueError:
+        return {
+            "status": "known_error",
+            "reason": "invalid_pre_model_handoff_entrypoint",
+            "text": "La capacité est connue mais son handoff local n'est pas exécutable.",
+            "resolution": resolution,
+        }
+    if len(argv) < 3 or argv[0] not in {"python", "python3"} or argv[1] != "-m":
+        return {
+            "status": "known_error",
+            "reason": "unsupported_pre_model_handoff_entrypoint",
+            "text": "La capacité est connue mais son handoff local n'est pas exécutable.",
+            "resolution": resolution,
+        }
+    if input_mode != "request_arg":
+        return {
+            "status": "known_error",
+            "reason": "unsupported_pre_model_handoff_input",
+            "text": "La capacité est connue mais son contrat d'entrée doit être corrigé.",
+            "resolution": resolution,
+        }
+
+    selected = resolution.get("selected") or {}
+    env = _python_env(ui_root)
+    env.update(
+        {
+            "CLAW_SELECTED_CAPABILITY": str(selected.get("capability") or ""),
+            "CLAW_SELECTED_TARGET": str(selected.get("target") or ""),
+            "CLAW_SELECTED_INTENT": str(selected.get("intent") or ""),
+            "CLAW_SELECTED_ROUTE": str(selected.get("route") or ""),
+            "CLAW_REQUEST_SURFACE": surface,
+            "CLAW_REQUEST_CALLER": caller,
+            "CLAW_REQUEST_ORIGIN_ID": origin_id[:120] or "capability-first",
+        }
+    )
+    argv[0] = sys.executable
+    argv.append(message)
+    rc, payload, stderr = _run_json(
+        argv,
+        cwd=ui_root,
+        timeout=max(5, min(timeout, 45)),
+        env=env,
+    )
+    if rc:
+        return {
+            "status": "known_error",
+            "reason": "pre_model_handoff_failed",
+            "text": "La capacité est connue mais le handoff local a échoué avant tout effet.",
             "result": payload,
-            "target": plan.get("target"),
-            "intent": plan.get("intent") if isinstance(plan.get("intent"), str) else (plan.get("intent") or {}).get("id"),
-            "route": plan.get("route") if isinstance(plan.get("route"), str) else (plan.get("route") or {}).get("id"),
+            "stderr": stderr[:800],
+            "resolution": resolution,
+        }
+    text = (
+        "Confirmation ouverte dans Samantha."
+        if payload.get("state") == "handoff_ready"
+        else _display_text(payload)
+    )
+    return {
+        "status": "hit",
+        "source": "capability_handoff",
+        "text": text or "Confirmation locale requise.",
+        "result": payload,
+        "target": selected.get("target"),
+        "intent": selected.get("intent"),
+        "route": selected.get("route"),
+        "capability": selected.get("capability"),
+        "human_boundary": handoff.get("boundary"),
+        "model_bypassed": True,
+    }
+
+
+def execute_capability(
+    message: str,
+    ui_root: Path = UI_ROOT,
+    *,
+    surface: str = "claw_live",
+    caller: str = "owner",
+    timeout: int = 30,
+) -> dict[str, Any]:
+    _, value, stderr = _graph_cmd(
+        "execute",
+        message,
+        ui_root=ui_root,
+        surface=surface,
+        caller=caller,
+        timeout=timeout,
+    )
+    if stderr:
+        value.setdefault("_runtime_warning", stderr[:800])
+    return value
+
+
+def try_fast_path(
+    message: str,
+    ui_root: Path = UI_ROOT,
+    *,
+    execute: bool = True,
+    surface: str = "claw_live",
+    caller: str = "owner",
+    origin_id: str = "capability-first",
+    timeout: int = 30,
+) -> dict[str, Any]:
+    try:
+        resolution = resolve_capability(message, ui_root, surface=surface, caller=caller)
+        decision, reason = capability_first_eligibility(resolution)
+        if decision == "miss":
+            return {"status": "miss", "reason": reason, "resolution": resolution}
+        if decision == "assist":
+            return {"status": "assist", "reason": reason, "resolution": resolution}
+        if decision == "known_error":
+            return {
+                "status": "known_error",
+                "reason": reason,
+                "text": "Cette action existe dans Claw mais n'est pas autorisée pour ce demandeur.",
+                "resolution": resolution,
+            }
+        if not execute:
+            return {
+                "status": "eligible",
+                "reason": reason,
+                "resolution": resolution,
+                "model_bypassed": True,
+            }
+
+        if resolution.get("confirmation_required") is True:
+            return _execute_declared_handoff(
+                resolution,
+                message,
+                ui_root=ui_root,
+                surface=surface,
+                caller=caller,
+                origin_id=origin_id,
+                timeout=timeout,
+            )
+
+        executed = execute_capability(
+            message,
+            ui_root,
+            surface=surface,
+            caller=caller,
+            timeout=timeout,
+        )
+        execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
+        state = str(execution.get("state") or "")
+        selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
+        if state in SAFE_EXECUTION_STATES:
+            payload = execution.get("result")
+            return {
+                "status": "hit",
+                "source": "capability",
+                "text": _display_text(payload),
+                "result": payload,
+                "target": selected.get("target"),
+                "intent": selected.get("intent"),
+                "route": selected.get("route"),
+                "capability": selected.get("capability"),
+                "execution_state": state,
+                "model_bypassed": True,
+            }
+        if state in ASSISTED_EXECUTION_STATES:
+            return {
+                "status": "assist",
+                "reason": state,
+                "resolution": executed,
+            }
+        if state == "confirmation_required":
+            return _execute_declared_handoff(
+                executed,
+                message,
+                ui_root=ui_root,
+                surface=surface,
+                caller=caller,
+                origin_id=origin_id,
+                timeout=timeout,
+            )
+        return {
+            "status": "known_error",
+            "reason": state or "known_execution_failed",
+            "text": "Claw a identifié la capacité mais son exécution n'a pas atteint un état terminal vérifié.",
+            "resolution": executed,
         }
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
-        return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}
+        return {
+            "status": "error",
+            "reason": type(exc).__name__,
+            "detail": str(exc)[:800],
+        }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Resolve and execute bounded read-only Claw fast paths.")
-    parser.add_argument("--check", action="store_true", help="Resolve only; do not execute the route.")
+    parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
+    parser.add_argument("--check", action="store_true", help="Resolve only; do not execute or open a human boundary.")
     parser.add_argument("--ui-root", type=Path, default=UI_ROOT)
+    parser.add_argument("--surface", default="claw_live")
+    parser.add_argument("--caller", choices=("owner", "trusted", "other"), default="owner")
+    parser.add_argument("--origin-id", default="capability-first")
+    parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("message", nargs="*")
     args = parser.parse_args()
     message = " ".join(args.message).strip()
@@ -173,9 +390,17 @@ def main() -> int:
         message = sys.stdin.read().strip()
     if not message:
         raise SystemExit("message_required")
-    result = try_fast_path(message, args.ui_root, execute=not args.check)
+    result = try_fast_path(
+        message,
+        args.ui_root,
+        execute=not args.check,
+        surface=args.surface,
+        caller=args.caller,
+        origin_id=args.origin_id,
+        timeout=max(2, min(args.timeout, 120)),
+    )
     print(json.dumps(result, ensure_ascii=False))
-    return 0 if result.get("status") in {"hit", "eligible", "miss"} else 75
+    return 0 if result.get("status") in {"hit", "eligible", "miss", "assist", "known_error"} else 75
 
 
 if __name__ == "__main__":

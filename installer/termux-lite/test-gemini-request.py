@@ -199,6 +199,31 @@ class GeminiRequestTests(unittest.TestCase):
         self.assertEqual(result["source"], "deterministic")
         provider.assert_not_called()
 
+    def test_known_error_does_not_call_provider(self):
+        import io
+        with tempfile.TemporaryDirectory() as td:
+            old_state = mod.STATE
+            mod.STATE = Path(td) / "state.json"
+            try:
+                with mock.patch.object(mod, "ensure_free_policy"), \
+                     mock.patch.object(mod, "ensure_efficiency_policy"), \
+                     mock.patch.object(mod, "fast_path_request", return_value={
+                         "status": "known_error",
+                         "text": "Claw connaît cette action mais son exécution est indisponible.",
+                     }) as fast, \
+                     mock.patch.object(mod, "provider_call") as provider, \
+                     mock.patch.object(sys, "argv", ["gemini-request.py", "--caller", "owner", "action", "connue"]), \
+                     mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+                    rc = mod.main()
+                result = json.loads(output.getvalue())
+            finally:
+                mod.STATE = old_state
+        self.assertEqual(rc, 0)
+        self.assertEqual(result["provider_attempts"], 0)
+        self.assertEqual(result["text"], "Claw connaît cette action mais son exécution est indisponible.")
+        provider.assert_not_called()
+        fast.assert_called_once()
+
     def test_quota_failure_does_not_retry(self):
         import io
         import subprocess
