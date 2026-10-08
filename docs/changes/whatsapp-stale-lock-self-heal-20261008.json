@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "id": "whatsapp-stale-lock-self-heal-20261008",
+  "date": "2026-10-08",
+  "summary": "Bounded WhatsApp stale session-lock recovery through the existing Health Manager.",
+  "root_cause": "The WhatsApp credential lock referenced dead PID 4268 from 2026-10-06, so OpenClaw's existing channel monitor repeatedly restarted into file_lock_timeout.",
+  "architecture": "No new daemon or scheduler. Health Manager validates PID plus process starttime, quarantines only an old orphaned lock, and asks the existing gateway owner for one restart.",
+  "human_boundary": "terminal_auth_logout remains human_required and is never auto-relinked.",
+  "rollback": "/data/data/com.termux/files/home/.openclaw/backups/whatsapp-stale-lock-20261008-174156"
+}
