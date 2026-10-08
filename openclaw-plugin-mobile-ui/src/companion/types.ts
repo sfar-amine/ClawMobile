@@ -86,6 +86,10 @@ export type TerminalSessionResponse = {
 
 export type IntentSubmitResponse = {
   success: boolean;
+  accepted?: boolean;
+  submissionState?: "accepted" | "not_submitted";
+  retrySafe?: boolean;
+  duplicate?: boolean;
   runId: string;
   clientRunId?: string;
   sessionId?: string;
@@ -100,6 +104,7 @@ export type IntentSubmitResponse = {
 
 export type CompanionRunStatus = {
   modality?: "voice";
+  clientRunId?: string;
   transcriptState?: "partial" | "completed" | "interrupted";
   playback?: import("./voicePlaybackMetadata").VoicePlaybackMetadata;
   success: boolean;

@@ -18,7 +18,7 @@ import { createClawLiveToken, clawLivePageHtml } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
-import { archiveSession, deleteSession, getRunStatus, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
+import { archiveSession, deleteSession, getRunStatus, getRunStatusByClientRunId, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
 import { acceptSkillImport, createSkillSharePackage, listPendingSkillImports, rejectSkillImport, storePendingSkillImport } from "./skillSharing";
 import type { CompanionHealth, CompanionRunStatus, IntentAttachment, RunCreateRequest, TerminalCommandRequest, TerminalCommandResponse, TerminalSessionRequest, TerminalSessionResponse } from "./types";
@@ -44,6 +44,11 @@ type TerminalShellSession = {
   running: boolean;
   updatedAt: number;
 };
+
+export function runSubmissionStatusCode(result: { success?: boolean; submissionState?: string }) {
+  if (result.success) return 200;
+  return result.submissionState === "not_submitted" ? 503 : 400;
+}
 
 export function startCompanionServer() {
   const configuredHost = (process.env.CLAWMOBILE_COMPANION_HOST || DEFAULT_HOST).trim();
@@ -316,6 +321,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/payments/:requestId/bank-return",
         "/v1/payments/:requestId/resume",
         "/v1/runs",
+        "/v1/runs/by-client/:clientRunId",
         "/v1/runs/:runId",
         "/v1/sessions/:sessionId/archive",
         "/v1/sessions/:sessionId",
@@ -490,7 +496,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         clientRunId: body?.clientRunId,
       },
     );
-    writeJson(res, result.success ? 200 : 400, result);
+    const statusCode = runSubmissionStatusCode(result);
+    writeJson(res, statusCode, result);
     return;
   }
 
@@ -906,6 +913,15 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     writeJson(res, 200, {
       runs: summary ? await listRunSummaries({ limit }) : await listRuns({ limit }),
     });
+    return;
+  }
+
+  const byClientRunMatch = routePath.match(/^\/runs\/by-client\/([^/]+)$/);
+  if (method === "GET" && byClientRunMatch) {
+    const clientRunId = decodeURIComponent(byClientRunMatch[1]);
+    const result = await getRunStatusByClientRunId(clientRunId);
+    res.setHeader("Cache-Control", "no-store");
+    writeJson(res, result.success || result.state !== "unknown" ? 200 : 404, result);
     return;
   }
 

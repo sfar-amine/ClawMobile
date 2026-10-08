@@ -11,6 +11,8 @@ import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatu
 
 type StoredRun = {
   runId: string;
+  clientRunId?: string;
+  requestHash?: string;
   sessionId: string;
   sessionKey?: string;
   text: string;
@@ -56,6 +58,7 @@ type TranscriptSummary = {
 };
 
 const submittedRuns = new Map<string, StoredRun>();
+const CLIENT_RUN_ID_RE = /^[A-Za-z0-9._:-]{1,160}$/;
 const MAX_PERSISTED_RUNS = 500;
 const MAX_PERSISTED_RUN_BYTES = 8 * 1024 * 1024;
 
@@ -84,6 +87,72 @@ async function registryOrEmpty() {
   catch (error: any) { if (error?.code === "ENOENT") return defaultCompanionRunRegistry(); throw error; }
 }
 
+function requireClientRunId(value: string) {
+  const normalized = String(value || "").trim();
+  if (!CLIENT_RUN_ID_RE.test(normalized)) {
+    throw Object.assign(new Error("invalid_client_run_id"), { statusCode: 400 });
+  }
+  return normalized;
+}
+
+function submissionRequestHash(
+  text: string,
+  sessionId: string,
+  userText: string,
+  attachments: IntentAttachment[],
+) {
+  return createHash("sha256").update(JSON.stringify({
+    text,
+    sessionId,
+    userText,
+    attachments,
+  })).digest("hex");
+}
+
+export async function reserveSubmittedRun(
+  text: string,
+  sessionId: string,
+  clientRunId: string,
+  options: { userText?: string; attachments?: IntentAttachment[]; requestText?: string } = {},
+): Promise<{ created: boolean; status: CompanionRunStatus }> {
+  const clientId = requireClientRunId(clientRunId);
+  const normalizedSessionId = normalizeCompanionSessionId(sessionId || "default");
+  const userText = String(options.userText || text);
+  const attachments = options.attachments || [];
+  const requestHash = submissionRequestHash(options.requestText || text, normalizedSessionId, userText, attachments);
+
+  return mutateRegistry(async () => {
+    const registry = await registryOrEmpty();
+    const existing = registry.runs.find((run) => run.clientRunId === clientId);
+    if (existing) {
+      if (existing.requestHash !== requestHash || existing.sessionId !== normalizedSessionId) {
+        throw Object.assign(new Error("client_run_identity_conflict"), { statusCode: 409 });
+      }
+      submittedRuns.set(existing.runId, existing);
+      return { created: false, status: statusFromStoredRun(existing) };
+    }
+
+    const now = Date.now();
+    const stored: StoredRun = {
+      runId: `run_${now}_${randomBytes(4).toString("hex")}`,
+      clientRunId: clientId,
+      requestHash,
+      sessionId: normalizedSessionId,
+      sessionKey: expectedCompanionSessionKey(normalizedSessionId),
+      text,
+      userText,
+      attachments: attachments.length > 0 ? attachments : undefined,
+      acceptedAt: now,
+      updatedAt: now,
+      state: "running",
+    };
+    const next = retainStoredRuns([stored, ...registry.runs]);
+    const archivedSessionIds = registry.archivedSessionIds.filter((id) => id !== normalizedSessionId);
+    submittedRuns.set(stored.runId, stored);
+    await writeCompanionRunRegistry(next, archivedSessionIds);
+    return { created: true, status: statusFromStoredRun(stored) };
+  });
+}
 
 export async function rememberSubmittedRun(
   text: string,
@@ -227,6 +296,37 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
   );
 }
 
+export async function findSubmittedRunByClientRunId(
+  clientRunId: string,
+  expected?: { text: string; sessionId: string; userText?: string; attachments?: IntentAttachment[] },
+): Promise<CompanionRunStatus | null> {
+  const clientId = requireClientRunId(clientRunId);
+  const stored = (await readStoredRuns()).find((run) => run.clientRunId === clientId);
+  if (!stored) return null;
+  if (expected) {
+    const sessionId = normalizeCompanionSessionId(expected.sessionId || "default");
+    const requestHash = submissionRequestHash(
+      expected.text,
+      sessionId,
+      String(expected.userText || expected.text),
+      expected.attachments || [],
+    );
+    if (stored.sessionId !== sessionId || stored.requestHash !== requestHash) {
+      throw Object.assign(new Error("client_run_identity_conflict"), { statusCode: 409 });
+    }
+  }
+  return statusFromStoredRun(stored);
+}
+
+export async function getRunStatusByClientRunId(clientRunId: string): Promise<CompanionRunStatus> {
+  const clientId = requireClientRunId(clientRunId);
+  const stored = (await readStoredRuns()).find((run) => run.clientRunId === clientId);
+  if (!stored) return unknownRun(clientId, "Client run was not found.");
+  // Admission truth is the local atomic registry. Reconciliation must not depend
+  // on Gateway reachability after the Companion has durably accepted a run.
+  return statusFromStoredRun(stored);
+}
+
 export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
   const normalizedRunId = runId.trim();
   if (!normalizedRunId) {
@@ -265,6 +365,7 @@ function statusFromHistory(runId: string, sessionKey: string, history: any, stor
   return {
     success: state !== "failed" && state !== "unknown",
     runId,
+    clientRunId: stored?.clientRunId,
     sessionId: stored?.sessionId,
     sessionKey: includeTechnicalIds() ? sessionKey : undefined,
     state,
@@ -346,6 +447,7 @@ function statusFromSessionInfo(sessionInfo: any, preferredRunId?: string, stored
   return {
     success: state !== "failed" && state !== "unknown",
     runId,
+    clientRunId: stored?.clientRunId,
     sessionId,
     sessionKey: includeTechnicalIds() ? sessionKey : undefined,
     state,
@@ -369,7 +471,7 @@ function statusFromSessionInfo(sessionInfo: any, preferredRunId?: string, stored
 
 function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   if (stored.modality === "voice") return {
-    success: true, runId: stored.runId, sessionId: stored.sessionId,
+    success: true, runId: stored.runId, clientRunId: stored.clientRunId, sessionId: stored.sessionId,
     state: stored.transcriptState === "completed" ? "done" : "unknown",
     message: stored.transcriptState || "partial", userText: stored.userText || "",
     result: stored.result || "", submittedAt: stored.acceptedAt, updatedAt: stored.updatedAt,
@@ -383,6 +485,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   return {
     success: !failed,
     runId: stored.runId,
+    clientRunId: stored.clientRunId,
     sessionId: stored.sessionId,
     state: failed ? "failed" : stored.state === "done" ? "done" : "running",
     message,
@@ -1262,6 +1365,8 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
       runId: run.runId,
+      clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
+      requestHash: typeof run.requestHash === "string" && /^[a-f0-9]{64}$/.test(run.requestHash) ? run.requestHash : undefined,
       sessionId: normalizeCompanionSessionId(String(run.sessionId || "default")),
       sessionKey: typeof run.sessionKey === "string" ? run.sessionKey : undefined,
       text: typeof run.text === "string" ? run.text : "",

@@ -220,6 +220,7 @@ POST   /v1/skills/{skillId}/run
 GET    /v1/skills/{skillId}/runs
 GET    /v1/skill-runs/{runId}
 
+GET    /v1/runs/by-client/{clientRunId}
 GET    /v1/approvals?runId={runId}
 GET    /v1/approvals/{approvalId}
 POST   /v1/approvals/{approvalId}
@@ -501,6 +502,43 @@ Response:
   "requestId": "req_abc123"
 }
 ```
+
+### Submission acknowledgement and reconciliation
+
+A backend that accepts `clientRunId` must reserve it durably in the existing run registry **before** dispatching the request to the agent. The reservation binds the client id, normalized session, visible request, attachments and material request identity. Concurrent or repeated submissions with the same identity return the same `runId`; a materially different request with the same `clientRunId` returns `409`.
+
+Accepted responses add these fields:
+
+```json
+{
+  "accepted": true,
+  "submissionState": "accepted",
+  "retrySafe": false,
+  "duplicate": false
+}
+```
+
+A dependency failure proven to occur before reservation/dispatch uses HTTP `503` and a definite no-effect response:
+
+```json
+{
+  "success": false,
+  "accepted": false,
+  "submissionState": "not_submitted",
+  "retrySafe": true,
+  "runId": "",
+  "clientRunId": "client-run-abc123",
+  "message": "Runtime dependency unavailable."
+}
+```
+
+When the POST outcome is transport-uncertain, clients must not submit another request. They reconcile the same identity through:
+
+```text
+GET /v1/runs/by-client/{clientRunId}
+```
+
+`200` returns the accepted/current run and its `clientRunId`. `404` proves that the existing registry contains no reservation for that identity at read time, so the client may return to an explicit **not received** state. An unavailable reconciliation read remains uncertain and must not trigger an automatic replay. This mechanism is domain-neutral and applies equally to read, device, payment and future provider capabilities.
 
 ## Run Status
 

@@ -2,10 +2,10 @@ import crypto from "crypto";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { appendVoiceConversationContext, markSubmittedRunFailed, rememberSubmittedRun } from "./runs";
+import { appendVoiceConversationContext, findSubmittedRunByClientRunId, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
-import type { IntentAttachment, IntentSubmitResponse } from "./types";
+import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 
 export async function submitIntent(
   text: string,
@@ -16,45 +16,63 @@ export async function submitIntent(
   const normalized = text.trim();
   const visibleUserText = (options.userText || normalized).trim();
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
+  const clientRunId = String(options.clientRunId || "").trim() || undefined;
   if (!normalized) {
-    return {
-      success: false,
-      runId: "",
-      clientRunId: options.clientRunId,
-      sessionId: normalizedSessionId,
-      result: "",
-      message: "Intent text is required.",
-      canvas: intentCanvas(""),
-    };
+    return notSubmitted(
+      normalizedSessionId,
+      clientRunId,
+      "Intent text is required.",
+    );
   }
 
-  const runId = `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  if (clientRunId) {
+    const existing = await findSubmittedRunByClientRunId(clientRunId, {
+      text: normalized,
+      sessionId: normalizedSessionId,
+      userText: visibleUserText,
+      attachments,
+    });
+    if (existing) return responseFromExisting(existing, visibleUserText);
+  }
+
   const gateway = await getGatewayStatus();
   if (!gateway.reachable) {
-    return {
-      success: false,
-      runId,
-      clientRunId: options.clientRunId,
-      sessionId: normalizedSessionId,
-      result: gateway.message,
-      message: gateway.message,
-      canvas: intentCanvas(visibleUserText, gateway.message),
-      attachments,
-    };
+    return notSubmitted(normalizedSessionId, clientRunId, gateway.message);
   }
 
-  const accepted = acceptedRun(runId, normalizedSessionId);
   const promptWithAttachments = appendAttachmentContext(normalized, attachments);
   const routed = buildAutoSkillContextForIntent(promptWithAttachments);
   const submittedPrompt = await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
-  await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments });
+
+  let runId = `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  let duplicate = false;
+  if (clientRunId) {
+    const reservation = await reserveSubmittedRun(
+      submittedPrompt,
+      normalizedSessionId,
+      clientRunId,
+      { userText: visibleUserText, attachments, requestText: normalized },
+    );
+    runId = reservation.status.runId;
+    duplicate = !reservation.created;
+    if (duplicate) return responseFromExisting(reservation.status, visibleUserText);
+  }
+
+  const accepted = acceptedRun(runId, normalizedSessionId);
+  if (!clientRunId) {
+    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments });
+  }
   void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments);
 
   const message = describeOpenClawResult(accepted);
   return {
     success: true,
+    accepted: true,
+    submissionState: "accepted",
+    retrySafe: false,
+    duplicate,
     runId,
-    clientRunId: options.clientRunId,
+    clientRunId,
     sessionId: normalizedSessionId,
     state: "running",
     result: message,
@@ -63,6 +81,49 @@ export async function submitIntent(
     canvas: intentCanvas(visibleUserText, message),
     attachments,
     gatewayRun: includeRawIntent() ? { ...accepted, skillRouting: routed?.routed } : undefined,
+  };
+}
+
+export function notSubmitted(
+  sessionId: string,
+  clientRunId: string | undefined,
+  message: string,
+): IntentSubmitResponse {
+  return {
+    success: false,
+    accepted: false,
+    submissionState: "not_submitted",
+    retrySafe: true,
+    runId: "",
+    clientRunId,
+    sessionId,
+    state: "failed",
+    result: message,
+    message,
+    canvas: intentCanvas("", message),
+  };
+}
+
+function responseFromExisting(
+  status: CompanionRunStatus,
+  userText: string,
+): IntentSubmitResponse {
+  const message = status.result || status.message;
+  return {
+    success: true,
+    accepted: true,
+    submissionState: "accepted",
+    retrySafe: false,
+    duplicate: true,
+    runId: status.runId,
+    clientRunId: status.clientRunId,
+    sessionId: status.sessionId,
+    state: status.state,
+    result: status.result || message,
+    message,
+    userText,
+    canvas: intentCanvas(userText, message),
+    attachments: status.attachments,
   };
 }
 

@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "samantha-submit-reconciliation-runtime-20261008",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add durable client-run admission idempotence and status-before-retry reconciliation to Samantha Companion submissions.",
+  "reason": "A Gateway outage before dispatch left Android in Uncertain with no server run identity, while the UI continued to show a stale completed result. The runtime could not distinguish not-submitted from lost acknowledgement.",
+  "files": [
+    "openclaw-plugin-mobile-ui/package.json",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-submit-reconciliation.cjs",
+    "docs/runtime-protocol-v1.md",
+    "docs/runtime/samantha-conversation-continuity.md",
+    "docs/changes/samantha-submit-reconciliation-runtime-20261008.md",
+    "docs/changes/samantha-submit-reconciliation-runtime-20261008.json"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "npm run build passed after final runtime changes."
+    },
+    {
+      "name": "submit-reconciliation",
+      "status": "passed",
+      "evidence": "Sequential and 12-way concurrent duplicate admission produced one stable run; identity conflict, persistence, by-client lookup and structured not-submitted status passed."
+    },
+    {
+      "name": "conversation-regression",
+      "status": "passed",
+      "evidence": "Companion runs, conversation pages, backfill races, Capability-First and provider-fallback suites passed."
+    },
+    {
+      "name": "payment-core-regression",
+      "status": "passed",
+      "evidence": "Payment Core 58/58 passed; no payment submission/replay/issuer boundary behavior changed."
+    },
+    {
+      "name": "mcp-continuum-regression",
+      "status": "passed",
+      "evidence": "External MCP bridge, Continuum capability bridge and durable model-fast-path suites passed with canonical ui-playbooks root."
+    }
+  ],
+  "documentation": [
+    "docs/runtime-protocol-v1.md",
+    "docs/runtime/samantha-conversation-continuity.md",
+    "docs/changes/samantha-submit-reconciliation-runtime-20261008.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Capability and payment-provider truth remain in the canonical Capability Graph/payment owner. This is generic Companion request-delivery integrity."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends the existing atomic Companion runs registry and /v1 run API; no new store, router, daemon, scheduler or retry owner."
+  },
+  "rollback": "Revert this scoped runtime commit, rebuild the existing plugin and restart only the supervised Companion. Existing rows are additive and remain readable by older code.",
+  "limitations": [
+    "A transport-unavailable by-client read remains uncertain and never triggers automatic replay.",
+    "This engineering change does not execute a financial effect or weaken owner/issuer human boundaries."
+  ]
+}
