@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "id": "capability-first-unready-intent-runtime-20261008",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Keep recognized unready high-consequence intents terminal and model-free at the Capability-First runtime ingress.",
+  "reason": "Without a runtime terminal classification, a provider payment intent whose adapter is still candidate could be released to a model even though the canonical Capability Graph marked it tool-required.",
+  "files": [
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-efficiency.py",
+    "docs/changes/capability-first-unready-intent-runtime-20261008.md",
+    "docs/changes/capability-first-unready-intent-runtime-20261008.json"
+  ],
+  "tests": [
+    {
+      "name": "model-efficiency-unit",
+      "status": "passed",
+      "evidence": "14 tests passed; unready confirmation-required transaction intent returns known_error, model_bypassed=true and no executor call."
+    },
+    {
+      "name": "cross-repo-classification",
+      "status": "passed",
+      "evidence": "Candidate UI contracts classify Maxit and Topnet eligible, STEG/SONEDE required_capability_not_ready with explicit no-effect text, and creative conversation as miss."
+    }
+  ],
+  "documentation": [
+    "docs/changes/capability-first-unready-intent-runtime-20261008.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability mapping and provider route truth are owned by ui-playbooks; this runtime commit consumes that contract."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Extends the existing Capability-First helper; no new router, store, service, scheduler or execution owner."
+  },
+  "rollback": "Revert this scoped runtime commit and reactivate the previous release. Validated Maxit/Topnet routes are independently unchanged.",
+  "limitations": [
+    "STEG/SONEDE payment remain unavailable until their own adapters and live contracts are validated.",
+    "No financial effect is executed by this runtime classification."
+  ]
+}

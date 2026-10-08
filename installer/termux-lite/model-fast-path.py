@@ -16,6 +16,7 @@ HOME = Path.home()
 UI_ROOT = HOME / ".openclaw/workspace/ui-playbooks"
 STATIC_BAD = ("{", "}", "$(", "`", ";", "&&", "||", "|", ">", "<")
 SAFE_EXECUTION_STATES = {"completed"}
+HIGH_CONSEQUENCE_RISKS = {"transaction", "destructive", "sensitive", "external_send"}
 ASSISTED_EXECUTION_STATES = {
     "native_handoff",
     "delegation_required",
@@ -110,8 +111,15 @@ def resolve_capability(
 def capability_first_eligibility(value: dict[str, Any]) -> tuple[str, str]:
     harness = value.get("harness") if isinstance(value.get("harness"), dict) else {}
     selected = value.get("selected") if isinstance(value.get("selected"), dict) else None
+    plan = value.get("skill_plan") if isinstance(value.get("skill_plan"), dict) else {}
     if harness.get("tool_policy") != "required":
         return "miss", str(harness.get("reason") or "model_allowed")
+    if (
+        plan.get("mode") in {"transfer", "degraded"}
+        and str(plan.get("risk") or "") in HIGH_CONSEQUENCE_RISKS
+        and plan.get("confirmation_required") is True
+    ):
+        return "known_error", "required_capability_not_ready"
     if not selected:
         return "assist", "required_but_unresolved"
     if selected.get("state") != "ready":
@@ -393,6 +401,22 @@ def _durable_capability_execute(
     return result
 
 
+def _known_error_text(reason: str, resolution: dict[str, Any]) -> str:
+    if reason == "required_capability_not_ready":
+        plan = resolution.get("skill_plan") if isinstance(resolution.get("skill_plan"), dict) else {}
+        target = str(plan.get("target") or "ce fournisseur").strip()
+        label = target.upper() if target and len(target) <= 24 else target
+        if str(plan.get("risk") or "") == "transaction":
+            return (
+                f"Le paiement {label} est reconnu par Claw, mais son adaptateur "
+                "n'est pas encore validé. Aucun paiement n'a été lancé."
+            )
+        return "Cette action est reconnue par Claw, mais sa route d'exécution n'est pas encore validée."
+    if reason == "selected_not_authorized":
+        return "Cette action existe dans Claw mais n'est pas autorisée pour ce demandeur."
+    return "Cette action connue ne peut pas être exécutée par Claw dans son état actuel."
+
+
 def try_fast_path(
     message: str,
     ui_root: Path = UI_ROOT,
@@ -414,8 +438,9 @@ def try_fast_path(
             return {
                 "status": "known_error",
                 "reason": reason,
-                "text": "Cette action existe dans Claw mais n'est pas autorisée pour ce demandeur.",
+                "text": _known_error_text(reason, resolution),
                 "resolution": resolution,
+                "model_bypassed": True,
             }
         if not execute:
             return {

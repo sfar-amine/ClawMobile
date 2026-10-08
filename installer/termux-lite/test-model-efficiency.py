@@ -59,6 +59,7 @@ class FastPathTests(unittest.TestCase):
                 "execution_contract": {},
             },
             "confirmation_required": False,
+            "skill_plan": {"mode": "known", "target": "t", "intent": "i", "risk": "read", "confirmation_required": False},
         }
         for key, item in overrides.items():
             if key == "selected":
@@ -79,6 +80,25 @@ class FastPathTests(unittest.TestCase):
     def test_model_required_capability_is_assisted(self):
         value=self.resolution(selected={"model_required":True})
         self.assertEqual(fast.capability_first_eligibility(value), ("assist", "selected_requires_model"))
+
+    def test_unready_high_consequence_intent_is_terminal_without_model(self):
+        value=self.resolution(
+            harness={"reason":"known_intent_not_ready"},
+            selected={"deterministic":False,"risk":"read"},
+            skill_plan={"mode":"transfer","target":"steg","intent":"billing.pay",
+                        "risk":"transaction","confirmation_required":True},
+        )
+        self.assertEqual(
+            fast.capability_first_eligibility(value),
+            ("known_error", "required_capability_not_ready"),
+        )
+        with mock.patch.object(fast,"resolve_capability",return_value=value), \
+             mock.patch.object(fast,"execute_capability") as execute:
+            out=fast.try_fast_path("paie ma facture steg")
+        self.assertEqual(out["status"],"known_error")
+        self.assertTrue(out["model_bypassed"])
+        self.assertIn("STEG",out["text"]); self.assertIn("Aucun paiement",out["text"])
+        execute.assert_not_called()
 
     def test_unauthorized_known_capability_is_terminal_without_model(self):
         value=self.resolution(selected={"authorized":False})
