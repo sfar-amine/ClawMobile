@@ -13,6 +13,7 @@ type StoredRun = {
   runId: string;
   clientRunId?: string;
   requestHash?: string;
+  executionSource?: "gateway" | "capability_first";
   sessionId: string;
   sessionKey?: string;
   text: string;
@@ -113,7 +114,12 @@ export async function reserveSubmittedRun(
   text: string,
   sessionId: string,
   clientRunId: string,
-  options: { userText?: string; attachments?: IntentAttachment[]; requestText?: string } = {},
+  options: {
+    userText?: string;
+    attachments?: IntentAttachment[];
+    requestText?: string;
+    executionSource?: "gateway" | "capability_first";
+  } = {},
 ): Promise<{ created: boolean; status: CompanionRunStatus }> {
   const clientId = requireClientRunId(clientRunId);
   const normalizedSessionId = normalizeCompanionSessionId(sessionId || "default");
@@ -125,7 +131,9 @@ export async function reserveSubmittedRun(
     const registry = await registryOrEmpty();
     const existing = registry.runs.find((run) => run.clientRunId === clientId);
     if (existing) {
-      if (existing.requestHash !== requestHash || existing.sessionId !== normalizedSessionId) {
+      const expectedSource = options.executionSource || existing.executionSource || "gateway";
+      if (existing.requestHash !== requestHash || existing.sessionId !== normalizedSessionId ||
+          (existing.executionSource || "gateway") !== expectedSource) {
         throw Object.assign(new Error("client_run_identity_conflict"), { statusCode: 409 });
       }
       submittedRuns.set(existing.runId, existing);
@@ -137,6 +145,7 @@ export async function reserveSubmittedRun(
       runId: `run_${now}_${randomBytes(4).toString("hex")}`,
       clientRunId: clientId,
       requestHash,
+      executionSource: options.executionSource || "gateway",
       sessionId: normalizedSessionId,
       sessionKey: expectedCompanionSessionKey(normalizedSessionId),
       text,
@@ -293,7 +302,9 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
   if (storedRuns.length > 0) {
     return Promise.all(
       storedRuns.slice(0, limit).map(async (stored) => {
-        if (stored.modality === "voice") return statusFromStoredRun(stored);
+        if (stored.modality === "voice" || stored.executionSource === "capability_first") {
+          return statusFromStoredRun(stored);
+        }
         const session = findSessionForStoredRun(sessions, stored);
         const fallback = session
           ? statusFromSessionInfo(session, stored.runId, stored)
@@ -354,7 +365,9 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
 
   const stored = submittedRuns.get(normalizedRunId)
     || (await findStoredRun(normalizedRunId).catch(() => null));
-  if (stored?.modality === "voice") return statusFromStoredRun(stored);
+  if (stored?.modality === "voice" || stored?.executionSource === "capability_first") {
+    return statusFromStoredRun(stored);
+  }
   const listed = await findSessionInfo(normalizedRunId, stored).catch(() => null);
   if (listed) {
     const fallback = statusFromSessionInfo(listed, normalizedRunId, stored || undefined);
@@ -412,6 +425,7 @@ async function enrichFromSessionFile(
   stored?: StoredRun,
   allowGatewayHistory = true,
 ): Promise<CompanionRunStatus> {
+  if (stored?.executionSource === "capability_first") return statusFromStoredRun(stored);
   const sessionId = String(sessionInfo?.sessionId || "");
   if (!sessionId) return status;
 
@@ -1386,6 +1400,9 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       runId: run.runId,
       clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
       requestHash: typeof run.requestHash === "string" && /^[a-f0-9]{64}$/.test(run.requestHash) ? run.requestHash : undefined,
+      executionSource: ["gateway", "capability_first"].includes(String(run.executionSource || ""))
+        ? run.executionSource
+        : undefined,
       sessionId: normalizeCompanionSessionId(String(run.sessionId || "default")),
       sessionKey: typeof run.sessionKey === "string" ? run.sessionKey : undefined,
       text: typeof run.text === "string" ? run.text : "",
@@ -1473,13 +1490,13 @@ export function terminalConversationResult(raw:string, target:string):{result:st
   return result?{result,endedAt:messageTimestamp(last)}:undefined;
 }
 
-function runIdentity(run:StoredRun){return JSON.stringify([run.runId,run.sessionId,run.acceptedAt,run.updatedAt,run.state,run.result,run.text,run.modality,run.transcriptRevision]);}
+function runIdentity(run:StoredRun){return JSON.stringify([run.runId,run.sessionId,run.acceptedAt,run.updatedAt,run.state,run.result,run.text,run.executionSource,run.modality,run.transcriptRevision]);}
 
 export async function getConversationTurns(sessionId: string) {
   requireConversationId(sessionId);
   await registryWrite;
   const stored=(await readStoredRuns()).filter(run=>run.sessionId===sessionId).slice(0,40).reverse();
-  const unresolved=stored.filter(run=>run.modality!=="voice"&&!run.result&&run.state!=="failed");
+  const unresolved=stored.filter(run=>run.modality!=="voice"&&run.executionSource!=="capability_first"&&!run.result&&run.state!=="failed");
   if(!unresolved.length)return stored.map(statusFromStoredRun);
   const history=await callOpenClawGateway("chat.history",{sessionKey:expectedCompanionSessionKey(sessionId),limit:200});
   const raw=(Array.isArray(history?.messages)?history.messages:[]).map((message:any)=>JSON.stringify({type:"message",message,timestamp:message.timestamp})).join("\n");

@@ -20,7 +20,10 @@ process.env.CLAWMOBILE_TEST_FAST_PATH_LOG = helperLog;
 
 const {
   findSubmittedRunByClientRunId,
+  getConversationTurns,
+  getRunStatus,
   getRunStatusByClientRunId,
+  listRuns,
   reserveSubmittedRun,
 } = require("../dist/companion/runs.js");
 const { notSubmitted, submitIntent } = require("../dist/companion/intent.js");
@@ -71,6 +74,7 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   assert.ok(persisted);
   assert.equal(persisted.runId, first.status.runId);
   assert.match(persisted.requestHash, /^[a-f0-9]{64}$/);
+  assert.equal(persisted.executionSource, "gateway");
 
   const directClientRunId = "samantha-415eec1e-c749-4ecc-b70b-193cb52d85fa";
   const direct = await submitIntent("known direct capability", "session-direct-capability", [], {
@@ -83,6 +87,47 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   const directStatus = await getRunStatusByClientRunId(directClientRunId);
   assert.equal(directStatus.state, "done");
   assert.equal(directStatus.result, "CAPABILITY_FIRST_DIRECT_OK");
+
+  const directRegistry = JSON.parse(fs.readFileSync(
+    path.join(process.env.OPENCLAW_STATE_DIR, "clawmobile-companion", "runs.json"),
+    "utf8",
+  ));
+  const directStored = directRegistry.runs.find((run) => run.clientRunId === directClientRunId);
+  assert.equal(directStored.executionSource, "capability_first");
+
+  // A shared historical model session may contain the same request text. It must
+  // never enrich or overwrite a local Capability-First result.
+  const sessionsDir = path.join(process.env.OPENCLAW_STATE_DIR, "agents", "main", "sessions");
+  fs.mkdirSync(sessionsDir, { recursive: true });
+  const modelSessionId = "old-model-session";
+  fs.writeFileSync(path.join(sessionsDir, "sessions.json"), JSON.stringify({ sessions: [{
+    sessionId: modelSessionId,
+    key: "agent:main:companion-chat-session-direct-capability",
+    label: "ClawMobile Companion",
+    status: "completed",
+    startedAt: 10,
+    endedAt: 20,
+  }] }));
+  const line = (role, content, stopReason) => JSON.stringify({
+    type: "message",
+    timestamp: "2026-10-08T00:00:00.000Z",
+    message: { role, content, stopReason, timestamp: 10 },
+  });
+  fs.writeFileSync(path.join(sessionsDir, `${modelSessionId}.jsonl`), [
+    line("user", "known direct capability"),
+    line("assistant", "STALE_MODEL_RESULT", "stop"),
+  ].join("\n"));
+  const directByRun = await getRunStatus(direct.runId);
+  assert.equal(directByRun.result, "CAPABILITY_FIRST_DIRECT_OK");
+  const directTurns = await getConversationTurns("session-direct-capability");
+  assert.equal(directTurns.find((run) => run.runId === direct.runId).result, "CAPABILITY_FIRST_DIRECT_OK");
+  const directList = await listRuns({ limit: 20 });
+  assert.equal(directList.find((run) => run.runId === direct.runId).result, "CAPABILITY_FIRST_DIRECT_OK");
+  const afterEnrichmentAttempt = JSON.parse(fs.readFileSync(
+    path.join(process.env.OPENCLAW_STATE_DIR, "clawmobile-companion", "runs.json"),
+    "utf8",
+  )).runs.find((run) => run.runId === direct.runId);
+  assert.equal(afterEnrichmentAttempt.result, "CAPABILITY_FIRST_DIRECT_OK");
   const callsAfterFirst = fs.readFileSync(helperLog, "utf8").trim().split(/\s+/);
   assert.deepEqual(callsAfterFirst, ["check", "execute"]);
   const directDuplicate = await submitIntent("known direct capability", "session-direct-capability", [], {

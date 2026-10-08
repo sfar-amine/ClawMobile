@@ -24,3 +24,7 @@ No router, database, scheduler or retry engine is added. This protocol is capabi
 ## Effect integrity
 
 The change deduplicates request admission only. It does not retry an accepted business action, payment dispatch, FORM1, bank continuation or provider mutation. Capability execution, owner biometric, issuer verification, PaymentRecord idempotence and provider readback remain unchanged.
+
+## Result provenance
+
+A run now persists its execution provenance (`gateway` or `capability_first`). A local Capability-First result is authoritative in the Companion registry and is never enriched from the shared OpenClaw session transcript or trajectory. This prevents an older Gemini answer with the same visible request from overwriting a newer deterministic result. Gateway/model runs keep the existing transcript/trajectory enrichment path. In-progress local capability runs are also excluded from transcript backfill.

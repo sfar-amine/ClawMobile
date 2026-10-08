@@ -70,7 +70,7 @@ export async function submitIntent(
       submittedPrompt,
       normalizedSessionId,
       clientRunId,
-      { userText: visibleUserText, attachments, requestText: normalized },
+      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway" },
     );
     runId = reservation.status.runId;
     duplicate = !reservation.created;
@@ -115,7 +115,7 @@ async function executeCapabilityFirst(
   let duplicate = false;
   if (clientRunId) {
     const reservation = await reserveSubmittedRun(text, sessionId, clientRunId, {
-      userText, attachments, requestText: text,
+      userText, attachments, requestText: text, executionSource: "capability_first",
     });
     runId = reservation.status.runId;
     duplicate = !reservation.created;

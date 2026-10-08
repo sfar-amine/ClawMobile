@@ -5,8 +5,8 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Make Samantha local submissions both acknowledgement-safe and Capability-First before any Gateway/model call.",
-  "reason": "A Gateway outage left Android uncertain with no run identity, and live app acceptance showed that direct Gateway agent submissions could bypass the channel inbound_claim hook and reach Gemini before the canonical Capability Harness.",
+  "summary": "Make Samantha local submissions acknowledgement-safe, Capability-First before any model call, and provenance-safe against stale transcript enrichment.",
+  "reason": "Gateway outages left Android uncertain, direct local Gateway submits could bypass the channel hook, and shared session enrichment could overwrite a deterministic local result with an older model answer for the same text.",
   "files": [
     "openclaw-plugin-mobile-ui/package.json",
     "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
@@ -29,7 +29,7 @@
     {
       "name": "submit-reconciliation",
       "status": "passed",
-      "evidence": "Sequential and 12-way concurrent duplicate admission produced one stable run; identity conflict, persistence, by-client lookup, structured not-submitted status and direct Known Capability-First execution without Gateway/model passed."
+      "evidence": "Sequential and 12-way concurrent duplicate admission produced one stable run; identity conflict, persistence, by-client lookup, structured not-submitted status, direct Known execution without Gateway/model, and protection against stale transcript enrichment all passed."
     },
     {
       "name": "conversation-regression",
@@ -45,6 +45,11 @@
       "name": "mcp-continuum-regression",
       "status": "passed",
       "evidence": "External MCP bridge, Continuum capability bridge and durable model-fast-path suites passed with canonical ui-playbooks root."
+    },
+    {
+      "name": "result-provenance",
+      "status": "passed",
+      "evidence": "A synthetic shared model transcript with the identical request and STALE_MODEL_RESULT could not override the authoritative CAPABILITY_FIRST_DIRECT_OK registry result through getRunStatus, conversation turns or run list enrichment."
     }
   ],
   "documentation": [
