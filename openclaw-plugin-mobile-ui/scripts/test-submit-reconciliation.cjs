@@ -91,6 +91,8 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   const directStatus = await getRunStatusByClientRunId(directClientRunId);
   assert.equal(directStatus.state, "done");
   assert.equal(directStatus.result, "CAPABILITY_FIRST_DIRECT_OK");
+  assert.equal(directStatus.message, "CAPABILITY_FIRST_DIRECT_OK");
+  assert.equal(directStatus.progress.text, "Completed.");
 
   const directRegistry = JSON.parse(fs.readFileSync(
     path.join(process.env.OPENCLAW_STATE_DIR, "clawmobile-companion", "runs.json"),
@@ -151,6 +153,8 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   const clarificationStored = await getRunStatusByClientRunId(clarificationClientRunId);
   assert.equal(clarificationStored.state, "done");
   assert.equal(clarificationStored.result, "Tu veux consulter ou agir ?");
+  assert.equal(clarificationStored.message, "Tu veux consulter ou agir ?");
+  assert.equal(clarificationStored.progress.text, "Completed.");
   const clarificationRegistry = JSON.parse(fs.readFileSync(
     path.join(process.env.OPENCLAW_STATE_DIR, "clawmobile-companion", "runs.json"),
     "utf8",

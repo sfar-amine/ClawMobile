@@ -512,9 +512,12 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   };
 
   const failed = stored.state === "failed";
+  const done = stored.state === "done";
   const message = failed
     ? stored.error || "OpenClaw did not accept this run."
-    : "OpenClaw is still working on this run.";
+    : done
+      ? stored.result || "OpenClaw completed this run."
+      : "OpenClaw is still working on this run.";
   return {
     success: !failed,
     runId: stored.runId,
@@ -523,15 +526,15 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     state: failed ? "failed" : stored.state === "done" ? "done" : "running",
     message,
     progress: {
-      text: failed ? "OpenClaw submit failed." : "Working...",
-      detail: failed ? message : undefined,
+      text: failed ? "OpenClaw submit failed." : done ? "Completed." : "Working...",
+      detail: failed || done ? message : undefined,
       updatedAt: stored.updatedAt || stored.acceptedAt,
       events: [
         {
-          type: failed ? "companion.failed" : "companion.accepted",
-          label: failed ? "OpenClaw submit failed." : "Working...",
-          detail: failed ? message : undefined,
-          at: stored.acceptedAt,
+          type: failed ? "companion.failed" : done ? "companion.completed" : "companion.accepted",
+          label: failed ? "OpenClaw submit failed." : done ? "Completed." : "Working...",
+          detail: failed || done ? message : undefined,
+          at: stored.updatedAt || stored.acceptedAt,
         },
       ],
     },
