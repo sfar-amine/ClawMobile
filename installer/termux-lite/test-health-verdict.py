@@ -78,6 +78,23 @@ class T(unittest.TestCase):
     c.execute('insert into incidents values(?,?,?,?,?,?,?,?,?)',('s','slack_bridge','runtime','failed',980,990,0,None,'old slack failure'));c.commit();c.close()
     self.assertEqual(hv.incidents({})[1],[])
   finally: hv.OC,hv.NOW=old_oc,old_now
+ def test_marked_test_fixture_is_excluded_from_health_projection(self):
+  old=hv.OC
+  try:
+   with tempfile.TemporaryDirectory() as td:
+    hv.OC=Path(td);p=hv.OC/'incidents';p.mkdir()
+    import sqlite3
+    db=p/'orchestrator.db';c=sqlite3.connect(db)
+    c.execute('create table incidents(id text,component text,scope text,state text,created real,updated real,human_boundary int,human_reason text,summary text)')
+    c.execute('create table events(seq integer primary key autoincrement,incident_id text,ts real,source text,kind text,payload text)')
+    c.execute('insert into incidents values(?,?,?,?,?,?,?,?,?)',('fixture','route.test','runtime','failed',time.time()-10,time.time()-5,0,None,'synthetic'))
+    c.execute('insert into incidents values(?,?,?,?,?,?,?,?,?)',('real','route.real','runtime','failed',time.time()-10,time.time()-5,0,None,'real'))
+    c.execute('insert into events(incident_id,ts,source,kind,payload) values(?,?,?,?,?)',('fixture',time.time(),'test','test_fixture','{"synthetic":true}'))
+    c.commit();c.close()
+    active,failed,human=hv.incidents({'route.test':hv.item('degraded',False),'route.real':hv.item('degraded',False)})
+    self.assertEqual(active,[]);self.assertEqual(human,[])
+    self.assertEqual([row['id'] for row in failed],['real'])
+  finally: hv.OC=old
  def test_degraded_live_component_keeps_recent_failed_projection(self):
   old=hv.OC
   try:
