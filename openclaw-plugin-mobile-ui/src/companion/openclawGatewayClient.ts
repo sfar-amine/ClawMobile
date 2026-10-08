@@ -30,6 +30,45 @@ type StartInFlight = {
 
 let startInFlight: StartInFlight | null = null;
 
+type RuntimeOperationKind = "start" | "stop" | "restart";
+type RuntimeOperationInFlight = {
+  kind: RuntimeOperationKind;
+  startedAt: number;
+  promise: Promise<RuntimeCommandResponse>;
+};
+
+let runtimeOperationInFlight: RuntimeOperationInFlight | null = null;
+
+export async function runSerializedRuntimeOperation(
+  kind: RuntimeOperationKind,
+  operation: () => Promise<RuntimeCommandResponse>,
+  status: () => Promise<GatewayStatus> = () => getGatewayStatus(),
+): Promise<RuntimeCommandResponse> {
+  const current = runtimeOperationInFlight;
+  if (current) {
+    const gateway = await status();
+    return {
+      success: false,
+      state: gateway.reachable ? "running" : "not_started",
+      message: `OpenClaw runtime ${current.kind} is already in progress.`,
+      gateway,
+    };
+  }
+
+  const promise = Promise.resolve().then(operation);
+  const owned: RuntimeOperationInFlight = {
+    kind,
+    startedAt: Date.now(),
+    promise,
+  };
+  runtimeOperationInFlight = owned;
+  try {
+    return await promise;
+  } finally {
+    if (runtimeOperationInFlight === owned) runtimeOperationInFlight = null;
+  }
+}
+
 export function gatewayHost() {
   return process.env.CLAWMOBILE_GATEWAY_HOST || DEFAULT_GATEWAY_HOST;
 }
@@ -139,7 +178,7 @@ async function repairStartupMaintenance(): Promise<StartupMaintenanceRepair> {
 }
 
 export async function startRuntime(): Promise<RuntimeCommandResponse> {
-  return startRuntimeInternal(true);
+  return runSerializedRuntimeOperation("start", () => startRuntimeInternal(true));
 }
 
 async function startRuntimeInternal(
@@ -358,6 +397,10 @@ export function getRuntimeLog(maxBytes = 64 * 1024): RuntimeLogResponse {
 }
 
 export async function stopRuntime(): Promise<RuntimeCommandResponse> {
+  return runSerializedRuntimeOperation("stop", () => stopRuntimeInternal());
+}
+
+async function stopRuntimeInternal(): Promise<RuntimeCommandResponse> {
   const before = await getGatewayStatus();
   if (!before.reachable) {
     if (startInFlight) {
@@ -395,23 +438,25 @@ export async function stopRuntime(): Promise<RuntimeCommandResponse> {
 }
 
 export async function restartRuntime(): Promise<RuntimeCommandResponse> {
-  const stopped = await stopRuntime();
-  if (!stopped.success) {
-    return {
-      success: false,
-      state: stopped.state,
-      message: `Unable to restart runtime: ${stopped.message}`,
-      gateway: stopped.gateway,
-    };
-  }
+  return runSerializedRuntimeOperation("restart", async () => {
+    const stopped = await stopRuntimeInternal();
+    if (!stopped.success) {
+      return {
+        success: false,
+        state: stopped.state,
+        message: `Unable to restart runtime: ${stopped.message}`,
+        gateway: stopped.gateway,
+      };
+    }
 
-  const started = await startRuntime();
-  return {
-    ...started,
-    message: started.success
-      ? `Restarted OpenClaw gateway. ${started.message}`
-      : `Gateway stopped, but restart failed: ${started.message}`,
-  };
+    const started = await startRuntimeInternal(true);
+    return {
+      ...started,
+      message: started.success
+        ? `Restarted OpenClaw gateway. ${started.message}`
+        : `Gateway stopped, but restart failed: ${started.message}`,
+    };
+  });
 }
 
 async function stopGatewayProcess() {
@@ -493,12 +538,28 @@ function selectGatewayStopTargets(candidates: ProcessCandidate[], recordedPid: n
   return [...selected.values()];
 }
 
-function isGatewayRuntimeCommand(command: string) {
-  return (
-    /\bopenclaw\b.*\bgateway\b/.test(command) ||
-    /(clawmobile|openclaw|mobile-ui).*\brun\b/.test(command) ||
-    /\brun\b.*(clawmobile|openclaw|mobile-ui)/.test(command)
+export function isGatewayRuntimeCommand(command: string) {
+  const tokens = command.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return false;
+
+  const shellIndex = tokens.findIndex((token) => /(?:^|\/)(?:bash|sh|zsh)$/.test(token));
+  if (shellIndex >= 0) {
+    const shellArgs = tokens.slice(shellIndex + 1, shellIndex + 6);
+    if (shellArgs.includes("-c") || shellArgs.includes("-lc") || shellArgs.includes("-cl")) {
+      return false;
+    }
+  }
+
+  if (tokens.some((token) => /(?:^|\/)openclaw-gateway$/.test(token))) return true;
+
+  const openclawIndex = tokens.findIndex((token) =>
+    /(?:^|\/)(?:openclaw|openclaw\.mjs)$/.test(token),
   );
+  if (openclawIndex >= 0 && tokens.slice(openclawIndex + 1, openclawIndex + 6).includes("gateway")) {
+    return true;
+  }
+
+  return tokens.some((token) => /(?:^|\/)(?:gateway-start|run)\.sh$/.test(token));
 }
 
 function captureCommand(command: string, args: string[]) {

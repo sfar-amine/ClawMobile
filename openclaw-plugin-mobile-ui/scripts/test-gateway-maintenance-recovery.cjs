@@ -18,6 +18,64 @@ function assert(condition, message) {
     "ordinary failure misclassified",
   );
 
+  assert(
+    gateway.isGatewayRuntimeCommand("/data/data/com.termux/files/usr/glibc/lib/ld-linux-aarch64.so.1 openclaw-gateway"),
+    "gateway binary must be recognized",
+  );
+  assert(
+    gateway.isGatewayRuntimeCommand("/data/data/com.termux/files/usr/bin/bash /opt/claw/gateway-start.sh"),
+    "gateway start script must be recognized",
+  );
+  assert(
+    gateway.isGatewayRuntimeCommand("node /opt/openclaw/openclaw.mjs gateway --bind loopback"),
+    "OpenClaw gateway CLI must be recognized",
+  );
+  assert(
+    !gateway.isGatewayRuntimeCommand("/data/data/com.termux/files/usr/bin/bash -l -c echo openclaw-gateway"),
+    "diagnostic login shell must not become a gateway owner",
+  );
+  assert(
+    !gateway.isGatewayRuntimeCommand("bash -c grep gateway-start.sh /tmp/log"),
+    "shell text mentioning the launcher must not become a gateway owner",
+  );
+
+  const down = { host: "127.0.0.1", port: 18789, reachable: false, message: "down" };
+  const up = { host: "127.0.0.1", port: 18789, reachable: true, message: "up" };
+  let releaseFirst;
+  let firstCalls = 0;
+  const first = gateway.runSerializedRuntimeOperation(
+    "restart",
+    () => new Promise((resolve) => {
+      firstCalls += 1;
+      releaseFirst = () => resolve({ success: true, state: "running", message: "done", gateway: up });
+    }),
+    async () => down,
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  let secondCalls = 0;
+  const busy = await gateway.runSerializedRuntimeOperation(
+    "start",
+    async () => {
+      secondCalls += 1;
+      return { success: true, state: "running", message: "unexpected", gateway: up };
+    },
+    async () => down,
+  );
+  assert(firstCalls === 1, "first runtime mutation must execute once");
+  assert(secondCalls === 0, "overlapping runtime mutation must not execute");
+  assert(busy.success === false && busy.message.includes("restart"), "busy response must identify the active mutation");
+  releaseFirst();
+  await first;
+  const after = await gateway.runSerializedRuntimeOperation(
+    "start",
+    async () => {
+      secondCalls += 1;
+      return { success: true, state: "running", message: "done", gateway: up };
+    },
+    async () => down,
+  );
+  assert(after.success === true && secondCalls === 1, "runtime mutation lock must release after completion");
+
   let doctors = 0;
   let waits = 0;
   let result = await gateway.runBoundedStartupMaintenanceRepair({
