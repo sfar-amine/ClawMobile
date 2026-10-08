@@ -138,6 +138,56 @@ PY
     fi
 done
 
+# Android/Termux app-private storage can reject linkat(2) with EACCES even when
+# both directories are owner-private and writable. fs-safe's `link-or-copy`
+# strategy already supplies an exclusive, descriptor-pinned, hash-verified copy
+# fallback, but EACCES was not classified as a hard-link capability failure.
+# Admit only that existing fallback; link-required call sites still fail closed.
+echo "Patching fs-safe Android hard-link fallback..."
+FSSAFE_PUBLISH="$OPENCLAW_DIR/node_modules/@openclaw/fs-safe/dist/publish-file.js"
+if [ -f "$FSSAFE_PUBLISH" ]; then
+    state="$(python3 - "$FSSAFE_PUBLISH" <<'PY_PATCH_FSSAFE'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+pairs = (
+    (
+        'const HARDLINK_FALLBACK_CODES = new Set(["EPERM", "EXDEV", "ENOTSUP", "EOPNOTSUPP", "ENOSYS"]);',
+        'const HARDLINK_FALLBACK_CODES = new Set(["EACCES", "EPERM", "EXDEV", "ENOTSUP", "EOPNOTSUPP", "ENOSYS"]);',
+    ),
+    (
+        'const NATIVE_COPY_FALLBACK_CODES = new Set(["EINVAL", "ENOSYS", "ENOTSUP", "EOPNOTSUPP", "EPERM", "EXDEV"]);',
+        'const NATIVE_COPY_FALLBACK_CODES = new Set(["EACCES", "EINVAL", "ENOSYS", "ENOTSUP", "EOPNOTSUPP", "EPERM", "EXDEV"]);',
+    ),
+)
+changed = False
+for old, new in pairs:
+    if new in text:
+        continue
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(f"fs_safe_fallback_anchor_count={count}")
+    text = text.replace(old, new, 1)
+    changed = True
+if changed:
+    path.write_text(text)
+    print("patched")
+else:
+    print("already")
+PY_PATCH_FSSAFE
+    )"
+    if [ "$state" = "patched" ]; then
+        echo -e "  ${GREEN}[PATCHED]${NC} $FSSAFE_PUBLISH (Android EACCES verified-copy fallback)"
+        PATCHED=$((PATCHED + 1))
+    else
+        echo -e "  ${GREEN}[OK]${NC} $FSSAFE_PUBLISH (Android EACCES fallback already compatible)"
+    fi
+else
+    echo -e "  ${YELLOW}[INFO]${NC} fs-safe publication module not present; no compatibility patch required"
+fi
+
 echo ""
 if [ "$PATCHED" -eq 0 ]; then
     echo -e "${YELLOW}[INFO]${NC} No hardcoded paths found to patch."
