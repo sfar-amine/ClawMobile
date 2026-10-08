@@ -49,11 +49,15 @@ def health(home=None, proc=Path('/proc'), now=None):
         boot = (proc/'sys/kernel/random/boot_id').read_text().strip()
         match = d['pid'] == r['pid'] and str(d['start_ticks']) == r['start_ticks'] and d['boot_id'] == boot
         result['freshness_s'] = round(age, 3)
+        result['local_mcp'] = d.get('local_mcp') is True
+        result['remote_channel'] = d.get('remote_channel') is True
+        result['remote_channel_state'] = d.get('remote_channel_state')
+        result['remote_reconnect_attempt'] = int(d.get('remote_reconnect_attempt') or 0)
         if not match: reason = 'receipt_identity_mismatch'
         elif not 0 <= age <= 35: reason = 'functional_receipt_stale'
         elif d.get('session_lost'): reason = 'remote_session_lost'
         elif d.get('local_mcp') is not True: reason = 'local_mcp_unresponsive'
-        elif d.get('remote_channel') is not True: reason = 'remote_channel_unhealthy'
+        elif d.get('remote_channel') is not True: reason = 'remote_channel_reconnecting'
         elif d.get('healthy') is not True: reason = 'functional_probe_failed'
         else: result.update(state='healthy', reason='local_mcp_ping_and_remote_heartbeat'); return result
         result.update(state='degraded', reason=reason)
@@ -62,11 +66,12 @@ def health(home=None, proc=Path('/proc'), now=None):
     return result
 
 class Controller:
-    def __init__(self, home=None, root=ROOT, readiness=60, attempts=2, half_open_probe_s=60, dependency_probe=None):
+    def __init__(self, home=None, root=ROOT, readiness=60, attempts=2, half_open_probe_s=60, dependency_probe=None, remote_reconnect_grace_s=180):
         self.home = Path(home or Path.home()); self.root = Path(root)
         self.state = self.home/'.openclaw/watchdogs'; self.state.mkdir(parents=True, exist_ok=True)
         self.readiness = readiness; self.attempts = attempts
         self.half_open_probe_s = max(15, int(half_open_probe_s))
+        self.remote_reconnect_grace_s = max(45, int(remote_reconnect_grace_s))
         self.dependency_probe = dependency_probe
         self.circuit_file = self.state/'remote-desktop-circuit.json'
     def log(self, text):
@@ -129,6 +134,11 @@ class Controller:
             try: yield True
             finally: fcntl.flock(f, fcntl.LOCK_UN)
     def probe(self): return health(self.home)
+    def repair_grace_limit(self, current):
+        if (current.get('reason') == 'remote_channel_reconnecting' and
+                current.get('local_mcp') is True and current.get('instance_count') == 1):
+            return max(3, (self.remote_reconnect_grace_s + 14) // 15 + 1)
+        return 3
     def stop(self):
         parents = processes(); victims = list(parents)
         parent_ids = {r['pid'] for r in parents}
@@ -218,9 +228,14 @@ class Controller:
                     p.write_text('up'); previous = 'up'; failures = 0
                 elif previous != 'down':
                     failures += 1
-                    if current['reason'] not in ('duplicate_instances','process_missing','functional_receipt_missing_or_invalid') and failures < 3:
+                    grace_limit = self.repair_grace_limit(current)
+                    if current['reason'] not in ('duplicate_instances','process_missing','functional_receipt_missing_or_invalid') and failures < grace_limit:
+                        if current['reason'] == 'remote_channel_reconnecting' and failures == 1:
+                            self.log(f'REMOTE-CHANNEL GRACE native_reconnect=true budget_s={self.remote_reconnect_grace_s}')
                         for _ in range(15): self.beat(); time.sleep(1)
                         continue
+                    if current['reason'] == 'remote_channel_reconnecting' and grace_limit > 3:
+                        self.log(f'REMOTE-CHANNEL GRACE EXHAUSTED checks={failures} budget_s={self.remote_reconnect_grace_s}')
                     self.log('DOWN confirmed: '+current['reason'])
                     result = self.repair()
                     if result['state'] == 'recovered':
@@ -279,7 +294,7 @@ def diagnostics(home=None):
         except (OSError,ValueError): d['circuit']={'state':'invalid'}
     d['managed_action_contract']={'action':'runtime.managed_repair','scope':'RDC only',
         'behavior':'serialized stop, verify exit, restart, bounded local MCP and remote heartbeat check',
-        'code_editing':False,'max_attempts':2}
+        'remote_reconnect_grace_s':180, 'code_editing':False,'max_attempts':2}
     return d
 
 def main():

@@ -9,4 +9,5 @@ for(const [key,value] of [['sessionLost',true],['shuttingDown',true],['presenceT
  const d=healthy();d.remoteChannel[key]=value;assert.equal(assess(d,1000,true).healthy,false);
 }
 const d=healthy();d.remoteChannel.channel.state='joining';assert.equal(assess(d,1000,true).healthy,false);
-console.log('PASS: 9 remote/local health assertions');
+const r=healthy();r.remoteChannel.channel.state='errored';r.remoteChannel.reconnectAttempt=3;const ra=assess(r,1000,true);assert.equal(ra.remote_channel_state,'errored');assert.equal(ra.remote_reconnect_attempt,3);assert.equal(ra.healthy,false);
+console.log('PASS: 12 remote/local health assertions');

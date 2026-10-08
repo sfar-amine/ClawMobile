@@ -52,6 +52,12 @@ class Tier0Tests(unittest.TestCase):
         self.assertIn('startup_grace_seconds',(root/'tier0-control.py').read_text())
         self.assertIn('soak_grace_until_epoch',(root/'tier0-watchdog.py').read_text())
 
+    def test_remote_desktop_critical_release_extends_startup_grace(self):
+        root=Path(__file__).resolve().parent
+        text=(root/'tier0-control.py').read_text()
+        self.assertIn("if 'remote_desktop' in critical_capabilities:",text)
+        self.assertIn('startup_grace_seconds=max(startup_grace_seconds,210)',text)
+
     def test_tier0_installer_resolves_source_commit_from_nested_source(self):
         root=Path(__file__).resolve().parent
         text=(root/'install-tier0-control.py').read_text()
