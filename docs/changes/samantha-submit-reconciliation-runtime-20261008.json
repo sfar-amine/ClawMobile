@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "maintenance",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applied",
+  "deployment_state": "applied",
   "summary": "Make Samantha local submissions acknowledgement-safe, Capability-First before any model call, and provenance-safe against stale transcript enrichment.",
   "reason": "Gateway outages left Android uncertain, direct local Gateway submits could bypass the channel hook, and shared session enrichment could overwrite a deterministic local result with an older model answer for the same text.",
   "files": [
@@ -50,6 +50,16 @@
       "name": "result-provenance",
       "status": "passed",
       "evidence": "A synthetic shared model transcript with the identical request and STALE_MODEL_RESULT could not override the authoritative CAPABILITY_FIRST_DIRECT_OK registry result through getRunStatus, conversation turns or run list enrichment."
+    },
+    {
+      "name": "live-companion-capability-first",
+      "status": "passed",
+      "evidence": "Active Companion accepted clientRunId samantha-live-closure-06efcf11b23f once, completed battery read as executionSource=capability_first, exposed the same run through by-client lookup, returned the same run on duplicate submit, rejected request-identity reuse with HTTP 409, and created zero model transcript rows for that client identity."
+    },
+    {
+      "name": "live-not-submitted-contract",
+      "status": "passed",
+      "evidence": "Active Companion returned HTTP 503 with accepted=false, submissionState=not_submitted and retrySafe=true before reservation for a definite invalid submit; by-client lookup remained unknown and no redispatch occurred."
     }
   ],
   "documentation": [
@@ -70,5 +80,14 @@
   "limitations": [
     "A transport-unavailable by-client read remains uncertain and never triggers automatic replay.",
     "No financial effect is executed by automated engineering acceptance; the owner performs the later biometric/issuer live payment test."
-  ]
+  ],
+  "runtime_activation": {
+    "branch": "runtime/samantha-companion-private",
+    "commit": "4da5697cdb7a033b270d42bd1fee1c874fcaaee7",
+    "companion_pid": 8988,
+    "live_run_id": "run_1791488149308_932dc6f5",
+    "client_run_id": "samantha-live-closure-06efcf11b23f",
+    "state": "verified",
+    "financial_effect_tested": false
+  }
 }

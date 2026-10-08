@@ -28,3 +28,9 @@ The change deduplicates request admission only. It does not retry an accepted bu
 ## Result provenance
 
 A run now persists its execution provenance (`gateway` or `capability_first`). A local Capability-First result is authoritative in the Companion registry and is never enriched from the shared OpenClaw session transcript or trajectory. This prevents an older Gemini answer with the same visible request from overwriting a newer deterministic result. Gateway/model runs keep the existing transcript/trajectory enrichment path. In-progress local capability runs are also excluded from transcript backfill.
+
+## Deployment and live acceptance
+
+The runtime is active on `runtime/samantha-companion-private` commit `4da5697cdb7a033b270d42bd1fee1c874fcaaee7`. A live local Companion submission with stable client identity `samantha-live-closure-06efcf11b23f` completed through `executionSource=capability_first`; by-client reconciliation returned the same run, an exact duplicate returned that same run without re-execution, request-identity reuse with different material was rejected with HTTP 409, and no model transcript row was created for the client identity.
+
+A separate definite pre-dispatch rejection returned `accepted=false`, `submissionState=not_submitted`, `retrySafe=true` and left by-client status unknown, proving the Android client can distinguish safe retry from uncertain accepted work. No payment handoff or financial effect was executed during this acceptance.
