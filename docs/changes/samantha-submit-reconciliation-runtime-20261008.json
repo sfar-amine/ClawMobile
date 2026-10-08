@@ -5,10 +5,11 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Add durable client-run admission idempotence and status-before-retry reconciliation to Samantha Companion submissions.",
-  "reason": "A Gateway outage before dispatch left Android in Uncertain with no server run identity, while the UI continued to show a stale completed result. The runtime could not distinguish not-submitted from lost acknowledgement.",
+  "summary": "Make Samantha local submissions both acknowledgement-safe and Capability-First before any Gateway/model call.",
+  "reason": "A Gateway outage left Android uncertain with no run identity, and live app acceptance showed that direct Gateway agent submissions could bypass the channel inbound_claim hook and reach Gemini before the canonical Capability Harness.",
   "files": [
     "openclaw-plugin-mobile-ui/package.json",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
     "openclaw-plugin-mobile-ui/src/companion/intent.ts",
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
@@ -28,7 +29,7 @@
     {
       "name": "submit-reconciliation",
       "status": "passed",
-      "evidence": "Sequential and 12-way concurrent duplicate admission produced one stable run; identity conflict, persistence, by-client lookup and structured not-submitted status passed."
+      "evidence": "Sequential and 12-way concurrent duplicate admission produced one stable run; identity conflict, persistence, by-client lookup, structured not-submitted status and direct Known Capability-First execution without Gateway/model passed."
     },
     {
       "name": "conversation-regression",
@@ -63,6 +64,6 @@
   "rollback": "Revert this scoped runtime commit, rebuild the existing plugin and restart only the supervised Companion. Existing rows are additive and remain readable by older code.",
   "limitations": [
     "A transport-unavailable by-client read remains uncertain and never triggers automatic replay.",
-    "This engineering change does not execute a financial effect or weaken owner/issuer human boundaries."
+    "No financial effect is executed by automated engineering acceptance; the owner performs the later biometric/issuer live payment test."
   ]
 }

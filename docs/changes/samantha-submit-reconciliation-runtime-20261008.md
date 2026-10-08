@@ -6,7 +6,7 @@ A Samantha Android submission entered `Uncertain` while the screen still display
 
 ## Root cause
 
-`POST /v1/runs` checked Gateway health before recording the client identity, the existing run registry did not persist/deduplicate `clientRunId`, and no by-client status read existed. Android therefore could not distinguish a definite pre-dispatch rejection from a lost acknowledgement. This was a generic transport gap before Capability-First, not a Maxit/Topnet rule.
+`POST /v1/runs` checked Gateway health before recording the client identity, the existing run registry did not persist/deduplicate `clientRunId`, and no by-client status read existed. Android therefore could not distinguish a definite pre-dispatch rejection from a lost acknowledgement. This was a generic transport gap before Capability-First, not a Maxit/Topnet rule. Live Android acceptance then exposed a second ingress gap: Companion submits directly through the Gateway `agent` method, so the channel-level `inbound_claim` hook was not the authoritative pre-model boundary for these local app turns.
 
 ## Fix
 
@@ -16,8 +16,10 @@ A Samantha Android submission entered `Uncertain` while the screen still display
 - Expose `GET /v1/runs/by-client/{clientRunId}` for status-before-retry reconciliation.
 - Return a structured `accepted=false / submissionState=not_submitted / retrySafe=true` response only when no reservation/dispatch occurred.
 - Preserve `clientRunId` in run status and persistence.
+- Resolve local owner requests through the existing `model-fast-path.py --check` contract inside Companion before Gateway/model submission.
+- Reserve the client identity before executing an eligible Known capability; settle the same local run from the canonical capability result. `miss`/`assist` alone continue to the model. A Capability-First infrastructure error or Known state change does not fall through to a provider-generated refusal.
 
-No router, database, scheduler or retry engine is added. This protocol is capability/provider-neutral and therefore covers Maxit, Topnet and future validated STEG/SONEDE/app/web adapters.
+No router, database, scheduler or retry engine is added. This protocol is capability/provider-neutral and therefore covers Maxit, Topnet and future validated STEG/SONEDE/app/web adapters. The existing channel hook remains useful for channel ingress; Companion now applies the same canonical contract at its own real local ingress instead of depending on that hook being invoked by the Gateway.
 
 ## Effect integrity
 

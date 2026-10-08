@@ -6,13 +6,24 @@ const path = require("path");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "samantha-submit-reconcile-"));
 process.env.OPENCLAW_STATE_DIR = path.join(root, "openclaw-state");
 process.env.CLAWMOBILE_AGENT_ID = "main";
+const helper = path.join(root, "model-fast-path.py");
+const helperLog = path.join(root, "model-fast-path.log");
+fs.writeFileSync(helper, [
+  "import json, os, sys",
+  "mode = 'check' if '--check' in sys.argv else 'execute'",
+  "with open(os.environ['CLAWMOBILE_TEST_FAST_PATH_LOG'], 'a', encoding='utf-8') as h: h.write(mode + '\\n')",
+  "print(json.dumps({'status':'eligible','model_bypassed':True} if mode == 'check' else {'status':'hit','text':'CAPABILITY_FIRST_DIRECT_OK','model_bypassed':True}))",
+  "",
+].join("\n"));
+process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER = helper;
+process.env.CLAWMOBILE_TEST_FAST_PATH_LOG = helperLog;
 
 const {
   findSubmittedRunByClientRunId,
   getRunStatusByClientRunId,
   reserveSubmittedRun,
 } = require("../dist/companion/runs.js");
-const { notSubmitted } = require("../dist/companion/intent.js");
+const { notSubmitted, submitIntent } = require("../dist/companion/intent.js");
 const { runSubmissionStatusCode } = require("../dist/companion/server.js");
 
 (async () => {
@@ -60,6 +71,26 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   assert.ok(persisted);
   assert.equal(persisted.runId, first.status.runId);
   assert.match(persisted.requestHash, /^[a-f0-9]{64}$/);
+
+  const directClientRunId = "samantha-415eec1e-c749-4ecc-b70b-193cb52d85fa";
+  const direct = await submitIntent("known direct capability", "session-direct-capability", [], {
+    userText: "known direct capability", clientRunId: directClientRunId,
+  });
+  assert.equal(direct.success, true);
+  assert.equal(direct.accepted, true);
+  assert.equal(direct.state, "done");
+  assert.equal(direct.result, "CAPABILITY_FIRST_DIRECT_OK");
+  const directStatus = await getRunStatusByClientRunId(directClientRunId);
+  assert.equal(directStatus.state, "done");
+  assert.equal(directStatus.result, "CAPABILITY_FIRST_DIRECT_OK");
+  const callsAfterFirst = fs.readFileSync(helperLog, "utf8").trim().split(/\s+/);
+  assert.deepEqual(callsAfterFirst, ["check", "execute"]);
+  const directDuplicate = await submitIntent("known direct capability", "session-direct-capability", [], {
+    userText: "known direct capability", clientRunId: directClientRunId,
+  });
+  assert.equal(directDuplicate.duplicate, true);
+  assert.equal(directDuplicate.runId, direct.runId);
+  assert.deepEqual(fs.readFileSync(helperLog, "utf8").trim().split(/\s+/), callsAfterFirst);
 
   const rejected = notSubmitted(sessionId, clientRunId, "gateway unavailable");
   assert.equal(rejected.accepted, false);

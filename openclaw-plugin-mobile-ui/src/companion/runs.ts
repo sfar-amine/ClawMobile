@@ -178,6 +178,25 @@ export async function rememberSubmittedRun(
   await saveStoredRun(stored).catch(() => undefined);
 }
 
+export async function settleSubmittedRun(
+  runId: string,
+  state: "done" | "failed",
+  result: string,
+) {
+  const existing = submittedRuns.get(runId)
+    || (await findStoredRun(runId).catch(() => null));
+  if (!existing) return;
+  const stored: StoredRun = {
+    ...existing,
+    state,
+    result: state === "done" ? result : undefined,
+    error: state === "failed" ? result : undefined,
+    updatedAt: Date.now(),
+  };
+  submittedRuns.set(runId, stored);
+  await saveStoredRun(stored).catch(() => undefined);
+}
+
 export async function markSubmittedRunFailed(runId: string, message: string) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));

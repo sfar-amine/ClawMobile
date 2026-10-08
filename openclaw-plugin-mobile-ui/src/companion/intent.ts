@@ -2,10 +2,11 @@ import crypto from "crypto";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { appendVoiceConversationContext, findSubmittedRunByClientRunId, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun } from "./runs";
+import { appendVoiceConversationContext, findSubmittedRunByClientRunId, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
+import { runModelFastPath, type FastPathResult } from "../modelFastPath";
 
 export async function submitIntent(
   text: string,
@@ -18,11 +19,7 @@ export async function submitIntent(
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
   const clientRunId = String(options.clientRunId || "").trim() || undefined;
   if (!normalized) {
-    return notSubmitted(
-      normalizedSessionId,
-      clientRunId,
-      "Intent text is required.",
-    );
+    return notSubmitted(normalizedSessionId, clientRunId, "Intent text is required.");
   }
 
   if (clientRunId) {
@@ -33,6 +30,28 @@ export async function submitIntent(
       attachments,
     });
     if (existing) return responseFromExisting(existing, visibleUserText);
+  }
+
+  const fastPathCheck: FastPathResult = attachments.length === 0
+    ? await runModelFastPath(normalized, {
+        surface: "claw_live",
+        caller: "owner",
+        originId: clientRunId || normalizedSessionId,
+        timeoutSeconds: 12,
+        checkOnly: true,
+      })
+    : { status: "miss", reason: "attachments_require_model" };
+
+  if (fastPathCheck.status === "eligible" || fastPathCheck.status === "known_error") {
+    return executeCapabilityFirst(
+      normalized, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
+    );
+  }
+  if (fastPathCheck.status === "error") {
+    return notSubmitted(
+      normalizedSessionId, clientRunId,
+      "Claw capability routing is temporarily unavailable.",
+    );
   }
 
   const gateway = await getGatewayStatus();
@@ -81,6 +100,70 @@ export async function submitIntent(
     canvas: intentCanvas(visibleUserText, message),
     attachments,
     gatewayRun: includeRawIntent() ? { ...accepted, skillRouting: routed?.routed } : undefined,
+  };
+}
+
+async function executeCapabilityFirst(
+  text: string,
+  sessionId: string,
+  userText: string,
+  attachments: IntentAttachment[],
+  clientRunId: string | undefined,
+  check: FastPathResult,
+): Promise<IntentSubmitResponse> {
+  let runId = `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  let duplicate = false;
+  if (clientRunId) {
+    const reservation = await reserveSubmittedRun(text, sessionId, clientRunId, {
+      userText, attachments, requestText: text,
+    });
+    runId = reservation.status.runId;
+    duplicate = !reservation.created;
+    if (duplicate) return responseFromExisting(reservation.status, userText);
+  } else {
+    await rememberSubmittedRun(text, acceptedRun(runId, sessionId), { userText, attachments });
+  }
+
+  let state: "done" | "failed";
+  let message: string;
+  if (check.status === "known_error") {
+    state = "failed";
+    message = String(check.text || "Claw identified this capability but did not authorize its execution.");
+  } else {
+    const result = await runModelFastPath(text, {
+      surface: "claw_live",
+      caller: "owner",
+      originId: clientRunId || runId,
+      timeoutSeconds: 75,
+    });
+    if (result.status === "hit") {
+      state = "done";
+      message = String(result.text || "Claw completed the capability.");
+    } else if (result.status === "known_error") {
+      state = "failed";
+      message = String(result.text || "Claw could not complete the known capability.");
+    } else {
+      state = "failed";
+      message = "Claw capability state changed before deterministic execution; no model fallback was used.";
+    }
+  }
+
+  await settleSubmittedRun(runId, state, message);
+  return {
+    success: true,
+    accepted: true,
+    submissionState: "accepted",
+    retrySafe: false,
+    duplicate,
+    runId,
+    clientRunId,
+    sessionId,
+    state,
+    result: state === "done" ? message : undefined,
+    message,
+    userText,
+    canvas: intentCanvas(userText, message),
+    attachments,
   };
 }
 

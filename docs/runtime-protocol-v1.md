@@ -505,7 +505,9 @@ Response:
 
 ### Submission acknowledgement and reconciliation
 
-A backend that accepts `clientRunId` must reserve it durably in the existing run registry **before** dispatching the request to the agent. The reservation binds the client id, normalized session, visible request, attachments and material request identity. Concurrent or repeated submissions with the same identity return the same `runId`; a materially different request with the same `clientRunId` returns `409`.
+For the trusted local Samantha owner ingress, the Companion first runs the canonical Capability-First **check-only** contract. A ready, authorized, deterministic, model-free Known request is reserved and executed directly through the existing capability helper before any Gateway/model call. Only `miss` or `assist` continues to model reasoning. A Known/error path never falls through to a provider-generated refusal. Attachments remain on the assisted/model path.
+
+A backend that accepts `clientRunId` must reserve it durably in the existing run registry **before** dispatching the request to the agent or executing a Known capability. The reservation binds the client id, normalized session, visible request, attachments and material request identity. Concurrent or repeated submissions with the same identity return the same `runId`; a materially different request with the same `clientRunId` returns `409`.
 
 Accepted responses add these fields:
 

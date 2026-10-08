@@ -7,7 +7,7 @@ const execFileAsync = promisify(execFile);
 const MAX_MESSAGE_CHARS = 12000;
 const LOCAL_COMPANION_SESSION = /^agent:main:companion-chat-[A-Za-z0-9-]{1,96}$/;
 
-type FastPathResult = {
+export type FastPathResult = {
   status?: string;
   text?: string;
   reason?: string;
@@ -47,13 +47,15 @@ type RunnerOptions = {
   caller?: "owner" | "trusted" | "other";
   originId?: string;
   timeoutSeconds?: number;
+  checkOnly?: boolean;
 };
 
 function helperCandidates(home = os.homedir()): string[] {
   return [
+    process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER || "",
     path.join(home, ".openclaw/releases/current/termux-lite/model-fast-path.py"),
     path.join(home, "ClawMobile/installer/termux-lite/model-fast-path.py"),
-  ];
+  ].filter(Boolean);
 }
 
 function isMainSession(event: InboundEvent, ctx: InboundContext): boolean {
@@ -115,6 +117,7 @@ export async function runModelFastPath(
   for (const helper of helpers) {
     try {
       const argv = [
+        ...(options.checkOnly ? ["--check"] : []),
         "--surface", options.surface || "claw_live",
         "--caller", options.caller || "owner",
         "--origin-id", options.originId || "capability-first",
