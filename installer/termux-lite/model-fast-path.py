@@ -14,7 +14,7 @@ import sys
 from typing import Any
 
 HOME = Path.home()
-UI_ROOT = HOME / ".openclaw/workspace/ui-playbooks"
+UI_ROOT = Path(os.environ.get("CLAW_UI_PLAYBOOKS_ROOT") or (HOME / ".openclaw/workspace/ui-playbooks")).expanduser()
 STATIC_BAD = ("{", "}", "$(", "`", ";", "&&", "||", "|", ">", "<")
 SAFE_EXECUTION_STATES = {"completed"}
 HIGH_CONSEQUENCE_RISKS = {"transaction", "destructive", "sensitive", "external_send"}

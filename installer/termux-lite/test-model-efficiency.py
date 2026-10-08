@@ -2,6 +2,7 @@
 from __future__ import annotations
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -49,6 +50,11 @@ def route(**overrides):
 
 
 class FastPathTests(unittest.TestCase):
+    def test_runtime_ui_root_can_use_published_checkout(self):
+        with tempfile.TemporaryDirectory() as td, mock.patch.dict(os.environ, {"CLAW_UI_PLAYBOOKS_ROOT": td}):
+            module = load("model_fast_path_env_root", "model-fast-path.py")
+            self.assertEqual(module.UI_ROOT, Path(td))
+
     def resolution(self, **overrides):
         value = {
             "harness": {"tool_policy": "required", "reason": "known_route"},

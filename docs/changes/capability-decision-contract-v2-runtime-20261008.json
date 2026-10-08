@@ -33,7 +33,7 @@
     {
       "name": "helper-v2",
       "status": "passed",
-      "evidence": "18 model-fast-path tests pass including prepared decision no-resolve and clarification reply handling."
+      "evidence": "19 model-fast-path tests pass including prepared decision no-resolve, clarification reply handling and CLAW_UI_PLAYBOOKS_ROOT selection for immutable published UI activation."
     },
     {
       "name": "companion-submit-v2",
@@ -105,6 +105,7 @@
   },
   "limitations": [
     "No financial effect is executed during architecture acceptance.",
-    "The rollout compatibility branch accepts pre-V2 resolutions until the installed UI floor is verified."
+    "The rollout compatibility branch accepts pre-V2 resolutions until the installed UI floor is verified.",
+    "Live activation may point CLAW_UI_PLAYBOOKS_ROOT at an immutable checkout of the published UI commit when the engineering checkout has concurrent uncommitted work; the fallback remains the canonical workspace path."
   ]
 }

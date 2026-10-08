@@ -22,3 +22,6 @@ No decision contains payment secrets, OTP, card data or biometric material. Effe
 
 ## Verification
 Unit and integration coverage exercises prepared decision execution without resolver re-entry, persistent clarification parent/child continuity, Capability Bridge transport, Continuum read/write fencing, Payment Core, Companion MCP and edge MCP schema/forwarding. No financial effect is exercised by these tests.
+
+## Published UI runtime root
+`model-fast-path.py` now honors the existing `CLAW_UI_PLAYBOOKS_ROOT` deployment variable, matching `claw-capability.py` and the MCP bridge. This allows Tier-0 to consume an immutable checkout of the published UI commit without overwriting an engineering checkout that has concurrent uncommitted work. The default remains `~/.openclaw/workspace/ui-playbooks`; no new source of truth or store is introduced.
