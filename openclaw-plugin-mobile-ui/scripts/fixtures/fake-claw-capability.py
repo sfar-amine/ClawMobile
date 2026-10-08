@@ -9,6 +9,7 @@ surface = args[args.index("--surface") + 1]
 caller = args[args.index("--caller") + 1]
 is_write = "wifi" in request.lower()
 is_delegate = "delegate" in request.lower()
+is_durable_read = "durable read" in request.lower()
 
 out = {
     "surface": surface,
@@ -23,6 +24,12 @@ out = {
         "native": False,
     },
     "confirmation_required": False,
+    "continuum": {
+        "mode": "durable" if (is_write or is_durable_read) else "fast",
+        "durable": bool(is_write or is_durable_read),
+        "identity_required": bool(is_write or is_durable_read),
+        "rollout_class": "device_effect" if is_write else "long_read" if is_durable_read else "short_read",
+    },
 }
 
 if mode == "execute":

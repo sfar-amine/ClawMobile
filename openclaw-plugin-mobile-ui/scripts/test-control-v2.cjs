@@ -47,6 +47,9 @@ const request=(port,path,headers={},method='GET')=>new Promise((resolve,reject)=
   const legacy=await request(port,'/control/health');assert.equal(legacy.status,200);assert.ok('fresh' in JSON.parse(legacy.body));
   const detail=await request(port,'/control/requests/REQ-999999?contract=2');assert.equal(detail.status,200);
   assert.equal(JSON.parse(detail.body).sections.requests.data.found,false);
+  const missions=await request(port,'/control/missions?contract=2');assert.equal(missions.status,200);
+  const missionData=JSON.parse(missions.body);assert.equal(missionData.sections.missions.resourceKey,'control/v2/missions');
+  assert.ok(Array.isArray(missionData.sections.missions.data.items));
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));}
  console.log(JSON.stringify({suite:'control-v2',checks:22,passed:true,pool:p.stats()}));
 })().catch(e=>{console.error(e);process.exitCode=1});

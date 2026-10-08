@@ -35,7 +35,9 @@
     "test:conversation-pages": "node scripts/test-conversation-pages.cjs",
     "test:conversation-backfill-races": "node scripts/test-conversation-backfill-races.cjs",
     "test:gateway-maintenance-recovery": "node scripts/test-gateway-maintenance-recovery.cjs",
-    "test:maxit-topup-payment": "node scripts/test-maxit-topup-payment-adapter.cjs"
+    "test:maxit-topup-payment": "node scripts/test-maxit-topup-payment-adapter.cjs",
+    "test:continuum-capability-bridge": "node scripts/test-continuum-capability-bridge.cjs",
+    "test:model-fast-path-durable": "python3 scripts/test-model-fast-path-durable.py"
   },
   "dependencies": {
     "nostr-tools": "^2.23.5",

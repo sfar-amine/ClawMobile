@@ -19,9 +19,9 @@ const STEP_ID_RE = /^[A-Za-z0-9._-]{1,24}$/;
 const REQUEST_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 const ARTIFACT_ID_RE = /^[A-Za-z0-9._-]{1,128}$/;
 const WORKSPACE = path.join(os.homedir(), ".openclaw", "workspace");
+const UI_PLAYBOOKS = process.env.CLAW_UI_PLAYBOOKS_ROOT || path.join(WORKSPACE, "ui-playbooks");
 const REQUEST_CONTEXT = path.join(
-  WORKSPACE,
-  "ui-playbooks",
+  UI_PLAYBOOKS,
   "tools",
   "request_context.py",
 );
@@ -119,6 +119,23 @@ function actionRequestId(clientId: string, actionKey: string, stepKey: string) {
   const value = `mcp-${clientId}-${actionKey}-${stepKey}`;
   if (!REQUEST_ID_RE.test(value)) throw new Error("invalid_action_identity");
   return value;
+}
+
+function bridgeParamsHash(method: string, params: Record<string, unknown>) {
+  return crypto.createHash("sha256").update(JSON.stringify({ method, params })).digest("hex");
+}
+
+async function continuumIngress(args: string[]) {
+  const env = { ...process.env } as Record<string, string>;
+  env.PYTHONPATH = UI_PLAYBOOKS + (env.PYTHONPATH ? path.delimiter + env.PYTHONPATH : "");
+  const run: any = await execFileAsync("python3", ["-B", "-m", "skill_intelligence.continuum_ingress", ...args], {
+    cwd: UI_PLAYBOOKS,
+    timeout: 12_000,
+    maxBuffer: 1024 * 1024,
+    env,
+  });
+  const stdout = typeof run === "string" ? run : String(run?.stdout ?? "");
+  return JSON.parse(stdout || "{}");
 }
 
 function withinWorkspace(filePath: string) {
@@ -245,19 +262,93 @@ async function executeCapability(
   const expectedRequestId = actionRequestId(clientId, actionKey, stepKey);
   if (requestId !== expectedRequestId) throw new Error("action_request_id_mismatch");
 
+  const taskId = actionTaskId(clientId, actionKey);
+  const method = profile === "chat-owner" ? "mcp_capability_execute_owner" : "mcp_capability_execute_readonly";
+  const params = { request, targetHint: targetHint || "" };
+  const resolved: any = await capabilityBridge(request, {
+    execute: false,
+    surface: "external_mcp",
+    caller: "owner",
+    timeoutSeconds: 20,
+    targetHint,
+  });
+  const selected = resolved?.selected || {};
+  const decision = resolved?.continuum || resolved?.harness?.continuum || {};
+  const selectedRisk = String(selected?.risk || "read");
+  const durable = decision?.mode === "durable";
+
+  // Shadow writes keep the existing read-only denial and never create a durable write mission.
+  if (profile === "chat-owner-shadow" && selectedRisk !== "read") {
+    const receipt = await submitRemoteBridgeRequest({
+      requestId, taskId, stepId: stepKey, sessionId: `external_mcp:${clientId}`,
+      method, params,
+    });
+    return projectReceipt(receipt);
+  }
+
+  let wireStepId = stepKey;
+  let continuumFence: any = undefined;
+  let continuumState: any = undefined;
+  if (durable) {
+    const capability = requiredString(selected?.capability || resolved?.capability, "capability", 128, /^[A-Za-z0-9._-]+$/);
+    const prepared = await continuumIngress([
+      "prepare",
+      "--task-id", taskId,
+      "--step-id", stepKey,
+      "--request-id", requestId,
+      "--method", method,
+      "--params-hash", bridgeParamsHash(method, params),
+      "--capability", capability,
+      "--risk", selectedRisk,
+      "--owner-id", `mcp-${clientId}`,
+    ]);
+    continuumState = prepared;
+    if (prepared.state === "observe_existing" || prepared.state === "step_settled") {
+      const existing = getRemoteBridgeRequest(requestId);
+      if (existing) {
+        const status = await continuumIngress(["status", "--task-id", taskId]);
+        return { ...projectReceipt(existing), continuum: status };
+      }
+      return {
+        state: prepared.mission_state || "running",
+        request_id: requestId,
+        task_id: taskId,
+        retry_allowed: false,
+        continuum: prepared,
+      };
+    }
+    if (prepared.state !== "ready" || prepared.dispatch_allowed !== true) {
+      return {
+        state: prepared.state || "blocked",
+        request_id: requestId,
+        task_id: taskId,
+        retry_allowed: false,
+        continuum: prepared,
+      };
+    }
+    wireStepId = requiredString(prepared.wire_step_id, "wire_step_id", 128, REQUEST_ID_RE);
+    continuumFence = prepared.continuum_fence || undefined;
+  }
+
   const receipt = await submitRemoteBridgeRequest({
     requestId,
-    taskId: actionTaskId(clientId, actionKey),
-    stepId: stepKey,
+    taskId,
+    stepId: wireStepId,
     sessionId: `external_mcp:${clientId}`,
-    method: profile === "chat-owner" ? "mcp_capability_execute_owner" : "mcp_capability_execute_readonly",
-    params: {
-      request,
-      targetHint: targetHint || "",
-    },
+    method,
+    params,
+    ...(continuumFence ? { continuumFence } : {}),
   });
 
-  return projectReceipt(receipt);
+  const projected: any = projectReceipt(receipt);
+  if (!durable) return projected;
+  try {
+    await continuumIngress(["settle", "--task-id", taskId, "--request-id", requestId]);
+    continuumState = await continuumIngress(["status", "--task-id", taskId]);
+  } catch {
+    continuumState = { state: "verification_required", retry_allowed: false };
+  }
+  return { ...projected, continuum: continuumState };
 }
 
 async function executeRawCommand(
@@ -295,22 +386,30 @@ async function executeRawCommand(
   return projectReceipt(receipt);
 }
 
-function statusFor(
+async function statusFor(
   clientId: string,
   args: Record<string, unknown>,
 ) {
   const actionKey = requiredString(args.action_key, "action_key", 40, ACTION_ID_RE);
   const stepKey = optionalString(args.step_key, "step_key", 24, STEP_ID_RE) || "execute";
   const requestId = actionRequestId(clientId, actionKey, stepKey);
+  const taskId = actionTaskId(clientId, actionKey);
   const receipt = getRemoteBridgeRequest(requestId);
+  let continuum: any = undefined;
+  try {
+    const status = await continuumIngress(["status", "--task-id", taskId]);
+    if (status?.state && status.state !== "not_found") continuum = status;
+  } catch {}
   if (!receipt) {
+    if (continuum) return { ...continuum, request_id: requestId, task_id: taskId, retry_allowed: false, continuum };
     return {
       state: "not_found",
       request_id: requestId,
       retry_allowed: false,
     };
   }
-  return projectReceipt(receipt);
+  const projected: any = projectReceipt(receipt);
+  return continuum ? { ...projected, continuum } : projected;
 }
 
 async function readArtifact(

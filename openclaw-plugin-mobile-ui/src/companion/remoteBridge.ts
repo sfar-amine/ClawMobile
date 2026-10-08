@@ -291,7 +291,7 @@ export function getRemoteBridgeTask(taskId: string, rawLimit = 50) {
 }
 
 function mutationRisk(method: string): "read" | "write" | "unknown" {
-  if (["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status", "mcp_capability_execute_readonly"].includes(method)) return "read";
+  if (["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status", "mcp_capability_execute_readonly", "capability_execute_readonly"].includes(method)) return "read";
   if (["write_file", "patch_file", "write_binary_file", "process_input", "process_stop"].includes(method)) return "write";
   return "unknown";
 }
@@ -301,7 +301,7 @@ function resolvedMutationRisk(
   result: unknown,
   fallback: "read" | "write" | "unknown",
 ): "read" | "write" | "unknown" {
-  if (method !== "mcp_capability_execute_owner" || !result || typeof result !== "object") return fallback;
+  if (!["mcp_capability_execute_owner", "capability_execute_owner"].includes(method) || !result || typeof result !== "object") return fallback;
   if ((result as any)?.execution?.delegated === true) return "unknown";
   const risk = String((result as any)?.selected?.risk || "").trim();
   if (risk === "read") return "read";
@@ -487,27 +487,33 @@ function readArtifact(params: Record<string, unknown>) {
   };
 }
 
-async function runMcpCapability(
+async function runCapabilityAtSurface(
   params: Record<string, unknown>,
   readOnly: boolean,
   requestId: string,
+  defaultSurface = "external_mcp",
 ) {
   const request = String(params.request || "").trim();
-  if (!request || request.length > 12000) throw new Error("invalid_mcp_request");
+  if (!request || request.length > 12000) throw new Error("invalid_capability_request");
   const rawTargetHint = String(params.targetHint || "").trim();
   if (rawTargetHint && !/^[A-Za-z0-9._-]{1,128}$/.test(rawTargetHint)) {
     throw new Error("invalid_target_hint");
   }
+  const surface = String(params.surface || defaultSurface).trim();
+  const caller = String(params.caller || "owner").trim();
+  const allowedSurfaces = new Set(["external_mcp", "claw_live", "whatsapp", "chatgpt", "samantha_android", "gemini_claw", "gemini_live", "bixby"]);
+  if (!allowedSurfaces.has(surface)) throw new Error("invalid_capability_surface");
+  if (!["owner", "trusted", "other"].includes(caller)) throw new Error("invalid_capability_caller");
   const targetHint = rawTargetHint || undefined;
   const result: any = await capabilityBridge(request, {
     execute: true,
     readOnly,
-    surface: "external_mcp",
-    caller: "owner",
+    surface,
+    caller,
     timeoutSeconds: 30,
     targetHint,
   });
-  if (!readOnly && result?.execution?.state === "delegation_required") {
+  if (surface === "external_mcp" && !readOnly && result?.execution?.state === "delegation_required") {
     const capability = String(result?.capability || result?.selected?.capability || "");
     return {
       ...result,
@@ -515,6 +521,14 @@ async function runMcpCapability(
     };
   }
   return result;
+}
+
+async function runMcpCapability(
+  params: Record<string, unknown>,
+  readOnly: boolean,
+  requestId: string,
+) {
+  return runCapabilityAtSurface(params, readOnly, requestId, "external_mcp");
 }
 
 async function dispatch(request: RemoteBridgeRequest) {
@@ -543,6 +557,10 @@ async function dispatch(request: RemoteBridgeRequest) {
       return runMcpCapability(params, true, request.requestId);
     case "mcp_capability_execute_owner":
       return runMcpCapability(params, false, request.requestId);
+    case "capability_execute_readonly":
+      return runCapabilityAtSurface(params, true, request.requestId, "claw_live");
+    case "capability_execute_owner":
+      return runCapabilityAtSurface(params, false, request.requestId, "claw_live");
     case "process_start":
       return startBridgeProcess(params);
     case "process_status":

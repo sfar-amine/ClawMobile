@@ -6,7 +6,9 @@ const path = require("path");
 const tmpRoot = process.env.TMPDIR || path.join(os.homedir(), ".cache", "tmp");
 fs.mkdirSync(tmpRoot, { recursive: true });
 const root = fs.mkdtempSync(path.join(tmpRoot, "claw-mcp-bridge-test-"));
-process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR = path.join(root, "remote-bridge");
+process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR = path.join(root, ".openclaw", "remote-bridge");
+process.env.CLAW_CONTINUUM_HOME = root;
+process.env.CLAW_CONTINUUM_FOREGROUND_DIR = path.join(root, ".openclaw", "continuations", "foreground");
 process.env.CLAW_UI_PLAYBOOKS_ROOT =
   process.env.CLAW_MCP_TEST_UI_ROOT ||
   path.join(os.homedir(), ".openclaw", "worktrees", "claw-mcp-gateway-ui-20261005");
@@ -104,7 +106,61 @@ async function main() {
   const ownerReceipt = JSON.parse(fs.readFileSync(ownerReceiptPath, "utf8"));
   assert.equal(ownerReceipt.method, "mcp_capability_execute_owner");
   assert.equal(ownerReceipt.mutationRisk, "write");
+  assert.ok(String(ownerReceipt.stepId).startsWith("continuum-"));
+  assert.ok(ownerReceipt.continuumFence?.attemptId);
+  assert.equal(ownerResult.continuum?.state, "verification_required");
   assert.notEqual(ownerReceipt.result?.execution?.reason, "read_only_policy");
+
+  const durableRead = await handleMcpRelayRequest({
+    requestId: "mcp-claude-chat-durable-read-execute",
+    clientId: "claude-chat",
+    profile: "chat-owner-shadow",
+    tool: "claw_execute",
+    arguments: { request: "durable read inventory", action_key: "durable-read" },
+  });
+  assert.equal(durableRead.state, "completed");
+  assert.equal(durableRead.continuum?.state, "waiting");
+  const durableReadReceipt = JSON.parse(fs.readFileSync(path.join(
+    process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR,
+    "requests",
+    "mcp-claude-chat-durable-read-execute.json",
+  ), "utf8"));
+  assert.ok(String(durableReadReceipt.stepId).startsWith("continuum-"));
+  assert.equal(durableReadReceipt.continuumFence, undefined);
+  const durableStatus = await handleMcpRelayRequest({
+    requestId: "mcp:claude-chat:status-durable",
+    clientId: "claude-chat",
+    profile: "chat-owner-shadow",
+    tool: "claw_status",
+    arguments: { action_key: "durable-read" },
+  });
+  assert.equal(durableStatus.state, "completed");
+  assert.equal(durableStatus.continuum?.state, "waiting");
+  const durableRepeat = await handleMcpRelayRequest({
+    requestId: "mcp-claude-chat-durable-read-execute",
+    clientId: "claude-chat",
+    profile: "chat-owner-shadow",
+    tool: "claw_execute",
+    arguments: { request: "durable read inventory", action_key: "durable-read" },
+  });
+  assert.equal(durableRepeat.request_id, durableRead.request_id);
+  assert.equal(durableRepeat.continuum?.state, "waiting");
+
+  const fastRead = await handleMcpRelayRequest({
+    requestId: "mcp-claude-chat-fast-read-execute",
+    clientId: "claude-chat",
+    profile: "chat-owner-shadow",
+    tool: "claw_execute",
+    arguments: { request: "mon solde orange", action_key: "fast-read" },
+  });
+  assert.equal(fastRead.state, "completed");
+  assert.equal(fastRead.continuum, undefined);
+  const fastReceipt = JSON.parse(fs.readFileSync(path.join(
+    process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR,
+    "requests",
+    "mcp-claude-chat-fast-read-execute.json",
+  ), "utf8"));
+  assert.equal(fastReceipt.stepId, "execute");
 
   const ownerRawExec = await handleMcpRelayRequest({
     requestId: "mcp-claude-chat-owner-raw-execute",

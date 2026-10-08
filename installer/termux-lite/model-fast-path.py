@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -278,6 +279,120 @@ def execute_capability(
     return value
 
 
+def _stable_identity(prefix: str, *parts: str) -> str:
+    digest = hashlib.sha256(json.dumps(parts, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()[:32]
+    return f"{prefix}:{digest}"
+
+
+def _bridge_params_hash(method: str, params: dict[str, Any]) -> str:
+    raw = json.dumps({"method": method, "params": params}, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _continuum_call(ui_root: Path, args: list[str], timeout: int = 15) -> dict[str, Any]:
+    rc, value, _ = _run_json(
+        [sys.executable, "-B", "-m", "skill_intelligence.continuum_ingress", *args],
+        cwd=ui_root, timeout=timeout, env=_python_env(ui_root),
+    )
+    if rc:
+        raise RuntimeError("continuum_ingress_failed")
+    return value
+
+
+def _bridge_cli(home: Path = HOME) -> Path:
+    for path in (
+        home / ".openclaw/releases/current/termux-lite/claw-bridge-cli.py",
+        home / "ClawMobile/installer/termux-lite/claw-bridge-cli.py",
+    ):
+        if path.is_file():
+            return path
+    raise RuntimeError("remote_bridge_cli_unavailable")
+
+
+def _bridge_status(request_id: str, *, timeout: int) -> dict[str, Any] | None:
+    try:
+        rc, value, _ = _run_json(
+            [sys.executable, str(_bridge_cli()), "status", request_id],
+            cwd=HOME, timeout=max(3, min(timeout, 20)), env=os.environ.copy(),
+        )
+        return value if rc == 0 and isinstance(value, dict) and value.get("requestId") else None
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        return None
+
+
+def _durable_capability_execute(
+    resolution: dict[str, Any],
+    message: str,
+    *,
+    ui_root: Path,
+    surface: str,
+    caller: str,
+    origin_id: str,
+    timeout: int,
+) -> dict[str, Any]:
+    selected = resolution.get("selected") if isinstance(resolution.get("selected"), dict) else {}
+    capability = str(selected.get("capability") or resolution.get("capability") or "").strip()
+    risk = str(selected.get("risk") or "read")
+    if not capability:
+        raise RuntimeError("durable_capability_missing")
+    if not origin_id or origin_id == "capability-first":
+        return {**resolution, "execution": {"state": "durable_identity_required"}}
+    task_id = _stable_identity("capfirst", origin_id)
+    step_id = "execute"
+    request_id = "capfirst-" + hashlib.sha256((task_id + ":" + step_id).encode()).hexdigest()[:32]
+    method = "capability_execute_readonly" if risk == "read" else "capability_execute_owner"
+    params = {"request": message, "targetHint": "", "surface": surface, "caller": caller}
+    owner_id = "capfirst-" + hashlib.sha256(origin_id.encode()).hexdigest()[:24]
+    prepared = _continuum_call(ui_root, [
+        "prepare", "--task-id", task_id, "--step-id", step_id,
+        "--request-id", request_id, "--method", method,
+        "--params-hash", _bridge_params_hash(method, params),
+        "--capability", capability, "--risk", risk, "--owner-id", owner_id,
+        "--protocol", "one-shot",
+    ])
+    receipt = None
+    if prepared.get("state") in {"observe_existing", "step_settled", "terminal"}:
+        receipt = _bridge_status(request_id, timeout=timeout)
+        if receipt is None:
+            return {**resolution, "execution": {"state": "verification_required", "reason": prepared.get("state")},
+                    "continuum": prepared}
+    elif prepared.get("state") == "ready" and prepared.get("dispatch_allowed") is True:
+        cmd = [sys.executable, str(_bridge_cli()), "submit",
+               "--request-id", request_id, "--task-id", task_id,
+               "--step-id", str(prepared.get("wire_step_id") or step_id),
+               "--method", method, "--params-json", json.dumps(params, ensure_ascii=False, separators=(",", ":"))]
+        fence = prepared.get("continuum_fence")
+        if fence:
+            cmd += ["--continuum-fence-json", json.dumps(fence, ensure_ascii=False, separators=(",", ":"))]
+        try:
+            rc, candidate, _ = _run_json(cmd, cwd=HOME, timeout=max(3, min(timeout + 5, 125)), env=os.environ.copy())
+            if rc == 0 and isinstance(candidate, dict) and candidate.get("requestId") == request_id:
+                receipt = candidate
+        except (OSError, RuntimeError, subprocess.SubprocessError):
+            receipt = None
+        # Response delivery failure is observation-only: one status lookup, never a second submit.
+        if receipt is None:
+            receipt = _bridge_status(request_id, timeout=timeout)
+    else:
+        return {**resolution, "execution": {"state": str(prepared.get("state") or "verification_required")},
+                "continuum": prepared}
+
+    if not receipt:
+        return {**resolution, "execution": {"state": "verification_required", "reason": "receipt_unavailable"},
+                "continuum": prepared}
+    try:
+        settled = _continuum_call(ui_root, ["settle", "--task-id", task_id,
+            "--request-id", request_id, "--protocol", "one-shot"])
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        settled = {"state": "verification_required", "retry_authorized": False}
+    if receipt.get("state") != "completed" or not isinstance(receipt.get("result"), dict):
+        return {**resolution, "execution": {"state": str(receipt.get("state") or "verification_required"),
+                    "reason": "durable_receipt_not_completed"}, "continuum": settled}
+    result = dict(receipt["result"])
+    result["continuum"] = settled
+    return result
+
+
 def try_fast_path(
     message: str,
     ui_root: Path = UI_ROOT,
@@ -321,13 +436,20 @@ def try_fast_path(
                 timeout=timeout,
             )
 
-        executed = execute_capability(
-            message,
-            ui_root,
-            surface=surface,
-            caller=caller,
-            timeout=timeout,
-        )
+        continuum = resolution.get("continuum") if isinstance(resolution.get("continuum"), dict) else {}
+        if continuum.get("mode") == "durable":
+            executed = _durable_capability_execute(
+                resolution, message, ui_root=ui_root, surface=surface, caller=caller,
+                origin_id=origin_id, timeout=timeout,
+            )
+        else:
+            executed = execute_capability(
+                message,
+                ui_root,
+                surface=surface,
+                caller=caller,
+                timeout=timeout,
+            )
         execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
         state = str(execution.get("state") or "")
         selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}

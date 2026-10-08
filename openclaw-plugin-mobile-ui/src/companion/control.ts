@@ -6,7 +6,7 @@ import readline from "readline";
 import { randomUUID } from "crypto";
 import { performance } from "perf_hooks";
 
-const sections = new Set(["snapshot", "activity", "requests", "automations", "intelligence", "health", "situations"]);
+const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations"]);
 let activeStreams = 0;
 
 export function controlPaths() {
@@ -198,7 +198,7 @@ const controlReads=new ControlReadPool();
 export function readControlV2(selected:string[],detailId:string|undefined,signal?:AbortSignal,force=false):Promise<ControlResult>{
   const names=[...new Set(selected)].sort();
   if(!names.length||names.some(n=>n==="snapshot"||!sections.has(n)))return Promise.reject(controlError("unsupported_control_section",400));
-  if(detailId&&(!/^[A-Za-z0-9_.:-]{1,160}$/.test(detailId)||names.length!==1||!["requests","situations"].includes(names[0])))
+  if(detailId&&(!/^[A-Za-z0-9_.:-]{1,160}$/.test(detailId)||names.length!==1||!["requests","missions","situations"].includes(names[0])))
     return Promise.reject(controlError("invalid_control_detail",400));
   const roots=controlPaths();
   const key=JSON.stringify(["native-loopback",roots.playbooks,roots.live,2,names,detailId||null]);
@@ -243,7 +243,7 @@ export async function handleControl(req: IncomingMessage, res: ServerResponse, r
   if(!["1","2"].includes(version)){res.writeHead(400);res.end();return true;}
   if(version==="2"&&process.env.SAMANTHA_CONTROL_V2==="0"){res.writeHead(404);res.end();return true;}
   const bits=target.split("/");
-  if(!sections.has(bits[0])||bits.length>2||(bits.length===2&&!['requests','situations'].includes(bits[0]))){res.writeHead(404);res.end();return true;}
+  if(!sections.has(bits[0])||bits.length>2||(bits.length===2&&!['requests','missions','situations'].includes(bits[0]))){res.writeHead(404);res.end();return true;}
   const abort=new AbortController();
   const cancel=()=>{if(!res.writableEnded)abort.abort();};res.once("close",cancel);
   try{

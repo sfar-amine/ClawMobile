@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "id": "claw-continuum-final-runtime-20261008",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Complete Continuum durable ingestion for MCP and Capability-First and expose read-only Missions through the existing Companion Control facade.",
+  "reason": "FAST/DURABLE classification must be consumed at stable-identity ingresses and effectful execution must cross the existing fenced Remote Bridge boundary.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/fake-claw-capability.py",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-bridge.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-control-v2.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-continuum-capability-bridge.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path-durable.py",
+    "openclaw-plugin-mobile-ui/package.json",
+    "installer/termux-lite/model-fast-path.py",
+    "docs/changes/claw-continuum-final-runtime-20261008.md",
+    "docs/changes/claw-continuum-final-runtime-20261008.json"
+  ],
+  "tests": [
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": "npm run build"
+    },
+    {
+      "name": "mcp-continuum",
+      "status": "passed",
+      "evidence": "durable write/read/status plus fast-read compatibility"
+    },
+    {
+      "name": "capability-bridge",
+      "status": "passed",
+      "evidence": "read, fenced write, stale epoch rejection"
+    },
+    {
+      "name": "capability-first-durable",
+      "status": "passed",
+      "evidence": "response loss recovers by one status lookup with submit_count=1"
+    },
+    {
+      "name": "control-v2",
+      "status": "passed",
+      "evidence": "22 checks including missions resource"
+    },
+    {
+      "name": "remote-bridge-core",
+      "status": "passed",
+      "evidence": "idempotence/process/artifact plus Continuum fence suite passed"
+    },
+    {
+      "name": "remote-bridge-slack",
+      "status": "passed",
+      "evidence": "Slack active/shadow/idempotence suite passed"
+    },
+    {
+      "name": "remote-bridge-slack-resilience",
+      "status": "passed",
+      "evidence": "rate-limit/reconnect resilience suite passed"
+    },
+    {
+      "name": "capability-first-legacy",
+      "status": "passed",
+      "evidence": "historical capability-first plugin regression passed"
+    }
+  ],
+  "documentation": [
+    "docs/changes/claw-continuum-final-runtime-20261008.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical capability truth remains in ui-playbooks; this private runtime implements existing owners/adapters."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses Capability Graph, Remote Bridge, Control facade and S24 Continuum ledger; no parallel owner/store/router."
+  },
+  "rollback": "Revert this scoped private runtime commit, rebuild the Companion and restart through the existing supervised path.",
+  "limitations": [
+    "No Mission state is stored in Companion.",
+    "Business-domain effect verification remains owned by each capability.",
+    "Android presentation is delivered separately on samantha-private/main."
+  ]
+}
