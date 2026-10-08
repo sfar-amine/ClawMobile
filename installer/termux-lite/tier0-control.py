@@ -101,9 +101,13 @@ def cmd_package(a):
     if dest.exists(): raise SystemExit('release_exists')
     tmp=RELEASES/(release_id+'.tmp'); shutil.rmtree(tmp,ignore_errors=True); tmp.mkdir(parents=True)
     shutil.copytree(source,tmp/'termux-lite',dirs_exist_ok=True,symlinks=True)
+    critical_capabilities=a.critical_capability or ['immune.root_guardian','immune.health_manager','immune.incident_orchestrator']
+    startup_grace_seconds=int(a.startup_grace_seconds)
+    if 'remote_desktop' in critical_capabilities:
+        startup_grace_seconds=max(startup_grace_seconds,210)
     meta={'version':1,'engineering_bridge_required':engineering_bridge,'release_id':release_id,'created_at':now(),'source':str(source),
-          'source_commit':a.source_commit,'soak_seconds':a.soak_seconds,'startup_grace_seconds':a.startup_grace_seconds,
-          'critical_capabilities':a.critical_capability or ['immune.root_guardian','immune.health_manager','immune.incident_orchestrator'],
+          'source_commit':a.source_commit,'soak_seconds':a.soak_seconds,'startup_grace_seconds':startup_grace_seconds,
+          'critical_capabilities':critical_capabilities,
           'files':manifest(tmp),'product_manifest':None}
     if a.product_manifest:
         pm=Path(a.product_manifest).resolve()
