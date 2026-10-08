@@ -41,6 +41,13 @@ class HealthTests(unittest.TestCase):
     def test_each_functional_layer_required(self):
         for key in ['local_mcp','remote_channel','healthy']:
             self.receipt[key]=False;self.write();self.assertNotEqual(self.probe()['state'],'healthy');self.receipt[key]=True
+    def test_remote_channel_failure_with_live_local_mcp_is_native_reconnect(self):
+        self.receipt.update(remote_channel=False, healthy=False, remote_channel_state='errored', remote_reconnect_attempt=2)
+        self.write(); d=self.probe()
+        self.assertEqual(d['state'],'degraded'); self.assertEqual(d['reason'],'remote_channel_reconnecting')
+        self.assertTrue(d['local_mcp']); self.assertEqual(d['remote_channel_state'],'errored')
+        self.assertEqual(d['remote_reconnect_attempt'],2)
+
     def test_process_args_are_exact(self):
         (self.proc/'123/cmdline').write_text('bash\0-c\0echo '+rdc.SCRIPT+' remote\0')
         self.assertEqual(self.probe()['reason'],'process_missing')
@@ -110,6 +117,12 @@ class RepairTests(unittest.TestCase):
         self.c.readiness=4
         with patch.object(self.c,'beat'),patch.object(self.c,'probe',side_effect=[{'state':'degraded','reason':'local_mcp_unresponsive'},{'state':'healthy','reason':'ok'},{'state':'healthy','reason':'ok'}]),patch.object(rdc.time,'sleep'):
             self.assertTrue(self.c.wait_ready())
+    def test_native_remote_reconnect_gets_extended_grace_before_restart(self):
+        c=rdc.Controller(self.tmp.name,remote_reconnect_grace_s=180)
+        current={'reason':'remote_channel_reconnecting','local_mcp':True,'instance_count':1}
+        self.assertEqual(c.repair_grace_limit(current),13)
+        self.assertEqual(c.repair_grace_limit({'reason':'local_mcp_unresponsive','local_mcp':False,'instance_count':1}),3)
+
     def test_half_open_defers_without_restart_while_dependency_is_unreachable(self):
         c=rdc.Controller(self.tmp.name,dependency_probe=lambda:False)
         with patch.object(c,'repair') as repair:

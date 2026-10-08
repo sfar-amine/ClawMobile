@@ -10,6 +10,8 @@ export function assess(device, now, localPing) {
   const remote = c?.channel?.state === 'joined' && c.presenceTracked === true &&
     !c.sessionLost && !c.shuttingDown && age !== null && age >= 0 && age <= 75000;
   return { local_mcp: localPing === true, remote_channel: remote,
+    remote_channel_state: c?.channel?.state ?? null,
+    remote_reconnect_attempt: Number.isFinite(c?.reconnectAttempt) ? Number(c.reconnectAttempt) : 0,
     remote_heartbeat_age_ms: age, session_lost: c?.sessionLost === true,
     healthy: localPing === true && remote && !device.isShuttingDown };
 }
