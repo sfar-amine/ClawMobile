@@ -114,6 +114,8 @@ def capability_first_eligibility(value: dict[str, Any]) -> tuple[str, str]:
     plan = value.get("skill_plan") if isinstance(value.get("skill_plan"), dict) else {}
     if harness.get("tool_policy") != "required":
         return "miss", str(harness.get("reason") or "model_allowed")
+    if plan.get("mode") == "needs_clarification":
+        return "clarification", "intent_clarification_required"
     if (
         plan.get("mode") in {"transfer", "degraded"}
         and str(plan.get("risk") or "") in HIGH_CONSEQUENCE_RISKS
@@ -434,6 +436,17 @@ def try_fast_path(
             return {"status": "miss", "reason": reason, "resolution": resolution}
         if decision == "assist":
             return {"status": "assist", "reason": reason, "resolution": resolution}
+        if decision == "clarification":
+            clarification = resolution.get("clarification") if isinstance(resolution.get("clarification"), dict) else {}
+            question = str(clarification.get("question") or "Précise ce que tu veux faire.").strip()
+            return {
+                "status": "clarification",
+                "reason": reason,
+                "text": question,
+                "clarification": clarification,
+                "resolution": resolution,
+                "model_bypassed": True,
+            }
         if decision == "known_error":
             return {
                 "status": "known_error",
@@ -547,7 +560,7 @@ def main() -> int:
         timeout=max(2, min(args.timeout, 120)),
     )
     print(json.dumps(result, ensure_ascii=False))
-    return 0 if result.get("status") in {"hit", "eligible", "miss", "assist", "known_error"} else 75
+    return 0 if result.get("status") in {"hit", "eligible", "miss", "assist", "clarification", "known_error"} else 75
 
 
 if __name__ == "__main__":

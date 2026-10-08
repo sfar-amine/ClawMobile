@@ -11,8 +11,12 @@ const helperLog = path.join(root, "model-fast-path.log");
 fs.writeFileSync(helper, [
   "import json, os, sys",
   "mode = 'check' if '--check' in sys.argv else 'execute'",
+  "message = sys.argv[-1] if sys.argv else ''",
   "with open(os.environ['CLAWMOBILE_TEST_FAST_PATH_LOG'], 'a', encoding='utf-8') as h: h.write(mode + '\\n')",
-  "print(json.dumps({'status':'eligible','model_bypassed':True} if mode == 'check' else {'status':'hit','text':'CAPABILITY_FIRST_DIRECT_OK','model_bypassed':True}))",
+  "if 'ambiguous capability' in message:",
+  " print(json.dumps({'status':'clarification','text':'Tu veux consulter ou agir ?','model_bypassed':True}))",
+  "else:",
+  " print(json.dumps({'status':'eligible','model_bypassed':True} if mode == 'check' else {'status':'hit','text':'CAPABILITY_FIRST_DIRECT_OK','model_bypassed':True}))",
   "",
 ].join("\n"));
 process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER = helper;
@@ -136,6 +140,25 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   assert.equal(directDuplicate.duplicate, true);
   assert.equal(directDuplicate.runId, direct.runId);
   assert.deepEqual(fs.readFileSync(helperLog, "utf8").trim().split(/\s+/), callsAfterFirst);
+
+  const clarificationClientRunId = "samantha-515eec1e-c749-4ecc-b70b-193cb52d85fa";
+  const clarification = await submitIntent("ambiguous capability", "session-clarification", [], {
+    userText: "ambiguous capability", clientRunId: clarificationClientRunId,
+  });
+  assert.equal(clarification.accepted, true);
+  assert.equal(clarification.state, "done");
+  assert.equal(clarification.result, "Tu veux consulter ou agir ?");
+  const clarificationStored = await getRunStatusByClientRunId(clarificationClientRunId);
+  assert.equal(clarificationStored.state, "done");
+  assert.equal(clarificationStored.result, "Tu veux consulter ou agir ?");
+  const clarificationRegistry = JSON.parse(fs.readFileSync(
+    path.join(process.env.OPENCLAW_STATE_DIR, "clawmobile-companion", "runs.json"),
+    "utf8",
+  ));
+  const clarificationDurable = clarificationRegistry.runs.find((run) => run.clientRunId === clarificationClientRunId);
+  assert.equal(clarificationDurable.executionSource, "capability_first");
+  const clarificationCalls = fs.readFileSync(helperLog, "utf8").trim().split(/\s+/);
+  assert.equal(clarificationCalls.at(-1), "check");
 
   const rejected = notSubmitted(sessionId, clientRunId, "gateway unavailable");
   assert.equal(rejected.accepted, false);

@@ -77,6 +77,21 @@ class FastPathTests(unittest.TestCase):
         value=self.resolution(harness={"tool_policy":"optional","reason":"conversation_or_unknown"})
         self.assertEqual(fast.capability_first_eligibility(value), ("miss", "conversation_or_unknown"))
 
+    def test_intent_clarification_is_terminal_before_model(self):
+        value=self.resolution(
+            selected={},
+            harness={"tool_policy":"required","reason":"intent_clarification_required"},
+            skill_plan={"mode":"needs_clarification","target":"maxit-tunisie","intent":None},
+            clarification={"question":"Tu veux consulter ton offre ou recharger ton numéro ?","choices":[]},
+        )
+        self.assertEqual(fast.capability_first_eligibility(value), ("clarification", "intent_clarification_required"))
+        with mock.patch.object(fast,"resolve_capability",return_value=value), mock.patch.object(fast,"execute_capability") as execute:
+            out=fast.try_fast_path("maxit mon numéro")
+        self.assertEqual(out["status"],"clarification")
+        self.assertTrue(out["model_bypassed"])
+        self.assertIn("recharger",out["text"])
+        execute.assert_not_called()
+
     def test_model_required_capability_is_assisted(self):
         value=self.resolution(selected={"model_required":True})
         self.assertEqual(fast.capability_first_eligibility(value), ("assist", "selected_requires_model"))

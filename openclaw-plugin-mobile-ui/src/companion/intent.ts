@@ -42,7 +42,7 @@ export async function submitIntent(
       })
     : { status: "miss", reason: "attachments_require_model" };
 
-  if (fastPathCheck.status === "eligible" || fastPathCheck.status === "known_error") {
+  if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
     return executeCapabilityFirst(
       normalized, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
     );
@@ -126,7 +126,10 @@ async function executeCapabilityFirst(
 
   let state: "done" | "failed";
   let message: string;
-  if (check.status === "known_error") {
+  if (check.status === "clarification") {
+    state = "done";
+    message = String(check.text || "Précise ce que tu veux faire.");
+  } else if (check.status === "known_error") {
     state = "failed";
     message = String(check.text || "Claw identified this capability but did not authorize its execution.");
   } else {

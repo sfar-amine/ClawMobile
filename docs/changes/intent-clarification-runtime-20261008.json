@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "id": "intent-clarification-runtime-20261008",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Surface canonical intent ambiguity as a local Capability-First clarification before any Gateway/model or executor call.",
+  "reason": "The canonical router can now return needs_clarification; Samantha must preserve that state instead of treating it as a model fallback or capability-state failure.",
+  "rollback": "Revert this runtime commit. The UI routing commit can remain; older runtime will not understand clarification and should therefore be rolled back together for product behavior.",
+  "files": [
+    "docs/changes/intent-clarification-runtime-20261008.md",
+    "docs/changes/intent-clarification-runtime-20261008.json",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-efficiency.py",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-submit-reconciliation.cjs"
+  ],
+  "tests": [
+    {"name":"model-efficiency","status":"passed","evidence":"15 Python helper tests passed including model-bypassed intent clarification."},
+    {"name":"submit-reconciliation","status":"passed","evidence":"Companion clarification is stored as a done capability_first run; no execute pass is made for the ambiguous turn."},
+    {"name":"runtime-regression","status":"passed","evidence":"TypeScript build, companion runs, conversation pages/backfill races, durable fast path, Payment Core 58/58, MCP bridge and Continuum capability bridge passed."}
+  ],
+  "documentation": ["docs/changes/intent-clarification-runtime-20261008.md"],
+  "capabilities": {"impact":"modified","ids":["skill.intelligence","payment.owner_native"],"reason":"Runtime consumption of canonical intent clarification changes the Capability-First behavior before payment-owner selection."},
+  "architecture": {"changed":false,"documents":[],"reason":"Reuses existing Capability-First helper, Companion run registry and Capability Graph; no new component or owner."},
+  "limitations": [
+    "Clarification itself never executes a capability or financial effect.",
+    "Provider selection/business rules remain owned by canonical manifests and the Capability Graph."
+  ]
+}
