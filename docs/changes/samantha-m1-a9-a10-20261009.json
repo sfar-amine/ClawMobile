@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "id": "samantha-m1-a9-a10-20261009",
+  "origin": "chat",
+  "kind": "engineering",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Initial Samantha Revamp Companion M1 A9 C3 voice stimulus corpus and A10 CLOCK_BOOTTIME internal telemetry analyzer on private isolated source branch; Gate M1 remains non-terminal.",
+  "reason": "S24 approved C1/C3 contracts and EVT-1759 assign A9/A10 to ChatGPT; Claude Android worktree remains untouched. Codex Cloud MCP is blocked and unrelated to these local validated engineering steps.",
+  "files": [
+    "openclaw-plugin-mobile-ui/scripts/fixtures/samantha-voice-corpus-v1.jsonl",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-m1-corpus.py",
+    "openclaw-plugin-mobile-ui/scripts/voice-m1-analyze.py",
+    "docs/changes/samantha-m1-a9-a10-20261009.md",
+    "docs/changes/samantha-m1-a9-a10-20261009.json"
+  ],
+  "tests": [
+    {
+      "name": "m1-a9-a10-contracts",
+      "status": "passed",
+      "evidence": {
+        "command": "python3 openclaw-plugin-mobile-ui/scripts/test-voice-m1-corpus.py",
+        "count": 6,
+        "result": "OK"
+      }
+    },
+    {
+      "name": "m1-a10-python-compile",
+      "status": "passed",
+      "evidence": {
+        "command": "python3 -m py_compile openclaw-plugin-mobile-ui/scripts/voice-m1-analyze.py openclaw-plugin-mobile-ui/scripts/test-voice-m1-corpus.py",
+        "result": "passed"
+      }
+    }
+  ],
+  "documentation": [
+    "docs/changes/samantha-m1-a9-a10-20261009.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [
+      "samantha.android.ui_dev"
+    ],
+    "reason": "Data fixtures and offline analysis tooling only; no change to Companion business routes, live app, deployment or registry."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses C1/C3 and scripts; no second storage/router/orchestration layer."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "docs/changes/samantha-m1-a9-a10-20261009.md"
+    ]
+  },
+  "rollback": "Revert only this private commit. Existing S24 Companion and Android app runtime remain untouched.",
+  "limitations": [
+    "Fixture corpus is metadata, not field audio acceptance.",
+    "A8 Companion event production A11 warm socket contracts A12 RDV1 A13 perturbation tests remain pending.",
+    "Primary UX latency requires external recorder anchors t23/t40; not inferred from VAD.",
+    "Never push this private-app/Companion work to the public ClawMobile upstream/origin."
+  ]
+}
