@@ -35,3 +35,6 @@ jobs:
 
       - name: Run trace induction tests
         run: npm run test:trace-induction
+
+      - name: Run Control health components contract
+        run: node scripts/test-control-health-components.cjs

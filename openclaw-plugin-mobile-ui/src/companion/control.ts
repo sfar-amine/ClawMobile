@@ -5,6 +5,7 @@ import path from "path";
 import readline from "readline";
 import { randomUUID } from "crypto";
 import { performance } from "perf_hooks";
+import { completeHealthSection } from "./control-health";
 
 const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations"]);
 let activeStreams = 0;
@@ -215,7 +216,11 @@ export function readControlV2(selected:string[],detailId:string|undefined,signal
     const finish=(error?:Error)=>{
       if(settled)return;settled=true;clearTimeout(timer);abort.removeEventListener("abort",cancel);
       if(error||failure||abort.aborted){killGroup();reject(error||failure||controlError("control_read_cancelled",499));return;}
-      try{resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));}catch{reject(controlError("control_invalid_response"));}
+      try{
+        const value=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        completeHealthSection(value,path.join(os.homedir(),".openclaw/health/current.json"))
+          .then(resolve,()=>reject(controlError("control_invalid_response")));
+      }catch{reject(controlError("control_invalid_response"));}
     };
     child.stdout.on("data",(data:Buffer)=>{
       outputBytes+=data.length;

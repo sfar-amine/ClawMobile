@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "id": "codex-control-health-r1-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose canonical unhealthy components in Companion Control v2.",
+  "reason": "The fixed three-component view omitted canonical maintenance failures.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-control-health-components.cjs",
+    "docs/work/samantha-android/27_CONVERGENCE_LOT0_CONTRACTS.md",
+    "docs/changes/codex-control-health-r1-20261010.md",
+    "docs/changes/codex-control-health-r1-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "build",
+      "status": "passed",
+      "evidence": "npm run build"
+    },
+    {
+      "name": "health-contract",
+      "status": "passed",
+      "evidence": "node scripts/test-control-health-components.cjs"
+    },
+    {
+      "name": "trace-induction",
+      "status": "passed",
+      "evidence": "npm run test:trace-induction"
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-control-health-r1-20261010.md",
+    "docs/work/samantha-android/27_CONVERGENCE_LOT0_CONTRACTS.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Additive display projection over the existing Health Manager; no capability execution change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Uses existing canonical verdict and existing Control facade; no new owner or persistence."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Only native read-only Control projection is changed; MCP contracts and adapters untouched."
+  },
+  "rollback": "Revert R1 commit; no migration.",
+  "limitations": [
+    "Git-only delivery. Claude owns S24 receipt, integrated acceptance and activation."
+  ]
+}
