@@ -35,3 +35,9 @@ jobs:
 
       - name: Run trace induction tests
         run: npm run test:trace-induction
+
+      - name: Verify composed read and capability presentation
+        run: |
+          python3 scripts/test-composed-read-result.py
+          python3 scripts/test-model-fast-path-durable.py
+          node scripts/test-model-fast-path.cjs

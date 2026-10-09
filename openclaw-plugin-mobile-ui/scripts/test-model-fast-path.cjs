@@ -137,9 +137,7 @@ async function main() {
   assert.deepEqual(untrusted, { handled: false });
   assert.equal(untrustedCalls, 0);
 
-  const tempBase = path.join(os.homedir(), ".openclaw", "tmp");
-  fs.mkdirSync(tempBase, { recursive: true });
-  const helperRoot = fs.mkdtempSync(path.join(tempBase, "capability-first-test-"));
+  const helperRoot = fs.mkdtempSync(path.join(os.tmpdir(), "capability-first-test-"));
   const helper = path.join(helperRoot, "helper.py");
   fs.writeFileSync(helper, [
     "import json,sys",

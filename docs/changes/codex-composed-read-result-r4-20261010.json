@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "codex-composed-read-result-r4-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Preserve per-provider outcomes of canonical composed reads in Companion.",
+  "reason": "Generic fast-path failure prose discarded successful partial results.",
+  "files": [
+    "installer/termux-lite/model-fast-path.py",
+    "openclaw-plugin-mobile-ui/scripts/test-composed-read-result.py",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path.cjs",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-android/27_CONVERGENCE_LOT0_CONTRACTS.md",
+    "docs/changes/codex-composed-read-result-r4-20261010.md",
+    "docs/changes/codex-composed-read-result-r4-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "presentation-contract",
+      "status": "passed",
+      "evidence": "5 offline test-composed-read-result.py tests; existing model-fast-path and durable contracts."
+    },
+    {
+      "name": "regression",
+      "status": "passed",
+      "evidence": "npm run build; payment-core 58/58; trace-induction."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-android/27_CONVERGENCE_LOT0_CONTRACTS.md",
+    "docs/changes/codex-composed-read-result-r4-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Presentation only; canonical composition is delivered in the separate playbooks PR."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing fast path consumes and displays canonical route results; no additional execution/persistence owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native Companion presentation only; canonical MCP changes covered by the linked playbooks PR."
+  },
+  "rollback": "Revert this commit; no persistent state changed.",
+  "limitations": [
+    "Depends on canonical R4 playbooks PR.",
+    "Git only; Claude supplies live acceptance and activation."
+  ]
+}
