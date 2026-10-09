@@ -85,5 +85,41 @@ class VoiceM1CorpusTests(unittest.TestCase):
                          encoding="utf-8")
             self.assertEqual(len(analysis.read_events([p])), 2)
 
+    def test_reader_ignores_non_json_logcat_lines_but_rejects_malformed_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "logcat.jsonl"
+            p.write_text("--------- beginning of main\ntextual log\n" + json.dumps(event("a", 0, "t00", 100)) + "\n", encoding="utf-8")
+            self.assertEqual(len(analysis.read_events([p])), 1)
+            p.write_text("--------- beginning of main\n{broken JSON\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, ":2: invalid JSON"):
+                analysis.read_events([p])
+
+    def test_closing_drift_excludes_whole_session_including_other_turns(self):
+        events = [event("bad", 1, "t25", 100), event("bad", 1, "t25p", 200, "companion"),
+                  event("good", 1, "t25", 100), event("good", 1, "t25p", 200, "companion")]
+        drift = event("bad", 2, "t44", 300, "companion")
+        for amount in [-2000, 1001, 1000]:
+            drift["x"] = {"clock_drift_us": amount}
+            r = analysis.analyze(events + [drift])
+            self.assertEqual(r["clock_drift_excluded_sessions"], ["bad"])
+            self.assertEqual(r["sessions"], 1)
+            self.assertEqual(r["metrics"]["app_activity_end_to_relay_ms"]["n"], 1)
+
+    def test_invalid_drift_annotation_rejected_with_diagnostic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "drift.jsonl"
+            for value in ["not_a_number", True, None, float("nan"), float("inf")]:
+                e = event("a", 1, "t44", 100)
+                e["x"] = {"clock_drift_us": value}
+                p.write_text(json.dumps(e) + "\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, ":1: invalid clock drift"):
+                    analysis.read_events([p])
+
+    def test_setup_events_correlate_at_turn_zero(self):
+        r = analysis.analyze([event("setup", 0, "t00", 100), event("setup", 0, "t07c", 1000100),
+                              event("setup", 0, "t01", 100, "companion"), event("setup", 0, "t07", 2000100, "companion")])
+        self.assertEqual(r["metrics"]["prewarm_app_ms"]["n"], 1)
+        self.assertEqual(r["metrics"]["prewarm_to_ready_ms"]["n"], 1)
+
 if __name__ == "__main__":
     unittest.main()

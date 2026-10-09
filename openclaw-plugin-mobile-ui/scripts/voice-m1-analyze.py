@@ -31,7 +31,8 @@ def read_events(paths):
     for path in paths:
         for lineno, raw in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
             line = raw.strip()
-            if not line:
+            if not line or not line.startswith(("{", "[")):
+                # logcat -v raw emits non-JSON banners and unrelated textual logs.
                 continue
             try:
                 e = json.loads(line)
@@ -51,6 +52,10 @@ def read_events(paths):
                 raise ValueError(f"{path}:{lineno}: invalid turn")
             if not isinstance(e.get("x"), dict):
                 raise ValueError(f"{path}:{lineno}: invalid technical metadata")
+            drift = e["x"].get("clock_drift_us")
+            if "clock_drift_us" in e["x"] and (type(drift) not in {int, float}
+                                                   or type(drift) is float and not math.isfinite(drift)):
+                raise ValueError(f"{path}:{lineno}: invalid clock drift metadata")
             events.append(e)
     return events
 
@@ -77,7 +82,12 @@ def summarize(values):
 
 def analyze(events):
     by_turn = defaultdict(dict)
+    # A close-time drift annotation invalidates all earlier observations of that sid.
+    # Include 1000 us to handle an over-1ms delta truncated to integer microseconds.
+    drifted = {e["sid"] for e in events if abs(e.get("x", {}).get("clock_drift_us", 0)) >= 1000}
     for e in events:
+        if e["sid"] in drifted:
+            continue
         key = (e["sid"], e["turn"])
         # Earliest event of a given name wins; no cross-session alignment.
         t = by_turn[key].get(e["ev"])
@@ -97,6 +107,7 @@ def analyze(events):
         "schema": "samantha.voice.m1.internal-analysis.v1",
         "sessions": len({sid for sid, _ in by_turn}),
         "turns": len(by_turn),
+        "clock_drift_excluded_sessions": sorted(drifted),
         "metrics": {name: {**summarize(durations[name]), "missing_turns": missing[name]} for name in STAGES},
         "external_reference_required": {
             "real_speech_end_to_first_audible_ms": "t23_external_to_t32",
