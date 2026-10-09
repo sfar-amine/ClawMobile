@@ -149,7 +149,7 @@ export class ClawLiveWarmCore {
     else if(meta.protocol!==2){this.telemetrySid="";this.telemetryTurns.clear();}
     this.trace("t01");
     this.localClients.add(ws);this.clientMeta.set(ws,meta);this.touch();
-    ws.once("close",()=>{this.localClients.delete(ws);this.protocols.get(ws)?.close();this.protocols.delete(ws);this.clientMeta.delete(ws);this.touch();if(meta.protocol===2)this.resetProvider("v2_owner_detached");this.telemetrySid="";this.telemetryTurns.clear();});
+    ws.once("close",()=>{this.localClients.delete(ws);this.protocols.get(ws)?.close();this.protocols.delete(ws);this.clientMeta.delete(ws);this.touch();if(meta.protocol===2)this.resetProvider("v2_owner_detached");if(this.telemetrySid)void this.telemetry.closeSession(this.telemetrySid);this.telemetrySid="";this.telemetryTurns.clear();});
     ws.on("message",(data)=>this.onLocalMessage(ws,data));
     const readyBefore=this.providerReady;
     try{
