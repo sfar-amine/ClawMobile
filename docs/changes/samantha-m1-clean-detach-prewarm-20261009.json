@@ -1,0 +1,84 @@
+{
+  "version": 2,
+  "id": "samantha-m1-clean-detach-prewarm-20261009",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Prewarm a fresh unbound provider after a normal ready v2 owner detach, preserving session isolation and existing bounded retry behavior.",
+  "reason": "User reports 3.0–3.4s next-session readiness after detach on S24 versus 0.12s warm; requests Git correction after Claude clock fix 4e971f5.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-claw-live-warm-detach.cjs",
+    ".github/workflows/ci.yml",
+    "docs/changes/samantha-m1-clean-detach-prewarm-20261009.md",
+    "docs/changes/samantha-m1-clean-detach-prewarm-20261009.json"
+  ],
+  "tests": [
+    {
+      "name": "clean-detach-prewarm",
+      "status": "passed",
+      "evidence": {
+        "command": "node scripts/test-claw-live-warm-detach.cjs",
+        "count": 7
+      }
+    },
+    {
+      "name": "m1-regression-campaign",
+      "status": "passed",
+      "evidence": {
+        "clock": 12,
+        "httpWs": 11,
+        "disturbances": 6,
+        "protocol": 14,
+        "corpusAnalyzer": 10,
+        "existingWarmCancellationOwnership": "passed"
+      }
+    },
+    {
+      "name": "typescript-build",
+      "status": "passed",
+      "evidence": {
+        "command": "npm run build"
+      }
+    }
+  ],
+  "documentation": [
+    "docs/changes/samantha-m1-clean-detach-prewarm-20261009.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Voice provider lifecycle only; no business capability execution, registry or authorization change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Uses the existing Warm owner, turn protocol and C1 JSONL contract; no new daemon, router or orchestration layer."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "docs/changes/samantha-m1-clean-detach-prewarm-20261009.md"
+    ]
+  },
+  "rollback": "Revert only this Git correction. Deployment remains with the S24-connected owner.",
+  "limitations": [
+    "No live latency improvement measured for this correction.",
+    "Lab deployed 4e971f5 and checkpoint 489395c8 were reported by Amine; no runtime mutation here.",
+    "Physical acceptance and barge-in route requalification remain with Claude."
+  ]
+}

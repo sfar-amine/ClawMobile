@@ -41,6 +41,7 @@ jobs:
           node scripts/test-voice-m1-telemetry.cjs
           node scripts/test-voice-m1-contracts.cjs
           node scripts/test-voice-m1-disturbances.cjs
+          node scripts/test-claw-live-warm-detach.cjs
           python3 scripts/test-voice-m1-corpus.py
           node scripts/test-voice-turn-protocol.cjs
           node scripts/test-warm-v2-ownership.cjs
