@@ -2,6 +2,7 @@ import http from "http";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import {VoiceTelemetry, type VoiceTelemetryCode} from "./voiceTelemetry";
 import {VoiceTurnProtocol} from "./voiceTurnProtocol";
 import type { Duplex } from "stream";
 import WebSocket, { WebSocketServer } from "ws";
@@ -16,7 +17,7 @@ const SETUP_TIMEOUT_MS=15_000;
 
 type WarmState="cold"|"connecting"|"warm"|"reconnecting"|"error";
 type TokenBundle={token:string;setup:any;expiresAt?:string;model?:string};
-type LocalMeta={locale:string;client:string;sessionId:string;protocol?:number;sessionEpoch?:string};
+type LocalMeta={locale:string;client:string;sessionId:string;protocol?:number;sessionEpoch?:string;endpointing?:string};
 
 type WarmDeps={
   tokenFactory?:(options:ClawLiveBootstrapOptions)=>Promise<TokenBundle>;
@@ -24,6 +25,7 @@ type WarmDeps={
   idleMs?:number;
   now?:()=>number;
   retryDelay?:(attempt:number)=>number;
+  telemetry?:VoiceTelemetry;
 };
 
 function safeMeta(req:http.IncomingMessage):LocalMeta {
@@ -34,7 +36,7 @@ function safeMeta(req:http.IncomingMessage):LocalMeta {
   const sessionId=/^[A-Za-z0-9._:-]{1,160}$/.test(raw)?raw:"default";
   const sessionEpoch=String(u.searchParams.get("epoch")||"");
   const protocol=u.searchParams.get("protocol")==="2"?2:1;
-  return {locale,client,sessionId,protocol,sessionEpoch};
+  return {locale,client,sessionId,protocol,sessionEpoch,endpointing:u.searchParams.get("endpointing")||"silero"};
 }
 
 function loopback(address?:string|null){
@@ -75,6 +77,9 @@ export class ClawLiveWarmCore {
   private stopped=false;
   private connectionGeneration=0;
   private pendingConnects=new Set<()=>void>();
+  private readonly telemetry:VoiceTelemetry;
+  private telemetrySid="";
+  private telemetryTurns=new Map<string,number>();
 
   constructor(deps:WarmDeps={}) {
     this.tokenFactory=deps.tokenFactory||((options)=>createClawLiveToken(fetch,undefined,options) as Promise<TokenBundle>);
@@ -82,6 +87,7 @@ export class ClawLiveWarmCore {
     this.idleMs=Math.max(60_000,deps.idleMs||Number(process.env.CLAW_LIVE_WARM_IDLE_MS)||DEFAULT_IDLE_MS);
     this.now=deps.now||(()=>Date.now());
     this.retryDelay=deps.retryDelay||reconnectDelay;
+    this.telemetry=deps.telemetry||new VoiceTelemetry();
   }
 
   status(){
@@ -91,8 +97,17 @@ export class ClawLiveWarmCore {
       conversationBound:Boolean(this.conversationId&&this.conversationId!=="__prewarm__"),resumable:this.hasValidResumeHandle(),historyLoaded:this.historyLoaded,
       connectedAt:this.connectedAt||null,readyAt:this.readyAt||null,lastUsedAt:this.lastUsedAt||null,
       lastSetupMs:this.lastSetupMs,resumedLast:this.resumedLast,reconnectAttempts:this.reconnectAttempts,
-      lastError:this.lastError||null,idleMs:this.idleMs,
+      lastError:this.lastError||null,idleMs:this.idleMs,telemetry:this.telemetry.status(),
     };
+  }
+
+  private trace(ev:VoiceTelemetryCode,turn=0,x:Record<string,number|boolean>={}) {
+    if(this.telemetrySid)this.telemetry.emit(this.telemetrySid,turn,ev,{connection:this.connectionGeneration,...x});
+  }
+  private observeTurn(ev:string,id:string) {
+    if(ev==="input_start"&&!this.telemetryTurns.has(id)&&this.telemetryTurns.size<64)this.telemetryTurns.set(id,this.telemetryTurns.size+1);
+    const turn=this.telemetryTurns.get(id);
+    if(turn!==undefined&&ev!=="input_start")this.trace(ev as VoiceTelemetryCode,turn);
   }
 
   private armIdleTimer(){
@@ -117,16 +132,24 @@ export class ClawLiveWarmCore {
   }
 
   async prewarm(meta:LocalMeta){
+    this.trace("t01");
     this.touch();
     await this.ensureConversation(meta);
     return this.status();
   }
 
   async attach(ws:WebSocket,meta:LocalMeta){
+    if(meta.endpointing&&meta.endpointing!=="silero"){
+      if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({warmError:{stage:"protocol",code:"endpointing_not_supported"}}));
+      ws.close(1008,"endpointing_not_supported");return;
+    }
     if(this.localClients.size>0) {ws.close(1008,"voice_owner_busy");return;}
     if(meta.protocol===2&&!/^[A-Za-z0-9._:-]{1,160}$/.test(meta.sessionEpoch||"")) {ws.close(1008,"invalid_voice_epoch");return;}
+    if(meta.protocol===2&&this.telemetrySid!==meta.sessionEpoch){this.telemetrySid=meta.sessionEpoch!;this.telemetryTurns.clear();}
+    else if(meta.protocol!==2){this.telemetrySid="";this.telemetryTurns.clear();}
+    this.trace("t01");
     this.localClients.add(ws);this.clientMeta.set(ws,meta);this.touch();
-    ws.once("close",()=>{this.localClients.delete(ws);this.protocols.get(ws)?.close();this.protocols.delete(ws);this.clientMeta.delete(ws);this.touch();if(meta.protocol===2)this.resetProvider("v2_owner_detached");});
+    ws.once("close",()=>{this.localClients.delete(ws);this.protocols.get(ws)?.close();this.protocols.delete(ws);this.clientMeta.delete(ws);this.touch();if(meta.protocol===2)this.resetProvider("v2_owner_detached");this.telemetrySid="";this.telemetryTurns.clear();});
     ws.on("message",(data)=>this.onLocalMessage(ws,data));
     const readyBefore=this.providerReady;
     try{
@@ -142,7 +165,9 @@ export class ClawLiveWarmCore {
     const meta=this.clientMeta.get(ws);
     if(meta?.protocol===2&&!this.protocols.has(ws))this.protocols.set(ws,new VoiceTurnProtocol(this.connectionGeneration,meta.sessionEpoch!,
       value=>{if(this.providerReady&&this.provider?.readyState===WebSocket.OPEN)this.provider.send(JSON.stringify(value));},
-      value=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(value));}));
+      value=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(value));},
+      (ev,id)=>this.observeTurn(ev,id)));
+    this.trace("t07");
     ws.send(JSON.stringify({warmReady:{historyRequired,resumed:this.resumedLast,setupMs:this.lastSetupMs,state:"warm",
       protocolVersion:meta?.protocol===2?2:1,connectionEpoch:this.connectionGeneration,sessionEpoch:meta?.sessionEpoch,
       bargeIn:readBargeInProfile()}}));
@@ -204,8 +229,9 @@ export class ClawLiveWarmCore {
   private async connectProviderAttempt(resume:boolean,generation:number):Promise<void>{
     this.state=resume?"reconnecting":"connecting";this.stage="token";this.lastError="";this.connectStartedAt=this.now();
     let bundle:TokenBundle;
+    const telemetrySid=this.telemetrySid;
     try{
-      bundle=await this.tokenFactory({locale:this.locale,client:"samantha_android"});
+      bundle=await this.tokenFactory({locale:this.locale,client:"samantha_android",telemetry:ev=>{if(generation===this.connectionGeneration&&telemetrySid===this.telemetrySid)this.trace(ev);}});
     }catch(e:any){if(generation===this.connectionGeneration&&!this.stopped)this.failStage("token",e);throw e;}
     if(this.stopped||generation!==this.connectionGeneration)throw new Error("warm_connect_cancelled");
     const setup=JSON.parse(JSON.stringify(bundle.setup||{}));
@@ -214,6 +240,7 @@ export class ClawLiveWarmCore {
     this.stage="websocket";
     const url=PROVIDER_URL+"?access_token="+encodeURIComponent(bundle.token);
     await new Promise<void>((resolve,reject)=>{
+      this.trace("t04");
       const ws=new this.WebSocketImpl(url);
       this.provider=ws;this.providerReady=false;let opened=false;let settled=false;
       const fail=(stage:string,error:any)=>{
@@ -221,7 +248,7 @@ export class ClawLiveWarmCore {
         this.failStage(stage,error);try{ws.close();}catch{};reject(error instanceof Error?error:new Error(String(error)));
       };
       this.setupTimer=setTimeout(()=>fail("setup_timeout",new Error("gemini_live_setup_timeout")),SETUP_TIMEOUT_MS).unref();
-      ws.on("open",()=>{if(this.provider!==ws||generation!==this.connectionGeneration)return;opened=true;this.connectedAt=this.now();this.stage="setup";ws.send(JSON.stringify({setup}));});
+      ws.on("open",()=>{if(this.provider!==ws||generation!==this.connectionGeneration)return;opened=true;this.trace("t05");this.connectedAt=this.now();this.stage="setup";ws.send(JSON.stringify({setup}));this.trace("t06");});
       ws.on("error",(e)=>{if(this.provider!==ws)return;if(!this.providerReady)fail(opened?"websocket":"connect",e);});
       ws.on("message",(data)=>{
         if(this.provider!==ws)return;
@@ -316,10 +343,10 @@ export class ClawLiveWarmCore {
 }
 
 export const clawLiveWarmCore=new ClawLiveWarmCore();
-const localServer=new WebSocketServer({noServer:true,maxPayload:2*1024*1024});
-localServer.on("connection",(ws,req)=>{void clawLiveWarmCore.attach(ws,safeMeta(req));});
-
-export function attachClawLiveWarmUpgrade(server:http.Server){
+export function attachClawLiveWarmUpgrade(server:http.Server,core=clawLiveWarmCore){
+  const localServer=new WebSocketServer({noServer:true,maxPayload:2*1024*1024});
+  localServer.on("connection",(ws,req)=>{void core.attach(ws,safeMeta(req));});
+  server.once("close",()=>localServer.close());
   server.on("upgrade",(req: http.IncomingMessage,socket:Duplex,head:Buffer)=>{
     let pathname="";try{pathname=new URL(req.url||"/","http://127.0.0.1").pathname;}catch{}
     if(pathname!==SOCKET_PATH||!loopback(req.socket.remoteAddress)||req.headers.origin){socket.destroy();return;}

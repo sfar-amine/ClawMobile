@@ -35,3 +35,16 @@ jobs:
 
       - name: Run trace induction tests
         run: npm run test:trace-induction
+
+      - name: Qualify Companion M1 contracts and telemetry offline
+        run: |
+          node scripts/test-voice-m1-telemetry.cjs
+          node scripts/test-voice-m1-contracts.cjs
+          node scripts/test-voice-m1-disturbances.cjs
+          python3 scripts/test-voice-m1-corpus.py
+          node scripts/test-voice-turn-protocol.cjs
+          node scripts/test-warm-v2-ownership.cjs
+          node scripts/test-claw-live-warm.cjs
+          node scripts/test-claw-live-warm-cancellation.cjs
+          TMPDIR=/tmp node scripts/test-claw-live.cjs
+          node scripts/test-companion-runs.cjs
