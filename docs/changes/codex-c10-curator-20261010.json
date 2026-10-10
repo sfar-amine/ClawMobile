@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "codex-c10-curator-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Prepare bounded native memory bridge in existing curator with idempotent author supersession closure",
+  "reason": "Programme33 C10 issue62; real200-event and native promotions/recalls fixtures absent, qualification blocked.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/context-dream.py",
+    "installer/termux-lite/context-store.py",
+    "installer/termux-lite/context_import.py",
+    "installer/termux-lite/context_digest.py",
+    "installer/termux-lite/test-context-digest.py",
+    "installer/termux-lite/test-context-scale.py",
+    "installer/termux-lite/companion-acceptance.py",
+    "docs/work/samantha-runtime/contracts/c10.md",
+    "docs/changes/codex-c10-curator-20261010.md",
+    "docs/changes/codex-c10-curator-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "C10-curator",
+      "status": "passed",
+      "evidence": "13 synthetic digest tests, 8 scale tests and 7 imports tests passed; full existing CI with appended C10 step passed. Installed 200-event fixture missing; qualification blocked."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c10.md",
+    "docs/changes/codex-c10-curator-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY: existing background curator and read-only Control projection; no new agent/voice operation, owner endpoint or adapter."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert C10; preserve immutable events, Claude decides cleanup of generated non-normative notes.",
+  "limitations": [
+    "Real200-event fixture and installed native promotion/recall source missing; counters unknown and draft blocked.",
+    "Managed daily digest partial receipt explicit; only represented proposals bridged, no all-digests coverage claim.",
+    "Installed13:05 cycle must be confirmed by Claude before activation; no new schedule."
+  ]
+}

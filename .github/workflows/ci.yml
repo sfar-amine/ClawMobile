@@ -105,3 +105,9 @@ jobs:
           python3 ../installer/termux-lite/test-context-import.py
       - name: Run read-only security surfaces contract
         run: node scripts/test-security-surfaces.cjs
+
+      - name: Run bounded cross-surface native digest contract
+        run: |
+          python3 ../installer/termux-lite/test-context-digest.py
+          python3 ../installer/termux-lite/test-context-scale.py
+          python3 ../installer/termux-lite/test-context-import.py
