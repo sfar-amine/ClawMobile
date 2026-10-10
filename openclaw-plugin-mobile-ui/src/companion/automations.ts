@@ -20,9 +20,14 @@ async function jobById(id:string){
  if(!job)throw nativeError("automation_not_found",404);
  return job;
 }
+export const AUTOMATION_PAYMENT_PATTERN=/financial|financi|finance|money|argent|payment|paiement|\bpay|paye|r[ée]gler|banqu|bank|bancair|biometr|3.?d.?secure|confirmation|clic.?to.?pay|topnet|maxit|termux[-_ ]notification|wallet|flouci|\botp\b|virement|transaction|carte|card|top.?up|recharge|d17|achat|achet|purchase|checkout|facture|invoice|\d+(?:[.,]\d+)?\s*(?:eur|usd|gbp|tnd|dt|dinars?|euros?|dollars?|€|\$)/iu;
+export function protectedPayment(value:any){
+ const text=typeof value==="string"?value:JSON.stringify(value);
+ return AUTOMATION_PAYMENT_PATTERN.test((text||"").replace(/[\n\r\t]|\\[nrt]/g," "));
+}
 export function protectedJob(job:any){
  // No scheduler action may bypass the existing financial/human boundary.
- return /payment|paiement|bank|bancair|biometr|3.?d.?secure|confirmation|clic.?to.?pay|topnet|maxit|termux[-_ ]notification|wallet|flouci|\botp\b|virement|transaction|carte|card|top.?up|recharge|d17|achat|purchase|facture|invoice/i.test(JSON.stringify(job));
+ return protectedPayment(job);
 }
 export async function automationDetail(id:string){
  const job=await jobById(id);
