@@ -1,4 +1,5 @@
 import {updatesRead} from "./updatesControl";
+import {readAgentConfig,changeAgentConfig} from "./agentConfig";
 import {engineeringRead} from "./engineeringRead";
 import {cancelControlRequest} from "./controlActions";
 import {diagnosticRead} from "./diagnostic";
@@ -299,6 +300,20 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if(requestUrl.search){writeJson(res,400,{success:false,state:"refused",receipt:null,error:"unsupported_parameter"});return;}
     try{res.setHeader("Cache-Control","no-store");writeJson(res,200,await updatesRead());}
     catch{writeJson(res,503,{success:false,state:"unavailable",receipt:null,error:"updates_unavailable"});}
+    return;
+  }
+
+  if(routePath==="/agent/config"){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){
+      writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;
+    }
+    res.setHeader("Cache-Control","no-store");
+    if(!['GET','POST'].includes(method)){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      const value=method==='GET'?await readAgentConfig():await changeAgentConfig(await readJsonBody(req,2048));
+      writeJson(res,value.state==='refused'?409:200,value);
+    }catch(error:any){const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
     return;
   }
 
