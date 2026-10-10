@@ -33,7 +33,8 @@ health(){ for _ in $(seq 1 60); do curl -fsS -m 3 http://127.0.0.1:8765/v1/healt
 restart(){ pkill -f 'dist/companion/server.js' 2>/dev/null; sleep 3; pgrep -f 'dist/companion/server.js' >/dev/null || nohup "$ROOT/companion-server.sh" >>"$log" 2>&1 </dev/null & health; }
 
 # Preflight: never stack a deploy on a heavy job (Gradle, another build) or on a phone short of memory.
-available=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo); load=$(cut -d' ' -f1 /proc/loadavg)
+available=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo); # /proc/loadavg is denied to detached processes on Android: read the 1-minute load from uptime.
+load=$(uptime 2>/dev/null | sed -n 's/.*load average: *\([0-9.]*\).*/\1/p'); load="${load:-0}"
 if pgrep -f 'GradleDaemon|gradle-termux|tsc -p tsconfig' >/dev/null || [ "${available:-0}" -lt "$MIN_AVAILABLE_MB" ] \
    || awk -v l="$load" -v m="$MAX_LOAD" 'BEGIN{exit !(l>m)}'; then
   write refused "$target" "" "preflight: available=${available}MB load=$load heavy_job=$(pgrep -fc 'GradleDaemon|gradle-termux|tsc -p tsconfig')"
