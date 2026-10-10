@@ -98,3 +98,8 @@ jobs:
 
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
+
+      - name: Run memory control and atomic export import contracts
+        run: |
+          node scripts/test-memory-control.cjs
+          python3 ../installer/termux-lite/test-context-import.py
