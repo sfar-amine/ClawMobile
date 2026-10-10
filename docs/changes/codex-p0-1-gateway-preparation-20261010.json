@@ -23,7 +23,7 @@
     {
       "name": "complete-current-ci-workflow",
       "status": "passed",
-      "evidence": "All run steps of current ci.yml executed locally after explicit runtime fetch at6b7c68f; CI_LOCAL_OK exit0. Existing steps preserved. Runtime integration and S24 qualification remain blocked."
+      "evidence": "All run steps of current ci.yml executed locally after normal merge of runtimeaf80166; CI_LOCAL_OK exit0. All26 base steps preserved plus preparation suite. Runtime integration and S24 qualification remain blocked."
     }
   ],
   "documentation": [
