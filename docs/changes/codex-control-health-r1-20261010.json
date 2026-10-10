@@ -12,7 +12,7 @@
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
     "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
     "openclaw-plugin-mobile-ui/scripts/test-control-health-components.cjs",
-    "docs/work/samantha-runtime/contracts/R1.md",
+    "docs/work/samantha-runtime/contracts/r1.md",
     "docs/changes/codex-control-health-r1-20261010.md",
     "docs/changes/codex-control-health-r1-20261010.json"
   ],
@@ -35,7 +35,7 @@
   ],
   "documentation": [
     "docs/changes/codex-control-health-r1-20261010.md",
-    "docs/work/samantha-runtime/contracts/R1.md"
+    "docs/work/samantha-runtime/contracts/r1.md"
   ],
   "capabilities": {
     "impact": "none",
