@@ -165,7 +165,7 @@ export class ClawLiveWarmCore {
     ws.on("message",(data)=>this.onLocalMessage(ws,data));
     const readyBefore=this.providerReady;
     try{
-      await this.ensureConversation(meta);
+      await this.ensureConversation(meta,true);
       if(readyBefore&&this.providerReady)this.sendReady(ws,!this.historyLoaded);
     }catch{
       if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({warmError:{stage:this.stage,code:this.lastError||"warm_unavailable"}}));
@@ -185,7 +185,7 @@ export class ClawLiveWarmCore {
       bargeIn:readBargeInProfile()}}));
   }
 
-  private async ensureConversation(meta:LocalMeta){
+  private async ensureConversation(meta:LocalMeta,newOwner=false){
     if(this.stopped)throw new Error("warm_connect_cancelled");
     // Lifecycle prewarm must not unbind an active conversation.
     if(meta.sessionId==="__prewarm__"&&this.conversationId)meta={...meta,sessionId:this.conversationId,voice:this.voice};
@@ -194,7 +194,7 @@ export class ClawLiveWarmCore {
     if(changed&&this.localClients.size>0&&![...this.clientMeta.values()].every(v=>v.sessionId===meta.sessionId))throw new Error("voice_owner_busy");
     const desiredVoice=validatedClawLiveVoice(meta.voice);
     // Only a new conversation/connection may adopt a preference. An active owner keeps its setup.
-    if(unbound&&desiredVoice!==this.voice)this.resetProvider("voice_selected_before_owner");
+    if((unbound||newOwner)&&desiredVoice!==this.voice)this.resetProvider("voice_selected_before_owner");
     if(changed)this.resetProvider("conversation_changed");
     if(!this.conversationId||unbound||changed)this.voice=desiredVoice;
     if(!this.conversationId||unbound||meta.sessionId==="__prewarm__")this.conversationId=meta.sessionId;

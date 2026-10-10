@@ -20,12 +20,12 @@
     {
       "name": "V5 HTTP and provider setup contract",
       "status": "passed",
-      "evidence": "test-voice-choices.cjs: GET catalogue/envelope/privacy, all eight candidate setups, strict validation before token mint, null/absent exact historical setup, native HTTP+WebSocket setup capture, active setup frozen, same-conversation next session and resumption/v2 detach, no storage writes."
+      "evidence": "test-voice-choices.cjs: GET catalogue/envelope/privacy, all eight candidate setups, strict validation before token mint, null/absent exact historical setup, native HTTP+WebSocket setup capture, active setup frozen, same-conversation next session and resumption/v2 detach, no storage writes. Additional regression: protocol 1 same-thread detach with warm provider accepts a different voice only when the next local owner attaches; active owner/reconnect keep voice."
     },
     {
       "name": "Current CI and final voice regressions",
       "status": "passed",
-      "evidence": "/tmp/run_pr_ci.py: CI_LOCAL_OK. Final build and test-claw-live, warm, warm-detach and warm-cancellation rerun with portable TMPDIR; all pass. ci.yml unchanged; new V5 test run separately."
+      "evidence": "/tmp/run_pr_ci.py: CI_LOCAL_OK. Final build and test-claw-live, warm, warm-detach and warm-cancellation rerun with portable TMPDIR; all pass. ci.yml unchanged; new V5 test run separately. After the owner-entry refinement, build, V5 and warm/detach/cancellation rerun and pass."
     }
   ],
   "documentation": [
