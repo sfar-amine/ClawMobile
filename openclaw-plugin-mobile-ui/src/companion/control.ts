@@ -1,12 +1,13 @@
 import {allJobs,protectedJob} from "./automations";
 import { execFile, spawn } from "child_process";
-import {existsSync} from "fs";
+import {existsSync, constants} from "fs";
 import type { IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
 import readline from "readline";
 import { randomUUID, createHash } from "crypto";
 import { performance } from "perf_hooks";
+import fs from "fs/promises";
 import { completeHealthSection } from "./control-health";
 
 const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations", "notifications", "diagnostic"]);
@@ -222,13 +223,38 @@ export class ControlReadPool {
 }
 const controlReads=new ControlReadPool();
 
-export function readControlV2(selected:string[],detailId:string|undefined,signal?:AbortSignal,force=false):Promise<ControlResult>{
+// A revision input, never a replacement scheduler or a second copy of its jobs.
+async function automationSourceRevision():Promise<string|null>{
+  const root=process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),".openclaw");
+  const directory=path.join(root,"cron"),source=path.join(directory,"jobs.json");
+  let file:Awaited<ReturnType<typeof fs.open>>|undefined;
+  try{
+    for(const parent of [root,directory]){const info=await fs.lstat(parent);if(!info.isDirectory()||info.isSymbolicLink())return null;}
+    file=await fs.open(source,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
+    const info=await file.stat();if(!info.isFile()||info.size>8*1024*1024)return null;
+    const data=await file.readFile();if(data.length>8*1024*1024)return null;
+    return createHash("sha256").update(data).digest("hex");
+  }catch{return null;}finally{await file?.close();}
+}
+
+function deferredAutomations(revision:string|null):ControlResult{
+  return {schemaVersion:2,sections:{automations:{schemaVersion:2,resourceKey:"control/v2/automations",
+    dataRevision:createHash("sha256").update("deferred:"+(revision||"unavailable")).digest("hex"),
+    availability:"unavailable",freshness:"unknown",remainingFreshMs:0,
+    reason:revision?"computation_pending":"source_revision_unavailable"}},
+    computation:{deliveryMode:"deferred",retryAfterMs:250}};
+}
+
+export async function readControlV2(selected:string[],detailId:string|undefined,signal?:AbortSignal,force=false):Promise<ControlResult>{
   const names=[...new Set(selected)].sort();
   if(!names.length||names.some(n=>n==="snapshot"||!sections.has(n)))return Promise.reject(controlError("unsupported_control_section",400));
   if(detailId&&(!/^[A-Za-z0-9_.:-]{1,160}$/.test(detailId)||names.length!==1||!["requests","missions","situations"].includes(names[0])))
     return Promise.reject(controlError("invalid_control_detail",400));
   const roots=controlPaths();
-  const key=JSON.stringify(["native-loopback",roots.playbooks,roots.live,2,names,detailId||null]);
+  const fastAutomations=names.length===1&&names[0]==="automations";
+  const sourceRevision=fastAutomations?await automationSourceRevision():null;
+  if(fastAutomations&&!sourceRevision)return deferredAutomations(null);
+  const key=JSON.stringify(["native-loopback",roots.playbooks,roots.live,2,names,detailId||null,sourceRevision]);
   const generate=(abort:AbortSignal)=>new Promise<ControlResult>((resolve,reject)=>{
     const args=["-m","reporting.control_snapshot","--contract","2","--sections",names.join(",")];
     if(detailId)args.push("--detail-id",detailId);
@@ -268,7 +294,18 @@ export function readControlV2(selected:string[],detailId:string|undefined,signal
     child.once("close",code=>finish(code===0?undefined:controlError("control_unavailable")));
     abort.addEventListener("abort",cancel,{once:true});if(abort.aborted)cancel();
   });
-  return controlReads.read(key,generate,signal,{force,cache:process.env.SAMANTHA_CONTROL_CACHE==="1"});
+  const guardedGenerate=async(abort:AbortSignal)=>{
+    const value=await generate(abort);
+    if(fastAutomations&&await automationSourceRevision()!==sourceRevision)throw controlError("control_invalidated",409);
+    return value;
+  };
+  const result=controlReads.read(key,guardedGenerate,signal,{force,cache:fastAutomations||process.env.SAMANTHA_CONTROL_CACHE==="1"});
+  if(!fastAutomations)return result;
+  // The existing bounded collector continues; polling shares its single flight.
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  try{return await Promise.race([result,new Promise<ControlResult>(resolve=>{
+    timer=setTimeout(()=>resolve(deferredAutomations(sourceRevision)),180);
+  })]);}finally{if(timer)clearTimeout(timer);}
 }
 
 export async function handleControl(req: IncomingMessage, res: ServerResponse, route: string): Promise<boolean> {

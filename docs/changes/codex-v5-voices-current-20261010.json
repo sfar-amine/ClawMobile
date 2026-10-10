@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "codex-v5-voices-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "V5 : catalogue fermé et voix choisie à l’amorçage de la prochaine session, sans stockage Companion",
+  "reason": "Fichier 23 fourni par Amine ; stockage du choix Android conservé par Claude, modèles et routes audio inchangés.",
+  "files": [
+    "docs/changes/codex-v5-voices-current-20261010.json",
+    "docs/changes/codex-v5-voices-current-20261010.md",
+    "docs/work/samantha-runtime/contracts/v5.md",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-choices.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "V5 HTTP and provider setup contract",
+      "status": "passed",
+      "evidence": "test-voice-choices.cjs: GET catalogue/envelope/privacy, all eight candidate setups, strict validation before token mint, null/absent exact historical setup, native HTTP+WebSocket setup capture, active setup frozen, same-conversation next session and resumption/v2 detach, no storage writes. Additional regression: protocol 1 same-thread detach with warm provider accepts a different voice only when the next local owner attaches; active owner/reconnect keep voice."
+    },
+    {
+      "name": "Current CI and final voice regressions",
+      "status": "passed",
+      "evidence": "/tmp/run_pr_ci.py: CI_LOCAL_OK. Final build and test-claw-live, warm, warm-detach and warm-cancellation rerun with portable TMPDIR; all pass. ci.yml unchanged; new V5 test run separately. After the owner-entry refinement, build, V5 and warm/detach/cancellation rerun and pass."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/v5.md",
+    "docs/changes/codex-v5-voices-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert V5 commits; omit voice or send null to retain the existing provider default setup.",
+  "limitations": [
+    "No provider/S24 qualification, deployment or acoustic proof. All eight candidate voices remain validated:false until Claude verifies setupComplete and removes rejected names. Existing default retained. Claude/Amine own Android preference, audio listening and three-session median startup delta below 50 ms."
+  ]
+}

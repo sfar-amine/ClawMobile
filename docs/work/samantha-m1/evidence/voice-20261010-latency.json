@@ -1,0 +1,110 @@
+{
+  "schema": "samantha.voice.m1.internal-analysis.v1",
+  "sessions": 3,
+  "turns": 3,
+  "clock_drift_excluded_sessions": [],
+  "clock_drift_unknown_boundary_sessions": [],
+  "metrics": {
+    "prewarm_to_ready_ms": {
+      "n": 3,
+      "p50_ms": 9.8,
+      "p90_ms": 15.5,
+      "max_ms": 16.93,
+      "missing_turns": 0
+    },
+    "token_helper_ms": {
+      "n": 0,
+      "missing_turns": 3
+    },
+    "provider_websocket_ms": {
+      "n": 0,
+      "missing_turns": 3
+    },
+    "prewarm_app_ms": {
+      "n": 3,
+      "p50_ms": 367.7,
+      "p90_ms": 388.96,
+      "max_ms": 394.28,
+      "missing_turns": 0
+    },
+    "app_activity_end_to_relay_ms": {
+      "n": 0,
+      "missing_turns": 3
+    },
+    "provider_audio_to_app_ms": {
+      "n": 0,
+      "missing_turns": 3
+    },
+    "audiotrack_write_to_present_ms": {
+      "n": 0,
+      "missing_turns": 3
+    },
+    "barge_detect_to_stop_ms": {
+      "n": 0,
+      "missing_turns": 3
+    }
+  },
+  "startup": {
+    "schema": "samantha.voice.startup-latency.v1",
+    "metrics": {
+      "prewarm_app_ms": {
+        "n": 3,
+        "p50_ms": 367.7,
+        "p90_ms": 388.96,
+        "max_ms": 394.28,
+        "p95_ms": null,
+        "observed_p95_ms": 391.62,
+        "missing_sessions": 0,
+        "p95_qualified": false
+      },
+      "t00_to_t01_ms": {
+        "n": 3,
+        "p50_ms": 356.97,
+        "p90_ms": 371.96,
+        "max_ms": 375.71,
+        "p95_ms": null,
+        "observed_p95_ms": 373.83,
+        "missing_sessions": 0,
+        "p95_qualified": false
+      },
+      "t01_to_t07_ms": {
+        "n": 3,
+        "p50_ms": 9.8,
+        "p90_ms": 15.5,
+        "max_ms": 16.93,
+        "p95_ms": null,
+        "observed_p95_ms": 16.22,
+        "missing_sessions": 0,
+        "p95_qualified": false
+      },
+      "t00_to_t07c_ms": {
+        "n": 3,
+        "p50_ms": 367.7,
+        "p90_ms": 388.96,
+        "max_ms": 394.28,
+        "p95_ms": null,
+        "observed_p95_ms": 391.62,
+        "missing_sessions": 0,
+        "p95_qualified": false
+      }
+    },
+    "joinedBy": [
+      "sid",
+      "src",
+      "turn=0"
+    ],
+    "clock_drift_excluded_sessions": [],
+    "clock_drift_unknown_boundary_sessions": [],
+    "clock_policy": {
+      "untruncated_drift_us": ">1000 absolute",
+      "legacy_drift_us": ">=1000 absolute",
+      "legacy_exact_1000_reason": "unknown_truncated_boundary"
+    }
+  },
+  "external_reference_required": {
+    "real_speech_end_to_first_audible_ms": "t23_external_to_t32",
+    "barge_detect_ms": "t40_external_to_t41",
+    "barge_e2e_ms": "t40_external_to_t43"
+  },
+  "warning": "Internal CLOCK_BOOTTIME decomposition only; no externally grounded user latency KPI."
+}

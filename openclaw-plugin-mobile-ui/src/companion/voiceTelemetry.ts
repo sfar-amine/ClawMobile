@@ -47,6 +47,7 @@ export class VoiceTelemetry {
   private unavailable=false;
   private offset:bigint|null=null;
   private calibratedSid="";
+  private sessionOffsets=new Map<string,bigint>();
   private calibrating:Promise<void>|null=null;
   private pending:Pending[]=[];
   private lastCalibrationUs=0;
@@ -92,7 +93,7 @@ export class VoiceTelemetry {
     if(this.offset!==null&&this.calibratedSid===sid&&!this.calibrating){this.write(item,this.offset);return;}
     if(this.pending.length>=MAX_PENDING){this.failed++;return;}
     this.pending.push(item);
-    if(!this.calibrating||this.calibratedSid!==sid)this.startCalibration(sid);
+    if(!this.calibrating)this.startCalibration(sid);
   }
   /** Measures BOOTTIME - MONOTONIC and re-qualifies hrtime as MONOTONIC; throws when the bracket check fails. */
   private async measureOffset():Promise<{offset:bigint;us:number}> {
@@ -111,14 +112,14 @@ export class VoiceTelemetry {
     if(!this.enabled||this.clock||this.unavailable||!/^[A-Za-z0-9._:-]{1,160}$/.test(sid))return Promise.resolve();
     const check=(async()=>{
       await this.flush();
-      const used=this.offset;
-      if(used===null||this.calibratedSid!==sid||this.unavailable)return;
+      const used=this.sessionOffsets.get(sid);
+      if(used===undefined||this.unavailable)return;
       try {
         const {offset}=await this.measureOffset();
         const drift=offset-used;
         this.lastDriftUs=Number(drift/1000n);this.suspendDetected||=drift>DRIFT_ALERT_NS||drift< -DRIFT_ALERT_NS;
         const wall=this.wall();
-        if(Number.isSafeInteger(wall)&&wall>=0)this.line(sid,0,CLOSE_CHECK,this.monotonic()+offset,wall,{clock_drift_us:Number(drift/1000n)});
+        if(Number.isSafeInteger(wall)&&wall>=0)this.line(sid,0,CLOSE_CHECK,this.monotonic()+offset,wall,{clock_drift_us:Number(drift)/1000,clock_drift_truncated:false});
       }catch{this.failed++;}
     })();
     return check;
@@ -134,14 +135,22 @@ export class VoiceTelemetry {
         // A drift beyond 1 ms between sessions means a suspend happened in between; it is reported, never smoothed.
         if(previous!==null){const drift=offset-previous;this.lastDriftUs=Number(drift/1000n);this.suspendDetected||=drift>DRIFT_ALERT_NS||drift< -DRIFT_ALERT_NS;}
         this.offset=offset;
-        const queued=this.pending;this.pending=[];
+        this.sessionOffsets.set(sid,offset);
+        while(this.sessionOffsets.size>8)this.sessionOffsets.delete(this.sessionOffsets.keys().next().value!);
+        const queued=this.pending.filter(item=>item.sid===sid);
+        this.pending=this.pending.filter(item=>item.sid!==sid);
         for(const item of queued)this.write(item,offset);
       }catch{
         // Fail once; instrumentation failure must not break Voice or expose stderr.
         this.failed+=this.pending.length;this.pending=[];this.unavailable=true;this.offset=null;
       }
     })();
-    const done=run.finally(()=>{if(this.calibrating===done)this.calibrating=null;});
+    const done=run.finally(()=>{
+      if(this.calibrating===done){
+        this.calibrating=null;
+        if(this.pending.length&&!this.unavailable)this.startCalibration(this.pending[0].sid);
+      }
+    });
     this.calibrating=done;
   }
   private write(item:Pending,offset:bigint) {
