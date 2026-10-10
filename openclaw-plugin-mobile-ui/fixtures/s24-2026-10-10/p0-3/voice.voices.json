@@ -1,0 +1,93 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/voice/voices",
+  "latencyMs": 14,
+  "repeatLatencyMs": 23,
+  "capturedAt": "2026-10-10T18:35:59+00:00",
+  "companion": "loopback 127.0.0.1:8765, sans en-tête propriétaire",
+  "sanitized": true
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "schemaVersion": 1,
+  "model": "gemini-3.8-live",
+  "appliesTo": "next_session",
+  "items": [
+   {
+    "id": null,
+    "label": "<texte 10 car.>",
+    "description": "<texte 34 car.>",
+    "current": null,
+    "validated": true,
+    "validation": "existing_default"
+   },
+   {
+    "id": "Puck",
+    "label": "<texte 9 car.>",
+    "description": "<texte 21 car.>",
+    "current": null,
+    "validated": false,
+    "reason": "<texte 28 car.>"
+   },
+   {
+    "id": "Charon",
+    "label": "<texte 11 car.>",
+    "description": "<texte 27 car.>",
+    "current": null,
+    "validated": false,
+    "reason": "<texte 28 car.>"
+   },
+   {
+    "id": "Kore",
+    "label": "<texte 9 car.>",
+    "description": "<texte 22 car.>",
+    "current": null,
+    "validated": false,
+    "reason": "<texte 28 car.>"
+   },
+   {
+    "id": "Fenrir",
+    "label": "<texte 11 car.>",
+    "description": "<texte 31 car.>",
+    "current": null,
+    "validated": false,
+    "reason": "<texte 28 car.>"
+   },
+   {
+    "id": "Aoede",
+    "label": "<texte 10 car.>",
+    "description": "<texte 24 car.>",
+    "current": null,
+    "validated": false,
+    "reason": "<texte 28 car.>"
+   },
+   {
+    "id": "Leda",
+    "label": "<texte 9 car.>",
+    "description": "<texte 22 car.>",
+    "current": null,
+    "validated": false,
+    "reason": "<texte 28 car.>"
+   },
+   {
+    "id": "Orus",
+    "label": "<texte 9 car.>",
+    "description": "<texte 20 car.>",
+    "current": null,
+    "validated": false,
+    "reason": "<texte 28 car.>"
+   },
+   {
+    "id": "Zephyr",
+    "label": "<texte 11 car.>",
+    "description": "<texte 28 car.>",
+    "current": null,
+    "validated": false,
+    "reason": "<texte 28 car.>"
+   }
+  ]
+ }
+}

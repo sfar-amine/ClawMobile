@@ -1,0 +1,613 @@
+{
+ "_capture": {
+  "method": "sqlite",
+  "source": "~/.openclaw/context-sync/memory.db (file:…?mode=ro, PRAGMA query_only=1)",
+  "query": "SELECT * FROM events WHERE kind IN ('decision','checkpoint') ORDER BY revision DESC; actif = id absent de toute colonne supersedes; 12 premiers",
+  "capturedAt": "2026-10-10T18:21:28+00:00",
+  "sanitized": true,
+  "note": "id/supersedes/session_id hachés avec un sel commun à c2/ et c10/ (format conservé) ; text remplacé par sa longueur"
+ },
+ "schema": {
+  "events": [
+   {
+    "cid": 0,
+    "name": "id",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt": null,
+    "pk": 1
+   },
+   {
+    "cid": 1,
+    "name": "surface",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt": null,
+    "pk": 0
+   },
+   {
+    "cid": 2,
+    "name": "kind",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt": null,
+    "pk": 0
+   },
+   {
+    "cid": 3,
+    "name": "text",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt": null,
+    "pk": 0
+   },
+   {
+    "cid": 4,
+    "name": "created_at",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt": null,
+    "pk": 0
+   },
+   {
+    "cid": 5,
+    "name": "ingested_at",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt": null,
+    "pk": 0
+   },
+   {
+    "cid": 6,
+    "name": "supersedes",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt": null,
+    "pk": 0
+   },
+   {
+    "cid": 7,
+    "name": "revision",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt": null,
+    "pk": 0
+   },
+   {
+    "cid": 8,
+    "name": "session_id",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt": null,
+    "pk": 0
+   }
+  ],
+  "indexes": [
+   "CREATE UNIQUE INDEX idx_events_revision ON events(revision)",
+   "CREATE INDEX idx_events_created ON events(created_at)",
+   "CREATE INDEX idx_events_supersedes ON events(supersedes)",
+   "CREATE INDEX idx_events_kind_revision ON events(kind,revision)"
+  ]
+ },
+ "volume": {
+  "events": 1933,
+  "superseding_events": 108,
+  "by_surface_kind": [
+   {
+    "surface": "chat",
+    "kind": "checkpoint",
+    "count": 169
+   },
+   {
+    "surface": "chat",
+    "kind": "completed_action",
+    "count": 394
+   },
+   {
+    "surface": "chat",
+    "kind": "constraint",
+    "count": 27
+   },
+   {
+    "surface": "chat",
+    "kind": "decision",
+    "count": 159
+   },
+   {
+    "surface": "chat",
+    "kind": "learning",
+    "count": 193
+   },
+   {
+    "surface": "chat",
+    "kind": "open_thread",
+    "count": 104
+   },
+   {
+    "surface": "openclaw",
+    "kind": "checkpoint",
+    "count": 1
+   },
+   {
+    "surface": "openclaw",
+    "kind": "completed_action",
+    "count": 12
+   },
+   {
+    "surface": "openclaw",
+    "kind": "decision",
+    "count": 1
+   },
+   {
+    "surface": "openclaw",
+    "kind": "learning",
+    "count": 382
+   },
+   {
+    "surface": "openclaw",
+    "kind": "open_thread",
+    "count": 5
+   },
+   {
+    "surface": "work",
+    "kind": "checkpoint",
+    "count": 408
+   },
+   {
+    "surface": "work",
+    "kind": "completed_action",
+    "count": 35
+   },
+   {
+    "surface": "work",
+    "kind": "constraint",
+    "count": 2
+   },
+   {
+    "surface": "work",
+    "kind": "decision",
+    "count": 16
+   },
+   {
+    "surface": "work",
+    "kind": "learning",
+    "count": 11
+   },
+   {
+    "surface": "work",
+    "kind": "open_thread",
+    "count": 14
+   }
+  ],
+  "active_decision_checkpoint": 742
+ },
+ "recent12ActiveDecisionsCheckpoints": [
+  {
+   "id": "f579c829f3c3bb1a6244bcfaafa01a4b6a87664e35e30f1a208ebefc951b2e62",
+   "surface": "work",
+   "kind": "decision",
+   "text": "<texte 592 car.>",
+   "textBytes": 610,
+   "created_at": "2026-10-10T17:32:57.096912+00:00",
+   "ingested_at": "2026-10-10T17:32:57.301708+00:00",
+   "supersedes": null,
+   "revision": 1930,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "ff4cc50d8383b024f1d77e09d6ef06cea98b246355c839f45d88d6bb8adb4e4d",
+   "surface": "work",
+   "kind": "decision",
+   "text": "<texte 648 car.>",
+   "textBytes": 665,
+   "created_at": "2026-10-10T16:12:04.568463+00:00",
+   "ingested_at": "2026-10-10T16:12:04.672230+00:00",
+   "supersedes": null,
+   "revision": 1926,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "7d8773997281fba86ee73f9440a47248c43db0e50b0d8ba0e4a10d4e4dd92e1d",
+   "surface": "work",
+   "kind": "checkpoint",
+   "text": "<texte 151 car.>",
+   "textBytes": 151,
+   "created_at": "2026-10-10T16:11:02.703872+00:00",
+   "ingested_at": "2026-10-10T16:11:02.979270+00:00",
+   "supersedes": null,
+   "revision": 1925,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "69619979334e72ef5d87a267c8554149bc4129ba2ad5e56b7de1c7f585c0d9d7",
+   "surface": "work",
+   "kind": "checkpoint",
+   "text": "<texte 151 car.>",
+   "textBytes": 151,
+   "created_at": "2026-10-10T15:55:46.417207+00:00",
+   "ingested_at": "2026-10-10T15:55:46.585572+00:00",
+   "supersedes": null,
+   "revision": 1922,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "3ca0059540fd9c0b726feb22df6279e3371428375eb88ffe04cdf2e21acb8a0b",
+   "surface": "work",
+   "kind": "checkpoint",
+   "text": "<texte 443 car.>",
+   "textBytes": 456,
+   "created_at": "2026-10-10T15:39:18.667154+00:00",
+   "ingested_at": "2026-10-10T15:39:18.799418+00:00",
+   "supersedes": null,
+   "revision": 1919,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "bdf07b0d5027bc4a0db9749e5e42e4cd8aca4d918640a355da0248d278191971",
+   "surface": "work",
+   "kind": "decision",
+   "text": "<texte 684 car.>",
+   "textBytes": 704,
+   "created_at": "2026-10-10T15:33:25.037871+00:00",
+   "ingested_at": "2026-10-10T15:33:25.189144+00:00",
+   "supersedes": null,
+   "revision": 1918,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "03da2fa416d7c173b8d1337c7850219e5c1c34cb5c77a6b0882237c68aec8b5f",
+   "surface": "work",
+   "kind": "checkpoint",
+   "text": "<texte 161 car.>",
+   "textBytes": 161,
+   "created_at": "2026-10-10T15:05:17.671889+00:00",
+   "ingested_at": "2026-10-10T15:05:17.793129+00:00",
+   "supersedes": null,
+   "revision": 1915,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "e8a5b3b9150699d1fd7d35257ca5a9d46c95fd3d1fcb218553a3945d7482ef9f",
+   "surface": "work",
+   "kind": "checkpoint",
+   "text": "<texte 161 car.>",
+   "textBytes": 161,
+   "created_at": "2026-10-10T14:55:14.836799+00:00",
+   "ingested_at": "2026-10-10T14:55:14.973434+00:00",
+   "supersedes": null,
+   "revision": 1912,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "fd3267fc4b2700d1d416fdeadabf7ae14daef9aa68c115b21bf1b9e18cb652eb",
+   "surface": "work",
+   "kind": "decision",
+   "text": "<texte 625 car.>",
+   "textBytes": 645,
+   "created_at": "2026-10-10T14:33:08.813361+00:00",
+   "ingested_at": "2026-10-10T14:33:09.035472+00:00",
+   "supersedes": null,
+   "revision": 1911,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "8e5d6321bbdb6e1af9c11db90abdd6d9eec05a1e40114bed4b873cbd07afac1c",
+   "surface": "work",
+   "kind": "checkpoint",
+   "text": "<texte 157 car.>",
+   "textBytes": 157,
+   "created_at": "2026-10-10T13:00:14.411529+00:00",
+   "ingested_at": "2026-10-10T13:00:14.646744+00:00",
+   "supersedes": null,
+   "revision": 1909,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "3c2eb2d0478cd389e5b32af29b614ac78853c0ecbfd283ad80a4929d0b1750d8",
+   "surface": "work",
+   "kind": "checkpoint",
+   "text": "<texte 151 car.>",
+   "textBytes": 151,
+   "created_at": "2026-10-10T12:55:47.744303+00:00",
+   "ingested_at": "2026-10-10T12:55:47.938287+00:00",
+   "supersedes": null,
+   "revision": 1908,
+   "session_id": null,
+   "presentInHybridContext": false
+  },
+  {
+   "id": "547f689adc056ed3661e431df9af93d1094db037e495d68b267228cd74a42a91",
+   "surface": "chat",
+   "kind": "checkpoint",
+   "text": "<texte 431 car.>",
+   "textBytes": 444,
+   "created_at": "2026-10-10T12:42:32.012354+00:00",
+   "ingested_at": "2026-10-10T12:42:32.138797+00:00",
+   "supersedes": null,
+   "revision": 1905,
+   "session_id": null,
+   "presentInHybridContext": false
+  }
+ ],
+ "supersessionExamples": [
+  {
+   "replacement": {
+    "id": "32787365881e895c08fd5a937c87daafdeb22a27521f384f1127d993ae121f92",
+    "surface": "chat",
+    "kind": "decision",
+    "text": "<texte 641 car.>",
+    "textBytes": 641,
+    "created_at": "2026-10-09T10:15:00.790561+00:00",
+    "ingested_at": "2026-10-09T10:15:01.220393+00:00",
+    "supersedes": "754d515a5c9bc764419b5ed55176e2f6b5d080bcb36de8a64fa7f423ff9f3cad",
+    "revision": 1699,
+    "session_id": null
+   },
+   "superseded": {
+    "id": "754d515a5c9bc764419b5ed55176e2f6b5d080bcb36de8a64fa7f423ff9f3cad",
+    "surface": "chat",
+    "kind": "decision",
+    "text": "<texte 749 car.>",
+    "textBytes": 749,
+    "created_at": "2026-10-09T10:09:48.214940+00:00",
+    "ingested_at": "2026-10-09T10:09:48.306240+00:00",
+    "supersedes": null,
+    "revision": 1698,
+    "session_id": null
+   }
+  },
+  {
+   "replacement": {
+    "id": "33ef8c4433aa4ef14e3e1aae7a222ed5dafd8cdcaa23b43fe7edf6bd21ad784a",
+    "surface": "chat",
+    "kind": "decision",
+    "text": "<texte 620 car.>",
+    "textBytes": 620,
+    "created_at": "2026-10-09T10:07:36.087393+00:00",
+    "ingested_at": "2026-10-09T10:07:36.226229+00:00",
+    "supersedes": "76d62b10abd745ee54afe5c9560f5d5720356de9a7b018c747d839f7e205c8bc",
+    "revision": 1697,
+    "session_id": null
+   },
+   "superseded": {
+    "id": "76d62b10abd745ee54afe5c9560f5d5720356de9a7b018c747d839f7e205c8bc",
+    "surface": "chat",
+    "kind": "decision",
+    "text": "<texte 1034 car.>",
+    "textBytes": 1034,
+    "created_at": "2026-10-09T10:03:29.118228+00:00",
+    "ingested_at": "2026-10-09T10:03:29.314470+00:00",
+    "supersedes": null,
+    "revision": 1695,
+    "session_id": null
+   }
+  },
+  {
+   "replacement": {
+    "id": "309cda8a510fa3699ddf6977fb54730cf74075bd11a117e171e0488a28371e5b",
+    "surface": "chat",
+    "kind": "decision",
+    "text": "<texte 2143 car.>",
+    "textBytes": 2143,
+    "created_at": "2026-10-09T09:50:11.631400+00:00",
+    "ingested_at": "2026-10-09T09:50:11.765249+00:00",
+    "supersedes": "22225018b1a17c1fafdf16c2e997cc45d9f0fc843691065c554385d22fa89aa7",
+    "revision": 1693,
+    "session_id": null
+   },
+   "superseded": {
+    "id": "22225018b1a17c1fafdf16c2e997cc45d9f0fc843691065c554385d22fa89aa7",
+    "surface": "chat",
+    "kind": "decision",
+    "text": "<texte 1302 car.>",
+    "textBytes": 1302,
+    "created_at": "2026-10-09T09:05:55.774016+00:00",
+    "ingested_at": "2026-10-09T09:05:56.116175+00:00",
+    "supersedes": null,
+    "revision": 1682,
+    "session_id": null
+   }
+  },
+  {
+   "replacement": {
+    "id": "1d107fbdc772f3ef54ab0cc8367a70e4afb78a20818e4c365c940fce9e4dde8f",
+    "surface": "chat",
+    "kind": "decision",
+    "text": "<texte 1050 car.>",
+    "textBytes": 1050,
+    "created_at": "2026-10-06T18:31:33.351296+00:00",
+    "ingested_at": "2026-10-06T18:31:33.576728+00:00",
+    "supersedes": "44368e6fd5d744aa18f1d457854cd32bc07944349773dfc97ee4227b2d2818cb",
+    "revision": 1382,
+    "session_id": null
+   },
+   "superseded": {
+    "id": "44368e6fd5d744aa18f1d457854cd32bc07944349773dfc97ee4227b2d2818cb",
+    "surface": "chat",
+    "kind": "decision",
+    "text": "<texte 695 car.>",
+    "textBytes": 695,
+    "created_at": "2026-10-06T18:08:52.015517+00:00",
+    "ingested_at": "2026-10-06T18:08:52.136123+00:00",
+    "supersedes": null,
+    "revision": 1376,
+    "session_id": null
+   }
+  }
+ ],
+ "viewProjectionMeta": {
+  "version": 1,
+  "revision": 1933,
+  "budget_bytes": 24576,
+  "active_counts": {
+   "checkpoint": 572,
+   "completed_action": 435,
+   "constraint": 24,
+   "decision": 170,
+   "learning": 581,
+   "open_thread": 46
+  },
+  "rendered_events": 63,
+  "excerpts": 39,
+  "critical_overflow": [],
+  "thread_overflow": [
+   1574,
+   1638,
+   1652,
+   1735,
+   1737,
+   1739,
+   1748
+  ],
+  "critical_overflow_count": 0,
+  "thread_overflow_count": 7,
+  "coverage_complete": false,
+  "estimated_tokens": 8071,
+  "token_estimate_basis": "UTF-8 bytes / 3; estimate only; hard bound is bytes",
+  "bytes": 24213,
+  "sha256": "483721cf10a4d801ebb10bc191df03311716cec7156544865a1c081e5d70e063"
+ },
+ "hybridContext": {
+  "path": "~/.openclaw/workspace/context/HYBRID_CONTEXT.md",
+  "bytes": 24213,
+  "lines": 91,
+  "sections": [
+   {
+    "line": 1,
+    "heading": "# Claw Hybrid Conversation Context — Amine",
+    "items": 0,
+    "bytes": 1006
+   },
+   {
+    "line": 12,
+    "heading": "## Bounded cross-surface memory view — 2026-10-10 19:19 +0100",
+    "items": 0,
+    "bytes": 356
+   },
+   {
+    "line": 21,
+    "heading": "### Active constraints — texte intégral",
+    "items": 24,
+    "bytes": 14720
+   },
+   {
+    "line": 47,
+    "heading": "### Open threads — index de tous les sujets encore actifs",
+    "items": 39,
+    "bytes": 7698
+   },
+   {
+    "line": 88,
+    "heading": "### Activité et décisions récentes — détails sur demande",
+    "items": 0,
+    "bytes": 158
+   }
+  ],
+  "maskedLines": [
+   "# Claw Hybrid Conversation Context — Amine",
+   "",
+   "<texte 92 car.>",
+   "",
+   "<texte 389 car.>",
+   "",
+   "<texte 223 car.>",
+   "",
+   "<texte 230 car.>",
+   "",
+   "<!-- SAMANTHA_MEMORY_VIEW_START -->",
+   "## Bounded cross-surface memory view — 2026-10-10 19:19 +0100",
+   "",
+   "> Memory revision: 1933",
+   "> Projection version: 1",
+   "",
+   "> Vue active sourcée. Les aperçus ne sont pas des instructions complètes.",
+   "> Lire un détail : context-retrieve.sh \"EVT-<révision>\". Historique complet consultable ; aucune fenêtre de récence.",
+   "> Actifs : constraint=24, open_thread=46, decision=170, learning=581, completed_action=435, checkpoint=572",
+   "",
+   "### Active constraints — texte intégral",
+   "- [chat/constraint] <texte 487 car.>",
+   "- [chat/constraint] <texte 598 car.>",
+   "- [chat/constraint] <texte 576 car.>",
+   "- [chat/constraint] <texte 564 car.>",
+   "- [chat/constraint] <texte 443 car.>",
+   "- [chat/constraint] <texte 617 car.>",
+   "- [chat/constraint] <texte 355 car.>",
+   "- [chat/constraint] <texte 815 car.>",
+   "- [chat/constraint] <texte 771 car.>",
+   "- [chat/constraint] <texte 630 car.>",
+   "- [chat/constraint] <texte 245 car.>",
+   "- [chat/constraint] <texte 317 car.>",
+   "- [chat/constraint] <texte 485 car.>",
+   "- [work/constraint] <texte 629 car.>",
+   "- [chat/constraint] <texte 711 car.>",
+   "- [work/constraint] <texte 652 car.>",
+   "- [chat/constraint] <texte 658 car.>",
+   "- [chat/constraint] <texte 667 car.>",
+   "- [chat/constraint] <texte 526 car.>",
+   "- [chat/constraint] <texte 508 car.>",
+   "- [chat/constraint] <texte 823 car.>",
+   "- [chat/constraint] <texte 783 car.>",
+   "- [chat/constraint] <texte 912 car.>",
+   "- [chat/constraint] <texte 372 car.>",
+   "",
+   "### Open threads — index de tous les sujets encore actifs",
+   "- REQ-24 [chat] <texte 182 car.>",
+   "- REQ-26 [chat] <texte 182 car.>",
+   "- REQ-31 [chat] <texte 179 car.>",
+   "- REQ-33 [chat] <texte 181 car.>",
+   "- REQ-40 [chat] <texte 179 car.>",
+   "- REQ-42 [chat] <texte 182 car.>",
+   "- REQ-111 [chat] <texte 171 car.>",
+   "- REQ-151 [chat] <texte 185 car.>",
+   "- REQ-246 [chat] <texte 177 car.>",
+   "- REQ-256 [chat] <texte 185 car.>",
+   "- REQ-333 [chat] <texte 180 car.>",
+   "- REQ-343 [chat] <texte 172 car.>",
+   "- REQ-348 [chat] <texte 184 car.>",
+   "- REQ-400 [chat] <texte 185 car.>",
+   "- REQ-414 [chat] <texte 172 car.>",
+   "- REQ-418 [chat] <texte 180 car.>",
+   "- REQ-428 [chat] <texte 180 car.>",
+   "- REQ-433 [chat] <texte 166 car.>",
+   "- REQ-449 [chat] <texte 184 car.>",
+   "- REQ-453 [chat] <texte 180 car.>",
+   "- REQ-467 [chat] <texte 167 car.>",
+   "- REQ-547 [chat] <texte 164 car.>",
+   "- REQ-550 [chat] <texte 158 car.>",
+   "- REQ-581 [chat] <texte 145 car.>",
+   "- REQ-584 [chat] <texte 178 car.>",
+   "- REQ-631 [chat] <texte 182 car.>",
+   "- REQ-709 [chat] <texte 182 car.>",
+   "- REQ-984 [chat] <texte 184 car.>",
+   "- REQ-1054 [chat] <texte 182 car.>",
+   "- REQ-1147 [chat] <texte 176 car.>",
+   "- REQ-1413 [chat] <texte 180 car.>",
+   "- REQ-1416 [chat] <texte 183 car.>",
+   "- REQ-1427 [chat] <texte 158 car.>",
+   "- REQ-1433 [chat] <texte 158 car.>",
+   "- REQ-1490 [chat] <texte 179 car.>",
+   "- REQ-1500 [chat] <texte 175 car.>",
+   "- REQ-1501 [chat] <texte 172 car.>",
+   "- REQ-1511 [chat] <texte 182 car.>",
+   "- REQ-1533 [chat] <texte 178 car.>",
+   "",
+   "### Activité et décisions récentes — détails sur demande",
+   "",
+   "> Coverage: BLOCKED — budget insuffisant ; récupérer les éléments manquants ou augmenter le budget avant démarrage.",
+   "<!-- SAMANTHA_MEMORY_VIEW_END -->"
+  ],
+  "recentSectionCoverage": [
+   "> Coverage: BLOCKED — budget insuffisant ; récupérer les éléments manquants ou augmenter le budget avant démarrage."
+  ]
+ }
+}

@@ -1,0 +1,204 @@
+{
+ "_capture": {
+  "method": "filesystem (lecture seule)",
+  "capturedAt": "2026-10-10T18:24:53+00:00",
+  "sanitized": true,
+  "note": "code des scripts installés publié tel quel (aucun secret) ; aucun contenu des fichiers de contexte, seulement tailles/dates/égalité"
+ },
+ "cron": {
+  "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+  "name": "Samantha Context Sync",
+  "schedule": "every 900000 ms",
+  "argv": [
+   "sh",
+   "-lc",
+   "$HOME/samantha-core/scripts/sync-context-background.sh"
+  ]
+ },
+ "samantha_core_checkout": {
+  "path": "~/samantha-core",
+  "branch": "main",
+  "head": "bfb42ec19117103a0121a40a96e1ed7a4c4a2c1e",
+  "dirty": false
+ },
+ "private_repo": {
+  "path": "~/samantha-context-private",
+  "head": "5366936",
+  "lastCommitAt": "2026-10-09T14:30:21+01:00",
+  "commitsLast3Days": 155,
+  "dirty": false,
+  "symlinksInRepo": 0
+ },
+ "scripts": {
+  "sync-context-background.sh": {
+   "path": "~/samantha-core/scripts/sync-context-background.sh",
+   "sha256": "3b47592fd23cb70b74a02d0e7e5387ebe16d70d3efea2932432c5fd337984df6",
+   "bytes": 271,
+   "mode": "0o700",
+   "code": "#!/data/data/com.termux/files/usr/bin/bash\nset -euo pipefail\n\nREPO=\"$HOME/samantha-context-private\"\n[ -d \"$REPO/.git\" ] || exit 0\ncd \"$REPO\"\n\nif [ -n \"$(git status --porcelain)\" ]; then\n  bash ./scripts/save.sh\nelse\n  git fetch origin\n  git pull --ff-only origin main\nfi\n"
+  },
+  "save.sh": {
+   "path": "~/samantha-context-private/scripts/save.sh",
+   "sha256": "c6943bce047367268094b7e8e9e52d6ddfc4c1ae2df4b04a566b4444cb711158",
+   "bytes": 934,
+   "mode": "0o700",
+   "code": "#!/data/data/com.termux/files/usr/bin/bash\nset -euo pipefail\n\nREPO=\"$(cd \"$(dirname \"$0\")/..\" && pwd)\"\nWS=\"$HOME/.openclaw/workspace\"\ncd \"$REPO\"\n\n# Refresh curated private context snapshots before committing.\n[ -f \"$WS/USER.md\" ] && cp -p \"$WS/USER.md\" \"$REPO/people/USER.md\"\n[ -f \"$WS/context/USER_PREFERENCES.md\" ] && cp -p \"$WS/context/USER_PREFERENCES.md\" \"$REPO/people/USER_PREFERENCES.md\"\n[ -f \"$WS/context/OPERATING_RULES.md\" ] && cp -p \"$WS/context/OPERATING_RULES.md\" \"$REPO/OPERATING_RULES.md\"\n[ -f \"$WS/context/WORK_CONTEXT.md\" ] && cp -p \"$WS/context/WORK_CONTEXT.md\" \"$REPO/people/WORK_CONTEXT.md\"\n[ -f \"$WS/DREAMS.md\" ] && cp -p \"$WS/DREAMS.md\" \"$REPO/state/DREAMS.md\"\n\npython3 \"$REPO/scripts/backup-runtime-state.py\" >/dev/null\n\ngit add -A\nif git diff --cached --quiet; then\n  exit 0\nfi\n\ngit commit -m \"Auto-save Samantha private context $(date '+%Y-%m-%d %H:%M:%S')\"\ngit pull --rebase origin main\ngit push origin main\n"
+  },
+  "link-runtime.sh": {
+   "path": "~/samantha-context-private/scripts/link-runtime.sh",
+   "sha256": "f22782323c8f1f4165a6b7426a2eced09a6c384ec02e3bf09e9ffc8598dde278",
+   "bytes": 1062,
+   "mode": "0o700",
+   "code": "#!/data/data/com.termux/files/usr/bin/bash\nset -euo pipefail\n\nREPO=\"$(cd \"$(dirname \"$0\")/..\" && pwd)\"\nWS=\"$HOME/.openclaw/workspace\"\n\nmkdir -p \"$WS/memory/whatsapp\"\nmkdir -p \"$WS/memory/voice\"\n\nbackup_if_regular() {\n  local p=\"$1\"\n  if [ -e \"$p\" ] && [ ! -L \"$p\" ]; then\n    mv \"$p\" \"$p.pre-private-repo-$(date +%Y%m%d-%H%M%S)\"\n  else\n    rm -f \"$p\"\n  fi\n}\n\nbackup_if_regular \"$WS/memory/amine-inbox.md\"\nbackup_if_regular \"$WS/memory/contacts.md\"\nbackup_if_regular \"$WS/memory/voice/amine.md\"\n\nif [ -e \"$WS/memory/whatsapp/contacts\" ] && [ ! -L \"$WS/memory/whatsapp/contacts\" ]; then\n  mv \"$WS/memory/whatsapp/contacts\" \"$WS/memory/whatsapp/contacts.pre-private-repo-$(date +%Y%m%d-%H%M%S)\"\nelse\n  rm -f \"$WS/memory/whatsapp/contacts\"\nfi\n\nln -s \"$REPO/whatsapp/inbox/amine-inbox.md\" \"$WS/memory/amine-inbox.md\"\nln -s \"$REPO/whatsapp/contacts-index.md\" \"$WS/memory/contacts.md\"\nln -s \"$REPO/whatsapp/contacts\" \"$WS/memory/whatsapp/contacts\"\nln -s \"$REPO/voice/amine.md\" \"$WS/memory/voice/amine.md\"\n\necho \"Private WhatsApp and voice context linked into runtime.\"\n"
+  }
+ },
+ "backupRuntimeState": {
+  "path": "~/samantha-context-private/scripts/backup-runtime-state.py",
+  "sha256": "2e38b8ca42500a8a667a755bbd9a2c497c59a0ad3e26c47b21921253f569c97f",
+  "writes": "state/runtime-continuity/{events.jsonl,dream-proposals.jsonl,improvement-candidates.jsonl,repair-learnings/,manifest.json}",
+  "reads": [
+   "~/.openclaw/context-sync/memory.db",
+   "~/.openclaw/skill-intelligence/improvements.db",
+   "~/.openclaw/autonomous-engineering/repair-workflows/learnings/*.json"
+  ]
+ },
+ "managedSymlinksInWorkspace": [
+  {
+   "link": "~/.openclaw/workspace/memory/amine-inbox.md",
+   "target": "~/samantha-context-private/whatsapp/inbox/amine-inbox.md"
+  },
+  {
+   "link": "~/.openclaw/workspace/memory/contacts.md",
+   "target": "~/samantha-context-private/whatsapp/contacts-index.md"
+  },
+  {
+   "link": "~/.openclaw/workspace/memory/whatsapp/contacts",
+   "target": "~/samantha-context-private/whatsapp/contacts"
+  },
+  {
+   "link": "~/.openclaw/workspace/memory/voice/amine.md",
+   "target": "~/samantha-context-private/voice/amine.md"
+  }
+ ],
+ "snapshotMapping": [
+  {
+   "source": "~/.openclaw/workspace/USER.md",
+   "destination": "~/samantha-context-private/people/USER.md",
+   "source_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 955,
+    "mtime": "2026-09-24T16:12:51+00:00"
+   },
+   "dest_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 955,
+    "mtime": "2026-09-24T16:12:51+00:00"
+   },
+   "identical": true
+  },
+  {
+   "source": "~/.openclaw/workspace/context/USER_PREFERENCES.md",
+   "destination": "~/samantha-context-private/people/USER_PREFERENCES.md",
+   "source_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 1301,
+    "mtime": "2026-09-24T00:09:23+00:00"
+   },
+   "dest_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 1301,
+    "mtime": "2026-09-24T00:09:23+00:00"
+   },
+   "identical": true
+  },
+  {
+   "source": "~/.openclaw/workspace/context/OPERATING_RULES.md",
+   "destination": "~/samantha-context-private/OPERATING_RULES.md",
+   "source_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 16028,
+    "mtime": "2026-10-08T10:20:25+00:00"
+   },
+   "dest_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 16028,
+    "mtime": "2026-10-08T10:20:25+00:00"
+   },
+   "identical": true
+  },
+  {
+   "source": "~/.openclaw/workspace/context/WORK_CONTEXT.md",
+   "destination": "~/samantha-context-private/people/WORK_CONTEXT.md",
+   "source_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 2665,
+    "mtime": "2026-09-24T00:14:29+00:00"
+   },
+   "dest_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 2665,
+    "mtime": "2026-09-24T00:14:29+00:00"
+   },
+   "identical": true
+  },
+  {
+   "source": "~/.openclaw/workspace/DREAMS.md",
+   "destination": "~/samantha-context-private/state/DREAMS.md",
+   "source_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 22867,
+    "mtime": "2026-10-10T12:02:13+00:00"
+   },
+   "dest_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 22647,
+    "mtime": "2026-10-09T12:06:21+00:00"
+   },
+   "identical": false
+  },
+  {
+   "source": "~/.openclaw/workspace/context/HYBRID_CONTEXT.md",
+   "destination": "~/samantha-context-private/HYBRID_CONTEXT.md (non copié par save.sh)",
+   "source_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 24213,
+    "mtime": "2026-10-10T18:24:38+00:00"
+   },
+   "dest_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 18089,
+    "mtime": "2026-09-26T22:14:26+00:00"
+   },
+   "identical": false
+  },
+  {
+   "source": "~/.openclaw/workspace/context/DEVELOPMENT_JOURNAL.md",
+   "destination": "~/samantha-context-private/DEVELOPMENT_JOURNAL.md (non copié par save.sh)",
+   "source_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 496501,
+    "mtime": "2026-10-10T16:09:59+00:00"
+   },
+   "dest_info": {
+    "exists": true,
+    "islink": false,
+    "bytes": 100701,
+    "mtime": "2026-10-03T12:38:18+00:00"
+   },
+   "identical": false
+  }
+ ]
+}

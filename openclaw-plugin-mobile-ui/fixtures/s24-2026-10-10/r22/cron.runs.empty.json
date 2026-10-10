@@ -1,0 +1,23 @@
+{
+ "_capture": {
+  "method": "cron.runs",
+  "params": {
+   "id": "e05b9abf-9000-4fa8-811c-9dd0b8d9247e",
+   "limit": 20
+  },
+  "latencyMs": 1638,
+  "capturedAt": "2026-10-10T18:19:47+00:00",
+  "exitCode": 0,
+  "via": "timeout 60 nice openclaw gateway call <method> --params <json> --json",
+  "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+  "sanitized": true
+ },
+ "response": {
+  "entries": [],
+  "total": 0,
+  "offset": 0,
+  "limit": 20,
+  "hasMore": false,
+  "nextOffset": null
+ }
+}

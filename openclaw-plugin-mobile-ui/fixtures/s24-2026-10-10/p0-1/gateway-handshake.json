@@ -1,0 +1,742 @@
+{
+ "_capture": {
+  "method": "WebSocket frames (instrumentation in-process de ws.send/emit autour du propriétaire OpenClaw call-*.mjs → GatewayClient)",
+  "params": {
+   "method": "health",
+   "params": {}
+  },
+  "latencyMs": 910,
+  "capturedAt": "2026-10-10T18:34:14+00:00",
+  "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+  "sanitized": true,
+  "note": "Formes/types seulement : toute chaîne hors liste blanche (type, method, event, client.id/mode, role, scopes, protocol, platform, version, codes) est remplacée par '<string N>' ; nombres hors liste par '<number>'. Aucun jeton, nonce, signature, id de connexion ni contenu publié. latencyMs = import des modules + connexion + appel, dans un process Node déjà démarré (pas de démarrage CLI)."
+ },
+ "sequence": [
+  {
+   "dir": "in",
+   "atMs": 881,
+   "kind": "connect.challenge"
+  },
+  {
+   "dir": "out",
+   "atMs": 883,
+   "kind": "connect"
+  },
+  {
+   "dir": "in",
+   "atMs": 897,
+   "kind": "hello-ok"
+  },
+  {
+   "dir": "out",
+   "atMs": 898,
+   "kind": "health"
+  },
+  {
+   "dir": "in",
+   "atMs": 907,
+   "kind": "res"
+  }
+ ],
+ "frames": [
+  {
+   "dir": "in",
+   "atMs": 881,
+   "frame": {
+    "type": "event",
+    "event": "connect.challenge",
+    "payload": {
+     "nonce": "<string 36>",
+     "ts": "<number>",
+     "capabilities": [
+      "model-catalog-snapshot"
+     ]
+    }
+   }
+  },
+  {
+   "dir": "out",
+   "atMs": 883,
+   "frame": {
+    "type": "req",
+    "id": "<string 38>",
+    "method": "connect",
+    "params": {
+     "minProtocol": 4,
+     "maxProtocol": 4,
+     "client": {
+      "id": "cli",
+      "version": "2026.9.6",
+      "platform": "linux",
+      "deviceFamily": "Linux",
+      "mode": "cli",
+      "instanceId": "<string 36>"
+     },
+     "caps": [],
+     "auth": {
+      "token": "<string 48>"
+     },
+     "role": "operator",
+     "scopes": [
+      "operator.read"
+     ]
+    }
+   }
+  },
+  {
+   "dir": "in",
+   "atMs": 897,
+   "frame": {
+    "type": "res",
+    "id": "<string 38>",
+    "ok": true,
+    "payload": {
+     "type": "hello-ok",
+     "protocol": 4,
+     "server": {
+      "version": "2026.9.6",
+      "buildId": "<string 54>",
+      "bootId": "<string 36>",
+      "controlUiBuildSource": "<string 7>",
+      "connId": "<string 36>"
+     },
+     "features": {
+      "methods": {
+       "count": 468,
+       "sample": [
+        "health",
+        "diagnostics.stability",
+        "doctor.memory.status",
+        "doctor.memory.dreamDiary",
+        "doctor.memory.backfillDreamDiary",
+        "doctor.memory.resetDreamDiary",
+        "doctor.memory.resetGroundedShortTerm",
+        "doctor.memory.repairDreamingArtifacts"
+       ]
+      },
+      "events": {
+       "count": 64,
+       "sample": [
+        "connect.challenge",
+        "agent",
+        "chat",
+        "chat.metadata.changed",
+        "models.snapshot",
+        "ui.command",
+        "session.approval",
+        "session.message"
+       ]
+      },
+      "capabilities": [
+       "board-widget-put-canvas-doc",
+       "chat-send-routing-contract",
+       "gateway-restart-target-safe-v1",
+       "model-catalog-snapshot",
+       "node-worker-bundle-retention-v1",
+       "node-worker-bundle-status-v1",
+       "node-worker-captured-exec-policy",
+       "node-worker-environment-session-v1",
+       "node-worker-portal-stream-v1",
+       "profile-binding-v1",
+       "published-model-catalog",
+       "progress-card-agent-scope-v1",
+       "session-scoped-chat-metadata",
+       "session-scoped-model-catalog",
+       "session-unread-ack-contract",
+       "session-goal-start-v1",
+       "session-settings-contract",
+       "session-settings-cas-v1",
+       "openclaw-chat-wizard-cancel",
+       "openclaw-setup-model-ref",
+       "taskSuggestions.acceptModes"
+      ]
+     },
+     "snapshot": {
+      "suspension": {
+       "phase": "<string 9>"
+      },
+      "presence": [
+       {
+        "host": "<string 9>",
+        "ip": "<string 9>",
+        "version": "2026.9.6",
+        "platform": "<string 51>",
+        "deviceFamily": "Linux",
+        "mode": "gateway",
+        "reason": "<string 4>",
+        "instanceId": "<string 36>",
+        "text": "<string 74>",
+        "ts": "<number>"
+       },
+       "…3"
+      ],
+      "health": {
+       "ok": true,
+       "ts": "<number>",
+       "durationMs": "<number>",
+       "plugins": {
+        "loaded": [
+         "<string 7>",
+         "…13"
+        ],
+        "errors": [],
+        "unavailable": []
+       },
+       "deliveryQueues": {
+        "failed": [
+         {
+          "queueName": "<string 20>",
+          "count": "<number>",
+          "oldestFailedAt": "<number>"
+         },
+         "…1"
+        ]
+       },
+       "configReload": {
+        "hotReloadStatus": "<string 6>"
+       },
+       "channels": {
+        "whatsapp": {
+         "accountId": "<string 7>",
+         "enabled": true,
+         "lastStartAt": "<number>",
+         "lastStopAt": "<number>",
+         "restartPending": false,
+         "reconnectAttempts": "<number>",
+         "lastConnectedAt": "<number>",
+         "lastDisconnect": {
+          "at": "<number>",
+          "status": "<number>",
+          "error": "<string 54>",
+          "loggedOut": false
+         },
+         "lastEventAt": "<number>",
+         "lastTransportActivityAt": "<number>",
+         "healthState": "<string 7>",
+         "lifecycle": "<string 5>",
+         "busy": false,
+         "lastRunActivityAt": "<number>",
+         "lastInboundAt": null,
+         "lastOutboundAt": null,
+         "lastMessageAt": null,
+         "dmPolicy": "<string 9>",
+         "allowFrom": [
+          "<string 12>",
+          "…5"
+         ],
+         "configured": true,
+         "linked": true,
+         "running": true,
+         "connected": true,
+         "lastError": null,
+         "statusState": "<string 6>",
+         "authAgeMs": "<number>",
+         "self": {
+          "e164": "<string 12>",
+          "jid": "<string 26>",
+          "lid": "<string 17>"
+         },
+         "accounts": {
+          "default": {
+           "accountId": "<string 7>",
+           "enabled": true,
+           "lastStartAt": "<number>",
+           "lastStopAt": "<number>",
+           "restartPending": false,
+           "reconnectAttempts": "<number>",
+           "lastConnectedAt": "<number>",
+           "lastDisconnect": {
+            "at": "<number>",
+            "status": "<number>",
+            "error": "<string 54>",
+            "loggedOut": false
+           },
+           "lastEventAt": "<number>",
+           "lastTransportActivityAt": "<number>",
+           "healthState": "<string 7>",
+           "lifecycle": "<string 5>",
+           "busy": false,
+           "lastRunActivityAt": "<number>",
+           "lastInboundAt": null,
+           "lastOutboundAt": null,
+           "lastMessageAt": null,
+           "dmPolicy": "<string 9>",
+           "allowFrom": [
+            "<string 12>",
+            "…5"
+           ],
+           "configured": true,
+           "linked": true,
+           "running": true,
+           "connected": true,
+           "lastError": null,
+           "statusState": "<string 6>",
+           "authAgeMs": "<number>",
+           "self": {
+            "e164": "<string 12>",
+            "jid": "<string 26>",
+            "lid": "<string 17>"
+           }
+          }
+         }
+        }
+       },
+       "channelOrder": [
+        "<string 8>",
+        "…1"
+       ],
+       "channelLabels": {
+        "whatsapp": "<string 8>"
+       },
+       "heartbeatSeconds": "<number>",
+       "defaultAgentId": "<string 4>",
+       "agents": [
+        {
+         "agentId": "<string 16>",
+         "isDefault": false,
+         "heartbeat": {
+          "enabled": false,
+          "every": "<string 8>",
+          "everyMs": null,
+          "prompt": "<string 270>",
+          "target": "<string 5>",
+          "ackMaxChars": "<number>"
+         },
+         "sessions": {
+          "path": "<string 94>",
+          "count": "<number>",
+          "recent": [
+           {
+            "key": "<string 59>",
+            "updatedAt": "<number>",
+            "age": "<number>"
+           },
+           "…5"
+          ]
+         }
+        },
+        "…3"
+       ],
+       "sessions": {
+        "path": "<string 82>",
+        "count": "<number>",
+        "recent": [
+         {
+          "key": "<string 53>",
+          "updatedAt": "<number>",
+          "age": "<number>"
+         },
+         "…5"
+        ]
+       },
+       "eventLoop": {
+        "degraded": false,
+        "degradedSinceMs": null,
+        "reasons": [],
+        "intervalMs": "<number>",
+        "delayP99Ms": "<number>",
+        "delayMaxMs": "<number>",
+        "utilization": "<number>",
+        "cpuCoreRatio": "<number>",
+        "cpuBreakdown": {
+         "mainThreadCoreRatio": "<number>",
+         "hostCpuCount": "<number>",
+         "workerCoreRatio": "<number>",
+         "otherThreadsCoreRatio": "<number>"
+        }
+       }
+      },
+      "stateVersion": {
+       "presence": "<number>",
+       "health": "<number>"
+      },
+      "uptimeMs": "<number>",
+      "appliedConfigHash": "<string 58>",
+      "sessionDefaults": {
+       "defaultAgentId": "<string 4>",
+       "modelConfigured": true,
+       "ownership": "<string 8>",
+       "selectionRequired": false,
+       "mainKey": "<string 4>",
+       "mainSessionKey": "<string 15>",
+       "scope": "per-sender"
+      },
+      "updateAvailable": {
+       "currentVersion": "<string 8>",
+       "latestVersion": "<string 8>",
+       "channel": "<string 6>"
+      },
+      "updateSchedule": {
+       "channel": "<string 6>",
+       "autoEnabled": false,
+       "target": {
+        "kind": "package",
+        "version": "2026.9.9"
+       }
+      }
+     },
+     "controlUiWidgetKinds": [
+      {
+       "pluginId": "<string 7>",
+       "kind": "session:report",
+       "label": "<string 6>"
+      },
+      "…3"
+     ],
+     "controlUiLinkReaders": [
+      {
+       "pluginId": "<string 6>",
+       "id": "github",
+       "label": "<string 6>",
+       "icon": "<string 6>",
+       "linkReader": {
+        "hosts": [
+         "<string 10>",
+         "…1"
+        ],
+        "pathPattern": "<string 75>",
+        "detailMethod": "<string 13>",
+        "previewMethod": "<string 14>",
+        "imageMethod": "<string 12>"
+       }
+      },
+      "…2"
+     ],
+     "pluginSurfaceUrls": {
+      "canvas": "<string 64>"
+     },
+     "auth": {
+      "method": "token",
+      "role": "operator",
+      "scopes": [
+       "operator.read"
+      ],
+      "recoveryScope": "<string 43>"
+     },
+     "policy": {
+      "maxPayload": "<number>",
+      "maxBufferedBytes": "<number>",
+      "tickIntervalMs": "<number>",
+      "attachments": {
+       "maxBytes": "<number>",
+       "maxImageBytes": "<number>"
+      },
+      "allowedSessionVisibilities": [
+       "<string 6>",
+       "…4"
+      ],
+      "hasMultipleSessionSharingIdentities": false
+     }
+    }
+   }
+  },
+  {
+   "dir": "out",
+   "atMs": 898,
+   "frame": {
+    "type": "req",
+    "id": "<string 38>",
+    "method": "health",
+    "params": {}
+   }
+  },
+  {
+   "dir": "in",
+   "atMs": 907,
+   "frame": {
+    "type": "res",
+    "id": "<string 38>",
+    "ok": true,
+    "payload": {
+     "ok": true,
+     "ts": "<number>",
+     "durationMs": "<number>",
+     "plugins": {
+      "loaded": [
+       "<string 7>",
+       "…13"
+      ],
+      "errors": [],
+      "unavailable": []
+     },
+     "configReload": {
+      "hotReloadStatus": "<string 6>"
+     },
+     "channels": {
+      "whatsapp": {
+       "accountId": "<string 7>",
+       "enabled": true,
+       "lastStartAt": "<number>",
+       "lastStopAt": "<number>",
+       "restartPending": false,
+       "reconnectAttempts": "<number>",
+       "lastConnectedAt": "<number>",
+       "lastDisconnect": {
+        "at": "<number>",
+        "status": "<number>",
+        "error": "<string 54>",
+        "loggedOut": false
+       },
+       "lastEventAt": "<number>",
+       "lastTransportActivityAt": "<number>",
+       "healthState": "<string 7>",
+       "lifecycle": "<string 5>",
+       "busy": false,
+       "lastRunActivityAt": "<number>",
+       "lastInboundAt": null,
+       "lastOutboundAt": null,
+       "lastMessageAt": null,
+       "dmPolicy": "<string 9>",
+       "allowFrom": [
+        "<string 12>",
+        "…5"
+       ],
+       "configured": true,
+       "linked": true,
+       "running": true,
+       "connected": true,
+       "lastError": null,
+       "statusState": "<string 6>",
+       "authAgeMs": "<number>",
+       "self": {
+        "e164": "<string 12>",
+        "jid": "<string 26>",
+        "lid": "<string 17>"
+       },
+       "accounts": {
+        "default": {
+         "accountId": "<string 7>",
+         "enabled": true,
+         "lastStartAt": "<number>",
+         "lastStopAt": "<number>",
+         "restartPending": false,
+         "reconnectAttempts": "<number>",
+         "lastConnectedAt": "<number>",
+         "lastDisconnect": {
+          "at": "<number>",
+          "status": "<number>",
+          "error": "<string 54>",
+          "loggedOut": false
+         },
+         "lastEventAt": "<number>",
+         "lastTransportActivityAt": "<number>",
+         "healthState": "<string 7>",
+         "lifecycle": "<string 5>",
+         "busy": false,
+         "lastRunActivityAt": "<number>",
+         "lastInboundAt": null,
+         "lastOutboundAt": null,
+         "lastMessageAt": null,
+         "dmPolicy": "<string 9>",
+         "allowFrom": [
+          "<string 12>",
+          "…5"
+         ],
+         "configured": true,
+         "linked": true,
+         "running": true,
+         "connected": true,
+         "lastError": null,
+         "statusState": "<string 6>",
+         "authAgeMs": "<number>",
+         "self": {
+          "e164": "<string 12>",
+          "jid": "<string 26>",
+          "lid": "<string 17>"
+         }
+        }
+       }
+      }
+     },
+     "channelOrder": [
+      "<string 8>",
+      "…1"
+     ],
+     "channelLabels": {
+      "whatsapp": "<string 8>"
+     },
+     "heartbeatSeconds": "<number>",
+     "defaultAgentId": "<string 4>",
+     "agents": [
+      {
+       "agentId": "<string 16>",
+       "isDefault": false,
+       "heartbeat": {
+        "enabled": false,
+        "every": "<string 8>",
+        "everyMs": null,
+        "prompt": "<string 270>",
+        "target": "<string 5>",
+        "ackMaxChars": "<number>"
+       },
+       "sessions": {
+        "path": "<string 94>",
+        "count": "<number>",
+        "recent": [
+         {
+          "key": "<string 59>",
+          "updatedAt": "<number>",
+          "age": "<number>"
+         },
+         "…5"
+        ]
+       }
+      },
+      "…3"
+     ],
+     "sessions": {
+      "path": "<string 82>",
+      "count": "<number>",
+      "recent": [
+       {
+        "key": "<string 53>",
+        "updatedAt": "<number>",
+        "age": "<number>"
+       },
+       "…5"
+      ]
+     },
+     "eventLoop": {
+      "degraded": false,
+      "degradedSinceMs": null,
+      "reasons": [],
+      "intervalMs": "<number>",
+      "delayP99Ms": "<number>",
+      "delayMaxMs": "<number>",
+      "utilization": "<number>",
+      "cpuCoreRatio": "<number>",
+      "cpuBreakdown": {
+       "mainThreadCoreRatio": "<number>",
+       "hostCpuCount": "<number>",
+       "workerCoreRatio": "<number>",
+       "otherThreadsCoreRatio": "<number>"
+      }
+     },
+     "deliveryQueues": {
+      "failed": [
+       {
+        "queueName": "<string 20>",
+        "count": "<number>",
+        "oldestFailedAt": "<number>"
+       },
+       "…1"
+      ]
+     }
+    }
+   }
+  }
+ ],
+ "structuredRefusals": {
+  "cron.runs {\"id\": \"<string 36>\", \"limit\": \"<number>\"}": {
+   "connectScopes": [
+    "operator.read"
+   ],
+   "request": {
+    "type": "req",
+    "id": "<string 38>",
+    "method": "cron.runs",
+    "params": {
+     "id": "<string 36>",
+     "limit": "<number>"
+    }
+   },
+   "response": {
+    "type": "res",
+    "id": "<string 38>",
+    "ok": false,
+    "error": {
+     "code": "INVALID_REQUEST",
+     "message": "<string 248>",
+     "details": {
+      "code": "CRON_JOB_NOT_FOUND",
+      "jobId": "<string 36>"
+     }
+    }
+   },
+   "sdkError": {
+    "name": "GatewayClientRequestError",
+    "code": "INVALID_REQUEST",
+    "details": {
+     "code": "CRON_JOB_NOT_FOUND",
+     "jobId": "<string 36>"
+    }
+   },
+   "msFromChallengeToResponse": 92
+  },
+  "cron.runs {\"limit\": \"<number>\"}": {
+   "connectScopes": [
+    "operator.read"
+   ],
+   "request": {
+    "type": "req",
+    "id": "<string 38>",
+    "method": "cron.runs",
+    "params": {
+     "limit": "<number>"
+    }
+   },
+   "response": {
+    "type": "res",
+    "id": "<string 38>",
+    "ok": false,
+    "error": {
+     "code": "INVALID_REQUEST",
+     "message": "<string 49>"
+    }
+   },
+   "sdkError": {
+    "name": "GatewayClientRequestError",
+    "code": "INVALID_REQUEST",
+    "details": null
+   },
+   "msFromChallengeToResponse": 27
+  },
+  "samantha.nonexistent {}": {
+   "connectScopes": [],
+   "request": {
+    "type": "req",
+    "id": "<string 38>",
+    "method": "samantha.nonexistent",
+    "params": {}
+   },
+   "response": {
+    "type": "res",
+    "id": "<string 38>",
+    "ok": false,
+    "error": {
+     "code": "FORBIDDEN",
+     "message": "<string 29>",
+     "details": {
+      "code": "MISSING_SCOPE",
+      "missingScope": "<string 14>",
+      "requiredScopes": [
+       "<string 14>",
+       "…1"
+      ]
+     }
+    }
+   },
+   "sdkError": {
+    "name": "GatewayClientRequestError",
+    "code": "FORBIDDEN",
+    "details": {
+     "code": "MISSING_SCOPE",
+     "missingScope": "<string 14>",
+     "requiredScopes": [
+      "<string 14>",
+      "…1"
+     ]
+    }
+   },
+   "msFromChallengeToResponse": 18
+  }
+ },
+ "owners": {
+  "url": "config gateway.{mode:'local',bind:'loopback',port:18789} → ws://127.0.0.1:18789 (aucune variable OPENCLAW_GATEWAY_URL dans l'environnement Termux)",
+  "auth": "config gateway.auth.mode='token' ; gateway.auth.token est un objet (référence de secret résolue par OpenClaw), jamais la valeur en clair ; OPENCLAW_GATEWAY_TOKEN absent de l'environnement. Le CLI l'envoie dans connect.params.auth.token.",
+  "deviceIdentity": "aucun bloc params.device envoyé par le CLI local en loopback avec jeton partagé ; ~/.openclaw/identity/ vide, devices/*.json migrés vers state/openclaw.sqlite (device_identities, device_auth_tokens). Signature device non requise pour ce chemin.",
+  "client": "client.id='cli', client.mode='cli', role='operator', minProtocol=maxProtocol=4 (call-*.mjs : GATEWAY_CLIENT_NAMES.CLI / GATEWAY_CLIENT_MODES.CLI)",
+  "scopes": "moindre privilège par méthode (resolveLeastPrivilegeOperatorScopesForMethod) : health et cron.runs → ['operator.read'] ; méthode inconnue → [] puis refus FORBIDDEN/MISSING_SCOPE avant dispatch. Défaut GatewayClient sans scopes demandés : ['operator.admin'].",
+  "notCaptured": "refus CAS/baseHash (config.patch, sessions.patch…) : non capturé, car il faut appeler une méthode d'écriture ; à capturer en recette encadrée avec un baseHash volontairement périmé."
+ }
+}

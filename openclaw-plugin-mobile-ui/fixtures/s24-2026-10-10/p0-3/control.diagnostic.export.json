@@ -1,0 +1,25 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/control/diagnostic/export",
+  "latencyMs": 232,
+  "repeatLatencyMs": 211,
+  "capturedAt": "2026-10-10T18:35:49+00:00",
+  "companion": "loopback 127.0.0.1:8765, sans en-tête propriétaire",
+  "sanitized": true
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "artifact": {
+   "name": "<texte 23 car.>",
+   "mime": "application/zip",
+   "bytes": 1359,
+   "sha256": "81aa101f2c90d3969775f65c2b302432c2888b61cca75846f1329768f91296c1",
+   "encoding": "base64",
+   "data": "<texte 1812 car.>",
+   "metadataOnly": true
+  }
+ }
+}
