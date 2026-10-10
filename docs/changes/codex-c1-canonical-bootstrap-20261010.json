@@ -53,6 +53,11 @@
       "name": "current-ci-and-r20-union",
       "status": "passed",
       "evidence": "Toutes les étapes ci.yml de baseb40b867 passées localement CI_LOCAL_OK. Merge normal actueld142a9f puis build+C1 et5testsR20 delta passés; aucune étape CI perdue."
+    },
+    {
+      "name": "current-base-readonly-owner-audit",
+      "status": "passed",
+      "evidence": "Base9cdd84f normal merge, full CI step union verified, clean build+C1 boundary suite green. Public OpenClaw2026.9.6 AgentParamsSchema verifies optional extraSystemPrompt and lightweight; no concrete new injection/authority defect found. Synthetic local read p95~2.2ms at Gateway3.2s is not physical after evidence."
     }
   ],
   "documentation": [
