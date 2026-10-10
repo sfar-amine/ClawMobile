@@ -7,7 +7,7 @@ A route that is not present in this build (404) is skipped, so the same check se
 import json, re, sys, time, urllib.error, urllib.request
 
 BASE = "http://127.0.0.1:8765/v1"
-# (path, budget seconds). Budgets are S24 numbers measured on 10/10 with margin; a cold first call gets one retry.
+# (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
     ("/health", 2.0),
     ("/notifications/sources", 6.0),
