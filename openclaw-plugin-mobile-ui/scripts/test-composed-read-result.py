@@ -43,7 +43,7 @@ class ComposedReadResultTests(unittest.TestCase):
 
     def test_partial_result_preserves_success_and_failed_outcome(self):
         rows = self.rows()
-        rows[1] = {"label": "Tunisie Télécom", "state": "unavailable", "result": {"ok": False}}
+        rows[1] = {"label": "Tunisie Télécom", "state": "unavailable", "reason": "selected_not_ready"}
         out = self.execute("partial", rows)
         self.assertEqual(out["status"], "known_error")
         self.assertEqual(out["execution_state"], "partial")

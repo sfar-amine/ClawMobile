@@ -23,7 +23,11 @@ const request=(port,url,body,headers={})=>new Promise((resolve,reject)=>{
   const first=await request(port,'/v1/runs/one',{operationId:'delete-one'});assert.equal(first.status,200);assert.equal(first.body.state,'completed');assert.equal(first.body.receipt.operationId,'delete-one');
   assert.deepEqual((await request(port,'/v1/runs/one',{operationId:'delete-one'})).body,first.body);
   assert.equal((await request(port,'/v1/runs/two',{operationId:'delete-one'})).status,409);
-  const alias=await request(port,'/v1/runs/one',{operationId:'delete-one-again'});assert.equal(alias.body.receipt.operationId,'delete-one-again');
+  const beforeAlias=JSON.parse(fs.readFileSync(file)).runDeletions;
+  const alias=await request(port,'/v1/runs/one',{operationId:'delete-one-again'});assert.deepEqual(alias.body,first.body);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file)).runDeletions,beforeAlias);
+  assert.equal((await request(port,'/v1/runs/%',{operationId:'invalid-encoding'})).status,400);
+  assert.equal((await request(port,'/v1/runs/%E0%A4',{operationId:'invalid-utf8'})).status,400);
   assert.equal((await request(port,'/v1/runs/payment-run',{operationId:'deny-pay'})).status,409);
   assert.equal((await request(port,'/v1/runs/owner-run',{operationId:'deny-owner'})).status,409);
   assert.equal((await request(port,'/v1/runs/active',{operationId:'deny-active'})).status,409);
