@@ -383,6 +383,9 @@ export async function listRunSummaries(options: { limit?: number } = {}): Promis
   return listRuns({ limit });
 }
 
+const LIST_LIVE_REFRESH_MAX=3;
+const LIST_LIVE_REFRESH_BUDGET_MS=2500;
+
 export async function listRuns(options: { limit?: number } = {}): Promise<CompanionRunStatus[]> {
   const storedRuns = await readStoredRuns(false);
   const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
@@ -390,13 +393,21 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
   if(storedRuns.length){
     const visible=storedRuns.slice(0,limit);
     const sessions=visible.some(requiresLiveRefresh)?await readSessionsIndex().catch(()=>[]):[];
+    // Each transcript read is one `openclaw gateway call` process on the S24 (~2.4 s): a list refreshes at most
+    // LIST_LIVE_REFRESH_MAX runs (newest first) within one shared budget; the others keep the sessions-index view.
+    let refreshes=LIST_LIVE_REFRESH_MAX;
+    const deadline=Date.now()+LIST_LIVE_REFRESH_BUDGET_MS;
     return Promise.all(visible.map(async stored=>{
       if(!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
       const session=findSessionForStoredRun(sessions,stored);
       const fallback=session?statusFromSessionInfo(session,stored.runId,stored):statusFromStoredRun(stored);
+      if(refreshes<=0)return fallback;
+      refreshes--;
       // Preserve the normal live-list refresh from the base; only expiration
       // evidence moved out of the request path.
-      return enrichFromSessionFile(fallback,session,stored,true);
+      let timer:ReturnType<typeof setTimeout>|undefined;
+      const late=new Promise<CompanionRunStatus>(resolve=>{timer=setTimeout(()=>resolve(fallback),Math.max(0,deadline-Date.now()));timer.unref?.();});
+      return Promise.race([enrichFromSessionFile(fallback,session,stored,true).catch(()=>fallback),late]).finally(()=>clearTimeout(timer));
     }));
   }
   // Legacy discovery only when no retained snapshot exists.
