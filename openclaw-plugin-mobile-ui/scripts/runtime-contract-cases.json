@@ -1229,7 +1229,7 @@
       "template": "/v1/skills/learn",
       "method": "POST",
       "phase": "pending",
-      "source": "core@ddf310d",
+      "source": "core#47",
       "types": {},
       "reason": "owner_mutation_requires_dedicated_fixture_recipe",
       "test": "scripts/test-skill-learning.cjs"
@@ -1239,7 +1239,7 @@
       "template": "/v1/skills/candidates",
       "method": "GET",
       "phase": "pending",
-      "source": "core@ddf310d",
+      "source": "core#47",
       "types": {
         "success": "boolean",
         "items": "array"
@@ -1251,7 +1251,7 @@
       "template": "/v1/skills/candidates/:traceId",
       "method": "GET",
       "phase": "pending",
-      "source": "core@ddf310d",
+      "source": "core#47",
       "types": {
         "success": "boolean",
         "item": "object"
