@@ -19,6 +19,7 @@ READS = [
     ("/laptop-access/computers", 6.0),
     ("/security/surfaces", 2.0),
     ("/voice/voices", 1.0),
+    ("/control/automations?contract=2", 1.0),
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
