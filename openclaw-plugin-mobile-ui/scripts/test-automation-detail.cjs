@@ -19,13 +19,17 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   const req=http.request({host:'127.0.0.1',port,path:url,method,headers:{'content-type':'application/json',...(body?{'content-length':Buffer.byteLength(JSON.stringify(body))}:{}),...headers}},res=>{let text='';res.on('data',x=>text+=x);res.on('end',()=>resolve({status:res.statusCode,body:JSON.parse(text||'{}')}))});req.on('error',reject);req.end(body?JSON.stringify(body):undefined);
  });
  try{
+  const {automationNotificationProjection}=require('../dist/companion/control');
+  const notification=automationNotificationProjection({items:[{id:'scheduled:one',kind:'scheduled',automationId:'one',enabled:jobs[0].enabled,togglable:false},{id:'incidents',kind:'incident',enabled:true,togglable:false}]});
+  assert.equal(notification.items[0].togglable,true);assert.equal(notification.items[1].togglable,false);
+  assert.equal(notification.activationRoute,'/v1/automations/{automationId}/enable|disable');
   const detail=await request('/v1/automations/one');assert.equal(detail.status,200);assert.equal(detail.body.runs.length,10);assert.equal(detail.body.what,'Check scheduler');assert.equal(detail.body.nextRunAt,new Date(1800000000000).toISOString());assert.ok(!JSON.stringify(detail).includes('never-return'));
   assert.equal((await request('/v1/automations/%')).status,400);assert.equal((await request('/v1/automations/missing')).status,404);
   const owner={'x-clawmobile-owner-flow':'v1'};
   assert.equal((await request('/v1/automations/one/disable','POST',{operationId:'deny'})).status,403);
   process.env.CLAWMOBILE_COMPANION_ALLOW_BROWSER_ORIGIN='1';assert.equal((await request('/v1/automations/one/disable','POST',{operationId:'deny'}, {...owner,Origin:'https://example.invalid'})).status,403);delete process.env.CLAWMOBILE_COMPANION_ALLOW_BROWSER_ORIGIN;
   assert.equal((await request('/v1/automations/one/disable','POST',{operationId:'bad',command:'ignored'},owner)).status,400);
-  const first=await request('/v1/automations/one/disable','POST',{operationId:'disable-one'},owner);assert.equal(first.body.success,true);assert.equal(first.body.state,'completed');assert.equal(effects,1);assert.equal(jobs[0].enabled,false);
+  const first=await request('/v1/automations/one/disable','POST',{operationId:'disable-one'},owner);assert.equal(first.body.success,true);assert.equal(first.body.state,'completed');assert.equal(effects,1);assert.equal(jobs[0].enabled,false);assert.equal(automationNotificationProjection({items:[{kind:'scheduled',automationId:'one',enabled:jobs[0].enabled}]}).items[0].enabled,false);
   assert.deepEqual((await request('/v1/automations/one/disable','POST',{operationId:'disable-one'},owner)).body,first.body);assert.equal(effects,1);
   assert.equal((await request('/v1/automations/one/enable','POST',{operationId:'disable-one'},owner)).status,409);assert.equal(effects,1);
   const blocked=await request('/v1/automations/bank/run','POST',{operationId:'bank-guard'},owner);assert.equal(blocked.status,409);assert.equal(blocked.body.state,'blocked');assert.equal(effects,1);

@@ -17,6 +17,14 @@ export function controlPaths() {
   };
 }
 
+/** This module ships with the canonical automation owner routes installed by P2-a. */
+export function automationNotificationProjection(value:any):any {
+  if(!value||!Array.isArray(value.items))return value;
+  return {...value,activationRoute:'/v1/automations/{automationId}/enable|disable',items:value.items.map((item:any)=>
+    item?.kind==='scheduled'&&typeof item.automationId==='string'&&/^[A-Za-z0-9_.:-]{1,160}$/.test(item.automationId)
+      ? {...item,togglable:true,reason:'delivery_evidence_unavailable'} : item)};
+}
+
 export function readControl(section: string, signal?: AbortSignal): Promise<unknown> {
   if (!sections.has(section)) return Promise.reject(new Error("unsupported_control_section"));
   const roots = controlPaths();
@@ -26,7 +34,15 @@ export function readControl(section: string, signal?: AbortSignal): Promise<unkn
       timeout: 6500, maxBuffer: 1024 * 1024, signal,
     }, (error, stdout) => {
       if (error) return reject(new Error("control_unavailable"));
-      try { resolve(JSON.parse(stdout)); } catch { reject(new Error("control_invalid_response")); }
+      try {
+        const value=JSON.parse(stdout);
+        if(section==='notifications'){
+          if(value.data)value.data=automationNotificationProjection(value.data);
+          else Object.assign(value,automationNotificationProjection(value));
+        }
+        if(value.notifications)value.notifications=automationNotificationProjection(value.notifications);
+        resolve(value);
+      } catch { reject(new Error("control_invalid_response")); }
     });
   });
 }
@@ -220,6 +236,7 @@ export function readControlV2(selected:string[],detailId:string|undefined,signal
       if(error||failure||abort.aborted){killGroup();reject(error||failure||controlError("control_read_cancelled",499));return;}
       try{
         const value=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        if(value.sections?.notifications?.data)value.sections.notifications.data=automationNotificationProjection(value.sections.notifications.data);
         completeHealthSection(value,path.join(os.homedir(),".openclaw/health/current.json"))
           .then(resolve,()=>reject(controlError("control_invalid_response")));
       }catch{reject(controlError("control_invalid_response"));}
