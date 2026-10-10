@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sqlite3
 import tempfile
+import time
 import uuid
 import unittest
 from unittest.mock import patch
@@ -210,6 +211,17 @@ class AllowlistTests(unittest.TestCase):
                 c.execute('INSERT INTO '+table+' ('+','.join(row)+') VALUES ('+','.join('?' for _ in row)+')',list(row.values()))
         c.commit();c.close()
         return fixture
+    def test_inbound_read_lock_wait_is_bounded(self):
+        self.inbound_database([])
+        connection=sqlite3.connect(m.SESSION_DB);connection.execute('BEGIN EXCLUSIVE')
+        try:
+            began=time.monotonic()
+            with self.assertRaises(m.Refused) as error:self.service.find(m.contact_id(OWNER))
+            self.assertEqual(error.exception.code,'contacts_unavailable')
+            self.assertLess(time.monotonic()-began,1.8)
+        finally:connection.rollback();connection.close()
+        self.assertFalse(m.DB.exists());self.assertFalse(m.CONTACTS.exists())
+
     def test_captured_inbound_provider_timestamp_filters_and_archived(self):
         fixture=json.loads((MODULE.parents[2]/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r17/inbound-schema.json').read_text())
         samples=copy.deepcopy(fixture['sampleRows'])
