@@ -8,6 +8,7 @@ import {confirmations} from './confirmations';
 import {ownerUuid,type OwnerIntent} from './ownerConfirmationProtocol';
 import {ownerBinding} from './ownerConfirmationProtocol';
 import {findSubmittedRunByClientRunId,reserveSubmittedRun,settleSubmittedRun,claimFailedApprovalOperation} from './runs';
+import {protectedRun} from './runInactivity';
 
 const failure=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
 const identifier=/^[A-Za-z0-9_.:-]{1,100}$/;
@@ -26,6 +27,7 @@ const RPC_MS=12000;
 const rpc=(method:string,params:Record<string,unknown>={})=>callOpenClawGateway(method,params,{timeoutMs:RPC_MS,hardTimeoutMs:RPC_MS});
 /** Only syntactically inert probes constitute readable non-financial exec proof here. */
 function inertCommand(request:any){
+ if(request.systemRunPlan!=null||request.env!=null&&(!closed(request.env,[])||Object.keys(request.env).length))return false;
  const argv=request.commandArgv;
  if(argv!==undefined&&(!Array.isArray(argv)||argv.length>20||argv.some((x:any)=>typeof x!=='string')))return false;
  const command=request.command??request.commandText??(argv?argv.join(' '):'');
@@ -74,6 +76,7 @@ async function registry(){
  }catch{throw failure('approval_owner_unavailable',503);}finally{await file.close();}
 }
 function paymentRun(run:any,store:any){
+ if(protectedRun(run,[],[]))return true;
  if(financial.test(JSON.stringify({text:run.text,userText:run.userText,decision:run.decision})))return true;
  const ids=[run.runId,run.clientRunId,run.sessionId];
  return store.paymentRequests.some((x:any)=>!['confirmed','demo_confirmed','failed','cancelled','expired','blocked'].includes(x?.state)||ids.includes(x?.draft?.origin?.id)||ids.includes(x?.runId))||store.ownerConfirmations.some((x:any)=>x?.intent?.action?.type?.startsWith('payment.')&&(!['consumed','cancelled','expired'].includes(x.state)||ids.includes(x?.intent?.origin?.id)));
@@ -187,7 +190,7 @@ async function decideOnce(runId:string,body:any){
  let state='indeterminate';
  if(approval.expiresAt<=Date.now())state='expired';
  else{
-  try{const result=await rpc(approval.kind+'.approval.resolve',{id:approval.id,decision});if(closed(result,['ok'])&&result.ok===true)state=decision==='deny'?'denied':'approved';}
+  try{const result=await rpc(approval.kind+'.approval.resolve',{id:approval.id,decision});if(!closed(result,['ok'])||result.ok!==true)throw failure('approval_resolve_response_unqualified',503);state=decision==='deny'?'denied':'approved';}
   catch(error:any){
    if(['ENOENT','ECONNREFUSED'].includes(error?.code))state='failed';
    else{
