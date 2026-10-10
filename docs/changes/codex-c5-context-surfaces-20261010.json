@@ -26,7 +26,7 @@
     {
       "name": "ci-existing-union",
       "status": "passed",
-      "evidence": "All25executableCIcommands pass on base2c2c18f; unchanged dependencies, npmci not repeated."
+      "evidence": "All26executableCIcommands pass after normal merge of runtime1f239f3 including P2-b/G3; unchanged dependencies, npmci not repeated."
     }
   ],
   "documentation": [
