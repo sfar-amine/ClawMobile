@@ -7,6 +7,11 @@ import unittest
 spec = importlib.util.spec_from_file_location("claw_live_control", Path(__file__).with_name("claw_live_control.py"))
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+live_spec = importlib.util.spec_from_file_location("claw_live", Path(__file__).with_name("claw-live.py"))
+live = importlib.util.module_from_spec(live_spec)
+import sys
+sys.modules["claw_live"] = live  # dataclasses resolve their module by name
+live_spec.loader.exec_module(live)
 
 
 class ControlLiveTests(unittest.TestCase):
@@ -35,6 +40,19 @@ class ControlLiveTests(unittest.TestCase):
         row = module.project(self.event(tags=["AGENT"], action="INFO"), "1")
         self.assertIsNone(row["provider"])
         self.assertIsNone(row["executor"])
+
+    def test_owner_view_keeps_tags_and_scrubs_secrets(self):
+        row = module.project_owner(live, self.event(tags=["openai", "chat"], action="ok", status="done"), "o1")
+        self.assertEqual(row["view"], "owner")
+        self.assertIn("GPT-CHAT", row["tags"]); self.assertIn("OPENAI", row["tags"])
+        self.assertEqual(row["action"], "OK"); self.assertEqual(row["status"], "DONE"); self.assertEqual(row["state"], "healthy")
+        for forbidden in ["secret", "123456", "4242424242424242"]:
+            self.assertNotIn(forbidden, str(row))
+
+    def test_owner_view_skips_heartbeat_and_bounds_detail(self):
+        self.assertIsNone(module.project_owner(live, self.event(tags=["live"]), "o2"))
+        row = module.project_owner(live, self.event(detail="x" * 900), "o3")
+        self.assertLessEqual(len(row["detail"]), module.OWNER_DETAIL_CHARS)
 
     def test_unknown_action_is_not_healthy(self):
         self.assertEqual(module.project(self.event(action="NEW_STATE"), "x")["status"], "unknown")

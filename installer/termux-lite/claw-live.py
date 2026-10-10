@@ -1335,6 +1335,7 @@ def raw_mode() -> int:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Semantic live observability for Claw on Termux.")
     parser.add_argument("--control-json", action="store_true", help="Payload-free Control events; no UI observation.")
+    parser.add_argument("--owner-json", action="store_true", help="Owner-only local view: tags, action and scrubbed preview, as JSON.")
     parser.add_argument("--control-history", type=int, default=0, help="Read bounded Control event history and exit.")
     parser.add_argument("--compact", action="store_true", help="Reduce message previews and tool details.")
     parser.add_argument("--raw", action="store_true", help="Tail raw Desktop Commander and OpenClaw logs.")
@@ -1354,12 +1355,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if args.control_json or args.control_history:
+    if args.control_json or args.control_history or args.owner_json:
         import claw_live_control
         if args.control_history:
             print(json.dumps(claw_live_control.history(sys.modules[__name__], args.control_history), ensure_ascii=False))
             return 0
-        return claw_live_control.stream(sys.modules[__name__])
+        return claw_live_control.stream(sys.modules[__name__], owner=args.owner_json)
     if args.raw:
         return raw_mode()
     if not args.allow_multiple and not acquire_single_instance():
