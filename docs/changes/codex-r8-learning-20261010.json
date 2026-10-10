@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "id": "codex-r8-learning-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Owner-confirmed learning with shared payment exclusion and resilient bounded candidate reads.",
+  "reason": "Review32 corrections: shared financial guard, folder identity, skipped invalid candidates and honest bounded partial reads; no S24 activation.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-r8-learning-20261010.json",
+    "docs/changes/codex-r8-learning-20261010.md",
+    "docs/work/samantha-runtime/contracts/r8.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/test-skill-learning-acceptance.py",
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-learning-guard.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-learning.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/automations.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skillLearning.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts"
+  ],
+  "tests": [
+    {
+      "name": "R8 local synthetic contracts",
+      "status": "passed",
+      "evidence": "Build;116 assertions including five captured real producer forms (mock traces, actual recording volume0), generated bounds601, mtime ordering, signed HTTP202 admission with real run ledger and 850ms guard/300ms probe/3s background RPC;44 canonical guard assertions including true helper total timeout and no-run financial refusal;3 acceptance budget tests; complete current CI. Review32: invalid/oversized entries skipped, 36-files scan exceeds32MiB without503, folder provenance, forbidden-effect spies and hash mismatch before consume. Full current CI on runtime6b7c68f: CI_LOCAL_OK; all base workflow steps retained. Shared protectedPayment union preserves P2-b pay/r\u00e9gler/acheter and GBP/dinar/euro/dollar cases."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r8.md",
+    "docs/changes/codex-r8-learning-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Native Companion facade over the existing recordings/trace owner; no new business registry or executable canonical route."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing confirmation and run receipt owners reused; no new store, scheduler, daemon or tool-policy owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native facade only; canonical MCP admission and dispatch contracts unchanged."
+  },
+  "rollback": "Revert the R8 preparation PR; no runtime activation performed.",
+  "limitations": [
+    "Captures PR48 reflect actual producer format from mock traces; no real recordings exist on S24 (volume0).",
+    "Local admission budget proof does not attest live S24 timing; a cold canonical guard beyond1s refuses503 before any run/consume.",
+    "Prompt forbids promotion; no stronger agent-wide tool confinement is claimed."
+  ]
+}

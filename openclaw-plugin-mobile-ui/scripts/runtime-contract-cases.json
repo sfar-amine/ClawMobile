@@ -1223,6 +1223,40 @@
         ]
       },
       "test": "scripts/test-capability-detail.cjs"
+    },
+    {
+      "id": "skill-learn-r8",
+      "template": "/v1/skills/learn",
+      "method": "POST",
+      "phase": "pending",
+      "source": "core#47",
+      "types": {},
+      "reason": "owner_mutation_requires_dedicated_fixture_recipe",
+      "test": "scripts/test-skill-learning.cjs"
+    },
+    {
+      "id": "skill-candidates-r8",
+      "template": "/v1/skills/candidates",
+      "method": "GET",
+      "phase": "pending",
+      "source": "core#47",
+      "types": {
+        "success": "boolean",
+        "items": "array"
+      },
+      "test": "scripts/test-skill-learning.cjs"
+    },
+    {
+      "id": "skill-candidate-detail-r8",
+      "template": "/v1/skills/candidates/:traceId",
+      "method": "GET",
+      "phase": "pending",
+      "source": "core#47",
+      "types": {
+        "success": "boolean",
+        "item": "object"
+      },
+      "test": "scripts/test-skill-learning.cjs"
     }
   ],
   "limitations": [

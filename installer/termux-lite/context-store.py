@@ -5,7 +5,7 @@ from context_import import preview as import_preview, selection as import_select
 H=pathlib.Path.home()
 D=pathlib.Path(os.environ.get("SAMANTHA_CONTEXT_ROOT",H/".openclaw/context-sync"))
 DB=D/"memory.db"
-SCHEMA_VERSION=3
+SCHEMA_VERSION=4
 
 def connect():
     D.mkdir(parents=True,exist_ok=True); os.chmod(D,0o700)
@@ -21,6 +21,7 @@ def migrate(c):
         cols={r[1] for r in c.execute("PRAGMA table_info(events)")}
         if "supersedes" not in cols: c.execute("ALTER TABLE events ADD COLUMN supersedes TEXT")
         if "revision" not in cols: c.execute("ALTER TABLE events ADD COLUMN revision INTEGER")
+        if "session_id" not in cols: c.execute("ALTER TABLE events ADD COLUMN session_id TEXT")
         c.execute("CREATE TABLE IF NOT EXISTS memory_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
         c.execute("""CREATE TABLE IF NOT EXISTS session_cursors(
             session_id TEXT PRIMARY KEY,surface TEXT NOT NULL,last_seen_revision INTEGER NOT NULL DEFAULT 0,
@@ -70,15 +71,31 @@ def ingest_file(c,path,require_active=None):
     if not all(e.get(k) for k in ('id','surface','kind','text','createdAt')): raise ValueError('missing required field')
     if e['surface'] not in ('chat','work','voice','openclaw'): raise ValueError('bad surface')
     if e['kind'] not in ('decision','learning','open_thread','completed_action','constraint','checkpoint'): raise ValueError('bad kind')
+    session=e.get('sessionId')
+    if session is not None and (e['kind']!='open_thread' or not isinstance(session,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',session)):
+        raise ValueError('invalid_companion_session')
     migrate(c); c.execute('BEGIN IMMEDIATE')
     try:
-        row=c.execute('SELECT revision FROM events WHERE id=?',(e['id'],)).fetchone()
-        if row: rev=row[0]; inserted=False
+        if session is not None and e.get('supersedes'):
+            prior=e['supersedes']; seen=set()
+            for _ in range(64):
+                if prior in seen: raise ValueError('event_origin_chain_invalid')
+                seen.add(prior)
+                origin=c.execute('SELECT session_id,supersedes,kind FROM events WHERE id=?',(prior,)).fetchone()
+                if not origin: break
+                if origin[0] is not None and origin[0]!=session: raise ValueError('event_session_conflict')
+                if not origin[1]: break
+                prior=origin[1]
+            else: raise ValueError('event_origin_chain_invalid')
+        row=c.execute('SELECT revision,session_id FROM events WHERE id=?',(e['id'],)).fetchone()
+        if row:
+            if row[1]!=session: raise ValueError('event_session_conflict')
+            rev=row[0]; inserted=False
         else:
             if require_active and c.execute('SELECT 1 FROM events WHERE supersedes=?',(require_active,)).fetchone():raise ValueError('memory_already_superseded')
             h=int(c.execute("SELECT value FROM memory_meta WHERE key='current_revision'").fetchone()[0]); rev=h+1
             now=datetime.datetime.now(datetime.timezone.utc).isoformat()
-            c.execute('INSERT INTO events(id,surface,kind,text,created_at,ingested_at,supersedes,revision) VALUES(?,?,?,?,?,?,?,?)',(e['id'],e['surface'],e['kind'],' '.join(str(e['text']).split()),e['createdAt'],now,e.get('supersedes'),rev))
+            c.execute('INSERT INTO events(id,surface,kind,text,created_at,ingested_at,supersedes,revision,session_id) VALUES(?,?,?,?,?,?,?,?,?)',(e['id'],e['surface'],e['kind'],' '.join(str(e['text']).split()),e['createdAt'],now,e.get('supersedes'),rev,session))
             c.execute("UPDATE memory_meta SET value=? WHERE key='current_revision'",(str(rev),)); inserted=True
         c.execute('COMMIT')
     except Exception:
