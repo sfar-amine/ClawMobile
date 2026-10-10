@@ -69,6 +69,14 @@ jobs:
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
 
+      - name: Run inactivity evidence and lifecycle regression contracts
+        run: |
+          node scripts/test-run-inactivity.cjs
+          node scripts/test-conversation-backfill-races.cjs
+          node scripts/test-companion-history-cache.cjs
+          node scripts/test-conversation-pages.cjs
+          node scripts/test-submit-reconciliation.cjs
+          node scripts/test-payment-core.cjs
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression
