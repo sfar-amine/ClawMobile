@@ -28,6 +28,11 @@
       "name": "full-ci-2c2c18f",
       "status": "passed",
       "evidence": "All current ci.yml run commands on 2c2c18f plus C6 Companion/MCP schema tests passed CI_LOCAL_OK; npm cache explicitly routed to /tmp in this hosted workspace."
+    },
+    {
+      "name": "full-ci-current-d8e2f7f",
+      "status": "passed",
+      "evidence": "After merging fresh runtime d8e2f7f, all current ci.yml run commands (including R17 paired owner and P2-b) plus C6 tests passed CI_LOCAL_OK."
     }
   ],
   "documentation": [
