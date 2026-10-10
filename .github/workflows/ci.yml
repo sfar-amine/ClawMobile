@@ -68,3 +68,6 @@ jobs:
           node scripts/test-claw-live-warm-cancellation.cjs
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
+
+      - name: Run read-only notification source contract
+        run: node scripts/test-notification-sources.cjs
