@@ -29,22 +29,63 @@ Les chemins sont complets. Les objets, corps, confirmations et états viennent d
 
 L'inventaire décrit les lots connus lors de cette rédaction. Relire la version finale de chaque PR avant activation : un chemin 404 dans une ancienne version est un endpoint absent, pas un résultat de recette réussi. R8 est en relecture (#47). C2 est une clôture de continuations par Claude ; C4 ajoute uniquement des tests JVM (#45), sans écart runtime. A5 est clos selon Claude. Ce runbook ne déclare pas la recette des lots ouverts.
 
-## Outils runtime et vue propriétaire claw-live
+## Outils runtime : journal live, shell, redémarrage
 
-Les interfaces natives existantes (PR #12) comprennent GET `/v1/runtime/log?maxBytes=65536`, POST `/v1/runtime/restart`, POST `/v1/terminal/command`, GET `/v1/terminal/session` et POST `/v1/terminal/session/input` ou `/reset`. Le terminal est un shell réel, réservé au client natif loopback ; ce n’est ni un outil agent ni un routeur métier. Le redémarrage canonique POST `/v1/runtime/restart` est lancé seulement en l’absence de tout run actif, vérifiée auprès du propriétaire des runs, et sans paiement ni confirmation en cours. Un redémarrage n’est pas un déploiement et ne remplace pas companion-deploy.sh. Claude vérifie les gardes des propriétaires avant tout effet et ne lance aucune commande bancaire ni lecture de secret. Les journaux peuvent contenir des données privées : consulter localement, partager seulement une preuve nettoyée.
+Interfaces natives existantes (PR #12), présentes dans `server.ts` de la base. Elles sont **loopback uniquement** (`isLocalOnlyRoute` : toute route sauf `/`, `/health` et `/capabilities` est refusée hors 127.0.0.1) et réservées au client natif ; ce ne sont ni des outils agent ni un routeur métier.
 
-La vue Contrôle publique utilise GET `/v1/control/activity/stream` (SSE). La vue propriétaire utilise le même flux avec `?view=owner` : le helper existant `claw-live.py --owner-json --history 60` restitue les dernières lignes avec timestamps réels et `replay:true`, puis les événements live, tags et aperçus nettoyés. Le flux public reste sans contenu privé. La vue owner est locale, limitée à deux flux actifs ; fermer la vue termine son enfant de lecture. Elle n’ajoute aucun store ou daemon. Claude vérifie readiness, reconnexion et absence de doublons, sans publier de transcript ni confondre ce journal avec une recette de la voix duplex.
+| Outil | Route | Effet |
+| --- | --- | --- |
+| Journal live | GET `/v1/runtime/log?maxBytes=65536` | Lecture de la fin du journal runtime (64 Kio par défaut). Peut contenir des données privées : lire localement, ne partager qu'une preuve nettoyée. |
+| Shell | GET `/v1/terminal/session`, POST `/v1/terminal/session/input` `{text}`, POST `/v1/terminal/session/reset`, POST `/v1/terminal/command` `{command}` | Shell Termux réel. Aucune commande bancaire, aucune lecture de secret (`.env`, jetons), aucun `env` affiché. |
+| Redémarrage | POST `/v1/runtime/restart` (aussi `/runtime/stop`, `/runtime/start`) | Arrête puis relance la **Gateway OpenClaw** (`restartRuntime`, opérations sérialisées). Ne redémarre pas le Companion et ne déploie rien. |
+
+**Le redémarrage canonique est POST `/v1/runtime/restart`, et seulement sans run actif.** La route ne vérifie pas elle-même les runs : Claude le fait avant, auprès du propriétaire des runs, et renonce si un run, un paiement ou une confirmation humaine est en cours.
+
+```sh
+# 0 run actif attendu ; sinon attendre la fin ou l'arrêt explicite du run, jamais de redémarrage par-dessus.
+curl -fsS -m 10 'http://127.0.0.1:8765/v1/runs?summary=1&limit=100' \
+  | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runs"] if x.get("state")=="running"]; print(len(r)); sys.exit(1 if r else 0)' \
+  && curl -fsS -m 60 -X POST http://127.0.0.1:8765/v1/runtime/restart
+curl -fsS -m 5 http://127.0.0.1:8765/v1/health
+```
+
+Un redémarrage n'est pas un déploiement et ne remplace pas `companion-deploy.sh` (qui, lui, relance le Companion). Pour le Companion lui-même, seul le déploiement sûr ci-dessous fait foi.
+
+## Vue propriétaire claw-live
+
+La vue Contrôle publique est GET `/v1/control/activity/stream` (SSE, `--control-json`) : sans contenu privé. La vue propriétaire est le même flux avec `?view=owner` : `control.ts` lance `claw-live.py --owner-json --history 60`, qui restitue d'abord les 60 dernières lignes du transcript (timestamps réels, `replay:true`), puis les événements live avec tags, action et aperçus nettoyés.
+
+- Locale (loopback) et limitée à **deux flux actifs** ; un troisième reçoit 429 `control_stream_busy`.
+- Fermer la vue termine le groupe de processus du lecteur (SIGTERM, puis SIGKILL après 2,5 s). Aucun store ni démon ajouté.
+- Recette Claude : ouverture non vide (lignes `replay:true`), reconnexion sans doublon, flux public toujours sans aperçu. Ne pas publier de transcript ; ce journal n'est pas une recette de la voix duplex.
+
+```sh
+curl -sN -m 15 'http://127.0.0.1:8765/v1/control/activity/stream?view=owner' | head -c 2000 >/dev/null && echo owner_view_ok
+```
 
 ## Récupération ADB native après reboot
 
-Le correctif Android `f64513fb9e0830759b84768eb920c228f4faa8cb` réarme le débogage Wi-Fi via le `RecoverySignalReceiver` existant, hors du domaine Termux. Après le grant ADB initial vérifié de `WRITE_SECURE_SETTINGS`, il écrit uniquement `Settings.Global["adb_wifi_enabled"]=1`, relit cette valeur puis déclenche la réparation Tier0 existante. Déclencheurs existants : boot, remplacement du paquet, retour Wi-Fi avec capacité Internet et filet de sécurité de15minutes. Aucun nouveau scheduler ni shell arbitraire.
+Android coupe le débogage sans fil à chaque reboot ; le chemin ADB canonique `127.0.0.1:5556` restait donc indisponible jusqu'à une bascule manuelle (reboot contrôlé du 10/10 : adb-recovery épuisé, incident 2c94db3e). Le correctif `f64513fb9e0830759b84768eb920c228f4faa8cb` (« re-arm wireless debugging natively after reboot ») est sur la **branche app** `feature/samantha-ux-c11-20261009`, pas sur la base runtime : il n'agit qu'une fois l'app construite depuis cette branche et installée par `install-from-ci.sh`.
 
-Le watchdog Termux reste propriétaire de la découverte d’endpoint, de la vérification du serial S24 et du transport canonique `127.0.0.1:5556`. Si le grant manque, ne pas annoncer un réarmement réussi. Claude vérifie successivement le grant de l’APK installé, un passage Wireless Debugging OFF→ON sous signal natif, puis la disponibilité ADB et le serial par le watchdog. Un reboot physique contrôlé reste une preuve distincte, avec Amine ; ni le SHA ni les tests JVM ne l’attestent. Le script de réparation ne doit jamais être remplacé par une commande d’effet parallèle.
+- Le `RecoverySignalReceiver` existant (`NativeAdbRecovery`, `NativeRecoverySentinel.kt`) écrit uniquement `Settings.Global["adb_wifi_enabled"]=1`, relit la valeur, puis déclenche la réparation Tier0 existante.
+- Déclencheurs existants : boot, remplacement du paquet, retour du Wi-Fi avec Internet, filet de sécurité de 15 minutes. Aucun nouveau scheduler ni shell arbitraire.
+- Condition : la permission `WRITE_SECURE_SETTINGS` accordée une fois par ADB. `install-from-ci.sh` la réaccorde après chaque installation (`pm grant ai.samantha.android.dev android.permission.WRITE_SECURE_SETTINGS`). Sans ce grant, ne pas annoncer de réarmement.
+- Le watchdog Termux (`adb-recovery-watchdog.sh`, `adb-recovery-supervisor.sh`, `adb-discover-endpoint.py`) reste propriétaire de la découverte d'endpoint, du serial S24 et du transport `127.0.0.1:5556`.
+
+Vérification Claude, dans l'ordre :
+
+```sh
+adb -s 127.0.0.1:5556 shell dumpsys package ai.samantha.android.dev | grep -c 'WRITE_SECURE_SETTINGS: granted=true'
+adb -s 127.0.0.1:5556 shell settings get global adb_wifi_enabled     # 1 attendu
+python3 ~/ClawMobile/installer/termux-lite/adb-recovery-readiness.py --json --no-write  # transport et serial vus par le watchdog, sans écriture
+```
+
+Puis un passage Wireless Debugging OFF→ON sous signal natif. Un reboot physique contrôlé reste une preuve distincte, faite avec Amine ; ni le SHA ni les tests JVM ne l'attestent. Le script de réparation n'est jamais remplacé par une commande d'effet parallèle.
 
 ## Réviser et préparer l'activation
 
 1. Claude relève le SHA Companion relu, les SHA playbooks appariés et la version Android concernée. Il intègre par PR les bases actuelles ; aucune reprise d'un ancien bundle avec ses ancêtres non relus. Toutes les étapes CI existantes, notamment M1, restent présentes.
-2. Codex fournit les preuves Git : build/tests ciblés, CI locale appropriée et notes de livraison `not_applied`. Chaque nouveau test doit être inscrit dans ci.yml dans la même PR. Toute nouvelle route ajoute à companion-acceptance.py une lecture avec budget ou une mutation refusée sans en-tête propriétaire (règle24). Les fixtures réelles et mesures S24 manquantes restent explicites.
+2. Codex fournit les preuves Git : build/tests ciblés, CI locale appropriée et notes de livraison `not_applied`. Chaque nouveau test doit être inscrit dans ci.yml dans la même PR. Toute nouvelle route ajoute à companion-acceptance.py une lecture avec budget ou une mutation refusée sans en-tête propriétaire (règle 24). Les fixtures réelles et mesures S24 manquantes restent explicites.
 3. Claude fusionne d'abord la partie playbooks d'un lot apparié, épingle son snapshot runtime, puis fusionne et déploie le Companion. Une copie modifiable de workspace ne remplace pas le pin. Les overrides explicites du propriétaire passent avant `current` ; en vérifier l'intention sans afficher l'environnement.
 4. Avant restart/rollback, Claude vérifie l'absence d'étape bancaire ou de confirmation humaine active par leurs propriétaires existants. Aucun changement de paiement, de biométrie bancaire, d'OTP ni de reçu pour faciliter l'activation.
 
@@ -67,25 +108,43 @@ Retour au snapshot précédent, seulement par Claude si la recette impose ce ret
 
 ## Companion : déploiement et retour arrière réel
 
-La [PR propriétaire #35](https://github.com/sfar-amine/samantha-core/pull/35) fournit `installer/termux-lite/companion-deploy.sh` et `companion-acceptance.py`. Elle est fusionnée depuis `f1e1800` et ses scripts sont présents dans la base `6b7c68f` ; aucun déploiement Codex n’en découle. Le correctif propriétaire #46 est fusionné (`a841936`) et conserve le verrou pendant les sous-processus du déploiement.
+`installer/termux-lite/companion-deploy.sh` et `companion-acceptance.py` viennent de #35 (fusionnée, `f1e1800`) ; le correctif du verrou #46 est fusionné (`a841936`) : le Companion relancé ne garde plus le descripteur du verrou. Tous deux sont dans la base `6b7c68f`. **C'est le seul chemin de déploiement du Companion.**
 
-Claude utilise le script depuis sa localisation canonique validée. Il refuse un checkout modifié, une cible non descendante, la concurrence de jobs lourds ou une mémoire insuffisante. Il sauvegarde le `dist` Companion (cinq sauvegardes par défaut), avance rapidement le checkout, construit, redémarre, attend `/v1/health` puis fait sa recette automatique. Celle-ci applique `settle()` : une réponse `deferred` doit fournir les données sous 15 s, sinon la recette échoue et déclenche le retour arrière. `LEAK` reste limité aux secrets ; un numéro ou texte légitime dans une réponse propriétaire ne déclenche pas un rollback. Le caller doit lancer ce travail détaché pour survivre à la coupure du Companion ; le script conserve son propre log et reçu. Les commandes suivantes sont réservées à Claude, après vérification du SHA à déployer :
+Ce que fait le script, dans l'ordre (vérifié dans le script de la base) :
+1. **Verrou** `~/.openclaw/deploys/companion-deploy.lock` (`flock -n`) : un second déploiement sort en code 3 `deploy_already_running`.
+2. **Préflight** : refus (reçu `refused`, code 4) si un job lourd tourne (`GradleDaemon`, `gradle-termux`, `tsc -p tsconfig`), si `MemAvailable` < 1 200 Mo (`COMPANION_DEPLOY_MIN_MB`) ou si la charge 1 min > 7 (`COMPANION_DEPLOY_MAX_LOAD`).
+3. `git fetch samantha-private runtime/samantha-companion-private` ; la cible doit être un commit de cette branche (`commit_not_on_branch` sinon), le checkout propre (`dirty_checkout`) et l'avance **rapide uniquement** (`not_fast_forward`).
+4. Sauvegarde du `dist` dans `~/.openclaw/backups/companion-<sha7>-<horodatage>` (5 gardées, `COMPANION_DEPLOY_KEEP`).
+5. `npm run build` (nice 10), redémarrage du Companion, attente de `/v1/health` (2 min).
+6. **Recette automatique** `companion-acceptance.py` : chaque lecture dans son budget ; chaque mutation refusée sans en-tête propriétaire ; `settle()` : une réponse `deferred` doit livrer ses données sous 15 s ; `LEAK` limité aux secrets (Bearer, `sk-`, `ghp_`…, `github_pat_`, AKIA, `refresh_token`/`access_token`, clés privées), un numéro ou un texte du propriétaire ne déclenche pas de retour arrière. Une route absente (404) est `skipped`.
+7. **Retour arrière automatique** en cas d'échec de build, de santé ou de recette : `git reset --hard <précédent>`, restauration du `dist` sauvegardé, redémarrage et nouvelle recette. Reçu `rolled_back` si sain, sinon `rollback_failed` et incident `human_required` (`incident-notify.sh`).
+8. **Reçu** `~/.openclaw/deploys/companion-<horodatage>.json` (`state` : `deployed`, `refused`, `failed`, `rolled_back`, `rollback_failed` ; `target`, `previous`, `detail`, `acceptance`) et journal `companion-<horodatage>.log` ; événement `context-event.sh work completed_action` après succès.
+
+Commandes, réservées à Claude après vérification du SHA. Le redémarrage coupe le lien Claw : lancer détaché, puis lire le reçu.
 
 ```sh
 COMPANION_SHA='REMPLACER_PAR_LE_SHA_COMPANION_RELU_40_HEX'
 nohup ~/ClawMobile/installer/termux-lite/companion-deploy.sh "$COMPANION_SHA" >/dev/null 2>&1 </dev/null &
-~/ClawMobile/installer/termux-lite/companion-deploy.sh --status
+~/ClawMobile/installer/termux-lite/companion-deploy.sh --status    # dernier reçu
+python3 ~/ClawMobile/installer/termux-lite/companion-acceptance.py  # recette seule, lecture uniquement
 ```
 
-En échec de build, santé ou recette, **le script restaure réellement le checkout précédent et le `dist` sauvegardé**, redémarre et vérifie à nouveau. Il écrit `rolled_back` si ce retour est sain ; sinon `rollback_failed` et un incident `human_required` via le propriétaire existant. Lire le reçu ; ne pas relancer le déploiement pour contourner un résultat incertain. `--status` est la seule option de consultation ; ne pas inventer `companion-deploy.sh --rollback`, ni utiliser une nouvelle intention Claw après une coupure.
+`--status` est la seule option de consultation ; il n'existe pas de `companion-deploy.sh --rollback`. Ne pas relancer un déploiement pour contourner un résultat incertain. Toute route à plus de 80 % de son budget dans un reçu devient une tâche d'optimisation.
 
-Le [contrôleur Tier0](../../../../installer/termux-lite/tier0-control.py) porte séparément les releases des helpers Termux : `package`, `promote`, `rollback --reason`, `status`, `root`. Sa promotion peut demander le bootstrap existant ; son rollback vérifie le LKG et change le pointeur, **sans redémarrage automatique**. `tier0-bootstrap.sh --restart-core` relance les superviseurs existants quand Claude décide ce redémarrage. Un changement de ce pointeur ne restaure pas à lui seul le `dist` du plugin Companion : `companion-server.sh` construit le plugin du dépôt résolu par `lib.sh`. Garder cette distinction dans le reçu et la recette ; ne pas annoncer un rollback Companion sur la seule foi d'un pointeur Tier0.
+Le [contrôleur Tier0](../../../../installer/termux-lite/tier0-control.py) porte séparément les releases des helpers Termux : `package`, `promote`, `rollback --reason`, `stop`, `resume`, `status`, `root`. Son rollback change le pointeur LKG **sans redémarrage automatique** ; `tier0-bootstrap.sh --restart-core` relance les superviseurs quand Claude le décide. Ce pointeur ne restaure pas le `dist` du Companion : ne jamais annoncer un rollback Companion sur la seule foi d'un pointeur Tier0.
 
-La mémoire SQLite, les fichiers privés, les confirmations et les reçus restent dans leurs propriétaires. Aucun reset/suppression de ces données dans la procédure. Si un retour manuel hors déploiement échoué est nécessaire, Claude le prépare à partir de la sauvegarde et du SHA précédents vérifiés, sans détourner une route R7 absente ni toucher au paiement.
+La mémoire SQLite, les fichiers privés, les confirmations et les reçus restent dans leurs propriétaires : aucun reset ni suppression dans la procédure. Un retour manuel hors déploiement échoué part de la sauvegarde et du SHA précédents vérifiés, sans détourner une route R7 absente ni toucher au paiement.
 
 ## Installation de l’app depuis la CI
 
-Claude utilise uniquement `android/samantha/tools/install-from-ci.sh`, après vérification de la CI « Samantha Android app », du SHA et de l’APK attendus. Le propriétaire vérifie checksum et clé du S24 avant installation ; aucune compilation Gradle sur le téléphone. La présence des tests JVM dans GitHub Actions ne prouve pas une recette UI ni une récupération après reboot.
+L'APK est compilé par GitHub Actions (workflow « Samantha Android app ») ; **pas de Gradle sur le téléphone**. Le seul installateur est `android/samantha/tools/install-from-ci.sh`, sur la branche app `feature/samantha-ux-c11-20261009` (introduit par `62762cf`), lancé depuis un checkout de cette branche sur le S24 :
+
+```sh
+APP_SHA='REMPLACER_PAR_LE_SHA_APP_RELU'
+android/samantha/tools/install-from-ci.sh "$APP_SHA"
+```
+
+Le script, dans l'ordre : exige `gh` authentifié ; attend (40 min au plus) le run CI de ce commit exact, refuse un run non `success` ; télécharge l'artefact `samantha-app-optimized-<sha>` ; vérifie le **checksum** `app-optimized.apk.sha256` et que le **signataire** (`app-optimized.cert`) est la clé de debug du S24 (`~/.android/debug.keystore`) — sinon reçu `refused` (`checksum_mismatch`, `signer_is_not_this_phone_debug_key`) ; installe en place (`adb -s 127.0.0.1:5556 install -r`, données conservées) ; réaccorde `WRITE_SECURE_SETTINGS` (récupération ADB) ; écrit le reçu `~/.openclaw/deploys/app-<horodatage>.json` (`installed`, version et run). Un seul job lourd à la fois : pas d'installation pendant un déploiement Companion. Les tests JVM verts ne prouvent ni une recette UI ni une récupération après reboot.
 
 ## Reconnexion Claw après restart
 
@@ -103,10 +162,10 @@ Pour une opération déjà engagée et devenue incertaine, `claw_status` conserv
 
 ## Recette et clôture
 
-G2 est fusionné (#43, d7ae8f1) : `openclaw-plugin-mobile-ui/scripts/runtime-contract-report.py`, son inventaire `runtime-contract-cases.json` et `docs/work/samantha-runtime/contracts/g2.md` sont les chemins convenus avec son propriétaire. Ces fichiers sont présents dans la base6b7c68f ; leur présence ne prouve pas une couverture complète sur le S24. Le rapport exerce uniquement les GET, sans envoyer de mutation. Les mutations non financières exigent leurs preuves offline obligatoires ; le paiement est exclu. Des états pending/unknown, une interface absente ou une preuve manquante empêchent la couverture complete. Aucun rejeu d'un effet pour fabriquer la preuve d'idempotence.
+G2 est fusionné (#43, d7ae8f1) : `openclaw-plugin-mobile-ui/scripts/runtime-contract-report.py`, son inventaire `runtime-contract-cases.json` et `docs/work/samantha-runtime/contracts/g2.md` sont les chemins convenus avec son propriétaire. Ces fichiers sont présents dans la base `6b7c68f` ; leur présence ne prouve pas une couverture complète sur le S24. Le rapport exerce uniquement les GET, sans envoyer de mutation. Les mutations non financières exigent leurs preuves offline obligatoires ; le paiement est exclu. Des états pending/unknown, une interface absente ou une preuve manquante empêchent la couverture complète. Aucun rejeu d'un effet pour fabriquer la preuve d'idempotence.
 
 Fournir des identifiants dédiés pour les détails et distinguer absents, non exercés et réussis. Un 404 ignoré par l'ancien contrôle de déploiement ne remplace pas la couverture requise de G2. Ne pas exporter une réponse brute, un numéro, un nom de contact, une note ou une conversation. Le [plan G4 #42](https://github.com/sfar-amine/samantha-core/pull/42) réserve le ménage runtime à Claude après les qualifications ; aucune suppression S24 n'est effectuée par G3 ou G4 Git.
 
-[V2 #37](https://github.com/sfar-amine/samantha-core/pull/37) teste la télémétrie historique ; [V4 #38](https://github.com/sfar-amine/samantha-core/pull/38) produit un rapport p50/p95 avec appariement sid/source et exclusion de dérive >1 ms. Les journaux du 10 octobre sont des preuves historiques, pas une nouvelle recette. [V3 #40](https://github.com/sfar-amine/samantha-core/pull/40) propose une requalification duplex sans écrire la route ; Claude la fait avant RDV1. V5 exige qualification de chaque candidat fournisseur et écoutes/mesures appropriées ; un setup de fixture ne qualifie pas la voix réelle.
+[V2 #37](https://github.com/sfar-amine/samantha-core/pull/37) (fusionnée) teste la télémétrie historique ; [V4 #38](https://github.com/sfar-amine/samantha-core/pull/38) (fusionnée) produit un rapport p50/p95 avec appariement sid/source et exclusion de dérive >1 ms. Les journaux du 10 octobre sont des preuves historiques, pas une nouvelle recette. [V3 #40](https://github.com/sfar-amine/samantha-core/pull/40) (fusionnée) fournit une requalification duplex sans écrire la route ; Claude la fait avant RDV1. V5 exige qualification de chaque candidat fournisseur et écoutes/mesures appropriées ; un setup de fixture ne qualifie pas la voix réelle.
 
 G1 conserve les recettes déjà déclarées par Claude. G2/G3/G4 sont des livraisons Git ; activation, écrans, nettoyage S24, RDV1/M1 et décision finale restent avec Claude et Amine. La clôture globale exige les preuves de chaque lot et ses dépendances, sans déclarer G5 ni M1 validés faute de contrat/preuve.
