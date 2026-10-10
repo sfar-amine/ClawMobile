@@ -20,10 +20,11 @@ async function jobById(id:string){
  if(!job)throw nativeError("automation_not_found",404);
  return job;
 }
-export function protectedJob(job:any){
+export function protectedPayment(value:any){
  // No scheduler action may bypass the existing financial/human boundary.
- return /payment|paiement|bank|bancair|biometr|3.?d.?secure|confirmation|clic.?to.?pay|topnet|maxit|termux[-_ ]notification|wallet|flouci|\botp\b|virement|transaction|carte|card|top.?up|recharge|d17|achat|purchase|facture|invoice/i.test(JSON.stringify(job));
+ return /\bpay|payment|paiement|payer|paye|r[ée]gler|bank|banque|bancair|biometr|3.?d.?secure|confirmation|clic.?to.?pay|topnet|maxit|termux[-_ ]notification|wallet|flouci|\botp\b|virement|transaction|carte|card|top.?up|recharge|d17|achat|achet|purchase|facture|invoice|(?:\d+(?:[.,]\d+)?)\s*(?:TND|EUR|USD|GBP|DT|dinar|euro|dollar)\b/i.test(typeof value==="string"?value:JSON.stringify(value).replace(/\\[nrt]/g," "));
 }
+export function protectedJob(job:any){return protectedPayment(job);}
 export async function automationDetail(id:string){
  const job=await jobById(id);
  const history=await callOpenClawGateway("cron.runs",{id,limit:10});

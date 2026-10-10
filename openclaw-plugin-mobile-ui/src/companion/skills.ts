@@ -1,4 +1,5 @@
 import fs from "fs";
+import {protectedPayment} from "./automations";
 import path from "path";
 import { getWorkspaceDir } from "../tools/workspace";
 import { runSkillFastPath } from "../trace_induction/fastpath";
@@ -757,7 +758,7 @@ function loadSkill(skillDir: string, id: string): LoadedSkill | null {
   const candidateJson = readJson(path.join(skillDir, "skill_candidate.json"));
   const generated = frontmatter.clawmobile_generated === "true" || !!generatedJson || !!candidateJson;
   const feedback = readFeedback(path.join(skillDir, "execution_feedback.jsonl"));
-  const risk = inferRisk(id, description, generated);
+  const risk = protectedPayment({id,name,markdown,generatedJson,candidateJson}) ? "high" : inferRisk(id, description, generated);
   const scope = inferScope(id, description, generatedJson, candidateJson);
   const overview = buildOverview(markdown, description, scope, generated);
   const knowledge = buildKnowledge(markdown, generatedJson, candidateJson);

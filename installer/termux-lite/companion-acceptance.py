@@ -4,7 +4,7 @@ refuse what it must refuse, and never return secret-shaped content. Read-only: n
 
 Exit 0 = accepted, 1 = regression (the deploy script rolls back), 2 = usage error.
 A route that is not present in this build (404) is skipped, so the same check serves every release."""
-import json, re, sys, time, urllib.error, urllib.request
+import argparse, json, re, sys, time, urllib.error, urllib.request
 
 BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Budgets are S24 numbers measured on 10/10 with margin; a cold first call gets one retry.
@@ -45,8 +45,15 @@ def call(method, path, timeout, headers=None):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--skill-id", default="acceptance-probe", help="Installed non-financial skill for the P2-b read budget; absent probe is skipped")
+    args = parser.parse_args()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", args.skill_id):
+        parser.error("invalid skill id")
+    reads = [*READS, ("/skills/" + args.skill_id, 3.5)]
+    guards = [*OWNER_GUARDS, *[("POST", "/skills/" + args.skill_id + "/" + action) for action in ("enable", "disable", "try")]]
     results, failed = [], False
-    for path, budget in READS:
+    for path, budget in reads:
         for attempt in (1, 2):
             code, body, took = call("GET", path, budget + 5)
             ok = code == 200 and took <= budget
@@ -56,7 +63,7 @@ def main():
         status = "skipped" if code == 404 else ("ok" if ok and not leak else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
-    for method, path in OWNER_GUARDS:
+    for method, path in guards:
         code, _, took = call(method, path, 10)
         status = "skipped" if code == 404 else ("ok" if code in (400, 403, 405) else "fail")
         failed |= status == "fail"

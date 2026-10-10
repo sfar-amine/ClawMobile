@@ -1,4 +1,5 @@
 import path from "path";
+import {protectedPayment} from "./automations";
 import {createHash} from "crypto";
 import {getWorkspaceSkill,buildSkillAgentPrompt} from "./skills";
 import {getWorkspaceDir} from "../tools/workspace";
@@ -8,7 +9,7 @@ import {getGatewayStatus} from "./openclawGatewayClient";
 import {findSubmittedRunByClientRunId,reserveSubmittedRun,settleSubmittedRun} from "./runs";
 
 const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
-const payment=/payment|paiement|bank|banque|bancair|carte|card|\botp\b|3.?d.?secure|biometr|confirmation|virement|transaction|checkout|wallet|\bd17\b|flouci|maxit|topnet|clic.?to.?pay|termux.notification/i;
+
 function validate(id:string){if(!/^[A-Za-z0-9_-]{1,128}$/.test(id))throw nativeError("invalid_skill_id");}
 function operation(body:any,action:string){
  if(!body||typeof body!=="object"||Array.isArray(body)||Object.keys(body).some(k=>!["operationId",...(action==="try"?["instruction"]:[])].includes(k))||typeof body.operationId!=="string"||!/^[-A-Za-z0-9_.:]{1,128}$/.test(body.operationId))throw nativeError("invalid_operation");
@@ -16,7 +17,7 @@ function operation(body:any,action:string){
  return body.operationId as string;
 }
 async function canonicalSkill(id:string){
- const value=await callOpenClawGateway("skills.status",{agentId:"main"});
+ const value=await callOpenClawGateway("skills.status",{agentId:"main"},{timeoutMs:2500,hardTimeoutMs:3000});
  if(!Array.isArray(value?.skills)||value.skills.length>2000)throw nativeError("skills_owner_unavailable",503);
  const expected=path.join(getWorkspaceDir(),"skills",id,"SKILL.md");
  const matches=value.skills.filter((row:any)=>typeof row.filePath==="string"&&path.resolve(row.filePath)===expected);
@@ -26,7 +27,7 @@ async function canonicalSkill(id:string){
 export async function skillControlDetail(id:string){
  validate(id);const detail=getWorkspaceSkill(id);if(!detail)throw nativeError("skill_not_found",404);
  let enabled:boolean|null=null;try{enabled=!(await canonicalSkill(id)).disabled;}catch{/* absence is not enabled */}
- const protectedSkill=detail.risk==="high"||payment.test(id+" "+detail.name+" "+detail.description);
+ const protectedSkill=detail.risk==="high"||protectedPayment(id+" "+detail.name+" "+detail.description);
  return {...detail,success:true,state:enabled===null?"partial":"ok",receipt:null,enabled,activationAvailable:enabled!==null&&!protectedSkill,tryAvailable:enabled===true&&!protectedSkill&&!detail.requiresConfirmation};
 }
 function stored(status:any){
@@ -43,7 +44,7 @@ export async function changeSkill(id:string,action:string,body:any){
  const existing=await findSubmittedRunByClientRunId(clientId,{text:identity,sessionId});
  if(existing)return stored(existing);
  const detail=getWorkspaceSkill(id);if(!detail)throw nativeError("skill_not_found",404);
- if(detail.risk==="high"||(action==="try"&&detail.requiresConfirmation)||payment.test(id+" "+detail.name+" "+detail.description+" "+(body.instruction||"")))throw nativeError("protected_skill",409);
+ if(detail.risk==="high"||(action==="try"&&detail.requiresConfirmation)||protectedPayment(id+" "+detail.name+" "+detail.description+" "+(body.instruction||"")))throw nativeError("protected_skill",409);
  let row:any;
  try{row=await canonicalSkill(id);}catch{return {success:false,state:"failed",receipt:null,error:"skills_owner_unavailable"};}
  if(action==="try"){
@@ -60,7 +61,7 @@ export async function changeSkill(id:string,action:string,body:any){
    if(result.accepted&&result.runId){state="accepted";artifact={runId:result.runId,sessionId:result.sessionId};}
    else if(result.submissionState==="not_submitted")state="failed";
   }else{
-   const result=await callOpenClawGateway("skills.update",{skillKey:row.skillKey,enabled:action==="enable"});
+   const result=await callOpenClawGateway("skills.update",{skillKey:row.skillKey,enabled:action==="enable"},{timeoutMs:10000,hardTimeoutMs:12000});
    if(result?.ok===true&&(await canonicalSkill(id)).disabled===(action==="disable"))state="completed";
   }
  }catch{/* An effect may have started. Never replay on an uncertain reply. */}

@@ -7,9 +7,9 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
  let disabled=false,effects=0,uncertain=false,ownerDown=false,trials=0;
  require('../dist/companion/openclawGatewayClient').getGatewayStatus=async()=>({reachable:true});
  require('../dist/companion/intent').submitIntent=async(prompt,session,attachments,options)=>{trials++;assert.ok(prompt.includes('Inspect a local document'));assert.equal(session,'skill-demo');assert.deepEqual(attachments,[]);assert.ok(options.clientRunId.startsWith('skill-trial-'));return {accepted:true,runId:'trial-accepted',sessionId:session};};
- require('../dist/companion/openclawAgentClient').callOpenClawGateway=async(method,params)=>{
-  if(method==='skills.status'){if(ownerDown)throw Error('private-owner-error');assert.deepEqual(params,{agentId:'main'});return {skills:[{filePath:path.join(dir,'SKILL.md'),skillKey:'demo-canonical',disabled}]};}
-  assert.equal(method,'skills.update');assert.equal(params.skillKey,'demo-canonical');assert.deepEqual(Object.keys(params).sort(),['enabled','skillKey']);effects++;disabled=!params.enabled;if(uncertain)throw Error('private-secret');return {ok:true};
+ require('../dist/companion/openclawAgentClient').callOpenClawGateway=async(method,params,options)=>{
+  if(method==='skills.status'){assert.deepEqual(options,{timeoutMs:2500,hardTimeoutMs:3000});if(ownerDown)throw Error('private-owner-error');assert.deepEqual(params,{agentId:'main'});return {skills:[{filePath:path.join(dir,'SKILL.md'),skillKey:'demo-canonical',disabled}]};}
+  assert.equal(method,'skills.update');assert.deepEqual(options,{timeoutMs:10000,hardTimeoutMs:12000});assert.equal(params.skillKey,'demo-canonical');assert.deepEqual(Object.keys(params).sort(),['enabled','skillKey']);effects++;disabled=!params.enabled;if(uncertain)throw Error('private-secret');return {ok:true};
  };
  const api=require('../dist/companion/skillControl');const {route}=require('../dist/companion/server');const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}')}));await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const request=(url,method='GET',body,headers={})=>new Promise((resolve,reject)=>{
@@ -29,6 +29,22 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   const reopened=cp.execFileSync(process.execPath,['-e',"require('./dist/companion/skillControl').changeSkill('demo','try',{operationId:'trial',instruction:'Inspect a local document'}).then(x=>process.stdout.write(JSON.stringify(x)))"],{cwd:path.resolve(__dirname,'..'),encoding:'utf8',env:process.env});assert.deepEqual(JSON.parse(reopened),trial.body);
   const parallel=await Promise.all(Array.from({length:3},()=>request('demo/try','POST',{operationId:'parallel-trial',instruction:'Inspect a local document'},owner)));assert.equal(trials,2);assert.ok(parallel.every(x=>['accepted','indeterminate'].includes(x.body.state)));assert.equal((await request('demo/try','POST',{operationId:'parallel-trial',instruction:'Inspect a local document'},owner)).body.state,'accepted');
   for(const instruction of ['payer avec Maxit','virement 100 EUR','OTP carte bancaire']){assert.equal((await request('demo/try','POST',{operationId:'protected-'+instruction.length,instruction},owner)).status,409);}assert.equal(trials,2);
+  const financial=['payer la facture STEG','recharge ooredoo','acheter un ticket','top-up orange','pay electricity bill','régler50TND'];
+  const original=await fs.readFile(path.join(dir,'SKILL.md'),'utf8');
+  for(const [i,text] of financial.entries()){
+   for(const location of ['title','body','fastpath']){
+    await fs.writeFile(path.join(dir,'SKILL.md'),location==='title'?original.replace('name: demo','name: '+text):original+(location==='body'?'\n## Procedure\n'+text:'') );
+    if(location==='fastpath')await fs.writeFile(path.join(dir,'generalized_skill.json'),JSON.stringify({fast_path:{id:'demo-fast',title:'Inspect',steps:[{description:text}]}}));
+    const protectedDetail=await request('demo');assert.equal(protectedDetail.body.activationAvailable,false,text+" "+location);assert.equal(protectedDetail.body.tryAvailable,false);
+    const before=effects,priorTrials=trials;
+    for(const action of ['enable','disable','try']){const result=await request('demo/'+action,'POST',{operationId:'financial-'+i+'-'+location+'-'+action,...(action==='try'?{instruction:'Inspect a local document'}:{})},owner);assert.equal(result.status,409);assert.equal(result.body.error,'invalid_or_protected_skill');}
+    assert.equal(effects,before);assert.equal(trials,priorTrials);
+    await fs.rm(path.join(dir,'generalized_skill.json'),{force:true});
+   }
+   await fs.writeFile(path.join(dir,'SKILL.md'),original);
+   assert.equal((await request('demo/try','POST',{operationId:'financial-instruction-'+i,instruction:text},owner)).status,409);
+  }
+  const begun=performance.now();await request('demo');assert.ok(performance.now()-begun<3500,'GET /skills/id exceeded declared local budget');
   ownerDown=true;const noEffect=await api.changeSkill('demo','disable',{operationId:'retry-before-effect'});assert.equal(noEffect.state,'failed');assert.equal(noEffect.receipt,null);ownerDown=false;assert.equal((await api.changeSkill('demo','disable',{operationId:'retry-before-effect'})).state,'completed');
   uncertain=true;const unknown=await api.changeSkill('demo','enable',{operationId:'unknown'});assert.equal(unknown.state,'indeterminate');assert.deepEqual(await api.changeSkill('demo','enable',{operationId:'unknown'}),unknown);assert.equal(effects,4);assert.ok(!JSON.stringify(unknown).includes('private-secret'));
   console.log('P2-b: source examples/stats, candidate trust, exact canonical skill identity, owner activation and trial, protected/disabled refusal, pre-effect retry, durable replay/conflict and no replay after uncertainty passed');

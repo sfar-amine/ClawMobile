@@ -98,3 +98,6 @@ jobs:
 
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
+
+      - name: Run skill detail and owner controls contract
+        run: node scripts/test-skill-control.cjs
