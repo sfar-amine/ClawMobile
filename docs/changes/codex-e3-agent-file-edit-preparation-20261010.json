@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "id": "codex-e3-agent-file-edit-preparation-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "E3 preparation only: pure edit intent and planned capability; owner effects blocked",
+  "reason": "Programme 35 E3 : préparer sans inventer agents.files.set CAS ni stockage de sauvegardes ; captures mutations et propriétaire de rétention requis.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/agentFileWritePlan.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-file-write-plan.cjs",
+    "docs/work/samantha-runtime/contracts/e3.md",
+    "docs/changes/codex-e3-agent-file-edit-preparation-20261010.md",
+    "docs/changes/codex-e3-agent-file-edit-preparation-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "e3-preparation-only",
+      "status": "passed",
+      "evidence": "npm run build ; test-agent-file-write-plan.cjs : cinq noms, hash UTF-8 exact, comparaison pure de révision, exclusions paiement/secrets, POST owner probe 403/405, zéro appel Gateway."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/e3.md",
+    "docs/changes/codex-e3-agent-file-edit-preparation-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Module de préparation non branché ; capability planned dans la PR playbooks jumelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Retirer la préparation non branchée et la capability planned ; aucun effet S24 à annuler.",
+  "limitations": [
+    "Aucune fixture agents.files.set ; schéma mutation, CAS atomique et propriétaire de cinq sauvegardes non confirmés.",
+    "Aucun endpoint E3 branché ; aucune mutation qualifiée.",
+    "Budget effectif reste à mesurer sur S24 ; plafond prévu de 20 s non qualifié.",
+    "Publication différée : ordre E1, E2, E3."
+  ]
+}

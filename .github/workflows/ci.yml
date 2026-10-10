@@ -173,3 +173,6 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: E3 agent file edit preparation (pure plan and fail-closed owner probe)
+        run: node scripts/test-agent-file-write-plan.cjs
