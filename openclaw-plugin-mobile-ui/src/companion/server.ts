@@ -1,3 +1,6 @@
+import {skillControlDetail,changeSkill} from "./skillControl";
+import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
+
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
 import {capabilityDetail} from "./capabilityControl";
 import {updatesRead} from "./updatesControl";
@@ -10,6 +13,7 @@ import {diagnosticRead} from "./diagnostic";
 import {automationDetail,changeAutomation} from "./automations";
 import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
 import {notificationSources} from "./notificationSources";
+import {allowlistRead,allowlistChange,allowlistBody} from "./whatsappAllowlist";
 import { handleControl } from "./control";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import fs from "fs";
@@ -299,7 +303,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(method==="GET"&&!match[2]){writeJson(res,200,await automationDetail(id));return;}
       if((method==="POST"&&match[2])||(method==="DELETE"&&!match[2])){
         const result=await changeAutomation(id,match[2]||"delete",await readJsonBody(req,1024));
-        writeJson(res,result.state==="blocked"?409:result.state==="not_found"?404:result.state==="failed"?503:200,result);return;
+        writeJson(res,result.state==="blocked"?409:result.state==="not_found"?404:result.state==="failed"?503:result.state==="refused"?403:200,result);return;
       }
       res.setHeader("Allow",match[2]?"POST":"GET, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
     } catch(error:any) {
@@ -373,6 +377,32 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       const value=method==='GET'?await readAgentConfig():await changeAgentConfig(await readJsonBody(req,2048));
       writeJson(res,value.state==='refused'?409:200,value);
     }catch(error:any){const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    return;
+  }
+
+  if(routePath==="/whatsapp/allowlist"||routePath.startsWith("/whatsapp/allowlist/")){
+    res.setHeader("Cache-Control","no-store");
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){writeJson(res,403,{success:false,state:"refused",receipt:null});return;}
+    try{
+      const suffix=routePath.slice("/whatsapp/allowlist".length);
+      if(suffix==="/history"&&method==="GET"){
+        const query=requestUrl.searchParams,limit=query.get("limit")||"50",before=query.get("before")||undefined;
+        if([...query.keys()].some(k=>!['limit','before'].includes(k))||query.getAll('limit').length>1||query.getAll('before').length>1||!/^\d{1,2}$/.test(limit)||Number(limit)<1||Number(limit)>50||(before&&!/^[A-Za-z0-9_-]{1,160}$/.test(before)))throw Object.assign(new Error(),{statusCode:400});
+        writeJson(res,200,await allowlistRead('history',undefined,{limit:Number(limit),...(before?{before}: {})}));return;
+      }
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      if(!suffix&&method==='GET'){writeJson(res,200,await allowlistRead('list'));return;}
+      const match=/^\/(wa-[a-f0-9]{16})(\/note)?$/.exec(suffix);
+      if(match&&method==='GET'){writeJson(res,200,await allowlistRead(match[2]?'note-get':'get',match[1]));return;}
+      if((!suffix&&method==='POST')||(match&&!match[2]&&['PATCH','DELETE'].includes(method))||(match&&match[2]&&method==='PUT')){
+        const value=await allowlistChange(!suffix?'add':match![2]?'note':method==='DELETE'?'remove':'patch',match?.[1],await allowlistBody(req));writeJson(res,value.status,value.value);return;
+      }
+      writeJson(res,match||!suffix||suffix==='/history'?405:404,{success:false,state:match||!suffix||suffix==='/history'?'refused':'not_found',receipt:null});
+    }catch(error:any){
+      const reason=error?.message;const known=['owner_contact_protected','country_code_required','invalid_e164','confirmation_required','confirmation_mismatch','confirmation_expired','invalid_scope','invalid_duration','note_too_long','unknown_contact','operation_conflict'].includes(reason);
+      const code=error?.statusCode===413?400:[400,403,404,409,503].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,...(known?{reason}:code===503?{error:'allowlist_unavailable'}:{})});
+    }
     return;
   }
 
@@ -514,6 +544,9 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/runtime/restart",
         "/v1/runtime/log",
         "/v1/skills",
+        "/v1/skills/learn",
+        "/v1/skills/candidates",
+        "/v1/skills/candidates/:traceId",
         "/v1/skills/route",
         "/v1/skills/:skillId",
         "/v1/skills/:skillId/preview",
@@ -808,6 +841,31 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if(routePath==="/skills/learn"||routePath==="/skills/candidates"||routePath.startsWith("/skills/candidates/")){
+    res.setHeader("Cache-Control","no-store");
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(routePath==="/skills/learn"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_required"});return;}
+    const expected=routePath==="/skills/learn"?"POST":"GET";
+    if(method!==expected){res.setHeader("Allow",expected);writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    try{
+      let result:any;
+      if(routePath==="/skills/learn"){
+        if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+        let body:any;try{body=await readJsonBody(req);}catch{throw Object.assign(new Error("invalid_learning_request"),{statusCode:400});}
+        result=await learnSkill(body);
+      }else if(routePath==="/skills/candidates"){
+        const keys=[...requestUrl.searchParams.keys()];if(keys.some(key=>key!=="limit")||keys.length>1)throw Object.assign(new Error(),{statusCode:400});
+        const raw=requestUrl.searchParams.get("limit");if(raw!==null&&!/^[1-9][0-9]?$/.test(raw))throw Object.assign(new Error(),{statusCode:400});
+        result=await learningCandidates(raw===null?20:Number(raw));
+      }else{
+        if(requestUrl.search||!/^\/skills\/candidates\/[^/]+$/.test(routePath))throw Object.assign(new Error(),{statusCode:400});
+        let id:string;try{id=decodeURIComponent(routePath.split('/')[3]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+        result=await learningCandidate(id);
+      }
+      writeJson(res,result.state==="accepted"?202:result.state==="failed"?503:result.state==="refused"?403:200,result);
+    }catch(error:any){const code=[400,403,404,409,422].includes(error?.statusCode)?error.statusCode:503;const safe=["invalid_learning_request","learn_payment_excluded","learning_guard_unavailable","learning_guard_budget_exceeded","confirmation_scope_mismatch","operation_conflict","invalid_trace_id","invalid_candidate_limit","candidate_not_found","candidate_invalid","candidate_scan_limit","candidate_unavailable","candidate_timestamp_unavailable"].includes(error?.message)?error.message:code===400?"invalid_learning_request":"learning_unavailable";writeJson(res,code,{success:false,state:code===404?"not_found":code===503?"unavailable":code===422?"invalid":"refused",receipt:null,error:safe,...(safe==="learn_payment_excluded"?{reason:safe}:{})});}
+    return;
+  }
+
   if (method === "GET" && routePath === "/skills") {
     writeJson(res, 200, {
       skills: listWorkspaceSkills(),
@@ -995,10 +1053,22 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  const skillStateMatch=/^\/skills\/([^/]+)\/(enable|disable|try)$/.exec(routePath);
+  if(skillStateMatch){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||req.headers["x-clawmobile-owner-flow"]!=="v1"){
+      writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;
+    }
+    if(method!=="POST"){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    try{let id:string;try{id=decodeURIComponent(skillStateMatch[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      res.setHeader("Cache-Control","no-store");writeJson(res,200,await changeSkill(id,skillStateMatch[2],await readJsonBody(req,4096)));
+    }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:"refused",receipt:null,error:status===503?"skill_owner_unavailable":"invalid_or_protected_skill"});}
+    return;
+  }
   const skillDetailMatch = routePath.match(/^\/skills\/([^/]+)$/);
   if (method === "GET" && skillDetailMatch) {
-    const skillId = decodeURIComponent(skillDetailMatch[1]);
-    const skill = getWorkspaceSkill(skillId);
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;}
+    let skillId:string;try{skillId=decodeURIComponent(skillDetailMatch[1]);}catch{writeJson(res,400,{success:false,error:"invalid_skill_id"});return;}
+    let skill:any;try{skill=await skillControlDetail(skillId);}catch(error:any){writeJson(res,error?.statusCode===400?400:404,{success:false,error:"skill_not_found"});return;}
     writeJson(res, skill ? 200 : 404, skill || {
       success: false,
       message: `Workspace skill not found: ${skillId}`,

@@ -102,6 +102,23 @@ jobs:
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
 
+      - name: Canonical request conversation origin contracts
+        run: |
+          node scripts/test-conversation-origin.cjs
+          python3 ../installer/termux-lite/test-context-session-origin.py
+
+      - name: Run WhatsApp allowlist owner and HTTP contracts
+        run: |
+          python3 ../installer/termux-lite/test-people-trusted.py
+          python3 ../installer/termux-lite/test-whatsapp-allowlist.py
+          python3 ../installer/termux-lite/test-whatsapp-allowlist-manager.py
+          python3 ../installer/termux-lite/test-whatsapp-allowlist-acceptance.py
+          node scripts/test-whatsapp-allowlist.cjs
+          node scripts/test-whatsapp-allowlist-paired.cjs
+
+      - name: Run skill detail and owner controls contract
+        run: node scripts/test-skill-control.cjs
+
       - name: Run reviewed approval confirmation contract
         run: node scripts/test-agent-approvals.cjs
 
@@ -110,6 +127,12 @@ jobs:
 
       - name: Run reviewed runtime contract report
         run: python3 scripts/test-runtime-contract-report.py
+
+      - name: Skill learning draft contracts
+        run: |
+          node scripts/test-skill-learning.cjs
+          node scripts/test-skill-learning-guard.cjs
+          python3 ../installer/termux-lite/test-skill-learning-acceptance.py
 
       - name: Run memory control and atomic export import contracts
         run: |
