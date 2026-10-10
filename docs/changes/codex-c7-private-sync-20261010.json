@@ -18,7 +18,7 @@
     {
       "name": "private-context-sync",
       "status": "passed",
-      "evidence": "Two isolated tests: copy-before-save, stable mtimes on repeat, closed file allowlist, no external publication; bash syntax and diff checks."
+      "evidence": "Three isolated tests: copy-before-save, export even on clean snapshots, stable mtimes, closed file allowlist, source/target/ancestor symlink refusals, no external publication; bash syntax and diff checks."
     }
   ],
   "documentation": [
@@ -46,6 +46,7 @@
   },
   "rollback": "Revert this PR through Claude; no private context publication or S24 mutation during development.",
   "limitations": [
-    "Installed sync/save source and snapshot mapping await sanitized Claude confirmation; Git/local copies are not S24 proof."
+    "Installed sync/save source and snapshot mapping await sanitized Claude confirmation; Git/local copies are not S24 proof.",
+    "Managed source symlinks require explicit owner confirmation before activation; arbitrary links are refused."
   ]
 }
