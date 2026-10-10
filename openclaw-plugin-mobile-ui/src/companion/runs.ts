@@ -1,3 +1,4 @@
+import {removeAttachments} from "./attachmentStorage";
 import fs from "fs/promises";
 import {RUN_INACTIVITY_MS, ownerTurnEvidence, protectedRun, type InactivityReceipt} from "./runInactivity";
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "crypto";
@@ -45,7 +46,7 @@ type CompanionRunRegistry = {
 };
 
 type RunDeletionReceipt = {version: 1; operationId: string; runId: string; clientRunId?: string;
-  sessionId: string; action: "delete_run"; state: "completed"; at: number};
+  sessionId: string; action: "delete_run"; state: "completed"; at: number; attachmentPaths?: string[]};
 
 type TrajectorySummary = {
   runId?: string;
@@ -232,6 +233,20 @@ export async function settleSubmittedRun(
   await saveStoredRun(stored).catch(() => undefined);
 }
 
+/** Retry only a durably proven pre-effect R16 failure; concurrent claimers cannot redispatch. */
+export async function claimFailedApprovalOperation(runId:string,clientRunId:string,identity:string,pendingResult:string):Promise<boolean>{
+  if(!/^approval-operation-[a-f0-9]{64}$/.test(clientRunId))return false;
+  return mutateRegistry(async()=>{
+    const registry=await registryOrEmpty(),row=registry.runs.find(run=>run.runId===runId&&run.clientRunId===clientRunId);
+    if(!row||row.text!==identity||row.executionSource!=="capability_first"||row.decision?.capability!=="agent.approval_decide"||row.sessionId!=="native-owner-actions"||row.state!=="done")return false;
+    let previous:any,next:any;try{previous=JSON.parse(row.result||"");next=JSON.parse(pendingResult);}catch{return false;}
+    if(previous.state!=="failed"||previous.error!=="approval_dispatch_not_started"||previous.receipt?.action!=="agent.approval_decide"||previous.receipt?.state!=="failed"||previous.receipt?.runId!==runId||typeof previous.receipt.operationId!=="string"||"approval-operation-"+createHash("sha256").update(previous.receipt.operationId).digest("hex")!==clientRunId||next.state!=="indeterminate"||next.receipt?.action!=="agent.approval_decide"||next.receipt?.runId!==runId||next.receipt?.targetRunId!==previous.receipt.targetRunId||next.receipt?.operationId!==previous.receipt.operationId||next.receipt?.approvalId!==previous.receipt.approvalId||next.receipt?.decision!==previous.receipt.decision)return false;
+    const claimed={...row,result:pendingResult,updatedAt:Date.now()};
+    await writeCompanionRunRegistry(registry.runs.map(run=>run.runId===runId?claimed:run),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations);
+    submittedRuns.set(runId,claimed);return true;
+  });
+}
+
 export async function markSubmittedRunFailed(runId: string, message: string) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));
@@ -326,6 +341,7 @@ function parseRunDeletions(value: unknown): RunDeletionReceipt[] {
     if (!row || row.version !== 1 || typeof row.operationId !== "string" || !CLIENT_RUN_ID_RE.test(row.operationId) ||
         typeof row.runId !== "string" || !CLIENT_RUN_ID_RE.test(row.runId) || typeof row.sessionId !== "string" ||
         (row.clientRunId !== undefined && (typeof row.clientRunId !== "string" || !CLIENT_RUN_ID_RE.test(row.clientRunId))) ||
+        (row.attachmentPaths!==undefined&&(!Array.isArray(row.attachmentPaths)||row.attachmentPaths.some((x:unknown)=>typeof x!=="string"))) ||
         row.action !== "delete_run" || row.state !== "completed" || !Number.isFinite(row.at) || row.at < 0 || operations.has(row.operationId)) {
       invalid++; continue;
     }
@@ -344,10 +360,11 @@ export async function deleteRun(runId: string, operationId: string) {
     const old = registry.runDeletions.find(row => row.operationId === operationId);
     if (old) {
       if (old.runId !== runId) throw Object.assign(new Error("operation_id_conflict"), {statusCode: 409});
+      removeAttachments(old.attachmentPaths||[],new Set(registry.runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||""))));
       return {success: true, state: "completed", receipt: old};
     }
     const deleted = registry.runDeletions.find(row => row.runId === runId);
-    if (deleted) return {success: true, state: "completed", receipt: deleted};
+    if (deleted) {removeAttachments(deleted.attachmentPaths||[],new Set(registry.runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||""))));return {success: true, state: "completed", receipt: deleted};}
     const run = registry.runs.find(row => row.runId === runId);
     if (!run) return {success: false, state: "not_found", receipt: null};
     const matches = (value: unknown) => typeof value === "string" && [run.runId, run.clientRunId, run.sessionId].includes(value);
@@ -358,12 +375,13 @@ export async function deleteRun(runId: string, operationId: string) {
     if (run.modality === "voice" ? !["completed", "interrupted"].includes(run.transcriptState || "") : !["done", "failed"].includes(run.state || ""))
       throw Object.assign(new Error("run_not_terminal"), {statusCode: 409});
     const receipt: RunDeletionReceipt = {version: 1, operationId, runId, clientRunId: run.clientRunId,
-      sessionId: run.sessionId, action: "delete_run", state: "completed", at: Date.now()};
+      sessionId: run.sessionId, action: "delete_run", state: "completed", at: Date.now(), attachmentPaths:(run.attachments||[]).map(x=>x.serverPath||x.path||"")};
     const nextRuns = registry.runs.filter(row => row.runId !== runId);
     const archived = nextRuns.some(row => row.sessionId === run.sessionId) ? registry.archivedSessionIds
       : Array.from(new Set([...registry.archivedSessionIds, run.sessionId]));
     await writeCompanionRunRegistry(nextRuns, archived, registry.paymentRequests, registry.ownerConfirmations, [...registry.runDeletions, receipt]);
     submittedRuns.delete(runId);
+    removeAttachments(receipt.attachmentPaths||[],new Set(nextRuns.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||""))));
     return {success: true, state: "completed", receipt};
   });
 }
@@ -379,6 +397,9 @@ export async function listRunSummaries(options: { limit?: number } = {}): Promis
   return listRuns({ limit });
 }
 
+const LIST_LIVE_REFRESH_MAX=3;
+const LIST_LIVE_REFRESH_BUDGET_MS=2500;
+
 export async function listRuns(options: { limit?: number } = {}): Promise<CompanionRunStatus[]> {
   const storedRuns = await readStoredRuns(false);
   const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
@@ -386,13 +407,21 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
   if(storedRuns.length){
     const visible=storedRuns.slice(0,limit);
     const sessions=visible.some(requiresLiveRefresh)?await readSessionsIndex().catch(()=>[]):[];
+    // Each transcript read is one `openclaw gateway call` process on the S24 (~2.4 s): a list refreshes at most
+    // LIST_LIVE_REFRESH_MAX runs (newest first) within one shared budget; the others keep the sessions-index view.
+    let refreshes=LIST_LIVE_REFRESH_MAX;
+    const deadline=Date.now()+LIST_LIVE_REFRESH_BUDGET_MS;
     return Promise.all(visible.map(async stored=>{
       if(!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
       const session=findSessionForStoredRun(sessions,stored);
       const fallback=session?statusFromSessionInfo(session,stored.runId,stored):statusFromStoredRun(stored);
+      if(refreshes<=0)return fallback;
+      refreshes--;
       // Preserve the normal live-list refresh from the base; only expiration
       // evidence moved out of the request path.
-      return enrichFromSessionFile(fallback,session,stored,true);
+      let timer:ReturnType<typeof setTimeout>|undefined;
+      const late=new Promise<CompanionRunStatus>(resolve=>{timer=setTimeout(()=>resolve(fallback),Math.max(0,deadline-Date.now()));timer.unref?.();});
+      return Promise.race([enrichFromSessionFile(fallback,session,stored,true).catch(()=>fallback),late]).finally(()=>clearTimeout(timer));
     }));
   }
   // Legacy discovery only when no retained snapshot exists.
@@ -1948,3 +1977,7 @@ export function subscribeConversationChanges(listener:(event:ConversationChange)
   }
   return {current,replay,resyncRequired,close:()=>changeListeners.delete(listener)};
 }
+
+export async function protectedAttachmentPaths(){return new Set((await registryOrEmpty()).runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||"")));}
+
+export async function withAttachmentReferences<T>(effect:(paths:Set<string>)=>T):Promise<T>{return mutateRegistry(async()=>effect(new Set((await registryOrEmpty()).runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||"")))));}
