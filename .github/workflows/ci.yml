@@ -173,3 +173,8 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: Verify host-bound capability owner admission (P1)
+        run: |
+          node scripts/test-capability-tool.cjs
+          node scripts/test-capability-admission.cjs
