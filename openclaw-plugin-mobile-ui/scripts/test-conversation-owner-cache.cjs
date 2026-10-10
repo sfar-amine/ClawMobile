@@ -13,6 +13,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=r
   const second=await fast({limit:1,cursor:first.nextCursor});assert.equal(second.dataRevision,first.dataRevision);assert.equal(reads,1,'warm pages use the same owner view');
   fail=true;await new Promise(r=>setTimeout(r,2050));const during=await fast({limit:1,cursor:first.nextCursor});assert.equal(during.dataRevision,first.dataRevision);assert.equal(reads,2);await new Promise(r=>setTimeout(r,4250));
   const after=await fast({limit:1,cursor:first.nextCursor});assert.equal(after.dataRevision,first.dataRevision);assert.equal(after.items[0].title,title);assert.equal(after.items[0].pinned,true);assert.equal(after.items[0].metadataSource,'gateway_sessions_list');assert.equal(after.coverage.metadataState,'stale');
+  const cache=require('../dist/companion/conversationOwnerIndex');for(let n=0;n<150;n++)cache.observeConversationOwnerRow({key:'fixture-key-'+n,label:'Fixture',pinned:true});assert(cache.conversationOwnerIndex().rows.size<=100,'individual reads must not grow index indefinitely');
   console.log('R11 cache: 4.15s canonical reads stay off pagination, single-flight/warm cache, failed refresh retains title/pin/source/revision/cursor; synthetic latency only');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1});
