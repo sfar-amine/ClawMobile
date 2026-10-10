@@ -69,6 +69,8 @@ jobs:
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
 
+      - name: Run automation detail and owner actions contract
+        run: node scripts/test-automation-detail.cjs
       - name: Test laptop owner pairing and biometric scope
         run: node scripts/test-laptop-access.cjs
       - name: Run read-only notification source contract
