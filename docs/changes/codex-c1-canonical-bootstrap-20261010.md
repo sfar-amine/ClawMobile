@@ -1,5 +1,11 @@
-# C1 — préparation du socle compact app/Bixby
+# C1 — socle canonique des tours app et Bixby
 
-Les tours owner existants gardent lightweight et le message original ; extraSystemPrompt reçoit les blocs canoniques du lecteur voix existant. Autorité interne explicite, aucune lecture privée sans cette autorité et aucune option client pour l’activer. Bixby reste derrière son authentification. Aucun changement paiement/historique/routage. Option de lecture stricte C1, bornes UTF8 par bloc et64Kio prompt/120000octets JSON Gateway avant effet. Section spécialisée complète obligatoire, aucun bloc requis absent. Comportement Live historique inchangé, C3 séparé. HTTP privé loopback sans en-têtes navigateur, aucun flag client ne confère l’autorité.
+Les tours propriétaires existants transmettent le contexte compact du lecteur canonique aux paramètres Gateway attestés, sans ajouter de route, store ni autorité fournie par le modèle ou le corps client. Admission HTTP et relais authentifié, gardes paiement/confirmation et contenus utilisateur inchangés.
 
-Contrat c1.md, tests CI dédiés et étapes existantes conservées. Fixtures de transport/fichiers générées, SDK public2026.9.6 attesté ; capture du vrai tour app/Bixby demandée dans issue58 absente. merge_eligibility:blocked, aucune qualification ni activation. Estimation octets/4 clairement distincte d’un compte réel de jetons. Retour arrière : revert C1 seulement.
+Baseline réelle #82 de huit sessions app/Bixby conservée ; tests fixtures, bornes UTF-8/JSON, règles spécialisées complètes, isolation public/owner et propagation learn/try inscrits dans la CI. Les mesures locales synthétiques restent distinctes des vrais jetons et runtimeMs.
+
+Claude autorise la relecture/fusion avant qualification physique dans [PR71 commentaire6102103806](https://github.com/sfar-amine/samantha-core/pull/71#issuecomment-6102103806), 10/10 20:57:49Z : merge_eligibility:allowed. physicalAfter:null et comparisonQualified:false restent publiés. Après déploiement par Claude, tour app et Bixby jetables, même systemPromptReport et comparaison ±10% ; hors tolérance revert C1 seul ou correctif. La recette automatique ne mesure pas ce critère. Aucun merge ou déploiement par Codex.
+
+Base bfa210c intégrée normalement, union CI conservée. Contrat docs/work/samantha-runtime/contracts/c1.md ; retour arrière C1 seul, propriétaires existants et paiement préservés.
+
+Sur bfa210c fusionné normalement, les 34 blocs run ci.yml passent localement (dépendances plugin présentes, installation MCP avec cache temporaire). PhysicalAfter reste null et comparisonQualified false ; seuls critères pré-fusion déclarés satisfaits.

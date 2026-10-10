@@ -3,10 +3,10 @@
   "id": "codex-c1-canonical-bootstrap-20261010",
   "origin": "chat",
   "kind": "repair",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Inject canonical compact context into existing owner app and Bixby agent turns",
-  "reason": "Issue58/program34 : baseline S24 app/Bixby réelle intégrée depuis fixture82, sans injection workspace avant C1 ; comparaison après et présence des blocs dans un vrai tour à qualifier par Claude après déploiement.",
+  "reason": "Issue58/program34 : relecture pré-fusion autorisée par Claude PR71 commentaire6102103806, baseline réelle8sessions et preuves CI ; qualification après déploiement par Claude reste distincte.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
@@ -58,6 +58,11 @@
       "name": "current-base-readonly-owner-audit",
       "status": "passed",
       "evidence": "Base9cdd84f normal merge, full CI step union verified, clean build+C1 boundary suite green. Public OpenClaw2026.9.6 AgentParamsSchema verifies optional extraSystemPrompt and lightweight; no concrete new injection/authority defect found. Synthetic local read p95~2.2ms at Gateway3.2s is not physical after evidence."
+    },
+    {
+      "name": "review-response-and-current-ci",
+      "status": "passed",
+      "evidence": "Basebfa210c intégrée par merge normal, 34 blocs run ci.yml exécutés localement sans échec (installation plugin non répétée, dépendances présentes; installation MCP faite avec cachetasktmp). Baseline réelle8sessions, physicalAfter:null/comparisonQualified:false conservés. Réponse Claude6102103806 (20:57:49Z) autorise gateallowed pré-fusion, mesure après par Claude, jamais CI physique inventée."
     }
   ],
   "documentation": [
@@ -88,6 +93,6 @@
   "limitations": [
     "Capture réelle avant intégrée ; présence réelle des blocs dans un tour et mesure après ±10% nécessitent déploiement et recette Claude.",
     "Latence3.2s synthétique et estimation octets/4 restent séparées des comptes réels de jetons et runtimeMs des captures.",
-    "Brouillon conservé : aucun merge ou déploiement par Codex."
+    "PR prête pour relecture/fusion Git suivant réponse Claude6102103806 du10/10 20:57:49Z ; qualification physique après déploiement reste à faire, aucun merge/déploiement Codex."
   ]
 }
