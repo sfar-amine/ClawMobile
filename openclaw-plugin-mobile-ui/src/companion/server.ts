@@ -1,4 +1,9 @@
 import {updatesRead} from "./updatesControl";
+import {engineeringRead} from "./engineeringRead";
+import {cancelControlRequest} from "./controlActions";
+import {diagnosticRead} from "./diagnostic";
+import {automationDetail,changeAutomation} from "./automations";
+import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
 import {notificationSources} from "./notificationSources";
 import { handleControl } from "./control";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
@@ -201,6 +206,89 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       success: false,
       message: "This endpoint is restricted to local companion app requests.",
     });
+    return;
+  }
+
+  if(routePath==="/control/engineering"||routePath.startsWith("/control/engineering/")){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    if(routePath!=="/control/engineering"){writeJson(res,404,{success:false,state:"not_found",receipt:null,error:"not_found"});return;}
+    const parameters=requestUrl.searchParams;
+    const offset=parameters.get("offset")||"0",limit=parameters.get("limit")||"20",revision=parameters.get("revision")||undefined;
+    if([...parameters.keys()].some(key=>!['offset','limit','revision'].includes(key))||['offset','limit','revision'].some(key=>parameters.getAll(key).length>1)||!/^\d{1,3}$/.test(offset)||Number(offset)>500||!/^\d{1,3}$/.test(limit)||Number(limit)<1||Number(limit)>100||(revision&&!/^[a-f0-9]{64}$/.test(revision))){writeJson(res,400,{success:false,state:"refused",receipt:null,error:"invalid_pagination"});return;}
+    try{const value=await engineeringRead(Number(offset),Number(limit),revision);res.setHeader("Cache-Control","no-store");writeJson(res,value.state==="conflict"?409:200,value);}
+    catch{writeJson(res,503,{success:false,state:"unavailable",receipt:null,error:"engineering_unavailable"});}
+    return;
+  }
+
+  if (/^\/control\/requests\/[^/]+\/cancel$/.test(routePath)) {
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
+        req.headers["x-clawmobile-owner-flow"] !== "v1") {
+      writeJson(res,403,{success:false,error:"native_owner_flow_required"});return;
+    }
+    if(method!=="POST"){res.setHeader("Allow","POST");writeJson(res,405,{success:false,error:"method_not_allowed"});return;}
+    try{
+      let reference:string;try{reference=decodeURIComponent(routePath.split("/")[3]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      const value=await cancelControlRequest(reference,await readJsonBody(req,1024));
+      res.setHeader("Cache-Control","no-store");writeJson(res,value.state==="refused"?409:value.state==="not_found"?404:200,value);
+    }catch(error:any){writeJson(res,error?.statusCode===400?400:503,{success:false,error:error?.statusCode===400?"invalid_cancellation_request":"control_action_unavailable"});}
+    return;
+  }
+
+  if(routePath.startsWith("/control/diagnostic/")){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    res.setHeader("Cache-Control","no-store");
+    try{
+      if(routePath==="/control/diagnostic/export"){
+        if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+        writeJson(res,200,{success:true,state:"ok",receipt:null,artifact:await diagnosticRead("export")});return;
+      }
+      const match=/^\/control\/diagnostic\/logs\/(agent|installation|engineering)$/.exec(routePath);
+      if(!match){writeJson(res,404,{success:false,state:"not_found",receipt:null,error:"not_found"});return;}
+      const value=await diagnosticRead("logs",match[1],requestUrl.searchParams);
+      writeJson(res,200,{success:value.available,state:value.available?"ok":"unavailable",receipt:null,...value});
+    }catch(e:any){const invalid=e?.statusCode===400;writeJson(res,invalid?400:503,{success:false,state:invalid?"refused":"unavailable",receipt:null,error:invalid?"invalid_diagnostic_request":"diagnostic_source_unavailable"});}
+    return;
+  }
+
+  if (routePath.startsWith("/automations/")) {
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
+        (method !== "GET" && req.headers["x-clawmobile-owner-flow"] !== "v1")) {
+      writeJson(res,403,{success:false,error:"native_owner_flow_required"}); return;
+    }
+    try {
+      const match=/^\/automations\/([^/]+)(?:\/(enable|disable|run))?$/.exec(routePath);
+      if(!match)throw Object.assign(new Error("invalid_automation_route"),{statusCode:404});
+      let id:string;try{id=decodeURIComponent(match[1]);}catch{throw Object.assign(new Error("invalid_automation_id"),{statusCode:400});}
+      res.setHeader("Cache-Control","no-store");
+      if(method==="GET"&&!match[2]){writeJson(res,200,await automationDetail(id));return;}
+      if((method==="POST"&&match[2])||(method==="DELETE"&&!match[2])){
+        const result=await changeAutomation(id,match[2]||"delete",await readJsonBody(req,1024));
+        writeJson(res,result.state==="blocked"?409:result.state==="not_found"?404:result.state==="failed"?503:200,result);return;
+      }
+      res.setHeader("Allow",match[2]?"POST":"GET, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
+    } catch(error:any) {
+      const code=[400,404,409].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,code,{success:false,error:code===400?"invalid_automation_request":code===404?"automation_not_found":code===409?"operation_conflict":"automation_unavailable"});
+    }
+    return;
+  }
+
+  if(routePath.startsWith('/laptop-access/')){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']||(method!=='GET'&&req.headers['x-clawmobile-owner-flow']!=='v1')){writeJson(res,403,{success:false,state:'refused',receipt:null,reason:'native_owner_flow_required'});return;}
+    res.setHeader('Cache-Control','no-store');
+    try{
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      if(method==='GET'&&routePath==='/laptop-access/computers'){writeJson(res,200,await laptopList());return;}
+      if(method==='POST'&&routePath==='/laptop-access/pairings'){writeJson(res,200,await laptopPairStart(await readJsonBody(req,1024)));return;}
+      const pair=/^\/laptop-access\/pairings\/([a-f0-9]{32})(\/commit)?$/.exec(routePath);
+      if(pair&&method==='GET'&&!pair[2]){writeJson(res,200,await laptopPairStatus(pair[1]));return;}
+      if(pair&&method==='POST'&&pair[2]){writeJson(res,200,await laptopChange('commit',pair[1],await readJsonBody(req,2048)));return;}
+      const pc=/^\/laptop-access\/computers\/([^/]+)$/.exec(routePath);
+      if(pc&&method==='DELETE'){writeJson(res,200,await laptopChange('revoke',decodeURIComponent(pc[1]),await readJsonBody(req,2048)));return;}
+      writeJson(res,405,{success:false,state:'refused',receipt:null,reason:'unsupported_laptop_route'});
+    }catch(error:any){const invalid=error?.statusCode===400||error instanceof URIError;writeJson(res,invalid?400:503,{success:false,state:invalid?'refused':'indeterminate',receipt:null,reason:invalid?'invalid_laptop_operation':'laptop_owner_indeterminate'});}
     return;
   }
 

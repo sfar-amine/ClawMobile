@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "id": "codex-r9-review-followup-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Correct owner notification enabled state and remove duplicate projection",
+  "reason": "Claude review 17 follow-up of merged R9; Git-only delivery.",
+  "files": [
+    "docs/changes/codex-r9-review-followup-20261010.json",
+    "docs/changes/codex-r9-review-followup-20261010.md",
+    "docs/work/samantha-runtime/contracts/r9.md",
+    "openclaw-plugin-mobile-ui/scripts/test-notification-sources.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/notificationSources.ts"
+  ],
+  "tests": [
+    {
+      "name": "R9-review-followup",
+      "status": "passed",
+      "evidence": "All runtime CI commands passed; native response has items and no duplicate sources."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r9.md",
+    "docs/changes/codex-r9-review-followup-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert de la PR de ce lot.",
+  "limitations": [
+    "Recette S24 et UI Android non réalisées par Codex."
+  ]
+}

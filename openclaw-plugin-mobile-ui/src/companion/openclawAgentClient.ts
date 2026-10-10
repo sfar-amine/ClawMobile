@@ -52,14 +52,14 @@ export async function submitToOpenClawAgent(
 export async function callOpenClawGateway(
   method: string,
   params: Record<string, any> = {},
-  options: { expectFinal?: boolean; timeoutMs?: number } = {},
+  options: { expectFinal?: boolean; timeoutMs?: number; hardTimeoutMs?: number } = {},
 ): Promise<any> {
   const timeoutMs = options.timeoutMs || DEFAULT_GATEWAY_CALL_TIMEOUT_MS;
   const args = ["gateway", "call", method, "--json", "--timeout", String(timeoutMs), "--params", JSON.stringify(params)];
   if (options.expectFinal) {
     args.splice(3, 0, "--expect-final");
   }
-  return runOpenClaw(args, timeoutMs + 5_000);
+  return runOpenClaw(args, Math.min(timeoutMs + 5_000, options.hardTimeoutMs ?? Infinity));
 }
 
 export function describeOpenClawResult(result: OpenClawAgentSubmitResult) {

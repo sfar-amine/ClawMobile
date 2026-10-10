@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import {RUN_INACTIVITY_MS, ownerTurnEvidence, protectedRun, type InactivityReceipt} from "./runInactivity";
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "crypto";
 import {validateVoicePlayback,type VoicePlaybackMetadata} from "./voicePlaybackMetadata";
 import type { PaymentRecord } from "./paymentTypes";
@@ -10,6 +11,7 @@ import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSes
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment } from "./types";
 
 type StoredRun = {
+  inactivityCorrectionReceipt?: InactivityReceipt;
   runId: string;
   clientRunId?: string;
   requestHash?: string;
@@ -218,6 +220,10 @@ export async function settleSubmittedRun(
   const stored: StoredRun = {
     ...existing,
     state,
+    inactivityCorrectionReceipt: state === "done" && (existing.error === "run_inactivity_expired" || existing.inactivityCorrectionReceipt?.to === "running") ? {
+      version: 1, action: "correct_run_expiration", runId, from: "expired", to: "done",
+      at: Date.now(), evidenceAt: Date.now(),
+    } : existing.inactivityCorrectionReceipt,
     result: state === "done" ? result : undefined,
     error: state === "failed" ? result : undefined,
     updatedAt: Date.now(),
@@ -374,24 +380,24 @@ export async function listRunSummaries(options: { limit?: number } = {}): Promis
 }
 
 export async function listRuns(options: { limit?: number } = {}): Promise<CompanionRunStatus[]> {
+  const storedRuns = await readStoredRuns(false);
   const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
-  const storedRuns = await readStoredRuns();
-  const sessions = await readSessionsIndex();
-  const archivedSessionIds = await readArchivedSessionIds();
-  if (storedRuns.length > 0) {
-    return Promise.all(
-      storedRuns.slice(0, limit).map(async (stored) => {
-        if (stored.modality === "voice" || stored.executionSource === "capability_first") {
-          return statusFromStoredRun(stored);
-        }
-        const session = findSessionForStoredRun(sessions, stored);
-        const fallback = session
-          ? statusFromSessionInfo(session, stored.runId, stored)
-          : statusFromStoredRun(stored);
-        return enrichFromSessionFile(fallback, session, stored, false);
-      }),
-    );
+  reconcileInactiveRuns();
+  if(storedRuns.length){
+    const visible=storedRuns.slice(0,limit);
+    const sessions=visible.some(requiresLiveRefresh)?await readSessionsIndex().catch(()=>[]):[];
+    return Promise.all(visible.map(async stored=>{
+      if(!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
+      const session=findSessionForStoredRun(sessions,stored);
+      const fallback=session?statusFromSessionInfo(session,stored.runId,stored):statusFromStoredRun(stored);
+      // Preserve the normal live-list refresh from the base; only expiration
+      // evidence moved out of the request path.
+      return enrichFromSessionFile(fallback,session,stored,true);
+    }));
   }
+  // Legacy discovery only when no retained snapshot exists.
+  const sessions=await readSessionsIndex().catch(()=>[]);
+  const archivedSessionIds=await readArchivedSessionIds();
 
   return Promise.all(
     sessions
@@ -476,18 +482,19 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
   if (!normalizedRunId) {
     return unknownRun("", "Run id is required.");
   }
-  if ((await registryOrEmpty()).runDeletions.some(receipt => receipt.runId === normalizedRunId))
+  if ((await registryOrEmpty().catch(() => defaultCompanionRunRegistry())).runDeletions.some(receipt => receipt.runId === normalizedRunId))
     return unknownRun(normalizedRunId, "Run deleted from companion history.");
 
-  const stored = submittedRuns.get(normalizedRunId)
-    || (await findStoredRun(normalizedRunId).catch(() => null));
-  if (stored?.modality === "voice" || stored?.executionSource === "capability_first") {
-    return statusFromStoredRun(stored);
-  }
-  const listed = await findSessionInfo(normalizedRunId, stored).catch(() => null);
+  const stored = (await findStoredRun(normalizedRunId, false).catch(() => null)) || submittedRuns.get(normalizedRunId);
+  reconcileInactiveRuns(normalizedRunId);
+  if(stored&&!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
+  // Recent Gateway runs keep their normal live session/transcript refresh.
+  // The inactivity single-flight has its own independent deadline.
+  const deadline=stored?undefined:Date.now()+1500;
+  const listed = await findSessionInfo(normalizedRunId, stored, deadline).catch(() => null);
   if (listed) {
     const fallback = statusFromSessionInfo(listed, normalizedRunId, stored || undefined);
-    return enrichFromSessionFile(fallback, listed, stored);
+    return enrichFromSessionFile(fallback, listed, stored, true, deadline);
   }
   if (stored) {
     return statusFromStoredRun(stored);
@@ -500,6 +507,12 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
   } catch (error: any) {
     return unknownRun(normalizedRunId, error?.message || "Run was not found.");
   }
+}
+
+function requiresLiveRefresh(stored:StoredRun):boolean {
+  return stored.modality!=="voice"&&stored.executionSource!=="capability_first"&&
+    stored.error!=="run_inactivity_expired"&&!stored.inactivityCorrectionReceipt&&
+    stored.state!=="failed"&&!stored.result;
 }
 
 function statusFromHistory(runId: string, sessionKey: string, history: any, stored?: StoredRun): CompanionRunStatus {
@@ -540,13 +553,14 @@ async function enrichFromSessionFile(
   sessionInfo: any,
   stored?: StoredRun,
   allowGatewayHistory = true,
+  deadline?: number,
 ): Promise<CompanionRunStatus> {
   if (stored?.executionSource === "capability_first") return statusFromStoredRun(stored);
   const sessionId = String(sessionInfo?.sessionId || "");
   if (!sessionId) return status;
 
   const [transcript, trajectory] = await Promise.all([
-    readSessionTranscript(sessionId, stored?.text, allowGatewayHistory ? String(sessionInfo?.key || "") : undefined).catch(() => null),
+    readSessionTranscript(sessionId, stored?.text, allowGatewayHistory ? String(sessionInfo?.key || "") : undefined, deadline).catch(() => null),
     readSessionTrajectory(sessionId, status.runId, stored?.text).catch(() => null),
   ]);
   if (!transcript && !trajectory) return status;
@@ -628,27 +642,30 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   };
 
   const failed = stored.state === "failed";
+  const expired = stored.error === "run_inactivity_expired";
   const done = stored.state === "done";
   const message = failed
-    ? stored.error || "OpenClaw did not accept this run."
+    ? expired ? "Run expired after verified inactivity. A later result can still correct this status." : stored.error || "OpenClaw did not accept this run."
     : done
       ? stored.result || "OpenClaw completed this run."
       : "OpenClaw is still working on this run.";
   return {
     success: !failed,
+    status: stored.error === "run_inactivity_expired" ? "expired" : undefined,
+    inactivityCorrectionReceipt: stored.inactivityCorrectionReceipt,
     runId: stored.runId,
     clientRunId: stored.clientRunId,
     sessionId: stored.sessionId,
     state: failed ? "failed" : stored.state === "done" ? "done" : "running",
     message,
     progress: {
-      text: failed ? "OpenClaw submit failed." : done ? "Completed." : "Working...",
+      text: failed ? expired ? "Expired after verified inactivity." : "OpenClaw submit failed." : done ? "Completed." : "Working...",
       detail: failed || done ? message : undefined,
       updatedAt: stored.updatedAt || stored.acceptedAt,
       events: [
         {
           type: failed ? "companion.failed" : done ? "companion.completed" : "companion.accepted",
-          label: failed ? "OpenClaw submit failed." : done ? "Completed." : "Working...",
+          label: failed ? expired ? "Expired after verified inactivity." : "OpenClaw submit failed." : done ? "Completed." : "Working...",
           detail: failed || done ? message : undefined,
           at: stored.updatedAt || stored.acceptedAt,
         },
@@ -663,8 +680,8 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   };
 }
 
-async function findSessionInfo(runId: string, stored?: StoredRun | null): Promise<any | null> {
-  const sessions = await readSessionsIndex();
+async function findSessionInfo(runId: string, stored?: StoredRun | null, deadline?: number): Promise<any | null> {
+  const sessions = await readSessionsIndex(deadline);
   if (stored) {
     return findSessionForStoredRun(sessions, stored);
   }
@@ -683,7 +700,7 @@ function normalizedStoredSessionKey(sessionId: string, sessionKey?: string) {
   return `agent:${agentId()}:${value}`;
 }
 
-async function readSessionsIndex(): Promise<any[]> {
+async function readSessionsIndex(deadline?: number): Promise<any[]> {
   const filePath = path.join(openClawStateDir(), "agents", agentId(), "sessions", "sessions.json");
   let data: any;
   try {
@@ -691,7 +708,10 @@ async function readSessionsIndex(): Promise<any[]> {
   } catch (error: any) {
     if (error?.code !== "ENOENT") throw error;
     // OpenClaw SQLite migration removed the legacy index. Use the owner Gateway API.
-    data = await callOpenClawGateway("sessions.list", { search: "companion-", limit: 100 });
+    const remaining = deadline === undefined ? undefined : deadline - Date.now();
+    if (remaining !== undefined && remaining <= 0) return [];
+    data = await callOpenClawGateway("sessions.list", { search: "companion-", limit: 100 },
+      remaining === undefined ? {} : {timeoutMs: remaining, hardTimeoutMs: remaining});
   }
   if (Array.isArray(data?.sessions)) return data.sessions;
   if (Array.isArray(data)) return data;
@@ -706,6 +726,7 @@ async function readSessionTranscript(
   sessionId: string,
   targetPrompt?: string,
   sessionKey?: string,
+  deadline?: number,
 ): Promise<TranscriptSummary> {
   const filePath = path.join(openClawStateDir(), "agents", agentId(), "sessions", `${sessionId}.jsonl`);
   let raw: string;
@@ -713,7 +734,10 @@ async function readSessionTranscript(
     raw = await fs.readFile(filePath, "utf8");
   } catch (error: any) {
     if (error?.code !== "ENOENT" || !sessionKey) throw error;
-    const history = await callOpenClawGateway("chat.history", { sessionKey, limit: 200 });
+    const remaining = deadline === undefined ? undefined : deadline - Date.now();
+    if (remaining !== undefined && remaining <= 0) throw new Error("inactivity_read_budget_exceeded");
+    const history = await callOpenClawGateway("chat.history", { sessionKey, limit: 200 },
+      remaining === undefined ? {} : {timeoutMs: remaining, hardTimeoutMs: remaining});
     raw = (Array.isArray(history?.messages) ? history.messages : [])
       .map((message: any) => JSON.stringify({ type: "message", message, timestamp: message.timestamp }))
       .join("\n");
@@ -1439,11 +1463,111 @@ function agentId() {
   return (process.env.CLAWMOBILE_AGENT_ID || "main").trim() || "main";
 }
 
-async function findStoredRun(runId: string): Promise<StoredRun | null> {
-  return (await readStoredRuns()).find((run) => run.runId === runId) || null;
+async function findStoredRun(runId: string, reconcile = false): Promise<StoredRun | null> {
+  return (await readStoredRuns(reconcile)).find((run) => run.runId === runId) || null;
 }
 
-async function readStoredRuns(): Promise<StoredRun[]> {
+function validInactivityReceipt(value: any, runId: string): InactivityReceipt | undefined {
+  if (value?.version !== 1 || value.action !== "correct_run_expiration" || value.runId !== runId ||
+      value.from !== "expired" || !["running", "done"].includes(value.to) ||
+      !Number.isFinite(value.at) || !Number.isFinite(value.evidenceAt)) return undefined;
+  return {version: 1, action: "correct_run_expiration", runId, from: "expired", to: value.to,
+    at: value.at, evidenceAt: value.evidenceAt};
+}
+
+let inactivityRead: Promise<void> | undefined;
+let inactivityCursor = 0;
+const INACTIVITY_READ_BUDGET_MS = 10000;
+/** Read snapshots never await reconciliation. One bounded owner pass at a time. */
+function reconcileInactiveRuns(targetRunId?:string):void {
+  if(inactivityRead)return;
+  inactivityRead=reconcileInactiveRunsOnce(targetRunId,Date.now()+INACTIVITY_READ_BUDGET_MS)
+    .catch(()=>undefined).finally(()=>{inactivityRead=undefined;});
+}
+
+async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadline: number): Promise<void> {
+  await registryWrite;
+  const initial = await registryOrEmpty(), now = Date.now();
+  const eligible = (run: StoredRun, registry: CompanionRunRegistry) => run.modality !== "voice" &&
+    !run.result && (!run.state || run.state === "running" || run.error === "run_inactivity_expired") &&
+    run.acceptedAt >= 1000000000000 && (run.error === "run_inactivity_expired" || !!run.inactivityCorrectionReceipt || now - (run.updatedAt || run.acceptedAt) >= RUN_INACTIVITY_MS) &&
+    !registry.archivedSessionIds.includes(run.sessionId) &&
+    !registry.runDeletions.some(row => row.runId === run.runId) &&
+    !protectedRun(run, registry.paymentRequests, registry.ownerConfirmations);
+  const pool = initial.runs.filter(run => eligible(run, initial) &&
+    run.error !== "run_inactivity_expired" && (!targetRunId || run.runId === targetRunId));
+  const start = targetRunId || !pool.length ? 0 : inactivityCursor % pool.length;
+  const candidates = [...pool.slice(start), ...pool.slice(0, start)].slice(0, 3);
+  if (!targetRunId) inactivityCursor += candidates.length;
+  if (!candidates.length) return;
+  // The owner API works across SQLite migrations; absent legacy files prove nothing.
+  const ownerRead = (method: string, params: Record<string, unknown>) => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return Promise.reject(new Error("inactivity_read_budget_exceeded"));
+    return callOpenClawGateway(method, params, {timeoutMs: remaining, hardTimeoutMs: remaining});
+  };
+  const listed = await ownerRead("sessions.list", {search: "companion-", limit: 100});
+  const sessions = Array.isArray(listed?.sessions) ? listed.sessions : Array.isArray(listed) ? listed : [];
+  const changes = new Map<string, {before: StoredRun; after: StoredRun}>();
+  // Retired expirations are never polled. A sessions.list already read for a
+  // live candidate may provide explicit contrary proof naming a retired run.
+  const revived=initial.runs.filter(run=>run.error==="run_inactivity_expired"&&eligible(run,initial)&&sessions.some((session:any)=>
+    (session.key===(run.sessionKey||expectedCompanionSessionKey(run.sessionId))||session.sessionKey===(run.sessionKey||expectedCompanionSessionKey(run.sessionId)))&&
+    Array.isArray(session.activeRunIds)&&session.activeRunIds.includes(run.runId)));
+  for (const run of [...candidates,...revived]) {
+    const key = run.sessionKey || expectedCompanionSessionKey(run.sessionId);
+    const session = sessions.find((row: any) => row?.key === key || row?.sessionKey === key);
+    if (!session || Date.now() >= deadline) continue;
+    const active = session.hasActiveRun === true || session.status === "running" || (Array.isArray(session.activeRunIds) && session.activeRunIds.length > 0);
+    if (active) {
+      if (run.error === "run_inactivity_expired" && Array.isArray(session.activeRunIds) && session.activeRunIds.includes(run.runId)) changes.set(run.runId, {before: run, after: {
+        ...run, state: "running", error: undefined, updatedAt: now,
+        inactivityCorrectionReceipt: {version: 1, action: "correct_run_expiration", runId: run.runId,
+          from: "expired", to: "running", at: now, evidenceAt: now}}});
+      continue;
+    }
+    // Closed proof from the real sessions.list shape. Missing/unknown fields
+    // never prove absence of activity or a pending permission transition.
+    const lastActivityAt = typeof session.lastActivityAt === "number" ? session.lastActivityAt : Date.parse(session.lastActivityAt);
+    const quiescent = Number.isFinite(lastActivityAt) && lastActivityAt >= 1000000000000 && lastActivityAt <= now && session.hasActiveRun === false && Array.isArray(session.activeRunIds) &&
+      session.activeRunIds.length === 0 && session.permissionModePending === false &&
+      session.abortedLastRun === false;
+
+    const history = await ownerRead("chat.history", {sessionKey: key, limit: 200}).catch(() => null);
+    const proof = ownerTurnEvidence(history?.messages, run.text, now);
+    if (!proof || Math.abs(proof.startedAt - run.acceptedAt) > 30_000) continue;
+    const terminal = terminalConversationResult(proof.messages.map(message => JSON.stringify({type: "message", message})).join("\n"), run.text);
+    const expired = run.error === "run_inactivity_expired";
+    let after: StoredRun | undefined;
+    if (terminal && !proof.outstandingTool) after = {...run, state: "done", result: terminal.result, error: undefined, updatedAt: terminal.endedAt || proof.lastAt};
+    else if (expired && (proof.outstandingTool || proof.lastAt > (run.updatedAt || run.acceptedAt)))
+      after = {...run, state: "running", error: undefined, updatedAt: proof.lastAt};
+    else if (!expired && !proof.outstandingTool && quiescent && now - Math.max(proof.lastAt, lastActivityAt, run.updatedAt || run.acceptedAt) >= RUN_INACTIVITY_MS)
+      after = {...run, state: "failed", error: "run_inactivity_expired", updatedAt: proof.lastAt, inactivityCorrectionReceipt:undefined};
+    if (!after) continue;
+    if ((expired || run.inactivityCorrectionReceipt?.to === "running") && after.state !== "failed") after.inactivityCorrectionReceipt = {
+      version: 1, action: "correct_run_expiration", runId: run.runId, from: "expired",
+      to: after.state === "done" ? "done" : "running", at: now, evidenceAt: proof.lastAt};
+    changes.set(run.runId, {before: run, after});
+  }
+  if (!changes.size) return;
+  await mutateRegistry(async () => {
+    const current = await registryOrEmpty(), applied: StoredRun[] = [];
+    const next = current.runs.map(run => {
+      const change = changes.get(run.runId), cached = submittedRuns.get(run.runId);
+      if (!change || !eligible(run, current) || runIdentity(run) !== runIdentity(change.before) ||
+          JSON.stringify(run.decision) !== JSON.stringify(change.before.decision) ||
+          (cached && runIdentity(cached) !== runIdentity(change.before))) return run;
+      applied.push(change.after); return change.after;
+    });
+    if (!applied.length) return;
+    await writeCompanionRunRegistry(next, current.archivedSessionIds, current.paymentRequests, current.ownerConfirmations, current.runDeletions);
+    for (const run of applied) if (submittedRuns.has(run.runId)) submittedRuns.set(run.runId, run);
+  });
+}
+
+async function readStoredRuns(reconcile = true): Promise<StoredRun[]> {
+  if (reconcile) reconcileInactiveRuns();
   for (const run of submittedRuns.values()) {
     if (!run.sessionId) run.sessionId = "default";
   }
@@ -1525,6 +1649,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
     runs: runs
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
+      inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
       runId: run.runId,
       clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
       requestHash: typeof run.requestHash === "string" && /^[a-f0-9]{64}$/.test(run.requestHash) ? run.requestHash : undefined,
@@ -1633,13 +1758,21 @@ export async function getConversationTurns(sessionId: string) {
   requireConversationId(sessionId);
   await registryWrite;
   const stored=(await readStoredRuns()).filter(run=>run.sessionId===sessionId).slice(0,40).reverse();
-  const unresolved=stored.filter(run=>run.modality!=="voice"&&run.executionSource!=="capability_first"&&!run.result&&run.state!=="failed");
+  const unresolved=stored.filter(run=>run.modality!=="voice"&&run.executionSource!=="capability_first"&&!run.result&&(run.state!=="failed"||run.error==="run_inactivity_expired"));
   if(!unresolved.length)return stored.map(statusFromStoredRun);
   const history=await callOpenClawGateway("chat.history",{sessionKey:expectedCompanionSessionKey(sessionId),limit:200});
   const raw=(Array.isArray(history?.messages)?history.messages:[]).map((message:any)=>JSON.stringify({type:"message",message,timestamp:message.timestamp})).join("\n");
-  const proofs=unresolved.flatMap(run=>{
+  const proofs=unresolved.flatMap<{before:StoredRun;result?:string;endedAt?:number;activeEvidenceAt?:number}>(run=>{
     // Repeated equal requests require a stronger owner correlation, never guess the last match.
     if(stored.filter(x=>x.text===run.text).length!==1)return [];
+    if(run.error==="run_inactivity_expired"){
+      const evidence=ownerTurnEvidence(history?.messages,run.text,Date.now());
+      if(!evidence||Math.abs(evidence.startedAt-run.acceptedAt)>30000)return [];
+      if(evidence.outstandingTool||evidence.lastAt>(run.updatedAt||run.acceptedAt)){
+        const terminal=terminalConversationResult(raw,run.text);
+        if(!terminal||evidence.outstandingTool)return [{before:run,activeEvidenceAt:evidence.lastAt}];
+      }
+    }
     const proof=terminalConversationResult(raw,run.text);
     return proof?[{before:run,...proof}]:[];
   });
@@ -1649,16 +1782,18 @@ export async function getConversationTurns(sessionId: string) {
   return (await readStoredRuns()).filter(run=>run.sessionId===sessionId).slice(0,40).reverse().map(statusFromStoredRun);
 }
 
-async function backfillConversationResults(sessionId:string,proofs:{before:StoredRun;result:string;endedAt?:number}[]) {
+async function backfillConversationResults(sessionId:string,proofs:{before:StoredRun;result?:string;endedAt?:number;activeEvidenceAt?:number}[]) {
   await mutateRegistry(async()=>{
     const registry=await registryOrEmpty();
     if(registry.archivedSessionIds.includes(sessionId))return;
     const byId=new Map(proofs.map(p=>[p.before.runId,p]));const updates:StoredRun[]=[];
     const next=registry.runs.map(run=>{
       const proof=byId.get(run.runId);
-      if(!proof||run.sessionId!==sessionId||run.modality==="voice"||run.result||run.state==="failed"||runIdentity(run)!==runIdentity(proof.before))return run;
-      const updated={...run,result:proof.result,state:"done" as const,
-        updatedAt:proof.endedAt&&proof.endedAt>=run.acceptedAt?proof.endedAt:run.updatedAt||run.acceptedAt};
+      if(!proof||run.sessionId!==sessionId||run.modality==="voice"||run.result||(run.state==="failed"&&run.error!=="run_inactivity_expired")||(run.error==="run_inactivity_expired"&&protectedRun(run,registry.paymentRequests,registry.ownerConfirmations))||runIdentity(run)!==runIdentity(proof.before))return run;
+      const nextState=proof.result?"done" as const:"running" as const;
+      const updated={...run,result:proof.result,state:nextState,error:undefined,
+        inactivityCorrectionReceipt:run.error==="run_inactivity_expired"?{version:1 as const,action:"correct_run_expiration" as const,runId:run.runId,from:"expired" as const,to:nextState,at:Date.now(),evidenceAt:proof.activeEvidenceAt||proof.endedAt||Date.now()}:run.inactivityCorrectionReceipt,
+        updatedAt:proof.activeEvidenceAt||(proof.endedAt&&proof.endedAt>=run.acceptedAt?proof.endedAt:run.updatedAt||run.acceptedAt)};
       updates.push(updated);return updated;
     });
     if(!updates.length)return;
@@ -1734,6 +1869,7 @@ function cursorAnchor(cursor:string|undefined,scope:string,revision:string):stri
   return value.anchor;
 }
 async function retainedRuns():Promise<StoredRun[]> {
+  reconcileInactiveRuns();
   await registryWrite;
   const registry=await registryOrEmpty(),archived=new Set(registry.archivedSessionIds);
   return registry.runs.filter(x=>!archived.has(x.sessionId)).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));

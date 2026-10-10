@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "codex-local-p2-f-companion-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose owner laptop pairing and revocation with single use signed confirmation scopes",
+  "reason": "Reprise autorisée en PR indépendante, base runtime 066a340 ; activation et recette par Claude.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-local-p2-f-companion-20261010.json",
+    "docs/changes/codex-local-p2-f-companion-20261010.md",
+    "docs/work/samantha-runtime/contracts/p2-f.md",
+    "openclaw-plugin-mobile-ui/scripts/test-laptop-access.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/laptopAccess.ts",
+    "openclaw-plugin-mobile-ui/src/companion/nativeOperation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "review-17-p2-f-companion",
+      "status": "passed",
+      "evidence": "All runtime CI commands passed; signed confirmation isolation and replay preserved, 4-second mutation succeeds, slow read is stopped within its 3.5-second budget."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p2-f.md",
+    "docs/changes/codex-local-p2-f-companion-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical owner capability impact is registered in paired P2-f playbooks delivery; Companion delegates to this owner."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert de la PR de ce lot.",
+  "limitations": [
+    "Recette S24 et UI Android non réalisées par Codex."
+  ]
+}
