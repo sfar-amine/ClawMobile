@@ -1,6 +1,6 @@
 # R5-bis — Révision SQLite de la configuration des automatisations
 
-Référence : issue core59 et fichier29 (source attestée par Claude sur S24). Base Core6b7c68f, propriétaire playbooks4a392fd. Les captures nettoyées du schéma/quelques lignes restent demandées sur l'issue59 : cette préparation est bloquée, sans publication avant le signal d'ordre, sans qualification S24.
+Référence : issue core59 et fichiers29 et33 (source attestée par Claude sur S24). Base Core2c2c18f intégrée par merge normal, propriétaire playbookscd8be74. Les captures nettoyées du schéma/quelques lignes restent manquantes ; la préparation est bloquée et la demande sera portée dans la PR via @claude conformément au fichier33. Publication uniquement après le signal d’ordre du parent, sans qualification S24.
 
 ## Propriétaire unique
 
@@ -26,7 +26,7 @@ Aucun faux identifiant de capability ni outil parallèle. Le mapping canonique d
 
 ## Tests, captures et activation
 
-Les tests SQLite locaux emploient uniquement les noms de colonnes attestés par fichier29, dans une base synthétique : ce n'est pas un export du schéma/types/index ni des lignes réelles S24. Sept tests owner vérifient horloge/state stables, changement de chaque champ de configuration et ordre, 1001 tâches, lecture sans modification des octets/fichiers, verrou, source absente/corrompue/symlink, dépassement et CLI digest-only. Le test Core utilise un owner synthétique lent2,4s, vérifie le budget300ms cold/cache, partage de lectures, invalidation, guard en cours de calcul et repli normal. Son résultat local n'est pas une mesure S24 ; les valeurs ne servent pas de capture réelle.
+Les tests SQLite locaux emploient uniquement les noms de colonnes attestés par fichier29, dans une base synthétique : ce n'est pas un export du schéma/types/index ni des lignes réelles S24. Huit tests owner vérifient horloge/state stables, changement de chaque champ de configuration et ordre, 1001 tâches, lecture sans modification des octets/fichiers, verrou, source absente/corrompue/symlink, dépassement et CLI digest-only. Le test Core utilise un owner synthétique lent2,4s, vérifie le budget300ms cold/cache, partage de lectures, invalidation, guard en cours de calcul et repli normal. Son résultat local n'est pas une mesure S24 ; les valeurs ne servent pas de capture réelle.
 
 Les nouveaux tests sont inscrits dans documentation.yml (owner) et ci.yml (Core), en conservant toutes les étapes. Captures réelles et recette/mesures S24 sont obligatoires avant fusion/activation : merge_eligibility:blocked. Playbooks doit être relu, fusionné et épinglé d'abord, puis Companion, après levée des preuves manquantes. R22 reste un lot séparé.
 

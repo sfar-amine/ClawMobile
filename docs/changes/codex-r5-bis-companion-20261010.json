@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Consume canonical reporting SQLite revision with bounded single-flight probe and normal absence fallback",
-  "reason": "File29 attests canonical cron_jobs; real sanitized schema/row fixtures still missing on issue59.",
+  "reason": "File29/33 attest canonical cron_jobs; real sanitized schema/row fixture still missing, request must be made in draft PR under programme33.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
@@ -18,7 +18,7 @@
     {
       "name": "automation-revision-latency",
       "status": "passed",
-      "evidence": "Synthetic SQLite owner slow2.4s: cold265ms and cached30ms, runtime clock stable, config invalidates, guard/shared pool, missing source normal fallback. Not a production measure or real DB capture."
+      "evidence": "Full current ci.yml after merge runtime2c2c18f: CI_LOCAL_OK exit0. Synthetic SQLite owner2.4s: cold216.30ms cached30.11ms baseline2432.58ms, runtime clock stable/config invalidation/shared pool/missing normal fallback. Not S24 measure or real DB capture."
     }
   ],
   "documentation": [
@@ -48,6 +48,6 @@
   "limitations": [
     "Real S24 SQLite schema/row capture missing, merge blocked.",
     "Paired reporting playbooks owner must be merged/pinned first.",
-    "R22 separate; no push/PR before correction order signal."
+    "Publication is coordinated after parent order; draft/merge blocked until real fixture, no S24 qualification. R22 remains separate."
   ]
 }
