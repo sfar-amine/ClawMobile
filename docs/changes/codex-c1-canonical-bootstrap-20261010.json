@@ -18,18 +18,26 @@
     "openclaw-plugin-mobile-ui/scripts/test-canonical-agent-bootstrap.cjs",
     "docs/work/samantha-runtime/contracts/c1.md",
     "docs/changes/codex-c1-canonical-bootstrap-20261010.json",
-    "docs/changes/codex-c1-canonical-bootstrap-20261010.md"
+    "docs/changes/codex-c1-canonical-bootstrap-20261010.md",
+    "openclaw-plugin-mobile-ui/src/companion/skillLearning.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skillControl.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-control.cjs"
   ],
   "tests": [
     {
       "name": "canonical-owner-agent-bootstrap",
       "status": "passed",
-      "evidence": "Synthetic CLI actual agent parameters, explicit internal owner and HTTP Origin/Referer/Sec-Fetch isolation even with browser override, authenticated Bixby socket only, UTF8 per-block/64KiB prompt/120000-byte JSON bounds, complete specialized rules failclosed, missing-block/symlink tests. Real turn/model-token and S24 timing qualification absent."
+      "evidence": "Synthetic CLI actual agent parameters, explicit internal owner and HTTP Origin/Referer/Sec-Fetch isolation even with browser override, authenticated Bixby socket only, UTF8 per-block/64KiB prompt/120000-byte JSON bounds, complete specialized rules failclosed, missing-block/symlink tests. Real turn/model-token and S24 timing qualification absent. Native learning/trial services explicitly propagate internal authority from existing HTTP owner gates, never body; HTTP/context-builder tests, actual learning-service dependency spies and paired actual P2-b HTTP/service submit spy verify propagation/default-public."
     },
     {
       "name": "existing-ci-union-and-live-regressions",
       "status": "passed",
       "evidence": "All 25 executable CI-union commands passed after merging runtime2c2c18f (unchanged dependencies; npm ci not repeated), plus targeted Live/relay/reconnect regressions. Mandatory specialized section retained with 5000-emoji prefix and UTF16 boundary tests. Synthetic baseline3227ms/after3230ms (<10%),12366bytes (~3092bytes/4 estimate), unicode local read p95~2.40ms. No physical timing or actual token count. Runtime1f239f3 (merged P2-b/G3) then integrated normally; build, canonical bootstrap and real P2-b source-fixture regressions pass, all CI steps preserved."
+    },
+    {
+      "name": "merged-r8-and-p2b-authority-regressions",
+      "status": "passed",
+      "evidence": "Build, canonical bootstrap incl HTTPlearn/try, R8producer120assertions, canonicalguard46assertions and P2-bsourcefixture/actualHTTPservice regressions exit0. Existing payment guards/proofs/prompts/actions unchanged; authority propagation only."
     }
   ],
   "documentation": [

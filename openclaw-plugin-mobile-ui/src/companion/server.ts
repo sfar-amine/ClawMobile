@@ -825,7 +825,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(routePath==="/skills/learn"){
         if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
         let body:any;try{body=await readJsonBody(req);}catch{throw Object.assign(new Error("invalid_learning_request"),{statusCode:400});}
-        result=await learnSkill(body);
+        result=await learnSkill(body,undefined,{authority:"owner"});
       }else if(routePath==="/skills/candidates"){
         const keys=[...requestUrl.searchParams.keys()];if(keys.some(key=>key!=="limit")||keys.length>1)throw Object.assign(new Error(),{statusCode:400});
         const raw=requestUrl.searchParams.get("limit");if(raw!==null&&!/^[1-9][0-9]?$/.test(raw))throw Object.assign(new Error(),{statusCode:400});
@@ -1034,7 +1034,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     }
     if(method!=="POST"){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
     try{let id:string;try{id=decodeURIComponent(skillStateMatch[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
-      res.setHeader("Cache-Control","no-store");writeJson(res,200,await changeSkill(id,skillStateMatch[2],await readJsonBody(req,4096)));
+      res.setHeader("Cache-Control","no-store");writeJson(res,200,await changeSkill(id,skillStateMatch[2],await readJsonBody(req,4096),{authority:"owner"}));
     }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:"refused",receipt:null,error:status===503?"skill_owner_unavailable":"invalid_or_protected_skill"});}
     return;
   }
