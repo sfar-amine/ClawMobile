@@ -50,7 +50,6 @@
   },
   "rollback": "Revert H4 ; aucun effet S24 à annuler.",
   "limitations": [
-    "Préparation locale sans push ni PR avant l’ordre de publication autorisé.",
     "App adaptée et recette physique par Claude ; mesures CI injectées seulement.",
     "Aucune preuve positive config.patch nouvelle revendiquée ; dispatch de test refuse avant effet."
   ]
