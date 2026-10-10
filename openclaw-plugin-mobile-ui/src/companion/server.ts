@@ -1,3 +1,4 @@
+import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
 import {filesList,filesContent} from "./fileReads";
@@ -224,6 +225,14 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       message: "This endpoint is restricted to local companion app requests.",
     });
     return;
+  }
+
+  if(routePath==="/control/deploys"){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{error:"native_loopback_required"});return;}
+    if(method!=="GET"){writeJson(res,405,{error:"method_not_allowed"});return;}
+    const query=requestUrl.searchParams;const limit=query.get("limit")??"20";
+    if([...query.keys()].some(k=>k!=="limit")||query.getAll("limit").length>1||!/^([1-9]|[1-4][0-9]|50)$/.test(limit)){writeJson(res,400,{error:"invalid_deployments_query"});return;}
+    res.setHeader("Cache-Control","no-store");writeJson(res,200,await readDeploymentReceipts(Number(limit)));return;
   }
 
   if(routePath==="/files"||routePath==="/files/content"){

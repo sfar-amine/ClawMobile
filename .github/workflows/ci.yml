@@ -175,3 +175,6 @@ jobs:
           node ../cloud/voice-relay/test-mcp.mjs
       - name: G5 deployed receipt date binding (preparation)
         run: node scripts/test-update-deployment-date.cjs
+
+      - name: G4 deployment receipts and route budget
+        run: node scripts/test-deployment-receipts.cjs
