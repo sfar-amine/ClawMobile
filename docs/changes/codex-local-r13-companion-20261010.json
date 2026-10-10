@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "codex-local-r13-companion-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose native read-only capability detail from canonical registry",
+  "reason": "Amine requested R13 delivery as an isolated reviewed PR on the current base.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-local-r13-companion-20261010.json",
+    "docs/changes/codex-local-r13-companion-20261010.md",
+    "docs/work/samantha-runtime/contracts/r13.md",
+    "openclaw-plugin-mobile-ui/scripts/test-capability-detail.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityControl.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "R13-companion",
+      "status": "passed",
+      "evidence": "Build and dedicated HTTP fixture plus actual canonical-registry pairing passed; all ci.yml contract commands passed (log /tmp/r13-core-ci.log)."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r13.md",
+    "docs/changes/codex-local-r13-companion-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert the R13 PR.",
+  "limitations": [
+    "No S24 deployment or runtime qualification claimed; Claude merges playbooks, pins its snapshot, then merges Companion."
+  ]
+}

@@ -1,3 +1,4 @@
+import {capabilityDetail} from "./capabilityControl";
 import {updatesRead} from "./updatesControl";
 import {readAgentConfig,changeAgentConfig} from "./agentConfig";
 import {engineeringRead} from "./engineeringRead";
@@ -507,6 +508,18 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "GET" && routePath === "/health") {
     writeJson(res, 200, await health({ trusted: isLoopback }));
+    return;
+  }
+
+  if(routePath.startsWith("/capabilities/")){
+    res.setHeader("Cache-Control","no-store");
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"read_only"});return;}
+    try{
+      if(requestUrl.search||!/^\/capabilities\/[^/]+$/.test(routePath))throw Object.assign(new Error(),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(routePath.split('/')[2]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      const result=await capabilityDetail(id);writeJson(res,result.found?200:404,result);
+    }catch(error:any){writeJson(res,error?.statusCode===400?400:503,{success:false,state:error?.statusCode===400?"refused":"unavailable",receipt:null,error:error?.statusCode===400?"invalid_capability_id":"capability_registry_unavailable"});}
     return;
   }
 

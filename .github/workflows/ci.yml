@@ -93,3 +93,6 @@ jobs:
 
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
+
+      - name: Run read-only capability detail contract
+        run: node scripts/test-capability-detail.cjs
