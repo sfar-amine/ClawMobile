@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "id": "codex-r17-contacts-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Extend existing WhatsApp contacts owner with complete allowlist controls and biometric receipts",
+  "reason": "Claude review 26/32 takeover (10/10): blockers fixed and verified with PR48 inbound schema; merge allowed for Claude, activation stays gated on S24 recipe, physical route/expiry timings and canonical samantha.app.* mapping (routes listed NO_CAPABILITY in r17.md).",
+  "files": [
+    "docs/changes/codex-r17-contacts-20261010.json",
+    "docs/changes/codex-r17-contacts-20261010.md",
+    "docs/work/samantha-runtime/contracts/r17.md",
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-whatsapp-allowlist.py",
+    "installer/termux-lite/test-whatsapp-allowlist-manager.py",
+    "openclaw-plugin-mobile-ui/src/companion/whatsappAllowlist.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-allowlist.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-allowlist-paired.cjs",
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/test-whatsapp-allowlist-acceptance.py"
+  ],
+  "tests": [
+    {
+      "name": "r17-owner",
+      "status": "passed",
+      "evidence": "29 owner tests with real PR48 inbound schema/rows,3 existing-cycle tests,2 secrets-only acceptance tests,21 People regressions; HTTP and actual owner/SQLite-CAS fixtures. Physical route qualification remains absent."
+    },
+    {
+      "name": "r17-http",
+      "status": "passed",
+      "evidence": "Complete biometric matrix, strict E164 and owner boundaries, request identity/conflict/replay/concurrency, pre-effect retry, uncertainty/no replay, secret-free receipts/history, Unicode and 32 KiB HTTP boundaries."
+    },
+    {
+      "name": "r17-paired",
+      "status": "passed",
+      "evidence": "HTTP to actual Contacts owner with actual SQLite receipt/unique confirmation claims and config CAS fixture; signed proof consumed once, before-effect staging failure resumed with same body, another operation cannot reuse consumed proof; neighbors and payment/history unchanged, silent add, all contact actions and real cursor pagination."
+    },
+    {
+      "name": "runtime-ci",
+      "status": "passed",
+      "evidence": "Existing workflow commands on 0bf30ab passed; R17 six test commands registered in ci.yml and run locally. No existing step removed."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r17.md",
+    "docs/changes/codex-r17-contacts-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Extend existing people-trusted owner and native Companion routes; no additional capability registry."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing Gateway config, Directory receipts/meta, private context, confirmations and health cycle; no new store, table, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing canonical contacts owner reused; MCP tool execution schemas unchanged."
+  },
+  "rollback": "Revert this runtime lot; activation and restoration of runtime snapshots by Claude.",
+  "limitations": [
+    "No S24 mutation, deployment or integrated recipe by Codex. Gateway installed-version and screen recipe by Claude.",
+    "Expiry removal under two minutes is a qualification target. A bounded 20-second pass may need subsequent existing cycles when many contacts expire or owner access is unavailable.",
+    "Opaque custom policies with no readable scopeText cannot be reactivated or treated as a proven permission reduction.",
+    "Above 200 files, expiry scan rotates pages by UTC minute and explicitly reports partial; no claim of two-minute completion at arbitrary capacity.",
+    "PR48 inbound timestamp schema and cleaned rows confirmed; physical route/expiry timings and capability mapping remain required before activation.",
+    "PR48 inbound timestamp schema and cleaned rows confirmed; physical route/expiry timings and capability mapping remain required before activation.",
+    "Merge is not activation: Claude merges playbooks then core, deploys via companion-deploy.sh, measures route budgets and expiry latency on the S24, and maps capabilities before any agent/voice exposure."
+  ]
+}
