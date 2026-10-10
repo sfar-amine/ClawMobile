@@ -33,7 +33,7 @@
     {
       "name": "recent-gateway-completion-regression",
       "status": "passed",
-      "evidence": "Recent Gateway run updates to done via GET and list without JSONL transcript; required four regressions, background timeout/single-flight, expired retirement and all runtime CI commands passed. Latest base b068a3d merged, all CI steps preserved."
+      "evidence": "Recent Gateway run updates to done via GET and list without JSONL transcript; required four regressions, background timeout/single-flight, expired retirement and all runtime CI commands passed. Latest base 6d69680 merged, all CI steps preserved."
     }
   ],
   "documentation": [

@@ -77,6 +77,8 @@ jobs:
           node scripts/test-conversation-pages.cjs
           node scripts/test-submit-reconciliation.cjs
           node scripts/test-payment-core.cjs
+      - name: Run request cancellation owner contract
+        run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression
         run: node scripts/test-control-runtime-snapshot.cjs
       - name: Run automation detail and owner actions contract
