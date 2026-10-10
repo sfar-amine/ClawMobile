@@ -20,11 +20,13 @@ function projection(id:string,row:any){
  const title=typeof row.label==='string'&&row.label.length<=160&&!hiddenText.test(row.label)?row.label:null;
  const pinned=typeof row.pinned==='boolean'?row.pinned:null;
  const effective=typeof row.model==='string'&&typeof row.modelProvider==='string'?ref(row.modelProvider,row.model):null;
- const model=typeof row.modelOverride==='string'&&typeof row.providerOverride==='string'?ref(row.providerOverride,row.modelOverride):effective;
- return {success:true,state:'ok',receipt:null,sessionId:id,title,pinned,model:model&&modelPattern.test(model)?model:null,
+ const baseModel=typeof row.modelOverride==='string'&&typeof row.providerOverride==='string'?ref(row.providerOverride,row.modelOverride):effective;
+ const profile=typeof row.authProfileOverride==='string'&&/^[A-Za-z0-9._:+-]{1,128}$/.test(row.authProfileOverride)?row.authProfileOverride:null;
+ const model=baseModel&&profile&&!baseModel.includes('@')?baseModel+'@'+profile:baseModel;
+ return {success:true,state:'ok',receipt:null,sessionId:id,title,pinned,model:model&&modelPattern.test(model)?model:null,modelAuthProfile:profile,
   modelSource:['user','auto','inherited'].includes(row.modelOverrideSource)?row.modelOverrideSource:null,
   mutationAvailable:typeof row.sessionId==='string'&&/^[A-Za-z0-9_.-]{1,128}$/.test(row.sessionId),
-  issues:[...(pinned===null?['conversation_pin_unknown']:[]),...(!model?['conversation_model_unknown']:[])]};
+  issues:[...(!('authProfileOverride' in row)?['conversation_auth_profile_unknown']:[]),...(pinned===null?['conversation_pin_unknown']:[]),...(!model?['conversation_model_unknown']:[])]};
 }
 async function modelCatalog(){
  const [configRaw,catalog,auth]=await Promise.all([
@@ -69,7 +71,8 @@ function refusal(error:any):{code:string;status:number}|null{
  }
  const code=String(payload?.code||error?.code||'').toUpperCase();
  const text=String(payload?.message||payload?.details?.reason||error?.message||'');
- if(['ETIMEDOUT','ECONNRESET','EPIPE','ECONNREFUSED'].includes(code)||/timed out|timeout|connection (closed|lost|reset)|ECONNRESET|ECONNREFUSED|socket hang up/i.test(text))return null;
+ if(['ECONNREFUSED','ENOENT'].includes(code)||/\bECONNREFUSED\b/.test(text))return {code:'conversation_gateway_unreachable',status:503};
+ if(['ETIMEDOUT','ECONNRESET','EPIPE'].includes(code)||/timed out|timeout|connection (closed|lost|reset)|ECONNRESET|ECONNREFUSED|socket hang up/i.test(text))return null;
  if(/label.*(already|unique|used)|duplicate.*label/i.test(text))return {code:'conversation_label_already_used',status:409};
  if(/expectedSessionId|identity.*changed|session.*changed/i.test(text))return {code:'conversation_identity_changed',status:409};
  if(/catalog.*(loading|unavailable)|model.*catalog.*ready/i.test(text))return {code:'conversation_model_catalog_unavailable',status:503};
@@ -109,15 +112,16 @@ async function changeOnce(id:string,body:any){
   if(await protectedActivity()){state='refused';errorCode='protected_owner_activity';httpStatus=409;}
   else{
    const patch={key,expectedSessionId:row.sessionId,...('title' in desired?{label:desired.title}:{}),...('pinned' in desired?{pinned:desired.pinned}:{}),...('model' in desired?{model:desired.model}:{})};
-   let rejected:{code:string;status:number}|null=null;
-   try{const response=await callOpenClawGateway('sessions.patch',patch,readBudget);if(response?.ok===false||response?.success===false)throw response.error||response;}catch(error:any){rejected=refusal(error);}
+   let rejected:{code:string;status:number}|null=null,patchEntry:any;
+   try{const response=await callOpenClawGateway('sessions.patch',patch,readBudget);if(response?.ok===false||response?.success===false)throw response.error||response;patchEntry=response?.entry;}catch(error:any){rejected=refusal(error);}
    if(rejected){state='failed';errorCode=rejected.code;httpStatus=rejected.status;}
    else{
     const observed=await ownerRow(id);
     if(observed.sessionId!==row.sessionId){errorCode='conversation_identity_changed';}
     else{
-     const value=projection(id,observed);
-     if((!('title' in desired)||value.title===desired.title)&&(!('pinned' in desired)||value.pinned===desired.pinned)&&(!('model' in desired)||value.model===desired.model))state='completed';
+     const value=projection(id,{...observed,...(patchEntry?.sessionId===observed.sessionId&&'authProfileOverride' in patchEntry?{authProfileOverride:patchEntry.authProfileOverride}:{})});
+     const modelMatches=!('model' in desired)||(desired.model.includes('@')?value.model===desired.model:value.model?.split('@')[0]===desired.model);
+     if((!('title' in desired)||value.title===desired.title)&&(!('pinned' in desired)||value.pinned===desired.pinned)&&modelMatches)state='completed';
      else errorCode='conversation_effect_unverified';
     }
    }
