@@ -178,3 +178,4 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-android-network-mutation-guard.py
           python3 ../installer/termux-lite/test-consultation-network-receipt.py
+          python3 ../installer/termux-lite/test-consultation-process-safety.py

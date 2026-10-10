@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import signal
+import selectors
 import socket
 import subprocess
 import sys
@@ -656,6 +657,150 @@ def with_global_proxy(endpoint: str, purpose: str, command: list[str]) -> int:
         if restore_error:
             raise RuntimeError("temporary_proxy_restore_failed")
 
+def canonical_consultation_owner(pid: int) -> bool:
+    """A birth identity alone cannot turn an ordinary Python process into the guard."""
+    try:
+        proc = Path("/proc") / str(pid)
+        raw = (proc / "cmdline").read_bytes()
+        if len(raw) > 8192:
+            return False
+        argv = [v.decode() for v in raw.rstrip(b"\0").split(b"\0")]
+        expected = Path(__file__).resolve()
+        return (len(argv) >= 8 and Path(argv[1]).is_absolute()
+                and Path(argv[1]).resolve() == expected
+                and Path(os.readlink(proc / "exe")).resolve() == Path(sys.executable).resolve()
+                and argv[2:4] == ["with-consultation-receipt", "--"]
+                and Path(argv[4]).resolve() == Path(sys.executable).resolve()
+                and argv[5:7] == ["-m", "telecom.maxit_guarded_service"])
+    except (OSError, ValueError, IndexError, UnicodeError):
+        return False
+
+
+def consultation_lock_owned(pid: int) -> bool:
+    try:
+        expected = str((ROOT / "guard.lock").resolve())
+        return any(os.readlink(fd) == expected for fd in (Path("/proc") / str(pid) / "fd").iterdir())
+    except OSError:
+        return False
+
+
+class ConsultationChildFailure(RuntimeError):
+    def __init__(self, reason: str, cleanup_verified: bool):
+        super().__init__(reason)
+        self.cleanup_verified = cleanup_verified
+
+
+def consultation_group_members(pgid: int) -> list[int] | None:
+    """Observe our own process group, ignoring dead zombies, fail closed on ambiguity."""
+    members = []
+    try:
+        count = 0
+        for entry in Path("/proc").iterdir():
+            if not entry.name.isdecimal():
+                continue
+            count += 1
+            if count > 65536:
+                return None
+            try:
+                # Filter by the kernel group id before reading unrelated process details.
+                if os.getpgid(int(entry.name)) != pgid:
+                    continue
+                if entry.stat().st_uid != os.getuid():
+                    return None
+                fields = (entry / "stat").read_text().rsplit(")", 1)[1].split()
+                if int(fields[2]) == pgid and fields[0] != "Z":
+                    members.append(int(entry.name))
+            except (FileNotFoundError, ProcessLookupError):
+                continue
+            except (OSError, ValueError, IndexError):
+                return None
+        return members
+    except OSError:
+        return None
+
+
+def stop_consultation_group(child: subprocess.Popen) -> bool:
+    """The isolated child group must be stopped before a restoration can be certified."""
+    for sig, grace in ((signal.SIGTERM, 0.5), (signal.SIGKILL, 1.0)):
+        try:
+            os.killpg(child.pid, sig)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            return False
+        deadline = time.monotonic() + grace
+        while True:
+            child.poll()
+            members = consultation_group_members(child.pid)
+            if members == []:
+                try:
+                    child.wait(timeout=0.2)
+                except subprocess.TimeoutExpired:
+                    return False
+                return True
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.01)
+    return False
+
+
+def collect_consultation_child(command: list[str], env: dict, timeout_s: float = 120) -> subprocess.CompletedProcess:
+    """Bound BOTH output streams while reading, and kill all group members before return."""
+    # Selector construction precedes launch: descriptor exhaustion cannot strand a child.
+    selector = selectors.DefaultSelector()
+    try:
+        child = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 start_new_session=True)
+    except BaseException:
+        selector.close()
+        raise
+    stdout = bytearray()
+    total = 0
+    failure = None
+    deadline = time.monotonic() + timeout_s
+    try:
+        for name, stream in (("stdout", child.stdout), ("stderr", child.stderr)):
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ, name)
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, timeout_s)
+            for key, _ in selector.select(min(remaining, 0.1)):
+                data = os.read(key.fd, min(65536, 1048577 - total))
+                if not data:
+                    selector.unregister(key.fileobj)
+                    continue
+                total += len(data)
+                if total > 1048576:
+                    raise ValueError("consultation_output_limit")
+                if key.data == "stdout":
+                    stdout.extend(data)
+        child.wait(timeout=max(0.001, deadline-time.monotonic()))
+    except (OSError, ValueError, subprocess.SubprocessError, KeyboardInterrupt) as exc:
+        failure = type(exc).__name__
+    finally:
+        selector.close()
+        # A second ordinary termination signal cannot interrupt cleanup certification.
+        handlers = {sig: signal.signal(sig, signal.SIG_IGN) for sig in (signal.SIGTERM, signal.SIGINT)}
+        try:
+            cleanup_verified = stop_consultation_group(child)
+        except (OSError, ValueError, subprocess.SubprocessError, KeyboardInterrupt):
+            cleanup_verified = False
+        finally:
+            for stream in (child.stdout, child.stderr):
+                stream.close()
+            for sig, handler in handlers.items():
+                signal.signal(sig, handler)
+    if failure or not cleanup_verified:
+        raise ConsultationChildFailure("child_execution_failed" if cleanup_verified else "child_cleanup_unverified", cleanup_verified)
+    try:
+        text = stdout.decode("utf-8")
+    except UnicodeError:
+        raise ConsultationChildFailure("child_output_invalid", True) from None
+    return subprocess.CompletedProcess(command, child.returncode, text, "")
+
+
 def verify_consultation_lease(lease_id: str) -> bool:
     """A caller-supplied id is only a pointer; the existing guard proves ownership."""
     if not isinstance(lease_id, str) or not re.fullmatch(r"[a-f0-9]{32}", lease_id):
@@ -674,7 +819,8 @@ def verify_consultation_lease(lease_id: str) -> bool:
                 or not isinstance(owner, int) or isinstance(owner, bool) or owner <= 0
                 or not 0 <= time.time() - row["created_at"] <= MAX_LEASE_AGE
                 or not row.get("owner_identity")
-                or process_identity(owner) != row["owner_identity"] or not lease_alive(row)):
+                or process_identity(owner) != row["owner_identity"] or not lease_alive(row)
+                or not canonical_consultation_owner(owner) or not consultation_lock_owned(owner)):
             return False
         pid = os.getpid()
         for _ in range(32):
@@ -714,11 +860,23 @@ def prepare_consultation_cellular(lease_id: str) -> bool:
 
 
 def with_consultation_receipt(command: list[str]) -> int:
+    # Serialize snapshot -> mutation -> child cleanup -> exact restore using the existing owner lock.
+    try:
+        with mutation_lock():
+            return _with_consultation_receipt_locked(command)
+    except RuntimeError as exc:
+        if str(exc) != "network_mutation_guard_busy":
+            raise
+        print(json.dumps({"ok": False, "source": "maxit_network_guard", "state": "guard_busy"}))
+        return 4
+
+
+def _with_consultation_receipt_locked(command: list[str]) -> int:
     """Consultation-only additive API; generic/payment with-wifi-off is unchanged."""
     if len(command) < 4 or command[:3] != [sys.executable, "-m", "telecom.maxit_guarded_service"]:
         raise ValueError("invalid_consultation_command")
     identity = process_identity(os.getpid())
-    if identity is None:
+    if identity is None or not canonical_consultation_owner(os.getpid()):
         print(json.dumps({"ok": False, "source": "maxit_network_guard", "state": "guard_unavailable"}))
         return 4
     lease = create_lease("maxit-deterministic", lease_type="wifi_off", include_wifi=True)
@@ -729,6 +887,7 @@ def with_consultation_receipt(command: list[str]) -> int:
              "dns_ready_ms": None, "restored": False, "lease_id": lease.stem, "path": "wifi_off"}
     payload = {"ok": False, "source": "maxit_network_guard", "state": "guard_unavailable"}
     code = 4
+    child_cleanup_verified = True
     def interrupted(_sig, _frame):
         raise KeyboardInterrupt
     previous = {s: signal.signal(s, interrupted) for s in (signal.SIGTERM, signal.SIGINT)}
@@ -738,9 +897,9 @@ def with_consultation_receipt(command: list[str]) -> int:
             proof["wifi_disabled"] = True
         env = os.environ.copy()
         env["SAMANTHA_MAXIT_LEASE_ID"] = lease.stem
-        child = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
-        if len(child.stdout or "") > 1048576:
-            raise ValueError("consultation_output_limit")
+        child_cleanup_verified = False
+        child = collect_consultation_child(command, env)
+        child_cleanup_verified = True
         value = json.loads(child.stdout or "")
         if not isinstance(value, dict):
             raise ValueError("consultation_output_invalid")
@@ -752,15 +911,24 @@ def with_consultation_receipt(command: list[str]) -> int:
         observed = json.loads(lease.read_text())
         if observed.get("network_path") == "cellular_bind_wifi_on" and observed.get("network_path_reason") == "http_400_wifi":
             proof.update(path="cellular_bind_wifi_on", reason="http_400_wifi")
+    except ConsultationChildFailure as exc:
+        child_cleanup_verified = exc.cleanup_verified
+        payload = {"ok": False, "source": "maxit_network_guard", "state": str(exc)}
+        code = 4
     except (OSError, ValueError, subprocess.SubprocessError, KeyboardInterrupt):
         payload = {"ok": False, "source": "maxit_network_guard", "state": "guard_unavailable"}
         code = 4
     finally:
         try:
             restore_lease(row)
-            proof["restored"] = True
-            lease.unlink(missing_ok=True)
-            write_receipt("healthy", "temporary_wifi_restored", network_guard=proof)
+            proof["restored"] = child_cleanup_verified
+            if child_cleanup_verified:
+                lease.unlink(missing_ok=True)
+                write_receipt("healthy", "temporary_wifi_restored", network_guard=proof)
+            else:
+                payload = {"ok": False, "source": "maxit_network_guard", "state": "child_cleanup_unverified"}
+                code = 4
+                write_receipt("degraded", "temporary_wifi_cleanup_unverified", network_guard=proof)
         except Exception:
             payload = {"ok": False, "source": "maxit_network_guard", "state": "restoration_failed"}
             code = 4
