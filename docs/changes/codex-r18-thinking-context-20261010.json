@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "codex-r18-thinking-context-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "R18 draft: canonical conversation thinking profile and fresh token context on shared reads",
+  "reason": "User27; public OpenClaw2026.9.6 schemas prove implementation shape, installed P0 captures and budgets are still missing. Depends on core#28.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-r18-thinking-context-20261010.json",
+    "docs/changes/codex-r18-thinking-context-20261010.md",
+    "docs/work/samantha-runtime/contracts/r18.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-acceptance.py",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-context-coverage.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-context-race.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-context.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-metadata.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-thinking.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/conversationContext.ts",
+    "openclaw-plugin-mobile-ui/src/companion/conversationMetadata.ts",
+    "openclaw-plugin-mobile-ui/src/companion/conversationOwnerIndex.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "r18-thinking-context",
+      "status": "passed",
+      "evidence": "Build, public-schema synthetic HTTP4.15s cold/warm/default/session/guards/replay/uncertainty, context-null, flight race and bounded100 coverage pass. Full preserved CI completed CI_LOCAL_OK; final duplicate-owner/acceptance supplied-session deltas rebuilt and targeted tests pass. No S24 evidence claimed."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r18.md",
+    "docs/changes/codex-r18-thinking-context-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY temporary for existing native metadata GET/POST; canonical app/agent/voice mapping and activation remain blocked, no invented capability id."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing volatile owner cache and native-operation receipts only; no new store, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP owner contract changes."
+  },
+  "rollback": "Revert R18; no migration.",
+  "limitations": [
+    "Draft requires real installed sessions.list/config.get/model/auth captures and cold/warm S24 measurements before qualification.",
+    "core#28 must merge first; this branch uses its shared model owner cache.",
+    "Bounded100-row view cannot prove absence beyond its window; no extra per-row discovery.",
+    "An in-flight snapshot captured before terminal invalidation is pending with null context until the next shared read.",
+    "AGENTS runtime85aeb075 read: captures and canonical app capability mapping required before activation. NO_CAPABILITY temporary table in contract; authorized POST total budget unqualified."
+  ]
+}
