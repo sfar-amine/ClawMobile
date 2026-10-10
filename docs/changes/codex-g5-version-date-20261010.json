@@ -3,13 +3,14 @@
   "id": "codex-g5-version-date-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Préparer la date ISO de déploiement dans updates via le seul lecteur G4.",
-  "reason": "Module G4 et capture reçus attendus ; binding pur non branché pour éviter un lecteur parallèle.",
+  "summary": "Afficher dans updates la date ISO prouvée par le reçu Companion G4 correspondant au commit courant.",
+  "reason": "Lecteur unique G4 présent et source réelle confirmée ; binding et HTTP /updates vérifiés sur captures réelles, sans qualification physique revendiquée.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/updateDeploymentDate.ts",
+    "openclaw-plugin-mobile-ui/src/companion/updatesControl.ts",
     "openclaw-plugin-mobile-ui/scripts/test-update-deployment-date.cjs",
     "docs/work/samantha-runtime/contracts/g5.md",
     "docs/changes/codex-g5-version-date-20261010.json",
@@ -19,7 +20,7 @@
     {
       "name": "G5-date-binding",
       "status": "passed",
-      "evidence": "Build et binding test verts sur projection réelle p0-3/updates. Dates synthétiques explicites pour normalisation/null/calendar invalid ; aucun faux reçu S24."
+      "evidence": "Build + test-update-deployment-date + test-updates-read + test-deployment-receipts verts ; 8 samples S24 sur 22 reçus, /updates dix lectures concurrentes 620 ms avec latence capturée 550 ms (budget 4 s), un helper et un lecteur G4, fichiers inchangés."
     }
   ],
   "documentation": [
@@ -33,7 +34,7 @@
   },
   "architecture": {
     "changed": false,
-    "reason": "Single-flight et propriétaire SQLite/CLI existants ; aucun nouveau store/scheduler."
+    "reason": "Réutilise les caches et single-flight updates et G4 ; aucun nouveau store ni lecteur."
   },
   "mcp_owner_parity": {
     "tools": {
@@ -44,7 +45,7 @@
       "claw_status": "verified_no_impact",
       "claw_artifact_read": "verified_no_impact"
     },
-    "reason": "Pas de primitive ou route nouvelle ; binding pur attendu par owner G4 canonique.",
+    "reason": "Pas de primitive ou route nouvelle ; projection sur le lecteur G4 unique confirmé.",
     "evidence": [
       "openclaw-plugin-mobile-ui/scripts/test-update-deployment-date.cjs",
       "docs/work/samantha-runtime/contracts/g5.md"
@@ -52,8 +53,8 @@
   },
   "rollback": "Revert de G5 ; lecteur G4 non dupliqué.",
   "limitations": [
-    "G4 doit fournir module/cache et latestCompanionDeploymentAt avant intégration.",
-    "Capture positive réelle G4 et qualification HTTP/budget4s restent requises.",
-    "Aucune route active changée dans la préparation."
+    "Qualification physique et déploiement par Claude uniquement.",
+    "Le test HTTP utilise une variation déclarée du target du reçu réel vers HEAD local ; elle ne prouve pas un déploiement de cette branche sur le S24.",
+    "La date est null si le propriétaire G4 ne peut prouver un reçu deployed non ambigu correspondant au commit courant."
   ]
 }
