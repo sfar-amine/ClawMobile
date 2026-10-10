@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Extend existing attachment storage with bounded safe file shares and R3 cleanup",
-  "reason": "Explicit local-only Codex backlog delivery.",
+  "reason": "Reprise autorisée en PR indépendante, base runtime 066a340 ; activation et recette par Claude.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-local-r14-20261010.json",
@@ -51,8 +51,8 @@
     },
     "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
   },
-  "rollback": "Revert this local lot.",
+  "rollback": "Revert de la PR de ce lot.",
   "limitations": [
-    "Local patch/bundle only; no deployment or S24 receipt claimed."
+    "Recette S24 et UI Android non réalisées par Codex."
   ]
 }
