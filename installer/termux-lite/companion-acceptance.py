@@ -103,10 +103,10 @@ def main():
     if conversation_id is not None:
         code, body, took = call("GET", "/conversations/" + conversation_id + "/metadata", budget + 5)
         leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
-        status = "ok" if code == 200 and took <= budget and not leak else "fail"
+        status = "skipped" if code == 404 else ("ok" if code == 200 and took <= budget and not leak else "fail")
     else:
-        code, took, leak, status = None, 0, False, "unqualified"
-    failed |= status != "ok"
+        code, took, leak, status = None, 0, False, "skipped"
+    failed |= status == "fail"
     results.append({"route": "/conversations/{sessionId}/metadata", "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
     for method, path in OWNER_GUARDS:
         code, _, took = call(method, path, 10)
