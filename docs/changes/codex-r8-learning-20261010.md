@@ -1,11 +1,7 @@
-# R8 — apprentissage propriétaire, PR draft
+# R8 — apprentissage confirmé, candidat propriétaire et admission normale
 
-Ajoute le parcours learn confirmé et les lectures de candidats du propriétaire recordings. submitIntent réutilisé dans skill-learning avec option interne empêchant les chemins fast-path et auto-skill ; aucun appel direct Companion à la promotion, l’installation ou l’exécution d’une skill. Le paiement est exclu en préflight par le resolver canonique et les gardes globales existantes.
+La PR prépare POST skills/learn et les lectures des candidats dans recordings, sans installation ni promotion. Contrat : docs/work/samantha-runtime/contracts/r8.md.
 
-Validation locale : build,54 assertions parcours/candidats/HTTP/vrai submitIntent/consume cryptographique,22 assertions de garde v2,2 tests du vérificateur acceptance. Toutes les commandes du ci.yml de base passent ; les trois suites R8 sont maintenant inscrites dans ci.yml, avec toutes les étapes de base conservées. Les fixtures sont synthétiques, sans S24. La signature corrompue après status est refusée avant soumission. Le plus récent des601 dossiers est trouvé même lorsque son mtime est ancien.
+User28 : PR48 intégrée par merge normal. Cinq formes du vrai producteur sur S24 (mock traces) chargées, recording réel0 ; dates définies par mtime du fichier. Les601 dossiers du test sont générés depuis ces formes, sans qualification de volume physique. Budgets liste1,5s, détail1s, admissionPOST2s. Garde canonique avant run/consume, borne read-only1s failclosed ; submitIntent normal conserve RPC background et vrai run persisté.
 
-Livraison volontairement bloquée : captures S24 P0-2, schéma/volumes/latences réalistes manquent. Budget lecture2s provisoire ajouté à companion-acceptance.py. La boîte à outils du modèle Gateway est générale : le prompt fixe interdit la promotion, et son confinement global n’est pas prétendu ; le contrat demandé de prompt fixe et sans appel direct Companion est respecté. merge_eligibility:blocked ; la gate de livraison refuse donc intentionnellement la fusion. Cette PR est une préparation reviewable, aucune qualification ni activation annoncée.
-
-Contrat : docs/work/samantha-runtime/contracts/r8.md. Claude complète les preuves, relit, puis fusionne et déploie uniquement via companion-deploy.sh. Aucun merge ou déploiement Codex. Retour arrière : revert de la PR R8.
-
-Revue26 : runtime0bf30ab intégré, CI R8 inscrite, manifeste G2 et routes acceptance de base conservés. Budgets P0 et captures restent manquants ; draft et gate bloquée conservés.
+Validation locale : build,103 assertions parcours/candidats/HTTP/registre/signature/rejeu/budgets,32 garde canonique incluant kill du helper1s et paiement non lexical sans run,3 acceptance. CI complète actuelle conservée, trois suites R8 inscrites ;120casG2base +3R8, routes acceptancebase préservées. Aucune recette S24 ni déploiement annoncé. Le garde froid S24 peut refuser503 au-delà1s ; aucune réussite accepted physique prétendue.

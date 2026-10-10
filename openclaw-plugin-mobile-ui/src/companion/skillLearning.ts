@@ -23,13 +23,16 @@ export function learningBody(body:any){
 }
 export async function learningPaymentGuard(instruction:string,confirmationId?:string){
  if(PAYMENT.test(instruction))throw nativeError("learn_payment_excluded",409);
- const result=await runModelFastPath(instruction,{checkOnly:true,caller:"owner",surface:"claw_live",timeoutSeconds:5,originId:"skill-learning-preflight"});
+ const guardStarted=Date.now();
+ const result=await runModelFastPath(instruction,{checkOnly:true,caller:"owner",surface:"claw_live",timeoutSeconds:1,checkBudgetMs:1000,originId:"skill-learning-preflight"});
+ if(result.reason==="check_budget_exceeded")throw nativeError("learning_guard_budget_exceeded",503);
  if(!["miss","assist","eligible","clarification"].includes(result.status||"")||!result.decision||typeof result.decision!=="object")throw nativeError("learning_guard_unavailable",503);
  const decision=result.decision as any;
  // Decision v2's top-level risk is emitted by the existing canonical decision_contract owner.
  if(decision.version!==2||typeof decision.risk!=="string")throw nativeError("learning_guard_unavailable",503);
  if(!["read","write"].includes(decision.risk))throw nativeError(["payment","financial","finance","transaction","sensitive","destructive","external_send","high","human"].includes(decision.risk)?"learn_payment_excluded":"learning_guard_unavailable",["payment","financial","finance","transaction","sensitive","destructive","external_send","high","human"].includes(decision.risk)?409:503);
  let payments:any[],ownerConfirmations:any[];try{[payments,ownerConfirmations]=await Promise.all([readPaymentRequests(),readOwnerConfirmations()]);}catch{throw nativeError("learning_guard_unavailable",503);}
+ if(Date.now()-guardStarted>=1000)throw nativeError("learning_guard_budget_exceeded",503);
  const others=ownerConfirmations.filter(conf=>!(conf.id===confirmationId&&conf.intent?.action?.type==="skill.learn"&&conf.intent.action.reference==="learn"&&conf.intent.action.payloadHash===hash(instruction)&&conf.state==="approved"&&conf.proof&&conf.expiresAt>Date.now()&&conf.createdAt<=Date.now()));
  if(protectedRun({decision},payments,others))throw nativeError("learn_payment_excluded",409);
  if(PAYMENT.test(JSON.stringify(decision))||decision.confirmationRequired===true||decision.confirmation_required===true||decision.humanBoundary||decision.human_boundary)throw nativeError("learn_payment_excluded",409);
@@ -64,7 +67,7 @@ const FILE_LIMIT=1024*1024,FOLDER_LIMIT=10000,SCAN_BYTES=32*1024*1024;
 type ReadBudget={remaining:number};
 async function boundedJson(file:string,budget:ReadBudget){
  const handle=await fs.open(file,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
- try{const info=await handle.stat();if(!info.isFile()||info.size>FILE_LIMIT||info.size>budget.remaining)throw nativeError("candidate_unavailable",503);const raw=await handle.readFile();if(raw.length>FILE_LIMIT||raw.length>budget.remaining)throw nativeError("candidate_unavailable",503);budget.remaining-=raw.length;return JSON.parse(raw.toString('utf8'));}finally{await handle.close();}
+ try{const info=await handle.stat();if(!info.isFile()||info.size>FILE_LIMIT||info.size>budget.remaining)throw nativeError("candidate_unavailable",503);const raw=await handle.readFile();if(raw.length>FILE_LIMIT||raw.length>budget.remaining)throw nativeError("candidate_unavailable",503);budget.remaining-=raw.length;return {value:JSON.parse(raw.toString('utf8')),mtimeMs:info.mtimeMs};}finally{await handle.close();}
 }
 function clean(value:any,max:number,secrets:string[]=[]){
  if(typeof value!=="string")return "";let text=value.replace(/[\p{C}\p{Zl}\p{Zp}]/gu,' ');
@@ -77,15 +80,15 @@ async function candidate(root:string,id:string,budget:ReadBudget,full=false){
  // Anchor both directory components before reading; O_NOFOLLOW on only the leaf is insufficient.
  const dir=await fs.open(resolved,constants.O_RDONLY|constants.O_DIRECTORY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
  try{
- const anchored="/proc/self/fd/"+dir.fd,value=await boundedJson(path.join(anchored,"skill_candidate.json"),budget);
+ const anchored="/proc/self/fd/"+dir.fd,{value,mtimeMs}=await boundedJson(path.join(anchored,"skill_candidate.json"),budget);
  if(!value||typeof value!=="object"||value.schema_version!=="clawmobile.skill_candidate.v1"||value.source_trace_id!==id||!Array.isArray(value.steps)||value.steps.length>2000)throw nativeError("candidate_unavailable",503);
  const secrets:string[]=[];let nodes=0;
  const collect=(part:any,depth=0)=>{if(++nodes>10000||depth>20)throw nativeError("candidate_unavailable",503);if(typeof part==='string'){if(part.length>1)secrets.push(part);}else if(part&&typeof part==='object')for(const v of Object.values(part))collect(v,depth+1);};
  for(const step of value.steps)if(step&&typeof step==='object')for(const [key,v] of Object.entries(step))if(key!=='action')collect(v);
  collect(value.intent?.parameters);secrets.sort((a,b)=>b.length-a.length);
- let createdAt=value.created_at;
- if(createdAt===undefined){const trace=await boundedJson(path.join(anchored,"trace.json"),budget);if(trace?.trace_id!==id)throw nativeError("candidate_unavailable",503);createdAt=trace.created_at;}
- if(typeof createdAt!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(createdAt)||!Number.isFinite(Date.parse(createdAt))||new Date(createdAt).toISOString().slice(0,19)!==createdAt.slice(0,19))throw nativeError("candidate_timestamp_unavailable",503);
+ // User28 defines this view's date as the candidate file mtime, not model fields or directory order.
+ if(!Number.isFinite(mtimeMs)||mtimeMs<=0)throw nativeError("candidate_timestamp_unavailable",503);
+ const createdAt=new Date(mtimeMs).toISOString();
  const item:any={traceId:id,name:clean(value.intent?.name,160,secrets),description:clean(value.intent?.description,500,secrets),createdAt:new Date(createdAt).toISOString(),stepCount:value.steps.length,status:"candidate",runId:null};
  // Candidate schema has no owner-verified run linkage today; model-supplied source_run_id is not proof.
  if(full)item.steps=value.steps.map((step:any,index:number)=>({index:index+1,action:["tap_anchor","long_press_anchor","swipe_anchor","type_parameter","wait","assert_text","assert_state","press_key"].includes(step?.action)?step.action:"unknown",summary:"Étape "+(index+1)}));

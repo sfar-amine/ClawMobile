@@ -3,29 +3,41 @@
   "id": "codex-r8-learning-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Prepare owner-confirmed skill learning and bounded candidate reads without promotion.",
-  "reason": "Amine assigned R8 using the existing recording/trace owner; P0-2 qualification remains missing.",
+  "reason": "User28 supplies actual producer forms (mock traces, real recording volume0), file-mtime semantics and route budgets; local contracts/CI and independent review pass, live activation remains Claude-owned.",
   "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-r8-learning-20261010.json",
+    "docs/changes/codex-r8-learning-20261010.md",
+    "docs/work/samantha-runtime/contracts/r8.md",
     "installer/termux-lite/companion-acceptance.py",
     "installer/termux-lite/test-skill-learning-acceptance.py",
-    "openclaw-plugin-mobile-ui/src/companion/skillLearning.ts",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/control/automations.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/control/health.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/control/latency.txt",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/control/requests.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/usage.status.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r8/candidate-1.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r8/candidate-2.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r8/candidate-3.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r8/candidate-4.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r8/candidate-5.json",
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-learning-guard.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-learning.cjs",
     "openclaw-plugin-mobile-ui/src/companion/intent.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
-    "openclaw-plugin-mobile-ui/scripts/test-skill-learning.cjs",
-    "openclaw-plugin-mobile-ui/scripts/test-skill-learning-guard.cjs",
-    "docs/work/samantha-runtime/contracts/r8.md",
-    "docs/changes/codex-r8-learning-20261010.md",
-    "docs/changes/codex-r8-learning-20261010.json",
-    "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json",
-    ".github/workflows/ci.yml"
+    "openclaw-plugin-mobile-ui/src/companion/skillLearning.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts"
   ],
   "tests": [
     {
       "name": "R8 local synthetic contracts",
       "status": "passed",
-      "evidence": "Build;54 learning/candidate/HTTP/real submitIntent assertions,22 canonical guard assertions,2 acceptance budget checks; all existing CI commands passed. No real S24 fixture or latency qualification claimed."
+      "evidence": "Build;103 assertions including five captured real producer forms (mock traces, actual recording volume0), generated bounds601, mtime ordering, signed HTTP202 admission with real run ledger and 850ms guard/300ms probe/3s background RPC;32 canonical guard assertions including true helper total timeout and no-run financial refusal;3 acceptance budget tests; complete current CI."
     }
   ],
   "documentation": [
@@ -54,8 +66,8 @@
   },
   "rollback": "Revert the R8 preparation PR; no runtime activation performed.",
   "limitations": [
-    "Draft only: real S24 P0-2 captures and full file24 absent.",
-    "Representative route/volume latency remains unqualified; 2s is provisional. Three existing R8 test suites are now registered in CI.",
-    "Prompt forbids promotion; no stronger agent-wide tool confinement is claimed or required for the Companion contract."
+    "Captures PR48 reflect actual producer format from mock traces; no real recordings exist on S24 (volume0).",
+    "Local admission budget proof does not attest live S24 timing; a cold canonical guard beyond1s refuses503 before any run/consume.",
+    "Prompt forbids promotion; no stronger agent-wide tool confinement is claimed."
   ]
 }

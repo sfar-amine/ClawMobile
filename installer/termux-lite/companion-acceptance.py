@@ -18,8 +18,8 @@ READS = [
     ("/agent/config", 9.0),
     ("/laptop-access/computers", 6.0),
     ("/security/surfaces", 2.0),
-    # R8 provisional budget; S24 P0-2 captures and volume qualification are pending.
-    ("/skills/candidates?limit=50", 2.0),
+    # R8 user28 budgets; real recording volume is zero (captured producer forms are mock traces).
+    ("/skills/candidates?limit=50", 1.5),
     ("/voice/voices", 1.0),
     ("/control/automations?contract=2", 1.0),
 ]
@@ -31,7 +31,7 @@ OWNER_GUARDS = [
     ("POST", "/skills/learn"),
     ("POST", "/runs/acceptance-probe/approval"),
 ]
-OWNER_GUARD_BUDGETS = {"/skills/learn": 1.0}  # provisional refusal latency, no effect allowed
+OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0}  # admission/refusal budget, no effect without owner proof
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY|\+\d{11,}")
 
 
@@ -73,7 +73,7 @@ def main():
                 failed = True
     # Exercise the detail only with an existing owner artifact, never a fabricated trace.
     if candidate_id is not None:
-        budget = 2.0  # provisional R8 budget, real P0-2 captures/volume proof still required
+        budget = 1.0  # user28 detail-read budget
         path = "/skills/candidates/" + candidate_id
         code, body, took = call("GET", path, budget + 5)
         leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
