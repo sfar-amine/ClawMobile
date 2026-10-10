@@ -11,7 +11,7 @@
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/scripts/test-delete-run.cjs",
-    "docs/work/samantha-runtime/contracts/R3.md",
+    "docs/work/samantha-runtime/contracts/r3.md",
     "docs/changes/codex-delete-run-r3-20261010.md",
     "docs/changes/codex-delete-run-r3-20261010.json"
   ],
@@ -34,7 +34,7 @@
   ],
   "documentation": [
     "docs/changes/codex-delete-run-r3-20261010.md",
-    "docs/work/samantha-runtime/contracts/R3.md"
+    "docs/work/samantha-runtime/contracts/r3.md"
   ],
   "capabilities": {
     "impact": "none",
