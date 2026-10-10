@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "id": "codex-c1-canonical-bootstrap-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Inject canonical compact context into existing owner app and Bixby agent turns",
+  "reason": "Issue58/program31: lightweight omits bootstrap rules; reuse canonical voice reader, real turn captures and physical before/after tokens/timings still missing.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skills.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-canonical-agent-bootstrap.cjs",
+    "docs/work/samantha-runtime/contracts/c1.md",
+    "docs/changes/codex-c1-canonical-bootstrap-20261010.json",
+    "docs/changes/codex-c1-canonical-bootstrap-20261010.md"
+  ],
+  "tests": [
+    {
+      "name": "canonical-owner-agent-bootstrap",
+      "status": "passed",
+      "evidence": "Synthetic CLI actual agent parameters, explicit internal owner and HTTP Origin/Referer/Sec-Fetch isolation even with browser override, authenticated Bixby socket only, UTF8 per-block/64KiB prompt/120000-byte JSON bounds, complete specialized rules failclosed, missing-block/symlink tests. Real turn/model-token and S24 timing qualification absent."
+    },
+    {
+      "name": "existing-ci-union-and-live-regressions",
+      "status": "passed",
+      "evidence": "All 21 executable existing CI-union commands passed on C1 preparation, plus targeted Live/relay/reconnect regressions. Mandatory specialized section retained with 5000-emoji prefix and UTF16 boundary tests. Synthetic baseline3227ms/after3230ms (<10%),12366bytes (~3092bytes/4 estimate), unicode local read p95~2.40ms. No physical timing or actual token count."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c1.md",
+    "docs/changes/codex-c1-canonical-bootstrap-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal bootstrap transport on existing owner paths; no new app action, setting, route, capability or admission."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing canonical files and reader, Gateway transport and relay authentication; no new store, registry, router, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP schema/tool change; owner agent bootstrap transport only."
+  },
+  "rollback": "Revert C1 commits, preserve payment and existing canonical owners; no runtime changes by Codex.",
+  "limitations": [
+    "Issue58 real app/Bixby captures and actual token/latency measurements unavailable.",
+    "Synthetic 3.2s delay and bytes/4 estimate are not physical measurements or model token accounting.",
+    "No push, merge or deployment until coordination; Live voice block change C3 remains separate."
+  ]
+}

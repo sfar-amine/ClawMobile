@@ -1,0 +1,5 @@
+# C1 — préparation du socle compact app/Bixby
+
+Les tours owner existants gardent lightweight et le message original ; extraSystemPrompt reçoit les blocs canoniques du lecteur voix existant. Autorité interne explicite, aucune lecture privée sans cette autorité et aucune option client pour l’activer. Bixby reste derrière son authentification. Aucun changement paiement/historique/routage. Option de lecture stricte C1, bornes UTF8 par bloc et64Kio prompt/120000octets JSON Gateway avant effet. Section spécialisée complète obligatoire, aucun bloc requis absent. Comportement Live historique inchangé, C3 séparé. HTTP privé loopback sans en-têtes navigateur, aucun flag client ne confère l’autorité.
+
+Contrat c1.md, tests CI dédiés et étapes existantes conservées. Fixtures de transport/fichiers générées, SDK public2026.9.6 attesté ; capture du vrai tour app/Bixby demandée dans issue58 absente. merge_eligibility:blocked, aucune qualification ni activation. Estimation octets/4 clairement distincte d’un compte réel de jetons. Retour arrière : revert C1 seulement.

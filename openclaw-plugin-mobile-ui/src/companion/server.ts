@@ -705,6 +705,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       {
         userText: displayText,
         clientRunId: body?.clientRunId,
+        authority:isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner":undefined,
       },
     );
     const statusCode = runSubmissionStatusCode(result);
@@ -1044,7 +1045,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   if (method === "POST" && skillRunMatch) {
     const skillId = decodeURIComponent(skillRunMatch[1]);
     const body = await readJsonBody<Record<string, any>>(req);
-    const result = await runWorkspaceSkill(skillId, body || {});
+    const result = await runWorkspaceSkill(skillId, body || {}, {authority:isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner":undefined});
     writeJson(res, result ? 200 : 404, result || {
       success: false,
       message: `Workspace skill not found: ${skillId}`,

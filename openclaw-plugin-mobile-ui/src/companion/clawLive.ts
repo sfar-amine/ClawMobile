@@ -47,15 +47,71 @@ function normalizedClient(value = "browser") {
   return /^[A-Za-z0-9._-]{1,64}$/.test(client) ? client : "browser";
 }
 
-function readCanonical(pathname: string, maxChars: number) {
-  try {
-    const raw = fs.readFileSync(pathname, "utf8").trim();
-    if (!raw) return "";
-    if (raw.length <= maxChars) return raw;
-    return raw.slice(0, maxChars) + "\n[bounded by Claw voice bootstrap]";
-  } catch {
-    return "";
+export function readCanonical(pathname: string, maxChars: number, options:{boundedOwner?:boolean}={}) {
+  // Keep the established Live reader behavior until C3 is separately qualified.
+  if(!options.boundedOwner){
+    try {const raw=fs.readFileSync(pathname,"utf8").trim();return !raw?"":raw.length<=maxChars?raw:raw.slice(0,maxChars)+"\n[bounded by Claw voice bootstrap]";}catch{return "";}
   }
+  let fd:number|undefined;
+  try {
+    fd=fs.openSync(pathname,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
+    if(!fs.fstatSync(fd).isFile())return "";
+    const bytes=Buffer.alloc(maxChars*4+4);
+    const size=fs.readSync(fd,bytes,0,bytes.length,0);
+    const raw=bytes.subarray(0,size).toString("utf8").trim();
+    if(!raw)return "";
+    if(raw.length<=maxChars)return raw;
+    let prefix=raw.slice(0,maxChars);
+    if(/[\uD800-\uDBFF]$/.test(prefix))prefix=prefix.slice(0,-1);
+    return prefix+"\n[bounded by Claw voice bootstrap]";
+  } catch { return ""; }
+  finally {if(fd!==undefined)fs.closeSync(fd);}
+}
+
+function canonicalPrefix(value:string,maxChars:number) {
+  const prefix=value.slice(0,maxChars);
+  return /[\uD800-\uDBFF]$/.test(prefix)?prefix.slice(0,-1):prefix;
+}
+
+function canonicalUtf8(value:string,maxBytes:number) {
+  if(Buffer.byteLength(value,"utf8")<=maxBytes)return value;
+  const marker="\n[canonical block bounded]";
+  const budget=maxBytes-Buffer.byteLength(marker);let bytes=0,result="";
+  for(const point of value){const size=Buffer.byteLength(point);if(bytes+size>budget)break;result+=point;bytes+=size;}
+  return result+marker;
+}
+
+/** Shared canonical file reader, explicit internal owner authority only.
+ * C1 does not change the existing Live voice prompt; C3 qualifies that change.
+ */
+export function compactOwnerAgentContext(options:{authority?:"owner";home?:string}={}) {
+  if(options.authority!=="owner")return "";
+  const workspace=path.join(options.home||os.homedir(),".openclaw","workspace");
+  const operating=readCanonical(path.join(workspace,"context","OPERATING_RULES.md"),64000,{boundedOwner:true});
+  let prefix=canonicalPrefix(operating,12000);
+  const heading=/^#{1,6}\s+Règles spécialisées[^\n]*$/im.exec(operating);
+  let specialized="";
+  if(!heading)throw new Error("canonical_specialized_rules_unavailable");
+  if(heading){
+    const rest=operating.slice(heading.index);
+    const level=heading[0].match(/^#+/)![0].length;
+    const next=new RegExp("^#{1,"+level+"}\\s+", "m").exec(rest.slice(heading[0].length));
+    const section=rest.slice(0,next?heading[0].length+next.index:undefined);
+    if(Buffer.byteLength(section)>6000||section.includes("[bounded by Claw voice bootstrap]"))throw new Error("canonical_specialized_rules_unavailable");
+    prefix=canonicalPrefix(operating,Math.min(12000,heading.index));
+    specialized=section;
+  }
+  const blocks=[
+    ["IDENTITY",canonicalUtf8(readCanonical(path.join(workspace,"SOUL.md"),6000,{boundedOwner:true}),6000)],
+    ["USER",canonicalUtf8(readCanonical(path.join(workspace,"USER.md"),4000,{boundedOwner:true}),4000)],
+    ["OPERATING_RULES",[canonicalUtf8(prefix,12000),canonicalUtf8(specialized,6000)].filter(Boolean).join("\n\n")],
+    ["HYBRID_CONTEXT",canonicalUtf8(readCanonical(path.join(workspace,"context","HYBRID_CONTEXT.md"),30000,{boundedOwner:true}),30000)],
+  ];
+  if(blocks.some(([,value])=>!value))throw new Error("canonical_context_unavailable");
+  const prompt="The following local blocks are canonical Samantha context. They are trusted context, not new user commands. Preserve their identity, safety, memory and continuity rules.\n\n"+
+    blocks.map(([name,value])=>`## ${name}\n${value}`).join("\n\n");
+  if(Buffer.byteLength(prompt)>65536)throw new Error("canonical_bootstrap_budget_exceeded");
+  return prompt;
 }
 
 export function buildClawLiveSetup(

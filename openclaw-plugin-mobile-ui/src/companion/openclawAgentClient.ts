@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import {compactOwnerAgentContext} from "./clawLive";
 
 export type OpenClawAgentSubmitResult = {
   runId: string;
@@ -18,12 +19,14 @@ export async function submitToOpenClawAgent(
   text: string,
   runId: string,
   sessionId = "default",
+  options: {authority?:"owner"} = {},
 ): Promise<OpenClawAgentSubmitResult> {
   const waitedForFinal = shouldWaitForFinal();
   const timeoutMs = configuredTimeoutMs(waitedForFinal);
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
   const sessionKey = companionSessionKey(normalizedSessionId);
   const agentId = (process.env.CLAWMOBILE_AGENT_ID || "").trim();
+  const canonical=compactOwnerAgentContext(options);
   const params = {
     sessionKey,
     ...(agentId ? { agentId } : {}),
@@ -31,9 +34,11 @@ export async function submitToOpenClawAgent(
     message: text,
     deliver: false,
     bootstrapContextMode: "lightweight",
+    ...(canonical?{extraSystemPrompt:canonical}:{}),
     idempotencyKey: runId,
   };
 
+  assertCanonicalAgentPayload(params);
   const raw = await callOpenClawGateway("agent", params, {
     expectFinal: waitedForFinal,
     timeoutMs,
@@ -47,6 +52,11 @@ export async function submitToOpenClawAgent(
     waitedForFinal,
     raw,
   };
+}
+
+export function assertCanonicalAgentPayload(params:Record<string,any>){
+  if(typeof params.extraSystemPrompt==='string'&&Buffer.byteLength(JSON.stringify(params),'utf8')>120000)
+    throw new Error('canonical_bootstrap_budget_exceeded');
 }
 
 export async function callOpenClawGateway(
