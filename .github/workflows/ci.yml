@@ -173,3 +173,6 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: H3 explicit canonical budget source and relocated report
+        run: python3 scripts/test-budget-source.py

@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "codex-h3-budget-source-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Explicit AST-only acceptance budget source and missing-source report",
+  "reason": "Fichier 34 H3 et revue Claude #49 : conserver READS canonique sans dépendance implicite à l’arborescence lors de l’import.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-report.py",
+    "openclaw-plugin-mobile-ui/scripts/test-budget-source.py",
+    "docs/work/samantha-runtime/contracts/h3.md",
+    "docs/changes/codex-h3-budget-source-20261010.md",
+    "docs/changes/codex-h3-budget-source-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "g2-and-h3-budget-source",
+      "status": "passed",
+      "evidence": "test-runtime-contract-report.py 13 tests ; test-budget-source.py 8 tests : CLI déplacée/help, --acceptance, erreurs fixes avant HTTP, AST non exécuté, capture réelle des budgets PR82."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/h3.md",
+    "docs/changes/codex-h3-budget-source-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Outil de rapport Git en lecture seule ; aucun nouvel endpoint ou routage agent."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Revert du lot H3 ; aucun effet runtime à annuler.",
+  "limitations": [
+    "Préparation locale sans push ni PR avant l’ordre de publication fixé par Amine.",
+    "Aucune mesure physique supplémentaire ; budgets existants de la recette conservés."
+  ]
+}
