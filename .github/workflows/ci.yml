@@ -102,6 +102,9 @@ jobs:
       - name: Refresh curated private context before background save
         run: python3 ../scripts/test-context-background-sync.py
 
+      - name: Run skill detail and owner controls contract
+        run: node scripts/test-skill-control.cjs
+
       - name: Run reviewed approval confirmation contract
         run: node scripts/test-agent-approvals.cjs
 
