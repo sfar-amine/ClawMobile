@@ -6,7 +6,9 @@ import {findSubmittedRunByClientRunId,reserveSubmittedRun,settleSubmittedRun} fr
 const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
 export const thinkingLevels=["off","minimal","low","medium","high","xhigh","adaptive","max","ultra"];
 const identifier=/^[A-Za-z0-9._:/+@-]{1,200}$/;
-function configObject(value:any){if(!value?.config||typeof value.config!=="object"||Array.isArray(value.config)||!/^[a-f0-9]{64}$/.test(value.hash||""))throw nativeError("agent_config_unavailable",503);return value.config;}
+// The Gateway hash is opaque: 64-hex in fixtures, `hmac-sha256:<b64>` on OpenClaw 2026.9.6 (S24).
+const configHash=/^[A-Za-z0-9:+\/=_.-]{16,200}$/;
+function configObject(value:any){if(!value?.config||typeof value.config!=="object"||Array.isArray(value.config)||!configHash.test(value.hash||""))throw nativeError("agent_config_unavailable",503);return value.config;}
 function selection(config:any){
  const entry=config.agents?.entries?.main;
  const legacy=Array.isArray(config.agents?.list)?config.agents.list.find((row:any)=>row.id==='main'):undefined;
@@ -63,7 +65,7 @@ async function changeAgentConfigOnce(body:any){
  const required=['model','operationId','provider','revision','thinking'];
  if(!body||typeof body!=='object'||Array.isArray(body)||required.some(key=>!(key in body))||Object.keys(body).some(key=>![...required,'fallbacks','confirmationId'].includes(key))||
   !/^[-A-Za-z0-9_.:]{1,128}$/.test(body.operationId||'')||!identifier.test(body.provider||'')||!identifier.test(body.model||'')||
-  !/^[a-f0-9]{64}$/.test(body.revision||'')||!thinkingLevels.includes(body.thinking)||
+  !configHash.test(body.revision||'')||!thinkingLevels.includes(body.thinking)||
   ('fallbacks' in body&&(!Array.isArray(body.fallbacks)||body.fallbacks.length>20||new Set(body.fallbacks).size!==body.fallbacks.length||body.fallbacks.some((ref:any)=>typeof ref!=='string'||!identifier.test(ref)||!ref.includes('/')))))throw nativeError('invalid_agent_config');
  const desired={provider:body.provider,model:body.model,thinking:body.thinking,revision:body.revision,...('fallbacks' in body?{fallbacks:body.fallbacks}:{})};
  const target='main:'+crypto.createHash('sha256').update(JSON.stringify(desired)).digest('hex');
