@@ -162,9 +162,33 @@ function sanitizeRequestContext(raw: any) {
   return { ...raw, contracts, global };
 }
 
-async function contextBundle(args: Record<string, unknown>) {
+function contextSurface(clientId:string) {
+  // Provenance from the admitted relay identity, never from tool arguments.
+  if(/^codex(?:$|[._-])/i.test(clientId))return 'codex';
+  if(/^claude(?:$|[._-])/i.test(clientId))return 'claude';
+  if(/^(?:voice|bixby)(?:$|[._-])/i.test(clientId))return 'voice';
+  if(/^(?:app|mobile)(?:$|[._-])/i.test(clientId))return 'app';
+  return 'chat';
+}
+
+function contextScopes(value:unknown) {
+  if(value===undefined||value===null||value==='')return [];
+  const values=typeof value==='string'&&value.length<=512?value.split(','):Array.isArray(value)?value:null;
+  if(!values||values.length>16)throw new Error('invalid_scopes');
+  const scopes:string[]=[];
+  for(const value of values){
+    if(typeof value!=='string'||!/^[a-z][a-z0-9_-]{0,63}$/.test(value.trim()))throw new Error('invalid_scopes');
+    if(!scopes.includes(value.trim()))scopes.push(value.trim());
+  }
+  // Membership is checked by the existing reader against its pinned manifest.
+  return scopes;
+}
+
+async function contextBundle(args: Record<string, unknown>,clientId:string) {
   const query = requiredString(args.query, "query", 2000);
-  const argv = [REQUEST_CONTEXT, "--query", query];
+  const argv = [REQUEST_CONTEXT, "--query", query, '--surface', contextSurface(clientId)];
+  const scopes=contextScopes(args.scopes);
+  if(scopes.length)argv.push('--scopes',scopes.join(','));
 
   const after = args.after_revision;
   if (after !== undefined && after !== null) {
@@ -484,7 +508,7 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
 
   switch (tool) {
     case "claw_context":
-      return contextBundle(args);
+      return contextBundle(args,clientId);
     case "claw_resolve":
       return { state: "resolved", result: await resolveCapability(args) };
     case "claw_execute":

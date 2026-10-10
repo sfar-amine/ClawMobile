@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "id": "codex-c3-voice-rules-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Preserve the specialized-rule index in the existing bounded voice context",
+  "reason": "Programme33 C3: the real S24 rules file exceeds the 12000-character projection.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-operating-rules.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/context/operating-rules-shape.json",
+    "docs/work/samantha-runtime/contracts/c3.md",
+    "docs/changes/codex-c3-voice-rules-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "voice-operating-rules",
+      "status": "passed",
+      "evidence": "Real claw_context shape and full specialized index retained; generated redacted filler. Final setup tested, <=12000 chars, local p95 0.61ms; test-claw-live regression passed."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c3.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing voice bootstrap projection only, no route/tool/action added."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing canonical rules reader and setup reused; no new owner or store."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Rules projection for existing voice setup only; external tools unchanged."
+  },
+  "rollback": "Revert PR; Claude activates previously qualified SHA with companion-deploy.sh.",
+  "limitations": [
+    "Local bootstrap timing is not a physical provider/audio latency measurement; Claude verifies V4 before activation."
+  ]
+}

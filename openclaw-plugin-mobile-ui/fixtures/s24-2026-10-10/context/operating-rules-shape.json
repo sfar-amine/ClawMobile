@@ -1,0 +1,14 @@
+{
+  "_capture": {
+    "method": "claw_context",
+    "date": "2026-10-10",
+    "source": "required_reads/context/OPERATING_RULES.md",
+    "sourceSha256": "35b3a605b669cda8098b486c6937c7db7a93ec1cefee80aba20139e1dd4a4bb0",
+    "cleaning": "Only character counts and the global specialized-rule index retained; no private context or transcripts."
+  },
+  "response": {
+    "lengthChars": 15928,
+    "specializedHeadingAt": 15380,
+    "specializedSection": "## Règles spécialisées\nAvant une action, lire les modules applicables dans context/rules/manifest.json. Le lecteur request_context.py sélectionne les modules par intention ; ajouter --scopes lorsque le contexte de la conversation précise le domaine. Une absence de mot-clé ne dispense pas de cette lecture. Les modules conservent les règles originales et complètent ce socle. Développement ou modification durable : engineering. Actions UI/ADB : mobile. Workflow/capacité : routes. Mémoire/reprise : memory. Contacts : channels. Bilan : reporting.\n"
+  }
+}

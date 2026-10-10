@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import {readModelOwnerFresh} from "./modelOwner";
 import {confirmations} from "./confirmations";
 import {callOpenClawGateway} from "./openclawAgentClient";
 import {readPaymentRequests,readOwnerConfirmations} from "./runs";
@@ -34,7 +35,7 @@ function validProvider(auth:any,provider:string,profile?:string){
 }
 const count=(value:any)=>typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null;
 export async function readAgentConfig(){
- const [raw,catalog,usage,auth]=await Promise.all([callOpenClawGateway('config.get'),callOpenClawGateway('models.list'),callOpenClawGateway('sessions.usage',{limit:100}).catch(()=>null),callOpenClawGateway('models.authStatus',{agentId:'main'}).catch(()=>null)]);
+ const [{raw,catalog,auth},usage]=await Promise.all([readModelOwnerFresh(),callOpenClawGateway('sessions.usage',{limit:100}).catch(()=>null)]);
  const config=configObject(raw),id=modelId(config);
  const chosen=selection(config).value;
  const model=chosen.model??config.agents?.defaults?.model;
@@ -74,7 +75,7 @@ async function changeAgentConfigOnce(body:any){
  if(existing&&stored(existing).state!=='failed')return stored(existing);
  if(await protectedActivity())throw nativeError('protected_owner_activity',409);
  // Validate against the canonical current config/catalog before reserving an effect.
- const [raw,catalog,auth]=await Promise.all([callOpenClawGateway('config.get'),callOpenClawGateway('models.list'),callOpenClawGateway('models.authStatus',{agentId:'main'}).catch(()=>null)]);const config=configObject(raw);
+ const {raw,catalog,auth}=await readModelOwnerFresh();const config=configObject(raw);
  if(raw.hash!==body.revision)throw nativeError('agent_config_revision_changed',409);
  if(!selection(config).writeAvailable)throw nativeError('agent_config_owner_shape_unsupported',409);
  const models=modelList(catalog,config,auth),found=models.find((row:any)=>row.id===body.model&&row.provider===body.provider);

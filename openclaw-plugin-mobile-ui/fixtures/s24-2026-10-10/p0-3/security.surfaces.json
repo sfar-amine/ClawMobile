@@ -1,0 +1,52 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/security/surfaces",
+  "latencyMs": 1040,
+  "repeatLatencyMs": 1007,
+  "capturedAt": "2026-10-10T18:35:44+00:00",
+  "companion": "loopback 127.0.0.1:8765, sans en-tête propriétaire",
+  "sanitized": true
+ },
+ "response": {
+  "success": true,
+  "state": "partial",
+  "receipt": null,
+  "items": [
+   {
+    "id": "claude-chat",
+    "kind": "mcp_client",
+    "label": "<texte 6 car.>",
+    "profile": "chat-owner",
+    "owner": true,
+    "readOnly": false,
+    "lastActivityAt": null,
+    "revocable": false,
+    "reason": "<texte 24 car.>"
+   },
+   {
+    "id": "whatsapp",
+    "kind": "transport",
+    "label": "<texte 8 car.>",
+    "enabled": null,
+    "lastActivityAt": null,
+    "revocable": false,
+    "reason": "<texte 33 car.>"
+   },
+   {
+    "id": "slack",
+    "kind": "transport",
+    "label": "<texte 5 car.>",
+    "enabled": null,
+    "lastActivityAt": null,
+    "revocable": false,
+    "reason": "<texte 33 car.>"
+   }
+  ],
+  "issues": [
+   "mcp_config_not_readable",
+   "mcp_receipt_scan_limited",
+   "transport_state_unavailable"
+  ]
+ }
+}

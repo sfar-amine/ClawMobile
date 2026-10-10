@@ -1,0 +1,13 @@
+# R11 — Métadonnées et pagination des conversations
+
+La liste rend sa page sans attendre le CLI Gateway : index propriétaire rafraîchi en arrière-plan, cache court single-flight, titre/épingle/source conservés après panne et curseurs stables sans nouvelle preuve. Les lectures de mutation et readback gardent leur autorité fraîche.
+
+Têtes relue8b03244 et runtime0bf30ab intégrées par merges, routes et CI conservées. Budgets acceptance : liste300ms, détail10s sur un fil réel. Sans fil ou route 404, détail skipped sans échec de recette ; 503 et dépassement de budget restent des échecs.
+
+Validation : tests mutations/ledger et cache sous délai synthétique4,15s, tests budgets, CI complète et gate. Aucune preuve S24 inventée ; Claude qualifie avant activation. Retour arrière : revert de la PR.
+
+Lecteur modèles partagé avec R6 : single-flight, cache sélectionné sans secret de 60 s, rafraîchissement borné à une fois par 30 s, échéance de lecture de cache 5,5 s. Les mutations continuent à relire les propriétaires et gardent leurs gardes et leur CAS. R19/R21 devront réutiliser ce module ; leurs routes ne sont pas livrées ici. R18 reste en attente des captures réelles : aucun changement du contrat `/metadata`, aucun objectif 6 s déjà revendiqué.
+
+Intégration finale : runtime71af984 fusionné, union CI/serveur/acceptance conservée et CI complète rejouée verte. Échec connu de config/auth : cache immédiatement stale tout en conservant les données antérieures.
+
+Revue fichier32 : base runtime6b7c68f et fixtures48 intégrées ; 9 tests acceptance couvrent absence de fil, liste 404, détail 404, vrais échecs, budgets et la garde POST sans en-tête propriétaire (403 exigé, 404 skipped). LEAK de la base (secrets seulement) conservé.
