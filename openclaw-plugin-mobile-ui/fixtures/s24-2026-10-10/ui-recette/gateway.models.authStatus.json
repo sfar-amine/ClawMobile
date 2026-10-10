@@ -1,0 +1,68 @@
+{
+ "_capture": {
+  "method": "models.authStatus",
+  "params": {
+   "agentId": "main"
+  },
+  "latencyMs": 1891,
+  "exit": "rc=0",
+  "capturedAt": "2026-10-10T19:38:17+00:00",
+  "via": "timeout 60 nice openclaw gateway call <method> --params <json> --json",
+  "gateway": "OpenClaw 2026.9.6",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "provider/status/profiles(profileId renommé,status,type) ; autres champs omis"
+ },
+ "response": {
+  "providers": [
+   {
+    "provider": "custom-po-zapro-su",
+    "status": "static",
+    "displayName": "custom-po-zapro-su",
+    "profiles": [
+     {
+      "profileId": "custom-po-zapro-su:profile-3",
+      "status": "static",
+      "type": "api_key"
+     }
+    ]
+   },
+   {
+    "provider": "github-copilot",
+    "status": "static",
+    "displayName": "Copilot",
+    "profiles": [
+     {
+      "profileId": "github-copilot:profile-4",
+      "status": "static",
+      "type": "token"
+     }
+    ]
+   },
+   {
+    "provider": "google",
+    "status": "static",
+    "displayName": "google",
+    "profiles": [
+     {
+      "profileId": "google:profile-2",
+      "status": "static",
+      "type": "api_key"
+     }
+    ]
+   },
+   {
+    "provider": "openai",
+    "status": "ok",
+    "displayName": "openai",
+    "profiles": [
+     {
+      "profileId": "openai:owner@example.invalid",
+      "status": "ok",
+      "type": "oauth"
+     }
+    ]
+   }
+  ]
+ }
+}

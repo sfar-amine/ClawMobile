@@ -1906,6 +1906,43 @@ async function retainedRuns():Promise<StoredRun[]> {
   return registry.runs.filter(x=>!archived.has(x.sessionId)).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
 }
 
+/** The Companion's own retained view of one conversation (no Gateway read). */
+export async function retainedConversation(sessionId:string):Promise<{runCount:number;lastActivityAt:number|null}|null>{
+  const rows=(await retainedRuns()).filter(run=>run.sessionId===sessionId);
+  if(!rows.length)return null;
+  const at=rows[0].updatedAt||rows[0].acceptedAt;
+  return {runCount:rows.length,lastActivityAt:Number.isSafeInteger(at)&&at>0?at:null};
+}
+
+const previewSecret=/(?:token|secret|password|passwd|credential|authorization|cookie|api[_-]?key|otp|cvv|cvc|pin|iban|card|bearer|amount|montant|price|prix|balance|solde|total|cost|phone|email|mail)/i;
+const previewKey=/^[A-Za-z][A-Za-z0-9_]{0,40}$/;
+/**
+ * A tool/operation result stored as JSON ({"ok":true,"provider":…}) is not a
+ * conversation preview: show a short readable summary instead of raw JSON.
+ * Only short scalar fields with plain keys are kept; nothing that looks like an
+ * address, a number sequence, a URL or a credential.
+ */
+export function readablePreview(raw:string,max=140):string{
+  const text=(raw||"").trim();
+  if(!text.startsWith("{")&&!text.startsWith("["))return (raw||"").slice(0,max);
+  let value:any;
+  try{value=JSON.parse(text);}catch{return "Résultat technique";}
+  if(!value||typeof value!=="object"||Array.isArray(value))return "Résultat technique";
+  const ok=value.ok??value.success;
+  const head=ok===true?"Action terminée":ok===false?"Action en échec":"Résultat technique";
+  const parts:string[]=[];
+  for(const [key,item] of Object.entries(value)){
+    if(parts.length>=3)break;
+    if(["ok","success"].includes(key)||!previewKey.test(key)||previewSecret.test(key))continue;
+    let shown:string|null=null;
+    if(typeof item==="boolean")shown=item?"oui":"non";
+    else if(typeof item==="number"&&Number.isFinite(item)&&Math.abs(item)<1e6)shown=String(item);
+    else if(typeof item==="string"&&item.length>0&&item.length<=40&&!/[@:/\\]|\d{6,}|[\p{C}]/u.test(item)&&!previewSecret.test(item))shown=item;
+    if(shown!==null)parts.push(key.replace(/_/g," ")+" : "+shown);
+  }
+  return [head,...parts].join(" · ").slice(0,max);
+}
+
 export async function conversationSummariesPage(options:PageOptions={}){
   const {limit,query,cursor}=normalizedPageOptions(options);
   const runs=await retainedRuns();const grouped=new Map<string,StoredRun[]>();
@@ -1919,10 +1956,10 @@ export async function conversationSummariesPage(options:PageOptions={}){
       const title=typeof owner?.label==='string'&&owner.label.length<=160&&!/[\p{C}\p{Zl}\p{Zp}]/u.test(owner.label)?owner.label:null;
       const pinned=typeof owner?.pinned==='boolean'?owner.pinned:null;
       return {sessionId,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview:(latest.userText||latest.text||"").slice(0,160),
-        lastResultPreview:(latest.result||"").slice(0,140),lastRunState:status.state,
+        lastResultPreview:readablePreview(latest.result||""),lastRunState:status.state,
         lastActivityAt:latest.updatedAt||latest.acceptedAt,sortAt:latest.acceptedAt,
         modality:latest.modality||"text",transcriptState:latest.transcriptState||"",
-        availableTurnCount:rows.length,previewTruncated:(latest.result?.length||0)>140||(latest.userText||latest.text||"").length>160};
+        availableTurnCount:rows.length,previewTruncated:(!/^\s*[{\[]/.test(latest.result||"")&&(latest.result?.length||0)>140)||(latest.userText||latest.text||"").length>160};
     }).sort((a,b)=>b.sortAt-a.sortAt||a.sessionId.localeCompare(b.sessionId));
   const revision=digest({items,retainedRunCount:runs.length,availableConversations:grouped.size}),scope=pageScope("conversations",query,limit),anchor=cursorAnchor(cursor,scope,revision);
   const index=anchor?items.findIndex(x=>x.sessionId===anchor):-1;
