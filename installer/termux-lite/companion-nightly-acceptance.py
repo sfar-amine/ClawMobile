@@ -52,7 +52,15 @@ def closed_acceptance(raw):
    if isinstance(c.get(key),bool):out[key]=c[key]
   if c.get('read') in ('cold','warm'):out['read']=c['read']
   checks.append(out)
- return {'accepted':raw['accepted'],'checks':checks}
+ warnings=[]
+ source=raw.get('warnings')
+ if isinstance(source,list):
+  for warning in source[:MAX_CHECKS]:
+   if not isinstance(warning,dict) or set(warning)!={'route','warning'}:continue
+   route=warning.get('route')
+   if warning.get('warning')!='email_address_in_response' or not isinstance(route,str) or not re.fullmatch(r'[A-Za-z0-9_{}?=:/ .()&-]{1,240}',route):continue
+   warnings.append({'route':route,'warning':'email_address_in_response'})
+ return {'accepted':raw['accepted'],'checks':checks,'warnings':warnings}
 
 def route_key(row):return row['route'],row.get('read'),row['budget']
 

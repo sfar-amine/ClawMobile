@@ -28,7 +28,7 @@
     {
       "name": "h8-nightly-owner-and-health",
       "status": "passed",
-      "evidence": "Core : 11 tests script (sources S24, lock, préflight, median7, notification incertaine, rétention600 bornée, FIFO, processus borné et descendant réel arrêté même après succès), 13 santé, build et projection santé ; HTTP réel handler Control avec latence propriétaire capturée575ms, 0.61s < budget2s importé READS. UI : 21 tests lecture sans écriture, capability planned/exemples FR et Control. Capture nocturne live non revendiquée."
+      "evidence": "Core : 12 tests script (sources S24, lock, préflight, median7, notification incertaine, rétention600 bornée, FIFO, processus borné et descendant réel arrêté même après succès et avertissement e-mail fermé non bloquant), 13 santé, build et projection santé ; HTTP réel handler Control avec latence propriétaire capturée575ms, 0.61s < budget2s importé READS. UI : 21 tests lecture sans écriture, capability planned/exemples FR et Control. Capture nocturne live non revendiquée."
     }
   ],
   "documentation": [
