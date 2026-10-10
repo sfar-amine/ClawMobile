@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "codex-g3-runbooks-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Complete current native runbooks with runtime tools, owner live view and native ADB recovery",
+  "reason": "Claude review26: missing PR12 tools, owner claw-live and f64513f recovery; safe deploy35 is merged.",
+  "files": [
+    "docs/work/samantha-runtime/contracts/g3.md",
+    "docs/work/samantha-runtime/runbooks/native-runtime.md",
+    "docs/changes/codex-g3-runbooks-current-20261010.md",
+    "docs/changes/codex-g3-runbooks-current-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "g3-documentation",
+      "status": "passed",
+      "evidence": "Local Markdown links and owner arguments inspected, route inventory compared to current base and cited PR sources, CI byte-identical, delivery gate and git diff --check."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/g3.md",
+    "docs/work/samantha-runtime/runbooks/native-runtime.md",
+    "docs/changes/codex-g3-runbooks-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Runbook only; no registry/admission/runtime behavior change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing owners referenced only; no store/daemon/scheduler/code added."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Documents existing context/readiness/status boundaries; no MCP schema, adapter or invocation performed."
+  },
+  "rollback": "Revert documentation PR only; operational rollbacks remain Claude and existing owner responsibility.",
+  "limitations": [
+    "No S24 activation, deployment, private data access or physical recipe by Codex.",
+    "Companion safe deployment35 is merged f1e1800; activation and qualification remain Claude responsibility.",
+    "Base0bf30ab; open interfaces remain explicitly unqualified."
+  ]
+}
