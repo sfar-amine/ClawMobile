@@ -3,10 +3,10 @@
   "id": "codex-r17-contacts-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Extend existing WhatsApp contacts owner with complete allowlist controls and biometric receipts",
-  "reason": "Latest Claude review39 and file32: real PR48 inbound schema/rows, existing full removal and fresh-attempt sweep; physical route timings and capability mapping remain blocked.",
+  "reason": "Claude review 26/32 takeover (10/10): blockers fixed and verified with PR48 inbound schema; merge allowed for Claude, activation stays gated on S24 recipe, physical route/expiry timings and canonical samantha.app.* mapping (routes listed NO_CAPABILITY in r17.md).",
   "files": [
     "docs/changes/codex-r17-contacts-20261010.json",
     "docs/changes/codex-r17-contacts-20261010.md",
@@ -76,6 +76,7 @@
     "Opaque custom policies with no readable scopeText cannot be reactivated or treated as a proven permission reduction.",
     "Above 200 files, expiry scan rotates pages by UTC minute and explicitly reports partial; no claim of two-minute completion at arbitrary capacity.",
     "PR48 inbound timestamp schema and cleaned rows confirmed; physical route/expiry timings and capability mapping remain required before activation.",
-    "PR48 inbound timestamp schema and cleaned rows confirmed; physical route/expiry timings and capability mapping remain required before activation."
+    "PR48 inbound timestamp schema and cleaned rows confirmed; physical route/expiry timings and capability mapping remain required before activation.",
+    "Merge is not activation: Claude merges playbooks then core, deploys via companion-deploy.sh, measures route budgets and expiry latency on the S24, and maps capabilities before any agent/voice exposure."
   ]
 }
