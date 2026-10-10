@@ -2,6 +2,7 @@ import http from "http";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import {randomUUID} from "crypto";
 import {VoiceTelemetry, type VoiceTelemetryCode} from "./voiceTelemetry";
 import {VoiceTurnProtocol} from "./voiceTurnProtocol";
 import type { Duplex } from "stream";
@@ -149,7 +150,12 @@ export class ClawLiveWarmCore {
     if(this.localClients.size>0) {ws.close(1008,"voice_owner_busy");return;}
     if(meta.protocol===2&&!/^[A-Za-z0-9._:-]{1,160}$/.test(meta.sessionEpoch||"")) {ws.close(1008,"invalid_voice_epoch");return;}
     if(meta.protocol===2&&this.telemetrySid!==meta.sessionEpoch){this.telemetrySid=meta.sessionEpoch!;this.telemetryTurns.clear();}
-    else if(meta.protocol!==2){this.telemetrySid="";this.telemetryTurns.clear();}
+    else if(meta.protocol!==2){
+      // A legacy attach is a distinct telemetry session even when the same
+      // conversation/provider is reused. Return the sid for app correlation.
+      meta={...meta,sessionEpoch:/^[A-Za-z0-9._:-]{1,160}$/.test(meta.sessionEpoch||"")?meta.sessionEpoch:randomUUID()};
+      this.telemetrySid=meta.sessionEpoch!;this.telemetryTurns.clear();
+    }
     this.trace("t01");
     this.localClients.add(ws);this.clientMeta.set(ws,meta);this.touch();
     ws.once("close",(code:number)=>{
