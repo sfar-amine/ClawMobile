@@ -5,7 +5,7 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Expose scoped main agent configuration and verified owner updates",
+  "summary": "Correct main agent configuration review: bounded model catalogue, Gemini profile preservation and biometric fallback changes",
   "reason": "File 18 R6; existing Gateway config owner with protected payment link.",
   "files": [
     "docs/changes/codex-r6-config-current-20261010.json",
@@ -13,13 +13,14 @@
     "docs/work/samantha-runtime/contracts/r6.md",
     "openclaw-plugin-mobile-ui/scripts/test-agent-config.cjs",
     "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
-    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    ".github/workflows/ci.yml"
   ],
   "tests": [
     {
       "name": "r6-agent-config",
       "status": "passed",
-      "evidence": "Canonical configuration/catalog mock, fallback/policy projection, scoped patch/readback, owner/revision/replay/bank guard and all current runtime CI commands."
+      "evidence": "HTTP/ledger regression: @profile preserved, allow/plugin/auth/per-model thinking validation, CAS refused, no-dispatch failure retry, biometric fallback binding, restart readback; all current CI steps retained and executed."
     }
   ],
   "documentation": [
