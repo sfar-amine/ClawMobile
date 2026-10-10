@@ -20,6 +20,11 @@
       "name": "g2-and-h3-budget-source",
       "status": "passed",
       "evidence": "test-runtime-contract-report.py 13 tests ; test-budget-source.py 8 tests : CLI déplacée/help, --acceptance, erreurs fixes avant HTTP, AST non exécuté, capture réelle des budgets PR82."
+    },
+    {
+      "name": "current-base-budget-source-regression",
+      "status": "passed",
+      "evidence": "13 runtime report and 8 budget-source tests passed after normal merge bfa210c; canonical READS unchanged."
     }
   ],
   "documentation": [
@@ -49,6 +54,7 @@
   "rollback": "Revert du lot H3 ; aucun effet runtime à annuler.",
   "limitations": [
     "Préparation locale sans push ni PR avant l’ordre de publication fixé par Amine.",
-    "Aucune mesure physique supplémentaire ; budgets existants de la recette conservés."
+    "Aucune mesure physique supplémentaire ; budgets existants de la recette conservés.",
+    "Current base bfa210cd4361f2a3273ec76032ef6d23599015fd merged normally; canonical operator rule preserved. Publication pending root, no merge/deployment by Codex."
   ]
 }
