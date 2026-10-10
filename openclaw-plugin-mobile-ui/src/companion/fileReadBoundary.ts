@@ -11,7 +11,7 @@ const sensitiveText=/\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{12,}|github_pat_
 export function safeFileName(name:unknown):string{
  if(typeof name!=="string"||name.length<1||name.length>512||name!==name.normalize("NFC")||/[\x00-\x1f\x7f\\%]/.test(name)||name.startsWith("/")||name.includes(":"))throw denied();
  const segments=name.split("/");
- if(segments.some(part=>!part||part==="."||part===".."||part.startsWith(".")||/^context(?:-backup)?$/i.test(part)||secretName.test(part)||protectedJob(part)))throw denied();
+ if(segments.some(part=>!part||part==="."||part===".."||part.startsWith(".")||/^context(?:-backup)?$/i.test(part)||secretName.test(part)||sensitiveText.test(part)||protectedJob(part)))throw denied();
  return name;
 }
 

@@ -1,5 +1,7 @@
-# R20 : préparer les bornes sans présumer le propriétaire
+# R20 : façade de lecture Gateway en brouillon
 
-Les contrats Gateway fichiers installés n'ont pas encore été fournis. Cette préparation teste les bornes de chemin, exclusions avant lecture, liste seule des captures, expurgation et tailles des aperçus. Aucun accès workspace ou route opérationnelle n'est livré.
+Les routes /v1/files et /v1/files/content réutilisent les méthodes de lecture Gateway et un cache RAM borné. Le chemin HTTP cold répond warming ; listes limitées, projection sans racine, exclusions avant get, liaison canonique du run et garde paiement relue même sur cache hit. Le client existant reçoit une option stricte R20 seulement, qui borne les sorties et nettoie le groupe CLI au timeout.
 
-La PR reste draft/non activable jusqu'à réception des formes réelles, intégration du garde financier enrichi P2-b et qualification des propriétaires. Les tests sont locaux, aucune recette S24 ou performance physique n'est revendiquée.
+Les quatre suites locales vérifient schémas publics 2026.9.6, HTTP/pagination/cache, confidentialité, bornes UTF-8/images et nettoyage réel d'un processus simulé. Aucun paquet propriétaire n'est exécuté et aucune qualification S24 n'est revendiquée.
+
+La PR reste draft/non activable : captures installées et racine physique à qualifier, dépendance garde financier P2-b, navigateur propriétaire limité à 250 sans curseur, aperçus session limités à 256 Kio et liste blanche fallback absente. Les limites du contrat ne sont pas contournées.

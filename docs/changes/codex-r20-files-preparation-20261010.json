@@ -5,7 +5,7 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Prepare local file-read boundaries while Gateway contracts remain unqualified",
+  "summary": "Draft read-only file routes with bounded Gateway cache and fail-closed projection",
   "reason": "File27 R20 lot1 only; no fabricated installed owner schemas.",
   "files": [
     ".github/workflows/ci.yml",
@@ -13,13 +13,21 @@
     "docs/changes/codex-r20-files-preparation-20261010.md",
     "docs/changes/codex-r20-files-preparation-20261010.json",
     "openclaw-plugin-mobile-ui/src/companion/fileReadBoundary.ts",
-    "openclaw-plugin-mobile-ui/scripts/test-file-read-boundary.cjs"
+    "openclaw-plugin-mobile-ui/scripts/test-file-read-boundary.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/fileGatewayRead.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-file-gateway-read.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/fileReads.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-files-http.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-file-gateway-limits.cjs",
+    "installer/termux-lite/companion-acceptance.py"
   ],
   "tests": [
     {
       "name": "r20-file-boundary",
       "status": "passed",
-      "evidence": "Local fixtures for traversal/secret/payment exclusions, UTF-8 bounds, redaction expansion, list-only captures, binary magic and size. No Gateway fixtures or physical proof."
+      "evidence": "Four local suites: read boundaries, public versioned closed Gateway schema and pre-get gates, HTTP cache/pagination/budget/ledger/no-effect guards, strict CLI output/deadline/group-kill. No installed or physical proof."
     }
   ],
   "documentation": [
@@ -29,7 +37,7 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Native facade reuses existing Gateway approval owner; no canonical capability registry change."
+    "reason": "Read-only file facade reuses existing Gateway file owners, no capability registry change"
   },
   "architecture": {
     "changed": false,
@@ -48,9 +56,10 @@
   },
   "rollback": "Revert this isolated lot.",
   "limitations": [
-    "Draft preparation, no /files endpoints or Gateway adapter yet.",
-    "Installed Gateway file schemas and uncovered fallback whitelist are missing.",
-    "P2-b enriched shared financial guard is mandatory before activation.",
-    "No S24, file access, write, cleanup or physical qualification."
+    "Draft routes, installed schema and physical workspace root unqualified.",
+    "Browser owner capped 250 without cursor; session preview cap256KiB, no 5MiB image bypass.",
+    "Installed captures and uncovered fallback whitelist missing.",
+    "P2-b enriched shared financial guard mandatory before activation.",
+    "No S24, workspace direct access, write, cleanup or physical qualification."
   ]
 }

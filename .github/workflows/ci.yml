@@ -100,4 +100,8 @@ jobs:
         run: node scripts/test-agent-config.cjs
 
       - name: Run file read boundary preparation fixtures
-        run: node scripts/test-file-read-boundary.cjs
+        run: |
+          node scripts/test-file-read-boundary.cjs
+          node scripts/test-file-gateway-read.cjs
+          node scripts/test-files-http.cjs
+          node scripts/test-file-gateway-limits.cjs

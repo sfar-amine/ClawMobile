@@ -1,3 +1,4 @@
+import {filesList,filesContent} from "./fileReads";
 import {capabilityDetail} from "./capabilityControl";
 import {updatesRead} from "./updatesControl";
 import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
@@ -212,6 +213,19 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       success: false,
       message: "This endpoint is restricted to local companion app requests.",
     });
+    return;
+  }
+
+  if(routePath==="/files"||routePath==="/files/content"){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){writeJson(res,req.headers["x-clawmobile-owner-flow"]!=="v1"?403:405,{success:false,state:"refused",receipt:null,error:"file_read_only"});return;}
+    try{
+      const value:any=routePath==="/files"?await filesList(requestUrl.searchParams):await filesContent(requestUrl.searchParams);
+      if(value.bytes){
+        if(value.contentType.startsWith("image/")){res.writeHead(200,{"Content-Type":value.contentType,"Content-Length":value.bytes.length,"X-Content-Type-Options":"nosniff","Cache-Control":"no-store","X-Samantha-File-Schema-Qualified":"false"});res.end(value.bytes);}
+        else{const {bytes,...metadata}=value;res.setHeader("X-Content-Type-Options","nosniff");writeJson(res,200,{...metadata,text:bytes.toString("utf8")});}
+      }else writeJson(res,value.state==="warming"?202:200,value);
+    }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;const code=status===404?"file_not_available":status===409?"file_cursor_changed":status===400?"invalid_file_query":"file_owner_unavailable";writeJson(res,status,{success:false,state:"refused",receipt:null,ready:false,installedSchemaQualified:false,error:code});}
     return;
   }
 

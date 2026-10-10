@@ -52,14 +52,15 @@ export async function submitToOpenClawAgent(
 export async function callOpenClawGateway(
   method: string,
   params: Record<string, any> = {},
-  options: { expectFinal?: boolean; timeoutMs?: number; hardTimeoutMs?: number } = {},
+  options: { expectFinal?: boolean; timeoutMs?: number; hardTimeoutMs?: number; strictOutput?: {stdoutMaxBytes:number;stderrMaxBytes:number;killGraceMs:number} } = {},
 ): Promise<any> {
   const timeoutMs = options.timeoutMs || DEFAULT_GATEWAY_CALL_TIMEOUT_MS;
   const args = ["gateway", "call", method, "--json", "--timeout", String(timeoutMs), "--params", JSON.stringify(params)];
   if (options.expectFinal) {
     args.splice(3, 0, "--expect-final");
   }
-  return runOpenClaw(args, Math.min(timeoutMs + 5_000, options.hardTimeoutMs ?? Infinity));
+  const hard=Math.min(timeoutMs + 5_000, options.hardTimeoutMs ?? Infinity);
+  return options.strictOutput ? runStrictOpenClaw(args,hard,options.strictOutput) : runOpenClaw(args,hard);
 }
 
 export function describeOpenClawResult(result: OpenClawAgentSubmitResult) {
@@ -116,6 +117,28 @@ function runOpenClaw(args: string[], hardTimeoutMs: number): Promise<any> {
       } catch (error: any) {
         reject(new Error(`OpenClaw gateway returned invalid JSON: ${error?.message || error}`));
       }
+    });
+  });
+}
+
+/** Opt-in bounded read collector; existing callers retain their default behavior. */
+function runStrictOpenClaw(args:string[],hardMs:number,bounds:{stdoutMaxBytes:number;stderrMaxBytes:number;killGraceMs:number}):Promise<any>{
+  if(!Number.isFinite(hardMs)||hardMs<1||hardMs>30000||!Number.isSafeInteger(bounds.stdoutMaxBytes)||bounds.stdoutMaxBytes<256||bounds.stdoutMaxBytes>9*1024*1024||!Number.isSafeInteger(bounds.stderrMaxBytes)||bounds.stderrMaxBytes<256||bounds.stderrMaxBytes>128*1024||!Number.isSafeInteger(bounds.killGraceMs)||bounds.killGraceMs<1||bounds.killGraceMs>1000)return Promise.reject(new Error("gateway_read_limits_invalid"));
+  return new Promise((resolve,reject)=>{
+    const grouped=process.platform!=="win32";
+    const child=spawn(process.env.CLAWMOBILE_OPENCLAW_BIN||"openclaw",args,{env:process.env,stdio:["ignore","pipe","pipe"],detached:grouped});
+    const output:Buffer[]=[],errors:Buffer[]=[];let outBytes=0,errBytes=0,failed=false,settled=false,closed=false,cleanupDone=false,killTimer:ReturnType<typeof setTimeout>|undefined;
+    const kill=(signal:NodeJS.Signals)=>{try{if(grouped&&child.pid)process.kill(-child.pid,signal);else child.kill(signal);}catch{try{child.kill(signal);}catch{}}};
+    const fail=()=>{if(failed||settled)return;failed=true;output.length=0;errors.length=0;kill("SIGTERM");killTimer=setTimeout(()=>{kill("SIGKILL");cleanupDone=true;if(closed&&!settled){settled=true;reject(new Error("gateway_read_failed"));}},bounds.killGraceMs);};
+    const deadline=setTimeout(fail,hardMs);
+    child.stdout.on("data",chunk=>{if(failed)return;outBytes+=chunk.length;if(outBytes>bounds.stdoutMaxBytes)fail();else output.push(Buffer.from(chunk));});
+    child.stderr.on("data",chunk=>{if(failed)return;errBytes+=chunk.length;if(errBytes>bounds.stderrMaxBytes)fail();else errors.push(Buffer.from(chunk));});
+    child.once("error",()=>{if(settled)return;settled=true;clearTimeout(deadline);if(killTimer)clearTimeout(killTimer);reject(new Error("gateway_read_failed"));});
+    // Wait for physical close, including pipes, before releasing a pool slot.
+    child.once("close",code=>{
+      if(settled)return;closed=true;clearTimeout(deadline);if(failed){if(cleanupDone){settled=true;reject(new Error("gateway_read_failed"));}return;}settled=true;
+      if(code!==0){reject(new Error("gateway_read_failed"));return;}
+      try{resolve(parseJsonOutput(Buffer.concat(output).toString("utf8").trim()));}catch{reject(new Error("gateway_read_failed"));}
     });
   });
 }

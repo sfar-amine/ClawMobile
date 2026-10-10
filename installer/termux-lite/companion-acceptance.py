@@ -4,7 +4,7 @@ refuse what it must refuse, and never return secret-shaped content. Read-only: n
 
 Exit 0 = accepted, 1 = regression (the deploy script rolls back), 2 = usage error.
 A route that is not present in this build (404) is skipped, so the same check serves every release."""
-import json, re, sys, time, urllib.error, urllib.request
+import argparse, json, re, sys, time, urllib.error, urllib.request, urllib.parse
 
 BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Budgets are S24 numbers measured on 10/10 with margin; a cold first call gets one retry.
@@ -27,6 +27,8 @@ OWNER_GUARDS = [
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
     ("POST", "/runs/acceptance-probe/approval"),
+    ("POST", "/files"),
+    ("PUT", "/files/content"),
 ]
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY|\+\d{11,}")
 
@@ -45,6 +47,10 @@ def call(method, path, timeout, headers=None):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--file-session-id", help="Existing non-financial dedicated fixture session, supplied by Claude")
+    parser.add_argument("--file-path", help="Safe root-relative file path of that dedicated fixture")
+    args = parser.parse_args()
     results, failed = [], False
     for path, budget in READS:
         for attempt in (1, 2):
@@ -56,6 +62,30 @@ def main():
         status = "skipped" if code == 404 else ("ok" if ok and not leak else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
+    # R20 draft evidence stays pending until the installed owner is qualified.
+    code, body, took = call("GET", "/files?scope=agent", 1.5)
+    try:
+        projected = json.loads(body)
+    except (ValueError, TypeError):
+        projected = {}
+    file_status = "skipped" if code == 404 else ("pending" if code == 202 or (code == 200 and projected.get("installedSchemaQualified") is False) else "fail")
+    if took > 1.5 and code != 404:
+        file_status = "fail"
+    failed |= file_status in ("pending", "fail")
+    results.append({"route": "/files?scope=agent", "code": code, "seconds": round(took, 2), "budget": 1.5, "status": file_status})
+    if code != 404:
+        if args.file_session_id and args.file_path:
+            fixture = urllib.parse.urlencode({"scope": "session", "sessionId": args.file_session_id, "path": args.file_path})
+            content_code, content_body, content_time = call("GET", "/files/content?" + fixture, 2.0)
+            try:
+                content_projection = json.loads(content_body)
+            except (ValueError, TypeError):
+                content_projection = {}
+            content_status = "pending" if content_time <= 2 and (content_code == 202 or (content_code == 200 and content_projection.get("installedSchemaQualified") is False)) else "fail"
+            results.append({"route": "/files/content (dedicated fixture)", "code": content_code, "seconds": round(content_time, 2), "budget": 2.0, "status": content_status})
+        else:
+            results.append({"route": "/files/content (dedicated fixture required)", "budget": 2.0, "status": "pending"})
+        failed = True
     for method, path in OWNER_GUARDS:
         code, _, took = call(method, path, 10)
         status = "skipped" if code == 404 else ("ok" if code in (400, 403, 405) else "fail")

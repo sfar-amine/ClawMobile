@@ -1,0 +1,31 @@
+const assert=require('node:assert/strict');
+let reply,calls=[],preflight=false,alias,throwOwner=false,delay=0;
+require('../dist/companion/openclawAgentClient').callOpenClawGateway=async(method,params,options)=>{calls.push({method,params,options});if(delay)await new Promise(r=>setTimeout(r,delay));if(throwOwner)throw Error('/private-root user@example.test ghp_ALPHABETICFAKESECRET');
+ if(preflight&&method==='agents.files.list')return {agentId:'main',workspace:'/fixture',files:[]};
+ if(preflight&&method==='sessions.files.list'){const relative=reply.file.workspacePath||reply.file.path.replace('/fixture/','');return {sessionKey:params.sessionKey,root:'/fixture',files:alias?[{path:relative,workspacePath:alias,name:relative.split('/').pop(),kind:'read',missing:false}]:[],browser:{path:params.path,entries:[{path:relative,name:relative.split('/').pop(),kind:'file'}]}};}
+ return reply;};
+const api=require('../dist/companion/fileGatewayRead');
+(async()=>{
+ const agent={scope:'agent'},session={scope:'session',sessionKey:'agent:main:companion-chat-fixture'};
+ reply={agentId:'main',workspace:'/fixture',files:[{name:'AGENTS.md',path:'/fixture/AGENTS.md',missing:false,size:12,updatedAtMs:1},{name:'credential.txt',path:'/fixture/credential.txt',missing:false}]};
+ await assert.rejects(api.gatewayFileList(agent,'AGENTS.md'),e=>e.statusCode===404);
+ let result=await api.gatewayFileList(agent);assert.equal(result.items.length,1);assert.equal(result.installedSchemaQualified,false);assert.deepEqual(calls.pop().params,{agentId:'main'});assert.ok(!JSON.stringify(result).includes('/fixture'));
+ reply={...reply,unknown:true};await assert.rejects(api.gatewayFileList(agent),e=>e.message==='file_owner_unavailable');
+ reply={sessionKey:session.sessionKey,files:[],browser:{path:'',entries:[{path:'notes',name:'notes',kind:'directory'},{path:'context',name:'context',kind:'directory'},{path:'credential.txt',name:'credential.txt',kind:'file'},{path:'screenshots',name:'screenshots',kind:'directory'}],truncated:true}};
+ result=await api.gatewayFileList(session);assert.deepEqual(result.items.map(x=>x.name),['notes','screenshots']);assert.equal(result.ownerTruncated,true);assert.deepEqual(calls.pop().params,{sessionKey:session.sessionKey,agentId:'main',path:''});
+ reply={...reply,sessionKey:'agent:main:companion-chat-other'};await assert.rejects(api.gatewayFileList(session));
+ preflight=true;reply={sessionKey:session.sessionKey,file:{path:'/fixture/notes/read.txt',workspacePath:'notes/read.txt',name:'read.txt',kind:'read',missing:false,size:30,contentEncoding:'utf8',previewKind:'text',content:'A local note\nCode 123456'}};
+ result=await api.gatewayFileContent(session,'notes/read.txt');assert.equal(result.bytes.toString(),'A local note\n[masqué]');assert.equal(result.headers['X-Content-Type-Options'],'nosniff');assert.equal(result.installedSchemaQualified,false);
+ for(const privatePath of ['context/notes/read.txt','context-backup/notes/read.txt','credentials/notes/read.txt','bank/notes/read.txt']){alias=privatePath;const priorGets=calls.filter(x=>x.method==='sessions.files.get').length;await assert.rejects(api.gatewayFileContent(session,'notes/read.txt'),e=>e.statusCode===404);assert.equal(calls.filter(x=>x.method==='sessions.files.get').length,priorGets);}alias=undefined;
+ const before=calls.length;for(const name of ['context/private','screenshots/probe.png','notes/token.txt','../private'])await assert.rejects(api.gatewayFileContent(session,name),e=>e.statusCode===404);assert.equal(calls.length,before);
+ const png=Buffer.from([137,80,78,71,13,10,26,10]);reply={sessionKey:session.sessionKey,file:{path:'/fixture/images/a.png',workspacePath:'images/a.png',name:'a.png',kind:'read',missing:false,contentEncoding:'base64',previewKind:'image',mimeType:'image/png',content:png.toString('base64')}};
+ result=await api.gatewayFileContent(session,'images/a.png');assert.equal(result.contentType,'image/png');assert.deepEqual(result.bytes,png);
+ reply.file.content=Buffer.from('HTML pretending to be PNG').toString('base64');await assert.rejects(api.gatewayFileContent(session,'images/a.png'),e=>e.statusCode===404);
+ reply.file.content='not canonical base64';await assert.rejects(api.gatewayFileContent(session,'images/a.png'),e=>e.statusCode===503);
+ reply={agentId:'main',workspace:'/fixture',file:{path:'/fixture/AGENTS.md',name:'AGENTS.md',missing:false,content:'Prefer concise replies'}};result=await api.gatewayFileContent(agent,'AGENTS.md');assert.equal(result.bytes.toString(),'Prefer concise replies');
+ reply.file.path='/other/AGENTS.md';await assert.rejects(api.gatewayFileContent(agent,'AGENTS.md'));
+ throwOwner=true;await assert.rejects(api.gatewayFileList(agent),e=>e.message==='file_owner_unavailable'&&e.statusCode===503);throwOwner=false;
+ preflight=true;delay=30;reply={sessionKey:session.sessionKey,file:{path:'/fixture/notes/read.txt',workspacePath:'notes/read.txt',name:'read.txt',kind:'read',missing:false,contentEncoding:'utf8',previewKind:'text',content:'Local note'}};const getsBefore=calls.filter(x=>x.method==='sessions.files.get').length;await assert.rejects(api.gatewayFileContent(session,'notes/read.txt',{deadline:Date.now()+10}),e=>e.statusCode===503);assert.equal(calls.filter(x=>x.method==='sessions.files.get').length,getsBefore);delay=0;
+ assert.ok(calls.every(x=>['agents.files.list','agents.files.get','sessions.files.list','sessions.files.get'].includes(x.method)));assert.ok(calls.every(x=>x.options.timeoutMs<=10000&&x.options.hardTimeoutMs<=12000&&x.options.strictOutput.stdoutMaxBytes===9*1024*1024));
+ console.log('R20 public-2026.9.6-schema fixtures passed: exact read RPC params, closed parser/identity, metadata-only projection, forbidden names before RPC, image magic, no assumed installed qualification');
+})().catch(e=>{console.error(e);process.exitCode=1});
