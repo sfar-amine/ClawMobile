@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "codex-r7-read-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose verified installed versions and prepared updates without activation",
+  "reason": "File 18 R7 read-only lot; Claude review corrected on runtime 639ae68.",
+  "files": [
+    "docs/changes/codex-r7-read-20261010.json",
+    "docs/changes/codex-r7-read-20261010.md",
+    "docs/work/samantha-runtime/contracts/r7.md",
+    "installer/termux-lite/tier0-native-read.py",
+    "openclaw-plugin-mobile-ui/scripts/test-updates-read.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/updatesControl.ts"
+  ],
+  "tests": [
+    {
+      "name": "r7-read",
+      "status": "passed",
+      "evidence": "Rollback exclusion and null availability, 110 older releases, HTTP cache/single-flight and canonical-state invalidation; real tier0 release verification and pinned Git fixture; 14 tier0 tests and all current runtime CI commands."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r7.md",
+    "docs/changes/codex-r7-read-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "Read-only prepared-release view, not a remote update catalog. Android version remains null without canonical runtime source.",
+    "No deployment or S24 recipe claimed. Tests run separately while R6 #27 exclusively modifies CI; registration follows its merge."
+  ]
+}
