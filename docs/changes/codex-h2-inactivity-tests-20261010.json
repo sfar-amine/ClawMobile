@@ -20,6 +20,11 @@
       "name": "H2-deterministic-inactivity",
       "status": "passed",
       "evidence": "Build + test inactivity (~1.8 s), puis 4 processus concurrents verts. Les six commandes du step CI lifecycle passent, dont payment-core 58/58."
+    },
+    {
+      "name": "current-base-inactivity-regression",
+      "status": "passed",
+      "evidence": "TypeScript build and test-run-inactivity.cjs passed after normal merge bfa210c; four required regressions and explicit settlement still pass."
     }
   ],
   "documentation": [
@@ -53,6 +58,7 @@
   "rollback": "Revert du lot H2, aucun changement S24.",
   "limitations": [
     "Aucun déploiement ni qualification S24 dans H2.",
-    "Latences owner injectées ; transport CLI SQLite réel, timeout physique non simulé comme une capture."
+    "Latences owner injectées ; transport CLI SQLite réel, timeout physique non simulé comme une capture.",
+    "Current base bfa210cd4361f2a3273ec76032ef6d23599015fd merged normally; canonical operator rule preserved. Publication pending root, no merge/deployment by Codex."
   ]
 }
