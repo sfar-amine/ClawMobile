@@ -71,3 +71,6 @@ jobs:
 
       - name: Run read-only notification source contract
         run: node scripts/test-notification-sources.cjs
+
+      - name: Run read-only diagnostic export contract
+        run: node scripts/test-diagnostic.cjs
