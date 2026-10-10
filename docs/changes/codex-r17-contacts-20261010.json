@@ -1,0 +1,76 @@
+{
+  "version": 2,
+  "id": "codex-r17-contacts-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Extend existing WhatsApp contacts owner with complete allowlist controls and biometric receipts",
+  "reason": "File 20 v2 and Claude answers 23, on runtime af4132a; one integrated runtime lot.",
+  "files": [
+    "docs/changes/codex-r17-contacts-20261010.json",
+    "docs/changes/codex-r17-contacts-20261010.md",
+    "docs/work/samantha-runtime/contracts/r17.md",
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-whatsapp-allowlist.py",
+    "installer/termux-lite/test-whatsapp-allowlist-manager.py",
+    "openclaw-plugin-mobile-ui/src/companion/whatsappAllowlist.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-allowlist.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-allowlist-paired.cjs"
+  ],
+  "tests": [
+    {
+      "name": "r17-owner",
+      "status": "passed",
+      "evidence": "21 allowlist owner tests with injected clock, three real health-cycle fixture tests, 21 existing people-trusted regressions; shell syntax valid."
+    },
+    {
+      "name": "r17-http",
+      "status": "passed",
+      "evidence": "Complete biometric matrix, strict E164 and owner boundaries, request identity/conflict/replay/concurrency, pre-effect retry, uncertainty/no replay, secret-free receipts/history, Unicode and 32 KiB HTTP boundaries."
+    },
+    {
+      "name": "r17-paired",
+      "status": "passed",
+      "evidence": "HTTP to actual Contacts owner with actual SQLite receipt/unique confirmation claims and config CAS fixture; signed proof consumed once, before-effect staging failure resumed with same body, another operation cannot reuse consumed proof; neighbors and payment/history unchanged, silent add, all contact actions and real cursor pagination."
+    },
+    {
+      "name": "runtime-ci",
+      "status": "passed",
+      "evidence": "All existing runtime workflow commands on af4132a; CI unchanged. New R17 tests executed separately."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r17.md",
+    "docs/changes/codex-r17-contacts-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Extend existing people-trusted owner and native Companion routes; no additional capability registry."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing Gateway config, Directory receipts/meta, private context, confirmations and health cycle; no new store, table, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing canonical contacts owner reused; MCP tool execution schemas unchanged."
+  },
+  "rollback": "Revert this runtime lot; activation and restoration of runtime snapshots by Claude.",
+  "limitations": [
+    "No S24 mutation, deployment or integrated recipe by Codex. Gateway installed-version and screen recipe by Claude.",
+    "Expiry removal under two minutes is a qualification target. A bounded 20-second pass may need subsequent existing cycles when many contacts expire or owner access is unavailable.",
+    "Opaque custom policies with no readable scopeText cannot be reactivated or treated as a proven permission reduction.",
+    "R17 tests run separately pending coordinated CI registration; existing CI steps retained."
+  ]
+}
