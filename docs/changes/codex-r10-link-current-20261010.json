@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "id": "codex-r10-link-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Preserve exact Companion conversation origin when creating a Memory Core owner request",
+  "reason": "File 22 specifies transport marker and explicit creation-time session flag, replacing the previously absent source.",
+  "files": [
+    "installer/termux-lite/context-event.sh",
+    "installer/termux-lite/context-store.py",
+    "installer/termux-lite/test-context-session-origin.py",
+    "installer/workspace-seed-lite/skills/clawmobile-capabilities/SKILL.md",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-origin.cjs",
+    "docs/work/samantha-runtime/contracts/r10.md",
+    "docs/changes/codex-r10-link-current-20261010.md",
+    "docs/changes/codex-r10-link-current-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/conversationText.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runInactivity.ts",
+    ".github/workflows/ci.yml"
+  ],
+  "tests": [
+    {
+      "name": "r10-origin",
+      "status": "passed",
+      "evidence": "6 real Bash/SQLite migration/replay/origin/conflict tests; real registry and fixture Gateway transport marker; facade origin validation; build, current CI and portable Memory Core regressions. Review26: timestamp+label terminal/owner/history, slash Gateway fixture, list/detail validation; complete current CI and dedicated origin CI step."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r10.md",
+    "docs/changes/codex-r10-link-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Companion transport and existing Memory Core ingress extended; canonical capability registry updated in paired playbooks PR."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Additive nullable field in existing canonical events, no new owner/store/scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "MCP primitives/schemas unchanged; optional origin in existing context ingress only."
+  },
+  "rollback": "Revert this lot; additive nullable SQLite column may remain, legacy events remain usable.",
+  "limitations": [
+    "Runtime/skill deployment and S24 qualification remain Claude responsibility.",
+    "Legacy and Situation requests without a conversation keep null origin.",
+    "Real P0-2 S24 captures unavailable; observed timestamp format is covered by synthetic fixtures."
+  ]
+}
