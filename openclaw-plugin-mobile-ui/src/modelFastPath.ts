@@ -18,6 +18,10 @@ export type FastPathResult = {
   source?: string;
   model_bypassed?: boolean;
   decision?: Record<string, unknown>;
+  presentation?: unknown;
+  understood?: unknown;
+  failure?: unknown;
+  alternatives?: unknown;
   clarification?: Record<string, unknown>;
   resolution?: Record<string, unknown>;
 };

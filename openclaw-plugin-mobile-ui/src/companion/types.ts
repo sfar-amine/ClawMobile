@@ -85,6 +85,10 @@ export type TerminalSessionResponse = {
 };
 
 export type IntentSubmitResponse = {
+  presentation?: import("./receiptPresentation").ReceiptPresentation;
+  understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
+  alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];
+  failure?: import("./receiptPresentation").ReceiptPresentation["failure"];
   success: boolean;
   accepted?: boolean;
   submissionState?: "accepted" | "not_submitted";
@@ -103,6 +107,10 @@ export type IntentSubmitResponse = {
 };
 
 export type CompanionRunStatus = {
+  presentation?: import("./receiptPresentation").ReceiptPresentation;
+  understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
+  alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];
+  failure?: import("./receiptPresentation").ReceiptPresentation["failure"];
   inactivityCorrectionReceipt?: import("./runInactivity").InactivityReceipt;
   modality?: "voice";
   clientRunId?: string;

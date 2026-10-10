@@ -1,0 +1,19 @@
+/** Closed HS3 metadata. No routing, owner I/O or payment-effect inference. */
+export type ReceiptPresentation = {version:1;locale:'fr'|'en';status:'info'|'error';label:string;title:string;rows:[];spoken:string;primary:{label:string;action:'done'};effect:{debited:'unknown';source:'receipt'};meta:{capability:string|null};understood:{capability:string|null;label:string;slots:{operator?:'orange'|'tt'|'zain';line?:'owner'}};alternatives:{capability:string;label:string}[];failure?:{step:string;reason:string}};
+const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const secret=/\bBearer\s+|\b(?:sk-|ghp_|github_pat_|AKIA|eyJ)[A-Za-z0-9_.-]+|refresh_token|access_token|-----BEGIN|@|[\x00-\x1f]/i;
+function text(v:unknown,max:number):v is string{return typeof v==='string'&&v.length>0&&v.length<=max&&!secret.test(v)&&(v.match(/\d/g)||[]).length<6&&!/^[\[{]/.test(v);}
+function id(v:unknown):v is string{return typeof v==='string'&&/^[a-z][a-z0-9_.-]{0,159}$/.test(v)&&!secret.test(v);}
+export function readReceiptPresentation(raw:unknown):ReceiptPresentation|undefined{
+ if(!obj(raw))return undefined;const p=obj(raw.presentation)?raw.presentation:raw;
+ if(p.version!==1||(p.locale!=='fr'&&p.locale!=='en')||(p.status!=='info'&&p.status!=='error')||!text(p.label,200)||!text(p.title,200)||!text(p.spoken,240)||!Array.isArray(p.rows)||p.rows.length!==0||!obj(p.primary)||p.primary.action!=='done'||!text(p.primary.label,200)||!obj(p.effect)||p.effect.debited!=='unknown'||p.effect.source!=='receipt'||!obj(p.understood)||!text(p.understood.label,200)||!obj(p.understood.slots)||!obj(p.meta)||!Array.isArray(p.alternatives)||p.alternatives.length>3)return undefined;
+ const cid=p.understood.capability;if(cid!==null&&!id(cid))return undefined;if(p.meta.capability!==cid)return undefined;
+ const slots:ReceiptPresentation['understood']['slots']={};
+ if(typeof p.understood.slots.operator==='string'&&['orange','tt','zain'].includes(p.understood.slots.operator))slots.operator=p.understood.slots.operator as 'orange'|'tt'|'zain';if(p.understood.slots.line==='owner')slots.line='owner';
+ const alternatives:ReceiptPresentation['alternatives']=[],seen=new Set([cid]);
+ for(const row of p.alternatives){if(!obj(row)||!id(row.capability)||!text(row.label,200)||seen.has(row.capability))return undefined;seen.add(row.capability);alternatives.push({capability:row.capability,label:row.label});}
+ let failure:ReceiptPresentation['failure'];if(p.status==='error'){if(!obj(p.failure)||!text(p.failure.step,200)||!text(p.failure.reason,240))return undefined;failure={step:p.failure.step,reason:p.failure.reason};}
+ return {version:1,locale:p.locale as 'fr'|'en',status:p.status as 'info'|'error',label:p.label,title:p.title,rows:[],spoken:p.spoken,primary:{label:p.primary.label,action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:cid as string|null},understood:{capability:cid as string|null,label:p.understood.label,slots},alternatives,...(failure?{failure}:{})};
+}
+export function fallbackReceiptPresentation(failed=false):ReceiptPresentation{return {version:1,locale:'fr',status:failed?'error':'info',label:'Demande',title:'Résultat à vérifier',rows:[],spoken:failed?'La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.':'Le résultat de la demande reste à vérifier.',primary:{label:'Terminer',action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:null},understood:{capability:null,label:'Demande',slots:{}},alternatives:[],...(failed?{failure:{step:'Étape non établie',reason:'La cause n’est pas établie par le reçu.'}}:{})};}
+export function publicReceiptMetadata(p:ReceiptPresentation|undefined){return p?{presentation:p,understood:p.understood,alternatives:p.alternatives,...(p.failure?{failure:p.failure}:{})}:{};}

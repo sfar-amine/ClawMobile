@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -227,7 +228,28 @@ def capability_first_eligibility(value: dict[str, Any]) -> tuple[str, str]:
     return "eligible", "capability_first"
 
 
+_presentation_module = None
+
+def _presentation_metadata(value):
+    if not isinstance(value, dict) or not isinstance(value.get("presentation"), dict):
+        return {}
+    global _presentation_module
+    if _presentation_module is None:
+        spec = importlib.util.spec_from_file_location("_hs3_presentation_read", Path(__file__).with_name("receipt-presentation-read.py"))
+        _presentation_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_presentation_module)
+    return _presentation_module.read(value) or {}
+
+
+def _presentation_display(value):
+    metadata = _presentation_metadata(value)
+    return _presentation_module.display(metadata) if metadata else None
+
+
 def _display_text(value: Any) -> str:
+    presented = _presentation_display(value)
+    if presented:
+        return presented
     if isinstance(value, dict):
         if value.get("strategy") == "composed_read" and isinstance(value.get("results"), list):
             lines = []
@@ -635,17 +657,19 @@ def try_fast_path(
         execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
         state = str(execution.get("state") or "")
         selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
+        metadata = _presentation_metadata(executed)
         if state in SAFE_EXECUTION_STATES:
             payload = execution.get("result")
             return {
-                "status": "hit", "source": "capability", "text": _display_text(payload),
+                "status": "hit", "source": "capability", "text": _display_text(executed if metadata else payload),
+                **metadata,
                 "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
                 "route": selected.get("route"), "capability": selected.get("capability"),
                 "execution_state": state, "decision": executed.get("decision") or decision or None,
                 "model_bypassed": True,
             }
         if state in ASSISTED_EXECUTION_STATES:
-            return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None}
+            return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None, **metadata}
         if state == "confirmation_required":
             return _execute_declared_handoff(
                 executed, message, ui_root=ui_root, surface=surface, caller=caller,
@@ -655,12 +679,15 @@ def try_fast_path(
         composed = (selected.get("execution_contract") or {}).get("strategy") == "composed_read"
         error_result = {
             "status": "known_error", "reason": state or "known_execution_failed",
+            **metadata,
             "text": "Claw a identifié la capacité mais son exécution n'a pas atteint un état terminal vérifié.",
             "resolution": executed, "decision": executed.get("decision") or decision or None,
             "model_bypassed": True,
         }
         if composed and isinstance(payload, dict):
             error_result.update(text=_display_text(payload), result=payload, execution_state=state)
+        if metadata:
+            error_result["text"] = _display_text(executed)
         return error_result
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}

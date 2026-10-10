@@ -1,3 +1,4 @@
+import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,type ReceiptPresentation} from "./receiptPresentation";
 import {conversationOwnerIndex,invalidateConversationOwner} from "./conversationOwnerIndex";
 import {stripConversationTransport} from "./conversationText";
 import {removeAttachments} from "./attachmentStorage";
@@ -14,6 +15,7 @@ import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSes
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment } from "./types";
 
 type StoredRun = {
+  presentation?: ReceiptPresentation;
   inactivityCorrectionReceipt?: InactivityReceipt;
   runId: string;
   clientRunId?: string;
@@ -163,6 +165,7 @@ export async function reserveSubmittedRun(
       clientRunId: clientId,
       requestHash,
       executionSource: options.executionSource || "gateway",
+      presentation: options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined,
       decision: options.decision && typeof options.decision === "object" ? options.decision : undefined,
       clarificationState: String(options.decision?.type || "") === "CLARIFY" ? "pending" : undefined,
       clarificationExpiresAt: String(options.decision?.type || "") === "CLARIFY" ? now + 10 * 60 * 1000 : undefined,
@@ -187,12 +190,14 @@ export async function reserveSubmittedRun(
 export async function rememberSubmittedRun(
   text: string,
   result: OpenClawAgentSubmitResult,
-  options: { userText?: string; attachments?: IntentAttachment[]; decision?: Record<string, unknown>; parentClarificationRunId?: string } = {},
+  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string } = {},
 ) {
   const existing = submittedRuns.get(result.runId)
     || (await findStoredRun(result.runId).catch(() => null));
   const stored = {
     ...existing,
+    executionSource: options.executionSource || existing?.executionSource || "gateway",
+    presentation: existing?.presentation || (options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined),
     runId: result.runId,
     sessionId: result.sessionId,
     sessionKey: normalizedStoredSessionKey(result.sessionId, result.sessionKey),
@@ -216,6 +221,7 @@ export async function settleSubmittedRun(
   runId: string,
   state: "done" | "failed",
   result: string,
+  metadata?: unknown,
 ) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));
@@ -223,6 +229,7 @@ export async function settleSubmittedRun(
   const stored: StoredRun = {
     ...existing,
     state,
+    presentation: readReceiptPresentation(metadata) || (existing.executionSource === "capability_first" ? fallbackReceiptPresentation(state === "failed") : existing.presentation),
     inactivityCorrectionReceipt: state === "done" && (existing.error === "run_inactivity_expired" || existing.inactivityCorrectionReceipt?.to === "running") ? {
       version: 1, action: "correct_run_expiration", runId, from: "expired", to: "done",
       at: Date.now(), evidenceAt: Date.now(),
@@ -683,6 +690,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   return {
     success: !failed,
     status: stored.error === "run_inactivity_expired" ? "expired" : undefined,
+    ...publicReceiptMetadata(readReceiptPresentation(stored.presentation)),
     inactivityCorrectionReceipt: stored.inactivityCorrectionReceipt,
     runId: stored.runId,
     clientRunId: stored.clientRunId,
@@ -1681,6 +1689,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
+      presentation: readReceiptPresentation(run.presentation),
       runId: run.runId,
       clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
       requestHash: typeof run.requestHash === "string" && /^[a-f0-9]{64}$/.test(run.requestHash) ? run.requestHash : undefined,

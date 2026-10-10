@@ -50,6 +50,11 @@ jobs:
           node scripts/test-voice-relay.cjs
           node scripts/test-voice-relay-reconnect.cjs
 
+      - name: HS3 closed presentation and existing run transport
+        run: |
+          python3 scripts/test-receipt-presentation-read.py
+          node scripts/test-receipt-presentation.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
