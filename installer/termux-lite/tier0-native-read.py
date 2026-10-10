@@ -30,6 +30,21 @@ def release(module,identifier):
  return {'id':identifier,'createdAt':data.get('created_at') if re.fullmatch(r'[0-9T:Z+.-]{10,40}',str(data.get('created_at',''))) else None,
          'sourceCommit':commit if re.fullmatch(r'[a-f0-9]{40}',str(commit)) else None,'verified':True}
 
+MAX_VERIFIED=10
+def created(value):
+ try:return datetime.datetime.fromisoformat(str(value).replace('Z','+00:00')).timestamp()
+ except (ValueError,TypeError):return None
+def newer_than(path,current):
+ """Cheap pre-filter from the manifest date only; the full verification still runs on what passes."""
+ base=created(current.get('createdAt'))
+ if base is None:return True
+ try:
+  file=path/'manifest.json'
+  if file.is_symlink() or file.stat().st_size>2_000_000:return False
+  at=created(json.loads(file.read_text()).get('created_at'))
+ except (OSError,ValueError):return False
+ return at is not None and at>base
+
 def selected(module,link):
  if not link.exists():return None
  target=link.resolve()
@@ -56,6 +71,9 @@ def read(module):
  if module.RELEASES.is_dir():
   for path in sorted((path for path in module.RELEASES.iterdir() if path.name not in {'current','last-known-good'} and not path.is_symlink() and ID.fullmatch(path.name) and path.name not in blocked),reverse=True):
    if path.name in {'current','last-known-good'} or path.is_symlink() or not ID.fullmatch(path.name):continue
+   # Only releases newer than current can be an update: older ones are never re-hashed (110+ on the S24).
+   if current is not None and not newer_than(path,current):continue
+   if len(rows)>=MAX_VERIFIED:break
    try:rows.append(release(module,path.name))
    except (OSError,ValueError,RuntimeError,KeyError):continue
  return {'schemaVersion':1,'current':current,'lastKnownGood':lkg,'available':rows,
