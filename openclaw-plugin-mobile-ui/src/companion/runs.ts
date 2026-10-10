@@ -1,3 +1,4 @@
+import {stripConversationTransport} from "./conversationText";
 import {removeAttachments} from "./attachmentStorage";
 import fs from "fs/promises";
 import {RUN_INACTIVITY_MS, ownerTurnEvidence, protectedRun, type InactivityReceipt} from "./runInactivity";
@@ -1441,7 +1442,7 @@ function finalStatusDetail(event: any): string | undefined {
 }
 
 function stripOpenClawTimestamp(text: string) {
-  return text.replace(/^\[[^\]]+\]\s*/, "").trim();
+  return stripConversationTransport(text);
 }
 
 function messageTimestamp(event: any, preferEventTimestamp = false): number | undefined {
