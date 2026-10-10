@@ -23,7 +23,7 @@ for mode,expected in [('absent',0),('healthy',0),('settled',0),('never',1),('err
     with contextlib.redirect_stdout(out):assert m.main()==expected,mode
     report=json.loads(out.getvalue());assert report['accepted']==(expected==0),mode
     files=[x for x in report['checks'] if x['route'].startswith('/files')]
-    assert len(files)==len(m.FILE_READS),mode
+    assert len(files)==len([p for p,_ in m.READS if p.startswith('/files')])==4,mode
     assert all(x['status'] in ('ok','skipped') for x in files) if expected==0 else any(x['status']=='fail' for x in files)
     assert all(headers is None for _,_,headers in calls)
     assert all(method=='GET' or (method,path) in m.OWNER_GUARDS for method,path,_ in calls)

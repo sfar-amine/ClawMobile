@@ -1,0 +1,209 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/control/memory?limit=20",
+  "latencyMs": 288,
+  "repeatLatencyMs": 318,
+  "capturedAt": "2026-10-10T18:35:50+00:00",
+  "companion": "loopback 127.0.0.1:8765, sans en-tête propriétaire",
+  "sanitized": true
+ },
+ "response": {
+  "items": [
+   {
+    "id": "c85cc8a337d93ff0b91fa051bb5387baee1974123dcd4fce22058c685cae120d",
+    "text": "<texte 500 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-10T17:32:57.096912+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "e166ab79f4a65490ec13f603997cb422470b813fbeb6c726e484168c7dc202af",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-10T16:12:04.568463+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "1dd0279069fd3b8d1372d28f2ed97d6b7e7e233f676228286bd40a9b7a64bdcb",
+    "text": "<texte 500 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-10T15:33:25.037871+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "79b9e9aea49454f79dce72ceaa1d05214b5bf366674913f3dd3e50f36e740f31",
+    "text": "<texte 500 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-10T14:33:08.813361+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "6317edbf73a073f33275ff7fb0ccbe78c6a67830e9f99aa33f9da6710482840a",
+    "text": "<texte 273 car.>",
+    "kind": "rule",
+    "createdAt": "2026-10-10T09:12:01.810134+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "eeeef38f8f4789bbb0db2c7e6ab3e369ca467b9a3b3944af4cdd73570e072043",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T22:56:03.009656+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "f63e8d04aa1a67bcdb41c11a99b08d8b5cd2acded668fd690969809b2213188e",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T16:48:57.198912+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "7e88d44ca4235c135e562ee535e9518736ff06acf181cb4e60b5233274cb3851",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T16:13:34.323914+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "4c9f0069a3967dee5fd07ebf9a16ce54e5bb2f59ae506b7369ebe0974ca4b049",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T13:50:30.853894+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "c6d283b12c288c390a0fcbfb26481055f0bc11aa8b4cffe6401dea3e958826ff",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T11:27:13.654327+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "8ea2588b9320a730d1019ea99521f667983c24c701f2290b8c0c22fce0cea5eb",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T10:55:18.775008+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "3fa3a81238bccbc7edb34db397b8de048c0c1b9bbae94c03a1b3e68a180db30d",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T10:30:27.875070+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "5c401af12c2825b602eafb3508f7ce8ed02ff6c6c4421c5af3d191238f9e1a1a",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T10:21:14.324276+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "cdfded6ac3485b46d8d77bbbc7d38babba18cde101d3dca2a7d5a74791449ddd",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T10:20:11.505654+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "b0aed7ffdec599f6b542223e68a61cc3df896d782d88fb11503ee17d4de404ed",
+    "text": "<texte 500 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T10:15:00.790561+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "e2dc7e92380721a1c5fc04957410d97628c158b7f2d47080d0e44e087414895c",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T10:07:36.087393+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "25f04dee086e59ae7a40b9e9a3192f222bb23fd8bcfdf348c605ec62a78e9ba3",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-09T09:50:11.631400+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "5ab3204b50c79d466d9ee1619eec975e96b73bf3c0547d60b2156641ba93feaf",
+    "text": "<texte 22 car.>",
+    "kind": "rule",
+    "createdAt": "2026-10-08T21:28:56.262961+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "087ae6c0285f1a2bc932a51f33928ac7806bf99f84ed30acf0155ef28564d99b",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-08T10:26:58.604774+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   },
+   {
+    "id": "54a894ac42ffb018f238c7a7fd0c6d07dc9174adfb1ac86a67064be443fac34e",
+    "text": "<texte 22 car.>",
+    "kind": "decision",
+    "createdAt": "2026-10-08T09:58:30.915651+00:00",
+    "source": null,
+    "originalCreatedAt": null
+   }
+  ],
+  "nextOffset": 20,
+  "typedSourceAvailable": true,
+  "categories": [
+   {
+    "id": "preference",
+    "available": false
+   },
+   {
+    "id": "decision",
+    "available": true
+   },
+   {
+    "id": "person",
+    "available": false
+   },
+   {
+    "id": "rule",
+    "available": true
+   },
+   {
+    "id": "import",
+    "available": true
+   }
+  ],
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "revision": 1935,
+  "updatedAt": "2026-10-10T18:34:46.788721+00:00",
+  "consolidation": {
+   "schedule": "13:00",
+   "lastAt": null,
+   "timezone": "Africa/Tunis"
+  }
+ }
+}

@@ -1,0 +1,66 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/updates",
+  "latencyMs": 550,
+  "repeatLatencyMs": 5,
+  "capturedAt": "2026-10-10T18:35:49+00:00",
+  "companion": "loopback 127.0.0.1:8765, sans en-tête propriétaire",
+  "sanitized": true
+ },
+ "response": {
+  "success": true,
+  "state": "partial",
+  "receipt": null,
+  "schemaVersion": 1,
+  "current": {
+   "id": "20261010T120821-d3beb769",
+   "createdAt": "2026-10-10T11:08:21.455383+00:00",
+   "sourceCommit": "6c9f9181e66fcc792da9016c3c1d8152c371f349",
+   "verified": true
+  },
+  "lastKnownGood": {
+   "id": "20261010T120821-d3beb769",
+   "createdAt": "2026-10-10T11:08:21.455383+00:00",
+   "sourceCommit": "6c9f9181e66fcc792da9016c3c1d8152c371f349",
+   "verified": true
+  },
+  "available": [],
+  "updateAvailable": false,
+  "updateReason": null,
+  "versionSource": "tier0_manifest_verified",
+  "activationQualified": false,
+  "items": [
+   {
+    "id": "app",
+    "label": "<texte 16 car.>",
+    "version": null,
+    "source": "android",
+    "reason": "<texte 28 car.>"
+   },
+   {
+    "id": "companion",
+    "label": "<texte 9 car.>",
+    "version": "0.1.0",
+    "source": "installed_package",
+    "reason": null
+   },
+   {
+    "id": "playbooks",
+    "label": "<texte 9 car.>",
+    "version": "f9bbf4742ac501ade524d5a244609d11ed00c4c0",
+    "source": "pinned_runtime",
+    "reason": null
+   },
+   {
+    "id": "termux-lite",
+    "label": "<texte 11 car.>",
+    "version": "6c9f9181e66fcc792da9016c3c1d8152c371f349",
+    "source": "tier0_manifest_verified",
+    "reason": null
+   }
+  ],
+  "issues": [],
+  "actions": []
+ }
+}
