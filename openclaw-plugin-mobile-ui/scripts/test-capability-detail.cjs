@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),http=require('node:http');
+(async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'capability-card-'));
+ if(!process.env.SAMANTHA_CONTROL_PLAYBOOKS){process.env.SAMANTHA_CONTROL_PLAYBOOKS=root;await fs.mkdir(path.join(root,'reporting'));await fs.writeFile(path.join(root,'reporting/__init__.py'),'');await fs.writeFile(path.join(root,'reporting/control_capability.py'),`import json,sys\ni=sys.argv[sys.argv.index('--id')+1];print(json.dumps({'schemaVersion':1,'revision':'a'*64,'found':i=='memory.cross_surface','item':{'id':i,'risk':'read','status':'e2e_validated','liveState':'unknown','routes':[],'examples':[]} if i=='memory.cross_surface' else None}))\n`);}
+ const {route}=require('../dist/companion/server');const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}')}));await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const request=(id,method='GET',headers={})=>new Promise((resolve,reject)=>{
+  const req=http.request({host:'127.0.0.1',port:server.address().port,path:'/v1/capabilities/'+id,method,headers},res=>{let text='';res.on('data',x=>text+=x);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:JSON.parse(text||'{}')}))});req.on('error',reject);req.end();
+ });
+ try{
+  const card=await request('memory.cross_surface');assert.equal(card.status,200);assert.equal(card.body.item.id,'memory.cross_surface');assert.equal(card.body.item.liveState,'unknown');assert.equal(card.body.item.risk,'read');assert.equal((await request('missing')).status,404);assert.equal((await request('%')).status,400);assert.equal((await request('memory.cross_surface','POST')).status,405);assert.equal((await request('memory.cross_surface','GET',{Origin:'https://untrusted.invalid'})).status,403);
+  assert.equal(card.headers['cache-control'],'no-store');for(const bad of ['memory.cross_surface?x=1','memory.cross_surface/extra','%2F','%00','%C3%A9','x'.repeat(161)])assert.equal((await request(bad)).status,400);for(const h of [{Referer:'https://untrusted.invalid'},{'Sec-Fetch-Site':'same-origin'}])assert.equal((await request('memory.cross_surface','GET',h)).status,403);const denied=await request('memory.cross_surface','DELETE');assert.equal(denied.status,405);assert.equal(denied.headers.allow,'GET');
+  if(process.env.SAMANTHA_CONTROL_PLAYBOOKS===root){for(const output of ["{'found':True,'item':{'id':'other'}}","{'found':False,'item':{}}"]){await fs.writeFile(path.join(root,'reporting/control_capability.py'),`import json;print(json.dumps(${output}))\n`);assert.equal((await request('memory.cross_surface')).status,503);}}
+  console.log('R13: registry identity, canonical risk, stage/live distinction, invalid ID, native read-only HTTP boundaries passed');
+ }finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(root,{recursive:true,force:true});}
+})().catch(e=>{console.error(e);process.exitCode=1});

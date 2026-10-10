@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "id": "codex-local-g4-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Document qualification-gated runtime cleanup without removing live evidence",
+  "reason": "G4 documentation-only repris seul sur runtime af4132a, sans ancêtre G2/G3.",
+  "files": [
+    "docs/changes/codex-local-g4-20261010.json",
+    "docs/changes/codex-local-g4-20261010.md",
+    "docs/work/samantha-runtime/contracts/g4.md"
+  ],
+  "tests": [
+    {
+      "name": "G4",
+      "status": "passed",
+      "evidence": "Inventaire statique des consommateurs/build/CI et chemins vérifié ; liens locaux, diff --check et gate de livraison validés avant push."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/g4.md",
+    "docs/changes/codex-local-g4-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert de cette PR de documentation ; tout retrait futur exige son propre rollback.",
+  "limitations": [
+    "Plan Git seulement ; aucun retrait physique ni qualification S24.",
+    "G2/G3 et la recette Voix restent des gates futurs explicites ; R17 puis A10 doivent préserver le Health Manager courant."
+  ]
+}

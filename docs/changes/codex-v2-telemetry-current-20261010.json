@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "id": "codex-v2-telemetry-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "V2 : télémétrie C1 des sessions historiques avec calibration isolée par sid",
+  "reason": "Lot V2 autorisé, base af4132a, sans lots non fusionnés ni modification du cycle fournisseur.",
+  "files": [
+    "docs/changes/codex-v2-telemetry-current-20261010.json",
+    "docs/changes/codex-v2-telemetry-current-20261010.md",
+    "docs/work/samantha-runtime/contracts/v2.md",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-legacy-telemetry.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTelemetry.ts"
+  ],
+  "tests": [
+    {
+      "name": "V2 legacy/historical telemetry",
+      "status": "passed",
+      "evidence": "test-voice-legacy-telemetry: t01/t07/t99, app epoch or fresh UUID, preserved provider after detach, disabled recorder without clock/write, immediate two-session calibration serialized with distinct offsets, closing old sid uses its own offset, technical metadata only. Fractional drift 1000.001 us and clock_drift_truncated:false marker preserved; emitted rows accepted by the unchanged canonical A10 reader."
+    },
+    {
+      "name": "Current workflow and M1 regressions",
+      "status": "passed",
+      "evidence": "/tmp/run_pr_ci.py: CI_LOCAL_OK on af4132a, including M1 protocol/warm/detach/cancellation. test-voice-m1-telemetry additionally rerun 12/12. ci.yml unchanged; new legacy test run separately. After representation refinement, build, V2 legacy, M1 12/12 and analyzer/corpus 10/10 pass; no legacy threshold changed."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/v2.md",
+    "docs/changes/codex-v2-telemetry-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert V2 commits; existing opt-in C1 and provider lifecycle remain unchanged.",
+  "limitations": [
+    "Offline fixtures and host clock probe only, no S24 qualification, deployment, audio or transcript. Claude supplies integrated app/Companion sid correlation and recipes."
+  ]
+}
