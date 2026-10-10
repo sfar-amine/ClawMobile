@@ -1,0 +1,63 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-10T18:37:01+00:00",
+  "note": "Mesures S24 réelles, base réelle state/openclaw.sqlite (17 jobs) ; algorithme = reporting/control_snapshot.automation_source_revision de playbooks #38 (22e3408), recopié à l'identique dans un script temporaire hors dépôt (PR non installée)"
+ },
+ "digest": {
+  "realDb": {
+   "sha256": "701fa67236320cee38ca39c73c6b28e71f5c87d2e770920b44f15b5165d31d61",
+   "rows": 17,
+   "msFirst": 35.38,
+   "msWarm": [
+    2.55,
+    2.41,
+    2.46,
+    2.41
+   ]
+  },
+  "fixtureDb": {
+   "file": "cron-state.sqlite",
+   "sha256": "44de239b50b70f15cedb18841179e3af974defc9d4f193cb261a8578536ad342",
+   "rows": 17,
+   "note": "diffère du réel car job_json/name/description sont nettoyés"
+  },
+  "pythonStartupMs": 93,
+  "estimatedCliProbeColdMs": "≈130 (démarrage python 93 + première lecture 35)"
+ },
+ "controlAutomationsContract2": {
+  "route": "GET /v1/control/automations?contract=2",
+  "budgetAcceptanceS": 1.0,
+  "targetMs": 300,
+  "measures": [
+   {
+    "when": "19:16 premier appel",
+    "ms": 1729,
+    "deliveryMode": "generated?"
+   },
+   {
+    "when": "cache",
+    "ms": [
+     3,
+     3,
+     4,
+     2
+    ]
+   },
+   {
+    "when": "après 31 s (cache expiré)",
+    "ms": 4557,
+    "computationDurationMs": 4162.7,
+    "deliveryMode": "generated"
+   },
+   {
+    "when": "cache",
+    "ms": 8
+   },
+   {
+    "when": "19:35 passe P0-3",
+    "ms": 2475
+   }
+  ],
+  "conclusion": "lecture à froid 1,7–4,6 s : au-dessus du budget 1 s et de la cible 300 ms ; seul le cache tient le budget. Le coût est la collecte 'automations' (sources.automations.durationMs ≈ 1,6–4,2 s), pas la révision."
+ }
+}
