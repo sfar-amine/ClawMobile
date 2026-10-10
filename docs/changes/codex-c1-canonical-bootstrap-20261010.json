@@ -48,6 +48,11 @@
       "name": "real-app-bixby-baseline",
       "status": "passed",
       "evidence": "Fixture82 a9f08e5 metadata de8sessions réelles (4app/4Bixby), aucun contenu privé : projectContextChars=0/injectedWorkspaceFiles=0/currentTurn.runtimeContextChars=163. Bornes positives chars/inputTokens/runtimeMs vérifiées, ranges calculés, physicalAfter:null/comparisonQualified:false. Build+testcanonique complet passent sur baseb40b867."
+    },
+    {
+      "name": "current-ci-and-r20-union",
+      "status": "passed",
+      "evidence": "Toutes les étapes ci.yml de baseb40b867 passées localement CI_LOCAL_OK. Merge normal actueld142a9f puis build+C1 et5testsR20 delta passés; aucune étape CI perdue."
     }
   ],
   "documentation": [
