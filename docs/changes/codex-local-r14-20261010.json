@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "id": "codex-local-r14-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Extend existing attachment storage with bounded safe file shares and R3 cleanup",
+  "reason": "Explicit local-only Codex backlog delivery.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-local-r14-20261010.json",
+    "docs/changes/codex-local-r14-20261010.md",
+    "docs/work/samantha-runtime/contracts/r14.md",
+    "openclaw-plugin-mobile-ui/scripts/test-attachment-http.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-attachment-storage.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/nativeOperation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "R14",
+      "status": "passed",
+      "evidence": "Build and full CI_LOCAL_OK; storage and native HTTP tests cover limits, retention, signatures, collision, receipts, protected attachments and R3 deletion."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r14.md",
+    "docs/changes/codex-local-r14-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "Local patch/bundle only; no deployment or S24 receipt claimed."
+  ]
+}

@@ -1,3 +1,4 @@
+import {removeAttachments} from "./attachmentStorage";
 import fs from "fs/promises";
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "crypto";
 import {validateVoicePlayback,type VoicePlaybackMetadata} from "./voicePlaybackMetadata";
@@ -43,7 +44,7 @@ type CompanionRunRegistry = {
 };
 
 type RunDeletionReceipt = {version: 1; operationId: string; runId: string; clientRunId?: string;
-  sessionId: string; action: "delete_run"; state: "completed"; at: number};
+  sessionId: string; action: "delete_run"; state: "completed"; at: number; attachmentPaths?: string[]};
 
 type TrajectorySummary = {
   runId?: string;
@@ -320,6 +321,7 @@ function parseRunDeletions(value: unknown): RunDeletionReceipt[] {
     if (!row || row.version !== 1 || typeof row.operationId !== "string" || !CLIENT_RUN_ID_RE.test(row.operationId) ||
         typeof row.runId !== "string" || !CLIENT_RUN_ID_RE.test(row.runId) || typeof row.sessionId !== "string" ||
         (row.clientRunId !== undefined && (typeof row.clientRunId !== "string" || !CLIENT_RUN_ID_RE.test(row.clientRunId))) ||
+        (row.attachmentPaths!==undefined&&(!Array.isArray(row.attachmentPaths)||row.attachmentPaths.some((x:unknown)=>typeof x!=="string"))) ||
         row.action !== "delete_run" || row.state !== "completed" || !Number.isFinite(row.at) || row.at < 0 || operations.has(row.operationId)) {
       invalid++; continue;
     }
@@ -338,10 +340,11 @@ export async function deleteRun(runId: string, operationId: string) {
     const old = registry.runDeletions.find(row => row.operationId === operationId);
     if (old) {
       if (old.runId !== runId) throw Object.assign(new Error("operation_id_conflict"), {statusCode: 409});
+      removeAttachments(old.attachmentPaths||[],new Set(registry.runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||""))));
       return {success: true, state: "completed", receipt: old};
     }
     const deleted = registry.runDeletions.find(row => row.runId === runId);
-    if (deleted) return {success: true, state: "completed", receipt: deleted};
+    if (deleted) {removeAttachments(deleted.attachmentPaths||[],new Set(registry.runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||""))));return {success: true, state: "completed", receipt: deleted};}
     const run = registry.runs.find(row => row.runId === runId);
     if (!run) return {success: false, state: "not_found", receipt: null};
     const matches = (value: unknown) => typeof value === "string" && [run.runId, run.clientRunId, run.sessionId].includes(value);
@@ -352,12 +355,13 @@ export async function deleteRun(runId: string, operationId: string) {
     if (run.modality === "voice" ? !["completed", "interrupted"].includes(run.transcriptState || "") : !["done", "failed"].includes(run.state || ""))
       throw Object.assign(new Error("run_not_terminal"), {statusCode: 409});
     const receipt: RunDeletionReceipt = {version: 1, operationId, runId, clientRunId: run.clientRunId,
-      sessionId: run.sessionId, action: "delete_run", state: "completed", at: Date.now()};
+      sessionId: run.sessionId, action: "delete_run", state: "completed", at: Date.now(), attachmentPaths:(run.attachments||[]).map(x=>x.serverPath||x.path||"")};
     const nextRuns = registry.runs.filter(row => row.runId !== runId);
     const archived = nextRuns.some(row => row.sessionId === run.sessionId) ? registry.archivedSessionIds
       : Array.from(new Set([...registry.archivedSessionIds, run.sessionId]));
     await writeCompanionRunRegistry(nextRuns, archived, registry.paymentRequests, registry.ownerConfirmations, [...registry.runDeletions, receipt]);
     submittedRuns.delete(runId);
+    removeAttachments(receipt.attachmentPaths||[],new Set(nextRuns.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||""))));
     return {success: true, state: "completed", receipt};
   });
 }
@@ -1812,3 +1816,7 @@ export function subscribeConversationChanges(listener:(event:ConversationChange)
   }
   return {current,replay,resyncRequired,close:()=>changeListeners.delete(listener)};
 }
+
+export async function protectedAttachmentPaths(){return new Set((await registryOrEmpty()).runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||"")));}
+
+export async function withAttachmentReferences<T>(effect:(paths:Set<string>)=>T):Promise<T>{return mutateRegistry(async()=>effect(new Set((await registryOrEmpty()).runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||"")))));}

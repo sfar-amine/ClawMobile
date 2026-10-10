@@ -1,0 +1,44 @@
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import {randomUUID,createHash} from 'crypto';
+export const MAX_ATTACHMENT_BYTES=10*1024*1024;
+export const ATTACHMENT_QUOTA=500*1024*1024;
+export const RETENTION_MS=30*86400000;
+const formats:Record<string,string>={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','application/pdf':'pdf','text/plain':'txt'};
+const error=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
+export function attachmentDir(){return (process.env.CLAWMOBILE_ATTACHMENT_DIR||'').trim()||path.join(os.homedir(),'.clawmobile','companion-attachments');}
+export function attachmentId(value:string){if(!/^[A-Za-z0-9_-]{1,100}$/.test(value))throw error('invalid_attachment_id');return value;}
+function directory(create=false){const dir=attachmentDir();for(let p=dir;p!==path.dirname(p);p=path.dirname(p)){try{if(fs.lstatSync(p).isSymbolicLink())throw error('attachment_storage_unavailable',503);}catch(e:any){if(e.code!=='ENOENT')throw e;}}
+ if(create)fs.mkdirSync(dir,{recursive:true,mode:0o700});return dir;}
+export function validateAttachment(body:Buffer,mime:string){
+ if(!formats[mime]||!body.length||body.length>MAX_ATTACHMENT_BYTES)throw error(body.length>MAX_ATTACHMENT_BYTES?'attachment_too_large':'unsupported_attachment',body.length>MAX_ATTACHMENT_BYTES?413:400);
+ const matches=mime==='image/png'?body.length>=24&&body.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))&&body.toString('ascii',12,16)==='IHDR':
+ mime==='image/jpeg'?body.length>=4&&body[0]===255&&body[1]===216&&body[2]===255:
+ mime==='image/webp'?body.length>=16&&body.toString('ascii',0,4)==='RIFF'&&body.toString('ascii',8,12)==='WEBP':
+ mime==='image/gif'?body.length>=13&&['GIF87a','GIF89a'].includes(body.toString('ascii',0,6)):
+ mime==='application/pdf'?body.toString('ascii',0,5)==='%PDF-':
+ !body.includes(0)&&Buffer.from(body.toString('utf8'),'utf8').equals(body)&&!/[\x01-\x08\x0b\x0c\x0e-\x1f]/.test(body.toString('utf8'))&&!/^\s*(?:<!doctype\s+html|<html|<svg|<script|<\?xml)/i.test(body.toString('utf8'));
+ if(!matches)throw error('attachment_type_mismatch');
+}
+export function attachmentContent(id:string){const dir=directory();attachmentId(id);for(const [mime,ext] of Object.entries(formats)){
+ const file=path.join(dir,id+'.'+ext);try{const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);const info=fs.fstatSync(fd);if(!info.isFile()||info.size>MAX_ATTACHMENT_BYTES){fs.closeSync(fd);throw error('attachment_storage_unavailable',503);}return {fd,mime,size:info.size,file};}catch(e:any){if(e.code!=='ENOENT')throw e;}
+ }throw error('attachment_not_found',404);}
+export function purgeAttachments(protectedPaths:Set<string>,now=Date.now()){
+ const dir=directory();let names:string[];try{names=fs.readdirSync(dir);}catch(e:any){if(e.code==='ENOENT')return 0;throw e;}
+ if(names.length>10000)throw error('attachment_storage_unavailable',503);
+ let total=0;for(const name of names){const file=path.join(dir,name);const info=fs.lstatSync(file);if(!info.isFile()||info.isSymbolicLink())throw error('attachment_storage_unavailable',503);
+ if(!protectedPaths.has(file)&&now-info.mtimeMs>RETENTION_MS){fs.unlinkSync(file);continue;}total+=info.size;}return total;
+}
+export function saveAttachments(inputs:{id?:string;mimeType:string;body:Buffer;displayName?:string}[],protectedPaths:Set<string>,now=Date.now(),quota=ATTACHMENT_QUOTA){
+ if(!inputs.length||inputs.length>5||inputs.reduce((sum,x)=>sum+x.body.length,0)>25*1024*1024)throw error('attachment_share_limit',413);
+ const dir=directory(true);const planned=inputs.map(x=>{validateAttachment(x.body,x.mimeType);const id=attachmentId(x.id||'att_'+randomUUID());return {...x,id,file:path.join(dir,id+'.'+formats[x.mimeType])};});
+ if(new Set(planned.map(x=>x.id)).size!==planned.length)throw error('attachment_id_collision',409);
+ for(const item of planned)for(const ext of Object.values(formats))if(fs.existsSync(path.join(dir,item.id+'.'+ext)))throw error('attachment_id_collision',409);
+ if(purgeAttachments(protectedPaths,now)+planned.reduce((sum,x)=>sum+x.body.length,0)>quota)throw error('attachment_quota_exceeded',409);
+ const written:string[]=[];
+ try{for(const item of planned){const fd=fs.openSync(item.file,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_NOFOLLOW,0o600);written.push(item.file);try{fs.writeFileSync(fd,item.body);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}}}catch(e){for(const f of written)try{fs.unlinkSync(f);}catch{}throw error('attachment_write_failed',503);}
+ return planned.map(x=>({id:x.id,serverId:x.id,type:x.mimeType.startsWith('image/')?'image':'file',mimeType:x.mimeType,displayName:x.displayName||x.id+'.'+formats[x.mimeType],sizeBytes:x.body.length,path:x.file,serverPath:x.file,downloadUrl:'/v1/attachments/'+x.id+'/content',createdAt:now,expiresAt:now+RETENTION_MS}));
+}
+export function removeAttachments(paths:string[],protectedPaths:Set<string>){const dir=directory();for(const file of paths){if(path.dirname(file)!==dir||protectedPaths.has(file))continue;try{if(fs.lstatSync(file).isFile()&&!fs.lstatSync(file).isSymbolicLink())fs.unlinkSync(file);}catch(e:any){if(e.code!=='ENOENT')throw error('attachment_cleanup_failed',503);}}}
+export const attachmentDigest=(inputs:{id?:string;mimeType:string;body:Buffer;displayName?:string}[])=>createHash('sha256').update(JSON.stringify(inputs.map(x=>({id:x.id,mime:x.mimeType,hash:createHash('sha256').update(x.body).digest('hex'),name:x.displayName})))).digest('hex');

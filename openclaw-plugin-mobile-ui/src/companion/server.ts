@@ -1,3 +1,6 @@
+import {nativeOperation,operationBody} from "./nativeOperation";
+import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
+import {withAttachmentReferences} from "./runs";
 import { handleControl } from "./control";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import fs from "fs";
@@ -51,6 +54,7 @@ export function runSubmissionStatusCode(result: { success?: boolean; submissionS
 }
 
 export function startCompanionServer() {
+  withAttachmentReferences(paths=>purgeAttachments(paths)).catch(()=>console.error("[companion] attachment maintenance unavailable"));
   const configuredHost = (process.env.CLAWMOBILE_COMPANION_HOST || DEFAULT_HOST).trim();
   const host = listenHost(configuredHost);
   const port = parsePort(process.env.CLAWMOBILE_COMPANION_PORT, DEFAULT_PORT);
@@ -485,6 +489,11 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/runs") {
     const body = await readJsonBody<RunCreateRequest>(req);
+    if(body?.attachments){
+     if(!Array.isArray(body.attachments)||body.attachments.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
+     body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
+     if(body.attachments.reduce((sum:number,x:any)=>sum+x.sizeBytes,0)>25*1024*1024)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
+    }
     const instruction = String(body?.instruction || body?.text || "");
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
     const result = await submitIntent(
@@ -501,9 +510,9 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
-  if (method === "POST" && routePath === "/attachments") {
-    const result = await saveAttachment(req);
-    writeJson(res, result.success ? 200 : 400, result);
+  if (method === "POST" && (routePath === "/attachments"||routePath === "/attachments/share")) {
+    if(!isLoopback||req.headers["x-clawmobile-owner-flow"]!=="v1"){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"owner_required"});return;}
+    try{const result = await saveAttachment(req);writeJson(res,result.success?200:result.state==='indeterminate'?503:400,result);}catch(error:any){const status=error.statusCode===413?413:400;writeJson(res,status,{success:false,state:'refused',receipt:null,reason:status===413?'attachment_too_large':'invalid_attachment_request'});}
     return;
   }
 
@@ -1206,81 +1215,25 @@ function bootstrapCapabilities() {
   };
 }
 
-async function saveAttachment(req: http.IncomingMessage): Promise<IntentAttachment & { success: boolean; message: string }> {
-  const mimeType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0].trim().toLowerCase();
-  if (!mimeType.startsWith("image/")) {
-    return {
-      success: false,
-      message: "Only image attachments are supported.",
-      id: "",
-      type: "image",
-      mimeType,
-    };
-  }
-
-  const body = await readRawBody(req, MAX_ATTACHMENT_BYTES);
-  if (body.length === 0) {
-    return {
-      success: false,
-      message: "Attachment body is empty.",
-      id: "",
-      type: "image",
-      mimeType,
-    };
-  }
-
-  const id = sanitizeFilePart(String(req.headers["x-clawmobile-attachment-id"] || "")) || `att_${Date.now().toString(36)}`;
-  const requestedName = sanitizeFilePart(String(req.headers["x-clawmobile-filename"] || ""));
-  const extension = extensionForMime(mimeType);
-  const displayName = requestedName || `${id}.${extension}`;
-  const outputDir = attachmentDir();
-  fs.mkdirSync(outputDir, { recursive: true });
-  const outputPath = path.join(outputDir, `${id}.${extension}`);
-  fs.writeFileSync(outputPath, body);
-
-  return {
-    success: true,
-    message: "Attachment uploaded.",
-    id,
-    serverId: id,
-    type: "image",
-    mimeType,
-    displayName,
-    sizeBytes: body.length,
-    path: outputPath,
-    serverPath: outputPath,
-    downloadUrl: `/v1/attachments/${encodeURIComponent(id)}/content`,
-    createdAt: Date.now(),
-  };
+async function saveAttachment(req: http.IncomingMessage):Promise<any>{
+ const operationId=operationBody({operationId:String(req.headers['x-clawmobile-operation-id']||req.headers['x-clawmobile-attachment-id']||'')});
+ let inputs:{id?:string;mimeType:string;body:Buffer;displayName?:string}[];
+ if((req.url||'').split('?')[0].endsWith('/attachments/share')){
+  let value:any;try{value=JSON.parse((await readRawBody(req,35*1024*1024)).toString('utf8'));}catch{throw Object.assign(new Error('invalid_attachment_share'),{statusCode:400});}
+  if(!value||Object.keys(value).length!==1||!Array.isArray(value.files)||value.files.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
+  inputs=value.files.map((x:any)=>{if(!x||Object.keys(x).some(k=>!['id','mimeType','base64'].includes(k))||typeof x.base64!=='string'||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(x.base64))throw Object.assign(new Error('invalid_attachment_share'),{statusCode:400});return {id:x.id,mimeType:x.mimeType,body:Buffer.from(x.base64,'base64')};});
+ }else inputs=[{id:String(req.headers['x-clawmobile-attachment-id']||'')||undefined,displayName:sanitizeFilePart(String(req.headers['x-clawmobile-filename']||''))||undefined,mimeType:String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase(),body:await readRawBody(req,MAX_ATTACHMENT_BYTES)}];
+ const result=await nativeOperation(operationId,'attachments.upload',attachmentDigest(inputs),async()=>{
+  try{return {state:'completed',artifact:{attachments:await withAttachmentReferences(paths=>saveAttachments(inputs,paths))}};}
+  catch(error:any){if(error.statusCode===400||error.statusCode===409||error.statusCode===413)return {state:'refused',artifact:{reason:error.message}};throw error;}
+ });
+ const files=(result as any).artifact?.attachments;
+ return {...result,...(files?.length===1?files[0]:{}),...(files?{attachments:files}:{}),...((result as any).artifact?.reason?{reason:(result as any).artifact.reason}:{})};
 }
-
-async function serveAttachmentContent(res: http.ServerResponse, attachmentId: string) {
-  const id = sanitizeFilePart(attachmentId);
-  if (!id) {
-    writeJson(res, 404, {
-      success: false,
-      message: "Attachment was not found.",
-    });
-    return;
-  }
-
-  const outputDir = attachmentDir();
-  const candidates = ["png", "jpg", "webp", "gif", "img"].map((extension) =>
-    path.join(outputDir, `${id}.${extension}`),
-  );
-  const filePath = candidates.find((candidate) => fs.existsSync(candidate));
-  if (!filePath) {
-    writeJson(res, 404, {
-      success: false,
-      message: "Attachment was not found.",
-    });
-    return;
-  }
-
-  const mimeType = mimeForExtension(path.extname(filePath).replace(/^\./, ""));
-  res.statusCode = 200;
-  res.setHeader("Content-Type", mimeType);
-  fs.createReadStream(filePath).pipe(res);
+async function serveAttachmentContent(res:http.ServerResponse,id:string){
+ const item=attachmentContent(id);res.statusCode=200;res.setHeader('Content-Type',item.mime);res.setHeader('X-Content-Type-Options','nosniff');
+ if(!item.mime.startsWith('image/'))res.setHeader('Content-Disposition','attachment');
+ fs.createReadStream(item.file,{fd:item.fd,autoClose:true}).on('error',()=>res.destroy()).pipe(res);
 }
 
 function attachmentDir() {
@@ -1666,7 +1619,7 @@ function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
   const corsOrigin = (process.env.CLAWMOBILE_COMPANION_CORS_ORIGIN || "").trim();
   if (corsOrigin) {
     res.setHeader("Access-Control-Allow-Origin", corsOrigin);
-    res.setHeader("Access-Control-Allow-Headers", "content-type, authorization, x-clawmobile-client, x-clawmobile-request-id, x-clawmobile-attachment-id, x-clawmobile-filename, x-clawmobile-attachment-type");
+    res.setHeader("Access-Control-Allow-Headers", "content-type, authorization, x-clawmobile-client, x-clawmobile-request-id, x-clawmobile-attachment-id, x-clawmobile-filename, x-clawmobile-attachment-type, x-clawmobile-owner-flow, x-clawmobile-operation-id");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   }
   res.end(body);
@@ -1748,12 +1701,14 @@ async function readRawBody(req: http.IncomingMessage, maxBytes: number): Promise
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
+    let tooLarge = false;
 
     req.on("data", (chunk) => {
+      if(tooLarge)return;
       size += chunk.length;
       if (size > maxBytes) {
         reject(new HttpError(413, "Request body is too large."));
-        req.destroy();
+        tooLarge=true;chunks.length=0;req.resume();
         return;
       }
       chunks.push(Buffer.from(chunk));

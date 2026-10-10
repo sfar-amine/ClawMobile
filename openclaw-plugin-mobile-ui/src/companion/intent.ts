@@ -267,7 +267,7 @@ async function submitIntentInBackground(
 
 function appendAttachmentContext(text: string, attachments: IntentAttachment[]) {
   const imageAttachments = attachments.filter((attachment) =>
-    String(attachment.type || "").toLowerCase() === "image" && (attachment.path || attachment.serverPath),
+    ["image", "file"].includes(String(attachment.type || "").toLowerCase()) && (attachment.path || attachment.serverPath),
   );
   if (imageAttachments.length === 0) return text;
 
@@ -281,9 +281,9 @@ function appendAttachmentContext(text: string, attachments: IntentAttachment[]) 
   return [
     text,
     "",
-    "Attached image files are available on the local Termux filesystem:",
+    "Attached files are available on the local Termux filesystem:",
     ...attachmentLines,
-    "Use these image paths as supporting evidence when the task depends on the shared image.",
+    "Use these file paths as supporting evidence when the task depends on the shared file.",
   ].join("\n");
 }
 

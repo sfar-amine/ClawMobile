@@ -68,3 +68,9 @@ jobs:
           node scripts/test-claw-live-warm-cancellation.cjs
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
+
+      - name: Test attachment storage
+        run: node scripts/test-attachment-storage.cjs
+
+      - name: Test attachment HTTP contract
+        run: node scripts/test-attachment-http.cjs
