@@ -18,13 +18,15 @@
     "installer/termux-lite/companion-acceptance.py",
     "docs/work/samantha-runtime/contracts/c10.md",
     "docs/changes/codex-c10-curator-20261010.md",
-    "docs/changes/codex-c10-curator-20261010.json"
+    "docs/changes/codex-c10-curator-20261010.json",
+    "installer/termux-lite/context_native_metrics.py",
+    "installer/termux-lite/test-context-native-fixtures.py"
   ],
   "tests": [
     {
       "name": "C10-curator",
       "status": "passed",
-      "evidence": "13 synthetic digest tests, 8 scale tests and 7 imports tests passed; full existing CI with appended C10 step passed. Installed 200-event fixture missing; qualification blocked."
+      "evidence": "13 digest tests and 2 real S24 fixture tests passed, including real schema/events, readonly counters, native window completeness and bounded volume. Installed curator13:05 and native22:00 confirmed."
     }
   ],
   "documentation": [
@@ -53,8 +55,7 @@
   },
   "rollback": "Revert C10; preserve immutable events, Claude decides cleanup of generated non-normative notes.",
   "limitations": [
-    "Real200-event fixture and installed native promotion/recall source missing; counters unknown and draft blocked.",
-    "Managed daily digest partial receipt explicit; only represented proposals bridged, no all-digests coverage claim.",
-    "Installed13:05 cycle must be confirmed by Claude before activation; no new schedule."
+    "Native deep.lineCount is not demonstrated as a count of newly promoted facts; promotions remains null pending Claude owner proof (PR80 comment6101276834).",
+    "S24 recipe and activation remain Claude."
   ]
 }

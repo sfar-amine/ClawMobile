@@ -159,6 +159,7 @@ jobs:
       - name: Run bounded cross-surface native digest contract
         run: |
           python3 ../installer/termux-lite/test-context-digest.py
+          python3 ../installer/termux-lite/test-context-native-fixtures.py
           python3 ../installer/termux-lite/test-context-scale.py
           python3 ../installer/termux-lite/test-context-import.py
       - name: MCP context scopes and admitted client provenance

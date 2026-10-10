@@ -12,6 +12,7 @@ import uuid
 
 from context_memory import ACTIVE, COLUMNS, event, excerpt, normalized
 from context_digest import close_supersessions, bridge_digest
+from context_native_metrics import read_native_metrics
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("context_store", HERE / "context-store.py")
@@ -123,6 +124,7 @@ def main():
                       "proposalPreviewTruncated": len(proposals) > 20,
                       "startedAt": started.isoformat(),
                       "finishedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+            status.update(read_native_metrics(Path.home()/".openclaw/state/openclaw.sqlite", started))
             conn.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('curator_last_run_v1',?)", (json.dumps(status, separators=(",", ":")),))
             conn.execute("COMMIT")
         except Exception:

@@ -1,5 +1,5 @@
 """Synthetic owner schema tests; installed 200-event fixture is still required."""
-import datetime,hashlib,importlib.util,json,os,sqlite3,tempfile,unittest,subprocess,sys
+import contextlib,io,runpy,datetime,hashlib,importlib.util,json,os,sqlite3,tempfile,unittest,subprocess,sys
 from pathlib import Path
 from unittest.mock import patch
 from context_digest import bridge_digest,close_supersessions,MAX_BYTES,MAX_FILES
@@ -64,5 +64,9 @@ class DigestTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'future_file'):bridge_digest(self.conn,self.workspace,NOW)
   self.assertFalse((directory/'2026-10-10.md').exists());self.assertEqual(self.conn.execute("SELECT count(*) FROM dream_proposals WHERE status='bridged'").fetchone()[0],0)
  def test_unknown_native_metrics_remain_unknown_not_zero(self):
-  self.event(1);env=dict(os.environ,HOME=str(self.root),SAMANTHA_CONTEXT_ROOT=str(self.root));result=json.loads(subprocess.check_output([sys.executable,str(HERE/"context-dream.py")],env=env,text=True));self.assertIsNone(result["deepPromotions7d"]);self.assertIsNone(result["memoryRecallCount"]);self.assertEqual(result["nativeMetricsState"],"owner_source_unverified");persisted=json.loads(self.conn.execute("SELECT value FROM memory_meta WHERE key='curator_last_run_v1'").fetchone()[0]);self.assertIsNone(persisted["deepPromotions7d"])
+  self.event(1);output=io.StringIO()
+  with patch.dict(os.environ,{'SAMANTHA_CONTEXT_ROOT':str(self.root)}), patch('pathlib.Path.home',return_value=self.root), contextlib.redirect_stdout(output):
+   runpy.run_path(str(HERE/'context-dream.py'),run_name='__main__')
+  result=json.loads(output.getvalue());self.assertIsNone(result['deepPromotions7d']);self.assertIsNone(result['memoryRecallCount']);self.assertEqual(result['nativeMetricsState'],'owner_unavailable')
+  persisted=json.loads(self.conn.execute("SELECT value FROM memory_meta WHERE key='curator_last_run_v1'").fetchone()[0]);self.assertIsNone(persisted['deepPromotions7d'])
 if __name__=='__main__':unittest.main()
