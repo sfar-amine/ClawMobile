@@ -20,7 +20,7 @@
     {
       "name": "Context Guardian SQLite read-only owner contracts",
       "status": "passed",
-      "evidence": "Eight tests actual sqlite3 and shell; native10MiBentryrejectedbeforematerialization, generated200001rows, WALcommittedread/DBandWALunchanged, boundedprivateprojection, noCLI, atomic0600 output, invalid/missing/symlink preservingoldhealth, pressurecounts andfinite/deadline. Physical schema/rows fixture unavailable, no S24 qualification. Full current CI on runtime1f239f3: CI_LOCAL_OK; union28existingsteps+1C8step retained. Native-size and whole-reader-deadline refinements rerun8tests green; no unrelated retests."
+      "evidence": "Eight tests actual sqlite3 and shell; native10MiBentryrejectedbeforematerialization, generated200001rows, WALcommittedread/DBandWALunchanged, boundedprivateprojection, noCLI, atomic0600 output, invalid/missing/symlink preservingoldhealth, pressurecounts andfinite/deadline. Physical schema/rows fixture unavailable, no S24 qualification. Full current CI on runtime1f239f3: CI_LOCAL_OK; union28existingsteps+1C8step retained. Native-size and whole-reader-deadline refinements rerun8tests green; no unrelated retests. Latest runtime d8e2f7f (R17 merged) integrated normally; C8 eight tests and R17 existing-cycle three tests pass, all new baseline CI steps retained. Independent readonly review eight tests pass; no new local blocker."
     }
   ],
   "documentation": [
