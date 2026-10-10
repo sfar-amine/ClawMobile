@@ -184,6 +184,7 @@ async function status(r) {return api.getRunStatus(r.runId);}
   for (const file of [started,release]) try{fs.unlinkSync(file)}catch{}
   fs.writeFileSync(block,'block');const begin=Date.now();await api.listRuns();
   assert.ok(Date.now()-begin<2000,'listRuns exceeded its global read budget');
+  r=run('slow-native-status',{executionSource:'openclaw_agent'});write(r);const statusBegin=Date.now();assert.equal((await status(r)).state,'running');assert.ok(Date.now()-statusBegin<2000,'getRunStatus exceeded global read budget');
   fs.writeFileSync(release,'release');fs.unlinkSync(block);
   fs.writeFileSync(registry, '{bad registry');
   responses({});

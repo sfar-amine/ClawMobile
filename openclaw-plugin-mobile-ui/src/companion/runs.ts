@@ -497,7 +497,7 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
   const listed = await findSessionInfo(normalizedRunId, stored, deadline).catch(() => null);
   if (listed) {
     const fallback = statusFromSessionInfo(listed, normalizedRunId, stored || undefined);
-    return enrichFromSessionFile(fallback, listed, stored);
+    return enrichFromSessionFile(fallback, listed, stored, true, deadline);
   }
   if (stored) {
     return statusFromStoredRun(stored);
@@ -550,13 +550,14 @@ async function enrichFromSessionFile(
   sessionInfo: any,
   stored?: StoredRun,
   allowGatewayHistory = true,
+  deadline?: number,
 ): Promise<CompanionRunStatus> {
   if (stored?.executionSource === "capability_first") return statusFromStoredRun(stored);
   const sessionId = String(sessionInfo?.sessionId || "");
   if (!sessionId) return status;
 
   const [transcript, trajectory] = await Promise.all([
-    readSessionTranscript(sessionId, stored?.text, allowGatewayHistory ? String(sessionInfo?.key || "") : undefined).catch(() => null),
+    readSessionTranscript(sessionId, stored?.text, allowGatewayHistory ? String(sessionInfo?.key || "") : undefined, deadline).catch(() => null),
     readSessionTrajectory(sessionId, status.runId, stored?.text).catch(() => null),
   ]);
   if (!transcript && !trajectory) return status;
@@ -722,6 +723,7 @@ async function readSessionTranscript(
   sessionId: string,
   targetPrompt?: string,
   sessionKey?: string,
+  deadline?: number,
 ): Promise<TranscriptSummary> {
   const filePath = path.join(openClawStateDir(), "agents", agentId(), "sessions", `${sessionId}.jsonl`);
   let raw: string;
@@ -729,7 +731,10 @@ async function readSessionTranscript(
     raw = await fs.readFile(filePath, "utf8");
   } catch (error: any) {
     if (error?.code !== "ENOENT" || !sessionKey) throw error;
-    const history = await callOpenClawGateway("chat.history", { sessionKey, limit: 200 });
+    const remaining = deadline === undefined ? undefined : deadline - Date.now();
+    if (remaining !== undefined && remaining <= 0) throw new Error("inactivity_read_budget_exceeded");
+    const history = await callOpenClawGateway("chat.history", { sessionKey, limit: 200 },
+      remaining === undefined ? {} : {timeoutMs: remaining, hardTimeoutMs: remaining});
     raw = (Array.isArray(history?.messages) ? history.messages : [])
       .map((message: any) => JSON.stringify({ type: "message", message, timestamp: message.timestamp }))
       .join("\n");
