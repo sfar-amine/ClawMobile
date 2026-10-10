@@ -1,13 +1,12 @@
 import {allJobs,protectedJob} from "./automations";
 import { execFile, spawn } from "child_process";
-import {existsSync, constants} from "fs";
+import {existsSync} from "fs";
 import type { IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
 import readline from "readline";
 import { randomUUID, createHash } from "crypto";
 import { performance } from "perf_hooks";
-import fs from "fs/promises";
 import { completeHealthSection } from "./control-health";
 
 const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations", "notifications", "diagnostic"]);
@@ -223,18 +222,23 @@ export class ControlReadPool {
 }
 const controlReads=new ControlReadPool();
 
-// A revision input, never a replacement scheduler or a second copy of its jobs.
+// Digest comes from the existing Python reporting owner, never a second scheduler store.
+let revisionFlight:{key:string;value:Promise<string|null>}|undefined;
 async function automationSourceRevision():Promise<string|null>{
-  const root=process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),".openclaw");
-  const directory=path.join(root,"cron"),source=path.join(directory,"jobs.json");
-  let file:Awaited<ReturnType<typeof fs.open>>|undefined;
-  try{
-    for(const parent of [root,directory]){const info=await fs.lstat(parent);if(!info.isDirectory()||info.isSymbolicLink())return null;}
-    file=await fs.open(source,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
-    const info=await file.stat();if(!info.isFile()||info.size>8*1024*1024)return null;
-    const data=await file.readFile();if(data.length>8*1024*1024)return null;
-    return createHash("sha256").update(data).digest("hex");
-  }catch{return null;}finally{await file?.close();}
+  const roots=controlPaths(),root=process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),".openclaw");
+  const key=JSON.stringify([roots.playbooks,root]);
+  if(revisionFlight){if(revisionFlight.key===key)return revisionFlight.value;await revisionFlight.value;return automationSourceRevision();}
+  const value=new Promise<string|null>(resolve=>{
+    execFile("python3",["-m","reporting.control_snapshot","--automation-revision"],{
+      cwd:roots.playbooks,env:{...process.env},timeout:100,killSignal:"SIGKILL",maxBuffer:2048,
+    },(error,stdout)=>{
+      if(error){resolve(null);return;}
+      try{const result=JSON.parse(stdout);if(!result||typeof result!=="object"||Array.isArray(result)||Object.keys(result).some(k=>!["schemaVersion","sourceRevision"].includes(k))||result.schemaVersion!==1||!(result.sourceRevision===null||typeof result.sourceRevision==="string"&&/^[a-f0-9]{64}$/.test(result.sourceRevision)))throw Error();resolve(result.sourceRevision);}
+      catch{resolve(null);}
+    });
+  });
+  revisionFlight={key,value};void value.finally(()=>{if(revisionFlight?.value===value)revisionFlight=undefined;});
+  return value;
 }
 
 function deferredAutomations(revision:string|null):ControlResult{

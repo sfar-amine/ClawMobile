@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "codex-r5-bis-companion-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Consume canonical reporting SQLite revision with bounded single-flight probe and normal absence fallback",
+  "reason": "File29 attests canonical cron_jobs; real sanitized schema/row fixtures still missing on issue59.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-control-automations-latency.cjs",
+    "docs/work/samantha-runtime/contracts/r5-bis.md",
+    "docs/changes/codex-r5-bis-companion-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "automation-revision-latency",
+      "status": "passed",
+      "evidence": "Synthetic SQLite owner slow2.4s: cold265ms and cached30ms, runtime clock stable, config invalidates, guard/shared pool, missing source normal fallback. Not a production measure or real DB capture."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r5-bis.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal reporting revision for existing Control projection, no new agent or voice route/action."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing reporting read_db and canonical SQLite owner reused, no new store or scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP owner contracts unchanged; digest reader is internal reporting only."
+  },
+  "rollback": "Revert isolated paired lot under review; any qualified activation/rollback is performed by Claude using activate-ui-playbooks.sh and companion-deploy.sh with known-good SHAs and receipts.",
+  "limitations": [
+    "Real S24 SQLite schema/row capture missing, merge blocked.",
+    "Paired reporting playbooks owner must be merged/pinned first.",
+    "R22 separate; no push/PR before correction order signal."
+  ]
+}
