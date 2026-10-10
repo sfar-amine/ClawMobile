@@ -3,7 +3,7 @@
   "id": "codex-r19-r21-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Read quota and providers through existing shared Gateway owners",
   "reason": "Revue Claude32/core51 : captures r\u00e9elles envelopp\u00e9es base6b7c68f, co\u00fbt global/computing et budget12s/cache10min, cache canoniqueR6/R11 et capabilities jumelles planned.",
