@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "codex-g5-version-date-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Préparer la date ISO de déploiement dans updates via le seul lecteur G4.",
+  "reason": "Module G4 et capture reçus attendus ; binding pur non branché pour éviter un lecteur parallèle.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/updateDeploymentDate.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-update-deployment-date.cjs",
+    "docs/work/samantha-runtime/contracts/g5.md",
+    "docs/changes/codex-g5-version-date-20261010.json",
+    "docs/changes/codex-g5-version-date-20261010.md"
+  ],
+  "tests": [
+    {
+      "name": "G5-date-binding",
+      "status": "passed",
+      "evidence": "Build et binding test verts sur projection réelle p0-3/updates. Dates synthétiques explicites pour normalisation/null/calendar invalid ; aucun faux reçu S24."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/g5.md",
+    "docs/changes/codex-g5-version-date-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Date de version dans lecture updates existante, sans route/capability nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Single-flight et propriétaire SQLite/CLI existants ; aucun nouveau store/scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Pas de primitive ou route nouvelle ; binding pur attendu par owner G4 canonique.",
+    "evidence": [
+      "openclaw-plugin-mobile-ui/scripts/test-update-deployment-date.cjs",
+      "docs/work/samantha-runtime/contracts/g5.md"
+    ]
+  },
+  "rollback": "Revert de G5 ; lecteur G4 non dupliqué.",
+  "limitations": [
+    "G4 doit fournir module/cache et latestCompanionDeploymentAt avant intégration.",
+    "Capture positive réelle G4 et qualification HTTP/budget4s restent requises.",
+    "Aucune route active changée dans la préparation."
+  ]
+}

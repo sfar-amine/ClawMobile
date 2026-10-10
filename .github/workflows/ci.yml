@@ -173,3 +173,5 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+      - name: G5 deployed receipt date binding (preparation)
+        run: node scripts/test-update-deployment-date.cjs
