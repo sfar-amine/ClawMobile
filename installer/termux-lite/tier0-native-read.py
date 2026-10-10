@@ -1,6 +1,8 @@
 """Native facade over tier0-control, without download/package/alternate release authority."""
+import sys
+sys.dont_write_bytecode = True
 from pathlib import Path
-import argparse,hashlib,importlib.util,json,re,subprocess,datetime
+import argparse,hashlib,importlib.util,json,re,subprocess,datetime,os,stat
 
 ID=re.compile(r'[A-Za-z0-9_-]{1,100}')
 def owner(home):
@@ -36,13 +38,28 @@ def selected(module,link):
 
 def read(module):
  current=selected(module,module.CURRENT);lkg=selected(module,module.LKG);rows=[]
+ state={}
+ if module.STATE.exists():
+  fd=os.open(module.STATE,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+  with os.fdopen(fd,'rb') as stream:
+   info=os.fstat(stream.fileno())
+   if not stat.S_ISREG(info.st_mode) or info.st_size>65536:raise ValueError('invalid_tier0_state')
+   raw=stream.read(65537)
+  if len(raw)>65536:raise ValueError('invalid_tier0_state')
+  state=json.loads(raw)
+  if not isinstance(state,dict):raise ValueError('invalid_tier0_state')
+ blocked=set()
+ for key in ('rolled_back_from','last_bad'):
+  value=state.get(key)
+  for identifier in value if isinstance(value,list) else [value]:
+   if isinstance(identifier,str) and ID.fullmatch(identifier):blocked.add(identifier)
  if module.RELEASES.is_dir():
-  for path in sorted(module.RELEASES.iterdir())[:100]:
+  for path in sorted((path for path in module.RELEASES.iterdir() if path.name not in {'current','last-known-good'} and not path.is_symlink() and ID.fullmatch(path.name) and path.name not in blocked),reverse=True):
    if path.name in {'current','last-known-good'} or path.is_symlink() or not ID.fullmatch(path.name):continue
    try:rows.append(release(module,path.name))
    except (OSError,ValueError,RuntimeError,KeyError):continue
  return {'schemaVersion':1,'current':current,'lastKnownGood':lkg,'available':rows,
-         'updateAvailable':None,'versionSource':'tier0_manifest_verified','activationQualified':False}
+         'updateAvailable':None,'updateReason':'tier0_soak_rolled_back' if state.get('soak_state')=='rolled_back' else None,'versionSource':'tier0_manifest_verified','activationQualified':False}
 
 def updates_snapshot(home,companion_version=None):
  module=owner(home);issues=[]
@@ -55,8 +72,9 @@ def updates_snapshot(home,companion_version=None):
   except (ValueError,TypeError,KeyError):return None
  current_at=at(current) if current else None
  newer=[row for row in value['available'] if current_at is not None and at(row) is not None and at(row)>current_at and row['id']!=current['id']]
- value['updateAvailable']=bool(newer) if current_at is not None else None
- value['available']=newer
+ value['updateAvailable']=None if value.get('updateReason')=='tier0_soak_rolled_back' else bool(newer) if current_at is not None else None
+ if value.get('updateReason'):issues.append(value['updateReason'])
+ value['available']=sorted(newer,key=at,reverse=True)[:100]
  revision=None;pin=home/'.openclaw/runtime-ui-playbooks/current'
  try:
   target=pin.resolve(strict=True)

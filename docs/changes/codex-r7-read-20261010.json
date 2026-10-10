@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Expose verified installed versions and prepared updates without activation",
-  "reason": "File 18 R7 read-only lot on runtime 286fdd3.",
+  "reason": "File 18 R7 read-only lot; Claude review corrected on runtime 639ae68.",
   "files": [
     "docs/changes/codex-r7-read-20261010.json",
     "docs/changes/codex-r7-read-20261010.md",
@@ -20,7 +20,7 @@
     {
       "name": "r7-read",
       "status": "passed",
-      "evidence": "Real tier0 release verification and pinned Git snapshot HTTP tests; 14 existing tier0 tests; all runtime CI commands."
+      "evidence": "Rollback exclusion and null availability, 110 older releases, HTTP cache/single-flight and canonical-state invalidation; real tier0 release verification and pinned Git fixture; 14 tier0 tests and all current runtime CI commands."
     }
   ],
   "documentation": [
@@ -50,6 +50,6 @@
   "rollback": "Revert this local lot.",
   "limitations": [
     "Read-only prepared-release view, not a remote update catalog. Android version remains null without canonical runtime source.",
-    "No deployment or S24 recipe claimed. New test run separately while P2-e owns the CI change."
+    "No deployment or S24 recipe claimed. Tests run separately while R6 #27 exclusively modifies CI; registration follows its merge."
   ]
 }
