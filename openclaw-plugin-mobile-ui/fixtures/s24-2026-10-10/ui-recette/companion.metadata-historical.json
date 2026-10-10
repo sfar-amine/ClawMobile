@@ -1,0 +1,18 @@
+{
+ "_capture": {
+  "route": "GET /v1/conversations/samantha-4f8f128c-6224-413d-8ae7-259593c3380b/metadata",
+  "status": 404,
+  "latencyMs": 2023,
+  "capturedAt": "2026-10-10T19:39:27+00:00",
+  "companion": "9cdd84f",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "conversation listée par /runs?contract=2&view=conversations (Companion) mais inconnue de la Gateway : 8 conversations listées sur 10 dans ce cas"
+ },
+ "response": {
+  "success": false,
+  "state": "refused",
+  "receipt": null,
+  "error": "conversation_not_found"
+ }
+}

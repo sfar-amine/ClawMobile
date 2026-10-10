@@ -10,6 +10,7 @@ import { randomUUID, createHash } from "crypto";
 import { performance } from "perf_hooks";
 import fs from "fs/promises";
 import { completeHealthSection } from "./control-health";
+import {companionBuildVersion} from "./updatesControl";
 
 const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations", "notifications", "diagnostic"]);
 let activeStreams = 0;
@@ -280,7 +281,7 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
           throw controlError("control_invalid_request_origin");
         if(value.sections?.diagnostic?.data?.components) {
           const component=value.sections.diagnostic.data.components.find((row:any)=>row.id==="companion");
-          if(component){component.version=require("../../package.json").version;component.endpoint="/v1";}
+          if(component){component.version=companionBuildVersion();component.endpoint="/v1";}
           value.sections.diagnostic.dataRevision=createHash("sha256").update(JSON.stringify(value.sections.diagnostic.data)).digest("hex");
         }
         const project=value.sections?.notifications?.data
