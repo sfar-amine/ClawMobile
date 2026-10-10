@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
  const client=require('../dist/companion/openclawAgentClient'),key=client.expectedCompanionSessionKey('alpha');
  let reads=0,effects=0,slow=true,uncertain=false,lostEffect=false;
  const row={key,sessionId:'fixture-identity',model:'fixture',modelProvider:'openai',hasActiveRun:false,permissionModePending:false,
-  thinkingLevels:['off','low','high','max'].map(id=>({id,label:id})),thinkingDefault:'low',totalTokens:4000,contextTokens:16000,totalTokensFresh:true,snapshotAt:1800000000000};
+  thinkingLevels:['off','low','high','max','ultra'].map(id=>({id,label:id})),thinkingDefault:'low',totalTokens:4000,contextTokens:16000,totalTokensFresh:true,snapshotAt:1800000000000};
  client.callOpenClawGateway=async(method,params)=>{
   if(method==='sessions.list'){reads++;if(slow)await new Promise(r=>setTimeout(r,4150));return {sessions:[{...row}]};}
   assert.equal(method,'sessions.patch','metadata must never initiate a model/config fan-out');
@@ -22,12 +22,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
  });
  try{
   const [cold,concurrent]=await Promise.all([request(),request()]);assert.equal(cold.status,200);assert(cold.ms<6000);assert.equal(reads,1);assert.equal(concurrent.status,200);
-  assert.equal(cold.body.hasActiveRun,false);assert.equal(cold.body.thinkingChangeAvailable,true);assert.equal(cold.body.thinkingLevel,'low');assert.equal(cold.body.thinkingLevelSource,'default');assert.deepEqual(cold.body.thinkingLevels,['off','low','high']);assert.equal(cold.body.context.percent,25);assert(cold.body.issues.includes('conversation_model_catalog_unavailable'));
+  assert.equal(cold.body.hasActiveRun,false);assert.equal(cold.body.thinkingChangeAvailable,true);assert.equal(cold.body.thinkingLevel,'low');assert.equal(cold.body.thinkingLevelSource,'default');assert.deepEqual(cold.body.thinkingLevels,['off','low','high','max','ultra']);assert.equal(cold.body.context.percent,25);assert(cold.body.issues.includes('conversation_model_catalog_unavailable'));
   const warm=await request();assert(warm.ms<1500);assert.equal(reads,1);
   slow=false;
   const before=reads;
-  for(const level of ['ultra','max','bogus','adaptive']){const result=await request({operationId:'unsupported-'+level,thinkingLevel:level});assert.equal(result.status,400);assert.equal(result.body.error,'unsupported_thinking_level');}
-  assert.equal(effects,0);assert.equal(reads,before+1,'only globally valid but unsupported adaptive needs canonical read');
+  for(const level of ['bogus','adaptive']){const result=await request({operationId:'unsupported-'+level,thinkingLevel:level});assert.equal(result.status,400);assert.equal(result.body.error,'unsupported_thinking_level');}
+  assert.equal(effects,0);assert.equal(reads,before+2,'unsupported choices are checked against canonical session options');
   assert.equal((await request({operationId:'without-owner',thinkingLevel:'high'},false)).status,403);assert.equal(effects,0);
   row.hasActiveRun=true;const busy=await request({operationId:'busy',thinkingLevel:'high'});assert.equal(busy.status,409);assert.equal(busy.body.error,'run_active');row.hasActiveRun=false;
   const choice={operationId:'selected',thinkingLevel:'high'},changed=await request(choice);assert.equal(changed.body.state,'completed');assert.equal(effects,1);
@@ -42,6 +42,6 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   const beforeBank=await fs.readFile(file,'utf8');assert.equal((await request({operationId:'bank',thinkingLevel:'high'})).status,409);assert.equal(await fs.readFile(file,'utf8'),beforeBank);assert.equal(effects,3);
   registry.paymentRequests=[];registry.ownerConfirmations=[{state:'awaiting_owner',expiresAt:Date.now()+60000}];await fs.writeFile(file,JSON.stringify(registry));const beforeConfirmation=await fs.readFile(file,'utf8');assert.equal((await request({operationId:'protected-confirmation',thinkingLevel:'high'})).status,409);assert.equal(await fs.readFile(file,'utf8'),beforeConfirmation);assert.equal(effects,3);
   delete row.thinkingLevel;delete row.thinkingDefault;delete row.thinkingLevels;row.totalTokensFresh=false;require('../dist/companion/conversationOwnerIndex').invalidateConversationOwner(key);const missing=await request();assert.equal(missing.body.thinkingLevel,null);assert.equal(missing.body.thinkingLevelSource,null);assert.deepEqual(missing.body.thinkingLevels,[]);assert.equal(missing.body.thinkingChangeAvailable,false);assert.equal(missing.body.context,null);
-  console.log('R18 synthetic public2026.9.6: cold/warm shared read budgets, dynamic seven-level filter/default/session, missing catalogue, owner/run/bank guards, exact patch, replay/conflict, verified late result and no uncertain redispatch');
+  console.log('R18 synthetic public2026.9.6: cold/warm shared read budgets, dynamic canonical levels/default/session, missing catalogue, owner/run/bank guards, exact patch, replay/conflict, verified late result and no uncertain redispatch');
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1});

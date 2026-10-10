@@ -1,9 +1,7 @@
-# R18 — réflexion et jauge contexte (brouillon)
+# R18 — corrections de relecture fichier32
 
-Le détail des conversations lit le profil de réflexion et le contexte du Gateway dans la même vue sessions.list partagée. La mutation owner du niveau utilise sessions.patch et ses reçus existants. Les gardes bancaires/confirmations restent intactes. Une jauge sans données fraîches est null ; aucune estimation ou table par modèle.
+Base runtime6b7c68f et R11 correctif dbdb89b intégrés, union CI conservée. Les options viennent de thinkingOptions de la session (fallback thinkingLevels[].id), sans liste de niveaux supposée ; max et ultra sont acceptés quand proposés. Sans options, niveau null. Jauge fraîche et réflexion utilisent une lecture partagée.
 
-Dépend de core#28 (815b7c5), propriétaire cache commun R6/R21. Aucun fan-out catalogue depuis GETmetadata, aucune CLI par ligne. Cache borné100, absence non concluante traitée inconnue, course finrun/lecture antérieure traitée explicitement pending sans jauge.
+Fixture installée core#48 sessions.list (2376ms) raccordée aux tests : 8 niveaux, défaut low, contexte8%, lignes périmées/null, profil absent et revalidation sur le profil courant. Une mutation combinant modèle et réflexion est refusée avant effet : deux requêtes distinctes, pour éviter un effet partiel non validé. Recette absence de fil/404 skipped, erreurs503 et dépassements conservés.
 
-Sources publiques exactes OpenClaw2026.9.6 et tests synthétiques ; captures installées et budgets S24 manquants. Livraison en brouillon, qualification et fusion bloquées jusqu’aux preuves Claude. Acceptance contient froid6s/warm1,5s sur un vrai sessionId fourni et owner403. Aucun déploiement effectué.
-
-AGENTS85aeb075 lu et intégré : tableau NO_CAPABILITY temporaire pour GET/POSTmetadata, rattachement au registre et captures/budgets S24 exigés avant activation. Aucun mapping canonique inventé, aucune préroute agent/voix créée.
+Le NO_CAPABILITY temporaire est remplacé par les trois capabilities planned de la PR playbooks jumelle feature/codex-r18-conversation-capabilities-20261010 ; fusion/épinglage playbooks puis R11#28 puis R18#54 par Claude. Aucun adaptateur V6 parallèle ni activation ajoutée. Retour arrière : revert, sans migration. Captures réelles attestées ; budget total POST et recette de route restent à mesurer par Claude.

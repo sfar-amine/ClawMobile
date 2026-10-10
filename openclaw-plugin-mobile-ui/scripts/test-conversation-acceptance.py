@@ -4,13 +4,13 @@ from unittest.mock import patch
 source=Path(__file__).resolve().parents[2]/'installer/termux-lite/companion-acceptance.py'
 spec=importlib.util.spec_from_file_location('r11_acceptance',source);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class Tests(unittest.TestCase):
- def exercise(self,list_seconds=.01,metadata_seconds=.01,items=None,session_id=None,metadata_code=200):
+ def exercise(self,list_seconds=.01,metadata_seconds=.01,items=None,session_id=None,metadata_code=200,guard_code=403):
   calls=[]
   def call(method,path,timeout,headers=None):
    calls.append((method,path,timeout,headers));self.assertIsNone(headers)
    if path=='/conversations?limit=50':return 200,json.dumps({'items':items if items is not None else [{'sessionId':'alpha'}]}).encode(),list_seconds
    if path=='/conversations/alpha/metadata':return metadata_code,b'{"title":"Fixture","pinned":true}',metadata_seconds
-   return 403,b'{}',.001
+   return guard_code,b'{}',.001
   out=io.StringIO()
   with patch.object(m,'READS',[('/conversations?limit=50',.3)]),patch.object(m,'call',side_effect=call),contextlib.redirect_stdout(out):code=m.main(session_id)
   return code,json.loads(out.getvalue()),calls
@@ -28,4 +28,8 @@ class Tests(unittest.TestCase):
   code,out,_=self.exercise(metadata_code=404);self.assertEqual(code,0);self.assertEqual(out['checks'][1]['status'],'skipped');self.assertEqual(out['checks'][2]['status'],'skipped')
  def test_real_metadata_failure_still_fails(self):
   self.assertEqual(self.exercise(metadata_code=503)[0],1)
+ def test_missing_metadata_owner_guard_is_skipped(self):
+  code,out,_=self.exercise(guard_code=404);self.assertEqual(code,0);self.assertTrue(any(x['route']=='POST /conversations/x/metadata (no owner header)' and x['status']=='skipped' for x in out['checks']))
+ def test_present_metadata_guard_must_refuse_owner(self):
+  self.assertEqual(self.exercise(guard_code=200)[0],1)
 if __name__=='__main__':unittest.main()

@@ -6,11 +6,12 @@ import {callOpenClawGateway,expectedCompanionSessionKey} from "./openclawAgentCl
 import {readPaymentRequests,readOwnerConfirmations,reserveSubmittedRun,settleSubmittedRun} from "./runs";
 import {nativeError,existingNativeOperation,storedNativeOperationResult} from "./nativeOperation";
 
-const allowedThinking=['off','minimal','low','medium','high','xhigh','adaptive'];
+const thinkingId=(value:any):value is string=>typeof value==='string'&&/^[a-z][a-z0-9_-]{0,39}$/.test(value);
 function thinking(row:any){
- const levels=Array.isArray(row?.thinkingLevels)?[...new Set<string>(row.thinkingLevels.map((x:any)=>x?.id).filter((x:any)=>allowedThinking.includes(x)))]:[];
- const override=allowedThinking.includes(row?.thinkingLevel)?row.thinkingLevel:null;
- const fallback=allowedThinking.includes(row?.thinkingDefault)?row.thinkingDefault:null;
+ const source=Array.isArray(row?.thinkingOptions)?row.thinkingOptions:Array.isArray(row?.thinkingLevels)?row.thinkingLevels.map((x:any)=>x?.id):[];
+ const levels=[...new Set<string>(source.filter(thinkingId))].slice(0,32);
+ const override=levels.includes(row?.thinkingLevel)?row.thinkingLevel:null;
+ const fallback=levels.includes(row?.thinkingDefault)?row.thinkingDefault:null;
  return {thinkingLevel:override??fallback,thinkingLevelSource:override?'session':fallback?'default':null,thinkingLevels:levels};
 }
 const operationPattern=/^[-A-Za-z0-9_.:]{1,128}$/;
@@ -107,7 +108,8 @@ async function changeOnce(id:string,body:any){
  if(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).some(k=>!['operationId','title','pinned','model','thinkingLevel'].includes(k))||typeof body.operationId!=='string'||!operationPattern.test(body.operationId)||!['title','pinned','model','thinkingLevel'].some(k=>k in body)||
   ('title' in body&&(typeof body.title!=='string'||!body.title.trim()||body.title.length>120||hiddenText.test(body.title)))||
   ('pinned' in body&&typeof body.pinned!=='boolean')||('model' in body&&(typeof body.model!=='string'||!modelPattern.test(body.model))))throw nativeError('invalid_conversation_metadata');
- if('thinkingLevel' in body&&!allowedThinking.includes(body.thinkingLevel))throw nativeError('unsupported_thinking_level');
+ if('model' in body&&'thinkingLevel' in body)throw nativeError('conversation_settings_must_be_separate');
+ if('thinkingLevel' in body&&!thinkingId(body.thinkingLevel))throw nativeError('unsupported_thinking_level');
  const desired={...('title' in body?{title:body.title.trim()}:{}),...('pinned' in body?{pinned:body.pinned}:{}),...('model' in body?{model:body.model}:{}),...('thinkingLevel' in body?{thinkingLevel:body.thinkingLevel}:{})};
  const action='conversation.metadata',target=createHash('sha256').update(JSON.stringify({sessionId:id,...desired})).digest('hex');
  const identity=JSON.stringify({action,target});
@@ -115,14 +117,13 @@ async function changeOnce(id:string,body:any){
  const row=await ownerRow(id);
  if(typeof row.sessionId!=='string'||!/^[A-Za-z0-9_.-]{1,128}$/.test(row.sessionId))throw nativeError('conversation_identity_unavailable',409);
  if(await protectedActivity())throw nativeError('protected_owner_activity',409);
- let targetThinking=thinking(row).thinkingLevels;
+ const targetThinking=thinking(row).thinkingLevels;
  if('thinkingLevel' in desired&&(row.hasActiveRun!==false||row.permissionModePending!==false))throw nativeError('run_active',409);
  if('model' in desired){
   if(row.hasActiveRun!==false||row.permissionModePending!==false)throw nativeError('conversation_model_change_requires_idle',409);
   const catalog=await readModelOwnerFresh();
   if(!modelCatalogFrom(catalog).includes(desired.model))throw nativeError('unknown_conversation_model',409);
-  const selected=catalog.catalog.models.find((x:any)=>typeof x?.provider==='string'&&typeof x?.id==='string'&&ref(x.provider,x.id).split('@')[0]===desired.model.split('@')[0]);
-  targetThinking=thinking(selected).thinkingLevels;
+
  }
  if('thinkingLevel' in desired&&!targetThinking.includes(desired.thinkingLevel))throw nativeError('unsupported_thinking_level');
  const reserved=await reserveSubmittedRun(identity,'native-owner-actions','native-operation-'+body.operationId,{requestText:identity,executionSource:'capability_first',decision:{version:2,type:'EXECUTE',capability:action}});

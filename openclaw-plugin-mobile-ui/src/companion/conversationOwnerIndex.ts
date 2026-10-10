@@ -14,6 +14,7 @@ function row(value:any){
  for(const field of ['sessionId','model','modelProvider','modelOverride','providerOverride','authProfileOverride','modelOverrideSource','thinkingLevel','thinkingDefault'])if(typeof value[field]==='string'&&value[field].length<=200&&!/[\p{C}\p{Zl}\p{Zp}]/u.test(value[field]))extra[field]=value[field];
  for(const field of ['hasActiveRun','permissionModePending','totalTokensFresh'])if(typeof value[field]==='boolean')extra[field]=value[field];
  for(const field of ['totalTokens','contextTokens','snapshotAt'])if(Number.isSafeInteger(value[field])&&value[field]>=0)extra[field]=value[field];
+ if(Array.isArray(value.thinkingOptions)&&value.thinkingOptions.length<=32)extra.thinkingOptions=value.thinkingOptions.filter((level:any)=>typeof level==='string'&&/^[a-z][a-z0-9_-]{0,39}$/.test(level));
  if(Array.isArray(value.thinkingLevels)&&value.thinkingLevels.length<=32)extra.thinkingLevels=value.thinkingLevels.flatMap((level:any)=>typeof level?.id==='string'&&/^[a-z]{1,40}$/.test(level.id)?[{id:level.id}]:[]);
  return {key:value.key,...extra,...(typeof value.label==='string'&&value.label.length<=160&&!/[\p{C}\p{Zl}\p{Zp}]/u.test(value.label)?{label:value.label}:{}),...(typeof value.pinned==='boolean'?{pinned:value.pinned}:{})};
 }
@@ -35,7 +36,7 @@ export function conversationOwnerIndex(){
     const owners=value.sessions.map(row),next=new Map<string,ReturnType<typeof row>>(owners.map((owner:any)=>[owner.key,owner]));
     if(next.size!==owners.length)throw Error("conversation_owner_index_unavailable");
     for(const [key,owner] of rows)if((versions.get(key)||0)>startedEpoch)next.set(key,owner);
-    complete=value.sessions.length<100;rows=bounded(next);for(const key of versions.keys())if(!rows.has(key))versions.delete(key);observed=true;failed=false;
+    complete=value.sessions.length<100&&value.hasMore!==true&&(!Number.isSafeInteger(value.totalCount)||value.totalCount<=value.sessions.length);rows=bounded(next);for(const key of versions.keys())if(!rows.has(key))versions.delete(key);observed=true;failed=false;
    }catch{ failed=true; /* Keep the last successful owner view and its metadata revision. */ }
    finally{for(const [key,version] of startedDirty)if(dirty.get(key)===version)dirty.delete(key);nextRefreshAt=Date.now()+TTL_MS;flight=undefined;}
   })();

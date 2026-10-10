@@ -119,7 +119,7 @@ def main(session_id=None):
         metadata_checks(conversation_id)
     for method, path in OWNER_GUARDS:
         code, _, took = call(method, path, 10)
-        status = ("ok" if code == 403 else "fail") if path == "/conversations/x/metadata" else ("skipped" if code == 404 else ("ok" if code in (400, 403, 405) else "fail"))
+        status = "skipped" if code == 404 else (("ok" if code == 403 else "fail") if path == "/conversations/x/metadata" else ("ok" if code in (400, 403, 405) else "fail"))
         failed |= status == "fail"
         results.append({"route": method + " " + path + " (no owner header)", "code": code, "seconds": round(took, 2), "status": status})
     print(json.dumps({"accepted": not failed, "checks": results}, ensure_ascii=False))

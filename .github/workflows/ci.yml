@@ -103,6 +103,7 @@ jobs:
         run: |
           node scripts/test-conversation-metadata.cjs
           node scripts/test-conversation-thinking.cjs
+          node scripts/test-conversation-thinking-fixtures.cjs
           node scripts/test-conversation-context.cjs
           node scripts/test-conversation-context-race.cjs
           node scripts/test-conversation-context-coverage.cjs

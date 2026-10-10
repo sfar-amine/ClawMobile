@@ -3,10 +3,10 @@
   "id": "codex-r18-thinking-context-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "R18 draft: canonical conversation thinking profile and fresh token context on shared reads",
-  "reason": "User27; public OpenClaw2026.9.6 schemas prove implementation shape, installed P0 captures and budgets are still missing. Depends on core#28.",
+  "summary": "R18 session-owned thinking options and fresh token context with installed S24 fixture regressions",
+  "reason": "Claude file32 and core54 review; installed fixtures core48 prove fields, paired planned capabilities and core28 prerequisite retained.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-r18-thinking-context-20261010.json",
@@ -23,13 +23,14 @@
     "openclaw-plugin-mobile-ui/src/companion/conversationMetadata.ts",
     "openclaw-plugin-mobile-ui/src/companion/conversationOwnerIndex.ts",
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
-    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-thinking-fixtures.cjs"
   ],
   "tests": [
     {
       "name": "r18-thinking-context",
       "status": "passed",
-      "evidence": "Build, public-schema synthetic HTTP4.15s cold/warm/default/session/guards/replay/uncertainty, context-null, flight race and bounded100 coverage pass. Full preserved CI completed CI_LOCAL_OK; final duplicate-owner/acceptance supplied-session deltas rebuilt and targeted tests pass. No S24 evidence claimed."
+      "evidence": "Installed S24 sessions.list fixture tests (8 options max/ultra, low default, context8%, stale and missing/null) plus preserved cache/race/HTTP guards/replay/uncertainty and acceptance skipping missing route/session. New fixture test registered in CI; complete CI required before push. Full preserved CI complete CI_LOCAL_OK (/tmp/r18-review32-ci.log); final profile-change fixture targeted rerun passes. No S24 mutation performed. Independent r5 review and installed fixture targeted execution green; final 9 acceptance tests cover 404 GET/owner guard skipped and existing 200 owner bypass refused."
     }
   ],
   "documentation": [
@@ -39,7 +40,7 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "NO_CAPABILITY temporary for existing native metadata GET/POST; canonical app/agent/voice mapping and activation remain blocked, no invented capability id."
+    "reason": "Runtime implementation of external canonical samantha.app.conversation.status/model/thinking entries declared planned in paired playbooks PR per file32; this repository has no separate registry, adapter or router."
   },
   "architecture": {
     "changed": false,
@@ -58,10 +59,10 @@
   },
   "rollback": "Revert R18; no migration.",
   "limitations": [
-    "Draft requires real installed sessions.list/config.get/model/auth captures and cold/warm S24 measurements before qualification.",
-    "core#28 must merge first; this branch uses its shared model owner cache.",
-    "Bounded100-row view cannot prove absence beyond its window; no extra per-row discovery.",
-    "An in-flight snapshot captured before terminal invalidation is pending with null context until the next shared read.",
-    "AGENTS runtime85aeb075 read: captures and canonical app capability mapping required before activation. NO_CAPABILITY temporary table in contract; authorized POST total budget unqualified."
+    "core28 and paired planned playbooks capabilities must merge first; Claude pins playbooks before Companion.",
+    "Captured sessions.list latency2376ms and shapes verified locally; actual authorized metadata route budgets and activation remain Claude qualification.",
+    "Model+thinking in one request refused before effect; change model then choose a level from the reread canonical session.",
+    "Bounded/paginated owner view never proves absence outside coverage.",
+    "V6 adapter absent: planned entries remain non-executable."
   ]
 }

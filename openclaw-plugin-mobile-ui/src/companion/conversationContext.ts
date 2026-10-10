@@ -1,6 +1,6 @@
 /** Nullable projection of the public sessions.list row, not a token estimate.
- * Public package OpenClaw2026.9.6 session-row-prepared-read establishes these
- * fields. This draft HTTP projection still requires installed S24 captures.
+ * Installed S24 capture fixtures/s24-2026-10-10/gateway/sessions.list.json
+ * confirms these fields; public package OpenClaw2026.9.6 also establishes their shape.
  */
 export type ConversationContext={usedTokens:number;windowTokens:number;percent:number;source:"gateway";measuredAt:number};
 export function conversationContext(row:any):ConversationContext|null{
