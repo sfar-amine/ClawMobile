@@ -38,6 +38,11 @@
       "name": "merged-r8-and-p2b-authority-regressions",
       "status": "passed",
       "evidence": "Build, canonical bootstrap incl HTTPlearn/try, R8producer120assertions, canonicalguard46assertions and P2-bsourcefixture/actualHTTPservice regressions exit0. Existing payment guards/proofs/prompts/actions unchanged; authority propagation only."
+    },
+    {
+      "name": "clean-build-r10-transport-compatibility",
+      "status": "passed",
+      "evidence": "Generated dist removed, clean build on merged runtime42300b0. C1 assertions require existing canonical R10 leading session marker and unchanged user body; actual CLI slash remains /status without marker. C1HTTP/private-authority, P2-b, R8 producer/guard, R10conversation-origin, Live and relay/reconnect regressions pass. No production R10 change."
     }
   ],
   "documentation": [
