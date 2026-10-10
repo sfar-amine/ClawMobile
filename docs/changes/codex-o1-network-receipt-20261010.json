@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "codex-o1-network-receipt-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose canonical consultation network guard proof after exact restoration",
+  "reason": "Backlog37 O1: preserve guarded owner path and bounded A8 network provenance without bypassing deterministic payment.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-o1-network-receipt-20261010.json",
+    "docs/changes/codex-o1-network-receipt-20261010.md",
+    "docs/work/samantha-runtime/contracts/o1.md",
+    "installer/termux-lite/android-network-mutation-guard.py",
+    "installer/termux-lite/test-consultation-network-receipt.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/o1/network-guard-source.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/o1/README.md"
+  ],
+  "tests": [
+    {
+      "name": "o1-owner-and-provenance",
+      "status": "passed",
+      "evidence": "8 receipt and 36 existing guard tests; actual S24 source SHA equality; generic with_wifi_off AST unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/o1.md",
+    "docs/changes/codex-o1-network-receipt-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical telecom.orange.consultation entrypoint unchanged; additive owner receipt fields, no capability or parallel route/catalogue created."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing network guard leases, health receipt and reconciler reused; no store/daemon/registry."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Six canonical primitives unchanged; payload receipt fields are additive within existing claw_execute route.",
+    "evidence": [
+      "docs/work/samantha-runtime/contracts/o1.md"
+    ]
+  },
+  "rollback": "Revert twin PRs, activate previous snapshots via Claude only; existing reconciler owns outstanding leases.",
+  "limitations": [
+    "Source capture confirms owner schema only, not a live restored receipt. Claude must qualify canonical consultation after admission and guard activation.",
+    "No Wi-Fi mutation or operator consultation executed by Codex; no payment files modified.",
+    "O2 must call owner prepare before fallback; Wi-Fi-on path is never inferred from child transport text.",
+    "No global fast-path budget proof; O6 owns alignment.",
+    "Core owner PR must precede playbooks; new tests union into H1 manifests if merged meanwhile."
+  ]
+}

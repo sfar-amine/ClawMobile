@@ -656,6 +656,123 @@ def with_global_proxy(endpoint: str, purpose: str, command: list[str]) -> int:
         if restore_error:
             raise RuntimeError("temporary_proxy_restore_failed")
 
+def verify_consultation_lease(lease_id: str) -> bool:
+    """A caller-supplied id is only a pointer; the existing guard proves ownership."""
+    if not isinstance(lease_id, str) or not re.fullmatch(r"[a-f0-9]{32}", lease_id):
+        return False
+    path = LEASES / (lease_id + ".json")
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd) as source:
+            text = source.read(8193)
+        if len(text) > 8192:
+            return False
+        row = json.loads(text)
+        owner = row.get("owner_pid")
+        if (row.get("schema_version") != 1 or row.get("type") != "wifi_off"
+                or row.get("purpose") != "maxit-deterministic"
+                or not isinstance(owner, int) or isinstance(owner, bool) or owner <= 0
+                or not 0 <= time.time() - row["created_at"] <= MAX_LEASE_AGE
+                or not row.get("owner_identity")
+                or process_identity(owner) != row["owner_identity"] or not lease_alive(row)):
+            return False
+        pid = os.getpid()
+        for _ in range(32):
+            if pid == owner:
+                return True
+            proc = Path("/proc") / str(pid)
+            if proc.stat().st_uid != os.getuid():
+                return False
+            fields = (proc / "stat").read_text().rsplit(")", 1)[1].split()
+            pid = int(fields[1])
+            if pid <= 1:
+                return False
+    except (OSError, ValueError, KeyError, TypeError, IndexError):
+        pass
+    return False
+
+
+def prepare_consultation_cellular(lease_id: str) -> bool:
+    """Restore the exact initial Wi-Fi-on state before the internal cellular bind."""
+    if not verify_consultation_lease(lease_id):
+        return False
+    path = LEASES / (lease_id + ".json")
+    try:
+        row = json.loads(path.read_text())
+        if row.get("wifi_enabled") is not True:
+            return False
+        if wifi_enabled() is not True:
+            set_wifi(True)
+        if wifi_enabled() is not True:
+            return False
+        row["network_path"] = "cellular_bind_wifi_on"
+        row["network_path_reason"] = "http_400_wifi"
+        write_json(path, row)
+        return True
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+        return False
+
+
+def with_consultation_receipt(command: list[str]) -> int:
+    """Consultation-only additive API; generic/payment with-wifi-off is unchanged."""
+    if len(command) < 4 or command[:3] != [sys.executable, "-m", "telecom.maxit_guarded_service"]:
+        raise ValueError("invalid_consultation_command")
+    identity = process_identity(os.getpid())
+    if identity is None:
+        print(json.dumps({"ok": False, "source": "maxit_network_guard", "state": "guard_unavailable"}))
+        return 4
+    lease = create_lease("maxit-deterministic", lease_type="wifi_off", include_wifi=True)
+    row = json.loads(lease.read_text())
+    row["owner_identity"] = identity
+    write_json(lease, row)
+    proof = {"wifi_initial": row["wifi_enabled"], "wifi_disabled": False,
+             "dns_ready_ms": None, "restored": False, "lease_id": lease.stem, "path": "wifi_off"}
+    payload = {"ok": False, "source": "maxit_network_guard", "state": "guard_unavailable"}
+    code = 4
+    def interrupted(_sig, _frame):
+        raise KeyboardInterrupt
+    previous = {s: signal.signal(s, interrupted) for s in (signal.SIGTERM, signal.SIGINT)}
+    try:
+        if row["wifi_enabled"] is True:
+            set_wifi(False)
+            proof["wifi_disabled"] = True
+        env = os.environ.copy()
+        env["SAMANTHA_MAXIT_LEASE_ID"] = lease.stem
+        child = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
+        if len(child.stdout or "") > 1048576:
+            raise ValueError("consultation_output_limit")
+        value = json.loads(child.stdout or "")
+        if not isinstance(value, dict):
+            raise ValueError("consultation_output_invalid")
+        payload = value
+        code = child.returncode
+        milliseconds = payload.pop("dns_ready_ms", None)
+        if isinstance(milliseconds, int) and not isinstance(milliseconds, bool) and 0 <= milliseconds <= 8000:
+            proof["dns_ready_ms"] = milliseconds
+        observed = json.loads(lease.read_text())
+        if observed.get("network_path") == "cellular_bind_wifi_on" and observed.get("network_path_reason") == "http_400_wifi":
+            proof.update(path="cellular_bind_wifi_on", reason="http_400_wifi")
+    except (OSError, ValueError, subprocess.SubprocessError, KeyboardInterrupt):
+        payload = {"ok": False, "source": "maxit_network_guard", "state": "guard_unavailable"}
+        code = 4
+    finally:
+        try:
+            restore_lease(row)
+            proof["restored"] = True
+            lease.unlink(missing_ok=True)
+            write_receipt("healthy", "temporary_wifi_restored", network_guard=proof)
+        except Exception:
+            payload = {"ok": False, "source": "maxit_network_guard", "state": "restoration_failed"}
+            code = 4
+            write_receipt("degraded", "temporary_wifi_restore_failed", network_guard=proof)
+        for s, previous_handler in previous.items():
+            signal.signal(s, previous_handler)
+    payload["network_guard"] = proof
+    payload["network_path"] = proof["path"]
+    print(json.dumps(payload))
+    return code
+
+
 def with_wifi_off(purpose: str, command: list[str]) -> int:
     lease = create_lease(purpose, lease_type="wifi_off", include_wifi=True)
     row = json.loads(lease.read_text())
@@ -693,6 +810,12 @@ def main() -> int:
     w.add_argument("endpoint")
     w.add_argument("--purpose", default="temporary-proxy")
     w.add_argument("command", nargs="+")
+    prepare = sub.add_parser("prepare-consultation-cellular")
+    prepare.add_argument("lease_id")
+    verify = sub.add_parser("verify-consultation-lease")
+    verify.add_argument("lease_id")
+    consult = sub.add_parser("with-consultation-receipt")
+    consult.add_argument("command", nargs="+")
     wf = sub.add_parser("with-wifi-off")
     wf.add_argument("--purpose", default="temporary-wifi-off")
     wf.add_argument("command", nargs="+")
@@ -709,6 +832,14 @@ def main() -> int:
         if command_name != "forward-status":
             command_parser.add_argument("--owner-pid", type=int, required=True)
     args = ap.parse_args()
+    if args.cmd == "prepare-consultation-cellular":
+        valid = prepare_consultation_cellular(args.lease_id)
+        print(json.dumps({"success": valid, **({"lease_id": args.lease_id, "path": "cellular_bind_wifi_on"} if valid else {"reason": "maxit_guard_required"})}))
+        return 0 if valid else 4
+    if args.cmd == "verify-consultation-lease":
+        valid = verify_consultation_lease(args.lease_id)
+        print(json.dumps({"success": valid, **({"lease_id": args.lease_id} if valid else {"reason": "maxit_guard_required"})}))
+        return 0 if valid else 4
     if args.cmd.startswith("forward-"):
         try:
             if args.cmd == "forward-acquire":
@@ -753,6 +884,8 @@ def main() -> int:
     command = args.command[1:] if args.command and args.command[0] == "--" else args.command
     if not command:
         raise SystemExit(f"{args.cmd} requires a command")
+    if args.cmd == "with-consultation-receipt":
+        return with_consultation_receipt(command)
     if args.cmd == "with-wifi-off":
         return with_wifi_off(args.purpose, command)
     return with_global_proxy(args.endpoint, args.purpose, command)
