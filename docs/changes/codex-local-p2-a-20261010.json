@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "id": "codex-local-p2-a-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "feat(companion): expose native automation detail and guarded actions (P2-a)",
+  "reason": "P2-a prioritaire après revue R2-v2 ; base indépendante 066a340 et disponibilité des actions R9.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-local-p2-a-20261010.json",
+    "docs/changes/codex-local-p2-a-20261010.md",
+    "docs/work/samantha-runtime/contracts/p2-a.md",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-detail.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-notification-sources.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/automations.ts",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/nativeOperation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "review-17-p2-a",
+      "status": "passed",
+      "evidence": "All runtime CI commands passed. Updated R9 integration fixture passes with canonical cron.list evidence. Preflight failure/not-found retry, protected jobs and unchanged payment/confirmation data covered."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p2-a.md",
+    "docs/changes/codex-local-p2-a-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "Local patch/bundle only; no deployment or S24 receipt claimed."
+  ]
+}
