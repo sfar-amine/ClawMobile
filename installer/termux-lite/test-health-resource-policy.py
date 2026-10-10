@@ -1,5 +1,6 @@
-"""Synthetic pure-policy checks, not a S24 fixture or runtime recipe."""
+"""Real S24 metric decoding and synthetic pure-policy guards; no runtime recipe."""
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -19,6 +20,29 @@ class ResourcePolicyTests(unittest.TestCase):
 
     def decision(self, **changes):
         return policy.restart_decision(self.metrics, self.limits, **(self.args | changes))
+
+    def test_real_s24_probes_decode_uptime_without_selinux_denied_sources(self):
+        fixture = json.loads((Path(__file__).parents[2] / 'openclaw-plugin-mobile-ui' /
+            'fixtures/s24-2026-10-10/p0-4-5/resources-inventory.json').read_text())
+        values = policy.metrics_from_owner_observation(fixture['gateway']['procStatus'],
+            fixture['meminfo'], fixture['uptime'])
+        self.assertEqual(values, policy.Metrics(1286788, 624940, 2816996, 3.57))
+        self.assertFalse(fixture['thresholdOwner']['found'])
+        # Zero cron runs is not exhaustive idle: Gateway, Bridge and payment
+        # remain unknown. Even synthetic qualified pressure cannot authorize it.
+        observed = policy.IdleProof(29999, False, None, None, None)
+        self.assertEqual(self.decision(idle=observed)['reason'], 'idle_unproven')
+
+    def test_probe_failures_do_not_become_zero_or_healthy(self):
+        for value in (None, {}, {'VmRSS': 'PermissionError'}, {'VmRSS': '-1 kB'},
+                      {'VmRSS': '128 kB injected'}, {'VmRSS': '128 MB'}):
+            self.assertIsNone(policy.metrics_from_owner_observation(value, {}, None).rss_kib)
+        valid = {'VmRSS': '128 kB', 'VmSwap': '0 kB'}
+        for uptime in (None, '', 'PermissionError', 'load average: 3,57, 4,14, 4,27',
+                       'load average: 3.57, 4.14, 4.27 extra', 'x'*4097):
+            values = policy.metrics_from_owner_observation(valid, {'MemAvailable': '9 kB'}, uptime)
+            self.assertIsNone(values.load_one)
+            self.assertEqual(policy.pressure(values, self.limits)['state'], 'unknown')
 
     def test_unknown_metrics_and_boundaries(self):
         self.assertEqual(policy.pressure(self.metrics, self.limits)["reasons"],

@@ -5,6 +5,7 @@ These inputs are not a second source of truth or a new runtime file format.
 """
 from dataclasses import dataclass
 import math
+import re
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,30 @@ class IdleProof:
 
 def _finite(value):
     return type(value) in (int, float) and math.isfinite(value) and value >= 0
+
+
+def metrics_from_owner_observation(proc_status, meminfo, uptime):
+    """Decode bounded probes from the health-manager UID; no I/O or restart.
+
+    Android denies /proc/loadavg and PSI on the captured S24. The existing
+    uptime/sysinfo path supplies load; a failed or malformed probe stays unknown.
+    No default thresholds, credentials, payment state or idle proof are inferred.
+    """
+    def kib(mapping, key):
+        value = mapping.get(key) if isinstance(mapping, dict) else None
+        if not isinstance(value, str) or len(value) > 80:
+            return None
+        match = re.fullmatch(r'([0-9]{1,15})[ \t]+kB', value)
+        return int(match.group(1)) if match else None
+    load = None
+    if isinstance(uptime, str) and len(uptime) <= 4096:
+        match = re.search(r'load averages?: ([0-9]+(?:\.[0-9]+)?),? '
+                          r'([0-9]+(?:\.[0-9]+)?),? ([0-9]+(?:\.[0-9]+)?)\s*$', uptime)
+        if match:
+            candidate = float(match.group(1))
+            load = candidate if _finite(candidate) else None
+    return Metrics(kib(proc_status, 'VmRSS'), kib(proc_status, 'VmSwap'),
+                   kib(meminfo, 'MemAvailable'), load)
 
 
 def pressure(metrics: Metrics, thresholds: Thresholds):

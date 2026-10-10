@@ -1,4 +1,4 @@
-"""Large synthetic owner volumes; physical capture/qualification still pending."""
+"""S24 log sizes and large generated owner volumes; no runtime activation."""
 import argparse
 import datetime as dt
 import importlib.util
@@ -60,6 +60,31 @@ class OwnerRetentionTests(unittest.TestCase):
             for file in files:
                 self.assertLessEqual(file.stat().st_size,5096)
                 self.assertEqual(file.stat().st_mode & 0o777,0o600)
+
+    def test_captured_s24_oversized_log_and_inherited_archive_permissions(self):
+        fixture = json.loads((HERE.parent.parent / 'openclaw-plugin-mobile-ui' /
+            'fixtures/s24-2026-10-10/p0-4-5/resources-inventory.json').read_text())
+        gateway_size = next(size for name, size in fixture['inventory']['logs_top']
+                            if name.endswith('/gateway.stderr.log'))
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / 'gateway.stderr.log'
+            # The runtime text was not captured. Exercise its measured 36.6MB
+            # extent with a neutral sparse file and a recognizable final tail.
+            with log.open('wb') as output:
+                output.truncate(gateway_size - 4)
+                output.seek(0, 2)
+                output.write(b'tail')
+            log.chmod(0o644)
+            archive = log.with_name(log.name + '.1')
+            archive.write_bytes(b'prior'); archive.chmod(0o644)
+            logs.append_line(log, 'next')
+            self.assertEqual(log.read_bytes(), b'next\n')
+            rotated = log.with_name(log.name + '.1')
+            self.assertEqual(rotated.stat().st_size, 1024 * 1024)
+            self.assertTrue(rotated.read_bytes().endswith(b'tail'))
+            for item in Path(directory).iterdir():
+                self.assertEqual(item.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(log.with_name(log.name + '.2').read_bytes(), b'prior')
 
     def test_symlink_hardlink_and_oversized_record_refuse(self):
         with tempfile.TemporaryDirectory() as directory:

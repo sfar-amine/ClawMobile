@@ -25,6 +25,7 @@ def rotate(path, max_bytes=1024*1024, keep=3):
             continue
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
             raise ValueError('unsafe_log_file')
+        os.chmod(item, 0o600, follow_symlinks=False)
     if not path.exists() or path.stat().st_size < max_bytes:
         return False
     paths[-1].unlink(missing_ok=True)
