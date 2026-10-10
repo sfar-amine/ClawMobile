@@ -254,7 +254,8 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
   const roots=controlPaths();
   const fastAutomations=names.length===1&&names[0]==="automations";
   const sourceRevision=fastAutomations?await automationSourceRevision():null;
-  if(fastAutomations&&!sourceRevision)return deferredAutomations(null);
+  // Without a readable revision source, the fast path would answer "deferred" forever: read normally instead.
+  const fast=fastAutomations&&sourceRevision!==null;
   const key=JSON.stringify(["native-loopback",roots.playbooks,roots.live,2,names,detailId||null,sourceRevision]);
   const generate=(abort:AbortSignal)=>new Promise<ControlResult>((resolve,reject)=>{
     const args=["-m","reporting.control_snapshot","--contract","2","--sections",names.join(",")];
@@ -297,11 +298,11 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
   });
   const guardedGenerate=async(abort:AbortSignal)=>{
     const value=await generate(abort);
-    if(fastAutomations&&await automationSourceRevision()!==sourceRevision)throw controlError("control_invalidated",409);
+    if(fast&&await automationSourceRevision()!==sourceRevision)throw controlError("control_invalidated",409);
     return value;
   };
-  const result=controlReads.read(key,guardedGenerate,signal,{force,cache:fastAutomations||process.env.SAMANTHA_CONTROL_CACHE==="1"});
-  if(!fastAutomations)return result.then(completeUsageAttention);
+  const result=controlReads.read(key,guardedGenerate,signal,{force,cache:fast||process.env.SAMANTHA_CONTROL_CACHE==="1"});
+  if(!fast)return result.then(completeUsageAttention);
   // The existing bounded collector continues; polling shares its single flight.
   let timer:ReturnType<typeof setTimeout>|undefined;
   try{return await Promise.race([result,new Promise<ControlResult>(resolve=>{
