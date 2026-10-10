@@ -24,7 +24,7 @@
     {
       "name": "complete-current-ci-workflow",
       "status": "passed",
-      "evidence": "All current ci.yml run steps locally executed: CI_LOCAL_OK exit0, base1f239f3 preserved. No route integration or S24 qualification."
+      "evidence": "All current ci.yml run steps locally executed after normal merge runtime42300b0: CI_LOCAL_OK exit0, current base steps preserved. No route integration or S24 qualification."
     }
   ],
   "documentation": [
@@ -54,6 +54,6 @@
   "limitations": [
     "Real installed cron.status/cron.runs request/response captures missing; integration and merge blocked.",
     "No route, Gateway provider or header wired; HTTP budgets/acceptance/canonical planned capability are prerequisites for next delta.",
-    "Publication coordinated after R5-bis pair and root signal; no S24 qualification."
+    "Publication authorized as separate draft after R5-bis pair; merge and integration blocked, no S24 qualification."
   ]
 }
