@@ -1,0 +1,22 @@
+{"id":"silence-idle","cat":"silence","lang":"fr","stimulus":"Aucune parole pendant la fenêtre de détection","expect":"reject","origin":"M1-C3"}
+{"id":"noise-keyboard","cat":"noise_short","lang":"fr","stimulus":"Clavier et clic isolé sans parole intentionnelle","expect":"reject","origin":"M1-C3"}
+{"id":"noise-motor","cat":"noise_continuous","lang":"fr","stimulus":"Ventilation continue et bruit de circulation","expect":"reject","origin":"M1-C3"}
+{"id":"background-conversation","cat":"background_speech","lang":"fr","stimulus":"Conversation distante sans adresse à Samantha","expect":"reject","origin":"M1-C3"}
+{"id":"speaker-own-echo","cat":"speaker_echo","lang":"fr","stimulus":"Écho de la réponse audio synthétisée de Samantha","expect":"no_interrupt","origin":"M1-C3"}
+{"id":"barge-true-fr","cat":"bargein_true","lang":"fr","stimulus":"Interruption explicite de l'utilisateur pendant la réponse","expect":"interrupt","origin":"M1-C3"}
+{"id":"barge-false-noise","cat":"bargein_false","lang":"fr","stimulus":"Bruit non verbal pendant la réponse","expect":"no_interrupt","origin":"M1-C3"}
+{"id":"short-oui","cat":"short_word","lang":"fr","stimulus":"Oui prononcé comme commande intentionnelle","expect":"accept","origin":"M1-C3"}
+{"id":"lang-fr","cat":"lang_fr","lang":"fr","stimulus":"Quelle est la prochaine étape du projet ?","expect":"respond","origin":"M1-C3"}
+{"id":"lang-en","cat":"lang_en","lang":"en","stimulus":"What is the status of the project?","expect":"respond","origin":"M1-C3"}
+{"id":"lang-ar","cat":"lang_ar","lang":"ar","stimulus":"ما حالة المشروع الآن؟","expect":"respond","origin":"M1-C3"}
+{"id":"lang-tn-latin","cat":"lang_tn","lang":"tn","stimulus":"Chnowa l'etat mta3 el projet ?","expect":"respond","origin":"M1-C3"}
+{"id":"mixed-fr-tn","cat":"mixed","lang":"fr-tn","stimulus":"Donne-moi el état ta3 service","expect":"respond","origin":"M1-C3"}
+{"id":"named-entity-openclaw","cat":"named_entity","lang":"fr","stimulus":"Ouvre OpenClaw sur le S24","expect":"respond","origin":"M1-C3"}
+{"id":"foreign-script-ar","cat":"foreign_script","lang":"ar","stimulus":"اضبط الإعدادات","expect":"respond","origin":"M1-C3"}
+{"id":"guard-es-que-noise","cat":"guard_reject","lang":"es","stimulus":"Bruit court transcrit ¿Qué?","expect":"reject","origin":"REQ-1652"}
+{"id":"network-disconnect","cat":"network","lang":"fr","stimulus":"Perte de réseau pendant une réponse en cours","expect":"no_effect","origin":"M1-C3"}
+{"id":"late-receipt","cat":"late_receipt","lang":"fr","stimulus":"Résultat tardif reçu après annulation, sans rejeu","expect":"no_effect","origin":"M1-C3"}
+{"id":"action-read","cat":"action_capability","lang":"fr","stimulus":"Consulte les capacités actives en lecture seule","expect":"respond","origin":"M1-C3"}
+{"id":"barge-true-ar","cat":"bargein_true","lang":"ar","stimulus":"مقاطعة صوتية صريحة أثناء رد Samantha","expect":"interrupt","origin":"M1-C3"}
+{"id":"barge-false-echo-ar","cat":"bargein_false","lang":"ar","stimulus":"صدى صوت المساعد أثناء الرد","expect":"no_interrupt","origin":"M1-C3"}
+{"id":"lang-tn-arabic","cat":"lang_tn","lang":"tn","stimulus":"شنوة أخبار الخدمة توا؟","expect":"respond","origin":"M1-C3"}
