@@ -58,6 +58,7 @@ EOF
 chmod +x "$H/fake-readiness-standby"
 PATH="$T/bin:$PATH" \
 ADB_RECOVERY_HOME="$H" \
+CLAW_RUNTIME_ROOT="$H/ClawMobile/installer/termux-lite" \
 ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-standby" \
 ADB_RECOVERY_INTERVAL=0 \
 ADB_RECOVERY_READINESS_HELP_AFTER=2 \
@@ -79,6 +80,7 @@ date +%s >"$H/.openclaw/watchdogs/adb-recovery-readiness-arm.last"
 printf standby >"$H/.openclaw/watchdogs/adb-recovery-readiness.state"
 PATH="$T/bin:$PATH" \
 ADB_RECOVERY_HOME="$H" \
+CLAW_RUNTIME_ROOT="$H/ClawMobile/installer/termux-lite" \
 ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-standby" \
 ADB_RECOVERY_READINESS_ARM_INTERVAL=900 \
 ADB_RECOVERY_INTERVAL=0 \
@@ -98,6 +100,7 @@ EOF
 chmod +x "$H/fake-readiness-advisory"
 PATH="$T/bin:$PATH" \
 ADB_RECOVERY_HOME="$H" \
+CLAW_RUNTIME_ROOT="$H/ClawMobile/installer/termux-lite" \
 ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-advisory" \
 ADB_RECOVERY_INTERVAL=0 \
 ADB_RECOVERY_READINESS_HELP_AFTER=2 \
@@ -116,6 +119,7 @@ printf inc-readiness >"$H/.openclaw/watchdogs/adb-recovery-readiness-notified"
 printf degraded >"$H/.openclaw/watchdogs/adb-recovery-readiness.state"
 PATH="$T/bin:$PATH" \
 ADB_RECOVERY_HOME="$H" \
+CLAW_RUNTIME_ROOT="$H/ClawMobile/installer/termux-lite" \
 ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-standby" \
 ADB_RECOVERY_INTERVAL=0 \
 ADB_RECOVERY_MAX_LOOPS=1 \
@@ -133,6 +137,7 @@ EOF
 chmod +x "$H/fake-readiness-ready"
 PATH="$T/bin:$PATH" \
 ADB_RECOVERY_HOME="$H" \
+CLAW_RUNTIME_ROOT="$H/ClawMobile/installer/termux-lite" \
 ADB_RECOVERY_READINESS_HELPER="$H/fake-readiness-ready" \
 ADB_RECOVERY_INTERVAL=0 \
 ADB_RECOVERY_MAX_LOOPS=1 \
