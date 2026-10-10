@@ -1743,12 +1743,16 @@ export async function getConversationTurns(sessionId: string) {
   if(!unresolved.length)return stored.map(statusFromStoredRun);
   const history=await callOpenClawGateway("chat.history",{sessionKey:expectedCompanionSessionKey(sessionId),limit:200});
   const raw=(Array.isArray(history?.messages)?history.messages:[]).map((message:any)=>JSON.stringify({type:"message",message,timestamp:message.timestamp})).join("\n");
-  const proofs=unresolved.flatMap(run=>{
+  const proofs=unresolved.flatMap<{before:StoredRun;result?:string;endedAt?:number;activeEvidenceAt?:number}>(run=>{
     // Repeated equal requests require a stronger owner correlation, never guess the last match.
     if(stored.filter(x=>x.text===run.text).length!==1)return [];
     if(run.error==="run_inactivity_expired"){
       const evidence=ownerTurnEvidence(history?.messages,run.text,Date.now());
-      if(!evidence||evidence.outstandingTool||Math.abs(evidence.startedAt-run.acceptedAt)>30000)return [];
+      if(!evidence||Math.abs(evidence.startedAt-run.acceptedAt)>30000)return [];
+      if(evidence.outstandingTool||evidence.lastAt>(run.updatedAt||run.acceptedAt)){
+        const terminal=terminalConversationResult(raw,run.text);
+        if(!terminal||evidence.outstandingTool)return [{before:run,activeEvidenceAt:evidence.lastAt}];
+      }
     }
     const proof=terminalConversationResult(raw,run.text);
     return proof?[{before:run,...proof}]:[];
@@ -1759,7 +1763,7 @@ export async function getConversationTurns(sessionId: string) {
   return (await readStoredRuns()).filter(run=>run.sessionId===sessionId).slice(0,40).reverse().map(statusFromStoredRun);
 }
 
-async function backfillConversationResults(sessionId:string,proofs:{before:StoredRun;result:string;endedAt?:number}[]) {
+async function backfillConversationResults(sessionId:string,proofs:{before:StoredRun;result?:string;endedAt?:number;activeEvidenceAt?:number}[]) {
   await mutateRegistry(async()=>{
     const registry=await registryOrEmpty();
     if(registry.archivedSessionIds.includes(sessionId))return;
@@ -1767,9 +1771,10 @@ async function backfillConversationResults(sessionId:string,proofs:{before:Store
     const next=registry.runs.map(run=>{
       const proof=byId.get(run.runId);
       if(!proof||run.sessionId!==sessionId||run.modality==="voice"||run.result||(run.state==="failed"&&run.error!=="run_inactivity_expired")||(run.error==="run_inactivity_expired"&&protectedRun(run,registry.paymentRequests,registry.ownerConfirmations))||runIdentity(run)!==runIdentity(proof.before))return run;
-      const updated={...run,result:proof.result,state:"done" as const,error:undefined,
-        inactivityCorrectionReceipt:run.error==="run_inactivity_expired"?{version:1 as const,action:"correct_run_expiration" as const,runId:run.runId,from:"expired" as const,to:"done" as const,at:Date.now(),evidenceAt:proof.endedAt||Date.now()}:run.inactivityCorrectionReceipt,
-        updatedAt:proof.endedAt&&proof.endedAt>=run.acceptedAt?proof.endedAt:run.updatedAt||run.acceptedAt};
+      const nextState=proof.result?"done" as const:"running" as const;
+      const updated={...run,result:proof.result,state:nextState,error:undefined,
+        inactivityCorrectionReceipt:run.error==="run_inactivity_expired"?{version:1 as const,action:"correct_run_expiration" as const,runId:run.runId,from:"expired" as const,to:nextState,at:Date.now(),evidenceAt:proof.activeEvidenceAt||proof.endedAt||Date.now()}:run.inactivityCorrectionReceipt,
+        updatedAt:proof.activeEvidenceAt||(proof.endedAt&&proof.endedAt>=run.acceptedAt?proof.endedAt:run.updatedAt||run.acceptedAt)};
       updates.push(updated);return updated;
     });
     if(!updates.length)return;

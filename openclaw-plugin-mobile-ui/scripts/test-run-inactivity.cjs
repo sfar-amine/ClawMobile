@@ -107,6 +107,9 @@ async function expire(r){const before=entered;const start=Date.now();const snaps
   const retired=run('retired',{state:'failed',error:'run_inactivity_expired'}),peer=run('peer',{sessionId:'retired'});write(retired);let reg=JSON.parse(fs.readFileSync(registry));reg.runs.push(peer);fs.writeFileSync(registry,JSON.stringify(reg));ownerProof(peer,[],{hasActiveRun:true,activeRunIds:ids});
   await status(peer);await idle();const changed=JSON.parse(fs.readFileSync(registry)).runs.find(x=>x.runId==='retired');assert.equal(changed.state,ids.includes('retired')?'running':'failed');if(ids.includes('retired'))assert.equal(changed.inactivityCorrectionReceipt.to,'running');
  }
+ // When owner run ids differ, an explicitly read, unique turn can prove activity.
+ r=run('turn-active',{state:'failed',error:'run_inactivity_expired',executionSource:'gateway'});write(r);ownerProof(r,[message('user',r.text,old),message('assistant',[{type:'toolCall',id:'active-tool',name:'legitimate'}],old+1000)],{hasActiveRun:true,activeRunIds:['foreign-owner-id']});
+ assert.equal((await status(r)).status,'expired');await idle();const activeTurns=await api.getConversationTurns(r.sessionId);assert.equal(activeTurns[0].state,'running');assert.equal(activeTurns[0].inactivityCorrectionReceipt.to,'running');await idle();
  // A formerly corrected run expiring again cannot carry a stale running receipt.
  r=run('re-expire',{inactivityCorrectionReceipt:{version:1,action:'correct_run_expiration',runId:'re-expire',from:'expired',to:'running',at:old,evidenceAt:old}});write(r);ownerProof(r,[message('user',r.text,old)]);await expire(r);assert.equal(stored().inactivityCorrectionReceipt,undefined);
  // Background evidence must lose to concurrent deletion/archive/result/guard/failure.

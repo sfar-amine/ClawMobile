@@ -23,12 +23,12 @@
     {
       "name": "four-required-R2-v2-regressions-and-review-17",
       "status": "passed",
-      "evidence": "SQLite owner fixture: no readable proof, outstanding tool, late callback/history result, canonical payment/biometric protection; realistic 4.15s+2.39s latency, concurrent single-flight reads, expired pool retirement, run-id resurrection and hard ten-second background timeout."
+      "evidence": "SQLite owner fixture: no readable proof, outstanding tool, late callback/history result, canonical payment/biometric protection; realistic 4.15s+2.39s latency, concurrent single-flight reads, expired pool retirement, run-id resurrection and hard ten-second background timeout. Explicit conversation history proves an outstanding tool when owner run ids differ; ten-second hard timeout passed."
     },
     {
       "name": "runtime-CI-contracts",
       "status": "passed",
-      "evidence": "All current runtime CI commands passed; lifecycle block rerun after background change: backfill races, history cache, conversation pages, submission, notification contracts; payment-core 58/58."
+      "evidence": "All current runtime CI commands passed; lifecycle block rerun after background change: backfill races, history cache, conversation pages, submission, notification contracts; payment-core 58/58. Latest base 286fdd3 integrated; claw-live owner replay 10/10."
     }
   ],
   "documentation": [
