@@ -21,7 +21,7 @@
     {
       "name": "r15-security-surfaces",
       "status": "passed",
-      "evidence": "Actual local receipt ingress, read-only file snapshots, bounded 30-day scan, canonical R9 projection, privacy, HTTP boundaries and hot latency; current CI commands passed."
+      "evidence": "Actual local receipt ingress, read-only file snapshots, bounded 30-day scan, canonical R9 projection, privacy, HTTP boundaries and hot latency; current CI commands passed. Existing test-mcp-bridge passed using a portable local Markdown context fixture (not S24 context)."
     }
   ],
   "documentation": [
