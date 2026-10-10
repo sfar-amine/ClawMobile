@@ -27,7 +27,7 @@ export function attachmentContent(id:string){const dir=directory();attachmentId(
 export function purgeAttachments(protectedPaths:Set<string>,now=Date.now()){
  const dir=directory();let names:string[];try{names=fs.readdirSync(dir);}catch(e:any){if(e.code==='ENOENT')return 0;throw e;}
  if(names.length>10000)throw error('attachment_storage_unavailable',503);
- let total=0;for(const name of names){const file=path.join(dir,name);const info=fs.lstatSync(file);if(!info.isFile()||info.isSymbolicLink())throw error('attachment_storage_unavailable',503);
+ let total=0;for(const name of names){const file=path.join(dir,name);const info=fs.lstatSync(file);if(!info.isFile()||info.isSymbolicLink())continue;
  if(!protectedPaths.has(file)&&now-info.mtimeMs>RETENTION_MS){fs.unlinkSync(file);continue;}total+=info.size;}return total;
 }
 export function saveAttachments(inputs:{id?:string;mimeType:string;body:Buffer;displayName?:string}[],protectedPaths:Set<string>,now=Date.now(),quota=ATTACHMENT_QUOTA){
