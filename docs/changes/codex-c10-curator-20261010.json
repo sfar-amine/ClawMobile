@@ -3,10 +3,10 @@
   "id": "codex-c10-curator-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Prepare bounded native memory bridge in existing curator with idempotent author supersession closure",
-  "reason": "Programme34/35 C10: real fixtures integrated; public OpenClaw2026.9.6 proves deep.lineCount is report lines. Canonical memory.promotion.applied event includes reconciled candidates; installed positive fixture/full-window proof pending.",
+  "summary": "Use confirmed installed memory-core applied counter over a complete seven-day window",
+  "reason": "Claude installed-owner response PR80 comment6102096526 confirms full retained-window zero without type filter; applied includes reconciliations, never report lines",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/context-dream.py",
@@ -26,7 +26,7 @@
     {
       "name": "C10-curator",
       "status": "passed",
-      "evidence": "13 digest tests and 2 real S24 fixture tests passed, including real schema/events, readonly counters, native window completeness and bounded volume. Installed curator13:05 and native22:00 confirmed."
+      "evidence": "13 digest tests and 4 real-schema/native tests passed; actual PR82 window events and explicitly reconstructed coverage anchor; synthetic positive sums/invalid values not live proof; readonly SQLite, window completeness, no private payload and max10000events"
     }
   ],
   "documentation": [
@@ -55,7 +55,7 @@
   },
   "rollback": "Revert C10; preserve immutable events, Claude decides cleanup of generated non-normative notes.",
   "limitations": [
-    "Public owner lineCount means report lines, never promotions. memory.promotion.applied/applied includes reconciledExisting; installed positive/full-window capture missing, no reader added on public source alone. core80 follow-up.",
-    "S24 recipe and activation remain Claude."
+    "No positive event exists on the observed S24; full-window measured zero proven by Claude PR80 comment6102096526. Versioned aggregate capture will arrive in next Claude fixtures PR.",
+    "No Codex deployment; curator shadow and existing schedules unchanged."
   ]
 }
