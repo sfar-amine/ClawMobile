@@ -17,8 +17,7 @@
     "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/scripts/test-official-gateway-owner.cjs",
-    "openclaw-plugin-mobile-ui/scripts/test-gateway-entrypoint.cjs",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/p0-1/gateway-handshake.json"
+    "openclaw-plugin-mobile-ui/scripts/test-gateway-entrypoint.cjs"
   ],
   "tests": [
     {
