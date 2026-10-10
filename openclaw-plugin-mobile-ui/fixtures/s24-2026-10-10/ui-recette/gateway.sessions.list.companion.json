@@ -1,0 +1,318 @@
+{
+ "_capture": {
+  "method": "sessions.list",
+  "params": {
+   "search": "companion-",
+   "limit": 100
+  },
+  "latencyMs": 1632,
+  "exit": "rc=0",
+  "capturedAt": "2026-10-10T19:38:21+00:00",
+  "via": "timeout 60 nice openclaw gateway call <method> --params <json> --json",
+  "gateway": "OpenClaw 2026.9.6",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "clés companion-chat-* hachées (sauf decision-v2-live-5a66bfd3a1), sessionId haché au format UUID, label masqué ; champs R11/R18 conservés ; sessions réduites aux 4 premières sur 31 (count/totalCount d'origine conservés)"
+ },
+ "response": {
+  "count": 31,
+  "totalCount": 31,
+  "hasMore": false,
+  "_trimmed": {
+   "sessionsKept": 4,
+   "sessionsCaptured": 31
+  },
+  "defaults": {
+   "modelProvider": "openai",
+   "model": "gpt-5.6-sol",
+   "contextTokens": 272000,
+   "agentRuntime": {
+    "id": "codex",
+    "cloudPlacementSupported": false,
+    "devicePlacementSupported": false,
+    "source": "implicit"
+   },
+   "thinkingLevels": [
+    {
+     "id": "off",
+     "label": "off"
+    },
+    {
+     "id": "minimal",
+     "label": "minimal"
+    },
+    {
+     "id": "low",
+     "label": "low"
+    },
+    {
+     "id": "medium",
+     "label": "medium"
+    },
+    {
+     "id": "high",
+     "label": "high"
+    },
+    {
+     "id": "xhigh",
+     "label": "xhigh"
+    },
+    {
+     "id": "max",
+     "label": "max"
+    },
+    {
+     "id": "ultra",
+     "label": "ultra"
+    }
+   ],
+   "thinkingOptions": [
+    "off",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultra"
+   ],
+   "thinkingDefault": "low",
+   "modelSelectionTarget": "session"
+  },
+  "sessions": [
+   {
+    "key": "agent:main:companion-chat-decision-v2-live-5a66bfd3a1",
+    "sessionId": "a14e01e9-0000-4000-8000-053ac469ad42",
+    "model": "gpt-5.6-sol",
+    "modelProvider": "openai",
+    "modelOverrideSource": null,
+    "thinkingDefault": "low",
+    "thinkingOptions": [
+     "off",
+     "minimal",
+     "low",
+     "medium",
+     "high",
+     "xhigh",
+     "max",
+     "ultra"
+    ],
+    "thinkingLevels": [
+     {
+      "id": "off",
+      "label": "off"
+     },
+     {
+      "id": "minimal",
+      "label": "minimal"
+     },
+     {
+      "id": "low",
+      "label": "low"
+     },
+     {
+      "id": "medium",
+      "label": "medium"
+     },
+     {
+      "id": "high",
+      "label": "high"
+     },
+     {
+      "id": "xhigh",
+      "label": "xhigh"
+     },
+     {
+      "id": "max",
+      "label": "max"
+     },
+     {
+      "id": "ultra",
+      "label": "ultra"
+     }
+    ],
+    "hasActiveRun": false,
+    "permissionModePending": false,
+    "totalTokens": 22448,
+    "totalTokensFresh": true,
+    "contextTokens": 272000,
+    "pinned": false,
+    "updatedAt": 1791648947221,
+    "archived": false,
+    "label": "<texte 20 car.>"
+   },
+   {
+    "key": "agent:main:companion-chat-s12adf3c59a0d",
+    "sessionId": "8db16555-0000-4000-8000-4b6f0ba1a4ba",
+    "model": "gpt-5.6-sol",
+    "modelProvider": "openai",
+    "modelOverrideSource": null,
+    "thinkingDefault": "low",
+    "thinkingOptions": [
+     "off",
+     "minimal",
+     "low",
+     "medium",
+     "high",
+     "xhigh",
+     "max",
+     "ultra"
+    ],
+    "thinkingLevels": [
+     {
+      "id": "off",
+      "label": "off"
+     },
+     {
+      "id": "minimal",
+      "label": "minimal"
+     },
+     {
+      "id": "low",
+      "label": "low"
+     },
+     {
+      "id": "medium",
+      "label": "medium"
+     },
+     {
+      "id": "high",
+      "label": "high"
+     },
+     {
+      "id": "xhigh",
+      "label": "xhigh"
+     },
+     {
+      "id": "max",
+      "label": "max"
+     },
+     {
+      "id": "ultra",
+      "label": "ultra"
+     }
+    ],
+    "hasActiveRun": false,
+    "permissionModePending": false,
+    "totalTokens": 13036,
+    "totalTokensFresh": true,
+    "contextTokens": 272000,
+    "pinned": false,
+    "updatedAt": 1791498591841,
+    "archived": false,
+    "label": "<texte 20 car.>"
+   },
+   {
+    "key": "agent:main:companion-chat-sc9bc960b4cc1",
+    "sessionId": "1cb016ee-0000-4000-8000-2b9774cc1cb1",
+    "model": "gemini-3.5-flash-lite",
+    "modelProvider": "google",
+    "modelOverrideSource": "user",
+    "thinkingDefault": "low",
+    "thinkingOptions": [
+     "off",
+     "minimal",
+     "low",
+     "medium",
+     "adaptive",
+     "high"
+    ],
+    "thinkingLevels": [
+     {
+      "id": "off",
+      "label": "off"
+     },
+     {
+      "id": "minimal",
+      "label": "minimal"
+     },
+     {
+      "id": "low",
+      "label": "low"
+     },
+     {
+      "id": "medium",
+      "label": "medium"
+     },
+     {
+      "id": "adaptive",
+      "label": "adaptive"
+     },
+     {
+      "id": "high",
+      "label": "high"
+     }
+    ],
+    "hasActiveRun": false,
+    "permissionModePending": false,
+    "totalTokens": 22348,
+    "totalTokensFresh": true,
+    "contextTokens": 1048576,
+    "pinned": false,
+    "updatedAt": 1791483167232,
+    "archived": false,
+    "label": "<texte 20 car.>"
+   },
+   {
+    "key": "agent:main:companion-chat-sb103ae7f8a2d",
+    "sessionId": "817d98d7-0000-4000-8000-5ad316582199",
+    "model": "gpt-5.6-sol",
+    "modelProvider": "openai",
+    "modelOverrideSource": null,
+    "thinkingDefault": "low",
+    "thinkingOptions": [
+     "off",
+     "minimal",
+     "low",
+     "medium",
+     "high",
+     "xhigh",
+     "max",
+     "ultra"
+    ],
+    "thinkingLevels": [
+     {
+      "id": "off",
+      "label": "off"
+     },
+     {
+      "id": "minimal",
+      "label": "minimal"
+     },
+     {
+      "id": "low",
+      "label": "low"
+     },
+     {
+      "id": "medium",
+      "label": "medium"
+     },
+     {
+      "id": "high",
+      "label": "high"
+     },
+     {
+      "id": "xhigh",
+      "label": "xhigh"
+     },
+     {
+      "id": "max",
+      "label": "max"
+     },
+     {
+      "id": "ultra",
+      "label": "ultra"
+     }
+    ],
+    "hasActiveRun": false,
+    "permissionModePending": false,
+    "totalTokensFresh": false,
+    "contextTokens": 272000,
+    "pinned": false,
+    "updatedAt": 1791237031195,
+    "archived": false,
+    "label": "<texte 20 car.>"
+   }
+  ]
+ }
+}

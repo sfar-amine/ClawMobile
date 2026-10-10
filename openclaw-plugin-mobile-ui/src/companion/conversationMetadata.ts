@@ -1,9 +1,10 @@
 import {conversationContext} from "./conversationContext";
 import {observeConversationOwnerRow,readConversationOwnerRow} from "./conversationOwnerIndex";
-import {readModelOwnerFresh,peekModelOwner} from "./modelOwner";
+import {readModelOwnerFresh,peekModelOwner,readModelOwnerCached} from "./modelOwner";
+import {accountAlias,accountView,knownProfiles,publicModelRef,resolveModelRef} from "./accountIdentity";
 import {createHash} from "crypto";
 import {callOpenClawGateway,expectedCompanionSessionKey} from "./openclawAgentClient";
-import {readPaymentRequests,readOwnerConfirmations,reserveSubmittedRun,settleSubmittedRun} from "./runs";
+import {readPaymentRequests,readOwnerConfirmations,reserveSubmittedRun,settleSubmittedRun,retainedConversation} from "./runs";
 import {nativeError,existingNativeOperation,storedNativeOperationResult} from "./nativeOperation";
 
 const thinkingId=(value:any):value is string=>typeof value==='string'&&/^[a-z][a-z0-9_-]{0,39}$/.test(value);
@@ -60,16 +61,37 @@ function modelCatalogFrom({raw:configRaw,catalog,auth}:any){
  }
  return [...new Set(models)];
 }
+/** Same window as R21 providers: a successful owner snapshot stays usable 5 min while the shared refresh runs. */
+const CATALOG_SERVE_MS=300000;
+/** A conversation the Companion still lists but the Gateway no longer knows: readable, never mutable. */
+function retainedOnly(id:string,retained:{lastActivityAt:number|null}){
+ return {success:true,state:'degraded',receipt:null,sessionId:id,readOnly:true,thinkingLevel:null,thinkingLevelSource:null,thinkingLevels:[],hasActiveRun:null,
+  thinkingChangeAvailable:false,context:null,title:null,pinned:null,model:null,modelAuthProfile:null,modelAccount:null,modelSource:null,mutationAvailable:false,
+  models:[],modelChangeAvailable:false,lastActivityAt:retained.lastActivityAt,issues:['conversation_gateway_session_unavailable']};
+}
+/** App-facing projection: account profiles only as opaque `acct-…` handles. */
+function publicMetadata(value:any){
+ return {...value,model:publicModelRef(value.model),modelAuthProfile:value.modelAuthProfile?accountAlias(value.modelAuthProfile):null,modelAccount:accountView(value.model),
+  models:Array.isArray(value.models)?value.models.map((ref:string)=>publicModelRef(ref)):value.models};
+}
 export async function readConversationMetadata(id:string){
  const owner=await readConversationOwnerRow(session(id));
- if(!owner.row)throw nativeError(owner.notFound?'conversation_not_found':'conversation_owner_unavailable',owner.notFound?404:503);
+ if(!owner.row){
+  // 10/10 S24: 8 of 10 listed conversations had no Gateway session left (session_nodes, exact sessions.list).
+  const retained=owner.notFound?await retainedConversation(id):null;
+  if(retained)return retainedOnly(id,retained);
+  throw nativeError(owner.notFound?'conversation_not_found':'conversation_owner_unavailable',owner.notFound?404:503);
+ }
  const value=projection(id,owner.row),cached=peekModelOwner();
+ const age=cached?Date.now()-cached.updatedAt:Infinity;
+ // Never leave the composer on an aging snapshot: start the shared single-flight refresh, do not wait for it.
+ if(!cached||cached.stale||age>=60000)void readModelOwnerCached().catch(()=>{});
  let catalog:string[]|null=null;
  if(cached)try{catalog=modelCatalogFrom({raw:{config:cached.config},catalog:cached.catalog,auth:cached.auth});}catch{}
- const catalogFresh=!!cached&&!cached.stale&&Date.now()-cached.updatedAt<60000;
- return {...value,models:catalog||[],thinkingChangeAvailable:value.thinkingChangeAvailable&&owner.state!=='pending',modelChangeAvailable:owner.state!=='pending'&&catalogFresh&&catalog!==null&&catalog.length>0&&owner.row.hasActiveRun===false&&owner.row.permissionModePending===false,
+ const catalogFresh=!!cached&&!cached.stale&&age<CATALOG_SERVE_MS;
+ return publicMetadata({...value,models:catalog||[],thinkingChangeAvailable:value.thinkingChangeAvailable&&owner.state!=='pending',modelChangeAvailable:owner.state!=='pending'&&catalogFresh&&catalog!==null&&catalog.length>0&&owner.row.hasActiveRun===false&&owner.row.permissionModePending===false,
   issues:[...value.issues,...(catalog===null?['conversation_model_catalog_unavailable']:!catalogFresh?['conversation_model_catalog_stale']:[]),
-   ...(owner.state==='stale'?['conversation_owner_stale']:owner.state==='pending'?['conversation_owner_refresh_pending']:[]),...(!value.thinkingLevels.length?['conversation_thinking_profile_unknown']:[])]};
+   ...(owner.state==='stale'?['conversation_owner_stale']:owner.state==='pending'?['conversation_owner_refresh_pending']:[]),...(!value.thinkingLevels.length?['conversation_thinking_profile_unknown']:[])]});
 }
 async function protectedActivity(){
  const [payments,confirmations]=await Promise.all([readPaymentRequests(),readOwnerConfirmations()]);
@@ -118,11 +140,15 @@ async function changeOnce(id:string,body:any){
  if(typeof row.sessionId!=='string'||!/^[A-Za-z0-9_.-]{1,128}$/.test(row.sessionId))throw nativeError('conversation_identity_unavailable',409);
  if(await protectedActivity())throw nativeError('protected_owner_activity',409);
  const targetThinking=thinking(row).thinkingLevels;
+ let gatewayModel:string|undefined;
  if('thinkingLevel' in desired&&(row.hasActiveRun!==false||row.permissionModePending!==false))throw nativeError('run_active',409);
  if('model' in desired){
   if(row.hasActiveRun!==false||row.permissionModePending!==false)throw nativeError('conversation_model_change_requires_idle',409);
   const catalog=await readModelOwnerFresh();
-  if(!modelCatalogFrom(catalog).includes(desired.model))throw nativeError('unknown_conversation_model',409);
+  // The app echoes `@acct-…`; the Gateway receives the canonical profile id.
+  const real=resolveModelRef(desired.model,knownProfiles(catalog.auth));
+  if(!real||!modelCatalogFrom(catalog).includes(real))throw nativeError('unknown_conversation_model',409);
+  gatewayModel=real;
 
  }
  if('thinkingLevel' in desired&&!targetThinking.includes(desired.thinkingLevel))throw nativeError('unsupported_thinking_level');
@@ -132,7 +158,7 @@ async function changeOnce(id:string,body:any){
  try{
   if(await protectedActivity()){state='refused';errorCode='protected_owner_activity';httpStatus=409;}
   else{
-   const patch={key,expectedSessionId:row.sessionId,...('title' in desired?{label:desired.title}:{}),...('pinned' in desired?{pinned:desired.pinned}:{}),...('model' in desired?{model:desired.model}:{}),...('thinkingLevel' in desired?{thinkingLevel:desired.thinkingLevel}:{})};
+   const patch={key,expectedSessionId:row.sessionId,...('title' in desired?{label:desired.title}:{}),...('pinned' in desired?{pinned:desired.pinned}:{}),...(gatewayModel?{model:gatewayModel}:{}),...('thinkingLevel' in desired?{thinkingLevel:desired.thinkingLevel}:{})};
    let rejected:{code:string;status:number}|null=null,patchEntry:any;
    try{const response=await callOpenClawGateway('sessions.patch',patch,readBudget);if(response?.ok===false||response?.success===false)throw response.error||response;patchEntry=response?.entry;}catch(error:any){rejected=refusal(error);}
    if(rejected){state='failed';errorCode=rejected.code;httpStatus=rejected.status;}
@@ -141,7 +167,7 @@ async function changeOnce(id:string,body:any){
     if(observed.sessionId!==row.sessionId){errorCode='conversation_identity_changed';}
     else{
      const value=projection(id,{...observed,...(patchEntry?.sessionId===observed.sessionId&&'authProfileOverride' in patchEntry?{authProfileOverride:patchEntry.authProfileOverride}:{})});
-     const modelMatches=!('model' in desired)||(desired.model.includes('@')?value.model===desired.model:value.model?.split('@')[0]===desired.model);
+     const modelMatches=!gatewayModel||(gatewayModel.includes('@')?value.model===gatewayModel:value.model?.split('@')[0]===gatewayModel);
      if((!('title' in desired)||value.title===desired.title)&&(!('pinned' in desired)||value.pinned===desired.pinned)&&modelMatches&&(!('thinkingLevel' in desired)||value.thinkingLevel===desired.thinkingLevel))state='completed';
      else errorCode='conversation_effect_unverified';
     }
