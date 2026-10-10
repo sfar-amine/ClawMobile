@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "codex-h5-acceptance-evidence-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applicable",
+  "summary": "Vérifier la couverture et les budgets existants R6 R7 R12 sur mesures HTTP capturées du S24.",
+  "reason": "Les routes et la garde owner existent déjà ; conserver leur preuve sans créer de route, budget copié ou mutateur.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/scripts/test-h5-acceptance-evidence.py",
+    "docs/work/samantha-runtime/contracts/h5.md",
+    "docs/changes/codex-h5-acceptance-evidence-20261010.md",
+    "docs/changes/codex-h5-acceptance-evidence-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "H5 acceptance evidence",
+      "status": "passed",
+      "evidence": "Four tests import canonical READS/OWNER_GUARDS; actual cold/repeat S24 timings fit budgets; missing route and inadequate budget fail; capture budgetS is ignored."
+    },
+    {
+      "name": "Existing R6 HTTP owner contract and build",
+      "status": "passed",
+      "evidence": "npm run build and test-agent-config.cjs passed; existing owner refusal, scoped patch, receipts, idempotence and bank refusal remain unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/h5.md",
+    "docs/changes/codex-h5-acceptance-evidence-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "No runtime route, action or exposed information added."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Only CI evidence; no runtime persistence, scheduler, daemon or router."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "The test imports acceptance policy and reads tracked sanitized captures only; no route, schema, adapter or primitive behavior changes.",
+    "evidence": [
+      "openclaw-plugin-mobile-ui/scripts/test-h5-acceptance-evidence.py",
+      "docs/work/samantha-runtime/contracts/h5.md"
+    ]
+  },
+  "rollback": "Revert the H5 evidence test and its CI step.",
+  "limitations": [
+    "Historical captured timings are not a new deployment receipt. Core PR70 HTTP replay remains pending merge and is not used as deployed base."
+  ]
+}

@@ -99,6 +99,9 @@ jobs:
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
 
+      - name: H5 existing R6 R7 R12 acceptance evidence
+        run: python3 scripts/test-h5-acceptance-evidence.py
+
       - name: Preserve specialized rules in bounded voice bootstrap
         run: node scripts/test-voice-operating-rules.cjs
 
