@@ -8,7 +8,7 @@ import { randomUUID } from "crypto";
 import { performance } from "perf_hooks";
 import { completeHealthSection } from "./control-health";
 
-const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations"]);
+const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations", "notifications"]);
 let activeStreams = 0;
 
 export function controlPaths() {

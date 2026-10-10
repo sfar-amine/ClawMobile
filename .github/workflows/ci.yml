@@ -71,3 +71,5 @@ jobs:
 
       - name: Run Control pinned runtime snapshot regression
         run: node scripts/test-control-runtime-snapshot.cjs
+      - name: Run read-only notification source contract
+        run: node scripts/test-notification-sources.cjs
