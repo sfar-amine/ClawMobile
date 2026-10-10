@@ -422,7 +422,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
       const value=method==='GET'?await readAgentConfig():await changeAgentConfig(await readJsonBody(req,2048));
       writeJson(res,value.state==='refused'?409:200,value);
-    }catch(error:any){const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    }catch(error:any){
+      const challenge=error?.confirmation;
+      if(error?.statusCode===403&&error?.message==='confirmation_required'&&challenge?.scope==='agent.config.expand_fallbacks'&&challenge.reference==='main'&&/^[a-f0-9]{64}$/.test(challenge.payloadHash)){
+        writeJson(res,403,{success:false,state:'refused',receipt:null,error:'confirmation_required',scope:challenge.scope,reference:challenge.reference,payloadHash:challenge.payloadHash});
+      }else{const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    }
     return;
   }
 

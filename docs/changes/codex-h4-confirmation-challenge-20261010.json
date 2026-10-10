@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "id": "codex-h4-confirmation-challenge-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Actionable owner confirmation challenge for agent fallback expansion",
+  "reason": "Fichier 34 H4 : remplacer le refus opaque par 403 confirmation_required, sans modifier la garde biométrique ou le propriétaire.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-config.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-confirmation-challenge.cjs",
+    "docs/work/samantha-runtime/contracts/h4.md",
+    "docs/changes/codex-h4-confirmation-challenge-20261010.md",
+    "docs/changes/codex-h4-confirmation-challenge-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "r6-h4-owner-confirmation",
+      "status": "passed",
+      "evidence": "npm run build ; test-agent-config.cjs ; test-agent-confirmation-challenge.cjs sur captures réelles ui-recette config/catalogue/auth, délai 2344ms, budget READS importé. Héritage, profil nouveau/existant, mismatch/expiration, hash exact consume-before-dispatch et garde bancaire intacts."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/h4.md",
+    "docs/changes/codex-h4-confirmation-challenge-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Route R6 existante seulement ; aucun nouvel endpoint, propriétaire ou routage agent."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Revert H4 ; aucun effet S24 à annuler.",
+  "limitations": [
+    "Préparation locale sans push ni PR avant l’ordre de publication autorisé.",
+    "App adaptée et recette physique par Claude ; mesures CI injectées seulement.",
+    "Aucune preuve positive config.patch nouvelle revendiquée ; dispatch de test refuse avant effet."
+  ]
+}

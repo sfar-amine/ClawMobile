@@ -173,3 +173,6 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: H4 actionable agent fallback confirmation challenge on S24 captures
+        run: node scripts/test-agent-confirmation-challenge.cjs
