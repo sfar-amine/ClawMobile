@@ -20,6 +20,7 @@ import { android_health } from "../tools/android";
 import { clearAgentConversationMessages, listAgentConversationMessages, listAgentConversations, markAgentMessageRead } from "./agentMessages";
 import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRuntime } from "./openclawGatewayClient";
 import { submitIntent } from "./intent";
+import {securitySurfaces} from "./securitySurfaces";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
@@ -298,6 +299,15 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if(routePath==="/security/surfaces"){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    if(requestUrl.search){writeJson(res,400,{success:false,state:"refused",receipt:null,error:"unsupported_parameter"});return;}
+    try{res.setHeader("Cache-Control","no-store");writeJson(res,200,await securitySurfaces());}
+    catch{writeJson(res,503,{success:false,state:"unavailable",receipt:null,error:"security_surfaces_unavailable"});}
+    return;
+  }
+
   if(routePath==="/updates"||routePath.startsWith("/updates/")){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
     if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
@@ -561,6 +571,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/remote-bridge/requests") {
     const body = await readJsonBody<any>(req);
+    delete body._claw_access; // JSON callers cannot attest their MCP authentication.
     const result = await submitRemoteBridgeRequest(body);
     writeJson(res, result.state === "failed" ? 400 : 200, result);
     return;
