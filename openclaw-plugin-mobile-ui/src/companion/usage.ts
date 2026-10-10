@@ -52,6 +52,18 @@ export async function readUsageCost(){
  try{const view=await costPending;costCache={at:Date.now(),view};return structuredClone(view);}finally{costPending=null;}
 }
 
+// Both owner reads start together. A global read-only deadline also bounds
+// an inherited in-flight call; no dispatch or retry is performed on expiry.
+export async function readUsageDetails(){
+ let timer:ReturnType<typeof setTimeout>|undefined;
+ const reads=Promise.all([readUsage(),readUsageCost()]).then(([base,cost])=>({...base,cost}));
+ const bounded=new Promise<UsageView&{cost:any}>(resolve=>{timer=setTimeout(()=>resolve({
+  ...(peekUsage()||{schemaVersion:1 as const,updatedAt:null,providers:[],issues:['usage_source_unavailable']}),
+  cost:{schemaVersion:1,state:'unavailable',periodDays:30,providers:[],issues:['usage_cost_budget_exceeded']}
+ }),6000);});
+ try{return await Promise.race([reads,bounded]);}finally{if(timer)clearTimeout(timer);}
+}
+
 export function usageAttention(view:UsageView|null,model:string|null){
  if(!view)return [];
  const activeProvider=publicModelId(model)?.split('/')[0]||null;

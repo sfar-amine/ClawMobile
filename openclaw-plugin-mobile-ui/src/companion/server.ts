@@ -1,4 +1,4 @@
-import {readUsage,readUsageCost} from './usage';
+import {readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
 import {capabilityDetail} from "./capabilityControl";
@@ -385,7 +385,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     const parameters=requestUrl.searchParams;
     if(routePath==="/usage"){
       if([...parameters.keys()].some(k=>k!=="details")||parameters.getAll("details").length>1||parameters.has("details")&&parameters.get("details")!=="cost"){writeJson(res,400,{error:"unsupported_parameter"});return;}
-      writeJson(res,200,parameters.has("details")?await readUsageCost():await readUsage());
+      writeJson(res,200,parameters.has("details")?await readUsageDetails():await readUsage());
     }else{
       if([...parameters.keys()].some(k=>k!=="refresh")||parameters.getAll("refresh").length>1||parameters.has("refresh")&&parameters.get("refresh")!=="1"){writeJson(res,400,{error:"unsupported_parameter"});return;}
       writeJson(res,200,await readProviders(parameters.get("refresh")==="1"));

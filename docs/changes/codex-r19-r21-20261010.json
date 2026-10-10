@@ -28,7 +28,12 @@
     {
       "name": "usage-real-fixture-and-provider-synthetic",
       "status": "passed",
-      "evidence": "Real sanitized PR48 usage fixture, 70 adversarial privacy variations, thresholds/missing, ten concurrent reads, injected3.2s delay, negative cache, refresh throttle, legacy/fallback inheritance, pure Control attention and HTTP guards. Provider/auth/config/cost fixtures synthetic or absent, no physical endpoint qualification."
+      "evidence": "Real sanitized PR48 usage fixture, 70 adversarial privacy variations, thresholds/missing, ten concurrent reads, injected3.2s delay, negative cache, refresh throttle, legacy/fallback inheritance, pure Control attention and HTTP guards. Provider/auth/config/cost fixtures synthetic or absent, no physical endpoint qualification. Cold usage+cost parallel under6s with one RPC each for ten concurrent calls; cost/base failures isolated; cached authentication failure disables active-model evidence."
+    },
+    {
+      "name": "runtime-ci-preserved-union",
+      "status": "passed",
+      "evidence": "All 23 workflow run steps passed locally on runtime71af984 plus PR28head815b7c5; npm ci skipped because dependencies unchanged, build and every existing/current test command executed. No S24 runtime call or activation."
     }
   ],
   "documentation": [
@@ -39,11 +44,11 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Extend existing people-trusted owner and native Companion routes; no additional capability registry."
+    "reason": "Read-only native Companion projections of existing Gateway owners; no capability or admission change."
   },
   "architecture": {
     "changed": false,
-    "reason": "Existing Gateway config, Directory receipts/meta, private context, confirmations and health cycle; no new store, table, scheduler or daemon."
+    "reason": "Reuse existing Gateway and shared R6/R11 model owner with memory caches only; no new persistent store, scheduler or daemon."
   },
   "mcp_owner_parity": {
     "tools": {
