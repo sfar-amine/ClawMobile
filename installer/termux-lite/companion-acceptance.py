@@ -9,6 +9,7 @@ import json, re, sys, time, urllib.error, urllib.request
 BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
+    ("/runs?contract=2&view=conversations&archived=1&limit=20", 0.3),
     ("/health", 2.0),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
     ("/files?scope=agent", 1.5),
@@ -41,6 +42,8 @@ READS = [
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
+    ("POST", "/conversations/acceptance-probe/archive"),
+    ("POST", "/conversations/acceptance-probe/unarchive"),
     ("POST", "/attachments"),
     ("POST", "/security/surfaces"),
     ("POST", "/automations/acceptance-probe/run"),
@@ -59,7 +62,7 @@ OWNER_GUARDS = [
     ("POST", "/files"),
     ("POST", "/files/content"),
 ]
-OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0}  # admission/refusal budget, no effect without owner proof
+OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0, "/conversations/acceptance-probe/archive": 2.0, "/conversations/acceptance-probe/unarchive": 2.0}  # admission/refusal budget, no effect without owner proof
 SETTLE_SECONDS = 15
 # Secrets and account e-mails. 10/10 (recette UI): /agent/config published the OAuth profile e-mail.
 # Measured read-only on the S24 the same day: no other READS route returns an e-mail address.
