@@ -173,3 +173,8 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: Verify telecom display and bounded execution provenance (O7)
+        run: |
+          python3 ../installer/termux-lite/test-telecom-display.py
+          node scripts/test-capability-provenance.cjs

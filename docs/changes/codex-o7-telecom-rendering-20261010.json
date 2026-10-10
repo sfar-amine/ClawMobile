@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "codex-o7-telecom-rendering-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "O7 readable telecom card lines and bounded canonical provenance in existing runs registry",
+  "reason": "Wave37 operator rendering; never display raw result JSON or sum independent counters",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-o7-telecom-rendering-20261010.json",
+    "docs/changes/codex-o7-telecom-rendering-20261010.md",
+    "docs/work/samantha-runtime/contracts/o7-telecom-rendering.md",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-telecom-display.py",
+    "openclaw-plugin-mobile-ui/fixtures/o7-historical/maxit-direct-live-results.json",
+    "openclaw-plugin-mobile-ui/fixtures/o7-historical/provenance.json",
+    "openclaw-plugin-mobile-ui/scripts/test-capability-provenance.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityProvenance.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts"
+  ],
+  "tests": [
+    {
+      "name": "telecom display and transport",
+      "status": "passed",
+      "evidence": "test-telecom-display.py: 10 cases, published historical real receipt fallback, shape/negative card controls, numeric values unchanged, no JSON prefix, no unlisted fields, closed provenance, deep composed payload bounds; live eight-card capture pending"
+    },
+    {
+      "name": "registry provenance and realistic retention",
+      "status": "passed",
+      "evidence": "test-capability-provenance.cjs: canonical projection persisted and read, 10000 seeded history rows, max500 and <8MiB retained, <400byte provenance per row, payment and confirmation sections unchanged"
+    },
+    {
+      "name": "build and existing regressions",
+      "status": "passed",
+      "evidence": "tsc, test-model-efficiency 19, test-model-fast-path, test-composed-read-result 5, test-companion-runs and test-delete-run pass; CI union verified"
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/o7-telecom-rendering.md",
+    "docs/changes/codex-o7-telecom-rendering-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing canonical fast path and receipt projected, no new route or registry capability"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing run store, no new store/router/scheduler/daemon or runtime lookup"
+  },
+  "rollback": "Revert O7 PR; additive provenance optional",
+  "limitations": [
+    "Draft: actual eight-card output from S24 2026-10-10 09:41 missing; historical receipt is not this capture. Claude capture and real qualification required.",
+    "No deployment, state reconciliation or deterministic payment change by Codex. Network path field uses O1 closed enum, not network settings or full guard."
+  ]
+}

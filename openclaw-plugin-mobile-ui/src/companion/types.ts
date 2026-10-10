@@ -103,6 +103,7 @@ export type IntentSubmitResponse = {
 };
 
 export type CompanionRunStatus = {
+  provenance?: import("./capabilityProvenance").CapabilityProvenance;
   inactivityCorrectionReceipt?: import("./runInactivity").InactivityReceipt;
   modality?: "voice";
   clientRunId?: string;

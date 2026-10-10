@@ -16,6 +16,7 @@ export type FastPathResult = {
   route?: string;
   capability?: string;
   source?: string;
+  provenance?: import("./companion/capabilityProvenance").CapabilityProvenance;
   model_bypassed?: boolean;
   decision?: Record<string, unknown>;
   clarification?: Record<string, unknown>;
