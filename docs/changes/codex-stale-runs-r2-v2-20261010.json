@@ -21,19 +21,14 @@
   ],
   "tests": [
     {
-      "name": "R2-v2 four mandatory regressions",
+      "name": "four-required-R2-v2-regressions-and-review-17",
       "status": "passed",
-      "evidence": "node scripts/test-run-inactivity.cjs: noReadableProof, longActiveTool, lateResult, bankBiometricDifferentOrigins; SQLite fixture, restart, list/callback and races."
+      "evidence": "SQLite owner fixture: no readable proof, outstanding tool, late callback/history result, canonical payment/biometric protection; realistic 4.15s+2.39s latency, concurrent single-flight reads, expired pool retirement, run-id resurrection and hard ten-second background timeout."
     },
     {
-      "name": "build and existing contracts",
+      "name": "runtime-CI-contracts",
       "status": "passed",
-      "evidence": "npm run build, trace-induction, control-health-components, delete-run, composed-read-result, model-fast-path, backfill-races, history-cache, conversation-pages, submit-reconciliation; payment-core 58/58."
-    },
-    {
-      "name": "Claude blocking review regression",
-      "status": "passed",
-      "evidence": "Real sessions.list shape without pendingApprovals; conservative permission/activity guards; active expiration correction; slow Gateway global budget; complete current-base CI_LOCAL_OK."
+      "evidence": "All current runtime CI commands passed; lifecycle block rerun after background change: backfill races, history cache, conversation pages, submission, notification contracts; payment-core 58/58."
     }
   ],
   "documentation": [

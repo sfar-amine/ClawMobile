@@ -9,3 +9,5 @@ Validation : build TypeScript ; quatre non-régressions du fichier 09, fixture p
 Architecture et MCP inchangés : aucun propriétaire supplémentaire, aucun store/scheduler/daemon. Contrat : docs/work/samantha-runtime/contracts/r2.md. Git uniquement ; Claude relit, fusionne et recette sur S24. L’exposition effective des preuves Gateway reste à qualifier sur l’appareil. Retour arrière : revert du commit ; les reçus additifs sont ignorés par l’ancien lecteur.
 
 Revue Claude corrigée : champs réels du Gateway sans pendingApprovals, budget total 1,5 s et trois candidats, correction active avec reçu ; base 066a340 et toutes les étapes CI préservées. Les quatre non-régressions obligatoires et la CI complète passent.
+
+Relecture 17 M1/M2 corrigée : réconciliation single-flight en arrière-plan sous 10 s, état courant rendu immédiatement, preuve nommant le run pour la remise en running, expirations retirées du pool automatique. Les quatre tests requis et les contrôles CI locaux passent ; la recette S24 reste à Claude.

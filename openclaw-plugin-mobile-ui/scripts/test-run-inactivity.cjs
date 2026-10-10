@@ -52,144 +52,75 @@ function ownerProof(r, messages, extra = {}) {
 const stored = () => JSON.parse(fs.readFileSync(registry)).runs[0];
 const callsCount = () => fs.existsSync(calls) ? fs.readFileSync(calls, 'utf8').trim().split('\n').length : 0;
 async function status(r) {return api.getRunStatus(r.runId);}
-(async () => {
-  // 1. No sessions.json and no readable evidence never imply expiration.
-  let r = run('no-proof'); write(r); responses({});
-  assert.equal((await status(r)).state, 'running');
-  assert.equal(stored().error, undefined);
-  assert.equal(fs.existsSync(path.join(root, 'agents/main/sessions/sessions.json')), false);
 
-  // SQLite owner proof, unlike an absent file, can establish inactivity.
-  r = run('late', {decision: {version: 2, capability: 'read.balance',
-    confirmationRequired: false, humanBoundary: null}}); write(r);
-  const first = message('user', r.text, old);
-  ownerProof(r, [first]);
-  assert.equal((await status(r)).status, 'expired');
-  assert.equal(stored().state, 'failed');
-
-  // 3. A real late result replaces expiration and persists a correction receipt.
-  ownerProof(r, [first, message('assistant', 'Real late result', now - 1000, {stopReason: 'stop'})]);
-  let result = await status(r);
-  assert.equal(result.state, 'done'); assert.equal(result.result, 'Real late result');
-  assert.equal(result.inactivityCorrectionReceipt.from, 'expired');
-  const receipt = result.inactivityCorrectionReceipt;
-  assert.deepEqual(stored().inactivityCorrectionReceipt, receipt);
-  assert.deepEqual((await status(r)).inactivityCorrectionReceipt, receipt);
-  const restarted = spawnSync(process.execPath, ['-e', `require('./dist/companion/runs').getRunStatus('late').then(r => console.log(JSON.stringify(r)))`], {encoding: 'utf8'});
-  assert.equal(restarted.status, 0, restarted.stderr);
-  assert.deepEqual(JSON.parse(restarted.stdout).inactivityCorrectionReceipt, receipt);
-
-  for (const [id, read] of [
-    ['late-summary', r => api.listRunSummaries()],
-    ['late-list', r => api.listRuns()],
-    ['late-callback', async r => {await api.settleSubmittedRun(r.runId, 'done', 'Native callback result'); return [await status(r)];}]
-  ]) {
-    r = run(id); write(r); ownerProof(r, [message('user', r.text, old)]);
-    assert.equal((await status(r)).status, 'expired');
-    ownerProof(r, [message('user', r.text, old), message('assistant', 'Late proof', now - 1000, {stopReason: 'stop'})]);
-    if (id === 'late-callback') ownerProof(r, [message('user', r.text, old)]);
-    const rows = await read(r); assert.equal(rows[0].state, 'done', id);
-    assert.equal(rows[0].inactivityCorrectionReceipt.action, 'correct_run_expiration');
-  }
-
-  // 2. An outstanding tool is live even with an old timestamp and false session flag.
-  r = run('long-tool'); write(r);
-  ownerProof(r, [message('user', r.text, old), message('assistant',
-    [{type: 'toolCall', id: 'long-tool-call', name: 'legitimate'}], old + 1000)]);
-  assert.equal((await status(r)).state, 'running'); assert.equal(stored().error, undefined);
-
-  // 4. Different caller origin IDs cannot remove bank/biometric protection.
-  for (const [id, payments, confirmations, decision] of [
-    ['bank', [{state: 'requires_bank_action', ownerConfirmationId: 'canonical-confirm',
-      draft: {origin: {id: 'different-caller-origin'}}}], [], undefined],
-    ['biometric', [], [{id: 'canonical-confirm', state: 'awaiting_owner',
-      intent: {origin: {id: 'another-origin'}}}], undefined],
-    ['capability', [], [], {version: 2, capability_id: 'payment.topup'}],
-    ['nested-capability', [], [], {version: 2, selected: {capability: 'payment.topup'}, confirmationRequired: false}],
-    ['human-boundary', [], [], {version: 2, humanBoundary: 'owner_biometric'}],
-    ['unknown-guard', [{id: 'unknown-record'}], [], undefined]
-  ]) {
-    r = run(id, {decision}); write(r, payments, confirmations); ownerProof(r, [message('user', r.text, old)]);
-    const before = callsCount(); assert.equal((await status(r)).state, 'running');
-    assert.equal(callsCount(), before, 'protected runs must never be transcript candidates');
-    assert.deepEqual(JSON.parse(fs.readFileSync(registry)).paymentRequests, payments);
-    assert.deepEqual(JSON.parse(fs.readFileSync(registry)).ownerConfirmations, confirmations);
-  }
-
-  // Unknown owner activity, duplicate prompts, recent progress and unreadable
-  // histories are not negative proof. Capability-first shares the same guard.
-  for (const [id, makeMessages, flags] of [
-    ['unknown-owner', r => [message('user', r.text, old)], {hasActiveRun: null}],
-    ['recent-progress', r => [message('user', r.text, old), message('assistant', 'working', now - 1000)], {}],
-    ['duplicate-prompt', r => [message('user', r.text, old), message('user', r.text, old + 1000)], {}],
-    ['missing-approvals', r => [message('user', r.text, old)], {permissionModePending: null}],
-    ['undated', r => [message('user', r.text, undefined)], {}],
-    ['older-unrelated-turn', r => [message('user', r.text, old - 60000)], {}],
-    ['active-owner', r => [message('user', r.text, old)], {hasActiveRun: true}]
-  ]) {
-    r = run(id); write(r); ownerProof(r, makeMessages(r), flags);
-    assert.equal((await status(r)).state, 'running', id);
-  }
-  // Real owner activity reverses an expiration without waiting for chat.history.
-  r = run('active-after-expiry', {state:'failed', error:'run_inactivity_expired'}); write(r);
-  ownerProof(r, [], {hasActiveRun:true, activeRunIds:['owner-run']});
-  assert.equal((await status(r)).state, 'running');
-  assert.equal(stored().inactivityCorrectionReceipt.to, 'running');
-  for (const flags of [{activeRunIds:['owner-run']}, {activeRunIds:null}, {permissionModePending:true},
-    {permissionModePending:undefined}, {abortedLastRun:true}, {lastActivityAt:now}]) {
-    r=run('real-owner-guard');write(r);ownerProof(r,[message('user',r.text,old)],flags);
-    assert.equal((await status(r)).state,'running');
-  }
-  // A stale owner read cannot overwrite deletion, archive, a new failure,
-  // a native result or a guard added while evidence is being fetched.
-  for (const mutation of ['delete', 'archive', 'result', 'failure', 'guard']) {
-    r = run('race-' + mutation); write(r); ownerProof(r, [message('user', r.text, old)]);
-    for (const file of [started, release]) try {fs.unlinkSync(file);} catch {}
-    fs.writeFileSync(block, 'block');
-    const reading = status(r);
-    for (let i = 0; i < 200 && !fs.existsSync(started); i++) await new Promise(resolve => setTimeout(resolve, 10));
-    assert.ok(fs.existsSync(started), 'owner evidence read did not start');
-    if (mutation === 'delete') await api.deleteSession(r.sessionId);
-    if (mutation === 'archive') await api.archiveSession(r.sessionId);
-    if (mutation === 'result') await api.settleSubmittedRun(r.runId, 'done', 'Concurrent real result');
-    if (mutation === 'failure') await api.markSubmittedRunFailed(r.runId, 'Definitive failure');
-    if (mutation === 'guard') {
-      const value = JSON.parse(fs.readFileSync(registry));
-      value.ownerConfirmations = [{state: 'awaiting_owner', intent: {origin: {id: 'foreign'}}}];
-      fs.writeFileSync(registry, JSON.stringify(value));
-    }
-    fs.writeFileSync(release, 'release'); await reading; fs.unlinkSync(block);
-    const value = JSON.parse(fs.readFileSync(registry));
-    if (mutation === 'delete') assert.equal(value.runs.length, 0);
-    if (mutation === 'archive') assert.deepEqual(value.archivedSessionIds, [r.sessionId]);
-    if (mutation === 'result') assert.equal(value.runs[0].result, 'Concurrent real result');
-    if (mutation === 'failure') assert.equal(value.runs[0].error, 'Definitive failure');
-    if (['archive', 'guard'].includes(mutation)) assert.equal(value.runs[0].state, 'running');
-  }
-  // The targeted status must not be starved by the 25-candidate list bound.
-  r = run('beyond-list-bound'); write(r);
-  const many = JSON.parse(fs.readFileSync(registry));
-  many.runs = [...Array.from({length: 30}, (_, i) => run('earlier-' + i)), r];
-  fs.writeFileSync(registry, JSON.stringify(many));
-  ownerProof(r, [message('user', r.text, old)]);
-  assert.equal((await status(r)).status, 'expired');
-  ownerProof(r, [message('user', r.text, old), message('assistant', 'Target result', now - 1000, {stopReason: 'stop'})]);
-  assert.equal((await status(r)).result, 'Target result');
-  // A slow owner must not multiply its timeout by the candidate count.
-  r=run('slow-list');write(r);ownerProof(r,[message('user',r.text,old)]);
-  const slowRegistry=JSON.parse(fs.readFileSync(registry));slowRegistry.runs=Array.from({length:30},(_,i)=>run('slow-'+i));
-  fs.writeFileSync(registry,JSON.stringify(slowRegistry));
-  // Block sessions.list too, so the hard subprocess deadline is exercised.
-  fs.writeFileSync(gateway,fs.readFileSync(gateway,'utf8').replace("if method=='chat.history' and", "if method in ('chat.history','sessions.list') and"));
-  for (const file of [started,release]) try{fs.unlinkSync(file)}catch{}
-  fs.writeFileSync(block,'block');const begin=Date.now();await api.listRuns();
-  assert.ok(Date.now()-begin<2000,'listRuns exceeded its global read budget');
-  r=run('slow-native-status',{executionSource:'openclaw_agent'});write(r);const statusBegin=Date.now();assert.equal((await status(r)).state,'running');assert.ok(Date.now()-statusBegin<2000,'getRunStatus exceeded global read budget');
-  fs.writeFileSync(release,'release');fs.unlinkSync(block);
-  fs.writeFileSync(registry, '{bad registry');
-  responses({});
-  assert.equal((await api.getRunStatus('missing')).state, 'unknown');
-  console.log(JSON.stringify({suite: 'R2-v2', passed: true, required: {
-    noReadableProof: 'passed', longActiveTool: 'passed', lateResult: 'passed', bankBiometricDifferentOrigins: 'passed'},
-    sqliteOwnerFixture: 'passed', protectedCandidatesExcluded: 'passed', corruptRegistryStatus: 'passed'}));
-})().catch(error => {console.error(error); process.exitCode = 1;});
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function until(test,timeout=3000){const start=Date.now();while(!test()){assert.ok(Date.now()-start<timeout,'background condition timed out');await delay(10);}}
+// Observe the real CLI promises, without exposing a production test API.
+const gatewayClient=require('../dist/companion/openclawAgentClient');const originalGateway=gatewayClient.callOpenClawGateway;const inflight=new Set();let entered=0;
+gatewayClient.callOpenClawGateway=(...args)=>{entered++;const promise=originalGateway(...args);inflight.add(promise);promise.then(()=>inflight.delete(promise),()=>inflight.delete(promise));return promise;};
+async function idle(){await delay(40);while(inflight.size){await Promise.allSettled([...inflight]);await delay(40);}}
+async function expire(r){const before=entered;const start=Date.now();const snapshot=await status(r);assert.equal(snapshot.state,'running');assert.ok(Date.now()-start<300,'read awaited owner');await until(()=>stored().error==='run_inactivity_expired',10000);await idle();assert.ok(entered>before);return status(r);}
+(async()=>{
+ // Required 1: no readable owner/SQLite proof never expires; no sessions.json.
+ let r=run('no-proof');write(r);responses({});assert.equal((await status(r)).state,'running');await idle();assert.equal(stored().error,undefined);assert.equal(fs.existsSync(path.join(root,'agents/main/sessions/sessions.json')),false);
+ // Positive negative-proof test with real S24-like 4.15s + 2.39s CLI latency.
+ const originalScript=fs.readFileSync(gateway,'utf8');fs.writeFileSync(gateway,originalScript.replace("method=sys.argv[3]","method=sys.argv[3]\ntime.sleep(4.15 if method=='sessions.list' else 2.39)"));
+ r=run('slow-expiry');write(r);ownerProof(r,[message('user',r.text,old)]);let before=entered,start=Date.now();
+ const snapshots=await Promise.all(Array.from({length:6},()=>status(r)));assert.ok(snapshots.every(x=>x.state==='running'));assert.ok(Date.now()-start<300);
+ await until(()=>stored().error==='run_inactivity_expired',10000);await idle();assert.equal(entered-before,2,'one sessions/history pass for concurrent reads');assert.ok(Date.now()-start>=6500);
+ before=entered;await Promise.all([status(r),api.listRuns(),api.listRunSummaries()]);await idle();assert.equal(entered,before,'expired run is retired from polling');fs.writeFileSync(gateway,originalScript);
+ // Required 3: a late canonical callback replaces expiration and has a receipt.
+ await api.settleSubmittedRun(r.runId,'done','Real late result');let result=await status(r);assert.equal(result.result,'Real late result');assert.equal(result.inactivityCorrectionReceipt.to,'done');
+ const receipt=result.inactivityCorrectionReceipt;assert.deepEqual(stored().inactivityCorrectionReceipt,receipt);
+ const restarted=spawnSync(process.execPath,['-e',`require('./dist/companion/runs').getRunStatus('slow-expiry').then(r=>console.log(JSON.stringify(r)))`],{encoding:'utf8'});assert.equal(restarted.status,0,restarted.stderr);assert.deepEqual(JSON.parse(restarted.stdout).inactivityCorrectionReceipt,receipt);
+ // Existing explicit conversation-history read supplies late turn evidence,
+ // without putting expired runs back in the automatic candidate pool.
+ r=run('late-history',{executionSource:'gateway'});write(r);ownerProof(r,[message('user',r.text,old)]);await expire(r);
+ ownerProof(r,[message('user',r.text,old),message('assistant','History late result',now-1000,{stopReason:'stop'})]);
+ const rows=await api.getConversationTurns(r.sessionId);assert.equal(rows[0].result,'History late result');assert.equal(rows[0].inactivityCorrectionReceipt.to,'done');await idle();
+ // Required 2: outstanding tools remain active, even with old session flags.
+ r=run('long-tool');write(r);ownerProof(r,[message('user',r.text,old),message('assistant',[{type:'toolCall',id:'tool-1',name:'legitimate'}],old+1000)]);assert.equal((await status(r)).state,'running');await idle();assert.equal(stored().error,undefined);
+ // Required 4: protected runs never enter the pool, regardless of origin IDs.
+ for(const [id,payments,confirmations,decision] of [
+  ['bank',[{state:'requires_bank_action',ownerConfirmationId:'canonical-confirm',draft:{origin:{id:'foreign'}}}],[],undefined],
+  ['biometric',[],[{id:'canonical-confirm',state:'awaiting_owner',intent:{origin:{id:'foreign'}}}],undefined],
+  ['capability',[],[],{version:2,capability_id:'payment.topup'}],
+  ['nested',[],[],{version:2,selected:{capability:'payment.topup'},confirmationRequired:false}],
+  ['human',[],[],{version:2,humanBoundary:'owner_biometric'}],
+  ['unknown-guard',[{id:'unknown'}],[],undefined]]){
+   r=run(id,{decision});write(r,payments,confirmations);ownerProof(r,[message('user',r.text,old)]);before=entered;assert.equal((await status(r)).state,'running');await idle();assert.equal(entered,before);assert.deepEqual(JSON.parse(fs.readFileSync(registry)).paymentRequests,payments);assert.deepEqual(JSON.parse(fs.readFileSync(registry)).ownerConfirmations,confirmations);
+ }
+ for(const [id,make,flags] of [
+  ['unknown',r=>[message('user',r.text,old)],{hasActiveRun:null}],
+  ['recent',r=>[message('user',r.text,old),message('assistant','working',now-1000)],{}],
+  ['duplicate',r=>[message('user',r.text,old),message('user',r.text,old+1000)],{}],
+  ['undated',r=>[message('user',r.text,undefined)],{}],
+  ['old-turn',r=>[message('user',r.text,old-60000)],{}],
+  ['active',r=>[message('user',r.text,old)],{hasActiveRun:true}],
+  ['status-running',r=>[message('user',r.text,old)],{status:'running'}],
+  ['seconds',r=>[message('user',r.text,old)],{lastActivityAt:Math.floor(old/1000)}],
+  ['permission',r=>[message('user',r.text,old)],{permissionModePending:true}]]){
+   r=run(id);write(r);ownerProof(r,make(r),flags);assert.equal((await status(r)).state,'running');await idle();assert.equal(stored().error,undefined,id);
+ }
+ // M1: session-level activity / another run never resurrects an expired run.
+ for(const ids of [['another-run'],['retired']]){
+  const retired=run('retired',{state:'failed',error:'run_inactivity_expired'}),peer=run('peer',{sessionId:'retired'});write(retired);let reg=JSON.parse(fs.readFileSync(registry));reg.runs.push(peer);fs.writeFileSync(registry,JSON.stringify(reg));ownerProof(peer,[],{hasActiveRun:true,activeRunIds:ids});
+  await status(peer);await idle();const changed=JSON.parse(fs.readFileSync(registry)).runs.find(x=>x.runId==='retired');assert.equal(changed.state,ids.includes('retired')?'running':'failed');if(ids.includes('retired'))assert.equal(changed.inactivityCorrectionReceipt.to,'running');
+ }
+ // A formerly corrected run expiring again cannot carry a stale running receipt.
+ r=run('re-expire',{inactivityCorrectionReceipt:{version:1,action:'correct_run_expiration',runId:'re-expire',from:'expired',to:'running',at:old,evidenceAt:old}});write(r);ownerProof(r,[message('user',r.text,old)]);await expire(r);assert.equal(stored().inactivityCorrectionReceipt,undefined);
+ // Background evidence must lose to concurrent deletion/archive/result/guard/failure.
+ for(const mutation of ['delete','archive','result','failure','guard']){
+  r=run('race-'+mutation);write(r);ownerProof(r,[message('user',r.text,old)]);for(const f of [started,release])try{fs.unlinkSync(f)}catch{}fs.writeFileSync(block,'block');const snapshot=await status(r);assert.equal(snapshot.state,'running');await until(()=>fs.existsSync(started));
+  if(mutation==='delete')await api.deleteSession(r.sessionId);
+  if(mutation==='archive')await api.archiveSession(r.sessionId);
+  if(mutation==='result')await api.settleSubmittedRun(r.runId,'done','Concurrent real result');
+  if(mutation==='failure')await api.markSubmittedRunFailed(r.runId,'Definitive failure');
+  if(mutation==='guard'){const value=JSON.parse(fs.readFileSync(registry));value.ownerConfirmations=[{state:'awaiting_owner',intent:{origin:{id:'foreign'}}}];fs.writeFileSync(registry,JSON.stringify(value));}
+  fs.writeFileSync(release,'release');await idle();fs.unlinkSync(block);const value=JSON.parse(fs.readFileSync(registry));if(mutation==='delete')assert.equal(value.runs.length,0);if(mutation==='archive')assert.deepEqual(value.archivedSessionIds,[r.sessionId]);if(mutation==='result')assert.equal(value.runs[0].result,'Concurrent real result');if(mutation==='failure')assert.equal(value.runs[0].error,'Definitive failure');if(['archive','guard'].includes(mutation))assert.equal(value.runs[0].state,'running');
+ }
+ // A hung CLI is killed by the global background budget, not by a read.
+ r=run('budget-timeout');write(r);ownerProof(r,[message('user',r.text,old)]);for(const f of [started,release])try{fs.unlinkSync(f)}catch{}fs.writeFileSync(block,'block');start=Date.now();assert.equal((await status(r)).state,'running');assert.ok(Date.now()-start<300);await until(()=>fs.existsSync(started));await until(()=>inflight.size===0,11000);await idle();assert.ok(Date.now()-start>=9000&&Date.now()-start<11000);assert.equal(stored().error,undefined);fs.unlinkSync(block);
+ fs.writeFileSync(registry,'{bad registry');responses({});assert.equal((await api.getRunStatus('missing')).state,'unknown');await idle();
+ console.log(JSON.stringify({suite:'R2-v2',passed:true,required:{noReadableProof:'passed',longActiveTool:'passed',lateResult:'passed',bankBiometricDifferentOrigins:'passed'},singleFlightBackground:'passed',realisticLatency:'passed',expiredPoolRetired:'passed',runScopedResurrection:'passed',concurrentMutations:'passed'}));
+})().catch(error=>{console.error(error);process.exitCode=1});

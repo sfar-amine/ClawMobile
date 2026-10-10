@@ -220,7 +220,7 @@ export async function settleSubmittedRun(
   const stored: StoredRun = {
     ...existing,
     state,
-    inactivityCorrectionReceipt: state === "done" && existing.error === "run_inactivity_expired" ? {
+    inactivityCorrectionReceipt: state === "done" && (existing.error === "run_inactivity_expired" || existing.inactivityCorrectionReceipt?.to === "running") ? {
       version: 1, action: "correct_run_expiration", runId, from: "expired", to: "done",
       at: Date.now(), evidenceAt: Date.now(),
     } : existing.inactivityCorrectionReceipt,
@@ -380,27 +380,13 @@ export async function listRunSummaries(options: { limit?: number } = {}): Promis
 }
 
 export async function listRuns(options: { limit?: number } = {}): Promise<CompanionRunStatus[]> {
-  const deadline = Date.now() + INACTIVITY_READ_BUDGET_MS;
-  await reconcileInactiveRuns(false, undefined, deadline);
-  const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
   const storedRuns = await readStoredRuns(false);
-  const needsSessions = !storedRuns.length || storedRuns.some(run => run.modality !== "voice" && run.executionSource !== "capability_first" && run.error !== "run_inactivity_expired" && !run.inactivityCorrectionReceipt);
-  const sessions = needsSessions ? await readSessionsIndex(deadline).catch(() => []) : [];
-  const archivedSessionIds = await readArchivedSessionIds();
-  if (storedRuns.length > 0) {
-    return Promise.all(
-      storedRuns.slice(0, limit).map(async (stored) => {
-        if (stored.modality === "voice" || stored.executionSource === "capability_first" || stored.error === "run_inactivity_expired" || stored.inactivityCorrectionReceipt) {
-          return statusFromStoredRun(stored);
-        }
-        const session = findSessionForStoredRun(sessions, stored);
-        const fallback = session
-          ? statusFromSessionInfo(session, stored.runId, stored)
-          : statusFromStoredRun(stored);
-        return enrichFromSessionFile(fallback, session, stored, false);
-      }),
-    );
-  }
+  const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
+  reconcileInactiveRuns();
+  if(storedRuns.length)return storedRuns.slice(0,limit).map(statusFromStoredRun);
+  // Legacy discovery only when no retained snapshot exists.
+  const sessions=await readSessionsIndex().catch(()=>[]);
+  const archivedSessionIds=await readArchivedSessionIds();
 
   return Promise.all(
     sessions
@@ -488,12 +474,10 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
   if ((await registryOrEmpty().catch(() => defaultCompanionRunRegistry())).runDeletions.some(receipt => receipt.runId === normalizedRunId))
     return unknownRun(normalizedRunId, "Run deleted from companion history.");
 
-  const deadline = Date.now() + INACTIVITY_READ_BUDGET_MS;
-  await reconcileInactiveRuns(false, normalizedRunId, deadline);
   const stored = (await findStoredRun(normalizedRunId, false).catch(() => null)) || submittedRuns.get(normalizedRunId);
-  if (stored?.modality === "voice" || stored?.executionSource === "capability_first" || stored?.error === "run_inactivity_expired" || stored?.inactivityCorrectionReceipt) {
-    return statusFromStoredRun(stored);
-  }
+  reconcileInactiveRuns(normalizedRunId);
+  if(stored)return statusFromStoredRun(stored);
+  const deadline=Date.now()+1500;
   const listed = await findSessionInfo(normalizedRunId, stored, deadline).catch(() => null);
   if (listed) {
     const fallback = statusFromSessionInfo(listed, normalizedRunId, stored || undefined);
@@ -1473,40 +1457,26 @@ function validInactivityReceipt(value: any, runId: string): InactivityReceipt | 
 }
 
 let inactivityRead: Promise<void> | undefined;
-let inactivityReadKey = "", inactivityCursor = 0;
-const INACTIVITY_READ_BUDGET_MS = 1500;
-function reconcileInactiveRuns(onlyExpired = false, targetRunId?: string, deadline = Date.now() + INACTIVITY_READ_BUDGET_MS): Promise<void> {
-  if (Date.now() >= deadline) return Promise.resolve();
-  const key = JSON.stringify([onlyExpired, targetRunId]);
-  if (inactivityRead) {
-    const waiting = key === inactivityReadKey ? inactivityRead :
-      inactivityRead.then(() => reconcileInactiveRuns(onlyExpired, targetRunId, deadline));
-    return boundedInactivityRead(waiting, deadline);
-  }
-  inactivityReadKey = key;
-  inactivityRead = reconcileInactiveRunsOnce(onlyExpired, targetRunId, deadline).catch(() => undefined)
-    .finally(() => { inactivityRead = undefined; });
-  return boundedInactivityRead(inactivityRead, deadline);
-}
-function boundedInactivityRead(read: Promise<void>, deadline: number): Promise<void> {
-  return new Promise(resolve => {
-    const timer = setTimeout(resolve, Math.max(0, deadline - Date.now()));
-    read.finally(() => { clearTimeout(timer); resolve(); });
-  });
+let inactivityCursor = 0;
+const INACTIVITY_READ_BUDGET_MS = 10000;
+/** Read snapshots never await reconciliation. One bounded owner pass at a time. */
+function reconcileInactiveRuns(targetRunId?:string):void {
+  if(inactivityRead)return;
+  inactivityRead=reconcileInactiveRunsOnce(targetRunId,Date.now()+INACTIVITY_READ_BUDGET_MS)
+    .catch(()=>undefined).finally(()=>{inactivityRead=undefined;});
 }
 
-async function reconcileInactiveRunsOnce(onlyExpired: boolean, targetRunId: string | undefined, deadline: number): Promise<void> {
+async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadline: number): Promise<void> {
   await registryWrite;
   const initial = await registryOrEmpty(), now = Date.now();
   const eligible = (run: StoredRun, registry: CompanionRunRegistry) => run.modality !== "voice" &&
     !run.result && (!run.state || run.state === "running" || run.error === "run_inactivity_expired") &&
-    run.acceptedAt > 0 && (run.error === "run_inactivity_expired" || !!run.inactivityCorrectionReceipt || now - (run.updatedAt || run.acceptedAt) >= RUN_INACTIVITY_MS) &&
+    run.acceptedAt >= 1000000000000 && (run.error === "run_inactivity_expired" || !!run.inactivityCorrectionReceipt || now - (run.updatedAt || run.acceptedAt) >= RUN_INACTIVITY_MS) &&
     !registry.archivedSessionIds.includes(run.sessionId) &&
     !registry.runDeletions.some(row => row.runId === run.runId) &&
     !protectedRun(run, registry.paymentRequests, registry.ownerConfirmations);
   const pool = initial.runs.filter(run => eligible(run, initial) &&
-    (!targetRunId || run.runId === targetRunId) &&
-    (!onlyExpired || run.error === "run_inactivity_expired" || !!run.inactivityCorrectionReceipt));
+    run.error !== "run_inactivity_expired" && (!targetRunId || run.runId === targetRunId));
   const start = targetRunId || !pool.length ? 0 : inactivityCursor % pool.length;
   const candidates = [...pool.slice(start), ...pool.slice(0, start)].slice(0, 3);
   if (!targetRunId) inactivityCursor += candidates.length;
@@ -1520,13 +1490,18 @@ async function reconcileInactiveRunsOnce(onlyExpired: boolean, targetRunId: stri
   const listed = await ownerRead("sessions.list", {search: "companion-", limit: 100});
   const sessions = Array.isArray(listed?.sessions) ? listed.sessions : Array.isArray(listed) ? listed : [];
   const changes = new Map<string, {before: StoredRun; after: StoredRun}>();
-  for (const run of candidates) {
+  // Retired expirations are never polled. A sessions.list already read for a
+  // live candidate may provide explicit contrary proof naming a retired run.
+  const revived=initial.runs.filter(run=>run.error==="run_inactivity_expired"&&eligible(run,initial)&&sessions.some((session:any)=>
+    (session.key===(run.sessionKey||expectedCompanionSessionKey(run.sessionId))||session.sessionKey===(run.sessionKey||expectedCompanionSessionKey(run.sessionId)))&&
+    Array.isArray(session.activeRunIds)&&session.activeRunIds.includes(run.runId)));
+  for (const run of [...candidates,...revived]) {
     const key = run.sessionKey || expectedCompanionSessionKey(run.sessionId);
     const session = sessions.find((row: any) => row?.key === key || row?.sessionKey === key);
     if (!session || Date.now() >= deadline) continue;
-    const active = session.hasActiveRun === true || (Array.isArray(session.activeRunIds) && session.activeRunIds.length > 0);
+    const active = session.hasActiveRun === true || session.status === "running" || (Array.isArray(session.activeRunIds) && session.activeRunIds.length > 0);
     if (active) {
-      if (run.error === "run_inactivity_expired") changes.set(run.runId, {before: run, after: {
+      if (run.error === "run_inactivity_expired" && Array.isArray(session.activeRunIds) && session.activeRunIds.includes(run.runId)) changes.set(run.runId, {before: run, after: {
         ...run, state: "running", error: undefined, updatedAt: now,
         inactivityCorrectionReceipt: {version: 1, action: "correct_run_expiration", runId: run.runId,
           from: "expired", to: "running", at: now, evidenceAt: now}}});
@@ -1535,7 +1510,7 @@ async function reconcileInactiveRunsOnce(onlyExpired: boolean, targetRunId: stri
     // Closed proof from the real sessions.list shape. Missing/unknown fields
     // never prove absence of activity or a pending permission transition.
     const lastActivityAt = typeof session.lastActivityAt === "number" ? session.lastActivityAt : Date.parse(session.lastActivityAt);
-    const quiescent = Number.isFinite(lastActivityAt) && lastActivityAt > 0 && lastActivityAt <= now && session.hasActiveRun === false && Array.isArray(session.activeRunIds) &&
+    const quiescent = Number.isFinite(lastActivityAt) && lastActivityAt >= 1000000000000 && lastActivityAt <= now && session.hasActiveRun === false && Array.isArray(session.activeRunIds) &&
       session.activeRunIds.length === 0 && session.permissionModePending === false &&
       session.abortedLastRun === false;
 
@@ -1549,9 +1524,9 @@ async function reconcileInactiveRunsOnce(onlyExpired: boolean, targetRunId: stri
     else if (expired && (proof.outstandingTool || proof.lastAt > (run.updatedAt || run.acceptedAt)))
       after = {...run, state: "running", error: undefined, updatedAt: proof.lastAt};
     else if (!expired && !proof.outstandingTool && quiescent && now - Math.max(proof.lastAt, lastActivityAt, run.updatedAt || run.acceptedAt) >= RUN_INACTIVITY_MS)
-      after = {...run, state: "failed", error: "run_inactivity_expired", updatedAt: proof.lastAt};
+      after = {...run, state: "failed", error: "run_inactivity_expired", updatedAt: proof.lastAt, inactivityCorrectionReceipt:undefined};
     if (!after) continue;
-    if (expired && after.state !== "failed") after.inactivityCorrectionReceipt = {
+    if ((expired || run.inactivityCorrectionReceipt?.to === "running") && after.state !== "failed") after.inactivityCorrectionReceipt = {
       version: 1, action: "correct_run_expiration", runId: run.runId, from: "expired",
       to: after.state === "done" ? "done" : "running", at: now, evidenceAt: proof.lastAt};
     changes.set(run.runId, {before: run, after});
@@ -1573,7 +1548,7 @@ async function reconcileInactiveRunsOnce(onlyExpired: boolean, targetRunId: stri
 }
 
 async function readStoredRuns(reconcile = true): Promise<StoredRun[]> {
-  if (reconcile) await reconcileInactiveRuns(true);
+  if (reconcile) reconcileInactiveRuns();
   for (const run of submittedRuns.values()) {
     if (!run.sessionId) run.sessionId = "default";
   }
@@ -1764,13 +1739,17 @@ export async function getConversationTurns(sessionId: string) {
   requireConversationId(sessionId);
   await registryWrite;
   const stored=(await readStoredRuns()).filter(run=>run.sessionId===sessionId).slice(0,40).reverse();
-  const unresolved=stored.filter(run=>run.modality!=="voice"&&run.executionSource!=="capability_first"&&!run.result&&run.state!=="failed");
+  const unresolved=stored.filter(run=>run.modality!=="voice"&&run.executionSource!=="capability_first"&&!run.result&&(run.state!=="failed"||run.error==="run_inactivity_expired"));
   if(!unresolved.length)return stored.map(statusFromStoredRun);
   const history=await callOpenClawGateway("chat.history",{sessionKey:expectedCompanionSessionKey(sessionId),limit:200});
   const raw=(Array.isArray(history?.messages)?history.messages:[]).map((message:any)=>JSON.stringify({type:"message",message,timestamp:message.timestamp})).join("\n");
   const proofs=unresolved.flatMap(run=>{
     // Repeated equal requests require a stronger owner correlation, never guess the last match.
     if(stored.filter(x=>x.text===run.text).length!==1)return [];
+    if(run.error==="run_inactivity_expired"){
+      const evidence=ownerTurnEvidence(history?.messages,run.text,Date.now());
+      if(!evidence||evidence.outstandingTool||Math.abs(evidence.startedAt-run.acceptedAt)>30000)return [];
+    }
     const proof=terminalConversationResult(raw,run.text);
     return proof?[{before:run,...proof}]:[];
   });
@@ -1787,8 +1766,9 @@ async function backfillConversationResults(sessionId:string,proofs:{before:Store
     const byId=new Map(proofs.map(p=>[p.before.runId,p]));const updates:StoredRun[]=[];
     const next=registry.runs.map(run=>{
       const proof=byId.get(run.runId);
-      if(!proof||run.sessionId!==sessionId||run.modality==="voice"||run.result||run.state==="failed"||runIdentity(run)!==runIdentity(proof.before))return run;
-      const updated={...run,result:proof.result,state:"done" as const,
+      if(!proof||run.sessionId!==sessionId||run.modality==="voice"||run.result||(run.state==="failed"&&run.error!=="run_inactivity_expired")||(run.error==="run_inactivity_expired"&&protectedRun(run,registry.paymentRequests,registry.ownerConfirmations))||runIdentity(run)!==runIdentity(proof.before))return run;
+      const updated={...run,result:proof.result,state:"done" as const,error:undefined,
+        inactivityCorrectionReceipt:run.error==="run_inactivity_expired"?{version:1 as const,action:"correct_run_expiration" as const,runId:run.runId,from:"expired" as const,to:"done" as const,at:Date.now(),evidenceAt:proof.endedAt||Date.now()}:run.inactivityCorrectionReceipt,
         updatedAt:proof.endedAt&&proof.endedAt>=run.acceptedAt?proof.endedAt:run.updatedAt||run.acceptedAt};
       updates.push(updated);return updated;
     });
@@ -1865,7 +1845,7 @@ function cursorAnchor(cursor:string|undefined,scope:string,revision:string):stri
   return value.anchor;
 }
 async function retainedRuns():Promise<StoredRun[]> {
-  await reconcileInactiveRuns(true);
+  reconcileInactiveRuns();
   await registryWrite;
   const registry=await registryOrEmpty(),archived=new Set(registry.archivedSessionIds);
   return registry.runs.filter(x=>!archived.has(x.sessionId)).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
