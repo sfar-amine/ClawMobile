@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "R5 : lecture Automatisations différée et cache du pool existant invalidé par la révision du scheduler",
-  "reason": "Lot R5 autorisé ; base runtime 639ae68, aucun déploiement ni nouvelle persistance.",
+  "reason": "Lot R5 autorisé ; base runtime 9a04980, aucun déploiement ni nouvelle persistance.",
   "files": [
     "docs/changes/codex-r5-latency-current-20261010.json",
     "docs/changes/codex-r5-latency-current-20261010.md",
@@ -23,7 +23,7 @@
     {
       "name": "Current CI workflow",
       "status": "passed",
-      "evidence": "All current .github/workflows/ci.yml steps run locally with /tmp/run_pr_ci.py : CI_LOCAL_OK. ci.yml unchanged; the new R5 test is run separately."
+      "evidence": "All CI steps on 639ae68 run locally with /tmp/run_pr_ci.py : CI_LOCAL_OK. After merging 9a04980 (#29 runs-only delta), build and runs regressions rerun. ci.yml unchanged; the new R5 test is run separately."
     }
   ],
   "documentation": [
