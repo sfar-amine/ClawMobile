@@ -1,0 +1,234 @@
+{
+ "_capture": {
+  "method": "GET séquentiel, 2 tentatives par route (comme companion-acceptance.py)",
+  "capturedAt": "2026-10-10T18:36:03+00:00",
+  "note": "budgets = READS de installer/termux-lite/companion-acceptance.py ; cold = 1re requête, repeat = immédiatement après"
+ },
+ "routes": [
+  {
+   "route": "GET /v1/health",
+   "budgetS": 2.0,
+   "cold": {
+    "code": 200,
+    "ms": 100,
+    "bytes": 2808
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 32
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/whatsapp/allowlist",
+   "budgetS": 10.0,
+   "cold": {
+    "code": 200,
+    "ms": 4254,
+    "bytes": 2148
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 4083
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/whatsapp/allowlist/history?limit=50",
+   "budgetS": 10.0,
+   "cold": {
+    "code": 200,
+    "ms": 138,
+    "bytes": 94
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 303
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/security/surfaces",
+   "budgetS": 1.5,
+   "cold": {
+    "code": 200,
+    "ms": 1040,
+    "bytes": 902
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 1007
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/notifications/sources",
+   "budgetS": 6.0,
+   "cold": {
+    "code": 200,
+    "ms": 984,
+    "bytes": 8040
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 2585
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/runs?limit=50",
+   "budgetS": 4.0,
+   "cold": {
+    "code": 200,
+    "ms": 21,
+    "bytes": 24186
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 16
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/control/engineering?limit=20",
+   "budgetS": 2.0,
+   "cold": {
+    "code": 200,
+    "ms": 117,
+    "bytes": 6826
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 106
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/control/diagnostic/export",
+   "budgetS": 3.0,
+   "cold": {
+    "code": 200,
+    "ms": 232,
+    "bytes": 2128
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 211
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/updates",
+   "budgetS": 4.0,
+   "cold": {
+    "code": 200,
+    "ms": 550,
+    "bytes": 1372
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 5
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/control/memory?limit=20",
+   "budgetS": 3.0,
+   "cold": {
+    "code": 200,
+    "ms": 288,
+    "bytes": 8219
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 318
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/agent/config",
+   "budgetS": 9.0,
+   "cold": {
+    "code": 200,
+    "ms": 4181,
+    "bytes": 1618
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 4172
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/laptop-access/computers",
+   "budgetS": 6.0,
+   "cold": {
+    "code": 200,
+    "ms": 183,
+    "bytes": 644
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 137
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/skills/candidates?limit=50",
+   "budgetS": 1.5,
+   "cold": {
+    "code": 200,
+    "ms": 11,
+    "bytes": 110
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 8
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/voice/voices",
+   "budgetS": 1.0,
+   "cold": {
+    "code": 200,
+    "ms": 14,
+    "bytes": 2040
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 23
+   },
+   "overBudgetCold": false
+  },
+  {
+   "route": "GET /v1/control/automations?contract=2",
+   "budgetS": 1.0,
+   "cold": {
+    "code": 200,
+    "ms": 2475,
+    "bytes": 6102
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 4
+   },
+   "overBudgetCold": true
+  },
+  {
+   "route": "GET /v1/skills/clawmobile-capabilities",
+   "budgetS": 4.0,
+   "cold": {
+    "code": 200,
+    "ms": 1964,
+    "bytes": 7092
+   },
+   "repeat": {
+    "code": 200,
+    "ms": 32
+   },
+   "overBudgetCold": false
+  }
+ ],
+ "response": null
+}

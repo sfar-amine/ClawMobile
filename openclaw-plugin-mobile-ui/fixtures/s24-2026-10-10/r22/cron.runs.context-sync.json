@@ -1,0 +1,644 @@
+{
+ "_capture": {
+  "method": "cron.runs",
+  "params": {
+   "id": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+   "limit": 20
+  },
+  "latencyMs": 1659,
+  "capturedAt": "2026-10-10T18:19:45+00:00",
+  "exitCode": 0,
+  "via": "timeout 60 nice openclaw gateway call <method> --params <json> --json",
+  "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+  "sanitized": true
+ },
+ "response": {
+  "entries": [
+   {
+    "ts": 1791656156354,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791656156353,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791656151305,
+    "durationMs": 5049,
+    "nextRunAtMs": 1791657051305,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791655255683,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791655255683,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791655251251,
+    "durationMs": 4432,
+    "nextRunAtMs": 1791656151251,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791654355597,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791654355596,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791654351190,
+    "durationMs": 4407,
+    "nextRunAtMs": 1791655251190,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791653455197,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791653455196,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791653451139,
+    "durationMs": 4058,
+    "nextRunAtMs": 1791654351139,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791652555748,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791652555747,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791652551107,
+    "durationMs": 4641,
+    "nextRunAtMs": 1791653451107,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791651656471,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791651656471,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791651651056,
+    "durationMs": 5415,
+    "nextRunAtMs": 1791652551056,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791650755912,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791650755911,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791650751000,
+    "durationMs": 4912,
+    "nextRunAtMs": 1791651651000,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791649855909,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791649855907,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791649850937,
+    "durationMs": 4972,
+    "nextRunAtMs": 1791650750937,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791648955131,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791648955129,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791648950903,
+    "durationMs": 4228,
+    "nextRunAtMs": 1791649850903,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791648055287,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791648055287,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791648050818,
+    "durationMs": 4469,
+    "nextRunAtMs": 1791648950818,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791647156659,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791647156658,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791647150772,
+    "durationMs": 5887,
+    "nextRunAtMs": 1791648050772,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791646255781,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791646255781,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791646250736,
+    "durationMs": 5045,
+    "nextRunAtMs": 1791647150736,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791645355756,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791645355755,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791645350686,
+    "durationMs": 5070,
+    "nextRunAtMs": 1791646250686,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791644459045,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791644459044,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791644450626,
+    "durationMs": 8419,
+    "nextRunAtMs": 1791645350626,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791643556275,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791643556274,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791643550511,
+    "durationMs": 5764,
+    "nextRunAtMs": 1791644450511,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791642656474,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791642656473,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791642650443,
+    "durationMs": 6031,
+    "nextRunAtMs": 1791643550443,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791641755359,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791641755358,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791641750390,
+    "durationMs": 4969,
+    "nextRunAtMs": 1791642650390,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791640855935,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791640855935,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791640850351,
+    "durationMs": 5584,
+    "nextRunAtMs": 1791641750351,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791639955385,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791639955385,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791639950307,
+    "durationMs": 5078,
+    "nextRunAtMs": 1791640850307,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   },
+   {
+    "ts": 1791639055138,
+    "jobId": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+    "action": "finished",
+    "status": "ok",
+    "completionStatus": "succeeded",
+    "summary": "<texte 134 car.>",
+    "diagnostics": {
+     "summary": "<texte 134 car.>",
+     "entries": [
+      {
+       "ts": 1791639055137,
+       "source": "exec",
+       "severity": "info",
+       "message": "<texte 79 car.>",
+       "exitCode": 0
+      }
+     ]
+    },
+    "runAtMs": 1791639050243,
+    "durationMs": 4895,
+    "nextRunAtMs": 1791639950243,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Context Sync"
+   }
+  ],
+  "total": 299,
+  "offset": 0,
+  "limit": 20,
+  "hasMore": true,
+  "nextOffset": 20
+ }
+}

@@ -1,0 +1,2292 @@
+{
+ "_capture": {
+  "method": "sqlite",
+  "source": "~/.openclaw/state/openclaw.sqlite (file:…?mode=ro) table plugin_state_entries, plugin_id='memory-core'",
+  "capturedAt": "2026-10-10T18:22:14+00:00",
+  "latencyMs": 54,
+  "sanitized": true,
+  "window": {
+   "from": "2026-10-03T18:22:14.401954+00:00",
+   "to": "2026-10-10T18:22:14+00:00",
+   "field": "value_json -> $.event.timestamp (ISO) ; created_at = horodatage d'écriture de la ligne"
+  }
+ },
+ "schema": "CREATE TABLE \"plugin_state_entries\" (\n  plugin_id TEXT NOT NULL,\n  namespace TEXT NOT NULL,\n  entry_key TEXT NOT NULL,\n  value_json TEXT NOT NULL,\n  created_at INTEGER NOT NULL,\n  expires_at INTEGER,\n  PRIMARY KEY (plugin_id, namespace, entry_key)\n) STRICT",
+ "namespaces": [
+  {
+   "namespace": "short-term-recall",
+   "count": 1536,
+   "minCreatedAt": 1791633619584,
+   "maxCreatedAt": 1791633727832
+  },
+  {
+   "namespace": "dreaming-session-ingestion-files",
+   "count": 938,
+   "minCreatedAt": 1791633629653,
+   "maxCreatedAt": 1791633729198
+  },
+  {
+   "namespace": "short-term-phase-signals",
+   "count": 884,
+   "minCreatedAt": 1791633654224,
+   "maxCreatedAt": 1791633731890
+  },
+  {
+   "namespace": "dreaming-session-ingestion-seen",
+   "count": 621,
+   "minCreatedAt": 1791633629665,
+   "maxCreatedAt": 1791633729159
+  },
+  {
+   "namespace": "memory-host.events",
+   "count": 294,
+   "minCreatedAt": 1790245990277,
+   "maxCreatedAt": 1791633732578
+  },
+  {
+   "namespace": "short-term-meta",
+   "count": 6,
+   "minCreatedAt": 1791633629516,
+   "maxCreatedAt": 1791633731941
+  },
+  {
+   "namespace": "memory-host.event-cursors",
+   "count": 3,
+   "minCreatedAt": 1791633659832,
+   "maxCreatedAt": 1791633732578
+  },
+  {
+   "namespace": "dreaming-daily-ingestion",
+   "count": 2,
+   "minCreatedAt": 1791633700528,
+   "maxCreatedAt": 1791633700534
+  }
+ ],
+ "memoryHostEventsLast7d": {
+  "countsByTypePhase": [
+   {
+    "type": "memory.dream.completed",
+    "phase": "deep",
+    "count": 21
+   },
+   {
+    "type": "memory.dream.completed",
+    "phase": "light",
+    "count": 21
+   },
+   {
+    "type": "memory.dream.completed",
+    "phase": "rem",
+    "count": 21
+   },
+   {
+    "type": "memory.recall.recorded",
+    "phase": null,
+    "count": 77
+   }
+  ],
+  "firstEventEver": "2026-09-24T10:33:06.365Z",
+  "rows": [
+   {
+    "entry_key": "efe2b50eb60d61f8b2c89b56acfb0de0a8ab005cf30ba9482",
+    "kind": "event",
+    "sequence": 44,
+    "recordedAt": 1791116567084,
+    "created_at": 1791116567099,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:22:40.427Z",
+     "resultCount": 189,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "bc5316df71b886d94bf67bac44f722bfdd0f98f4548856bc9",
+    "kind": "event",
+    "sequence": 45,
+    "recordedAt": 1791116569425,
+    "created_at": 1791116569427,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:22:40.427Z",
+     "resultCount": 51,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "9a8fb53538b3319762b76cc905691bf1a6a998dec98bcd40d",
+    "kind": "event",
+    "sequence": 46,
+    "recordedAt": 1791116571452,
+    "created_at": 1791116571457,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-04T12:22:40.427Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 500,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/light/2026-10-04.md"
+    }
+   },
+   {
+    "entry_key": "9c39c5ebe29690335a04c60ee32de09b248ccacbf50b45598",
+    "kind": "event",
+    "sequence": 47,
+    "recordedAt": 1791116574681,
+    "created_at": 1791116574683,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:22:40.427Z",
+     "resultCount": 25,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "f8d645b5c3c7cf820cefeb46ccfc9ee657c82ce36f53b18a1",
+    "kind": "event",
+    "sequence": 48,
+    "recordedAt": 1791116577021,
+    "created_at": 1791116577024,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:22:40.427Z",
+     "resultCount": 8,
+     "query": "<texte 32 car.>",
+     "results": "<8 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "3d0e43f7a2ee08c0bce485138bfde932309b13b85819942e0",
+    "kind": "event",
+    "sequence": 49,
+    "recordedAt": 1791116579444,
+    "created_at": 1791116579449,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-04T12:22:40.427Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 20,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/rem/2026-10-04.md"
+    }
+   },
+   {
+    "entry_key": "eed56d4737fad18567928496c76129da97cfb52d2432a987f",
+    "kind": "event",
+    "sequence": 50,
+    "recordedAt": 1791116581645,
+    "created_at": 1791116581647,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-04T12:22:40.427Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "798f495a734a6e657caf9fcc09d16a5386ebcea1f68c1b354",
+    "kind": "event",
+    "sequence": 15,
+    "recordedAt": 1791116582269,
+    "created_at": 1791116582271,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:23:01.649Z",
+     "resultCount": 17,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "49fbce0b8732e55c4bc82c836d7a2e1378031062a988e3c09",
+    "kind": "event",
+    "sequence": 16,
+    "recordedAt": 1791116582580,
+    "created_at": 1791116582583,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:23:01.649Z",
+     "resultCount": 44,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "3453495c06ebe31cd757b1d9f5a97b5dccaab7be49bd75609",
+    "kind": "event",
+    "sequence": 17,
+    "recordedAt": 1791116582853,
+    "created_at": 1791116582858,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-04T12:23:01.649Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 175,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/light/2026-10-04.md"
+    }
+   },
+   {
+    "entry_key": "ade90805c8c7de335dacb4c4f2491ff5219be433514f84bae",
+    "kind": "event",
+    "sequence": 18,
+    "recordedAt": 1791116583862,
+    "created_at": 1791116583865,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:23:01.649Z",
+     "resultCount": 6,
+     "query": "<texte 32 car.>",
+     "results": "<6 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "a84307a60ccb42fc6697199fad0bce9af0e65f2c0e5327614",
+    "kind": "event",
+    "sequence": 19,
+    "recordedAt": 1791116584131,
+    "created_at": 1791116584140,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-04T12:23:01.649Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 8,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/rem/2026-10-04.md"
+    }
+   },
+   {
+    "entry_key": "385034ab210a2aa0db0094ef44e4446783bb1b735168717eb",
+    "kind": "event",
+    "sequence": 20,
+    "recordedAt": 1791116584735,
+    "created_at": 1791116584738,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-04T12:23:01.649Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "cd76ac050d6d6f7e0bc6b42b38ec4a2ea62aafa6645d65aa0",
+    "kind": "event",
+    "sequence": 98,
+    "recordedAt": 1791116587553,
+    "created_at": 1791116587556,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:23:04.740Z",
+     "resultCount": 2,
+     "query": "<texte 29 car.>",
+     "results": "<2 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "ac4092a95e93d10f6d4b5955114587b708247fbf5e05316ba",
+    "kind": "event",
+    "sequence": 99,
+    "recordedAt": 1791116589738,
+    "created_at": 1791116589740,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:23:04.740Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "dbe1b98d344b7e1cc225830ccfd0f2d7f390562d0839c5543",
+    "kind": "event",
+    "sequence": 100,
+    "recordedAt": 1791116592587,
+    "created_at": 1791116592589,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:23:04.740Z",
+     "resultCount": 9,
+     "query": "<texte 29 car.>",
+     "results": "<9 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "f361a65e064e9fd1d02801e1587d6e4ca9d5fa0d1245b5d11",
+    "kind": "event",
+    "sequence": 101,
+    "recordedAt": 1791116594683,
+    "created_at": 1791116594686,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:23:04.740Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "8c98a7d491d064eb8a4884af70c2500967dc2edc2b58c890b",
+    "kind": "event",
+    "sequence": 102,
+    "recordedAt": 1791116597359,
+    "created_at": 1791116597367,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:23:04.740Z",
+     "resultCount": 5,
+     "query": "<texte 29 car.>",
+     "results": "<5 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "cba719e8ec692d6b4cf69a2ffa7dcd98fd8826424e051b765",
+    "kind": "event",
+    "sequence": 103,
+    "recordedAt": 1791116599773,
+    "created_at": 1791116599778,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:23:04.740Z",
+     "resultCount": 20,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "df1adc142c81aef4d1c9078af5183cf18a02ee40463f3b445",
+    "kind": "event",
+    "sequence": 104,
+    "recordedAt": 1791116601658,
+    "created_at": 1791116601669,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-04T12:23:04.740Z",
+     "resultCount": 1,
+     "query": "<texte 32 car.>",
+     "results": "<1 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "3c8fed14713d9e6df82f4641d0a2f8de056bd68e342b7445f",
+    "kind": "event",
+    "sequence": 105,
+    "recordedAt": 1791116602191,
+    "created_at": 1791116602198,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-04T12:23:04.740Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 25,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/light/2026-10-04.md"
+    }
+   },
+   {
+    "entry_key": "5edaf21c79f080517bb4c62e1b2cf1f55a717a39de4ebf2cd",
+    "kind": "event",
+    "sequence": 106,
+    "recordedAt": 1791116603053,
+    "created_at": 1791116603056,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-04T12:23:04.740Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 24,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/rem/2026-10-04.md"
+    }
+   },
+   {
+    "entry_key": "1e669995ca2a88fb38d4716e7d92eb5aa94d130bcdb6d1bf7",
+    "kind": "event",
+    "sequence": 107,
+    "recordedAt": 1791116603969,
+    "created_at": 1791116603972,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-04T12:23:04.740Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "806a064385fa5e0d67e8bca8425d5cd8c7f8d4bf8684a0dee",
+    "kind": "event",
+    "sequence": 51,
+    "recordedAt": 1791201634379,
+    "created_at": 1791201634408,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:00:11.219Z",
+     "resultCount": 124,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "8947e95758f36b10c51a777d4a89bae6b4fdf26ed0aeaf1bc",
+    "kind": "event",
+    "sequence": 52,
+    "recordedAt": 1791201641547,
+    "created_at": 1791201641557,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:00:11.219Z",
+     "resultCount": 116,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "90935c39050fbd86336a5a90378f0328b7df03368e4ddd15e",
+    "kind": "event",
+    "sequence": 53,
+    "recordedAt": 1791201649175,
+    "created_at": 1791201649182,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-05T12:00:11.219Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 500,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/light/2026-10-05.md"
+    }
+   },
+   {
+    "entry_key": "55935a68c80c1ce5939c07b48b50a4fe5a8197d1cfa30ec03",
+    "kind": "event",
+    "sequence": 54,
+    "recordedAt": 1791201658735,
+    "created_at": 1791201658743,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:00:11.219Z",
+     "resultCount": 28,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "890a210d0574a329d1b2b0102f3224372cf583fce9608ab04",
+    "kind": "event",
+    "sequence": 55,
+    "recordedAt": 1791201664192,
+    "created_at": 1791201664206,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:00:11.219Z",
+     "resultCount": 24,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "a3184d9a5bcec0ee7f3fdfef3706a56132bb1d1400d873278",
+    "kind": "event",
+    "sequence": 56,
+    "recordedAt": 1791201672156,
+    "created_at": 1791201672178,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-05T12:00:11.219Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 28,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/rem/2026-10-05.md"
+    }
+   },
+   {
+    "entry_key": "04a977301f3a18e07b9f18daa8a19df736d1e1bbc928e9371",
+    "kind": "event",
+    "sequence": 57,
+    "recordedAt": 1791201676850,
+    "created_at": 1791201676858,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-05T12:00:11.219Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "178a6e62fc76e4e7e76ae8e44fbb0870013fccf4f141ac11e",
+    "kind": "event",
+    "sequence": 21,
+    "recordedAt": 1791201679962,
+    "created_at": 1791201679974,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:01:16.864Z",
+     "resultCount": 122,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "29751e0256f7da2bf6fc1bd5102bb996644b4e93c8b964e68",
+    "kind": "event",
+    "sequence": 22,
+    "recordedAt": 1791201683364,
+    "created_at": 1791201683414,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:01:16.864Z",
+     "resultCount": 118,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "aedc362e931bf99c818b21f901ff98ae669afb4d3635a6da6",
+    "kind": "event",
+    "sequence": 23,
+    "recordedAt": 1791201685459,
+    "created_at": 1791201685470,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-05T12:01:16.864Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 500,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/light/2026-10-05.md"
+    }
+   },
+   {
+    "entry_key": "59fa03d6dd024e24e05ca8d02cbf9c6695a1a5722035ebfcd",
+    "kind": "event",
+    "sequence": 24,
+    "recordedAt": 1791201694286,
+    "created_at": 1791201694296,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:01:16.864Z",
+     "resultCount": 67,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "14bbad6fa30ca6c1ec187486bc1964e8ddf4e00cd43577d55",
+    "kind": "event",
+    "sequence": 25,
+    "recordedAt": 1791201700174,
+    "created_at": 1791201700188,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:01:16.864Z",
+     "resultCount": 86,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "fff1a7610c2eda4c35d5c1ad978f0629271f663148b5a0e07",
+    "kind": "event",
+    "sequence": 26,
+    "recordedAt": 1791201703604,
+    "created_at": 1791201703610,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-05T12:01:16.864Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 28,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/rem/2026-10-05.md"
+    }
+   },
+   {
+    "entry_key": "2043e328ff36866c3c556cb9c97bcf6485cb3313c67671ec1",
+    "kind": "event",
+    "sequence": 27,
+    "recordedAt": 1791201712963,
+    "created_at": 1791201712970,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-05T12:01:16.864Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "a7bc5537e8c57ddef5d1554311b3ac0493f9d575beb5e7c03",
+    "kind": "event",
+    "sequence": 108,
+    "recordedAt": 1791201719208,
+    "created_at": 1791201719213,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:01:52.973Z",
+     "resultCount": 2,
+     "query": "<texte 29 car.>",
+     "results": "<2 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "483ca45d830a9a3c5ded21ae1dfeb0ed22f239d7c0bf88e91",
+    "kind": "event",
+    "sequence": 109,
+    "recordedAt": 1791201726385,
+    "created_at": 1791201726390,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:01:52.973Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "35836aa170d4671dc7dac82a4e62b33afddd63d78dacf45e1",
+    "kind": "event",
+    "sequence": 110,
+    "recordedAt": 1791201731426,
+    "created_at": 1791201731430,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:01:52.973Z",
+     "resultCount": 9,
+     "query": "<texte 29 car.>",
+     "results": "<9 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "c192613516dc69d689f980a9dab2c2100e5bf93e17ea86cee",
+    "kind": "event",
+    "sequence": 111,
+    "recordedAt": 1791201737135,
+    "created_at": 1791201737150,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:01:52.973Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "04a5b65358058cf97912e1e2162fbf20385b162e0d580e268",
+    "kind": "event",
+    "sequence": 112,
+    "recordedAt": 1791201743924,
+    "created_at": 1791201743934,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:01:52.973Z",
+     "resultCount": 5,
+     "query": "<texte 29 car.>",
+     "results": "<5 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "c0012e6b8e59386bc77542b49ef4b8e1d9d18be4fb48798b6",
+    "kind": "event",
+    "sequence": 113,
+    "recordedAt": 1791201750389,
+    "created_at": 1791201750394,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-05T12:01:52.973Z",
+     "resultCount": 1,
+     "query": "<texte 32 car.>",
+     "results": "<1 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "bb5ae2f5b6babd778b69ff2a1badc88005ba8cb1bc29bfbca",
+    "kind": "event",
+    "sequence": 114,
+    "recordedAt": 1791201752693,
+    "created_at": 1791201752703,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-05T12:01:52.973Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 5,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/light/2026-10-05.md"
+    }
+   },
+   {
+    "entry_key": "a1897b61cd991767c49bbfa1bf8c9b47bf74209da50b386fb",
+    "kind": "event",
+    "sequence": 115,
+    "recordedAt": 1791201755525,
+    "created_at": 1791201755534,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-05T12:01:52.973Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 36,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/rem/2026-10-05.md"
+    }
+   },
+   {
+    "entry_key": "aba20bc5a5c62fe9fdc33c28cd830dfe1a254aac079f7c348",
+    "kind": "event",
+    "sequence": 116,
+    "recordedAt": 1791201758106,
+    "created_at": 1791201758115,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-05T12:01:52.973Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "f291ddda80177e108b035bfb28a865b9634f3f1057aff2e0b",
+    "kind": "event",
+    "sequence": 58,
+    "recordedAt": 1791288010158,
+    "created_at": 1791288010166,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:03.901Z",
+     "resultCount": 134,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "bd0d67aa77b2c5ed50868893dd3cf1b63ff707563f747c43e",
+    "kind": "event",
+    "sequence": 59,
+    "recordedAt": 1791288012474,
+    "created_at": 1791288012487,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:03.901Z",
+     "resultCount": 106,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "eec23542a3ab9acd67d0456a4c94c125ee2c6aeb4b0b7a42c",
+    "kind": "event",
+    "sequence": 60,
+    "recordedAt": 1791288015716,
+    "created_at": 1791288015728,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-06T12:00:03.901Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 500,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/light/2026-10-06.md"
+    }
+   },
+   {
+    "entry_key": "ef243c5394c579998b81b4dd5fc2f8c41c4848feddff6da42",
+    "kind": "event",
+    "sequence": 61,
+    "recordedAt": 1791288018860,
+    "created_at": 1791288018863,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:03.901Z",
+     "resultCount": 8,
+     "query": "<texte 32 car.>",
+     "results": "<8 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "e35d1b052577c8f77bbc626b44c7998593561ba9ace7575e1",
+    "kind": "event",
+    "sequence": 62,
+    "recordedAt": 1791288020792,
+    "created_at": 1791288020795,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:03.901Z",
+     "resultCount": 3,
+     "query": "<texte 32 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "59fe9b0e5102fde50c6c709a246679b28d066522cd9671c20",
+    "kind": "event",
+    "sequence": 63,
+    "recordedAt": 1791288023409,
+    "created_at": 1791288023417,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-06T12:00:03.901Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 28,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/rem/2026-10-06.md"
+    }
+   },
+   {
+    "entry_key": "b1fd451773d0afc645710bca05570fb3fe9a9ecd49d79afa2",
+    "kind": "event",
+    "sequence": 64,
+    "recordedAt": 1791288024929,
+    "created_at": 1791288024932,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-06T12:00:03.901Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "bff07f89ee5b26d01ea43d40ae65d6191b8dcd3e17e74ef4c",
+    "kind": "event",
+    "sequence": 28,
+    "recordedAt": 1791288027502,
+    "created_at": 1791288027504,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:24.934Z",
+     "resultCount": 111,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "b8083f954984519f757b41b3321d7cc271092a8962e551cd5",
+    "kind": "event",
+    "sequence": 29,
+    "recordedAt": 1791288030011,
+    "created_at": 1791288030013,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:24.934Z",
+     "resultCount": 129,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "c16a55bfbcae0eb8db386ce61372c53d7aaa14fbd4e60ca63",
+    "kind": "event",
+    "sequence": 30,
+    "recordedAt": 1791288031526,
+    "created_at": 1791288031529,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-06T12:00:24.934Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 500,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/light/2026-10-06.md"
+    }
+   },
+   {
+    "entry_key": "d50185ede4a93bf803301d63fccd787e3077c6f63a6246ffb",
+    "kind": "event",
+    "sequence": 31,
+    "recordedAt": 1791288035363,
+    "created_at": 1791288035365,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:24.934Z",
+     "resultCount": 30,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "eb270321048b4361e88dd5bae86b5050b086ca61aec6de044",
+    "kind": "event",
+    "sequence": 32,
+    "recordedAt": 1791288037958,
+    "created_at": 1791288037961,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:24.934Z",
+     "resultCount": 10,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "971ca7ca59969909be28f9e157425f905d99cfa5e91f00850",
+    "kind": "event",
+    "sequence": 33,
+    "recordedAt": 1791288039263,
+    "created_at": 1791288039267,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-06T12:00:24.934Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 14,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/rem/2026-10-06.md"
+    }
+   },
+   {
+    "entry_key": "93ef18dcf33ae775990e994f6cbd2b5c47daa2e004c734a40",
+    "kind": "event",
+    "sequence": 34,
+    "recordedAt": 1791288041256,
+    "created_at": 1791288041257,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-06T12:00:24.934Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "6467ffda549c81b91ebe87531e49efa2e7e0d99be34be5cfa",
+    "kind": "event",
+    "sequence": 117,
+    "recordedAt": 1791288043655,
+    "created_at": 1791288043657,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:41.259Z",
+     "resultCount": 2,
+     "query": "<texte 29 car.>",
+     "results": "<2 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "5ce4d17ed649e6891b26298410b3b10fe8c147dcc6fe6df74",
+    "kind": "event",
+    "sequence": 118,
+    "recordedAt": 1791288045727,
+    "created_at": 1791288045730,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:41.259Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "74e7f1cfd50ed0febac6d3fe129b0539d2525f812da2da87d",
+    "kind": "event",
+    "sequence": 119,
+    "recordedAt": 1791288047781,
+    "created_at": 1791288047784,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:41.259Z",
+     "resultCount": 9,
+     "query": "<texte 29 car.>",
+     "results": "<9 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "3d5a5e8fa06608077a62dd93ec05596d9b5ca5c19ed8f449b",
+    "kind": "event",
+    "sequence": 120,
+    "recordedAt": 1791288049822,
+    "created_at": 1791288049825,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:41.259Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "9e5e2bb9a934fafcd4340ff5cb1374828b9576651dd9d5d95",
+    "kind": "event",
+    "sequence": 121,
+    "recordedAt": 1791288052074,
+    "created_at": 1791288052077,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:41.259Z",
+     "resultCount": 5,
+     "query": "<texte 29 car.>",
+     "results": "<5 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "eda697c2f738a73a3498359e6182ffce5cc817276f7197ebf",
+    "kind": "event",
+    "sequence": 122,
+    "recordedAt": 1791288054855,
+    "created_at": 1791288054858,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:41.259Z",
+     "resultCount": 7,
+     "query": "<texte 32 car.>",
+     "results": "<7 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "8042e7098b3351b88dabe1b2d3f2e52881c872594108749cb",
+    "kind": "event",
+    "sequence": 123,
+    "recordedAt": 1791288057584,
+    "created_at": 1791288057586,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-06T12:00:41.259Z",
+     "resultCount": 39,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "bfabf4a53ecf830f141e55c359c7a2aeea85b7b1a5c422d52",
+    "kind": "event",
+    "sequence": 124,
+    "recordedAt": 1791288058330,
+    "created_at": 1791288058334,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-06T12:00:41.259Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 5,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/light/2026-10-06.md"
+    }
+   },
+   {
+    "entry_key": "52a16a887a47ef4f615e94a45975196e2c2b949495e4e30b8",
+    "kind": "event",
+    "sequence": 125,
+    "recordedAt": 1791288059262,
+    "created_at": 1791288059266,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-06T12:00:41.259Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 36,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/rem/2026-10-06.md"
+    }
+   },
+   {
+    "entry_key": "a9b16cee13b0a830065988ab59d83232e686ad58e0a342d3d",
+    "kind": "event",
+    "sequence": 126,
+    "recordedAt": 1791288061063,
+    "created_at": 1791288061066,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-06T12:00:41.259Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "836c81e62967c667e50fcf19130a819589dd4cca32760946f",
+    "kind": "event",
+    "sequence": 65,
+    "recordedAt": 1791374417104,
+    "created_at": 1791374417124,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-07T12:00:05.693Z",
+     "resultCount": 15,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "0c0cf5a37ec0f96300a236b0c442f255c05492ad76c621745",
+    "kind": "event",
+    "sequence": 66,
+    "recordedAt": 1791374421900,
+    "created_at": 1791374421904,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-07T12:00:05.693Z",
+     "resultCount": 8,
+     "query": "<texte 32 car.>",
+     "results": "<8 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "2c8af4e9ac3b524f34f8484f53f5ee7c72c09e2a9230b3b9d",
+    "kind": "event",
+    "sequence": 67,
+    "recordedAt": 1791374429241,
+    "created_at": 1791374429247,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-07T12:00:05.693Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 500,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/light/2026-10-07.md"
+    }
+   },
+   {
+    "entry_key": "a01ae506bb962784d325b58936471ede71268a516a64dc84b",
+    "kind": "event",
+    "sequence": 68,
+    "recordedAt": 1791374432433,
+    "created_at": 1791374432438,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-07T12:00:05.693Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 28,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/rem/2026-10-07.md"
+    }
+   },
+   {
+    "entry_key": "99b394840c7cf146e0024495de795138dcfc9e5df631318a4",
+    "kind": "event",
+    "sequence": 69,
+    "recordedAt": 1791374435824,
+    "created_at": 1791374435826,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-07T12:00:05.693Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "9b94c0243bfd956fae893fe90b6b30d8ea42fca1923e91dfb",
+    "kind": "event",
+    "sequence": 35,
+    "recordedAt": 1791374440748,
+    "created_at": 1791374440762,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-07T12:00:35.829Z",
+     "resultCount": 22,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "5bea77c67366f84b83eebe62f58f3aba984d0f4a7df39aaa1",
+    "kind": "event",
+    "sequence": 36,
+    "recordedAt": 1791374444539,
+    "created_at": 1791374444548,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-07T12:00:35.829Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 500,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/light/2026-10-07.md"
+    }
+   },
+   {
+    "entry_key": "317232f7302aae157bcc9095df99a7e74261912ceb8359cd6",
+    "kind": "event",
+    "sequence": 37,
+    "recordedAt": 1791374448418,
+    "created_at": 1791374448425,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-07T12:00:35.829Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 26,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/rem/2026-10-07.md"
+    }
+   },
+   {
+    "entry_key": "082b73deaf271ac84a2b70a2ca54ad07277ab87d312dccf98",
+    "kind": "event",
+    "sequence": 38,
+    "recordedAt": 1791374455105,
+    "created_at": 1791374455112,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-07T12:00:35.829Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "376c4f20cce33ee4df036df506c356501deb288f75f701248",
+    "kind": "event",
+    "sequence": 127,
+    "recordedAt": 1791374456922,
+    "created_at": 1791374456924,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-07T12:00:55.116Z",
+     "resultCount": 2,
+     "query": "<texte 29 car.>",
+     "results": "<2 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "f1f91a5ecff28ed5f4b010a899e013a5fd2ea010322e808e5",
+    "kind": "event",
+    "sequence": 128,
+    "recordedAt": 1791374458507,
+    "created_at": 1791374458512,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-07T12:00:55.116Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "037551e685436bd832b23f11afde4ba817f2f128c8488a374",
+    "kind": "event",
+    "sequence": 129,
+    "recordedAt": 1791374460317,
+    "created_at": 1791374460319,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-07T12:00:55.116Z",
+     "resultCount": 9,
+     "query": "<texte 29 car.>",
+     "results": "<9 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "e18c8e5a6756a0eb06fc08a6706591983307dfb1af1d248c7",
+    "kind": "event",
+    "sequence": 130,
+    "recordedAt": 1791374462086,
+    "created_at": 1791374462089,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-07T12:00:55.116Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "944c9b2b8eccea9079306e8945eb38c9a172545fb8e142714",
+    "kind": "event",
+    "sequence": 131,
+    "recordedAt": 1791374463812,
+    "created_at": 1791374463818,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-07T12:00:55.116Z",
+     "resultCount": 5,
+     "query": "<texte 29 car.>",
+     "results": "<5 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "f3ed41c1a4d9670fa9da51559163490ad535afc8c013ad940",
+    "kind": "event",
+    "sequence": 132,
+    "recordedAt": 1791374466054,
+    "created_at": 1791374466058,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-07T12:00:55.116Z",
+     "resultCount": 1,
+     "query": "<texte 32 car.>",
+     "results": "<1 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "f81b14f3a8cae2bfadb3a1464e536ae3d77ed5d88dbca19a5",
+    "kind": "event",
+    "sequence": 133,
+    "recordedAt": 1791374471272,
+    "created_at": 1791374471278,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-07T12:00:55.116Z",
+     "resultCount": 2,
+     "query": "<texte 32 car.>",
+     "results": "<2 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "d6a4d04f7d46be577d01f89bab493752f1efc6369ff4d08e0",
+    "kind": "event",
+    "sequence": 134,
+    "recordedAt": 1791374473000,
+    "created_at": 1791374473010,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-07T12:00:55.116Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 15,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/light/2026-10-07.md"
+    }
+   },
+   {
+    "entry_key": "3f36c7ca3f693f50fed780f200236c8872a9b4227b17a7613",
+    "kind": "event",
+    "sequence": 135,
+    "recordedAt": 1791374475375,
+    "created_at": 1791374475388,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-07T12:00:55.116Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 12,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/rem/2026-10-07.md"
+    }
+   },
+   {
+    "entry_key": "b6b87a3ef56a07346eca9ed7f9be56c4d40d4c9fd2da01be5",
+    "kind": "event",
+    "sequence": 136,
+    "recordedAt": 1791374476799,
+    "created_at": 1791374476801,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-07T12:00:55.116Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "dbb79426a9fc432f24706d7fd112009d26887d90dc4abcb7f",
+    "kind": "event",
+    "sequence": 70,
+    "recordedAt": 1791460812986,
+    "created_at": 1791460812993,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-08T12:00:03.063Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 35,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/light/2026-10-08.md"
+    }
+   },
+   {
+    "entry_key": "81d27e457788af539c3820acb63927990443408d85184503f",
+    "kind": "event",
+    "sequence": 71,
+    "recordedAt": 1791460817045,
+    "created_at": 1791460817050,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-08T12:00:03.063Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 28,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/rem/2026-10-08.md"
+    }
+   },
+   {
+    "entry_key": "d4f6963131c7da4d4192e4a08976604f2194e00265d32167f",
+    "kind": "event",
+    "sequence": 72,
+    "recordedAt": 1791460818678,
+    "created_at": 1791460818680,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-08T12:00:03.063Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "376cb7bfa306c7a7b87b1f2895487079a8ef86b0278060e07",
+    "kind": "event",
+    "sequence": 39,
+    "recordedAt": 1791460820938,
+    "created_at": 1791460820940,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-08T12:00:18.682Z",
+     "resultCount": 14,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "de691e98055e39a1a668a19fb68ccff25391d0ca57d590246",
+    "kind": "event",
+    "sequence": 40,
+    "recordedAt": 1791460822338,
+    "created_at": 1791460822341,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-08T12:00:18.682Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 135,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/light/2026-10-08.md"
+    }
+   },
+   {
+    "entry_key": "7be17efe687c5c207b471311b83734b3005d5b2760ffb8f5d",
+    "kind": "event",
+    "sequence": 41,
+    "recordedAt": 1791460824684,
+    "created_at": 1791460824687,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-08T12:00:18.682Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 14,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/rem/2026-10-08.md"
+    }
+   },
+   {
+    "entry_key": "a3f48ba56be15d7b6af1d8e7bb9fbb830298f3c14e751d53f",
+    "kind": "event",
+    "sequence": 42,
+    "recordedAt": 1791460827109,
+    "created_at": 1791460827111,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-08T12:00:18.682Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "dcd0efdfd8e44230d1bb7ae7f658a0907c50edeaad36650ad",
+    "kind": "event",
+    "sequence": 137,
+    "recordedAt": 1791460830056,
+    "created_at": 1791460830061,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-08T12:00:27.113Z",
+     "resultCount": 2,
+     "query": "<texte 29 car.>",
+     "results": "<2 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "fd2165674fa426c0b6f96ba47cffe656366a8789c3d5e1685",
+    "kind": "event",
+    "sequence": 138,
+    "recordedAt": 1791460831970,
+    "created_at": 1791460831973,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-08T12:00:27.113Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "e70df38ddf9daa1d8c7314c5b2ef942240a6b9e8733e7384d",
+    "kind": "event",
+    "sequence": 139,
+    "recordedAt": 1791460837501,
+    "created_at": 1791460837520,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-08T12:00:27.113Z",
+     "resultCount": 9,
+     "query": "<texte 29 car.>",
+     "results": "<9 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "46c9660904cfc0e157d0eb6b5a6c71eaff1cfb5fc39793e76",
+    "kind": "event",
+    "sequence": 140,
+    "recordedAt": 1791460841033,
+    "created_at": 1791460841035,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-08T12:00:27.113Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "6849c9da1b498da77a2dc65d07c200e1854d65790328bb5fb",
+    "kind": "event",
+    "sequence": 141,
+    "recordedAt": 1791460844132,
+    "created_at": 1791460844134,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-08T12:00:27.113Z",
+     "resultCount": 5,
+     "query": "<texte 29 car.>",
+     "results": "<5 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "4ab1225bdb6fd60ffa9e7e33473429ac9ade445a5e80d5df3",
+    "kind": "event",
+    "sequence": 142,
+    "recordedAt": 1791460847170,
+    "created_at": 1791460847173,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-08T12:00:27.113Z",
+     "resultCount": 6,
+     "query": "<texte 32 car.>",
+     "results": "<6 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "77eff6b89c89f1bca8d2bd3f215d3ad48a2c766f376064013",
+    "kind": "event",
+    "sequence": 143,
+    "recordedAt": 1791460849791,
+    "created_at": 1791460849794,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-08T12:00:27.113Z",
+     "resultCount": 6,
+     "query": "<texte 32 car.>",
+     "results": "<6 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "2ba3f20e9d103db6f3b45af4559bae96447be786422ceac3d",
+    "kind": "event",
+    "sequence": 144,
+    "recordedAt": 1791460851199,
+    "created_at": 1791460851203,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-08T12:00:27.113Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 10,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/light/2026-10-08.md"
+    }
+   },
+   {
+    "entry_key": "1d32e72e949dec885217959899c1c9811bbed293bcaa6ab8a",
+    "kind": "event",
+    "sequence": 145,
+    "recordedAt": 1791460853266,
+    "created_at": 1791460853277,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-08T12:00:27.113Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 44,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/rem/2026-10-08.md"
+    }
+   },
+   {
+    "entry_key": "0d8bbdba6fab010a7fdb2f4873600d9c0d646e9c63e5ba195",
+    "kind": "event",
+    "sequence": 146,
+    "recordedAt": 1791460855126,
+    "created_at": 1791460855133,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-08T12:00:27.113Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "15794a52eca98ce32f6ba8e8d77297c9a6001a728d2e7a4ad",
+    "kind": "event",
+    "sequence": 73,
+    "recordedAt": 1791547216850,
+    "created_at": 1791547216860,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-09T12:00:05.513Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 1,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "c091bec5f2d171f89104cda4921cace19c1c331fea47ec868",
+    "kind": "event",
+    "sequence": 74,
+    "recordedAt": 1791547217895,
+    "created_at": 1791547217901,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-09T12:00:05.513Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 26,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/rem/2026-10-09.md"
+    }
+   },
+   {
+    "entry_key": "00c8e2bab512b4336396645e1ab59308a918f5509f207bea4",
+    "kind": "event",
+    "sequence": 75,
+    "recordedAt": 1791547221622,
+    "created_at": 1791547221626,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-09T12:00:05.513Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "f213f517dffba253661159d0949f434ea0f6e76fa1fcb989f",
+    "kind": "event",
+    "sequence": 43,
+    "recordedAt": 1791547226609,
+    "created_at": 1791547226613,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-09T12:00:21.630Z",
+     "resultCount": 40,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "74161edd86214e947d318bcd516dce38bb17d3f597201ec9b",
+    "kind": "event",
+    "sequence": 44,
+    "recordedAt": 1791547232171,
+    "created_at": 1791547232176,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-09T12:00:21.630Z",
+     "resultCount": 6,
+     "query": "<texte 32 car.>",
+     "results": "<6 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "42274a49492372b77a598c81de0fe4f489a300683fe6f8df0",
+    "kind": "event",
+    "sequence": 45,
+    "recordedAt": 1791547235093,
+    "created_at": 1791547235106,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-09T12:00:21.630Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 170,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/light/2026-10-09.md"
+    }
+   },
+   {
+    "entry_key": "f310bdbaba191335988d9fef0114d44551e1ddad475e89826",
+    "kind": "event",
+    "sequence": 46,
+    "recordedAt": 1791547239284,
+    "created_at": 1791547239292,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-09T12:00:21.630Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 6,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/rem/2026-10-09.md"
+    }
+   },
+   {
+    "entry_key": "0fc82da7555d051e19f2914a6519258c6ead056d3f3ff2d3b",
+    "kind": "event",
+    "sequence": 47,
+    "recordedAt": 1791547244774,
+    "created_at": 1791547244778,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-09T12:00:21.630Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "44eb6cd2420e1075e5e8075767446bd4903542710933d9f2e",
+    "kind": "event",
+    "sequence": 147,
+    "recordedAt": 1791547248639,
+    "created_at": 1791547248644,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-09T12:00:44.780Z",
+     "resultCount": 2,
+     "query": "<texte 29 car.>",
+     "results": "<2 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "430fa9ec4f76994eac09aa33bca391ed1a76ece4d234e1c46",
+    "kind": "event",
+    "sequence": 148,
+    "recordedAt": 1791547252194,
+    "created_at": 1791547252197,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-09T12:00:44.780Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "119018928a380138bd5327bc66b1baffd9b010bbe020d8295",
+    "kind": "event",
+    "sequence": 149,
+    "recordedAt": 1791547258261,
+    "created_at": 1791547258266,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-09T12:00:44.780Z",
+     "resultCount": 21,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "f42a54e7f97cd2301389b41655ae113ee085ac79a07860d45",
+    "kind": "event",
+    "sequence": 150,
+    "recordedAt": 1791547262738,
+    "created_at": 1791547262742,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-09T12:00:44.780Z",
+     "resultCount": 5,
+     "query": "<texte 32 car.>",
+     "results": "<5 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "c87c76293816af1be4923cc1dcae62d52c2a08c3c76e4bfb5",
+    "kind": "event",
+    "sequence": 151,
+    "recordedAt": 1791547264160,
+    "created_at": 1791547264164,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-09T12:00:44.780Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 10,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/light/2026-10-09.md"
+    }
+   },
+   {
+    "entry_key": "4753f4cf5726997c8ba6584e4de0a3c11d023130630ac64af",
+    "kind": "event",
+    "sequence": 152,
+    "recordedAt": 1791547271196,
+    "created_at": 1791547271206,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-09T12:00:44.780Z",
+     "resultCount": 12,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "44049a85f7b07bbfcf521839326d98048f5c57f18e4b50840",
+    "kind": "event",
+    "sequence": 153,
+    "recordedAt": 1791547272590,
+    "created_at": 1791547272599,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-09T12:00:44.780Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 44,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/rem/2026-10-09.md"
+    }
+   },
+   {
+    "entry_key": "ed5b4612544f0da851893e69c828248b8495c13813568117a",
+    "kind": "event",
+    "sequence": 154,
+    "recordedAt": 1791547277803,
+    "created_at": 1791547277811,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-09T12:00:44.780Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "22aa9e697850533f2e3fa10715f9b4bb8b200fc138c0b6f99",
+    "kind": "event",
+    "sequence": 76,
+    "recordedAt": 1791633629538,
+    "created_at": 1791633629614,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-10T12:00:07.373Z",
+     "resultCount": 20,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "89f2134e2212f753c0f4745cc35707140c6cd23dc211c18e0",
+    "kind": "event",
+    "sequence": 77,
+    "recordedAt": 1791633643044,
+    "created_at": 1791633643050,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-10T12:00:07.373Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 75,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/light/2026-10-10.md"
+    }
+   },
+   {
+    "entry_key": "42908f60c926e34cb782c69b3fdcf6719dc0eeddce2553d63",
+    "kind": "event",
+    "sequence": 78,
+    "recordedAt": 1791633649676,
+    "created_at": 1791633649687,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-10T12:00:07.373Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 28,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/autonomous-engineering/memory/dreaming/rem/2026-10-10.md"
+    }
+   },
+   {
+    "entry_key": "764edb518a43acc9e75befcac5ceaae785f0796ceb3bc1fb6",
+    "kind": "event",
+    "sequence": 79,
+    "recordedAt": 1791633659825,
+    "created_at": 1791633659832,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-10T12:00:07.373Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "e0223b1a64fa5636e3c06a2114f42e2e9e5bc5bcbbb47eeca",
+    "kind": "event",
+    "sequence": 48,
+    "recordedAt": 1791633673508,
+    "created_at": 1791633673515,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-10T12:00:59.840Z",
+     "resultCount": 4,
+     "query": "<texte 32 car.>",
+     "results": "<4 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "dfd8665cc80aef08a6cb3fab1bff130615416470c86894365",
+    "kind": "event",
+    "sequence": 49,
+    "recordedAt": 1791633677282,
+    "created_at": 1791633677296,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-10T12:00:59.840Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 30,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/light/2026-10-10.md"
+    }
+   },
+   {
+    "entry_key": "4d79df9b66ff2a7854a6a26528a577a769b6c6481a1289c6d",
+    "kind": "event",
+    "sequence": 50,
+    "recordedAt": 1791633681682,
+    "created_at": 1791633681692,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-10T12:00:59.840Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 12,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspaces/gemini/memory/dreaming/rem/2026-10-10.md"
+    }
+   },
+   {
+    "entry_key": "211cde990f00d2a061277e62176491fab7ef228a06a2b8a18",
+    "kind": "event",
+    "sequence": 51,
+    "recordedAt": 1791633690909,
+    "created_at": 1791633690928,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-10T12:00:59.840Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   },
+   {
+    "entry_key": "35b617a4ee4704b8a70760ec5c3532a6deb721f79f6ca7ef8",
+    "kind": "event",
+    "sequence": 155,
+    "recordedAt": 1791633696279,
+    "created_at": 1791633696283,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-10T12:01:30.936Z",
+     "resultCount": 2,
+     "query": "<texte 29 car.>",
+     "results": "<2 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "c4b62a80ef2f501b02685d6f76790fea77ae42f67dc77d831",
+    "kind": "event",
+    "sequence": 156,
+    "recordedAt": 1791633700515,
+    "created_at": 1791633700519,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-10T12:01:30.936Z",
+     "resultCount": 3,
+     "query": "<texte 29 car.>",
+     "results": "<3 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "34298fb95ea67a9173013f4cd1c32758907d6f18d609c73c0",
+    "kind": "event",
+    "sequence": 157,
+    "recordedAt": 1791633705841,
+    "created_at": 1791633705847,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-10T12:01:30.936Z",
+     "resultCount": 12,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "ffee4c6d6588189a0393602b729313c99344bf0762de6f53e",
+    "kind": "event",
+    "sequence": 158,
+    "recordedAt": 1791633711226,
+    "created_at": 1791633711231,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-10T12:01:30.936Z",
+     "resultCount": 14,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "2c7af4825dfd177d9122dc360c29d066b6c1e0476bab96a19",
+    "kind": "event",
+    "sequence": 159,
+    "recordedAt": 1791633715487,
+    "created_at": 1791633715490,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-10T12:01:30.936Z",
+     "resultCount": 1,
+     "query": "<texte 32 car.>",
+     "results": "<1 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "2a82888c521dccde6e77ba547b2a42c0544572de7f0dcf130",
+    "kind": "event",
+    "sequence": 160,
+    "recordedAt": 1791633716948,
+    "created_at": 1791633716952,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-10T12:01:30.936Z",
+     "phase": "light",
+     "outcome": "completed",
+     "lineCount": 15,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/light/2026-10-10.md"
+    }
+   },
+   {
+    "entry_key": "2808e6737da1ad425e1975e21f488fa104d357dae4ed97f25",
+    "kind": "event",
+    "sequence": 161,
+    "recordedAt": 1791633723555,
+    "created_at": 1791633723561,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-10T12:01:30.936Z",
+     "resultCount": 12,
+     "storageTruncated": true,
+     "query": "<texte 32 car.>",
+     "results": "<10 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "a8f654ea8c316b747313af20de972dfc6179154d66178a3c6",
+    "kind": "event",
+    "sequence": 162,
+    "recordedAt": 1791633727916,
+    "created_at": 1791633727919,
+    "event": {
+     "type": "memory.recall.recorded",
+     "timestamp": "2026-10-10T12:01:30.936Z",
+     "resultCount": 1,
+     "query": "<texte 32 car.>",
+     "results": "<1 résultats masqués>"
+    }
+   },
+   {
+    "entry_key": "6cce980fdaab2271b67ac1b2b37ff3b0aa76882e959d8243a",
+    "kind": "event",
+    "sequence": 163,
+    "recordedAt": 1791633729479,
+    "created_at": 1791633729489,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-10T12:01:30.936Z",
+     "phase": "rem",
+     "outcome": "completed",
+     "lineCount": 20,
+     "storageMode": "separate",
+     "reportPath": "~/.openclaw/workspace/memory/dreaming/rem/2026-10-10.md"
+    }
+   },
+   {
+    "entry_key": "c1d7b8cc966a0450d7e6baa513bfb965f14d55d5a5ff26731",
+    "kind": "event",
+    "sequence": 164,
+    "recordedAt": 1791633732572,
+    "created_at": 1791633732578,
+    "event": {
+     "type": "memory.dream.completed",
+     "timestamp": "2026-10-10T12:01:30.936Z",
+     "phase": "deep",
+     "outcome": "completed",
+     "lineCount": 2,
+     "storageMode": "separate"
+    }
+   }
+  ]
+ },
+ "shortTermRecallSample": [
+  {
+   "key": "<masqué>",
+   "path": "<masqué>",
+   "startLine": 17,
+   "endLine": 17,
+   "source": "memory",
+   "snippet": "<masqué>",
+   "recallCount": 0,
+   "dailyCount": 1,
+   "groundedCount": 0,
+   "totalScore": 0.58,
+   "maxScore": 0.58,
+   "firstRecalledAt": "2026-10-09T12:00:44.780Z",
+   "lastRecalledAt": "2026-10-09T12:00:44.780Z",
+   "queryHashes": [
+    "<hash>"
+   ],
+   "recallDays": [
+    "2026-10-09"
+   ],
+   "conceptTags": [
+    "<tag>",
+    "<tag>",
+    "<tag>",
+    "<tag>",
+    "<tag>",
+    "<tag>",
+    "<tag>",
+    "<tag>"
+   ],
+   "provenance": {
+    "originClass": "untrusted",
+    "sessionKind": "interactive",
+    "observedAt": 1791498872574
+   },
+   "claimHash": "<masqué>"
+  },
+  {
+   "key": "<masqué>",
+   "path": "<masqué>",
+   "startLine": 242,
+   "endLine": 242,
+   "source": "memory",
+   "snippet": "<masqué>",
+   "recallCount": 0,
+   "dailyCount": 1,
+   "groundedCount": 0,
+   "totalScore": 0.58,
+   "maxScore": 0.58,
+   "firstRecalledAt": "2026-09-26T03:00:06.622Z",
+   "lastRecalledAt": "2026-09-26T03:00:06.622Z",
+   "queryHashes": [
+    "<hash>"
+   ],
+   "recallDays": [
+    "2026-09-26"
+   ],
+   "conceptTags": [
+    "<tag>",
+    "<tag>",
+    "<tag>",
+    "<tag>",
+    "<tag>",
+    "<tag>",
+    "<tag>",
+    "<tag>"
+   ],
+   "provenance": {
+    "originClass": "untrusted",
+    "sessionKind": "interactive",
+    "observedAt": 1790281859351
+   },
+   "claimHash": "<masqué>"
+  },
+  {
+   "key": "<masqué>",
+   "path": "<masqué>",
+   "startLine": 28,
+   "endLine": 28,
+   "source": "memory",
+   "snippet": "<masqué>",
+   "recallCount": 0,
+   "dailyCount": 1,
+   "groundedCount": 0,
+   "totalScore": 0.58,
+   "maxScore": 0.58,
+   "firstRecalledAt": "2026-09-28T12:00:02.775Z",
+   "lastRecalledAt": "2026-09-28T12:00:02.775Z",
+   "queryHashes": [
+    "<hash>"
+   ],
+   "recallDays": [
+    "2026-09-28"
+   ],
+   "conceptTags": [
+    "<tag>"
+   ],
+   "provenance": {
+    "originClass": "agent",
+    "sessionKind": "interactive",
+    "observedAt": 1790546902097
+   },
+   "claimHash": "<masqué>"
+  }
+ ]
+}
