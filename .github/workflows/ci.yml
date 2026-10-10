@@ -74,7 +74,7 @@ jobs:
 
       - name: Test attachment HTTP contract
         run: node scripts/test-attachment-http.cjs
-      - name: Run inactivity evidence and lifecycle regression contracts
+      - name: Deterministic run inactivity evidence and lifecycle regression contracts (H2)
         run: |
           node scripts/test-run-inactivity.cjs
           node scripts/test-conversation-backfill-races.cjs

@@ -1506,19 +1506,23 @@ function validInactivityReceipt(value: any, runId: string): InactivityReceipt | 
     at: value.at, evidenceAt: value.evidenceAt};
 }
 
+/** Injectable inactivity clock boundary; production defaults to the system clock. */
+export const runInactivityClock={now:()=>Date.now()};
 let inactivityRead: Promise<void> | undefined;
+/** Wait only for an already-started owner pass, including its persisted settlement. No new read. */
+export async function awaitRunInactivity():Promise<void>{await inactivityRead;}
 let inactivityCursor = 0;
 const INACTIVITY_READ_BUDGET_MS = 10000;
 /** Read snapshots never await reconciliation. One bounded owner pass at a time. */
 function reconcileInactiveRuns(targetRunId?:string):void {
   if(inactivityRead)return;
-  inactivityRead=reconcileInactiveRunsOnce(targetRunId,Date.now()+INACTIVITY_READ_BUDGET_MS)
+  inactivityRead=reconcileInactiveRunsOnce(targetRunId,runInactivityClock.now()+INACTIVITY_READ_BUDGET_MS)
     .catch(()=>undefined).finally(()=>{inactivityRead=undefined;});
 }
 
 async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadline: number): Promise<void> {
   await registryWrite;
-  const initial = await registryOrEmpty(), now = Date.now();
+  const initial = await registryOrEmpty(), now = runInactivityClock.now();
   const eligible = (run: StoredRun, registry: CompanionRunRegistry) => run.modality !== "voice" &&
     !run.result && (!run.state || run.state === "running" || run.error === "run_inactivity_expired") &&
     run.acceptedAt >= 1000000000000 && (run.error === "run_inactivity_expired" || !!run.inactivityCorrectionReceipt || now - (run.updatedAt || run.acceptedAt) >= RUN_INACTIVITY_MS) &&
@@ -1533,7 +1537,7 @@ async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadli
   if (!candidates.length) return;
   // The owner API works across SQLite migrations; absent legacy files prove nothing.
   const ownerRead = (method: string, params: Record<string, unknown>) => {
-    const remaining = deadline - Date.now();
+    const remaining = deadline - runInactivityClock.now();
     if (remaining <= 0) return Promise.reject(new Error("inactivity_read_budget_exceeded"));
     return callOpenClawGateway(method, params, {timeoutMs: remaining, hardTimeoutMs: remaining});
   };
@@ -1548,7 +1552,7 @@ async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadli
   for (const run of [...candidates,...revived]) {
     const key = run.sessionKey || expectedCompanionSessionKey(run.sessionId);
     const session = sessions.find((row: any) => row?.key === key || row?.sessionKey === key);
-    if (!session || Date.now() >= deadline) continue;
+    if (!session || runInactivityClock.now() >= deadline) continue;
     const active = session.hasActiveRun === true || session.status === "running" || (Array.isArray(session.activeRunIds) && session.activeRunIds.length > 0);
     if (active) {
       if (run.error === "run_inactivity_expired" && Array.isArray(session.activeRunIds) && session.activeRunIds.includes(run.runId)) changes.set(run.runId, {before: run, after: {
