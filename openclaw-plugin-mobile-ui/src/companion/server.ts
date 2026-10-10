@@ -499,11 +499,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/runs") {
     const body = await readJsonBody<RunCreateRequest>(req);
-    if(body?.attachments){
+    try{if(body?.attachments){
      if(!Array.isArray(body.attachments)||body.attachments.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
      body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
      if(body.attachments.reduce((sum:number,x:any)=>sum+x.sizeBytes,0)>25*1024*1024)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
     }
+    }catch(e:any){const status=[400,404,413].includes(e?.statusCode)?e.statusCode:503;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":status===413?"attachment_share_limit":"invalid_attachment_request"});return;}
     const instruction = String(body?.instruction || body?.text || "");
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
     const result = await submitIntent(
@@ -527,8 +528,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   }
 
   if (method === "GET" && routePath.startsWith("/attachments/") && routePath.endsWith("/content")) {
-    const attachmentId = decodeURIComponent(routePath.slice("/attachments/".length, -"/content".length));
-    await serveAttachmentContent(res, attachmentId);
+    try{const attachmentId = decodeURIComponent(routePath.slice("/attachments/".length, -"/content".length));
+    await serveAttachmentContent(res, attachmentId);}catch(e:any){const status=e?.statusCode===404?404:e?.statusCode===503?503:400;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":"attachment_unavailable"});}
     return;
   }
 

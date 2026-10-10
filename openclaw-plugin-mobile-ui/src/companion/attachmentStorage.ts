@@ -34,11 +34,20 @@ export function saveAttachments(inputs:{id?:string;mimeType:string;body:Buffer;d
  if(!inputs.length||inputs.length>5||inputs.reduce((sum,x)=>sum+x.body.length,0)>25*1024*1024)throw error('attachment_share_limit',413);
  const dir=directory(true);const planned=inputs.map(x=>{validateAttachment(x.body,x.mimeType);const id=attachmentId(x.id||'att_'+randomUUID());return {...x,id,file:path.join(dir,id+'.'+formats[x.mimeType])};});
  if(new Set(planned.map(x=>x.id)).size!==planned.length)throw error('attachment_id_collision',409);
- for(const item of planned)for(const ext of Object.values(formats))if(fs.existsSync(path.join(dir,item.id+'.'+ext)))throw error('attachment_id_collision',409);
- if(purgeAttachments(protectedPaths,now)+planned.reduce((sum,x)=>sum+x.body.length,0)>quota)throw error('attachment_quota_exceeded',409);
+ const existing=new Set<string>();
+ for(const item of planned)for(const ext of Object.values(formats)){
+  const file=path.join(dir,item.id+'.'+ext);
+  try{const stat=fs.lstatSync(file);if(!stat.isFile()||stat.isSymbolicLink()||file!==item.file||stat.size!==item.body.length)throw error('attachment_id_collision',409);
+   const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
+   try{const stored=fs.readFileSync(fd);if(!createHash('sha256').update(stored).digest().equals(createHash('sha256').update(item.body).digest()))throw error('attachment_id_collision',409);}finally{fs.closeSync(fd);}
+   existing.add(file);
+  }catch(e:any){if(e.code!=='ENOENT')throw e;}
+ }
+
+ if(purgeAttachments(new Set([...protectedPaths,...existing]),now)+planned.filter(x=>!existing.has(x.file)).reduce((sum,x)=>sum+x.body.length,0)>quota)throw error('quota_full',409);
  const written:string[]=[];
- try{for(const item of planned){const fd=fs.openSync(item.file,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_NOFOLLOW,0o600);written.push(item.file);try{fs.writeFileSync(fd,item.body);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}}}catch(e){for(const f of written)try{fs.unlinkSync(f);}catch{}throw error('attachment_write_failed',503);}
- return planned.map(x=>({id:x.id,serverId:x.id,type:x.mimeType.startsWith('image/')?'image':'file',mimeType:x.mimeType,displayName:x.displayName||x.id+'.'+formats[x.mimeType],sizeBytes:x.body.length,path:x.file,serverPath:x.file,downloadUrl:'/v1/attachments/'+x.id+'/content',createdAt:now,expiresAt:now+RETENTION_MS}));
+ try{for(const item of planned){if(existing.has(item.file))continue;const fd=fs.openSync(item.file,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_NOFOLLOW,0o600);written.push(item.file);try{fs.writeFileSync(fd,item.body);fs.fsyncSync(fd);fs.futimesSync(fd,now/1000,now/1000);}finally{fs.closeSync(fd);}}}catch(e){for(const f of written)try{fs.unlinkSync(f);}catch{}throw error('attachment_write_failed',503);}
+ return planned.map(x=>({id:x.id,serverId:x.id,type:x.mimeType.startsWith('image/')?'image':'file',mimeType:x.mimeType,displayName:x.displayName||x.id+'.'+formats[x.mimeType],sizeBytes:x.body.length,path:x.file,serverPath:x.file,downloadUrl:'/v1/attachments/'+x.id+'/content',createdAt:Math.round(fs.statSync(x.file).mtimeMs),expiresAt:Math.round(fs.statSync(x.file).mtimeMs)+RETENTION_MS}));
 }
 export function removeAttachments(paths:string[],protectedPaths:Set<string>){const dir=directory();for(const file of paths){if(path.dirname(file)!==dir||protectedPaths.has(file))continue;try{if(fs.lstatSync(file).isFile()&&!fs.lstatSync(file).isSymbolicLink())fs.unlinkSync(file);}catch(e:any){if(e.code!=='ENOENT')throw error('attachment_cleanup_failed',503);}}}
-export const attachmentDigest=(inputs:{id?:string;mimeType:string;body:Buffer;displayName?:string}[])=>createHash('sha256').update(JSON.stringify(inputs.map(x=>({id:x.id,mime:x.mimeType,hash:createHash('sha256').update(x.body).digest('hex'),name:x.displayName})))).digest('hex');
+export const attachmentDigest=(inputs:{id?:string;mimeType:string;body:Buffer;displayName?:string}[])=>createHash('sha256').update(JSON.stringify(inputs.map(x=>({id:x.id,mime:x.mimeType,hash:createHash('sha256').update(x.body).digest('hex')})))).digest('hex');

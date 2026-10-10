@@ -22,9 +22,9 @@
   ],
   "tests": [
     {
-      "name": "R14",
+      "name": "review-17-r14",
       "status": "passed",
-      "evidence": "Build and full CI_LOCAL_OK; storage and native HTTP tests cover limits, retention, signatures, collision, receipts, protected attachments and R3 deletion."
+      "evidence": "All runtime CI commands passed; file-hash replay, unchanged run history, HTTP image upload, missing attachment 404, quota/retention, appendAttachmentContext and R3 cleanup verified."
     }
   ],
   "documentation": [

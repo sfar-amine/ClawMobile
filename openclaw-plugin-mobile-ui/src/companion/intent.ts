@@ -265,7 +265,7 @@ async function submitIntentInBackground(
   }
 }
 
-function appendAttachmentContext(text: string, attachments: IntentAttachment[]) {
+export function appendAttachmentContext(text: string, attachments: IntentAttachment[]) {
   const imageAttachments = attachments.filter((attachment) =>
     ["image", "file"].includes(String(attachment.type || "").toLowerCase()) && (attachment.path || attachment.serverPath),
   );
