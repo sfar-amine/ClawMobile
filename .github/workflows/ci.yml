@@ -71,3 +71,5 @@ jobs:
 
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
+      - name: Run read-only notification source contract
+        run: node scripts/test-notification-sources.cjs
