@@ -42,6 +42,9 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
+      - name: Run claw-live Control and owner view projections
+        run: python3 ../installer/termux-lite/test-claw-live-control.py
+
       - name: Run Claw relay reconnect contract
         run: |
           node scripts/test-voice-relay.cjs
