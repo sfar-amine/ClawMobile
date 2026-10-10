@@ -1,7 +1,7 @@
-# G4 — livraison locale
+# G4 — Plan de ménage après qualification
 
-Document qualification-gated runtime cleanup without removing live evidence
+Inventaire des artefacts de build déjà obsolètes et des flags, tests, preuves et chemins de rollback encore actifs. Aucun script source supplémentaire n’est démontré supprimable.
 
-Validation : Documentation-only; prepare-lite script and paired HealthManager hooks inspected; git diff --check passed.
+Reprise isolée sur runtime `af4132a`. Plan seulement : G2, G3, la recette Voix et les propriétaires Health Manager restent des gates ; Claude réalise les éventuels retraits S24 après revue et preuve.
 
-Aucun push, merge ou déploiement ; Claude intègre et recette. Retour arrière : revert du commit de ce lot.
+Validation : chemins et consommateurs vérifiés, documentation et gate contrôlés. Aucune CI, source runtime ou donnée de paiement modifiée. Retour arrière : revert de cette PR.

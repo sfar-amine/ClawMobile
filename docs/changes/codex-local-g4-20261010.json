@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Document qualification-gated runtime cleanup without removing live evidence",
-  "reason": "Explicit local-only Codex backlog delivery.",
+  "reason": "G4 documentation-only repris seul sur runtime af4132a, sans ancêtre G2/G3.",
   "files": [
     "docs/changes/codex-local-g4-20261010.json",
     "docs/changes/codex-local-g4-20261010.md",
@@ -16,7 +16,7 @@
     {
       "name": "G4",
       "status": "passed",
-      "evidence": "Documentation-only; prepare-lite script and paired HealthManager hooks inspected; git diff --check passed."
+      "evidence": "Inventaire statique des consommateurs/build/CI et chemins vérifié ; liens locaux, diff --check et gate de livraison validés avant push."
     }
   ],
   "documentation": [
@@ -43,8 +43,9 @@
     },
     "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
   },
-  "rollback": "Revert this local lot.",
+  "rollback": "Revert de cette PR de documentation ; tout retrait futur exige son propre rollback.",
   "limitations": [
-    "Local patch/bundle only; no deployment or S24 receipt claimed."
+    "Plan Git seulement ; aucun retrait physique ni qualification S24.",
+    "G2/G3 et la recette Voix restent des gates futurs explicites ; R17 puis A10 doivent préserver le Health Manager courant."
   ]
 }
