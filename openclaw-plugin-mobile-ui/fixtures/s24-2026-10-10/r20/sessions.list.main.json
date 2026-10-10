@@ -1,0 +1,122 @@
+{
+  "_capture": {
+    "method": "sessions.list",
+    "params": {
+      "search": "agent:main:main",
+      "limit": 100
+    },
+    "latencyMs": 3701,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true,
+    "note": "row subset (identity, model, context, thinking fields); label/displayName/participants/last message omitted; key and sessionId kept exactly"
+  },
+  "response": {
+    "ts": 1791653895008,
+    "path": "(multiple)",
+    "count": 1,
+    "totalCount": 1,
+    "limitApplied": 100,
+    "nextOffset": null,
+    "hasMore": false,
+    "owners": [
+      {
+        "type": "human",
+        "id": "gateway-owner",
+        "identity": {
+          "type": "profile",
+          "id": "gateway-owner"
+        }
+      }
+    ],
+    "defaults": {
+      "modelProvider": "openai",
+      "model": "gpt-5.6-sol",
+      "contextTokens": 272000,
+      "agentRuntime": {
+        "id": "codex",
+        "cloudPlacementSupported": false,
+        "devicePlacementSupported": false,
+        "source": "implicit"
+      },
+      "thinkingLevels": [
+        {
+          "id": "off",
+          "label": "off"
+        },
+        {
+          "id": "minimal",
+          "label": "minimal"
+        },
+        {
+          "id": "low",
+          "label": "low"
+        },
+        {
+          "id": "medium",
+          "label": "medium"
+        },
+        {
+          "id": "high",
+          "label": "high"
+        },
+        {
+          "id": "xhigh",
+          "label": "xhigh"
+        },
+        {
+          "id": "max",
+          "label": "max"
+        },
+        {
+          "id": "ultra",
+          "label": "ultra"
+        }
+      ],
+      "thinkingOptions": [
+        "off",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra"
+      ],
+      "thinkingDefault": "low",
+      "modelSelectionTarget": "session"
+    },
+    "sessions": [
+      {
+        "key": "agent:main:main",
+        "sessionId": "6be2842e-05f2-49b2-9f6f-78800e756b72",
+        "kind": "direct",
+        "agentId": "main",
+        "isMain": true,
+        "archived": false,
+        "status": "done",
+        "model": "gpt-5.6-sol",
+        "modelProvider": "openai",
+        "contextTokens": 272000,
+        "totalTokens": 30257,
+        "totalTokensFresh": true,
+        "thinkingDefault": "low",
+        "thinkingOptions": [
+          "off",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "ultra"
+        ],
+        "updatedAt": 1790724375981,
+        "pinned": false,
+        "hasActiveRun": false
+      }
+    ]
+  }
+}
