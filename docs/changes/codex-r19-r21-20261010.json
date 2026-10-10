@@ -41,12 +41,12 @@
     "docs/changes/codex-r19-r21-20261010.md"
   ],
   "capabilities": {
-    "impact": "changed",
+    "impact": "none",
     "ids": [
       "samantha.app.usage",
       "samantha.app.providers"
     ],
-    "reason": "Read routes map to the twin canonical planned capability entries required by file32; no live adapter activation."
+    "reason": "Companion read facades only; new planned registry entries are assessed in the twin playbooks change, not stored or routed in core."
   },
   "architecture": {
     "changed": false,
