@@ -1,0 +1,67 @@
+{
+  "_capture": {
+    "method": "sessions.files.list",
+    "params": {
+      "sessionKey": "agent:engineering-lite:engineering-899830de8aa9ea1d34e24577"
+    },
+    "latencyMs": 3105,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true,
+    "note": "sessionKey taken from sessions.list[1]"
+  },
+  "response": {
+    "sessionKey": "agent:engineering-lite:engineering-899830de8aa9ea1d34e24577",
+    "root": "/data/data/com.termux/files/home/.openclaw/workspaces/autonomous-engineering",
+    "gitCheckout": false,
+    "files": [],
+    "browser": {
+      "path": "",
+      "entries": [
+        {
+          "path": "memory",
+          "name": "memory",
+          "kind": "directory",
+          "updatedAtMs": 1790478024827
+        },
+        {
+          "path": "AGENTS.md",
+          "name": "AGENTS.md",
+          "kind": "file",
+          "size": 1106,
+          "updatedAtMs": 1790461937743
+        },
+        {
+          "path": "DREAMS.md",
+          "name": "DREAMS.md",
+          "kind": "file",
+          "size": 19333,
+          "updatedAtMs": 1791633661197
+        },
+        {
+          "path": "IDENTITY.md",
+          "name": "IDENTITY.md",
+          "kind": "file",
+          "size": 71,
+          "updatedAtMs": 1790462324999
+        },
+        {
+          "path": "SOUL.md",
+          "name": "SOUL.md",
+          "kind": "file",
+          "size": 93,
+          "updatedAtMs": 1790462312307
+        },
+        {
+          "path": "USER.md",
+          "name": "USER.md",
+          "kind": "file",
+          "size": 77,
+          "updatedAtMs": 1790462330607
+        }
+      ]
+    }
+  }
+}

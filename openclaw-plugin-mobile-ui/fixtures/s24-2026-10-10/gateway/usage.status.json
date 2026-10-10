@@ -1,0 +1,45 @@
+{
+  "_capture": {
+    "method": "usage.status",
+    "params": {},
+    "latencyMs": 3335,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true
+  },
+  "response": {
+    "updatedAt": 1791649247106,
+    "providers": [
+      {
+        "provider": "github-copilot",
+        "displayName": "Copilot",
+        "windows": [
+          {
+            "label": "Premium",
+            "usedPercent": 100
+          },
+          {
+            "label": "Chat",
+            "usedPercent": 0.7000000000000028
+          }
+        ],
+        "plan": "individual"
+      },
+      {
+        "provider": "openai",
+        "displayName": "OpenAI",
+        "windows": [
+          {
+            "label": "720h",
+            "usedPercent": 0,
+            "resetAt": 1794219642000
+          }
+        ],
+        "plan": "free",
+        "accountEmail": "owner@example.invalid"
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "codex-p2-d-companion-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose active memory and preview-selected assistant export import through existing owner",
+  "reason": "File 18 P2-d includes memory import without new persistence.",
+  "files": [
+    "docs/changes/codex-p2-d-companion-current-20261010.json",
+    "docs/changes/codex-p2-d-companion-current-20261010.md",
+    "docs/work/samantha-runtime/contracts/p2-d.md",
+    "installer/termux-lite/context-store.py",
+    "installer/termux-lite/context_import.py",
+    "installer/termux-lite/context_memory.py",
+    "installer/termux-lite/test-context-import.py",
+    "openclaw-plugin-mobile-ui/scripts/test-memory-control.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/memoryControl.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py"
+  ],
+  "tests": [
+    {
+      "name": "p2-d-memory",
+      "status": "passed",
+      "evidence": "7 SQLite atomic-import tests, HTTP large Arabic preview and pre-effect rc1 failure, receipt/replay after archive OSError; current CI commands run locally."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p2-d.md",
+    "docs/changes/codex-p2-d-companion-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "No deployment or S24 recipe claimed. Formats/contract reviewed by Claude.",
+    "Unknown preference/person categories and consolidation lastAt remain explicit.",
+    "S24 acceptance budget and deployed behavior remain to be qualified by Claude; no Codex deployment."
+  ]
+}
