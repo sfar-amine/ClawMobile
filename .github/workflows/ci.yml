@@ -173,3 +173,6 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: F7 Gateway append log retention
+        run: python3 ../installer/termux-lite/test-gateway-log-retention.py
