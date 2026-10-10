@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "codex-h9-ui-smoke-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Brouillon outil de recette UI readonly à tags stricts",
+  "reason": "Fichier36 H9 ; exposition des testTags et matrice de navigation complète non prouvées, aucun test live par Codex.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-h9-ui-smoke-20261011.json",
+    "docs/changes/codex-h9-ui-smoke-20261011.md",
+    "docs/work/samantha-runtime/contracts/h9.md",
+    "installer/termux-lite/ui-smoke.py",
+    "installer/termux-lite/test-ui-smoke.py"
+  ],
+  "tests": [
+    {
+      "name": "h9-synthetic-ui-safety",
+      "status": "passed",
+      "evidence": "8 tests synthétiques in-memory : aucune preuve runtime prétendue ; CI ajoutée, aucune étape retirée."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-h9-ui-smoke-20261011.md",
+    "docs/work/samantha-runtime/contracts/h9.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Outil de recette Git-only ; aucune route, information app nouvelle ou permission."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing deployment lock/receipts, incident owner, Health Manager and scheduler only; no new canonical store or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Aucune primitive MCP modifiée ; aucun appel runtime de recette."
+  },
+  "rollback": "Revert H9, aucun runtime ni app modifiés.",
+  "limitations": [
+    "Exposition testTags non démontrée ; H9 Draft jusqu’à réponse Claude et première recette S24.",
+    "Trois écrans seulement préparés ; navigation Automatisations et jauge non prouvée."
+  ]
+}

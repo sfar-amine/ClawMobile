@@ -176,3 +176,6 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: H9 read-only UI smoke synthetic safety boundaries
+        run: python3 ../installer/termux-lite/test-ui-smoke.py
