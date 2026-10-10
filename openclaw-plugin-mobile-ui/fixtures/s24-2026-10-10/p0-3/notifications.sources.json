@@ -1,0 +1,285 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/notifications/sources",
+  "latencyMs": 984,
+  "repeatLatencyMs": 2585,
+  "capturedAt": "2026-10-10T18:35:48+00:00",
+  "companion": "loopback 127.0.0.1:8765, sans en-tête propriétaire",
+  "sanitized": true
+ },
+ "response": {
+  "items": [
+   {
+    "id": "incidents",
+    "kind": "incident",
+    "label": "<texte 21 car.>",
+    "channels": [
+     "whatsapp",
+     "email"
+    ],
+    "togglable": false,
+    "enabled": null,
+    "reason": "<texte 22 car.>"
+   },
+   {
+    "id": "situation",
+    "kind": "situation",
+    "label": "<texte 18 car.>",
+    "channels": [
+     "whatsapp",
+     "email"
+    ],
+    "togglable": false,
+    "enabled": true,
+    "reason": "<texte 23 car.>"
+   },
+   {
+    "id": "android",
+    "kind": "app",
+    "label": "<texte 22 car.>",
+    "channels": [
+     "android"
+    ],
+    "togglable": false,
+    "enabled": null,
+    "reason": "<texte 18 car.>"
+   },
+   {
+    "id": "whatsapp",
+    "kind": "channel",
+    "label": "<texte 18 car.>",
+    "channels": [
+     "whatsapp"
+    ],
+    "togglable": false,
+    "enabled": null,
+    "reason": "<texte 33 car.>",
+    "lastDeliveryAt": "2026-10-10T12:08:56+01:00",
+    "lastDeliveryState": "accepted"
+   },
+   {
+    "id": "slack",
+    "kind": "channel",
+    "label": "<texte 15 car.>",
+    "channels": [
+     "slack"
+    ],
+    "togglable": false,
+    "enabled": null,
+    "reason": "<texte 33 car.>",
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null
+   },
+   {
+    "id": "scheduled:9d355bf1-274e-6903-fd0a-f64f5707045c",
+    "automationId": "9d355bf1-274e-6903-fd0a-f64f5707045c",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:8c640d43-be55-816a-985b-2011514b332d",
+    "automationId": "8c640d43-be55-816a-985b-2011514b332d",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:e5b786a7-96ef-9e90-05fa-518f4b50b5f4",
+    "automationId": "e5b786a7-96ef-9e90-05fa-518f4b50b5f4",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:a85eba9f-ebab-700d-4f2a-fa854ae3e119",
+    "automationId": "a85eba9f-ebab-700d-4f2a-fa854ae3e119",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:657b7139-3163-5a14-98c3-0e78b35df547",
+    "automationId": "657b7139-3163-5a14-98c3-0e78b35df547",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:380ad27b-1e62-fc1d-84ed-72e922ee0901",
+    "automationId": "380ad27b-1e62-fc1d-84ed-72e922ee0901",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:4626393e-8a8e-1704-94cc-6ec2fa893a36",
+    "automationId": "4626393e-8a8e-1704-94cc-6ec2fa893a36",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:f390d731-98ef-1eab-c407-98a11d17f439",
+    "automationId": "f390d731-98ef-1eab-c407-98a11d17f439",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:5e36ad63-451a-0e56-2dca-349712bb5a92",
+    "automationId": "5e36ad63-451a-0e56-2dca-349712bb5a92",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:3fbaa49a-995d-a26a-e94c-fb22208826eb",
+    "automationId": "3fbaa49a-995d-a26a-e94c-fb22208826eb",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:75faa9f3-209d-3c9b-e7da-32c8f0369843",
+    "automationId": "75faa9f3-209d-3c9b-e7da-32c8f0369843",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:f3002447-3cb0-c29f-ff2d-a417082bfa17",
+    "automationId": "f3002447-3cb0-c29f-ff2d-a417082bfa17",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": true,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:8536e8b1-844b-3d10-3d09-42bfb2d7b16f",
+    "automationId": "8536e8b1-844b-3d10-3d09-42bfb2d7b16f",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": false,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:d7638f8d-9f1f-c96b-c6a1-53a422bec810",
+    "automationId": "d7638f8d-9f1f-c96b-c6a1-53a422bec810",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": false,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:a65807fa-7cfc-cfed-394f-809dfc2d2413",
+    "automationId": "a65807fa-7cfc-cfed-394f-809dfc2d2413",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": false,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:bc08b9d8-7af3-bbe9-0457-da0da5e95b69",
+    "automationId": "bc08b9d8-7af3-bbe9-0457-da0da5e95b69",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": false,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   },
+   {
+    "id": "scheduled:864765a8-66d5-70fb-d9ee-1f152d18d0e4",
+    "automationId": "864765a8-66d5-70fb-d9ee-1f152d18d0e4",
+    "kind": "scheduled",
+    "label": "<texte 24 car.>",
+    "channels": [],
+    "togglable": false,
+    "enabled": false,
+    "lastDeliveryAt": null,
+    "lastDeliveryState": null,
+    "reason": "<texte 20 car.>"
+   }
+  ],
+  "available": true,
+  "issues": [
+   "transport_state_unavailable"
+  ],
+  "activationRoute": "/v1/automations/{automationId}/enable|disable"
+ }
+}

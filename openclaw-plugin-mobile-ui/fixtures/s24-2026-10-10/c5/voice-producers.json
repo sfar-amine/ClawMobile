@@ -1,0 +1,36 @@
+{
+ "_capture": {
+  "method": "sqlite memory.db (mode=ro) + lecture des scripts installés (release 20261010T120821-d3beb769) + registre capabilities installé",
+  "capturedAt": "2026-10-10T18:37:01+00:00",
+  "sanitized": true
+ },
+ "eventsBySurface": {
+  "chat": 1046,
+  "openclaw": 401,
+  "work": 488
+ },
+ "voiceEvents": 0,
+ "installedProducersCallingContextEventSh": [
+  {
+   "script": "termux-lite/autonomous-engineering-close.sh",
+   "surface": "openclaw",
+   "kinds": "$etype (completed_action/open_thread selon l'état)"
+  },
+  {
+   "script": "termux-lite/learning-gate-close.sh",
+   "surface": "openclaw",
+   "kinds": "learning"
+  },
+  {
+   "script": "termux-lite/claw-live.py",
+   "surface": null,
+   "note": "ne produit pas : masque seulement 'context-event.sh <payload omitted>' dans ses journaux"
+  }
+ ],
+ "capabilitiesMentioningContextEvent": [
+  "memory.cross_surface",
+  "reporting.immune.daily",
+  "claw.situations"
+ ],
+ "conclusion": "Aucun producteur canonique installé n'émet d'événement surface=voice (0 en base). Aucune capability n'expose une écriture voix typée. Le point canonique est à définir (V6) ; rien à capturer aujourd'hui."
+}

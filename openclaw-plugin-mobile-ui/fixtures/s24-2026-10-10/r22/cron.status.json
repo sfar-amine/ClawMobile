@@ -1,0 +1,21 @@
+{
+ "_capture": {
+  "method": "cron.status",
+  "params": {},
+  "latencyMs": 2570,
+  "capturedAt": "2026-10-10T18:19:43+00:00",
+  "exitCode": 0,
+  "via": "timeout 60 nice openclaw gateway call <method> --params <json> --json",
+  "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+  "sanitized": true
+ },
+ "response": {
+  "enabled": true,
+  "triggersEnabled": true,
+  "storePath": "~/.openclaw/state/openclaw.sqlite",
+  "storage": "sqlite",
+  "sqlitePath": "~/.openclaw/state/openclaw.sqlite",
+  "jobs": 17,
+  "nextWakeAtMs": 1791656423567
+ }
+}
