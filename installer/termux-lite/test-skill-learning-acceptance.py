@@ -23,6 +23,9 @@ class R8AcceptanceTests(unittest.TestCase):
         return code, json.loads(output.getvalue()), seen
 
     def test_existing_candidate_detail_and_owner_guard(self):
+        policy = self.load().LEAK
+        self.assertIsNone(policy.search('owner number +21612345678'))
+        self.assertIsNotNone(policy.search('Bearer SYNTHETIC_SECRET_VALUE'))
         code, result, seen = self.execute()
         self.assertEqual(code, 0)
         self.assertIn(('GET', '/skills/candidates/trace-fixture'), seen)

@@ -5,7 +5,7 @@ const assert=require('node:assert/strict');
  let payments=[],confirmations=[];runs.readPaymentRequests=async()=>payments;runs.readOwnerConfirmations=async()=>confirmations;
  const {learningPaymentGuard}=require('../dist/companion/skillLearning');let checks=0;const fail=async(instruction,code,cid)=>{await assert.rejects(()=>learningPaymentGuard(instruction,cid),e=>e.message===code);checks++};
  await learningPaymentGuard('Apprendre la recherche dans une note');checks++;
- for(const instruction of ['finance','money transfer','payer une facture','un achat','carte','wallet','10 USD'])await fail(instruction,'learn_payment_excluded');assert.equal(calls,1);checks++;
+ for(const instruction of ['finance','money transfer','payer une facture','un achat','carte','wallet','10 USD','Recharger mon forfait Orange','faire une recharge Ooredoo','compte bancaire','top-up','invoice','purchase'])await fail(instruction,'learn_payment_excluded');assert.equal(calls,1);checks++;
  for(const risk of ['payment','financial','transaction','sensitive','destructive','external_send']){decision={version:2,type:'REASON',risk};await fail('Apprendre la recherche','learn_payment_excluded');}
  decision={version:2,type:'REASON',risk:'unknown'};await fail('Apprendre la recherche','learning_guard_unavailable');decision={version:2,type:'REASON'};await fail('Apprendre la recherche','learning_guard_unavailable');
  decision={version:2,type:'REASON',risk:'read'};payments=[{state:'awaiting_owner',originId:'unrelated'}];await fail('Apprendre la recherche','learn_payment_excluded');payments=[];confirmations=[{id:'unrelated',state:'approved'}];await fail('Apprendre la recherche','learn_payment_excluded');
