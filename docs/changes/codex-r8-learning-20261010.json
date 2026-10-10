@@ -18,7 +18,8 @@
     "docs/work/samantha-runtime/contracts/r8.md",
     "docs/changes/codex-r8-learning-20261010.md",
     "docs/changes/codex-r8-learning-20261010.json",
-    "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json"
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json",
+    ".github/workflows/ci.yml"
   ],
   "tests": [
     {
@@ -54,7 +55,7 @@
   "rollback": "Revert the R8 preparation PR; no runtime activation performed.",
   "limitations": [
     "Draft only: real S24 P0-2 captures and full file24 absent.",
-    "Dedicated CI ownership and representative route/volume latency remain unqualified;2s is provisional.",
+    "Representative route/volume latency remains unqualified; 2s is provisional. Three existing R8 test suites are now registered in CI.",
     "Prompt forbids promotion; no stronger agent-wide tool confinement is claimed or required for the Companion contract."
   ]
 }

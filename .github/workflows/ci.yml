@@ -98,3 +98,9 @@ jobs:
 
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
+
+      - name: Skill learning draft contracts
+        run: |
+          node scripts/test-skill-learning.cjs
+          node scripts/test-skill-learning-guard.cjs
+          python3 ../installer/termux-lite/test-skill-learning-acceptance.py
