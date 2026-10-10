@@ -1,6 +1,6 @@
-import {nativeOperation,operationBody} from "./nativeOperation";
 import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
 import {withAttachmentReferences} from "./runs";
+import {notificationSources} from "./notificationSources";
 import { handleControl } from "./control";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import fs from "fs";
@@ -203,6 +203,16 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       success: false,
       message: "This endpoint is restricted to local companion app requests.",
     });
+    return;
+  }
+
+  if(routePath==="/notifications/sources"||routePath.startsWith("/notifications/sources/")){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,error:"native_loopback_required"});return;}
+    if(method!=='GET'){writeJson(res,405,{success:false,error:"canonical_source_toggle_unavailable"});return;}
+    if(routePath!=="/notifications/sources"){writeJson(res,404,{success:false,error:"not_found"});return;}
+    if(requestUrl.search){writeJson(res,400,{success:false,error:"unsupported_parameter"});return;}
+    try{res.setHeader("Cache-Control","no-store");writeJson(res,200,await notificationSources());}
+    catch{writeJson(res,503,{success:false,error:"notification_sources_unavailable"});}
     return;
   }
 
@@ -1216,19 +1226,22 @@ function bootstrapCapabilities() {
 }
 
 async function saveAttachment(req: http.IncomingMessage):Promise<any>{
- const operationId=operationBody({operationId:String(req.headers['x-clawmobile-operation-id']||req.headers['x-clawmobile-attachment-id']||'')});
  let inputs:{id?:string;mimeType:string;body:Buffer;displayName?:string}[];
  if((req.url||'').split('?')[0].endsWith('/attachments/share')){
   let value:any;try{value=JSON.parse((await readRawBody(req,35*1024*1024)).toString('utf8'));}catch{throw Object.assign(new Error('invalid_attachment_share'),{statusCode:400});}
   if(!value||Object.keys(value).length!==1||!Array.isArray(value.files)||value.files.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
   inputs=value.files.map((x:any)=>{if(!x||Object.keys(x).some(k=>!['id','mimeType','base64'].includes(k))||typeof x.base64!=='string'||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(x.base64))throw Object.assign(new Error('invalid_attachment_share'),{statusCode:400});return {id:x.id,mimeType:x.mimeType,body:Buffer.from(x.base64,'base64')};});
  }else inputs=[{id:String(req.headers['x-clawmobile-attachment-id']||'')||undefined,displayName:sanitizeFilePart(String(req.headers['x-clawmobile-filename']||''))||undefined,mimeType:String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase(),body:await readRawBody(req,MAX_ATTACHMENT_BYTES)}];
- const result=await nativeOperation(operationId,'attachments.upload',attachmentDigest(inputs),async()=>{
-  try{return {state:'completed',artifact:{attachments:await withAttachmentReferences(paths=>saveAttachments(inputs,paths))}};}
-  catch(error:any){if(error.statusCode===400||error.statusCode===409||error.statusCode===413)return {state:'refused',artifact:{reason:error.message}};throw error;}
- });
- const files=(result as any).artifact?.attachments;
- return {...result,...(files?.length===1?files[0]:{}),...(files?{attachments:files}:{}),...((result as any).artifact?.reason?{reason:(result as any).artifact.reason}:{})};
+ if(inputs.some(x=>typeof x.id!=='string'||!x.id))throw Object.assign(new Error('attachment_id_required'),{statusCode:400});
+ try{
+  const files=await withAttachmentReferences(paths=>saveAttachments(inputs,paths));
+  return {success:true,state:'completed',receipt:{version:1,action:'attachments.upload',id:attachmentDigest(inputs),state:'completed'},
+   ...(files.length===1?files[0]:{}),attachments:files};
+ }catch(error:any){
+  if([400,409,413].includes(error.statusCode))return {success:false,state:'refused',receipt:null,reason:error.message};
+  throw error;
+ }
+
 }
 async function serveAttachmentContent(res:http.ServerResponse,id:string){
  const item=attachmentContent(id);res.statusCode=200;res.setHeader('Content-Type',item.mime);res.setHeader('X-Content-Type-Options','nosniff');

@@ -74,3 +74,5 @@ jobs:
 
       - name: Test attachment HTTP contract
         run: node scripts/test-attachment-http.cjs
+      - name: Run read-only notification source contract
+        run: node scripts/test-notification-sources.cjs
