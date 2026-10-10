@@ -7,6 +7,24 @@ fs.writeFileSync(path.join(work,'SOUL.md'),'C1_IDENTITY');fs.writeFileSync(path.
 fs.writeFileSync(path.join(work,'context/OPERATING_RULES.md'),'C1_OPERATING\n'+'rule-prefix\n'.repeat(1300)+'\n## Règles spécialisées\nC1_SPECIALIZED\n### Payments\nHuman confirmation remains mandatory.\n## Unrelated tail\nTAIL_EXCLUDED');
 const output=path.join(home,'params.json'),cli=path.join(home,'gateway-fixture.py');
 fs.writeFileSync(cli,'#!/usr/bin/env python3\nimport json,sys,time\nfrom pathlib import Path\ntime.sleep(3.2)\np=json.loads(sys.argv[sys.argv.index("--params")+1]);Path('+JSON.stringify(output)+').write_text(json.dumps(p));print(json.dumps({"runId":p["idempotencyKey"],"status":"accepted"}))\n');fs.chmodSync(cli,0o700);process.env.CLAWMOBILE_OPENCLAW_BIN=cli;
+// Sanitized real pre-C1 reports: metadata only, never reconstruct private bootstrap content.
+const baseline=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-10/c1/app-bixby-prompt-baseline.json'),'utf8'));
+assert.equal(baseline._capture.sanitized,true);
+const physicalBefore={};
+for(const surface of ['app','bixby']){
+ const rows=baseline.sessions.filter(row=>row.surface===surface);
+ assert.equal(rows.length,4);
+ for(const row of rows){
+  assert.equal(row.systemPrompt.projectContextChars,0);
+  assert.equal(row.injectedWorkspaceFiles,0);
+  assert.equal(row.currentTurn.runtimeContextChars,163);
+  assert.ok(Number.isInteger(row.systemPrompt.chars)&&row.systemPrompt.chars>0);
+  assert.ok(Number.isInteger(row.tokens.inputTokens)&&row.tokens.inputTokens>0);
+  assert.ok(Number.isFinite(row.runtimeMs)&&row.runtimeMs>0);
+ }
+ const range=select=>[Math.min(...rows.map(select)),Math.max(...rows.map(select))];
+ physicalBefore[surface]={sessions:rows.length,systemPromptCharacters:range(r=>r.systemPrompt.chars),inputTokens:range(r=>r.tokens.inputTokens),runtimeMs:range(r=>r.runtimeMs)};
+}
 const context=require('../dist/companion/clawLive'),client=require('../dist/companion/openclawAgentClient');
 (async()=>{
  try{
@@ -51,6 +69,6 @@ const context=require('../dist/companion/clawLive'),client=require('../dist/comp
   const large=path.join(home,'large.md');fs.writeFileSync(large,'x'.repeat(1000000));assert.ok(context.readCanonical(large,100,{boundedOwner:true}).length<200);
   // Local preparation only: characters/UTF8 bytes estimate, not model billing tokens or S24 latency.
   const samples=[];for(let i=0;i<100;i++){const before=performance.now();context.compactOwnerAgentContext({authority:'owner'});samples.push(performance.now()-before)}samples.sort((a,b)=>a-b);
-  console.log(JSON.stringify({test:'C1 synthetic preparation',beforeExtraCharacters:0,afterExtraCharacters:extra.length,afterUtf8Bytes:Buffer.byteLength(extra),tokenEstimateBytesDiv4:Math.ceil(Buffer.byteLength(extra)/4),localReadP95Ms:samples[94],syntheticGatewayBaselineMs:baselineMs,syntheticGatewayAfterMs:ownerMs,physicalLatencyAndTokensQualified:false}));
+  console.log(JSON.stringify({test:'C1 boundaries plus real pre-deployment baseline',physicalBefore,physicalAfter:null,comparisonQualified:false,beforeExtraCharacters:0,afterExtraCharacters:extra.length,afterUtf8Bytes:Buffer.byteLength(extra),tokenEstimateBytesDiv4:Math.ceil(Buffer.byteLength(extra)/4),localReadP95Ms:samples[94],syntheticGatewayBaselineMs:baselineMs,syntheticGatewayAfterMs:ownerMs,physicalLatencyAndTokensQualified:false}));
  }finally{os.homedir=previousHome;if(previousBin===undefined)delete process.env.CLAWMOBILE_OPENCLAW_BIN;else process.env.CLAWMOBILE_OPENCLAW_BIN=previousBin;fs.rmSync(home,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Inject canonical compact context into existing owner app and Bixby agent turns",
-  "reason": "Issue58/program31: lightweight omits bootstrap rules; reuse canonical voice reader, real turn captures and physical before/after tokens/timings still missing.",
+  "reason": "Issue58/program34 : baseline S24 app/Bixby réelle intégrée depuis fixture82, sans injection workspace avant C1 ; comparaison après et présence des blocs dans un vrai tour à qualifier par Claude après déploiement.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
@@ -43,6 +43,11 @@
       "name": "clean-build-r10-transport-compatibility",
       "status": "passed",
       "evidence": "Generated dist removed, clean build on merged runtime42300b0. C1 assertions require existing canonical R10 leading session marker and unchanged user body; actual CLI slash remains /status without marker. C1HTTP/private-authority, P2-b, R8 producer/guard, R10conversation-origin, Live and relay/reconnect regressions pass. No production R10 change."
+    },
+    {
+      "name": "real-app-bixby-baseline",
+      "status": "passed",
+      "evidence": "Fixture82 a9f08e5 metadata de8sessions réelles (4app/4Bixby), aucun contenu privé : projectContextChars=0/injectedWorkspaceFiles=0/currentTurn.runtimeContextChars=163. Bornes positives chars/inputTokens/runtimeMs vérifiées, ranges calculés, physicalAfter:null/comparisonQualified:false. Build+testcanonique complet passent sur baseb40b867."
     }
   ],
   "documentation": [
@@ -71,8 +76,8 @@
   },
   "rollback": "Revert C1 commits, preserve payment and existing canonical owners; no runtime changes by Codex.",
   "limitations": [
-    "Issue58 real app/Bixby captures and actual token/latency measurements unavailable.",
-    "Synthetic 3.2s delay and bytes/4 estimate are not physical measurements or model token accounting.",
-    "No push, merge or deployment until coordination; Live voice block change C3 remains separate."
+    "Capture réelle avant intégrée ; présence réelle des blocs dans un tour et mesure après ±10% nécessitent déploiement et recette Claude.",
+    "Latence3.2s synthétique et estimation octets/4 restent séparées des comptes réels de jetons et runtimeMs des captures.",
+    "Brouillon conservé : aucun merge ou déploiement par Codex."
   ]
 }
