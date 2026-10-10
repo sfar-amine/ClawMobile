@@ -71,3 +71,5 @@ jobs:
 
       - name: Test laptop owner pairing and biometric scope
         run: node scripts/test-laptop-access.cjs
+      - name: Run read-only notification source contract
+        run: node scripts/test-notification-sources.cjs

@@ -1,4 +1,5 @@
 import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
+import {notificationSources} from "./notificationSources";
 import { handleControl } from "./control";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import fs from "fs";
@@ -217,6 +218,16 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(pc&&method==='DELETE'){writeJson(res,200,await laptopChange('revoke',decodeURIComponent(pc[1]),await readJsonBody(req,2048)));return;}
       writeJson(res,405,{success:false,state:'refused',receipt:null,reason:'unsupported_laptop_route'});
     }catch(error:any){const invalid=error?.statusCode===400||error instanceof URIError;writeJson(res,invalid?400:503,{success:false,state:invalid?'refused':'indeterminate',receipt:null,reason:invalid?'invalid_laptop_operation':'laptop_owner_indeterminate'});}
+    return;
+  }
+
+  if(routePath==="/notifications/sources"||routePath.startsWith("/notifications/sources/")){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,error:"native_loopback_required"});return;}
+    if(method!=='GET'){writeJson(res,405,{success:false,error:"canonical_source_toggle_unavailable"});return;}
+    if(routePath!=="/notifications/sources"){writeJson(res,404,{success:false,error:"not_found"});return;}
+    if(requestUrl.search){writeJson(res,400,{success:false,error:"unsupported_parameter"});return;}
+    try{res.setHeader("Cache-Control","no-store");writeJson(res,200,await notificationSources());}
+    catch{writeJson(res,503,{success:false,error:"notification_sources_unavailable"});}
     return;
   }
 
