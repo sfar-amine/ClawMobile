@@ -35,8 +35,8 @@ export async function readProviders(refresh=false){
  const [owner,usage]=await Promise.all([readModelOwnerCached({refresh}),readUsage()]);
  return projectProviders(owner.snapshot,usage,owner.state==='fresh');
 }
-export function peekProviders(){const snapshot=peekModelOwner();return projectProviders(snapshot,peekUsage(),!!snapshot&&Date.now()-snapshot.updatedAt<60000);}
-export function peekActiveModel(){return configured(peekModelOwner()).primary;}
+export function peekProviders(){const snapshot=peekModelOwner();return projectProviders(snapshot,peekUsage(),!!snapshot&&!snapshot.stale&&Date.now()-snapshot.updatedAt<60000);}
+export function peekActiveModel(){const snapshot=peekModelOwner();return snapshot&&!snapshot.stale&&Date.now()-snapshot.updatedAt<60000?configured(snapshot).primary:null;}
 export function providerAttention(){
  return peekProviders().providers.filter(p=>['exhausted','needs_auth'].includes(p.state)&&p.models.some(m=>m.inUse!==null)).map(p=>({id:'provider:'+p.id,kind:'provider',provider:p.id,state:p.state,agentDependency:true}));
 }

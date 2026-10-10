@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http');
 const captured=JSON.parse(fs.readFileSync(require('node:path').join(__dirname,'../fixtures/s24-2026-10-10/gateway/usage.status.json')));
 const client=require('../dist/companion/openclawAgentClient');
-const counts={};let usageFail=false;let synthetic=false;let now=Date.now();const realNow=Date.now;Date.now=()=>now;
+const counts={};let usageFail=false;let authFail=false;let synthetic=false;let now=Date.now();const realNow=Date.now;Date.now=()=>now;
 const config={agents:{entries:{main:{model:{primary:'github-copilot/fixture-model',fallbacks:['openai/fallback']},modelPolicy:{allow:['github-copilot/fixture-model','openai/fallback']}}}},plugins:{entries:{'samantha-mobile-ui':{enabled:true}}}};
 client.callOpenClawGateway=async(method,params,options)=>{
  counts[method]=(counts[method]||0)+1;
@@ -10,7 +10,7 @@ client.callOpenClawGateway=async(method,params,options)=>{
  if(method==='usage.cost'){assert.deepEqual(params,{days:30});if(counts[method]===1)await new Promise(r=>setTimeout(r,3200));return {updatedAt:now,days:30,totals:{totalCost:42},daily:[],private:'owner@example.invalid'};}
  if(method==='config.get')return {hash:'a'.repeat(64),config};
  if(method==='models.list')return {models:[{provider:'github-copilot',id:'fixture-model',name:'Fixture model',available:true,reasoning:true,input:['image'],contextTokens:64000},{provider:'openai',id:'fallback',available:true},{provider:'unused',id:'not-configured',available:true}]};
- if(method==='models.authStatus')return {providers:[{provider:'github-copilot',status:'ok'},{provider:'openai',status:'ok'},{provider:'unused',status:'expired'},{provider:'custom',status:'missing'}]};
+ if(method==='models.authStatus'){if(authFail)throw Error('synthetic auth failure');return {providers:[{provider:'github-copilot',status:'ok'},{provider:'openai',status:'ok'},{provider:'unused',status:'expired'},{provider:'custom',status:'missing'}]};}
  throw Error('Unexpected Gateway method');
 };
 const usage=require('../dist/companion/usage'),providers=require('../dist/companion/providers'),owner=require('../dist/companion/modelOwner'),control=require('../dist/companion/usageControl');
@@ -37,6 +37,7 @@ const malicious=['owner@example.invalid','api_key=fixture-value','password:fixtu
  const missing=providers.projectProviders(null,view);assert.ok(missing.providers.every(p=>p.state==='unknown'&&p.auth==='unknown'));
  const before=JSON.stringify(counts);const enriched=control.completeUsageAttention({schemaVersion:2,sections:{health:{data:{attentionItems:[]},dataRevision:'old'}}});assert.ok(enriched.sections.health.data.attentionItems.some(x=>x.id==='usage:github-copilot'&&x.activeAgentDependency));assert.ok(enriched.sections.health.data.attentionItems.some(x=>x.id==='provider:github-copilot'));assert.equal(JSON.stringify(counts),before);noLeaks(enriched);const direct=control.completeUsageAttention({data:{attentionItems:[]},dataRevision:'old'});assert.ok(direct.data.attentionItems.some(x=>x.id==='usage:github-copilot'));assert.notEqual(direct.dataRevision,'old');
  await providers.readProviders(true);const refreshed=counts['config.get'];await providers.readProviders(true);assert.equal(counts['config.get'],refreshed);now+=30000;await providers.readProviders(true);assert.equal(counts['config.get'],refreshed+1);
+ authFail=true;now+=30000;const degraded=await providers.readProviders(true);assert.ok(degraded.providers.every(p=>p.auth==='unknown'&&p.state==='unknown'));assert.equal(providers.peekActiveModel(),null);authFail=false;
  now+=60001;const expired=control.completeUsageAttention(enriched);assert.deepEqual(expired.sections.health.data.attentionItems,[]);usageFail=true;await Promise.all(Array.from({length:10},()=>usage.readUsage()));const failedCount=counts['usage.status'];assert.deepEqual((await usage.readUsage()).issues,['usage_source_unavailable']);assert.equal(counts['usage.status'],failedCount);usageFail=false;
  const {route}=require('../dist/companion/server');const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}')}));await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const request=(path,headers={},method='GET')=>new Promise((resolve,reject)=>{const req=http.request({host:'127.0.0.1',port:server.address().port,path,headers,method},res=>{let text='';res.on('data',x=>text+=x);res.on('end',()=>resolve({status:res.statusCode,value:JSON.parse(text||'{}')}));});req.on('error',reject);req.end();});
