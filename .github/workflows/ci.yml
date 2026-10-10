@@ -95,3 +95,6 @@ jobs:
 
       - name: Run read-only diagnostic export contract
         run: node scripts/test-diagnostic.cjs
+
+      - name: Run agent configuration owner contract
+        run: node scripts/test-agent-config.cjs
