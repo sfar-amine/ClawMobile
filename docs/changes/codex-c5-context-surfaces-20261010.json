@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Extend canonical context surfaces without fabricating voice semantic events",
-  "reason": "C5 files31/33; semantic voice ingress still needs canonical evidence. Private declaration update prepared in paired playbooks owner.",
+  "reason": "Claude core74 confirms no installed semantic voice producer; real core82 capture integrated; V6 definition and end-to-end voice proof remain blocked.",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/context-event.sh",
@@ -21,12 +21,12 @@
     {
       "name": "canonical-context-surfaces",
       "status": "passed",
-      "evidence": "Actual CLI/store/SQLite/compactor using isolated synthetic fixtures without HOME replacement: seven closed sources, replay, supersession, invalid source and secret refusal."
+      "evidence": "Real core82 voice-producers fixture confirms no installed voice ingress. Actual isolated CLI/store/SQLite/compactor tests seven closed surfaces, R10 session linkage for claude/codex/app, replay, supersession, invalid source and secret refusal."
     },
     {
       "name": "ci-existing-union",
       "status": "passed",
-      "evidence": "All26executableCIcommands pass after normal merge of runtime1f239f3 including P2-b/G3; unchanged dependencies, npmci not repeated."
+      "evidence": "Normal merge of runtime d142a9f retains every CI step and adds C5 surface test; owner regressions verified after conflict resolution preserving C3 validation and R10 sessions."
     }
   ],
   "documentation": [
@@ -55,8 +55,8 @@
   },
   "rollback": "Revert C5 implementation only; preserve all durable existing memory events.",
   "limitations": [
-    "Voice typed semantic producer unconfirmed; no transcription or heuristic event stored. Foundation declaration update prepared in paired playbooks owner.",
-    "Synthetic tests are not S24 qualification; actual capture needed before activation.",
-    "Publication waits C2/C3/C4 coordination."
+    "No installed typed semantic voice ingress exists, confirmed by Claude core74 and actual fixture82; V6 owner/schema to define before any implementation.",
+    "Isolated CLI/store simulations do not prove Voice \u2192 claw_context; PR stays draft and merge_eligibility blocked.",
+    "No deployment or private foundation installation by Codex."
   ]
 }

@@ -3,6 +3,14 @@
 import json, os, pathlib, shutil, sqlite3, subprocess, tempfile
 SOURCE = pathlib.Path(__file__).resolve().parent
 SURFACES = ('chat', 'work', 'voice', 'openclaw', 'claude', 'codex', 'app')
+# Real installed-owner evidence: no live semantic voice producer exists yet.
+# Exercising the CLI directly below is not a Voice/Claw end-to-end receipt.
+fixture = json.loads((SOURCE.parents[1]/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/c5/voice-producers.json').read_text())
+assert fixture['_capture']['sanitized'] is True
+assert fixture['voiceEvents'] == 0
+assert set(fixture['eventsBySurface']) == {'chat', 'work', 'openclaw'}
+assert all(row['surface'] != 'voice' for row in fixture['installedProducersCallingContextEventSh'])
+assert 'memory.cross_surface' in fixture['capabilitiesMentioningContextEvent']
 with tempfile.TemporaryDirectory(prefix='c5-context-surfaces-') as folder:
     root = pathlib.Path(folder)
     scripts = root / 'scripts'; scripts.mkdir()
@@ -36,6 +44,11 @@ with tempfile.TemporaryDirectory(prefix='c5-context-surfaces-') as folder:
     assert superseded.returncode == 0
     row = connection.execute('SELECT surface,supersedes FROM events WHERE id=?', (superseded.stdout.strip(),)).fetchone()
     assert row == ('claude', ids['codex'])
+    for surface in ('claude','codex','app'):
+        run = event(surface,'open_thread','Session-linked semantic fixture','--session','alpha')
+        assert run.returncode == 0
+        row = connection.execute('SELECT surface,session_id FROM events WHERE id=?',(run.stdout.strip(),)).fetchone()
+        assert row == (surface,'alpha')
     connection.close()
     # Direct-store validation shares the same closed surface set (cannot bypass CLI).
     direct = {'version':2,'id':'f'*64,'surface':'browser','kind':'decision','text':'Invalid source','createdAt':'2026-10-10T00:00:00Z'}
@@ -43,4 +56,4 @@ with tempfile.TemporaryDirectory(prefix='c5-context-surfaces-') as folder:
     result = subprocess.run(['python3',str(scripts/'context-store.py'),'ingest-file',str(path)], env=env, text=True, capture_output=True)
     assert result.returncode != 0
     assert '# Fixture foundation preserved' in hybrid.read_text()
-print('C5: seven closed surfaces, canonical SQLite ingestion, idempotence, cross-surface supersession and secret rejection PASS; synthetic only, voice producer not qualified')
+print('C5: seven closed surfaces, canonical SQLite ingestion, idempotence, cross-surface supersession and secret rejection PASS; real installed-owner absence captured; isolated CLI simulation only, voice producer not qualified')
