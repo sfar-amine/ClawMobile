@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "codex-g3-runbooks-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Document actual native routes, pinned playbooks and real Companion rollback owner with pending qualification explicit",
+  "reason": "Backlog 12 G3 plus current R16/V5/R17/R13/G2 interfaces; previous bundle had stale mutations and conflated Tier0 pointer with Companion rollback.",
+  "files": [
+    "docs/work/samantha-runtime/contracts/g3.md",
+    "docs/work/samantha-runtime/runbooks/native-runtime.md",
+    "docs/changes/codex-g3-runbooks-current-20261010.md",
+    "docs/changes/codex-g3-runbooks-current-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "g3-documentation",
+      "status": "passed",
+      "evidence": "Local Markdown links and owner arguments inspected, route inventory compared to current base and cited PR sources, CI byte-identical, delivery gate and git diff --check."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/g3.md",
+    "docs/work/samantha-runtime/runbooks/native-runtime.md",
+    "docs/changes/codex-g3-runbooks-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Runbook only; no registry/admission/runtime behavior change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing owners referenced only; no store/daemon/scheduler/code added."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Documents existing context/readiness/status boundaries; no MCP schema, adapter or invocation performed."
+  },
+  "rollback": "Revert documentation PR only; operational rollbacks remain Claude and existing owner responsibility.",
+  "limitations": [
+    "No S24 activation, deployment, private data access or physical recipe by Codex.",
+    "Companion safe deployment owner #35, new route PRs and G2 coverage remain review/qualification prerequisites.",
+    "Current base af4132a; pending interfaces are documented as pending rather than present in active build."
+  ]
+}
