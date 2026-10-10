@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Expose owner laptop pairing and revocation with single use signed confirmation scopes",
-  "reason": "Explicit local-only Codex backlog delivery.",
+  "reason": "Reprise autorisée en PR indépendante, base runtime 066a340 ; activation et recette par Claude.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-local-p2-f-companion-20261010.json",
@@ -14,6 +14,7 @@
     "docs/work/samantha-runtime/contracts/p2-f.md",
     "openclaw-plugin-mobile-ui/scripts/test-laptop-access.cjs",
     "openclaw-plugin-mobile-ui/src/companion/laptopAccess.ts",
+    "openclaw-plugin-mobile-ui/src/companion/nativeOperation.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts"
   ],
   "tests": [
@@ -47,8 +48,8 @@
     },
     "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
   },
-  "rollback": "Revert this local lot.",
+  "rollback": "Revert de la PR de ce lot.",
   "limitations": [
-    "Local patch/bundle only; no deployment or S24 receipt claimed."
+    "Recette S24 et UI Android non réalisées par Codex."
   ]
 }
