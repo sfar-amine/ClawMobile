@@ -5,7 +5,11 @@ const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{s
 const owner=()=>process.env.SAMANTHA_MEMORY_OWNER||path.join(os.homedir(),"ClawMobile/installer/termux-lite/context-store.py");
 async function callOwner(args:string[],body?:any):Promise<any>{
  return new Promise((resolve,reject)=>{
-  const child=execFile("python3",[owner(),...args],{timeout:5000,maxBuffer:262144},(error,stdout)=>{
+  const child=execFile("python3",[owner(),...args],{timeout:5000,maxBuffer:2*1024*1024},(error,stdout)=>{
+   try{
+    const failed=JSON.parse(stdout);
+    if(failed?.success===false&&failed.state==="failed"&&failed.receipt===null&&failed.error==="memory_import_unavailable"&&(!error||(error as any).code===1)){resolve({success:false,state:"failed",receipt:null,error:"memory_import_unavailable"});return;}
+   }catch{}
    if(error){reject(nativeError("memory_owner_unavailable",503));return;}
    try{const value=JSON.parse(stdout);if(value.error&&value.state!=="conflict")throw Error();resolve(value);}catch{reject(nativeError("memory_owner_unavailable",503));}
   });
@@ -37,6 +41,7 @@ export async function memoryImport(body:any,commit:boolean){
  if(!commit)return callOwner(['control-import-preview'],body);
  // Recompute preview before the mutation: no stale or unreviewed selection is accepted.
  const preview=await callOwner(['control-import-preview'],{source:body.source,export:body.export});
+ if(preview.state==='failed')return preview;
  if(preview.previewHash!==body.previewHash||body.selectedIds.some((id:string)=>!preview.items?.some((row:any)=>row.id===id)))throw nativeError("memory_preview_changed",409);
  const checked=await callOwner(['control-import-check'],body);
  if(checked.state!=="not_found")return checked;

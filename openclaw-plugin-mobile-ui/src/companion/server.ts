@@ -230,15 +230,15 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         if(method!=="POST"){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
         if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
         const result=await memoryImport(await readJsonBody(req,1024*1024),routePath==="/control/memory/import");
-        writeJson(res,result.state==="conflict"?409:200,result);return;
+        writeJson(res,result.state==="conflict"?409:result.state==="failed"?503:200,result);return;
       }
       const match=/^\/control\/memory\/([a-f0-9]{64})\/forget$/.exec(routePath);
       if(!match){writeJson(res,404,{success:false,state:"refused",receipt:null,error:"not_found"});return;}
       if(method!=="POST"){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
       if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
       const result=await memoryForget(match[1],await readJsonBody(req,1024));
-      writeJson(res,(result.state==="refused"||result.state==="conflict")?409:result.state==="not_found"?404:200,result);
-    }catch(error:any){const status=[400,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:"refused",receipt:null,error:status===400?"invalid_memory_request":status===409?"memory_preview_changed":"memory_owner_unavailable"});}
+      writeJson(res,(result.state==="refused"||result.state==="conflict")?409:result.state==="not_found"?404:result.state==="failed"?503:200,result);
+    }catch(error:any){const status=[400,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?"failed":"refused",receipt:null,error:status===400?"invalid_memory_request":status===409?"memory_preview_changed":"memory_owner_unavailable"});}
     return;
   }
 

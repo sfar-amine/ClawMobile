@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0,str(Path(__file__).parent))
@@ -60,6 +61,17 @@ class MemoryImport(unittest.TestCase):
         with self.assertRaises(sqlite3.Error):self.owner.control_import(self.body)
         self.assertEqual(self.count(),0)
         self.assertEqual(self.owner.control_import(self.body,check=True)['state'],'not_found')
+
+    def test_archive_failure_after_commit_preserves_receipt_and_replay(self):
+        with patch.object(self.owner.os,"open",side_effect=OSError("fixture archive unavailable")):
+            result=self.owner.control_import(self.body)
+        self.assertEqual(result["state"],"imported");self.assertEqual(self.count(),3)
+        self.assertEqual(self.owner.control_import(self.body,check=True),result)
+        self.assertEqual(self.owner.control_import(self.body),result);self.assertEqual(self.count(),3)
+
+    def test_sensitive_code_aws_and_jwt_filtered(self):
+        result=preview("claude",[{"chat_messages":[{"sender":"human","text":text} for text in ["Code 123456", "AKIAABCDEFGHIJKLMNOP", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature", "Keep a local notebook"]]}])
+        self.assertEqual(len(result["items"]),1);self.assertEqual(result["filteredCount"],3)
 
     def test_bounded_export_and_import_selection(self):
         with self.assertRaises(ValueError):preview('other',[])

@@ -7,7 +7,7 @@ import re
 MAX_EXPORT_BYTES = 1024 * 1024
 MAX_CANDIDATES = 100
 PAYMENT = re.compile(r'payment|paiement|bank|banque|bancair|carte|card|\botp\b|3.?d.?secure|biometr|confirmation|virement|transaction|checkout|wallet|\bd17\b|flouci|maxit|topnet|clic.?to.?pay|termux.notification|\d+[.,]?\d*\s*(?:eur|usd|tnd|dt|dinar|€|\$)', re.I)
-SENSITIVE = re.compile(r'token|password|mot de passe|secret|credential|authorization|bearer|\bcvv\b|\bcvc\b|api[_ -]?key|iban|(?:\d[ -]?){8,19}|https?://|[\w.+-]+@[\w.-]+', re.I)
+SENSITIVE = re.compile(r'token|password|mot de passe|secret|credential|authorization|bearer|\bcvv\b|\bcvc\b|api[_ -]?key|iban|(?:\d[ -]?){8,19}|(?<!\d)\d{6}(?!\d)|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|https?://|[\w.+-]+@[\w.-]+', re.I)
 
 
 def canonical(value):

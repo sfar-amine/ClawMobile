@@ -17,13 +17,15 @@
     "installer/termux-lite/test-context-import.py",
     "openclaw-plugin-mobile-ui/scripts/test-memory-control.cjs",
     "openclaw-plugin-mobile-ui/src/companion/memoryControl.ts",
-    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py"
   ],
   "tests": [
     {
       "name": "p2-d-memory",
       "status": "passed",
-      "evidence": "5 atomic-import SQLite tests; native HTTP preview/selection/replay/forget/privacy; existing Memory Core regressions and runtime CI."
+      "evidence": "7 SQLite atomic-import tests, HTTP large Arabic preview and pre-effect rc1 failure, receipt/replay after archive OSError; current CI commands run locally."
     }
   ],
   "documentation": [
@@ -54,6 +56,6 @@
   "limitations": [
     "No deployment or S24 recipe claimed. Formats/contract reviewed by Claude.",
     "Unknown preference/person categories and consolidation lastAt remain explicit.",
-    "New memory tests run separately; ci.yml unchanged relative to current runtime base while R6 owns its next CI edit."
+    "S24 acceptance budget and deployed behavior remain to be qualified by Claude; no Codex deployment."
   ]
 }

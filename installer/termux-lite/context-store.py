@@ -202,11 +202,15 @@ def control_import(body, check=False):
             writer.execute('ROLLBACK');raise
         # Same monthly archive as ingest_file. The canonical SQLite receipt already
         # proves the batch if the post-commit append fails; never replay its effects.
-        history=D/'history';history.mkdir(parents=True,exist_ok=True)
-        archive=history/(datetime.datetime.now().astimezone().strftime('%Y-%m')+'.jsonl')
-        fd=os.open(archive,os.O_WRONLY|os.O_APPEND|os.O_CREAT|os.O_NOFOLLOW,0o600)
-        with os.fdopen(fd,'w') as stream:
-            for event in archival:stream.write(import_canonical(event)+'\n')
+        try:
+            history=D/'history';history.mkdir(parents=True,exist_ok=True)
+            archive=history/(datetime.datetime.now().astimezone().strftime('%Y-%m')+'.jsonl')
+            fd=os.open(archive,os.O_WRONLY|os.O_APPEND|os.O_CREAT|os.O_NOFOLLOW,0o600)
+            with os.fdopen(fd,'w') as stream:
+                for event in archival:stream.write(import_canonical(event)+'\n')
+        except OSError:
+            # SQLite COMMIT is authoritative; archive repair must not misreport or replay it.
+            pass
         return probe(writer)
 
 
