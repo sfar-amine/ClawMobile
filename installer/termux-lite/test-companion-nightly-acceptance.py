@@ -77,6 +77,14 @@ class NightlyTests(unittest.TestCase):
    state=Path(td);self.assertEqual(m.health_view(state,NOW.timestamp())['state'],'unverified')
    m.atomic_receipt(state/'nightly-20261011.json',{'at':NOW.isoformat(),'state':'attention'})
    self.assertEqual(m.health_view(state,NOW.timestamp())['state'],'attention');self.assertEqual(m.health_view(state,NOW.timestamp()+37*3600)['state'],'stale')
+ def test_closed_email_warning_is_nonblocking_and_unknown_warnings_are_dropped(self):
+  raw={'accepted':True,'checks':[], 'warnings':[{'route':'/control/health?contract=2','warning':'email_address_in_response'},{'route':'/usage','warning':'unknown'},{'route':'/usage','warning':'email_address_in_response','value':'private@example.invalid'},{'route':'/@private','warning':'email_address_in_response'},None]}
+  closed=m.closed_acceptance(raw)
+  self.assertEqual(closed['warnings'],[{'route':'/control/health?contract=2','warning':'email_address_in_response'}]);self.assertNotIn('@',json.dumps(closed))
+  raw['warnings']=[raw['warnings'][0]]*300;self.assertEqual(len(m.closed_acceptance(raw)['warnings']),200)
+  with tempfile.TemporaryDirectory() as td:
+   state=Path(td);out,code=self.execute(state,raw=raw)
+   self.assertEqual((code,out['state']),(0,'ok'));self.assertEqual(len(m.read_receipt(state/'nightly-20261011.json')['acceptance']['warnings']),200)
  def test_successful_parent_cleans_ready_descendant_before_unlock(self):
   # Descendant signals readiness before its parent exits. It closes stdout and
   # remains alive independently, reproducing the successful-parent leak.
