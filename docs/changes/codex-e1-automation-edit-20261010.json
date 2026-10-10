@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "codex-e1-automation-edit-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Préparer les validations R23 E1 sans route ni mutation Gateway.",
+  "reason": "Publication suspendue par parent ; CAS R5-bis et captures cron.get/update manquent. Aucun effet runtime activé.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/automationEditValidation.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-edit-validation.cjs",
+    "docs/work/samantha-runtime/contracts/r23.md",
+    "docs/changes/codex-e1-automation-edit-20261010.md",
+    "docs/changes/codex-e1-automation-edit-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "R23-pure-validation",
+      "status": "passed",
+      "evidence": "Build TypeScript + 36 assertions validation pure; pas de qualification HTTP/Gateway."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r23.md",
+    "docs/changes/codex-e1-automation-edit-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "unchanged",
+    "ids": [
+      "samantha.app.automation.edit"
+    ],
+    "reason": "Twin planned, pas de mise en service."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Préparation pure, aucune route active ni changement des primitives MCP.",
+    "attached": {
+      "schemas": "updated",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "openclaw-plugin-mobile-ui/scripts/test-automation-edit-validation.cjs",
+      "docs/work/samantha-runtime/contracts/r23.md"
+    ]
+  },
+  "rollback": "Revert de la préparation ; aucun effet S24.",
+  "limitations": [
+    "PR non publiée ; fixtures cron.get/update et fusion R5-bis préalables.",
+    "protectedJob actuel confond la clé payload avec pay ; correction propriétaire requise.",
+    "Aucune preuve CAS, reçu mutation ou budget PATCH complet ; aucun déploiement."
+  ]
+}

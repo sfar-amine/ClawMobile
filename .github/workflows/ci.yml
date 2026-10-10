@@ -173,3 +173,6 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+      - name: R23 automation edit validation (preparation)
+        working-directory: openclaw-plugin-mobile-ui
+        run: node scripts/test-automation-edit-validation.cjs
