@@ -1,3 +1,4 @@
+import {engineeringRead} from "./engineeringRead";
 import {notificationSources} from "./notificationSources";
 import { handleControl } from "./control";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
@@ -200,6 +201,18 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       success: false,
       message: "This endpoint is restricted to local companion app requests.",
     });
+    return;
+  }
+
+  if(routePath==="/control/engineering"||routePath.startsWith("/control/engineering/")){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    if(routePath!=="/control/engineering"){writeJson(res,404,{success:false,state:"not_found",receipt:null,error:"not_found"});return;}
+    const parameters=requestUrl.searchParams;
+    const offset=parameters.get("offset")||"0",limit=parameters.get("limit")||"20",revision=parameters.get("revision")||undefined;
+    if([...parameters.keys()].some(key=>!['offset','limit','revision'].includes(key))||['offset','limit','revision'].some(key=>parameters.getAll(key).length>1)||!/^\d{1,3}$/.test(offset)||Number(offset)>500||!/^\d{1,3}$/.test(limit)||Number(limit)<1||Number(limit)>100||(revision&&!/^[a-f0-9]{64}$/.test(revision))){writeJson(res,400,{success:false,state:"refused",receipt:null,error:"invalid_pagination"});return;}
+    try{const value=await engineeringRead(Number(offset),Number(limit),revision);res.setHeader("Cache-Control","no-store");writeJson(res,value.state==="conflict"?409:200,value);}
+    catch{writeJson(res,503,{success:false,state:"unavailable",receipt:null,error:"engineering_unavailable"});}
     return;
   }
 
