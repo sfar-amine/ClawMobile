@@ -29,7 +29,7 @@
     {
       "name": "existing-ci-union-and-live-regressions",
       "status": "passed",
-      "evidence": "All 21 executable existing CI-union commands passed on C1 preparation, plus targeted Live/relay/reconnect regressions. Mandatory specialized section retained with 5000-emoji prefix and UTF16 boundary tests. Synthetic baseline3227ms/after3230ms (<10%),12366bytes (~3092bytes/4 estimate), unicode local read p95~2.40ms. No physical timing or actual token count."
+      "evidence": "All 25 executable CI-union commands passed after merging runtime2c2c18f (unchanged dependencies; npm ci not repeated), plus targeted Live/relay/reconnect regressions. Mandatory specialized section retained with 5000-emoji prefix and UTF16 boundary tests. Synthetic baseline3227ms/after3230ms (<10%),12366bytes (~3092bytes/4 estimate), unicode local read p95~2.40ms. No physical timing or actual token count."
     }
   ],
   "documentation": [
