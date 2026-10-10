@@ -8,8 +8,11 @@ set -uo pipefail
 ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
 REPO="$(CDPATH= cd -- "$ROOT/../.." && pwd)"
 PLUGIN="$REPO/openclaw-plugin-mobile-ui"
-# The acceptance check ships next to this script (works from a copy before the checkout carries it).
-ACCEPT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/companion-acceptance.py"
+# The acceptance check is the one carried by the checkout being judged (target after the fast-forward,
+# previous after a rollback), so every lot's acceptance lines run. The copy next to this script is only
+# a fallback for a checkout that does not carry it yet.
+ACCEPT_FALLBACK="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/companion-acceptance.py"
+accept(){ if [ -f "$ROOT/companion-acceptance.py" ]; then python3 "$ROOT/companion-acceptance.py"; else python3 "$ACCEPT_FALLBACK"; fi; }
 STATE="$HOME/.openclaw/deploys"; BACKUPS="$HOME/.openclaw/backups"
 REMOTE="${COMPANION_DEPLOY_REMOTE:-samantha-private}"; BRANCH="${COMPANION_DEPLOY_BRANCH:-runtime/samantha-companion-private}"
 KEEP_BACKUPS="${COMPANION_DEPLOY_KEEP:-5}"; MIN_AVAILABLE_MB="${COMPANION_DEPLOY_MIN_MB:-1200}"; MAX_LOAD="${COMPANION_DEPLOY_MAX_LOAD:-7}"
@@ -57,7 +60,7 @@ ls -dt "$BACKUPS"/companion-* 2>/dev/null | tail -n +$((KEEP_BACKUPS+1)) | xargs
 rollback(){
   reason="$1"; acc="${2:-}"
   git reset -q --hard "$previous" >>"$log" 2>&1 && rm -rf "$PLUGIN/dist" && cp -a "$backup/dist" "$PLUGIN/dist"
-  if restart && after=$(python3 "$ACCEPT" 2>>"$log"); then write rolled_back "$full" "$previous" "$reason" "$acc"
+  if restart && after=$(accept 2>>"$log"); then write rolled_back "$full" "$previous" "$reason" "$acc"
   else write rollback_failed "$full" "$previous" "$reason" "$acc"; "$ROOT/incident-notify.sh" human_required "Samantha — déploiement Companion ${full:0:7} annulé mais le retour arrière n'est pas sain." >/dev/null 2>&1 || true; fi
   exit 6
 }
@@ -67,7 +70,7 @@ rollback(){
 git merge -q --ff-only "$full" >>"$log" 2>&1 || { write refused "$full" "$previous" "not_fast_forward"; exit 5; }
 ( cd "$PLUGIN" && nice -n 10 npm run build ) >>"$log" 2>&1 || rollback build_failed
 restart || rollback health_failed
-acc=$(python3 "$ACCEPT" 2>>"$log"); rc=$?
+acc=$(accept 2>>"$log"); rc=$?
 [ "$rc" -eq 0 ] || rollback acceptance_failed "$acc"
 write deployed "$full" "$previous" "ok" "$acc"
 "$ROOT/context-event.sh" work completed_action "Companion déployé ${full:0:12} (précédent ${previous:0:12}), recette automatique acceptée." >/dev/null 2>&1 || true
