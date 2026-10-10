@@ -13,6 +13,7 @@ import { URL } from "url";
 import { android_health } from "../tools/android";
 import { clearAgentConversationMessages, listAgentConversationMessages, listAgentConversations, markAgentMessageRead } from "./agentMessages";
 import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRuntime } from "./openclawGatewayClient";
+import {readConversationMetadata,changeConversationMetadata} from "./conversationMetadata";
 import { submitIntent } from "./intent";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
@@ -275,6 +276,19 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(pc&&method==='DELETE'){writeJson(res,200,await laptopChange('revoke',decodeURIComponent(pc[1]),await readJsonBody(req,2048)));return;}
       writeJson(res,405,{success:false,state:'refused',receipt:null,reason:'unsupported_laptop_route'});
     }catch(error:any){const invalid=error?.statusCode===400||error instanceof URIError;writeJson(res,invalid?400:503,{success:false,state:invalid?'refused':'indeterminate',receipt:null,reason:invalid?'invalid_laptop_operation':'laptop_owner_indeterminate'});}
+    return;
+  }
+
+  const conversationMetadata=/^\/conversations\/([^/]+)\/metadata$/.exec(routePath);
+  if(conversationMetadata){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;}
+    if(!['GET','POST'].includes(method)){res.setHeader('Allow','GET, POST');writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(conversationMetadata[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      const value=method==='GET'?await readConversationMetadata(id):await changeConversationMetadata(id,await readJsonBody(req,2048));
+      res.setHeader('Cache-Control','no-store');writeJson(res,value.state==='refused'?409:200,value);
+    }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'unavailable':'refused',receipt:null,error:status===400?'invalid_conversation_metadata':status===404?'conversation_not_found':status===409?'protected_or_conflicting_conversation':'conversation_owner_unavailable'});}
     return;
   }
 
