@@ -1,0 +1,1233 @@
+{
+  "schema": "samantha.runtime.contract-manifest.v2",
+  "base": "af4132a038727d2a3a54e4d5353d003f08d9f174",
+  "cases": [
+    {
+      "id": "advertised-1",
+      "template": "/v1/health",
+      "method": "GET",
+      "phase": "active",
+      "source": "core@af4132a:server.endpoints",
+      "types": {
+        "version": "string"
+      },
+      "reason": null
+    },
+    {
+      "id": "advertised-2",
+      "template": "/v1/capabilities",
+      "method": "GET",
+      "phase": "active",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": null
+    },
+    {
+      "id": "advertised-3",
+      "template": "/v1/attachments",
+      "method": "POST",
+      "phase": "pending",
+      "source": "core#14",
+      "types": {},
+      "reason": "binary_upload_requires_fixture_file_and_owner_recipe",
+      "test": "scripts/test-attachment-http.cjs"
+    },
+    {
+      "id": "advertised-4",
+      "template": "/v1/attachments/:attachmentId/content",
+      "method": null,
+      "phase": "pending",
+      "source": "core#14",
+      "types": {},
+      "reason": "binary_magic_bytes_content_disposition_contract",
+      "test": "scripts/test-attachment-http.cjs"
+    },
+    {
+      "id": "advertised-5",
+      "template": "/v1/confirmations",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-6",
+      "template": "/v1/confirmations/:requestId/challenge",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-7",
+      "template": "/v1/confirmations/:requestId/owner-confirmation",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-8",
+      "template": "/v1/payments",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-9",
+      "template": "/v1/payments/local-intents",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-10",
+      "template": "/v1/payments/local-start",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-11",
+      "template": "/v1/payments/:requestId/challenge",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-12",
+      "template": "/v1/payments/:requestId/owner-confirmation",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-13",
+      "template": "/v1/payments/:requestId/bank-authorization",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-14",
+      "template": "/v1/payments/:requestId/bank-return",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-15",
+      "template": "/v1/payments/:requestId/resume",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-16",
+      "template": "/v1/runs?contract=2&view=conversations",
+      "method": "GET",
+      "phase": "active",
+      "source": "core@af4132a:server.endpoints",
+      "types": {
+        "items": "array",
+        "schemaVersion": "number",
+        "dataRevision": "string"
+      },
+      "reason": null
+    },
+    {
+      "id": "advertised-17",
+      "template": "/v1/runs/by-client/:clientRunId",
+      "method": "GET",
+      "phase": "active",
+      "source": "core@af4132a:server.endpoints",
+      "types": {
+        "runId": "string",
+        "state": "string"
+      },
+      "reason": null
+    },
+    {
+      "id": "advertised-18",
+      "template": "/v1/runs/:runId",
+      "method": "GET",
+      "phase": "active",
+      "source": "core@af4132a:server.endpoints",
+      "types": {
+        "runId": "string",
+        "state": "string"
+      },
+      "reason": null
+    },
+    {
+      "id": "advertised-19",
+      "template": "/v1/sessions/:sessionId/archive",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-20",
+      "template": "/v1/sessions/:sessionId",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-21",
+      "template": "/v1/runtime/start",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-22",
+      "template": "/v1/runtime/stop",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-23",
+      "template": "/v1/runtime/restart",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-24",
+      "template": "/v1/runtime/log",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-25",
+      "template": "/v1/skills",
+      "method": "GET",
+      "phase": "active",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": null
+    },
+    {
+      "id": "advertised-26",
+      "template": "/v1/skills/route",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-27",
+      "template": "/v1/skills/:skillId",
+      "method": "GET",
+      "phase": "active",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": null
+    },
+    {
+      "id": "advertised-28",
+      "template": "/v1/skills/:skillId/preview",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-29",
+      "template": "/v1/skills/:skillId/run",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-30",
+      "template": "/v1/skills/:skillId/fast-paths/:fastPathId/run",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-31",
+      "template": "/v1/skills/:skillId/runs",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-32",
+      "template": "/v1/skill-runs/:runId",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-33",
+      "template": "/v1/extensions/android/terminal/command",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-34",
+      "template": "/v1/extensions/android/terminal/session",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-35",
+      "template": "/v1/extensions/android/terminal/session/input",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-36",
+      "template": "/v1/extensions/android/terminal/session/reset",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-37",
+      "template": "/v1/extensions/remote-bridge/health",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-38",
+      "template": "/v1/extensions/remote-bridge/requests",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-39",
+      "template": "/v1/extensions/remote-bridge/requests/:requestId",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-40",
+      "template": "/v1/extensions/capability-bridge/resolve",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-41",
+      "template": "/v1/extensions/capability-bridge/execute",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-42",
+      "template": "/v1/extensions/voice-relay/health",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-43",
+      "template": "/v1/extensions/claw-live",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-44",
+      "template": "/v1/extensions/claw-live/token",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-45",
+      "template": "/v1/extensions/claw-live/prewarm",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-46",
+      "template": "/v1/extensions/claw-live/warm-status",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-47",
+      "template": "/v1/extensions/claw-live/socket",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-48",
+      "template": "/v1/extensions/claw-live/decision",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-49",
+      "template": "/v1/extensions/claw-live/capability",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-50",
+      "template": "/v1/extensions/android/voice-recovery/intentional-stop",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-51",
+      "template": "/v1/extensions/android/voice-recovery/probe",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-52",
+      "template": "/v1/extensions/android/voice-recovery/status",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-53",
+      "template": "/v1/extensions/android/voice-recovery/pending",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-54",
+      "template": "/v1/extensions/android/voice-recovery/suspend",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-55",
+      "template": "/v1/extensions/android/voice-recovery/resume",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-56",
+      "template": "/v1/extensions/nostr/status",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-57",
+      "template": "/v1/extensions/nostr/setup-key",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-58",
+      "template": "/v1/extensions/nostr/contacts",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-59",
+      "template": "/v1/extensions/nostr/contacts/:contactId",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-60",
+      "template": "/v1/extensions/nostr/send",
+      "method": null,
+      "phase": "excluded",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "sensitive_or_effectful_transport"
+    },
+    {
+      "id": "advertised-61",
+      "template": "/v1/extensions/nostr/inbox",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-62",
+      "template": "/v1/extensions/agent/conversations",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-63",
+      "template": "/v1/extensions/agent/conversations/:agentId/messages",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-64",
+      "template": "/v1/extensions/agent/inbox/fetch",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-65",
+      "template": "/v1/extensions/agent/messages/:messageId/read",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-66",
+      "template": "/v1/extensions/skill-sharing/skills/:skillId/share",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-67",
+      "template": "/v1/extensions/skill-sharing/skills/:skillId/share/nostr",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-68",
+      "template": "/v1/extensions/skill-sharing/imports",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-69",
+      "template": "/v1/extensions/skill-sharing/imports/:importId/accept",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "advertised-70",
+      "template": "/v1/extensions/skill-sharing/imports/:importId/reject",
+      "method": null,
+      "phase": "unknown",
+      "source": "core@af4132a:server.endpoints",
+      "types": {},
+      "reason": "method_or_contract_requires_final_inventory"
+    },
+    {
+      "id": "control-activity",
+      "template": "/v1/control/activity?contract=2",
+      "method": "GET",
+      "types": {
+        "schemaVersion": "number",
+        "dataRevision": "string",
+        "data": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "control-requests",
+      "template": "/v1/control/requests?contract=2",
+      "method": "GET",
+      "types": {
+        "schemaVersion": "number",
+        "dataRevision": "string",
+        "data": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "control-missions",
+      "template": "/v1/control/missions?contract=2",
+      "method": "GET",
+      "types": {
+        "schemaVersion": "number",
+        "dataRevision": "string",
+        "data": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "control-automations",
+      "template": "/v1/control/automations?contract=2",
+      "method": "GET",
+      "types": {
+        "schemaVersion": "number",
+        "dataRevision": "string",
+        "data": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "control-intelligence",
+      "template": "/v1/control/intelligence?contract=2",
+      "method": "GET",
+      "types": {
+        "schemaVersion": "number",
+        "dataRevision": "string",
+        "data": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "control-health",
+      "template": "/v1/control/health?contract=2",
+      "method": "GET",
+      "types": {
+        "schemaVersion": "number",
+        "dataRevision": "string",
+        "data": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "control-situations",
+      "template": "/v1/control/situations?contract=2",
+      "method": "GET",
+      "types": {
+        "schemaVersion": "number",
+        "dataRevision": "string",
+        "data": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "control-diagnostic",
+      "template": "/v1/control/diagnostic?contract=2",
+      "method": "GET",
+      "types": {
+        "schemaVersion": "number",
+        "dataRevision": "string",
+        "data": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "control-notifications",
+      "template": "/v1/control/notifications?contract=2",
+      "method": "GET",
+      "types": {
+        "schemaVersion": "number",
+        "dataRevision": "string",
+        "data": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "memory",
+      "template": "/v1/control/memory",
+      "method": "GET",
+      "types": {
+        "items": "array"
+      },
+      "phase": "pending",
+      "source": "core#26"
+    },
+    {
+      "id": "diagnostic-logs",
+      "template": "/v1/control/diagnostic/logs/:component",
+      "method": "GET",
+      "types": {
+        "items": "array"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "diagnostic-export",
+      "template": "/v1/control/diagnostic/export",
+      "method": "GET",
+      "types": {
+        "success": "boolean",
+        "state": "string",
+        "receipt": "null",
+        "artifact": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "notifications",
+      "template": "/v1/notifications/sources",
+      "method": "GET",
+      "types": {
+        "items": "array"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "agent-config",
+      "template": "/v1/agent/config",
+      "method": "GET",
+      "types": {
+        "revision": "string",
+        "model": [
+          "string",
+          "null"
+        ],
+        "thinking": [
+          "string",
+          "null"
+        ],
+        "receipt": "null"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "agent-change",
+      "template": "/v1/agent/config",
+      "method": "POST",
+      "types": {},
+      "phase": "offline",
+      "source": "core@af4132a",
+      "test": "scripts/test-agent-config.cjs",
+      "reason": "global_model_change_requires_owner_recipe"
+    },
+    {
+      "id": "updates",
+      "template": "/v1/updates",
+      "method": "GET",
+      "types": {
+        "items": "array",
+        "current": [
+          "object",
+          "null"
+        ],
+        "available": "array",
+        "actions": "array",
+        "receipt": "null"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "engineering",
+      "template": "/v1/control/engineering",
+      "method": "GET",
+      "types": {
+        "items": "array"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "automation",
+      "template": "/v1/automations/:id",
+      "method": "GET",
+      "types": {
+        "id": "string",
+        "runs": "array",
+        "what": [
+          "string",
+          "null"
+        ]
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "automation-enable",
+      "template": "/v1/automations/:id/enable",
+      "method": "POST",
+      "types": {
+        "success": "boolean",
+        "state": "string",
+        "receipt": [
+          "object",
+          "null"
+        ]
+      },
+      "phase": "offline",
+      "source": "core@af4132a",
+      "fixtureOwner": "automation",
+      "reason": "owner_mutation_requires_dedicated_fixture_recipe"
+    },
+    {
+      "id": "automation-disable",
+      "template": "/v1/automations/:id/disable",
+      "method": "POST",
+      "types": {
+        "success": "boolean",
+        "state": "string",
+        "receipt": [
+          "object",
+          "null"
+        ]
+      },
+      "phase": "offline",
+      "source": "core@af4132a",
+      "fixtureOwner": "automation",
+      "reason": "owner_mutation_requires_dedicated_fixture_recipe"
+    },
+    {
+      "id": "automation-run",
+      "template": "/v1/automations/:id/run",
+      "method": "POST",
+      "types": {
+        "success": "boolean",
+        "state": "string",
+        "receipt": [
+          "object",
+          "null"
+        ]
+      },
+      "phase": "offline",
+      "source": "core@af4132a",
+      "fixtureOwner": "automation",
+      "reason": "owner_mutation_requires_dedicated_fixture_recipe"
+    },
+    {
+      "id": "automation-delete",
+      "template": "/v1/automations/:id",
+      "method": "DELETE",
+      "types": {
+        "success": "boolean",
+        "state": "string",
+        "receipt": [
+          "object",
+          "null"
+        ]
+      },
+      "phase": "offline",
+      "source": "core@af4132a",
+      "fixtureOwner": "automation",
+      "reason": "owner_mutation_requires_dedicated_fixture_recipe"
+    },
+    {
+      "id": "request-detail",
+      "template": "/v1/control/requests/:id?contract=2",
+      "method": "GET",
+      "types": {
+        "data": "object"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "request-cancel",
+      "template": "/v1/control/requests/:id/cancel",
+      "method": "POST",
+      "types": {
+        "success": "boolean",
+        "state": "string",
+        "receipt": [
+          "object",
+          "null"
+        ]
+      },
+      "phase": "offline",
+      "source": "core@af4132a",
+      "fixtureOwner": "request",
+      "reason": "owner_mutation_requires_dedicated_fixture_recipe"
+    },
+    {
+      "id": "skill-enable",
+      "template": "/v1/skills/:skillId/enable",
+      "method": "POST",
+      "types": {
+        "success": "boolean",
+        "state": "string",
+        "receipt": [
+          "object",
+          "null"
+        ]
+      },
+      "phase": "pending",
+      "source": "core#24",
+      "fixtureOwner": "skill"
+    },
+    {
+      "id": "skill-disable",
+      "template": "/v1/skills/:skillId/disable",
+      "method": "POST",
+      "types": {
+        "success": "boolean",
+        "state": "string",
+        "receipt": [
+          "object",
+          "null"
+        ]
+      },
+      "phase": "pending",
+      "source": "core#24",
+      "fixtureOwner": "skill"
+    },
+    {
+      "id": "skill-try",
+      "template": "/v1/skills/:skillId/try",
+      "method": "POST",
+      "types": {},
+      "phase": "pending",
+      "source": "core#24",
+      "test": "scripts/test-skill-control.cjs"
+    },
+    {
+      "id": "memory-forget",
+      "template": "/v1/control/memory/:eventId/forget",
+      "method": "POST",
+      "types": {},
+      "phase": "pending",
+      "source": "core#26",
+      "test": "scripts/test-memory-control.cjs"
+    },
+    {
+      "id": "memory-preview",
+      "template": "/v1/control/memory/import/preview",
+      "method": "POST",
+      "types": {},
+      "phase": "pending",
+      "source": "core#26",
+      "test": "scripts/test-memory-control.cjs"
+    },
+    {
+      "id": "memory-import",
+      "template": "/v1/control/memory/import",
+      "method": "POST",
+      "types": {},
+      "phase": "pending",
+      "source": "core#26",
+      "test": "scripts/test-memory-control.cjs"
+    },
+    {
+      "id": "conversation-read",
+      "template": "/v1/conversations/:id/metadata",
+      "method": "GET",
+      "types": {},
+      "phase": "pending",
+      "source": "core#28",
+      "test": "scripts/test-conversation-metadata.cjs"
+    },
+    {
+      "id": "conversation-change",
+      "template": "/v1/conversations/:id/metadata",
+      "method": "POST",
+      "types": {},
+      "phase": "pending",
+      "source": "core#28",
+      "test": "scripts/test-conversation-metadata.cjs"
+    },
+    {
+      "id": "security-surfaces",
+      "template": "/v1/security/surfaces",
+      "method": "GET",
+      "types": {},
+      "phase": "pending",
+      "source": "core#30",
+      "test": "scripts/test-security-surfaces.cjs"
+    },
+    {
+      "id": "approval-read",
+      "template": "/v1/runs/:runId/approval",
+      "method": "GET",
+      "types": {},
+      "phase": "pending",
+      "source": "core#36",
+      "test": "scripts/test-agent-approvals.cjs"
+    },
+    {
+      "id": "approval-decide",
+      "template": "/v1/runs/:runId/approval",
+      "method": "POST",
+      "types": {},
+      "phase": "pending",
+      "source": "core#36",
+      "test": "scripts/test-agent-approvals.cjs"
+    },
+    {
+      "id": "voices",
+      "template": "/v1/voice/voices",
+      "method": "GET",
+      "types": {},
+      "phase": "pending",
+      "source": "core#34",
+      "test": "scripts/test-voice-choices.cjs"
+    },
+    {
+      "id": "allowlist",
+      "template": "/v1/whatsapp/allowlist",
+      "method": "GET",
+      "types": {},
+      "phase": "pending",
+      "source": "core#39",
+      "test": "scripts/test-whatsapp-allowlist.cjs"
+    },
+    {
+      "id": "allowlist-detail",
+      "template": "/v1/whatsapp/allowlist/:contactId",
+      "method": "GET",
+      "types": {},
+      "phase": "pending",
+      "source": "core#39",
+      "test": "scripts/test-whatsapp-allowlist.cjs"
+    },
+    {
+      "id": "allowlist-add",
+      "template": "/v1/whatsapp/allowlist",
+      "method": "POST",
+      "types": {},
+      "phase": "pending",
+      "source": "core#39",
+      "test": "scripts/test-whatsapp-allowlist.cjs"
+    },
+    {
+      "id": "allowlist-change",
+      "template": "/v1/whatsapp/allowlist/:contactId",
+      "method": "PATCH",
+      "types": {},
+      "phase": "pending",
+      "source": "core#39",
+      "test": "scripts/test-whatsapp-allowlist.cjs"
+    },
+    {
+      "id": "allowlist-remove",
+      "template": "/v1/whatsapp/allowlist/:contactId",
+      "method": "DELETE",
+      "types": {},
+      "phase": "pending",
+      "source": "core#39",
+      "test": "scripts/test-whatsapp-allowlist.cjs"
+    },
+    {
+      "id": "allowlist-history",
+      "template": "/v1/whatsapp/allowlist/history",
+      "method": "GET",
+      "types": {},
+      "phase": "pending",
+      "source": "core#39",
+      "test": "scripts/test-whatsapp-allowlist.cjs"
+    },
+    {
+      "id": "allowlist-note",
+      "template": "/v1/whatsapp/allowlist/:contactId/note",
+      "method": "GET",
+      "types": {},
+      "phase": "pending",
+      "source": "core#39",
+      "test": "scripts/test-whatsapp-allowlist.cjs"
+    },
+    {
+      "id": "allowlist-note-write",
+      "template": "/v1/whatsapp/allowlist/:contactId/note",
+      "method": "PUT",
+      "types": {},
+      "phase": "pending",
+      "source": "core#39",
+      "test": "scripts/test-whatsapp-allowlist.cjs"
+    },
+    {
+      "id": "computers",
+      "template": "/v1/laptop-access/computers",
+      "method": "GET",
+      "types": {
+        "computers": "array"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "pairing-status",
+      "template": "/v1/laptop-access/pairings/:pairingId",
+      "method": "GET",
+      "types": {
+        "state": "string"
+      },
+      "phase": "active",
+      "source": "core@af4132a"
+    },
+    {
+      "id": "pair-start",
+      "template": "/v1/laptop-access/pairings",
+      "method": "POST",
+      "types": {},
+      "phase": "offline",
+      "source": "core@af4132a",
+      "reason": "pairing_or_biometric_owner_recipe",
+      "test": "scripts/test-laptop-access.cjs"
+    },
+    {
+      "id": "pair-commit",
+      "template": "/v1/laptop-access/pairings/:pairingId/commit",
+      "method": "POST",
+      "types": {},
+      "phase": "offline",
+      "source": "core@af4132a",
+      "reason": "pairing_or_biometric_owner_recipe",
+      "test": "scripts/test-laptop-access.cjs"
+    },
+    {
+      "id": "computer-revoke",
+      "template": "/v1/laptop-access/computers/:computerId",
+      "method": "DELETE",
+      "types": {},
+      "phase": "offline",
+      "source": "core@af4132a",
+      "reason": "pairing_or_biometric_owner_recipe",
+      "test": "scripts/test-laptop-access.cjs"
+    },
+    {
+      "id": "capability-detail-r13",
+      "template": "/v1/capabilities/:id",
+      "method": "GET",
+      "phase": "pending",
+      "source": "core#41",
+      "types": {
+        "found": "boolean",
+        "schemaVersion": "number",
+        "revision": "string",
+        "item": [
+          "object",
+          "null"
+        ]
+      },
+      "test": "scripts/test-capability-detail.cjs"
+    }
+  ],
+  "limitations": [
+    "Pending/unknown/offline cases are mandatory unresolved coverage, never silently passed.",
+    "Advertised legacy paths are included without inventing their methods.",
+    "Pending source PRs must be merged and the manifest refreshed before activating their cases."
+  ]
+}
