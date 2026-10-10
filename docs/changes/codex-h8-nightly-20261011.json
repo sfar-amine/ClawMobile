@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "id": "codex-h8-nightly-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Recette nocturne et lecture de la dérive des budgets",
+  "reason": "Fichier 36 H8 : qualité continue via recette, verrou, incidents et santé existants ; aucune installation de scheduler par Codex.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-h8-nightly-20261011.json",
+    "docs/changes/codex-h8-nightly-20261011.md",
+    "docs/work/samantha-runtime/contracts/h8.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/companion-nightly-acceptance.py",
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/test-companion-nightly-acceptance.py",
+    "installer/termux-lite/test-health-verdict.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/h8/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/h8/acceptance-receipts.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/h8/installed-source-metadata.json",
+    "openclaw-plugin-mobile-ui/scripts/test-control-health-components.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-nightly-health-http.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/control-health.ts"
+  ],
+  "tests": [
+    {
+      "name": "h8-nightly-owner-and-health",
+      "status": "passed",
+      "evidence": "Core : 10 tests script (sources S24, lock, préflight, median7, notification incertaine, rétention600 bornée, FIFO, processus borné), 13 santé, build et projection santé ; HTTP réel handler Control avec latence propriétaire capturée575ms, 0.61s < budget2s importé READS. UI : 21 tests lecture sans écriture, capability planned/exemples FR et Control. Capture nocturne live non revendiquée."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/h8.md",
+    "docs/changes/codex-h8-nightly-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Capability planned dans la jumelle playbooks, route santé existante ; aucune permission de déclencher la recette ni changement du routage actuel."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing deployment lock/receipts, incident owner, Health Manager and scheduler only; no new canonical store or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP primitive changed; planned capability inactive until owner activation."
+  },
+  "rollback": "Claude retire le job existant, revert les PR H8 ; conserve reçus et parcours paiement.",
+  "limitations": [
+    "Aucune recette nocturne live ni notification réelle exécutée par Codex ; première installation et qualification par Claude.",
+    "J1 se branche ultérieurement dans une PR distincte ; aucun hook de scan actif ici."
+  ]
+}

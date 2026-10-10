@@ -176,3 +176,8 @@ jobs:
 
       - name: J1 bounded read-only secret scan
         run: python3 ../installer/termux-lite/test-workspace-secret-scan.py
+      - name: H8 nightly read-only acceptance, deployment lock and drift receipts
+        run: |
+          node scripts/test-nightly-health-http.cjs
+          python3 ../installer/termux-lite/test-companion-nightly-acceptance.py
+          python3 ../installer/termux-lite/test-health-verdict.py
