@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Post-deploy acceptance of the loopback Companion: every owner route must answer within its budget,
-refuse what it must refuse, and never return secret-shaped content. Read-only: no mutation is sent.
+refuse what it must refuse, and never return secret-shaped content. Reads and non-owner refusal probes only: no authorized mutation is sent.
 
 Exit 0 = accepted, 1 = regression (the deploy script rolls back), 2 = usage error.
 A route that is not present in this build (404) is skipped, so the same check serves every release."""
@@ -88,8 +88,23 @@ def settle(path, body):
             return False
 
 
-def main():
-    results, failed, candidate_id, conversation_id = [], False, None, None
+def main(session_id=None):
+    if session_id is not None and (not isinstance(session_id,str) or not re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*",session_id) or len(session_id)>80):
+        return 2
+    results, failed, candidate_id, conversation_id = [], False, None, session_id
+    def metadata_checks(identifier):
+        nonlocal failed
+        for label,budget in (("cold",6.0),("warm",1.5)):
+            if identifier is not None:
+                code, body, took = call("GET", "/conversations/" + identifier + "/metadata", budget + 1)
+                leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
+                status = "skipped" if code == 404 else ("ok" if code == 200 and took <= budget and not leak else "fail")
+            else:
+                code, took, leak, status = None, 0, False, "skipped"
+            failed |= status == "fail"
+            results.append({"route": "/conversations/{sessionId}/metadata", "read":label,"code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
+    if session_id is not None:
+        metadata_checks(session_id)
     for path, budget in READS:
         for attempt in (1, 2):
             code, body, took = call("GET", path, budget + 5)
@@ -101,7 +116,7 @@ def main():
         status = "skipped" if code == 404 else ("ok" if ok and not leak and settled else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "settled": settled, "status": status})
-        if path == "/conversations?limit=50" and code == 200:
+        if path == "/conversations?limit=50" and code == 200 and conversation_id is None:
             try:
                 items = json.loads(body).get("items")
                 if not isinstance(items, list): raise ValueError("conversation_projection_invalid")
@@ -124,15 +139,8 @@ def main():
             except (ValueError, AttributeError, TypeError):
                 failed = True
     # Use a real retained conversation, never a fabricated owner session.
-    budget = 10.0
-    if conversation_id is not None:
-        code, body, took = call("GET", "/conversations/" + conversation_id + "/metadata", budget + 5)
-        leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
-        status = "skipped" if code == 404 else ("ok" if code == 200 and took <= budget and not leak else "fail")
-    else:
-        code, took, leak, status = None, 0, False, "skipped"
-    failed |= status == "fail"
-    results.append({"route": "/conversations/{sessionId}/metadata", "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
+    if session_id is None:
+        metadata_checks(conversation_id)
     # Exercise the detail only with an existing owner artifact, never a fabricated trace.
     if candidate_id is not None:
         budget = 1.0  # user28 detail-read budget
@@ -155,4 +163,8 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import argparse
+    parser=argparse.ArgumentParser(description="Read-only Companion acceptance; session supplied by Claude for metadata budgets")
+    parser.add_argument("--session-id")
+    args=parser.parse_args()
+    sys.exit(main(args.session_id))
