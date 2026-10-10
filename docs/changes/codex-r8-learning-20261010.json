@@ -17,7 +17,8 @@
     "openclaw-plugin-mobile-ui/scripts/test-skill-learning-guard.cjs",
     "docs/work/samantha-runtime/contracts/r8.md",
     "docs/changes/codex-r8-learning-20261010.md",
-    "docs/changes/codex-r8-learning-20261010.json"
+    "docs/changes/codex-r8-learning-20261010.json",
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json"
   ],
   "tests": [
     {
@@ -54,6 +55,6 @@
   "limitations": [
     "Draft only: real S24 P0-2 captures and full file24 absent.",
     "Dedicated CI ownership and representative route/volume latency remain unqualified;2s is provisional.",
-    "Prompt forbids promotion; agent-wide tool enforcement requires an attested canonical owner policy."
+    "Prompt forbids promotion; no stronger agent-wide tool confinement is claimed or required for the Companion contract."
   ]
 }
