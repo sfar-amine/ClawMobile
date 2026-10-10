@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "id": "codex-stale-runs-r2-v2-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Require owner evidence before run expiration and persist late corrections.",
+  "reason": "Claude file 09 blocking review of R2; preserve canonical payment guards and run truth.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-stale-runs-r2-v2-20261010.json",
+    "docs/changes/codex-stale-runs-r2-v2-20261010.md",
+    "docs/work/samantha-runtime/contracts/r2.md",
+    "docs/work/samantha-runtime/contracts/r3.md",
+    "openclaw-plugin-mobile-ui/scripts/test-run-inactivity.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/runInactivity.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts"
+  ],
+  "tests": [
+    {
+      "name": "R2-v2 four mandatory regressions",
+      "status": "passed",
+      "evidence": "node scripts/test-run-inactivity.cjs: noReadableProof, longActiveTool, lateResult, bankBiometricDifferentOrigins; SQLite fixture, restart, list/callback and races."
+    },
+    {
+      "name": "build and existing contracts",
+      "status": "passed",
+      "evidence": "npm run build, trace-induction, control-health-components, delete-run, composed-read-result, model-fast-path, backfill-races, history-cache, conversation-pages, submit-reconciliation; payment-core 58/58."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r2.md",
+    "docs/work/samantha-runtime/contracts/r3.md",
+    "docs/changes/codex-stale-runs-r2-v2-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Native run lifecycle reconciliation only; existing execution routes unchanged."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing Gateway owner and atomic run registry writer; no new owner or store."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Companion run lifecycle only; all six MCP primitives unchanged."
+  },
+  "rollback": "Revert R2-v2 commit; previous reader ignores additive correction receipts.",
+  "limitations": [
+    "Git only; Claude owns merge, S24 qualification and activation.",
+    "Missing owner activity/approval/trajectory proof intentionally prevents expiration.",
+    "Uncertain canonical payment links conservatively protect all candidates.",
+    "At most 25 candidates per read; no new timer."
+  ]
+}
