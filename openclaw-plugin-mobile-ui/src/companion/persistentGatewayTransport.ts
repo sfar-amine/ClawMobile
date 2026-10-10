@@ -1,5 +1,5 @@
 /** Bounded transport around OpenClaw's official handshake/reconnect owner. */
-export type GatewayCallOptions = {expectFinal?: boolean; timeoutMs?: number; hardTimeoutMs?: number};
+export type GatewayCallOptions = {expectFinal?: boolean; timeoutMs?: number; hardTimeoutMs?: number; strictOutput?: {stdoutMaxBytes:number;stderrMaxBytes:number;killGraceMs:number}};
 export type GatewayClientOwner = {
   connected: boolean;
   start(): void;
@@ -90,6 +90,14 @@ export class PersistentGatewayTransport {
     const timeout = options.timeoutMs ?? 10000, hard = options.hardTimeoutMs ?? timeout;
     if (!Number.isFinite(timeout) || timeout < 1 || timeout > 300000 ||
       !Number.isFinite(hard) || hard < 1 || hard > 300000) return Promise.reject(failure('gateway_call_invalid'));
+    if (options.strictOutput) {
+      const bounds = options.strictOutput;
+      if (hard > 30000 || !Number.isSafeInteger(bounds.stdoutMaxBytes) || bounds.stdoutMaxBytes < 256 || bounds.stdoutMaxBytes > 9 * 1024 * 1024 ||
+        !Number.isSafeInteger(bounds.stderrMaxBytes) || bounds.stderrMaxBytes < 256 || bounds.stderrMaxBytes > 128 * 1024 ||
+        !Number.isSafeInteger(bounds.killGraceMs) || bounds.killGraceMs < 1 || bounds.killGraceMs > 1000) {
+        return Promise.reject(failure('gateway_read_limits_invalid'));
+      }
+    }
     if (this.queue.length >= 32) return Promise.reject(failure('gateway_queue_full'));
     return new Promise((resolve, reject) => {
       const deadline = Date.now() + Math.min(timeout, hard);
@@ -140,6 +148,8 @@ export class PersistentGatewayTransport {
         if (['ENOENT', 'ECONNREFUSED'].includes(cause?.code)) throw failure(cause.code);
         // CLI structured refusal is already normalized by its owner below.
         if (cause?.code === 'gateway_config_revision_conflict') throw cause;
+        if (job.options.strictOutput && cause?.message === 'gateway_read_failed') throw failure('gateway_read_failed', true);
+        if (job.options.strictOutput && cause?.message === 'gateway_read_limits_invalid') throw failure('gateway_read_limits_invalid');
         throw failure('gateway_cli_failed', true);
       }
     }
@@ -147,9 +157,21 @@ export class PersistentGatewayTransport {
     const timer = setTimeout(() => abort.abort(), remaining);
     // Crossing request() is the dispatch boundary. No SDK rejection causes replay.
     try {
-      return await this.client.request(job.method, job.params,
+      const result = await this.client.request(job.method, job.params,
         {expectFinal: job.options.expectFinal, timeoutMs: remaining, signal: abort.signal});
-    } catch (cause) { throw requestFailure(job.method, cause); }
+      if (job.options.strictOutput) {
+        // SDK supplies parsed JSON, not stdout/stderr. Preserve the response byte ceiling
+        // from the existing file owner; SDK loggers are neutralized and CLI limits unchanged.
+        let bytes: number;
+        try { bytes = Buffer.byteLength(JSON.stringify(result)); }
+        catch { throw failure('gateway_read_failed', true); }
+        if (bytes > job.options.strictOutput.stdoutMaxBytes) throw failure('gateway_read_failed', true);
+      }
+      return result;
+    } catch (cause: any) {
+      if (cause?.code === "gateway_read_failed") throw cause;
+      throw requestFailure(job.method, cause);
+    }
     finally { clearTimeout(timer); }
   }
   close() {

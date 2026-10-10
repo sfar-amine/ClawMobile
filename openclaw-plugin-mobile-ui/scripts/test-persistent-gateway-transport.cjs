@@ -30,5 +30,15 @@ function owner(options={}){let callbacks,active=0,max=0,requests=0,starts=0,stop
   await assert.rejects(observed.call(item.request.method,{}, {timeoutMs:200}),e=>e.gatewayCode===raw.code&&!e.details&&!e.message.includes('<string'));
   observed.close();
  }
+ // R20 merged owner bounds survive both SDK and pre-dispatch CLI paths.
+ const boundedReply=owner();const strict=new PersistentGatewayTransport(boundedReply.factory,async()=>{throw Error('fallback forbidden')});
+ const limits={stdoutMaxBytes:256,stderrMaxBytes:256,killGraceMs:10};
+ await assert.rejects(strict.call('models.list',{}, {timeoutMs:200,strictOutput:{...limits,stdoutMaxBytes:1}}),e=>e.code==='gateway_read_limits_invalid'&&!e.requestSent);
+ assert.equal(boundedReply.counts().requests,0);
+ await assert.rejects(strict.call('models.list',{}, {timeoutMs:200,strictOutput:limits}),e=>e.code==='gateway_read_failed'&&e.requestSent);
+ assert.equal(boundedReply.counts().requests,1);strict.close();
+ const boundedCli=owner({connected:false});const strictFallback=new PersistentGatewayTransport(boundedCli.factory,async(method,params,options)=>{assert.deepEqual(options.strictOutput,limits);return {files:[]};});
+ boundedCli.callbacks.onConnectError(Object.assign(Error('not printed'),{code:'ECONNREFUSED'}));
+ assert.deepEqual(await strictFallback.call('agents.files.list',{}, {timeoutMs:200,strictOutput:limits}),{files:[]});strictFallback.close();
  console.log('P0-1 integrated owner wrapper: real captured models payload/2419ms latency, four concurrent RPCs/single owner, bounded queue, unavailable-only CLI, no auth or uncertain replay, 10s slow-call timeout, fixed secret-free errors passed; hello admission and fixed CAS refusal tested; installed WS handshake not qualified');
 })().catch(e=>{console.error(e);process.exitCode=1});

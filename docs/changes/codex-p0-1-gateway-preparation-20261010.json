@@ -29,6 +29,11 @@
       "name": "complete-current-ci-workflow",
       "status": "passed",
       "evidence": "Toutes les étapes du ci.yml de la base b40b867 ont passé localement. Dernière installation voice-relay relancée avec cache npm /tmp après erreur du cache hors workspace, puis test-mcp.mjs passé. Build et trois suites P0-1 repassés après le test du repli CLI JSON CAS."
+    },
+    {
+      "name": "r20-merged-read-limits",
+      "status": "passed",
+      "evidence": "Base d142a9f merge normal preserves strictOutput owner controls. SDK parsed JSON byte ceiling and pre-dispatch bound validation tested; CLI fallback keeps original bounded stdout/stderr/process-group cleanup. Targeted P0-1 and five merged R20 suites verification recorded in PR."
     }
   ],
   "documentation": [
