@@ -3,10 +3,10 @@
   "id": "codex-e3-agent-file-edit-preparation-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "E3 preparation only: pure edit intent and planned capability; owner effects blocked",
-  "reason": "Programme 35 E3 : préparer sans inventer agents.files.set CAS ni stockage de sauvegardes ; captures mutations et propriétaire de rétention requis.",
+  "reason": "Programme 35 E3 : préparer sans inventer agents.files.set CAS ni stockage de sauvegardes ; captures mutations et propriétaire de rétention requis. Seule la préparation non branchée est fusionnable ; aucun effet E3 autorisé.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/agentFileWritePlan.ts",
