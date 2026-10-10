@@ -4,6 +4,7 @@ import {confirmations} from "./confirmations";
 import {callOpenClawGateway} from "./openclawAgentClient";
 import {readPaymentRequests,readOwnerConfirmations} from "./runs";
 import {findSubmittedRunByClientRunId,reserveSubmittedRun,settleSubmittedRun} from "./runs";
+import {accountView,knownProfiles,publicModelRef,resolveModelRef} from "./accountIdentity";
 const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
 export const thinkingLevels=["off","minimal","low","medium","high","xhigh","adaptive","max","ultra"];
 const identifier=/^[A-Za-z0-9._:/+@-]{1,200}$/;
@@ -17,16 +18,34 @@ function selection(config:any){
 }
 function modelId(config:any){const value=selection(config).value.model??config.agents?.defaults?.model;const id=typeof value==='string'?value:value?.primary;return typeof id==='string'&&identifier.test(id)?id:null;}
 function level(config:any){const value=selection(config).value.thinkingDefault??config.agents?.defaults?.thinkingDefault;return thinkingLevels.includes(value)?value:null;}
-function modelList(value:any,config:any,auth:any){
+/**
+ * One thinking catalog for R6 and R18: the model's own levels when models.list
+ * gives them, else the Gateway session defaults for that model (sessions.list
+ * `defaults`, the source R18 reads per session). `off` alone only when neither
+ * owner says anything.
+ */
+function thinkingFor(row:any,defaults:any){
+ const own=Array.isArray(row?.thinkingLevels)?row.thinkingLevels.map((x:any)=>x?.id).filter((x:any)=>thinkingLevels.includes(x)):[];
+ if(own.length)return {levels:own,default:thinkingLevels.includes(row?.thinkingDefault)?row.thinkingDefault:null,source:'model_catalog'};
+ const same=defaults&&defaults.modelProvider===row?.provider&&(defaults.model===row?.id||row?.id===defaults.modelProvider+'/'+defaults.model);
+ const session=same?(Array.isArray(defaults.thinkingOptions)?defaults.thinkingOptions:Array.isArray(defaults.thinkingLevels)?defaults.thinkingLevels.map((x:any)=>x?.id):[]).filter((x:any)=>thinkingLevels.includes(x)):[];
+ if(session.length)return {levels:[...new Set<string>(session)],default:thinkingLevels.includes(defaults.thinkingDefault)?defaults.thinkingDefault:null,source:'session_defaults'};
+ return {levels:['off'],default:null,source:'unavailable'};
+}
+function modelList(value:any,config:any,auth:any,defaults:any=null){
  if(!Array.isArray(value?.models)||value.models.length>2000)throw nativeError('agent_models_unavailable',503);
  const allow=config.agents?.entries?.main?.modelPolicy?.allow;
  if(!Array.isArray(allow))return [];
  return value.models.flatMap((row:any)=>{
   const ref=row?.id?.startsWith(row?.provider+'/')?row.id:row?.provider+'/'+row?.id;
   const plugin=config.plugins?.entries?.[row?.provider];
-  const levels=Array.isArray(row?.thinkingLevels)?row.thinkingLevels.map((x:any)=>x?.id).filter((x:any)=>thinkingLevels.includes(x)):['off'];
-  return identifier.test(row?.id||'')&&identifier.test(row?.provider||'')&&allow.includes(ref.split('@')[0])&&plugin?.enabled!==false&&row?.available===true&&validProvider(auth,row.provider)?[{id:row.id,provider:row.provider,reasoning:row.reasoning===true,thinkingLevels:levels}]:[];
+  const thinking=thinkingFor(row,defaults);
+  return identifier.test(row?.id||'')&&identifier.test(row?.provider||'')&&allow.includes(ref.split('@')[0])&&plugin?.enabled!==false&&row?.available===true&&validProvider(auth,row.provider)?[{id:row.id,provider:row.provider,reasoning:row.reasoning===true||thinking.source==='session_defaults'&&thinking.levels.some((x:string)=>x!=='off'),thinkingLevels:thinking.levels,thinkingDefault:thinking.default,thinkingSource:thinking.source}]:[];
  });
+}
+/** sessions.list `defaults` (one bounded page read), shared with the R18 composer catalog. */
+async function sessionDefaults(){
+ try{const value=await callOpenClawGateway('sessions.list',{limit:1},{timeoutMs:5500,hardTimeoutMs:5500});return value?.defaults&&typeof value.defaults==='object'?value.defaults:null;}catch{return null;}
 }
 function validProvider(auth:any,provider:string,profile?:string){
  if(auth?.unavailable||!Array.isArray(auth?.providers))return false;
@@ -35,16 +54,19 @@ function validProvider(auth:any,provider:string,profile?:string){
 }
 const count=(value:any)=>typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null;
 export async function readAgentConfig(){
- const [{raw,catalog,auth},usage]=await Promise.all([readModelOwnerFresh(),callOpenClawGateway('sessions.usage',{limit:100}).catch(()=>null)]);
+ const [{raw,catalog,auth},usage,defaults]=await Promise.all([readModelOwnerFresh(),callOpenClawGateway('sessions.usage',{limit:100}).catch(()=>null),sessionDefaults()]);
  const config=configObject(raw),id=modelId(config);
  const chosen=selection(config).value;
  const model=chosen.model??config.agents?.defaults?.model;
  const fallbackValue=typeof model==='object'?model?.fallbacks??config.agents?.defaults?.model?.fallbacks:config.agents?.defaults?.model?.fallbacks;
  const fallbacks=Array.isArray(fallbackValue)&&fallbackValue.length<=20?fallbackValue.filter((row:any)=>typeof row==='string'&&identifier.test(row)):null;
  const toolPolicy=(value:any)=>({profile:['minimal','coding','messaging','full'].includes(value?.profile)?value.profile:null,allow:Array.isArray(value?.allow)&&value.allow.length<=100?value.allow.filter((x:any)=>typeof x==='string'&&/^[A-Za-z0-9_.*:-]{1,100}$/.test(x)):null,deny:Array.isArray(value?.deny)&&value.deny.length<=100?value.deny.filter((x:any)=>typeof x==='string'&&/^[A-Za-z0-9_.*:-]{1,100}$/.test(x)):null});
- return {success:true,state:'ok',receipt:null,schemaVersion:1,revision:raw.hash,agentId:'main',model:id,provider:id?.includes('/')?id.split('/')[0]:null,
-  fallbacks,tools:{global:toolPolicy(config.tools),agent:toolPolicy(chosen.tools),effective:null,reason:'effective_tool_catalog_unavailable'},
-  thinking:level(config),thinkingLevels,models:modelList(catalog,config,auth),writeAvailable:selection(config).writeAvailable&&modelList(catalog,config,auth).length>0,issues:modelList(catalog,config,auth).length?[]:['model_authentication_proof_unavailable'],
+ const models=modelList(catalog,config,auth,defaults);
+ // Account profiles leave only as opaque `acct-…` handles with a neutral label (never the e-mail).
+ const accounts=[...new Map([id,...(fallbacks||[])].map(ref=>accountView(ref)).filter(Boolean).map((row:any)=>[row.id,row])).values()];
+ return {success:true,state:'ok',receipt:null,schemaVersion:1,revision:raw.hash,agentId:'main',model:publicModelRef(id),provider:id?.includes('/')?id.split('/')[0]:null,
+  fallbacks:fallbacks?fallbacks.map(ref=>publicModelRef(ref)!):null,accounts,tools:{global:toolPolicy(config.tools),agent:toolPolicy(chosen.tools),effective:null,reason:'effective_tool_catalog_unavailable'},
+  thinking:level(config),thinkingLevels,models,writeAvailable:selection(config).writeAvailable&&models.length>0,issues:[...(models.length?[]:['model_authentication_proof_unavailable']),...(defaults?[]:['session_thinking_defaults_unavailable'])],
   usage:usage?{scope:'sessions_usage_limit_100',inputTokens:count(usage.totals?.inputTokens),outputTokens:count(usage.totals?.outputTokens),totalTokens:count(usage.totals?.totalTokens),costUsd:count(usage.totals?.totalCost)}:null};
 }
 async function protectedActivity(){
@@ -75,20 +97,28 @@ async function changeAgentConfigOnce(body:any){
  if(existing&&stored(existing).state!=='failed')return stored(existing);
  if(await protectedActivity())throw nativeError('protected_owner_activity',409);
  // Validate against the canonical current config/catalog before reserving an effect.
- const {raw,catalog,auth}=await readModelOwnerFresh();const config=configObject(raw);
+ const [{raw,catalog,auth},defaults]=await Promise.all([readModelOwnerFresh(),sessionDefaults()]);const config=configObject(raw);
  if(raw.hash!==body.revision)throw nativeError('agent_config_revision_changed',409);
  if(!selection(config).writeAvailable)throw nativeError('agent_config_owner_shape_unsupported',409);
- const models=modelList(catalog,config,auth),found=models.find((row:any)=>row.id===body.model&&row.provider===body.provider);
+ // The app echoes `@acct-…` handles; the patch and every comparison use the canonical profile ids.
+ const currentFallbacks=selection(config).value.model?.fallbacks||[];
+ let fallbacks:string[]|undefined;
+ if('fallbacks' in body){
+  const profiles=knownProfiles(auth,currentFallbacks,modelId(config));
+  const resolved=body.fallbacks.map((ref:string)=>resolveModelRef(ref,profiles));
+  if(resolved.some((ref:string|null)=>ref===null))throw nativeError('unsupported_agent_fallback',409);
+  fallbacks=resolved as string[];
+ }
+ const models=modelList(catalog,config,auth,defaults),found=models.find((row:any)=>row.id===body.model&&row.provider===body.provider);
  if(!found||!found.thinkingLevels.includes(body.thinking))throw nativeError('unsupported_agent_model',409);
  const refs=models.map((row:any)=>row.id.startsWith(row.provider+'/')?row.id:row.provider+'/'+row.id);
- const currentFallbacks=selection(config).value.model?.fallbacks||[];
- if(body.fallbacks?.some((ref:string)=>!currentFallbacks.includes(ref)&&(!refs.includes(ref.split('@')[0])||ref.includes('@')&&!validProvider(auth,ref.split('/')[0],ref.split('@')[1]))))throw nativeError('unsupported_agent_fallback',409);
+ if(fallbacks?.some((ref:string)=>!currentFallbacks.includes(ref)&&(!refs.includes(ref.split('@')[0])||ref.includes('@')&&!validProvider(auth,ref.split('/')[0],ref.split('@')[1]))))throw nativeError('unsupported_agent_fallback',409);
  if(await protectedActivity())throw nativeError('protected_owner_activity',409);
  const id=body.model.startsWith(body.provider+'/')?body.model:body.provider+'/'+body.model;
- const values={model:{primary:id,...('fallbacks' in body?{fallbacks:body.fallbacks}:{})},thinkingDefault:body.thinking};
+ const values={model:{primary:id,...(fallbacks?{fallbacks}:{})},thinkingDefault:body.thinking};
  const patch={agents:{entries:{main:values}}};
  const oldFallbacks=selection(config).value.model?.fallbacks||[];
- const expanded=body.fallbacks?.some((ref:string)=>!oldFallbacks.includes(ref)&&ref.split('/')[0]!==id.split('/')[0]||ref.includes('@')&&!oldFallbacks.includes(ref));
+ const expanded=fallbacks?.some((ref:string)=>!oldFallbacks.includes(ref)&&ref.split('/')[0]!==id.split('/')[0]||ref.includes('@')&&!oldFallbacks.includes(ref));
  if(expanded){
   if(typeof body.confirmationId!=='string')throw nativeError('fallback_confirmation_required',409);
   const record=await confirmations.status(body.confirmationId);
@@ -111,7 +141,7 @@ async function changeAgentConfigOnce(body:any){
     for(let attempt=0;attempt<3;attempt++){try{verified=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:2000});break;}catch{if(attempt<2)await new Promise(resolve=>setTimeout(resolve,200));}}
 
    const effective=configObject(verified),effectiveModel=selection(effective).value.model??effective.agents?.defaults?.model;
-   if(modelId(effective)===id&&level(effective)===body.thinking&&(!('fallbacks' in body)||JSON.stringify(effectiveModel?.fallbacks)===JSON.stringify(body.fallbacks))){state='completed';artifact={configurationRevision:verified.hash,agentId:'main'};}
+   if(modelId(effective)===id&&level(effective)===body.thinking&&(!fallbacks||JSON.stringify(effectiveModel?.fallbacks)===JSON.stringify(fallbacks))){state='completed';artifact={configurationRevision:verified.hash,agentId:'main'};}
    }
   }
  }catch{/* No proof: never repeat a possible configuration effect. */}

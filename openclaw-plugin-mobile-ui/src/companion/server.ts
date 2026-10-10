@@ -17,6 +17,7 @@ import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptop
 import {notificationSources} from "./notificationSources";
 import {allowlistRead,allowlistChange,allowlistBody} from "./whatsappAllowlist";
 import { handleControl } from "./control";
+import {accountGuardedRoute,redactAccountIdentifiers} from "./accountIdentity";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import fs from "fs";
 import http from "http";
@@ -193,6 +194,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   const method = req.method || "GET";
   const requestUrl = new URL(req.url || "/", "http://localhost");
   const routePath = normalizeProtocolPath(requestUrl.pathname);
+  if(routePath&&accountGuardedRoute(routePath))accountGuardedResponses.add(res);
 
   if (shouldBlockBrowserRequest(req, routePath || requestUrl.pathname)) {
     writeJson(res, 403, {
@@ -1936,7 +1938,10 @@ function writeHtml(res: http.ServerResponse, statusCode: number, body: string) {
   res.end(body);
 }
 
+// App-facing state routes: no account e-mail may leave, whatever the producer.
+const accountGuardedResponses=new WeakSet<http.ServerResponse>();
 function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
+  if(accountGuardedResponses.has(res))value=redactAccountIdentifiers(value);
   const body = statusCode === 204 ? "" : JSON.stringify(value, null, 2);
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");

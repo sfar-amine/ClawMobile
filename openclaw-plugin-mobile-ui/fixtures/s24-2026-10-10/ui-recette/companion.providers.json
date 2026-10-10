@@ -1,0 +1,89 @@
+{
+ "_capture": {
+  "route": "GET /v1/providers",
+  "status": 200,
+  "latencyMs": 1,
+  "capturedAt": "2026-10-10T19:39:21+00:00",
+  "companion": "9cdd84f",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "réponse AVANT correction : updatedAt en millisecondes epoch ; noms masqués"
+ },
+ "response": {
+  "schemaVersion": 1,
+  "updatedAt": 1791661159088,
+  "summary": {
+   "ready": 2,
+   "needsAttention": 1,
+   "unknown": 1,
+   "configuredModels": 3
+  },
+  "providers": [
+   {
+    "id": "custom-po-zapro-su",
+    "name": "<texte 18 car.>",
+    "auth": "ready",
+    "quota": null,
+    "state": "unknown",
+    "models": []
+   },
+   {
+    "id": "github-copilot",
+    "name": "<texte 7 car.>",
+    "auth": "ready",
+    "quota": "exhausted",
+    "state": "exhausted",
+    "models": []
+   },
+   {
+    "id": "google",
+    "name": "<texte 6 car.>",
+    "auth": "ready",
+    "quota": null,
+    "state": "ready",
+    "models": [
+     {
+      "id": "gemini-3.5-flash-lite",
+      "name": "<texte 21 car.>",
+      "available": true,
+      "capabilities": [
+       "reasoning",
+       "image",
+       "video"
+      ],
+      "contextTokens": 1048576,
+      "inUse": "fallback"
+     }
+    ]
+   },
+   {
+    "id": "openai",
+    "name": "<texte 6 car.>",
+    "auth": "ready",
+    "quota": "ok",
+    "state": "ready",
+    "models": [
+     {
+      "id": "gpt-5.6-luna",
+      "name": "<texte 12 car.>",
+      "available": true,
+      "capabilities": [
+       "reasoning",
+       "image"
+      ],
+      "contextTokens": 272000,
+      "inUse": "fallback"
+     },
+     {
+      "id": "gpt-5.6-sol",
+      "name": "<texte 11 car.>",
+      "available": true,
+      "capabilities": [],
+      "contextTokens": null,
+      "inUse": "primary"
+     }
+    ]
+   }
+  ]
+ }
+}

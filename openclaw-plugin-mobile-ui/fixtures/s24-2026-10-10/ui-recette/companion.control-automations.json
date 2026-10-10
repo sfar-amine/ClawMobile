@@ -1,0 +1,138 @@
+{
+ "_capture": {
+  "route": "GET /v1/control/automations?contract=2",
+  "status": 200,
+  "latencyMs": 2547,
+  "capturedAt": "2026-10-10T19:39:25+00:00",
+  "companion": "9cdd84f",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "items réduits à 7 sur 17 ; noms masqués ; libellés de planification bruts conservés (produits par samantha-ui-playbooks reporting.control_snapshot)"
+ },
+ "response": {
+  "schemaVersion": 2,
+  "sections": {
+   "automations": {
+    "schemaVersion": 2,
+    "resourceKey": "control/v2/automations",
+    "dataRevision": "c9f145d92ed05442c84850c09bde4c7bc8bca00c6e4ff6a9641e590966441519",
+    "generatedAt": "2026-10-10T19:39:25.031873+00:00",
+    "sourceCheckedAt": "2026-10-10T19:39:25.031305+00:00",
+    "availability": "ready",
+    "freshness": "fresh",
+    "remainingFreshMs": 15000,
+    "issues": [],
+    "data": {
+     "items": [
+      {
+       "id": "9aee0e1e-5583-41a2-87e0-172ed077dfc0",
+       "name": "<texte 16 car.>",
+       "enabled": true,
+       "scheduleType": "every",
+       "scheduleLabel": "Toutes les 15 min",
+       "executor": null,
+       "lastRunAt": "2026-10-10T19:24:28.133000+00:00",
+       "lastRunStatus": "healthy",
+       "lastDuration": 7028,
+       "nextRunAt": "2026-10-10T19:39:28.133000+00:00",
+       "consecutiveErrors": 0
+      },
+      {
+       "id": "31f05210-eedb-46c0-bb1a-f4b2ab4e6155",
+       "name": "<texte 20 car.>",
+       "enabled": true,
+       "scheduleType": "every",
+       "scheduleLabel": "Toutes les 1 min",
+       "executor": null,
+       "lastRunAt": "2026-10-10T19:38:34.358000+00:00",
+       "lastRunStatus": "healthy",
+       "lastDuration": 250,
+       "nextRunAt": "2026-10-10T19:39:34.358000+00:00",
+       "consecutiveErrors": 0
+      },
+      {
+       "id": "1121f97a-0a06-4873-afaa-a25d17311150",
+       "name": "<texte 19 car.>",
+       "enabled": true,
+       "scheduleType": "every",
+       "scheduleLabel": "Toutes les 60 min",
+       "executor": null,
+       "lastRunAt": "2026-10-10T19:00:35.566000+00:00",
+       "lastRunStatus": "healthy",
+       "lastDuration": 5772,
+       "nextRunAt": "2026-10-10T20:00:35.566000+00:00",
+       "consecutiveErrors": 0
+      },
+      {
+       "id": "bb8eb48a-1305-42cc-80d9-73068f71d26d",
+       "name": "<texte 25 car.>",
+       "enabled": true,
+       "scheduleType": "cron",
+       "scheduleLabel": "0 22 * * * · Africa/Tunis",
+       "executor": null,
+       "lastRunAt": "2026-10-10T12:00:00.701000+00:00",
+       "lastRunStatus": "healthy",
+       "lastDuration": 132415,
+       "nextRunAt": "2026-10-10T21:00:00+00:00",
+       "consecutiveErrors": 0
+      },
+      {
+       "id": "ff8c7e99-5fdc-44c7-ad68-938b4693ec37",
+       "name": "<texte 28 car.>",
+       "enabled": true,
+       "scheduleType": "cron",
+       "scheduleLabel": "5 13 * * * · Africa/Tunis",
+       "executor": null,
+       "lastRunAt": "2026-10-10T12:05:00.420000+00:00",
+       "lastRunStatus": "healthy",
+       "lastDuration": 844,
+       "nextRunAt": "2026-10-11T12:05:00+00:00",
+       "consecutiveErrors": 0
+      },
+      {
+       "id": "12cce38f-44e0-436b-b6e4-ef19be735dde",
+       "name": "<texte 32 car.>",
+       "enabled": false,
+       "scheduleType": "every",
+       "scheduleLabel": "Toutes les 10080 min",
+       "executor": null,
+       "lastRunAt": null,
+       "lastRunStatus": "disabled",
+       "lastDuration": null,
+       "nextRunAt": null,
+       "consecutiveErrors": null
+      },
+      {
+       "id": "86342a0e-4160-472d-accb-997f9e98b040",
+       "name": "<texte 32 car.>",
+       "enabled": false,
+       "scheduleType": "at",
+       "scheduleLabel": "2026-09-28T09:31:53.700Z",
+       "executor": null,
+       "lastRunAt": "2026-09-28T09:34:30.424000+00:00",
+       "lastRunStatus": "disabled",
+       "lastDuration": 1154,
+       "nextRunAt": null,
+       "consecutiveErrors": 0
+      }
+     ],
+     "available": true,
+     "active": 12,
+     "attention": 0
+    }
+   }
+  },
+  "computation": {
+   "durationMs": 2344.964,
+   "sources": {
+    "automations": {
+     "sourceReadCount": 1,
+     "durationMs": 2344.348
+    }
+   },
+   "computationId": "3d2931ec-e4eb-41c7-ae82-08cf081b0fe7",
+   "queueMs": 0.299,
+   "deliveryMode": "generated"
+  }
+ }
+}
