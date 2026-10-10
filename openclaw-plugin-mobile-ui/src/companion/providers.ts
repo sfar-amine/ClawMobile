@@ -18,20 +18,27 @@ export function projectProviders(snapshot:ModelOwnerSnapshot|null,usage:UsageVie
  const providers=ids.map(id=>{
   const meter=usage?.providers.find(p=>p.id===id);const authentication=fresh?authState(auth.find((a:any)=>a.provider===id)?.status):'unknown';
   const quota=['exhausted','low','ok','unknown'].includes(meter?.state||'')?meter!.state:null;
-  const state=authentication==='needs_auth'?'needs_auth':authentication==='ready'?(quota==='exhausted'?'exhausted':quota==='ok'||quota==='low'?'ready':'unknown'):'unknown';
+  const state=authentication==='needs_auth'?'needs_auth':authentication==='ready'?(quota==='exhausted'?'exhausted':quota==='ok'||quota==='low'||quota===null&&snapshot?.catalog?.providerOutcomes?.some((row:any)=>row.provider===id&&row.status==='ready')?'ready':'unknown'):'unknown';
   const models=rows.filter((row:any)=>row.provider===id).flatMap((row:any)=>{
    const model=publicModelId(row.id);if(!model)return [];
    const reference=model.startsWith(id+'/')?model:id+'/'+model;
    if(!configuredModels.allowed.includes(reference)&&!configuredModels.allowed.includes(model))return [];
    const input=Array.isArray(row.input)?row.input:[];
    const capabilities:string[]=[];if(row.reasoning===true)capabilities.push('reasoning');if(input.includes('image'))capabilities.push('image');if(input.includes('video'))capabilities.push('video');
-   return [{id:model,name:publicText(row.name)||model,available:typeof row.available==='boolean'?row.available:null,capabilities,contextTokens:Number.isSafeInteger(row.contextTokens)&&row.contextTokens>0?row.contextTokens:null,inUse:configuredModels.primary===reference||configuredModels.primary===model?'primary':configuredModels.fallbacks.some((v:string)=>v===reference||v===model)?'fallback':null}];
+   return [{id:model,name:publicText(row.name)||model,available:typeof row.available==='boolean'?row.available:null,capabilities,contextTokens:Number.isSafeInteger(row.contextTokens)&&row.contextTokens>0?row.contextTokens:Number.isSafeInteger(row.contextWindow)&&row.contextWindow>0?row.contextWindow:null,inUse:configuredModels.primary===reference||configuredModels.primary===model?'primary':configuredModels.fallbacks.some((v:string)=>v===reference||v===model)?'fallback':null}];
   });
   return {id,name:publicText(meter?.name)||id,auth:authentication,quota,state,models};
  });
  return {schemaVersion:1,updatedAt:snapshot?.updatedAt??usage?.updatedAt??null,summary:{ready:providers.filter(p=>p.state==='ready').length,needsAttention:providers.filter(p=>['needs_auth','exhausted'].includes(p.state)).length,unknown:providers.filter(p=>p.state==='unknown').length,configuredModels:providers.reduce((n,p)=>n+p.models.length,0)},providers};
 }
 export async function readProviders(refresh=false){
+ const cached=peekModelOwner();
+ if(cached&&!refresh){
+  // The shared R6/R11 owner keeps refreshing in single-flight; cached metadata
+  // avoids putting its 4.8s CLI read back on an ordinary providers request.
+  void readModelOwnerCached().catch(()=>{});
+  return projectProviders(cached,await readUsage(),!cached.stale&&Date.now()-cached.updatedAt<60000);
+ }
  const [owner,usage]=await Promise.all([readModelOwnerCached({refresh}),readUsage()]);
  return projectProviders(owner.snapshot,usage,owner.state==='fresh');
 }

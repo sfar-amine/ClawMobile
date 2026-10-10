@@ -39,28 +39,36 @@ export async function readUsage():Promise<UsageView>{
  pending=(async()=>{try{const value=projectUsage(await callOpenClawGateway('usage.status',{}, {timeoutMs:5500,hardTimeoutMs:5500}));cache={view:value,at:Date.now()};return value;}catch{const view:UsageView={schemaVersion:1,updatedAt:null,providers:[],issues:['usage_source_unavailable']};cache={view,at:Date.now()};return view;}})();
  try{return structuredClone(await pending);}finally{pending=null;}
 }
-// No cost response schema has been captured. Explicit read only, no guessed fields.
+const COST_TTL_MS=600000;
+const costMetrics=['input','output','cacheRead','cacheWrite','totalTokens','totalCost','inputCost','outputCost','cacheReadCost','cacheWriteCost','missingCostEntries'] as const;
+/** Global owner totals only. Stale files mean computing, never a zero-cost claim. */
+export function projectUsageCost(value:any){
+ const base={schemaVersion:1,periodDays:30};
+ if(!plain(value)||value.days!==30||!plain(value.cacheStatus))return {...base,state:'unqualified',issues:['usage_cost_shape_unqualified']};
+ if(value.cacheStatus.staleFiles>0||value.cacheStatus.pendingFiles>0||['refreshing','stale','partial','computing'].includes(value.cacheStatus.status))return {...base,state:'computing'};
+ if(value.cacheStatus.status!=='fresh'||!Number.isSafeInteger(value.cacheStatus.staleFiles)||value.cacheStatus.staleFiles!==0||!Number.isSafeInteger(value.cacheStatus.pendingFiles)||value.cacheStatus.pendingFiles!==0)return {...base,state:'unqualified',issues:['usage_cost_cache_unqualified']};
+ if(!Array.isArray(value.daily)||value.daily.length>30||!plain(value.totals))return {...base,state:'unqualified',issues:['usage_cost_shape_unqualified']};
+ const metrics=(row:any)=>Object.fromEntries(costMetrics.map(key=>[key,number(row?.[key])]));
+ const daily=value.daily.map((row:any)=>({date:typeof row?.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(row.date)?row.date:null,...metrics(row)}));
+ if(daily.some(row=>row.date===null)||number(value.totals.totalCost)===null)return {...base,state:'unqualified',issues:['usage_cost_shape_unqualified']};
+ return {...base,state:'ok',updatedAt:timestamp(value.updatedAt),totals:metrics(value.totals),daily};
+}
 export async function readUsageCost(){
- if(costCache&&Date.now()-costCache.at<ttl)return structuredClone(costCache.view);
+ if(costCache&&Date.now()-costCache.at<COST_TTL_MS)return structuredClone(costCache.view);
  if(costPending)return structuredClone(await costPending);
- // days:30 is attested by public OpenClaw2026.9.6 source. The canonical
- // summary is aggregate-only: never manufacture a provider cost breakdown.
- costPending=(async()=>{try{
-  await callOpenClawGateway('usage.cost',{days:30},{timeoutMs:5500,hardTimeoutMs:5500});
-  return {schemaVersion:1,state:'unqualified',periodDays:30,providers:[],issues:['usage_cost_provider_breakdown_unavailable']};
- }catch{return {schemaVersion:1,state:'unavailable',periodDays:30,providers:[],issues:['usage_cost_source_unavailable']};}})();
+ costPending=(async()=>{try{return projectUsageCost(await callOpenClawGateway('usage.cost',{days:30},{timeoutMs:10000,hardTimeoutMs:10500}));}
+ catch{return {schemaVersion:1,state:'unavailable',periodDays:30,issues:['usage_cost_source_unavailable']};}})();
  try{const view=await costPending;costCache={at:Date.now(),view};return structuredClone(view);}finally{costPending=null;}
 }
 
-// Both owner reads start together. A global read-only deadline also bounds
-// an inherited in-flight call; no dispatch or retry is performed on expiry.
+/** Explicit cost query only: independent ten-minute cache and twelve-second route budget. */
 export async function readUsageDetails(){
  let timer:ReturnType<typeof setTimeout>|undefined;
  const reads=Promise.all([readUsage(),readUsageCost()]).then(([base,cost])=>({...base,cost}));
  const bounded=new Promise<UsageView&{cost:any}>(resolve=>{timer=setTimeout(()=>resolve({
   ...(peekUsage()||{schemaVersion:1 as const,updatedAt:null,providers:[],issues:['usage_source_unavailable']}),
-  cost:{schemaVersion:1,state:'unavailable',periodDays:30,providers:[],issues:['usage_cost_budget_exceeded']}
- }),6000);});
+  cost:{schemaVersion:1,state:'unavailable',periodDays:30,issues:['usage_cost_budget_exceeded']}
+ }),12000);});
  try{return await Promise.race([reads,bounded]);}finally{if(timer)clearTimeout(timer);}
 }
 

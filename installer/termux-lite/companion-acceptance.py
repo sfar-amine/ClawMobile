@@ -11,6 +11,7 @@ BASE = "http://127.0.0.1:8765/v1"
 READS = [
     ("/health", 2.0),
     ("/usage", 6.0),
+    ("/usage?details=cost", 12.0),
     ("/providers", 6.0),
     ("/security/surfaces", 1.5),
     ("/notifications/sources", 6.0),
