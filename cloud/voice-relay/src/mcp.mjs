@@ -165,6 +165,10 @@ function registerTools(server, auth, invoke) {
       known_contracts: z.record(z.string(), z.string()).optional(),
       global_baseline: z.record(z.string(), z.unknown()).optional(),
       uncertain: z.boolean().optional(),
+      scopes: z.union([
+        z.array(z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/)).max(16),
+        z.string().max(512),
+      ]).optional().describe("Technical rule scopes checked by the existing pinned manifest; never authorization scopes."),
     },
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   }, run("claw_context"));

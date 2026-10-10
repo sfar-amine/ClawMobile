@@ -1,0 +1,127 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/health",
+  "latencyMs": 100,
+  "repeatLatencyMs": 32,
+  "capturedAt": "2026-10-10T18:35:34+00:00",
+  "companion": "loopback 127.0.0.1:8765, sans en-tête propriétaire",
+  "sanitized": true
+ },
+ "response": {
+  "status": "connected",
+  "message": "<texte 39 car.>",
+  "version": "0.1.0",
+  "stage": "adb_shell",
+  "checks": [
+   {
+    "id": "companion",
+    "label": "<texte 9 car.>",
+    "state": "online",
+    "detail": "<texte 35 car.>"
+   },
+   {
+    "id": "runtime",
+    "label": "<texte 7 car.>",
+    "state": "online",
+    "detail": "<texte 9 car.>"
+   },
+   {
+    "id": "gateway",
+    "label": "<texte 8 car.>",
+    "state": "online",
+    "detail": "<texte 49 car.>"
+   },
+   {
+    "id": "model",
+    "label": "<texte 5 car.>",
+    "state": "offline",
+    "detail": "<texte 28 car.>"
+   }
+  ],
+  "gateway": {
+   "host": "<texte 9 car.>",
+   "port": 18789,
+   "reachable": true,
+   "message": "<texte 49 car.>"
+  },
+  "runtime": {
+   "ok": true,
+   "mode": "termux_capability_aware",
+   "stage": "adb_shell",
+   "capabilities": {
+    "local_shell": true,
+    "local_ocr": false,
+    "termux_api": true,
+    "phone_notify": true,
+    "clipboard": true,
+    "battery_status": true,
+    "ui_observe": true,
+    "ui_input": true,
+    "android_shell": true,
+    "screenshot": true,
+    "ocr": false,
+    "screen_ocr": false
+   },
+   "backends": {
+    "termux": {
+     "ready": true,
+     "prefix": "/data/data/com.termux/files/usr",
+     "termuxBin": "/data/data/com.termux/files/usr/bin",
+     "shell": "/data/data/com.termux/files/usr/bin/bash"
+    },
+    "termuxApi": {
+     "ready": true,
+     "commands": {
+      "termux-notification": true,
+      "termux-vibrate": true,
+      "termux-toast": true,
+      "termux-tts-speak": true,
+      "termux-clipboard-get": true,
+      "termux-clipboard-set": true,
+      "termux-battery-status": true
+     }
+    },
+    "adb": {
+     "ready": true,
+     "state": "ready",
+     "selectedSerial": "127.0.0.1:5556",
+     "devices": [
+      {
+       "serial": "127.0.0.1:5556",
+       "state": "device",
+       "info": {
+        "product": "e3qxeea",
+        "model": "SM_S928B",
+        "device": "e3q",
+        "transport_id": "1"
+       },
+       "extra": []
+      }
+     ],
+     "stderr": ""
+    },
+    "shizuku": {
+     "ready": false,
+     "state": "missing",
+     "rishPath": ""
+    },
+    "root": {
+     "ready": false,
+     "state": "su_installed_unverified",
+     "suPath": "/data/data/com.termux/files/usr/bin/su"
+    },
+    "ocr": {
+     "ready": false,
+     "engine": "",
+     "path": "",
+     "defaultLang": "eng"
+    }
+   }
+  },
+  "model": {
+   "configured": false,
+   "message": "<texte 28 car.>"
+  }
+ }
+}

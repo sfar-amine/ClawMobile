@@ -1,0 +1,742 @@
+{
+ "_capture": {
+  "method": "file",
+  "source": "~/.openclaw/autonomous-engineering/maintenance-last.json",
+  "bytes": 21635,
+  "mtime": "2026-10-10T18:11:34+00:00",
+  "capturedAt": "2026-10-10T18:25:25+00:00",
+  "sanitized": true,
+  "note": "SHA Git (40 car.) conservés ; empreintes 64 car. hachées ; texte libre > 100 car. masqué"
+ },
+ "response": {
+  "checked_at": 1791655816.8136144,
+  "supervision": {
+   "state": "healthy",
+   "components": {
+    "root_guardian": {
+     "state": "healthy",
+     "processes": [
+      {
+       "pid": 28646,
+       "state": "S",
+       "ppid": 1,
+       "group": 28599,
+       "session": 28599,
+       "started_ticks": 571729
+      }
+     ],
+     "heartbeat_age_s": 4.695573329925537
+    },
+    "health_manager": {
+     "state": "healthy",
+     "processes": [
+      {
+       "pid": 28884,
+       "state": "S",
+       "ppid": 28646,
+       "group": 28599,
+       "session": 28599,
+       "started_ticks": 572114
+      }
+     ],
+     "heartbeat_age_s": 15.579573392868042
+    },
+    "incident_orchestrator": {
+     "state": "healthy",
+     "processes": [
+      {
+       "pid": 29014,
+       "state": "S",
+       "ppid": 28646,
+       "group": 28599,
+       "session": 28599,
+       "started_ticks": 572330
+      }
+     ],
+     "heartbeat_age_s": 2.323573350906372
+    }
+   },
+   "actions": 0
+  },
+  "scheduler_health": {
+   "state": "healthy",
+   "checked_at": 1791655816.9757595,
+   "enabled_jobs": 12,
+   "new_failures": [],
+   "active_failures": [],
+   "duplicate_declarations": [],
+   "overruns": [],
+   "broker_alive": true,
+   "broker_incident_id": null,
+   "incidents_opened": 0,
+   "effects_replayed": false
+  },
+  "delivery": {
+   "state": "synchronized",
+   "head": "aa8161f65fdb2b1004cec177823391af8461dc16",
+   "publication": {
+    "prepared": [],
+    "publication": [],
+    "integration_reconciliation": []
+   }
+  },
+  "code_health": {
+   "state": "checked",
+   "profiles": [
+    {
+     "profile": "skill-intelligence-engine",
+     "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+     "checked_at": 1791655829.6598456,
+     "exit_code": 0,
+     "failures": 0,
+     "observation_kind": "production_probe",
+     "incident_id": null
+    },
+    {
+     "profile": "skill-registry-schema",
+     "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+     "checked_at": 1791655829.6598456,
+     "exit_code": 0,
+     "failures": 0,
+     "observation_kind": "production_probe",
+     "incident_id": null
+    },
+    {
+     "profile": "retrieval-cache",
+     "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+     "checked_at": 1791655829.6598456,
+     "exit_code": 0,
+     "failures": 0,
+     "observation_kind": "production_probe",
+     "incident_id": null
+    },
+    {
+     "profile": "retrieval-observability",
+     "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+     "checked_at": 1791655829.6598456,
+     "exit_code": 0,
+     "failures": 0,
+     "observation_kind": "production_probe",
+     "incident_id": null
+    },
+    {
+     "profile": "improvement-pipeline",
+     "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+     "checked_at": 1791655829.6598456,
+     "exit_code": 0,
+     "failures": 0,
+     "observation_kind": "production_probe",
+     "incident_id": null
+    },
+    {
+     "profile": "capability-graph-runtime",
+     "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+     "checked_at": 1791655829.6598456,
+     "exit_code": 0,
+     "failures": 0,
+     "observation_kind": "production_probe",
+     "incident_id": null
+    },
+    {
+     "profile": "delivery-publication-runtime-evidence",
+     "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+     "checked_at": 1791655829.6598456,
+     "exit_code": 0,
+     "failures": 0,
+     "observation_kind": "production_probe",
+     "incident_id": null
+    },
+    {
+     "profile": "task-status-reconciliation",
+     "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+     "checked_at": 1791655829.6598456,
+     "exit_code": 0,
+     "failures": 0,
+     "observation_kind": "production_probe",
+     "incident_id": null
+    },
+    {
+     "profile": "engineering-maintenance-control-plane",
+     "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+     "checked_at": 1791655829.6598456,
+     "exit_code": 0,
+     "failures": 0,
+     "observation_kind": "production_probe",
+     "incident_id": null
+    },
+    {
+     "profile": "reporting-incident-source",
+     "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+     "checked_at": 1791655829.6598456,
+     "exit_code": 0,
+     "failures": 0,
+     "observation_kind": "production_probe",
+     "incident_id": null
+    }
+   ]
+  },
+  "route_health": {
+   "state": "healthy",
+   "tracked": 1,
+   "changed": 0
+  },
+  "transaction_health": {
+   "state": "healthy",
+   "events": 0,
+   "repeated_failures": 0,
+   "pending_archives": 0,
+   "incidents_opened": 0,
+   "repair": {
+    "state": "no_change",
+    "repaired": 0,
+    "verified": 0,
+    "refused": 0
+   }
+  },
+  "continuum": {
+   "state": "healthy",
+   "checked": 1,
+   "reconciled": [
+    {
+     "run_id": "mcp:codex-cloud:s24-awake-20261010",
+     "state": "verification_required",
+     "action": "bridge_receipt_observed",
+     "detail": {
+      "state": "verification_required",
+      "run_id": "mcp:codex-cloud:s24-awake-20261010",
+      "attempt_id": "mcp-898649e7d16841dca1549f2c",
+      "observed": true,
+      "bridge_state": "completed",
+      "next": {
+       "action": "verify_result_or_effect",
+       "requestId": "mcp-codex-cloud-s24-awake-20261010-learning-capture",
+       "taskId": "mcp:codex-cloud:s24-awake-20261010",
+       "stepId": "continuum-0a5ff27d65f78ee269f7d9cb43e61e0bae7f47d91549d02ef6606bbfd8fa8115",
+       "attemptId": "mcp-898649e7d16841dca1549f2c",
+       "processId": null,
+       "artifactId": null,
+       "cancelled": false,
+       "dispatch_allowed": false
+      },
+      "revision": 7,
+      "retry_authorized": false
+     }
+    }
+   ],
+   "issues": [],
+   "dispatches": 0
+  },
+  "task_health": {
+   "checked_at": 1791655891.3563697,
+   "state": "attention_required",
+   "counts": {
+    "deferred": 1,
+    "completed": 161,
+    "superseded": 34,
+    "attention_required": 12,
+    "cancelled": 3,
+    "blocked": 4,
+    "verification_required": 1
+   },
+   "unfinished": 17,
+   "tasks": [
+    {
+     "run_id": "billing-payment-s24-20261003",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 582808,
+     "capability": "billing.utility.fast_path",
+     "kind": "engineering",
+     "surface": null,
+     "step": "generic-owner-confirmation-installed",
+     "fingerprint": "owner-confirmation-native-v1",
+     "owner_active": false,
+     "next_action": null,
+     "breaker_reason": "stale_verification_required"
+    },
+    {
+     "run_id": "claw-continuum-event-wake-producers-20261008",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 185208,
+     "capability": "engineering.delivery",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "direct-event-producers-not-generalized",
+     "fingerprint": "continuum-event-producers-v1",
+     "owner_active": false,
+     "next_action": "wire-authoritative-device-provider-human-wake-producers",
+     "breaker_reason": null
+    },
+    {
+     "run_id": "determinization-bridge-20261007",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 276332,
+     "capability": "engineering.learning_gate",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "live-acceptance-remediation",
+     "fingerprint": "determinization-bridge-v1",
+     "owner_active": false,
+     "next_action": null,
+     "breaker_reason": "stale_verification_required"
+    },
+    {
+     "run_id": "maxit-local-owner-promotion-20261008",
+     "state": "blocked",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 28942,
+     "capability": "payment.owner_native",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "external-policy-boundary",
+     "fingerprint": "9c3fe75d8c81dce24e03eef81330dd43fdbdbe60967d416f28f2beab588b7e62",
+     "owner_active": false,
+     "next_action": null,
+     "breaker_reason": null
+    },
+    {
+     "run_id": "mcp:codex-cloud:s24-awake-20261010",
+     "state": "verification_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 65477,
+     "capability": "engineering.learning_gate",
+     "kind": "task",
+     "surface": "chat",
+     "step": "learning-capture",
+     "fingerprint": "d8386a53dbec7f52939317d45e3b60e0aa5d64d4be53828a8edd07bc971f2d81",
+     "owner_active": false,
+     "next_action": "observe-existing-attempt",
+     "breaker_reason": null
+    },
+    {
+     "run_id": "openclaw-plugin-registry-source-drift-20261008",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 160929,
+     "capability": "engineering.delivery",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "registry-refresh-rechecked",
+     "fingerprint": "plugin-registry-source-changed-zero-diff-20261008",
+     "owner_active": false,
+     "next_action": "diagnose-source-fingerprint-instability",
+     "breaker_reason": null
+    },
+    {
+     "run_id": "payment-generic-engine-20261005",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 452462,
+     "capability": "payment.owner_native",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "deployed-instrumented-live-acceptance-pending",
+     "fingerprint": "payment-generic-engine-b32261b-c3abe55-31bac0d",
+     "owner_active": false,
+     "next_action": null,
+     "breaker_reason": "stale_verification_required"
+    },
+    {
+     "run_id": "payment-live-acceptance-post-3ds2-20261004",
+     "state": "blocked",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 504426,
+     "capability": "payment.owner_native",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "settlement_unattributed",
+     "fingerprint": "payment-live-post-3ds2-20261004-v1",
+     "owner_active": false,
+     "next_action": "fix_timeout_semantics_before_next_payment",
+     "breaker_reason": null
+    },
+    {
+     "run_id": "payment-local-owner-v11-finalize-20261004",
+     "state": "blocked",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 499169,
+     "capability": "payment.owner_native",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "demo-biometric-acceptance-pending",
+     "fingerprint": "payment-main-ddc3b48-runtime-ca3b7e6-apk-01ef30dd",
+     "owner_active": false,
+     "next_action": "fresh-demo-biometric-acceptance",
+     "breaker_reason": null
+    },
+    {
+     "run_id": "payment-ux-popup-fix-20261005",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 433892,
+     "capability": "payment.owner_native",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "engineering-closed-live-visual-acceptance-pending",
+     "fingerprint": "popup-runtime-f885444-android-8f927c5-ui-79ad091-apk-046a3a",
+     "owner_active": false,
+     "next_action": null,
+     "breaker_reason": "stale_verification_required"
+    },
+    {
+     "run_id": "payment-v1-topnet-live2-20261004",
+     "state": "blocked",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 577213,
+     "capability": "payment.owner_native",
+     "kind": "engineering",
+     "surface": null,
+     "step": "safety_blocked_before_prepare",
+     "fingerprint": "fa5c960486f4731097d69e1ced10830106029c2b45a6fc55730bb982e05dfe99",
+     "owner_active": false,
+     "next_action": "owner_initiated_local_payment_only",
+     "breaker_reason": "effect_verification_required"
+    },
+    {
+     "run_id": "provider-hardening-final-20261007",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 266781,
+     "capability": "inference.model_efficiency",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "audit",
+     "fingerprint": "provider-hardening-v1",
+     "owner_active": false,
+     "next_action": null,
+     "breaker_reason": "stale_verification_required"
+    },
+    {
+     "run_id": "samantha-revamp-codex-doc-validator-20261009",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 75095,
+     "capability": "engineering.delivery",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "validate-docs-hardening",
+     "fingerprint": "samantha-revamp-codex-doc-validator-v1",
+     "owner_active": false,
+     "next_action": null,
+     "breaker_reason": "stale_verification_required"
+    },
+    {
+     "run_id": "samantha-revamp-codex-doclinks-20261009",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 75095,
+     "capability": "engineering.delivery",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "git-only-doc-links-validator",
+     "fingerprint": "codex-doclinks-20261009-v1",
+     "owner_active": false,
+     "next_action": null,
+     "breaker_reason": "stale_verification_required"
+    },
+    {
+     "run_id": "sol-native-path-diagnosis-20261007",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 276386,
+     "capability": "openclaw.agent.headless",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "local-sol-canary",
+     "fingerprint": "sol-native-path-v1",
+     "owner_active": false,
+     "next_action": null,
+     "breaker_reason": "stale_verification_required"
+    },
+    {
+     "run_id": "test-sqlite-resource-hygiene-20261007",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 248929,
+     "capability": "engineering.delivery",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "qualify-suite-resource-warnings",
+     "fingerprint": "sqlite-tests-resource-hygiene-v1",
+     "owner_active": false,
+     "next_action": "localize-test-fixture-connection-ownership",
+     "breaker_reason": null
+    },
+    {
+     "run_id": "vector-claude-copilot-integration-20261006",
+     "state": "attention_required",
+     "incident_id": null,
+     "incident_state": null,
+     "repair_in_progress": false,
+     "age_s": 330697,
+     "capability": "inference.model_efficiency",
+     "kind": "engineering",
+     "surface": "chat",
+     "step": "preflight",
+     "fingerprint": "vector-claude-copilot-v1",
+     "owner_active": false,
+     "next_action": null,
+     "breaker_reason": "stale_verification_required"
+    }
+   ],
+   "terminal_history": [],
+   "read_issues": [],
+   "effects_replayed": false,
+   "scope": "task_ledgers_not_service_health",
+   "reconciliation": {
+    "state": "no_change",
+    "reconciled": [],
+    "escalated": [],
+    "active": 0,
+    "fresh": 0,
+    "issues": [],
+    "effects_replayed": false
+   }
+  },
+  "daily_log_audit": {
+   "state": "healthy",
+   "checked_at": 1791655891.3755975,
+   "window": {
+    "from": 1791654392.507708,
+    "to": 1791655891.3755975,
+    "initial_lookback_days": null
+   },
+   "events_scanned": 12,
+   "sources": {
+    "health": {
+     "path": "~/.openclaw/health/health.log",
+     "state": "ok",
+     "bytes": 262135,
+     "size": 768307,
+     "offset": 506163
+    },
+    "incidents": {
+     "path": "~/.openclaw/incidents/events.log",
+     "state": "ok",
+     "bytes": 101587,
+     "size": 101587,
+     "offset": 0
+    },
+    "orchestrator": {
+     "path": "~/.openclaw/incidents/orchestrator-worker.log",
+     "state": "ok",
+     "bytes": 262053,
+     "size": 286919,
+     "offset": 24775
+    },
+    "adb": {
+     "path": "~/.openclaw/watchdogs/adb-recovery.log",
+     "state": "ok",
+     "bytes": 243785,
+     "size": 243785,
+     "offset": 0
+    },
+    "rdc": {
+     "path": "~/.openclaw/watchdogs/remote-desktop.log",
+     "state": "ok",
+     "bytes": 52626,
+     "size": 52626,
+     "offset": 0
+    },
+    "rdc-process": {
+     "path": "~/.openclaw/watchdogs/remote-desktop-process.log",
+     "state": "ok",
+     "bytes": 1063986,
+     "size": 1063986,
+     "offset": 0
+    },
+    "slack": {
+     "path": "~/.openclaw/remote-bridge/slack/events.log",
+     "state": "ok",
+     "bytes": 261906,
+     "size": 4656546,
+     "offset": 4394402
+    },
+    "route": {
+     "path": "~/.openclaw/remote-bridge/route-events.log",
+     "state": "ok",
+     "bytes": 13367,
+     "size": 13367,
+     "offset": 0
+    },
+    "openclaw": {
+     "path": "/data/data/com.termux/files/usr/tmp/openclaw/openclaw-2026-10-10.log",
+     "state": "ok",
+     "bytes": 18460019,
+     "size": 18460019,
+     "offset": 0
+    }
+   },
+   "read_issues": [],
+   "partial": false,
+   "new_episodes": 0,
+   "open_episodes": 0,
+   "provider_calls": 0,
+   "auto_apply_queued": 0,
+   "auto_apply_episode_ids": [],
+   "episode_kinds": {
+    "CODE_HEALTH_GAP": 1,
+    "RECOVERED_WITHOUT_RCA": 255,
+    "RETRY_STORM": 203,
+    "STALE_WORK": 39,
+    "STRUCTURAL_RECURRENCE": 2
+   },
+   "new": [],
+   "effects_replayed": false
+  },
+  "improvement_pipeline": {
+   "state": "healthy",
+   "pending_valid": 0,
+   "invalid_pending": [],
+   "candidate_counts": {
+    "SUPERSEDED": 5,
+    "STABLE": 24,
+    "VALIDATED": 47,
+    "PROPOSED": 22,
+    "REJECTED": 2
+   },
+   "candidate_total": 100,
+   "bridge": {
+    "state": "healthy",
+    "ingested": 0,
+    "deduplicated": 0,
+    "errors": []
+   },
+   "round_learning": {
+    "state": "healthy",
+    "processed": 0,
+    "pending": 0,
+    "invalid": 0,
+    "errors": [],
+    "determinization": [],
+    "elapsed_ms": 0.265,
+    "promotion": "not_performed"
+   }
+  },
+  "improvement_review": {
+   "state": "healthy",
+   "posted": 0,
+   "decisions": 0,
+   "errors": []
+  },
+  "improvement_dispatch": {
+   "state": "idle",
+   "item_id": null,
+   "effects_replayed": false
+  },
+  "situations": {
+   "incidents": {
+    "state": "healthy",
+    "changed": 0,
+    "cursor": 2834
+   },
+   "context": {
+    "state": "healthy",
+    "ingested": 0,
+    "invalid": 0,
+    "cursor": 1933
+   },
+   "learning": {
+    "state": "healthy",
+    "changed": 0,
+    "promoted": 0
+   },
+   "owner_requests": {
+    "state": "healthy",
+    "linked": 0,
+    "closed": 0
+   },
+   "daily_receipts": {
+    "state": "healthy",
+    "written": 0
+   },
+   "notifications": {
+    "state": "healthy",
+    "attempts": 0,
+    "results": []
+   },
+   "writeback": {
+    "state": "healthy",
+    "written": 0
+   },
+   "metrics": {
+    "situations": 75,
+    "active": 68,
+    "dormant": 1,
+    "states": {
+     "acting": 0,
+     "analyzing": 10,
+     "detected": 37,
+     "monitoring": 0,
+     "resolved": 6,
+     "verifying": 22,
+     "waiting_human": 0
+    },
+    "events": {
+     "correlated": 339,
+     "created": 75,
+     "criterion": 7,
+     "human_answered": 3,
+     "human_notification": 2,
+     "human_prepared": 12,
+     "learning": 5,
+     "relation": 2,
+     "reopened": 2,
+     "source_status": 479,
+     "superseded_advisory": 1,
+     "transition": 14,
+     "watch_expired": 1,
+     "watch_started": 1
+    },
+    "context_pending": 0,
+    "human_pending": 0,
+    "notifications": {
+     "accepted": 2,
+     "uncertain": 0,
+     "failed": 0
+    }
+   },
+   "state": "healthy",
+   "elapsed_ms": 242
+  },
+  "semantic_health": {
+   "state": "healthy",
+   "attention": []
+  },
+  "elapsed_ms": 77353
+ }
+}

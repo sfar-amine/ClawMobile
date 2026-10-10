@@ -1,0 +1,97 @@
+{
+ "_capture": {
+  "method": "file",
+  "source": "~/.openclaw/autonomous-engineering/code-health.json",
+  "bytes": 2648,
+  "mtime": "2026-10-10T18:11:31+00:00",
+  "capturedAt": "2026-10-10T18:25:25+00:00",
+  "sanitized": true,
+  "note": "SHA Git (40 car.) conservés ; empreintes 64 car. hachées ; texte libre > 100 car. masqué"
+ },
+ "response": {
+  "version": 1,
+  "profiles": {
+   "skill-intelligence-engine": {
+    "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+    "checked_at": 1791655829.6598456,
+    "exit_code": 0,
+    "failures": 0,
+    "observation_kind": "production_probe",
+    "incident_id": null
+   },
+   "skill-registry-schema": {
+    "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+    "checked_at": 1791655829.6598456,
+    "exit_code": 0,
+    "failures": 0,
+    "observation_kind": "production_probe",
+    "incident_id": null
+   },
+   "retrieval-cache": {
+    "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+    "checked_at": 1791655829.6598456,
+    "exit_code": 0,
+    "failures": 0,
+    "observation_kind": "production_probe",
+    "incident_id": null
+   },
+   "retrieval-observability": {
+    "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+    "checked_at": 1791655829.6598456,
+    "exit_code": 0,
+    "failures": 0,
+    "observation_kind": "production_probe",
+    "incident_id": null
+   },
+   "improvement-pipeline": {
+    "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+    "checked_at": 1791655829.6598456,
+    "exit_code": 0,
+    "failures": 0,
+    "observation_kind": "production_probe",
+    "incident_id": null
+   },
+   "capability-graph-runtime": {
+    "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+    "checked_at": 1791655829.6598456,
+    "exit_code": 0,
+    "failures": 0,
+    "observation_kind": "production_probe",
+    "incident_id": null
+   },
+   "delivery-publication-runtime-evidence": {
+    "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+    "checked_at": 1791655829.6598456,
+    "exit_code": 0,
+    "failures": 0,
+    "observation_kind": "production_probe",
+    "incident_id": null
+   },
+   "task-status-reconciliation": {
+    "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+    "checked_at": 1791655829.6598456,
+    "exit_code": 0,
+    "failures": 0,
+    "observation_kind": "production_probe",
+    "incident_id": null
+   },
+   "engineering-maintenance-control-plane": {
+    "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+    "checked_at": 1791655829.6598456,
+    "exit_code": 0,
+    "failures": 0,
+    "observation_kind": "production_probe",
+    "incident_id": null
+   },
+   "reporting-incident-source": {
+    "commit": "aa8161f65fdb2b1004cec177823391af8461dc16",
+    "checked_at": 1791655829.6598456,
+    "exit_code": 0,
+    "failures": 0,
+    "observation_kind": "production_probe",
+    "incident_id": null
+   }
+  },
+  "checked_at": 1791655829.6598456
+ }
+}
