@@ -1,67 +1,70 @@
-import fs from "fs/promises";
-import {constants} from "fs";
-import path from "path";
-import os from "os";
 import {createHash} from "crypto";
 import {ControlReadPool} from "./control";
+import {callOpenClawGateway} from "./openclawAgentClient";
 import {gatewayFileList,gatewayFileContent,type FileReadScope} from "./fileGatewayRead";
-import {safeFileName,fileContentAllowed,FILE_LIST_LIMIT} from "./fileReadBoundary";
-import {protectedJob} from "./automations";
-import {protectedRun} from "./runInactivity";
-import {expectedCompanionSessionKey,normalizeCompanionSessionId} from "./openclawAgentClient";
+import {safeFileName,fileContentAllowed} from "./fileReadBoundary";
 const failure=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
-// RAM cache owned by the read facade: bounded keys/bytes/concurrency, no canonical store.
-const pool=new ControlReadPool(26000,2,8,10*1024*1024);
-const pending={success:false,state:"warming",receipt:null,ready:false,installedSchemaQualified:false,retryAfterMs:500};
-async function scopeFromQuery(params:URLSearchParams,content:boolean){
- const allowed=content?["scope","sessionId","path"]:["scope","sessionId","path","cursor"];
+const identity=/^[A-Za-z0-9:_+.@-]{1,200}$/;
+// Reuse the bounded Control collector; no filesystem, registry or session creation.
+const pool=new ControlReadPool(14000,2,8,10*1024*1024);
+const pending={success:false,state:"warming",receipt:null,ready:false,retryAfterMs:500,computation:{deliveryMode:"deferred"}};
+let mainCache:{at:number;row:{key:string;sessionId:string}|null}|null=null;
+let mainFlight:Promise<{key:string;sessionId:string}|null>|undefined;
+async function mainSession(deadline:number){
+ if(mainCache&&Date.now()-mainCache.at<15000){if(!mainCache.row)throw failure('files_owner_unavailable',503);return mainCache.row;}
+ if(!mainFlight){mainFlight=(async()=>{
+  try{
+   const remaining=Math.min(10000,deadline-Date.now());if(remaining<=0)throw Error();
+   const value=await callOpenClawGateway('sessions.list',{search:'agent:main:main',limit:100},{timeoutMs:remaining,hardTimeoutMs:remaining,strictOutput:{stdoutMaxBytes:1024*1024,stderrMaxBytes:65536,killGraceMs:250}});
+   if(!Array.isArray(value?.sessions)||value.sessions.length>100)throw Error();
+   // The string is only a selector. Dispatch always uses the owner's actual key.
+   const found=value.sessions.filter((row:any)=>row?.key==='agent:main:main'&&identity.test(row.key)&&typeof row.sessionId==='string'&&identity.test(row.sessionId));
+   const row=found.length===1?{key:found[0].key,sessionId:found[0].sessionId}:null;mainCache={at:Date.now(),row};return row;
+  }catch{mainCache={at:Date.now(),row:null};return null;}
+ })();}
+ let row;try{row=await mainFlight;}finally{mainFlight=undefined;}
+ if(!row)throw failure('files_owner_unavailable',503);return row;
+}
+function query(params:URLSearchParams,content:boolean){
+ const allowed=content?["scope","sessionId","path"]:["scope","sessionId","path","search"];
  for(const [key]of params)if(!allowed.includes(key)||params.getAll(key).length!==1)throw failure("invalid_file_query");
- const selected=params.get("scope")||"agent",name=params.get("path")||"";
+ const selected=params.get("scope")||"agent",name=params.get("path")||"",search=params.get('search')??undefined,sessionId=params.get('sessionId');
  if(selected!=="agent"&&selected!=="session")throw failure("invalid_file_query");
  if(content||name)safeFileName(name);if(content)fileContentAllowed(name);
- if(selected==="agent"){if(params.has("sessionId"))throw failure("invalid_file_query");return {scope:{scope:"agent"} as FileReadScope,name};}
- const sessionId=params.get("sessionId")||"";
- if(!/^[A-Za-z0-9-]{1,100}$/.test(sessionId)||normalizeCompanionSessionId(sessionId)!==sessionId)throw failure("file_not_available",404);
- const directory=path.join(process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),".openclaw"),"clawmobile-companion");
- let store:any;
- try{
-  const d=await fs.lstat(directory);if(!d.isDirectory()||d.isSymbolicLink())throw Error();
-  const file=await fs.open(path.join(directory,"runs.json"),constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
-  try{const stat=await file.stat();if(!stat.isFile()||stat.size>8*1024*1024)throw Error();const buffer=Buffer.alloc(8*1024*1024+1);let total=0;while(total<buffer.length){const read=await file.read(buffer,total,buffer.length-total,null);if(!read.bytesRead)break;total+=read.bytesRead;}if(total>8*1024*1024)throw Error();const after=await file.stat();if(after.size!==stat.size||after.mtimeMs!==stat.mtimeMs)throw Error();store=JSON.parse(buffer.subarray(0,total).toString("utf8"));}finally{await file.close();}
-  if(!Array.isArray(store.runs)||!Array.isArray(store.paymentRequests)||!Array.isArray(store.ownerConfirmations)||store.runs.length>20000)throw Error();
- }catch{throw failure("file_not_available",404);}
- const rows=store.runs.filter((r:any)=>r?.sessionId===sessionId&&r.executionSource!=="capability_first"&&r.modality!=="voice"&&!(store.archivedSessionIds||[]).includes(sessionId)&&!(store.runDeletions||[]).some((d:any)=>d.runId===r.runId));
- const expected=expectedCompanionSessionKey(sessionId);
- if(!expected.startsWith("agent:main:")||!rows.length||rows.some((r:any)=>(r.sessionKey||expected)!==expected||protectedRun(r,store.paymentRequests,store.ownerConfirmations)||protectedJob({text:r.text,userText:r.userText,decision:r.decision})))throw failure("file_not_available",404);
- return {scope:{scope:"session",sessionKey:expected} as FileReadScope,name};
+ if(sessionId!==null&&!identity.test(sessionId))throw failure('file_not_available',404);
+ if(search!==undefined&&(search.length<1||search.length>160||/[\p{C}]/u.test(search)))throw failure('invalid_file_query');
+ if(selected==='agent'&&(sessionId!==null||search!==undefined||!content&&name))throw failure('invalid_file_query');
+ return {selected,name,search,sessionId};
 }
-function key(scope:FileReadScope,name:string,content:boolean){return "files-"+createHash("sha256").update(JSON.stringify({scope,name,content})).digest("hex");}
-async function cached(scope:FileReadScope,name:string,content:boolean){
- const deadline=Date.now()+24000;
- const flight=pool.read(key(scope,name,content),async signal=>{
-  const raw=content?await gatewayFileContent(scope,name,{signal,deadline}):await gatewayFileList(scope,name,{signal,deadline});
-  if(signal.aborted)throw failure("file_owner_unavailable",503);
+function key(value:any){return "files-"+createHash("sha256").update(JSON.stringify(value)).digest("hex");}
+async function cached(request:ReturnType<typeof query>,content:boolean){
+ const resourceKey=key({...request,content});
+ const flight=pool.read(resourceKey,async signal=>{
+  const deadline=Date.now()+13500;
+  let scope:FileReadScope={scope:'agent'};
+  if(request.selected==='session'){
+   const row=await mainSession(deadline);
+   if(request.sessionId!==null&&request.sessionId!==row.sessionId&&request.sessionId!==row.key)throw failure('file_not_available',404);
+   scope={scope:'session',sessionKey:row.key};
+  }
+  if(signal.aborted)throw failure('files_owner_unavailable',503);
+  const raw=content?await gatewayFileContent(scope,request.name,{signal,deadline}):await gatewayFileList(scope,request.name,{signal,deadline},request.search);
+  if(signal.aborted)throw failure("files_owner_unavailable",503);
   const data=content?{contentType:(raw as any).contentType,contentBase64:(raw as any).bytes.toString("base64"),truncated:(raw as any).truncated,redacted:(raw as any).redacted}:raw;
-  return {schemaVersion:2,sections:{files:{schemaVersion:2,resourceKey:key(scope,name,content),computedAt:new Date().toISOString(),dataRevision:createHash("sha256").update(JSON.stringify(data)).digest("hex"),remainingFreshMs:15000,availability:"ready",freshness:"fresh",data}}};
- },undefined,{cache:true}).then(value=>({value}),()=>({error:true}));
- let timer:any;
- try{return await Promise.race([flight,new Promise<{pending:true}>(resolve=>{timer=setTimeout(()=>resolve({pending:true}),50);})]);}finally{clearTimeout(timer);}
+  return {schemaVersion:2,sections:{files:{schemaVersion:2,resourceKey,computedAt:new Date().toISOString(),dataRevision:key(data),remainingFreshMs:15000,availability:"ready",freshness:"fresh",data}}};
+ },undefined,{cache:true}).then(value=>({value}),error=>({error}));
+ let timer:ReturnType<typeof setTimeout>|undefined;
+ try{return await Promise.race([flight,new Promise<{pending:true}>(resolve=>{timer=setTimeout(()=>resolve({pending:true}),50);})]);}finally{if(timer)clearTimeout(timer);}
 }
 export async function filesList(parameters:URLSearchParams){
- const {scope,name}=await scopeFromQuery(parameters,false),cursor=parameters.get("cursor");
- if(cursor&&!/^[a-f0-9]{64}\.[0-9]{1,3}$/.test(cursor))throw failure("invalid_file_cursor");
- const loaded=await cached(scope,name,false);
- if("pending"in loaded)return pending;if("error"in loaded)throw failure("file_owner_unavailable",503);
- const section=loaded.value.sections.files,data:any=section.data;
- const revision=createHash("sha256").update(key(scope,name,false)+"|"+section.dataRevision).digest("hex");
- const offset=cursor?Number(cursor.split(".")[1]):0;
- if(cursor&&(cursor.split(".")[0]!==revision||offset%FILE_LIST_LIMIT!==0||offset>=data.items.length))throw failure("file_cursor_changed",409);
- const items=data.items.slice(offset,offset+FILE_LIST_LIMIT),next=offset+items.length;
- return {success:true,state:data.ownerTruncated?"partial":"ok",receipt:null,ready:false,installedSchemaQualified:false,items,cursor:next<data.items.length?revision+"."+next:null,ownerTruncated:data.ownerTruncated};
+ const request=query(parameters,false),loaded=await cached(request,false);
+ if("pending"in loaded)return pending;if("error"in loaded)throw loaded.error;
+ const data:any=loaded.value.sections.files.data;
+ return {success:true,state:data.ownerTruncated?"partial":"ok",receipt:null,ready:true,installedSchemaQualified:false,items:data.items,truncated:data.ownerTruncated,ownerTruncated:data.ownerTruncated,search:data.search,cursor:null};
 }
 export async function filesContent(parameters:URLSearchParams){
- const {scope,name}=await scopeFromQuery(parameters,true),loaded=await cached(scope,name,true);
- if("pending"in loaded)return pending;if("error"in loaded)throw failure("file_owner_unavailable",503);
+ const request=query(parameters,true),loaded=await cached(request,true);
+ if("pending"in loaded)return pending;if("error"in loaded)throw loaded.error;
  const data:any=loaded.value.sections.files.data;
- return {success:true,state:"ok",receipt:null,ready:false,installedSchemaQualified:false,contentType:data.contentType,bytes:Buffer.from(data.contentBase64,"base64"),truncated:data.truncated,redacted:data.redacted};
+ return {success:true,state:"ok",receipt:null,ready:true,installedSchemaQualified:false,contentType:data.contentType,bytes:Buffer.from(data.contentBase64,"base64"),truncated:data.truncated,redacted:data.redacted};
 }

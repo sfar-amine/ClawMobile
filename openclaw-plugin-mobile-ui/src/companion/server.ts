@@ -227,7 +227,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         if(value.contentType.startsWith("image/")){res.writeHead(200,{"Content-Type":value.contentType,"Content-Length":value.bytes.length,"X-Content-Type-Options":"nosniff","Cache-Control":"no-store","X-Samantha-File-Schema-Qualified":"false"});res.end(value.bytes);}
         else{const {bytes,...metadata}=value;res.setHeader("X-Content-Type-Options","nosniff");writeJson(res,200,{...metadata,text:bytes.toString("utf8")});}
       }else writeJson(res,value.state==="warming"?202:200,value);
-    }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;const code=status===404?"file_not_available":status===409?"file_cursor_changed":status===400?"invalid_file_query":"file_owner_unavailable";writeJson(res,status,{success:false,state:"refused",receipt:null,ready:false,installedSchemaQualified:false,error:code});}
+    }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;const code=status===404?"file_not_available":status===409?"file_cursor_changed":status===400?"invalid_file_query":"files_owner_unavailable";writeJson(res,status,{success:false,state:"refused",receipt:null,ready:false,installedSchemaQualified:false,error:code});}
     return;
   }
 

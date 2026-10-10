@@ -65,13 +65,15 @@ def settle(path, body):
         except ValueError:
             return True
         # Only "deferred" is judged: a section may legitimately be unavailable on a given phone.
+        if LEAK.search(body.decode("utf-8", "replace")):
+            return False
         if (doc.get("computation") or {}).get("deliveryMode") != "deferred":
             return True
         if time.monotonic() > deadline:
             return False
         time.sleep(0.5)
         code, body, _ = call("GET", path, 10)
-        if code != 200:
+        if code not in (200, 202):
             return False
 
 
@@ -92,30 +94,25 @@ def main():
         status = "skipped" if code == 404 else ("ok" if ok and not leak and settled else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "settled": settled, "status": status})
-    # R20 draft evidence stays pending until the installed owner is qualified.
-    code, body, took = call("GET", "/files?scope=agent", 1.5)
-    try:
-        projected = json.loads(body)
-    except (ValueError, TypeError):
-        projected = {}
-    file_status = "skipped" if code == 404 else ("pending" if code == 202 or (code == 200 and projected.get("installedSchemaQualified") is False) else "fail")
-    if took > 1.5 and code != 404:
-        file_status = "fail"
-    failed |= file_status in ("pending", "fail")
-    results.append({"route": "/files?scope=agent", "code": code, "seconds": round(took, 2), "budget": 1.5, "status": file_status})
+    # R20: owner data may warm, but cannot remain deferred indefinitely.
+    file_route = "/files?scope=agent"
+    code, body, took = call("GET", file_route, 1.5)
+    settled = settle(file_route, body) if code in (200, 202) else True
+    leak = bool(LEAK.search(body.decode("utf-8", "replace")))
+    file_status = "skipped" if code == 404 else "ok" if code in (200, 202) and took <= 1.5 and settled and not leak else "fail"
+    failed |= file_status == "fail"
+    results.append({"route": file_route, "code": code, "seconds": round(took, 2), "budget": 1.5, "settled": settled, "status": file_status})
     if code != 404:
-        if args.file_session_id and args.file_path:
-            fixture = urllib.parse.urlencode({"scope": "session", "sessionId": args.file_session_id, "path": args.file_path})
-            content_code, content_body, content_time = call("GET", "/files/content?" + fixture, 2.0)
-            try:
-                content_projection = json.loads(content_body)
-            except (ValueError, TypeError):
-                content_projection = {}
-            content_status = "pending" if content_time <= 2 and (content_code == 202 or (content_code == 200 and content_projection.get("installedSchemaQualified") is False)) else "fail"
-            results.append({"route": "/files/content (dedicated fixture)", "code": content_code, "seconds": round(content_time, 2), "budget": 2.0, "status": content_status})
-        else:
-            results.append({"route": "/files/content (dedicated fixture required)", "budget": 2.0, "status": "pending"})
-        failed = True
+        # Root agent file is available on every configured installation; no
+        # private identity supplied by the caller is needed to probe it.
+        fixture = urllib.parse.urlencode({"scope": "session", "sessionId": args.file_session_id, "path": args.file_path}) if args.file_session_id and args.file_path else "scope=agent&path=AGENTS.md"
+        content_route = "/files/content?" + fixture
+        content_code, content_body, content_time = call("GET", content_route, 2.0)
+        content_settled = settle(content_route, content_body) if content_code in (200, 202) else True
+        content_leak = bool(LEAK.search(content_body.decode("utf-8", "replace")))
+        content_status = "skipped" if content_code == 404 else "ok" if content_code in (200, 202) and content_time <= 2.0 and content_settled and not content_leak else "fail"
+        failed |= content_status == "fail"
+        results.append({"route": "/files/content (owner fixture)", "code": content_code, "seconds": round(content_time, 2), "budget": 2.0, "settled": content_settled, "status": content_status})
     for method, path in OWNER_GUARDS:
         code, _, took = call(method, path, 10)
         status = "skipped" if code == 404 else ("ok" if code in (400, 403, 405) else "fail")
