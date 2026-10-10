@@ -10,6 +10,7 @@ BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Budgets are S24 numbers measured on 10/10 with margin; a cold first call gets one retry.
 READS = [
     ("/health", 2.0),
+    ("/security/surfaces", 1.5),
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
     ("/control/engineering?limit=20", 2.0),
@@ -24,6 +25,7 @@ READS = [
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
+    ("POST", "/security/surfaces"),
     ("POST", "/automations/acceptance-probe/run"),
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
