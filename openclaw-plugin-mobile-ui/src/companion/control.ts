@@ -1,3 +1,4 @@
+import {completeAutomationScheduler} from "./automationRunsPreparation";
 import {completeUsageAttention} from './usageControl';
 import {allJobs,protectedJob} from "./automations";
 import { execFile, spawn } from "child_process";
@@ -47,7 +48,7 @@ export function readControl(section: string, signal?: AbortSignal): Promise<unkn
           else Object.assign(value,automationNotificationProjection(value,jobs));
         }
         if(value.notifications)value.notifications=automationNotificationProjection(value.notifications,jobs);
-        resolve(completeUsageAttention(value));
+        resolve(completeUsageAttention(section==='automations'?completeAutomationScheduler(value):value));
       } catch { reject(new Error("control_invalid_response")); }
     });
   });
@@ -306,10 +307,10 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
     return value;
   };
   const result=controlReads.read(key,guardedGenerate,signal,{force,cache:fast||process.env.SAMANTHA_CONTROL_CACHE==="1"});
-  if(!fast)return result.then(completeUsageAttention);
+  if(!fast)return result.then(value=>completeUsageAttention(names.includes("automations")?completeAutomationScheduler(value):value));
   // The existing bounded collector continues; polling shares its single flight.
   let timer:ReturnType<typeof setTimeout>|undefined;
-  try{return await Promise.race([result,new Promise<ControlResult>(resolve=>{
+  try{return await Promise.race([result.then(completeAutomationScheduler),new Promise<ControlResult>(resolve=>{
     timer=setTimeout(()=>resolve(deferredAutomations(sourceRevision)),180);
   })]);}finally{if(timer)clearTimeout(timer);}
 }

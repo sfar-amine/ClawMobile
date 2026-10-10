@@ -3,28 +3,32 @@
   "id": "codex-r22-preparation-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Prepare closed automation history projection and reuse bounded Control pool; no route activated",
-  "reason": "Programme29/33 and app66 shapes, public exact2026.9.6 schema inspected; real installed cron captures missing.",
+  "summary": "Wire R22 owner automation history and asynchronous scheduler header through existing ControlReadPool",
+  "reason": "Claude PR79 reply and merged real S24 fixture PR82 a9f08e5 confirm cron.status, cron.runs, task_runs and schema; app66 contract verified read-only. Base b40b867 merged preserving CI.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
     "openclaw-plugin-mobile-ui/src/companion/automationRunsPreparation.ts",
     "openclaw-plugin-mobile-ui/scripts/test-automation-runs-preparation.cjs",
     "docs/work/samantha-runtime/contracts/r22.md",
-    "docs/changes/codex-r22-preparation-20261010.json"
+    "docs/changes/codex-r22-preparation-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/automations.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-runs-http.cjs",
+    "installer/termux-lite/companion-acceptance.py"
   ],
   "tests": [
     {
-      "name": "automation-runs-preparation",
+      "name": "automation-runs-real-http-and-pool",
       "status": "passed",
-      "evidence": "Local build and boundaries/pool test: closed query, synthetic public-schema cron projection, real2419ms models latency reused, dedupe1000, cache30s/singleflight/privacy/limits/timeout. Not real cron capture or HTTP qualification."
+      "evidence": "Build exit0; pool and real fixture HTTP tests exit0: captured 1659ms cron.runs and2570ms cron.status, concurrent limits share job_id, 6s HTTP deadline, 30s TTL, unknown/empty/error, closed fields/browser guards, SQLite17 jobs/async header, 1000jobs/200entries/25cache keys."
     },
     {
       "name": "complete-current-ci-workflow",
-      "status": "passed",
-      "evidence": "All current ci.yml run steps locally executed after normal merge runtime42300b0: CI_LOCAL_OK exit0, current base steps preserved. No route integration or S24 qualification."
+      "status": "pending",
+      "evidence": "Full current ci.yml local run after base b40b867 merge pending; all previous steps conserved."
     }
   ],
   "documentation": [
@@ -33,7 +37,7 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Infrastructure preparation only, no agent/voice exposure or new route; future route needs planned canonical capability."
+    "reason": "NO_CAPABILITY temporary owner-screen view: V6 declares canonical automation/history reads after P0-1; no parallel routing or agent/voice entrypoint here."
   },
   "architecture": {
     "changed": false,
@@ -52,8 +56,8 @@
   },
   "rollback": "Revert isolated preparation under review; any qualified activation/rollback is performed by Claude through companion-deploy.sh with known-good SHA and receipt.",
   "limitations": [
-    "Real installed cron.status/cron.runs request/response captures missing; integration and merge blocked.",
-    "No route, Gateway provider or header wired; HTTP budgets/acceptance/canonical planned capability are prerequisites for next delta.",
-    "Publication authorized as separate draft after R5-bis pair; merge and integration blocked, no S24 qualification."
+    "Physical S24 route deadlines and header freshness must be qualified by Claude after deployment; local fixture timings are injected, not a live activation.",
+    "Scheduler header is unknown on first cold list read, populated asynchronously on the next read; this preserves R5 list latency.",
+    "NO_CAPABILITY owner-screen view until V6 canonical registration. No merge or deployment by Codex."
   ]
 }

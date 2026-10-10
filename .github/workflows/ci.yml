@@ -156,8 +156,8 @@ jobs:
       - name: Run read-only security surfaces contract
         run: node scripts/test-security-surfaces.cjs
 
-      - name: Test R22 automation history preparation boundaries
-        run: node scripts/test-automation-runs-preparation.cjs
+      - name: Test R22 automation history and scheduler HTTP contracts
+        run: node scripts/test-automation-runs-preparation.cjs && node scripts/test-automation-runs-http.cjs
       - name: MCP context scopes and admitted client provenance
         run: |
           node scripts/test-mcp-context-provenance.cjs
