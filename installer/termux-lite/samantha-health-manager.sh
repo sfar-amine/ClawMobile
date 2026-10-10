@@ -137,25 +137,56 @@ check_slack_bridge(){
  sleep 3 9>&-
  if "$ROOT/claw-slack-bridge-health.py" 9>&- >/dev/null 2>&1 && slack_bridge_on_current_root; then healthy slack_bridge; else fail slack_bridge; fi
 }
+# R17 runs cooperatively inside this owner, never in an extra daemon.
+# last_sweep extends the existing per-service health state (same sf/get/put).
+ALLOWLIST_LAST_CHECK=$(get whatsapp_allowlist last_sweep 0)
+check_allowlist_expiry(){
+ local tick elapsed result processed
+ tick=$(now);elapsed=$((tick-ALLOWLIST_LAST_CHECK))
+ [ "$elapsed" -ge 60 ] || [ "$elapsed" -lt 0 ] || return 0
+ ALLOWLIST_LAST_CHECK="$tick"
+ result=$(timeout --kill-after=2 22 python3 "$ROOT/people-trusted.py" allowlist sweep 9>&- <<<'{}' 2>/dev/null) || { log 'service=whatsapp_allowlist state=expired_pending reason=sweep_budget'; return 0; }
+ processed=$(printf '%s' "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("processed",0))' 9>&- 2>/dev/null) || return 0
+ case "$processed" in ''|*[!0-9]*) return 0;; esac
+ # No R17 disk write when no expiry was processed.
+ [ "$processed" -gt 0 ] && put whatsapp_allowlist last_sweep "$tick"
+ return 0
+}
 log 'event=start result=ok state=persistent_backoff'
 while :; do
  printf '%s' "$(date +%s)" >"$D/health-manager.heartbeat"
+ check_allowlist_expiry
  check_supervisor root_guardian '[s]amantha-root-guardian.sh' "$ROOT/samantha-root-guardian.sh"
+ check_allowlist_expiry
  check_supervisor adb_watchdog '[a]db-recovery-watchdog.sh' "$ROOT/adb-recovery-watchdog.sh"
+ check_allowlist_expiry
  check_supervisor remote_watchdog '[r]emote-desktop-watchdog.sh' "$ROOT/remote-desktop-watchdog.sh"
+ check_allowlist_expiry
  check_supervisor incident_manager '[i]ncident-manager.sh' "$ROOT/incident-manager.sh"
+ check_allowlist_expiry
  "$ROOT/incident-ingress.py" 9>&- >/dev/null 2>&1 || true
+ check_allowlist_expiry
  "$ROOT/incident-reconcile.sh" 9>&- >/dev/null 2>&1 || true
+ check_allowlist_expiry
  check_adb
+ check_allowlist_expiry
  check_android_phantom_headroom
+ check_allowlist_expiry
  check_network_safety
+ check_allowlist_expiry
  check_sshd
  printf '%s' "$(date +%s)" >"$D/health-manager.heartbeat"
+ check_allowlist_expiry
  "$ROOT/health-verdict.py" --write 9>&- >/dev/null 2>&1 || true
+ check_allowlist_expiry
  check_gateway
+ check_allowlist_expiry
  check_whatsapp
+ check_allowlist_expiry
  check_smtp
+ check_allowlist_expiry
  check_http companion http://127.0.0.1:8765/ 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 12 20
+ check_allowlist_expiry
  check_slack_bridge
  sleep 15 9>&-
 done

@@ -1,0 +1,34 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/laptop-access/computers",
+  "latencyMs": 183,
+  "repeatLatencyMs": 137,
+  "capturedAt": "2026-10-10T18:35:59+00:00",
+  "companion": "loopback 127.0.0.1:8765, sans en-tête propriétaire",
+  "sanitized": true
+ },
+ "response": {
+  "success": true,
+  "state": "ready",
+  "computers": [
+   {
+    "id": "SHA256:0/vSIgLcQybnPG+OlIyRx7DbwCljQU8tigAr+z2BYAo",
+    "label": "<texte 19 car.>",
+    "addedAt": null,
+    "lastSeenAt": null,
+    "ownerKey": false,
+    "payloadHash": "87c36979c5fd21d4d8e5457753380ccc0887ff023a8e11352ef2321250c9cd21"
+   },
+   {
+    "id": "SHA256:mWrJvBzWxG7iOYl2M4TH/nycZkBTVeV9x1sDKVYPTbE",
+    "label": "<texte 23 car.>",
+    "addedAt": null,
+    "lastSeenAt": null,
+    "ownerKey": true,
+    "payloadHash": "0f1558c5262bbe6e388d5d72387807c3fc25e4f8ef7dfd03daebb475d1d5db47"
+   }
+  ],
+  "receipt": null
+ }
+}
