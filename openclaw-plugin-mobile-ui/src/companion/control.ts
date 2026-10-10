@@ -37,7 +37,9 @@ export function streamControl(req: IncomingMessage, res: ServerResponse) {
     res.end(JSON.stringify({ error: "control_stream_busy" }));
     return;
   }
-  const child = spawn("python3", ["-u", controlPaths().live, "--control-json"], {
+  // view=owner: local owner view with tags and scrubbed previews (Runtime tools); default stays payload-free.
+  const owner = new URL(req.url || "/", "http://localhost").searchParams.get("view") === "owner";
+  const child = spawn("python3", ["-u", controlPaths().live, owner ? "--owner-json" : "--control-json"], {
     detached: true, stdio: ["ignore", "pipe", "pipe"],
   });
   activeStreams++;

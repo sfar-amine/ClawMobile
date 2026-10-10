@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "claw-live-owner-view-20261010",
+  "date": "2026-10-10",
+  "summary": "Owner view of claw-live for Samantha's Runtime tools: the same tags, action, status and scrubbed previews as the claw-live terminal, as JSON over the existing loopback Control stream (?view=owner).",
+  "root_cause": "Replacing ClawMobile's Runtime Tools: the raw gateway log is unreadable and the payload-free Control projection drops tags and details, so neither gives Amine the readable live view of the claw-live terminal.",
+  "architecture": "No new daemon, stream or store. claw-live gains --owner-json (claw_live_control.project_owner reuses normalize_tags and preview, which scrubs secrets, OTP, cards and bearer tokens; detail capped at 160 chars, heartbeat dropped). The Companion's existing activity/stream (loopback only, max 2 streams, 120 events/s) spawns --owner-json when view=owner; the default stays payload-free.",
+  "restart_policy": "Tier0 package + promote for claw-live files; Companion restart for control.ts.",
+  "human_boundary": "Unchanged; payment untouched.",
+  "rollback": "Previous Tier0 release and Companion dist backup."
+}
