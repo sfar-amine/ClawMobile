@@ -11,8 +11,7 @@
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/scripts/test-delete-run.cjs",
-    ".github/workflows/ci.yml",
-    "docs/work/samantha-android/27_CONVERGENCE_LOT0_CONTRACTS.md",
+    "docs/work/samantha-runtime/contracts/R3.md",
     "docs/changes/codex-delete-run-r3-20261010.md",
     "docs/changes/codex-delete-run-r3-20261010.json"
   ],
@@ -35,7 +34,7 @@
   ],
   "documentation": [
     "docs/changes/codex-delete-run-r3-20261010.md",
-    "docs/work/samantha-android/27_CONVERGENCE_LOT0_CONTRACTS.md"
+    "docs/work/samantha-runtime/contracts/R3.md"
   ],
   "capabilities": {
     "impact": "none",
@@ -59,6 +58,7 @@
   },
   "rollback": "Revert R3; preserve the additive runDeletions field for later anti-replay reactivation.",
   "limitations": [
-    "Git-only delivery. Claude owns S24 receipt, integrated acceptance and activation."
+    "Git-only delivery. Claude owns S24 receipt, integrated acceptance and activation.",
+    "Deletion receipt/idempotence window: 30 days and at most 1000 receipts; FIFO eviction."
   ]
 }

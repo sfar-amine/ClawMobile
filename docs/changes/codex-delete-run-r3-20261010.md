@@ -1,9 +1,7 @@
 # R3 — suppression idempotente d’un message
 
-Ajout de DELETE /v1/runs/{id} avec operationId et reçu persisté dans le registre Companion existant. La suppression vise un élément terminal d'historique ; aucun annulateur externe ni parcours paiement n'est ajouté. Les callbacks tardifs et les resoumissions de l'identité supprimée ne recréent pas le message.
+DELETE avec operationId et reçu dans le registre existant ; accès loopback, runs actifs/protégés refusés, sans changement paiement. Revue corrigée : FIFO/30 jours (1000 reçus), entrées de reçu malformées isolées et signalées sans données brutes, détection payment par capability et capability_id.
 
-Contrat C14 dans le doc 27. Tests HTTP/propriétaire, idempotence, conflit, concurrence, restart, gardes et anti-résurrection ; build, admission, courses backfill, trace-induction et payment-core.
+Idempotence/anti-résurrection dans la fenêtre effectivement retenue. Aucun nouveau store, scheduler ou exécuteur. Contrat docs/work/samantha-runtime/contracts/R3.md, sans création du doc27. Tests manuels complets ; CI retirée de cette branche tant que R1 n’est pas fusionné. Après fusion R1 par Claude : rebase sur runtime/samantha-companion-private puis ajout du test R3 à la CI.
 
-Architecture : même propriétaire et même fichier runs.json, avec reçus de suppression bornés. Aucun second store/registry/scheduler. Les six primitives MCP conservent leurs contrats ; le nouvel endpoint est exclusivement natif loopback. Android et M1 inchangés.
-
-Git uniquement : recette, reçu S24 et activation par Claude. Retour arrière : revert R3 ; l'ancien lecteur ignore le champ de reçus additionnel, sans migration. Les reçus doivent être conservés pour une reprise ultérieure anti-rejeu.
+Git uniquement : recette et activation par Claude. Rollback : revert scoped, conserver le champ runDeletions pour reprise. Aucun événement S24 optionnel émis hors recette.
