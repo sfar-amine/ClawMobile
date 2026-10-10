@@ -1,20 +1,31 @@
+import {allJobs,protectedJob} from "./automations";
 import { execFile, spawn } from "child_process";
+import {existsSync} from "fs";
 import type { IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
 import readline from "readline";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { performance } from "perf_hooks";
 import { completeHealthSection } from "./control-health";
 
-const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations", "notifications"]);
+const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations", "notifications", "diagnostic"]);
 let activeStreams = 0;
 
 export function controlPaths() {
+  const pinned=path.join(os.homedir(), ".openclaw/runtime-ui-playbooks/current");
   return {
-    playbooks: process.env.SAMANTHA_CONTROL_PLAYBOOKS || path.join(os.homedir(), ".openclaw/workspace/ui-playbooks"),
+    playbooks: process.env.SAMANTHA_CONTROL_PLAYBOOKS || process.env.CLAW_UI_PLAYBOOKS_ROOT || (existsSync(path.join(pinned,"reporting/control_snapshot.py")) ? pinned : path.join(os.homedir(), ".openclaw/workspace/ui-playbooks")),
     live: process.env.SAMANTHA_CONTROL_LIVE || path.join(os.homedir(), "ClawMobile/installer/termux-lite/claw-live.py"),
   };
+}
+
+/** This module ships with the canonical automation owner routes installed by P2-a. */
+export function automationNotificationProjection(value:any,jobs:any[]=[]):any {
+  if(!value||!Array.isArray(value.items))return value;
+  return {...value,activationRoute:'/v1/automations/{automationId}/enable|disable',items:value.items.map((item:any)=>
+    item?.kind==='scheduled'&&typeof item.automationId==='string'&&/^[A-Za-z0-9_.:-]{1,160}$/.test(item.automationId)
+      ? (()=>{const job=jobs.find(j=>j.id===item.automationId);return {...item,togglable:!!job&&!protectedJob(job),reason:job?(protectedJob(job)?'protected_automation':'delivery_evidence_unavailable'):'automation_unavailable'};})() : item)};
 }
 
 export function readControl(section: string, signal?: AbortSignal): Promise<unknown> {
@@ -24,12 +35,23 @@ export function readControl(section: string, signal?: AbortSignal): Promise<unkn
     execFile("python3", ["-m", "reporting.control_snapshot", "--section", section], {
       cwd: roots.playbooks, env: { ...process.env, SAMANTHA_CONTROL_LIVE: roots.live },
       timeout: 6500, maxBuffer: 1024 * 1024, signal,
-    }, (error, stdout) => {
+    }, async (error, stdout) => {
       if (error) return reject(new Error("control_unavailable"));
-      try { resolve(JSON.parse(stdout)); } catch { reject(new Error("control_invalid_response")); }
+      try {
+        const value=JSON.parse(stdout);
+        const jobs=(section==='notifications'||value.notifications)?await allJobs().catch(()=>[]):[];
+        if(section==='notifications'){
+          if(value.data)value.data=automationNotificationProjection(value.data,jobs);
+          else Object.assign(value,automationNotificationProjection(value,jobs));
+        }
+        if(value.notifications)value.notifications=automationNotificationProjection(value.notifications,jobs);
+        resolve(value);
+      } catch { reject(new Error("control_invalid_response")); }
     });
   });
 }
+
+const OWNER_BACKLOG = 60;
 
 export function streamControl(req: IncomingMessage, res: ServerResponse) {
   if (activeStreams >= 2) {
@@ -39,7 +61,9 @@ export function streamControl(req: IncomingMessage, res: ServerResponse) {
   }
   // view=owner: local owner view with tags and scrubbed previews (Runtime tools); default stays payload-free.
   const owner = new URL(req.url || "/", "http://localhost").searchParams.get("view") === "owner";
-  const child = spawn("python3", ["-u", controlPaths().live, owner ? "--owner-json" : "--control-json"], {
+  // The owner view starts with the last transcript lines (real timestamps, replay:true) so it is never empty on open.
+  const args = owner ? ["--owner-json", "--history", String(OWNER_BACKLOG)] : ["--control-json"];
+  const child = spawn("python3", ["-u", controlPaths().live, ...args], {
     detached: true, stdio: ["ignore", "pipe", "pipe"],
   });
   activeStreams++;
@@ -208,6 +232,8 @@ export function readControlV2(selected:string[],detailId:string|undefined,signal
   const generate=(abort:AbortSignal)=>new Promise<ControlResult>((resolve,reject)=>{
     const args=["-m","reporting.control_snapshot","--contract","2","--sections",names.join(",")];
     if(detailId)args.push("--detail-id",detailId);
+    // The scheduler list for the P2-a switches is read while Python runs, not after it (S24 Gateway calls take seconds).
+    const jobsRead=names.includes("notifications")?allJobs().catch(()=>[]):Promise.resolve([]);
     let settled=false,outputBytes=0,failure:Error|undefined;
     const chunks:Buffer[]=[];
     const child=spawn("python3",args,{cwd:roots.playbooks,env:{...process.env,SAMANTHA_CONTROL_LIVE:roots.live},
@@ -220,7 +246,15 @@ export function readControlV2(selected:string[],detailId:string|undefined,signal
       if(error||failure||abort.aborted){killGroup();reject(error||failure||controlError("control_read_cancelled",499));return;}
       try{
         const value=JSON.parse(Buffer.concat(chunks).toString("utf8"));
-        completeHealthSection(value,path.join(os.homedir(),".openclaw/health/current.json"))
+        if(value.sections?.diagnostic?.data?.components) {
+          const component=value.sections.diagnostic.data.components.find((row:any)=>row.id==="companion");
+          if(component){component.version=require("../../package.json").version;component.endpoint="/v1";}
+          value.sections.diagnostic.dataRevision=createHash("sha256").update(JSON.stringify(value.sections.diagnostic.data)).digest("hex");
+        }
+        const project=value.sections?.notifications?.data
+          ? jobsRead.then(jobs=>{value.sections.notifications.data=automationNotificationProjection(value.sections.notifications.data,jobs);return value;})
+          : Promise.resolve(value);
+        project.then(value=>completeHealthSection(value,path.join(os.homedir(),".openclaw/health/current.json")))
           .then(resolve,()=>reject(controlError("control_invalid_response")));
       }catch{reject(controlError("control_invalid_response"));}
     };

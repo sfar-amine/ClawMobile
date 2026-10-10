@@ -10,7 +10,7 @@ export function operationBody(body:any):string{
     typeof body.operationId!=="string"||!/^[-A-Za-z0-9_.:]{1,128}$/.test(body.operationId))throw nativeError("invalid_operation");
   return body.operationId;
 }
-export async function storedNativeOperationResult(runId:string){
+async function readNativeRegistry(){
  const directory=path.join(process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),".openclaw"),"clawmobile-companion");
  const info=await fs.lstat(directory);if(!info.isDirectory()||info.isSymbolicLink())throw nativeError("receipt_unavailable",503);
  const file=await fs.open(path.join(directory,"runs.json"),constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
@@ -18,13 +18,24 @@ export async function storedNativeOperationResult(runId:string){
   const stat=await file.stat();if(!stat.isFile()||stat.size>8*1024*1024)throw nativeError("receipt_unavailable",503);
   const content=await file.readFile();if(content.length>8*1024*1024)throw nativeError("receipt_unavailable",503);
   const registry=JSON.parse(content.toString("utf8"));
-  const run=registry.runs?.find((row:any)=>row.runId===runId);
+  return registry;
+ }finally{await file.close();}
+}
+export async function existingNativeOperation(operationId:string,identity:string){
+ let registry:any;try{registry=await readNativeRegistry();}catch(e:any){if(e.code==="ENOENT")return null;throw e;}
+ const run=registry.runs?.find((r:any)=>r.clientRunId==="native-operation-"+operationId);
+ if(!run)return null;
+ if(run.text!==identity||run.sessionId!=="native-owner-actions")throw nativeError("operation_conflict",409);
+ return await storedNativeOperationResult(run.runId)||{success:false,state:"indeterminate",receipt:null};
+}
+export async function storedNativeOperationResult(runId:string){
+ const registry=await readNativeRegistry();
+ const run=registry.runs?.find((row:any)=>row.runId===runId);
   if(run?.state!=="done"||typeof run.result!=="string")return null;
   const value=JSON.parse(run.result);
   return value?.receipt?.runId===runId&&value.receipt.version===1 ||
     value?.receipt?.action==="cancel_request"&&/^[a-f0-9]{64}$/.test(value.receipt.eventId||"") ||
     value?.receipt===null&&["refused","already_closed","not_found","indeterminate"].includes(value.state)?value:null;
- }finally{await file.close();}
 }
 /** Effects are claimed only after the existing canonical run ledger has persisted the receipt. */
 export async function nativeOperation(operationId:string,action:string,target:string,effect:()=>Promise<"completed"|"accepted"|{state:"completed"|"accepted"|"refused";artifact:Record<string,unknown>}>){
