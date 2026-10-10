@@ -16,7 +16,8 @@
     "docs/work/samantha-runtime/contracts/c5.md",
     "docs/changes/codex-c5-context-surfaces-20261010.md",
     "docs/changes/codex-c5-context-surfaces-20261010.json",
-    "installer/termux-lite/test-context-voice-read.py"
+    "installer/termux-lite/test-context-voice-read.py",
+    "openclaw-plugin-mobile-ui/fixtures/canonical-owner-local/c5-voice-events.json"
   ],
   "tests": [
     {
@@ -32,7 +33,7 @@
     {
       "name": "C5 canonical producer to claw_context reader",
       "status": "passed",
-      "evidence": "Original/replay/remplacement/delta via vrais propriétaires isolés, lecteur public pinned3862baa, inscrit CI."
+      "evidence": "Test intégral bi-repo local vert ; CIcore vérifie transport propriétaire/fixture locale hachée, CIUI35 lecteur canonique original/remplacement/delta. Aucun checkoutprivé."
     }
   ],
   "documentation": [
