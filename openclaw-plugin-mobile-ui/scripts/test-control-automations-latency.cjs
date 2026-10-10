@@ -15,7 +15,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
   const source=path.join(root,'cron/jobs.json');
   await fs.writeFile(source,JSON.stringify({version:1,jobs:[{id:'one'}],secret:'must-not-cross-boundary'}));
   await fs.writeFile(path.join(root,'reporting/__init__.py'),'');
-  await fs.writeFile(path.join(root,'reporting/control_snapshot.py'),`import json,time,os,hashlib\nfrom pathlib import Path\nr=Path(os.environ['OPENCLAW_STATE_DIR'])\nwith (r/'calls').open('a') as f:f.write('call\\n')\ndata=json.loads((r/'cron/jobs.json').read_text())\ntime.sleep(1.84)\nitems=[{'id':x['id']} for x in data['jobs']]\nrevision=hashlib.sha256(json.dumps(items).encode()).hexdigest()\nprint(json.dumps({'schemaVersion':2,'sections':{'automations':{'schemaVersion':2,'resourceKey':'control/v2/automations','dataRevision':revision,'availability':'ready','freshness':'fresh','remainingFreshMs':15000,'data':{'items':items,'available':True}}}}))\n`);
+  await fs.writeFile(path.join(root,'reporting/control_snapshot.py'),`import json,time,os,hashlib\nfrom pathlib import Path\nr=Path(os.environ['OPENCLAW_STATE_DIR'])\nwith (r/'calls').open('a') as f:f.write('call\\n')\ntry:data=json.loads((r/'cron/jobs.json').read_text())\nexcept Exception:data={'jobs':[{'id':'gateway'}]}\ntime.sleep(1.84)\nitems=[{'id':x['id']} for x in data['jobs']]\nrevision=hashlib.sha256(json.dumps(items).encode()).hexdigest()\nprint(json.dumps({'schemaVersion':2,'sections':{'automations':{'schemaVersion':2,'resourceKey':'control/v2/automations','dataRevision':revision,'availability':'ready','freshness':'fresh','remainingFreshMs':15000,'data':{'items':items,'available':True}}}}))\n`);
   process.env.OPENCLAW_STATE_DIR=root;process.env.SAMANTHA_CONTROL_PLAYBOOKS=root;
   const began=performance.now();await readControl('automations');const baseline=performance.now()-began;
   assert.ok(baseline>=1840);
@@ -44,7 +44,10 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
   const inFlightChanged=await get();assert.equal(inFlightChanged.body.computation.deliveryMode,'deferred');assert.ok(!inFlightChanged.body.sections.automations.data);
   await delay(1800);assert.equal((await get()).body.sections.automations.data.items[0].id,'three');
   await fs.unlink(source);await fs.symlink(path.join(root,'calls'),source);
-  const unavailable=await get();assert.ok(unavailable.ms<300);assert.equal(unavailable.body.sections.automations.reason,'source_revision_unavailable');
+  // S24 reality (OpenClaw 2026.9.6 keeps cron jobs in SQLite): no readable revision source means a normal read, never "deferred" forever.
+  const unavailable=await get();assert.notEqual(unavailable.body.computation?.deliveryMode,'deferred');assert.equal(unavailable.body.sections.automations.data.items[0].id,'gateway');
+  await fs.unlink(source);
+  const missing=await get();assert.notEqual(missing.body.computation?.deliveryMode,'deferred');assert.equal(missing.body.sections.automations.data.items[0].id,'gateway');
   assert.ok(!JSON.stringify(warm.body).includes('must-not-cross-boundary'));
   console.log(JSON.stringify({test:'control-automations-latency',baselineMs:+baseline.toFixed(2),coldMs:+cold.ms.toFixed(2),cachedMs:+warm.ms.toFixed(2),source:'offline slow-owner fixture',passed:true}));
  }finally{

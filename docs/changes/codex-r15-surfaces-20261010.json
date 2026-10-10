@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "codex-r15-surfaces-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Read existing MCP client receipts and canonical transport state",
+  "reason": "Files18 and26; current runtime merged, authenticated internal receipt metadata and truthful bounded large-directory projection.",
+  "files": [
+    "docs/changes/codex-r15-surfaces-20261010.json",
+    "docs/changes/codex-r15-surfaces-20261010.md",
+    "docs/work/samantha-runtime/contracts/r15.md",
+    "openclaw-plugin-mobile-ui/scripts/test-security-surfaces.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/securitySurfaces.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py"
+  ],
+  "tests": [
+    {
+      "name": "r15-security-surfaces",
+      "status": "passed",
+      "evidence": "Build, R15 50000-receipt directory and HTTP forgery fixture, MCP regression, full current CI and delivery gate; acceptance GET1.5s and mutation405 registered. MCP context fixture is local empty required_reads, not S24 context."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-r15-surfaces-20261010.md",
+    "docs/work/samantha-runtime/contracts/r15.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "updated",
+      "claw_exec": "updated",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "updated"
+    },
+    "reason": "Wire execution unchanged; existing receipts retain authenticated closed access metadata. Local ingress and existing relay/bridge tests pass."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "No Worker client catalogue endpoint; only clients seen in retained receipts, with explicit issue.",
+    "Historical method profiles explicit; other old receipts have unknown profile.",
+    "No S24 recipe/deployment claimed. Transport metadata cached 15 seconds; bounded incomplete receipt scans signalled."
+  ]
+}

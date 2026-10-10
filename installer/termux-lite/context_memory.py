@@ -166,3 +166,37 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
                   'coverage_complete': not blocked,
                   'estimated_tokens': math.ceil((foundation_bytes + len(body.encode())) / 3),
                   'token_estimate_basis': 'UTF-8 bytes / 3; estimate only; hard bound is bytes'}
+
+
+# Native Control reads the same immutable owner store; no separate memory registry.
+def control_items(connection, query='', kind=None, offset=0, limit=20):
+    if kind not in {None,'preference','decision','person','rule','import'} or len(query)>200 or not 0<=offset<=5000 or not 1<=limit<=50:
+        raise ValueError('invalid_memory_query')
+    source_kinds={'decision':'decision','rule':'constraint','import':'learning'}
+    categories=[{'id':k,'available':k in source_kinds} for k in ('preference','decision','person','rule','import')]
+    if kind in {'preference','person'}:return {'items':[], 'nextOffset':None, 'typedSourceAvailable':False,'categories':categories}
+    selected=source_kinds.get(kind)
+    # Imported learnings retain the owner's existing kind.
+    filters=[ACTIVE,"(e.kind IN ('decision','constraint') OR (e.kind='learning' AND instr(e.text,'MEMORY_IMPORT_V1 ')=1))"]
+    args=[]
+    if selected:filters.append('e.kind=?');args.append(selected)
+    if query:
+        filters.append("e.text LIKE ? ESCAPE '\\'")
+        args.append('%'+query.replace('\\','\\\\').replace('%','\\%').replace('_','\\_')+'%')
+    rows=connection.execute(f"SELECT {COLUMNS} FROM events e WHERE {' AND '.join(filters)} ORDER BY e.revision DESC LIMIT ? OFFSET ?",(*args,limit+1,offset)).fetchall()
+    def clean(value):
+        if re.search(r'(?i)(token|password|secret|credential|authorization|otp|cvv|cvc|api[_ -]?key|iban|bank account)|(?:\d[ -]?){8,19}|https?://|[\w.+-]+@[\w.-]+',value):return 'Détail sensible masqué'
+        return ' '.join(value.split())[:500]
+    items=[]
+    for row in rows[:limit]:
+        text=row[4];source=None;original=None
+        if row[3]=='learning':
+            try:
+                payload=json.loads(text[len('MEMORY_IMPORT_V1 '):])
+                if not isinstance(payload,dict) or payload.get('source') not in {'chatgpt','claude'} or not isinstance(payload.get('text'),str):raise ValueError()
+                text=payload['text'];source=payload['source']
+                from context_import import stamp
+                original=stamp(payload.get('originalCreatedAt'))
+            except (ValueError,TypeError):text='Détail indisponible'
+        items.append({'id':row[0],'text':clean(text),'kind':{'decision':'decision','constraint':'rule','learning':'import'}[row[3]],'createdAt':row[5],'source':source,'originalCreatedAt':original})
+    return {'items':items,'nextOffset':offset+limit if len(rows)>limit else None,'typedSourceAvailable':True,'categories':categories}

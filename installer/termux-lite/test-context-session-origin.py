@@ -7,7 +7,7 @@ SOURCE=Path(__file__).resolve().parent
 class OriginTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(prefix='r10-origin-');self.home=Path(self.tmp.name);self.root=self.home/'context';self.bin=self.home/'bin';self.bin.mkdir()
-        for name in ('context-event.sh','context-store.py','context_memory.py'):
+        for name in ('context-event.sh','context-store.py','context_memory.py','context_import.py'):
             p=self.bin/name;p.write_text((SOURCE/name).read_text().replace('#!/data/data/com.termux/files/usr/bin/bash','#!/usr/bin/env bash',1).replace('#!/data/data/com.termux/files/usr/bin/python3','#!/usr/bin/env python3',1));p.chmod(0o700)
         (self.bin/'context-compact.sh').write_text('#!/bin/sh\nexit 0\n');(self.bin/'context-compact.sh').chmod(0o700)
         self.env=dict(os.environ,SAMANTHA_CONTEXT_ROOT=str(self.root))
