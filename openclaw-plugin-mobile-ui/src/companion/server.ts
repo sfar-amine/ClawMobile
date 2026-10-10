@@ -1,3 +1,4 @@
+import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
 import {capabilityDetail} from "./capabilityControl";
 import {updatesRead} from "./updatesControl";
 import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
@@ -213,6 +214,32 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       success: false,
       message: "This endpoint is restricted to local companion app requests.",
     });
+    return;
+  }
+
+  if(routePath==="/control/memory"||routePath.startsWith("/control/memory/")){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){
+      writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;
+    }
+    res.setHeader("Cache-Control","no-store");
+    try{
+      if(routePath==="/control/memory"){
+        if(method!=="GET"){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+        writeJson(res,200,await memoryRead(requestUrl.searchParams));return;
+      }
+      if(routePath==="/control/memory/import/preview"||routePath==="/control/memory/import"){
+        if(method!=="POST"){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+        if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+        const result=await memoryImport(await readJsonBody(req,1024*1024),routePath==="/control/memory/import");
+        writeJson(res,result.state==="conflict"?409:result.state==="failed"?503:200,result);return;
+      }
+      const match=/^\/control\/memory\/([a-f0-9]{64})\/forget$/.exec(routePath);
+      if(!match){writeJson(res,404,{success:false,state:"refused",receipt:null,error:"not_found"});return;}
+      if(method!=="POST"){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      const result=await memoryForget(match[1],await readJsonBody(req,1024));
+      writeJson(res,(result.state==="refused"||result.state==="conflict")?409:result.state==="not_found"?404:result.state==="failed"?503:200,result);
+    }catch(error:any){const status=[400,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?"failed":"refused",receipt:null,error:status===400?"invalid_memory_request":status===409?"memory_preview_changed":"memory_owner_unavailable"});}
     return;
   }
 

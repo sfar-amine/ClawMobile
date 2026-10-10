@@ -16,6 +16,7 @@ READS = [
     ("/control/engineering?limit=20", 2.0),
     ("/control/diagnostic/export", 3.0),
     ("/updates", 4.0),
+    ("/control/memory?limit=20", 3.0),
     ("/agent/config", 9.0),
     ("/laptop-access/computers", 6.0),
     ("/security/surfaces", 2.0),
@@ -28,6 +29,9 @@ OWNER_GUARDS = [
     ("POST", "/automations/acceptance-probe/run"),
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
+    ("POST", "/control/memory/import/preview"),
+    ("POST", "/control/memory/import"),
+    ("POST", "/control/memory/" + "a" * 64 + "/forget"),
     ("POST", "/runs/acceptance-probe/approval"),
 ]
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY|\+\d{11,}")
