@@ -4,12 +4,12 @@ import {callOpenClawGateway} from "./openclawAgentClient";
 // whole config/auth object is retained; fresh mutation reads keep their own
 // validation, CAS and dispatch rules in the consumer.
 export type ModelOwnerRead={raw:any,catalog:any,auth:any};
-export type ModelOwnerSnapshot={config:any,catalog:any,auth:any,revision:string|null,updatedAt:number};
+export type ModelOwnerSnapshot={config:any,catalog:any,auth:any,revision:string|null,updatedAt:number,stale?:boolean};
 export type CachedModelOwner={snapshot:ModelOwnerSnapshot|null,state:"fresh"|"stale"|"unknown",refreshThrottled:boolean};
 const CACHE_MS=60000,REFRESH_MS=30000;
 let lastExplicitRefreshAt=-Infinity,nextCachedReadAt=0;
 let flight:Promise<ModelOwnerRead>|undefined;
-let snapshot:ModelOwnerSnapshot|null=null;
+let snapshot:ModelOwnerSnapshot|null=null,lastReadFailed=false;
 const sensitive=/Bearer\s|(?:api[_-]?key|token|secret|password)\s*[:=]|sk-[A-Za-z0-9_-]{16,}|(?:ghp_|github_pat_)[A-Za-z0-9_]{16,}/i;
 const text=(value:any,max=200)=>typeof value==='string'&&value.length>0&&value.length<=max&&!sensitive.test(value)&&!/[\p{C}\p{Zl}\p{Zp}]/u.test(value)?value:undefined;
 const identity=(value:any,max=200)=>typeof value==='string'&&value.length<=max&&!sensitive.test(value)&&/^[A-Za-z0-9._:/+@-]+$/.test(value)&&!value.includes('://')?value:undefined;
@@ -71,15 +71,16 @@ export async function readModelOwnerFresh(options:{budgetMs?:number}={}):Promise
    callOpenClawGateway('models.authStatus',{agentId:'main'},budget).catch(()=>null)
   ]);
   const value={raw,catalog,auth},next=projected(value);
+  lastReadFailed=next===null;
   if(next)snapshot=next;
   return value;
  })();
- try{return await flight;}finally{flight=undefined;}
+ try{return await flight;}catch(error){lastReadFailed=true;throw error;}finally{flight=undefined;}
 }
 
 /** No I/O: GET consumers can keep the last successful owner projection. */
 export function peekModelOwner():ModelOwnerSnapshot|null{
- return snapshot?JSON.parse(JSON.stringify(snapshot)):null;
+ return snapshot?JSON.parse(JSON.stringify({...snapshot,stale:lastReadFailed})):null;
 }
 
 /** Explicit pre-load, for the existing startup/read paths, never a new timer. */
@@ -101,7 +102,7 @@ export async function readModelOwnerCached(options:{refresh?:boolean}={}):Promis
  if(refresh){nextCachedReadAt=now+CACHE_MS;await refreshModelOwner();}
  else if(flight&&!snapshot)try{await boundedRead(flight);}catch{/* A cold shared failure stays unknown. */}
  const value=peekModelOwner();
- return {snapshot:value,state:value?(Date.now()-value.updatedAt<CACHE_MS?'fresh':'stale'):'unknown',refreshThrottled};
+ return {snapshot:value,state:value?(!value.stale&&Date.now()-value.updatedAt<CACHE_MS?'fresh':'stale'):'unknown',refreshThrottled};
 }
 
 function boundedRead<T>(read:Promise<T>):Promise<T>{
