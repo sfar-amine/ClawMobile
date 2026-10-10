@@ -17,13 +17,15 @@
     "openclaw-plugin-mobile-ui/src/companion/skills.ts",
     ".github/workflows/ci.yml",
     "installer/termux-lite/companion-acceptance.py",
-    "openclaw-plugin-mobile-ui/src/companion/automations.ts"
+    "openclaw-plugin-mobile-ui/src/companion/automations.ts",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/skills.status.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/README.md"
   ],
   "tests": [
     {
       "name": "p2-b-control",
       "status": "passed",
-      "evidence": "CI entière sur 6b7c68f : CI_LOCAL_OK ; six cas financiers sur instruction, titre, SKILL.md et fast-path ; motif exactement partagé avec R8, budgets explicites et recette préservée."
+      "evidence": "Reprise Claude : six cas financiers (titre, SKILL.md, fast-path, instruction) en risque haut et refusés sans effet ; fixture S24 skills.status ; budgets Gateway explicites avec latence 2,4 s et 8 s ; CI entière."
     }
   ],
   "documentation": [
@@ -33,7 +35,7 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Facade or offline tooling; canonical owners retained."
+    "reason": "NO_CAPABILITY : gestion des skills depuis l'écran propriétaire ; l'exposition agent viendra avec V6."
   },
   "architecture": {
     "changed": false,
@@ -50,8 +52,8 @@
     },
     "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
   },
-  "rollback": "Revert this local lot.",
+  "rollback": "Revert de cette PR (aucune migration, aucun état nouveau ; les reçus d'opérations restent dans le registre des runs existant).",
   "limitations": [
-    "No deployment or S24 recipe claimed; active skills RPC qualification by Claude."
+    "Pas de déploiement ni de recette S24 revendiqués ; déploiement par Claude via companion-deploy.sh après fusion."
   ]
 }

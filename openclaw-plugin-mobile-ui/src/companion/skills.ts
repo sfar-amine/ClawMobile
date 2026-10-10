@@ -758,13 +758,14 @@ function loadSkill(skillDir: string, id: string): LoadedSkill | null {
   const candidateJson = readJson(path.join(skillDir, "skill_candidate.json"));
   const generated = frontmatter.clawmobile_generated === "true" || !!generatedJson || !!candidateJson;
   const feedback = readFeedback(path.join(skillDir, "execution_feedback.jsonl"));
-  const risk = protectedPayment({id,name,markdown,generatedJson,candidateJson}) ? "high" : inferRisk(id, description, generated);
+  // Shared automations.ts payment guard over title, SKILL.md body and fast-path metadata.
+  const risk = inferRisk(id, description, generated, {name,markdown,generatedJson,candidateJson});
   const scope = inferScope(id, description, generatedJson, candidateJson);
   const overview = buildOverview(markdown, description, scope, generated);
   const knowledge = buildKnowledge(markdown, generatedJson, candidateJson);
   const appModel = buildAppModel(generatedJson, candidateJson);
   const knowledgeShortcuts = buildKnowledgeShortcuts(generatedJson, candidateJson);
-  const fastPaths = buildFastPaths(id, generatedJson, candidateJson, feedback, generated);
+  const fastPaths = buildFastPaths(id, generatedJson, candidateJson, feedback, generated).map((fastPath)=>risk==="high"?{...fastPath,risk:"high" as const}:fastPath);
   const executionRoutes = buildExecutionRoutes(fastPaths, generatedJson, candidateJson, generated, feedback);
   const history = buildHistory(feedback, generated, stat);
 
@@ -1366,9 +1367,9 @@ function inferStatus(generated: boolean, feedback: FeedbackSummary, fastPaths: C
   return "trusted";
 }
 
-function inferRisk(id: string, description: string, generated: boolean): "low" | "medium" | "high" {
+function inferRisk(id: string, description: string, generated: boolean, sources: Record<string, any> = {}): "low" | "medium" | "high" {
   const text = `${id} ${description}`.toLowerCase();
-  if (text.includes("payment") || text.includes("purchase") || text.includes("delete")) return "high";
+  if (protectedPayment({id,description,...sources}) || text.includes("delete")) return "high";
   if (generated || text.includes("policy") || text.includes("record") || text.includes("promote")) return "medium";
   return "low";
 }

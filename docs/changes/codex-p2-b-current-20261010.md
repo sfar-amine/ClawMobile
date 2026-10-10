@@ -7,3 +7,5 @@ Validation : statistiques, owner exact, essai, restart/replay, concurrence, prot
 Revue 26 : base 0bf30ab intégrée sans force-push, garde financière commune sur sources complètes, deadlines Gateway explicites, acceptance GET/guards et CI test-skill-control. Aucune fixture S24 ni qualification RPC physique inventée.
 
 Relecture GitHub et union R8 : paiement partagé AUTOMATION_PAYMENT_PATTERN/protectedPayment ; base 6b7c68f, routes mémoire, toutes étapes CI, settle et LEAK secrets conservés.
+
+Reprise Claude (Codex en pause) : `inferRisk` utilise le motif partagé sur toutes les sources (fast paths en risque haut), « régler 50 TND » testé tel quel, budgets Gateway explicites mesurés (capture S24 `skills.status`, cache 15 s, attente GET plafonnée à 3 s, activation ≤ 17 s), lignes de recette sur une skill réelle sans argument, capability `NO_CAPABILITY`.

@@ -16,8 +16,24 @@ function operation(body:any,action:string){
  if(action==="try"&&(typeof body.instruction!=="string"||!body.instruction.trim()||body.instruction.length>2000))throw nativeError("invalid_skill_instruction");
  return body.operationId as string;
 }
-async function canonicalSkill(id:string){
- const value=await callOpenClawGateway("skills.status",{agentId:"main"},{timeoutMs:2500,hardTimeoutMs:3000});
+// Explicit Gateway CLI budgets. S24 capture 10/10: skills.status = 1.8-2.4 s, 65 rows, 80 KB.
+// Worst case of an activation: status 5 s + update 7 s + verification 5 s = 17 s (never the 10+5 s defaults chained).
+export const SKILL_STATUS_BUDGET={timeoutMs:4000,hardTimeoutMs:5000};
+export const SKILL_UPDATE_BUDGET={timeoutMs:6000,hardTimeoutMs:7000};
+const STATUS_CACHE_MS=15000;
+// GET /skills/{id} never waits on the Gateway beyond this: it answers partial (enabled:null) instead.
+export const SKILL_DETAIL_STATUS_WAIT_MS=3000;
+let statusCache:{at:number;value:Promise<any>}|null=null;
+// One Gateway read per detail page burst; mutations always read fresh and invalidate the cache.
+export function resetSkillStatusCache(){statusCache=null;}
+function skillStatus(fresh:boolean){
+ if(!fresh&&statusCache&&Date.now()-statusCache.at<STATUS_CACHE_MS)return statusCache.value;
+ const value=callOpenClawGateway("skills.status",{agentId:"main"},SKILL_STATUS_BUDGET);
+ statusCache={at:Date.now(),value};value.catch(()=>{if(statusCache?.value===value)statusCache=null;});
+ return value;
+}
+async function canonicalSkill(id:string,fresh=true){
+ const value=await skillStatus(fresh);
  if(!Array.isArray(value?.skills)||value.skills.length>2000)throw nativeError("skills_owner_unavailable",503);
  const expected=path.join(getWorkspaceDir(),"skills",id,"SKILL.md");
  const matches=value.skills.filter((row:any)=>typeof row.filePath==="string"&&path.resolve(row.filePath)===expected);
@@ -26,7 +42,7 @@ async function canonicalSkill(id:string){
 }
 export async function skillControlDetail(id:string){
  validate(id);const detail=getWorkspaceSkill(id);if(!detail)throw nativeError("skill_not_found",404);
- let enabled:boolean|null=null;try{enabled=!(await canonicalSkill(id)).disabled;}catch{/* absence is not enabled */}
+ let enabled:boolean|null=null,timer:any;try{enabled=!(await Promise.race([canonicalSkill(id,false),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(nativeError("skills_owner_slow",503)),SKILL_DETAIL_STATUS_WAIT_MS);})])).disabled;}catch{/* absence or a slow owner is not "enabled": partial, the read keeps filling the cache */}finally{clearTimeout(timer);}
  const protectedSkill=detail.risk==="high"||protectedPayment(id+" "+detail.name+" "+detail.description);
  return {...detail,success:true,state:enabled===null?"partial":"ok",receipt:null,enabled,activationAvailable:enabled!==null&&!protectedSkill,tryAvailable:enabled===true&&!protectedSkill&&!detail.requiresConfirmation};
 }
@@ -61,7 +77,7 @@ export async function changeSkill(id:string,action:string,body:any){
    if(result.accepted&&result.runId){state="accepted";artifact={runId:result.runId,sessionId:result.sessionId};}
    else if(result.submissionState==="not_submitted")state="failed";
   }else{
-   const result=await callOpenClawGateway("skills.update",{skillKey:row.skillKey,enabled:action==="enable"},{timeoutMs:10000,hardTimeoutMs:12000});
+   statusCache=null;const result=await callOpenClawGateway("skills.update",{skillKey:row.skillKey,enabled:action==="enable"},SKILL_UPDATE_BUDGET);
    if(result?.ok===true&&(await canonicalSkill(id)).disabled===(action==="disable"))state="completed";
   }
  }catch{/* An effect may have started. Never replay on an uncertain reply. */}
