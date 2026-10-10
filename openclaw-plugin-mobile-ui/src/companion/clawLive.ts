@@ -58,6 +58,24 @@ function readCanonical(pathname: string, maxChars: number) {
   }
 }
 
+// Keep the specialized-rule index when the canonical contract exceeds the voice budget.
+// This is a projection of the existing owner file, never a second copy of its rules.
+export function compactVoiceOperatingRules(raw: string, maxChars = 12000) {
+  const text = raw.trim();
+  if (text.length <= maxChars) return text;
+  const heading = /^## Règles spécialisées\s*$/m.exec(text);
+  if (!heading) return text.slice(0, maxChars);
+  const after = text.slice(heading.index);
+  const next = /\n##\s/.exec(after);
+  const section = next ? after.slice(0, next.index).trim() : after.trim();
+  const separator = "\n\n[intermediate rules omitted from bounded voice view]\n\n";
+  if (section.length + separator.length >= maxChars) {
+    throw Object.assign(new Error("voice_operating_rules_too_large"), {statusCode: 503});
+  }
+  const head = text.slice(0, Math.min(heading.index, maxChars - section.length - separator.length)).trimEnd();
+  return head + separator + section;
+}
+
 export function buildClawLiveSetup(
   model: string,
   options: ClawLiveBootstrapOptions = {},
@@ -69,7 +87,7 @@ export function buildClawLiveSetup(
   const workspace = path.join(home, ".openclaw", "workspace");
   const blocks = [
     ["IDENTITY", readCanonical(path.join(workspace, "SOUL.md"), 6000)],
-    ["OPERATING_RULES", readCanonical(path.join(workspace, "context", "OPERATING_RULES.md"), 12000)],
+    ["OPERATING_RULES", compactVoiceOperatingRules(readCanonical(path.join(workspace, "context", "OPERATING_RULES.md"), 64000))],
     ["VOICE_CONTEXT", readCanonical(path.join(workspace, "memory", "voice", "amine.md"), 7000)],
     ["HYBRID_CONTEXT", readCanonical(path.join(workspace, "context", "HYBRID_CONTEXT.md"), 30000)],
   ].filter(([, value]) => Boolean(value));

@@ -99,6 +99,9 @@ jobs:
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
 
+      - name: Preserve specialized rules in bounded voice bootstrap
+        run: node scripts/test-voice-operating-rules.cjs
+
       - name: Run memory control and atomic export import contracts
         run: |
           node scripts/test-memory-control.cjs
