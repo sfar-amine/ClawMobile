@@ -174,8 +174,10 @@ jobs:
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
 
-      - name: J1 bounded read-only secret scan
-        run: python3 ../installer/termux-lite/test-workspace-secret-scan.py
+      - name: J1 bounded read-only secret scan and H8 integration
+        run: |
+          python3 ../installer/termux-lite/test-workspace-secret-scan.py
+          python3 ../installer/termux-lite/test-nightly-secret-scan.py
       - name: H8 nightly read-only acceptance, deployment lock and drift receipts
         run: |
           node scripts/test-nightly-health-http.cjs

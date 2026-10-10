@@ -1,5 +1,5 @@
-# J1 — Diagnostic périodique sans valeurs
+# J1 — Diagnostic de secrets et hook H8
 
-Script local de lecture seule, racines explicitement choisies, filtre acceptance
-réutilisé, email avertissement. Pas d'activation S24 ni de hook H8 prématuré.
-Voir [contrat](../work/samantha-runtime/contracts/j1.md) pour bornes et exclusions.
+Scanner sans valeurs, racines explicites et exclusions privées/paiement. Empilé par merge normal sur H8 `9f629695280891e89ae3755ae3421f54f0da9b0c`, CI par union. Sans racines, `secretScan.state=not_configured` ; jamais absence supposée. Le reçu H8 conserve uniquement path/line/type/hash, stats et newFindingCount. Les sept reçus précédents servent à reconnaître les signatures déjà vues ; incident-notify et la réservation quotidienne H8 sont les seuls propriétaires de notification.
+
+9 tests scanner,7 tests d’intégration et10 tests H8 réussis avec données publiques générées et formes de reçus H8 capturées ; aucun contenu réel ni S24 scanné. Configuration des racines, installation dans le scheduler existant et qualification restent à Claude. Contrat : docs/work/samantha-runtime/contracts/j1.md.

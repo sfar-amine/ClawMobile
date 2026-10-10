@@ -4,6 +4,7 @@
 No checkout change, restart, scheduler or authorized request. Claude installs the
 job in the existing scheduler; receipts extend ~/.openclaw/deploys only.
 """
+import importlib.util
 import argparse,datetime as dt,fcntl,heapq,json,math,os,re,selectors,signal,statistics,subprocess,sys,tempfile,time,stat
 from pathlib import Path
 
@@ -12,6 +13,11 @@ MAX_RECEIPT_BYTES=2*1024*1024
 MAX_CHECKS=200
 KEEP=30
 ACCEPT_TIMEOUT_SECONDS=900
+
+def secret_hook():
+ spec=importlib.util.spec_from_file_location('nightly_secret_hook',Path(__file__).with_name('nightly-secret-scan.py'))
+ hook=importlib.util.module_from_spec(spec);spec.loader.exec_module(hook)
+ return hook
 
 def number(value):
  return isinstance(value,(int,float)) and not isinstance(value,bool) and math.isfinite(value) and value>=0
@@ -127,7 +133,7 @@ def deployment_preflight():
   return uptime.returncode==0 and (not load or float(load[1])<=7)
  except (OSError,ValueError,subprocess.SubprocessError):return False
 
-def execute(state,root,now=None,runner=bounded_command,notifier=None,preflight=deployment_preflight):
+def execute(state,root,now=None,runner=bounded_command,notifier=None,preflight=deployment_preflight,secret_roots=None):
  now=now or dt.datetime.now(dt.timezone.utc)
  if now.tzinfo is None:raise ValueError('timezone_required')
  now=now.astimezone(dt.timezone.utc);stamp=now.isoformat();day=now.strftime('%Y%m%d');path=state/('nightly-'+day+'.json')
@@ -145,7 +151,7 @@ def execute(state,root,now=None,runner=bounded_command,notifier=None,preflight=d
   for prior in heapq.nlargest(7,(p for p in nightly_files(state) if p.name<path.name),key=lambda p:p.name):
    row=read_receipt(prior)
    if row:history.append(row)
-  receipt={'version':1,'kind':'nightly_acceptance','state':'running','at':stamp,'acceptance':None,'drift':[], 'notificationAttemptedAt':(previous_today or {}).get('notificationAttemptedAt'), 'secretScan':{'state':'unknown','reason':'hook_not_configured'} if (root/'workspace-secret-scan.py').is_file() else {'state':'not_installed'}}
+  receipt={'version':1,'kind':'nightly_acceptance','state':'running','at':stamp,'acceptance':None,'drift':[], 'notificationAttemptedAt':(previous_today or {}).get('notificationAttemptedAt'), 'secretScan':{'state':'not_configured'}}
   atomic_receipt(path,receipt)
   try:
    # Always the acceptance carried by this checkout, no installed stale copy.
@@ -153,6 +159,9 @@ def execute(state,root,now=None,runner=bounded_command,notifier=None,preflight=d
    acceptance=closed_acceptance(raw);receipt['acceptance']=acceptance;receipt['drift']=drift(acceptance,history)
    receipt['state']='failed' if code!=0 or not acceptance['accepted'] else ('attention' if any(r['state']=='attention' for r in receipt['drift']) else 'ok')
   except (OSError,ValueError,TimeoutError,subprocess.SubprocessError):receipt['state']='failed';receipt['reason']='acceptance_unavailable'
+  scan,scan_attention=secret_hook().execute_scan(root,secret_roots or [],history,runner)
+  receipt['secretScan']=scan
+  if scan_attention and receipt['state']=='ok':receipt['state']='attention'
   if receipt['state']!='ok' and not receipt['notificationAttemptedAt']:
    # Persist before calling the canonical incident owner: never resend after an
    # uncertain notification/crash. No message content or new notification store.
@@ -177,8 +186,16 @@ def health_view(state,now):
  except (TypeError,KeyError,ValueError,OverflowError):return {'state':'unverified','reason':'nightly_acceptance_unavailable','checked_at':None,'freshness_s':None}
 
 def main():
- argparse.ArgumentParser(description=__doc__).parse_args()
- try:result,code=execute(Path.home()/'.openclaw/deploys',Path(__file__).resolve().parent)
+ parser=argparse.ArgumentParser(description=__doc__)
+ parser.add_argument('--secret-root',action='append',default=[],metavar='LABEL=ABSOLUTE_PATH')
+ args=parser.parse_args();roots=[]
+ for value in args.secret_root:
+  label,sep,path=value.partition('=')
+  if not sep:parser.error('invalid_secret_root')
+  roots.append((label,path))
+ try:roots=secret_hook().explicit_roots(roots)
+ except ValueError:parser.error('invalid_secret_root')
+ try:result,code=execute(Path.home()/'.openclaw/deploys',Path(__file__).resolve().parent,secret_roots=roots)
  except (OSError,ValueError):result,code={'state':'failed','reason':'nightly_storage_unavailable'},2
  print(json.dumps(result));return code
 if __name__=='__main__':sys.exit(main())
