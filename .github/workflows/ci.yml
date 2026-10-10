@@ -149,3 +149,8 @@ jobs:
           python3 ../installer/termux-lite/test-context-import.py
       - name: Run read-only security surfaces contract
         run: node scripts/test-security-surfaces.cjs
+      - name: MCP context scopes and admitted client provenance
+        run: |
+          node scripts/test-mcp-context-provenance.cjs
+          npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
+          node ../cloud/voice-relay/test-mcp.mjs
