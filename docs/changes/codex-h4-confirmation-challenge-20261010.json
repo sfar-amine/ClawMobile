@@ -13,6 +13,7 @@
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/scripts/test-agent-config.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-agent-confirmation-challenge.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-ui-recette-server.cjs",
     "docs/work/samantha-runtime/contracts/h4.md",
     "docs/changes/codex-h4-confirmation-challenge-20261010.md",
     "docs/changes/codex-h4-confirmation-challenge-20261010.json"
@@ -21,7 +22,12 @@
     {
       "name": "r6-h4-owner-confirmation",
       "status": "passed",
-      "evidence": "npm run build ; test-agent-config.cjs ; test-agent-confirmation-challenge.cjs sur captures réelles ui-recette config/catalogue/auth, délai 2344ms, budget READS importé. Héritage, profil nouveau/existant, mismatch/expiration, hash exact consume-before-dispatch et garde bancaire intacts."
+      "evidence": "npm run build ; test-agent-config.cjs ; test-agent-confirmation-challenge.cjs sur captures réelles ui-recette config/catalogue/auth, délai 2344ms, budget READS importé. Héritage, profil nouveau/existant, mismatch/expiration, hash exact consume-before-dispatch et garde bancaire intacts. test-ui-recette-server.cjs vérifie également le challenge 403 exact, hash des handles et absence de config.patch sans biométrie."
+    },
+    {
+      "name": "ci-workflow-h4-regression",
+      "status": "passed",
+      "evidence": "Toutes les 33 étapes run de tests ci.yml exécutées localement, build séparé ; installation du relais reprise avec cache npm sous /tmp après défaut du cache local. Tests MCP du relais verts. Aucun parcours de paiement modifié."
     }
   ],
   "documentation": [
