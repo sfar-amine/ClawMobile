@@ -1,6 +1,6 @@
 # R5-bis — Révision SQLite de la configuration des automatisations
 
-Référence : issue core59 et fichiers29 et33 (source attestée par Claude sur S24). Base Core2c2c18f intégrée par merge normal, propriétaire playbookscd8be74. Les captures nettoyées du schéma/quelques lignes restent manquantes ; la préparation est bloquée et la demande sera portée dans la PR via @claude conformément au fichier33. Publication uniquement après le signal d’ordre du parent, sans qualification S24.
+Référence : issue core59 et fichiers29 et33 (source attestée par Claude sur S24). Base Core42300b0 intégrée par merge normal, propriétaire playbooksaa8161f. Les captures nettoyées du schéma/quelques lignes restent manquantes ; la préparation est bloquée et la demande sera portée dans la PR via @claude conformément au fichier33. Publication autorisée comme paire de PR en brouillon, sans qualification S24.
 
 ## Propriétaire unique
 
