@@ -1,3 +1,4 @@
+import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
 
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
@@ -1025,10 +1026,22 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  const skillStateMatch=/^\/skills\/([^/]+)\/(enable|disable|try)$/.exec(routePath);
+  if(skillStateMatch){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||req.headers["x-clawmobile-owner-flow"]!=="v1"){
+      writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;
+    }
+    if(method!=="POST"){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    try{let id:string;try{id=decodeURIComponent(skillStateMatch[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      res.setHeader("Cache-Control","no-store");writeJson(res,200,await changeSkill(id,skillStateMatch[2],await readJsonBody(req,4096)));
+    }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:"refused",receipt:null,error:status===503?"skill_owner_unavailable":"invalid_or_protected_skill"});}
+    return;
+  }
   const skillDetailMatch = routePath.match(/^\/skills\/([^/]+)$/);
   if (method === "GET" && skillDetailMatch) {
-    const skillId = decodeURIComponent(skillDetailMatch[1]);
-    const skill = getWorkspaceSkill(skillId);
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;}
+    let skillId:string;try{skillId=decodeURIComponent(skillDetailMatch[1]);}catch{writeJson(res,400,{success:false,error:"invalid_skill_id"});return;}
+    let skill:any;try{skill=await skillControlDetail(skillId);}catch(error:any){writeJson(res,error?.statusCode===400?400:404,{success:false,error:"skill_not_found"});return;}
     writeJson(res, skill ? 200 : 404, skill || {
       success: false,
       message: `Workspace skill not found: ${skillId}`,

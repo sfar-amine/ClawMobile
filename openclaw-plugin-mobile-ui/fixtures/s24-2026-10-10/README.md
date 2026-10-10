@@ -34,6 +34,7 @@ Conséquence pour R8 :
 | `gateway/agents.files.get.json` | `agents.files.get` | `{"agentId":"main","name":"IDENTITY.md"}` | 3454 ms |
 | `gateway/sessions.files.list.json` | `sessions.files.list` | `{"sessionKey":"<sessions.list[1].key>"}` | 3105 ms |
 | `gateway/sessions.files.get.json` | `sessions.files.get` | `{"sessionKey":"…","path":"IDENTITY.md"}` | 2438 ms |
+| `gateway/skills.status.json` | `skills.status` | `{"agentId":"main"}` | 1859 ms (2438, 1755) — ajouté pour P2-b, 18:35 ; 7 lignes workspace complètes + 3 lignes d'exemple sur 65 ; descriptions en `<texte N car.>` |
 | `r17/inbound-schema.json` | sqlite `openclaw-agent.sqlite`, ouvert en `?mode=ro` | — | — |
 
 **Nettoyage.** Il a été fait sur le téléphone, avant publication :

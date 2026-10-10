@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "codex-p2-b-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose skill statistics and canonical activation/trial receipts",
+  "reason": "Revue 26, base runtime 0bf30ab intégrée : protection financière des sources complètes et budgets explicites.",
+  "files": [
+    "docs/changes/codex-p2-b-current-20261010.json",
+    "docs/changes/codex-p2-b-current-20261010.md",
+    "docs/work/samantha-runtime/contracts/p2-b.md",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-control.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skillControl.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skills.ts",
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/companion/automations.ts",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/skills.status.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/README.md"
+  ],
+  "tests": [
+    {
+      "name": "p2-b-control",
+      "status": "passed",
+      "evidence": "Reprise Claude : six cas financiers (titre, SKILL.md, fast-path, instruction) en risque haut et refusés sans effet ; fixture S24 skills.status ; budgets Gateway explicites avec latence 2,4 s et 8 s ; CI entière."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p2-b.md",
+    "docs/changes/codex-p2-b-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY : gestion des skills depuis l'écran propriétaire ; l'exposition agent viendra avec V6."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert de cette PR (aucune migration, aucun état nouveau ; les reçus d'opérations restent dans le registre des runs existant).",
+  "limitations": [
+    "Pas de déploiement ni de recette S24 revendiqués ; déploiement par Claude via companion-deploy.sh après fusion."
+  ]
+}
