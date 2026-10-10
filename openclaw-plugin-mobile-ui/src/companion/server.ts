@@ -1,4 +1,5 @@
 import {readAgentConfig,changeAgentConfig} from "./agentConfig";
+import {cancelControlRequest} from "./controlActions";
 import {diagnosticRead} from "./diagnostic";
 import {automationDetail,changeAutomation} from "./automations";
 import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
@@ -204,6 +205,20 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       success: false,
       message: "This endpoint is restricted to local companion app requests.",
     });
+    return;
+  }
+
+  if (/^\/control\/requests\/[^/]+\/cancel$/.test(routePath)) {
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
+        req.headers["x-clawmobile-owner-flow"] !== "v1") {
+      writeJson(res,403,{success:false,error:"native_owner_flow_required"});return;
+    }
+    if(method!=="POST"){res.setHeader("Allow","POST");writeJson(res,405,{success:false,error:"method_not_allowed"});return;}
+    try{
+      let reference:string;try{reference=decodeURIComponent(routePath.split("/")[3]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      const value=await cancelControlRequest(reference,await readJsonBody(req,1024));
+      res.setHeader("Cache-Control","no-store");writeJson(res,value.state==="refused"?409:value.state==="not_found"?404:200,value);
+    }catch(error:any){writeJson(res,error?.statusCode===400?400:503,{success:false,error:error?.statusCode===400?"invalid_cancellation_request":"control_action_unavailable"});}
     return;
   }
 

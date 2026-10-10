@@ -69,6 +69,8 @@ jobs:
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
 
+      - name: Run request cancellation owner contract
+        run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression
         run: node scripts/test-control-runtime-snapshot.cjs
       - name: Run automation detail and owner actions contract
