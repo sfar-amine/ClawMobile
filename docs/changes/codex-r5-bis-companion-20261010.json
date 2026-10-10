@@ -3,10 +3,10 @@
   "id": "codex-r5-bis-companion-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Consume canonical reporting SQLite revision with bounded single-flight probe and normal absence fallback",
-  "reason": "File29/33 attest canonical cron_jobs; real sanitized schema/row fixture still missing, request must be made in draft PR under programme33.",
+  "reason": "Real sanitized S24 STRICT SQLite schema and rows from merged core82 integrated; expected digest verified and captured latency replayed. Review and production qualification remain Claude responsibilities.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
@@ -16,9 +16,14 @@
   ],
   "tests": [
     {
-      "name": "automation-revision-latency",
+      "name": "automation-revision-real-latency",
       "status": "passed",
-      "evidence": "Full current ci.yml after normal merge runtime42300b0: CI_LOCAL_OK exit0. Synthetic SQLite owner2.4s: cold/cache under300ms, runtime clock stable/config invalidation/shared pool/missing normal fallback. Not S24 measure or real DB capture."
+      "evidence": "HTTP collector boundary replays captured S24 STRICT SQLite rows, 2475ms collection and128.38ms cold probe; route target300ms, existing acceptance1s unchanged. Full CI evidence recorded after execution below."
+    },
+    {
+      "name": "current-runtime-ci",
+      "status": "passed",
+      "evidence": "Full ci.yml on integrated b40b867 base: CI_LOCAL_OK, all base steps preserved. Real S24 latency replay HTTP baseline2505.62ms/cold251.34ms/cache162.91ms. Build and final relay MCP suite pass."
     }
   ],
   "documentation": [
@@ -46,8 +51,8 @@
   },
   "rollback": "Revert isolated paired lot under review; any qualified activation/rollback is performed by Claude using activate-ui-playbooks.sh and companion-deploy.sh with known-good SHAs and receipts.",
   "limitations": [
-    "Real S24 SQLite schema/row capture missing, merge blocked.",
-    "Paired reporting playbooks owner must be merged/pinned first.",
-    "Publication authorized as paired draft PRs; merge/activation blocked until real fixture, no S24 qualification. R22 remains separate."
+    "No new commits activated or deployed on S24; Claude qualifies after playbooks pin then Companion deployment.",
+    "Production previous cold collector1729–4557ms exceeds1s; cache2–8ms. Normal fallback intentionally retains this slower collector rather than deferred forever.",
+    "Multiple scheduler store keys refuse ambiguous revision and preserve normal Control read. R22 and V6 remain separate."
   ]
 }
