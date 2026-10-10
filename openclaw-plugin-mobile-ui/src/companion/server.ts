@@ -1,3 +1,4 @@
+import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
 import {notificationSources} from "./notificationSources";
 import { handleControl } from "./control";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
@@ -200,6 +201,23 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       success: false,
       message: "This endpoint is restricted to local companion app requests.",
     });
+    return;
+  }
+
+  if(routePath.startsWith('/laptop-access/')){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']||(method!=='GET'&&req.headers['x-clawmobile-owner-flow']!=='v1')){writeJson(res,403,{success:false,state:'refused',receipt:null,reason:'native_owner_flow_required'});return;}
+    res.setHeader('Cache-Control','no-store');
+    try{
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      if(method==='GET'&&routePath==='/laptop-access/computers'){writeJson(res,200,await laptopList());return;}
+      if(method==='POST'&&routePath==='/laptop-access/pairings'){writeJson(res,200,await laptopPairStart(await readJsonBody(req,1024)));return;}
+      const pair=/^\/laptop-access\/pairings\/([a-f0-9]{32})(\/commit)?$/.exec(routePath);
+      if(pair&&method==='GET'&&!pair[2]){writeJson(res,200,await laptopPairStatus(pair[1]));return;}
+      if(pair&&method==='POST'&&pair[2]){writeJson(res,200,await laptopChange('commit',pair[1],await readJsonBody(req,2048)));return;}
+      const pc=/^\/laptop-access\/computers\/([^/]+)$/.exec(routePath);
+      if(pc&&method==='DELETE'){writeJson(res,200,await laptopChange('revoke',decodeURIComponent(pc[1]),await readJsonBody(req,2048)));return;}
+      writeJson(res,405,{success:false,state:'refused',receipt:null,reason:'unsupported_laptop_route'});
+    }catch(error:any){const invalid=error?.statusCode===400||error instanceof URIError;writeJson(res,invalid?400:503,{success:false,state:invalid?'refused':'indeterminate',receipt:null,reason:invalid?'invalid_laptop_operation':'laptop_owner_indeterminate'});}
     return;
   }
 
