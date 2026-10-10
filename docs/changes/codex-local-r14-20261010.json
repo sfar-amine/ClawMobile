@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Extend existing attachment storage with bounded safe file shares and R3 cleanup",
-  "reason": "Reprise autorisée en PR indépendante, base runtime 066a340 ; activation et recette par Claude.",
+  "reason": "Relecture 17 et intégration runtime 639ae68 ; activation et recette par Claude.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-local-r14-20261010.json",
@@ -16,9 +16,10 @@
     "openclaw-plugin-mobile-ui/scripts/test-attachment-storage.cjs",
     "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
     "openclaw-plugin-mobile-ui/src/companion/intent.ts",
-    "openclaw-plugin-mobile-ui/src/companion/nativeOperation.ts",
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
-    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "docs/runtime-protocol-v1.md",
+    "installer/termux-lite/README.md"
   ],
   "tests": [
     {
@@ -29,7 +30,9 @@
   ],
   "documentation": [
     "docs/work/samantha-runtime/contracts/r14.md",
-    "docs/changes/codex-local-r14-20261010.md"
+    "docs/changes/codex-local-r14-20261010.md",
+    "docs/runtime-protocol-v1.md",
+    "installer/termux-lite/README.md"
   ],
   "capabilities": {
     "impact": "none",
