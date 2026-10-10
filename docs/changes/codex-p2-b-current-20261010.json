@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "codex-p2-b-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose skill statistics and canonical activation/trial receipts",
+  "reason": "File 18 P2-b with existing skills owner and intent submission.",
+  "files": [
+    "docs/changes/codex-p2-b-current-20261010.json",
+    "docs/changes/codex-p2-b-current-20261010.md",
+    "docs/work/samantha-runtime/contracts/p2-b.md",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-control.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skillControl.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skills.ts"
+  ],
+  "tests": [
+    {
+      "name": "p2-b-control",
+      "status": "passed",
+      "evidence": "Skill owner/HTTP tests, durable restart replay, parallel trials, bank protection, pre-effect retry and all runtime CI commands."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p2-b.md",
+    "docs/changes/codex-p2-b-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "No deployment or S24 recipe claimed; active skills RPC qualification by Claude.",
+    "Test executed separately while P2-e owns ci.yml."
+  ]
+}
