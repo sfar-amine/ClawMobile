@@ -110,7 +110,7 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
         if exhausted(): partial(); break
         try: fd = open_root(path)
         except OSError: partial(); continue
-        try: visit(fd, label)
+        try: visit(fd, safe_name(label))
         finally: os.close(fd)
     return result
 

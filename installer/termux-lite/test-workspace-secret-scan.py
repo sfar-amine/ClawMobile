@@ -68,4 +68,13 @@ class ScanTests(unittest.TestCase):
             root=Path(directory); (root/'source.py').write_text('access_token refresh_token maxTokens')
             self.assertEqual(scan.scan_roots([('repository',root)])['findings'],[])
 
+    def test_sensitive_root_label_is_masked(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); (root/'data').write_text('OTP: 482913')
+            label='sk-'+'q'*30
+            result=scan.scan_roots([(label,root)])
+            self.assertEqual(len(result['findings']),1)
+            self.assertNotIn(label,json.dumps(result))
+            self.assertIn('[redacted-name-',result['findings'][0]['path'])
+
 if __name__=='__main__': unittest.main()
