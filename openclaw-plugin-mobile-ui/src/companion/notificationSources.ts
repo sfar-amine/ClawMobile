@@ -1,10 +1,11 @@
-import {execFile} from "child_process";
-import os from "os";
-import {controlPaths} from "./control";
+import {readControlV2} from "./control";
 const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
+/** The native endpoint uses the same owner projection and route availability as Control. */
 export async function notificationSources():Promise<any>{
- return new Promise((resolve,reject)=>execFile('python3',['-m','reporting.control_notifications','--home',process.env.SAMANTHA_CONTROL_HOME||os.homedir()],{cwd:controlPaths().playbooks,timeout:8500,maxBuffer:262144},(error,stdout)=>{
-  if(error){reject(nativeError('notification_sources_unavailable',503));return;}
-  try{const value=JSON.parse(stdout);if(!Array.isArray(value.sources)||value.sources.length>256)throw Error();resolve(value);}catch{reject(nativeError('notification_sources_unavailable',503));}
- }));
+ try{
+  const result=await readControlV2(['notifications'],undefined);
+  const value=result.sections?.notifications?.data as any;
+  if(!value||!Array.isArray(value.items)||value.items.length>256)throw Error();
+  return {...value,sources:value.items};
+ }catch{throw nativeError('notification_sources_unavailable',503);}
 }
