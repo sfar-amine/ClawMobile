@@ -6,7 +6,7 @@ import {VoiceTelemetry, type VoiceTelemetryCode} from "./voiceTelemetry";
 import {VoiceTurnProtocol} from "./voiceTurnProtocol";
 import type { Duplex } from "stream";
 import WebSocket, { WebSocketServer } from "ws";
-import { createClawLiveToken, CLAW_LIVE_MODEL, type ClawLiveBootstrapOptions } from "./clawLive";
+import { createClawLiveToken, validatedClawLiveVoice, CLAW_LIVE_MODEL, type ClawLiveBootstrapOptions } from "./clawLive";
 import { reconnectDelay } from "./reconnectPolicy";
 
 const PROVIDER_URL="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
@@ -17,7 +17,7 @@ const SETUP_TIMEOUT_MS=15_000;
 
 type WarmState="cold"|"connecting"|"warm"|"reconnecting"|"error";
 type TokenBundle={token:string;setup:any;expiresAt?:string;model?:string};
-type LocalMeta={locale:string;client:string;sessionId:string;protocol?:number;sessionEpoch?:string;endpointing?:string};
+type LocalMeta={voice?:string|null;locale:string;client:string;sessionId:string;protocol?:number;sessionEpoch?:string;endpointing?:string};
 
 type WarmDeps={
   tokenFactory?:(options:ClawLiveBootstrapOptions)=>Promise<TokenBundle>;
@@ -36,7 +36,7 @@ function safeMeta(req:http.IncomingMessage):LocalMeta {
   const sessionId=/^[A-Za-z0-9._:-]{1,160}$/.test(raw)?raw:"default";
   const sessionEpoch=String(u.searchParams.get("epoch")||"");
   const protocol=u.searchParams.get("protocol")==="2"?2:1;
-  return {locale,client,sessionId,protocol,sessionEpoch,endpointing:u.searchParams.get("endpointing")||"silero"};
+  return {voice:validatedClawLiveVoice(u.searchParams.get("voice")),locale,client,sessionId,protocol,sessionEpoch,endpointing:u.searchParams.get("endpointing")||"silero"};
 }
 
 function loopback(address?:string|null){
@@ -56,6 +56,7 @@ export class ClawLiveWarmCore {
   private lastError="";
   private conversationId="";
   private locale="fr";
+  private voice:string|null=null;
   private client="samantha_android";
   private resumeHandle="";
   private resumeHandleAt=0;
@@ -132,6 +133,7 @@ export class ClawLiveWarmCore {
   }
 
   async prewarm(meta:LocalMeta){
+    validatedClawLiveVoice(meta.voice);
     this.trace("t01");
     this.touch();
     await this.ensureConversation(meta);
@@ -139,6 +141,7 @@ export class ClawLiveWarmCore {
   }
 
   async attach(ws:WebSocket,meta:LocalMeta){
+    validatedClawLiveVoice(meta.voice);
     if(meta.endpointing&&meta.endpointing!=="silero"){
       if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({warmError:{stage:"protocol",code:"endpointing_not_supported"}}));
       ws.close(1008,"endpointing_not_supported");return;
@@ -185,11 +188,15 @@ export class ClawLiveWarmCore {
   private async ensureConversation(meta:LocalMeta){
     if(this.stopped)throw new Error("warm_connect_cancelled");
     // Lifecycle prewarm must not unbind an active conversation.
-    if(meta.sessionId==="__prewarm__"&&this.conversationId)meta={...meta,sessionId:this.conversationId};
+    if(meta.sessionId==="__prewarm__"&&this.conversationId)meta={...meta,sessionId:this.conversationId,voice:this.voice};
     const unbound=this.conversationId==="__prewarm__";
     const changed=this.conversationId&&!unbound&&this.conversationId!==meta.sessionId;
     if(changed&&this.localClients.size>0&&![...this.clientMeta.values()].every(v=>v.sessionId===meta.sessionId))throw new Error("voice_owner_busy");
+    const desiredVoice=validatedClawLiveVoice(meta.voice);
+    // Only a new conversation/connection may adopt a preference. An active owner keeps its setup.
+    if(unbound&&desiredVoice!==this.voice)this.resetProvider("voice_selected_before_owner");
     if(changed)this.resetProvider("conversation_changed");
+    if(!this.conversationId||unbound||changed)this.voice=desiredVoice;
     if(!this.conversationId||unbound||meta.sessionId==="__prewarm__")this.conversationId=meta.sessionId;
     this.locale=meta.locale;this.client=meta.client;
     if(this.providerReady)return;
@@ -240,7 +247,7 @@ export class ClawLiveWarmCore {
     let bundle:TokenBundle;
     const telemetrySid=this.telemetrySid;
     try{
-      bundle=await this.tokenFactory({locale:this.locale,client:"samantha_android",telemetry:ev=>{if(generation===this.connectionGeneration&&telemetrySid===this.telemetrySid)this.trace(ev);}});
+      bundle=await this.tokenFactory({voice:this.voice,locale:this.locale,client:"samantha_android",telemetry:ev=>{if(generation===this.connectionGeneration&&telemetrySid===this.telemetrySid)this.trace(ev);}});
     }catch(e:any){if(generation===this.connectionGeneration&&!this.stopped)this.failStage("token",e);throw e;}
     if(this.stopped||generation!==this.connectionGeneration)throw new Error("warm_connect_cancelled");
     const setup=JSON.parse(JSON.stringify(bundle.setup||{}));
@@ -354,18 +361,19 @@ export class ClawLiveWarmCore {
 export const clawLiveWarmCore=new ClawLiveWarmCore();
 export function attachClawLiveWarmUpgrade(server:http.Server,core=clawLiveWarmCore){
   const localServer=new WebSocketServer({noServer:true,maxPayload:2*1024*1024});
-  localServer.on("connection",(ws,req)=>{void core.attach(ws,safeMeta(req));});
+  localServer.on("connection",(ws,req)=>{void core.attach(ws,safeMeta(req)).catch((error:any)=>ws.close(1008,error?.message==="unknown_voice"?"unknown_voice":"warm_unavailable"));});
   server.once("close",()=>localServer.close());
   server.on("upgrade",(req: http.IncomingMessage,socket:Duplex,head:Buffer)=>{
     let pathname="";try{pathname=new URL(req.url||"/","http://127.0.0.1").pathname;}catch{}
     if(pathname!==SOCKET_PATH||!loopback(req.socket.remoteAddress)||req.headers.origin){socket.destroy();return;}
+    try {safeMeta(req);} catch {const body=JSON.stringify({success:false,error:"unknown_voice"});socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: "+Buffer.byteLength(body)+"\r\n\r\n"+body);return;}
     localServer.handleUpgrade(req,socket,head,(ws)=>localServer.emit("connection",ws,req));
   });
 }
 
 export function clawLiveWarmMeta(body:any):LocalMeta{
   const locale=String(body?.locale||"fr").slice(0,32);const client=String(body?.client||"samantha_android").replace(/[^A-Za-z0-9._-]/g,"").slice(0,64)||"samantha_android";
-  const raw=String(body?.sessionId||body?.session||"default");const sessionId=/^[A-Za-z0-9._:-]{1,160}$/.test(raw)?raw:"default";return {locale,client,sessionId};
+  const raw=String(body?.sessionId||body?.session||"default");const sessionId=/^[A-Za-z0-9._:-]{1,160}$/.test(raw)?raw:"default";return {voice:validatedClawLiveVoice(body?.voice),locale,client,sessionId};
 }
 
 /** Optional fields in the existing plugin configuration, not a second settings store. */
