@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
 import readline from "readline";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { performance } from "perf_hooks";
 import { completeHealthSection } from "./control-health";
 

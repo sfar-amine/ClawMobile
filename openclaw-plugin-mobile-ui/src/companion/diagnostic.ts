@@ -7,6 +7,7 @@ const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{s
 export function diagnosticRead(command:"logs"|"export",source?:string,parameters=new URLSearchParams()):Promise<any>{
  const roots=controlPaths();
  const args=["-m","reporting.control_diagnostic","--home",process.env.SAMANTHA_CONTROL_HOME||os.homedir(),command];
+ if(command==="export")args.push("--companion-version",require("../../package.json").version);
  if(command==="logs"){
   if(!["agent","installation","engineering"].includes(source||""))throw nativeError("invalid_log_source");
   for(const [key] of parameters)if(!["offset","limit","revision"].includes(key)||parameters.getAll(key).length!==1)throw nativeError("invalid_log_query");
