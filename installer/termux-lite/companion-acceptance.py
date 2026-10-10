@@ -10,6 +10,9 @@ BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
     ("/health", 2.0),
+    ("/usage", 6.0),
+    ("/usage?details=cost", 12.0),
+    ("/providers", 6.0),
     ("/whatsapp/allowlist", 10.0),
     ("/whatsapp/allowlist/history?limit=50", 10.0),
     ("/security/surfaces", 1.5),
