@@ -1,6 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import argparse, hashlib, json, os, re, sqlite3, subprocess, sys, time, unicodedata
 from pathlib import Path
+from contextlib import closing
 
 HOME=Path.home()
 ROOT=Path(os.environ.get("SAMANTHA_PEOPLE_ROOT", HOME/".openclaw"/"people"))
@@ -530,7 +531,7 @@ class Contacts:
         people={};activity={}
         try:
             if self.people.DB.exists():
-                connection=sqlite3.connect(f'file:{self.people.DB}?mode=ro', uri=True)
+                connection=sqlite3.connect(f'file:{self.people.DB}?mode=ro', uri=True,timeout=1)
                 connection.row_factory=sqlite3.Row
                 for row in connection.execute('SELECT phones.e164, people.person_id, people.display_name FROM phones JOIN people USING(person_id) WHERE people.active=1'):
                     if row['e164'] and E164.fullmatch(row['e164']): people.setdefault(row['e164'], {'personId':row['person_id'],'name':row['display_name']})
@@ -538,7 +539,8 @@ class Contacts:
             # PR48 S24 schema: WhatsApp provider timestamp, never conversation
             # updated_at or Gateway persistence time. One read for the page.
             if self.people.SESSION_DB.exists():
-                with sqlite3.connect(f'file:{self.people.SESSION_DB}?mode=ro',uri=True) as sessions:
+                with closing(sqlite3.connect(f'file:{self.people.SESSION_DB}?mode=ro',uri=True,timeout=1)) as sessions:
+                    sessions.execute('PRAGMA query_only=ON')
                     deadline=time.monotonic()+2
                     sessions.set_progress_handler(lambda: int(time.monotonic()>deadline),1000)
                     records=sessions.execute("""
