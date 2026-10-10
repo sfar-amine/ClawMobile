@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "codex-p0-1-gateway-preparation-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Prepare bounded wrapper around canonical GatewayClient while runtime handshake/auth remains unqualified",
+  "reason": "Issue57 and programme24 priority1; real installed handshake and canonical auth configuration required before integration.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/persistentGatewayTransport.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-persistent-gateway-transport.cjs",
+    "docs/work/samantha-runtime/contracts/p0-1.md",
+    "docs/changes/codex-p0-1-gateway-preparation-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "persistent-gateway-owner-preparation",
+      "status": "passed",
+      "evidence": "Local build and injected owner wrapper test with real captured models payload/2419ms latency, concurrency4, queue32, pre-dispatch fallback only, timeouts and no uncertain replay. Installed handshake unqualified."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p0-1.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Transport infrastructure preparation introduces no route or agent/voice action; existing capabilities unchanged."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Canonical GatewayClient owner reused; no new store, scheduler, protocol owner or retry engine."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP owner tools unchanged, no transport activated."
+  },
+  "rollback": "Remove isolated preparation under review. Future qualified activation/rollback uses companion-deploy.sh and a Claude-qualified SHA with automatic acceptance and receipt.",
+  "limitations": [
+    "callOpenClawGateway unchanged and wrapper not connected until real owner handshake/config confirmed.",
+    "Real before CLI capture available, no real after WS or S24 qualification.",
+    "No push or PR before correction order signal."
+  ]
+}
