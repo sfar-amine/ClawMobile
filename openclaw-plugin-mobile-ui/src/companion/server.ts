@@ -19,6 +19,7 @@ import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRunt
 import { submitIntent } from "./intent";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
+import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
@@ -300,6 +301,23 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if(requestUrl.search){writeJson(res,400,{success:false,state:"refused",receipt:null,error:"unsupported_parameter"});return;}
     try{res.setHeader("Cache-Control","no-store");writeJson(res,200,await updatesRead());}
     catch{writeJson(res,503,{success:false,state:"unavailable",receipt:null,error:"updates_unavailable"});}
+    return;
+  }
+
+  const agentApprovalMatch=routePath.match(/^\/runs\/([^/]+)\/approval$/);
+  if(agentApprovalMatch){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']||(method!=='GET'&&req.headers['x-clawmobile-owner-flow']!=='v1')){
+      writeJson(res,403,{success:false,state:'refused',receipt:null,error:'native_owner_flow_required'});return;
+    }
+    res.setHeader('Cache-Control','no-store');
+    if(!['GET','POST'].includes(method)){res.setHeader('Allow','GET, POST');writeJson(res,405,{success:false,state:'refused',receipt:null,error:'method_not_allowed'});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(Error(),{statusCode:400});
+      const runId=decodeURIComponent(agentApprovalMatch[1]);
+      const value=method==='GET'?readRunApproval(runId):await decideRunApproval(runId,await readJsonBody(req,2048));
+      writeJson(res,value.state==='refused'?409:value.state==='failed'?503:200,value);
+    }catch(error:any){const code=error instanceof URIError?400:[400,403,404,409].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,error:code===400?'invalid_approval_operation':code===403?'confirmation_scope_mismatch':code===404?'approval_run_not_found':code===409?'confirmation_not_usable':'approval_owner_unavailable'});}
     return;
   }
 
