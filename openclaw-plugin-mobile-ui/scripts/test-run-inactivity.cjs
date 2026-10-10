@@ -61,6 +61,15 @@ gatewayClient.callOpenClawGateway=(...args)=>{entered++;const promise=originalGa
 async function idle(){await delay(40);while(inflight.size){await Promise.allSettled([...inflight]);await delay(40);}}
 async function expire(r){const before=entered;const start=Date.now();const snapshot=await status(r);assert.equal(snapshot.state,'running');assert.ok(Date.now()-start<300,'read awaited owner');await until(()=>stored().error==='run_inactivity_expired',10000);await idle();assert.ok(entered>before);return status(r);}
 (async()=>{
+ // Review regression: a recent Gateway run is updated immediately from its
+ // live session/history, without waiting ten minutes for inactivity evidence.
+ let recent=run('recent-complete',{executionSource:'gateway',acceptedAt:now-30000,updatedAt:now-30000});write(recent);
+ ownerProof(recent,[message('user',recent.text,now-30000),message('assistant','Recent canonical result',now-1000,{stopReason:'stop'})],{sessionId:'recent-owner-session',status:'done',lastActivityAt:now-1000});
+ let fresh=await status(recent);assert.equal(fresh.state,'done');assert.equal(fresh.result,'Recent canonical result');assert.equal(stored().result,'Recent canonical result');assert.equal(fresh.inactivityCorrectionReceipt,undefined);await idle();
+ // The list refreshes run by run, including the canonical history fallback
+ // when SQLite replaced local JSONL transcripts.
+ recent=run('recent-list',{executionSource:'gateway',acceptedAt:now-30000,updatedAt:now-30000});write(recent);
+ ownerProof(recent,[message('user',recent.text,now-30000),message('assistant','Recent list result',now-1000,{stopReason:'stop'})],{sessionId:'recent-list-owner',status:'done',lastActivityAt:now-1000});fresh=(await api.listRuns())[0];assert.equal(fresh.state,'done');assert.equal(fresh.result,'Recent list result');await idle();
  // Required 1: no readable owner/SQLite proof never expires; no sessions.json.
  let r=run('no-proof');write(r);responses({});assert.equal((await status(r)).state,'running');await idle();assert.equal(stored().error,undefined);assert.equal(fs.existsSync(path.join(root,'agents/main/sessions/sessions.json')),false);
  // Positive negative-proof test with real S24-like 4.15s + 2.39s CLI latency.
@@ -125,5 +134,5 @@ async function expire(r){const before=entered;const start=Date.now();const snaps
  // A hung CLI is killed by the global background budget, not by a read.
  r=run('budget-timeout');write(r);ownerProof(r,[message('user',r.text,old)]);for(const f of [started,release])try{fs.unlinkSync(f)}catch{}fs.writeFileSync(block,'block');start=Date.now();assert.equal((await status(r)).state,'running');assert.ok(Date.now()-start<300);await until(()=>fs.existsSync(started));await until(()=>inflight.size===0,11000);await idle();assert.ok(Date.now()-start>=9000&&Date.now()-start<11000);assert.equal(stored().error,undefined);fs.unlinkSync(block);
  fs.writeFileSync(registry,'{bad registry');responses({});assert.equal((await api.getRunStatus('missing')).state,'unknown');await idle();
- console.log(JSON.stringify({suite:'R2-v2',passed:true,required:{noReadableProof:'passed',longActiveTool:'passed',lateResult:'passed',bankBiometricDifferentOrigins:'passed'},singleFlightBackground:'passed',realisticLatency:'passed',expiredPoolRetired:'passed',runScopedResurrection:'passed',concurrentMutations:'passed'}));
+ console.log(JSON.stringify({suite:'R2-v2',passed:true,required:{noReadableProof:'passed',longActiveTool:'passed',lateResult:'passed',bankBiometricDifferentOrigins:'passed'},recentGatewayCompletion:'passed',recentLiveList:'passed',singleFlightBackground:'passed',realisticLatency:'passed',expiredPoolRetired:'passed',runScopedResurrection:'passed',concurrentMutations:'passed'}));
 })().catch(error=>{console.error(error);process.exitCode=1});

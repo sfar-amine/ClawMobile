@@ -383,7 +383,18 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
   const storedRuns = await readStoredRuns(false);
   const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
   reconcileInactiveRuns();
-  if(storedRuns.length)return storedRuns.slice(0,limit).map(statusFromStoredRun);
+  if(storedRuns.length){
+    const visible=storedRuns.slice(0,limit);
+    const sessions=visible.some(requiresLiveRefresh)?await readSessionsIndex().catch(()=>[]):[];
+    return Promise.all(visible.map(async stored=>{
+      if(!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
+      const session=findSessionForStoredRun(sessions,stored);
+      const fallback=session?statusFromSessionInfo(session,stored.runId,stored):statusFromStoredRun(stored);
+      // Preserve the normal live-list refresh from the base; only expiration
+      // evidence moved out of the request path.
+      return enrichFromSessionFile(fallback,session,stored,true);
+    }));
+  }
   // Legacy discovery only when no retained snapshot exists.
   const sessions=await readSessionsIndex().catch(()=>[]);
   const archivedSessionIds=await readArchivedSessionIds();
@@ -476,8 +487,10 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
 
   const stored = (await findStoredRun(normalizedRunId, false).catch(() => null)) || submittedRuns.get(normalizedRunId);
   reconcileInactiveRuns(normalizedRunId);
-  if(stored)return statusFromStoredRun(stored);
-  const deadline=Date.now()+1500;
+  if(stored&&!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
+  // Recent Gateway runs keep their normal live session/transcript refresh.
+  // The inactivity single-flight has its own independent deadline.
+  const deadline=stored?undefined:Date.now()+1500;
   const listed = await findSessionInfo(normalizedRunId, stored, deadline).catch(() => null);
   if (listed) {
     const fallback = statusFromSessionInfo(listed, normalizedRunId, stored || undefined);
@@ -494,6 +507,12 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
   } catch (error: any) {
     return unknownRun(normalizedRunId, error?.message || "Run was not found.");
   }
+}
+
+function requiresLiveRefresh(stored:StoredRun):boolean {
+  return stored.modality!=="voice"&&stored.executionSource!=="capability_first"&&
+    stored.error!=="run_inactivity_expired"&&!stored.inactivityCorrectionReceipt&&
+    stored.state!=="failed"&&!stored.result;
 }
 
 function statusFromHistory(runId: string, sessionKey: string, history: any, stored?: StoredRun): CompanionRunStatus {

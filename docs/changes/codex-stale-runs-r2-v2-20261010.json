@@ -29,6 +29,11 @@
       "name": "runtime-CI-contracts",
       "status": "passed",
       "evidence": "All current runtime CI commands passed; lifecycle block rerun after background change: backfill races, history cache, conversation pages, submission, notification contracts; payment-core 58/58. Latest base 286fdd3 integrated; claw-live owner replay 10/10."
+    },
+    {
+      "name": "recent-gateway-completion-regression",
+      "status": "passed",
+      "evidence": "Recent Gateway run updates to done via GET and list without JSONL transcript; required four regressions, background timeout/single-flight, expired retirement and all runtime CI commands passed."
     }
   ],
   "documentation": [

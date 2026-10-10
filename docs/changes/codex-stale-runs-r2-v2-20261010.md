@@ -13,3 +13,5 @@ Relecture 17 remplace le budget de lecture initial : voir le contrat r2 pour la 
 Relecture 17 M1/M2 corrigée : réconciliation single-flight en arrière-plan sous 10 s, état courant rendu immédiatement, preuve nommant le run pour la remise en running, expirations retirées du pool automatique. Les quatre tests requis et les contrôles CI locaux passent ; la recette S24 reste à Claude.
 
 Base 286fdd3 intégrée. Le repli par preuve de tour est testé avec un id Gateway différent ; la lecture explicite de conversation peut corriger l’expiration d’un outil encore actif.
+
+Revue du head 3e2ed8b : actualisation directe rétablie pour les runs Gateway récents non corrigés, uniquement expiration en arrière-plan. GET et liste récupèrent le résultat récent via le propriétaire même sans JSONL ; deux tests ajoutés, quatre cas bloquants et CI conservés.
