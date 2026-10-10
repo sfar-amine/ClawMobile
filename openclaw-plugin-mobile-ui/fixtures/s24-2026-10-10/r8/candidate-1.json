@@ -1,0 +1,62 @@
+{
+ "schema_version": "clawmobile.skill_candidate.v1",
+ "source_trace_id": "mock_trace",
+ "task_summary": "Send a message in the example app.",
+ "app": {
+  "package": "com.example",
+  "activity": "com.example.MainActivity"
+ },
+ "intent": {
+  "name": "send_example_message",
+  "description": "Send a parameterized message in the current example app screen.",
+  "parameters": {
+   "message": {
+    "type": "string",
+    "required": true
+   }
+  }
+ },
+ "preconditions": [
+  "The example app is open."
+ ],
+ "anchors": {},
+ "steps": [
+  {
+   "action": "tap_anchor",
+   "target": "message_input",
+   "verify_after": "The target input should be focused."
+  }
+ ],
+ "verification": [
+  "Confirm the app remains visible."
+ ],
+ "fallback": [
+  "Ask for a clearer demonstration if the anchor is missing."
+ ],
+ "warnings": [
+  "anchor message_input: coordinate_anchor missing numeric x_norm/y_norm",
+  "anchor semantic_only: unsupported anchor shape; expected a coordinate_anchor grounded in allowed_anchors",
+  "steps[0]: references missing or rejected anchor message_input"
+ ],
+ "validation": {
+  "grounded_anchor_count": 0,
+  "rejected_anchor_count": 2,
+  "rejected_anchors": {
+   "message_input": {
+    "coordinate_anchor": "step_999_tap",
+    "confidence": 0,
+    "grounding_error": "missing_numeric_coordinate"
+   },
+   "semantic_only": {
+    "description": "not grounded",
+    "confidence": 0,
+    "grounding_error": "unsupported_anchor_shape"
+   }
+  },
+  "warnings": [
+   "anchor message_input: coordinate_anchor missing numeric x_norm/y_norm",
+   "anchor semantic_only: unsupported anchor shape; expected a coordinate_anchor grounded in allowed_anchors",
+   "steps[0]: references missing or rejected anchor message_input"
+  ]
+ }
+}
