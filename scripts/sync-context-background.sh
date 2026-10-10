@@ -23,9 +23,11 @@ copy_curated context/WORK_CONTEXT.md people/WORK_CONTEXT.md
 copy_curated DREAMS.md state/DREAMS.md
 copy_curated context/HYBRID_CONTEXT.md state/HYBRID_CONTEXT.md
 
-if [ -n "$(git status --porcelain)" ]; then
-  bash ./scripts/save.sh
-else
+had_changes="$(git status --porcelain)"
+# save.sh also refreshes the canonical semantic-state export: a clean snapshot
+# repository does not prove that the runtime store itself is unchanged.
+bash ./scripts/save.sh
+if [ -z "$had_changes" ]; then
   git fetch origin
   git pull --ff-only origin main
 fi
