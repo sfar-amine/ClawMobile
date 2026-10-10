@@ -173,3 +173,8 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: O8 baseline model efficiency and Gemini client regression
+        run: |
+          python3 ../installer/termux-lite/test-model-efficiency.py
+          python3 ../installer/termux-lite/test-gemini-request.py

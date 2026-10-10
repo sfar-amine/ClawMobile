@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "codex-o8-model-fixtures-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Register model client baseline regression while awaiting current canonical operator fixtures",
+  "reason": "File37 O8: real S24 fixture capture required before replacing obsolete shapes; available PR82 captures do not prove Orange fast-path/hint form.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-o8-model-fixtures-20261010.json",
+    "docs/work/samantha-runtime/contracts/o8.md"
+  ],
+  "tests": [
+    {
+      "name": "o8-existing-model-client-regressions",
+      "status": "passed",
+      "evidence": "19 model-efficiency and20 gemini-request tests unchanged pass locally with simulated clients; no provider or S24 consultation. Existing assertions remain intact. No claim current Orange fixtures validated."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/o8.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal maintenance only; no new app route or action exposed."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "CI registration and draft evidence contract only; no runtime code changed."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP contracts unchanged; planned canonical descriptions do not activate a second route.",
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "docs/work/samantha-runtime/contracts/o8.md"
+    ]
+  },
+  "rollback": "Revert tests registration and documentation; no runtime effect.",
+  "limitations": [
+    "Draft blocked until Claude publishes actual current Orange fast-path receipt and gemini_claw resolve/hint capture with provenance.",
+    "No production or target test fixture updated yet. Baseline passing is not proof of current runtime shape."
+  ]
+}
