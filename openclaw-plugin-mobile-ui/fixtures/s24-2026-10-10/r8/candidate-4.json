@@ -1,0 +1,85 @@
+{
+ "schema_version": "clawmobile.skill_candidate.v1",
+ "source_trace_id": "mock_text_input_trace_2",
+ "task_summary": "Send a message in the current WeChat chat.",
+ "app": {
+  "package": "com.tencent.mm",
+  "activity": "com.tencent.mm.ui.LauncherUI"
+ },
+ "intent": {
+  "name": "send_current_chat_message",
+  "description": "Send a parameterized message in the current chat composer.",
+  "parameters": {
+   "message_text": {
+    "type": "string",
+    "required": true
+   }
+  }
+ },
+ "preconditions": [
+  "The target chat is already open and its composer is visible."
+ ],
+ "entry_state_checks": {
+  "initial_app_state": {
+   "package": "com.tencent.mm",
+   "activity": "com.tencent.mm.ui.LauncherUI",
+   "ui_text_any": [
+    "聊天",
+    "微信"
+   ]
+  }
+ },
+ "anchors": {
+  "message_input": {
+   "type": "coordinate_anchor",
+   "source_anchor_id": "step_2_tap",
+   "source_step_id": 2,
+   "x_norm": 0.485,
+   "y_norm": 0.937,
+   "evidence": [
+    "second_trace_step_2_tap"
+   ],
+   "confidence": 0.78,
+   "x": 524,
+   "y": 2271
+  },
+  "send_button": {
+   "type": "coordinate_anchor",
+   "source_anchor_id": "step_5_tap",
+   "source_step_id": 5,
+   "x_norm": 0.934,
+   "y_norm": 0.559,
+   "evidence": [
+    "second_trace_post_text_action_1",
+    "second_trace_step_5_tap"
+   ],
+   "confidence": 0.7,
+   "x": 1009,
+   "y": 1355
+  }
+ },
+ "steps": [
+  {
+   "action": "tap_anchor",
+   "target": "message_input",
+   "verify_after": "The composer is focused."
+  },
+  {
+   "action": "type_parameter",
+   "parameter": "message_text",
+   "verify_after": "The composer contains message_text."
+  },
+  {
+   "action": "tap_anchor",
+   "target": "send_button",
+   "verify_after": "The message is sent."
+  }
+ ],
+ "verification": [
+  "Verify the composer clears or a new outgoing message appears."
+ ],
+ "fallback": [
+  "If anchors moved, reground instead of replaying keyboard taps."
+ ],
+ "warnings": []
+}
