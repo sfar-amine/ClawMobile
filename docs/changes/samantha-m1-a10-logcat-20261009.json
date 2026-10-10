@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "id": "samantha-m1-a10-logcat-20261009",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "A10 accepts raw logcat banners and excludes sessions carrying closing clock drift evidence.",
+  "reason": "S24 review cb81098d requires robust logcat input; user delegates the A8 clock correction to Claude.",
+  "files": [
+    "openclaw-plugin-mobile-ui/scripts/voice-m1-analyze.py",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-m1-corpus.py",
+    "docs/changes/samantha-m1-a10-logcat-20261009.md",
+    "docs/changes/samantha-m1-a10-logcat-20261009.json"
+  ],
+  "tests": [
+    {
+      "name": "m1-corpus-analyzer",
+      "status": "passed",
+      "evidence": {
+        "command": "python3 openclaw-plugin-mobile-ui/scripts/test-voice-m1-corpus.py",
+        "count": 10
+      }
+    },
+    {
+      "name": "analyzer-cli-positive-negative",
+      "status": "passed",
+      "evidence": {
+        "positive": "logcat banner plus valid telemetry exits 0",
+        "negative": "malformed telemetry JSON exits nonzero with filename and line"
+      }
+    }
+  ],
+  "documentation": [
+    "docs/changes/samantha-m1-a10-logcat-20261009.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Offline telemetry reader only; no capability execution or registry change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Uses the existing Warm owner, turn protocol and C1 JSONL contract; no new daemon, router or orchestration layer."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "docs/changes/samantha-m1-a10-logcat-20261009.md"
+    ]
+  },
+  "rollback": "Revert only the A10 correction commit. No runtime was activated.",
+  "limitations": [
+    "A8 clock changes are owned by Claude and excluded from this correction.",
+    "S24 acknowledgements c842ab78 and cb81098d were supplied by Amine, not read with cloud MCP.",
+    "Physical acceptance and M1 gate remain pending."
+  ]
+}

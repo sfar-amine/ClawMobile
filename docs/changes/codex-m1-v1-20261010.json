@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "id": "codex-m1-v1-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Integrate original M1 branch on runtime and preserve all CI stages.",
+  "reason": "Explicit authorization for new V1 PR, without force-pushing PR #1.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-m1-v1-20261010.json",
+    "docs/changes/codex-m1-v1-20261010.md",
+    "docs/changes/samantha-m1-a10-logcat-20261009.json",
+    "docs/changes/samantha-m1-a10-logcat-20261009.md",
+    "docs/changes/samantha-m1-a8-a11-a13-20261009.json",
+    "docs/changes/samantha-m1-a8-a11-a13-20261009.md",
+    "docs/changes/samantha-m1-a9-a10-20261009.json",
+    "docs/changes/samantha-m1-a9-a10-20261009.md",
+    "docs/changes/samantha-m1-clean-detach-prewarm-20261009.json",
+    "docs/changes/samantha-m1-clean-detach-prewarm-20261009.md",
+    "docs/work/samantha-m1/01_CONTRACT_REVIEW.md",
+    "docs/work/samantha-m1/02_RDV1_PROTOCOL.md",
+    "docs/work/samantha-m1/03_PERTURBATION_ACCEPTANCE.md",
+    "docs/work/samantha-runtime/contracts/v1.md",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/samantha-voice-corpus-v1.jsonl",
+    "openclaw-plugin-mobile-ui/scripts/test-claw-live-warm-detach.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-m1-contracts.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-m1-corpus.py",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-m1-disturbances.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-m1-telemetry.cjs",
+    "openclaw-plugin-mobile-ui/scripts/voice-m1-analyze.py",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTelemetry.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts"
+  ],
+  "tests": [
+    {
+      "name": "M1 and runtime contracts",
+      "status": "passed",
+      "evidence": "Source and CI match validated V1 handoff; build, M1 telemetry 12/12, HTTP/WS 11/11, disturbances 6/6, detach 7/7, corpus 10/10, protocol 14/14, warm/ownership/cancellation/claw-live/runs, R1/R3/R4 and trace-induction."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/v1.md",
+    "docs/changes/codex-m1-v1-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing M1 behavior retained; integration and CI union only."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new owners or stores."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "M1 integration; six canonical MCP contracts unchanged."
+  },
+  "rollback": "Revert reviewed V1 integration; no migration.",
+  "limitations": [
+    "No runtime deployment or new S24 measurement.",
+    "Claude owns merge of V1 and PR #1, activation and M1 acceptance.",
+    "R2-v2 is still a separate open PR."
+  ]
+}

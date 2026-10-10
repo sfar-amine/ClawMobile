@@ -15,7 +15,10 @@ export class VoiceTurnProtocol {
   private pendingTools=new Map<string,any[]>();
   private executions=new Map<string,{request:string;promise:Promise<any>;result?:any}>();
   constructor(readonly connectionEpoch:number, readonly sessionEpoch:string,
-    private readonly forward:(value:any)=>void, private readonly emit:(value:any)=>void) {}
+    private readonly forward:(value:any)=>void, private readonly emit:(value:any)=>void,
+    private readonly observer?:(event:string,turnId:string)=>void) {}
+
+  private observe(event:string,id:string){try{this.observer?.(event,id);}catch{}}
 
   private event(payload:any,turnId:string|null,outputGenerationId:string|null=null,correlation="exact") {
     this.emit({warmEvent:{version:2,connectionEpoch:this.connectionEpoch,sessionEpoch:this.sessionEpoch,
@@ -61,6 +64,7 @@ export class VoiceTurnProtocol {
     if(this.turns.has(id)||this.waiting?.id===id)throw new Error("turn_identity_conflict");
     if(this.turns.size>=64)throw new Error("session_turn_budget");
     if(this.waiting)throw new Error("input_already_waiting");
+    this.observe("input_start",id);
     const request:Start={id,first,activityStarted:false};
     if(this.asrOwner) {this.waiting=request;return "waiting_for_transcription_boundary";}
     const activeOutput=this.outputOwner?this.turns.get(this.outputOwner):null;
@@ -100,7 +104,7 @@ export class VoiceTurnProtocol {
   private end(body:any) {
     const t=this.turns.get(this.requireId(body.turnId));
     if(!t||t.id!==this.asrOwner||t.inputEnded||body.lastSampleExclusive!==t.end)throw new Error("invalid_turn_end");
-    t.inputEnded=true;this.forward({realtimeInput:{activityEnd:{}}});
+    t.inputEnded=true;this.forward({realtimeInput:{activityEnd:{}}});this.observe("t25p",t.id);
   }
   private transcriptFinal(body:any) {
     const t=this.turns.get(this.requireId(body.turnId));
@@ -170,7 +174,8 @@ export class VoiceTurnProtocol {
       const output={...content};delete output.inputTranscription;
       if(Object.keys(output).length) {
         if(!t) {this.error("unowned_provider_output");return;}
-        if(output.interrupted)t.interrupted=true;
+        if(output.modelTurn?.parts?.some((part:any)=>part.inlineData?.mimeType?.startsWith("audio/")&&part.inlineData?.data)&&!t.firstAudio){t.firstAudio=true;this.observe("t30p",t.id);}
+        if(output.interrupted){t.interrupted=true;if(!t.interruptionObserved){t.interruptionObserved=true;this.observe("t44",t.id);}}
         this.event({serverContent:output},t.id,t.generation);
         if(output.interrupted||output.turnComplete) {
           t.outputEnded=true;
@@ -211,7 +216,7 @@ export class VoiceTurnProtocol {
 }
 
 type Start={id:string;first:number;activityStarted:boolean};
-type Turn={id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
+type Turn={firstAudio?:boolean;interruptionObserved?:boolean;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
 const ID=/^[A-Za-z0-9._:-]{1,160}$/;
 const BASE64=/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 function digest(value:string|Buffer){return createHash("sha256").update(value).digest("hex");}

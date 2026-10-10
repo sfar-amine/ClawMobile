@@ -42,10 +42,32 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
+      - name: Run claw-live Control and owner view projections
+        run: python3 ../installer/termux-lite/test-claw-live-control.py
+
+      - name: Run Claw relay reconnect contract
+        run: |
+          node scripts/test-voice-relay.cjs
+          node scripts/test-voice-relay-reconnect.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
           node scripts/test-model-fast-path.cjs
+
+      - name: Qualify Companion M1 contracts and telemetry offline
+        run: |
+          node scripts/test-voice-m1-telemetry.cjs
+          node scripts/test-voice-m1-contracts.cjs
+          node scripts/test-voice-m1-disturbances.cjs
+          node scripts/test-claw-live-warm-detach.cjs
+          python3 scripts/test-voice-m1-corpus.py
+          node scripts/test-voice-turn-protocol.cjs
+          node scripts/test-warm-v2-ownership.cjs
+          node scripts/test-claw-live-warm.cjs
+          node scripts/test-claw-live-warm-cancellation.cjs
+          TMPDIR=/tmp node scripts/test-claw-live.cjs
+          node scripts/test-companion-runs.cjs
 
       - name: Run inactivity evidence and lifecycle regression contracts
         run: |

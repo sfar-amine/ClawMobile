@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "adb-runtime-root-parity-20261010",
+  "date": "2026-10-10",
+  "summary": "ADB recovery scripts resolve their helpers from the active Tier0 release instead of the git checkout (ClawMobile f70df9e parity).",
+  "root_cause": "ClawMobile/samantha f70df9e (2026-10-02) was never carried into samantha-core: adb-recovery-watchdog.sh, adb-recovery-supervisor.sh and adb-recovery-readiness.py still called ~/ClawMobile/installer/termux-lite/*, so a checkout change could bypass Tier0 promotion and rollback. Found by the ClawMobile vs samantha-core parity audit of 10/10.",
+  "architecture": "No new component. RUNTIME_DIR = CLAW_RUNTIME_ROOT or the script's own directory, as the other termux-lite scripts already do; ADB_RECOVERY_READINESS_HELPER override kept.",
+  "restart_policy": "Tier0 package + promote.",
+  "human_boundary": "Unchanged.",
+  "rollback": "tier0-control rollback to the previous last-known-good release."
+}

@@ -14,7 +14,16 @@ import sys
 from typing import Any
 
 HOME = Path.home()
-UI_ROOT = Path(os.environ.get("CLAW_UI_PLAYBOOKS_ROOT") or (HOME / ".openclaw/workspace/ui-playbooks")).expanduser()
+def _ui_root() -> Path:
+    # Same order as claw-capability.py: explicit root, pinned runtime snapshot, then the mutable workspace.
+    configured = os.environ.get("CLAW_UI_PLAYBOOKS_ROOT")
+    if configured:
+        return Path(configured).expanduser()
+    pinned = HOME / ".openclaw/runtime-ui-playbooks/current"
+    if (pinned / "skill_intelligence/capability_graph.py").is_file():
+        return pinned
+    return HOME / ".openclaw/workspace/ui-playbooks"
+UI_ROOT = _ui_root()
 STATIC_BAD = ("{", "}", "$(", "`", ";", "&&", "||", "|", ">", "<")
 SAFE_EXECUTION_STATES = {"completed"}
 HIGH_CONSEQUENCE_RISKS = {"transaction", "destructive", "sensitive", "external_send"}

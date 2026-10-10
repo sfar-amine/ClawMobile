@@ -12,6 +12,7 @@ export type ClawLiveBootstrapOptions = {
   locale?: string;
   client?: string;
   home?: string;
+  telemetry?: (event:"t02"|"t03")=>void;
 };
 
 function normalizedLocale(value = "fr") {
@@ -99,8 +100,10 @@ function tokenHelperPath() {
   );
 }
 
-async function mintViaHelper(helperPath = tokenHelperPath()) {
+async function mintViaHelper(helperPath = tokenHelperPath(), observe?: (event:"t02"|"t03")=>void) {
+  const trace=(event:"t02"|"t03")=>{try{observe?.(event);}catch{}};
   const node = path.join(os.homedir(), ".openclaw-android", "bin", "node");
+  trace("t02");
   const raw: any = await execFileAsync(node, [helperPath, "--mint-token"], {
     timeout: 15_000,
     maxBuffer: 256 * 1024,
@@ -111,6 +114,7 @@ async function mintViaHelper(helperPath = tokenHelperPath()) {
   if (typeof value?.token !== "string" || !value.token) {
     throw new Error("gemini_live_token_helper_failed");
   }
+  trace("t03");
   return value;
 }
 
@@ -121,7 +125,7 @@ export async function createClawLiveToken(
 ) {
   let token: any;
   if (!keyResolver) {
-    token = await mintViaHelper();
+    token = await mintViaHelper(tokenHelperPath(), options.telemetry);
   } else {
     const key = await keyResolver();
     const now = Date.now();

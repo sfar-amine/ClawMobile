@@ -64,6 +64,34 @@ def project(event, source_id, stamp=None):
                 {"label": "Catégorie", "value": category}, {"label": "Exécution", "value": executor}]}
 
 
+OWNER_DETAIL_CHARS = 160
+
+
+def project_owner(live, event, source_id, stamp=None):
+    """Owner-only local view: the same tags, action, status and scrubbed preview as the
+    claw-live terminal. Never leaves the phone (loopback Companion stream only)."""
+    tags = live.normalize_tags(event.tags)
+    if "LIVE" in tags:
+        return None
+    at = stamp if stamp is not None else event.ts or time.time()
+    if isinstance(at, str):
+        try:
+            at = datetime.fromisoformat(at.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            at = time.time()
+    if at > 1e12:
+        at /= 1000
+    action = str(getattr(event, "action", "") or "INFO").upper()[:24]
+    return {"id": "live-" + hashlib.sha256(source_id.encode()).hexdigest()[:24], "view": "owner",
+            "at": datetime.fromtimestamp(at, timezone.utc).isoformat(), "tags": tags[:4],
+            "context": live.preview(getattr(event, "context", ""), 40), "action": action,
+            "detail": live.preview(getattr(event, "detail", ""), OWNER_DETAIL_CHARS),
+            "status": live.preview(str(getattr(event, "status", "") or "").upper(), 24),
+            "metric": live.preview(getattr(event, "metric", ""), 40),
+            "state": STATE.get(action, "healthy" if action in TITLES else "unknown"),
+            "source": "claw-live"}
+
+
 class Collector:
     def __init__(self):
         self.rows = []
@@ -105,8 +133,9 @@ class PassiveSurface:
 
 
 class JsonRenderer:
-    def __init__(self, live):
+    def __init__(self, live, owner=False):
         self.live = live
+        self.owner = owner
         self.sequence = 0
         self.session = str(time.time_ns())
         self.lock = threading.Lock()
@@ -114,7 +143,8 @@ class JsonRenderer:
     def emit(self, event, dedupe_window=0):
         with self.lock:
             self.sequence += 1
-            row = project(event, self.session + ":" + str(self.sequence))
+            source_id = self.session + ":" + str(self.sequence)
+            row = project_owner(self.live, event, source_id) if self.owner else project(event, source_id)
             if row:
                 try:
                     print(json.dumps(row, ensure_ascii=False), flush=True)
@@ -122,9 +152,9 @@ class JsonRenderer:
                     self.live.stop_event.set()
 
 
-def stream(live):
+def stream(live, owner=False):
     live.stop_event.clear()
-    renderer = JsonRenderer(live); surfaces = PassiveSurface()
+    renderer = JsonRenderer(live, owner); surfaces = PassiveSurface()
     signal.signal(signal.SIGTERM, lambda *_: live.stop_event.set())
     signal.signal(signal.SIGINT, lambda *_: live.stop_event.set())
     jobs = [live.DesktopStream(renderer, surfaces).loop,

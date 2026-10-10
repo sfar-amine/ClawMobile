@@ -14,10 +14,16 @@ function status(value: unknown) {
   const raw = typeof value === "string" ? value.toLowerCase() : "unknown";
   return states[raw] || (allowed.has(raw) ? raw : "unknown");
 }
-const descriptions: Record<string, string> = {daily_log_audit: "Audit du journal quotidien incomplet."};
+const descriptions: Record<string, string> = {
+  daily_log_audit: "Audit du journal quotidien incomplet.",
+  scheduler_health: "Planificateur à surveiller.",
+};
+/** Closed list only; the Health Manager may join several reasons with commas (e.g. "scheduler_health,daily_log_audit"). */
 function description(value: unknown): string {
-  return typeof value === "string" && Object.prototype.hasOwnProperty.call(descriptions,value)
-    ? descriptions[value] : "Diagnostic du composant indisponible.";
+  if (typeof value !== "string") return "Diagnostic du composant indisponible.";
+  const known = value.split(",").map(part => part.trim())
+    .filter(part => Object.prototype.hasOwnProperty.call(descriptions, part)).map(part => descriptions[part]);
+  return known.length ? [...new Set(known)].join(" ") : "Diagnostic du composant indisponible.";
 }
 function stamp(value: unknown): string | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 253402300799

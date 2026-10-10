@@ -44,6 +44,9 @@ const MAX_REQUEST_CHARS = 12000;
 const RECENT_TTL_MS = 10 * 60_000;
 const CONVERSATION_TTL_MS = 30 * 60_000;
 const ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+// A socket that is not authenticated within this delay is abandoned: after a network
+// switch a dead TCP connection can stay CONNECTING or CLOSING without ever emitting close.
+const CONNECT_DEADLINE_MS = Number(process.env.CLAW_VOICE_RELAY_CONNECT_DEADLINE_MS || 20_000);
 
 let config: RelayConfig | null = null;
 let socket: any = null;
@@ -51,6 +54,7 @@ let state: RelayState = "disabled";
 let authenticated = false;
 let reconnectTimer: NodeJS.Timeout | null = null;
 let heartbeatTimer: NodeJS.Timeout | null = null;
+let connectTimer: NodeJS.Timeout | null = null;
 let attempts = 0;
 let lastConnectedAt = 0;
 let lastPongAt = 0;
@@ -649,10 +653,7 @@ function startHeartbeat() {
       lastPongAt &&
       Date.now() - lastPongAt > config!.heartbeatMs * 2.5
     ) {
-      lastError = "heartbeat_timeout";
-      try {
-        socket.close();
-      } catch {}
+      abandonSocket(socket, "heartbeat_timeout");
       return;
     }
     try {
@@ -660,6 +661,28 @@ function startHeartbeat() {
     } catch {}
   }, config.heartbeatMs);
   heartbeatTimer.unref?.();
+}
+
+function clearConnectTimer() {
+  if (connectTimer) clearTimeout(connectTimer);
+  connectTimer = null;
+}
+
+/**
+ * Drops the current socket and reconnects without waiting for its close event, which
+ * a half-open connection may never emit. Events from an abandoned socket are ignored.
+ */
+function abandonSocket(ws: any, reason: string) {
+  if (!ws || socket !== ws) return;
+  lastError = reason;
+  stopHeartbeat();
+  clearConnectTimer();
+  authenticated = false;
+  socket = null;
+  try {
+    ws.close();
+  } catch {}
+  if (config) scheduleReconnect();
 }
 
 function scheduleReconnect() {
@@ -703,6 +726,9 @@ function connect() {
   authenticated = false;
   const ws = new WS(config.url);
   socket = ws;
+  clearConnectTimer();
+  connectTimer = setTimeout(() => abandonSocket(ws, "connect_timeout"), CONNECT_DEADLINE_MS);
+  connectTimer.unref?.();
 
   ws.addEventListener("open", () => {
     state = "authenticating";
@@ -717,6 +743,7 @@ function connect() {
   });
 
   ws.addEventListener("message", async (event: any) => {
+    if (socket !== ws) return;
     try {
       const raw =
         typeof event.data === "string" ? event.data : await event.data.text();
@@ -728,6 +755,7 @@ function connect() {
 
       const message = JSON.parse(raw);
       if (message.type === "auth_ok") {
+        clearConnectTimer();
         authenticated = true;
         state = "connected";
         attempts = 0;
@@ -751,14 +779,11 @@ function connect() {
   });
 
   ws.addEventListener("error", () => {
-    lastError = "voice_relay_websocket_error";
+    abandonSocket(ws, "voice_relay_websocket_error");
   });
 
   ws.addEventListener("close", () => {
-    stopHeartbeat();
-    authenticated = false;
-    socket = null;
-    if (config) scheduleReconnect();
+    abandonSocket(ws, lastError || "voice_relay_closed");
   });
 }
 
@@ -782,6 +807,7 @@ export function stopVoiceRelay() {
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = null;
   stopHeartbeat();
+  clearConnectTimer();
   try {
     socket?.close();
   } catch {}

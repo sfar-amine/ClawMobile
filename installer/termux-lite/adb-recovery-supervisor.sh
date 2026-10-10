@@ -4,7 +4,8 @@ HOME_DIR=${HOME:-/data/data/com.termux/files/home}
 STATE=$HOME_DIR/.openclaw/watchdogs
 LOG=$STATE/adb-supervisor.log
 LOCK=$STATE/adb-supervisor.lock
-CHILD=$HOME_DIR/ClawMobile/installer/termux-lite/adb-recovery-watchdog.sh
+RUNTIME_DIR="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
+CHILD=$RUNTIME_DIR/adb-recovery-watchdog.sh
 mkdir -p "$STATE"
 exec 9>"$LOCK"
 flock -n 9 || exit 0

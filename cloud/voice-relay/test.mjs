@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  newestAuthenticated,
   normalizeVoiceRequest,
   parseBearer,
   voiceTurnKey,
@@ -63,5 +64,15 @@ assert.throws(
     }),
   /ambiguous_voice_turn/,
 );
+
+
+{
+  const socket = (attachment) => ({ deserializeAttachment: () => attachment });
+  const stale = socket({ authenticated: true, authAt: 1000 });
+  const fresh = socket({ authenticated: true, authAt: 2000 });
+  const pending = socket({ authenticated: false });
+  assert.deepEqual(newestAuthenticated([stale, pending, fresh]), [fresh, stale]);
+  assert.deepEqual(newestAuthenticated([pending]), []);
+}
 
 console.log("voice-relay worker tests: PASS");
