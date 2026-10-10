@@ -14,6 +14,7 @@ import { android_health } from "../tools/android";
 import { clearAgentConversationMessages, listAgentConversationMessages, listAgentConversations, markAgentMessageRead } from "./agentMessages";
 import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRuntime } from "./openclawGatewayClient";
 import { submitIntent } from "./intent";
+import {securitySurfaces} from "./securitySurfaces";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
@@ -275,6 +276,15 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(pc&&method==='DELETE'){writeJson(res,200,await laptopChange('revoke',decodeURIComponent(pc[1]),await readJsonBody(req,2048)));return;}
       writeJson(res,405,{success:false,state:'refused',receipt:null,reason:'unsupported_laptop_route'});
     }catch(error:any){const invalid=error?.statusCode===400||error instanceof URIError;writeJson(res,invalid?400:503,{success:false,state:invalid?'refused':'indeterminate',receipt:null,reason:invalid?'invalid_laptop_operation':'laptop_owner_indeterminate'});}
+    return;
+  }
+
+  if(routePath==="/security/surfaces"){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    if(requestUrl.search){writeJson(res,400,{success:false,state:"refused",receipt:null,error:"unsupported_parameter"});return;}
+    try{res.setHeader("Cache-Control","no-store");writeJson(res,200,await securitySurfaces());}
+    catch{writeJson(res,503,{success:false,state:"unavailable",receipt:null,error:"security_surfaces_unavailable"});}
     return;
   }
 

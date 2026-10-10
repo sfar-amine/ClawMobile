@@ -24,6 +24,9 @@ export function remoteBridgeHealth() {
     protocol: "claw-rpc-v1",
   };
 }
+export function remoteBridgeReceiptDirectory() { return REQUEST_DIR; }
+
+export type ClawAccess = {client_id:string;profile:"chat-owner"|"chat-owner-shadow";owner:boolean;read_only:boolean};
 type BridgeState = "received" | "running" | "completed" | "failed" | "indeterminate";
 
 export type ContinuumFence = {
@@ -43,6 +46,7 @@ export type RemoteBridgeRequest = {
   method: string;
   params?: Record<string, unknown>;
   continuumFence?: ContinuumFence;
+  _claw_access?: ClawAccess;
 };
 
 export type RemoteBridgeReceipt = {
@@ -52,6 +56,7 @@ export type RemoteBridgeReceipt = {
   sessionId?: string;
   method: string;
   paramsHash: string;
+  _claw_access?: ClawAccess;
   state: BridgeState;
   instanceId: string;
   receivedAt: number;
@@ -599,10 +604,18 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     if (!taskId) throw new Error("step_id_requires_task_id");
     validateCorrelationId(stepId, "step");
   }
+  const access = body?._claw_access;
+  if (access && (!/^[A-Za-z0-9._-]{1,24}$/.test(access.client_id) ||
+      !["chat-owner","chat-owner-shadow"].includes(access.profile) ||
+      body.sessionId !== `external_mcp:${access.client_id}` ||
+      access.owner !== (access.profile === "chat-owner") || access.read_only !== (access.profile !== "chat-owner"))) {
+    throw statusError(400,"invalid_claw_access");
+  }
   return {
     requestId,
     taskId,
     stepId,
+    ...(access ? {_claw_access:{client_id:access.client_id,profile:access.profile,owner:access.owner,read_only:access.read_only}} : {}),
     sessionId: body?.sessionId ? String(body.sessionId) : undefined,
     method,
     params: body?.params && typeof body.params === "object"
@@ -620,6 +633,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   const existing = readReceipt(request.requestId);
 
   if (existing) {
+    if (request._claw_access && existing._claw_access && JSON.stringify(request._claw_access)!==JSON.stringify(existing._claw_access)) throw statusError(409,"request_access_conflict");
     if (existing.paramsHash !== paramsHash || existing.method !== request.method) {
       throw statusError(409, "request_id_conflict");
     }
@@ -646,6 +660,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
 
   let receipt: RemoteBridgeReceipt = {
     requestId: request.requestId,
+    ...(request._claw_access ? {_claw_access:request._claw_access} : {}),
     taskId: request.taskId,
     stepId: request.stepId,
     sessionId: request.sessionId,

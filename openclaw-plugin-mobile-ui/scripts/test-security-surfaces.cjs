@@ -1,0 +1,34 @@
+const assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),http=require('node:http'),{performance}=require('node:perf_hooks');
+(async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'security-surfaces-'));process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR=root;process.env.OPENCLAW_STATE_DIR=root;
+ const requests=path.join(root,'requests');await fs.mkdir(requests);
+ const write=(name,value)=>fs.writeFile(path.join(requests,name+'.json'),JSON.stringify(value));
+ const access=(id,profile)=>({client_id:id,profile,owner:profile==='chat-owner',read_only:profile!=='chat-owner'});
+ const now=Date.now();
+ await write('claude-history',{sessionId:'external_mcp:claude-chat',method:'exec_wait',receivedAt:now-2000,result:{text:'private-payload'},params:{command:'private-command'}});
+ await write('claude-current',{sessionId:'external_mcp:claude-chat',method:'artifact_read',receivedAt:now-1000,_claw_access:access('claude-chat','chat-owner')});
+ await write('chatgpt-shadow',{sessionId:'external_mcp:chatgpt-chat',method:'mcp_capability_execute_readonly',receivedAt:now-1000});
+ await write('stale-client',{sessionId:'external_mcp:expired-client',receivedAt:now-31*86400000,_claw_access:access('expired-client','chat-owner')});
+ await write('poison-id',{sessionId:'external_mcp:Bearer123456789',method:'exec_wait',receivedAt:now-1000});
+ await write('unknown',{sessionId:'external_mcp:unknown-client',method:'artifact_read',receivedAt:now-1000});
+ await fs.writeFile(path.join(requests,'corrupt.json'),'{');
+ await fs.symlink(path.join(requests,'claude-current.json'),path.join(requests,'ignored.json'));
+ let transportCalls=0;
+ require('../dist/companion/notificationSources').notificationSources=async()=>{transportCalls++;return {items:[{id:'whatsapp',kind:'channel',enabled:true,lastDeliveryAt:'2026-10-10T11:00:00Z',private:'private-transport'},{id:'slack',kind:'channel',enabled:false}]}};
+ require('../dist/companion/remoteBridgeExec').runExecWait=async()=>({exitCode:0,stdout:'local fixture'});
+ const {handleMcpRelayRequest}=require('../dist/companion/mcpBridge');
+ const ingress=await handleMcpRelayRequest({requestId:'mcp-codex-cloud-probe-read',clientId:'codex-cloud',profile:'chat-owner',tool:'claw_exec',arguments:{command:'local fixture only',action_key:'probe',step_key:'read'}});assert.equal(ingress.state,'completed');
+ const persisted=JSON.parse(await fs.readFile(path.join(requests,'mcp-codex-cloud-probe-read.json'),'utf8'));assert.deepEqual(persisted._claw_access,access('codex-cloud','chat-owner'));
+ const bridge=require('../dist/companion/remoteBridge');await assert.rejects(bridge.submitRemoteBridgeRequest({requestId:'invalid-access',sessionId:'external_mcp:other',method:'ping',_claw_access:access('codex-cloud','chat-owner')}),/invalid_claw_access/);
+ const snapshot=async()=>{const result={};for(const name of await fs.readdir(requests)){const info=await fs.lstat(path.join(requests,name));result[name]={mtime:info.mtimeMs,...(info.isFile()?{data:await fs.readFile(path.join(requests,name),'utf8')}:{})};}return result;};const before=await snapshot();
+ const {route}=require('../dist/companion/server');const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}')}));await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const request=(method='GET',headers={})=>new Promise((resolve,reject)=>{const req=http.request({host:'127.0.0.1',port:server.address().port,path:'/v1/security/surfaces',method,headers},res=>{let raw='';res.on('data',v=>raw+=v);res.on('end',()=>resolve({status:res.statusCode,raw,body:JSON.parse(raw)}))});req.on('error',reject);req.end()});
+ try{
+  const first=await request();assert.equal(first.status,200);assert.equal(first.body.receipt,null);const by=id=>first.body.items.find(v=>v.id===id);assert.equal(by('claude-chat').profile,'chat-owner');assert.equal(by('claude-chat').lastActivityAt,new Date(now-1000).toISOString());assert.equal(by('chatgpt-chat').readOnly,true);assert.equal(by('codex-cloud').owner,true);assert.equal(by('unknown-client').profile,null);assert.equal(by('whatsapp').enabled,true);assert.ok(!by('expired-client'));assert.ok(first.body.issues.includes('mcp_config_not_readable'));assert.ok(first.body.items.every(v=>v.revocable===false));
+  assert.ok(!/token|secret|Bearer|\d{8}|private-payload|private-command|private-transport/i.test(first.raw));
+  assert.equal((await request('POST')).status,405);assert.equal((await request('GET',{Origin:'https://example.invalid'})).status,403);
+  const start=performance.now();for(let i=0;i<20;i++)assert.equal((await request()).status,200);assert.ok((performance.now()-start)/20<1500);assert.equal(transportCalls,1);assert.deepEqual(await snapshot(),before);
+  const saved=requests+'-saved';await fs.rename(requests,saved);await fs.symlink(saved,requests);const noFollow=await request();assert.ok(noFollow.body.issues.includes('mcp_receipts_unavailable'));assert.ok(!noFollow.body.items.some(v=>v.kind==='mcp_client'));await fs.unlink(requests);await fs.rename(saved,requests);
+  console.log('R15: existing receipt ingress/access profile, 30-day bounded read, redaction, immutable owner files, transport projection, hot latency and HTTP read-only boundaries passed');
+ }finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(root,{recursive:true,force:true});}
+})().catch(error=>{console.error(error);process.exitCode=1});

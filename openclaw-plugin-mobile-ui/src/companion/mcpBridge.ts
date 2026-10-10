@@ -13,6 +13,9 @@ import {
 const execFileAsync = promisify(execFile);
 // External MCP keeps a read-only shadow profile and an owner profile that reuses canonical Claw authorization.
 const SUPPORTED_PROFILES = new Set(["chat-owner-shadow", "chat-owner"]);
+function accessMetadata(clientId:string,profile:string){
+  return {client_id:clientId,profile:profile as "chat-owner"|"chat-owner-shadow",owner:profile === "chat-owner",read_only:profile !== "chat-owner"};
+}
 const CLIENT_ID_RE = /^[A-Za-z0-9._-]{1,24}$/;
 const ACTION_ID_RE = /^[A-Za-z0-9._-]{1,40}$/;
 const STEP_ID_RE = /^[A-Za-z0-9._-]{1,24}$/;
@@ -298,6 +301,7 @@ async function executeCapability(
   if (profile === "chat-owner-shadow" && selectedRisk !== "read") {
     const receipt = await submitRemoteBridgeRequest({
       requestId, taskId, stepId: stepKey, sessionId: `external_mcp:${clientId}`,
+      _claw_access: accessMetadata(clientId,profile),
       method, params,
     });
     return projectReceipt(receipt);
@@ -352,6 +356,7 @@ async function executeCapability(
     taskId,
     stepId: wireStepId,
     sessionId: `external_mcp:${clientId}`,
+      _claw_access: accessMetadata(clientId,profile),
     method,
     params,
     ...(continuumFence ? { continuumFence } : {}),
@@ -392,6 +397,7 @@ async function executeRawCommand(
     taskId: actionTaskId(clientId, actionKey),
     stepId: stepKey,
     sessionId: `external_mcp:${clientId}`,
+      _claw_access: accessMetadata(clientId,profile),
     method: "exec_wait",
     params: {
       command,
@@ -432,6 +438,7 @@ async function statusFor(
 async function readArtifact(
   requestId: string,
   clientId: string,
+  profile: string,
   args: Record<string, unknown>,
 ) {
   const artifactId = requiredString(args.artifact_id, "artifact_id", 128, ARTIFACT_ID_RE);
@@ -454,6 +461,7 @@ async function readArtifact(
   const receipt = await submitRemoteBridgeRequest({
     requestId: stableId,
     sessionId: `external_mcp:${clientId}`,
+      _claw_access: accessMetadata(clientId,profile),
     method: "artifact_read",
     params: { artifactId, offset, maxBytes },
   });
@@ -486,7 +494,7 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
     case "claw_status":
       return statusFor(clientId, args);
     case "claw_artifact_read":
-      return readArtifact(requestId, clientId, args);
+      return readArtifact(requestId, clientId, profile, args);
     default:
       return { state: "failed", error: "unsupported_mcp_tool" };
   }

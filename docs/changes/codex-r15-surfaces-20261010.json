@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "id": "codex-r15-surfaces-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Read existing MCP client receipts and canonical transport state",
+  "reason": "File 18 R15; no Worker list or separate access registry.",
+  "files": [
+    "docs/changes/codex-r15-surfaces-20261010.json",
+    "docs/changes/codex-r15-surfaces-20261010.md",
+    "docs/work/samantha-runtime/contracts/r15.md",
+    "openclaw-plugin-mobile-ui/scripts/test-security-surfaces.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/securitySurfaces.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "r15-security-surfaces",
+      "status": "passed",
+      "evidence": "Actual local receipt ingress, read-only file snapshots, bounded 30-day scan, canonical R9 projection, privacy, HTTP boundaries and hot latency; current CI commands passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-r15-surfaces-20261010.md",
+    "docs/work/samantha-runtime/contracts/r15.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "updated",
+      "claw_exec": "updated",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "updated"
+    },
+    "reason": "Wire execution unchanged; existing receipts retain authenticated closed access metadata. Local ingress and existing relay/bridge tests pass."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "No Worker client catalogue endpoint; only clients seen in retained receipts, with explicit issue.",
+    "Historical method profiles explicit; other old receipts have unknown profile.",
+    "No S24 recipe/deployment claimed. Transport metadata cached 15 seconds; bounded incomplete receipt scans signalled."
+  ]
+}
