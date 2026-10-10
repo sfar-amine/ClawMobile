@@ -6,13 +6,14 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Expose native notification source reads and explicit unavailable activation",
-  "reason": "Explicit local-only Codex backlog delivery.",
+  "reason": "Reprise autorisée en PR indépendante, base runtime 066a340 ; activation et recette par Claude.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-local-r9-read-20261010.json",
     "docs/changes/codex-local-r9-read-20261010.md",
     "docs/work/samantha-runtime/contracts/r9.md",
     "openclaw-plugin-mobile-ui/scripts/test-notification-sources.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
     "openclaw-plugin-mobile-ui/src/companion/notificationSources.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts"
   ],
@@ -47,8 +48,8 @@
     },
     "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
   },
-  "rollback": "Revert this local lot.",
+  "rollback": "Revert de la PR de ce lot.",
   "limitations": [
-    "Local patch/bundle only; no deployment or S24 receipt claimed."
+    "Recette S24 et UI Android non réalisées par Codex."
   ]
 }
