@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "codex-local-p2-c-companion-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Native request cancellation facade with durable reservation and no uncertain replay.",
+  "reason": "Backlog 12 and Claude clarification 13; preserve canonical owners and banking boundary.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-local-p2-c-companion-20261010.json",
+    "docs/changes/codex-local-p2-c-companion-20261010.md",
+    "docs/work/samantha-runtime/contracts/p2-c.md",
+    "openclaw-plugin-mobile-ui/scripts/test-control-request-cancel.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/controlActions.ts",
+    "openclaw-plugin-mobile-ui/src/companion/nativeOperation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "P2-c-companion",
+      "status": "passed",
+      "evidence": "Build and full run-ci-local.sh: CI_LOCAL_OK, including HTTP request cancellation contract."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p2-c.md",
+    "docs/changes/codex-local-p2-c-companion-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Native facade only; canonical changes assessed in companion playbooks patch."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing Memory Core, SituationStore and Companion run ledger; no new source of truth."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "docs/work/samantha-runtime/contracts/p2-c.md",
+      "openclaw-plugin-mobile-ui/scripts/test-control-request-cancel.cjs"
+    ],
+    "reason": "No primitive schemas, roles, transport or resolver adapters changed. Canonical CLI is registered and documented; runtime source changes are staged only, not deployed."
+  },
+  "rollback": "Revert the paired P2-c commits without deleting immutable canonical events.",
+  "limitations": [
+    "Git-only; no S24 receipt or deployment claimed.",
+    "sessionId is null until a separate producer contract creates a canonical link.",
+    "Owner qualification and application integration remain with Claude."
+  ]
+}
