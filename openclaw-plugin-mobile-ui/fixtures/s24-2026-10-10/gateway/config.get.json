@@ -1,0 +1,101 @@
+{
+  "_capture": {
+    "method": "config.get",
+    "params": {},
+    "latencyMs": 4766,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true,
+    "note": "SUBSET only: config.agents.defaults (model/thinking/compaction) + config.models; parsed/sourceConfig/resolved/runtimeConfig/raw omitted (same tree); apiKey/baseUrl removed"
+  },
+  "response": {
+    "path": "/data/data/com.termux/files/home/.openclaw/openclaw.json",
+    "exists": true,
+    "valid": true,
+    "hash": "<config-hash>",
+    "configRevisionHash": "<config-hash>",
+    "appliedConfigHash": "<config-hash>",
+    "_omittedTopLevelKeys": [
+      "includedPaths",
+      "includeProvenance",
+      "agentRosterIncludeOwned",
+      "bindingsIncludeOwned",
+      "raw",
+      "parsed",
+      "sourceConfig",
+      "resolved",
+      "runtimeConfig",
+      "issues",
+      "warnings",
+      "legacyIssues"
+    ],
+    "config": {
+      "agents": {
+        "defaults": {
+          "model": {
+            "primary": "openai/gpt-5.6-sol",
+            "fallbacks": [
+              "openai/gpt-5.6-luna"
+            ]
+          },
+          "models": {
+            "openai/gpt-5.6-luna": {},
+            "openai/gpt-5.6-sol": {},
+            "openai/gpt-6-astra": {}
+          },
+          "modelPolicy": {
+            "allow": [
+              "openai/gpt-5.6-sol",
+              "openai/gpt-5.6-luna"
+            ]
+          },
+          "compaction": {
+            "keepRecentTokens": 40000,
+            "recentTurnsPreserve": 8,
+            "qualityGuard": {
+              "enabled": true,
+              "maxRetries": 2
+            },
+            "model": "openai/gpt-5.6-luna",
+            "memoryFlush": {
+              "enabled": true,
+              "softThresholdTokens": 120000,
+              "forceFlushTranscriptBytes": 1300000
+            },
+            "maxActiveTranscriptBytes": 1600000,
+            "mode": "safeguard"
+          },
+          "thinkingDefault": "low",
+          "fastModeDefault": true,
+          "contextInjection": "continuation-skip",
+          "bootstrapMaxChars": 30000
+        },
+        "_otherDefaultsKeys": [
+          "workspace",
+          "systemAgent",
+          "heartbeat",
+          "maxConcurrent",
+          "subagents"
+        ],
+        "_otherAgentsKeys": [
+          "ownership",
+          "entries"
+        ]
+      },
+      "models": {
+        "mode": "merge",
+        "providers": {
+          "google": {
+            "models": [],
+            "_removedFields": [
+              "apiKey",
+              "baseUrl"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

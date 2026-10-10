@@ -1,0 +1,47 @@
+{
+  "_capture": {
+    "method": "agents.files.list",
+    "params": {
+      "agentId": "main"
+    },
+    "latencyMs": 4333,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true
+  },
+  "response": {
+    "agentId": "main",
+    "workspace": "/data/data/com.termux/files/home/.openclaw/workspace",
+    "files": [
+      {
+        "name": "AGENTS.md",
+        "path": "/data/data/com.termux/files/home/.openclaw/workspace/AGENTS.md",
+        "missing": false,
+        "size": 8438,
+        "updatedAtMs": 1791460327174
+      },
+      {
+        "name": "SOUL.md",
+        "path": "/data/data/com.termux/files/home/.openclaw/workspace/SOUL.md",
+        "missing": false,
+        "size": 4460,
+        "updatedAtMs": 1790370616881
+      },
+      {
+        "name": "USER.md",
+        "path": "/data/data/com.termux/files/home/.openclaw/workspace/USER.md",
+        "missing": false,
+        "size": 955,
+        "updatedAtMs": 1790266371763
+      },
+      {
+        "name": "MEMORY.md",
+        "path": "/data/data/com.termux/files/home/.openclaw/workspace/MEMORY.md",
+        "missing": true,
+        "expectedAbsent": true
+      }
+    ]
+  }
+}

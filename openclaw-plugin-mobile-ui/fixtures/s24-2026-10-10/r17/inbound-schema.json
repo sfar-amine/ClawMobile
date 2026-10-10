@@ -1,0 +1,979 @@
+{
+  "_capture": {
+    "source": "~/.openclaw/agents/main/agent/openclaw-agent.sqlite (opened file:...?mode=ro)",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6",
+    "sanitized": true
+  },
+  "canonicalInboundTimestamp": {
+    "answer": "transcript_events.event_json -> $.message.timestamp (epoch ms, WhatsApp provider timestamp, second precision) for rows where $.type='message' AND $.message.role='user' AND $.message.__openclaw.transport.channel='whatsapp'",
+    "receivedByGatewayAt": "transcript_events.created_at (epoch ms; == ISO $.timestamp of the event) = time the Gateway persisted the inbound message",
+    "dedupeKey": "$.message.__openclaw.transport.messageId (WhatsApp message id); also transcript_event_identities.message_idempotency_key",
+    "joinToChannel": "transcript_events.session_id -> session_windows.session_id (channel='whatsapp', chat_type, primary_conversation_id -> conversations.conversation_id)",
+    "notCanonical": "conversations.created_at/updated_at are per-conversation, not per-message; conversation_deliveries holds OUTBOUND sends only (operation_kind='send'); no dedicated inbound-message table exists",
+    "exampleSql": "SELECT te.session_id, te.seq, json_extract(te.event_json,'$.message.timestamp') AS wa_ts_ms, te.created_at AS persisted_ms FROM transcript_events te JOIN session_windows sw ON sw.session_id=te.session_id WHERE sw.channel='whatsapp' AND json_extract(te.event_json,'$.type')='message' AND json_extract(te.event_json,'$.message.role')='user' AND json_extract(te.event_json,'$.message.__openclaw.transport.channel')='whatsapp' ORDER BY wa_ts_ms",
+    "inboundWhatsAppUserMessagesInStore": 91,
+    "caveats": [
+      "event_json may be NULL when the event is stored compressed in event_zstd (BLOB); decode before json_extract",
+      "user-role rows in WhatsApp sessions without __openclaw.transport (heartbeat/system injections) have ms-precision timestamps and must be excluded",
+      "transcripts can be compacted/archived (session_transcript_archives) so old inbound rows may move out of transcript_events"
+    ]
+  },
+  "tables": {
+    "transcript_events": {
+      "rowCount": 3968,
+      "columns": [
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 1
+        },
+        {
+          "name": "seq",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 2
+        },
+        {
+          "name": "event_json",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "event_zstd",
+          "type": "BLOB",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "event_utf8_bytes",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "navigation_json",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "sqlite_autoindex_transcript_events_1"
+      ]
+    },
+    "transcript_event_identities": {
+      "rowCount": 3968,
+      "columns": [
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 1
+        },
+        {
+          "name": "event_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 2
+        },
+        {
+          "name": "seq",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "event_type",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "parent_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "message_idempotency_key",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "idx_agent_transcript_event_sequence",
+        "idx_agent_transcript_event_parent",
+        "idx_agent_transcript_event_identity_sequence",
+        "idx_agent_transcript_message_idempotency",
+        "sqlite_autoindex_transcript_event_identities_1"
+      ]
+    },
+    "session_windows": {
+      "rowCount": 108,
+      "columns": [
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 1
+        },
+        {
+          "name": "session_key",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "previous_session_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "reason",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "session_scope",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "transcript_updated_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "transcript_observed_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "session_entry_provenance",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "acp_owned",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "plugin_owner_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "hook_external_content_source",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "started_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "ended_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "chat_type",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "channel",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "account_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "primary_conversation_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "model_provider",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "model",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "agent_harness_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "parent_session_key",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "spawned_by",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "display_name",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "idx_agent_session_windows_conversation",
+        "idx_agent_session_windows_created_at",
+        "idx_agent_session_windows_session_key",
+        "idx_agent_session_windows_updated_at",
+        "sqlite_autoindex_session_windows_1"
+      ]
+    },
+    "session_conversations": {
+      "rowCount": 4,
+      "columns": [
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 1
+        },
+        {
+          "name": "conversation_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 2
+        },
+        {
+          "name": "role",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 3
+        },
+        {
+          "name": "route_context_json",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "first_seen_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "last_seen_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "idx_agent_session_conversations_primary",
+        "idx_agent_session_conversations_conversation",
+        "sqlite_autoindex_session_conversations_1"
+      ]
+    },
+    "conversations": {
+      "rowCount": 36,
+      "columns": [
+        {
+          "name": "conversation_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 1
+        },
+        {
+          "name": "channel",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "account_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "kind",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "peer_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "delivery_target",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "parent_conversation_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "thread_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "native_channel_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "native_direct_user_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "label",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "metadata_json",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "idx_agent_conversations_updated",
+        "idx_agent_conversations_identity",
+        "idx_agent_conversations_lookup",
+        "sqlite_autoindex_conversations_1"
+      ]
+    },
+    "conversation_deliveries": {
+      "rowCount": 3,
+      "columns": [
+        {
+          "name": "operation_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 1
+        },
+        {
+          "name": "operation_kind",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "conversation_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "source_session_key",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "message_hash",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "prepared_message_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "platform_message_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "queue_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "rejection_error",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "reply_message_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "reply_to_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "reply_thread_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "reply_text",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "reply_timestamp",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "idx_agent_conversation_deliveries_updated",
+        "idx_agent_conversation_deliveries_reply",
+        "sqlite_autoindex_conversation_deliveries_1"
+      ]
+    },
+    "session_nodes": {
+      "rowCount": 84,
+      "columns": [
+        {
+          "name": "session_key",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 1
+        },
+        {
+          "name": "current_session_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "entry_json",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "entry_valid",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "updated_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "created_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "created_via",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "created_actor_type",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "created_actor_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "owner_actor_type",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "owner_actor_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "owner_assigned_by_type",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "owner_assigned_by_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "owner_assigned_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "project_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "parent_session_key",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "spawned_by",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "fork_source_session_key",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "fork_source_session_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "fork_source_entry_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "label",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "display_name",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "category",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "icon",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "pinned_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "archived_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "last_read_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "last_interaction_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        },
+        {
+          "name": "last_activity_at",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "idx_agent_session_nodes_entry_not_valid",
+        "idx_agent_session_nodes_active",
+        "idx_agent_session_nodes_label",
+        "idx_agent_session_nodes_entry_valid_pending",
+        "idx_agent_session_nodes_current_session_id",
+        "idx_agent_session_nodes_archived_at",
+        "idx_agent_session_nodes_status",
+        "idx_agent_session_nodes_spawned_by",
+        "idx_agent_session_nodes_parent_session_key",
+        "idx_agent_session_nodes_last_interaction_at",
+        "idx_agent_session_nodes_updated_at",
+        "sqlite_autoindex_session_nodes_1"
+      ]
+    },
+    "session_pending_inputs": {
+      "rowCount": 6,
+      "columns": [
+        {
+          "name": "seq",
+          "type": "INTEGER",
+          "notnull": false,
+          "pk": 1
+        },
+        {
+          "name": "input_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "session_key",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "idempotency_key",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "run_id",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "request_hash",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "message_json",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "lifecycle_generation",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "state",
+          "type": "TEXT",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "accepted_at",
+          "type": "INTEGER",
+          "notnull": true,
+          "pk": 0
+        },
+        {
+          "name": "consumed_event_id",
+          "type": "TEXT",
+          "notnull": false,
+          "pk": 0
+        }
+      ],
+      "indexes": [
+        "idx_agent_session_pending_inputs_session",
+        "sqlite_autoindex_session_pending_inputs_2",
+        "sqlite_autoindex_session_pending_inputs_1"
+      ]
+    }
+  },
+  "sampleRows": [
+    {
+      "session_windows": {
+        "session_id": "6881b49e-9d92-d4df-3762-2c8a49f1d794",
+        "session_key": "agent:main:whatsapp:direct:+21600000000",
+        "channel": "whatsapp",
+        "chat_type": "direct",
+        "primary_conversation_id": "<conv:d7aa303ce6e0>"
+      },
+      "transcript_events": {
+        "session_id": "6881b49e-9d92-d4df-3762-2c8a49f1d794",
+        "seq": 1,
+        "created_at": 1790266704317,
+        "event_json": {
+          "type": "message",
+          "id": "a33947bc-b6e6-6036-706d-5a2f4bdd91f8",
+          "parentId": null,
+          "timestamp": "2026-09-24T16:18:24.317Z",
+          "message": {
+            "role": "user",
+            "content": "<texte 24 car.>",
+            "timestamp": 1790266701000,
+            "idempotencyKey": "<hash:807ff91b1edc>",
+            "__openclaw": {
+              "senderIsOwner": true,
+              "transport": {
+                "channel": "whatsapp",
+                "conversationRef": "<conv:d7aa303ce6e0>",
+                "messageId": "<wamid:1391bc82ae46>"
+              }
+            }
+          }
+        }
+      },
+      "transcript_event_identities": {
+        "event_id": "a33947bc-b6e6-6036-706d-5a2f4bdd91f8",
+        "event_type": "message",
+        "parent_id": null,
+        "message_idempotency_key": "<hash>",
+        "created_at": 1790266704317
+      },
+      "derived": {
+        "providerTimestampMs": 1790266701000,
+        "persistedAtMs": 1790266704317,
+        "ingestLagMs": 3317
+      }
+    },
+    {
+      "session_windows": {
+        "session_id": "6881b49e-9d92-d4df-3762-2c8a49f1d794",
+        "session_key": "agent:main:whatsapp:direct:+21600000000",
+        "channel": "whatsapp",
+        "chat_type": "direct",
+        "primary_conversation_id": "<conv:d7aa303ce6e0>"
+      },
+      "transcript_events": {
+        "session_id": "6881b49e-9d92-d4df-3762-2c8a49f1d794",
+        "seq": 5,
+        "created_at": 1790266749676,
+        "event_json": {
+          "type": "message",
+          "id": "ae0017c0-944f-59bb-e4af-ea1c5ddd1276",
+          "parentId": "1076321b-efd3-eb02-9516-ea90263dfb51",
+          "timestamp": "2026-09-24T16:19:09.676Z",
+          "message": {
+            "role": "user",
+            "content": "<texte 11 car.>",
+            "timestamp": 1790266749000,
+            "idempotencyKey": "<hash:385944063524>",
+            "__openclaw": {
+              "senderIsOwner": true,
+              "transport": {
+                "channel": "whatsapp",
+                "conversationRef": "<conv:d7aa303ce6e0>",
+                "messageId": "<wamid:baebc86efd7d>"
+              }
+            }
+          }
+        }
+      },
+      "transcript_event_identities": {
+        "event_id": "ae0017c0-944f-59bb-e4af-ea1c5ddd1276",
+        "event_type": "message",
+        "parent_id": "1076321b-efd3-eb02-9516-ea90263dfb51",
+        "message_idempotency_key": "<hash>",
+        "created_at": 1790266749676
+      },
+      "derived": {
+        "providerTimestampMs": 1790266749000,
+        "persistedAtMs": 1790266749676,
+        "ingestLagMs": 676
+      }
+    },
+    {
+      "session_windows": {
+        "session_id": "6881b49e-9d92-d4df-3762-2c8a49f1d794",
+        "session_key": "agent:main:whatsapp:direct:+21600000000",
+        "channel": "whatsapp",
+        "chat_type": "direct",
+        "primary_conversation_id": "<conv:d7aa303ce6e0>"
+      },
+      "transcript_events": {
+        "session_id": "6881b49e-9d92-d4df-3762-2c8a49f1d794",
+        "seq": 7,
+        "created_at": 1790266843132,
+        "event_json": {
+          "type": "message",
+          "id": "6ff55343-7ad0-243f-b798-27cbf246d410",
+          "parentId": "2cd94ec1-9e6e-e914-2e0b-d2499db2f26f",
+          "timestamp": "2026-09-24T16:20:43.132Z",
+          "message": {
+            "role": "user",
+            "content": "<texte 7 car.>",
+            "timestamp": 1790266841000,
+            "idempotencyKey": "<hash:61db10631587>",
+            "__openclaw": {
+              "senderIsOwner": true,
+              "transport": {
+                "channel": "whatsapp",
+                "conversationRef": "<conv:d7aa303ce6e0>",
+                "messageId": "<wamid:5050b06ce3d6>"
+              }
+            }
+          }
+        }
+      },
+      "transcript_event_identities": {
+        "event_id": "6ff55343-7ad0-243f-b798-27cbf246d410",
+        "event_type": "message",
+        "parent_id": "2cd94ec1-9e6e-e914-2e0b-d2499db2f26f",
+        "message_idempotency_key": "<hash>",
+        "created_at": 1790266843132
+      },
+      "derived": {
+        "providerTimestampMs": 1790266841000,
+        "persistedAtMs": 1790266843132,
+        "ingestLagMs": 2132
+      }
+    }
+  ],
+  "sampleConversationRow": {
+    "conversation_id": "<conv>",
+    "channel": "whatsapp",
+    "account_id": "<account>",
+    "kind": "direct",
+    "peer_id": "+21600000000",
+    "created_at": 1790266701121,
+    "updated_at": 1791630536624
+  }
+}
