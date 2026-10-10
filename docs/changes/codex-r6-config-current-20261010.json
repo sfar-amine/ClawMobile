@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "codex-r6-config-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose scoped main agent configuration and verified owner updates",
+  "reason": "File 18 R6; existing Gateway config owner with protected payment link.",
+  "files": [
+    "docs/changes/codex-r6-config-current-20261010.json",
+    "docs/changes/codex-r6-config-current-20261010.md",
+    "docs/work/samantha-runtime/contracts/r6.md",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-config.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "r6-agent-config",
+      "status": "passed",
+      "evidence": "Canonical configuration/catalog mock, fallback/policy projection, scoped patch/readback, owner/revision/replay/bank guard and all current runtime CI commands."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r6.md",
+    "docs/changes/codex-r6-config-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "No deployment or S24 recipe claimed. Active config shape and provider catalogue qualified by Claude.",
+    "Tools policies are read-only; effective tools catalogue not provided. Legacy agents.list not rewritten.",
+    "New test run separately while R2-v2 owns the CI change."
+  ]
+}
