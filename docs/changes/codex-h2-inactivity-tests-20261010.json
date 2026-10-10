@@ -27,7 +27,7 @@
     "docs/changes/codex-h2-inactivity-tests-20261010.md"
   ],
   "capabilities": {
-    "impact": "unchanged",
+    "impact": "none",
     "ids": [],
     "reason": "Aucune route ou capability ; test et frontière interne uniquement."
   },
