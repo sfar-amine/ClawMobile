@@ -1,4 +1,5 @@
 import {observeConversationOwnerRow} from "./conversationOwnerIndex";
+import {readModelOwnerFresh} from "./modelOwner";
 import {createHash} from "crypto";
 import {callOpenClawGateway,expectedCompanionSessionKey} from "./openclawAgentClient";
 import {readPaymentRequests,readOwnerConfirmations,reserveSubmittedRun,settleSubmittedRun} from "./runs";
@@ -31,10 +32,7 @@ function projection(id:string,row:any){
   issues:[...(!('authProfileOverride' in row)?['conversation_auth_profile_unknown']:[]),...(pinned===null?['conversation_pin_unknown']:[]),...(!model?['conversation_model_unknown']:[])]};
 }
 async function modelCatalog(){
- const [configRaw,catalog,auth]=await Promise.all([
-  callOpenClawGateway('config.get',{},readBudget),callOpenClawGateway('models.list',{agentId:'main'},readBudget),
-  callOpenClawGateway('models.authStatus',{agentId:'main'},readBudget)
- ]);
+ const {raw:configRaw,catalog,auth}=await readModelOwnerFresh();
  const config=configRaw?.config,allow=config?.agents?.entries?.main?.modelPolicy?.allow;
  if(!Array.isArray(allow)||!Array.isArray(catalog?.models)||catalog.models.length>2000||auth?.unavailable||!Array.isArray(auth?.providers))throw nativeError('conversation_model_catalog_unavailable',503);
  const usable=(provider:string,profile?:string)=>{
