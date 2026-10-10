@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "id": "codex-f3-server-localization-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Localize known server presentation with Accept-Language without translating user content",
+  "reason": "Fichier 35 F3 : présentation FR/EN sur champs serveur prouvés, préparation partielle sans traduction de contenu libre.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/serverLocale.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-server-localization.cjs",
+    "docs/work/samantha-runtime/contracts/f3.md",
+    "docs/changes/codex-f3-server-localization-20261010.md",
+    "docs/changes/codex-f3-server-localization-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "f3-localization",
+      "status": "passed",
+      "evidence": "npm run build ; test-server-localization.cjs, captures santé et automatisations, intégrité des contenus et sources, handler HTTP réel, zéro appel Gateway."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/f3.md",
+    "docs/changes/codex-f3-server-localization-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Route R6 existante seulement ; aucun nouvel endpoint, propriétaire ou routage agent."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Revert F3 ; aucune mutation runtime.",
+  "limitations": [
+    "Local seulement ; aucune publication avant ordre autorisé.",
+    "Préparation partielle : descriptions et résumés libres non traduits faute de provenance serveur structurée.",
+    "Signal Accept-Language app absent de l’audit Kotlin ; confirmation à demander dans future PR."
+  ]
+}

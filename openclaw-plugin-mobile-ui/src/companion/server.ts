@@ -1,3 +1,4 @@
+import {serverLanguage,localizedRoute,localizeServerPresentation,ServerLanguage} from "./serverLocale";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
 import {filesList,filesContent} from "./fileReads";
@@ -195,6 +196,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   const requestUrl = new URL(req.url || "/", "http://localhost");
   const routePath = normalizeProtocolPath(requestUrl.pathname);
   if(routePath&&accountGuardedRoute(routePath))accountGuardedResponses.add(res);
+  if(routePath&&localizedRoute(routePath))responseLanguages.set(res,serverLanguage(req.headers["accept-language"]));
 
   if (shouldBlockBrowserRequest(req, routePath || requestUrl.pathname)) {
     writeJson(res, 403, {
@@ -1939,8 +1941,11 @@ function writeHtml(res: http.ServerResponse, statusCode: number, body: string) {
 
 // App-facing state routes: no account e-mail may leave, whatever the producer.
 const accountGuardedResponses=new WeakSet<http.ServerResponse>();
+const responseLanguages=new WeakMap<http.ServerResponse,ServerLanguage>();
 function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
   if(accountGuardedResponses.has(res))value=redactAccountIdentifiers(value);
+  const language=responseLanguages.get(res);
+  if(language){value=localizeServerPresentation(value,language);res.setHeader("Content-Language",language);res.setHeader("Vary","Accept-Language");}
   const body = statusCode === 204 ? "" : JSON.stringify(value, null, 2);
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");

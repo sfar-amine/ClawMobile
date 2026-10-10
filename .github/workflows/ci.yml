@@ -173,3 +173,6 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: F3 server presentation localization on S24 captures
+        run: node scripts/test-server-localization.cjs
