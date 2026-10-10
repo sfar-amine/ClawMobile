@@ -98,3 +98,6 @@ jobs:
 
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
+
+      - name: Run read-only security surfaces contract
+        run: node scripts/test-security-surfaces.cjs

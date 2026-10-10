@@ -24,11 +24,25 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=r
  const {route}=require('../dist/companion/server');const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}')}));await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const request=(method='GET',headers={})=>new Promise((resolve,reject)=>{const req=http.request({host:'127.0.0.1',port:server.address().port,path:'/v1/security/surfaces',method,headers},res=>{let raw='';res.on('data',v=>raw+=v);res.on('end',()=>resolve({status:res.statusCode,raw,body:JSON.parse(raw)}))});req.on('error',reject);req.end()});
  try{
-  const first=await request();assert.equal(first.status,200);assert.equal(first.body.receipt,null);const by=id=>first.body.items.find(v=>v.id===id);assert.equal(by('claude-chat').profile,'chat-owner');assert.equal(by('claude-chat').lastActivityAt,new Date(now-1000).toISOString());assert.equal(by('chatgpt-chat').readOnly,true);assert.equal(by('codex-cloud').owner,true);assert.equal(by('unknown-client').profile,null);assert.equal(by('whatsapp').enabled,true);assert.ok(!by('expired-client'));assert.ok(first.body.issues.includes('mcp_config_not_readable'));assert.ok(first.body.items.every(v=>v.revocable===false));
+  const forged=await new Promise((resolve,reject)=>{const r=http.request({host:'127.0.0.1',port:server.address().port,path:'/v1/remote-bridge/requests',method:'POST',headers:{'Content-Type':'application/json'}},res=>{let raw='';res.on('data',v=>raw+=v);res.on('end',()=>resolve(JSON.parse(raw)))});r.on('error',reject);r.end(JSON.stringify({requestId:'forged-http-access',sessionId:'external_mcp:forged-client',method:'ping',_claw_access:access('forged-client','chat-owner')}));});
+  assert.equal(forged._claw_access,undefined);
+  const forgedFile=JSON.parse(await fs.readFile(path.join(requests,'forged-http-access.json'),'utf8'));assert.equal(forgedFile._claw_access,undefined);
+  delete before['forged-http-access.json'];await fs.unlink(path.join(requests,'forged-http-access.json'));
+  const first=await request();assert.equal(first.status,200);assert.equal(first.body.receipt,null);const by=id=>first.body.items.find(v=>v.id===id);assert.equal(by('claude-chat').profile,'chat-owner');assert.equal(by('claude-chat').lastActivityAt,new Date(now-1000).toISOString());assert.equal(by('chatgpt-chat').readOnly,null);assert.equal(by('codex-cloud').owner,true);assert.equal(by('unknown-client').profile,null);assert.equal(by('whatsapp').enabled,true);assert.ok(!by('expired-client'));assert.ok(first.body.issues.includes('mcp_config_not_readable'));assert.ok(first.body.items.every(v=>v.revocable===false));
   assert.ok(!/token|secret|Bearer|\d{8}|private-payload|private-command|private-transport/i.test(first.raw));
   assert.equal((await request('POST')).status,405);assert.equal((await request('GET',{Origin:'https://example.invalid'})).status,403);
   const start=performance.now();for(let i=0;i<20;i++)assert.equal((await request()).status,200);assert.ok((performance.now()-start)/20<1500);assert.equal(transportCalls,1);assert.deepEqual(await snapshot(),before);
   const saved=requests+'-saved';await fs.rename(requests,saved);await fs.symlink(saved,requests);const noFollow=await request();assert.ok(noFollow.body.issues.includes('mcp_receipts_unavailable'));assert.ok(!noFollow.body.items.some(v=>v.kind==='mcp_client'));await fs.unlink(requests);await fs.rename(saved,requests);
+  const large=requests+'-large';await fs.mkdir(large);
+  const largeValue={sessionId:'external_mcp:claude-chat',method:'ping',receivedAt:now-10000,_claw_access:access('claude-chat','chat-owner')};
+  for(let offset=0;offset<50000;offset+=250)await Promise.all(Array.from({length:250},(_,j)=>fs.writeFile(path.join(large,'receipt-'+String(offset+j).padStart(5,'0')+'.json'),JSON.stringify(largeValue))));
+  const newest=path.join(large,'receipt-49999.json');await fs.writeFile(newest,JSON.stringify({...largeValue,receivedAt:now}));await fs.utimes(newest,new Date(now+100),new Date(now+100));
+  const normal=requests+'-normal';await fs.rename(requests,normal);await fs.rename(large,requests);
+  const largeStarted=performance.now(),big=await request();assert.equal(big.status,200);assert.ok(performance.now()-largeStarted<1000);
+  const clients=big.body.items.filter(v=>v.kind==='mcp_client');
+  if(big.body.issues.includes('mcp_receipt_scan_limited'))assert.ok(clients.every(v=>v.lastActivityAt===null));
+  else assert.equal(clients.find(v=>v.id==='claude-chat').lastActivityAt,new Date(now).toISOString());
+  await fs.rename(requests,large);await fs.rename(normal,requests);
   console.log('R15: existing receipt ingress/access profile, 30-day bounded read, redaction, immutable owner files, transport projection, hot latency and HTTP read-only boundaries passed');
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1});

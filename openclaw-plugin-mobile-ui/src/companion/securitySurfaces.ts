@@ -24,15 +24,28 @@ async function clients(){
  const directory=remoteBridgeReceiptDirectory();
  try{
   for(let parent=directory;;parent=path.dirname(parent)){const stat=await fs.lstat(parent);if(stat.isSymbolicLink())throw Error();if(path.dirname(parent)===parent)break;}
-  const dir=await fs.opendir(directory);let count=0,bytes=0;const started=Date.now();
-  try{for await(const entry of dir){
-   if(++count>500||Date.now()-started>350){issues.push('mcp_receipt_scan_limited');break;}
-   if(!entry.isFile()||!/^[-A-Za-z0-9._:]{1,128}\.json$/.test(entry.name))continue;
+  const deadline=Date.now()+350;
+  const entries=await fs.readdir(directory,{withFileTypes:true});
+  const eligible=entries.filter(entry=>entry.isFile()&&/^[-A-Za-z0-9._:]{1,128}\.json$/.test(entry.name));
+  const candidates:{name:string;mtime:number}[]=[];
+  let complete=true,bytes=0;
+  // Directory order does not indicate recency: rank the entire eligible directory.
+  for(let offset=0;offset<eligible.length;offset+=64){
+   if(Date.now()>deadline-100){complete=false;break;}
+   const batch=await Promise.all(eligible.slice(offset,offset+64).map(async entry=>{
+    try{const stat=await fs.lstat(path.join(directory,entry.name));return stat.isFile()?{name:entry.name,mtime:stat.mtimeMs}:null;}catch{return null;}
+   }));
+   candidates.push(...batch.filter((v):v is {name:string;mtime:number}=>v!==null));
+  }
+  candidates.sort((a,b)=>b.mtime-a.mtime||a.name.localeCompare(b.name));
+  if(candidates.length>500)complete=false;
+  for(const entry of candidates.slice(0,500)){
+   if(Date.now()>deadline){complete=false;break;}
    let handle;
    try{
     handle=await fs.open(path.join(directory,entry.name),constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
     const info=await handle.stat();if(!info.isFile()||info.size>256*1024){issues.push('mcp_receipt_unreadable');continue;}
-    bytes+=info.size;if(bytes>8*1024*1024){issues.push('mcp_receipt_scan_limited');break;}
+    bytes+=info.size;if(bytes>8*1024*1024){complete=false;break;}
     const raw=await handle.readFile();if(raw.length>256*1024)continue;
     const value=JSON.parse(raw.toString('utf8'));
     const id=typeof value.sessionId==='string'&&value.sessionId.startsWith('external_mcp:')?value.sessionId.slice(13):null;
@@ -41,17 +54,13 @@ async function clients(){
     const access=value._claw_access;
     let profile:string|null=null;
     if(access?.client_id===id&&['chat-owner','chat-owner-shadow'].includes(access.profile)&&access.owner===(access.profile==='chat-owner')&&access.read_only===(access.profile!=='chat-owner'))profile=access.profile;
-    else if(!access){
-     // These historical methods themselves prove the authorization path used.
-     if(['exec_wait','mcp_capability_execute_owner'].includes(value.method))profile='chat-owner';
-     else if(value.method==='mcp_capability_execute_readonly')profile='chat-owner-shadow';
-     if(profile)issues.push('mcp_historical_method_profile');
-    }
+    // Legacy method names do not attest caller identity: HTTP can submit them too.
     const previous=rows.get(id);if(previous&&Date.parse(previous.lastActivityAt)>=value.receivedAt)continue;
     rows.set(id,{id,kind:'mcp_client',label:id==='claude-chat'?'Claude':id==='chatgpt-chat'?'ChatGPT':id==='codex-cloud'?'Codex': 'Client Claw',profile,owner:profile?profile==='chat-owner':null,readOnly:profile?profile!=='chat-owner':null,lastActivityAt:when,revocable:false,reason:'revocation_not_available'});
     if(!profile)issues.push('mcp_profile_unavailable');
    }catch{issues.push('mcp_receipt_unreadable');}finally{await handle?.close();}
-  }}finally{await dir.close().catch(()=>{});}
+  }
+  if(!complete){issues.push('mcp_receipt_scan_limited');for(const row of rows.values())row.lastActivityAt=null;}
  }catch{issues.push('mcp_receipts_unavailable');}
  return {items:[...rows.values()].sort((a,b)=>a.id.localeCompare(b.id)),issues:[...new Set(issues)]};
 }

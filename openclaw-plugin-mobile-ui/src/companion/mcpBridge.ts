@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge";
 import {
   getRemoteBridgeRequest,
-  submitRemoteBridgeRequest,
+  submitAuthenticatedMcpRequest,
 } from "./remoteBridge";
 
 const execFileAsync = promisify(execFile);
@@ -299,7 +299,7 @@ async function executeCapability(
 
   // Shadow writes keep the existing read-only denial and never create a durable write mission.
   if (profile === "chat-owner-shadow" && selectedRisk !== "read") {
-    const receipt = await submitRemoteBridgeRequest({
+    const receipt = await submitAuthenticatedMcpRequest({
       requestId, taskId, stepId: stepKey, sessionId: `external_mcp:${clientId}`,
       _claw_access: accessMetadata(clientId,profile),
       method, params,
@@ -351,7 +351,7 @@ async function executeCapability(
     continuumFence = prepared.continuum_fence || undefined;
   }
 
-  const receipt = await submitRemoteBridgeRequest({
+  const receipt = await submitAuthenticatedMcpRequest({
     requestId,
     taskId,
     stepId: wireStepId,
@@ -392,7 +392,7 @@ async function executeRawCommand(
     throw new Error("invalid_timeout_ms");
   }
 
-  const receipt = await submitRemoteBridgeRequest({
+  const receipt = await submitAuthenticatedMcpRequest({
     requestId,
     taskId: actionTaskId(clientId, actionKey),
     stepId: stepKey,
@@ -458,7 +458,7 @@ async function readArtifact(
     .digest("hex")
     .slice(0, 32)}`;
 
-  const receipt = await submitRemoteBridgeRequest({
+  const receipt = await submitAuthenticatedMcpRequest({
     requestId: stableId,
     sessionId: `external_mcp:${clientId}`,
       _claw_access: accessMetadata(clientId,profile),

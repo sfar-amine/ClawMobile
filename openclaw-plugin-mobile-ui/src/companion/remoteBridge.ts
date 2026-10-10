@@ -590,6 +590,15 @@ async function dispatch(request: RemoteBridgeRequest) {
   }
 }
 
+// Process-local provenance cannot be supplied through HTTP or serialized JSON.
+const authenticatedMcpAccess = new WeakMap<object, ClawAccess>();
+export async function submitAuthenticatedMcpRequest(body: RemoteBridgeRequest): Promise<RemoteBridgeReceipt> {
+  const access = body._claw_access;
+  if (!access) throw statusError(400,"invalid_claw_access");
+  const trusted = {...body}; delete trusted._claw_access;
+  authenticatedMcpAccess.set(trusted, {...access});
+  return submitRemoteBridgeRequest(trusted);
+}
 function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   const requestId = String(body?.requestId || "").trim();
   const method = String(body?.method || "").trim();
@@ -604,7 +613,8 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     if (!taskId) throw new Error("step_id_requires_task_id");
     validateCorrelationId(stepId, "step");
   }
-  const access = body?._claw_access;
+  if (body?._claw_access) throw statusError(400,"invalid_claw_access");
+  const access = authenticatedMcpAccess.get(body);
   if (access && (!/^[A-Za-z0-9._-]{1,24}$/.test(access.client_id) ||
       !["chat-owner","chat-owner-shadow"].includes(access.profile) ||
       body.sessionId !== `external_mcp:${access.client_id}` ||

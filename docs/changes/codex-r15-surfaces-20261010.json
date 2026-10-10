@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Read existing MCP client receipts and canonical transport state",
-  "reason": "File 18 R15; no Worker list or separate access registry.",
+  "reason": "Files18 and26; current runtime merged, authenticated internal receipt metadata and truthful bounded large-directory projection.",
   "files": [
     "docs/changes/codex-r15-surfaces-20261010.json",
     "docs/changes/codex-r15-surfaces-20261010.md",
@@ -15,13 +15,15 @@
     "openclaw-plugin-mobile-ui/src/companion/securitySurfaces.ts",
     "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
     "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
-    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py"
   ],
   "tests": [
     {
       "name": "r15-security-surfaces",
       "status": "passed",
-      "evidence": "Actual local receipt ingress, read-only file snapshots, bounded 30-day scan, canonical R9 projection, privacy, HTTP boundaries and hot latency; current CI commands passed. Existing test-mcp-bridge passed using a portable local Markdown context fixture (not S24 context)."
+      "evidence": "Build, R15 50000-receipt directory and HTTP forgery fixture, MCP regression, full current CI and delivery gate; acceptance GET1.5s and mutation405 registered. MCP context fixture is local empty required_reads, not S24 context."
     }
   ],
   "documentation": [
