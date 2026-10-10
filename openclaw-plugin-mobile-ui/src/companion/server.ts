@@ -358,7 +358,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       const value=method==='GET'?readRunApproval(runId):await decideRunApproval(runId,await readJsonBody(req,2048));
       writeJson(res,value.state==='refused'?409:value.state==='failed'?503:200,value);
     }catch(error:any){const code=error instanceof URIError?400:[400,403,404,409].includes(error?.statusCode)?error.statusCode:503;
-      writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,error:code===400?'invalid_approval_operation':code===403?'confirmation_scope_mismatch':code===404?'approval_run_not_found':code===409?'confirmation_not_usable':'approval_owner_unavailable'});}
+      writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,error:code===400?'invalid_approval_operation':code===403?(error?.message==='confirmation_not_found'?'confirmation_not_found':'confirmation_scope_mismatch'):code===404?'approval_run_not_found':code===409?'confirmation_not_usable':'approval_owner_unavailable'});}
     return;
   }
 
@@ -713,12 +713,13 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   }
 
   if (method === "POST" && (routePath === "/attachments"||routePath === "/attachments/share")) {
-    if(!isLoopback||req.headers["x-clawmobile-owner-flow"]!=="v1"){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"owner_required"});return;}
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||req.headers["x-clawmobile-owner-flow"]!=="v1"){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"owner_required"});return;}
     try{const result = await saveAttachment(req);writeJson(res,result.success?200:result.state==='indeterminate'?503:400,result);}catch(error:any){const status=error.statusCode===413?413:400;writeJson(res,status,{success:false,state:'refused',receipt:null,reason:status===413?'attachment_too_large':'invalid_attachment_request'});}
     return;
   }
 
   if (method === "GET" && routePath.startsWith("/attachments/") && routePath.endsWith("/content")) {
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,error:"native_owner_flow_required"});return;}
     try{const attachmentId = decodeURIComponent(routePath.slice("/attachments/".length, -"/content".length));
     await serveAttachmentContent(res, attachmentId);}catch(e:any){const status=e?.statusCode===404?404:e?.statusCode===503?503:400;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":"attachment_unavailable"});}
     return;
@@ -1420,10 +1421,10 @@ function bootstrapCapabilities() {
 async function saveAttachment(req: http.IncomingMessage):Promise<any>{
  let inputs:{id?:string;mimeType:string;body:Buffer;displayName?:string}[];
  if((req.url||'').split('?')[0].endsWith('/attachments/share')){
-  let value:any;try{value=JSON.parse((await readRawBody(req,35*1024*1024)).toString('utf8'));}catch{throw Object.assign(new Error('invalid_attachment_share'),{statusCode:400});}
+  let value:any;try{value=JSON.parse((await readRawBody(req,35*1024*1024,true)).toString('utf8'));}catch{throw Object.assign(new Error('invalid_attachment_share'),{statusCode:400});}
   if(!value||Object.keys(value).length!==1||!Array.isArray(value.files)||value.files.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
   inputs=value.files.map((x:any)=>{if(!x||Object.keys(x).some(k=>!['id','mimeType','base64'].includes(k))||typeof x.base64!=='string'||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(x.base64))throw Object.assign(new Error('invalid_attachment_share'),{statusCode:400});return {id:x.id,mimeType:x.mimeType,body:Buffer.from(x.base64,'base64')};});
- }else inputs=[{id:String(req.headers['x-clawmobile-attachment-id']||'')||undefined,displayName:sanitizeFilePart(String(req.headers['x-clawmobile-filename']||''))||undefined,mimeType:String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase(),body:await readRawBody(req,MAX_ATTACHMENT_BYTES)}];
+ }else inputs=[{id:String(req.headers['x-clawmobile-attachment-id']||'')||undefined,displayName:sanitizeFilePart(String(req.headers['x-clawmobile-filename']||''))||undefined,mimeType:String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase(),body:await readRawBody(req,MAX_ATTACHMENT_BYTES,true)}];
  if(inputs.some(x=>typeof x.id!=='string'||!x.id))throw Object.assign(new Error('attachment_id_required'),{statusCode:400});
  try{
   const files=await withAttachmentReferences(paths=>saveAttachments(inputs,paths));
@@ -1902,7 +1903,7 @@ async function readBody(req: http.IncomingMessage): Promise<string> {
   return raw.toString("utf8");
 }
 
-async function readRawBody(req: http.IncomingMessage, maxBytes: number): Promise<Buffer> {
+async function readRawBody(req: http.IncomingMessage, maxBytes: number, closeOnLimit=false): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -1913,7 +1914,7 @@ async function readRawBody(req: http.IncomingMessage, maxBytes: number): Promise
       size += chunk.length;
       if (size > maxBytes) {
         reject(new HttpError(413, "Request body is too large."));
-        tooLarge=true;chunks.length=0;req.resume();
+        tooLarge=true;chunks.length=0;if(closeOnLimit)req.destroy();else req.resume();
         return;
       }
       chunks.push(Buffer.from(chunk));

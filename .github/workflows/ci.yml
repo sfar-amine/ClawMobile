@@ -102,6 +102,15 @@ jobs:
       - name: Preserve specialized rules in bounded voice bootstrap
         run: node scripts/test-voice-operating-rules.cjs
 
+      - name: Run reviewed approval confirmation contract
+        run: node scripts/test-agent-approvals.cjs
+
+      - name: Run reviewed voice choice and rewarm contract
+        run: node scripts/test-voice-choices.cjs
+
+      - name: Run reviewed runtime contract report
+        run: python3 scripts/test-runtime-contract-report.py
+
       - name: Run memory control and atomic export import contracts
         run: |
           node scripts/test-memory-control.cjs

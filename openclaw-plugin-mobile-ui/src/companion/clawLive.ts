@@ -16,18 +16,26 @@ export type ClawLiveBootstrapOptions = {
   telemetry?: (event:"t02"|"t03")=>void;
 };
 
-const LIVE_VOICES:ReadonlyArray<{id:string;validated:boolean}> = Object.freeze([
-  {id:"Puck",validated:false}, {id:"Charon",validated:false},
-  {id:"Kore",validated:false}, {id:"Fenrir",validated:false},
-  {id:"Aoede",validated:false}, {id:"Leda",validated:false},
-  {id:"Orus",validated:false}, {id:"Zephyr",validated:false},
+/**
+ * Provider candidates; qualification is a reviewed catalogue change, never a settings store.
+ * Each description is the owner-facing French character of the voice itself (Gemini Live voice
+ * characteristics), never its qualification status.
+ */
+const LIVE_VOICES:ReadonlyArray<{id:string;validated:boolean;description:string}> = Object.freeze([
+  {id:"Puck",validated:false,description:"Voix enjouée et vive."},
+  {id:"Charon",validated:false,description:"Voix claire et informative."},
+  {id:"Kore",validated:false,description:"Voix ferme et assurée."},
+  {id:"Fenrir",validated:false,description:"Voix enthousiaste et énergique."},
+  {id:"Aoede",validated:false,description:"Voix légère et aérienne."},
+  {id:"Leda",validated:false,description:"Voix jeune et fraîche."},
+  {id:"Orus",validated:false,description:"Voix ferme et posée."},
+  {id:"Zephyr",validated:false,description:"Voix lumineuse et souriante."},
 ]);
 
-/** Provider candidates; qualification is a reviewed catalogue change, never a settings store. */
 export function clawLiveVoices() {
   return {success:true,state:"ok",receipt:null,schemaVersion:1, model:CLAW_LIVE_MODEL, appliesTo:"next_session", items:[
-    {id:null, label:"Par défaut", current:null, validated:true, validation:"existing_default"},
-    ...LIVE_VOICES.map(({id,validated})=>({id,label:id,current:null,validated,reason:validated?"provider_setup_qualified":"provider_setup_not_qualified"})),
+    {id:null, label:"Par défaut", description:"Choix du fournisseur déjà utilisé.", current:null, validated:true, validation:"existing_default"},
+    ...LIVE_VOICES.map(({id,validated,description})=>({id,label:"Voix "+id,description,current:null,validated,reason:validated?"provider_setup_qualified":"provider_setup_not_qualified"})),
   ]};
 }
 
