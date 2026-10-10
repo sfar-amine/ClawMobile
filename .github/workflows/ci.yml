@@ -102,6 +102,9 @@ jobs:
       - name: Preserve specialized rules in bounded voice bootstrap
         run: node scripts/test-voice-operating-rules.cjs
 
+      - name: Run skill detail and owner controls contract
+        run: node scripts/test-skill-control.cjs
+
       - name: Run reviewed approval confirmation contract
         run: node scripts/test-agent-approvals.cjs
 
