@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Wire R22 owner automation history and asynchronous scheduler header through existing ControlReadPool",
-  "reason": "Claude PR79 reply and merged real S24 fixture PR82 a9f08e5 confirm cron.status, cron.runs, task_runs and schema; app66 contract verified read-only. Base b40b867 merged preserving CI.",
+  "reason": "Claude PR79 reply and merged real S24 fixture PR82 a9f08e5 confirm cron.status, cron.runs, task_runs and schema; app66 contract verified read-only. Base d142a9f merged preserving CI.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
@@ -27,8 +27,8 @@
     },
     {
       "name": "complete-current-ci-workflow",
-      "status": "pending",
-      "evidence": "Full current ci.yml local run after base b40b867 merge pending; all previous steps conserved."
+      "status": "passed",
+      "evidence": "Full ci.yml run after b40b867 merge: CI_LOCAL_OK exit0 (/tmp/r22-fresh-ci.log), all steps including R22 preserved. Base d142a9f then merged by union, rebuild and every newly introduced R20 CI test passed (file boundaries/Gateway/HTTP/limits/acceptance), R22 both tests passed again. No deployment."
     }
   ],
   "documentation": [
