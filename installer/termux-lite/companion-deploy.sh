@@ -28,6 +28,9 @@ except ValueError: acc=None
 json.dump({"version":1,"state":state,"target":target,"previous":previous,"detail":detail,"acceptance":acc,
            "at":datetime.datetime.now(datetime.timezone.utc).isoformat()},open(path,"w"),ensure_ascii=False)
 PY
+  # Only ordinary logs are bounded. Canonical JSON receipts are never removed.
+  python3 "$ROOT/bounded-log.py" "$log" || true
+  python3 "$ROOT/bounded-log.py" "$STATE" --deployment-logs || true
 }
 health(){ for _ in $(seq 1 60); do curl -fsS -m 3 http://127.0.0.1:8765/v1/health >/dev/null 2>&1 && return 0; sleep 2; done; return 1; }
 # The Companion is started with the lock fd closed: otherwise it inherits it and holds the deploy lock forever.

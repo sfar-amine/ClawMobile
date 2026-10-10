@@ -105,3 +105,9 @@ jobs:
           python3 ../installer/termux-lite/test-context-import.py
       - name: Run read-only security surfaces contract
         run: node scripts/test-security-surfaces.cjs
+
+      - name: Test health manager resource restart policy
+        run: |
+          python3 ../installer/termux-lite/test-health-resource-policy.py
+          python3 ../installer/termux-lite/test-owner-retention.py
+          node scripts/test-remote-bridge-retention.cjs

@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "id": "codex-p0-4-5-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Prepare conservative health resource policy and bounded existing owner maintenance",
+  "reason": "Programme33 issue64. P0-5 reviewable owner code; P0-4 runtime wiring blocked pending canonical S24 metrics/config/complete idle proof; no blind restart or plugin capture deletion.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-p0-4-5-20261010.json",
+    "docs/changes/codex-p0-4-5-20261010.md",
+    "docs/work/samantha-runtime/contracts/p0-4-5.md",
+    "installer/termux-lite/bounded-log.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/companion-server.sh",
+    "installer/termux-lite/context-compact.sh",
+    "installer/termux-lite/health-resource-policy.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-resource-policy.py",
+    "installer/termux-lite/test-owner-retention.py",
+    "installer/termux-lite/tier0-control.py",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-retention.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts"
+  ],
+  "tests": [
+    {
+      "name": "health-resource-owner-retention",
+      "status": "passed",
+      "evidence": "4 pure policy tests;6 retention tests with110 releases/600 logs/600 deployment logs;50,060 canonical Git-shaped terminal read receipts plus protected effects; synthetic volumes explicitly not S24 captures."
+    },
+    {
+      "name": "runtime-ci-union",
+      "status": "passed",
+      "evidence": "/tmp/p0-4-5-ci.log CI_LOCAL_OK; all existing steps retained, new policy/retention checks registered. tier0 and supervisor-lock regression suites passed; shell syntax and diff checks passed."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p0-4-5.md",
+    "docs/changes/codex-p0-4-5-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal existing owner maintenance only, no new HTTP or agent capability. Release/read-receipt pruning has no new activation route or scheduler; memory restart not wired."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Use tier0, health/context log writers, deployment owner and Remote Bridge receipt owner; no new store, scheduler, registry, daemon or effect replay mechanism."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP tool/schema/adapter change; internal cleanup never deletes write/unknown/pending/continuum effect proofs."
+  },
+  "rollback": "Revert owner code/writers and tests. Purged ordinary logs/releases after future Claude activation cannot be reconstructed without backup: review captured plan before applying. No memory thresholds or restart activation changed.",
+  "limitations": [
+    "Draft: S24 metric/config/idle and retention inventories absent; questions https://github.com/sfar-amine/samantha-core/issues/64#issuecomment-6100232149. Merge gate intentionally blocked until canonical qualification.",
+    "No Codex S24 action. No arbitrary latest-only purge of plugin-captures; public OpenClaw2026.9.6 native leased cleanup confirmed.",
+    "Mutation receipts and uncertain effects remain protected and may exceed the requested bound; canonical guarantee must be clarified before expiry."
+  ]
+}

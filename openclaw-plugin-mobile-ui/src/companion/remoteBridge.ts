@@ -26,6 +26,43 @@ export function remoteBridgeHealth() {
 }
 export function remoteBridgeReceiptDirectory() { return REQUEST_DIR; }
 
+/** Existing receipt owner only. Proofs of mutations/unknown effects never expire.
+ * Not wired until Claude qualifies the directory and replay guarantee on S24.
+ * Caller invokes during an existing maintenance cycle, outside request latency.
+ */
+export async function pruneRemoteBridgeReadReceipts(keep = 50000) {
+  if (!Number.isSafeInteger(keep) || keep < 1 || keep > 100000) throw new Error("invalid_receipt_retention");
+  const candidates: { file: string; at: number; hash: string }[] = [];
+  let preserved = 0, removed = 0;
+  let entries: fs.Dirent[];
+  try { entries = await fs.promises.readdir(REQUEST_DIR, { withFileTypes: true }); }
+  catch (error: any) { if (error?.code === "ENOENT") return { removed: 0, preserved: 0, state: "not_present" }; throw error; }
+  for (const entry of entries) {
+    if (!entry.isFile() || !/^[A-Za-z0-9._:-]{1,128}\.json$/.test(entry.name)) { preserved++; continue; }
+    const file = path.join(REQUEST_DIR, entry.name);
+    try {
+      const stat = await fs.promises.lstat(file);
+      if (!stat.isFile() || stat.nlink !== 1 || stat.size > 1024 * 1024) { preserved++; continue; }
+      const raw = await fs.promises.readFile(file, "utf8"), row = JSON.parse(raw);
+      if (row.requestId + ".json" !== entry.name || row.mutationRisk !== "read" ||
+          !["completed", "failed"].includes(row.state) || row.continuumFence ||
+          !Number.isSafeInteger(row.completedAt) || row.completedAt <= 0 ||
+          typeof row.method !== "string" || mutationRisk(row.method) !== "read") { preserved++; continue; }
+      candidates.push({ file, at: row.completedAt, hash: sha256(raw) });
+    } catch { preserved++; }
+  }
+  candidates.sort((a, b) => b.at - a.at || a.file.localeCompare(b.file));
+  for (const candidate of candidates.slice(keep)) {
+    try {
+      // Preserve a changed receipt, including an operation now active/uncertain.
+      const stat = await fs.promises.lstat(candidate.file);
+      if (!stat.isFile() || stat.nlink !== 1 || sha256(await fs.promises.readFile(candidate.file)) !== candidate.hash) { preserved++; continue; }
+      await fs.promises.unlink(candidate.file); removed++;
+    } catch { preserved++; }
+  }
+  return { removed, preserved, retainedRead: Math.min(keep, candidates.length), state: "applied" };
+}
+
 export type ClawAccess = {client_id:string;profile:"chat-owner"|"chat-owner-shadow";owner:boolean;read_only:boolean};
 type BridgeState = "received" | "running" | "completed" | "failed" | "indeterminate";
 
