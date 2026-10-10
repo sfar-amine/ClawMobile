@@ -9,7 +9,6 @@ import json, re, sys, time, urllib.error, urllib.request
 BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
-    ("/runs?contract=2&view=conversations&archived=1&limit=20", 0.3),
     ("/health", 2.0),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
     ("/files?scope=agent", 1.5),
@@ -25,6 +24,8 @@ READS = [
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
     ("/runs?contract=2&view=conversations&limit=20", 0.3),
+    # E4: archived subset of the same local projection, read warm after its sibling (never the first cold read).
+    ("/runs?contract=2&view=conversations&archived=1&limit=20", 0.3),
     ("/control/engineering?limit=20", 2.0),
     ("/control/diagnostic/export", 3.0),
     ("/updates", 4.0),
