@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "codex-r22-preparation-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Prepare closed automation history projection and reuse bounded Control pool; no route activated",
+  "reason": "Programme29/33 and app66 shapes, public exact2026.9.6 schema inspected; real installed cron captures missing.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/automationRunsPreparation.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-runs-preparation.cjs",
+    "docs/work/samantha-runtime/contracts/r22.md",
+    "docs/changes/codex-r22-preparation-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "automation-runs-preparation",
+      "status": "passed",
+      "evidence": "Local build and boundaries/pool test: closed query, synthetic public-schema cron projection, real2419ms models latency reused, dedupe1000, cache30s/singleflight/privacy/limits/timeout. Not real cron capture or HTTP qualification."
+    },
+    {
+      "name": "complete-current-ci-workflow",
+      "status": "passed",
+      "evidence": "All current ci.yml run steps locally executed: CI_LOCAL_OK exit0, base1f239f3 preserved. No route integration or S24 qualification."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r22.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Infrastructure preparation only, no agent/voice exposure or new route; future route needs planned canonical capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing ControlReadPool reused, no new cache owner/store/scheduler or retry engine."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP owner tools unchanged, no transport activated."
+  },
+  "rollback": "Revert isolated preparation under review; any qualified activation/rollback is performed by Claude through companion-deploy.sh with known-good SHA and receipt.",
+  "limitations": [
+    "Real installed cron.status/cron.runs request/response captures missing; integration and merge blocked.",
+    "No route, Gateway provider or header wired; HTTP budgets/acceptance/canonical planned capability are prerequisites for next delta.",
+    "Publication coordinated after R5-bis pair and root signal; no S24 qualification."
+  ]
+}

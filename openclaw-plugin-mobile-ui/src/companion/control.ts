@@ -122,7 +122,7 @@ export function streamControl(req: IncomingMessage, res: ServerResponse) {
 
 type ControlEnvelope = {schemaVersion:2;resourceKey:string;dataRevision:string;remainingFreshMs:number;
   availability:string;freshness:string;data?:unknown;notModified?:boolean;[key:string]:unknown};
-type ControlResult = {schemaVersion:2;sections:Record<string,ControlEnvelope>;computation?:Record<string,unknown>};
+export type ControlResult = {schemaVersion:2;sections:Record<string,ControlEnvelope>;computation?:Record<string,unknown>};
 type Waiter = {resolve:(value:ControlResult)=>void;reject:(error:Error)=>void;off:()=>void;shared:boolean};
 type Flight = {key:string;id:string;created:number;started:number;running:boolean;done:boolean;
   controller:AbortController;waiters:Set<Waiter>;timer:ReturnType<typeof setTimeout>;
@@ -136,7 +136,7 @@ export class ControlReadPool {
   private active=0;
   private cacheBytes=0;
   private generationCount=0;
-  constructor(private budgetMs=6500,private maximum=2,private maxKeys=16,private maxBytes=2*1024*1024) {}
+  constructor(private budgetMs=6500,private maximum=2,private maxKeys=16,private maxBytes=2*1024*1024,private maxTtlMs=15000) {}
   stats(){return {active:this.active,pending:this.flights.size,cacheKeys:this.cache.size,cacheBytes:this.cacheBytes,generations:this.generationCount};}
   private copy(value:ControlResult,age:number,mode:string):ControlResult {
     const out:ControlResult=JSON.parse(JSON.stringify(value));
@@ -203,7 +203,7 @@ export class ControlReadPool {
       const value:ControlResult={...result,computation:{...result.computation,computationId:f.id,
         queueMs:Math.round((f.started-f.created)*1000)/1000}};
       if(f.cache){
-        const ttl=Math.min(15000,...Object.values(value.sections).map(s=>s.availability==="ready"&&s.freshness==="fresh"?Number(s.remainingFreshMs)||0:0));
+        const ttl=Math.min(this.maxTtlMs,...Object.values(value.sections).map(s=>s.availability==="ready"&&s.freshness==="fresh"?Number(s.remainingFreshMs)||0:0));
         const bytes=Buffer.byteLength(JSON.stringify(value));
         if(ttl>0&&bytes<=this.maxBytes){
           this.drop(f.key);
