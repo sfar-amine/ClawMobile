@@ -34,6 +34,7 @@ Conséquence pour R8 :
 | `gateway/agents.files.get.json` | `agents.files.get` | `{"agentId":"main","name":"IDENTITY.md"}` | 3454 ms |
 | `gateway/sessions.files.list.json` | `sessions.files.list` | `{"sessionKey":"<sessions.list[1].key>"}` | 3105 ms |
 | `gateway/sessions.files.get.json` | `sessions.files.get` | `{"sessionKey":"…","path":"IDENTITY.md"}` | 2438 ms |
+| `gateway/skills.status.json` | `skills.status` | `{"agentId":"main"}` | 1859 ms (2438, 1755) — ajouté pour P2-b, 18:35 ; 7 lignes workspace complètes + 3 lignes d'exemple sur 65 ; descriptions en `<texte N car.>` |
 | `gateway/sessions.list.main.json` | `sessions.list` | `{"search":"agent:main:main","limit":100}` | 3701 ms |
 | `gateway/sessions.files.list.main.json` | `sessions.files.list` | `{"sessionKey":"agent:main:main"}` | 1680 ms |
 | `gateway/sessions.files.list.main-search.json` | `sessions.files.list` | `{"sessionKey":"agent:main:main","path":"memory","search":"2026-10"}` | 2818 ms |

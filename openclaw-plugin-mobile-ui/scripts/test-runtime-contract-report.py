@@ -5,6 +5,7 @@ from pathlib import Path
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SPEC = importlib.util.spec_from_file_location('g2', Path(__file__).with_name('runtime-contract-report.py'))
@@ -92,6 +93,37 @@ class Tests(unittest.TestCase):
             c=case();c[key]=value
             with self.assertRaises(g2.ContractError):self.run_report([c])
         self.assertEqual(self.requests,[])
+    def test_token_limits_are_not_secrets_and_real_github_tokens_are(self):
+        type(self).payload={'maxTokens':8192,'max_tokens':4096,'totalTokens':1024,'total_tokens':1024,'usage':{'tokens':12}}
+        self.assertTrue(self.run_report()['fixtureReadChecksPassed'])
+        for value in ['ghp_'+'A'*36,'github_pat_'+'B'*40]:
+            type(self).payload={'text':value}
+            result=self.run_report();self.assertEqual(result['cases'][0]['reason'],'secret_detected');self.assertNotIn(value,json.dumps(result))
+        for field in ['token','accessToken','sessionToken','bearerToken','refresh_token','session_token','csrfToken','pushToken']:
+            type(self).payload={field:'private-credential'}
+            self.assertEqual(self.run_report()['cases'][0]['reason'],'secret_detected',field)
+        for field in ['maxTokens','totalTokens','contextTokens','inputTokens','outputTokens','max_token','context_tokens','cacheReadTokens']:
+            self.assertFalse(g2.private_key(field),field)
+            type(self).payload={field:4096}
+            self.assertTrue(self.run_report()['fixtureReadChecksPassed'],field)
+    def test_default_timeouts_use_route_budgets_with_margin(self):
+        routes = ['/v1/agent/config', '/v1/notifications/sources', '/v1/updates', '/v1/runs?limit=50', '/v1/laptop-access/computers']
+        calls=[]
+        def fetch(opener,url,timeout):
+            calls.append((url,timeout));return ({'endpoints':[route.split('?')[0] for route in routes]} if url.endswith('/v1') else {},200,None,0)
+        with patch.object(g2,'fetch_json',side_effect=fetch):
+            result=g2.report(self.base,manifest([case(str(i), route) for i,route in enumerate(routes)]),fixture=True)
+        self.assertEqual([timeout for _,timeout in calls],[11,8,6,6,8,3])
+        self.assertTrue(result['fixtureReadChecksPassed']);self.assertFalse(result['complete'])
+        for route, budget in g2.read_budgets().items():
+            self.assertEqual(g2.request_timeout(route+'?probe=1',None),budget+2)
+        self.assertEqual(g2.request_timeout('/v1/agent/config',.5),.5)
+        # New recipe entries propagate without updating a second table.
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            recipe=Path(directory)/'recipe.py'
+            recipe.write_text('raise RuntimeError("must not execute")\nREADS = [("/future?limit=1", 12.0), ("/future", 6.0)]\n')
+            self.assertEqual(g2.read_budgets(recipe),{'/v1/future':12.0})
     def test_repository_manifest_closed(self):
         data=json.loads(Path(__file__).with_name('runtime-contract-cases.json').read_text());g2.validate_manifest(data)
         self.assertGreater(len(data['cases']),100)

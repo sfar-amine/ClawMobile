@@ -99,6 +99,24 @@ jobs:
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
 
+      - name: Run skill detail and owner controls contract
+        run: node scripts/test-skill-control.cjs
+
+      - name: Run reviewed approval confirmation contract
+        run: node scripts/test-agent-approvals.cjs
+
+      - name: Run reviewed voice choice and rewarm contract
+        run: node scripts/test-voice-choices.cjs
+
+      - name: Run reviewed runtime contract report
+        run: python3 scripts/test-runtime-contract-report.py
+
+      - name: Skill learning draft contracts
+        run: |
+          node scripts/test-skill-learning.cjs
+          node scripts/test-skill-learning-guard.cjs
+          python3 ../installer/termux-lite/test-skill-learning-acceptance.py
+
       - name: Run file read boundary preparation fixtures
         run: |
           node scripts/test-file-read-boundary.cjs
@@ -106,6 +124,7 @@ jobs:
           node scripts/test-files-http.cjs
           node scripts/test-file-gateway-limits.cjs
           python3 scripts/test-files-acceptance.py
+
       - name: Run memory control and atomic export import contracts
         run: |
           node scripts/test-memory-control.cjs

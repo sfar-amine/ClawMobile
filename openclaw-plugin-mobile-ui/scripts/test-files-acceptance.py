@@ -27,6 +27,6 @@ for mode,expected in [('absent',0),('healthy',0),('settled',0),('never',1),('err
     assert all(x['status'] in ('ok','skipped') for x in files) if expected==0 else any(x['status']=='fail' for x in files)
     assert all(headers is None for _,_,headers in calls)
     assert all(method=='GET' or (method,path) in m.OWNER_GUARDS for method,path,_ in calls)
-    assert ('POST','/files') in m.OWNER_GUARDS and ('PUT','/files/content') in m.OWNER_GUARDS
+    assert ('POST','/files') in m.OWNER_GUARDS and ('POST','/files/content') in m.OWNER_GUARDS
     assert 'fixtureSecret' not in out.getvalue()
 print('R20 acceptance: absent routes skipped, healthy and warmed answers accepted (dates kept), permanent deferred/owner error/leak after warming fail; no unconditional rollback, no owner effect')
