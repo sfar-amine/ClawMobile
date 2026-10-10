@@ -29,7 +29,9 @@ OWNER_GUARDS = [
     ("POST", "/runs/acceptance-probe/approval"),
 ]
 SETTLE_SECONDS = 15
-LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY|\+\d{11,}")
+# Secrets only. Phone numbers and owner-written text (titles, memory, contacts) legitimately appear in owner
+# responses: matching them here would roll back healthy deploys (10/10 review of R11, P2-d, R17).
+LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bAKIA[0-9A-Z]{16}\b|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY")
 
 
 def call(method, path, timeout, headers=None):
