@@ -100,4 +100,7 @@ jobs:
         run: node scripts/test-agent-config.cjs
 
       - name: Run conversation metadata owner contract
-        run: node scripts/test-conversation-metadata.cjs
+        run: |
+          node scripts/test-conversation-metadata.cjs
+          node scripts/test-conversation-owner-cache.cjs
+          python3 scripts/test-conversation-acceptance.py

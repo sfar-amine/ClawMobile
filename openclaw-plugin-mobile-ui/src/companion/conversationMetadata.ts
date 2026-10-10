@@ -1,3 +1,4 @@
+import {observeConversationOwnerRow} from "./conversationOwnerIndex";
 import {createHash} from "crypto";
 import {callOpenClawGateway,expectedCompanionSessionKey} from "./openclawAgentClient";
 import {readPaymentRequests,readOwnerConfirmations,reserveSubmittedRun,settleSubmittedRun} from "./runs";
@@ -13,6 +14,7 @@ async function ownerRow(id:string){
  if(!Array.isArray(value?.sessions)||value.sessions.length>20)throw nativeError('conversation_owner_unavailable',503);
  const matches=value.sessions.filter((row:any)=>row.key===key);
  if(matches.length!==1)throw nativeError(matches.length?'conversation_identity_ambiguous':'conversation_not_found',matches.length?409:404);
+ observeConversationOwnerRow(matches[0]);
  return matches[0];
 }
 const ref=(provider:string,model:string)=>model.startsWith(provider+'/')?model:provider+'/'+model;

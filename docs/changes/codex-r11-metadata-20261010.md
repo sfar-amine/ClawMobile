@@ -1,8 +1,7 @@
-# R11 — métadonnées natives
+# R11 — Métadonnées et pagination des conversations
 
-Renommage, épinglage et modèle par fil via le propriétaire sessions du Gateway. Reçus existants, garde bancaire, lecture de vérification après effet incertain.
+La liste rend sa page sans attendre le CLI Gateway : index propriétaire rafraîchi en arrière-plan, cache court single-flight, titre/épingle/source conservés après panne et curseurs stables sans nouvelle preuve. Les lectures de mutation et readback gardent leur autorité fraîche.
 
-Base 6d69680. Build, test-conversation-metadata et toutes les étapes CI locales réussis. CI conservée ; test R11 séparé pendant R2-v2. Compatibilité du Gateway actif et recette S24 à faire par Claude.
+Têtes relue8b03244 et runtime0bf30ab intégrées par merges, routes et CI conservées. Budgets acceptance : liste300ms, détail10s sur un fil réel. Sans fil, détail explicitement non qualifié.
 
-
-Relecture Claude : refus Gateway distingués des effets incertains, titre normalisé, profil @ conservé, catalogue fermé indépendant R6, source du modèle canonique, codes fixes distincts. GET et projection de liste utilisent un budget de lecture de 10 s et aucun appel par ligne. Aucun changement du lifecycle des runs ; ci.yml reste inchangée pendant R6 #27. Recette sur une session jetable par Claude avant activation.
+Validation : tests mutations/ledger et cache sous délai synthétique4,15s, tests budgets, CI complète et gate. Aucune preuve S24 inventée ; Claude qualifie avant activation. Retour arrière : revert de la PR.

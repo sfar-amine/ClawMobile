@@ -5,22 +5,27 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Correct conversation metadata review: bounded catalogue, retryable Gateway refusals and aggregate list projection",
-  "reason": "File 18 R11; Gateway session owner retained.",
+  "summary": "R11 : cache propriétaire de pagination, conservation des métadonnées et budgets de recette",
+  "reason": "Revue fichier 26, base runtime 0bf30ab et tête relue8b03244 intégrées par merges.",
   "files": [
+    ".github/workflows/ci.yml",
     "docs/changes/codex-r11-metadata-20261010.json",
     "docs/changes/codex-r11-metadata-20261010.md",
     "docs/work/samantha-runtime/contracts/r11.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-acceptance.py",
     "openclaw-plugin-mobile-ui/scripts/test-conversation-metadata.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-owner-cache.cjs",
     "openclaw-plugin-mobile-ui/src/companion/conversationMetadata.ts",
-    "openclaw-plugin-mobile-ui/src/companion/server.ts",
-    "openclaw-plugin-mobile-ui/src/companion/runs.ts"
+    "openclaw-plugin-mobile-ui/src/companion/conversationOwnerIndex.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
   ],
   "tests": [
     {
       "name": "r11-conversation-metadata",
       "status": "passed",
-      "evidence": "HTTP/ledger: trim and invisible-text guard, profile catalogue with allow-policy/auth/plugin/availability, modelOverrideSource, exact refusal codes and retry without uncertain redispatch, metadata list with one aggregate index call; full CI retained."
+      "evidence": "Build et tests métadonnées/ledger réussis ; cache single-flight avec latence synthétique 4,15s, warm pages sous300ms, erreur conservant titre/pin/source/révision/curseur ;3 tests budgets acceptance verts. CI complète et gate exécutés avantpush."
     }
   ],
   "documentation": [
@@ -51,6 +56,7 @@
   "limitations": [
     "Active Gateway compatibility and S24 recipe to be qualified by Claude. No deployment claimed.",
     "Idle check is an owner observation, not a new runtime lock. Reset-to-default model is not exposed.",
-    "New test run separately while R2-v2 owns the CI change."
+    "Cold metadata is pending until owner read completes; last successful observations survive transient errors.",
+    "S24 route latency and captured fixtures remain Claude qualification; local4.15s latency is synthetic."
   ]
 }
