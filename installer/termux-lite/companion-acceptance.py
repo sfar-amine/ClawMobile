@@ -14,6 +14,7 @@ READS = [
     ("/providers", 6.0),
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
+    ("/conversations?limit=50", 0.3),
     ("/control/engineering?limit=20", 2.0),
     ("/control/diagnostic/export", 3.0),
     ("/updates", 4.0),
@@ -47,7 +48,7 @@ def call(method, path, timeout, headers=None):
 
 
 def main():
-    results, failed = [], False
+    results, failed, conversation_id = [], False, None
     for path, budget in READS:
         for attempt in (1, 2):
             code, body, took = call("GET", path, budget + 5)
@@ -58,6 +59,27 @@ def main():
         status = "skipped" if code == 404 else ("ok" if ok and not leak else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
+        if path == "/conversations?limit=50" and code == 200:
+            try:
+                items = json.loads(body).get("items")
+                if not isinstance(items, list): raise ValueError("conversation_projection_invalid")
+                if items:
+                    identifier = items[0].get("sessionId")
+                    if not isinstance(identifier, str) or not re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*", identifier) or len(identifier) > 80:
+                        raise ValueError("conversation_projection_invalid")
+                    conversation_id = identifier
+            except (ValueError, AttributeError, TypeError):
+                failed = True
+    # Use a real retained conversation, never a fabricated owner session.
+    budget = 10.0
+    if conversation_id is not None:
+        code, body, took = call("GET", "/conversations/" + conversation_id + "/metadata", budget + 5)
+        leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
+        status = "ok" if code == 200 and took <= budget and not leak else "fail"
+    else:
+        code, took, leak, status = None, 0, False, "unqualified"
+    failed |= status != "ok"
+    results.append({"route": "/conversations/{sessionId}/metadata", "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
     for method, path in OWNER_GUARDS:
         code, _, took = call(method, path, 10)
         status = "skipped" if code == 404 else ("ok" if code in (400, 403, 405) else "fail")
