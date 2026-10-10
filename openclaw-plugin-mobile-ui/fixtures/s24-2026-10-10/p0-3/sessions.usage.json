@@ -1,0 +1,2659 @@
+{
+ "_capture": {
+  "method": "sessions.usage",
+  "params": {},
+  "latencyMs": 1776,
+  "capturedAt": "2026-10-10T18:36:05+00:00",
+  "exitCode": 0,
+  "via": "timeout 60 nice openclaw gateway call <method> --params <json> --json",
+  "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+  "sanitized": true,
+  "trimmed": "listes réduites aux 5 premiers éléments (+ marqueur _truncated) ; taille brute 325270 octets"
+ },
+ "response": {
+  "updatedAt": 1791657365115,
+  "startDate": "2026-09-11",
+  "endDate": "2026-10-10",
+  "sessions": [
+   {
+    "key": "agent:main:companion-chat-decision-v2-live-5a66bfd3a1",
+    "label": "<texte 20 car.>",
+    "sessionId": "6ae75e5e-8e91-d2ab-9c65-080c823bc2f9",
+    "scope": "instance",
+    "updatedAt": 1791648947221,
+    "agentId": "main",
+    "creatorKey": "[\"unknown\"]",
+    "usage": {
+     "input": 54746,
+     "output": 982,
+     "cacheRead": 156717,
+     "cacheWrite": 0,
+     "totalTokens": 212445,
+     "totalCost": 0.04910287,
+     "inputCost": 0.0335997,
+     "outputCost": 0.0036695,
+     "cacheReadCost": 0.01183367,
+     "cacheWriteCost": 0,
+     "missingCostEntries": 0,
+     "sessionId": "6ae75e5e-8e91-d2ab-9c65-080c823bc2f9",
+     "sessionFile": "<texte 100 car.>",
+     "firstActivity": 1791498324773,
+     "lastActivity": 1791648944432,
+     "durationMs": 150619659,
+     "messageCounts": {
+      "total": 14,
+      "user": 2,
+      "assistant": 12,
+      "toolCalls": 10,
+      "toolResults": 10,
+      "errors": 0
+     },
+     "toolUsage": {
+      "totalCalls": 10,
+      "uniqueTools": 5,
+      "tools": [
+       {
+        "name": "<texte 7 car.>",
+        "count": 3
+       },
+       {
+        "name": "<texte 4 car.>",
+        "count": 2
+       },
+       {
+        "name": "<texte 4 car.>",
+        "count": 2
+       },
+       {
+        "name": "<texte 11 car.>",
+        "count": 2
+       },
+       {
+        "name": "<texte 9 car.>",
+        "count": 1
+       }
+      ]
+     },
+     "modelUsage": [
+      {
+       "provider": "openai",
+       "model": "gpt-5.6-luna",
+       "count": 6,
+       "totals": {
+        "input": 24537,
+        "output": 347,
+        "cacheRead": 101888,
+        "cacheWrite": 0,
+        "totalTokens": 126772,
+        "totalCost": 0.0368078,
+        "inputCost": 0.024536999999999996,
+        "outputCost": 0.002082,
+        "cacheReadCost": 0.0101888,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 0
+       }
+      },
+      {
+       "provider": "google",
+       "model": "gemini-3.5-flash-lite",
+       "count": 6,
+       "totals": {
+        "input": 30209,
+        "output": 635,
+        "cacheRead": 54829,
+        "cacheWrite": 0,
+        "totalTokens": 85673,
+        "totalCost": 0.012295069999999998,
+        "inputCost": 0.0090627,
+        "outputCost": 0.0015875,
+        "cacheReadCost": 0.00164487,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 0
+       }
+      }
+     ],
+     "latency": {
+      "count": 12,
+      "avgMs": 99712.83333333333,
+      "p95Ms": 170326,
+      "minMs": 26093,
+      "maxMs": 170326
+     },
+     "activityDates": [
+      "2026-10-08",
+      "2026-10-10"
+     ],
+     "dailyBreakdown": [
+      {
+       "date": "2026-10-08",
+       "tokens": 85673,
+       "cost": 0.012295069999999998,
+       "input": 30209,
+       "output": 635,
+       "cacheRead": 54829,
+       "cacheWrite": 0,
+       "totalTokens": 85673,
+       "totalCost": 0.012295069999999998,
+       "inputCost": 0.0090627,
+       "outputCost": 0.0015875,
+       "cacheReadCost": 0.00164487,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-10-10",
+       "tokens": 126772,
+       "cost": 0.0368078,
+       "input": 24537,
+       "output": 347,
+       "cacheRead": 101888,
+       "cacheWrite": 0,
+       "totalTokens": 126772,
+       "totalCost": 0.0368078,
+       "inputCost": 0.024536999999999996,
+       "outputCost": 0.002082,
+       "cacheReadCost": 0.0101888,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      }
+     ],
+     "dailyMessageCounts": [
+      {
+       "date": "2026-10-08",
+       "total": 7,
+       "user": 1,
+       "assistant": 6,
+       "toolCalls": 5,
+       "toolResults": 5,
+       "errors": 0
+      },
+      {
+       "date": "2026-10-10",
+       "total": 7,
+       "user": 1,
+       "assistant": 6,
+       "toolCalls": 5,
+       "toolResults": 5,
+       "errors": 0
+      }
+     ],
+     "utcQuarterHourMessageCounts": [
+      {
+       "date": "2026-10-08",
+       "quarterIndex": 89,
+       "total": 7,
+       "user": 1,
+       "assistant": 6,
+       "toolCalls": 5,
+       "toolResults": 5,
+       "errors": 0
+      },
+      {
+       "date": "2026-10-10",
+       "quarterIndex": 64,
+       "total": 1,
+       "user": 1,
+       "assistant": 0,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "date": "2026-10-10",
+       "quarterIndex": 65,
+       "total": 6,
+       "user": 0,
+       "assistant": 6,
+       "toolCalls": 5,
+       "toolResults": 5,
+       "errors": 0
+      }
+     ],
+     "utcQuarterHourTokenUsage": [
+      {
+       "date": "2026-10-08",
+       "quarterIndex": 89,
+       "input": 30209,
+       "output": 635,
+       "cacheRead": 54829,
+       "cacheWrite": 0,
+       "totalTokens": 85673,
+       "totalCost": 0.012295069999999998
+      },
+      {
+       "date": "2026-10-10",
+       "quarterIndex": 64,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-10-10",
+       "quarterIndex": 65,
+       "input": 24537,
+       "output": 347,
+       "cacheRead": 101888,
+       "cacheWrite": 0,
+       "totalTokens": 126772,
+       "totalCost": 0.0368078
+      }
+     ],
+     "dailyLatency": [
+      {
+       "date": "2026-10-08",
+       "count": 6,
+       "avgMs": 156115.83333333334,
+       "p95Ms": 170326,
+       "minMs": 137551,
+       "maxMs": 170326
+      },
+      {
+       "date": "2026-10-10",
+       "count": 6,
+       "avgMs": 43309.833333333336,
+       "p95Ms": 62048,
+       "minMs": 26093,
+       "maxMs": 62048
+      }
+     ],
+     "dailyModelUsage": [
+      {
+       "date": "2026-10-08",
+       "provider": "google",
+       "model": "gemini-3.5-flash-lite",
+       "tokens": 85673,
+       "cost": 0.012295069999999998,
+       "count": 6
+      },
+      {
+       "date": "2026-10-10",
+       "provider": "openai",
+       "model": "gpt-5.6-luna",
+       "tokens": 126772,
+       "cost": 0.0368078,
+       "count": 6
+      }
+     ]
+    },
+    "hasContextWeight": true
+   },
+   {
+    "key": "agent:main:whatsapp:direct:+216XXXXXXXX",
+    "sessionId": "44edceaa-29a6-04c7-052a-16a3c98019bf",
+    "scope": "instance",
+    "updatedAt": 1791630536624,
+    "agentId": "main",
+    "creatorKey": "[\"human\",\"channel\",\"main\",\"whatsapp\",\"default\",\"+216XXXXXXXX\"]",
+    "createdActor": {
+     "type": "human",
+     "id": "+216XXXXXXXX",
+     "identity": {
+      "type": "legacy",
+      "actorType": "human",
+      "source": null,
+      "id": "+216XXXXXXXX"
+     }
+    },
+    "channel": "whatsapp",
+    "chatType": "direct",
+    "origin": {
+     "provider": "whatsapp",
+     "to": "<texte 12 car.>",
+     "accountId": "default",
+     "chatType": "direct",
+     "label": "<texte 12 car.>",
+     "surface": "whatsapp",
+     "from": "<texte 12 car.>",
+     "nativeDirectUserId": "+216XXXXXXXX"
+    },
+    "modelProvider": "openai",
+    "model": "gpt-5.6-sol",
+    "usage": {
+     "input": 790526,
+     "output": 13138,
+     "cacheRead": 12068615,
+     "cacheWrite": 59081,
+     "totalTokens": 12931360,
+     "totalCost": 9.3674586,
+     "inputCost": 2.522224600000001,
+     "outputCost": 0.35573000000000005,
+     "cacheReadCost": 5.945454,
+     "cacheWriteCost": 0.54405,
+     "missingCostEntries": 15,
+     "sessionId": "44edceaa-29a6-04c7-052a-16a3c98019bf",
+     "sessionFile": "<texte 100 car.>",
+     "missingCostByModel": {
+      "custom-po-zapro-su/gpt-5.6-sol": 15
+     },
+     "firstActivity": 1790266701000,
+     "lastActivity": 1791622806219,
+     "durationMs": 1356105219,
+     "messageCounts": {
+      "total": 224,
+      "user": 32,
+      "assistant": 192,
+      "toolCalls": 115,
+      "toolResults": 115,
+      "errors": 11
+     },
+     "toolUsage": {
+      "totalCalls": 115,
+      "uniqueTools": 8,
+      "tools": [
+       {
+        "name": "<texte 9 car.>",
+        "count": 66
+       },
+       {
+        "name": "<texte 11 car.>",
+        "count": 16
+       },
+       {
+        "name": "<texte 4 car.>",
+        "count": 15
+       },
+       {
+        "name": "<texte 4 car.>",
+        "count": 6
+       },
+       {
+        "name": "<texte 7 car.>",
+        "count": 4
+       },
+       {
+        "_truncated": 3
+       }
+      ]
+     },
+     "modelUsage": [
+      {
+       "provider": "openai",
+       "model": "gpt-5.6-sol",
+       "count": 121,
+       "totals": {
+        "input": 492719,
+        "output": 11765,
+        "cacheRead": 11887080,
+        "cacheWrite": 59081,
+        "totalTokens": 12450645,
+        "totalCost": 9.307699000000001,
+        "inputCost": 2.4635950000000006,
+        "outputCost": 0.3546,
+        "cacheReadCost": 5.945454,
+        "cacheWriteCost": 0.54405,
+        "missingCostEntries": 0
+       }
+      },
+      {
+       "provider": "google",
+       "model": "gemini-3.5-flash-lite",
+       "count": 3,
+       "totals": {
+        "input": 195432,
+        "output": 452,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 195884,
+        "totalCost": 0.059759599999999996,
+        "inputCost": 0.0586296,
+        "outputCost": 0.00113,
+        "cacheReadCost": 0,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 0
+       }
+      },
+      {
+       "provider": "custom-po-zapro-su",
+       "model": "gpt-5.6-sol",
+       "count": 18,
+       "totals": {
+        "input": 102375,
+        "output": 921,
+        "cacheRead": 181535,
+        "cacheWrite": 0,
+        "totalTokens": 284831,
+        "totalCost": 0,
+        "inputCost": 0,
+        "outputCost": 0,
+        "cacheReadCost": 0,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 15,
+        "missingCostByModel": {
+         "custom-po-zapro-su/gpt-5.6-sol": 15
+        }
+       }
+      },
+      {
+       "provider": "openclaw",
+       "model": "delivery-mirror",
+       "count": 50,
+       "totals": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "totalCost": 0,
+        "inputCost": 0,
+        "outputCost": 0,
+        "cacheReadCost": 0,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 0
+       }
+      }
+     ],
+     "latency": {
+      "count": 144,
+      "avgMs": 204885.99305555556,
+      "p95Ms": 253390,
+      "minMs": 1043,
+      "maxMs": 16303077
+     },
+     "activityDates": [
+      "2026-09-24",
+      "2026-09-25",
+      "2026-09-26",
+      "2026-09-27",
+      "2026-09-28",
+      {
+       "_truncated": 11
+      }
+     ],
+     "dailyBreakdown": [
+      {
+       "date": "2026-09-24",
+       "tokens": 378834,
+       "cost": 0.572017,
+       "input": 103308,
+       "output": 1014,
+       "cacheRead": 215431,
+       "cacheWrite": 59081,
+       "totalTokens": 378834,
+       "totalCost": 0.572017,
+       "inputCost": 0.004665,
+       "outputCost": 0.0044399999999999995,
+       "cacheReadCost": 0.018862,
+       "cacheWriteCost": 0.54405,
+       "missingCostEntries": 15,
+       "missingCostByModel": {
+        "custom-po-zapro-su/gpt-5.6-sol": 15
+       }
+      },
+      {
+       "date": "2026-09-25",
+       "tokens": 11898928,
+       "cost": 7.450917999999999,
+       "input": 259146,
+       "output": 11366,
+       "cacheRead": 11628416,
+       "cacheWrite": 0,
+       "totalTokens": 11898928,
+       "totalCost": 7.450917999999999,
+       "inputCost": 1.2957300000000005,
+       "outputCost": 0.34098,
+       "cacheReadCost": 5.814207999999999,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-09-26",
+       "tokens": 0,
+       "cost": 0,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0,
+       "inputCost": 0,
+       "outputCost": 0,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-09-27",
+       "tokens": 0,
+       "cost": 0,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0,
+       "inputCost": 0,
+       "outputCost": 0,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-09-28",
+       "tokens": 0,
+       "cost": 0,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0,
+       "inputCost": 0,
+       "outputCost": 0,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "_truncated": 11
+      }
+     ],
+     "dailyMessageCounts": [
+      {
+       "date": "2026-09-24",
+       "total": 35,
+       "user": 14,
+       "assistant": 21,
+       "toolCalls": 7,
+       "toolResults": 7,
+       "errors": 5
+      },
+      {
+       "date": "2026-09-25",
+       "total": 129,
+       "user": 14,
+       "assistant": 115,
+       "toolCalls": 105,
+       "toolResults": 105,
+       "errors": 4
+      },
+      {
+       "date": "2026-09-26",
+       "total": 4,
+       "user": 0,
+       "assistant": 4,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "date": "2026-09-27",
+       "total": 12,
+       "user": 0,
+       "assistant": 12,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "date": "2026-09-28",
+       "total": 11,
+       "user": 0,
+       "assistant": 11,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "_truncated": 11
+      }
+     ],
+     "utcQuarterHourMessageCounts": [
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 65,
+       "total": 12,
+       "user": 6,
+       "assistant": 6,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 66,
+       "total": 13,
+       "user": 3,
+       "assistant": 10,
+       "toolCalls": 7,
+       "toolResults": 7,
+       "errors": 3
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 67,
+       "total": 2,
+       "user": 1,
+       "assistant": 1,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 1
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 70,
+       "total": 2,
+       "user": 1,
+       "assistant": 1,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 1
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 75,
+       "total": 4,
+       "user": 2,
+       "assistant": 2,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "_truncated": 48
+      }
+     ],
+     "utcQuarterHourTokenUsage": [
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 65,
+       "input": 51742,
+       "output": 121,
+       "cacheRead": 45414,
+       "cacheWrite": 0,
+       "totalTokens": 97277,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 66,
+       "input": 50633,
+       "output": 800,
+       "cacheRead": 136121,
+       "cacheWrite": 0,
+       "totalTokens": 187554,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 67,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 70,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 75,
+       "input": 933,
+       "output": 38,
+       "cacheRead": 30068,
+       "cacheWrite": 31114,
+       "totalTokens": 62153,
+       "totalCost": 0.21530149999999998
+      },
+      {
+       "_truncated": 48
+      }
+     ],
+     "dailyLatency": [
+      {
+       "date": "2026-09-24",
+       "count": 21,
+       "avgMs": 21292.238095238095,
+       "p95Ms": 66848,
+       "minMs": 1043,
+       "maxMs": 93996
+      },
+      {
+       "date": "2026-09-25",
+       "count": 115,
+       "avgMs": 104138.06086956522,
+       "p95Ms": 253390,
+       "minMs": 2323,
+       "maxMs": 284207
+      },
+      {
+       "date": "2026-10-02",
+       "count": 1,
+       "avgMs": 17115,
+       "p95Ms": 17115,
+       "minMs": 17115,
+       "maxMs": 17115
+      },
+      {
+       "date": "2026-10-03",
+       "count": 4,
+       "avgMs": 4087261.25,
+       "p95Ms": 16303077,
+       "minMs": 8616,
+       "maxMs": 16303077
+      },
+      {
+       "date": "2026-10-09",
+       "count": 3,
+       "avgMs": 238136.33333333334,
+       "p95Ms": 364434,
+       "minMs": 165834,
+       "maxMs": 364434
+      }
+     ],
+     "dailyModelUsage": [
+      {
+       "date": "2026-09-24",
+       "provider": "openai",
+       "model": "gpt-5.6-sol",
+       "tokens": 94003,
+       "cost": 0.572017,
+       "count": 3
+      },
+      {
+       "date": "2026-09-24",
+       "provider": "custom-po-zapro-su",
+       "model": "gpt-5.6-sol",
+       "tokens": 284831,
+       "cost": 0,
+       "count": 18
+      },
+      {
+       "date": "2026-09-25",
+       "provider": "openai",
+       "model": "gpt-5.6-sol",
+       "tokens": 11898928,
+       "cost": 7.450917999999999,
+       "count": 114
+      },
+      {
+       "date": "2026-09-25",
+       "provider": "openclaw",
+       "model": "delivery-mirror",
+       "tokens": 0,
+       "cost": 0,
+       "count": 1
+      },
+      {
+       "date": "2026-09-26",
+       "provider": "openclaw",
+       "model": "delivery-mirror",
+       "tokens": 0,
+       "cost": 0,
+       "count": 4
+      },
+      {
+       "_truncated": 16
+      }
+     ]
+    },
+    "hasContextWeight": true
+   },
+   {
+    "key": "agent:main:whatsapp:direct:+216XXXXXXXX",
+    "label": "<texte 56 car.>",
+    "sessionId": "fe05b4ae-e4a4-bfdd-75d2-6404fc78d8f7",
+    "scope": "instance",
+    "updatedAt": 1791554651282,
+    "agentId": "main",
+    "creatorKey": "[\"unknown\"]",
+    "channel": "whatsapp",
+    "chatType": "direct",
+    "origin": {
+     "provider": "whatsapp",
+     "to": "<texte 12 car.>",
+     "chatType": "direct",
+     "label": "<texte 12 car.>",
+     "surface": "whatsapp",
+     "from": "<texte 12 car.>",
+     "nativeDirectUserId": "+216XXXXXXXX",
+     "accountId": "default"
+    },
+    "modelProvider": "openai",
+    "model": "gpt-5.6-sol",
+    "usage": {
+     "input": 222373,
+     "output": 952,
+     "cacheRead": 98643,
+     "cacheWrite": 0,
+     "totalTokens": 321968,
+     "totalCost": 0.31697595,
+     "inputCost": 0.29696489999999987,
+     "outputCost": 0.00887,
+     "cacheReadCost": 0.01114105,
+     "cacheWriteCost": 0,
+     "missingCostEntries": 0,
+     "sessionId": "fe05b4ae-e4a4-bfdd-75d2-6404fc78d8f7",
+     "sessionFile": "<texte 100 car.>",
+     "firstActivity": 1790534409479,
+     "lastActivity": 1791554648722,
+     "durationMs": 1020239243,
+     "messageCounts": {
+      "total": 27,
+      "user": 12,
+      "assistant": 15,
+      "toolCalls": 5,
+      "toolResults": 5,
+      "errors": 0
+     },
+     "toolUsage": {
+      "totalCalls": 5,
+      "uniqueTools": 3,
+      "tools": [
+       {
+        "name": "<texte 4 car.>",
+        "count": 3
+       },
+       {
+        "name": "<texte 4 car.>",
+        "count": 1
+       },
+       {
+        "name": "<texte 5 car.>",
+        "count": 1
+       }
+      ]
+     },
+     "modelUsage": [
+      {
+       "provider": "openai",
+       "model": "gpt-5.6-sol",
+       "count": 3,
+       "totals": {
+        "input": 48990,
+        "output": 236,
+        "cacheRead": 17408,
+        "cacheWrite": 0,
+        "totalTokens": 66634,
+        "totalCost": 0.260734,
+        "inputCost": 0.24495,
+        "outputCost": 0.00708,
+        "cacheReadCost": 0.008704,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 0
+       }
+      },
+      {
+       "provider": "google",
+       "model": "gemini-3.5-flash-lite",
+       "count": 11,
+       "totals": {
+        "input": 173383,
+        "output": 716,
+        "cacheRead": 81235,
+        "cacheWrite": 0,
+        "totalTokens": 255334,
+        "totalCost": 0.05624194999999999,
+        "inputCost": 0.052014899999999996,
+        "outputCost": 0.00179,
+        "cacheReadCost": 0.0024370499999999996,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 0
+       }
+      },
+      {
+       "provider": "openclaw",
+       "model": "delivery-mirror",
+       "count": 1,
+       "totals": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "totalCost": 0,
+        "inputCost": 0,
+        "outputCost": 0,
+        "cacheReadCost": 0,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 0
+       }
+      }
+     ],
+     "latency": {
+      "count": 14,
+      "avgMs": 3535313.214285714,
+      "p95Ms": 23694236,
+      "minMs": 15006,
+      "maxMs": 23694236
+     },
+     "activityDates": [
+      "2026-09-27",
+      "2026-09-28",
+      "2026-10-03",
+      "2026-10-09"
+     ],
+     "dailyBreakdown": [
+      {
+       "date": "2026-09-27",
+       "tokens": 0,
+       "cost": 0,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0,
+       "inputCost": 0,
+       "outputCost": 0,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-09-28",
+       "tokens": 66634,
+       "cost": 0.260734,
+       "input": 48990,
+       "output": 236,
+       "cacheRead": 17408,
+       "cacheWrite": 0,
+       "totalTokens": 66634,
+       "totalCost": 0.260734,
+       "inputCost": 0.24495,
+       "outputCost": 0.00708,
+       "cacheReadCost": 0.008704,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-10-03",
+       "tokens": 0,
+       "cost": 0,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0,
+       "inputCost": 0,
+       "outputCost": 0,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-10-09",
+       "tokens": 255334,
+       "cost": 0.05624194999999999,
+       "input": 173383,
+       "output": 716,
+       "cacheRead": 81235,
+       "cacheWrite": 0,
+       "totalTokens": 255334,
+       "totalCost": 0.05624194999999999,
+       "inputCost": 0.052014899999999996,
+       "outputCost": 0.00179,
+       "cacheReadCost": 0.0024370499999999996,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      }
+     ],
+     "dailyMessageCounts": [
+      {
+       "date": "2026-09-27",
+       "total": 1,
+       "user": 0,
+       "assistant": 1,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "date": "2026-09-28",
+       "total": 5,
+       "user": 2,
+       "assistant": 3,
+       "toolCalls": 3,
+       "toolResults": 3,
+       "errors": 0
+      },
+      {
+       "date": "2026-10-03",
+       "total": 1,
+       "user": 1,
+       "assistant": 0,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "date": "2026-10-09",
+       "total": 20,
+       "user": 9,
+       "assistant": 11,
+       "toolCalls": 2,
+       "toolResults": 2,
+       "errors": 0
+      }
+     ],
+     "utcQuarterHourMessageCounts": [
+      {
+       "date": "2026-09-27",
+       "quarterIndex": 74,
+       "total": 1,
+       "user": 0,
+       "assistant": 1,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "date": "2026-09-28",
+       "quarterIndex": 28,
+       "total": 1,
+       "user": 1,
+       "assistant": 0,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "date": "2026-09-28",
+       "quarterIndex": 54,
+       "total": 2,
+       "user": 0,
+       "assistant": 2,
+       "toolCalls": 3,
+       "toolResults": 3,
+       "errors": 0
+      },
+      {
+       "date": "2026-09-28",
+       "quarterIndex": 68,
+       "total": 2,
+       "user": 1,
+       "assistant": 1,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "date": "2026-10-03",
+       "quarterIndex": 77,
+       "total": 1,
+       "user": 1,
+       "assistant": 0,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 0
+      },
+      {
+       "_truncated": 8
+      }
+     ],
+     "utcQuarterHourTokenUsage": [
+      {
+       "date": "2026-09-27",
+       "quarterIndex": 74,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-09-28",
+       "quarterIndex": 28,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-09-28",
+       "quarterIndex": 54,
+       "input": 24444,
+       "output": 228,
+       "cacheRead": 17408,
+       "cacheWrite": 0,
+       "totalTokens": 42080,
+       "totalCost": 0.137764
+      },
+      {
+       "date": "2026-09-28",
+       "quarterIndex": 68,
+       "input": 24546,
+       "output": 8,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 24554,
+       "totalCost": 0.12297000000000001
+      },
+      {
+       "date": "2026-10-03",
+       "quarterIndex": 77,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0
+      },
+      {
+       "_truncated": 8
+      }
+     ],
+     "dailyLatency": [
+      {
+       "date": "2026-09-28",
+       "count": 3,
+       "avgMs": 15799477.666666666,
+       "p95Ms": 23694236,
+       "minMs": 15006,
+       "maxMs": 23694236
+      },
+      {
+       "date": "2026-10-09",
+       "count": 11,
+       "avgMs": 190541.0909090909,
+       "p95Ms": 269153,
+       "minMs": 62574,
+       "maxMs": 269153
+      }
+     ],
+     "dailyModelUsage": [
+      {
+       "date": "2026-09-27",
+       "provider": "openclaw",
+       "model": "delivery-mirror",
+       "tokens": 0,
+       "cost": 0,
+       "count": 1
+      },
+      {
+       "date": "2026-09-28",
+       "provider": "openai",
+       "model": "gpt-5.6-sol",
+       "tokens": 66634,
+       "cost": 0.260734,
+       "count": 3
+      },
+      {
+       "date": "2026-10-09",
+       "provider": "google",
+       "model": "gemini-3.5-flash-lite",
+       "tokens": 255334,
+       "cost": 0.05624194999999999,
+       "count": 11
+      }
+     ]
+    },
+    "hasContextWeight": true
+   },
+   {
+    "key": "agent:main:node-f3b1690db672",
+    "label": "<texte 48 car.>",
+    "sessionId": "f80f145f-ab5f-0247-42e3-847f748c909a",
+    "scope": "instance",
+    "updatedAt": 1791499250686,
+    "agentId": "main",
+    "creatorKey": "[\"unknown\"]",
+    "chatType": "direct",
+    "modelOverride": "gemini-3.5-flash-lite",
+    "providerOverride": "google",
+    "modelProvider": "google",
+    "model": "gemini-3.5-flash-lite",
+    "usage": {
+     "input": 970187,
+     "output": 59822,
+     "cacheRead": 14424157,
+     "cacheWrite": 1225708,
+     "totalTokens": 16679874,
+     "totalCost": 26.692762169999995,
+     "inputCost": 0.5054199000000001,
+     "outputCost": 2.4978375,
+     "cacheReadCost": 10.828517269999994,
+     "cacheWriteCost": 12.860987499999993,
+     "missingCostEntries": 37,
+     "sessionId": "f80f145f-ab5f-0247-42e3-847f748c909a",
+     "sessionFile": "<texte 100 car.>",
+     "missingCostByModel": {
+      "custom-po-zapro-su/gpt-5.6-sol": 37
+     },
+     "firstActivity": 1790208981710,
+     "lastActivity": 1791499255458,
+     "durationMs": 1290273748,
+     "messageCounts": {
+      "total": 554,
+      "user": 223,
+      "assistant": 331,
+      "toolCalls": 168,
+      "toolResults": 168,
+      "errors": 26
+     },
+     "toolUsage": {
+      "totalCalls": 168,
+      "uniqueTools": 12,
+      "tools": [
+       {
+        "name": "<texte 4 car.>",
+        "count": 113
+       },
+       {
+        "name": "<texte 10 car.>",
+        "count": 12
+       },
+       {
+        "name": "<texte 11 car.>",
+        "count": 10
+       },
+       {
+        "name": "<texte 4 car.>",
+        "count": 10
+       },
+       {
+        "name": "<texte 9 car.>",
+        "count": 9
+       },
+       {
+        "_truncated": 7
+       }
+      ]
+     },
+     "modelUsage": [
+      {
+       "provider": "openai",
+       "model": "gpt-5.6-sol",
+       "count": 149,
+       "totals": {
+        "input": 50999,
+        "output": 54190,
+        "cacheRead": 12730150,
+        "cacheWrite": 1225708,
+        "totalTokens": 14061047,
+        "totalCost": 26.576992499999992,
+        "inputCost": 0.43104000000000015,
+        "outputCost": 2.4966,
+        "cacheReadCost": 10.788364999999995,
+        "cacheWriteCost": 12.860987499999993,
+        "missingCostEntries": 0
+       }
+      },
+      {
+       "provider": "google",
+       "model": "gemini-3.5-flash-lite",
+       "count": 15,
+       "totals": {
+        "input": 247933,
+        "output": 495,
+        "cacheRead": 1338409,
+        "cacheWrite": 0,
+        "totalTokens": 1586837,
+        "totalCost": 0.11576967,
+        "inputCost": 0.07437990000000001,
+        "outputCost": 0.0012375,
+        "cacheReadCost": 0.04015227,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 0
+       }
+      },
+      {
+       "provider": "custom-po-zapro-su",
+       "model": "gpt-5.6-sol",
+       "count": 39,
+       "totals": {
+        "input": 671255,
+        "output": 5137,
+        "cacheRead": 355598,
+        "cacheWrite": 0,
+        "totalTokens": 1031990,
+        "totalCost": 0,
+        "inputCost": 0,
+        "outputCost": 0,
+        "cacheReadCost": 0,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 37,
+        "missingCostByModel": {
+         "custom-po-zapro-su/gpt-5.6-sol": 37
+        }
+       }
+      }
+     ],
+     "latency": {
+      "count": 331,
+      "avgMs": 54533.97583081571,
+      "p95Ms": 310343,
+      "minMs": 186,
+      "maxMs": 485739
+     },
+     "activityDates": [
+      "2026-09-24",
+      "2026-10-08"
+     ],
+     "dailyBreakdown": [
+      {
+       "date": "2026-09-24",
+       "tokens": 15093037,
+       "cost": 26.576992499999992,
+       "input": 722254,
+       "output": 59327,
+       "cacheRead": 13085748,
+       "cacheWrite": 1225708,
+       "totalTokens": 15093037,
+       "totalCost": 26.576992499999992,
+       "inputCost": 0.43104000000000015,
+       "outputCost": 2.4966,
+       "cacheReadCost": 10.788364999999995,
+       "cacheWriteCost": 12.860987499999993,
+       "missingCostEntries": 37,
+       "missingCostByModel": {
+        "custom-po-zapro-su/gpt-5.6-sol": 37
+       }
+      },
+      {
+       "date": "2026-10-08",
+       "tokens": 1586837,
+       "cost": 0.11576967,
+       "input": 247933,
+       "output": 495,
+       "cacheRead": 1338409,
+       "cacheWrite": 0,
+       "totalTokens": 1586837,
+       "totalCost": 0.11576967,
+       "inputCost": 0.07437990000000001,
+       "outputCost": 0.0012375,
+       "cacheReadCost": 0.04015227,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      }
+     ],
+     "dailyMessageCounts": [
+      {
+       "date": "2026-09-24",
+       "total": 489,
+       "user": 190,
+       "assistant": 299,
+       "toolCalls": 163,
+       "toolResults": 163,
+       "errors": 17
+      },
+      {
+       "date": "2026-10-08",
+       "total": 65,
+       "user": 33,
+       "assistant": 32,
+       "toolCalls": 5,
+       "toolResults": 5,
+       "errors": 9
+      }
+     ],
+     "utcQuarterHourMessageCounts": [
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 1,
+       "total": 9,
+       "user": 2,
+       "assistant": 7,
+       "toolCalls": 6,
+       "toolResults": 6,
+       "errors": 0
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 7,
+       "total": 29,
+       "user": 14,
+       "assistant": 15,
+       "toolCalls": 7,
+       "toolResults": 6,
+       "errors": 1
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 8,
+       "total": 76,
+       "user": 35,
+       "assistant": 41,
+       "toolCalls": 14,
+       "toolResults": 15,
+       "errors": 2
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 9,
+       "total": 4,
+       "user": 2,
+       "assistant": 2,
+       "toolCalls": 2,
+       "toolResults": 2,
+       "errors": 1
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 52,
+       "total": 2,
+       "user": 1,
+       "assistant": 1,
+       "toolCalls": 0,
+       "toolResults": 0,
+       "errors": 1
+      },
+      {
+       "_truncated": 14
+      }
+     ],
+     "utcQuarterHourTokenUsage": [
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 1,
+       "input": 64212,
+       "output": 638,
+       "cacheRead": 152320,
+       "cacheWrite": 0,
+       "totalTokens": 217170,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 7,
+       "input": 68613,
+       "output": 1439,
+       "cacheRead": 117120,
+       "cacheWrite": 0,
+       "totalTokens": 187172,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 8,
+       "input": 481257,
+       "output": 2784,
+       "cacheRead": 73613,
+       "cacheWrite": 0,
+       "totalTokens": 557654,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 9,
+       "input": 57173,
+       "output": 276,
+       "cacheRead": 12545,
+       "cacheWrite": 0,
+       "totalTokens": 69994,
+       "totalCost": 0
+      },
+      {
+       "date": "2026-09-24",
+       "quarterIndex": 52,
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0
+      },
+      {
+       "_truncated": 14
+      }
+     ],
+     "dailyLatency": [
+      {
+       "date": "2026-09-24",
+       "count": 299,
+       "avgMs": 59729.82608695652,
+       "p95Ms": 335346,
+       "minMs": 186,
+       "maxMs": 485739
+      },
+      {
+       "date": "2026-10-08",
+       "count": 32,
+       "avgMs": 5985.25,
+       "p95Ms": 17790,
+       "minMs": 421,
+       "maxMs": 22586
+      }
+     ],
+     "dailyModelUsage": [
+      {
+       "date": "2026-09-24",
+       "provider": "openai",
+       "model": "gpt-5.6-sol",
+       "tokens": 14061047,
+       "cost": 26.576992499999992,
+       "count": 149
+      },
+      {
+       "date": "2026-09-24",
+       "provider": "custom-po-zapro-su",
+       "model": "gpt-5.6-sol",
+       "tokens": 1031990,
+       "cost": 0,
+       "count": 39
+      },
+      {
+       "date": "2026-10-08",
+       "provider": "google",
+       "model": "gemini-3.5-flash-lite",
+       "tokens": 1586837,
+       "cost": 0.11576967,
+       "count": 15
+      }
+     ]
+    },
+    "hasContextWeight": true
+   },
+   {
+    "key": "agent:main:companion-chat-samantha-intent-clarify-live-20261008",
+    "label": "<texte 20 car.>",
+    "sessionId": "b0a061c7-6d80-1012-16e1-7a2ae742c424",
+    "scope": "instance",
+    "updatedAt": 1791498591841,
+    "agentId": "main",
+    "creatorKey": "[\"unknown\"]",
+    "usage": {
+     "input": 38567,
+     "output": 134,
+     "cacheRead": 10143,
+     "cacheWrite": 0,
+     "totalTokens": 48844,
+     "totalCost": 0.01220939,
+     "inputCost": 0.0115701,
+     "outputCost": 0.000335,
+     "cacheReadCost": 0.00030429,
+     "cacheWriteCost": 0,
+     "missingCostEntries": 0,
+     "sessionId": "b0a061c7-6d80-1012-16e1-7a2ae742c424",
+     "sessionFile": "<texte 100 car.>",
+     "firstActivity": 1791491020667,
+     "lastActivity": 1791491181021,
+     "durationMs": 160354,
+     "messageCounts": {
+      "total": 5,
+      "user": 1,
+      "assistant": 4,
+      "toolCalls": 3,
+      "toolResults": 3,
+      "errors": 0
+     },
+     "toolUsage": {
+      "totalCalls": 3,
+      "uniqueTools": 3,
+      "tools": [
+       {
+        "name": "<texte 4 car.>",
+        "count": 1
+       },
+       {
+        "name": "<texte 4 car.>",
+        "count": 1
+       },
+       {
+        "name": "<texte 11 car.>",
+        "count": 1
+       }
+      ]
+     },
+     "modelUsage": [
+      {
+       "provider": "google",
+       "model": "gemini-3.5-flash-lite",
+       "count": 4,
+       "totals": {
+        "input": 38567,
+        "output": 134,
+        "cacheRead": 10143,
+        "cacheWrite": 0,
+        "totalTokens": 48844,
+        "totalCost": 0.01220939,
+        "inputCost": 0.0115701,
+        "outputCost": 0.000335,
+        "cacheReadCost": 0.00030429,
+        "cacheWriteCost": 0,
+        "missingCostEntries": 0
+       }
+      }
+     ],
+     "latency": {
+      "count": 4,
+      "avgMs": 144995.25,
+      "p95Ms": 160354,
+      "minMs": 133130,
+      "maxMs": 160354
+     },
+     "activityDates": [
+      "2026-10-08"
+     ],
+     "dailyBreakdown": [
+      {
+       "date": "2026-10-08",
+       "tokens": 48844,
+       "cost": 0.01220939,
+       "input": 38567,
+       "output": 134,
+       "cacheRead": 10143,
+       "cacheWrite": 0,
+       "totalTokens": 48844,
+       "totalCost": 0.01220939,
+       "inputCost": 0.0115701,
+       "outputCost": 0.000335,
+       "cacheReadCost": 0.00030429,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      }
+     ],
+     "dailyMessageCounts": [
+      {
+       "date": "2026-10-08",
+       "total": 5,
+       "user": 1,
+       "assistant": 4,
+       "toolCalls": 3,
+       "toolResults": 3,
+       "errors": 0
+      }
+     ],
+     "utcQuarterHourMessageCounts": [
+      {
+       "date": "2026-10-08",
+       "quarterIndex": 81,
+       "total": 5,
+       "user": 1,
+       "assistant": 4,
+       "toolCalls": 3,
+       "toolResults": 3,
+       "errors": 0
+      }
+     ],
+     "utcQuarterHourTokenUsage": [
+      {
+       "date": "2026-10-08",
+       "quarterIndex": 81,
+       "input": 38567,
+       "output": 134,
+       "cacheRead": 10143,
+       "cacheWrite": 0,
+       "totalTokens": 48844,
+       "totalCost": 0.01220939
+      }
+     ],
+     "dailyLatency": [
+      {
+       "date": "2026-10-08",
+       "count": 4,
+       "avgMs": 144995.25,
+       "p95Ms": 160354,
+       "minMs": 133130,
+       "maxMs": 160354
+      }
+     ],
+     "dailyModelUsage": [
+      {
+       "date": "2026-10-08",
+       "provider": "google",
+       "model": "gemini-3.5-flash-lite",
+       "tokens": 48844,
+       "cost": 0.01220939,
+       "count": 4
+      }
+     ]
+    },
+    "hasContextWeight": true
+   },
+   {
+    "_truncated": 45
+   }
+  ],
+  "totals": {
+   "input": 6491414,
+   "output": 140604,
+   "cacheRead": 43140605,
+   "cacheWrite": 1284789,
+   "totalTokens": 51057412,
+   "totalCost": 52.67122284000002,
+   "inputCost": 11.631280499999997,
+   "outputCost": 4.3125884999999995,
+   "cacheReadCost": 23.32231633999999,
+   "cacheWriteCost": 13.405037499999993,
+   "missingCostEntries": 59,
+   "missingCostByModel": {
+    "custom-po-zapro-su/gpt-5.6-sol": 59
+   }
+  },
+  "aggregates": {
+   "sessionCount": 87,
+   "longestSessionDurationMs": 1356105219,
+   "messages": {
+    "total": 1576,
+    "user": 439,
+    "assistant": 1137,
+    "toolCalls": 789,
+    "toolResults": 788,
+    "errors": 104
+   },
+   "tools": {
+    "totalCalls": 789,
+    "uniqueTools": 30,
+    "tools": [
+     {
+      "name": "<texte 4 car.>",
+      "count": 284
+     },
+     {
+      "name": "<texte 4 car.>",
+      "count": 124
+     },
+     {
+      "name": "<texte 9 car.>",
+      "count": 110
+     },
+     {
+      "name": "<texte 11 car.>",
+      "count": 45
+     },
+     {
+      "name": "<texte 13 car.>",
+      "count": 38
+     },
+     {
+      "_truncated": 25
+     }
+    ]
+   },
+   "byModel": [
+    {
+     "provider": "openai",
+     "model": "gpt-5.6-sol",
+     "count": 590,
+     "totals": {
+      "input": 2209552,
+      "output": 113680,
+      "cacheRead": 37625742,
+      "cacheWrite": 1284789,
+      "totalTokens": 41233763,
+      "totalCost": 52.149867500000006,
+      "inputCost": 11.223804999999997,
+      "outputCost": 4.28295,
+      "cacheReadCost": 23.23807499999999,
+      "cacheWriteCost": 13.405037499999993,
+      "missingCostEntries": 0
+     }
+    },
+    {
+     "provider": "google",
+     "model": "gemini-3.5-flash-lite",
+     "count": 128,
+     "totals": {
+      "input": 1216175,
+      "output": 10965,
+      "cacheRead": 2468418,
+      "cacheWrite": 0,
+      "totalTokens": 3695558,
+      "totalCost": 0.46631753999999986,
+      "inputCost": 0.3648525,
+      "outputCost": 0.0274125,
+      "cacheReadCost": 0.07405253999999999,
+      "cacheWriteCost": 0,
+      "missingCostEntries": 0
+     }
+    },
+    {
+     "provider": "openai",
+     "model": "gpt-5.6-luna",
+     "count": 27,
+     "totals": {
+      "input": 42623,
+      "output": 371,
+      "cacheRead": 101888,
+      "cacheWrite": 0,
+      "totalTokens": 144882,
+      "totalCost": 0.0550378,
+      "inputCost": 0.042622999999999994,
+      "outputCost": 0.002226,
+      "cacheReadCost": 0.0101888,
+      "cacheWriteCost": 0,
+      "missingCostEntries": 0
+     }
+    },
+    {
+     "provider": "custom-po-zapro-su",
+     "model": "gpt-5.6-luna",
+     "count": 127,
+     "totals": {
+      "input": 2097693,
+      "output": 9290,
+      "cacheRead": 2407424,
+      "cacheWrite": 0,
+      "totalTokens": 4514407,
+      "totalCost": 0,
+      "inputCost": 0,
+      "outputCost": 0,
+      "cacheReadCost": 0,
+      "cacheWriteCost": 0,
+      "missingCostEntries": 0
+     }
+    },
+    {
+     "provider": "custom-po-zapro-su",
+     "model": "gpt-5.6-sol",
+     "count": 68,
+     "totals": {
+      "input": 925371,
+      "output": 6298,
+      "cacheRead": 537133,
+      "cacheWrite": 0,
+      "totalTokens": 1468802,
+      "totalCost": 0,
+      "inputCost": 0,
+      "outputCost": 0,
+      "cacheReadCost": 0,
+      "cacheWriteCost": 0,
+      "missingCostEntries": 59,
+      "missingCostByModel": {
+       "custom-po-zapro-su/gpt-5.6-sol": 59
+      }
+     }
+    },
+    {
+     "_truncated": 4
+    }
+   ],
+   "byProvider": [
+    {
+     "provider": "openai",
+     "count": 620,
+     "totals": {
+      "input": 2252175,
+      "output": 114051,
+      "cacheRead": 37727630,
+      "cacheWrite": 1284789,
+      "totalTokens": 41378645,
+      "totalCost": 52.20490530000001,
+      "inputCost": 11.266428,
+      "outputCost": 4.285175999999999,
+      "cacheReadCost": 23.248263799999986,
+      "cacheWriteCost": 13.405037499999993,
+      "missingCostEntries": 0
+     }
+    },
+    {
+     "provider": "google",
+     "count": 128,
+     "totals": {
+      "input": 1216175,
+      "output": 10965,
+      "cacheRead": 2468418,
+      "cacheWrite": 0,
+      "totalTokens": 3695558,
+      "totalCost": 0.46631753999999986,
+      "inputCost": 0.3648525,
+      "outputCost": 0.0274125,
+      "cacheReadCost": 0.07405253999999999,
+      "cacheWriteCost": 0,
+      "missingCostEntries": 0
+     }
+    },
+    {
+     "provider": "custom-po-zapro-su",
+     "count": 195,
+     "totals": {
+      "input": 3023064,
+      "output": 15588,
+      "cacheRead": 2944557,
+      "cacheWrite": 0,
+      "totalTokens": 5983209,
+      "totalCost": 0,
+      "inputCost": 0,
+      "outputCost": 0,
+      "cacheReadCost": 0,
+      "cacheWriteCost": 0,
+      "missingCostEntries": 59,
+      "missingCostByModel": {
+       "custom-po-zapro-su/gpt-5.6-sol": 59
+      }
+     }
+    },
+    {
+     "provider": "openclaw",
+     "count": 64,
+     "totals": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 0,
+      "totalCost": 0,
+      "inputCost": 0,
+      "outputCost": 0,
+      "cacheReadCost": 0,
+      "cacheWriteCost": 0,
+      "missingCostEntries": 0
+     }
+    },
+    {
+     "provider": "***",
+     "count": 2,
+     "totals": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 0,
+      "totalCost": 0,
+      "inputCost": 0,
+      "outputCost": 0,
+      "cacheReadCost": 0,
+      "cacheWriteCost": 0,
+      "missingCostEntries": 0
+     }
+    }
+   ],
+   "byAgent": [
+    {
+     "agentId": "main",
+     "totals": {
+      "input": 6491414,
+      "output": 140604,
+      "cacheRead": 43140605,
+      "cacheWrite": 1284789,
+      "totalTokens": 51057412,
+      "totalCost": 52.67122284000002,
+      "inputCost": 11.631280499999997,
+      "outputCost": 4.3125884999999995,
+      "cacheReadCost": 23.32231633999999,
+      "cacheWriteCost": 13.405037499999993,
+      "missingCostEntries": 59,
+      "missingCostByModel": {
+       "custom-po-zapro-su/gpt-5.6-sol": 59
+      }
+     }
+    }
+   ],
+   "byChannel": [
+    {
+     "channel": "whatsapp",
+     "totals": {
+      "input": 1361970,
+      "output": 23301,
+      "cacheRead": 13556442,
+      "cacheWrite": 59081,
+      "totalTokens": 15000794,
+      "totalCost": 12.321636550000001,
+      "inputCost": 4.486519500000001,
+      "outputCost": 0.63988,
+      "cacheReadCost": 6.65118705,
+      "cacheWriteCost": 0.54405,
+      "missingCostEntries": 16,
+      "missingCostByModel": {
+       "custom-po-zapro-su/gpt-5.6-sol": 16
+      }
+     }
+    }
+   ],
+   "byCreator": [
+    {
+     "key": "[\"unknown\"]",
+     "totals": {
+      "input": 5544483,
+      "output": 124194,
+      "cacheRead": 30659958,
+      "cacheWrite": 1225708,
+      "totalTokens": 37554343,
+      "totalCost": 42.29663823999999,
+      "inputCost": 8.4050559,
+      "outputCost": 3.859748500000001,
+      "cacheReadCost": 17.17084634,
+      "cacheWriteCost": 12.860987499999993,
+      "missingCostEntries": 43,
+      "missingCostByModel": {
+       "custom-po-zapro-su/gpt-5.6-sol": 43
+      }
+     },
+     "sessionCount": 85,
+     "daily": [
+      {
+       "date": "2026-09-23",
+       "input": 2188315,
+       "output": 9480,
+       "cacheRead": 2407424,
+       "cacheWrite": 0,
+       "totalTokens": 4605219,
+       "totalCost": 0,
+       "inputCost": 0,
+       "outputCost": 0,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 3,
+       "missingCostByModel": {
+        "custom-po-zapro-su/gpt-5.6-sol": 3
+       }
+      },
+      {
+       "date": "2026-09-24",
+       "input": 767768,
+       "output": 59342,
+       "cacheRead": 13085748,
+       "cacheWrite": 1225708,
+       "totalTokens": 15138566,
+       "totalCost": 26.576992499999992,
+       "inputCost": 0.43104000000000015,
+       "outputCost": 2.4966,
+       "cacheReadCost": 10.788364999999995,
+       "cacheWriteCost": 12.860987499999993,
+       "missingCostEntries": 40,
+       "missingCostByModel": {
+        "custom-po-zapro-su/gpt-5.6-sol": 40
+       }
+      },
+      {
+       "date": "2026-09-25",
+       "input": 17491,
+       "output": 7,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 17498,
+       "totalCost": 0.087665,
+       "inputCost": 0.087455,
+       "outputCost": 0.00021,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-09-26",
+       "input": 407734,
+       "output": 2135,
+       "cacheRead": 516864,
+       "cacheWrite": 0,
+       "totalTokens": 926733,
+       "totalCost": 2.2882320000000007,
+       "inputCost": 1.966326,
+       "outputCost": 0.063474,
+       "cacheReadCost": 0.25843200000000005,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-09-27",
+       "input": 119866,
+       "output": 6245,
+       "cacheRead": 459648,
+       "cacheWrite": 0,
+       "totalTokens": 585759,
+       "totalCost": 1.0165039999999999,
+       "inputCost": 0.59933,
+       "outputCost": 0.18734999999999996,
+       "cacheReadCost": 0.229824,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "_truncated": 12
+      }
+     ],
+     "sessionActivity": [
+      {
+       "dates": [
+        "2026-09-23"
+       ],
+       "sessionCount": 2
+      },
+      {
+       "dates": [
+        "2026-09-23",
+        "2026-09-24",
+        "2026-09-26",
+        "2026-09-29"
+       ],
+       "sessionCount": 1
+      },
+      {
+       "dates": [
+        "2026-09-23",
+        "2026-10-07",
+        "2026-10-08"
+       ],
+       "sessionCount": 1
+      },
+      {
+       "dates": [
+        "2026-09-24",
+        "2026-10-08"
+       ],
+       "sessionCount": 1
+      },
+      {
+       "dates": [
+        "2026-09-25"
+       ],
+       "sessionCount": 2
+      },
+      {
+       "_truncated": 15
+      }
+     ]
+    },
+    {
+     "key": "[\"human\",\"channel\",\"main\",\"whatsapp\",\"default\",\"+216XXXXXXXX\"]",
+     "actor": {
+      "type": "human",
+      "id": "+216XXXXXXXX",
+      "identity": {
+       "type": "legacy",
+       "actorType": "human",
+       "source": null,
+       "id": "+216XXXXXXXX"
+      }
+     },
+     "totals": {
+      "input": 790526,
+      "output": 13138,
+      "cacheRead": 12068615,
+      "cacheWrite": 59081,
+      "totalTokens": 12931360,
+      "totalCost": 9.3674586,
+      "inputCost": 2.522224600000001,
+      "outputCost": 0.35573000000000005,
+      "cacheReadCost": 5.945454,
+      "cacheWriteCost": 0.54405,
+      "missingCostEntries": 15,
+      "missingCostByModel": {
+       "custom-po-zapro-su/gpt-5.6-sol": 15
+      }
+     },
+     "sessionCount": 1,
+     "daily": [
+      {
+       "date": "2026-09-24",
+       "input": 103308,
+       "output": 1014,
+       "cacheRead": 215431,
+       "cacheWrite": 59081,
+       "totalTokens": 378834,
+       "totalCost": 0.572017,
+       "inputCost": 0.004665,
+       "outputCost": 0.0044399999999999995,
+       "cacheReadCost": 0.018862,
+       "cacheWriteCost": 0.54405,
+       "missingCostEntries": 15,
+       "missingCostByModel": {
+        "custom-po-zapro-su/gpt-5.6-sol": 15
+       }
+      },
+      {
+       "date": "2026-09-25",
+       "input": 259146,
+       "output": 11366,
+       "cacheRead": 11628416,
+       "cacheWrite": 0,
+       "totalTokens": 11898928,
+       "totalCost": 7.450917999999999,
+       "inputCost": 1.2957300000000005,
+       "outputCost": 0.34098,
+       "cacheReadCost": 5.814207999999999,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-09-26",
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0,
+       "inputCost": 0,
+       "outputCost": 0,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-09-27",
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0,
+       "inputCost": 0,
+       "outputCost": 0,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-09-28",
+       "input": 0,
+       "output": 0,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 0,
+       "totalCost": 0,
+       "inputCost": 0,
+       "outputCost": 0,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "_truncated": 11
+      }
+     ],
+     "sessionActivity": [
+      {
+       "dates": [
+        "2026-09-24",
+        "2026-09-25",
+        "2026-09-26",
+        "2026-09-27",
+        "2026-09-28",
+        {
+         "_truncated": 11
+        }
+       ],
+       "sessionCount": 1
+      }
+     ]
+    },
+    {
+     "key": "[\"human\",\"channel\",\"main\",\"whatsapp\",\"default\",\"+216XXXXXXXX\"]",
+     "actor": {
+      "type": "human",
+      "id": "+216XXXXXXXX",
+      "identity": {
+       "type": "legacy",
+       "actorType": "human",
+       "source": null,
+       "id": "+216XXXXXXXX"
+      }
+     },
+     "totals": {
+      "input": 156405,
+      "output": 3272,
+      "cacheRead": 412032,
+      "cacheWrite": 0,
+      "totalTokens": 571709,
+      "totalCost": 1.007126,
+      "inputCost": 0.704,
+      "outputCost": 0.09710999999999999,
+      "cacheReadCost": 0.20601599999999995,
+      "cacheWriteCost": 0,
+      "missingCostEntries": 1,
+      "missingCostByModel": {
+       "custom-po-zapro-su/gpt-5.6-sol": 1
+      }
+     },
+     "sessionCount": 1,
+     "daily": [
+      {
+       "date": "2026-09-24",
+       "input": 15605,
+       "output": 35,
+       "cacheRead": 0,
+       "cacheWrite": 0,
+       "totalTokens": 15640,
+       "totalCost": 0,
+       "inputCost": 0,
+       "outputCost": 0,
+       "cacheReadCost": 0,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 1,
+       "missingCostByModel": {
+        "custom-po-zapro-su/gpt-5.6-sol": 1
+       }
+      },
+      {
+       "date": "2026-09-25",
+       "input": 47492,
+       "output": 2276,
+       "cacheRead": 358144,
+       "cacheWrite": 0,
+       "totalTokens": 407912,
+       "totalCost": 0.48481199999999997,
+       "inputCost": 0.23746000000000003,
+       "outputCost": 0.06828,
+       "cacheReadCost": 0.17907199999999995,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-09-29",
+       "input": 33686,
+       "output": 693,
+       "cacheRead": 24320,
+       "cacheWrite": 0,
+       "totalTokens": 58699,
+       "totalCost": 0.20138,
+       "inputCost": 0.16843,
+       "outputCost": 0.02079,
+       "cacheReadCost": 0.01216,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      },
+      {
+       "date": "2026-10-01",
+       "input": 59622,
+       "output": 268,
+       "cacheRead": 29568,
+       "cacheWrite": 0,
+       "totalTokens": 89458,
+       "totalCost": 0.320934,
+       "inputCost": 0.29811000000000004,
+       "outputCost": 0.008039999999999999,
+       "cacheReadCost": 0.014784,
+       "cacheWriteCost": 0,
+       "missingCostEntries": 0
+      }
+     ],
+     "sessionActivity": [
+      {
+       "dates": [
+        "2026-09-24",
+        "2026-09-25",
+        "2026-09-29",
+        "2026-10-01"
+       ],
+       "sessionCount": 1
+      }
+     ]
+    },
+    {
+     "key": "[\"system\",null]",
+     "actor": {
+      "type": "system"
+     },
+     "totals": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 0,
+      "totalCost": 0,
+      "inputCost": 0,
+      "outputCost": 0,
+      "cacheReadCost": 0,
+      "cacheWriteCost": 0,
+      "missingCostEntries": 0
+     },
+     "sessionCount": 0,
+     "daily": [],
+     "sessionActivity": []
+    }
+   ],
+   "costDaily": [
+    {
+     "date": "2026-09-23",
+     "input": 2188315,
+     "output": 9480,
+     "cacheRead": 2407424,
+     "cacheWrite": 0,
+     "totalTokens": 4605219,
+     "totalCost": 0,
+     "inputCost": 0,
+     "outputCost": 0,
+     "cacheReadCost": 0,
+     "cacheWriteCost": 0,
+     "missingCostEntries": 3,
+     "missingCostByModel": {
+      "custom-po-zapro-su/gpt-5.6-sol": 3
+     }
+    },
+    {
+     "date": "2026-09-24",
+     "input": 886681,
+     "output": 60391,
+     "cacheRead": 13301179,
+     "cacheWrite": 1284789,
+     "totalTokens": 15533040,
+     "totalCost": 27.14900949999999,
+     "inputCost": 0.4357050000000001,
+     "outputCost": 2.5010399999999997,
+     "cacheReadCost": 10.807226999999996,
+     "cacheWriteCost": 13.405037499999993,
+     "missingCostEntries": 56,
+     "missingCostByModel": {
+      "custom-po-zapro-su/gpt-5.6-sol": 56
+     }
+    },
+    {
+     "date": "2026-09-25",
+     "input": 324129,
+     "output": 13649,
+     "cacheRead": 11986560,
+     "cacheWrite": 0,
+     "totalTokens": 12324338,
+     "totalCost": 8.023394999999999,
+     "inputCost": 1.6206450000000006,
+     "outputCost": 0.40947,
+     "cacheReadCost": 5.993279999999999,
+     "cacheWriteCost": 0,
+     "missingCostEntries": 0
+    },
+    {
+     "date": "2026-09-26",
+     "input": 407734,
+     "output": 2135,
+     "cacheRead": 516864,
+     "cacheWrite": 0,
+     "totalTokens": 926733,
+     "totalCost": 2.2882320000000007,
+     "inputCost": 1.966326,
+     "outputCost": 0.063474,
+     "cacheReadCost": 0.25843200000000005,
+     "cacheWriteCost": 0,
+     "missingCostEntries": 0
+    },
+    {
+     "date": "2026-09-27",
+     "input": 119866,
+     "output": 6245,
+     "cacheRead": 459648,
+     "cacheWrite": 0,
+     "totalTokens": 585759,
+     "totalCost": 1.0165039999999999,
+     "inputCost": 0.59933,
+     "outputCost": 0.18734999999999996,
+     "cacheReadCost": 0.229824,
+     "cacheWriteCost": 0,
+     "missingCostEntries": 0
+    },
+    {
+     "_truncated": 13
+    }
+   ],
+   "latency": {
+    "count": 1086,
+    "avgMs": 145291.72007366482,
+    "minMs": 7,
+    "maxMs": 23694236,
+    "p95Ms": 23694236
+   },
+   "dailyLatency": [
+    {
+     "date": "2026-09-23",
+     "count": 130,
+     "avgMs": 44684.26153846154,
+     "minMs": 7,
+     "maxMs": 203732,
+     "p95Ms": 142983
+    },
+    {
+     "date": "2026-09-24",
+     "count": 328,
+     "avgMs": 55905.740853658535,
+     "minMs": 186,
+     "maxMs": 485739,
+     "p95Ms": 335346
+    },
+    {
+     "date": "2026-09-25",
+     "count": 146,
+     "avgMs": 145287.08219178082,
+     "minMs": 977,
+     "maxMs": 8235099,
+     "p95Ms": 333922
+    },
+    {
+     "date": "2026-09-26",
+     "count": 39,
+     "avgMs": 29734.076923076922,
+     "minMs": 2443,
+     "maxMs": 169770,
+     "p95Ms": 164620
+    },
+    {
+     "date": "2026-09-27",
+     "count": 30,
+     "avgMs": 32530.533333333333,
+     "minMs": 1125,
+     "maxMs": 131537,
+     "p95Ms": 131537
+    },
+    {
+     "_truncated": 12
+    }
+   ],
+   "modelDaily": [
+    {
+     "date": "2026-09-23",
+     "provider": "custom-po-zapro-su",
+     "model": "gpt-5.6-luna",
+     "tokens": 4514407,
+     "cost": 0,
+     "count": 127
+    },
+    {
+     "date": "2026-09-23",
+     "provider": "custom-po-zapro-su",
+     "model": "gpt-5.6-sol",
+     "tokens": 90812,
+     "cost": 0,
+     "count": 3
+    },
+    {
+     "date": "2026-09-24",
+     "provider": "openai",
+     "model": "gpt-5.6-sol",
+     "tokens": 14155050,
+     "cost": 27.14900949999999,
+     "count": 152
+    },
+    {
+     "date": "2026-09-24",
+     "provider": "custom-po-zapro-su",
+     "model": "gpt-5.6-sol",
+     "tokens": 1377990,
+     "cost": 0,
+     "count": 65
+    },
+    {
+     "date": "2026-09-25",
+     "provider": "openai",
+     "model": "gpt-5.6-sol",
+     "tokens": 12324338,
+     "cost": 8.023394999999999,
+     "count": 139
+    },
+    {
+     "_truncated": 37
+    }
+   ],
+   "daily": [
+    {
+     "date": "2026-09-23",
+     "tokens": 4605219,
+     "cost": 0,
+     "messages": 153,
+     "toolCalls": 112,
+     "errors": 10
+    },
+    {
+     "date": "2026-09-24",
+     "tokens": 15533040,
+     "cost": 27.14900949999999,
+     "messages": 541,
+     "toolCalls": 170,
+     "errors": 26
+    },
+    {
+     "date": "2026-09-25",
+     "tokens": 12324338,
+     "cost": 8.023394999999999,
+     "messages": 173,
+     "toolCalls": 120,
+     "errors": 11
+    },
+    {
+     "date": "2026-09-26",
+     "tokens": 926733,
+     "cost": 2.2882320000000007,
+     "messages": 75,
+     "toolCalls": 10,
+     "errors": 6
+    },
+    {
+     "date": "2026-09-27",
+     "tokens": 585759,
+     "cost": 1.0165039999999999,
+     "messages": 53,
+     "toolCalls": 24,
+     "errors": 4
+    },
+    {
+     "_truncated": 13
+    }
+   ]
+  },
+  "creatorOptions": [
+   {
+    "key": "[\"unknown\"]"
+   },
+   {
+    "key": "[\"human\",\"channel\",\"main\",\"whatsapp\",\"default\",\"+216XXXXXXXX\"]",
+    "actor": {
+     "type": "human",
+     "id": "+216XXXXXXXX",
+     "identity": {
+      "type": "legacy",
+      "actorType": "human",
+      "source": null,
+      "id": "+216XXXXXXXX"
+     }
+    }
+   },
+   {
+    "key": "[\"system\",null]",
+    "actor": {
+     "type": "system"
+    }
+   },
+   {
+    "key": "[\"human\",\"channel\",\"main\",\"whatsapp\",\"default\",\"+216XXXXXXXX\"]",
+    "actor": {
+     "type": "human",
+     "id": "+216XXXXXXXX",
+     "identity": {
+      "type": "legacy",
+      "actorType": "human",
+      "source": null,
+      "id": "+216XXXXXXXX"
+     }
+    }
+   }
+  ],
+  "cacheStatus": {
+   "status": "fresh",
+   "cachedFiles": 92,
+   "pendingFiles": 0,
+   "staleFiles": 0,
+   "refreshedAt": 1791649248523
+  }
+ }
+}

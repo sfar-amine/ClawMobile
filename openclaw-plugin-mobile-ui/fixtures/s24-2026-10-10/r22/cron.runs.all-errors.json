@@ -1,0 +1,666 @@
+{
+ "_capture": {
+  "method": "cron.runs",
+  "params": {
+   "scope": "all",
+   "statuses": [
+    "error"
+   ],
+   "limit": 20
+  },
+  "latencyMs": 4693,
+  "capturedAt": "2026-10-10T18:20:11+00:00",
+  "exitCode": 0,
+  "via": "timeout 60 nice openclaw gateway call <method> --params <json> --json",
+  "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+  "sanitized": true
+ },
+ "response": {
+  "entries": [
+   {
+    "ts": 1791629051845,
+    "jobId": "09d7517c-658e-42ea-8987-f2ccb5800269",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 26 car.>",
+    "summary": "<texte 64 car.>",
+    "diagnostics": {
+     "summary": "<texte 64 car.>",
+     "entries": [
+      {
+       "ts": 1791629051844,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 84 car.>",
+       "exitCode": 2
+      }
+     ]
+    },
+    "runAtMs": 1791629029765,
+    "durationMs": 22080,
+    "nextRunAtMs": 1791629929765,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Playbooks Sync"
+   },
+   {
+    "ts": 1791628482459,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 33 car.>",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791628482458,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791628425770,
+    "durationMs": 56689,
+    "nextRunAtMs": 1791628725770,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791627165840,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791627165839,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791626925634,
+    "durationMs": 240206,
+    "nextRunAtMs": 1791627195840,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791626566998,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791626566997,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791626326839,
+    "durationMs": 240159,
+    "nextRunAtMs": 1791626596998,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791625958181,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791625958181,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791625705553,
+    "durationMs": 252628,
+    "nextRunAtMs": 1791626018181,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791625668658,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791625668657,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791625426730,
+    "durationMs": 241928,
+    "nextRunAtMs": 1791625698658,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791625246899,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791625246899,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791625006737,
+    "durationMs": 240162,
+    "nextRunAtMs": 1791625276899,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791623266941,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791623266941,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791623026713,
+    "durationMs": 240228,
+    "nextRunAtMs": 1791623296941,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791622072309,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791622072308,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791621832121,
+    "durationMs": 240188,
+    "nextRunAtMs": 1791622102309,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791597767200,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791597767198,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791597527017,
+    "durationMs": 240183,
+    "nextRunAtMs": 1791597797200,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791596633736,
+    "jobId": "09d7517c-658e-42ea-8987-f2ccb5800269",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 26 car.>",
+    "summary": "<texte 65 car.>",
+    "diagnostics": {
+     "summary": "<texte 65 car.>",
+     "entries": [
+      {
+       "ts": 1791596633735,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 84 car.>",
+       "exitCode": 2
+      }
+     ]
+    },
+    "runAtMs": 1791596632991,
+    "durationMs": 745,
+    "nextRunAtMs": 1791597523256,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Playbooks Sync"
+   },
+   {
+    "ts": 1791595733524,
+    "jobId": "09d7517c-658e-42ea-8987-f2ccb5800269",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 26 car.>",
+    "summary": "<texte 65 car.>",
+    "diagnostics": {
+     "summary": "<texte 65 car.>",
+     "entries": [
+      {
+       "ts": 1791595733524,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 84 car.>",
+       "exitCode": 2
+      }
+     ]
+    },
+    "runAtMs": 1791595732827,
+    "durationMs": 697,
+    "nextRunAtMs": 1791596632827,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Playbooks Sync"
+   },
+   {
+    "ts": 1791589965833,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791589965832,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791589725653,
+    "durationMs": 240180,
+    "nextRunAtMs": 1791589995833,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791589365835,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791589365834,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791589125649,
+    "durationMs": 240186,
+    "nextRunAtMs": 1791589395835,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791588765919,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791588765918,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791588525653,
+    "durationMs": 240266,
+    "nextRunAtMs": 1791588795919,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791588165934,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791588165933,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791587925657,
+    "durationMs": 240277,
+    "nextRunAtMs": 1791588195934,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791587620930,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791587620929,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791587380704,
+    "durationMs": 240226,
+    "nextRunAtMs": 1791587650930,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791582166139,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791582166136,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791581925637,
+    "durationMs": 240502,
+    "nextRunAtMs": 1791582196139,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791581569621,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791581569621,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791581329350,
+    "durationMs": 240271,
+    "nextRunAtMs": 1791581599621,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   },
+   {
+    "ts": 1791580069488,
+    "jobId": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+    "action": "finished",
+    "status": "error",
+    "completionStatus": "failed",
+    "error": "<texte 17 car.>",
+    "errorReason": "timeout",
+    "diagnostics": {
+     "entries": [
+      {
+       "ts": 1791580069488,
+       "source": "exec",
+       "severity": "error",
+       "message": "<texte 89 car.>",
+       "toolName": "signal:SIGTERM",
+       "exitCode": null
+      }
+     ]
+    },
+    "runAtMs": 1791579829288,
+    "durationMs": 240200,
+    "nextRunAtMs": 1791580099488,
+    "deliveryStatus": "not-requested",
+    "delivery": {
+     "intended": {
+      "channel": "last",
+      "source": "explicit"
+     }
+    },
+    "jobName": "Samantha Engineering Maintenance"
+   }
+  ],
+  "total": 135,
+  "offset": 0,
+  "limit": 20,
+  "hasMore": true,
+  "nextOffset": 20
+ }
+}
