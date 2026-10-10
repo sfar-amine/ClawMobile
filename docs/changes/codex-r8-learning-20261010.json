@@ -27,7 +27,7 @@
     {
       "name": "R8 local synthetic contracts",
       "status": "passed",
-      "evidence": "Build;116 assertions including five captured real producer forms (mock traces, actual recording volume0), generated bounds601, mtime ordering, signed HTTP202 admission with real run ledger and 850ms guard/300ms probe/3s background RPC;38 canonical guard assertions including true helper total timeout and no-run financial refusal;3 acceptance budget tests; complete current CI. Review32: invalid/oversized entries skipped, 36-files scan exceeds32MiB without503, folder provenance, forbidden-effect spies and hash mismatch before consume. Full current CI on runtime6b7c68f: CI_LOCAL_OK; all base workflow steps retained."
+      "evidence": "Build;116 assertions including five captured real producer forms (mock traces, actual recording volume0), generated bounds601, mtime ordering, signed HTTP202 admission with real run ledger and 850ms guard/300ms probe/3s background RPC;44 canonical guard assertions including true helper total timeout and no-run financial refusal;3 acceptance budget tests; complete current CI. Review32: invalid/oversized entries skipped, 36-files scan exceeds32MiB without503, folder provenance, forbidden-effect spies and hash mismatch before consume. Full current CI on runtime6b7c68f: CI_LOCAL_OK; all base workflow steps retained. Shared protectedPayment union preserves P2-b pay/r\u00e9gler/acheter and GBP/dinar/euro/dollar cases."
     }
   ],
   "documentation": [
