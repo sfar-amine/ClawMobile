@@ -45,7 +45,7 @@ export async function learningPaymentGuard(instruction:string,confirmationId?:st
 }
 export type LearningDependencies={guard:typeof learningPaymentGuard,confirmation:typeof confirmations,submit:typeof submitIntent,existing:typeof existingNativeOperation,reserve:typeof reserveSubmittedRun,settle:typeof settleSubmittedRun,stored:typeof storedNativeOperationResult};
 const defaults:LearningDependencies={guard:learningPaymentGuard,confirmation:confirmations,submit:submitIntent,existing:existingNativeOperation,reserve:reserveSubmittedRun,settle:settleSubmittedRun,stored:storedNativeOperationResult};
-export async function learnSkill(raw:any,deps:LearningDependencies=defaults):Promise<any>{
+export async function learnSkill(raw:any,deps:LearningDependencies=defaults,options:{authority?:"owner"}={}):Promise<any>{
  const body=learningBody(raw),identity=JSON.stringify({action:"skill.learn",target:"learn",instruction:body.instruction,confirmationId:body.confirmationId});
  const old=flights.get(body.operationId);if(old){if(old.identity!==identity)throw nativeError("operation_conflict",409);return old.promise;}
  const promise=(async()=>{
@@ -59,7 +59,7 @@ export async function learnSkill(raw:any,deps:LearningDependencies=defaults):Pro
   let value:any,consumed=false;
   try{await deps.confirmation.consume(body.confirmationId,expected);consumed=true;}catch(error:any){value={success:false,state:["invalid_owner_proof","confirmation_not_usable","confirmation_scope_mismatch","confirmation_record_invalid"].includes(error?.message)?"refused":"indeterminate",error:"learning_confirmation_refused"};}
   if(consumed)try{
-   const submitted=await deps.submit(LEARNING_PROMPT+body.instruction,"skill-learning",[],{userText:body.instruction,clientRunId:"skill-learning-"+hash(body.operationId),learningOnly:true});
+   const submitted=await deps.submit(LEARNING_PROMPT+body.instruction,"skill-learning",[],{userText:body.instruction,clientRunId:"skill-learning-"+hash(body.operationId),learningOnly:true,authority:options.authority});
    if(submitted.accepted===true&&typeof submitted.runId==="string"&&submitted.sessionId==="skill-learning")value={success:true,state:"accepted",artifact:{runId:submitted.runId,sessionId:"skill-learning"}};
    else value={success:false,state:submitted.retrySafe===true?"failed":"indeterminate",error:"learning_not_accepted"};
   }catch{value={success:false,state:"indeterminate",error:"learning_submission_uncertain"};}

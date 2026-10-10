@@ -51,7 +51,7 @@ function stored(status:any){
  try{const value=JSON.parse(status.result);if(value.receipt?.runId===status.runId&&value.receipt.version===1)return value;}catch{}
  return {success:false,state:"indeterminate",receipt:null};
 }
-export async function changeSkill(id:string,action:string,body:any){
+export async function changeSkill(id:string,action:string,body:any,options:{authority?:"owner"}={}){
  validate(id);if(!["enable","disable","try"].includes(action))throw nativeError("invalid_skill_action");
  const operationId=operation(body,action);
  const identity=JSON.stringify({action:"skill."+action,target:id,...(action==="try"?{instruction:body.instruction.trim()}: {})});
@@ -73,7 +73,7 @@ export async function changeSkill(id:string,action:string,body:any){
  try{
   if(action==="try"){
    const prompt=buildSkillAgentPrompt(detail,body.instruction.trim(),{});
-   const result=await submitIntent(prompt,"skill-"+id,[],{userText:body.instruction.trim(),clientRunId:"skill-trial-"+createHash("sha256").update(operationId).digest("hex")});
+   const result=await submitIntent(prompt,"skill-"+id,[],{userText:body.instruction.trim(),clientRunId:"skill-trial-"+createHash("sha256").update(operationId).digest("hex"),authority:options.authority});
    if(result.accepted&&result.runId){state="accepted";artifact={runId:result.runId,sessionId:result.sessionId};}
    else if(result.submissionState==="not_submitted")state="failed";
   }else{
