@@ -13,6 +13,7 @@ import {diagnosticRead} from "./diagnostic";
 import {automationDetail,changeAutomation} from "./automations";
 import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
 import {notificationSources} from "./notificationSources";
+import {allowlistRead,allowlistChange,allowlistBody} from "./whatsappAllowlist";
 import { handleControl } from "./control";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import fs from "fs";
@@ -376,6 +377,32 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       const value=method==='GET'?await readAgentConfig():await changeAgentConfig(await readJsonBody(req,2048));
       writeJson(res,value.state==='refused'?409:200,value);
     }catch(error:any){const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    return;
+  }
+
+  if(routePath==="/whatsapp/allowlist"||routePath.startsWith("/whatsapp/allowlist/")){
+    res.setHeader("Cache-Control","no-store");
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){writeJson(res,403,{success:false,state:"refused",receipt:null});return;}
+    try{
+      const suffix=routePath.slice("/whatsapp/allowlist".length);
+      if(suffix==="/history"&&method==="GET"){
+        const query=requestUrl.searchParams,limit=query.get("limit")||"50",before=query.get("before")||undefined;
+        if([...query.keys()].some(k=>!['limit','before'].includes(k))||query.getAll('limit').length>1||query.getAll('before').length>1||!/^\d{1,2}$/.test(limit)||Number(limit)<1||Number(limit)>50||(before&&!/^[A-Za-z0-9_-]{1,160}$/.test(before)))throw Object.assign(new Error(),{statusCode:400});
+        writeJson(res,200,await allowlistRead('history',undefined,{limit:Number(limit),...(before?{before}: {})}));return;
+      }
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      if(!suffix&&method==='GET'){writeJson(res,200,await allowlistRead('list'));return;}
+      const match=/^\/(wa-[a-f0-9]{16})(\/note)?$/.exec(suffix);
+      if(match&&method==='GET'){writeJson(res,200,await allowlistRead(match[2]?'note-get':'get',match[1]));return;}
+      if((!suffix&&method==='POST')||(match&&!match[2]&&['PATCH','DELETE'].includes(method))||(match&&match[2]&&method==='PUT')){
+        const value=await allowlistChange(!suffix?'add':match![2]?'note':method==='DELETE'?'remove':'patch',match?.[1],await allowlistBody(req));writeJson(res,value.status,value.value);return;
+      }
+      writeJson(res,match||!suffix||suffix==='/history'?405:404,{success:false,state:match||!suffix||suffix==='/history'?'refused':'not_found',receipt:null});
+    }catch(error:any){
+      const reason=error?.message;const known=['owner_contact_protected','country_code_required','invalid_e164','confirmation_required','confirmation_mismatch','confirmation_expired','invalid_scope','invalid_duration','note_too_long','unknown_contact','operation_conflict'].includes(reason);
+      const code=error?.statusCode===413?400:[400,403,404,409,503].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,...(known?{reason}:code===503?{error:'allowlist_unavailable'}:{})});
+    }
     return;
   }
 

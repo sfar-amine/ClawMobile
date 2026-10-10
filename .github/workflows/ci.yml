@@ -102,6 +102,15 @@ jobs:
       - name: Refresh curated private context before background save
         run: python3 ../scripts/test-context-background-sync.py
 
+      - name: Run WhatsApp allowlist owner and HTTP contracts
+        run: |
+          python3 ../installer/termux-lite/test-people-trusted.py
+          python3 ../installer/termux-lite/test-whatsapp-allowlist.py
+          python3 ../installer/termux-lite/test-whatsapp-allowlist-manager.py
+          python3 ../installer/termux-lite/test-whatsapp-allowlist-acceptance.py
+          node scripts/test-whatsapp-allowlist.cjs
+          node scripts/test-whatsapp-allowlist-paired.cjs
+
       - name: Run skill detail and owner controls contract
         run: node scripts/test-skill-control.cjs
 
