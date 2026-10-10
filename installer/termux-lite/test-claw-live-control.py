@@ -64,6 +64,37 @@ class ControlLiveTests(unittest.TestCase):
         self.assertNotEqual(one["id"], module.project(self.event(), "source:13")["id"])
         self.assertNotIn("source:12", one["id"])
 
+    def fake_live(self, rows, fail=False):
+        test = self
+        class Conn:
+            def execute(self, sql, params):
+                return SimpleNamespace(fetchall=lambda: list(reversed(rows)))
+            def close(self):
+                pass
+        class Stream:
+            def __init__(self, renderer, *_):
+                self.renderer = renderer; self.conn = Conn()
+            def connect(self):
+                if fail:
+                    raise OSError("db locked")
+                return True
+            def handle(self, row):
+                self.renderer.emit(test.event(tags=["openai", "chat"], action="OK", detail=row["text"], ts=None))
+        return SimpleNamespace(OpenClawStream=Stream, normalize_tags=live.normalize_tags, preview=live.preview)
+
+    def test_owner_backlog_is_oldest_first_with_real_time(self):
+        rows = [{"rowid": i, "created_at": 1791049000000 + i * 1000, "text": f"line {i}"} for i in range(1, 6)]
+        out = module.owner_backlog(self.fake_live(rows), 3)
+        self.assertEqual([r["detail"] for r in out], ["line 3", "line 4", "line 5"])
+        self.assertTrue(all(r["replay"] and r["view"] == "owner" for r in out))
+        self.assertLess(out[0]["at"], out[-1]["at"])
+        again = module.owner_backlog(self.fake_live(rows), 3)
+        self.assertEqual([r["id"] for r in out], [r["id"] for r in again])
+
+    def test_owner_backlog_never_breaks_the_stream(self):
+        self.assertEqual(module.owner_backlog(self.fake_live([], fail=True), 10), [])
+        self.assertEqual(module.owner_backlog(self.fake_live([{"rowid": 1, "created_at": 1, "text": "x"}]), 0), [])
+
 
 if __name__ == "__main__":
     unittest.main()
