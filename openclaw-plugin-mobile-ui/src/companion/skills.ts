@@ -1,4 +1,5 @@
 import fs from "fs";
+import {protectedPayment} from "./automations";
 import path from "path";
 import { getWorkspaceDir } from "../tools/workspace";
 import { runSkillFastPath } from "../trace_induction/fastpath";
@@ -78,6 +79,9 @@ export type CompanionSkillHistoryItem = {
 };
 
 export type CompanionSkillDetail = CompanionSkillSummary & {
+  examples: string[];
+  stats: {runs:number;successRate:number|null;avgSeconds:number|null;lastUsedAt:number|null};
+  trust: "trusted"|"candidate";
   version: string;
   overview: CompanionSkillOverview;
   appModel: any;
@@ -109,6 +113,7 @@ type FeedbackSummary = {
   failureCount: number;
   lastRunAt?: number;
   history: CompanionSkillHistoryItem[];
+  durations: number[];
 };
 
 export type SkillPreviewRequest = {
@@ -663,7 +668,7 @@ function fallbackAgentRoute(skill: CompanionSkillDetail): CompanionSkillExecutio
   };
 }
 
-function buildSkillAgentPrompt(skill: CompanionSkillDetail, instruction: string, inputs: Record<string, any>) {
+export function buildSkillAgentPrompt(skill: CompanionSkillDetail, instruction: string, inputs: Record<string, any>) {
   const task = instruction || skill.primaryUse || skill.description;
   const inputLines = Object.keys(inputs).length
     ? JSON.stringify(inputs, null, 2)
@@ -747,18 +752,20 @@ function loadSkill(skillDir: string, id: string): LoadedSkill | null {
   const frontmatter = parseFrontmatter(markdown);
   const name = String(frontmatter.name || id).trim() || id;
   const description = String(frontmatter.description || firstParagraph(markdown) || "Workspace skill.").trim();
-  const stat = fs.statSync(markdownPath);
+  const stat = fs.lstatSync(markdownPath);
+  if(!stat.isFile()||stat.isSymbolicLink()||!markdown)return null;
   const generatedJson = readJson(path.join(skillDir, "generalized_skill.json"));
   const candidateJson = readJson(path.join(skillDir, "skill_candidate.json"));
   const generated = frontmatter.clawmobile_generated === "true" || !!generatedJson || !!candidateJson;
   const feedback = readFeedback(path.join(skillDir, "execution_feedback.jsonl"));
-  const risk = inferRisk(id, description, generated);
+  // Shared automations.ts payment guard over title, SKILL.md body and fast-path metadata.
+  const risk = inferRisk(id, description, generated, {name,markdown,generatedJson,candidateJson});
   const scope = inferScope(id, description, generatedJson, candidateJson);
   const overview = buildOverview(markdown, description, scope, generated);
   const knowledge = buildKnowledge(markdown, generatedJson, candidateJson);
   const appModel = buildAppModel(generatedJson, candidateJson);
   const knowledgeShortcuts = buildKnowledgeShortcuts(generatedJson, candidateJson);
-  const fastPaths = buildFastPaths(id, generatedJson, candidateJson, feedback, generated);
+  const fastPaths = buildFastPaths(id, generatedJson, candidateJson, feedback, generated).map((fastPath)=>risk==="high"?{...fastPath,risk:"high" as const}:fastPath);
   const executionRoutes = buildExecutionRoutes(fastPaths, generatedJson, candidateJson, generated, feedback);
   const history = buildHistory(feedback, generated, stat);
 
@@ -789,6 +796,11 @@ function loadSkill(skillDir: string, id: string): LoadedSkill | null {
     summary,
     detail: {
       ...summary,
+      examples: unique([...normalizeArray((generatedJson||candidateJson)?.examples).filter((value)=>typeof value==="string").map(String),
+        ...(markdown.match(/^## (?:Examples|Exemples)\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/mi)?.[1].split(/\r?\n/).filter(line=>/^[-*] /.test(line)).map(line=>line.slice(2).trim())||[])]).slice(0,3),
+      stats: {runs:feedback.successCount+feedback.failureCount,successRate:feedback.successCount+feedback.failureCount?feedback.successCount/(feedback.successCount+feedback.failureCount):null,
+        avgSeconds:feedback.durations.length?feedback.durations.reduce((a,b)=>a+b,0)/feedback.durations.length:null,lastUsedAt:feedback.lastRunAt||null},
+      trust: generated ? "candidate" : "trusted",
       version: String(frontmatter.version || "workspace"),
       overview,
       appModel,
@@ -850,7 +862,8 @@ function stripFrontmatter(markdown: string): string {
 
 function readText(file: string): string {
   try {
-    return fs.readFileSync(file, "utf8");
+    const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
+    try{const stat=fs.fstatSync(fd);if(!stat.isFile()||stat.size>2*1024*1024)return "";return fs.readFileSync(fd,"utf8");}finally{fs.closeSync(fd);}
   } catch {
     return "";
   }
@@ -859,14 +872,14 @@ function readText(file: string): string {
 function readJson(file: string): any | null {
   if (!fs.existsSync(file)) return null;
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+    return JSON.parse(readText(file));
   } catch {
     return null;
   }
 }
 
 function readFeedback(file: string): FeedbackSummary {
-  const result: FeedbackSummary = { successCount: 0, failureCount: 0, history: [] };
+  const result: FeedbackSummary = { successCount: 0, failureCount: 0, history: [], durations:[] };
   if (!fs.existsSync(file)) return result;
 
   let index = 0;
@@ -878,6 +891,8 @@ function readFeedback(file: string): FeedbackSummary {
       const status = feedbackStatus(parsed);
       if (status === "success") result.successCount += 1;
       else if (status === "failed") result.failureCount += 1;
+      const duration=parsed.duration_ms ?? parsed.durationMs ?? parsed.result?.duration_ms ?? parsed.execution?.duration_ms ?? parsed.tool_results?.batch?.duration_ms;
+      if(typeof duration==="number"&&Number.isFinite(duration)&&duration>=0)result.durations.push(duration/1000);
       const at = jsonTimestamp(parsed);
       if (at) result.lastRunAt = Math.max(result.lastRunAt || 0, at);
       result.history.push({
@@ -889,7 +904,6 @@ function readFeedback(file: string): FeedbackSummary {
         summary: String(parsed?.summary || parsed?.result || parsed?.error || parsed?.message || "Feedback recorded."),
       });
     } catch {
-      result.failureCount += 1;
       result.history.push({
         id: `feedback_parse_error_${index}`,
         title: "Unreadable feedback",
@@ -906,7 +920,7 @@ function readFeedback(file: string): FeedbackSummary {
 function feedbackStatus(parsed: any): "success" | "failed" | "partial" | "unknown" {
   const status = String(parsed?.status || parsed?.outcome || "").toLowerCase();
   if (parsed?.success === true || status === "success" || status === "completed" || status === "ok") return "success";
-  if (parsed?.success === false || status === "failed" || status === "error") return "failed";
+  if (parsed?.success === false || status === "failed" || status === "failure" || status === "error") return "failed";
   if (status === "partial" || status === "repaired") return "partial";
   return "unknown";
 }
@@ -1353,9 +1367,9 @@ function inferStatus(generated: boolean, feedback: FeedbackSummary, fastPaths: C
   return "trusted";
 }
 
-function inferRisk(id: string, description: string, generated: boolean): "low" | "medium" | "high" {
+function inferRisk(id: string, description: string, generated: boolean, sources: Record<string, any> = {}): "low" | "medium" | "high" {
   const text = `${id} ${description}`.toLowerCase();
-  if (text.includes("payment") || text.includes("purchase") || text.includes("delete")) return "high";
+  if (protectedPayment({id,description,...sources}) || text.includes("delete")) return "high";
   if (generated || text.includes("policy") || text.includes("record") || text.includes("promote")) return "medium";
   return "low";
 }
