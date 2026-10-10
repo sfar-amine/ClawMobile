@@ -51,6 +51,8 @@ type RunnerOptions = {
   originId?: string;
   timeoutSeconds?: number;
   checkOnly?: boolean;
+  /** Optional total budget for read-only checks; never valid for dispatch. */
+  checkBudgetMs?: number;
   preparedDecision?: Record<string, unknown>;
   clarificationDecision?: Record<string, unknown>;
   clarificationOriginalText?: string;
@@ -116,11 +118,15 @@ export async function runModelFastPath(
   message: string,
   options: RunnerOptions = {},
 ): Promise<FastPathResult> {
+  if(options.checkBudgetMs!==undefined&&(!options.checkOnly||!Number.isSafeInteger(options.checkBudgetMs)||options.checkBudgetMs<1||options.checkBudgetMs>10000))return {status:"error",reason:"invalid_check_budget"};
+  const deadline=options.checkBudgetMs===undefined?undefined:Date.now()+options.checkBudgetMs;
   const helpers = options.helperPath
     ? [options.helperPath]
     : helperCandidates(options.home);
   let lastError = "helper_missing";
   for (const helper of helpers) {
+    const remaining=deadline===undefined?undefined:deadline-Date.now();
+    if(remaining!==undefined&&remaining<=0)return {status:"error",reason:"check_budget_exceeded"};
     try {
       const argv = [
         ...(options.clarificationDecision ? ["--resolve-clarification"] : options.preparedDecision ? ["--execute-decision"] : []),
@@ -135,7 +141,8 @@ export async function runModelFastPath(
         "python3",
         [helper, ...argv],
         {
-          timeout: (Math.max(2, Math.min(options.timeoutSeconds || 30, 120)) + 8) * 1000,
+          timeout: Math.min((Math.max(2, Math.min(options.timeoutSeconds || 30, 120)) + 8) * 1000,remaining ?? Infinity),
+          ...(remaining!==undefined?{killSignal:"SIGKILL" as const}:{}),
           maxBuffer: 2 * 1024 * 1024,
           env: {
             ...process.env,
@@ -154,6 +161,7 @@ export async function runModelFastPath(
         ? parsed as FastPathResult
         : { status: "error", reason: "invalid_result" };
     } catch (error: any) {
+      if(deadline!==undefined&&(Date.now()>=deadline||error?.killed))return {status:"error",reason:"check_budget_exceeded"};
       if (error?.code === "ENOENT") {
         lastError = "helper_missing";
         continue;

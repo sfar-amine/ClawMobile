@@ -12,12 +12,14 @@ export async function submitIntent(
   text: string,
   sessionId = "default",
   attachments: IntentAttachment[] = [],
-  options: { userText?: string; clientRunId?: string } = {},
+  options: { userText?: string; clientRunId?: string; learningOnly?: true } = {},
 ): Promise<IntentSubmitResponse> {
   const normalized = text.trim();
   const visibleUserText = (options.userText || normalized).trim();
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
   const clientRunId = String(options.clientRunId || "").trim() || undefined;
+  const learningOnly = options.learningOnly === true;
+  if (learningOnly && (normalizedSessionId !== "skill-learning" || attachments.length)) return notSubmitted(normalizedSessionId, clientRunId, "Invalid learning submission.");
   if (!normalized) {
     return notSubmitted(normalizedSessionId, clientRunId, "Intent text is required.");
   }
@@ -35,7 +37,7 @@ export async function submitIntent(
   let routingText = normalized;
   let parentClarificationRunId: string | undefined;
   let fastPathCheck: FastPathResult = { status: "miss", reason: "attachments_require_model" };
-  if (attachments.length === 0) {
+  if (attachments.length === 0 && !learningOnly) {
     const pending = await findPendingClarificationRun(normalizedSessionId);
     if (pending) {
       const clarified = await runModelFastPath(normalized, {
@@ -82,8 +84,8 @@ export async function submitIntent(
   }
 
   const promptWithAttachments = appendAttachmentContext(parentClarificationRunId ? routingText : normalized, attachments);
-  const routed = buildAutoSkillContextForIntent(promptWithAttachments);
-  const submittedPrompt = await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
+  const routed = learningOnly ? null : buildAutoSkillContextForIntent(promptWithAttachments);
+  const submittedPrompt = learningOnly ? promptWithAttachments : await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
 
   let runId = `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
