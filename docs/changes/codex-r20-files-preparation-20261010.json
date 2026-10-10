@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "codex-r20-files-preparation-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Read-only file routes on the Gateway file owners, main session from sessions.list",
+  "reason": "Revue Claude de core #53 (fichiers 27/32) : six racines agent, session principale réelle, limites du propriétaire, recette conditionnelle ; captures S24 de la session principale ajoutées.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/r20.md",
+    "docs/changes/codex-r20-files-preparation-20261010.md",
+    "docs/changes/codex-r20-files-preparation-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/fileReadBoundary.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-file-read-boundary.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/fileGatewayRead.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-file-gateway-read.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/fileReads.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-files-http.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-file-gateway-limits.cjs",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/scripts/test-files-acceptance.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r20/sessions.list.main.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r20/sessions.files.list.main.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r20/sessions.files.list.main-search.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r20/sessions.files.get.main.json"
+  ],
+  "tests": [
+    {
+      "name": "r20-file-reads",
+      "status": "passed",
+      "evidence": "Five suites in ci.yml on real S24 captures (#48 and main-session captures of 10/10): six roots with parallel probes, main session from sessions.list, owner list/search limits, dated paths and text, one-RPC preview, exclusions, five image formats, strict CLI bounds, deferred cache with 2.4 s injected RPCs, acceptance via base settle() with conditional failure. Full local ci.yml green."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r20.md",
+    "docs/changes/codex-r20-files-preparation-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Owner screen only; NO_CAPABILITY with final reason (the agent already has native file tools; no voice exposure of file content)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Revert of the R20 commits; runtime rollback only through companion-deploy.sh (preflight, acceptance, automatic rollback, receipt).",
+  "limitations": [
+    "Route budgets are verified in CI with injected latency; physical S24 acceptance happens at deployment.",
+    "Owner limits kept: 250 entries, 500 search results, 256 KiB preview, no cursor."
+  ]
+}
