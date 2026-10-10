@@ -2,7 +2,6 @@ import fs from "fs/promises";
 import {constants} from "fs";
 import os from "os";
 import path from "path";
-import {reserveSubmittedRun,settleSubmittedRun} from "./runs";
 
 export const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
 export function operationBody(body:any):string{
@@ -25,18 +24,4 @@ export async function storedNativeOperationResult(runId:string){
     value?.receipt?.action==="cancel_request"&&/^[a-f0-9]{64}$/.test(value.receipt.eventId||"") ||
     value?.receipt===null&&["refused","already_closed","not_found","indeterminate"].includes(value.state)?value:null;
  }finally{await file.close();}
-}
-/** Effects are claimed only after the existing canonical run ledger has persisted the receipt. */
-export async function nativeOperation(operationId:string,action:string,target:string,effect:()=>Promise<"completed"|"accepted"|{state:"completed"|"accepted"|"refused";artifact:Record<string,unknown>}>){
- const identity=JSON.stringify({action,target});
- const reserved=await reserveSubmittedRun(identity,"native-owner-actions","native-operation-"+operationId,
-  {requestText:identity,executionSource:"capability_first",decision:{version:2,type:"EXECUTE",capability:action}});
- const unknown={success:false,state:"indeterminate",receipt:null};
- if(!reserved.created)return await storedNativeOperationResult(reserved.status.runId).catch(()=>null)||unknown;
- let state:string;let artifact:Record<string,unknown>|undefined;
- try{const value=await effect();state=typeof value==="string"?value:value.state;if(typeof value!=="string")artifact=value.artifact;}catch(error:any){state=error?.effectNotStarted===true&&error?.statusCode===409?"blocked":"indeterminate";}
- const result={...(artifact?{artifact}:{}),success:state==="completed"||state==="accepted",state,receipt:{version:1,action,target,operationId,
-   runId:reserved.status.runId,state,at:Date.now()}};
- await settleSubmittedRun(reserved.status.runId,"done",JSON.stringify(result));
- return await storedNativeOperationResult(reserved.status.runId).catch(()=>null)||unknown;
 }

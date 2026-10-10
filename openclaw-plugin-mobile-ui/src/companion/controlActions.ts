@@ -1,3 +1,4 @@
+import {createHash} from "crypto";
 import {execFile} from "child_process";
 import os from "os";
 import {controlPaths} from "./control";
@@ -32,7 +33,7 @@ export async function cancelControlRequest(reference:string,body:any):Promise<Ou
  const observed=await callOwner(reference,operationId,true);
  if(observed.state!=="ready")return observed;
  const identity=JSON.stringify({action:"cancel_request",reference});
- const reservation=await reserveSubmittedRun(identity,"native-owner-actions","request-cancel-"+operationId+"-"+reference,
+ const reservation=await reserveSubmittedRun(identity,"native-owner-actions","request-cancel-"+createHash("sha256").update(operationId+reference).digest("hex"),
   {requestText:identity,executionSource:"capability_first",decision:{version:2,type:"EXECUTE",capability:"request.cancel"}});
  if(!reservation.created)return await storedNativeOperationResult(reservation.status.runId).catch(()=>null)||{success:false,state:"indeterminate",receipt:null};
  let result:Outcome;

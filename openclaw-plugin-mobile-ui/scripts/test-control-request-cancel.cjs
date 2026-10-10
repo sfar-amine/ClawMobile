@@ -18,12 +18,15 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   assert.equal((await request('REQ-1',{operationId:'bad'},owner,'GET')).status,405);
   const bank=await request('REQ-9',{operationId:'bank'},owner);assert.equal(bank.status,409);assert.equal(bank.body.reason,'cancel_unavailable_for_payment');await assert.rejects(fs.stat(ledger),{code:'ENOENT'});await assert.rejects(fs.stat(path.join(root,'attempts')),{code:'ENOENT'});
   const first=await request('REQ-1',{operationId:'cancel'},owner);assert.equal(first.status,200);assert.equal(first.body.state,'cancelled');assert.equal(first.body.receipt.eventId,'a'.repeat(64));assert.deepEqual((await request('REQ-1',{operationId:'cancel'},owner)).body,first.body);
+  const longOperation='x'.repeat(128), longReference='REQ-1234567890123456';
+  const longResult=await request(longReference,{operationId:longOperation},owner);assert.equal(longResult.status,200);assert.equal(longResult.body.state,'cancelled');
+  assert.deepEqual((await request(longReference,{operationId:longOperation},owner)).body,longResult.body);
   const concurrent=await Promise.all(Array.from({length:4},()=>request('REQ-1',{operationId:'parallel'},owner)));assert.ok(concurrent.some(x=>x.body.state==='cancelled'));assert.ok(concurrent.every(x=>['cancelled','indeterminate'].includes(x.body.state)));
   const unknown=await request('REQ-1',{operationId:'uncertain'},owner);assert.equal(unknown.body.state,'indeterminate');assert.ok(!JSON.stringify(unknown).includes('private-owner-diagnostic'));assert.deepEqual((await request('REQ-1',{operationId:'uncertain'},owner)).body,unknown.body);
   const attempts=(await fs.readFile(path.join(root,'attempts'),'utf8')).trim().split('\n');assert.equal(attempts.filter(x=>x==='REQ-1:parallel').length,1);assert.equal(attempts.filter(x=>x==='REQ-1:uncertain').length,1);
   delete require.cache[require.resolve('../dist/companion/controlActions')];delete require.cache[require.resolve('../dist/companion/runs')];delete require.cache[require.resolve('../dist/companion/nativeOperation')];
   assert.deepEqual(await require('../dist/companion/controlActions').cancelControlRequest('REQ-1',{operationId:'cancel'}),first.body);assert.equal((await require('../dist/companion/controlActions').cancelControlRequest('REQ-1',{operationId:'uncertain'})).state,'indeterminate');
-  assert.equal((await fs.readFile(path.join(root,'attempts'),'utf8')).trim().split('\n').length,3);
+  assert.equal((await fs.readFile(path.join(root,'attempts'),'utf8')).trim().split('\n').length,4);
   console.log('P2-c: HTTP owner/payment boundaries, server reference resolution, canonical receipt, concurrent reservation, restart and uncertainty/no-replay passed');
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));for(const [key,value] of [['OPENCLAW_STATE_DIR',saved.state],['SAMANTHA_CONTROL_PLAYBOOKS',saved.playbooks],['SAMANTHA_CONTROL_HOME',saved.home]])if(value===undefined)delete process.env[key];else process.env[key]=value;await fs.rm(root,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1});

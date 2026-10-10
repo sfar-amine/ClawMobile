@@ -19,9 +19,9 @@
   ],
   "tests": [
     {
-      "name": "P2-c-companion",
+      "name": "review-17-P2-c",
       "status": "passed",
-      "evidence": "Build and full run-ci-local.sh: CI_LOCAL_OK, including HTTP request cancellation contract."
+      "evidence": "All existing runtime CI commands passed, including R9; maximum-length operation and request identifiers replay the same canonical receipt."
     }
   ],
   "documentation": [
