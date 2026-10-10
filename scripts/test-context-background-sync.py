@@ -34,5 +34,23 @@ class SyncTest(unittest.TestCase):
     def test_missing_repo_is_noop(self):
         with tempfile.TemporaryDirectory() as root:
             subprocess.run(['bash',str(SCRIPT)],env=dict(os.environ,SAMANTHA_CONTEXT_REPO=root),check=True,capture_output=True)
+    def test_source_target_and_ancestor_links_refused(self):
+        for linked in ('source','target','ancestor'):
+            with self.subTest(linked=linked), tempfile.TemporaryDirectory() as root:
+                root=pathlib.Path(root); repo=root/'private'; workspace=root/'workspace'; outside=root/'outside'
+                (repo/'.git').mkdir(parents=True); (repo/'scripts').mkdir(); (workspace/'context').mkdir(parents=True)
+                (repo/'scripts/save.sh').write_text('exit 99\n')
+                outside.mkdir(); protected=outside/'HYBRID_CONTEXT.md'; protected.write_text('must preserve')
+                source=workspace/'context/HYBRID_CONTEXT.md'
+                if linked=='source': source.symlink_to(protected)
+                else: source.write_text('new semantic checkpoint')
+                if linked=='ancestor': (repo/'state').symlink_to(outside,target_is_directory=True)
+                else:
+                    (repo/'state').mkdir()
+                    if linked=='target': (repo/'state/HYBRID_CONTEXT.md').symlink_to(protected)
+                result=subprocess.run(['bash',str(SCRIPT)],env=dict(os.environ,SAMANTHA_CONTEXT_REPO=str(repo),SAMANTHA_CONTEXT_WORKSPACE=str(workspace)),capture_output=True,text=True)
+                self.assertEqual(result.returncode,66)
+                self.assertIn('private_context_link_refused',result.stderr)
+                self.assertEqual(protected.read_text(),'must preserve')
 
 if __name__ == '__main__': unittest.main()

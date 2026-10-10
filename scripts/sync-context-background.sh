@@ -8,8 +8,20 @@ cd "$REPO"
 
 # Refresh only the curated files already owned by the private context repository.
 # Never mirror the workspace: logs, credentials and transcripts are excluded.
+no_symlinks() {
+  local cursor="$1" relative="$2" part
+  [ ! -L "$cursor" ] || return 1
+  for part in ${relative//\// }; do
+    cursor="$cursor/$part"
+    [ ! -L "$cursor" ] || return 1
+  done
+}
 copy_curated() {
   local source="$WS/$1" target="$REPO/$2"
+  if ! no_symlinks "$WS" "$1" || ! no_symlinks "$REPO" "$2"; then
+    echo "private_context_link_refused" >&2
+    return 66
+  fi
   [ -f "$source" ] || return 0
   [ ! -e "$target" ] || [ ! "$source" -ef "$target" ] || return 0
   mkdir -p "$(dirname "$target")"
