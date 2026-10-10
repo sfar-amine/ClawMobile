@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Prepare bounded native memory bridge in existing curator with idempotent author supersession closure",
-  "reason": "Programme33 C10 issue62; real200-event and native promotions/recalls fixtures absent, qualification blocked.",
+  "reason": "Programme34/35 C10: real fixtures integrated; public OpenClaw2026.9.6 proves deep.lineCount is report lines. Canonical memory.promotion.applied event includes reconciled candidates; installed positive fixture/full-window proof pending.",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/context-dream.py",
@@ -55,7 +55,7 @@
   },
   "rollback": "Revert C10; preserve immutable events, Claude decides cleanup of generated non-normative notes.",
   "limitations": [
-    "Native deep.lineCount is not demonstrated as a count of newly promoted facts; promotions remains null pending Claude owner proof (PR80 comment6101276834).",
+    "Public owner lineCount means report lines, never promotions. memory.promotion.applied/applied includes reconciledExisting; installed positive/full-window capture missing, no reader added on public source alone. core80 follow-up.",
     "S24 recipe and activation remain Claude."
   ]
 }
