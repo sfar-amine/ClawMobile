@@ -1,3 +1,8 @@
+import {capabilityDetail} from "./capabilityControl";
+import {updatesRead} from "./updatesControl";
+import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
+import {withAttachmentReferences} from "./runs";
+import {readAgentConfig,changeAgentConfig} from "./agentConfig";
 import {engineeringRead} from "./engineeringRead";
 import {cancelControlRequest} from "./controlActions";
 import {diagnosticRead} from "./diagnostic";
@@ -18,10 +23,11 @@ import {readConversationMetadata,changeConversationMetadata} from "./conversatio
 import { submitIntent } from "./intent";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
+import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { createClawLiveToken, clawLivePageHtml } from "./clawLive";
+import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
@@ -58,6 +64,7 @@ export function runSubmissionStatusCode(result: { success?: boolean; submissionS
 }
 
 export function startCompanionServer() {
+  withAttachmentReferences(paths=>purgeAttachments(paths)).catch(()=>console.error("[companion] attachment maintenance unavailable"));
   const configuredHost = (process.env.CLAWMOBILE_COMPANION_HOST || DEFAULT_HOST).trim();
   const host = listenHost(configuredHost);
   const port = parsePort(process.env.CLAWMOBILE_COMPANION_PORT, DEFAULT_PORT);
@@ -305,6 +312,47 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if(routePath==="/updates"||routePath.startsWith("/updates/")){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    if(routePath!=="/updates"){writeJson(res,404,{success:false,state:"not_found",receipt:null,error:"not_found"});return;}
+    if(requestUrl.search){writeJson(res,400,{success:false,state:"refused",receipt:null,error:"unsupported_parameter"});return;}
+    try{res.setHeader("Cache-Control","no-store");writeJson(res,200,await updatesRead());}
+    catch{writeJson(res,503,{success:false,state:"unavailable",receipt:null,error:"updates_unavailable"});}
+    return;
+  }
+
+  const agentApprovalMatch=routePath.match(/^\/runs\/([^/]+)\/approval$/);
+  if(agentApprovalMatch){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']||(method!=='GET'&&req.headers['x-clawmobile-owner-flow']!=='v1')){
+      writeJson(res,403,{success:false,state:'refused',receipt:null,error:'native_owner_flow_required'});return;
+    }
+    res.setHeader('Cache-Control','no-store');
+    if(!['GET','POST'].includes(method)){res.setHeader('Allow','GET, POST');writeJson(res,405,{success:false,state:'refused',receipt:null,error:'method_not_allowed'});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(Error(),{statusCode:400});
+      const runId=decodeURIComponent(agentApprovalMatch[1]);
+      const value=method==='GET'?readRunApproval(runId):await decideRunApproval(runId,await readJsonBody(req,2048));
+      writeJson(res,value.state==='refused'?409:value.state==='failed'?503:200,value);
+    }catch(error:any){const code=error instanceof URIError?400:[400,403,404,409].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,error:code===400?'invalid_approval_operation':code===403?'confirmation_scope_mismatch':code===404?'approval_run_not_found':code===409?'confirmation_not_usable':'approval_owner_unavailable'});}
+    return;
+  }
+
+  if(routePath==="/agent/config"){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){
+      writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;
+    }
+    res.setHeader("Cache-Control","no-store");
+    if(!['GET','POST'].includes(method)){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      const value=method==='GET'?await readAgentConfig():await changeAgentConfig(await readJsonBody(req,2048));
+      writeJson(res,value.state==='refused'?409:200,value);
+    }catch(error:any){const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    return;
+  }
+
   if(routePath==="/notifications/sources"||routePath.startsWith("/notifications/sources/")){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,error:"native_loopback_required"});return;}
     if(method!=='GET'){writeJson(res,405,{success:false,error:"canonical_source_toggle_unavailable"});return;}
@@ -499,6 +547,18 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if(routePath.startsWith("/capabilities/")){
+    res.setHeader("Cache-Control","no-store");
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"read_only"});return;}
+    try{
+      if(requestUrl.search||!/^\/capabilities\/[^/]+$/.test(routePath))throw Object.assign(new Error(),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(routePath.split('/')[2]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      const result=await capabilityDetail(id);writeJson(res,result.found?200:404,result);
+    }catch(error:any){writeJson(res,error?.statusCode===400?400:503,{success:false,state:error?.statusCode===400?"refused":"unavailable",receipt:null,error:error?.statusCode===400?"invalid_capability_id":"capability_registry_unavailable"});}
+    return;
+  }
+
   if (method === "GET" && routePath === "/capabilities") {
     writeJson(res, 200, await capabilities({ trusted: isLoopback }));
     return;
@@ -546,16 +606,24 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if (routePath === "/voice/voices") {
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"]) {writeJson(res,403,{success:false,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,error:"method_not_allowed"});return;}
+    if(requestUrl.search){writeJson(res,400,{success:false,error:"unsupported_voice_parameter"});return;}
+    res.setHeader("Cache-Control","no-store");writeJson(res,200,clawLiveVoices());return;
+  }
+
   if (method === "POST" && routePath === "/claw-live/token") {
     res.setHeader("Cache-Control", "no-store");
     try {
       const body = await readJsonBody<any>(req);
       writeJson(res, 200, await createClawLiveToken(undefined, undefined, {
+        voice: validatedClawLiveVoice(body?.voice),
         locale: String(body?.locale || "fr"),
         client: String(body?.client || "browser"),
       }));
     } catch (error: any) {
-      writeJson(res, 502, { success: false, message: String(error?.message || "claw_live_token_failed").slice(0, 500) });
+      writeJson(res, error?.statusCode===400 ? 400 : 502, { success: false, ...(error?.statusCode===400 ? {error:"unknown_voice",message:"unknown_voice"} : {message:String(error?.message || "claw_live_token_failed").slice(0, 500)}) });
     }
     return;
   }
@@ -563,7 +631,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   if (method === "POST" && routePath === "/claw-live/prewarm") {
     const body=await readJsonBody<any>(req);
     try { writeJson(res,200,{success:true,...await clawLiveWarmCore.prewarm(clawLiveWarmMeta(body))}); }
-    catch(error:any){ writeJson(res,502,{success:false,...clawLiveWarmCore.status(),message:String(error?.message||"claw_live_prewarm_failed").slice(0,240)}); }
+    catch(error:any){ writeJson(res,error?.statusCode===400?400:502,{success:false,...clawLiveWarmCore.status(),...(error?.statusCode===400?{error:"unknown_voice",message:"unknown_voice"}:{message:String(error?.message||"claw_live_prewarm_failed").slice(0,240)})}); }
     return;
   }
 
@@ -599,6 +667,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/runs") {
     const body = await readJsonBody<RunCreateRequest>(req);
+    try{if(body?.attachments){
+     if(!Array.isArray(body.attachments)||body.attachments.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
+     body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
+     if(body.attachments.reduce((sum:number,x:any)=>sum+x.sizeBytes,0)>25*1024*1024)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
+    }
+    }catch(e:any){const status=[400,404,413].includes(e?.statusCode)?e.statusCode:503;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":status===413?"attachment_share_limit":"invalid_attachment_request"});return;}
     const instruction = String(body?.instruction || body?.text || "");
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
     const result = await submitIntent(
@@ -615,15 +689,15 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
-  if (method === "POST" && routePath === "/attachments") {
-    const result = await saveAttachment(req);
-    writeJson(res, result.success ? 200 : 400, result);
+  if (method === "POST" && (routePath === "/attachments"||routePath === "/attachments/share")) {
+    if(!isLoopback||req.headers["x-clawmobile-owner-flow"]!=="v1"){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"owner_required"});return;}
+    try{const result = await saveAttachment(req);writeJson(res,result.success?200:result.state==='indeterminate'?503:400,result);}catch(error:any){const status=error.statusCode===413?413:400;writeJson(res,status,{success:false,state:'refused',receipt:null,reason:status===413?'attachment_too_large':'invalid_attachment_request'});}
     return;
   }
 
   if (method === "GET" && routePath.startsWith("/attachments/") && routePath.endsWith("/content")) {
-    const attachmentId = decodeURIComponent(routePath.slice("/attachments/".length, -"/content".length));
-    await serveAttachmentContent(res, attachmentId);
+    try{const attachmentId = decodeURIComponent(routePath.slice("/attachments/".length, -"/content".length));
+    await serveAttachmentContent(res, attachmentId);}catch(e:any){const status=e?.statusCode===404?404:e?.statusCode===503?503:400;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":"attachment_unavailable"});}
     return;
   }
 
@@ -1320,81 +1394,28 @@ function bootstrapCapabilities() {
   };
 }
 
-async function saveAttachment(req: http.IncomingMessage): Promise<IntentAttachment & { success: boolean; message: string }> {
-  const mimeType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0].trim().toLowerCase();
-  if (!mimeType.startsWith("image/")) {
-    return {
-      success: false,
-      message: "Only image attachments are supported.",
-      id: "",
-      type: "image",
-      mimeType,
-    };
-  }
+async function saveAttachment(req: http.IncomingMessage):Promise<any>{
+ let inputs:{id?:string;mimeType:string;body:Buffer;displayName?:string}[];
+ if((req.url||'').split('?')[0].endsWith('/attachments/share')){
+  let value:any;try{value=JSON.parse((await readRawBody(req,35*1024*1024)).toString('utf8'));}catch{throw Object.assign(new Error('invalid_attachment_share'),{statusCode:400});}
+  if(!value||Object.keys(value).length!==1||!Array.isArray(value.files)||value.files.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
+  inputs=value.files.map((x:any)=>{if(!x||Object.keys(x).some(k=>!['id','mimeType','base64'].includes(k))||typeof x.base64!=='string'||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(x.base64))throw Object.assign(new Error('invalid_attachment_share'),{statusCode:400});return {id:x.id,mimeType:x.mimeType,body:Buffer.from(x.base64,'base64')};});
+ }else inputs=[{id:String(req.headers['x-clawmobile-attachment-id']||'')||undefined,displayName:sanitizeFilePart(String(req.headers['x-clawmobile-filename']||''))||undefined,mimeType:String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase(),body:await readRawBody(req,MAX_ATTACHMENT_BYTES)}];
+ if(inputs.some(x=>typeof x.id!=='string'||!x.id))throw Object.assign(new Error('attachment_id_required'),{statusCode:400});
+ try{
+  const files=await withAttachmentReferences(paths=>saveAttachments(inputs,paths));
+  return {success:true,state:'completed',receipt:{version:1,action:'attachments.upload',id:attachmentDigest(inputs),state:'completed'},
+   ...(files.length===1?files[0]:{}),attachments:files};
+ }catch(error:any){
+  if([400,409,413].includes(error.statusCode))return {success:false,state:'refused',receipt:null,reason:error.message};
+  throw error;
+ }
 
-  const body = await readRawBody(req, MAX_ATTACHMENT_BYTES);
-  if (body.length === 0) {
-    return {
-      success: false,
-      message: "Attachment body is empty.",
-      id: "",
-      type: "image",
-      mimeType,
-    };
-  }
-
-  const id = sanitizeFilePart(String(req.headers["x-clawmobile-attachment-id"] || "")) || `att_${Date.now().toString(36)}`;
-  const requestedName = sanitizeFilePart(String(req.headers["x-clawmobile-filename"] || ""));
-  const extension = extensionForMime(mimeType);
-  const displayName = requestedName || `${id}.${extension}`;
-  const outputDir = attachmentDir();
-  fs.mkdirSync(outputDir, { recursive: true });
-  const outputPath = path.join(outputDir, `${id}.${extension}`);
-  fs.writeFileSync(outputPath, body);
-
-  return {
-    success: true,
-    message: "Attachment uploaded.",
-    id,
-    serverId: id,
-    type: "image",
-    mimeType,
-    displayName,
-    sizeBytes: body.length,
-    path: outputPath,
-    serverPath: outputPath,
-    downloadUrl: `/v1/attachments/${encodeURIComponent(id)}/content`,
-    createdAt: Date.now(),
-  };
 }
-
-async function serveAttachmentContent(res: http.ServerResponse, attachmentId: string) {
-  const id = sanitizeFilePart(attachmentId);
-  if (!id) {
-    writeJson(res, 404, {
-      success: false,
-      message: "Attachment was not found.",
-    });
-    return;
-  }
-
-  const outputDir = attachmentDir();
-  const candidates = ["png", "jpg", "webp", "gif", "img"].map((extension) =>
-    path.join(outputDir, `${id}.${extension}`),
-  );
-  const filePath = candidates.find((candidate) => fs.existsSync(candidate));
-  if (!filePath) {
-    writeJson(res, 404, {
-      success: false,
-      message: "Attachment was not found.",
-    });
-    return;
-  }
-
-  const mimeType = mimeForExtension(path.extname(filePath).replace(/^\./, ""));
-  res.statusCode = 200;
-  res.setHeader("Content-Type", mimeType);
-  fs.createReadStream(filePath).pipe(res);
+async function serveAttachmentContent(res:http.ServerResponse,id:string){
+ const item=attachmentContent(id);res.statusCode=200;res.setHeader('Content-Type',item.mime);res.setHeader('X-Content-Type-Options','nosniff');
+ if(!item.mime.startsWith('image/'))res.setHeader('Content-Disposition','attachment');
+ fs.createReadStream(item.file,{fd:item.fd,autoClose:true}).on('error',()=>res.destroy()).pipe(res);
 }
 
 function attachmentDir() {
@@ -1780,7 +1801,7 @@ function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
   const corsOrigin = (process.env.CLAWMOBILE_COMPANION_CORS_ORIGIN || "").trim();
   if (corsOrigin) {
     res.setHeader("Access-Control-Allow-Origin", corsOrigin);
-    res.setHeader("Access-Control-Allow-Headers", "content-type, authorization, x-clawmobile-client, x-clawmobile-request-id, x-clawmobile-attachment-id, x-clawmobile-filename, x-clawmobile-attachment-type");
+    res.setHeader("Access-Control-Allow-Headers", "content-type, authorization, x-clawmobile-client, x-clawmobile-request-id, x-clawmobile-attachment-id, x-clawmobile-filename, x-clawmobile-attachment-type, x-clawmobile-owner-flow, x-clawmobile-operation-id");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   }
   res.end(body);
@@ -1862,12 +1883,14 @@ async function readRawBody(req: http.IncomingMessage, maxBytes: number): Promise
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
+    let tooLarge = false;
 
     req.on("data", (chunk) => {
+      if(tooLarge)return;
       size += chunk.length;
       if (size > maxBytes) {
         reject(new HttpError(413, "Request body is too large."));
-        req.destroy();
+        tooLarge=true;chunks.length=0;req.resume();
         return;
       }
       chunks.push(Buffer.from(chunk));

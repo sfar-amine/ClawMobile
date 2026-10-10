@@ -69,6 +69,11 @@ jobs:
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
 
+      - name: Test attachment storage
+        run: node scripts/test-attachment-storage.cjs
+
+      - name: Test attachment HTTP contract
+        run: node scripts/test-attachment-http.cjs
       - name: Run inactivity evidence and lifecycle regression contracts
         run: |
           node scripts/test-run-inactivity.cjs
@@ -90,3 +95,6 @@ jobs:
 
       - name: Run read-only diagnostic export contract
         run: node scripts/test-diagnostic.cjs
+
+      - name: Run agent configuration owner contract
+        run: node scripts/test-agent-config.cjs

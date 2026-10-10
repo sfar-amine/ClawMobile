@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "codex-g2-contract-report-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Read-only contract census with mandatory pending and offline coverage",
+  "reason": "G2 backlog12; do not qualify absent routes or owner effects.",
+  "files": [
+    "docs/work/samantha-runtime/contracts/g2.md",
+    "docs/changes/codex-g2-contract-report-20261010.md",
+    "docs/changes/codex-g2-contract-report-20261010.json",
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-report.py",
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json",
+    "openclaw-plugin-mobile-ui/scripts/test-runtime-contract-report.py"
+  ],
+  "tests": [
+    {
+      "name": "g2-contract-report",
+      "status": "passed",
+      "evidence": "11 local HTTP fixture tests: no mutations, pending coverage, no retry, privacy, closed configuration and nullable fields."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/g2.md",
+    "docs/changes/codex-g2-contract-report-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Native facade reuses existing Gateway approval owner; no canonical capability registry change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Revert this isolated lot.",
+  "limitations": [
+    "Read-only HTTP census; G2 physical and owner-mutation qualification remain incomplete.",
+    "Pending PRs and unknown methods remain mandatory unqualified cases.",
+    "No S24 call or deployment; CI unchanged."
+  ]
+}
