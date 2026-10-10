@@ -20,7 +20,7 @@
     {
       "name": "Context Guardian SQLite read-only owner contracts",
       "status": "passed",
-      "evidence": "Ten SQLite/shell tests pass. Real S24 STRICT 30-column schema and 15 metadata projections replayed; generated 937-row volume matches captured 692/161/84/0 counts; 200001-row defensive bound, WAL RO, atomic0600 and prior-snapshot preservation remain tested. Normal base merge b40b867 with union of all CI steps."
+      "evidence": "Ten SQLite/shell tests pass. Real S24 STRICT 30-column schema and 15 metadata projections replayed; generated 937-row volume matches captured 692/161/84/0 counts; 200001-row defensive bound, WAL RO, atomic0600 and prior-snapshot preservation remain tested. Normal base merge9cdd84f with union of all CI steps."
     }
   ],
   "documentation": [
@@ -52,6 +52,7 @@
     "Actual old CLI output is not captured: kind, contextTokens model/config fallback and totalTokens derivations cannot be claimed equivalent to raw entry_json.",
     "Legacy CLI store selection is configuration-derived; current reader enumerates all agent stores. Clarification requested from Claude before readiness.",
     "Physical before p50=4965.5ms (40 runs); captured SQLite reads=128.2ms total, not an activated C8 after benchmark.",
-    "Bound10000 sessions refuses overflow, SQLite WAL SHM reader coordination may change; logical DB/WAL data unchanged."
+    "Bound10000 sessions refuses overflow, SQLite WAL SHM reader coordination may change; logical DB/WAL data unchanged.",
+    "Public OpenClaw2026.9.6 SDK exports do not expose the six CLI projection/store-selection helpers; no internal hashed import or parallel Python config projection introduced."
   ]
 }
