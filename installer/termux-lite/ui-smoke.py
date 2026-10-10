@@ -22,7 +22,12 @@ def parse_dump(raw):
  except ET.ParseError:raise SmokeError('invalid_dump')
 
 def find_tag(tree,tag):
- matches=[n for n in tree.iter('node') if n.get('resource-id') in (tag,PACKAGE+':id/'+tag)]
+ # Synthetic admission boundary: package ownership must hold for the whole
+ # visible hierarchy, not just a node behind another app's overlay. This is
+ # insufficient as a runtime lease, so live CLI admission remains disabled.
+ nodes=list(tree.iter('node'))
+ if tree.get('package') not in (None,PACKAGE) or any(n.get('package')!=PACKAGE for n in nodes):raise SmokeError('foreground_not_verified')
+ matches=[n for n in nodes if n.get('resource-id') in (tag,PACKAGE+':id/'+tag)]
  if len(matches)!=1:raise SmokeError('tag_not_exposed_or_ambiguous')
  node=matches[0]
  if node.get('package')!=PACKAGE or node.get('enabled')!='true':raise SmokeError('unsafe_node')
@@ -113,8 +118,6 @@ def run(adb,probe=http_status):
 
 def main():
  parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--run',action='store_true');args=parser.parse_args()
- if not args.run:print(json.dumps({'state':'not_run','reason':'claude_tag_exposure_and_navigation_qualification_required'}));return 2
- try:result=run(Adb())
- except (SmokeError,OSError,subprocess.SubprocessError):result={'state':'failed','reason':'adb_unavailable'}
- print(json.dumps(result));return 0 if result['state']=='ok' else 1
+ # No flag can authorize live input before canonical UI admission is qualified.
+ print(json.dumps({'state':'not_run','reason':'canonical_ui_admission_not_qualified'}));return 2
 if __name__=='__main__':raise SystemExit(main())

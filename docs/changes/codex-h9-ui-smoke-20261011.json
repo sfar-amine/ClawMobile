@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Brouillon outil de recette UI readonly à tags stricts",
-  "reason": "Fichier36 H9 ; exposition des testTags et matrice de navigation complète non prouvées, aucun test live par Codex.",
+  "reason": "Fichier36 H9 ; admission UI canonique/foreground, exposition des testTags et matrice de navigation complète non prouvées, aucun test live par Codex.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-h9-ui-smoke-20261011.json",
@@ -19,7 +19,7 @@
     {
       "name": "h9-synthetic-ui-safety",
       "status": "passed",
-      "evidence": "8 tests synthétiques in-memory : aucune preuve runtime prétendue ; CI ajoutée, aucune étape retirée."
+      "evidence": "10 tests synthétiques in-memory : aucune preuve runtime prétendue ; CI ajoutée, aucune étape retirée."
     }
   ],
   "documentation": [
@@ -48,7 +48,7 @@
   },
   "rollback": "Revert H9, aucun runtime ni app modifiés.",
   "limitations": [
-    "Exposition testTags non démontrée ; H9 Draft jusqu’à réponse Claude et première recette S24.",
+    "Admission UI non qualifiée : --run refuse avant tout ADB. Exposition testTags non démontrée ; H9 Draft jusqu’à réponse Claude et première recette S24.",
     "Trois écrans seulement préparés ; navigation Automatisations et jauge non prouvée."
   ]
 }

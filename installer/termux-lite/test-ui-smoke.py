@@ -1,4 +1,4 @@
-import importlib.util,unittest,time
+import importlib.util,unittest,time,sys
 from pathlib import Path
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('smoke',Path(__file__).with_name('ui-smoke.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -9,6 +9,15 @@ class Tests(unittest.TestCase):
   self.assertEqual(m.find_tag(m.parse_dump(xml()),'usage-screen').get('text'),'Prêt')
   with self.assertRaises(m.SmokeError):m.find_tag(m.parse_dump(xml('')),'usage-screen')
   with self.assertRaises(m.SmokeError):m.find_tag(m.parse_dump(xml(package='other')),'usage-screen')
+ def test_app_behind_overlay_and_wrong_root_provenance_are_refused(self):
+  raw=xml().replace(b'</hierarchy>',b'<node package="other.overlay" resource-id="overlay" enabled="true"/></hierarchy>')
+  with self.assertRaises(m.SmokeError):m.find_tag(m.parse_dump(raw),'usage-screen')
+  raw=xml().replace(b'<hierarchy>',b'<hierarchy package="other.overlay">')
+  with self.assertRaises(m.SmokeError):m.find_tag(m.parse_dump(raw),'usage-screen')
+ def test_live_cli_run_refuses_before_any_adb(self):
+  with patch.object(m,'Adb',side_effect=AssertionError('no ADB admission')),patch.object(sys,'argv',['ui-smoke.py','--run']),patch('builtins.print') as output:
+   self.assertEqual(m.main(),2)
+  self.assertIn('canonical_ui_admission_not_qualified',output.call_args.args[0])
  def test_raw_markup_and_http_200_unavailable(self):
   self.assertIn('unavailable_after_http_200',m.inspect(m.parse_dump(xml(text='Indisponible')),200)['errors'])
   self.assertNotIn('unavailable_after_http_200',m.inspect(m.parse_dump(xml(text='Indisponible')),503)['errors'])
