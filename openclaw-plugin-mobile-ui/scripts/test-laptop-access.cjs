@@ -3,10 +3,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('nod
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'laptop-owner-'));process.env.SAMANTHA_CONTROL_HOME=root;process.env.OPENCLAW_STATE_DIR=path.join(root,'.openclaw');
  if(!process.env.SAMANTHA_CONTROL_PLAYBOOKS){
   process.env.SAMANTHA_CONTROL_PLAYBOOKS=root;fs.mkdirSync(path.join(root,'device'));
-  fs.writeFileSync(path.join(root,'device/laptop_access.py'),`import json,os,sys,hashlib
+  fs.writeFileSync(path.join(root,'device/laptop_access.py'),`import json,os,sys,hashlib,time
 from pathlib import Path
 home=Path(os.environ['SAMANTHA_CONTROL_HOME']);body=json.load(sys.stdin);action=sys.argv[1];state=json.loads((home/'.openclaw/laptop-access/state.json').read_text());pair=next(iter(state['nativeAccess']['pairings'].values()));file=home/'.ssh/authorized_keys'
-if action=='pair-status':out={k:v for k,v in pair.items() if k!='keyLine'};out.update(success=True,receipt=None)
+if body.get('slowProbe'):time.sleep(4)
+if action=='pair-start':out={'success':True,'state':'waiting_pc','receipt':None}
+elif action=='pair-status':out={k:v for k,v in pair.items() if k!='keyLine'};out.update(success=True,receipt=None)
 elif action=='list':out={'success':True,'state':'ready','receipt':None,'computers':([{'id':pair['fingerprint'],'label':'Test-PC','payloadHash':pair['payloadHash'],'lastSeenAt':None}] if file.exists() else [])}
 elif action=='pair-commit':
  registry=json.loads((home/'.openclaw/clawmobile-companion/runs.json').read_text());confirmation=next(r for r in registry['ownerConfirmations'] if r['id']==body['confirmationId']);assert confirmation['state']=='consumed';assert confirmation['intent']['action']=={'type':'laptop_access.authorize_key','reference':pair['pairingId'],'payloadHash':pair['payloadHash']};file.parent.mkdir(exist_ok=True);file.write_text(pair['keyLine']+'\\n');out={'success':True,'state':'committed','receipt':{'version':1,'operationId':body['operationId']}}
@@ -34,6 +36,10 @@ print(json.dumps(out))
  const content=fs.readFileSync(path.join(root,'.ssh/authorized_keys'));assert.equal(content.toString(),line+'\n');assert.deepEqual(await api.laptopChange('commit',pairId,{operationId:'authorize',confirmationId:approved.requestId}),first);assert.deepEqual(fs.readFileSync(path.join(root,'.ssh/authorized_keys')),content);
  const list=await request('GET','/v1/laptop-access/computers');assert.equal(list.status,200);assert.equal(list.body.computers[0].lastSeenAt,null);assert.equal((await api.laptopChange('revoke',fingerprint,{operationId:'last-key',confirmationId:approved.requestId})).state,'refused');
  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(state,'runs.json'))).paymentRequests,paymentFixture);
+ if(process.env.SAMANTHA_CONTROL_PLAYBOOKS===root){
+ const started=Date.now();assert.equal((await api.laptopOwner('pair-start',{slowProbe:true})).state,'waiting_pc');assert.ok(Date.now()-started>=3900);
+ const readStart=Date.now();await assert.rejects(api.laptopOwner('list',{slowProbe:true}),/laptop_owner_indeterminate/);assert.ok(Date.now()-readStart<3900);
+ }
  console.log('P2-f paired controller, signed biometric consumption, cross-domain isolation, replay and HTTP owner boundaries passed');
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

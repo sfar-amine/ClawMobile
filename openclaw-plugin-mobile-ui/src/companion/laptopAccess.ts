@@ -9,7 +9,8 @@ const fingerprint=/^SHA256:[A-Za-z0-9+/]{43}$/;
 export async function laptopOwner(action:string,body:any={}):Promise<any>{
  return new Promise((resolve,reject)=>{
   const child=spawn('python3',[path.join(controlPaths().playbooks,'device/laptop_access.py'),action],{stdio:['pipe','pipe','pipe']});let text='';let size=0;let settled=false;
-  const timer=setTimeout(()=>{child.kill();done(nativeError('laptop_owner_indeterminate',503));},3500);
+  const timeout=['pair-start','pair-commit','revoke'].includes(action)?20000:3500;
+  const timer=setTimeout(()=>{child.kill();done(nativeError('laptop_owner_indeterminate',503));},timeout);
   function done(error?:any,value?:any){if(settled)return;settled=true;clearTimeout(timer);error?reject(error):resolve(value);}
   child.stderr.resume();child.on('error',()=>done(nativeError('laptop_owner_unavailable',503)));
   child.stdout.on('data',chunk=>{size+=chunk.length;if(size>65536){child.kill();done(nativeError('laptop_owner_unavailable',503));}else text+=chunk;});

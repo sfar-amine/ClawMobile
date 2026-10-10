@@ -19,9 +19,9 @@
   ],
   "tests": [
     {
-      "name": "P2-f-companion",
+      "name": "review-17-p2-f-companion",
       "status": "passed",
-      "evidence": "Build/full CI_LOCAL_OK; default fixture and real paired controller tests verify P-256 signatures, payment isolation, durable replay and native HTTP boundaries."
+      "evidence": "All runtime CI commands passed; signed confirmation isolation and replay preserved, 4-second mutation succeeds, slow read is stopped within its 3.5-second budget."
     }
   ],
   "documentation": [
