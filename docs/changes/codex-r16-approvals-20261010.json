@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "id": "codex-r16-approvals-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Project existing agent approval owner with bounded cached reads, biometric decision binding and no uncertain replay",
+  "reason": "Files 18 and 23 R16, excluding payment and unknown effect scope.",
+  "files": [
+    "docs/work/samantha-runtime/contracts/r16.md",
+    "docs/changes/codex-r16-approvals-20261010.md",
+    "docs/changes/codex-r16-approvals-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/agentApprovals.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-approvals.cjs"
+  ],
+  "tests": [
+    {
+      "name": "r16-agent-approvals",
+      "status": "passed",
+      "evidence": "Real fixture CLI, signed ECDSA confirmations and existing run ledger: active link, cold/cache latency, payment guard, bound/expired proof, replay/conflict and atomic retry only for typed pre-dispatch failure; all current CI commands passed locally."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r16.md",
+    "docs/changes/codex-r16-approvals-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Native facade reuses existing Gateway approval owner; no canonical capability registry change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Revert this isolated lot.",
+  "limitations": [
+    "No S24 deployment or recipe by Codex. Claude must qualify a real pending element before activation.",
+    "Only syntactically inert exec probes are decidable; opaque exec and plugins with unknown non-financial scope are refused.",
+    "The new test runs separately while CI changes are sequenced by the parent."
+  ]
+}

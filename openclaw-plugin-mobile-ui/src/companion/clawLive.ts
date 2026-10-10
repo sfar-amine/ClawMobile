@@ -9,11 +9,34 @@ export const CLAW_LIVE_MODEL = "gemini-3.8-live";
 const TOKEN_URL = "https://generativelanguage.googleapis.com/v1beta/auth_tokens";
 
 export type ClawLiveBootstrapOptions = {
+  voice?: string | null;
   locale?: string;
   client?: string;
   home?: string;
   telemetry?: (event:"t02"|"t03")=>void;
 };
+
+const LIVE_VOICES:ReadonlyArray<{id:string;validated:boolean}> = Object.freeze([
+  {id:"Puck",validated:false}, {id:"Charon",validated:false},
+  {id:"Kore",validated:false}, {id:"Fenrir",validated:false},
+  {id:"Aoede",validated:false}, {id:"Leda",validated:false},
+  {id:"Orus",validated:false}, {id:"Zephyr",validated:false},
+]);
+
+/** Provider candidates; qualification is a reviewed catalogue change, never a settings store. */
+export function clawLiveVoices() {
+  return {success:true,state:"ok",receipt:null,schemaVersion:1, model:CLAW_LIVE_MODEL, appliesTo:"next_session", items:[
+    {id:null, label:"Par défaut", current:null, validated:true, validation:"existing_default"},
+    ...LIVE_VOICES.map(({id,validated})=>({id,label:id,current:null,validated,reason:validated?"provider_setup_qualified":"provider_setup_not_qualified"})),
+  ]};
+}
+
+export function validatedClawLiveVoice(value:unknown):string|null {
+  if(value===undefined||value===null)return null;
+  if(typeof value!=="string"||!LIVE_VOICES.some(row=>row.id===value))
+    throw Object.assign(new Error("unknown_voice"),{statusCode:400});
+  return value;
+}
 
 function normalizedLocale(value = "fr") {
   return String(value || "fr").toLowerCase().startsWith("fr") ? "fr" : "en";
@@ -39,6 +62,7 @@ export function buildClawLiveSetup(
   model: string,
   options: ClawLiveBootstrapOptions = {},
 ) {
+  const voice = validatedClawLiveVoice(options.voice);
   const home = options.home || os.homedir();
   const locale = normalizedLocale(options.locale);
   const client = normalizedClient(options.client);
@@ -80,6 +104,7 @@ export function buildClawLiveSetup(
       }],
     }],
   };
+  if (voice !== null) setup.generationConfig.speechConfig = {voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}};
   if (client === "samantha_android") {
     setup.realtimeInputConfig = {
       automaticActivityDetection: { disabled: true },
@@ -123,6 +148,7 @@ export async function createClawLiveToken(
   keyResolver?: () => Promise<string>,
   options: ClawLiveBootstrapOptions = {},
 ) {
+  validatedClawLiveVoice(options.voice); // Reject before minting any provider credential.
   let token: any;
   if (!keyResolver) {
     token = await mintViaHelper(tokenHelperPath(), options.telemetry);
