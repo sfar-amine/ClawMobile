@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "R11 : cache de pagination et lecteur propriétaire de modèles partagé avec R6",
-  "reason": "Revue fichier 26, base runtime 0bf30ab et tête relue8b03244 intégrées par merges.",
+  "reason": "Revue fichier26, bases runtime0bf30ab puis71af984 et tête relue8b03244 intégrées par merges ; propriétaire modèle partagé sans livraison R18.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-r11-metadata-20261010.json",
@@ -28,7 +28,7 @@
     {
       "name": "r11-conversation-metadata",
       "status": "passed",
-      "evidence": "Build et tests métadonnées/ledger réussis ; cache single-flight avec latence synthétique 4,15s, warm pages sous300ms, erreur conservant titre/pin/source/révision/curseur ;3 tests budgets acceptance verts. CI complète et gate exécutés avantpush. Lecteur partagé : cache/throttle/single-flight/secret selection et validations R6/R11 verts, CI complète verte ; dernier delta audio/video/includeDetails issu du schéma public2026.9.6 recompilé et ciblés répétés avec succès."
+      "evidence": "Build et tests métadonnées/ledger réussis ; cache single-flight avec latence synthétique 4,15s, warm pages sous300ms, erreur conservant titre/pin/source/révision/curseur ;3 tests budgets acceptance verts. CI complète et gate exécutés avantpush. Lecteur partagé : cache/throttle/single-flight/secret selection et validations R6/R11 verts, CI complète verte ; dernier delta audio/video/includeDetails issu du schéma public2026.9.6 recompilé et ciblés répétés avec succès. CI complète base71af984 verte ; état stale immédiat après échec auth/config testé avec ciblés R6/R11 réexécutés."
     }
   ],
   "documentation": [
