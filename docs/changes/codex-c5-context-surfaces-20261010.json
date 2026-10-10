@@ -40,11 +40,11 @@
     "docs/changes/codex-c5-context-surfaces-20261010.md"
   ],
   "capabilities": {
-    "impact": "planned",
+    "impact": "none",
     "ids": [
       "samantha.voice.decision.record"
     ],
-    "reason": "Plan autorisé dans jumelle playbooks35, non exécutable avant O10."
+    "reason": "Core only tests existing internal owners; planned capability and registry assessment in paired playbooks35."
   },
   "architecture": {
     "changed": false,
