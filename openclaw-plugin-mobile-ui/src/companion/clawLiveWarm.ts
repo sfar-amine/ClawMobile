@@ -58,6 +58,7 @@ export class ClawLiveWarmCore {
   private conversationId="";
   private locale="fr";
   private voice:string|null=null;
+  private lastOwnerVoice:string|null=null;
   private client="samantha_android";
   private resumeHandle="";
   private resumeHandleAt=0;
@@ -130,7 +131,7 @@ export class ClawLiveWarmCore {
   }
 
   async prewarmDefault(locale="fr"){
-    return this.prewarm({locale,client:"samantha_android",sessionId:"__prewarm__"});
+    return this.prewarm({locale,client:"samantha_android",sessionId:"__prewarm__",voice:this.lastOwnerVoice});
   }
 
   async prewarm(meta:LocalMeta){
@@ -172,6 +173,7 @@ export class ClawLiveWarmCore {
     const readyBefore=this.providerReady;
     try{
       await this.ensureConversation(meta,true);
+      this.lastOwnerVoice=this.voice;
       if(readyBefore&&this.providerReady)this.sendReady(ws,!this.historyLoaded);
     }catch{
       if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({warmError:{stage:this.stage,code:this.lastError||"warm_unavailable"}}));
