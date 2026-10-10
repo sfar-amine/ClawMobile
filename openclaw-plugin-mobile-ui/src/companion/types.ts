@@ -103,6 +103,7 @@ export type IntentSubmitResponse = {
 };
 
 export type CompanionRunStatus = {
+  inactivityCorrectionReceipt?: import("./runInactivity").InactivityReceipt;
   modality?: "voice";
   clientRunId?: string;
   transcriptState?: "partial" | "completed" | "interrupted";
