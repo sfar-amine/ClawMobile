@@ -31,6 +31,8 @@ export function readControl(section: string, signal?: AbortSignal): Promise<unkn
   });
 }
 
+const OWNER_BACKLOG = 60;
+
 export function streamControl(req: IncomingMessage, res: ServerResponse) {
   if (activeStreams >= 2) {
     res.writeHead(429, { "Content-Type": "application/json" });
@@ -39,7 +41,9 @@ export function streamControl(req: IncomingMessage, res: ServerResponse) {
   }
   // view=owner: local owner view with tags and scrubbed previews (Runtime tools); default stays payload-free.
   const owner = new URL(req.url || "/", "http://localhost").searchParams.get("view") === "owner";
-  const child = spawn("python3", ["-u", controlPaths().live, owner ? "--owner-json" : "--control-json"], {
+  // The owner view starts with the last transcript lines (real timestamps, replay:true) so it is never empty on open.
+  const args = owner ? ["--owner-json", "--history", String(OWNER_BACKLOG)] : ["--control-json"];
+  const child = spawn("python3", ["-u", controlPaths().live, ...args], {
     detached: true, stdio: ["ignore", "pipe", "pipe"],
   });
   activeStreams++;
