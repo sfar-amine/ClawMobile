@@ -114,7 +114,9 @@ async function expire(r){const before=entered;const start=Date.now();const snaps
  // M1: session-level activity / another run never resurrects an expired run.
  for(const ids of [['another-run'],['retired']]){
   const retired=run('retired',{state:'failed',error:'run_inactivity_expired'}),peer=run('peer',{sessionId:'retired'});write(retired);let reg=JSON.parse(fs.readFileSync(registry));reg.runs.push(peer);fs.writeFileSync(registry,JSON.stringify(reg));ownerProof(peer,[],{hasActiveRun:true,activeRunIds:ids});
-  await status(peer);await idle();const changed=JSON.parse(fs.readFileSync(registry)).runs.find(x=>x.runId==='retired');assert.equal(changed.state,ids.includes('retired')?'running':'failed');if(ids.includes('retired'))assert.equal(changed.inactivityCorrectionReceipt.to,'running');
+  // A previous single-flight pass may still be settling its registry write (idle() only sees Gateway calls): re-trigger until a pass runs.
+  await status(peer);await idle();if(ids.includes('retired'))for(const start=Date.now();JSON.parse(fs.readFileSync(registry)).runs.find(x=>x.runId==='retired').state!=='running'&&Date.now()-start<3000;){await delay(50);await status(peer);await idle();}
+  const changed=JSON.parse(fs.readFileSync(registry)).runs.find(x=>x.runId==='retired');assert.equal(changed.state,ids.includes('retired')?'running':'failed');if(ids.includes('retired'))assert.equal(changed.inactivityCorrectionReceipt.to,'running');
  }
  // When owner run ids differ, an explicitly read, unique turn can prove activity.
  r=run('turn-active',{state:'failed',error:'run_inactivity_expired',executionSource:'gateway'});write(r);ownerProof(r,[message('user',r.text,old),message('assistant',[{type:'toolCall',id:'active-tool',name:'legitimate'}],old+1000)],{hasActiveRun:true,activeRunIds:['foreign-owner-id']});

@@ -1,4 +1,4 @@
-import {conversationOwnerIndex} from "./conversationOwnerIndex";
+import {conversationOwnerIndex,invalidateConversationOwner} from "./conversationOwnerIndex";
 import {stripConversationTransport} from "./conversationText";
 import {removeAttachments} from "./attachmentStorage";
 import fs from "fs/promises";
@@ -1962,6 +1962,8 @@ function publishConversationChanges(before:StoredRun[],after:StoredRun[],oldArch
   const sessions=new Set<string>();
   for(const id of new Set([...left.keys(),...right.keys()])){
     const a=left.get(id),b=right.get(id);
+    const terminal=(run:StoredRun|undefined)=>!!run&&(run.modality==='voice'?['completed','interrupted'].includes(run.transcriptState||''):['done','failed'].includes(run.state||''));
+    if(b&&terminal(b)&&!terminal(a))invalidateConversationOwner(expectedCompanionSessionKey(b.sessionId));
     if(JSON.stringify(a)!==JSON.stringify(b)){if(a)sessions.add(a.sessionId);if(b)sessions.add(b.sessionId);}
   }
   for(const id of new Set([...oldArchived,...newArchived]))if(oldArchived.includes(id)!==newArchived.includes(id))sessions.add(id);

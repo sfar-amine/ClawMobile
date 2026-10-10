@@ -1,0 +1,187 @@
+{
+ "_capture": {
+  "method": "file",
+  "source": "~/.openclaw/health/current.json",
+  "bytes": 5359,
+  "mtime": "2026-10-10T18:25:24+00:00",
+  "capturedAt": "2026-10-10T18:25:25+00:00",
+  "sanitized": true,
+  "note": "SHA Git (40 car.) conservés ; empreintes 64 car. hachées ; texte libre > 100 car. masqué"
+ },
+ "response": {
+  "capabilities": {
+   "boot.persistence": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "Termux:Boot",
+    "freshness_s": null,
+    "reason": null,
+    "state": "ready"
+   },
+   "chat.continuity": {
+    "checked_at": 1791656715,
+    "critical": false,
+    "evidence": "chat checkpoint",
+    "freshness_s": null,
+    "reason": null,
+    "state": "ready"
+   },
+   "companion": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "http://127.0.0.1:8765/v1/health",
+    "freshness_s": null,
+    "reason": null,
+    "state": "healthy"
+   },
+   "control_plane.maintenance": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "~/.openclaw/autonomous-engineering/maintenance-last.json",
+    "freshness_s": null,
+    "reason": "<texte 25 car.>",
+    "state": "stale"
+   },
+   "device.adb": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "127.0.0.1:5556",
+    "freshness_s": null,
+    "reason": "<texte 27 car.>",
+    "state": "healthy"
+   },
+   "device.adb.recovery_readiness": {
+    "checked_at": 1791656715,
+    "critical": false,
+    "evidence": "trusted Wireless Debugging recovery path",
+    "freshness_s": 5.0,
+    "reason": "<texte 50 car.>",
+    "state": "standby"
+   },
+   "device.network_safety": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "~/.openclaw/health/network-mutation-safety.json",
+    "freshness_s": 0.5,
+    "reason": "<texte 22 car.>",
+    "state": "healthy"
+   },
+   "gateway": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "http://127.0.0.1:18789/healthz",
+    "freshness_s": null,
+    "reason": null,
+    "state": "healthy"
+   },
+   "immune.adb_watchdog": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "~/.openclaw/health/adb-watchdog.heartbeat",
+    "freshness_s": 5.3,
+    "reason": "<texte 33 car.>",
+    "state": "healthy"
+   },
+   "immune.health_manager": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "~/.openclaw/health/health-manager.heartbeat",
+    "freshness_s": 0.2,
+    "reason": "<texte 33 car.>",
+    "state": "healthy"
+   },
+   "immune.incident_manager": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "~/.openclaw/health/incident-manager.heartbeat",
+    "freshness_s": 0.4,
+    "reason": "<texte 33 car.>",
+    "state": "healthy"
+   },
+   "immune.incident_orchestrator": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "~/.openclaw/health/incident-orchestrator.heartbeat",
+    "freshness_s": 1.8,
+    "reason": "<texte 33 car.>",
+    "state": "healthy"
+   },
+   "immune.remote_watchdog": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "~/.openclaw/health/remote-watchdog.heartbeat",
+    "freshness_s": 0.3,
+    "reason": "<texte 33 car.>",
+    "state": "healthy"
+   },
+   "immune.root_guardian": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "~/.openclaw/health/root-guardian.heartbeat",
+    "freshness_s": 7.5,
+    "reason": "<texte 33 car.>",
+    "state": "healthy"
+   },
+   "notification.smtp": {
+    "checked_at": 1791656715,
+    "critical": false,
+    "evidence": "live SMTP probe + latest delivery evidence",
+    "freshness_s": 273.1,
+    "reason": "<texte 8 car.>",
+    "state": "ready"
+   },
+   "notification.whatsapp": {
+    "checked_at": 1791656715,
+    "critical": false,
+    "evidence": "channel status + latest canonical outbound evidence",
+    "freshness_s": null,
+    "reason": "<texte 17 car.>",
+    "state": "healthy"
+   },
+   "remote_desktop": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "RDC singleton + process-bound MCP/remote heartbeat receipt",
+    "freshness_s": 6.4,
+    "reason": "<texte 35 car.>",
+    "state": "healthy"
+   },
+   "transactions.runtime": {
+    "checked_at": 1791656715,
+    "critical": true,
+    "evidence": "~/.openclaw/health/transaction-health.json",
+    "freshness_s": 824.9,
+    "reason": "<texte 38 car.>",
+    "state": "stale"
+   }
+  },
+  "consistency_warnings": [],
+  "continuations": {
+   "blocked": 0,
+   "details": [],
+   "resuming": 0,
+   "stuck": 0
+  },
+  "generated_at": 1791656715,
+  "incidents": {
+   "active": [],
+   "human_required": [],
+   "recent_failed": []
+  },
+  "maintenance": {
+   "reason": "<texte 25 car.>",
+   "state": "stale"
+  },
+  "overall": "degraded",
+  "schema_version": 1,
+  "summary": {
+   "active_incidents": 0,
+   "degraded_stale_unverified": 2,
+   "down": 0,
+   "healthy_ready": 15,
+   "human_required": 0,
+   "noncritical_advisories": 1,
+   "stuck_continuations": 0
+  }
+ }
+}
