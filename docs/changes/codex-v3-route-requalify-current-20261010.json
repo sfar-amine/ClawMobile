@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "id": "codex-v3-route-requalify-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "V3 : rapport hors ligne de requalification duplex et proposition propriétaire sans effet",
+  "reason": "Outil pré-RDV1 autorisé, aucune mesure acoustique nouvelle fournie ni qualification physique.",
+  "files": [
+    "docs/changes/codex-v3-route-requalify-current-20261010.json",
+    "docs/changes/codex-v3-route-requalify-current-20261010.md",
+    "docs/work/samantha-runtime/contracts/v3.md",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-route-requalify.py",
+    "openclaw-plugin-mobile-ui/scripts/voice-route-requalify.py"
+  ],
+  "tests": [
+    {
+      "name": "V3 offline evidence and CLI non-clobber contract",
+      "status": "passed",
+      "evidence": "9 tests: exact build/route identity, incomplete/no acoustics/no negatives, missed and false interruptions forbid proposal, invalid/nonfinite latencies, read limit8MiB and JSON finite values, source/profile bytes unchanged, exclusive report output forbids overwrites."
+    },
+    {
+      "name": "Current workflow and delivery contract",
+      "status": "passed",
+      "evidence": "All current .github/workflows/ci.yml steps replayed locally on af4132a: CI_LOCAL_OK. ci.yml unchanged; V3 tests executed separately."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/v3.md",
+    "docs/changes/codex-v3-route-requalify-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert V3 commit; existing qualifiedRoutes configuration and runtime lifecycle are untouched.",
+  "limitations": [
+    "No S24 read/write, deployment, audio or physical route requalification. External alignment, current device fingerprint and acceptance of product latency belong to Claude/Amine at RDV1. Complete coverage only permits a proposal requiring owner review, never qualification or profile activation."
+  ]
+}
