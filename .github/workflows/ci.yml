@@ -104,6 +104,9 @@ jobs:
           node scripts/test-conversation-origin.cjs
           python3 ../installer/termux-lite/test-context-session-origin.py
 
+      - name: Run skill detail and owner controls contract
+        run: node scripts/test-skill-control.cjs
+
       - name: Run reviewed approval confirmation contract
         run: node scripts/test-agent-approvals.cjs
 
