@@ -1,3 +1,4 @@
+import {conversationOwnerIndex} from "./conversationOwnerIndex";
 import {stripConversationTransport} from "./conversationText";
 import {removeAttachments} from "./attachmentStorage";
 import fs from "fs/promises";
@@ -1908,11 +1909,16 @@ async function retainedRuns():Promise<StoredRun[]> {
 export async function conversationSummariesPage(options:PageOptions={}){
   const {limit,query,cursor}=normalizedPageOptions(options);
   const runs=await retainedRuns();const grouped=new Map<string,StoredRun[]>();
+  // Background single-flight refresh; pagination never waits on a Gateway process.
+  const ownerIndex=runs.length?conversationOwnerIndex():{rows:new Map<string,any>(),state:'pending'};
+  const metadata=ownerIndex.rows;
   for(const run of runs){const rows=grouped.get(run.sessionId)||[];rows.push(run);grouped.set(run.sessionId,rows);}
   const items=[...grouped.entries()].filter(([,rows])=>!query||rows.some(r=>(r.userText||r.text||"").toLocaleLowerCase().includes(query.toLocaleLowerCase())||(r.result||"").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
     .map(([sessionId,rows])=>{
-      const latest=rows[0],status=statusFromStoredRun(latest);
-      return {sessionId,lastRunId:latest.runId,titlePreview:(latest.userText||latest.text||"").slice(0,160),
+      const latest=rows[0],status=statusFromStoredRun(latest),owner:any=metadata.get(latest.sessionKey||expectedCompanionSessionKey(sessionId));
+      const title=typeof owner?.label==='string'&&owner.label.length<=160&&!/[\p{C}\p{Zl}\p{Zp}]/u.test(owner.label)?owner.label:null;
+      const pinned=typeof owner?.pinned==='boolean'?owner.pinned:null;
+      return {sessionId,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview:(latest.userText||latest.text||"").slice(0,160),
         lastResultPreview:(latest.result||"").slice(0,140),lastRunState:status.state,
         lastActivityAt:latest.updatedAt||latest.acceptedAt,sortAt:latest.acceptedAt,
         modality:latest.modality||"text",transcriptState:latest.transcriptState||"",
@@ -1925,7 +1931,7 @@ export async function conversationSummariesPage(options:PageOptions={}){
   return {schemaVersion:2,resourceKey:"conversations",dataRevision:revision,items:page.map(({sortAt,...row})=>row),
     nextCursor:more?cursorFor(scope,revision,page[page.length-1].sessionId):null,
     hasMore:more,coverage:{source:"companion_retained_registry",fullHistory:false,retainedRunCount:runs.length,
-      availableConversations:grouped.size,matchingConversations:items.length,persistedRunLimit:MAX_PERSISTED_RUNS,persistedRunBytesLimit:MAX_PERSISTED_RUN_BYTES},sort:"latest_accepted_desc_session_id_asc"};
+      availableConversations:grouped.size,matchingConversations:items.length,metadataState:ownerIndex.state,persistedRunLimit:MAX_PERSISTED_RUNS,persistedRunBytesLimit:MAX_PERSISTED_RUN_BYTES},sort:"latest_accepted_desc_session_id_asc"};
 }
 export async function conversationTurnsPage(sessionId:string,options:PageOptions={}){
   requireConversationId(sessionId);const {limit,cursor}=normalizedPageOptions(options);

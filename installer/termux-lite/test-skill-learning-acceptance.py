@@ -14,6 +14,8 @@ class R8AcceptanceTests(unittest.TestCase):
         def call(method, path, timeout, headers=None):
             seen.append((method, path))
             if method == 'POST': return 403, b'{}', 0.01
+            if path == '/conversations?limit=50':  # R11 list (no retained conversation: metadata skipped)
+                return 200, b'{"items": []}', 0.01
             if path == '/skills/candidates?limit=50':
                 return 200, json.dumps({'items': [] if empty else [{'traceId': 'trace-fixture'}]}).encode(), list_seconds
             return 200, b'{}', detail_seconds if path == '/skills/candidates/trace-fixture' else 0.01
