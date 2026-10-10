@@ -56,6 +56,16 @@ const api=require('../dist/companion/openclawAgentClient');
  `],{env:{...process.env,NODE_PATH:'',CLAWMOBILE_OPENCLAW_BIN:cli},encoding:'utf8',timeout:3000});
  assert.equal(child.status,0,child.stderr);assert.equal(child.stdout,'');
 
+ // Real captured CLI refusal keeps the same public unknown-job classification as SDK.
+ const cronRefusal=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-10/r22/cron.runs.unknown-id.json'),'utf8'));
+ fs.writeFileSync(cli,'#!/usr/bin/env node\nprocess.stdout.write('+JSON.stringify(JSON.stringify(cronRefusal.response))+');process.exit(1);\n');
+ const cronChild=require('node:child_process').spawnSync(process.execPath,['-e',`
+  const assert=require('node:assert/strict');const api=require(${JSON.stringify(path.resolve(__dirname,'../dist/companion/openclawAgentClient'))});
+  api.callOpenClawGateway('cron.runs',${JSON.stringify(cronRefusal._capture.params)},{timeoutMs:1000}).then(()=>process.exitCode=1,e=>{
+   assert.equal(e.code,'CRON_JOB_NOT_FOUND');assert.equal(e.effectNotStarted,true);assert.equal(e.message,'CRON_JOB_NOT_FOUND');assert.equal(e.details,undefined);api.closeOpenClawGateway();
+  }).catch(()=>process.exitCode=1);
+ `],{env:{...process.env,NODE_PATH:'',CLAWMOBILE_OPENCLAW_BIN:cli},encoding:'utf8',timeout:3000});
+ assert.equal(cronChild.status,0,cronChild.stderr);assert.equal(cronChild.stdout,'');
  console.log('Captured S24 owner timing: CLI models.list '+fixture._capture.latencyMs+'ms; handshake owner import/connect/health '+handshake._capture.latencyMs+'ms; operations differ, no production wiring comparison claimed.');
  console.log('P0-1 real callOpenClawGateway entrypoint: shared official SDK owner, hello gate, four RPCs, unchanged params/expectFinal, reduced scopes, CAS refusal, no replay, shutdown; SDK boundary synthetic, S24 payload real.');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{api.closeOpenClawGateway();fs.rmSync(root,{recursive:true,force:true});delete globalThis.gatewayEntryFixture;});

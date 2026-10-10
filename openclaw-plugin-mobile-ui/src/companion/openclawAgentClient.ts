@@ -146,6 +146,8 @@ function runOpenClaw(args: string[], hardTimeoutMs: number): Promise<any> {
             typeof failure.error.code === "string" && typeof failure.error.message === "string") {
             reject(Object.assign(new Error(failure.error.message), {
               name: "GatewayClientRequestError", gatewayCode: failure.error.code,
+              ...(["CRON_JOB_NOT_FOUND", "MISSING_SCOPE"].includes(failure.error.details?.code)
+                ? {details: {code: failure.error.details.code}} : {}),
             }));
             return;
           }

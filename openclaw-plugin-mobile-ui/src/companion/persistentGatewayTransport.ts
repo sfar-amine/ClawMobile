@@ -148,6 +148,7 @@ export class PersistentGatewayTransport {
         if (['ENOENT', 'ECONNREFUSED'].includes(cause?.code)) throw failure(cause.code);
         // CLI structured refusal is already normalized by its owner below.
         if (cause?.code === 'gateway_config_revision_conflict') throw cause;
+        if (cause?.name === 'GatewayClientRequestError') throw requestFailure(job.method, cause);
         if (job.options.strictOutput && cause?.message === 'gateway_read_failed') throw failure('gateway_read_failed', true);
         if (job.options.strictOutput && cause?.message === 'gateway_read_limits_invalid') throw failure('gateway_read_limits_invalid');
         throw failure('gateway_cli_failed', true);

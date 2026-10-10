@@ -34,6 +34,11 @@
       "name": "r20-merged-read-limits",
       "status": "passed",
       "evidence": "Base d142a9f merge normal preserves strictOutput owner controls. SDK parsed JSON byte ceiling and pre-dispatch bound validation tested; CLI fallback keeps original bounded stdout/stderr/process-group cleanup. Targeted P0-1 and five merged R20 suites verification recorded in PR."
+    },
+    {
+      "name": "cli-structured-refusal-parity",
+      "status": "passed",
+      "evidence": "Revue indépendante a reproduit perte du code CRON_JOB_NOT_FOUND via CLI. Corrigé: seuls details.code CRON_JOB_NOT_FOUND/MISSING_SCOPE gardés en interne, même safe projector SDK/CLI. Vrai entrypoint avec CLI temporaire rejoue fixture82 cron.runs.unknown-id, résultat code/message fixe et effectNotStarted, aucun details ou sortie publique. Build, entrypoint, wrapper et file limits passent."
     }
   ],
   "documentation": [
