@@ -162,6 +162,9 @@ jobs:
           node scripts/test-ui-recette-server.cjs
           python3 scripts/test-acceptance-email-leak.py
 
+      - name: Run UI recette 2 server fixes on S24 captures (agent thinking defaults, providers after a failed refresh, usage kept)
+        run: node scripts/test-recette2-server.cjs
+
       - name: Run memory control and atomic export import contracts
         run: |
           node scripts/test-memory-control.cjs
