@@ -341,11 +341,7 @@ export async function deleteRun(runId: string, operationId: string) {
       return {success: true, state: "completed", receipt: old};
     }
     const deleted = registry.runDeletions.find(row => row.runId === runId);
-    if (deleted) {
-      const receipt = {...deleted, operationId, at: Date.now()};
-      await writeCompanionRunRegistry(registry.runs, registry.archivedSessionIds, registry.paymentRequests, registry.ownerConfirmations, [...registry.runDeletions, receipt]);
-      return {success: true, state: "completed", receipt};
-    }
+    if (deleted) return {success: true, state: "completed", receipt: deleted};
     const run = registry.runs.find(row => row.runId === runId);
     if (!run) return {success: false, state: "not_found", receipt: null};
     const matches = (value: unknown) => typeof value === "string" && [run.runId, run.clientRunId, run.sessionId].includes(value);

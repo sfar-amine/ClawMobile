@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "codex-r3-r4-followups-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Correct malformed deletion IDs, reuse existing receipts, align unavailable provider fixture.",
+  "reason": "Claude review follow-ups after R3 and R4 integration.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-delete-run.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-composed-read-result.py",
+    "docs/work/samantha-runtime/contracts/r3-r4-followups.md",
+    "docs/changes/codex-r3-r4-followups-20261010.md",
+    "docs/changes/codex-r3-r4-followups-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "contracts",
+      "status": "passed",
+      "evidence": "build, delete-run, composed-read-result, payment-core, submit-reconciliation, backfill races"
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r3-r4-followups.md",
+    "docs/changes/codex-r3-r4-followups-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing native deletion behavior and presentation fixtures only."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new persistence or execution owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native endpoint and fixtures; MCP unchanged."
+  },
+  "rollback": "Revert scoped commit.",
+  "limitations": [
+    "Git only; Claude owns acceptance and activation."
+  ]
+}

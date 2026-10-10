@@ -926,7 +926,10 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       const body = await readJsonBody<any>(req, 2048);
       if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 1 || typeof body.operationId !== "string")
         throw new HttpError(400, "invalid_run_deletion");
-      const result = await deleteRun(decodeURIComponent(deleteRunMatch[1]), body.operationId);
+      let runId: string;
+      try { runId = decodeURIComponent(deleteRunMatch[1]); }
+      catch { throw new HttpError(400, "invalid_run_deletion"); }
+      const result = await deleteRun(runId, body.operationId);
       res.setHeader("Cache-Control", "no-store"); writeJson(res, result.success ? 200 : 404, result);
     } catch (error: any) {
       const code = [400, 409].includes(error?.statusCode) ? error.statusCode : 503;
