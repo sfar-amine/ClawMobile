@@ -61,6 +61,12 @@ print(Path(__file__).parent.parent.joinpath('projection.json').read_text())
     else{const result=await readControlV2(['requests'],listing?undefined:'REQ-1',undefined,true);assert.equal((listing?result.sections.requests.data.items[0]:result.sections.requests.data.item).sessionId,sid);}
    }
   }
+  // PR48 captured contract-2 projection: legacy rows stay unlinked.
+  const realRequests=JSON.parse(await fs.readFile(path.join(__dirname,'../fixtures/s24-2026-10-10/control/requests.json'),'utf8'));
+  await fs.writeFile(projection,JSON.stringify(realRequests));
+  const captured=await readControlV2(['requests'],undefined,undefined,true);
+  assert.ok(captured.sections.requests.data.items.length>0);
+  assert.ok(captured.sections.requests.data.items.every(row=>row.sessionId==null));
   console.log('R10: actual normalized registry session equals leading transport marker and Gateway route; spoofed user marker remains body data');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exit(1)});
