@@ -833,7 +833,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         result=await learningCandidate(id);
       }
       writeJson(res,result.state==="accepted"?202:result.state==="failed"?503:result.state==="refused"?403:200,result);
-    }catch(error:any){const code=[400,403,404,409].includes(error?.statusCode)?error.statusCode:503;const safe=["invalid_learning_request","learn_payment_excluded","learning_guard_unavailable","confirmation_scope_mismatch","operation_conflict","invalid_trace_id","invalid_candidate_limit","candidate_not_found","candidate_scan_limit","candidate_unavailable","candidate_timestamp_unavailable"].includes(error?.message)?error.message:code===400?"invalid_learning_request":"learning_unavailable";writeJson(res,code,{success:false,state:code===404?"not_found":code===503?"unavailable":"refused",receipt:null,error:safe,...(safe==="learn_payment_excluded"?{reason:safe}:{})});}
+    }catch(error:any){const code=[400,403,404,409,422].includes(error?.statusCode)?error.statusCode:503;const safe=["invalid_learning_request","learn_payment_excluded","learning_guard_unavailable","learning_guard_budget_exceeded","confirmation_scope_mismatch","operation_conflict","invalid_trace_id","invalid_candidate_limit","candidate_not_found","candidate_invalid","candidate_scan_limit","candidate_unavailable","candidate_timestamp_unavailable"].includes(error?.message)?error.message:code===400?"invalid_learning_request":"learning_unavailable";writeJson(res,code,{success:false,state:code===404?"not_found":code===503?"unavailable":code===422?"invalid":"refused",receipt:null,error:safe,...(safe==="learn_payment_excluded"?{reason:safe}:{})});}
     return;
   }
 

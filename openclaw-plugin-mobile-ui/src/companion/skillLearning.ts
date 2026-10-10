@@ -34,7 +34,10 @@ export async function learningPaymentGuard(instruction:string,confirmationId?:st
  if(!["read","write"].includes(decision.risk))throw nativeError(["payment","financial","finance","transaction","sensitive","destructive","external_send","high","human"].includes(decision.risk)?"learn_payment_excluded":"learning_guard_unavailable",["payment","financial","finance","transaction","sensitive","destructive","external_send","high","human"].includes(decision.risk)?409:503);
  let payments:any[],ownerConfirmations:any[];try{[payments,ownerConfirmations]=await Promise.all([readPaymentRequests(),readOwnerConfirmations()]);}catch{throw nativeError("learning_guard_unavailable",503);}
  if(Date.now()-guardStarted>=1000)throw nativeError("learning_guard_budget_exceeded",503);
- const others=ownerConfirmations.filter(conf=>!(conf.id===confirmationId&&conf.intent?.action?.type==="skill.learn"&&conf.intent.action.reference==="learn"&&conf.intent.action.payloadHash===hash(instruction)&&conf.state==="approved"&&conf.proof&&conf.expiresAt>Date.now()&&conf.createdAt<=Date.now()));
+ // The owner's own skill.learn confirmation is not a foreign guard: its exact scope (state, hash) is
+ // checked right after this guard and refused as confirmation_scope_mismatch. Any other open
+ // confirmation, including a payment one under the same id, still blocks learning.
+ const others=ownerConfirmations.filter(conf=>!(confirmationId&&conf.id===confirmationId&&conf.intent?.action?.type==="skill.learn"&&conf.intent.action.reference==="learn"));
  if(protectedRun({decision},payments,others))throw nativeError("learn_payment_excluded",409);
  if(paymentValue(decision)||decision.confirmationRequired===true||decision.confirmation_required===true||decision.humanBoundary||decision.human_boundary)throw nativeError("learn_payment_excluded",409);
  // A missing classification is not a proof that a request is safe to learn.
@@ -75,7 +78,8 @@ async function boundedJson(file:string,budget:ReadBudget){
   while(length<buffer.length){const read=await handle.read(buffer,length,buffer.length-length,null);if(!read.bytesRead)break;length+=read.bytesRead;}
   budget.remaining-=length;const after=await handle.stat();
   if(after.size!==info.size||after.mtimeMs!==info.mtimeMs||length!==info.size||length>FILE_LIMIT){if(length===before&&after.size>length)throw nativeError("candidate_scan_budget",503);throw nativeError("candidate_unavailable",503);}
-  return {value:JSON.parse(buffer.subarray(0,length).toString('utf8')),mtimeMs:info.mtimeMs};
+  let value:any;try{value=JSON.parse(buffer.subarray(0,length).toString('utf8'));}catch{throw nativeError("candidate_unavailable",503);}
+  return {value,mtimeMs:info.mtimeMs};
  }finally{await handle.close();}
 }
 function clean(value:any,max:number,secrets:string[]=[]){
@@ -110,8 +114,9 @@ export async function learningCandidates(limit=20,workspace=getWorkspaceDir()){
  try{root=await recordingsRoot(workspace);}catch(e:any){if(e.code==='ENOENT')return {success:true,state:"ok",receipt:null,items:[],skipped:0,truncated:false};throw nativeError("candidate_unavailable",503);}
  try{
  const anchored="/proc/self/fd/"+root.fd,handle=await fs.opendir(anchored),items:any[]=[],budget={remaining:SCAN_BYTES};let count=0,skipped=0,truncated=false;
- for await(const entry of handle){if(++count>FOLDER_LIMIT||budget.remaining===0){truncated=true;break;}if(!entry.isDirectory()||!validId(entry.name)){skipped++;continue;}
-  try{const item=await candidate(anchored,entry.name,budget);items.push(item);}catch(e:any){if(e.message==="candidate_scan_budget"){truncated=true;break;}skipped++;}
+ for await(const entry of handle){if(++count>FOLDER_LIMIT||budget.remaining===0){truncated=true;break;}if(!entry.isDirectory())continue;if(!validId(entry.name)){skipped++;continue;}
+  // A recording folder without skill_candidate.json is not a candidate; an invalid or oversized one is skipped.
+  try{const item=await candidate(anchored,entry.name,budget);items.push(item);}catch(e:any){if(e.message==="candidate_scan_budget"){truncated=true;break;}if(e?.code==="ENOENT")continue;skipped++;}
  }
  items.sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)||a.traceId.localeCompare(b.traceId));
  return {success:true,state:skipped||truncated?"partial":"ok",receipt:null,items:items.slice(0,limit),skipped,truncated};
@@ -119,5 +124,7 @@ export async function learningCandidates(limit=20,workspace=getWorkspaceDir()){
 }
 export async function learningCandidate(id:string,workspace=getWorkspaceDir()){
  if(!validId(id))throw nativeError("invalid_trace_id");let root:Awaited<ReturnType<typeof recordingsRoot>>;
- try{root=await recordingsRoot(workspace);try{return {success:true,state:"ok",receipt:null,item:await candidate("/proc/self/fd/"+root.fd,id,{remaining:SCAN_BYTES},true)};}finally{await root.close();}}catch(e:any){if(e.code==='ENOENT')throw nativeError("candidate_not_found",404);throw e;}
+ try{root=await recordingsRoot(workspace);try{return {success:true,state:"ok",receipt:null,item:await candidate("/proc/self/fd/"+root.fd,id,{remaining:SCAN_BYTES},true)};}finally{await root.close();}}catch(e:any){if(e.code==='ENOENT')throw nativeError("candidate_not_found",404);
+ // One unreadable candidate is the owner's data problem, not a Companion outage.
+ if(e?.message==="candidate_unavailable"||e?.message==="candidate_timestamp_unavailable"||e?.code==="ELOOP"||e?.code==="ENOTDIR")throw nativeError("candidate_invalid",422);throw e;}
 }
