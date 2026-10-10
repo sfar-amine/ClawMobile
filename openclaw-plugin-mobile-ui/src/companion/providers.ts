@@ -31,13 +31,16 @@ export function projectProviders(snapshot:ModelOwnerSnapshot|null,usage:UsageVie
  });
  return {schemaVersion:1,updatedAt:snapshot?.updatedAt??usage?.updatedAt??null,summary:{ready:providers.filter(p=>p.state==='ready').length,needsAttention:providers.filter(p=>['needs_auth','exhausted'].includes(p.state)).length,unknown:providers.filter(p=>p.state==='unknown').length,configuredModels:providers.reduce((n,p)=>n+p.models.length,0)},providers};
 }
+const SERVE_MS=300000;
 export async function readProviders(refresh=false){
  const cached=peekModelOwner();
  if(cached&&!refresh){
   // The shared R6/R11 owner keeps refreshing in single-flight; cached metadata
   // avoids putting its 4.8s CLI read back on an ordinary providers request.
+  // A successful snapshot stays authoritative for five minutes while that
+  // refresh runs; a failed or older owner read degrades to unknown.
   void readModelOwnerCached().catch(()=>{});
-  return projectProviders(cached,await readUsage(),!cached.stale&&Date.now()-cached.updatedAt<60000);
+  return projectProviders(cached,await readUsage(),!cached.stale&&Date.now()-cached.updatedAt<SERVE_MS);
  }
  const [owner,usage]=await Promise.all([readModelOwnerCached({refresh}),readUsage()]);
  return projectProviders(owner.snapshot,usage,owner.state==='fresh');
