@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "codex-r11-metadata-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "R11 : cache de pagination et lecteur propriétaire de modèles partagé avec R6",
+  "reason": "Revue fichier26, bases runtime0bf30ab puis71af984 et tête relue8b03244 intégrées par merges ; propriétaire modèle partagé sans livraison R18.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-r11-metadata-20261010.json",
+    "docs/changes/codex-r11-metadata-20261010.md",
+    "docs/work/samantha-runtime/contracts/r11.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-acceptance.py",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-metadata.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-owner-cache.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-owner.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+    "openclaw-plugin-mobile-ui/src/companion/conversationMetadata.ts",
+    "openclaw-plugin-mobile-ui/src/companion/conversationOwnerIndex.ts",
+    "openclaw-plugin-mobile-ui/src/companion/modelOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "r11-conversation-metadata",
+      "status": "passed",
+      "evidence": "Build et tests métadonnées/ledger réussis ; cache single-flight avec latence synthétique 4,15s, warm pages sous300ms, erreur conservant titre/pin/source/révision/curseur ;3 tests budgets acceptance verts. CI complète et gate exécutés avantpush. Lecteur partagé : cache/throttle/single-flight/secret selection et validations R6/R11 verts, CI complète verte ; dernier delta audio/video/includeDetails issu du schéma public2026.9.6 recompilé et ciblés répétés avec succès. CI complète base71af984 verte ; état stale immédiat après échec auth/config testé avec ciblés R6/R11 réexécutés."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r11.md",
+    "docs/changes/codex-r11-metadata-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "Active Gateway compatibility and S24 recipe to be qualified by Claude. No deployment claimed.",
+    "Idle check is an owner observation, not a new runtime lock. Reset-to-default model is not exposed.",
+    "Cold metadata is pending until owner read completes; last successful observations survive transient errors.",
+    "S24 route latency and captured fixtures remain Claude qualification; local4.15s latency is synthetic.",
+    "R18 thinking/context and installed model/auth schema remain pending real captures; metadata keeps its existing 10s parallel-read contract."
+  ]
+}

@@ -102,6 +102,18 @@ jobs:
       - name: Preserve specialized rules in bounded voice bootstrap
         run: node scripts/test-voice-operating-rules.cjs
 
+      - name: Run conversation metadata owner contract
+        run: |
+          node scripts/test-conversation-metadata.cjs
+          node scripts/test-conversation-thinking.cjs
+          node scripts/test-conversation-thinking-fixtures.cjs
+          node scripts/test-conversation-context.cjs
+          node scripts/test-conversation-context-race.cjs
+          node scripts/test-conversation-context-coverage.cjs
+          node scripts/test-conversation-owner-cache.cjs
+          node scripts/test-model-owner.cjs
+          python3 scripts/test-conversation-acceptance.py
+
       - name: Canonical request conversation origin contracts
         run: |
           node scripts/test-conversation-origin.cjs
