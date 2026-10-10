@@ -1889,11 +1889,17 @@ async function retainedRuns():Promise<StoredRun[]> {
 export async function conversationSummariesPage(options:PageOptions={}){
   const {limit,query,cursor}=normalizedPageOptions(options);
   const runs=await retainedRuns();const grouped=new Map<string,StoredRun[]>();
+  // One owner index read for the entire page, never one Gateway process per item.
+  let metadataRows:any[]=[];
+  if(runs.length)try{const value=await callOpenClawGateway('sessions.list',{search:'companion-',limit:100},{timeoutMs:10000,hardTimeoutMs:10000});if(Array.isArray(value?.sessions)&&value.sessions.length<=100)metadataRows=value.sessions;}catch{}
+  const metadata=new Map(metadataRows.filter(row=>typeof row?.key==='string').map(row=>[row.key,row]));
   for(const run of runs){const rows=grouped.get(run.sessionId)||[];rows.push(run);grouped.set(run.sessionId,rows);}
   const items=[...grouped.entries()].filter(([,rows])=>!query||rows.some(r=>(r.userText||r.text||"").toLocaleLowerCase().includes(query.toLocaleLowerCase())||(r.result||"").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
     .map(([sessionId,rows])=>{
-      const latest=rows[0],status=statusFromStoredRun(latest);
-      return {sessionId,lastRunId:latest.runId,titlePreview:(latest.userText||latest.text||"").slice(0,160),
+      const latest=rows[0],status=statusFromStoredRun(latest),owner:any=metadata.get(latest.sessionKey||expectedCompanionSessionKey(sessionId));
+      const title=typeof owner?.label==='string'&&owner.label.length<=160&&!/[\p{C}\p{Zl}\p{Zp}]/u.test(owner.label)?owner.label:null;
+      const pinned=typeof owner?.pinned==='boolean'?owner.pinned:null;
+      return {sessionId,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview:(latest.userText||latest.text||"").slice(0,160),
         lastResultPreview:(latest.result||"").slice(0,140),lastRunState:status.state,
         lastActivityAt:latest.updatedAt||latest.acceptedAt,sortAt:latest.acceptedAt,
         modality:latest.modality||"text",transcriptState:latest.transcriptState||"",

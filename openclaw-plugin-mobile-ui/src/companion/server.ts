@@ -300,8 +300,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
       let id:string;try{id=decodeURIComponent(conversationMetadata[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
       const value=method==='GET'?await readConversationMetadata(id):await changeConversationMetadata(id,await readJsonBody(req,2048));
-      res.setHeader('Cache-Control','no-store');writeJson(res,value.state==='refused'?409:200,value);
-    }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'unavailable':'refused',receipt:null,error:status===400?'invalid_conversation_metadata':status===404?'conversation_not_found':status===409?'protected_or_conflicting_conversation':'conversation_owner_unavailable'});}
+      res.setHeader('Cache-Control','no-store');writeJson(res,Number.isInteger(value.httpStatus)?value.httpStatus:value.state==='refused'?409:200,value);
+    }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'unavailable':'refused',receipt:null,error:status===400?'invalid_conversation_metadata':status===404?'conversation_not_found':status===409&&['conversation_model_change_requires_idle','unknown_conversation_model','conversation_identity_unavailable','conversation_identity_changed','conversation_identity_ambiguous','conversation_label_already_used','protected_owner_activity','operation_conflict'].includes(error?.message)?error.message:status===409?'operation_conflict':'conversation_owner_unavailable'});}
     return;
   }
 
@@ -479,6 +479,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/extensions/nostr/contacts/:contactId",
         "/v1/extensions/nostr/send",
         "/v1/extensions/nostr/inbox",
+        "/v1/conversations/:sessionId/metadata",
         "/v1/extensions/agent/conversations",
         "/v1/extensions/agent/conversations/:agentId/messages",
         "/v1/extensions/agent/inbox/fetch",
