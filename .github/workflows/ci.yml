@@ -42,6 +42,11 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
+      - name: Run Claw relay reconnect contract
+        run: |
+          node scripts/test-voice-relay.cjs
+          node scripts/test-voice-relay-reconnect.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
