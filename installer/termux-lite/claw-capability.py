@@ -11,12 +11,16 @@ import sys
 
 HOME = Path.home()
 DEFAULT_UI = HOME / ".openclaw/workspace/ui-playbooks"
+# Pinned runtime snapshot (activate-ui-playbooks.sh). Preferred over the mutable workspace so a core restart
+# from a shell without CLAW_UI_PLAYBOOKS_ROOT never silently runs unreleased playbooks.
+PINNED_UI = HOME / ".openclaw/runtime-ui-playbooks/current"
 
 
 def ui_root() -> Path:
     configured = os.environ.get("CLAW_UI_PLAYBOOKS_ROOT")
     candidates = [
         Path(configured).expanduser() if configured else None,
+        PINNED_UI,
         DEFAULT_UI,
     ]
     for path in candidates:

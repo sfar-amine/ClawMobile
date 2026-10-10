@@ -64,6 +64,19 @@ export default {
   },
 };
 
+export function newestAuthenticated(sockets) {
+  const attachment = (ws) => {
+    try {
+      return ws.deserializeAttachment() || {};
+    } catch {
+      return {};
+    }
+  };
+  return sockets
+    .filter((ws) => attachment(ws).authenticated === true)
+    .sort((a, b) => Number(attachment(b).authAt || 0) - Number(attachment(a).authAt || 0));
+}
+
 export class VoiceRelay {
   constructor(ctx, env) {
     this.ctx = ctx;
@@ -113,14 +126,10 @@ export class VoiceRelay {
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  // Newest first: after a network switch the previous socket can stay half-open on this
+  // side, and sending to it only ends in device_timeout.
   authenticatedSockets() {
-    return this.ctx.getWebSockets("device").filter((ws) => {
-      try {
-        return ws.deserializeAttachment()?.authenticated === true;
-      } catch {
-        return false;
-      }
-    });
+    return newestAuthenticated(this.ctx.getWebSockets("device"));
   }
 
   cleanupRecent(now = Date.now()) {
@@ -255,8 +264,15 @@ export class VoiceRelay {
         String(value?.token || "") === String(this.env.DEVICE_TOKEN || "") &&
         String(this.env.DEVICE_TOKEN || "").length >= 24
       ) {
-        ws.serializeAttachment({ authenticated: true });
+        ws.serializeAttachment({ authenticated: true, authAt: Date.now() });
         ws.send(JSON.stringify({ type: "auth_ok" }));
+        // One device: a fresh authentication replaces any older socket.
+        for (const other of this.ctx.getWebSockets("device")) {
+          if (other === ws) continue;
+          try {
+            other.close(1012, "replaced");
+          } catch {}
+        }
       } else {
         ws.close(1008, "unauthorized");
       }
