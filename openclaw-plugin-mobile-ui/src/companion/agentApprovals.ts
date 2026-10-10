@@ -157,6 +157,13 @@ async function decideOnce(runId:string,body:any){
  const local=await registry(),run=local.runs.find((x:any)=>x.runId===runId);
  if(!run)throw failure('approval_run_not_found',404);
  if(paymentRun(run,local))return {success:false,state:'refused',receipt:null,reason:'approval_payment_excluded'};
+ // Reject unusable proof before the expensive CLI snapshot; replay was checked above.
+ let confirm:any;
+ try{confirm=await confirmations.status(body.confirmationId);}catch(error:any){
+  if(error?.statusCode===404)throw failure('confirmation_not_found',403);throw error;
+ }
+ if(Date.now()>=confirm.expiresAt||(!oldResult&&confirm.state!=='approved')||(oldResult&&confirm.state!=='consumed'))throw failure('confirmation_not_usable',409);
+ if(confirm.intent?.action?.type!=='agent.approval_decide')throw failure('confirmation_scope_mismatch',403);
  let fresh:Snapshot;
  try{fresh=await loadSnapshot();}catch{return {success:false,state:'failed',receipt:null,error:'approval_owner_unavailable'};}
  snapshot=fresh;
@@ -175,7 +182,6 @@ async function decideOnce(runId:string,body:any){
   if(secret.test(details))return {success:false,state:'refused',receipt:null,reason:'approval_sensitive_details'};
   if(!inertCommand({commandText:raw.commandText}))return {success:false,state:'refused',receipt:null,reason:'approval_payment_scope_unqualified'};
  }
- const confirm=await confirmations.status(body.confirmationId);
  const expected:OwnerIntent={audience:'confirmation',action:{type:'agent.approval_decide',reference:approval.id,payloadHash:digest(approval.id+'|'+decision)},presentation:confirm.intent.presentation,origin:confirm.intent.origin};
  // Recheck persisted financial ownership before claiming the operation and consuming proof.
  const latest=await registry();if(paymentRun(latest.runs.find((x:any)=>x.runId===runId)||run,latest))return {success:false,state:'refused',receipt:null,reason:'approval_payment_excluded'};
