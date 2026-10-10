@@ -1360,7 +1360,8 @@ def main() -> int:
         if args.control_history:
             print(json.dumps(claw_live_control.history(sys.modules[__name__], args.control_history), ensure_ascii=False))
             return 0
-        return claw_live_control.stream(sys.modules[__name__], owner=args.owner_json)
+        return claw_live_control.stream(sys.modules[__name__], owner=args.owner_json,
+                                       backlog=args.history if args.owner_json else 0)
     if args.raw:
         return raw_mode()
     if not args.allow_multiple and not acquire_single_instance():

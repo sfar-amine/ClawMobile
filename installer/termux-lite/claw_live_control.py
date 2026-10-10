@@ -93,22 +93,26 @@ def project_owner(live, event, source_id, stamp=None):
 
 
 class Collector:
-    def __init__(self):
+    def __init__(self, projector=None):
         self.rows = []
         self.source = "history"
         self.stamp = None
         self.sequence = 0
+        self.projector = projector or project
 
     def emit(self, event, dedupe_window=0):
         self.sequence += 1
-        row = project(event, f"{self.source}:{self.sequence}", self.stamp)
+        row = self.projector(event, f"{self.source}:{self.sequence}", self.stamp)
         if row:
             self.rows.append(row)
 
 
-def history(live, limit):
-    limit = min(max(int(limit), 1), 100)
-    collector = Collector()
+OWNER_BACKLOG_MAX = 100
+
+
+def history(live, limit, projector=None):
+    limit = min(max(int(limit), 1), OWNER_BACKLOG_MAX)
+    collector = Collector(projector)
     reader = live.OpenClawStream(collector, 0, 0)
     if not reader.connect():
         raise ValueError("activity_source_unavailable")
@@ -152,7 +156,19 @@ class JsonRenderer:
                     self.live.stop_event.set()
 
 
-def stream(live, owner=False):
+def owner_backlog(live, limit):
+    """Recent owner lines from the existing transcript, stamped with their real time
+    (oldest first), so a newly opened view is not empty. Bounded; never fails the stream."""
+    if limit <= 0:
+        return []
+    try:
+        rows = history(live, limit, lambda event, source_id, stamp: project_owner(live, event, source_id, stamp))
+    except Exception:
+        return []
+    return [dict(row, replay=True) for row in reversed(rows)]
+
+
+def stream(live, owner=False, backlog=0):
     live.stop_event.clear()
     renderer = JsonRenderer(live, owner); surfaces = PassiveSurface()
     signal.signal(signal.SIGTERM, lambda *_: live.stop_event.set())
@@ -168,6 +184,9 @@ def stream(live, owner=False):
     # Readiness is a transport event, never presented as a fabricated activity.
     # Serialize it before workers can emit their first event.
     print(json.dumps({"type": "ready", "schemaVersion": 1}), flush=True)
+    if owner:
+        for row in owner_backlog(live, backlog):
+            print(json.dumps(row, ensure_ascii=False), flush=True)
     for thread in threads:
         thread.start()
     try:

@@ -71,5 +71,11 @@ jobs:
 
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
+      - name: Run Control pinned runtime snapshot regression
+        run: node scripts/test-control-runtime-snapshot.cjs
+      - name: Run automation detail and owner actions contract
+        run: node scripts/test-automation-detail.cjs
+      - name: Test laptop owner pairing and biometric scope
+        run: node scripts/test-laptop-access.cjs
       - name: Run read-only notification source contract
         run: node scripts/test-notification-sources.cjs
