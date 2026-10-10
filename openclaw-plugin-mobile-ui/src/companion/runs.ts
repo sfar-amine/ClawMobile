@@ -233,6 +233,20 @@ export async function settleSubmittedRun(
   await saveStoredRun(stored).catch(() => undefined);
 }
 
+/** Retry only a durably proven pre-effect R16 failure; concurrent claimers cannot redispatch. */
+export async function claimFailedApprovalOperation(runId:string,clientRunId:string,identity:string,pendingResult:string):Promise<boolean>{
+  if(!/^approval-operation-[a-f0-9]{64}$/.test(clientRunId))return false;
+  return mutateRegistry(async()=>{
+    const registry=await registryOrEmpty(),row=registry.runs.find(run=>run.runId===runId&&run.clientRunId===clientRunId);
+    if(!row||row.text!==identity||row.executionSource!=="capability_first"||row.decision?.capability!=="agent.approval_decide"||row.sessionId!=="native-owner-actions"||row.state!=="done")return false;
+    let previous:any,next:any;try{previous=JSON.parse(row.result||"");next=JSON.parse(pendingResult);}catch{return false;}
+    if(previous.state!=="failed"||previous.error!=="approval_dispatch_not_started"||previous.receipt?.action!=="agent.approval_decide"||previous.receipt?.state!=="failed"||previous.receipt?.runId!==runId||typeof previous.receipt.operationId!=="string"||"approval-operation-"+createHash("sha256").update(previous.receipt.operationId).digest("hex")!==clientRunId||next.state!=="indeterminate"||next.receipt?.action!=="agent.approval_decide"||next.receipt?.runId!==runId||next.receipt?.targetRunId!==previous.receipt.targetRunId||next.receipt?.operationId!==previous.receipt.operationId||next.receipt?.approvalId!==previous.receipt.approvalId||next.receipt?.decision!==previous.receipt.decision)return false;
+    const claimed={...row,result:pendingResult,updatedAt:Date.now()};
+    await writeCompanionRunRegistry(registry.runs.map(run=>run.runId===runId?claimed:run),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations);
+    submittedRuns.set(runId,claimed);return true;
+  });
+}
+
 export async function markSubmittedRunFailed(runId: string, message: string) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));

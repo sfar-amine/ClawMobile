@@ -1,3 +1,4 @@
+import {capabilityDetail} from "./capabilityControl";
 import {updatesRead} from "./updatesControl";
 import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
 import {withAttachmentReferences} from "./runs";
@@ -21,10 +22,11 @@ import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRunt
 import { submitIntent } from "./intent";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
+import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { createClawLiveToken, clawLivePageHtml } from "./clawLive";
+import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
@@ -306,6 +308,23 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  const agentApprovalMatch=routePath.match(/^\/runs\/([^/]+)\/approval$/);
+  if(agentApprovalMatch){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']||(method!=='GET'&&req.headers['x-clawmobile-owner-flow']!=='v1')){
+      writeJson(res,403,{success:false,state:'refused',receipt:null,error:'native_owner_flow_required'});return;
+    }
+    res.setHeader('Cache-Control','no-store');
+    if(!['GET','POST'].includes(method)){res.setHeader('Allow','GET, POST');writeJson(res,405,{success:false,state:'refused',receipt:null,error:'method_not_allowed'});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(Error(),{statusCode:400});
+      const runId=decodeURIComponent(agentApprovalMatch[1]);
+      const value=method==='GET'?readRunApproval(runId):await decideRunApproval(runId,await readJsonBody(req,2048));
+      writeJson(res,value.state==='refused'?409:value.state==='failed'?503:200,value);
+    }catch(error:any){const code=error instanceof URIError?400:[400,403,404,409].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,error:code===400?'invalid_approval_operation':code===403?'confirmation_scope_mismatch':code===404?'approval_run_not_found':code===409?'confirmation_not_usable':'approval_owner_unavailable'});}
+    return;
+  }
+
   if(routePath==="/agent/config"){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){
       writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;
@@ -513,6 +532,18 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if(routePath.startsWith("/capabilities/")){
+    res.setHeader("Cache-Control","no-store");
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"read_only"});return;}
+    try{
+      if(requestUrl.search||!/^\/capabilities\/[^/]+$/.test(routePath))throw Object.assign(new Error(),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(routePath.split('/')[2]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      const result=await capabilityDetail(id);writeJson(res,result.found?200:404,result);
+    }catch(error:any){writeJson(res,error?.statusCode===400?400:503,{success:false,state:error?.statusCode===400?"refused":"unavailable",receipt:null,error:error?.statusCode===400?"invalid_capability_id":"capability_registry_unavailable"});}
+    return;
+  }
+
   if (method === "GET" && routePath === "/capabilities") {
     writeJson(res, 200, await capabilities({ trusted: isLoopback }));
     return;
@@ -560,16 +591,24 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if (routePath === "/voice/voices") {
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"]) {writeJson(res,403,{success:false,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,error:"method_not_allowed"});return;}
+    if(requestUrl.search){writeJson(res,400,{success:false,error:"unsupported_voice_parameter"});return;}
+    res.setHeader("Cache-Control","no-store");writeJson(res,200,clawLiveVoices());return;
+  }
+
   if (method === "POST" && routePath === "/claw-live/token") {
     res.setHeader("Cache-Control", "no-store");
     try {
       const body = await readJsonBody<any>(req);
       writeJson(res, 200, await createClawLiveToken(undefined, undefined, {
+        voice: validatedClawLiveVoice(body?.voice),
         locale: String(body?.locale || "fr"),
         client: String(body?.client || "browser"),
       }));
     } catch (error: any) {
-      writeJson(res, 502, { success: false, message: String(error?.message || "claw_live_token_failed").slice(0, 500) });
+      writeJson(res, error?.statusCode===400 ? 400 : 502, { success: false, ...(error?.statusCode===400 ? {error:"unknown_voice",message:"unknown_voice"} : {message:String(error?.message || "claw_live_token_failed").slice(0, 500)}) });
     }
     return;
   }
@@ -577,7 +616,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   if (method === "POST" && routePath === "/claw-live/prewarm") {
     const body=await readJsonBody<any>(req);
     try { writeJson(res,200,{success:true,...await clawLiveWarmCore.prewarm(clawLiveWarmMeta(body))}); }
-    catch(error:any){ writeJson(res,502,{success:false,...clawLiveWarmCore.status(),message:String(error?.message||"claw_live_prewarm_failed").slice(0,240)}); }
+    catch(error:any){ writeJson(res,error?.statusCode===400?400:502,{success:false,...clawLiveWarmCore.status(),...(error?.statusCode===400?{error:"unknown_voice",message:"unknown_voice"}:{message:String(error?.message||"claw_live_prewarm_failed").slice(0,240)})}); }
     return;
   }
 
