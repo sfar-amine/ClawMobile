@@ -30,7 +30,10 @@ json.dump({"version":1,"state":state,"target":target,"previous":previous,"detail
 PY
 }
 health(){ for _ in $(seq 1 60); do curl -fsS -m 3 http://127.0.0.1:8765/v1/health >/dev/null 2>&1 && return 0; sleep 2; done; return 1; }
-restart(){ pkill -f 'dist/companion/server.js' 2>/dev/null; sleep 3; pgrep -f 'dist/companion/server.js' >/dev/null || nohup "$ROOT/companion-server.sh" >>"$log" 2>&1 </dev/null & health; }
+# The Companion is started with the lock fd closed: otherwise it inherits it and holds the deploy lock forever.
+restart(){ pkill -f 'dist/companion/server.js' 2>/dev/null; sleep 3
+  pgrep -f 'dist/companion/server.js' >/dev/null || { nohup "$ROOT/companion-server.sh" >>"$log" 2>&1 </dev/null & } 9>&-
+  health; }
 
 # Preflight: never stack a deploy on a heavy job (Gradle, another build) or on a phone short of memory.
 available=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo); # /proc/loadavg is denied to detached processes on Android: read the 1-minute load from uptime.

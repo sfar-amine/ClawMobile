@@ -18,12 +18,15 @@ READS = [
     ("/agent/config", 9.0),
     ("/laptop-access/computers", 6.0),
     ("/security/surfaces", 2.0),
+    ("/voice/voices", 1.0),
+    ("/control/automations?contract=2", 1.0),
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
     ("POST", "/automations/acceptance-probe/run"),
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
+    ("POST", "/runs/acceptance-probe/approval"),
 ]
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY|\+\d{11,}")
 
