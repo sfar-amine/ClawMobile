@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "id": "codex-r20-files-preparation-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Prepare local file-read boundaries while Gateway contracts remain unqualified",
+  "reason": "File27 R20 lot1 only; no fabricated installed owner schemas.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/r20.md",
+    "docs/changes/codex-r20-files-preparation-20261010.md",
+    "docs/changes/codex-r20-files-preparation-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/fileReadBoundary.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-file-read-boundary.cjs"
+  ],
+  "tests": [
+    {
+      "name": "r20-file-boundary",
+      "status": "passed",
+      "evidence": "Local fixtures for traversal/secret/payment exclusions, UTF-8 bounds, redaction expansion, list-only captures, binary magic and size. No Gateway fixtures or physical proof."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r20.md",
+    "docs/changes/codex-r20-files-preparation-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Native facade reuses existing Gateway approval owner; no canonical capability registry change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Revert this isolated lot.",
+  "limitations": [
+    "Draft preparation, no /files endpoints or Gateway adapter yet.",
+    "Installed Gateway file schemas and uncovered fallback whitelist are missing.",
+    "P2-b enriched shared financial guard is mandatory before activation.",
+    "No S24, file access, write, cleanup or physical qualification."
+  ]
+}

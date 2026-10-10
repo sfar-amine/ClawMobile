@@ -98,3 +98,6 @@ jobs:
 
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
+
+      - name: Run file read boundary preparation fixtures
+        run: node scripts/test-file-read-boundary.cjs
