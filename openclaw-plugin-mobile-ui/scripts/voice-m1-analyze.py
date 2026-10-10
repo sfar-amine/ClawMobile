@@ -25,6 +25,39 @@ STAGES = {
     "audiotrack_write_to_present_ms": ("t31", "t32"),
     "barge_detect_to_stop_ms": ("t41", "t43"),
 }
+STARTUP_STAGES = {
+    'prewarm_app_ms': (('app', 't00'), ('app', 't07c')),
+    't00_to_t01_ms': (('app', 't00'), ('companion', 't01')),
+    't01_to_t07_ms': (('companion', 't01'), ('companion', 't07')),
+    't00_to_t07c_ms': (('app', 't00'), ('app', 't07c')),
+}
+
+
+def startup_report(events, drifted, unknown_boundary):
+    sessions = defaultdict(dict)
+    for event in events:
+        if event['sid'] in drifted or event['turn'] != 0:
+            continue
+        key = (event['src'], event['ev'])
+        before = sessions[event['sid']].get(key)
+        if before is None or event['boot_ns'] < before:
+            sessions[event['sid']][key] = event['boot_ns']
+    result = {}
+    for label, (start, end) in STARTUP_STAGES.items():
+        values, missing = [], 0
+        for stamps in sessions.values():
+            if start not in stamps or end not in stamps or stamps[end] < stamps[start]:
+                missing += 1
+            else:
+                values.append((stamps[end] - stamps[start]) / 1_000_000)
+        result[label] = {**summarize(values), 'p95_ms': round(percentile(values, .95), 2) if len(values) >= 100 else None,
+                         'observed_p95_ms': round(percentile(values, .95), 2) if values else None,
+                         'missing_sessions': missing, 'p95_qualified': len(values) >= 100}
+    return {'schema': 'samantha.voice.startup-latency.v1', 'metrics': result,
+            'joinedBy': ['sid', 'src', 'turn=0'], 'clock_drift_excluded_sessions': sorted(drifted),
+            'clock_drift_unknown_boundary_sessions': sorted(unknown_boundary),
+            'clock_policy': {'untruncated_drift_us': '>1000 absolute', 'legacy_drift_us': '>=1000 absolute',
+                             'legacy_exact_1000_reason': 'unknown_truncated_boundary'}}
 
 def read_events(paths):
     events = []
@@ -56,6 +89,8 @@ def read_events(paths):
             if "clock_drift_us" in e["x"] and (type(drift) not in {int, float}
                                                    or type(drift) is float and not math.isfinite(drift)):
                 raise ValueError(f"{path}:{lineno}: invalid clock drift metadata")
+            if "clock_drift_truncated" in e["x"] and type(e["x"]["clock_drift_truncated"]) is not bool:
+                raise ValueError(f"{path}:{lineno}: invalid clock drift representation")
             events.append(e)
     return events
 
@@ -82,9 +117,19 @@ def summarize(values):
 
 def analyze(events):
     by_turn = defaultdict(dict)
-    # A close-time drift annotation invalidates all earlier observations of that sid.
-    # Include 1000 us to handle an over-1ms delta truncated to integer microseconds.
-    drifted = {e["sid"] for e in events if abs(e.get("x", {}).get("clock_drift_us", 0)) >= 1000}
+    # V2 explicitly marks the non-truncated representation. Never infer precision from a float or sid.
+    # Legacy integer 1000 us can cover a measured delta above 1ms, so its boundary remains unknown/excluded.
+    drifted, unknown_boundary = set(), set()
+    for event in events:
+        metadata = event.get("x", {})
+        value = abs(metadata.get("clock_drift_us", 0))
+        if metadata.get("clock_drift_truncated") is False:
+            if value > 1000:
+                drifted.add(event["sid"])
+        elif value >= 1000:
+            drifted.add(event["sid"])
+            if value == 1000:
+                unknown_boundary.add(event["sid"])
     for e in events:
         if e["sid"] in drifted:
             continue
@@ -108,7 +153,9 @@ def analyze(events):
         "sessions": len({sid for sid, _ in by_turn}),
         "turns": len(by_turn),
         "clock_drift_excluded_sessions": sorted(drifted),
+        "clock_drift_unknown_boundary_sessions": sorted(unknown_boundary),
         "metrics": {name: {**summarize(durations[name]), "missing_turns": missing[name]} for name in STAGES},
+        "startup": startup_report(events, drifted, unknown_boundary),
         "external_reference_required": {
             "real_speech_end_to_first_audible_ms": "t23_external_to_t32",
             "barge_detect_ms": "t40_external_to_t41",

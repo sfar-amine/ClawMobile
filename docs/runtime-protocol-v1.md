@@ -656,15 +656,29 @@ warnings can be added without changing the shape.
 POST /v1/attachments
 ```
 
-This endpoint is optional but recommended for remote image/file shares.
+The Companion accepts a raw binary body with its allowed `Content-Type`, a required
+`x-clawmobile-attachment-id`, and the native owner header
+`x-clawmobile-owner-flow: v1`. Browser origins and non-loopback callers are
+refused. `POST /v1/attachments/share` accepts
+`{files:[{id,mimeType,base64}]}`; each id is required. Multipart uploads are not
+implemented by this Companion.
 
-Clients may upload files first and then reference the returned attachment in
-`POST /v1/runs`.
+Allowed formats are JPEG, PNG, WebP, GIF, PDF and UTF-8 plain text, validated by
+content. Limits are 10 MiB per file, five files and 25 MiB per share, and 500 MiB
+for the directory. Reusing an id with the same stored hash and MIME returns the
+same receipt; different content returns `attachment_id_collision`. Uploads do
+not create runs or conversation-history entries, and need no operation-id header.
 
-Backends should support `multipart/form-data` for binary uploads. JSON-only
-backends may support base64 payloads for small files, but clients should prefer
-multipart when it is available. Backends should document `maxBytes` in
-`/v1/capabilities` when they enforce a limit.
+Files expire after 30 days unless a run still references them. Lazy purge runs
+on startup and upload; deletion of the last referencing run removes its files.
+If retained files prevent an upload within quota, the response is refused with
+`reason:quota_full`, without eviction. Legacy `.img` files return 404 and are
+left to expire. A missing attachment in `POST /v1/runs` returns 404
+`attachment_not_found` before creating a run.
+
+Clients upload first, then include the returned references in `POST /v1/runs`.
+Non-image downloads use `Content-Disposition: attachment`; every download uses
+`X-Content-Type-Options: nosniff`. No file content or name is logged.
 
 Attachment object:
 
