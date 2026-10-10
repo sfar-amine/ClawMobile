@@ -22,7 +22,7 @@ async function jobById(id:string){
 }
 export function protectedJob(job:any){
  // No scheduler action may bypass the existing financial/human boundary.
- return /payment|paiement|bank|bancair|biometr|3.?d.?secure|confirmation|clic.?to.?pay|topnet|maxit|termux[-_ ]notification|wallet|flouci|\botp\b|virement|transaction/i.test(JSON.stringify(job));
+ return /payment|paiement|bank|bancair|biometr|3.?d.?secure|confirmation|clic.?to.?pay|topnet|maxit|termux[-_ ]notification|wallet|flouci|\botp\b|virement|transaction|carte|card|top.?up|recharge|d17|achat|purchase|facture|invoice/i.test(JSON.stringify(job));
 }
 export async function automationDetail(id:string){
  const job=await jobById(id);

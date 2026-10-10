@@ -39,7 +39,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   const afterRetry=await fs.readFile(ledger,'utf8');
   const missing=await request('/v1/automations/later/run','POST',{operationId:'retry-later'},owner);assert.equal(missing.body.state,'not_found');assert.equal(missing.body.error,'automation_not_found');assert.equal(await fs.readFile(ledger,'utf8'),afterRetry);
   jobs.push({id:'later',name:'Reminder',enabled:true});assert.equal((await api.changeAutomation('later','run',{operationId:'retry-later'})).state,'accepted');effects--;
-  for(const word of ['topnet','maxit','clictopay','termux-notification']){
+  for(const word of ['topnet','maxit','clictopay','termux-notification','recharge-carte-mobile','topup-ooredoo','facture-d17']){
    const protectedJob={id:word,name:word,enabled:true};jobs.push(protectedJob);
    assert.equal(automationNotificationProjection({items:[{kind:'scheduled',automationId:word}]},jobs).items[0].reason,'protected_automation');
    const snapshot=await fs.readFile(ledger,'utf8');assert.equal((await api.changeAutomation(word,'run',{operationId:'guard-'+word})).state,'blocked');assert.equal(await fs.readFile(ledger,'utf8'),snapshot);
