@@ -99,6 +99,26 @@ jobs:
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
 
+      - name: Preserve specialized rules in bounded voice bootstrap
+        run: node scripts/test-voice-operating-rules.cjs
+
+      - name: Run conversation metadata owner contract
+        run: |
+          node scripts/test-conversation-metadata.cjs
+          node scripts/test-conversation-thinking.cjs
+          node scripts/test-conversation-thinking-fixtures.cjs
+          node scripts/test-conversation-context.cjs
+          node scripts/test-conversation-context-race.cjs
+          node scripts/test-conversation-context-coverage.cjs
+          node scripts/test-conversation-owner-cache.cjs
+          node scripts/test-model-owner.cjs
+          python3 scripts/test-conversation-acceptance.py
+
+      - name: Canonical request conversation origin contracts
+        run: |
+          node scripts/test-conversation-origin.cjs
+          python3 ../installer/termux-lite/test-context-session-origin.py
+
       - name: Run WhatsApp allowlist owner and HTTP contracts
         run: |
           python3 ../installer/termux-lite/test-people-trusted.py
@@ -126,6 +146,9 @@ jobs:
           node scripts/test-skill-learning-guard.cjs
           python3 ../installer/termux-lite/test-skill-learning-acceptance.py
 
+      - name: Run usage and shared provider read contracts
+        run: node scripts/test-usage-providers.cjs
+
       - name: Run memory control and atomic export import contracts
         run: |
           node scripts/test-memory-control.cjs
@@ -135,3 +158,8 @@ jobs:
 
       - name: Check Context Guardian SQLite read-only owner
         run: python3 ../installer/termux-lite/test-context-guardian-sqlite.py
+      - name: MCP context scopes and admitted client provenance
+        run: |
+          node scripts/test-mcp-context-provenance.cjs
+          npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
+          node ../cloud/voice-relay/test-mcp.mjs

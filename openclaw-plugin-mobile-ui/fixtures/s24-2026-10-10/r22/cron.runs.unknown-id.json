@@ -1,0 +1,28 @@
+{
+ "_capture": {
+  "method": "cron.runs",
+  "params": {
+   "id": "00000000-0000-4000-8000-000000000000",
+   "limit": 20
+  },
+  "latencyMs": 3832,
+  "capturedAt": "2026-10-10T18:19:51+00:00",
+  "exitCode": 1,
+  "via": "timeout 60 nice openclaw gateway call <method> --params <json> --json",
+  "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+  "sanitized": true
+ },
+ "response": {
+  "ok": false,
+  "error": {
+   "type": "gateway_request_error",
+   "code": "INVALID_REQUEST",
+   "message": "<texte 248 car.>",
+   "details": {
+    "code": "CRON_JOB_NOT_FOUND",
+    "jobId": "00000000-0000-4000-8000-000000000000"
+   },
+   "retryable": false
+  }
+ }
+}

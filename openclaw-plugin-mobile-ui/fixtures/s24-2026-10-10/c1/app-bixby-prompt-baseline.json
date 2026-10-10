@@ -1,0 +1,395 @@
+{
+ "_capture": {
+  "method": "sqlite",
+  "source": "~/.openclaw/agents/main/agent/openclaw-agent.sqlite session_nodes.entry_json -> $.systemPromptReport (mode=ro)",
+  "capturedAt": "2026-10-10T18:24:10+00:00",
+  "sanitized": true,
+  "note": "Mesure AVANT C1 (C1 non déployé sur le S24) : tailles et hash seulement, aucun contenu SOUL/USER ni transcript. Aucun tour réel lancé."
+ },
+ "sessions": [
+  {
+   "surface": "app",
+   "session_key": "agent:main:companion-chat-decision-v2-live-5a66bfd3a1",
+   "updated_at": 1791648947221,
+   "generatedAt": 1791648907571,
+   "model": "gpt-5.6-luna",
+   "provider": "openai",
+   "systemPrompt": {
+    "chars": 38247,
+    "projectContextChars": 0,
+    "nonProjectContextChars": 38247,
+    "hash": "d9dd1e9284c391ff9de88e5308a73deaa91fe0e25300f93f2a64c644c5465d56"
+   },
+   "bootstrapMaxChars": 8000,
+   "bootstrapTotalMaxChars": 14000,
+   "bootstrapTruncation": {
+    "warningMode": "always",
+    "warningShown": false,
+    "truncatedFiles": 0,
+    "nearLimitFiles": 0,
+    "totalNearLimit": false
+   },
+   "injectedWorkspaceFiles": 0,
+   "skills": {
+    "promptChars": 9469,
+    "entries": 29
+   },
+   "tools": {
+    "listChars": 0,
+    "schemaChars": 6395,
+    "entries": 12
+   },
+   "currentTurn": {
+    "promptChars": 84,
+    "runtimeContextChars": 163,
+    "modelOnlyPromptChars": 62
+   },
+   "tokens": {
+    "inputTokens": 24537,
+    "outputTokens": 347,
+    "totalTokens": 22448,
+    "cacheRead": 101888,
+    "cacheWrite": 0,
+    "contextTokens": null,
+    "totalTokensFresh": true
+   },
+   "runtimeMs": 58666
+  },
+  {
+   "surface": "app",
+   "session_key": "agent:main:companion-chat-samantha-intent-clarify-live-20261008",
+   "updated_at": 1791498591841,
+   "generatedAt": 1791491151711,
+   "model": "gemini-3.5-flash-lite",
+   "provider": "google",
+   "systemPrompt": {
+    "chars": 35474,
+    "projectContextChars": 0,
+    "nonProjectContextChars": 35474,
+    "hash": "cd49b4354df751ce47050bbceb47dbb84a865fb79af3aafab45f92c940a9fe0d"
+   },
+   "bootstrapMaxChars": 8000,
+   "bootstrapTotalMaxChars": 14000,
+   "bootstrapTruncation": {
+    "warningMode": "always",
+    "warningShown": false,
+    "truncatedFiles": 0,
+    "nearLimitFiles": 0,
+    "totalNearLimit": false
+   },
+   "injectedWorkspaceFiles": 0,
+   "skills": {
+    "promptChars": 9469,
+    "entries": 29
+   },
+   "tools": {
+    "listChars": 0,
+    "schemaChars": 5986,
+    "entries": 12
+   },
+   "currentTurn": {
+    "promptChars": 78,
+    "runtimeContextChars": 163,
+    "modelOnlyPromptChars": 62
+   },
+   "tokens": {
+    "inputTokens": 38567,
+    "outputTokens": 134,
+    "totalTokens": 13036,
+    "cacheRead": 10143,
+    "cacheWrite": 0,
+    "contextTokens": null,
+    "totalTokensFresh": true
+   },
+   "runtimeMs": 161839
+  },
+  {
+   "surface": "app",
+   "session_key": "agent:main:companion-chat-session-1429e381",
+   "updated_at": 1791483167232,
+   "generatedAt": 1791450193408,
+   "model": "gemini-3.5-flash-lite",
+   "provider": "google",
+   "systemPrompt": {
+    "chars": 35453,
+    "projectContextChars": 0,
+    "nonProjectContextChars": 35453,
+    "hash": "5b263b965e14592e0cd188107057c3b7f47627377288f22ef5df70f6327c214e"
+   },
+   "bootstrapMaxChars": 8000,
+   "bootstrapTotalMaxChars": 14000,
+   "bootstrapTruncation": {
+    "warningMode": "always",
+    "warningShown": false,
+    "truncatedFiles": 0,
+    "nearLimitFiles": 0,
+    "totalNearLimit": false
+   },
+   "injectedWorkspaceFiles": 0,
+   "skills": {
+    "promptChars": 9469,
+    "entries": 29
+   },
+   "tools": {
+    "listChars": 0,
+    "schemaChars": 5986,
+    "entries": 12
+   },
+   "currentTurn": {
+    "promptChars": 18,
+    "runtimeContextChars": 163,
+    "modelOnlyPromptChars": 0
+   },
+   "tokens": {
+    "inputTokens": 22348,
+    "outputTokens": 85,
+    "totalTokens": 22348,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "contextTokens": 1048576,
+    "totalTokensFresh": true
+   },
+   "runtimeMs": 44480
+  },
+  {
+   "surface": "app",
+   "session_key": "agent:main:companion-chat-submit-reconcile-canary-20261008",
+   "updated_at": 1791483042061,
+   "generatedAt": 1791483025449,
+   "model": "gemini-3.5-flash-lite",
+   "provider": "google",
+   "systemPrompt": {
+    "chars": 35469,
+    "projectContextChars": 0,
+    "nonProjectContextChars": 35469,
+    "hash": "6247c356c9afbff92e1b5f20bf3b304e9080bde14de97338025e73f68a5d0c58"
+   },
+   "bootstrapMaxChars": 8000,
+   "bootstrapTotalMaxChars": 14000,
+   "bootstrapTruncation": {
+    "warningMode": "always",
+    "warningShown": false,
+    "truncatedFiles": 0,
+    "nearLimitFiles": 0,
+    "totalNearLimit": false
+   },
+   "injectedWorkspaceFiles": 0,
+   "skills": {
+    "promptChars": 9469,
+    "entries": 29
+   },
+   "tools": {
+    "listChars": 0,
+    "schemaChars": 5986,
+    "entries": 12
+   },
+   "currentTurn": {
+    "promptChars": 143,
+    "runtimeContextChars": 163,
+    "modelOnlyPromptChars": 62
+   },
+   "tokens": {
+    "inputTokens": 11427,
+    "outputTokens": 10,
+    "totalTokens": 11427,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "contextTokens": null,
+    "totalTokensFresh": true
+   },
+   "runtimeMs": 149600
+  },
+  {
+   "surface": "bixby",
+   "session_key": "agent:main:companion-chat-bixby-voice-conv-93c9d4382035e3a5f2dd1f4b",
+   "updated_at": 1790960901277,
+   "generatedAt": 1790960873166,
+   "model": "gpt-5.6-sol",
+   "provider": "openai",
+   "systemPrompt": {
+    "chars": 38233,
+    "projectContextChars": 0,
+    "nonProjectContextChars": 38233,
+    "hash": "a319ee2d168a40d13f26727baa5daf1a7e47495ef9e6c907f18de728aa51bd19"
+   },
+   "bootstrapMaxChars": 8000,
+   "bootstrapTotalMaxChars": 14000,
+   "bootstrapTruncation": {
+    "warningMode": "always",
+    "warningShown": false,
+    "truncatedFiles": 0,
+    "nearLimitFiles": 0,
+    "totalNearLimit": false
+   },
+   "injectedWorkspaceFiles": 0,
+   "skills": {
+    "promptChars": 9068,
+    "entries": 28
+   },
+   "tools": {
+    "listChars": 0,
+    "schemaChars": 6395,
+    "entries": 12
+   },
+   "currentTurn": {
+    "promptChars": 18,
+    "runtimeContextChars": 163,
+    "modelOnlyPromptChars": 0
+   },
+   "tokens": {
+    "inputTokens": 12037,
+    "outputTokens": 210,
+    "totalTokens": 11465,
+    "cacheRead": 42496,
+    "cacheWrite": 0,
+    "contextTokens": 272000,
+    "totalTokensFresh": true
+   },
+   "runtimeMs": 30201
+  },
+  {
+   "surface": "bixby",
+   "session_key": "agent:main:companion-chat-bixby-voice-conv-f701adb497ec9be5e50d5aad",
+   "updated_at": 1790960726744,
+   "generatedAt": 1790960681442,
+   "model": "gpt-5.6-sol",
+   "provider": "openai",
+   "systemPrompt": {
+    "chars": 38233,
+    "projectContextChars": 0,
+    "nonProjectContextChars": 38233,
+    "hash": "2d1a2f8c4283a81ebeffbd408d0b38e96d63ce423a3ee620268bbb818d3add0d"
+   },
+   "bootstrapMaxChars": 8000,
+   "bootstrapTotalMaxChars": 14000,
+   "bootstrapTruncation": {
+    "warningMode": "always",
+    "warningShown": false,
+    "truncatedFiles": 0,
+    "nearLimitFiles": 0,
+    "totalNearLimit": false
+   },
+   "injectedWorkspaceFiles": 0,
+   "skills": {
+    "promptChars": 9068,
+    "entries": 28
+   },
+   "tools": {
+    "listChars": 0,
+    "schemaChars": 6395,
+    "entries": 12
+   },
+   "currentTurn": {
+    "promptChars": 18,
+    "runtimeContextChars": 163,
+    "modelOnlyPromptChars": 0
+   },
+   "tokens": {
+    "inputTokens": 11925,
+    "outputTokens": 283,
+    "totalTokens": 11311,
+    "cacheRead": 42752,
+    "cacheWrite": 0,
+    "contextTokens": 272000,
+    "totalTokensFresh": true
+   },
+   "runtimeMs": 47907
+  },
+  {
+   "surface": "bixby",
+   "session_key": "agent:main:companion-chat-bixby-voice-conv-cd4995cfd4d143d602f73a6e",
+   "updated_at": 1790960600887,
+   "generatedAt": 1790960592846,
+   "model": "gpt-5.6-sol",
+   "provider": "openai",
+   "systemPrompt": {
+    "chars": 38233,
+    "projectContextChars": 0,
+    "nonProjectContextChars": 38233,
+    "hash": "8fd6dbf48bd9efa07c51171434236ace358fa3e4e8d661ddeb181b348251bf4c"
+   },
+   "bootstrapMaxChars": 8000,
+   "bootstrapTotalMaxChars": 14000,
+   "bootstrapTruncation": {
+    "warningMode": "always",
+    "warningShown": false,
+    "truncatedFiles": 0,
+    "nearLimitFiles": 0,
+    "totalNearLimit": false
+   },
+   "injectedWorkspaceFiles": 0,
+   "skills": {
+    "promptChars": 9068,
+    "entries": 28
+   },
+   "tools": {
+    "listChars": 0,
+    "schemaChars": 6395,
+    "entries": 12
+   },
+   "currentTurn": {
+    "promptChars": 16,
+    "runtimeContextChars": 163,
+    "modelOnlyPromptChars": 0
+   },
+   "tokens": {
+    "inputTokens": 11163,
+    "outputTokens": 125,
+    "totalTokens": 10963,
+    "cacheRead": 10112,
+    "cacheWrite": 0,
+    "contextTokens": 272000,
+    "totalTokensFresh": true
+   },
+   "runtimeMs": 11178
+  },
+  {
+   "surface": "bixby",
+   "session_key": "agent:main:companion-chat-bixby-voice-conv-f5bcf15cacce1b7d8edc4b7e",
+   "updated_at": 1790882063514,
+   "generatedAt": 1790882037671,
+   "model": "gpt-5.6-sol",
+   "provider": "openai",
+   "systemPrompt": {
+    "chars": 32573,
+    "projectContextChars": 0,
+    "nonProjectContextChars": 32573,
+    "hash": "d331e29e89d6a89070de08fbb25ce3bcc280ff912dc60b133a54866786af4500"
+   },
+   "bootstrapMaxChars": 8000,
+   "bootstrapTotalMaxChars": 14000,
+   "bootstrapTruncation": {
+    "warningMode": "always",
+    "warningShown": false,
+    "truncatedFiles": 0,
+    "nearLimitFiles": 0,
+    "totalNearLimit": false
+   },
+   "injectedWorkspaceFiles": 0,
+   "skills": {
+    "promptChars": 9068,
+    "entries": 28
+   },
+   "tools": {
+    "listChars": 0,
+    "schemaChars": 6395,
+    "entries": 12
+   },
+   "currentTurn": {
+    "promptChars": 56,
+    "runtimeContextChars": 163,
+    "modelOnlyPromptChars": 0
+   },
+   "tokens": {
+    "inputTokens": 11961,
+    "outputTokens": 313,
+    "totalTokens": 11454,
+    "cacheRead": 40704,
+    "cacheWrite": 0,
+    "contextTokens": 272000,
+    "totalTokensFresh": true
+   },
+   "runtimeMs": 28435
+  }
+ ]
+}

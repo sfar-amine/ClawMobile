@@ -1,0 +1,69 @@
+{
+ "_capture": {
+  "method": "lecture statique (grep) des tests appelés par skill_intelligence/repair_profiles.json, workspace/ui-playbooks @ 51ec414345cbc7c3b1be920a54ad4e9b5574ec7c",
+  "capturedAt": "2026-10-10T18:37:01+00:00"
+ },
+ "monitors": [
+  {
+   "profile": "skill-intelligence-engine",
+   "monitor": "python3 -m unittest discover -s tests -p test_skill_intelligence.py",
+   "runtimeRefs": 0,
+   "verdict": "pur (statique)"
+  },
+  {
+   "profile": "skill-registry-schema",
+   "monitor": "unittest test_profile_probes.py -k RegistryProbe",
+   "runtimeRefs": 0,
+   "verdict": "pur (statique)"
+  },
+  {
+   "profile": "retrieval-cache",
+   "monitor": "unittest test_profile_probes.py -k CacheProbe",
+   "runtimeRefs": 0,
+   "verdict": "pur (statique)"
+  },
+  {
+   "profile": "retrieval-observability",
+   "monitor": "unittest test_profile_probes.py -k ObservabilityProbe",
+   "runtimeRefs": 0,
+   "verdict": "pur (statique)"
+  },
+  {
+   "profile": "improvement-pipeline",
+   "monitor": "unittest tests.test_improvement_loop",
+   "runtimeRefs": 0,
+   "verdict": "pur (statique)"
+  },
+  {
+   "profile": "capability-graph-runtime",
+   "monitor": "unittest tests.test_capability_graph",
+   "runtimeRefs": 21,
+   "verdict": "NON prouvé pur : 21 références HOME/.openclaw/subprocess/loopback"
+  },
+  {
+   "profile": "delivery-publication-runtime-evidence",
+   "monitor": "unittest tests.test_delivery_publication",
+   "runtimeRefs": 0,
+   "verdict": "pur (statique)"
+  },
+  {
+   "profile": "task-status-reconciliation",
+   "monitor": "unittest tests.test_task_status",
+   "runtimeRefs": 4,
+   "verdict": "NON prouvé pur : 4 références runtime"
+  },
+  {
+   "profile": "engineering-maintenance-control-plane",
+   "monitor": "unittest tests.test_closed_loop_autonomy",
+   "runtimeRefs": 0,
+   "verdict": "pur (statique)"
+  },
+  {
+   "profile": "reporting-incident-source",
+   "monitor": "python3 -m reporting.immune_sources --probe",
+   "runtimeRefs": null,
+   "verdict": "sonde runtime, jamais réutilisable"
+  }
+ ],
+ "method": "runtimeRefs = nombre de lignes correspondant à Path.home()|expanduser|.openclaw|OPENCLAW_|subprocess|urlopen|127.0.0.1 ; indicatif, pas une preuve d'absence d'effet"
+}

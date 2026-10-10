@@ -1,0 +1,57 @@
+{
+  "_capture": {
+    "method": "claw_context",
+    "capturedAt": "2026-10-10",
+    "source": "Admitted codex-cloud wave2 context, sanitized canonical metadata only"
+  },
+  "response": {
+    "_claw_access": {
+      "client_id": "codex-cloud",
+      "profile": "chat-owner",
+      "owner": true,
+      "read_only": false
+    },
+    "surface": "chat",
+    "manifest": {
+      "version": 1,
+      "modules": {
+        "engineering": {
+          "description": "Développement, modification durable, incident, déploiement, mutation temporaire.",
+          "pattern": "engineer|develop|impl[eé]ment|corrig|incident|audit|bench|d[eé]ploi|install|worktree|git|code|mutation|companion|codex|\\bpr\\b|programme|d[eé]ploy|fusion|app(lication)? samantha|samantha\\.app|nouvel(le)? (écran|ecran|route|capabilit)|runtime",
+          "path": "context/rules/engineering.md"
+        },
+        "memory": {
+          "description": "Mémoire, reprise, continuité, curation et Voice recovery.",
+          "pattern": "m[eé]moir|memory|dream|context|continuit|repris|voice|vocal|voix",
+          "path": "context/rules/memory.md"
+        },
+        "routes": {
+          "description": "Exécution de workflows, playbooks, choix et évolution de routes.",
+          "pattern": "route|routage|capabilit|playbook|workflow|pulse|max.?it|solde|endpoint|learning",
+          "path": "context/rules/routes.md"
+        },
+        "channels": {
+          "description": "Contacts, messagerie, inbox propriétaire et WhatsApp.",
+          "pattern": "whats.?app|contact|message|inbox|courriel|email|mail|groupe",
+          "path": "context/rules/channels.md"
+        },
+        "mobile": {
+          "description": "Actions Android, outils UI, ADB et application mobile.",
+          "pattern": "android|adb|s24|mobile|[eé]cran|bixby|gemini|interface",
+          "path": "context/rules/mobile.md"
+        },
+        "reporting": {
+          "description": "Mail quotidien, bilan et reporting opérationnel.",
+          "pattern": "bilan|report|mail quotidien|rapport|immune",
+          "path": "context/rules/reporting.md"
+        },
+        "workspace": {
+          "description": "Maintenance du workspace, heartbeats et groupes natifs.",
+          "pattern": "workspace|heartbeat|groupe|premier d[eé]marrage",
+          "path": "context/rules/workspace.md"
+        }
+      }
+    },
+    "manifestSha256": "ae42a9d21f21ce2c8a3f271356a235175cfd0677d7e5e812e0cb61d2f8531cfd"
+  }
+}
