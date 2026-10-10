@@ -535,9 +535,35 @@ class Contacts:
                 for row in connection.execute('SELECT phones.e164, people.person_id, people.display_name FROM phones JOIN people USING(person_id) WHERE people.active=1'):
                     if row['e164'] and E164.fullmatch(row['e164']): people.setdefault(row['e164'], {'personId':row['person_id'],'name':row['display_name']})
                 connection.close()
-            # conversations.updated_at/interactions include outgoing activity.
-            # No incoming-message timestamp schema is attested yet (P0-2).
-            # Unknown last received activity remains null, never guessed.
+            # PR48 S24 schema: WhatsApp provider timestamp, never conversation
+            # updated_at or Gateway persistence time. One read for the page.
+            if self.people.SESSION_DB.exists():
+                with sqlite3.connect(f'file:{self.people.SESSION_DB}?mode=ro',uri=True) as sessions:
+                    deadline=time.monotonic()+2
+                    sessions.set_progress_handler(lambda: int(time.monotonic()>deadline),1000)
+                    records=sessions.execute("""
+                      SELECT sw.session_key,
+                        MAX(CASE WHEN json_valid(te.event_json)
+                          AND json_extract(te.event_json,'$.type')='message'
+                          AND json_extract(te.event_json,'$.message.role')='user'
+                          AND json_extract(te.event_json,'$.message.__openclaw.transport.channel')='whatsapp'
+                          AND json_type(te.event_json,'$.message.timestamp') IN ('integer','real')
+                          THEN json_extract(te.event_json,'$.message.timestamp') END) AS inbound_ms,
+                        (SELECT newest.created_at FROM transcript_events newest WHERE newest.session_id=sw.session_id ORDER BY newest.seq DESC LIMIT 1) AS latest_at,
+                        (SELECT newest.event_json IS NULL AND newest.event_zstd IS NOT NULL FROM transcript_events newest WHERE newest.session_id=sw.session_id ORDER BY newest.seq DESC LIMIT 1) AS archived
+                      FROM session_windows sw JOIN transcript_events te USING(session_id)
+                      WHERE sw.channel='whatsapp' AND sw.chat_type='direct'
+                        AND sw.session_key LIKE 'agent:main:whatsapp:direct:%'
+                      GROUP BY sw.session_id,sw.session_key
+                    """)
+                    for key,inbound,latest,archived in records:
+                        number=key.removeprefix('agent:main:whatsapp:direct:')
+                        if not E164.fullmatch(number): continue
+                        current=activity.setdefault(number,{'timestamp':None,'latest':-1,'reason':None})
+                        if isinstance(inbound,(int,float)) and inbound>0:
+                            current['timestamp']=max(current['timestamp'] or 0,inbound)
+                        if isinstance(latest,(int,float)) and latest>=current['latest']:
+                            current['latest']=latest;current['reason']='archived_history' if archived else None
             return people, activity
         except sqlite3.Error: fail('contacts_unavailable', 503)
     def path(self, number): return self.people.CONTACTS/('wa_'+number[1:]+'.md')
@@ -643,7 +669,8 @@ class Contacts:
             out.append({'contactId':contact_id(number),'e164':number,'name':directory.get(number,{}).get('name') or None,'owner':number in owners,
                         'scope':metadata['scope'],'scopeText':metadata['scopeText'],'state':state,
                         'expiresAt':metadata['expiresAt'],'addedAt':metadata['addedAt'],'personId':metadata['personId'],
-                        'lastActivityAt':utc(activity[number]/1000) if activity.get(number) else None})
+                        'lastActivityAt':utc(activity[number]['timestamp']/1000) if activity.get(number,{}).get('timestamp') and not activity[number]['reason'] else None,
+                        **({'reason':'archived_history'} if activity.get(number,{}).get('reason')=='archived_history' else {})})
         return out
     def find(self, identity):
         if not isinstance(identity,str) or not CID.fullmatch(identity): fail('invalid_contact_id')

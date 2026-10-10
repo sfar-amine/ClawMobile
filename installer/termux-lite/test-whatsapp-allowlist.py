@@ -190,8 +190,42 @@ class AllowlistTests(unittest.TestCase):
         body=self.body('expiry',contactId=m.contact_id(OWNER),durationDays=None)
         self.assertEqual(self.service.call('expiry',body)['state'],'updated')
         # A real session row does not require an Android directory database.
-        m.DB.unlink();c=sqlite3.connect(m.SESSION_DB);c.execute('CREATE TABLE conversations(peer_id,updated_at,channel,kind)');c.execute('INSERT INTO conversations VALUES(?,?,?,?)',(OWNER,self.now*1000,'whatsapp','direct'));c.commit();c.close()
+        m.DB.unlink();self.inbound_database([])
         self.assertIsNone(self.service.find(m.contact_id(OWNER))['lastActivityAt'])
+
+    def inbound_database(self, samples):
+        fixture=json.loads((MODULE.parents[2]/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r17/inbound-schema.json').read_text())
+        c=sqlite3.connect(m.SESSION_DB)
+        for table in ('session_windows','transcript_events'):
+            columns=fixture['tables'][table]['columns']
+            c.execute('CREATE TABLE '+table+' ('+','.join(column['name']+' '+column['type'] for column in columns)+')')
+        seen=set()
+        for sample in samples:
+            for table in ('session_windows','transcript_events'):
+                row=sample[table].copy()
+                if table=='session_windows':
+                    if row['session_id'] in seen: continue
+                    seen.add(row['session_id'])
+                if table=='transcript_events': row['event_json']=json.dumps(row['event_json'])
+                c.execute('INSERT INTO '+table+' ('+','.join(row)+') VALUES ('+','.join('?' for _ in row)+')',list(row.values()))
+        c.commit();c.close()
+        return fixture
+    def test_captured_inbound_provider_timestamp_filters_and_archived(self):
+        fixture=json.loads((MODULE.parents[2]/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r17/inbound-schema.json').read_text())
+        samples=copy.deepcopy(fixture['sampleRows'])
+        # Reuse the captured rows/columns; only contact identity is generated.
+        for sample in samples: sample['session_windows']['session_key']='agent:main:whatsapp:direct:'+OWNER
+        self.inbound_database(samples)
+        expected=max(sample['transcript_events']['event_json']['message']['timestamp'] for sample in samples)
+        row=self.service.find(m.contact_id(OWNER));self.assertEqual(row['lastActivityAt'],m.utc(expected/1000));self.assertNotIn('reason',row)
+        c=sqlite3.connect(m.SESSION_DB);session=samples[0]['session_windows']['session_id']
+        # Newer assistant/heartbeat/other-channel timestamps are not received messages.
+        for seq,message in [(100,{'role':'assistant','timestamp':expected+100000,'__openclaw':{'transport':{'channel':'whatsapp'}}}),(101,{'role':'user','timestamp':expected+200000}),(102,{'role':'user','timestamp':expected+300000,'__openclaw':{'transport':{'channel':'slack'}}})]:
+            c.execute('INSERT INTO transcript_events(session_id,seq,event_json,created_at) VALUES(?,?,?,?)',(session,seq,json.dumps({'type':'message','message':message}),expected+seq))
+        c.commit();c.close();self.assertEqual(self.service.find(m.contact_id(OWNER))['lastActivityAt'],m.utc(expected/1000))
+        c=sqlite3.connect(m.SESSION_DB);c.execute('INSERT INTO transcript_events(session_id,seq,event_json,event_zstd,created_at) VALUES(?,?,NULL,?,?)',(session,103,b'compressed-fixture',expected+400000));c.commit();c.close()
+        row=self.service.find(m.contact_id(OWNER));self.assertIsNone(row['lastActivityAt']);self.assertEqual(row['reason'],'archived_history')
+        self.assertFalse(m.DB.exists());self.assertFalse(m.CONTACTS.exists())
 
     def test_prepared_consume_failure_same_body_retry_and_unique_confirmation(self):
         body=self.body('add',e164=NEW,contactId=m.contact_id(NEW),scope='standard',scopeText=None,durationDays=None,notify=False)
