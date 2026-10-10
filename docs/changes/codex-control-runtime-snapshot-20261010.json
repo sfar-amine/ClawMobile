@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "codex-control-runtime-snapshot-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Prefer pinned runtime playbooks for Control reads",
+  "reason": "Correction demandée par Amine : Contrôle utilisait le workspace mutable.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-control-runtime-snapshot-20261010.json",
+    "docs/changes/codex-control-runtime-snapshot-20261010.md",
+    "docs/work/samantha-runtime/contracts/control-runtime-snapshot.md",
+    "openclaw-plugin-mobile-ui/scripts/test-control-runtime-snapshot.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts"
+  ],
+  "tests": [
+    {
+      "name": "review-17-runtime-root",
+      "status": "passed",
+      "evidence": "All current runtime CI commands passed, including CLAW_UI_PLAYBOOKS_ROOT selection, SAMANTHA_CONTROL_PLAYBOOKS precedence and markerless current fallback."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/control-runtime-snapshot.md",
+    "docs/changes/codex-control-runtime-snapshot-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "Local patch/bundle only; no deployment or S24 receipt claimed."
+  ]
+}
