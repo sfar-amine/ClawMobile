@@ -19,6 +19,11 @@
       "name": "persistent-gateway-owner-preparation",
       "status": "passed",
       "evidence": "Local build and injected owner wrapper test with real captured models payload/2419ms latency, concurrency4, queue32, pre-dispatch fallback only, timeouts and no uncertain replay. Installed handshake unqualified."
+    },
+    {
+      "name": "complete-current-ci-workflow",
+      "status": "passed",
+      "evidence": "All run steps of current ci.yml executed locally after explicit runtime fetch at6b7c68f; CI_LOCAL_OK exit0. Existing steps preserved. Runtime integration and S24 qualification remain blocked."
     }
   ],
   "documentation": [
@@ -48,6 +53,7 @@
   "limitations": [
     "callOpenClawGateway unchanged and wrapper not connected until real owner handshake/config confirmed.",
     "Real before CLI capture available, no real after WS or S24 qualification.",
-    "No push or PR before correction order signal."
+    "Vague2 permits a preparatory draft PR only; runtime wiring and merge remain blocked pending canonical owner captures.",
+    "Safe structured method refusal/CAS and proven pre-effect errors must retain caller semantics before integration; current preparation conservatively classifies SDK rejections as indeterminate."
   ]
 }
