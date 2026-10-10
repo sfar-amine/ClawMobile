@@ -1,0 +1,18 @@
+{
+ "schemaVersion": 2,
+ "sections": {
+  "automations": {
+   "schemaVersion": 2,
+   "resourceKey": "control/v2/automations",
+   "dataRevision": "b9ef7466a02fb7b567750b43a4a21d073ae1d8af11945e6ebdfa53355ae24966",
+   "availability": "unavailable",
+   "freshness": "unknown",
+   "remainingFreshMs": 0,
+   "reason": "<texte 27 car.>"
+  }
+ },
+ "computation": {
+  "deliveryMode": "deferred",
+  "retryAfterMs": 250
+ }
+}

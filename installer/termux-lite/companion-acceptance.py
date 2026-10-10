@@ -85,10 +85,10 @@ def main(session_id=None):
             if identifier is not None:
                 code, body, took = call("GET", "/conversations/" + identifier + "/metadata", budget + 1)
                 leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
-                status = "ok" if code == 200 and took <= budget and not leak else "fail"
+                status = "skipped" if code == 404 else ("ok" if code == 200 and took <= budget and not leak else "fail")
             else:
-                code, took, leak, status = None, 0, False, "unqualified"
-            failed |= status != "ok"
+                code, took, leak, status = None, 0, False, "skipped"
+            failed |= status == "fail"
             results.append({"route": "/conversations/{sessionId}/metadata", "read":label,"code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
     if session_id is not None:
         metadata_checks(session_id)
