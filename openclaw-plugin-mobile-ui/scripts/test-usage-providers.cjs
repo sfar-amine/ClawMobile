@@ -7,7 +7,7 @@ client.callOpenClawGateway=async(method,params,options)=>{
  counts[method]=(counts[method]||0)+1;
  assert.ok(options.hardTimeoutMs<=5500);
  if(method==='usage.status'){await new Promise(r=>setTimeout(r,synthetic?5:3200));if(usageFail)throw Error('fixture failure');return structuredClone(captured);}
- if(method==='usage.cost'){assert.deepEqual(params,{days:30});return {updatedAt:now,days:30,totals:{totalCost:42},daily:[],private:'owner@example.invalid'};}
+ if(method==='usage.cost'){assert.deepEqual(params,{days:30});if(counts[method]===1)await new Promise(r=>setTimeout(r,3200));return {updatedAt:now,days:30,totals:{totalCost:42},daily:[],private:'owner@example.invalid'};}
  if(method==='config.get')return {hash:'a'.repeat(64),config};
  if(method==='models.list')return {models:[{provider:'github-copilot',id:'fixture-model',name:'Fixture model',available:true,reasoning:true,input:['image'],contextTokens:64000},{provider:'openai',id:'fallback',available:true},{provider:'unused',id:'not-configured',available:true}]};
  if(method==='models.authStatus')return {providers:[{provider:'github-copilot',status:'ok'},{provider:'openai',status:'ok'},{provider:'unused',status:'expired'},{provider:'custom',status:'missing'}]};
@@ -29,7 +29,7 @@ const malicious=['owner@example.invalid','api_key=fixture-value','password:fixtu
  assert.equal(usage.projectUsage({providers:[{provider:'fixture',windows:[{usedPercent:100},{}]}]}).providers[0].state,'exhausted');
  const began=performance.now();const results=await Promise.all(Array.from({length:10},()=>usage.readUsage()));assert.equal(counts['usage.status'],1);assert.ok(performance.now()-began>=3150&&performance.now()-began<6000);results[0].providers.length=0;assert.equal(results[1].providers.length,2);synthetic=true;
  assert.equal(counts['usage.cost'],undefined);
- assert.equal((await usage.readUsageCost()).state,'unqualified');assert.equal(counts['usage.cost'],1);
+ const costBegan=performance.now(),usageCount=counts['usage.status'];const costs=await Promise.all(Array.from({length:10},()=>usage.readUsageCost()));assert.ok(costs.every(c=>c.state==='unqualified'));assert.equal(counts['usage.cost'],1);assert.equal(counts['usage.status'],usageCount);assert.ok(performance.now()-costBegan>=3150&&performance.now()-costBegan<6000);
  const shared=await Promise.all(Array.from({length:10},()=>providers.readProviders()));assert.equal(counts['config.get'],1);assert.equal(counts['models.list'],1);assert.equal(counts['models.authStatus'],1);assert.equal(counts['usage.status'],1);
  const active=shared[0].providers.find(p=>p.id==='github-copilot');assert.equal(active.state,'exhausted');assert.equal(active.models[0].inUse,'primary');assert.equal(active.models[0].contextTokens,64000);assert.deepEqual(active.models[0].capabilities,['reasoning','image']);assert.deepEqual(shared[0].providers.find(p=>p.id==='unused').models,[]);assert.deepEqual(shared[0].providers.find(p=>p.id==='custom').models,[]);noLeaks(shared[0]);assert.ok(!shared[0].providers.some(p=>p.id==='samantha-mobile-ui'));
  for(const payload of malicious){const raw=structuredClone(owner.peekModelOwner());raw.catalog.models[0].name=payload;raw.catalog.models[1].id=payload;raw.auth.providers.push({provider:payload,status:'ok'});raw.config.agents.entries.main.model.primary=payload;noLeaks(providers.projectProviders(raw,view));assertions++;}
