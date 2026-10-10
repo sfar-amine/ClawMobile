@@ -46,6 +46,16 @@ const api=require('../dist/companion/openclawAgentClient');
  await assert.rejects(api.callOpenClawGateway('cron.run',{id:'fixture'}, {timeoutMs:1000}),e=>e.code==='gateway_dispatch_indeterminate'&&e.requestSent&&e.message==='gateway_dispatch_indeterminate');
  assert.equal(s.calls,calls+1);assert.equal(s.instances,1);
  api.closeOpenClawGateway();assert.equal(s.stops,1);
+ const cli=path.join(root,'fallback-cli');
+ fs.writeFileSync(cli, '#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify({ok:false,error:{type:"gateway_request_error",code:"INVALID_REQUEST",message:"config changed since last load; re-run config.get and retry",retryable:false}}));process.exit(1);\n');fs.chmodSync(cli,0o700);
+ const child=require('node:child_process').spawnSync(process.execPath,['-e',`
+  const assert=require('node:assert/strict');const api=require(${JSON.stringify(path.resolve(__dirname,'../dist/companion/openclawAgentClient'))});
+  api.callOpenClawGateway('config.patch',{baseHash:'fixture'},{timeoutMs:1000}).then(()=>process.exitCode=1,e=>{
+   assert.equal(e.code,'gateway_config_revision_conflict');assert.equal(e.message,'config baseHash conflict');assert.equal(e.effectNotStarted,true);api.closeOpenClawGateway();
+  }).catch(()=>process.exitCode=1);
+ `],{env:{...process.env,NODE_PATH:'',CLAWMOBILE_OPENCLAW_BIN:cli},encoding:'utf8',timeout:3000});
+ assert.equal(child.status,0,child.stderr);assert.equal(child.stdout,'');
+
  console.log('Captured S24 owner timing: CLI models.list '+fixture._capture.latencyMs+'ms; handshake owner import/connect/health '+handshake._capture.latencyMs+'ms; operations differ, no production wiring comparison claimed.');
  console.log('P0-1 real callOpenClawGateway entrypoint: shared official SDK owner, hello gate, four RPCs, unchanged params/expectFinal, reduced scopes, CAS refusal, no replay, shutdown; SDK boundary synthetic, S24 payload real.');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{api.closeOpenClawGateway();fs.rmSync(root,{recursive:true,force:true});delete globalThis.gatewayEntryFixture;});

@@ -3,10 +3,10 @@
   "id": "codex-p0-1-gateway-preparation-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Wire callOpenClawGateway to one bounded official GatewayClient, preserving pre-dispatch CLI fallback and effect uncertainty",
-  "reason": "Owner authorized wiring; real S24 handshake and canonical SecretRef/auth owners confirmed by fixture PR82 a9f08e5. Physical activation and same-method before/after remain Claude-owned.",
+  "reason": "Raccordement terminé et propriétaires confirmés par capture réelle PR82 a9f08e5. Prêt pour relecture Git ; activation, scopes et recette CAS/avant-après restent à Claude.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/persistentGatewayTransport.ts",
@@ -29,7 +29,7 @@
     {
       "name": "complete-current-ci-workflow",
       "status": "passed",
-      "evidence": "Full current CI_LOCAL_OK on runtime42300b0; latest focused P0-1 suites passed after SecretRef and captured refusal integration. Full CI on latest merged base will be rerun before push."
+      "evidence": "Toutes les étapes du ci.yml de la base b40b867 ont passé localement. Dernière installation voice-relay relancée avec cache npm /tmp après erreur du cache hors workspace, puis test-mcp.mjs passé. Build et trois suites P0-1 repassés après le test du repli CLI JSON CAS."
     }
   ],
   "documentation": [
@@ -38,7 +38,7 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Transport infrastructure preparation introduces no route or agent/voice action; existing capabilities unchanged."
+    "reason": "Infrastructure de transport sans nouvelle route ni action agent/voix ; capabilities existantes inchangées."
   },
   "architecture": {
     "changed": false,

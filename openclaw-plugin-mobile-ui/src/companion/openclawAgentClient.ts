@@ -137,6 +137,17 @@ function runOpenClaw(args: string[], hardTimeoutMs: number): Promise<any> {
       const out = Buffer.concat(stdout).toString("utf8").trim();
       const err = Buffer.concat(stderr).toString("utf8").trim();
       if (code !== 0) {
+        // The official --json CLI error formatter keeps refusal metadata machine-readable.
+        try {
+          const failure = JSON.parse(out);
+          if (failure?.ok === false && failure.error?.type === "gateway_request_error" &&
+            typeof failure.error.code === "string" && typeof failure.error.message === "string") {
+            reject(Object.assign(new Error(failure.error.message), {
+              name: "GatewayClientRequestError", gatewayCode: failure.error.code,
+            }));
+            return;
+          }
+        } catch { /* Unrecognized stderr/stdout is normalized by the transport boundary. */ }
         reject(new Error(err || out || `OpenClaw gateway call exited with code ${code}.`));
         return;
       }
