@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "codex-local-p2-e-companion-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose read-only diagnostic metadata and shareable ZIP export",
+  "reason": "File 18 P2-e read-only lot isolated on runtime 286fdd3.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-local-p2-e-companion-20261010.json",
+    "docs/changes/codex-local-p2-e-companion-20261010.md",
+    "docs/work/samantha-runtime/contracts/p2-e.md",
+    "openclaw-plugin-mobile-ui/scripts/test-diagnostic.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/diagnostic.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "review-17-p2-e-companion",
+      "status": "passed",
+      "evidence": "All runtime CI commands passed. Native fixture and paired canonical Python HTTP exports validated; POST refused, archive digest verified, no conversation/secret and unchanged run history."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p2-e.md",
+    "docs/changes/codex-local-p2-e-companion-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "Local patch/bundle only; no deployment or S24 receipt claimed."
+  ]
+}

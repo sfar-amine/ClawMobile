@@ -77,5 +77,14 @@ jobs:
           node scripts/test-conversation-pages.cjs
           node scripts/test-submit-reconciliation.cjs
           node scripts/test-payment-core.cjs
+      - name: Run Control pinned runtime snapshot regression
+        run: node scripts/test-control-runtime-snapshot.cjs
+      - name: Run automation detail and owner actions contract
+        run: node scripts/test-automation-detail.cjs
+      - name: Test laptop owner pairing and biometric scope
+        run: node scripts/test-laptop-access.cjs
       - name: Run read-only notification source contract
         run: node scripts/test-notification-sources.cjs
+
+      - name: Run read-only diagnostic export contract
+        run: node scripts/test-diagnostic.cjs

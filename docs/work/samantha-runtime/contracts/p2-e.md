@@ -1,0 +1,11 @@
+# P2-e — diagnostic et export en lecture
+
+GET `/v1/control/diagnostic?contract=2` : section Contrôle, composants et journaux disponibles. La santé provient du verdict canonique existant et n'est fraîche que pendant 300 s ; aucune réparation ni probe. Les versions connues sont celles des packages Companion et OpenClaw installés ; absence = null. Les états non prouvés restent unknown.
+
+GET `/v1/control/diagnostic/logs/{agent|installation|engineering}?offset=0&limit=20&revision=<sha256>` : uniquement métadonnées fermées (date, niveau, composant, événement), jamais une ligne brute, un message ou une conversation. Pagination bornée, invalidation de révision, liens symboliques refusés. Le résultat indique l'indisponibilité de la source sans inventer un historique.
+
+GET `/v1/control/diagnostic/export` : `{success:true,state:"ok",receipt:null,artifact}`. L'artefact est une archive ZIP partageable inline en base64, nom fixe `samantha-diagnostic.zip`, MIME, taille et SHA256, maximum 128 Kio. Elle contient la santé, les versions connues, les métadonnées de journaux et les reçus récents non financiers. Chaque reçu est limité à action, état et date ; aucun identifiant caller, résultat, contenu de conversation, numéro, secret, audio ou chemin privé. Android décode l'archive pour la partager. Les sources manquantes sont signalées dans leurs données, sans faux succès de lecture de source.
+
+Les endpoints sont loopback uniquement et refusent Origin, Referer et Sec-Fetch-Site. POST/DELETE renvoient 405 : ce lot est entièrement en lecture et n'utilise pas operationId. Aucun fichier d'export n'est enregistré côté serveur, aucune réservation de run ; l'historique et les propriétaires restent inchangés. La réponse GET est un état courant, pas un reçu d'action durable.
+
+Dépendance canonique : PR playbooks P2-e à fusionner et épingler avant activation Companion. La correction du chemin Contrôle (#18) doit être activée avant la recette, pour lire le snapshot utilisé en production. Tests : archive décodée sans secret ni conversation, reçus financiers exclus, historique inchangé, santé périmée, pagination, symlinks, taille, frontières HTTP et exports simultanés. Claude relit, fusionne et recette ; aucune activation Codex.
