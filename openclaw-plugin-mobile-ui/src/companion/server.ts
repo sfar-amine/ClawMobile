@@ -23,7 +23,7 @@ import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { createClawLiveToken, clawLivePageHtml } from "./clawLive";
+import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
@@ -575,16 +575,24 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if (routePath === "/voice/voices") {
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"]) {writeJson(res,403,{success:false,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,error:"method_not_allowed"});return;}
+    if(requestUrl.search){writeJson(res,400,{success:false,error:"unsupported_voice_parameter"});return;}
+    res.setHeader("Cache-Control","no-store");writeJson(res,200,clawLiveVoices());return;
+  }
+
   if (method === "POST" && routePath === "/claw-live/token") {
     res.setHeader("Cache-Control", "no-store");
     try {
       const body = await readJsonBody<any>(req);
       writeJson(res, 200, await createClawLiveToken(undefined, undefined, {
+        voice: validatedClawLiveVoice(body?.voice),
         locale: String(body?.locale || "fr"),
         client: String(body?.client || "browser"),
       }));
     } catch (error: any) {
-      writeJson(res, 502, { success: false, message: String(error?.message || "claw_live_token_failed").slice(0, 500) });
+      writeJson(res, error?.statusCode===400 ? 400 : 502, { success: false, ...(error?.statusCode===400 ? {error:"unknown_voice",message:"unknown_voice"} : {message:String(error?.message || "claw_live_token_failed").slice(0, 500)}) });
     }
     return;
   }
@@ -592,7 +600,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   if (method === "POST" && routePath === "/claw-live/prewarm") {
     const body=await readJsonBody<any>(req);
     try { writeJson(res,200,{success:true,...await clawLiveWarmCore.prewarm(clawLiveWarmMeta(body))}); }
-    catch(error:any){ writeJson(res,502,{success:false,...clawLiveWarmCore.status(),message:String(error?.message||"claw_live_prewarm_failed").slice(0,240)}); }
+    catch(error:any){ writeJson(res,error?.statusCode===400?400:502,{success:false,...clawLiveWarmCore.status(),...(error?.statusCode===400?{error:"unknown_voice",message:"unknown_voice"}:{message:String(error?.message||"claw_live_prewarm_failed").slice(0,240)})}); }
     return;
   }
 
