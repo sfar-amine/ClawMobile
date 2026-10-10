@@ -1,3 +1,4 @@
+import {automationDetail,changeAutomation} from "./automations";
 import { handleControl } from "./control";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
 import fs from "fs";
@@ -199,6 +200,29 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       success: false,
       message: "This endpoint is restricted to local companion app requests.",
     });
+    return;
+  }
+
+  if (routePath.startsWith("/automations/")) {
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
+        (method !== "GET" && req.headers["x-clawmobile-owner-flow"] !== "v1")) {
+      writeJson(res,403,{success:false,error:"native_owner_flow_required"}); return;
+    }
+    try {
+      const match=/^\/automations\/([^/]+)(?:\/(enable|disable|run))?$/.exec(routePath);
+      if(!match)throw Object.assign(new Error("invalid_automation_route"),{statusCode:404});
+      let id:string;try{id=decodeURIComponent(match[1]);}catch{throw Object.assign(new Error("invalid_automation_id"),{statusCode:400});}
+      res.setHeader("Cache-Control","no-store");
+      if(method==="GET"&&!match[2]){writeJson(res,200,await automationDetail(id));return;}
+      if((method==="POST"&&match[2])||(method==="DELETE"&&!match[2])){
+        const result=await changeAutomation(id,match[2]||"delete",await readJsonBody(req,1024));
+        writeJson(res,result.state==="blocked"?409:200,result);return;
+      }
+      res.setHeader("Allow",match[2]?"POST":"GET, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
+    } catch(error:any) {
+      const code=[400,404,409].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,code,{success:false,error:code===400?"invalid_automation_request":code===404?"automation_not_found":code===409?"operation_conflict":"automation_unavailable"});
+    }
     return;
   }
 
