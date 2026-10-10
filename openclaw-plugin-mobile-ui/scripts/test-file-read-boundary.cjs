@@ -4,6 +4,7 @@ for(const name of ['../notes','notes/../other','/etc/passwd','a\\b','a%2fb','a%2
 assert.equal(api.safeFileName('notes/été.txt'),'notes/été.txt');
 for(const name of ['screenshots/probe.png','ui-dumps/probe.xml']){assert.equal(api.safeFileName(name),name);assert.throws(()=>api.boundedFileContent(name,Buffer.from('hello')),e=>e.statusCode===404);}
 for(const text of ['sk-proj-ABCDEFGHIJKLMNabcdefghijk','github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghi','ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef','Code 123456','AKIAABCDEFGHIJKLMNOP','eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature','private@example.test','token=private-fixture','bank invoice details'])assert.equal(api.boundedFileContent('notes/read.txt',Buffer.from(text)).bytes.toString(),'[masqué]');
+const pem=api.boundedFileContent('notes/read.md',Buffer.from('Notes\n-----BEGIN PRIVATE KEY-----\nQUJDREVG\n-----END PRIVATE KEY-----'));assert.equal(pem.bytes.toString(),'[masqué]');assert.equal(pem.redacted,true);
 const text=api.boundedFileContent('notes/read.txt',Buffer.from('Lecture locale\nBonjour'));assert.equal(text.bytes.toString(),'Lecture locale\nBonjour');assert.equal(text.redacted,false);
 const long=api.boundedFileContent('notes/large.txt',Buffer.from('é'.repeat(200000)));assert.equal(long.bytes.length,api.FILE_TEXT_BYTES);assert.equal(long.truncated,true);
 const split=api.boundedFileContent('notes/large.txt',Buffer.from('a'.repeat(api.FILE_TEXT_BYTES-1)+'é'));assert.equal(split.bytes.length,api.FILE_TEXT_BYTES-1);assert.equal(split.truncated,true);

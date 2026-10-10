@@ -42,6 +42,7 @@ export function boundedFileContent(name:unknown,bytes:Buffer):{contentType:strin
   try{text=new TextDecoder("utf-8",{fatal:true}).decode(bytes.subarray(0,end-trim));end-=trim;break;}catch{}
  }
  if(text===undefined)throw denied();
+ if(/-----BEGIN [A-Z ]*PRIVATE KEY-----/i.test(text))return {contentType:"text/plain; charset=utf-8",bytes:Buffer.from("[masqué]"),truncated:bytes.length>end,redacted:true};
  let redacted=false;
  const output=text.split(/\r?\n/).map(line=>{
   if(sensitiveText.test(line)||protectedJob(line)){redacted=true;return "[masqué]";}
