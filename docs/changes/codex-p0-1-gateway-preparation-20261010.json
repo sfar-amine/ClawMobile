@@ -39,6 +39,11 @@
       "name": "cli-structured-refusal-parity",
       "status": "passed",
       "evidence": "Revue indépendante a reproduit perte du code CRON_JOB_NOT_FOUND via CLI. Corrigé: seuls details.code CRON_JOB_NOT_FOUND/MISSING_SCOPE gardés en interne, même safe projector SDK/CLI. Vrai entrypoint avec CLI temporaire rejoue fixture82 cron.runs.unknown-id, résultat code/message fixe et effectNotStarted, aucun details ou sortie publique. Build, entrypoint, wrapper et file limits passent."
+    },
+    {
+      "name": "deployed-acceptance-source-union",
+      "status": "passed",
+      "evidence": "Base9cdd84f PR84 intégrée par merge normal : recette du checkout et vraie liste /sessions/conversations conservées. 12tests conversation-acceptance et3skill-learning-acceptance plus entrée Gateway passent. CI distante tête précédente6f6c687 success ; aucun changement des fichiers serveur réservés par35."
     }
   ],
   "documentation": [
