@@ -27,7 +27,7 @@
     {
       "name": "telecom display and transport",
       "status": "passed",
-      "evidence": "test-telecom-display.py: 13 cases, published historical real receipt fallback, shape/negative card controls, numeric values unchanged, no JSON prefix, no unlisted fields, closed provenance, deep and wide composed payload bounds (128nodes/8000characters); live eight-card capture pending; actual A8 route differs from selected planned route, invalid actual does not degrade to plan; canonical context_import free-text privacy JWT/OTP/token (before truncation), structured card amount retained"
+      "evidence": "test-telecom-display.py: 13 cases, published historical real receipt fallback, shape/negative card controls, numeric values unchanged, no JSON prefix, no unlisted fields, closed provenance, deep and wide composed payload bounds (128nodes/8000characters); live eight-card capture pending; actual A8 route differs from selected planned route, invalid actual does not degrade to plan; canonical context_import free-text privacy boundary (before truncation), structured card amount retained"
     },
     {
       "name": "registry provenance and realistic retention",
