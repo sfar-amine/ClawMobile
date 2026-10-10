@@ -71,3 +71,5 @@ jobs:
 
       - name: Run automation detail and owner actions contract
         run: node scripts/test-automation-detail.cjs
+      - name: Run read-only notification source contract
+        run: node scripts/test-notification-sources.cjs
