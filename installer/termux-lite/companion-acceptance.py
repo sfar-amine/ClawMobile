@@ -10,6 +10,8 @@ BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Budgets are S24 numbers measured on 10/10 with margin; a cold first call gets one retry.
 READS = [
     ("/health", 2.0),
+    ("/whatsapp/allowlist", 10.0),
+    ("/whatsapp/allowlist/history?limit=50", 10.0),
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
     ("/control/engineering?limit=20", 2.0),
@@ -29,6 +31,22 @@ OWNER_GUARDS = [
     ("POST", "/runs/acceptance-probe/approval"),
 ]
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY|\+\d{11,}")
+
+
+def response_leaks(path, body):
+    text=body.decode("utf-8", "replace")
+    # Only this list route, only items[].e164, and only valid E.164 values.
+    if path == "/whatsapp/allowlist":
+        try:
+            value=json.loads(text)
+            if isinstance(value,dict) and isinstance(value.get("items"),list):
+                for item in value["items"]:
+                    if isinstance(item,dict) and isinstance(item.get("e164"),str) and re.fullmatch(r"\+[1-9][0-9]{7,14}",item["e164"]):
+                        item["e164"]="<permitted-e164>"
+                text=json.dumps(value,ensure_ascii=False)
+        except (ValueError,TypeError):
+            pass
+    return bool(LEAK.search(text))
 
 
 def call(method, path, timeout, headers=None):
@@ -52,7 +70,7 @@ def main():
             ok = code == 200 and took <= budget
             if ok or code == 404 or attempt == 2:
                 break
-        leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
+        leak = response_leaks(path,body) if code == 200 else False
         status = "skipped" if code == 404 else ("ok" if ok and not leak else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})

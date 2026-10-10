@@ -534,13 +534,10 @@ class Contacts:
                 connection.row_factory=sqlite3.Row
                 for row in connection.execute('SELECT phones.e164, people.person_id, people.display_name FROM phones JOIN people USING(person_id) WHERE people.active=1'):
                     if row['e164'] and E164.fullmatch(row['e164']): people.setdefault(row['e164'], {'personId':row['person_id'],'name':row['display_name']})
-                for row in connection.execute('SELECT e164,last_interaction_ms FROM interactions'): activity[row['e164']]=row['last_interaction_ms']
                 connection.close()
-            if self.people.SESSION_DB.exists():
-                connection=sqlite3.connect(f'file:{self.people.SESSION_DB}?mode=ro', uri=True)
-                for number, when in connection.execute("SELECT peer_id,MAX(updated_at) FROM conversations WHERE channel='whatsapp' AND kind='direct' GROUP BY peer_id"):
-                    if E164.fullmatch(number or ''): activity[number]=max(activity.get(number,0),when or 0)
-                connection.close()
+            # conversations.updated_at/interactions include outgoing activity.
+            # No incoming-message timestamp schema is attested yet (P0-2).
+            # Unknown last received activity remains null, never guessed.
             return people, activity
         except sqlite3.Error: fail('contacts_unavailable', 503)
     def path(self, number): return self.people.CONTACTS/('wa_'+number[1:]+'.md')
@@ -571,23 +568,21 @@ class Contacts:
         except (OSError,UnicodeDecodeError): fail('contact_state_invalid',503)
     def note(self, number):
         text=self.context(number)
-        if NOTE not in text: return ''
-        try: value=json.loads(text.split(NOTE+'\n',1)[1].split('\n'+NOTE_END,1)[0]); return safe_text(value,2000)
-        except (ValueError,IndexError): fail('contact_state_invalid',503)
+        if text.startswith(MARKER+'\n'):
+            end=text.find('\n'+END+'\n')
+            if end<0: fail('contact_state_invalid',503)
+            text=text[end+len('\n'+END+'\n'):]
+        return text
     def write_context(self, number, metadata, note=None, archive=False, removed=False, display_name=None):
         old=self.context(number)
         if old.startswith(MARKER+'\n'):
             end=old.find('\n'+END+'\n')
             if end<0: fail('contact_state_invalid',503)
             old=old[end+len('\n'+END+'\n'):]
-        if note is not None or archive:
-            start=old.find(NOTE+'\n'); end=old.find('\n'+NOTE_END,start) if start>=0 else -1
-            if start>=0:
-                if end<0: fail('contact_state_invalid',503)
-                previous=old[start:end+len('\n'+NOTE_END)]
-                old=old[:start]+old[end+len('\n'+NOTE_END):]
-                if archive: old+='\n## Private note archive '+utc(self.clock())+'\n'+previous.replace(NOTE,'<!-- archived-private-note -->').replace(NOTE_END,'<!-- /archived-private-note -->')+'\n'
-            if note is not None: old+='\n'+NOTE+'\n'+json.dumps(note,ensure_ascii=False)+'\n'+NOTE_END+'\n'
+        if archive and old:
+            old='## Private note archive '+utc(self.clock())+'\n'+old
+        elif note is not None:
+            old=note
         if display_name is not None:
             old=re.sub(r'^- Suggested display name: .*\n?', '', old, flags=re.M)
             old+='\n- Suggested display name: '+json.dumps(display_name,ensure_ascii=False)+'\n'
@@ -621,19 +616,19 @@ class Contacts:
                 text=prompt[len(prefix+name+separator):].split(ending,1)[0]
                 if text and len(text)<=500 and not any(ord(c)<32 or ord(c)==127 for c in text) and prompt==self.people.scope_prompt(name,'custom',text): return 'custom',text
         return 'custom',None
-    def rows(self, config=None):
+    def rows(self, config=None, target=None):
         if config is None:
             try: config=self.people.gateway_call('config.get',{},timeout_ms=5000).get('config')
             except Exception: fail('contacts_unavailable',503)
             if not isinstance(config,dict): fail('contacts_unavailable',503)
         owners=self.owners(config)
         allow,direct=self.people.whatsapp_state(config); directory, activity=self.directory()
-        numbers=[n for n in allow if isinstance(n,str) and E164.fullmatch(n)]
+        numbers=[n for n in allow if isinstance(n,str) and E164.fullmatch(n) and (target is None or contact_id(n)==target)]
         # Suspended contacts remain visible through their existing private block.
         if self.people.CONTACTS.exists():
             paths=sorted(self.people.CONTACTS.glob('wa_*.md'))
-            if len(paths)>200: fail('contacts_capacity_exceeded',503)
-            for path in paths:
+            selected=paths[:200] if target is None else [p for p in paths if contact_id('+'+p.stem[3:])==target]
+            for path in selected:
                 number='+'+path.stem[3:]
                 if E164.fullmatch(number) and self.metadata(number) and number not in numbers: numbers.append(number)
         out=[]
@@ -652,13 +647,12 @@ class Contacts:
         return out
     def find(self, identity):
         if not isinstance(identity,str) or not CID.fullmatch(identity): fail('invalid_contact_id')
-        values=[r for r in self.rows() if r['contactId']==identity]
+        values=[r for r in self.rows(target=identity) if r['contactId']==identity]
         if len(values)!=1: fail('unknown_contact',404)
         return values[0]
     def retired(self, identity):
         if not CID.fullmatch(identity or ''): fail('invalid_contact_id')
         paths=sorted(self.people.CONTACTS.glob('wa_*.md')) if self.people.CONTACTS.exists() else []
-        if len(paths)>200: fail('contacts_capacity_exceeded',503)
         for file in paths:
             number='+'+file.stem[3:]
             if E164.fullmatch(number) and contact_id(number)==identity: return {'contactId':identity,'e164':number,'scope':'standard','scopeText':None,'personId':None}
@@ -705,7 +699,7 @@ class Contacts:
         if not self.people.DB.exists(): return []
         c=sqlite3.connect(f'file:{self.people.DB}?mode=ro',uri=True)
         rows=c.execute("SELECT message_id FROM send_receipts WHERE (? IS NULL OR target=?) AND idempotency_key LIKE 'r17:%' AND message_id IS NOT NULL ORDER BY updated_at DESC LIMIT ?",(identity,identity,limit)).fetchall();c.close()
-        return [dict(at=r['at'],action=r['action'],contactId=r['contactId'],name=None) for row in rows if (r:=json.loads(row[0]).get('receipt')) and r['state'] not in ('already_present','already_absent','indeterminate','failed_before_effect','failed')]
+        return [dict(at=r['at'],action=r['action'],contactId=r['contactId'],name=None,scope=r.get('scope'),durationDays=r.get('durationDays')) for row in rows if (r:=json.loads(row[0]).get('receipt')) and r['state'] in ('added','removed','updated','suspended','reactivated')]
     def history_page(self, body):
         limit=body.get('limit',50)
         if not isinstance(limit,int) or isinstance(limit,bool) or not 1<=limit<=50: fail('invalid_request')
@@ -718,11 +712,11 @@ class Contacts:
             except (ValueError,UnicodeDecodeError,TypeError): fail('invalid_request')
         if not self.people.DB.exists(): return {'success':True,'state':'ok','receipt':None,'items':[],'nextBefore':None}
         c=sqlite3.connect(f'file:{self.people.DB}?mode=ro',uri=True)
-        rows=c.execute("SELECT message_id,updated_at,idempotency_key FROM send_receipts WHERE idempotency_key LIKE 'r17:%' AND message_id IS NOT NULL AND state NOT IN ('already_present','already_absent','indeterminate','failed_before_effect') AND (updated_at<? OR (updated_at=? AND idempotency_key<?)) ORDER BY updated_at DESC,idempotency_key DESC LIMIT ?",(when,when,key,limit+1)).fetchall();c.close()
+        rows=c.execute("SELECT message_id,updated_at,idempotency_key FROM send_receipts WHERE idempotency_key LIKE 'r17:%' AND message_id IS NOT NULL AND state IN ('added','removed','updated','suspended','reactivated') AND (updated_at<? OR (updated_at=? AND idempotency_key<?)) ORDER BY updated_at DESC,idempotency_key DESC LIMIT ?",(when,when,key,limit+1)).fetchall();c.close()
         items=[]
         for content,when,key in rows[:limit]:
             receipt=json.loads(content).get('receipt')
-            if receipt: items.append({k:receipt[k] for k in ('at','action','contactId')}|{'name':None})
+            if receipt: items.append({k:receipt[k] for k in ('at','action','contactId')}|{'name':None,'scope':receipt.get('scope'),'durationDays':receipt.get('durationDays')})
         next_before=None
         if len(rows)>limit:
             content,when,key=rows[limit-1];next_before=base64.urlsafe_b64encode(f'{when}:{key}'.encode()).decode().rstrip('=')
@@ -730,7 +724,13 @@ class Contacts:
     def history_count(self,identity):
         if not self.people.DB.exists(): return 0
         c=sqlite3.connect(f'file:{self.people.DB}?mode=ro',uri=True)
-        count=c.execute("SELECT COUNT(*) FROM send_receipts WHERE target=? AND idempotency_key LIKE 'r17:%' AND state NOT IN ('pending','already_present','already_absent','indeterminate','failed_before_effect')",(identity,)).fetchone()[0];c.close();return count
+        count=c.execute("SELECT COUNT(*) FROM send_receipts WHERE target=? AND idempotency_key LIKE 'r17:%' AND state IN ('added','removed','updated','suspended','reactivated')",(identity,)).fetchone()[0];c.close();return count
+    def duration_days(self, identity):
+        if not self.people.DB.exists(): return None
+        c=sqlite3.connect(f'file:{self.people.DB}?mode=ro',uri=True)
+        row=c.execute("SELECT message_id FROM send_receipts WHERE target=? AND idempotency_key LIKE 'r17:%' AND state IN ('added','updated') AND json_valid(message_id) AND json_extract(message_id,'$.receipt.action') IN ('added','extended','shortened') ORDER BY updated_at DESC,rowid DESC LIMIT 1",(identity,)).fetchone();c.close()
+        value=json.loads(row[0]).get('receipt',{}).get('durationDays') if row else None
+        return value if value in (1,3,5) and not isinstance(value,bool) else None
     def noop(self, operation, identity, wanted, state):
         if not self.reserve(operation,identity,wanted): return self.read_operation(operation,wanted)
         return self.finish(operation,{'success':True,'state':state,'receipt':{'version':1,'operationId':operation,'action':'added' if state=='already_present' else 'removed','contactId':identity,'state':state,'at':utc(self.clock())}})
@@ -803,14 +803,14 @@ class Contacts:
         except Exception: return False
         try: return self.local_config()==after
         except Exception: return False
-    def mutate(self, action, body, sweep_target=None, phase="effect"):
+    def mutate(self, action, body, sweep_target=None, phase="effect", sweep_config=None):
         self.phase=phase;self.confirmation_claim=None
         operation=body.get('operationId'); wanted=request_hash(action,body)
         if body.get('requestHash')!=wanted: fail('invalid_request_hash')
         old=self.read_operation(operation,wanted)
         retry=bool(old and old.get('retryable'))
         if old and not retry and phase!='preflight': return old
-        before=self.local_config(); owners=self.owners(before); allow,direct=self.people.whatsapp_state(before)
+        before=sweep_config if sweep_config is not None else self.local_config(); owners=self.owners(before); allow,direct=self.people.whatsapp_state(before)
         row=None
         if action=='add':
             number=body.get('e164')
@@ -835,7 +835,7 @@ class Contacts:
         if number in owners and (action in ('remove','suspend','sweep') or (action=='expiry' and body.get('durationDays') is not None)): fail('owner_contact_protected',409)
         metadata=self.metadata(number) or {'state':'active','scope':row['scope'] if row else 'standard','scopeText':row['scopeText'] if row else None,'expiresAt':None,'addedAt':None,'suspendedScope':None,'personId':row['personId'] if row else None}
         if row: metadata={**metadata,'scope':row['scope'],'scopeText':row['scopeText']}
-        if action=='remove' and number not in allow:
+        if action=='remove' and number not in allow and number not in direct and self.metadata(number) is None:
             if phase=='preflight': return {'success':True,'state':'already_absent','receipt':None}
             return self.noop(operation,identity,wanted,'already_absent')
         expected=body.get('expectedAuthority')
@@ -868,20 +868,16 @@ class Contacts:
             else: wa['direct'].pop(number,None)
             metadata.update(scope=scope,scopeText=text,state='active')
         elif action in ('remove','suspend','sweep'):
-            if number not in allow and action=='remove': return self.noop(operation,identity,wanted,'already_absent')
             if action=='remove': self.confirmation(body,'remove',identity,digest(number),retry=retry)
             if action=='sweep' and (not metadata['expiresAt'] or stamp(metadata['expiresAt'])>=self.clock()): return {'success':True,'state':'not_due','receipt':None}
             wa['allowFrom']=[x for x in allow if x!=number]
-            metadata['state']='suspended';metadata['suspendedScope']=metadata['scope'];archive=action=='remove'
-            if action=='remove':
-                rule=copy.deepcopy(wa['direct'].get(number,{}));rule.pop('systemPrompt',None)
-                if rule: wa['direct'][number]=rule
-                else: wa['direct'].pop(number,None)
-            if action=='remove': metadata['expiresAt']=None
+            metadata['state']='suspended';metadata['suspendedScope']=metadata['scope'];archive=action in ('remove','sweep')
+            if action in ('remove','sweep'):
+                wa['direct'].pop(number,None)
+                metadata['expiresAt']=None
         elif action=='reactivate':
             if metadata['scope']=='custom' and metadata['scopeText'] is None: fail('invalid_scope')
             self.confirmation(body,'reactivate',identity,digest('|'.join([number,metadata['scope'],metadata['scopeText'] or ''])),retry=retry)
-            if metadata['expiresAt'] and stamp(metadata['expiresAt'])<self.clock(): fail('contact_expired',409)
             if number not in wa['allowFrom']: wa['allowFrom'].append(number)
             metadata['state']='active';metadata['suspendedScope']=None
         elif action=='expiry':
@@ -902,7 +898,7 @@ class Contacts:
             self.release_failed(operation)
             return {'success':True,'state':'prepared','receipt':None,'confirmationClaim':self.confirmation_claim,'allowConsumedRetry':retry}
         if not self.reserve(operation,identity,wanted,body.get('confirmationId'),event): return self.read_operation(operation,wanted)
-        receipt={'version':1,'operationId':operation,'contactId':identity,'action':event,'at':utc(self.clock()),'state':state}
+        receipt={'version':1,'operationId':operation,'contactId':identity,'action':event,'at':utc(self.clock()),'state':state,'scope':metadata['scope'],'durationDays':duration if action in ('add','expiry') else self.duration_days(identity)}
         effect_possible=False;staged_content=None;previous_context=None
         try:
             # Persist expiry BEFORE access becomes effective: a kill after CAS
@@ -914,7 +910,7 @@ class Contacts:
             if after!=before:
                 effect_possible=True
                 if not self.patch(before,after): state='indeterminate'
-            if state=='completed' and staged_content is None: self.write_context(number,metadata,note,archive,removed=action=='remove')
+            if state=='completed' and staged_content is None: self.write_context(number,metadata,note,archive,removed=action in ('remove','sweep'))
             if state=='completed' and action=='add' and body.get('notify') is True:
                 self.people.whatsapp_send(number,'Amine autorise ce contact à échanger avec Samantha.','trusted:r17-welcome:'+digest(operation))
         except Refused as error:
@@ -932,26 +928,35 @@ class Contacts:
         return self.finish(operation,{'success':success,'state':state,'receipt':receipt})
     def sweep(self):
         paths=sorted(self.people.CONTACTS.glob('wa_*.md')) if self.people.CONTACTS.exists() else []
-        if len(paths)>200: fail('contacts_capacity_exceeded',503)
         due=[]
-        for path in paths:
+        pages=max(1,(len(paths)+199)//200);page=(int(self.clock())//60)%pages
+        for path in paths[page*200:(page+1)*200]:
             number='+'+path.stem[3:]
             if not E164.fullmatch(number): continue
             meta=self.metadata(number)
-            if meta and meta['expiresAt'] and stamp(meta['expiresAt'])<self.clock() and meta['state']=='active': due.append((number,meta))
+            if meta and meta['expiresAt'] and stamp(meta['expiresAt'])<self.clock(): due.append((number,meta))
         results=[];deadline=time.monotonic()+20
         for number,metadata in due:
             if time.monotonic()>=deadline: break
-            body={'contactId':contact_id(number),'operationId':'expire:'+digest(number+'\0'+metadata['expiresAt'])};body['requestHash']=request_hash('sweep',body)
-            results.append(self.mutate('sweep',body,sweep_target=(number,metadata)))
+            # Every attempt starts with a fresh authoritative read. An old
+            # uncertain RPC is never replayed; still-present access is a new intent.
+            snapshot=self.people.gateway_call('config.get',{},timeout_ms=5000).get('config')
+            if not isinstance(snapshot,dict): fail('contacts_unavailable',503)
+            prefix='expire:'+digest(number+'\0'+metadata['expiresAt'])[:40]+':'
+            attempt=0
+            if self.people.DB.exists():
+                c=sqlite3.connect(f'file:{self.people.DB}?mode=ro',uri=True)
+                attempt=c.execute("SELECT COUNT(*) FROM send_receipts WHERE target=? AND idempotency_key LIKE 'r17:%' AND json_valid(message_id) AND json_extract(message_id,'$.receipt.action')='expired'",(contact_id(number),)).fetchone()[0];c.close()
+            body={'contactId':contact_id(number),'operationId':prefix+str(attempt)};body['requestHash']=request_hash('sweep',body)
+            results.append(self.mutate('sweep',body,sweep_target=(number,metadata),sweep_config=snapshot))
         success=len(results)==len(due) and all(row['success'] for row in results)
-        return {'success':success,'state':'completed' if success else 'expired_pending','receipt':None,'processed':len(results),'remaining':len(due)-sum(row['success'] for row in results)}
+        return {'success':success,'state':('partial' if pages>1 else 'completed') if success else 'expired_pending','receipt':None,'processed':len(results),'remaining':len(due)-sum(row['success'] for row in results),'scanComplete':pages==1,'scanPage':page,'scanPages':pages}
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}
         allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'}}
         if action not in allowed or set(body)-allowed[action]: fail('invalid_request')
-        if action=='list': return {'success':True,'state':'ok','receipt':None,'items':self.rows(),'issues':[]}
+        if action=='list': return {'success':True,'state':'partial' if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else 'ok','receipt':None,'items':self.rows(),'issues':['contact_scan_partial'] if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else []}
         if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId')),'historyCount':self.history_count(body.get('contactId'))}
         if action=='operation':
             value=self.read_operation(body.get('operationId'),body.get('requestHash'))
@@ -960,7 +965,8 @@ class Contacts:
         if action=='note-get':
             row=self.find(body.get('contactId'));history=self.history(row['contactId'])
             changed=next((r['at'] for r in history if r['action']=='note_updated'),None)
-            return {'success':True,'state':'ok','receipt':None,'text':self.note(row['e164']),'updatedAt':changed}
+            value=self.note(row['e164'])
+            return {'success':True,'state':'partial' if len(value)>2000 else 'ok','receipt':None,'text':value[:2000],'truncated':len(value)>2000,'updatedAt':changed}
         if action in ('preflight','prepare'):
             target=body.get('action');request=body.get('body')
             if target not in EVENTS or target=='sweep' or not isinstance(request,dict): fail('invalid_request')

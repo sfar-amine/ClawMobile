@@ -24,7 +24,7 @@ process_uses_script(){
   return 1
 }
 supervisor_on_current_root(){ process_uses_script "$1" "$2"; }
-stop_supervisor(){ pat="$1"; pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt 8 ]; do allowlist_sleep 1; waited=$((waited+1)); done; if proc "$pat"; then log "service=supervisor state=stop_timeout pattern=$pat action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; allowlist_sleep 1; fi; }
+stop_supervisor(){ pat="$1"; pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc "$pat"; then log "service=supervisor state=stop_timeout pattern=$pat action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 1 9>&-; fi; }
 supervisor_lock(){ case "$1" in adb_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/adb-recovery.lock";; remote_watchdog) printf '%s' "$HOME/.openclaw/watchdogs/remote-desktop.lock";; incident_manager) printf '%s' "$HOME/.openclaw/incidents/manager.lock";; *) return 1;; esac; }
 wait_supervisor_lock(){
  n="$1"; lock=$(supervisor_lock "$n") || return 0; waited=0
@@ -35,12 +35,12 @@ wait_supervisor_lock(){
    waited=$((waited+1))
    [ "$waited" -ge 20 ] && { log "service=$n state=lock_timeout lock=$lock"; return 1; }
    printf '%s' "$(now)" >"$D/health-manager.heartbeat"
-   allowlist_sleep 1
+   sleep 1 9>&-
  done
 }
-check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_on_current_root "$pat" "$script"; then healthy "$n"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else log "service=$n action=start"; fi; start "$n" "$script"; allowlist_sleep 3; proc "$pat" && supervisor_on_current_root "$pat" "$script" && healthy "$n" || fail "$n"; }
-check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; stop_wait="${6:-20}"; if http "$url"; then healthy "$n"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=starting_or_unhealthy grace_s=$grace"; allowlist_sleep "$grace"; if http "$url"; then healthy "$n"; return; fi; fi; log "service=$n action=repair"; if proc "$pat"; then pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt "$stop_wait" ]; do allowlist_sleep 2; waited=$((waited+2)); done; if proc "$pat"; then log "service=$n state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; allowlist_sleep 2; if proc "$pat"; then fail "$n"; return; fi; fi; fi; start "$n" "$script"; allowlist_sleep "$grace"; http "$url" && healthy "$n" || fail "$n"; }
-check_adb(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || { "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; "$ROOT/chat-continuity-restore.sh" 9>&- >/dev/null 2>&1 || true; }; return; fi; due adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; allowlist_sleep 1; adb_ok && healthy adb || fail adb; }
+check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_on_current_root "$pat" "$script"; then healthy "$n"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else log "service=$n action=start"; fi; start "$n" "$script"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" && healthy "$n" || fail "$n"; }
+check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; stop_wait="${6:-20}"; if http "$url"; then healthy "$n"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=starting_or_unhealthy grace_s=$grace"; sleep "$grace" 9>&-; if http "$url"; then healthy "$n"; return; fi; fi; log "service=$n action=repair"; if proc "$pat"; then pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt "$stop_wait" ]; do sleep 2 9>&-; waited=$((waited+2)); done; if proc "$pat"; then log "service=$n state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 2 9>&-; if proc "$pat"; then fail "$n"; return; fi; fi; fi; start "$n" "$script"; sleep "$grace" 9>&-; http "$url" && healthy "$n" || fail "$n"; }
+check_adb(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || { "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; "$ROOT/chat-continuity-restore.sh" 9>&- >/dev/null 2>&1 || true; }; return; fi; due adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
 verdict_field(){ python3 - "$D/current.json" "$1" "$2" <<'PY'
 import json,sys
 try:
@@ -105,11 +105,11 @@ check_sshd(){
  due sshd || return
  log 'service=sshd action=start port=8022'
  /data/data/com.termux/files/usr/bin/sshd 9>&- >>"$D/sshd.stderr.log" 2>&1 || true
- allowlist_sleep 1
+ sleep 1 9>&-
  ssh_ok && healthy sshd || fail sshd
 }
 slack_bridge_on_current_root(){ process_uses_script '[c]law-slack-bridge.mjs' "$ROOT/claw-slack-bridge.mjs"; }
-stop_slack_bridge(){ pkill -TERM -f '[c]law-slack-bridge.mjs' 2>/dev/null || true; waited=0; while proc '[c]law-slack-bridge.mjs' && [ "$waited" -lt 8 ]; do allowlist_sleep 1; waited=$((waited+1)); done; if proc '[c]law-slack-bridge.mjs'; then log "service=slack_bridge state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f '[c]law-slack-bridge.mjs' 2>/dev/null || true; allowlist_sleep 1; fi; }
+stop_slack_bridge(){ pkill -TERM -f '[c]law-slack-bridge.mjs' 2>/dev/null || true; waited=0; while proc '[c]law-slack-bridge.mjs' && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc '[c]law-slack-bridge.mjs'; then log "service=slack_bridge state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f '[c]law-slack-bridge.mjs' 2>/dev/null || true; sleep 1 9>&-; fi; }
 check_slack_bridge(){
  "$ROOT/claw-slack-bridge-health.py" 9>&- >/dev/null 2>&1; rc=$?
  if [ "$rc" -eq 2 ]; then
@@ -134,7 +134,7 @@ check_slack_bridge(){
    log 'service=slack_bridge action=start'
  fi
  start slack_bridge "$ROOT/claw-slack-bridge.sh"
- allowlist_sleep 3
+ sleep 3 9>&-
  if "$ROOT/claw-slack-bridge-health.py" 9>&- >/dev/null 2>&1 && slack_bridge_on_current_root; then healthy slack_bridge; else fail slack_bridge; fi
 }
 # R17 runs cooperatively inside this owner, never in an extra daemon.
@@ -152,14 +152,6 @@ check_allowlist_expiry(){
  [ "$processed" -gt 0 ] && put whatsapp_allowlist last_sweep "$tick"
  return 0
 }
-allowlist_sleep(){
- local remaining="$1"
- while [ "$remaining" -gt 0 ]; do
-  check_allowlist_expiry
-  sleep 1 9>&-
-  remaining=$((remaining-1))
- done
-}
 log 'event=start result=ok state=persistent_backoff'
 while :; do
  printf '%s' "$(date +%s)" >"$D/health-manager.heartbeat"
@@ -172,9 +164,9 @@ while :; do
  check_allowlist_expiry
  check_supervisor incident_manager '[i]ncident-manager.sh' "$ROOT/incident-manager.sh"
  check_allowlist_expiry
- timeout --kill-after=2 20 "$ROOT/incident-ingress.py" 9>&- >/dev/null 2>&1 || true
+ "$ROOT/incident-ingress.py" 9>&- >/dev/null 2>&1 || true
  check_allowlist_expiry
- timeout --kill-after=2 20 "$ROOT/incident-reconcile.sh" 9>&- >/dev/null 2>&1 || true
+ "$ROOT/incident-reconcile.sh" 9>&- >/dev/null 2>&1 || true
  check_allowlist_expiry
  check_adb
  check_allowlist_expiry
@@ -185,7 +177,7 @@ while :; do
  check_sshd
  printf '%s' "$(date +%s)" >"$D/health-manager.heartbeat"
  check_allowlist_expiry
- timeout --kill-after=2 20 "$ROOT/health-verdict.py" --write 9>&- >/dev/null 2>&1 || true
+ "$ROOT/health-verdict.py" --write 9>&- >/dev/null 2>&1 || true
  check_allowlist_expiry
  check_gateway
  check_allowlist_expiry
@@ -196,5 +188,5 @@ while :; do
  check_http companion http://127.0.0.1:8765/ 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 12 20
  check_allowlist_expiry
  check_slack_bridge
- allowlist_sleep 15
+ sleep 15 9>&-
 done

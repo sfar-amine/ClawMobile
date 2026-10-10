@@ -3,10 +3,10 @@
   "id": "codex-r17-contacts-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "allowed",
+  "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Extend existing WhatsApp contacts owner with complete allowlist controls and biometric receipts",
-  "reason": "File 20 v2 and Claude answers 23, on runtime af4132a; one integrated runtime lot.",
+  "reason": "Review 26 corrections on runtime 0bf30ab / playbooks 2ba0e72; physical P0-2 incoming-message fixtures and route timings remain absent.",
   "files": [
     "docs/changes/codex-r17-contacts-20261010.json",
     "docs/changes/codex-r17-contacts-20261010.md",
@@ -18,13 +18,16 @@
     "openclaw-plugin-mobile-ui/src/companion/whatsappAllowlist.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/scripts/test-whatsapp-allowlist.cjs",
-    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-allowlist-paired.cjs"
+    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-allowlist-paired.cjs",
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/test-whatsapp-allowlist-acceptance.py"
   ],
   "tests": [
     {
       "name": "r17-owner",
       "status": "passed",
-      "evidence": "21 allowlist owner tests with injected clock, three real health-cycle fixture tests, 21 existing people-trusted regressions; shell syntax valid."
+      "evidence": "28 owner tests, 3 existing-cycle tests, 2 acceptance leak-scope tests, 21 People regressions; complete HTTP and real owner/SQLite-CAS fixtures. Synthetic fixtures only, no S24 qualification."
     },
     {
       "name": "r17-http",
@@ -39,7 +42,7 @@
     {
       "name": "runtime-ci",
       "status": "passed",
-      "evidence": "All existing runtime workflow commands on af4132a; CI unchanged. New R17 tests executed separately."
+      "evidence": "Existing workflow commands on 0bf30ab passed; R17 six test commands registered in ci.yml and run locally. No existing step removed."
     }
   ],
   "documentation": [
@@ -71,6 +74,7 @@
     "No S24 mutation, deployment or integrated recipe by Codex. Gateway installed-version and screen recipe by Claude.",
     "Expiry removal under two minutes is a qualification target. A bounded 20-second pass may need subsequent existing cycles when many contacts expire or owner access is unavailable.",
     "Opaque custom policies with no readable scopeText cannot be reactivated or treated as a proven permission reduction.",
-    "R17 tests run separately pending coordinated CI registration; existing CI steps retained."
+    "P0-2 incoming-message schema/sanitized fixtures absent: lastActivityAt is null; physical route timings and two-minute expiry qualification are blocked until Claude captures them.",
+    "Above 200 files, expiry scan rotates pages by UTC minute and explicitly reports partial; no claim of two-minute completion at arbitrary capacity."
   ]
 }

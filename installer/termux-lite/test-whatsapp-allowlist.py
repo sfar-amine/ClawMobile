@@ -131,8 +131,9 @@ class AllowlistTests(unittest.TestCase):
     def test_sweep_capacity_and_metadata_read_budget(self):
         m.CONTACTS.mkdir()
         for i in range(201):(m.CONTACTS/('wa_216'+str(i).zfill(8)+'.md')).write_text('not R17')
-        with self.assertRaises(m.Refused) as e:self.service.call('sweep',{})
-        self.assertEqual(e.exception.code,'contacts_capacity_exceeded');self.assertFalse(m.DB.exists());self.assertEqual(self.calls,[])
+        self.assertEqual(self.service.call('sweep',{})['processed'],0)
+        self.assertEqual(len(self.service.call('list',{})['items']),2);self.assertFalse(m.DB.exists())
+        self.calls.clear()
         for file in m.CONTACTS.glob('*.md'):file.unlink()
         prefix=m.MARKER+'\n'+m.canonical({'state':'active','scope':'standard','scopeText':None,'expiresAt':None,'addedAt':None,'suspendedScope':None,'personId':None})+'\n'+m.END+'\n'
         (m.CONTACTS/('wa_'+NEW[1:]+'.md')).write_text(prefix+'x'*3000000)
@@ -190,7 +191,7 @@ class AllowlistTests(unittest.TestCase):
         self.assertEqual(self.service.call('expiry',body)['state'],'updated')
         # A real session row does not require an Android directory database.
         m.DB.unlink();c=sqlite3.connect(m.SESSION_DB);c.execute('CREATE TABLE conversations(peer_id,updated_at,channel,kind)');c.execute('INSERT INTO conversations VALUES(?,?,?,?)',(OWNER,self.now*1000,'whatsapp','direct'));c.commit();c.close()
-        self.assertEqual(self.service.find(m.contact_id(OWNER))['lastActivityAt'],m.utc(self.now))
+        self.assertIsNone(self.service.find(m.contact_id(OWNER))['lastActivityAt'])
 
     def test_prepared_consume_failure_same_body_retry_and_unique_confirmation(self):
         body=self.body('add',e164=NEW,contactId=m.contact_id(NEW),scope='standard',scopeText=None,durationDays=None,notify=False)
@@ -219,5 +220,78 @@ class AllowlistTests(unittest.TestCase):
         self.assertEqual((m.DB.read_bytes(),m.CONFIG.read_bytes(),self.service.context(NEW)),before)
         self.now+=0.001;self.assertEqual(self.service.find(m.contact_id(NEW))['state'],'expired_pending')
         self.assertTrue(self.service.call('sweep',{})['success']);self.assertNotIn(NEW,self.cfg['channels']['whatsapp']['allowFrom'])
+
+    def test_delete_suspended_removes_entire_rule_block_and_archives_remainder(self):
+        self.add(scope='claw');identity=m.contact_id(NEW)
+        self.service.call('note',self.body('note',contactId=identity,text='Private remainder'))
+        self.assertTrue(self.service.context(NEW).endswith('Private remainder'))
+        self.assertNotIn(m.NOTE,self.service.context(NEW))
+        self.service.call('suspend',self.body('suspend',contactId=identity))
+        remove=self.body('remove',contactId=identity);self.confirmed(remove,'remove')
+        self.assertEqual(self.service.call('remove',remove)['state'],'removed')
+        self.assertNotIn(NEW,self.cfg['channels']['whatsapp']['direct'])
+        self.assertIsNone(self.service.metadata(NEW));self.assertIn('Private remainder',self.service.context(NEW))
+        self.assertIn('Private note archive',self.service.context(NEW))
+        with self.assertRaises(m.Refused):self.service.find(identity)
+    def test_sweep_uncertain_new_attempt_after_fresh_read(self):
+        self.add(durationDays=1);self.now+=86401
+        patches=0
+        def gateway(method,params=None,timeout_ms=7000):
+            nonlocal patches
+            if method=='config.patch':
+                patches+=1
+                if patches==1: raise TimeoutError()
+            return self.gateway(method,params,timeout_ms)
+        with patch.object(m,'gateway_call',side_effect=gateway):
+            first=self.service.call('sweep',{});self.assertFalse(first['success']);self.assertEqual(patches,1)
+            second=self.service.call('sweep',{});self.assertTrue(second['success']);self.assertEqual(patches,2)
+        self.assertIsNone(self.service.metadata(NEW));self.assertNotIn(NEW,self.cfg['channels']['whatsapp']['direct'])
+        self.assertNotIn(m.contact_id(NEW),[row['contactId'] for row in self.service.rows()])
+        events=self.service.call('history',{})['items'];self.assertEqual([e['action'] for e in events].count('expired'),1)
+        self.assertTrue(all('scope' in e and 'durationDays' in e for e in events))
+        self.assertEqual(events[0]['durationDays'],1)
+    def test_history_pending_and_failed_are_not_terminal_events(self):
+        _,body=self.add();identity=m.contact_id(NEW)
+        self.service.reserve('pending-note',identity,'0'*64,event='note_updated')
+        self.assertEqual(len(self.service.call('history',{})['items']),1)
+        self.assertEqual(self.service.history_count(identity),1)
+
+    def test_sweep_rotates_bounded_pages_beyond_200(self):
+        self.add(durationDays=1);self.now+=86401
+        target=self.service.path(NEW)
+        for i in range(205):
+            (m.CONTACTS/('wa_100'+str(i).zfill(8)+'.md')).write_text('not R17')
+        self.now-=self.now%120  # first page excludes NEW
+        self.now+=120  # remain after the grant deadline
+        first=self.service.call('sweep',{})
+        self.assertFalse(first['scanComplete']);self.assertEqual(first['state'],'partial')
+        self.assertIn(NEW,self.cfg['channels']['whatsapp']['allowFrom'])
+        self.now+=60;second=self.service.call('sweep',{})
+        self.assertEqual(second['processed'],1);self.assertNotIn(NEW,self.cfg['channels']['whatsapp']['allowFrom'])
+        self.assertIsNone(self.service.metadata(NEW))
+    def test_delete_expired_removes_metadata_and_all_direct_fields(self):
+        self.add(durationDays=1);self.now+=86401
+        self.cfg['channels']['whatsapp']['direct'][NEW]={'systemPrompt':'opaque','extra':'managed'};self.save()
+        body=self.body('remove',contactId=m.contact_id(NEW));self.confirmed(body,'remove')
+        self.assertEqual(self.service.call('remove',body)['state'],'removed')
+        self.assertNotIn(NEW,self.cfg['channels']['whatsapp']['direct']);self.assertIsNone(self.service.metadata(NEW))
+
+    def test_suspended_expiry_sweeps_and_target_detail_beyond_page(self):
+        self.add(durationDays=1);identity=m.contact_id(NEW)
+        self.service.call('suspend',self.body('suspend',contactId=identity))
+        for i in range(205):(m.CONTACTS/('wa_100'+str(i).zfill(8)+'.md')).write_text('not R17')
+        self.assertEqual(self.service.find(identity)['state'],'suspended')
+        self.now+=86401;self.now-=self.now%120;self.now+=180
+        self.assertEqual(self.service.call('sweep',{})['processed'],1)
+        self.assertIsNone(self.service.metadata(NEW));self.assertNotIn(NEW,self.cfg['channels']['whatsapp']['direct'])
+        again=self.body('remove',operationId='retired-beyond-page',contactId=identity)
+        self.assertEqual(self.service.call('remove',again)['state'],'already_absent')
+
+    def test_note_remainder_long_read_is_explicit_partial(self):
+        self.add();metadata=self.service.metadata(NEW)
+        self.service.write_context(NEW,metadata,note='legacy\n'+('x'*2500))
+        result=self.service.call('note-get',{'contactId':m.contact_id(NEW)})
+        self.assertEqual(result['state'],'partial');self.assertTrue(result['truncated']);self.assertEqual(len(result['text']),2000)
+        self.assertTrue(result['text'].startswith('legacy\n'))
 
 if __name__=='__main__':unittest.main()

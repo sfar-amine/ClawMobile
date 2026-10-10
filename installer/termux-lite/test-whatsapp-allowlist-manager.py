@@ -23,7 +23,7 @@ log(){ :; }
 sleep(){ CLOCK=$((CLOCK+$1)); }
 timeout(){ printf 'SCAN %s\n' "$CLOCK" >>"$TRACE"; printf '{"processed":%s}' "$PROCESSED"; }
 '''
-        trace=self.execute(prefix,'check_allowlist_expiry; allowlist_sleep 125')
+        trace=self.execute(prefix,'check_allowlist_expiry; sleep 60; check_allowlist_expiry; sleep 60; check_allowlist_expiry')
         self.assertEqual(trace,['SCAN 100','SCAN 160','SCAN 220'])
     def test_due_expiry_persists_same_owner_state_and_restart_cadence(self):
         prefix='''CLOCK=200;ROOT=/fixture;PROCESSED=1
@@ -34,14 +34,16 @@ log(){ :; }
 sleep(){ CLOCK=$((CLOCK+$1)); }
 timeout(){ printf 'SCAN %s\n' "$CLOCK" >>"$TRACE"; printf '{"processed":%s}' "$PROCESSED"; }
 '''
-        trace=self.execute(prefix,'check_allowlist_expiry; allowlist_sleep 35; check_allowlist_expiry')
-        self.assertEqual(trace,['SCAN 230','WRITE whatsapp_allowlist last_sweep 230'])
+        trace=self.execute(prefix,'check_allowlist_expiry; sleep 35; check_allowlist_expiry')
+        self.assertEqual(trace,['SCAN 235','WRITE whatsapp_allowlist last_sweep 235'])
     def test_existing_cycle_has_checkpoints_and_closed_lock_child(self):
         text=SCRIPT.read_text();loop=text[text.index("log 'event=start result=ok state=persistent_backoff'"):]
         self.assertIn('check_allowlist_expiry\n check_smtp',loop)
         self.assertIn('check_allowlist_expiry\n check_http companion',loop)
-        self.assertIn('allowlist_sleep "$grace"',text)
-        self.assertIn('allowlist_sleep 1',text)
+        self.assertIn('sleep "$grace"',text)
+        self.assertNotIn('allowlist_sleep',text)
+        self.assertNotIn('timeout --kill-after=2 20',text)
+        self.assertIn('sleep 1',text)
         self.assertIn('timeout --kill-after=2 22 python3 "$ROOT/people-trusted.py" allowlist sweep 9>&-',text)
         self.assertNotIn('nohup',self.functions())
 
