@@ -1,3 +1,4 @@
+import {allJobs,protectedJob} from "./automations";
 import { execFile, spawn } from "child_process";
 import type { IncomingMessage, ServerResponse } from "http";
 import os from "os";
@@ -18,11 +19,11 @@ export function controlPaths() {
 }
 
 /** This module ships with the canonical automation owner routes installed by P2-a. */
-export function automationNotificationProjection(value:any):any {
+export function automationNotificationProjection(value:any,jobs:any[]=[]):any {
   if(!value||!Array.isArray(value.items))return value;
   return {...value,activationRoute:'/v1/automations/{automationId}/enable|disable',items:value.items.map((item:any)=>
     item?.kind==='scheduled'&&typeof item.automationId==='string'&&/^[A-Za-z0-9_.:-]{1,160}$/.test(item.automationId)
-      ? {...item,togglable:true,reason:'delivery_evidence_unavailable'} : item)};
+      ? (()=>{const job=jobs.find(j=>j.id===item.automationId);return {...item,togglable:!!job&&!protectedJob(job),reason:job?(protectedJob(job)?'protected_automation':'delivery_evidence_unavailable'):'automation_unavailable'};})() : item)};
 }
 
 export function readControl(section: string, signal?: AbortSignal): Promise<unknown> {
@@ -32,15 +33,16 @@ export function readControl(section: string, signal?: AbortSignal): Promise<unkn
     execFile("python3", ["-m", "reporting.control_snapshot", "--section", section], {
       cwd: roots.playbooks, env: { ...process.env, SAMANTHA_CONTROL_LIVE: roots.live },
       timeout: 6500, maxBuffer: 1024 * 1024, signal,
-    }, (error, stdout) => {
+    }, async (error, stdout) => {
       if (error) return reject(new Error("control_unavailable"));
       try {
         const value=JSON.parse(stdout);
+        const jobs=(section==='notifications'||value.notifications)?await allJobs().catch(()=>[]):[];
         if(section==='notifications'){
-          if(value.data)value.data=automationNotificationProjection(value.data);
-          else Object.assign(value,automationNotificationProjection(value));
+          if(value.data)value.data=automationNotificationProjection(value.data,jobs);
+          else Object.assign(value,automationNotificationProjection(value,jobs));
         }
-        if(value.notifications)value.notifications=automationNotificationProjection(value.notifications);
+        if(value.notifications)value.notifications=automationNotificationProjection(value.notifications,jobs);
         resolve(value);
       } catch { reject(new Error("control_invalid_response")); }
     });
@@ -236,8 +238,10 @@ export function readControlV2(selected:string[],detailId:string|undefined,signal
       if(error||failure||abort.aborted){killGroup();reject(error||failure||controlError("control_read_cancelled",499));return;}
       try{
         const value=JSON.parse(Buffer.concat(chunks).toString("utf8"));
-        if(value.sections?.notifications?.data)value.sections.notifications.data=automationNotificationProjection(value.sections.notifications.data);
-        completeHealthSection(value,path.join(os.homedir(),".openclaw/health/current.json"))
+        const project=value.sections?.notifications?.data
+          ? allJobs().catch(()=>[]).then(jobs=>{value.sections.notifications.data=automationNotificationProjection(value.sections.notifications.data,jobs);return value;})
+          : Promise.resolve(value);
+        project.then(value=>completeHealthSection(value,path.join(os.homedir(),".openclaw/health/current.json")))
           .then(resolve,()=>reject(controlError("control_invalid_response")));
       }catch{reject(controlError("control_invalid_response"));}
     };

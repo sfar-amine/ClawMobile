@@ -13,6 +13,7 @@
     "docs/changes/codex-local-p2-a-20261010.md",
     "docs/work/samantha-runtime/contracts/p2-a.md",
     "openclaw-plugin-mobile-ui/scripts/test-automation-detail.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-notification-sources.cjs",
     "openclaw-plugin-mobile-ui/src/companion/automations.ts",
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
     "openclaw-plugin-mobile-ui/src/companion/nativeOperation.ts",
@@ -20,9 +21,9 @@
   ],
   "tests": [
     {
-      "name": "P2-a",
+      "name": "review-17-p2-a",
       "status": "passed",
-      "evidence": "Complete CI_LOCAL_OK on 066a340; owner actions, receipts, replay, payment guards and notification route availability."
+      "evidence": "All runtime CI commands passed. Updated R9 integration fixture passes with canonical cron.list evidence. Preflight failure/not-found retry, protected jobs and unchanged payment/confirmation data covered."
     }
   ],
   "documentation": [
