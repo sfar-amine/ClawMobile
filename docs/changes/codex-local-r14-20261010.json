@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "codex-local-r14-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Extend existing attachment storage with bounded safe file shares and R3 cleanup",
+  "reason": "Relecture 17 et intégration runtime 9a04980 ; activation et recette par Claude.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-local-r14-20261010.json",
+    "docs/changes/codex-local-r14-20261010.md",
+    "docs/work/samantha-runtime/contracts/r14.md",
+    "openclaw-plugin-mobile-ui/scripts/test-attachment-http.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-attachment-storage.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "docs/runtime-protocol-v1.md",
+    "installer/termux-lite/README.md"
+  ],
+  "tests": [
+    {
+      "name": "review-17-r14",
+      "status": "passed",
+      "evidence": "Full runtime CI commands passed on 639ae68; after integrating 9a04980, rebuild, storage/HTTP and R3/R2/conversation checks passed. File-hash replay, unchanged run history, HTTP image upload, missing attachment 404, quota/retention, appendAttachmentContext and R3 cleanup verified."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r14.md",
+    "docs/changes/codex-local-r14-20261010.md",
+    "docs/runtime-protocol-v1.md",
+    "installer/termux-lite/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert de la PR de ce lot.",
+  "limitations": [
+    "Recette S24 et UI Android non réalisées par Codex."
+  ]
+}
