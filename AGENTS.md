@@ -51,6 +51,19 @@ Le S24 reste la source de vérité opérationnelle (`claw_context`). Une copie G
 - **Un seul job lourd à la fois** sur le S24.
 - Toute route à plus de 80 % de son budget dans un reçu devient une tâche d'optimisation.
 
+## Accès au S24 et au contexte canonique
+- **Claude** (chat, Cowork, Code) : connecteur MCP « Claw ». Commencer par `claw_context` avec l'intention précise, puis lire tous les `required_reads`.
+- **Codex Cloud** : `python3 tools/claw_mcp_client.py call claw_context --args '{"query":"…"}'` (outil et règles d'accès dans `samantha-ui-playbooks/AGENTS.md`, section « Accès Claw/S24 »). Le jeton `CLAW_MCP_TOKEN` n'est jamais affiché ni committé.
+- **Codex Desktop / Claude Code sans MCP** : demander à Claude, ou passer par le client ci-dessus.
+- **Documents du programme** : `samantha-ui-playbooks/docs/work/samantha-convergence/README.md` (index, état `11`, revues et lots récents). Sur le S24, la règle `SAMANTHA_PROGRAM_V1` y renvoie.
+
+## Questions et réponses entre agents
+Deux canaux existants, sans nouveau service :
+- **Code** (lots, PR, revues) : commentaire de PR ou d'issue GitHub. On écrit `@codex …` pour Codex ou `@claude …` pour Claude, et la réponse se donne au même endroit.
+- **Contexte et décisions** (toutes surfaces) : sur le S24, `context-event.sh <surface> open_thread "<question>"`, puis `decision --supersedes <id>` pour la réponse. `claw_context` les sert à chaque session.
+- **Besoin d'Amine** : `incident-notify.sh human_required` (existant).
+- **Une réponse qui fait foi** est reportée par PR dans les documents du programme.
+
 ## Où sont les détails
 - Runbooks runtime : `docs/work/samantha-runtime/runbooks/` (G3, en cours de PR).
 - Contrats par lot : `docs/work/samantha-runtime/contracts/`.
