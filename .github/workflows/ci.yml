@@ -123,3 +123,6 @@ jobs:
           python3 ../installer/termux-lite/test-context-import.py
       - name: Run read-only security surfaces contract
         run: node scripts/test-security-surfaces.cjs
+
+      - name: Check Context Guardian SQLite read-only owner
+        run: python3 ../installer/termux-lite/test-context-guardian-sqlite.py

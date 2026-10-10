@@ -1,5 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
+umask 077
 ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
 D="$HOME/.openclaw/context-sync"; S="$D/state"; LOG="$D/context-guardian.log"
 mkdir -p "$D" "$S"; chmod 700 "$D" "$S"
@@ -7,18 +8,11 @@ exec 9>"$D/context-guardian.lock"; flock -n 9 || exit 0
 log(){ printf '%s component=context-guardian %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
 health="$S/health.json"
 tmp="$health.tmp.$$"
-sessions_json="$(timeout 15 openclaw sessions --json --limit all 2>/dev/null || true)"
-if [ -n "$sessions_json" ]; then
-  printf '%s' "$sessions_json" | python3 -c '
-import json,sys,time
-d=json.load(sys.stdin); now=int(time.time()*1000)
-rows=[]
-for s in d.get("sessions",[]):
-    ct=s.get("contextTokens") or 0; tt=s.get("totalTokens") or 0
-    ratio=(tt/ct) if ct and isinstance(tt,(int,float)) else None
-    rows.append({"key":s.get("key"),"sessionId":s.get("sessionId"),"updatedAt":s.get("updatedAt"),"totalTokens":tt,"contextTokens":ct,"ratio":ratio,"kind":s.get("kind"),"status":s.get("status")})
-print(json.dumps({"version":1,"checkedAtMs":now,"sessions":rows},separators=(",",":")))
-' >"$tmp" 2>/dev/null && mv "$tmp" "$health"
+if python3 "$ROOT/context-guardian-read.py" --agents-root "$HOME/.openclaw/agents" >"$tmp" 2>/dev/null; then
+  mv "$tmp" "$health"
+else
+  rm -f "$tmp"
+  log "event=session_read state=unavailable source=agent_sqlite"
 fi
 # Native OpenClaw safeguard compaction is authoritative for session-window pressure.
 # This guardian observes; it does not compact arbitrary sessions behind active turns.

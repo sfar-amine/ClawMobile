@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "id": "codex-c8-guardian-sqlite-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Context Guardian observes the existing SQLite logical-session owner without Node CLI.",
+  "reason": "Programme31/33 confirms canonical SQLite owner; physical schema/row fixtures remain pending.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/context-guardian.sh",
+    "installer/termux-lite/context-guardian-read.py",
+    "installer/termux-lite/test-context-guardian-sqlite.py",
+    "docs/work/samantha-runtime/contracts/c8.md",
+    "docs/changes/codex-c8-guardian-sqlite-20261010.json",
+    "docs/changes/codex-c8-guardian-sqlite-20261010.md"
+  ],
+  "tests": [
+    {
+      "name": "Context Guardian SQLite read-only owner contracts",
+      "status": "passed",
+      "evidence": "Eight tests actual sqlite3 and shell; native10MiBentryrejectedbeforematerialization, generated200001rows, WALcommittedread/DBandWALunchanged, boundedprivateprojection, noCLI, atomic0600 output, invalid/missing/symlink preservingoldhealth, pressurecounts andfinite/deadline. Physical schema/rows fixture unavailable, no S24 qualification. Full current CI on runtime1f239f3: CI_LOCAL_OK; union28existingsteps+1C8step retained. Native-size and whole-reader-deadline refinements rerun8tests green; no unrelated retests."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c8.md",
+    "docs/changes/codex-c8-guardian-sqlite-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY: existing internal Guardian observation, no app/agent/voice route."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing confirmation and run receipt owners reused; no new store, scheduler, daemon or tool-policy owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native facade only; canonical MCP admission and dispatch contracts unchanged."
+  },
+  "rollback": "Revert the Guardian reader delta; no runtime deployment performed.",
+  "limitations": [
+    "Physical SQLite schema and entry_json rows missing; request Claude captures in draft PR.",
+    "Generated schema/rows follow public2026.9.6 source and audit31; no new physical benchmark.",
+    "Bound10000 projected sessions; overflow refuses snapshot rather than fresh partial.",
+    "Read-only WAL reader coordination can alter existing SHM; logical DB/WAL data unchanged."
+  ]
+}
