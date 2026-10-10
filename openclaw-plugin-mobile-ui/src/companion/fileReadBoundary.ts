@@ -6,7 +6,7 @@ export const FILE_TEXT_BYTES=256*1024;
 export const FILE_IMAGE_BYTES=5*1024*1024;
 const denied=()=>Object.assign(new Error("file_not_available"),{statusCode:404});
 const secretName=/credential|token|secret|password|backup|\.bak(?:$|[._-])|authorized_keys|(?:^|[._-])private(?:$|[._-])|\.env$|\.key$|\.pem$|\.p12$|\.pfx$|\.db$|\.sqlite3?$|^auth.*\.json$/i;
-const sensitiveText=/token|password|mot de passe|secret|credential|authorization|bearer|\bcvv\b|\bcvc\b|api[_ -]?key|iban|(?:\d[ -]?){8,19}|(?<!\d)\d{6}(?!\d)|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|https?:\/\/|@|-----BEGIN .*PRIVATE KEY-----/i;
+const sensitiveText=/\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,})|token|password|mot de passe|secret|credential|authorization|bearer|\bcvv\b|\bcvc\b|api[_ -]?key|iban|(?:\d[ -]?){8,19}|(?<!\d)\d{6}(?!\d)|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|https?:\/\/|@|-----BEGIN .*PRIVATE KEY-----/i;
 
 export function safeFileName(name:unknown):string{
  if(typeof name!=="string"||name.length<1||name.length>512||name!==name.normalize("NFC")||/[\x00-\x1f\x7f\\%]/.test(name)||name.startsWith("/")||name.includes(":"))throw denied();
