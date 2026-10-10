@@ -35,7 +35,13 @@ export async function pruneRemoteBridgeReadReceipts(keep = 50000) {
   const candidates: { file: string; at: number; hash: string }[] = [];
   let preserved = 0, removed = 0;
   let entries: fs.Dirent[];
-  try { entries = await fs.promises.readdir(REQUEST_DIR, { withFileTypes: true }); }
+  try {
+    if (!(await fs.promises.lstat(ROOT)).isDirectory() || !(await fs.promises.lstat(REQUEST_DIR)).isDirectory() ||
+        await fs.promises.realpath(REQUEST_DIR) !== path.resolve(REQUEST_DIR)) {
+      return { removed: 0, preserved: 0, state: "source_unavailable" };
+    }
+    entries = await fs.promises.readdir(REQUEST_DIR, { withFileTypes: true });
+  }
   catch (error: any) { if (error?.code === "ENOENT") return { removed: 0, preserved: 0, state: "not_present" }; throw error; }
   for (const entry of entries) {
     if (!entry.isFile() || !/^[A-Za-z0-9._:-]{1,128}\.json$/.test(entry.name)) { preserved++; continue; }

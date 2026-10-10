@@ -28,5 +28,9 @@ function receipt(id,extra={}){return {requestId:id,method:'ping',paramsHash:'a'.
   assert(fs.existsSync(outside));assert.equal(fs.readFileSync(path.join(dir,'invalid.json'),'utf8'),'{');
   assert.equal((await bridge.pruneRemoteBridgeReadReceipts()).removed,0);
   await assert.rejects(()=>bridge.pruneRemoteBridgeReadReceipts(0),/invalid_receipt_retention/);
+  // A symlinked request directory is not the attested owner's directory.
+  const original=path.join(root,'preserved-requests');fs.renameSync(dir,original);fs.symlinkSync(original,dir);
+  assert.equal((await bridge.pruneRemoteBridgeReadReceipts()).state,'source_unavailable');
+  assert(fs.existsSync(path.join(original,'write.json')));
   console.log('P0-5: 50,060 read receipts bounded; active/uncertain/mutation/effect proofs preserved; repeat has no effect. Synthetic owner volume, no S24 qualification.');
 })().finally(()=>fs.rmSync(root,{recursive:true,force:true})).catch(e=>{console.error(e);process.exitCode=1;});
