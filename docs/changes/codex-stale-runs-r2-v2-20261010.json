@@ -14,6 +14,7 @@
     "docs/work/samantha-runtime/contracts/r2.md",
     "docs/work/samantha-runtime/contracts/r3.md",
     "openclaw-plugin-mobile-ui/scripts/test-run-inactivity.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
     "openclaw-plugin-mobile-ui/src/companion/runInactivity.ts",
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
     "openclaw-plugin-mobile-ui/src/companion/types.ts"
@@ -28,6 +29,11 @@
       "name": "build and existing contracts",
       "status": "passed",
       "evidence": "npm run build, trace-induction, control-health-components, delete-run, composed-read-result, model-fast-path, backfill-races, history-cache, conversation-pages, submit-reconciliation; payment-core 58/58."
+    },
+    {
+      "name": "Claude blocking review regression",
+      "status": "passed",
+      "evidence": "Real sessions.list shape without pendingApprovals; conservative permission/activity guards; active expiration correction; slow Gateway global budget; complete current-base CI_LOCAL_OK."
     }
   ],
   "documentation": [

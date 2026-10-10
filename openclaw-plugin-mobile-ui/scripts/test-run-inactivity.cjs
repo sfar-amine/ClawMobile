@@ -47,7 +47,7 @@ db.commit()`, owner, JSON.stringify(values)], {encoding: 'utf8'});
 }
 function ownerProof(r, messages, extra = {}) {
   responses({'sessions.list': {sessions: [{key: expectedCompanionSessionKey(r.sessionId),
-    hasActiveRun: false, pendingApprovals: [], ...extra}]}, 'chat.history': {messages}});
+    hasActiveRun: false, activeRunIds: [], lastActivityAt: old, permissionModePending: false, abortedLastRun: false, ...extra}]}, 'chat.history': {messages}});
 }
 const stored = () => JSON.parse(fs.readFileSync(registry)).runs[0];
 const callsCount = () => fs.existsSync(calls) ? fs.readFileSync(calls, 'utf8').trim().split('\n').length : 0;
@@ -122,13 +122,23 @@ async function status(r) {return api.getRunStatus(r.runId);}
     ['unknown-owner', r => [message('user', r.text, old)], {hasActiveRun: null}],
     ['recent-progress', r => [message('user', r.text, old), message('assistant', 'working', now - 1000)], {}],
     ['duplicate-prompt', r => [message('user', r.text, old), message('user', r.text, old + 1000)], {}],
-    ['missing-approvals', r => [message('user', r.text, old)], {pendingApprovals: null}],
+    ['missing-approvals', r => [message('user', r.text, old)], {permissionModePending: null}],
     ['undated', r => [message('user', r.text, undefined)], {}],
     ['older-unrelated-turn', r => [message('user', r.text, old - 60000)], {}],
     ['active-owner', r => [message('user', r.text, old)], {hasActiveRun: true}]
   ]) {
     r = run(id); write(r); ownerProof(r, makeMessages(r), flags);
     assert.equal((await status(r)).state, 'running', id);
+  }
+  // Real owner activity reverses an expiration without waiting for chat.history.
+  r = run('active-after-expiry', {state:'failed', error:'run_inactivity_expired'}); write(r);
+  ownerProof(r, [], {hasActiveRun:true, activeRunIds:['owner-run']});
+  assert.equal((await status(r)).state, 'running');
+  assert.equal(stored().inactivityCorrectionReceipt.to, 'running');
+  for (const flags of [{activeRunIds:['owner-run']}, {activeRunIds:null}, {permissionModePending:true},
+    {permissionModePending:undefined}, {abortedLastRun:true}, {lastActivityAt:now}]) {
+    r=run('real-owner-guard');write(r);ownerProof(r,[message('user',r.text,old)],flags);
+    assert.equal((await status(r)).state,'running');
   }
   // A stale owner read cannot overwrite deletion, archive, a new failure,
   // a native result or a guard added while evidence is being fetched.
@@ -165,6 +175,16 @@ async function status(r) {return api.getRunStatus(r.runId);}
   assert.equal((await status(r)).status, 'expired');
   ownerProof(r, [message('user', r.text, old), message('assistant', 'Target result', now - 1000, {stopReason: 'stop'})]);
   assert.equal((await status(r)).result, 'Target result');
+  // A slow owner must not multiply its timeout by the candidate count.
+  r=run('slow-list');write(r);ownerProof(r,[message('user',r.text,old)]);
+  const slowRegistry=JSON.parse(fs.readFileSync(registry));slowRegistry.runs=Array.from({length:30},(_,i)=>run('slow-'+i));
+  fs.writeFileSync(registry,JSON.stringify(slowRegistry));
+  // Block sessions.list too, so the hard subprocess deadline is exercised.
+  fs.writeFileSync(gateway,fs.readFileSync(gateway,'utf8').replace("if method=='chat.history' and", "if method in ('chat.history','sessions.list') and"));
+  for (const file of [started,release]) try{fs.unlinkSync(file)}catch{}
+  fs.writeFileSync(block,'block');const begin=Date.now();await api.listRuns();
+  assert.ok(Date.now()-begin<2000,'listRuns exceeded its global read budget');
+  fs.writeFileSync(release,'release');fs.unlinkSync(block);
   fs.writeFileSync(registry, '{bad registry');
   responses({});
   assert.equal((await api.getRunStatus('missing')).state, 'unknown');

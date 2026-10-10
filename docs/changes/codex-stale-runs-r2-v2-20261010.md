@@ -7,3 +7,5 @@ Un résultat réel tardif ou une reprise d’activité corrige l’expiration av
 Validation : build TypeScript ; quatre non-régressions du fichier 09, fixture propriétaire SQLite, correction via résumé/liste/callback et redémarrage ; courses suppression/archive/résultat/échec/garde ; trace-induction, R1, R3, R4, cache, pagination, backfill, soumission ; paiement 58/58. CI préserve toutes les étapes existantes et ajoute les suites R2.
 
 Architecture et MCP inchangés : aucun propriétaire supplémentaire, aucun store/scheduler/daemon. Contrat : docs/work/samantha-runtime/contracts/r2.md. Git uniquement ; Claude relit, fusionne et recette sur S24. L’exposition effective des preuves Gateway reste à qualifier sur l’appareil. Retour arrière : revert du commit ; les reçus additifs sont ignorés par l’ancien lecteur.
+
+Revue Claude corrigée : champs réels du Gateway sans pendingApprovals, budget total 1,5 s et trois candidats, correction active avec reçu ; base 066a340 et toutes les étapes CI préservées. Les quatre non-régressions obligatoires et la CI complète passent.
