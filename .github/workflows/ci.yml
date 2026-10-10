@@ -146,6 +146,14 @@ jobs:
           node scripts/test-skill-learning-guard.cjs
           python3 ../installer/termux-lite/test-skill-learning-acceptance.py
 
+      - name: Run file read boundary preparation fixtures
+        run: |
+          node scripts/test-file-read-boundary.cjs
+          node scripts/test-file-gateway-read.cjs
+          node scripts/test-files-http.cjs
+          node scripts/test-file-gateway-limits.cjs
+          python3 scripts/test-files-acceptance.py
+
       - name: Run usage and shared provider read contracts
         run: node scripts/test-usage-providers.cjs
 

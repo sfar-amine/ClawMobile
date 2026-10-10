@@ -11,6 +11,11 @@ BASE = "http://127.0.0.1:8765/v1"
 READS = [
     ("/health", 2.0),
     ("/control/health?contract=2", 1.5),
+    # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
+    ("/files?scope=agent", 1.5),
+    ("/files?scope=session", 1.5),
+    ("/files/content?scope=agent&path=AGENTS.md", 2.0),
+    ("/files/content?scope=session&path=IDENTITY.md", 2.0),
     ("/usage", 6.0),
     ("/usage?details=cost", 12.0),
     ("/providers", 6.0),
@@ -52,6 +57,8 @@ OWNER_GUARDS = [
     ("POST", "/skills/clawmobile-capabilities/disable"),
     ("POST", "/skills/clawmobile-capabilities/enable"),
     ("POST", "/skills/clawmobile-capabilities/try"),
+    ("POST", "/files"),
+    ("POST", "/files/content"),
 ]
 OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0}  # admission/refusal budget, no effect without owner proof
 SETTLE_SECONDS = 15
@@ -154,6 +161,13 @@ def main(session_id=None):
         status = "ok" if code == 200 and took <= budget and not leak else "fail"
         failed |= status == "fail"
         results.append({"route": "/skills/candidates/{traceId}", "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
+    # R20: judge leaks on the settled file answer, never on the "warming" placeholder.
+    for row in results:
+        if row["route"].startswith("/files") and row["status"] == "ok":
+            code, body, _ = call("GET", row["route"], row["budget"] + 5)
+            if code == 200 and LEAK.search(body.decode("utf-8", "replace")):
+                row["leak"], row["status"] = True, "fail"
+                failed = True
     for method, path in OWNER_GUARDS:
         budget = OWNER_GUARD_BUDGETS.get(path, 10.0)
         code, _, took = call(method, path, budget)

@@ -1,0 +1,206 @@
+{
+  "_capture": {
+    "method": "sessions.files.list",
+    "params": {
+      "sessionKey": "agent:main:main"
+    },
+    "latencyMs": 1680,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true,
+    "note": "sessionKey from sessions.list(search agent:main:main); workspace root listing unchanged"
+  },
+  "response": {
+    "sessionKey": "agent:main:main",
+    "root": "/data/data/com.termux/files/home/.openclaw/workspace",
+    "gitCheckout": true,
+    "files": [],
+    "browser": {
+      "path": "",
+      "entries": [
+        {
+          "path": ".git",
+          "name": ".git",
+          "kind": "directory",
+          "updatedAtMs": 1791537619312
+        },
+        {
+          "path": ".openclaw",
+          "name": ".openclaw",
+          "kind": "directory",
+          "updatedAtMs": 1791648907793
+        },
+        {
+          "path": "artifacts",
+          "name": "artifacts",
+          "kind": "directory",
+          "updatedAtMs": 1790620064486
+        },
+        {
+          "path": "backup-emoji-20260924-172227",
+          "name": "backup-emoji-20260924-172227",
+          "kind": "directory",
+          "updatedAtMs": 1790266947459
+        },
+        {
+          "path": "backup-greeting-20260924-172920",
+          "name": "backup-greeting-20260924-172920",
+          "kind": "directory",
+          "updatedAtMs": 1790267360376
+        },
+        {
+          "path": "backup-samantha-20260924-171112",
+          "name": "backup-samantha-20260924-171112",
+          "kind": "directory",
+          "updatedAtMs": 1790266275587
+        },
+        {
+          "path": "context",
+          "name": "context",
+          "kind": "directory",
+          "updatedAtMs": 1791653677369
+        },
+        {
+          "path": "context-backup",
+          "name": "context-backup",
+          "kind": "directory",
+          "updatedAtMs": 1790208178136
+        },
+        {
+          "path": "logs",
+          "name": "logs",
+          "kind": "directory",
+          "updatedAtMs": 1791648499369
+        },
+        {
+          "path": "media",
+          "name": "media",
+          "kind": "directory",
+          "updatedAtMs": 1790287721228
+        },
+        {
+          "path": "memory",
+          "name": "memory",
+          "kind": "directory",
+          "updatedAtMs": 1790945566766
+        },
+        {
+          "path": "screenshots",
+          "name": "screenshots",
+          "kind": "directory",
+          "updatedAtMs": 1791494793334
+        },
+        {
+          "path": "skills",
+          "name": "skills",
+          "kind": "directory",
+          "updatedAtMs": 1790186351134
+        },
+        {
+          "path": "ui-dumps",
+          "name": "ui-dumps",
+          "kind": "directory",
+          "updatedAtMs": 1791281947667
+        },
+        {
+          "path": "ui-playbooks",
+          "name": "ui-playbooks",
+          "kind": "directory",
+          "updatedAtMs": 1791651330097
+        },
+        {
+          "path": "work",
+          "name": "work",
+          "kind": "directory",
+          "updatedAtMs": 1791651289341
+        },
+        {
+          "path": "AGENTS.md",
+          "name": "AGENTS.md",
+          "kind": "file",
+          "size": 8438,
+          "updatedAtMs": 1791460327174
+        },
+        {
+          "path": "AGENTS.md.bak-ui-playbooks-20260925-020337",
+          "name": "AGENTS.md.bak-ui-playbooks-20260925-020337",
+          "kind": "file",
+          "size": 16950,
+          "updatedAtMs": 1790298217216
+        },
+        {
+          "path": "AGENTS.md.bak-ui-playbooks-20260925-095926",
+          "name": "AGENTS.md.bak-ui-playbooks-20260925-095926",
+          "kind": "file",
+          "size": 17997,
+          "updatedAtMs": 1790326766274
+        },
+        {
+          "path": "AGENTS.md.bak-ui-playbooks-20260925-103249",
+          "name": "AGENTS.md.bak-ui-playbooks-20260925-103249",
+          "kind": "file",
+          "size": 17998,
+          "updatedAtMs": 1790328769604
+        },
+        {
+          "path": "AGENTS.md.bak-ui-playbooks-20260925-115721",
+          "name": "AGENTS.md.bak-ui-playbooks-20260925-115721",
+          "kind": "file",
+          "size": 18808,
+          "updatedAtMs": 1790333841485
+        },
+        {
+          "path": "AGENTS.md.bak-ui-playbooks-20260925-123330",
+          "name": "AGENTS.md.bak-ui-playbooks-20260925-123330",
+          "kind": "file",
+          "size": 19434,
+          "updatedAtMs": 1790336010233
+        },
+        {
+          "path": "AGENTS.md.bak-ui-playbooks-20260925-131405",
+          "name": "AGENTS.md.bak-ui-playbooks-20260925-131405",
+          "kind": "file",
+          "size": 20125,
+          "updatedAtMs": 1790338444973
+        },
+        {
+          "path": "DREAMS.md",
+          "name": "DREAMS.md",
+          "kind": "file",
+          "size": 22867,
+          "updatedAtMs": 1791633733873
+        },
+        {
+          "path": "IDENTITY.md",
+          "name": "IDENTITY.md",
+          "kind": "file",
+          "size": 456,
+          "updatedAtMs": 1790707134202
+        },
+        {
+          "path": "SOUL.md",
+          "name": "SOUL.md",
+          "kind": "file",
+          "size": 4460,
+          "updatedAtMs": 1790370616881
+        },
+        {
+          "path": "SOUL.md.backup-20260924-224044",
+          "name": "SOUL.md.backup-20260924-224044",
+          "kind": "file",
+          "size": 6842,
+          "updatedAtMs": 1790267360392
+        },
+        {
+          "path": "USER.md",
+          "name": "USER.md",
+          "kind": "file",
+          "size": 955,
+          "updatedAtMs": 1790266371763
+        }
+      ]
+    }
+  }
+}
