@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Prepare conservative health resource policy and bounded existing owner maintenance",
-  "reason": "Programme33 issue64. P0-5 reviewable owner code; P0-4 runtime wiring blocked pending canonical S24 metrics/config/complete idle proof; no blind restart or plugin capture deletion.",
+  "reason": "Programme33 issue64. P0-5 reviewable owner code; P0-4 runtime wiring blocked pending canonical S24 metrics/config/complete idle proof; no blind restart or plugin capture deletion. Base current42300b0 integrated by normal merge; complete CI union and R17 expiry cycle preserved.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-p0-4-5-20261010.json",
@@ -33,7 +33,7 @@
     {
       "name": "runtime-ci-union",
       "status": "passed",
-      "evidence": "/tmp/p0-4-5-ci.log CI_LOCAL_OK; all existing steps retained, new policy/retention checks registered. tier0 and supervisor-lock regression suites passed; shell syntax and diff checks passed. Final build/retention targeted rerun verifies symlinked owner directory refused before scanning; no broad repeat needed."
+      "evidence": "Initial /tmp/p0-4-5-ci.log CI_LOCAL_OK; fresh base42300b0 complete /tmp/p0-4-5-fresh-ci.log CI_LOCAL_OK, build and retention/R17 targeted tests passed. All steps retained, R17 expiry cycle preserved. Physical fixtures absent; merge intentionally blocked."
     }
   ],
   "documentation": [
