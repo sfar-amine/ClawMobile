@@ -56,6 +56,10 @@ const request = (port, url) => new Promise((resolve, reject) => {
   assert.equal(healthy.description,'Healthy historical description');assert.equal(healthy.checkedAt,'2026-10-10T00:00:00Z');
   const failed=projectHealthComponents(healthyInput,verdict({capabilities:{'immune.health_manager':{state:'down',reason:'daily_log_audit',checked_at:now/1000}}}),now).components[0];
   assert.equal(failed.description,'Audit du journal quotidien incomplet.');assert.equal(failed.checkedAt,new Date(now).toISOString());
+  const composite=projectHealthComponents({components:[]},verdict({capabilities:{'control_plane.maintenance':{state:'degraded',reason:'scheduler_health,daily_log_audit'}}}),now).components[0];
+  assert.equal(composite.description,'Planificateur à surveiller. Audit du journal quotidien incomplet.');
+  const partlyKnown=projectHealthComponents({components:[]},verdict({capabilities:{'control_plane.maintenance':{state:'degraded',reason:'daily_log_audit,private note'}}}),now).components[0];
+  assert.equal(partlyKnown.description,'Audit du journal quotidien incomplet.');assert.ok(!JSON.stringify(partlyKnown).includes('private note'));
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'control-health-contract-'));
   const saved={home:process.env.HOME, playbooks:process.env.SAMANTHA_CONTROL_PLAYBOOKS, cache:process.env.SAMANTHA_CONTROL_CACHE};
   let server;
