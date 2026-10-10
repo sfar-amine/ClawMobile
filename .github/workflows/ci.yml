@@ -176,3 +176,13 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: Check out canonical public playbooks reader for C5 owner integration
+        uses: actions/checkout@v4
+        with:
+          repository: sfar-amine/samantha-ui-playbooks
+          ref: 3862baa0a8e47963a168164e897186ca23b7b9d6
+          path: c5-playbooks-reader
+          persist-credentials: false
+      - name: C5 canonical voice event to claw_context reader
+        run: python3 ../installer/termux-lite/test-context-voice-read.py --playbooks-root ../c5-playbooks-reader
