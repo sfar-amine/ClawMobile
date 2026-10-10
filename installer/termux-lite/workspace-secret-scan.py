@@ -24,6 +24,13 @@ EXCLUDED = {'.git', 'node_modules', 'context', 'context-backup', 'contacts', 'cr
 PRIVATE_NAME = re.compile(r'(?i)(?:\.env(?:\.|$)|credential|secret|token|\.key$|\.pem$|^auth.*\.json$|payment|bank)')
 
 
+def safe_name(name):
+    # A value embedded in a filename is still a value: don't echo it as a path.
+    if any(pattern.search(name) for pattern in (TOKEN, JWT, PRIVATE, OTP, EMAIL)) or any(luhn(m.group()) for m in CARD.finditer(name)):
+        return '[redacted-name-' + hashlib.sha256(name.encode('utf-8', errors='surrogatepass')).hexdigest()[:16] + ']'
+    return name
+
+
 def luhn(value):
     digits = [int(c) for c in value if c.isdigit()]
     if len(digits) < 13 or len(digits) > 19 or len(set(digits)) == 1:
@@ -67,7 +74,7 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                 name = entry.name
                 if name in EXCLUDED or PRIVATE_NAME.search(name) or any(ord(c) < 32 for c in name):
                     stats['skipped'] += 1; continue
-                relative = prefix + '/' + name
+                relative = prefix + '/' + safe_name(name)
                 try:
                     info = entry.stat(follow_symlinks=False)
                     if stat.S_ISDIR(info.st_mode):
@@ -92,6 +99,9 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                             for kind, pattern in [('token', TOKEN), ('private_key', PRIVATE), ('jwt', JWT), ('otp', OTP), ('card', CARD), ('email', EMAIL)]:
                                 for match in pattern.finditer(line):
                                     value = match.group(1) if kind == 'otp' else match.group()
+                                    # API field names alone are not secret values in source code.
+                                    if kind == 'token' and value.lower() in {'access_token', 'refresh_token'}:
+                                        continue
                                     if kind != 'card' or luhn(value): append(kind, value, relative, number, kind == 'email')
                     else: stats['skipped'] += 1
                 except OSError: partial()

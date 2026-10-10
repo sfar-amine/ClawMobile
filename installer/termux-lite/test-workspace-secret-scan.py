@@ -55,5 +55,17 @@ class ScanTests(unittest.TestCase):
             self.assertEqual(result['findings'][0]['line'],1)
     def test_card_validation(self):
         self.assertTrue(scan.luhn('4111 1111 1111 1111')); self.assertFalse(scan.luhn('4111 1111 1111 1112')); self.assertFalse(scan.luhn('0000000000000000'))
+    def test_sensitive_filenames_never_escape_as_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); name='sk-'+'q'*30+'.txt'
+            (root/name).write_text('OTP: 482913')
+            result=scan.scan_roots([('workspace',root)])
+            self.assertEqual(len(result['findings']),1)
+            self.assertNotIn(name,json.dumps(result))
+            self.assertIn('[redacted-name-',result['findings'][0]['path'])
+    def test_bare_api_field_names_are_not_secrets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); (root/'source.py').write_text('access_token refresh_token maxTokens')
+            self.assertEqual(scan.scan_roots([('repository',root)])['findings'],[])
 
 if __name__=='__main__': unittest.main()
