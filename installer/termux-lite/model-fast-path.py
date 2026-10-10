@@ -220,6 +220,24 @@ def capability_first_eligibility(value: dict[str, Any]) -> tuple[str, str]:
 
 def _display_text(value: Any) -> str:
     if isinstance(value, dict):
+        if value.get("strategy") == "composed_read" and isinstance(value.get("results"), list):
+            lines = []
+            for row in value["results"]:
+                if not isinstance(row, dict):
+                    continue
+                label = str(row.get("label") or row.get("target") or "Lecture")
+                payload = row.get("result")
+                if row.get("state") == "completed" and isinstance(payload, dict) and payload.get("ok") is True:
+                    text = _display_text(payload)
+                elif row.get("state") == "indeterminate":
+                    text = "Résultat à vérifier ; lecture non rejouée."
+                elif row.get("state") == "not_started":
+                    text = "Lecture non exécutée."
+                else:
+                    text = "Lecture indisponible."
+                lines.append(label + " : " + text)
+            if lines:
+                return "\n".join(lines)
         for key in ("text", "message", "summary", "answer"):
             text = value.get(key)
             if isinstance(text, str) and text.strip():
@@ -624,12 +642,17 @@ def try_fast_path(
                 executed, message, ui_root=ui_root, surface=surface, caller=caller,
                 origin_id=origin_id, timeout=timeout,
             ) | {"decision": executed.get("decision") or decision or None}
-        return {
+        payload = execution.get("result")
+        composed = (selected.get("execution_contract") or {}).get("strategy") == "composed_read"
+        error_result = {
             "status": "known_error", "reason": state or "known_execution_failed",
             "text": "Claw a identifié la capacité mais son exécution n'a pas atteint un état terminal vérifié.",
             "resolution": executed, "decision": executed.get("decision") or decision or None,
             "model_bypassed": True,
         }
+        if composed and isinstance(payload, dict):
+            error_result.update(text=_display_text(payload), result=payload, execution_state=state)
+        return error_result
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}
 
