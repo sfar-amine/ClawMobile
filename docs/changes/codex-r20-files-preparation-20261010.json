@@ -55,12 +55,14 @@
     },
     "reason": "Existing MCP tools and execution contracts unchanged."
   },
-  "rollback": "Revert this isolated lot.",
+  "rollback": "No deployment by Codex. Revert isolated R20 under review; any later qualified runtime rollback uses companion-deploy.sh and a Claude-qualified SHA, automatic acceptance/rollback and receipt.",
   "limitations": [
     "Draft routes, installed schema and physical workspace root unqualified.",
     "Browser owner capped 250 without cursor; session preview cap256KiB, no 5MiB image bypass.",
     "Installed captures and uncovered fallback whitelist missing.",
     "P2-b enriched shared financial guard mandatory before activation.",
-    "No S24, workspace direct access, write, cleanup or physical qualification."
+    "No S24, workspace direct access, write, cleanup or physical qualification.",
+    "AGENTS.md 85aeb07: real S24 fixtures, realistic CLI latency/volumes and canonical capability mapping remain mandatory before functional continuation or activation.",
+    "NO_CAPABILITY temporary draft table; collection24s does not satisfy pending-under15s production requirement."
   ]
 }
