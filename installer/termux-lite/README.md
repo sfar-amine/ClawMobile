@@ -248,12 +248,22 @@ session id, and attachments, returns a run id and session id, and lets mobile
 apps poll `/v1/runs/:runId` and `/v1/runs?limit=100` for chat history, progress,
 tool activity, final result, and optional token usage.
 
-`/v1/attachments` accepts raw `image/*` uploads from the Android share sheet and
-saves them under
-`${CLAWMOBILE_ATTACHMENT_DIR:-$HOME/.clawmobile/companion-attachments}`.
-The app includes the returned attachment objects in `/v1/runs.attachments`.
-The server appends local image paths to the internal OpenClaw prompt while
-preserving the original user-visible request as `userText`.
+`POST /v1/attachments` accepts raw JPEG/PNG/WebP/GIF, PDF or UTF-8 text,
+validated from content. Native loopback callers provide
+`x-clawmobile-owner-flow: v1` and a required `x-clawmobile-attachment-id`.
+`POST /v1/attachments/share` accepts `{files:[{id,mimeType,base64}]}`.
+Limits: 10 MiB per file, five files / 25 MiB per share, 500 MiB total. Files stay
+in `${CLAWMOBILE_ATTACHMENT_DIR:-$HOME/.clawmobile/companion-attachments}`.
+Same id/content/MIME reuses the deterministic receipt without changing run
+history; a collision is refused. No operation-id header is required.
+
+The app includes returned references in `/v1/runs.attachments`. The server adds
+local attachment context to the internal prompt while preserving `userText`.
+Missing references return 404 `attachment_not_found` before creating a run.
+Legacy `.img` files return 404. Lazy 30-day purge preserves files referenced by
+runs; deleting the last referencing run removes them. Retained files exceeding
+the available quota cause a refusal with `reason:quota_full`, without eviction.
+Non-image downloads use attachment disposition; all use `nosniff`.
 
 The companion server also exposes a minimal Nostr-based agent message and skill
 sharing MVP. Nostr endpoints are local-only companion operations by default.

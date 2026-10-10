@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "codex-v4-latency-report-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "V4 : rapport automatique de latence apparié par sid/source et dérive de fermeture explicite",
+  "reason": "Lot V4 autorisé, calcul à partir des journaux originaux fournis, sans timestamp ni mesure reconstruite.",
+  "files": [
+    "docs/changes/codex-v4-latency-report-current-20261010.json",
+    "docs/changes/codex-v4-latency-report-current-20261010.md",
+    "docs/work/samantha-runtime/contracts/v4.md",
+    "docs/work/samantha-m1/evidence/voice-20261010-latency.json",
+    "docs/work/samantha-m1/evidence/voice-20261010-latency.md",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-latency-report.py",
+    "openclaw-plugin-mobile-ui/scripts/voice-m1-analyze.py"
+  ],
+  "tests": [
+    {
+      "name": "V4 source join, statistics and explicit drift representation",
+      "status": "passed",
+      "evidence": "7 tests: 100 source-matched sessions, no cross-sid/producer/turn pairing, whole-sid drift exclusion, exact new 999.999/1000/1000.001 and legacy ambiguous boundary, n<100 marked, empty report without invented percentiles. Canonical A10 corpus 10/10 unchanged and passing."
+    },
+    {
+      "name": "Current CI and supplied logs replay",
+      "status": "passed",
+      "evidence": "Current workflow /tmp/run_pr_ci.py: CI_LOCAL_OK on af4132a; ci.yml unchanged and new V4 test executed separately. Original supplied measure3 replay: 3 pairs, 0 excluded, app startup p50=367.70ms, observed p95=391.62ms, qualified p95=null (n3). Input SHA256 preserved in evidence."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/v4.md",
+    "docs/work/samantha-m1/evidence/voice-20261010-latency.md",
+    "docs/changes/codex-v4-latency-report-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert V4 commits; existing A10 fields and legacy conservative boundary tests remain.",
+  "limitations": [
+    "No S24 execution, deployment, audio/acoustic test or M1 gate validation. Only supplied measure3 exists; measures1/2 are not reconstructed. Historical coverage depends on V2 PR37 but this analyzer change is independent in code. Legacy 1000us is unknown_truncated_boundary and excluded; strict >1000 applies only to an explicit untruncated representation marker."
+  ]
+}
