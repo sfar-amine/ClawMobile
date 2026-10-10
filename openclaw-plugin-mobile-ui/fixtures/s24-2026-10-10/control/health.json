@@ -1,0 +1,94 @@
+{
+ "schemaVersion": 2,
+ "sections": {
+  "health": {
+   "schemaVersion": 2,
+   "resourceKey": "control/v2/health",
+   "dataRevision": "73c540d8580ba26b69266ba756bc2e9b166f1eff253609ad666800e1644a4fa7",
+   "generatedAt": "2026-10-10T14:59:18.054465+00:00",
+   "sourceCheckedAt": "2026-10-10T14:58:48+00:00",
+   "availability": "ready",
+   "freshness": "fresh",
+   "remainingFreshMs": 15000,
+   "issues": [],
+   "data": {
+    "status": "healthy",
+    "checkedAt": "2026-10-10T14:58:48+00:00",
+    "fresh": true,
+    "healthy": 18,
+    "total": 18,
+    "components": [
+     {
+      "id": "immune.root_guardian",
+      "name": "Root Guardian",
+      "status": "healthy",
+      "checkedAt": "2026-10-10T14:58:48.000Z",
+      "heartbeatAt": "2026-10-10T14:59:17+00:00",
+      "description": "<texte 33 car.>",
+      "label": {
+       "fr": "Supervision principale",
+       "en": "Root guardian"
+      }
+     },
+     {
+      "id": "immune.health_manager",
+      "name": "Health Manager",
+      "status": "healthy",
+      "checkedAt": "2026-10-10T14:58:48.000Z",
+      "heartbeatAt": "2026-10-10T14:59:13+00:00",
+      "description": "<texte 33 car.>",
+      "label": {
+       "fr": "Gestionnaire de santé",
+       "en": "Health manager"
+      }
+     },
+     {
+      "id": "immune.incident_orchestrator",
+      "name": "Incident Orchestrator",
+      "status": "healthy",
+      "checkedAt": "2026-10-10T14:58:48.000Z",
+      "heartbeatAt": "2026-10-10T14:59:17+00:00",
+      "description": "<texte 33 car.>",
+      "label": {
+       "fr": "Gestionnaire d’incidents",
+       "en": "Incident orchestrator"
+      }
+     }
+    ],
+    "scheduler": {
+     "name": "Scheduler",
+     "status": "healthy",
+     "checkedAt": "2026-10-10T14:58:54.384697+00:00",
+     "enabled": 12
+    },
+    "lastCycle": {
+     "at": "<texte 32 car.>",
+     "durationMs": 81551,
+     "providerCalls": null,
+     "autoApplies": null,
+     "actions": null
+    },
+    "openIncidents": 0,
+    "humanRequired": 0,
+    "attentionItems": [],
+    "canonicalVerdict": {
+     "fresh": true,
+     "status": "healthy",
+     "checkedAt": "2026-10-10T14:58:48.000Z"
+    }
+   }
+  }
+ },
+ "computation": {
+  "durationMs": 8.485,
+  "sources": {
+   "health": {
+    "sourceReadCount": 1,
+    "durationMs": 8.341
+   }
+  },
+  "computationId": "<texte 36 car.>",
+  "queueMs": 0.389,
+  "deliveryMode": "generated"
+ }
+}

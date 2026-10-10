@@ -1,0 +1,29 @@
+{
+  "_capture": {
+    "method": "agents.files.get",
+    "params": {
+      "agentId": "main",
+      "name": "IDENTITY.md"
+    },
+    "latencyMs": 3454,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true,
+    "note": "file.content replaced by placeholder; size/hash/mime fields kept (hash zeroed)"
+  },
+  "response": {
+    "agentId": "main",
+    "workspace": "/data/data/com.termux/files/home/.openclaw/workspace",
+    "file": {
+      "name": "IDENTITY.md",
+      "path": "/data/data/com.termux/files/home/.openclaw/workspace/IDENTITY.md",
+      "missing": false,
+      "size": 456,
+      "updatedAtMs": 1790707134202,
+      "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "content": "<texte 456 car.>"
+    }
+  }
+}
