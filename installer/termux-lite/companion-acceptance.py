@@ -10,6 +10,8 @@ BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
     ("/health", 2.0),
+    ("/whatsapp/allowlist", 10.0),
+    ("/whatsapp/allowlist/history?limit=50", 10.0),
     ("/security/surfaces", 1.5),
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
@@ -24,6 +26,9 @@ READS = [
     ("/skills/candidates?limit=50", 1.5),
     ("/voice/voices", 1.0),
     ("/control/automations?contract=2", 1.0),
+    # P2-b: an installed workspace skill on the S24 (fixtures/s24-2026-10-10/gateway/skills.status.json).
+    # The Gateway wait is capped at 3 s (then partial); skills.status measured 1.8-2.4 s.
+    ("/skills/clawmobile-capabilities", 4.0),
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
@@ -37,6 +42,10 @@ OWNER_GUARDS = [
     ("POST", "/control/memory/import"),
     ("POST", "/control/memory/" + "a" * 64 + "/forget"),
     ("POST", "/runs/acceptance-probe/approval"),
+    ("POST", "/whatsapp/allowlist"),
+    ("POST", "/skills/clawmobile-capabilities/disable"),
+    ("POST", "/skills/clawmobile-capabilities/enable"),
+    ("POST", "/skills/clawmobile-capabilities/try"),
 ]
 OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0}  # admission/refusal budget, no effect without owner proof
 SETTLE_SECONDS = 15
