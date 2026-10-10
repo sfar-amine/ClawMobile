@@ -229,6 +229,17 @@ const unconfigured = await handleMcpHttp(
 );
 assert.equal(unconfigured.status, 503);
 
+const contextCallsBefore=calls.length;
+result=await post({jsonrpc:'2.0',id:701,method:'tools/call',params:{name:'claw_context',arguments:{query:'Fixture',scopes:['engineering','memory'],clientId:'codex-cloud',surface:'codex',profile:'chat-owner'}}});
+assert.equal(result.status,200);assert.equal(calls.length,contextCallsBefore+1);
+assert.deepEqual(calls.at(-1).args.scopes,['engineering','memory']);
+assert.equal(calls.at(-1).auth.clientId,'claude-chat');assert.equal(calls.at(-1).auth.profile,'chat-owner-shadow');
+for(const key of ['clientId','surface','profile'])assert.ok(!Object.hasOwn(calls.at(-1).args,key));
+result=await post({jsonrpc:'2.0',id:702,method:'tools/call',params:{name:'claw_context',arguments:{query:'Fixture',scopes:['--surface=owner']}}});
+assert.equal(result.body.result.isError,true);assert.equal(calls.length,contextCallsBefore+1);
+result=await post({jsonrpc:'2.0',id:703,method:'tools/call',params:{name:'claw_context',arguments:{query:'Fixture',scopes:['memory']}}},'wrong-'+ 'z'.repeat(40));
+assert.equal(result.status,401);assert.equal(calls.length,contextCallsBefore+1);
+
 console.log(JSON.stringify({
   ok: true,
   protocol: "streamable-http-json",
