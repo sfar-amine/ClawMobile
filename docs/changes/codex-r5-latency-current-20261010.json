@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "id": "codex-r5-latency-current-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "R5 : lecture Automatisations différée et cache du pool existant invalidé par la révision du scheduler",
+  "reason": "Lot R5 autorisé ; base runtime 639ae68, aucun déploiement ni nouvelle persistance.",
+  "files": [
+    "docs/changes/codex-r5-latency-current-20261010.json",
+    "docs/changes/codex-r5-latency-current-20261010.md",
+    "docs/work/samantha-runtime/contracts/r5.md",
+    "openclaw-plugin-mobile-ui/scripts/test-control-automations-latency.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts"
+  ],
+  "tests": [
+    {
+      "name": "R5 cold/hot latency and owner revision invalidation",
+      "status": "passed",
+      "evidence": "Offline slow-owner fixture : before 1871.04 ms ; cold deferred 193.47 ms ; cached 2.23 ms. Coalescence, cache age, revision change during generation, force, knownRevision, symlink refusal and privacy passed."
+    },
+    {
+      "name": "Current CI workflow",
+      "status": "passed",
+      "evidence": "All current .github/workflows/ci.yml steps run locally with /tmp/run_pr_ci.py : CI_LOCAL_OK. ci.yml unchanged; the new R5 test is run separately."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r5.md",
+    "docs/changes/codex-r5-latency-current-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert the R5 commit; contract 1 and the scheduler owners remain unchanged.",
+  "limitations": [
+    "No deployment or S24 latency proof. Claude must qualify the actual scheduler store path and the Android deferred-loading flow. Contract 1 and multi-section snapshot keep their existing budget."
+  ]
+}
