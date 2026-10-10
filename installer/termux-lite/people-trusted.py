@@ -483,8 +483,6 @@ from datetime import datetime, timezone
 
 MARKER = '<!-- samantha-allowlist v1 -->'
 END = '<!-- /samantha-allowlist -->'
-NOTE = '<!-- samantha-private-note -->'
-NOTE_END = '<!-- /samantha-private-note -->'
 OP = re.compile(r'[A-Za-z0-9_.:-]{1,128}\Z')
 CID = re.compile(r'wa-[a-f0-9]{16}\Z')
 E164 = re.compile(r'\+[1-9][0-9]{7,14}\Z')
@@ -536,6 +534,8 @@ class Contacts:
                 for row in connection.execute('SELECT phones.e164, people.person_id, people.display_name FROM phones JOIN people USING(person_id) WHERE people.active=1'):
                     if row['e164'] and E164.fullmatch(row['e164']): people.setdefault(row['e164'], {'personId':row['person_id'],'name':row['display_name']})
                 connection.close()
+        except sqlite3.Error: fail('contacts_unavailable', 503)
+        try:
             # PR48 S24 schema: WhatsApp provider timestamp, never conversation
             # updated_at or Gateway persistence time. One read for the page.
             if self.people.SESSION_DB.exists():
@@ -566,8 +566,11 @@ class Contacts:
                             current['timestamp']=max(current['timestamp'] or 0,inbound)
                         if isinstance(latest,(int,float)) and latest>=current['latest']:
                             current['latest']=latest;current['reason']='archived_history' if archived else None
-            return people, activity
-        except sqlite3.Error: fail('contacts_unavailable', 503)
+        except sqlite3.Error:
+            # Contract: unknown activity stays null. A locked or slow session
+            # store (lock wait 1 s, query 2 s) never fails the list or the sweep.
+            activity={}
+        return people, activity
     def path(self, number): return self.people.CONTACTS/('wa_'+number[1:]+'.md')
     def metadata(self, number):
         path=self.path(number)
@@ -952,7 +955,7 @@ class Contacts:
                 return self.release_failed(operation)
             state='indeterminate'
         success=state=='completed'
-        if success: state={'add':'added','remove':'removed','suspend':'suspended','reactivate':'reactivated'}.get(action,'updated')
+        if success: state={'add':'added','remove':'removed','sweep':'removed','suspend':'suspended','reactivate':'reactivated'}.get(action,'updated')
         receipt['state']=state
         return self.finish(operation,{'success':success,'state':state,'receipt':receipt})
     def sweep(self):

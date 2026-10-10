@@ -216,8 +216,9 @@ class AllowlistTests(unittest.TestCase):
         connection=sqlite3.connect(m.SESSION_DB);connection.execute('BEGIN EXCLUSIVE')
         try:
             began=time.monotonic()
-            with self.assertRaises(m.Refused) as error:self.service.find(m.contact_id(OWNER))
-            self.assertEqual(error.exception.code,'contacts_unavailable')
+            # Unknown activity stays null (contract): the list survives a locked session store.
+            row=self.service.find(m.contact_id(OWNER))
+            self.assertIsNone(row['lastActivityAt']);self.assertNotIn('reason',row)
             self.assertLess(time.monotonic()-began,1.8)
         finally:connection.rollback();connection.close()
         self.assertFalse(m.DB.exists());self.assertFalse(m.CONTACTS.exists())
@@ -271,7 +272,7 @@ class AllowlistTests(unittest.TestCase):
         self.add(scope='claw');identity=m.contact_id(NEW)
         self.service.call('note',self.body('note',contactId=identity,text='Private remainder'))
         self.assertTrue(self.service.context(NEW).endswith('Private remainder'))
-        self.assertNotIn(m.NOTE,self.service.context(NEW))
+        self.assertNotIn('samantha-private-note',self.service.context(NEW))
         self.service.call('suspend',self.body('suspend',contactId=identity))
         remove=self.body('remove',contactId=identity);self.confirmed(remove,'remove')
         self.assertEqual(self.service.call('remove',remove)['state'],'removed')
@@ -290,9 +291,13 @@ class AllowlistTests(unittest.TestCase):
             return self.gateway(method,params,timeout_ms)
         with patch.object(m,'gateway_call',side_effect=gateway):
             first=self.service.call('sweep',{});self.assertFalse(first['success']);self.assertEqual(patches,1)
+            # The uncertain attempt keeps its own receipt; the next pass re-reads allowFrom and uses a new attempt id.
+            self.assertIn(NEW,self.cfg['channels']['whatsapp']['allowFrom'])
             second=self.service.call('sweep',{});self.assertTrue(second['success']);self.assertEqual(patches,2)
         self.assertIsNone(self.service.metadata(NEW));self.assertNotIn(NEW,self.cfg['channels']['whatsapp']['direct'])
         self.assertNotIn(m.contact_id(NEW),[row['contactId'] for row in self.service.rows()])
+        self.assertEqual(self.service.read_operation('expire:'+m.digest(NEW+'\0'+m.utc(1800000000+86400))[:40]+':0')['state'],'indeterminate')
+        self.assertEqual(self.service.read_operation('expire:'+m.digest(NEW+'\0'+m.utc(1800000000+86400))[:40]+':1')['state'],'removed')
         events=self.service.call('history',{})['items'];self.assertEqual([e['action'] for e in events].count('expired'),1)
         self.assertTrue(all('scope' in e and 'durationDays' in e for e in events))
         self.assertEqual(events[0]['durationDays'],1)
