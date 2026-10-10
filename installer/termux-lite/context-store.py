@@ -67,7 +67,7 @@ def ingest_file(c,path,require_active=None):
         else: raise FileNotFoundError(path)
     e=json.loads(p.read_text())
     if not all(e.get(k) for k in ('id','surface','kind','text','createdAt')): raise ValueError('missing required field')
-    if e['surface'] not in ('chat','work','voice','openclaw'): raise ValueError('bad surface')
+    if e['surface'] not in ('chat','work','voice','openclaw','claude','codex','app'): raise ValueError('bad surface')
     if e['kind'] not in ('decision','learning','open_thread','completed_action','constraint','checkpoint'): raise ValueError('bad kind')
     migrate(c); c.execute('BEGIN IMMEDIATE')
     try:

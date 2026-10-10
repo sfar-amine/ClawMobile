@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "codex-c5-context-surfaces-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Extend canonical context surfaces without fabricating voice semantic events",
+  "reason": "C5 files31/33; semantic voice ingress still needs canonical evidence. Private declaration update prepared in paired playbooks owner.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/context-event.sh",
+    "installer/termux-lite/context-store.py",
+    "installer/termux-lite/context-barrier.sh",
+    "installer/termux-lite/test-context-surfaces.py",
+    "docs/work/samantha-runtime/contracts/c5.md",
+    "docs/changes/codex-c5-context-surfaces-20261010.md",
+    "docs/changes/codex-c5-context-surfaces-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "canonical-context-surfaces",
+      "status": "passed",
+      "evidence": "Actual CLI/store/SQLite/compactor using isolated synthetic fixtures without HOME replacement: seven closed sources, replay, supersession, invalid source and secret refusal."
+    },
+    {
+      "name": "ci-existing-union",
+      "status": "passed",
+      "evidence": "All25executableCIcommands pass on base2c2c18f; unchanged dependencies, npmci not repeated."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c5.md",
+    "docs/changes/codex-c5-context-surfaces-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal owner surface vocabulary only; no new route/action or invented voice write capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing event CLI/store/compactor, no new owner or memory registry."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP tool/schema changes; C6 surface forwarding is a separate paired change."
+  },
+  "rollback": "Revert C5 implementation only; preserve all durable existing memory events.",
+  "limitations": [
+    "Voice typed semantic producer unconfirmed; no transcription or heuristic event stored. Foundation declaration update prepared in paired playbooks owner.",
+    "Synthetic tests are not S24 qualification; actual capture needed before activation.",
+    "Publication waits C2/C3/C4 coordination."
+  ]
+}
