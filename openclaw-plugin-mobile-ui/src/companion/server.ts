@@ -18,7 +18,7 @@ import { createClawLiveToken, clawLivePageHtml } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
-import { archiveSession, deleteSession, getRunStatus, getRunStatusByClientRunId, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
+import { archiveSession, deleteSession, deleteRun, getRunStatus, getRunStatusByClientRunId, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
 import { acceptSkillImport, createSkillSharePackage, listPendingSkillImports, rejectSkillImport, storePendingSkillImport } from "./skillSharing";
 import type { CompanionHealth, CompanionRunStatus, IntentAttachment, RunCreateRequest, TerminalCommandRequest, TerminalCommandResponse, TerminalSessionRequest, TerminalSessionResponse } from "./types";
@@ -917,6 +917,24 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   }
 
   const byClientRunMatch = routePath.match(/^\/runs\/by-client\/([^/]+)$/);
+  const deleteRunMatch = routePath.match(/^\/runs\/([^/]+)$/);
+  if (method === "DELETE" && deleteRunMatch) {
+    if (req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"]) {
+      writeJson(res, 403, {success:false, state:"denied", receipt:null, error:"native_owner_required"}); return;
+    }
+    try {
+      const body = await readJsonBody<any>(req, 2048);
+      if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 1 || typeof body.operationId !== "string")
+        throw new HttpError(400, "invalid_run_deletion");
+      const result = await deleteRun(decodeURIComponent(deleteRunMatch[1]), body.operationId);
+      res.setHeader("Cache-Control", "no-store"); writeJson(res, result.success ? 200 : 404, result);
+    } catch (error: any) {
+      const code = [400, 409].includes(error?.statusCode) ? error.statusCode : 503;
+      writeJson(res, code, {success:false, state:"failed", receipt:null,
+        error:code === 503 ? "run_deletion_unavailable" : error.message});
+    }
+    return;
+  }
   if (method === "GET" && byClientRunMatch) {
     const clientRunId = decodeURIComponent(byClientRunMatch[1]);
     const result = await getRunStatusByClientRunId(clientRunId);

@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "id": "codex-delete-run-r3-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Delete a terminal Companion history item with an idempotent durable receipt.",
+  "reason": "The thread had no single-message deletion endpoint or stable operation receipt.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-delete-run.cjs",
+    "docs/work/samantha-runtime/contracts/r3.md",
+    "docs/changes/codex-delete-run-r3-20261010.md",
+    "docs/changes/codex-delete-run-r3-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "build",
+      "status": "passed",
+      "evidence": "npm run build"
+    },
+    {
+      "name": "deletion-contract",
+      "status": "passed",
+      "evidence": "node scripts/test-delete-run.cjs"
+    },
+    {
+      "name": "regression",
+      "status": "passed",
+      "evidence": "submit-reconciliation, conversation-backfill-races, trace-induction, payment-core"
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-delete-run-r3-20261010.md",
+    "docs/work/samantha-runtime/contracts/r3.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Native history endpoint within the existing run owner; no Capability Graph route or executor changed."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing single-writer runs registry stores bounded operation receipts; no additional persistence owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Only native read-only Control projection is changed; MCP contracts and adapters untouched."
+  },
+  "rollback": "Revert R3; preserve the additive runDeletions field for later anti-replay reactivation.",
+  "limitations": [
+    "Git-only delivery. Claude owns S24 receipt, integrated acceptance and activation.",
+    "Deletion receipt/idempotence window: 30 days and at most 1000 receipts; FIFO eviction."
+  ]
+}

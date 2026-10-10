@@ -39,7 +39,11 @@ type CompanionRunRegistry = {
   ownerConfirmations: ConfirmationRecord[];
   runs: StoredRun[];
   archivedSessionIds: string[];
+  runDeletions: RunDeletionReceipt[];
 };
+
+type RunDeletionReceipt = {version: 1; operationId: string; runId: string; clientRunId?: string;
+  sessionId: string; action: "delete_run"; state: "completed"; at: number};
 
 type TrajectorySummary = {
   runId?: string;
@@ -135,6 +139,8 @@ export async function reserveSubmittedRun(
 
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
+    if (registry.runDeletions.some(receipt => receipt.clientRunId === clientId))
+      throw Object.assign(new Error("run_deleted"), {statusCode: 409});
     const existing = registry.runs.find((run) => run.clientRunId === clientId);
     if (existing) {
       const expectedSource = options.executionSource || existing.executionSource || "gateway";
@@ -297,6 +303,69 @@ export async function deleteSession(sessionId: string) {
   });
 }
 
+/** Delete one terminal history item; never cancels work or removes canonical payment receipts. */
+const RUN_DELETION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const RUN_DELETION_LIMIT = 1000;
+function retainedRunDeletions(rows: RunDeletionReceipt[], now = Date.now()): RunDeletionReceipt[] {
+  return rows.filter(row => now - row.at <= RUN_DELETION_RETENTION_MS)
+    .sort((left,right) => left.at-right.at).slice(-RUN_DELETION_LIMIT);
+}
+function parseRunDeletions(value: unknown): RunDeletionReceipt[] {
+  if (value === undefined) return [];
+  const rows = Array.isArray(value) ? value : [];
+  const operations = new Set<string>();
+  let invalid = Array.isArray(value) ? 0 : 1;
+  const valid: RunDeletionReceipt[] = [];
+  for (const row of rows) {
+    if (!row || row.version !== 1 || typeof row.operationId !== "string" || !CLIENT_RUN_ID_RE.test(row.operationId) ||
+        typeof row.runId !== "string" || !CLIENT_RUN_ID_RE.test(row.runId) || typeof row.sessionId !== "string" ||
+        (row.clientRunId !== undefined && (typeof row.clientRunId !== "string" || !CLIENT_RUN_ID_RE.test(row.clientRunId))) ||
+        row.action !== "delete_run" || row.state !== "completed" || !Number.isFinite(row.at) || row.at < 0 || operations.has(row.operationId)) {
+      invalid++; continue;
+    }
+    operations.add(row.operationId); valid.push(row);
+  }
+  if (invalid) console.warn("companion: invalid_run_deletion_receipts_ignored count=" + invalid);
+  return retainedRunDeletions(valid);
+}
+
+export async function deleteRun(runId: string, operationId: string) {
+  if (typeof runId !== "string" || !CLIENT_RUN_ID_RE.test(runId) ||
+      typeof operationId !== "string" || !CLIENT_RUN_ID_RE.test(operationId))
+    throw Object.assign(new Error("invalid_run_deletion"), {statusCode: 400});
+  return mutateRegistry(async () => {
+    const registry = await registryOrEmpty();
+    const old = registry.runDeletions.find(row => row.operationId === operationId);
+    if (old) {
+      if (old.runId !== runId) throw Object.assign(new Error("operation_id_conflict"), {statusCode: 409});
+      return {success: true, state: "completed", receipt: old};
+    }
+    const deleted = registry.runDeletions.find(row => row.runId === runId);
+    if (deleted) {
+      const receipt = {...deleted, operationId, at: Date.now()};
+      await writeCompanionRunRegistry(registry.runs, registry.archivedSessionIds, registry.paymentRequests, registry.ownerConfirmations, [...registry.runDeletions, receipt]);
+      return {success: true, state: "completed", receipt};
+    }
+    const run = registry.runs.find(row => row.runId === runId);
+    if (!run) return {success: false, state: "not_found", receipt: null};
+    const matches = (value: unknown) => typeof value === "string" && [run.runId, run.clientRunId, run.sessionId].includes(value);
+    if ([run.decision?.capability, run.decision?.capability_id].some(value => String(value || "").startsWith("payment.")) ||
+        registry.paymentRequests.some(row => matches(row.draft?.origin?.id)) ||
+        registry.ownerConfirmations.some(row => matches(row.intent?.origin?.id)))
+      throw Object.assign(new Error("protected_run"), {statusCode: 409});
+    if (run.modality === "voice" ? !["completed", "interrupted"].includes(run.transcriptState || "") : !["done", "failed"].includes(run.state || ""))
+      throw Object.assign(new Error("run_not_terminal"), {statusCode: 409});
+    const receipt: RunDeletionReceipt = {version: 1, operationId, runId, clientRunId: run.clientRunId,
+      sessionId: run.sessionId, action: "delete_run", state: "completed", at: Date.now()};
+    const nextRuns = registry.runs.filter(row => row.runId !== runId);
+    const archived = nextRuns.some(row => row.sessionId === run.sessionId) ? registry.archivedSessionIds
+      : Array.from(new Set([...registry.archivedSessionIds, run.sessionId]));
+    await writeCompanionRunRegistry(nextRuns, archived, registry.paymentRequests, registry.ownerConfirmations, [...registry.runDeletions, receipt]);
+    submittedRuns.delete(runId);
+    return {success: true, state: "completed", receipt};
+  });
+}
+
 export async function listRunSummaries(options: { limit?: number } = {}): Promise<CompanionRunStatus[]> {
   const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
   const storedRuns = await readStoredRuns();
@@ -411,6 +480,8 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
   if (!normalizedRunId) {
     return unknownRun("", "Run id is required.");
   }
+  if ((await registryOrEmpty()).runDeletions.some(receipt => receipt.runId === normalizedRunId))
+    return unknownRun(normalizedRunId, "Run deleted from companion history.");
 
   const stored = submittedRuns.get(normalizedRunId)
     || (await findStoredRun(normalizedRunId).catch(() => null));
@@ -1384,6 +1455,7 @@ async function readStoredRuns(): Promise<StoredRun[]> {
   const fromMemory = Array.from(submittedRuns.values());
   const registry = await registryOrEmpty();
   const archivedSessionIds = new Set(registry.archivedSessionIds);
+  const deletedRunIds = new Set(registry.runDeletions.map(receipt => receipt.runId));
   const byId = new Map<string, StoredRun>();
   for (const run of [...registry.runs, ...fromMemory]) {
     byId.set(run.runId, {
@@ -1392,6 +1464,7 @@ async function readStoredRuns(): Promise<StoredRun[]> {
     });
   }
   return Array.from(byId.values())
+    .filter(run => !deletedRunIds.has(run.runId))
     .filter((run) => !archivedSessionIds.has(normalizeCompanionSessionId(run.sessionId || "default")))
     .sort((left, right) => right.acceptedAt - left.acceptedAt);
 }
@@ -1399,6 +1472,9 @@ async function readStoredRuns(): Promise<StoredRun[]> {
 async function saveStoredRun(run: StoredRun) {
   return mutateRegistry(async () => {
   const registry = await registryOrEmpty();
+  if (registry.runDeletions.some(receipt => receipt.runId === run.runId)) {
+    submittedRuns.delete(run.runId); return;
+  }
   const storedRun = {
     ...run,
     sessionId: normalizeCompanionSessionId(run.sessionId || "default"),
@@ -1410,16 +1486,18 @@ async function saveStoredRun(run: StoredRun) {
   });
 }
 
-async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: string[], paymentRequests?: PaymentRecord[], ownerConfirmations?: ConfirmationRecord[]) {
+async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: string[], paymentRequests?: PaymentRecord[], ownerConfirmations?: ConfirmationRecord[], runDeletions?: RunDeletionReceipt[]) {
   // Payment guards share this registry but never inherit the 100-turn history eviction.
   const current = await registryOrEmpty();
   const payments = paymentRequests ?? current.paymentRequests;
   const confirmations = ownerConfirmations ?? current.ownerConfirmations;
-  const boundedRuns = retainStoredRuns(runs);
+  const deletions = retainedRunDeletions(runDeletions ?? current.runDeletions);
+  const deletedIds = new Set(deletions.map(row => row.runId));
+  const boundedRuns = retainStoredRuns(runs.filter(row => !deletedIds.has(row.runId)));
   await fs.mkdir(path.dirname(runRegistryPath()), { recursive: true });
   const tmp = runRegistryPath() + ".tmp-" + process.pid;
   const file = await fs.open(tmp, "w", 0o600);
-  try { await file.writeFile(JSON.stringify({ version: 1, runs: boundedRuns, archivedSessionIds, paymentRequests: payments, ownerConfirmations: confirmations }, null, 2)); await file.sync(); }
+  try { await file.writeFile(JSON.stringify({ version: 1, runs: boundedRuns, archivedSessionIds, paymentRequests: payments, ownerConfirmations: confirmations, runDeletions: deletions }, null, 2)); await file.sync(); }
   finally { await file.close(); }
   await fs.rename(tmp, runRegistryPath());
   const directory = await fs.open(path.dirname(runRegistryPath()), "r");
@@ -1435,6 +1513,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
   const paymentRequests = (data.paymentRequests || []) as PaymentRecord[];
   if (data.ownerConfirmations !== undefined && !Array.isArray(data.ownerConfirmations)) throw new Error("invalid_confirmation_registry");
   const ownerConfirmations = (data.ownerConfirmations || []) as ConfirmationRecord[];
+  const runDeletions = parseRunDeletions(data.runDeletions);
   const archivedSessionIds: string[] = Array.isArray(data?.archivedSessionIds)
     ? Array.from(new Set<string>(
       data.archivedSessionIds
@@ -1446,6 +1525,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
     archivedSessionIds,
     paymentRequests,
     ownerConfirmations,
+    runDeletions,
     runs: runs
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
@@ -1489,7 +1569,7 @@ async function readArchivedSessionIds(): Promise<Set<string>> {
 }
 
 function defaultCompanionRunRegistry(): CompanionRunRegistry {
-  return { runs: [], archivedSessionIds: [], paymentRequests: [], ownerConfirmations: [] };
+  return { runs: [], archivedSessionIds: [], paymentRequests: [], ownerConfirmations: [], runDeletions: [] };
 }
 
 function runRegistryPath() {
@@ -1516,6 +1596,7 @@ export async function saveVoiceTurn(sessionId: string, value: any) {
   const playback=validateVoicePlayback(value.playback);
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
+    if (registry.runDeletions.some(receipt => receipt.runId === value.runId)) throw Object.assign(new Error("run_deleted"), {statusCode: 409});
     if (registry.archivedSessionIds.includes(sessionId)) throw Object.assign(new Error("session_archived"), {statusCode: 409});
     const old = registry.runs.find(run => run.runId === value.runId);
     if (old && (old.sessionId !== sessionId || old.modality !== "voice")) throw Object.assign(new Error("turn_identity_conflict"), {statusCode: 409});
