@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Expose skill statistics and canonical activation/trial receipts",
-  "reason": "File 18 P2-b with existing skills owner and intent submission.",
+  "reason": "File 18 P2-b with existing skills owner and intent submission; integrated runtime 9a04980 by merge.",
   "files": [
     "docs/changes/codex-p2-b-current-20261010.json",
     "docs/changes/codex-p2-b-current-20261010.md",
@@ -50,6 +50,6 @@
   "rollback": "Revert this local lot.",
   "limitations": [
     "No deployment or S24 recipe claimed; active skills RPC qualification by Claude.",
-    "Test executed separately while P2-e owns ci.yml."
+    "Test executed separately while R6 #27 exclusively owns ci.yml."
   ]
 }
