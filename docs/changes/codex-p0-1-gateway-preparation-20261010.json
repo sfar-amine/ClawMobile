@@ -5,25 +5,31 @@
   "kind": "maintenance",
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
-  "summary": "Prepare bounded wrapper around canonical GatewayClient while runtime handshake/auth remains unqualified",
-  "reason": "Issue57 and programme24 priority1; real installed handshake and canonical auth configuration required before integration.",
+  "summary": "Wire callOpenClawGateway to one bounded official GatewayClient, preserving pre-dispatch CLI fallback and effect uncertainty",
+  "reason": "Owner authorized wiring; real S24 handshake and canonical SecretRef/auth owners confirmed by fixture PR82 a9f08e5. Physical activation and same-method before/after remain Claude-owned.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/persistentGatewayTransport.ts",
     "openclaw-plugin-mobile-ui/scripts/test-persistent-gateway-transport.cjs",
     "docs/work/samantha-runtime/contracts/p0-1.md",
-    "docs/changes/codex-p0-1-gateway-preparation-20261010.json"
+    "docs/changes/codex-p0-1-gateway-preparation-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/officialGatewayOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-official-gateway-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-gateway-entrypoint.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/p0-1/gateway-handshake.json"
   ],
   "tests": [
     {
       "name": "persistent-gateway-owner-preparation",
       "status": "passed",
-      "evidence": "Local build and injected owner wrapper test with real captured models payload/2419ms latency, concurrency4, queue32, pre-dispatch fallback only, timeouts and no uncertain replay. Installed handshake unqualified."
+      "evidence": "Build and three P0-1 suites passed: real entrypoint, shared SDK, hello gate, canonical SecretRef resolver, global install, four RPCs, queue32, budgets, explicit reduced scopes, captured structured refusals and fixed CAS, lifecycle and no replay. Payload and handshake fixture real; SDK boundary simulated."
     },
     {
       "name": "complete-current-ci-workflow",
       "status": "passed",
-      "evidence": "All run steps of current ci.yml executed locally after normal merge of runtimeaf80166; CI_LOCAL_OK exit0. All26 base steps preserved plus preparation suite. Runtime integration and S24 qualification remain blocked."
+      "evidence": "Full current CI_LOCAL_OK on runtime42300b0; latest focused P0-1 suites passed after SecretRef and captured refusal integration. Full CI on latest merged base will be rerun before push."
     }
   ],
   "documentation": [
@@ -47,13 +53,14 @@
       "claw_status": "verified_no_impact",
       "claw_artifact_read": "verified_no_impact"
     },
-    "reason": "Existing MCP owner tools unchanged, no transport activated."
+    "reason": "Existing MCP owner entrypoints and six primitives unchanged; infrastructure Gateway client in Companion only."
   },
-  "rollback": "Remove isolated preparation under review. Future qualified activation/rollback uses companion-deploy.sh and a Claude-qualified SHA with automatic acceptance and receipt.",
+  "rollback": "Revert this PR restores CLI owner; activation/rollback by Claude only through companion-deploy.sh and its acceptance/receipt.",
   "limitations": [
-    "callOpenClawGateway unchanged and wrapper not connected until real owner handshake/config confirmed.",
-    "Real before CLI capture available, no real after WS or S24 qualification.",
-    "Vague2 permits a preparatory draft PR only; runtime wiring and merge remain blocked pending canonical owner captures.",
-    "Safe structured method refusal/CAS and proven pre-effect errors must retain caller semantics before integration; current preparation conservatively classifies SDK rejections as indeterminate."
+    "Raccordement Git now present; not deployed to S24.",
+    "Real CLI capture 2.4-7.7s and SDK health import/connect/call910ms, handshake16ms and RPC9ms: different methods, no same-method production speedup claimed.",
+    "Supported local shared-auth SDK2026.9.6; remote/TLS/explicit URL and other SDK versions fail closed pending canonical bootstrap extension.",
+    "Captured handshake requested operator.read; persistent union admin/read/write/approvals requires Claude review before activation.",
+    "CAS error forms come from exact public OpenClaw handler source, actual stale-hash capture remains Claude recipe."
   ]
 }

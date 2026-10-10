@@ -1,4 +1,6 @@
 import { spawn } from "child_process";
+import { PersistentGatewayTransport } from "./persistentGatewayTransport";
+import { createOfficialGatewayOwner } from "./officialGatewayOwner";
 
 export type OpenClawAgentSubmitResult = {
   runId: string;
@@ -55,12 +57,39 @@ export async function callOpenClawGateway(
   params: Record<string, any> = {},
   options: { expectFinal?: boolean; timeoutMs?: number; hardTimeoutMs?: number } = {},
 ): Promise<any> {
-  const timeoutMs = options.timeoutMs || DEFAULT_GATEWAY_CALL_TIMEOUT_MS;
-  const args = ["gateway", "call", method, "--json", "--timeout", String(timeoutMs), "--params", JSON.stringify(params)];
-  if (options.expectFinal) {
-    args.splice(3, 0, "--expect-final");
+  if (!gatewayTransport) {
+    gatewayTransport = new PersistentGatewayTransport(createOfficialGatewayOwner, callOpenClawGatewayCli);
   }
-  return runOpenClaw(args, Math.min(timeoutMs + 5_000, options.hardTimeoutMs ?? Infinity));
+  return gatewayTransport.call(method, params, {
+    ...options, timeoutMs: options.timeoutMs ?? DEFAULT_GATEWAY_CALL_TIMEOUT_MS,
+  });
+}
+
+let gatewayTransport: PersistentGatewayTransport | undefined;
+export function closeOpenClawGateway() {
+  gatewayTransport?.close(); gatewayTransport = undefined;
+}
+process.once("exit", closeOpenClawGateway);
+
+/** Original CLI owner retained solely for confirmed pre-dispatch unavailability. */
+async function callOpenClawGatewayCli(method: string, params: Record<string, any>,
+  options: {expectFinal?: boolean; timeoutMs?: number; hardTimeoutMs?: number}) {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_GATEWAY_CALL_TIMEOUT_MS;
+  const args = ["gateway", "call", method, "--json", "--timeout", String(timeoutMs), "--params", JSON.stringify(params)];
+  if (options.expectFinal) args.splice(3, 0, "--expect-final");
+  try {
+    return await runOpenClaw(args, Math.min(timeoutMs + 5_000, options.hardTimeoutMs ?? Infinity));
+  } catch (cause: any) {
+    const cas = ["config base hash unavailable; re-run config.get and retry",
+      "config base hash required; re-run config.get and retry",
+      "config changed since last load; re-run config.get and retry"];
+    if (method === "config.patch" && cas.some(message => String(cause?.message).trim() === message)) {
+      throw Object.assign(new Error("config baseHash conflict"), {
+        code: "gateway_config_revision_conflict", effectNotStarted: true, requestSent: true,
+      });
+    }
+    throw cause;
+  }
 }
 
 export function describeOpenClawResult(result: OpenClawAgentSubmitResult) {
