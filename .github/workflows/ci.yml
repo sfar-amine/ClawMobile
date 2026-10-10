@@ -107,6 +107,7 @@ jobs:
 
       - name: Run reviewed runtime contract report
         run: python3 scripts/test-runtime-contract-report.py
+
       - name: Run memory control and atomic export import contracts
         run: |
           node scripts/test-memory-control.cjs

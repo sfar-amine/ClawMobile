@@ -18,7 +18,14 @@ REASONS = {'binary_upload_requires_fixture_file_and_owner_recipe', 'binary_magic
 KINDS = {'object', 'array', 'string', 'number', 'boolean', 'null'}
 CASE_KEYS = {'id', 'template', 'method', 'phase', 'source', 'types', 'reason', 'test', 'fixtureOwner'}
 BLOCKED = re.compile(r'/(?:payments|confirmations|token|socket|setup|terminal)(?:/|$)')
-PRIVATE_KEY = re.compile(r'^(?:(?!maxTokens$|totalTokens$|max_tokens$|total_tokens$).*token|password|secret|client[_-]?secret|authorization|private[_-]?key|cookie|api[_-]?key|credentials)$', re.I)
+# Any key ending in "token" (sessionToken, bearerToken, refresh_token...) is private, except
+# token counters such as maxTokens, totalTokens or contextTokens.
+TOKEN_COUNTER_KEY = re.compile(r'^(?:max|total|context|input|output|prompt|completion|cached|cache[_-]?read|cache[_-]?write|cache[_-]?creation|reasoning|remaining|used|num|min)[_-]?tokens?$', re.I)
+PRIVATE_KEY = re.compile(r'^(?:.*token|password|secret|client[_-]?secret|authorization|private[_-]?key|cookie|api[_-]?key|credentials)$', re.I)
+
+def private_key(name):
+    return bool(PRIVATE_KEY.search(name)) and not TOKEN_COUNTER_KEY.match(name)
+
 PRIVATE_VALUE = re.compile(r'Bearer\s+\S+|-----BEGIN .*PRIVATE KEY-----|\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,})', re.I)
 
 class ContractError(ValueError):
@@ -111,7 +118,7 @@ def check_types(data, expected):
 
 def secret_present(data):
     if isinstance(data, dict):
-        return any((PRIVATE_KEY.search(str(k)) and v not in (None, '', False)) or secret_present(v) for k, v in data.items())
+        return any((private_key(str(k)) and v not in (None, '', False)) or secret_present(v) for k, v in data.items())
     if isinstance(data, list): return any(secret_present(v) for v in data)
     return isinstance(data, str) and bool(PRIVATE_VALUE.search(data))
 

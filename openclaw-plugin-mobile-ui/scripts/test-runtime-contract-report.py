@@ -99,9 +99,13 @@ class Tests(unittest.TestCase):
         for value in ['ghp_'+'A'*36,'github_pat_'+'B'*40]:
             type(self).payload={'text':value}
             result=self.run_report();self.assertEqual(result['cases'][0]['reason'],'secret_detected');self.assertNotIn(value,json.dumps(result))
-        for field in ['accessToken','sessionToken','bearerToken','refresh_token']:
+        for field in ['token','accessToken','sessionToken','bearerToken','refresh_token','session_token','csrfToken','pushToken']:
             type(self).payload={field:'private-credential'}
-            self.assertEqual(self.run_report()['cases'][0]['reason'],'secret_detected')
+            self.assertEqual(self.run_report()['cases'][0]['reason'],'secret_detected',field)
+        for field in ['maxTokens','totalTokens','contextTokens','inputTokens','outputTokens','max_token','context_tokens','cacheReadTokens']:
+            self.assertFalse(g2.private_key(field),field)
+            type(self).payload={field:4096}
+            self.assertTrue(self.run_report()['fixtureReadChecksPassed'],field)
     def test_default_timeouts_use_route_budgets_with_margin(self):
         routes = ['/v1/agent/config', '/v1/notifications/sources', '/v1/updates', '/v1/runs?limit=50', '/v1/laptop-access/computers']
         calls=[]
