@@ -33,7 +33,7 @@
     {
       "name": "runtime-ci-preserved-union",
       "status": "passed",
-      "evidence": "All 23 workflow run steps passed locally on runtime71af984 plus PR28head815b7c5; npm ci skipped because dependencies unchanged, build and every existing/current test command executed. No S24 runtime call or activation."
+      "evidence": "22 of 23 workflow run steps executed and passed locally on runtime71af984 plus PR28head815b7c5; npm ci skipped because dependencies unchanged, build and every existing/current test command executed. No S24 runtime call or activation."
     }
   ],
   "documentation": [
