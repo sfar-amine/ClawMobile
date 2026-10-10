@@ -1,5 +1,5 @@
 import {peekModelOwner,readModelOwnerCached,ModelOwnerSnapshot} from './modelOwner';
-import {peekUsage,publicId,publicModelId,publicText,readUsage,UsageView} from './usage';
+import {isoTimestamp,peekUsage,publicId,publicModelId,publicText,readUsage,UsageView} from './usage';
 const modelReference=(v:any)=>publicModelId(typeof v==='string'?v.split('@')[0]:v);
 const configured=(snapshot:ModelOwnerSnapshot|null)=>{
  const config=snapshot?.config;const agent=config?.agents?.entries?.main||(Array.isArray(config?.agents?.list)?config.agents.list.find((row:any)=>row.id==='main'):undefined)||config?.agents?.defaults;
@@ -29,7 +29,7 @@ export function projectProviders(snapshot:ModelOwnerSnapshot|null,usage:UsageVie
   });
   return {id,name:publicText(meter?.name)||id,auth:authentication,quota,state,models};
  });
- return {schemaVersion:1,updatedAt:snapshot?.updatedAt??usage?.updatedAt??null,summary:{ready:providers.filter(p=>p.state==='ready').length,needsAttention:providers.filter(p=>['needs_auth','exhausted'].includes(p.state)).length,unknown:providers.filter(p=>p.state==='unknown').length,configuredModels:providers.reduce((n,p)=>n+p.models.length,0)},providers};
+ return {schemaVersion:1,updatedAt:isoTimestamp(snapshot?.updatedAt)??usage?.updatedAt??null,summary:{ready:providers.filter(p=>p.state==='ready').length,needsAttention:providers.filter(p=>['needs_auth','exhausted'].includes(p.state)).length,unknown:providers.filter(p=>p.state==='unknown').length,configuredModels:providers.reduce((n,p)=>n+p.models.length,0)},providers};
 }
 const SERVE_MS=300000;
 export async function readProviders(refresh=false){
