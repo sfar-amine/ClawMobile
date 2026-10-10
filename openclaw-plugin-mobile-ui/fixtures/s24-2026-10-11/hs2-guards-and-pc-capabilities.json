@@ -1,0 +1,119 @@
+{
+  "provenance": {
+    "captured_at": "2026-10-11T00:46:45+0100",
+    "device": "S24 (Termux, profil owner)",
+    "captured_by": "Claude via claw_exec (lecture seule)",
+    "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+    "core_runtime_head": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "core_runtime_branch": "runtime/samantha-companion-private",
+    "playbooks_workspace_head": "dd251b71c0d6ca2c26b7740c73cce72e560ac109",
+    "playbooks_pinned": "6d567aa3252ff398513bd7c7b22ed63da7a31ffe",
+    "pseudonymization": "HMAC-SHA256 avec sel aléatoire propre à cette capture (non conservé) ; cohérent entre tous les fichiers de ce dossier",
+    "amounts": "montants remplacés par des valeurs fictives de même format (même nombre de décimales, millimes cohérents)",
+    "sources": [
+      "openclaw-plugin-mobile-ui/src/companion/{paymentCore.ts,payments.ts,maxitTopupLivePaymentAdapter.ts,topnetLivePaymentAdapter.ts,clicToPayLivePaymentAdapter.ts,server.ts}",
+      "~/.openclaw/clawmobile-companion/ (présence des fichiers de garde, contenu non publié)",
+      "~/.openclaw/workspace/ui-playbooks/capabilities/registry.json"
+    ]
+  },
+  "guards_owner": {
+    "installed_owner": "payment.owner_native — core.capabilities() (paymentCore.ts) servi par GET routePath /payments/capabilities (server.ts, en-tête x-clawmobile-owner-flow: v1, origine navigateur refusée)",
+    "public_projection": "adapters[] = {id,label,mode,executionValidated,localOwnerValidated,reasonCode} ; realPaymentsEnabled ; localOwnerPaymentsEnabled",
+    "maxit": {
+      "adapter": "maxit.topup (maxitTopupLivePaymentAdapter.ts)",
+      "gate": {
+        "file": "~/.openclaw/clawmobile-companion/maxit-topup-live-acceptance.enabled",
+        "present": true,
+        "value_matches_expected": true,
+        "mtime": "2026-10-08T09:58:56+0100"
+      },
+      "projection_from_code": {
+        "executionValidated": false,
+        "localOwnerValidated": "= garde armée (lue au démarrage)",
+        "reasonCode": "maxit_live_acceptance_pending si armée, sinon maxit_live_acceptance_not_armed"
+      },
+      "gate_reread_at_execution": true
+    },
+    "topnet": {
+      "adapter": "topnet (topnetLivePaymentAdapter.ts via clicToPayLivePaymentAdapter.ts)",
+      "gate": {
+        "file": "~/.openclaw/clawmobile-companion/topnet-live-acceptance.enabled",
+        "present": false
+      },
+      "projection_from_code": {
+        "executionValidated": false,
+        "localOwnerValidated": true,
+        "reasonCode": "provider_payment_contract_unverified"
+      },
+      "gate_semantics": "garde à usage unique consommée à l'exécution (rename puis unlink, consumeGate) ; son état armé n'est PAS projeté par /payments/capabilities (localOwnerValidated codé en dur à true)"
+    },
+    "live_route_called": false,
+    "note": "GET /payments/capabilities n'a pas été appelé (jeton owner non manipulé) ; état déduit du code déployé et de la présence des fichiers."
+  },
+  "pc_pairing_revocation": {
+    "capability": "device.laptop_termux_access",
+    "status": "e2e_validated",
+    "entrypoints": [
+      "python3 device/laptop_access.py '<owner request>'",
+      "python3 device/laptop_access.py list",
+      "python3 device/laptop_access.py pair-start < JSON-stdin",
+      "python3 device/laptop_access.py pair-status < JSON-stdin",
+      "python3 device/laptop_access.py pair-commit < JSON-stdin",
+      "python3 device/laptop_access.py revoke < JSON-stdin"
+    ],
+    "runtime": {
+      "executor": "claw.capability_runtime",
+      "entrypoint": "python3 device/laptop_access.py",
+      "input": "request_arg",
+      "deterministic": true,
+      "latency_class": "fast"
+    },
+    "agent": {
+      "description": "Ouvrir, diagnostiquer rapidement ou fermer l accès Tailscale+SSH du laptop vers le Termux du S24.",
+      "examples": [
+        "je veux me connecter avec mon laptop sur s24 termux",
+        "remet tail et ssh",
+        "crash diagnostic rapide",
+        "deconnecte mon laptop du s24",
+        "etat acces pc s24"
+      ],
+      "operation": "mixed",
+      "risk": "write",
+      "confirmation_required": false
+    },
+    "last_engineering_change": {
+      "record": "docs/changes/codex-local-p2-f-playbooks-20261010.json",
+      "impact": "modified",
+      "reason": "Canonical laptop controller extension for biometric pairing and revocation; local tests only, not deployed."
+    },
+    "deployed_actions_in_device_laptop_access_py": [
+      "list",
+      "pair-start",
+      "pair-status",
+      "pair-commit",
+      "revoke"
+    ],
+    "revoke_confirmation": "confirmation owner consommée, action laptop_access.revoke_key",
+    "companion_routes": [
+      "GET /laptop-access/computers",
+      "POST /laptop-access/pairings",
+      "GET /laptop-access/pairings/{id}",
+      "POST /laptop-access/pairings/{id}/commit",
+      "DELETE /laptop-access/computers/{id}"
+    ],
+    "acceptance_line": "companion-acceptance.py : (\"/laptop-access/computers\", 6.0)",
+    "samantha_app_capability_for_pairing": null,
+    "registry_samantha_app_ids": [
+      "samantha.app.conversation.status",
+      "samantha.app.conversation.model",
+      "samantha.app.conversation.thinking",
+      "samantha.app.usage",
+      "samantha.app.providers"
+    ],
+    "observations": [
+      "Les entrées pair-*/revoke sont déclarées dans entrypoints de device.laptop_termux_access, mais agent.examples ne couvre que connexion/diagnostic/déconnexion et agent.confirmation_required=false.",
+      "Aucune capability samantha.app.* ne porte l'appairage ni la révocation PC dans le registre runtime.",
+      "last_engineering_change du registre indique encore 'local tests only, not deployed' alors que device/laptop_access.py déployé contient les actions pair-*/revoke."
+    ]
+  }
+}

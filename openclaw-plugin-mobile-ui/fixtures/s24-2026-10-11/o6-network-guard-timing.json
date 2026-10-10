@@ -1,0 +1,193 @@
+{
+  "provenance": {
+    "captured_at": "2026-10-11T00:46:45+0100",
+    "device": "S24 (Termux, profil owner)",
+    "captured_by": "Claude via claw_exec (lecture seule)",
+    "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+    "core_runtime_head": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "core_runtime_branch": "runtime/samantha-companion-private",
+    "playbooks_workspace_head": "dd251b71c0d6ca2c26b7740c73cce72e560ac109",
+    "playbooks_pinned": "6d567aa3252ff398513bd7c7b22ed63da7a31ffe",
+    "pseudonymization": "HMAC-SHA256 avec sel aléatoire propre à cette capture (non conservé) ; cohérent entre tous les fichiers de ce dossier",
+    "amounts": "montants remplacés par des valeurs fictives de même format (même nombre de décimales, millimes cohérents)",
+    "sources": [
+      "~/.openclaw/skill-intelligence/route-metrics.jsonl (durée totale de l'entrée canonique gardée, vue Graph)",
+      "~/.openclaw/telecom/runs.jsonl (latence service Maxit https_waaat)",
+      "~/.openclaw/health/network-mutation-safety.json",
+      "ui-playbooks/telecom/benchmark-live-baseline-20261007.json",
+      "ClawMobile/installer/termux-lite/android-network-mutation-guard.py",
+      "ui-playbooks/telecom/maxit_guarded_service.py"
+    ],
+    "window": "runs Maxit https gardés depuis 2026-10-07 (entrée with-wifi-off), appariés à ±5 s"
+  },
+  "phase_availability": {
+    "preparation": "non mesurée",
+    "dns": "non mesurée (ready_ms calculé par wait_mobile_dns mais jamais écrit)",
+    "service": "mesurée (telecom/runs.jsonl latency_ms)",
+    "cleanup": "non mesurée",
+    "restoration": "non mesurée",
+    "why": "le bail wifi_off est supprimé après restauration (lease.unlink) et le reçu network-mutation-safety.json est écrasé à chaque passage (schéma : checked_at,state,reason,…, sans durée) ; aucune durée par phase n'est persistée"
+  },
+  "runs": [
+    {
+      "at": "2026-10-08T10:37:39+0100",
+      "route": "orange.usage.maxit.v1",
+      "success": true,
+      "entrypoint_total_ms": 5010.8,
+      "service_backend_ms": 631,
+      "guard_overhead_ms": 4379.8,
+      "telecom_run_id": "run_fc0f08a3cb78"
+    },
+    {
+      "at": "2026-10-08T11:23:26+0100",
+      "route": "orange.usage.maxit.v1",
+      "success": true,
+      "entrypoint_total_ms": 5839.6,
+      "service_backend_ms": 966,
+      "guard_overhead_ms": 4873.6,
+      "telecom_run_id": "run_0993297f02ac"
+    },
+    {
+      "at": "2026-10-08T22:53:10+0100",
+      "route": "orange.usage.maxit.v1",
+      "success": true,
+      "entrypoint_total_ms": 4927.8,
+      "service_backend_ms": 837,
+      "guard_overhead_ms": 4090.8,
+      "telecom_run_id": "run_5a94ac1912e0"
+    },
+    {
+      "at": "2026-10-08T22:54:21+0100",
+      "route": "orange.usage.maxit.v1",
+      "success": true,
+      "entrypoint_total_ms": 3584.1,
+      "service_backend_ms": 592,
+      "guard_overhead_ms": 2992.1,
+      "telecom_run_id": "run_b6a128e9b380"
+    },
+    {
+      "at": "2026-10-10T02:17:02+0100",
+      "route": "orange.usage.maxit.v1",
+      "success": true,
+      "entrypoint_total_ms": 5932.6,
+      "service_backend_ms": 1099,
+      "guard_overhead_ms": 4833.6,
+      "telecom_run_id": "run_361508e9a4a6"
+    },
+    {
+      "at": "2026-10-10T09:32:34+0100",
+      "route": "orange.usage.maxit.v1",
+      "success": true,
+      "entrypoint_total_ms": 5403.9,
+      "service_backend_ms": 775,
+      "guard_overhead_ms": 4628.9,
+      "telecom_run_id": "run_b0eac7e81b11"
+    },
+    {
+      "at": "2026-10-10T09:41:08+0100",
+      "route": "orange.usage.maxit.v1",
+      "success": true,
+      "entrypoint_total_ms": 5839.8,
+      "service_backend_ms": 709,
+      "guard_overhead_ms": 5130.8,
+      "telecom_run_id": "run_4b84ac2e485d"
+    },
+    {
+      "at": "2026-10-10T22:19:57+0100",
+      "route": "orange.recharge.maxit.v1",
+      "success": true,
+      "entrypoint_total_ms": 6308.8,
+      "service_backend_ms": 805,
+      "guard_overhead_ms": 5503.8,
+      "telecom_run_id": "run_cf41631cce3c"
+    }
+  ],
+  "stats_ms": {
+    "entrypoint_total": {
+      "n": 8,
+      "p50": 5621.8,
+      "p95": 6177.1,
+      "max": 6308.8
+    },
+    "service_backend": {
+      "n": 8,
+      "p50": 790.0,
+      "p95": 1052.4,
+      "max": 1099
+    },
+    "guard_overhead_total_minus_service": {
+      "n": 8,
+      "p50": 4731.2,
+      "p95": 5373.2,
+      "max": 5503.8
+    }
+  },
+  "benchmark_baseline_20261007_single_runs": {
+    "data": {
+      "status": "pass",
+      "e2e_ms": 3538.763,
+      "backend_latency_ms": 581,
+      "route": "orange.data.maxit.v1",
+      "transport": "https_waaat"
+    },
+    "voice": {
+      "status": "pass",
+      "e2e_ms": 2513.444,
+      "backend_latency_ms": 371,
+      "route": "orange.voice.maxit.v1",
+      "transport": "https_waaat"
+    },
+    "recharge": {
+      "status": "pass",
+      "e2e_ms": 4436.852,
+      "backend_latency_ms": 2696,
+      "route": "orange.recharge.maxit.v1",
+      "transport": "https_waaat"
+    },
+    "offer": {
+      "status": "pass",
+      "e2e_ms": 5626.969,
+      "backend_latency_ms": 3590,
+      "route": "orange.offer.maxit.v1",
+      "transport": "https_waaat"
+    }
+  },
+  "current_safety_receipt": {
+    "schema_version": 1,
+    "state": "healthy",
+    "reason": "network_settings_clean",
+    "checked_at": 1791675987.4695659,
+    "keys": [
+      "active_leases",
+      "checked_at",
+      "forward_leases",
+      "reason",
+      "recovered_leases",
+      "schema_version",
+      "state",
+      "termux_background"
+    ]
+  },
+  "code_bounds": {
+    "MAX_LEASE_AGE_s": 900,
+    "lease_rule": "bail wifi_off sans renouvellement ; considéré actif tant que owner_pid vivant et âge <= MAX_LEASE_AGE depuis created_at, sinon restauré par check_and_reconcile",
+    "set_wifi_timeout_s": 8.0,
+    "adb_call_timeout_s": 6,
+    "MOBILE_READY_TIMEOUT_S": 8.0,
+    "MOBILE_READY_POLL_S": 0.5,
+    "service_child_timeout": "aucun dans le code déployé (subprocess.run sans timeout dans with_wifi_off et run_inside_mobile)",
+    "lines": [
+      "MAX_LEASE_AGE = int(os.environ.get(\"NETWORK_MUTATION_MAX_LEASE_AGE\", \"900\"))",
+      "def set_wifi(enabled: bool, timeout_s: float = 8.0) -> None:",
+      "MOBILE_READY_TIMEOUT_S = 8.0",
+      "child = subprocess.run(command)"
+    ]
+  },
+  "proposed_total_bound": {
+    "value_s": 60,
+    "derivation": "préparation <= 8 s (set_wifi off) + appels adb (<= 6 s chacun) ; DNS <= 8 s ; service : max observé 1099 ms, p95 1052.4 ms → plafond 30 s ; restauration <= 8 s (set_wifi on) + vérification. Bornes de code hors service ≈ 24 s + service 30 s ≈ 54 s → 60 s.",
+    "observed_margin": "total max observé 6308.8 ms ; 60 s ≈ 9.5× le max",
+    "lease_compatibility": "60 s << MAX_LEASE_AGE 900 s : la borne totale (enfant arrêté, puis restauration dans le finally) termine avant qu'un bail vivant devienne périmé ; aucun renouvellement nécessaire. Le plafond enfant 120 s + nettoyage 1,5 s proposé par O1 reste lui aussi < 900 s.",
+    "status": "proposition de Claude à valider, non déployée"
+  }
+}
