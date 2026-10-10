@@ -4,4 +4,4 @@ Les réponses serveur existantes choisissent une présentation française ou ang
 
 Build et test-server-localization.cjs réussis : fixtures santé et automatisations S24, langues, intégrité des textes utilisateur, cache partagé inchangé et vrai handler HTTP. Toutes les étapes CI existantes restent présentes. Contrat : docs/work/samantha-runtime/contracts/f3.md.
 
-Préparation locale partielle : descriptions libres non traduites faute de provenance structurée ; signal de langue app à confirmer par Claude dans la future PR. Aucun push, merge, déploiement ou effet S24.
+Livraison partielle autorisée : descriptions libres non traduites faute de provenance structurée ; signal de langue app à confirmer par Claude dans la future PR. Base runtime bfa210c intégrée par merge normal. Publication de ce périmètre autorisée ; aucun merge de PR, déploiement ou effet S24 par Codex.

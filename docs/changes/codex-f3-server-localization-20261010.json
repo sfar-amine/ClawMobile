@@ -21,7 +21,7 @@
     {
       "name": "f3-localization",
       "status": "passed",
-      "evidence": "npm run build ; test-server-localization.cjs, captures santé et automatisations, intégrité des contenus et sources, vrais handlers succès Control avec projections publiques capturées comme entrées de test du writer seulement, cache partagé FR/EN une lecture, zéro appel Gateway."
+      "evidence": "Base runtime bfa210c intégrée par merge. npm run build ; test-server-localization.cjs ; test-control-health-components.cjs ; test-agent-config.cjs ; test-control-v2.cjs avec propriétaire playbooks local explicite. Fixtures santé/automatisations, vrais writers HTTP, textes utilisateurs et source partagée intacts, une lecture FR/EN par section ; pas de nouvelle latence owner native revendiquée."
     }
   ],
   "documentation": [
@@ -50,7 +50,7 @@
   },
   "rollback": "Revert F3 ; aucune mutation runtime.",
   "limitations": [
-    "Local seulement ; aucune publication avant ordre autorisé.",
+    "PR autorisée pour ce périmètre prouvé ; F3 global reste partiel tant que signal app et qualification intégrée manquent.",
     "Préparation partielle : descriptions et résumés libres non traduits faute de provenance serveur structurée.",
     "Signal Accept-Language app absent de l’audit Kotlin ; confirmation à demander dans future PR.",
     "Intégration #70 : assertions notifications/automatisations à adapter à la présentation attendue, preuves propriétaires conservées ; aucune CI base #70 fusionnée revendiquée."
