@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Native request cancellation facade with durable reservation and no uncertain replay.",
-  "reason": "Backlog 12 and Claude clarification 13; preserve canonical owners and banking boundary.",
+  "reason": "P2-c isolé sur la base actuelle, après R2-v2 et P2-a dans l’ordre de relecture.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-local-p2-c-companion-20261010.json",
