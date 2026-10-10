@@ -28,8 +28,8 @@ export async function submitToOpenClawAgent(
     sessionKey,
     ...(agentId ? { agentId } : {}),
     label: "ClawMobile Companion",
-    // The first line is transport metadata; later lookalike lines are user content.
-    message: `[companion-session:${normalizedSessionId}]\n${text}`,
+    // Slash commands must remain first for Gateway dispatch. Ordinary turns carry one transport label; later lookalikes remain user content.
+    message: text.trimStart().startsWith("/") ? text : `[companion-session:${normalizedSessionId}]\n${text}`,
     deliver: false,
     bootstrapContextMode: "lightweight",
     idempotencyKey: runId,

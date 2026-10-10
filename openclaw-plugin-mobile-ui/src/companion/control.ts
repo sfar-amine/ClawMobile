@@ -272,8 +272,9 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
       if(error||failure||abort.aborted){killGroup();reject(error||failure||controlError("control_read_cancelled",499));return;}
       try{
         const value=JSON.parse(Buffer.concat(chunks).toString("utf8"));
-        const requestItem=value.sections?.requests?.data?.item;
-        if(requestItem?.sessionId!=null && (typeof requestItem.sessionId!=="string" || !/^[A-Za-z0-9_-]{1,80}$/.test(requestItem.sessionId)))
+        const requestData=value.sections?.requests?.data;
+        const requestItems=[requestData?.item,...(Array.isArray(requestData?.items)?requestData.items:[])];
+        if(requestItems.some(requestItem=>requestItem?.sessionId!=null && (typeof requestItem.sessionId!=="string" || !/^[A-Za-z0-9_-]{1,80}$/.test(requestItem.sessionId))))
           throw controlError("control_invalid_request_origin");
         if(value.sections?.diagnostic?.data?.components) {
           const component=value.sections.diagnostic.data.components.find((row:any)=>row.id==="companion");

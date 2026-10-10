@@ -98,3 +98,8 @@ jobs:
 
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
+
+      - name: Canonical request conversation origin contracts
+        run: |
+          node scripts/test-conversation-origin.cjs
+          python3 ../installer/termux-lite/test-context-session-origin.py

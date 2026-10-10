@@ -17,13 +17,17 @@
     "openclaw-plugin-mobile-ui/scripts/test-conversation-origin.cjs",
     "docs/work/samantha-runtime/contracts/r10.md",
     "docs/changes/codex-r10-link-current-20261010.md",
-    "docs/changes/codex-r10-link-current-20261010.json"
+    "docs/changes/codex-r10-link-current-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/conversationText.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runInactivity.ts",
+    ".github/workflows/ci.yml"
   ],
   "tests": [
     {
       "name": "r10-origin",
       "status": "passed",
-      "evidence": "6 real Bash/SQLite migration/replay/origin/conflict tests; real registry and fixture Gateway transport marker; facade origin validation; build, current CI and portable Memory Core regressions."
+      "evidence": "6 real Bash/SQLite migration/replay/origin/conflict tests; real registry and fixture Gateway transport marker; facade origin validation; build, current CI and portable Memory Core regressions. Review26: timestamp+label terminal/owner/history, slash Gateway fixture, list/detail validation; complete current CI and dedicated origin CI step."
     }
   ],
   "documentation": [
@@ -54,6 +58,6 @@
   "limitations": [
     "Runtime/skill deployment and S24 qualification remain Claude responsibility.",
     "Legacy and Situation requests without a conversation keep null origin.",
-    "New tests run manually while another lot owns the CI edit; existing ci.yml retained unchanged."
+    "Real P0-2 S24 captures unavailable; observed timestamp format is covered by synthetic fixtures."
   ]
 }

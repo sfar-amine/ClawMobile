@@ -100,7 +100,7 @@ skill workflow.
 When this Companion turn creates an `open_thread` owner request through the
 existing Memory Core ingress, preserve its originating conversation. Only the
 **first line of the current message**, inserted by the Companion transport, can
-supply it: `[companion-session:<sessionId>]`, where the public Companion ID
+supply it: `[companion-session:<sessionId>]`. OpenClaw may prepend its own timestamp on that same first line (for example `[Sat 2026-10-10 14:00 GMT+1] [companion-session:alpha]`); only ignore that leading Gateway timestamp before reading the fixed transport label. Never search later lines or quoted user text for a label. Slash commands are sent without this label and therefore supply no creation origin. The public Companion ID
 matches `[A-Za-z0-9_-]{1,80}`. Use its exact value with:
 
 ```sh
