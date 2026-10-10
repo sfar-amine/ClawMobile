@@ -61,8 +61,14 @@ async function protectedActivity(){
  return payments.some(row=>['awaiting_owner','executing','effect_unknown','requires_bank_action'].includes(row.state))||confirmations.some(row=>row.state==='awaiting_owner'&&row.expiresAt>Date.now());
 }
 function refusal(error:any):{code:string;status:number}|null{
- const code=String(error?.code||error?.error?.code||'').toUpperCase();
- const text=String(error?.message||error?.error?.message||'');
+ let payload=error?.error||error?.data?.error||error?.data||error;
+ // The CLI can encode the canonical error object inside its diagnostic string.
+ if(typeof payload?.message==='string'){
+  const start=payload.message.indexOf('{'),end=payload.message.lastIndexOf('}');
+  if(start>=0&&end>start)try{const value=JSON.parse(payload.message.slice(start,end+1));payload=value?.error||value?.data?.error||value?.data||value;}catch{}
+ }
+ const code=String(payload?.code||error?.code||'').toUpperCase();
+ const text=String(payload?.message||payload?.details?.reason||error?.message||'');
  if(['ETIMEDOUT','ECONNRESET','EPIPE','ECONNREFUSED'].includes(code)||/timed out|timeout|connection (closed|lost|reset)|ECONNRESET|ECONNREFUSED|socket hang up/i.test(text))return null;
  if(/label.*(already|unique|used)|duplicate.*label/i.test(text))return {code:'conversation_label_already_used',status:409};
  if(/expectedSessionId|identity.*changed|session.*changed/i.test(text))return {code:'conversation_identity_changed',status:409};
@@ -104,7 +110,7 @@ async function changeOnce(id:string,body:any){
   else{
    const patch={key,expectedSessionId:row.sessionId,...('title' in desired?{label:desired.title}:{}),...('pinned' in desired?{pinned:desired.pinned}:{}),...('model' in desired?{model:desired.model}:{})};
    let rejected:{code:string;status:number}|null=null;
-   try{await callOpenClawGateway('sessions.patch',patch,readBudget);}catch(error:any){rejected=refusal(error);}
+   try{const response=await callOpenClawGateway('sessions.patch',patch,readBudget);if(response?.ok===false||response?.success===false)throw response.error||response;}catch(error:any){rejected=refusal(error);}
    if(rejected){state='failed';errorCode=rejected.code;httpStatus=rejected.status;}
    else{
     const observed=await ownerRow(id);
