@@ -5,8 +5,8 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Document actual native routes, pinned playbooks and real Companion rollback owner with pending qualification explicit",
-  "reason": "Backlog 12 G3 plus current R16/V5/R17/R13/G2 interfaces; previous bundle had stale mutations and conflated Tier0 pointer with Companion rollback.",
+  "summary": "Complete current native runbooks with runtime tools, owner live view and native ADB recovery",
+  "reason": "Claude review26: missing PR12 tools, owner claw-live and f64513f recovery; safe deploy35 is merged.",
   "files": [
     "docs/work/samantha-runtime/contracts/g3.md",
     "docs/work/samantha-runtime/runbooks/native-runtime.md",
@@ -48,7 +48,7 @@
   "rollback": "Revert documentation PR only; operational rollbacks remain Claude and existing owner responsibility.",
   "limitations": [
     "No S24 activation, deployment, private data access or physical recipe by Codex.",
-    "Companion safe deployment owner #35, new route PRs and G2 coverage remain review/qualification prerequisites.",
-    "Current base af4132a; pending interfaces are documented as pending rather than present in active build."
+    "Companion safe deployment35 is merged f1e1800; activation and qualification remain Claude responsibility.",
+    "Base0bf30ab; open interfaces remain explicitly unqualified."
   ]
 }

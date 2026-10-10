@@ -1,7 +1,7 @@
 # G3 — runbooks du runtime natif actuel
 
-Inventaire des routes réelles et PR en revue ; activation atomique des playbooks, retour arrière du vrai checkout/dist Companion par le propriétaire Claude #35, pointeur Tier0 distingué, contexte Claw/readiness/reçus sans rejeu. Aucune ancienne branche non relue importée. Contrat : docs/work/samantha-runtime/contracts/g3.md.
+Revue26 corrigée sur la base0bf30ab : outils runtime (journal, shell et redémarrage), vue owner claw-live et récupération ADB native f64513f ajoutés. Le déploiement sûr #35 est fusionné f1e1800, son rollback du checkout/dist reste distinct du pointeur Tier0. G2 et les lots fusionnés sont identifiés sans inventer de recette physique.
 
-Sources relues : base af4132a ; scripts activate-ui-playbooks.sh, tier0-control.py, tier0-bootstrap.sh, companion-server.sh/lib.sh ; PR35 212568750b5237939053155d55bd9edc5ff1ac91 et contrats/interfaces de R16 #36, V5 #34, R17 #39, R13 #41. Liens locaux, arguments et diff contrôlés, gate de livraison ; ci.yml strictement identique. Aucun script ou test runtime nouveau pour cette modification documentaire.
+Sources : server.ts, control.ts, claw_live_control.py, companion-deploy.sh, tier0-control.py et correctif Android f64513f. Diff documentaire seulement ; toutes étapes CI et scripts conservés. Liens et interfaces vérifiés, diff --check et gate de livraison. Aucun nouveau test runtime pour ce changement documentaire.
 
-Les commandes live sont destinées à Claude après revue/intégration. G2 est en préparation, G4 #42 prépare le ménage sans l'appliquer. Aucun déploiement, recette S24 ni clôture M1/G5 revendiqués.
+Claude garde les activations, retours arrière et preuves S24 ; Codex ne les exécute pas. Contrat : docs/work/samantha-runtime/contracts/g3.md.
