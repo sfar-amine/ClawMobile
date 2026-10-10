@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "codex-r8-learning-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Prepare owner-confirmed skill learning and bounded candidate reads without promotion.",
+  "reason": "Amine assigned R8 using the existing recording/trace owner; P0-2 qualification remains missing.",
+  "files": [
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/test-skill-learning-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/companion/skillLearning.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-learning.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-learning-guard.cjs",
+    "docs/work/samantha-runtime/contracts/r8.md",
+    "docs/changes/codex-r8-learning-20261010.md",
+    "docs/changes/codex-r8-learning-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "R8 local synthetic contracts",
+      "status": "passed",
+      "evidence": "Build;54 learning/candidate/HTTP/real submitIntent assertions,22 canonical guard assertions,2 acceptance budget checks; all existing CI commands passed. No real S24 fixture or latency qualification claimed."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r8.md",
+    "docs/changes/codex-r8-learning-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Native Companion facade over the existing recordings/trace owner; no new business registry or executable canonical route."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing confirmation and run receipt owners reused; no new store, scheduler, daemon or tool-policy owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native facade only; canonical MCP admission and dispatch contracts unchanged."
+  },
+  "rollback": "Revert the R8 preparation PR; no runtime activation performed.",
+  "limitations": [
+    "Draft only: real S24 P0-2 captures and full file24 absent.",
+    "Dedicated CI ownership and representative route/volume latency remain unqualified;2s is provisional.",
+    "Prompt forbids promotion; agent-wide tool enforcement requires an attested canonical owner policy."
+  ]
+}
