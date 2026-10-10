@@ -232,6 +232,8 @@ export function readControlV2(selected:string[],detailId:string|undefined,signal
   const generate=(abort:AbortSignal)=>new Promise<ControlResult>((resolve,reject)=>{
     const args=["-m","reporting.control_snapshot","--contract","2","--sections",names.join(",")];
     if(detailId)args.push("--detail-id",detailId);
+    // The scheduler list for the P2-a switches is read while Python runs, not after it (S24 Gateway calls take seconds).
+    const jobsRead=names.includes("notifications")?allJobs().catch(()=>[]):Promise.resolve([]);
     let settled=false,outputBytes=0,failure:Error|undefined;
     const chunks:Buffer[]=[];
     const child=spawn("python3",args,{cwd:roots.playbooks,env:{...process.env,SAMANTHA_CONTROL_LIVE:roots.live},
@@ -245,7 +247,7 @@ export function readControlV2(selected:string[],detailId:string|undefined,signal
       try{
         const value=JSON.parse(Buffer.concat(chunks).toString("utf8"));
         const project=value.sections?.notifications?.data
-          ? allJobs().catch(()=>[]).then(jobs=>{value.sections.notifications.data=automationNotificationProjection(value.sections.notifications.data,jobs);return value;})
+          ? jobsRead.then(jobs=>{value.sections.notifications.data=automationNotificationProjection(value.sections.notifications.data,jobs);return value;})
           : Promise.resolve(value);
         project.then(value=>completeHealthSection(value,path.join(os.homedir(),".openclaw/health/current.json")))
           .then(resolve,()=>reject(controlError("control_invalid_response")));
