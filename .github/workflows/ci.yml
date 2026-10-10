@@ -173,3 +173,5 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+      - name: H6 shared payment pattern exact-word non-regression
+        run: node scripts/test-payment-pattern-boundary.cjs
