@@ -1,5 +1,6 @@
 import {allJobs,protectedJob} from "./automations";
 import { execFile, spawn } from "child_process";
+import {existsSync} from "fs";
 import type { IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
@@ -12,8 +13,9 @@ const sections = new Set(["snapshot", "activity", "requests", "missions", "autom
 let activeStreams = 0;
 
 export function controlPaths() {
+  const pinned=path.join(os.homedir(), ".openclaw/runtime-ui-playbooks/current");
   return {
-    playbooks: process.env.SAMANTHA_CONTROL_PLAYBOOKS || path.join(os.homedir(), ".openclaw/workspace/ui-playbooks"),
+    playbooks: process.env.SAMANTHA_CONTROL_PLAYBOOKS || process.env.CLAW_UI_PLAYBOOKS_ROOT || (existsSync(path.join(pinned,"reporting/control_snapshot.py")) ? pinned : path.join(os.homedir(), ".openclaw/workspace/ui-playbooks")),
     live: process.env.SAMANTHA_CONTROL_LIVE || path.join(os.homedir(), "ClawMobile/installer/termux-lite/claw-live.py"),
   };
 }
