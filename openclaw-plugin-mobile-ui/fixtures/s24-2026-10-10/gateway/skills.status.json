@@ -1,0 +1,371 @@
+{
+ "_capture": {
+  "method": "skills.status",
+  "params": {
+   "agentId": "main"
+  },
+  "latencyMs": 1859,
+  "latencyRunsMs": [
+   2438,
+   1755,
+   1859
+  ],
+  "rc": 0,
+  "openclaw": "2026.9.6",
+  "capturedAt": "2026-10-10T18:35Z",
+  "capturedBy": "Claude via Claw (read-only gateway call)",
+  "totalRows": 65,
+  "workspaceRows": 7,
+  "bytes": 60220,
+  "note": "workspace rows complete, 3 non-workspace rows kept as shape samples; description/homepage/env/requirement values redacted on the S24"
+ },
+ "response": {
+  "agentId": "main",
+  "workspaceDir": "/data/data/com.termux/files/home/.openclaw/workspace",
+  "managedSkillsDir": "/data/data/com.termux/files/home/.openclaw/skills",
+  "skills": [
+   {
+    "name": "clawmobile-capabilities",
+    "description": "<texte 55 car.>",
+    "source": "openclaw-workspace",
+    "bundled": false,
+    "filePath": "/data/data/com.termux/files/home/.openclaw/workspace/skills/clawmobile-capabilities/SKILL.md",
+    "baseDir": "/data/data/com.termux/files/home/.openclaw/workspace/skills/clawmobile-capabilities",
+    "skillKey": "clawmobile-capabilities",
+    "always": false,
+    "disabled": false,
+    "blockedByAllowlist": false,
+    "blockedByAgentFilter": false,
+    "eligible": true,
+    "platformIncompatible": false,
+    "modelVisible": true,
+    "userInvocable": true,
+    "commandVisible": true,
+    "requirements": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "missing": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "configChecks": [],
+    "install": []
+   },
+   {
+    "name": "clawmobile-policy",
+    "description": "<texte 191 car.>",
+    "source": "openclaw-workspace",
+    "bundled": false,
+    "filePath": "/data/data/com.termux/files/home/.openclaw/workspace/skills/clawmobile-policy/SKILL.md",
+    "baseDir": "/data/data/com.termux/files/home/.openclaw/workspace/skills/clawmobile-policy",
+    "skillKey": "clawmobile-policy",
+    "always": false,
+    "disabled": false,
+    "blockedByAllowlist": false,
+    "blockedByAgentFilter": false,
+    "eligible": true,
+    "platformIncompatible": false,
+    "modelVisible": true,
+    "userInvocable": true,
+    "commandVisible": true,
+    "requirements": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "missing": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "configChecks": [],
+    "install": []
+   },
+   {
+    "name": "clawmobile-trace-induction",
+    "description": "<texte 99 car.>",
+    "source": "openclaw-workspace",
+    "bundled": false,
+    "filePath": "/data/data/com.termux/files/home/.openclaw/workspace/skills/clawmobile-trace-induction/SKILL.md",
+    "baseDir": "/data/data/com.termux/files/home/.openclaw/workspace/skills/clawmobile-trace-induction",
+    "skillKey": "clawmobile-trace-induction",
+    "always": false,
+    "disabled": false,
+    "blockedByAllowlist": false,
+    "blockedByAgentFilter": false,
+    "eligible": true,
+    "platformIncompatible": false,
+    "modelVisible": true,
+    "userInvocable": true,
+    "commandVisible": true,
+    "requirements": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "missing": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "configChecks": [],
+    "install": []
+   },
+   {
+    "name": "orange-telecom",
+    "description": "<texte 139 car.>",
+    "source": "openclaw-workspace",
+    "bundled": false,
+    "filePath": "/data/data/com.termux/files/home/.openclaw/workspace/skills/orange-telecom/SKILL.md",
+    "baseDir": "/data/data/com.termux/files/home/.openclaw/workspace/skills/orange-telecom",
+    "skillKey": "orange-telecom",
+    "always": false,
+    "disabled": false,
+    "blockedByAllowlist": false,
+    "blockedByAgentFilter": false,
+    "eligible": true,
+    "platformIncompatible": false,
+    "modelVisible": true,
+    "userInvocable": true,
+    "commandVisible": true,
+    "requirements": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "missing": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "configChecks": [],
+    "install": []
+   },
+   {
+    "name": "samantha-agenda",
+    "description": "<texte 179 car.>",
+    "source": "openclaw-workspace",
+    "bundled": false,
+    "filePath": "/data/data/com.termux/files/home/.openclaw/workspace/skills/samantha-agenda/SKILL.md",
+    "baseDir": "/data/data/com.termux/files/home/.openclaw/workspace/skills/samantha-agenda",
+    "skillKey": "samantha-agenda",
+    "always": false,
+    "disabled": false,
+    "blockedByAllowlist": false,
+    "blockedByAgentFilter": false,
+    "eligible": true,
+    "platformIncompatible": false,
+    "modelVisible": true,
+    "userInvocable": true,
+    "commandVisible": true,
+    "requirements": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "missing": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "configChecks": [],
+    "install": []
+   },
+   {
+    "name": "samantha-factures",
+    "description": "<texte 180 car.>",
+    "source": "openclaw-workspace",
+    "bundled": false,
+    "filePath": "/data/data/com.termux/files/home/.openclaw/workspace/skills/samantha-factures/SKILL.md",
+    "baseDir": "/data/data/com.termux/files/home/.openclaw/workspace/skills/samantha-factures",
+    "skillKey": "samantha-factures",
+    "always": false,
+    "disabled": false,
+    "blockedByAllowlist": false,
+    "blockedByAgentFilter": false,
+    "eligible": true,
+    "platformIncompatible": false,
+    "modelVisible": true,
+    "userInvocable": true,
+    "commandVisible": true,
+    "requirements": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "missing": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "configChecks": [],
+    "install": []
+   },
+   {
+    "name": "samantha-tests-applicatifs",
+    "description": "<texte 211 car.>",
+    "source": "openclaw-workspace",
+    "bundled": false,
+    "filePath": "/data/data/com.termux/files/home/.openclaw/workspace/skills/samantha-tests-applicatifs/SKILL.md",
+    "baseDir": "/data/data/com.termux/files/home/.openclaw/workspace/skills/samantha-tests-applicatifs",
+    "skillKey": "samantha-tests-applicatifs",
+    "always": false,
+    "disabled": false,
+    "blockedByAllowlist": false,
+    "blockedByAgentFilter": false,
+    "eligible": true,
+    "platformIncompatible": false,
+    "modelVisible": true,
+    "userInvocable": true,
+    "commandVisible": true,
+    "requirements": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "missing": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "configChecks": [],
+    "install": []
+   },
+   {
+    "name": "1password",
+    "description": "<texte 96 car.>",
+    "source": "openclaw-bundled",
+    "bundled": true,
+    "filePath": "/data/data/com.termux/files/usr/lib/node_modules/openclaw/skills/1password/SKILL.md",
+    "baseDir": "/data/data/com.termux/files/usr/lib/node_modules/openclaw/skills/1password",
+    "skillKey": "1password",
+    "emoji": "🔐",
+    "homepage": "<url>",
+    "always": false,
+    "disabled": true,
+    "blockedByAllowlist": false,
+    "blockedByAgentFilter": false,
+    "eligible": false,
+    "platformIncompatible": false,
+    "modelVisible": false,
+    "userInvocable": true,
+    "commandVisible": false,
+    "requirements": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "missing": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "configChecks": [],
+    "install": []
+   },
+   {
+    "name": "add-model-provider",
+    "description": "<texte 105 car.>",
+    "source": "openclaw-custodian",
+    "bundled": true,
+    "filePath": "/data/data/com.termux/files/usr/lib/node_modules/openclaw/custodian-skills/add-model-provider/SKILL.md",
+    "baseDir": "/data/data/com.termux/files/usr/lib/node_modules/openclaw/custodian-skills/add-model-provider",
+    "skillKey": "add-model-provider",
+    "always": false,
+    "disabled": false,
+    "blockedByAllowlist": false,
+    "blockedByAgentFilter": false,
+    "eligible": true,
+    "platformIncompatible": false,
+    "modelVisible": true,
+    "userInvocable": true,
+    "commandVisible": true,
+    "requirements": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "missing": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "configChecks": [],
+    "install": []
+   },
+   {
+    "name": "android-talk-freeform",
+    "description": "<texte 155 car.>",
+    "source": "openclaw-workshop",
+    "bundled": false,
+    "filePath": "/data/data/com.termux/files/home/.openclaw/agents/main/agent/workshop-skills/android-talk-freeform/SKILL.md",
+    "baseDir": "/data/data/com.termux/files/home/.openclaw/agents/main/agent/workshop-skills/android-talk-freeform",
+    "skillKey": "android-talk-freeform",
+    "always": false,
+    "disabled": false,
+    "blockedByAllowlist": false,
+    "blockedByAgentFilter": false,
+    "eligible": true,
+    "platformIncompatible": false,
+    "modelVisible": true,
+    "userInvocable": true,
+    "commandVisible": true,
+    "requirements": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "missing": {
+     "bins": [],
+     "anyBins": [],
+     "env": [],
+     "config": [],
+     "os": []
+    },
+    "configChecks": [],
+    "install": []
+   }
+  ]
+ }
+}
