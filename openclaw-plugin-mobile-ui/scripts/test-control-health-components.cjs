@@ -51,6 +51,11 @@ const request = (port, url) => new Promise((resolve, reject) => {
     assert.equal(output.components[0].description,'Diagnostic du composant indisponible.');
     if(reason)assert.ok(!JSON.stringify(output).includes(reason));
   }
+  const healthyInput={components:[{id:'immune.health_manager',name:'Original',description:'Healthy historical description',checkedAt:'2026-10-10T00:00:00Z',status:'healthy'}]};
+  const healthy=projectHealthComponents(healthyInput,verdict({capabilities:{'immune.health_manager':{state:'ready'}}}),now).components[0];
+  assert.equal(healthy.description,'Healthy historical description');assert.equal(healthy.checkedAt,'2026-10-10T00:00:00Z');
+  const failed=projectHealthComponents(healthyInput,verdict({capabilities:{'immune.health_manager':{state:'down',reason:'daily_log_audit',checked_at:now/1000}}}),now).components[0];
+  assert.equal(failed.description,'Audit du journal quotidien incomplet.');assert.equal(failed.checkedAt,new Date(now).toISOString());
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'control-health-contract-'));
   const saved={home:process.env.HOME, playbooks:process.env.SAMANTHA_CONTROL_PLAYBOOKS};
   let server;

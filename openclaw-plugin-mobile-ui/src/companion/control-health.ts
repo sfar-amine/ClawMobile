@@ -40,7 +40,8 @@ export function projectHealthComponents(data: any, verdict: any, now = Date.now(
       if (observed === "healthy" && existing < 0) continue;
       const label = labels[id] || {fr: id, en: id};
       const item = {...(existing >= 0 ? components[existing] : {}), id, name: existing >= 0 ? components[existing].name : label.fr, label,
-        status: fresh ? observed : "unknown", checkedAt: stamp(row.checked_at), description: description(row.reason)};
+        status: fresh ? observed : "unknown", checkedAt: stamp(row.checked_at) ?? (existing >= 0 ? components[existing].checkedAt : null),
+        ...(observed !== "healthy" ? {description: description(row.reason)} : {})};
       if (existing >= 0) components[existing] = item; else components.push(item);
     }
   }
