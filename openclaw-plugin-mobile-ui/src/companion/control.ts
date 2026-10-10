@@ -5,11 +5,11 @@ import type { IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
 import readline from "readline";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { performance } from "perf_hooks";
 import { completeHealthSection } from "./control-health";
 
-const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations", "notifications"]);
+const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations", "notifications", "diagnostic"]);
 let activeStreams = 0;
 
 export function controlPaths() {
@@ -246,6 +246,11 @@ export function readControlV2(selected:string[],detailId:string|undefined,signal
       if(error||failure||abort.aborted){killGroup();reject(error||failure||controlError("control_read_cancelled",499));return;}
       try{
         const value=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        if(value.sections?.diagnostic?.data?.components) {
+          const component=value.sections.diagnostic.data.components.find((row:any)=>row.id==="companion");
+          if(component){component.version=require("../../package.json").version;component.endpoint="/v1";}
+          value.sections.diagnostic.dataRevision=createHash("sha256").update(JSON.stringify(value.sections.diagnostic.data)).digest("hex");
+        }
         const project=value.sections?.notifications?.data
           ? jobsRead.then(jobs=>{value.sections.notifications.data=automationNotificationProjection(value.sections.notifications.data,jobs);return value;})
           : Promise.resolve(value);

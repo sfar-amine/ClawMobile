@@ -1,3 +1,4 @@
+import {diagnosticRead} from "./diagnostic";
 import {automationDetail,changeAutomation} from "./automations";
 import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
 import {notificationSources} from "./notificationSources";
@@ -202,6 +203,23 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       success: false,
       message: "This endpoint is restricted to local companion app requests.",
     });
+    return;
+  }
+
+  if(routePath.startsWith("/control/diagnostic/")){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    res.setHeader("Cache-Control","no-store");
+    try{
+      if(routePath==="/control/diagnostic/export"){
+        if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+        writeJson(res,200,{success:true,state:"ok",receipt:null,artifact:await diagnosticRead("export")});return;
+      }
+      const match=/^\/control\/diagnostic\/logs\/(agent|installation|engineering)$/.exec(routePath);
+      if(!match){writeJson(res,404,{success:false,state:"not_found",receipt:null,error:"not_found"});return;}
+      const value=await diagnosticRead("logs",match[1],requestUrl.searchParams);
+      writeJson(res,200,{success:value.available,state:value.available?"ok":"unavailable",receipt:null,...value});
+    }catch(e:any){const invalid=e?.statusCode===400;writeJson(res,invalid?400:503,{success:false,state:invalid?"refused":"unavailable",receipt:null,error:invalid?"invalid_diagnostic_request":"diagnostic_source_unavailable"});}
     return;
   }
 
