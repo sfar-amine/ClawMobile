@@ -7,7 +7,7 @@ export function serverLanguage(header:unknown):ServerLanguage{
  const preferences=header.split(',').map((part,index)=>{const [tag,...params]=part.trim().toLowerCase().split(';');const q=params.find(p=>p.trim().startsWith('q='));const weight=q?Number(q.trim().slice(2)):1;return {tag:tag.split('-')[0],weight,index};}).filter(p=>['fr','en'].includes(p.tag)&&Number.isFinite(p.weight)&&p.weight>0&&p.weight<=1).sort((a,b)=>b.weight-a.weight||a.index-b.index);
  return preferences[0]?.tag==='en'?'en':'fr';
 }
-export function localizedRoute(path:string){return /^\/(?:control(?:\/|$)|notifications\/sources$|automations(?:\/|$)|agent\/config$|providers$|usage$|updates$)/.test(path);}
+export function localizedRoute(path:string){return /^\/(?:control\/(?:health|automations)$|notifications\/sources$|automations(?:\/|$)|agent\/config$|providers$|usage$|updates$)/.test(path);}
 function text(pair:[string,string],language:ServerLanguage){return pair[language==='en'?1:0];}
 /** Closed presentation fields only. Never inspect/translate prompt, summary, body, note or message. */
 export function localizeServerPresentation(value:any,language:ServerLanguage,depth=0):any{

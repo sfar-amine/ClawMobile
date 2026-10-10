@@ -36,8 +36,22 @@ assert.equal(localizeServerPresentation({reason:'private_user_text'},'en').reaso
 assert.equal(localizedRoute('/payments'),false);
 assert.equal(localizedRoute('/runs'),false);
 assert.equal(localizedRoute('/control/health'),true);
+for(const route of ['/control/memory','/control/engineering','/control/diagnostic','/laptop-access/computers','/confirmations'])assert.equal(localizedRoute(route),false);
 async function verifyHttp(){
  const http=require('node:http');
+ const cp=require('node:child_process');const {EventEmitter}=require('node:events');const {PassThrough}=require('node:stream');
+ const originalSpawn=cp.spawn;const ownerCalls=[];
+ process.env.SAMANTHA_CONTROL_CACHE='1';process.env.SAMANTHA_CONTROL_PLAYBOOKS=__dirname;
+ // Writer-regression test only: captured public contract projections are test inputs.
+ // It does not qualify raw native-owner equality or replay S24 latency (#70 owns that proof).
+ cp.spawn=(command,args,options)=>{
+  if(command==='python3'&&args[0]==='-m'&&args[1]==='reporting.control_snapshot'){
+   const section=args[5];assert.ok(['health','automations'].includes(section));assert.deepEqual(args,['-m','reporting.control_snapshot','--contract','2','--sections',section]);
+   ownerCalls.push(section);const child=new EventEmitter();child.stdout=new PassThrough();child.stderr=new PassThrough();
+   setImmediate(()=>{child.stdout.end(JSON.stringify(section==='health'?health:automations));child.emit('close',0);});return child;
+  }
+  return originalSpawn(command,args,options);
+ };
  const {route}=require('../dist/companion/server.js');
  const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.statusCode=500;res.end();}));
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -48,6 +62,18 @@ async function verifyHttp(){
    assert.equal(response.status,400);assert.equal(response.headers.get('content-language'),language);assert.equal(response.headers.get('vary'),'Accept-Language');assert.equal((await response.json()).error,'unsupported_parameter');
   }
   const response=await fetch(base+'/notifications/sources?unsupported=1');assert.equal(response.headers.get('content-language'),'fr');
- }finally{await new Promise(resolve=>server.close(resolve));}
+  for(const section of ['health','automations']){
+   let revision;
+   for(const language of ['fr','en']){
+    const result=await fetch(base+`/control/${section}?contract=2`,{headers:{'Accept-Language':language}});
+    assert.equal(result.status,200);assert.equal(result.headers.get('content-language'),language);assert.equal(result.headers.get('vary'),'Accept-Language');
+    const body=await result.json(),data=body.sections[section].data;
+    if(section==='health'){assert.equal(data.statusLabel,language==='fr'?'Sain':'Healthy');for(const component of data.components)if(component.label?.[language])assert.equal(component.name,component.label[language]);}
+    else{assert.equal(data.items[0].scheduleLabel,language==='fr'?'Toutes les 15 min':'Every 15 min');assert.equal(data.items[0].name,automations.sections.automations.data.items[0].name);}
+    if(revision)assert.equal(body.sections[section].dataRevision,revision,'same owner cache revision across presentation languages');revision=body.sections[section].dataRevision;
+   }
+  }
+  assert.deepEqual(ownerCalls,['health','automations'],'one shared owner read per section across languages');
+ }finally{cp.spawn=originalSpawn;server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 }
 verifyHttp().then(()=>console.log(JSON.stringify({lot:'F3',healthComponents:health.sections.health.data.components.length,automationRows:automations.sections.automations.data.items.length,cachedSourceUnchanged:true,gatewayCalls:0}))).catch(error=>{console.error(error);process.exitCode=1;});

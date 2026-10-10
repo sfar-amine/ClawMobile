@@ -1,3 +1,4 @@
+import {serverLanguage,localizedRoute,localizeServerPresentation} from "./serverLocale";
 import {completeUsageAttention} from './usageControl';
 import {allJobs,protectedJob} from "./automations";
 import { execFile, spawn } from "child_process";
@@ -353,7 +354,11 @@ export async function handleControl(req: IncomingMessage, res: ServerResponse, r
       }
       value=result;
     }
-    if(!res.destroyed){res.writeHead(200,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});res.end(JSON.stringify(value));}
+    if(!res.destroyed){
+      const headers:Record<string,string>={"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"};
+      if(localizedRoute(routeOnly)){const language=serverLanguage(req.headers["accept-language"]);value=localizeServerPresentation(value,language);headers["Content-Language"]=language;headers.Vary="Accept-Language";}
+      res.writeHead(200,headers);res.end(JSON.stringify(value));
+    }
   }catch(error:any){
     if(!res.destroyed){const code=[400,404,429,499,504].includes(error?.statusCode)?error.statusCode:503;
       res.writeHead(code,{"Content-Type":"application/json","Cache-Control":"no-store"});res.end(JSON.stringify({error:code===400?"invalid_control_request":code===429?"control_read_busy":"control_unavailable"}));}

@@ -10,6 +10,7 @@
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/serverLocale.ts",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/scripts/test-server-localization.cjs",
     "docs/work/samantha-runtime/contracts/f3.md",
@@ -20,7 +21,7 @@
     {
       "name": "f3-localization",
       "status": "passed",
-      "evidence": "npm run build ; test-server-localization.cjs, captures santé et automatisations, intégrité des contenus et sources, handler HTTP réel, zéro appel Gateway."
+      "evidence": "npm run build ; test-server-localization.cjs, captures santé et automatisations, intégrité des contenus et sources, vrais handlers succès Control avec projections publiques capturées comme entrées de test du writer seulement, cache partagé FR/EN une lecture, zéro appel Gateway."
     }
   ],
   "documentation": [
@@ -51,6 +52,7 @@
   "limitations": [
     "Local seulement ; aucune publication avant ordre autorisé.",
     "Préparation partielle : descriptions et résumés libres non traduits faute de provenance serveur structurée.",
-    "Signal Accept-Language app absent de l’audit Kotlin ; confirmation à demander dans future PR."
+    "Signal Accept-Language app absent de l’audit Kotlin ; confirmation à demander dans future PR.",
+    "Intégration #70 : assertions notifications/automatisations à adapter à la présentation attendue, preuves propriétaires conservées ; aucune CI base #70 fusionnée revendiquée."
   ]
 }
