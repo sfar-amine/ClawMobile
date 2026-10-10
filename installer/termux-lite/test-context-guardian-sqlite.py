@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generated schema/rows from public 2026.9.6 contract: never claimed as a S24 capture."""
+"""Real S24 metadata/schema projections plus generated defensive-volume cases."""
 import hashlib
 import importlib.util
 import json
@@ -12,6 +12,8 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parent
+FIXTURES = ROOT.parents[1] / 'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/c8'
+CAPTURE = json.loads((FIXTURES / 'session-nodes.json').read_text())
 spec = importlib.util.spec_from_file_location('guardian', ROOT / 'context-guardian-read.py')
 guardian = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guardian)
@@ -43,6 +45,53 @@ class GuardianSqlite(unittest.TestCase):
 
     def read(self):
         return json.loads(guardian.read_health(self.agents, now_ms=123))
+
+    def captured_databases(self, expand=False):
+        by_agent = {v['agentId']: [] for v in CAPTURE['volume']}
+        for row in CAPTURE['rows']:
+            by_agent[row['agentId']].append(row)
+        for volume in CAPTURE['volume']:
+            agent = volume['agentId']
+            folder = self.agents / agent / 'agent'; folder.mkdir(parents=True)
+            with sqlite3.connect(folder / 'openclaw-agent.sqlite') as conn:
+                conn.execute(CAPTURE['schema']['create'])
+                self.assertEqual([r[1] for r in conn.execute('PRAGMA table_info(session_nodes)')],
+                                 [r['name'] for r in CAPTURE['schema']['table_info']])
+                count = volume['sessionNodes'] if expand else len(by_agent[agent])
+                for i in range(count):
+                    row = by_agent[agent][i % len(by_agent[agent])]
+                    entry = {k:v for k,v in row['entry_json_projection'].items() if k != '_absent'}
+                    key = row['session_key'] + (f':volume-{i}' if expand else '')
+                    conn.execute('INSERT INTO session_nodes(session_key,current_session_id,entry_json,updated_at,status) VALUES (?,?,?,?,?)',
+                                 (key,entry['sessionId'],json.dumps(entry),row['updated_at'],row['status']))
+
+    def test_real_s24_schema_and_closed_metadata_projection(self):
+        self.captured_databases()
+        rows = {r['key']:r for r in self.read()['sessions']}
+        self.assertEqual(len(rows),15)
+        for captured in CAPTURE['rows']:
+            entry = captured['entry_json_projection']; projected = rows[captured['session_key']]
+            # Exactly the historical Guardian's arithmetic on recorded metadata.
+            # This does not pretend that raw entries include CLI model/context/kind derivations.
+            total = entry.get('totalTokens') or 0; context = entry.get('contextTokens') or 0
+            expected = {'key':captured['session_key'],'sessionId':entry.get('sessionId'),
+                        'updatedAt':entry.get('updatedAt'),'totalTokens':total,'contextTokens':context,
+                        'ratio':total/context if context else None,'kind':entry.get('kind'),'status':entry.get('status')}
+            self.assertEqual({k:projected[k] for k in expected},expected)
+            self.assertEqual(projected['compactionCount'],entry.get('compactionCount'))
+            self.assertNotIn('contextBudgetStatus',projected)
+            self.assertNotIn('model',projected)
+        self.assertEqual({r['compactionCount'] for r in rows.values()}, {None,0,6})
+        self.assertTrue(any(r['ratio'] and r['ratio'] >= .6 for r in rows.values()))
+
+    def test_real_937_row_volume_expanded_from_captured_forms(self):
+        # These replicas exercise real volume/schema, not a fictitious capture of 937 entries.
+        self.assertEqual(sum(v['sessionNodes'] for v in CAPTURE['volume']),937)
+        self.captured_databases(expand=True)
+        started = time.monotonic(); rows = self.read()['sessions']
+        self.assertEqual(len(rows),937)
+        self.assertLess(time.monotonic()-started,guardian.READ_SECONDS)
+        self.assertEqual(len({r['key'] for r in rows}),937)
 
     def test_multiple_agents_metadata_pressure_and_no_source_writes(self):
         entry = {'sessionId':'uuid_with_underscore','updatedAt':456,'totalTokens':80,'contextTokens':100,

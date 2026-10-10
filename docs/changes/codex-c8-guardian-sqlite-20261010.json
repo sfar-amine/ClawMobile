@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Context Guardian observes the existing SQLite logical-session owner without Node CLI.",
-  "reason": "Programme31/33 confirms canonical SQLite owner; physical schema/row fixtures remain pending.",
+  "reason": "Real S24 schema/rows integrated from PR82; exact historical CLI projection remains unproved because CLI derives context window, kind and token totals.",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/context-guardian.sh",
@@ -20,7 +20,7 @@
     {
       "name": "Context Guardian SQLite read-only owner contracts",
       "status": "passed",
-      "evidence": "Eight tests actual sqlite3 and shell; native10MiBentryrejectedbeforematerialization, generated200001rows, WALcommittedread/DBandWALunchanged, boundedprivateprojection, noCLI, atomic0600 output, invalid/missing/symlink preservingoldhealth, pressurecounts andfinite/deadline. Physical schema/rows fixture unavailable, no S24 qualification. Full current CI on runtime1f239f3: CI_LOCAL_OK; union28existingsteps+1C8step retained. Native-size and whole-reader-deadline refinements rerun8tests green; no unrelated retests. Latest runtime d8e2f7f (R17 merged) integrated normally; C8 eight tests and R17 existing-cycle three tests pass, all new baseline CI steps retained. Independent readonly review eight tests pass; no new local blocker."
+      "evidence": "Ten SQLite/shell tests pass. Real S24 STRICT 30-column schema and 15 metadata projections replayed; generated 937-row volume matches captured 692/161/84/0 counts; 200001-row defensive bound, WAL RO, atomic0600 and prior-snapshot preservation remain tested. Normal base merge b40b867 with union of all CI steps."
     }
   ],
   "documentation": [
@@ -49,9 +49,9 @@
   },
   "rollback": "Revert the Guardian reader delta; no runtime deployment performed.",
   "limitations": [
-    "Physical SQLite schema and entry_json rows missing; request Claude captures in draft PR.",
-    "Generated schema/rows follow public2026.9.6 source and audit31; no new physical benchmark.",
-    "Bound10000 projected sessions; overflow refuses snapshot rather than fresh partial.",
-    "Read-only WAL reader coordination can alter existing SHM; logical DB/WAL data unchanged."
+    "Actual old CLI output is not captured: kind, contextTokens model/config fallback and totalTokens derivations cannot be claimed equivalent to raw entry_json.",
+    "Legacy CLI store selection is configuration-derived; current reader enumerates all agent stores. Clarification requested from Claude before readiness.",
+    "Physical before p50=4965.5ms (40 runs); captured SQLite reads=128.2ms total, not an activated C8 after benchmark.",
+    "Bound10000 sessions refuses overflow, SQLite WAL SHM reader coordination may change; logical DB/WAL data unchanged."
   ]
 }
