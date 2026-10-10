@@ -1,3 +1,4 @@
+import {completeUsageAttention} from './usageControl';
 import {allJobs,protectedJob} from "./automations";
 import { execFile, spawn } from "child_process";
 import {existsSync, constants} from "fs";
@@ -46,7 +47,7 @@ export function readControl(section: string, signal?: AbortSignal): Promise<unkn
           else Object.assign(value,automationNotificationProjection(value,jobs));
         }
         if(value.notifications)value.notifications=automationNotificationProjection(value.notifications,jobs);
-        resolve(value);
+        resolve(completeUsageAttention(value));
       } catch { reject(new Error("control_invalid_response")); }
     });
   });
@@ -273,6 +274,10 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
       if(error||failure||abort.aborted){killGroup();reject(error||failure||controlError("control_read_cancelled",499));return;}
       try{
         const value=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        const requestData=value.sections?.requests?.data;
+        const requestItems=[requestData?.item,...(Array.isArray(requestData?.items)?requestData.items:[])];
+        if(requestItems.some(requestItem=>requestItem?.sessionId!=null && (typeof requestItem.sessionId!=="string" || !/^[A-Za-z0-9_-]{1,80}$/.test(requestItem.sessionId))))
+          throw controlError("control_invalid_request_origin");
         if(value.sections?.diagnostic?.data?.components) {
           const component=value.sections.diagnostic.data.components.find((row:any)=>row.id==="companion");
           if(component){component.version=require("../../package.json").version;component.endpoint="/v1";}
@@ -301,7 +306,7 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
     return value;
   };
   const result=controlReads.read(key,guardedGenerate,signal,{force,cache:fast||process.env.SAMANTHA_CONTROL_CACHE==="1"});
-  if(!fast)return result;
+  if(!fast)return result.then(completeUsageAttention);
   // The existing bounded collector continues; polling shares its single flight.
   let timer:ReturnType<typeof setTimeout>|undefined;
   try{return await Promise.race([result,new Promise<ControlResult>(resolve=>{

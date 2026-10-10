@@ -1,3 +1,4 @@
+import {stripConversationTransport} from "./conversationText";
 /** Conservative evidence from the owner Gateway, independent of its SQLite layout. */
 export const RUN_INACTIVITY_MS = 10 * 60 * 1000;
 export type InactivityReceipt = {
@@ -26,7 +27,7 @@ export function ownerTurnEvidence(messages: any[], prompt: string, now: number):
   const text = (content: any) => typeof content === "string" ? content : Array.isArray(content)
     ? content.filter(c => c?.type === "text").map(c => c.text).join("\n") : "";
   const matches = messages.map((m, i) => m?.role === "user" &&
-    text(m.content).replace(/^\[[^\]\n]+\]\s*/, "") === prompt ? i : -1).filter(i => i >= 0);
+    stripConversationTransport(text(m.content)) === prompt ? i : -1).filter(i => i >= 0);
   if (matches.length !== 1) return undefined;
   const start = matches[0];
   let end = messages.findIndex((m, i) => i > start && m?.role === "user");

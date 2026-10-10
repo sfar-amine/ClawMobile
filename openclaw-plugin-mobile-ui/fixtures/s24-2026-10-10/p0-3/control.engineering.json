@@ -1,0 +1,226 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/control/engineering?limit=20",
+  "latencyMs": 117,
+  "repeatLatencyMs": 106,
+  "capturedAt": "2026-10-10T18:35:48+00:00",
+  "companion": "loopback 127.0.0.1:8765, sans en-tête propriétaire",
+  "sanitized": true
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "items": [
+   {
+    "id": "ENG-b60907fef489206e3662b1a4b78a6183f281fa48b463705a5075ce28567b0ed8",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "completed",
+    "updatedAt": "2026-10-10T10:39:47.471000Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-2ee2af2ae5228676ec205c591959b85ea0b0f1ed13eaddc3d089cc193e3b958f",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "blocked",
+    "updatedAt": "2026-10-10T10:09:09.072300Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-988fcf87fb788541e99bba38ffffbdc7677a4594bc8670eba4368728120c37a5",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "completed",
+    "updatedAt": "2026-10-10T10:00:48.150456Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-f03e07d64daf90354b125ad140a8ef46b050f283f5b6790b8cb0b80c498117cf",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "cancelled",
+    "updatedAt": "2026-10-10T09:32:35.614206Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-021b39925982f19f5336eb76493ee2befc9a5c3164a2f0660309209e9b5a3612",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "completed",
+    "updatedAt": "2026-10-10T09:32:35.355919Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-9ba46ddbde59070363ea2b3d60722322da7a32266146993b03248f6f2f3742a9",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:26:00.911915Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-e21e4c57ae3e7df0a21f9b3bb06e836994f328a6aa89c3aa3e8b528d6c6eca80",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:26:00.759066Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-04e3e1b87d4b305991c8f7af79ae6293c8fa5d5b71ed5c3e8c079cf37b73b514",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:26:00.600219Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-23a051458c715e2b759671c03a1fb9d4bfaf54228bcb775cf5c36a732d80aca3",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:26:00.447769Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-9fe256bb5ce8b22dab549739ac1a0b43bca978bf56bb5ae4188f3aacdc1583ba",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:26:00.279104Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-830b79672d406f335ef4cea9d018b6039c790d2326161e75b5027c9bb3c03d1a",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "completed",
+    "updatedAt": "2026-10-10T09:25:53.556534Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-e23a9bc69f239a453b7bfdbc0f5fa229f4b660ce4b0a79ba4eaf7953486f100c",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:59.715257Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-0938abc080cde60882cb1c3c1de267c06422935d186a08daee9c06d5f1a95ab2",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:59.432095Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-948747b7ffe82f046267bf6256d364e5be0d0ef3e837b0d3495a47f84b7707c4",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:58.967074Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-8c968330ccea318cf03fc4bd9e29e556ed956b46bcefa93e551ed8baf4b9ff19",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:58.542034Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-95384c3b16911231f1dd23e562a81345bbff668c468561e65a822c1a6c956e4e",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:58.066140Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-73cd87907e683eab9f73eb6f4dae21e546ca55e4c894be40a636d560b608940c",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:57.740971Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-933db9e524322bb8d1844fa7c21391a6adfbd10598b4cfa5ca14f621d73af34e",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:57.320369Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-07ec68a71458f141b017b6ee1293e0983f472b0b780f3ecf740f61a1de7a565f",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:57.030264Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-94ecb3ed434d408f3a0518aab219f57ca0b92e9df71258a2c19c20f3a8e588e5",
+    "kind": "engineering",
+    "label": "<texte 15 car.>",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:56.773204Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   }
+  ],
+  "total": 199,
+  "offset": 0,
+  "limit": 20,
+  "nextOffset": 20,
+  "revision": "805d0679fc7c1dc42c7c70f456c469318b18b54f87cdfc84bb6ef8a523a793e2",
+  "issues": [],
+  "source": "foreground_checkpoint_projection",
+  "effectsReplayed": false
+ }
+}

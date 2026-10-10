@@ -1,0 +1,392 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/runs?limit=50",
+  "latencyMs": 21,
+  "repeatLatencyMs": 16,
+  "capturedAt": "2026-10-10T18:35:48+00:00",
+  "companion": "loopback 127.0.0.1:8765, sans en-tête propriétaire",
+  "sanitized": true
+ },
+ "response": {
+  "runs": [
+   {
+    "success": true,
+    "runId": "run_1791648877631_9bc4ab68",
+    "clientRunId": "samantha-8a8e2c52-7112-b8f4-d5b1-18934b1f137a",
+    "sessionId": "decision-v2-live-5a66bfd3a1",
+    "state": "done",
+    "message": "<texte 192 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 192 car.>",
+     "updatedAt": 1791648951945,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 192 car.>",
+       "at": 1791648951945
+      }
+     ]
+    },
+    "result": "<texte 192 car.>",
+    "prompt": "<texte 22 car.>",
+    "userText": "<texte 22 car.>",
+    "submittedAt": 1791648877631,
+    "updatedAt": 1791648951945
+   },
+   {
+    "success": true,
+    "runId": "run_1791621662404_bdd2548c",
+    "clientRunId": "samantha-41551651-d415-ce39-7a9a-83792566c62e",
+    "sessionId": "samantha-ad133333-05a4-bdea-4659-a248d3293ad0",
+    "state": "done",
+    "message": "<texte 1292 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 1292 car.>",
+     "updatedAt": 1791621668937,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 1292 car.>",
+       "at": 1791621668937
+      }
+     ]
+    },
+    "result": "<texte 1288 car.>",
+    "prompt": "<texte 16 car.>",
+    "userText": "<texte 16 car.>",
+    "submittedAt": 1791621662404,
+    "updatedAt": 1791621668937
+   },
+   {
+    "success": true,
+    "runId": "voice-955afd09-e131-95a2-5055-cb51f734f6de",
+    "sessionId": "samantha-550bf17f-c97f-5bcf-ad91-a54b5aff0c58",
+    "state": "unknown",
+    "message": "<texte 11 car.>",
+    "userText": "<texte 3 car.>",
+    "result": "<texte 137 car.>",
+    "submittedAt": 1791573775291,
+    "updatedAt": 1791573787104,
+    "modality": "voice",
+    "transcriptState": "interrupted"
+   },
+   {
+    "success": true,
+    "runId": "run_1791498322642_4b11d540",
+    "clientRunId": "samantha-195be1c2-151d-c6dc-2ab9-007c8104f681",
+    "sessionId": "decision-v2-live-5a66bfd3a1",
+    "state": "done",
+    "message": "<texte 261 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 261 car.>",
+     "updatedAt": 1791500281888,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 261 car.>",
+       "at": 1791500281888
+      }
+     ]
+    },
+    "result": "<texte 261 car.>",
+    "prompt": "<texte 22 car.>",
+    "userText": "<texte 22 car.>",
+    "submittedAt": 1791498322642,
+    "updatedAt": 1791500281888
+   },
+   {
+    "success": true,
+    "runId": "run_1791498187668_5423bb45",
+    "clientRunId": "decision-v2-reply-05ff0db948",
+    "sessionId": "decision-v2-live-5a66bfd3a1",
+    "state": "done",
+    "message": "<texte 280 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 280 car.>",
+     "updatedAt": 1791498193434,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 280 car.>",
+       "at": 1791498193434
+      }
+     ]
+    },
+    "result": "<texte 276 car.>",
+    "prompt": "<texte 42 car.>",
+    "userText": "<texte 25 car.>",
+    "submittedAt": 1791498187668,
+    "updatedAt": 1791498193434
+   },
+   {
+    "success": true,
+    "runId": "run_1791498187282_7255ab16",
+    "clientRunId": "decision-v2-clarify-7c01c62eef",
+    "sessionId": "decision-v2-live-5a66bfd3a1",
+    "state": "done",
+    "message": "<texte 79 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 79 car.>",
+     "updatedAt": 1791498187696,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 79 car.>",
+       "at": 1791498187696
+      }
+     ]
+    },
+    "result": "<texte 79 car.>",
+    "prompt": "<texte 16 car.>",
+    "userText": "<texte 16 car.>",
+    "submittedAt": 1791498187282,
+    "updatedAt": 1791498187696
+   },
+   {
+    "success": true,
+    "runId": "run_1791498186326_e671a2ef",
+    "clientRunId": "decision-v2-known-95c3634bb1",
+    "sessionId": "decision-v2-live-5a66bfd3a1",
+    "state": "done",
+    "message": "<texte 105 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 105 car.>",
+     "updatedAt": 1791498186951,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 105 car.>",
+       "at": 1791498186951
+      }
+     ]
+    },
+    "result": "<texte 105 car.>",
+    "prompt": "<texte 31 car.>",
+    "userText": "<texte 31 car.>",
+    "submittedAt": 1791498186326,
+    "updatedAt": 1791498186951
+   },
+   {
+    "success": true,
+    "runId": "run_1791497871422_9220f83c",
+    "clientRunId": "decisionv2-clarify-child-21530978dd",
+    "sessionId": "decisionv2-live-clarify-20261008",
+    "state": "done",
+    "message": "<texte 279 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 279 car.>",
+     "updatedAt": 1791497877745,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 279 car.>",
+       "at": 1791497877745
+      }
+     ]
+    },
+    "result": "<texte 275 car.>",
+    "prompt": "<texte 42 car.>",
+    "userText": "<texte 19 car.>",
+    "submittedAt": 1791497871422,
+    "updatedAt": 1791497877745
+   },
+   {
+    "success": true,
+    "runId": "run_1791497772021_8cfb13da",
+    "clientRunId": "decisionv2-clarify-fdd1b1fd14",
+    "sessionId": "decisionv2-live-clarify-20261008",
+    "state": "done",
+    "message": "<texte 79 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 79 car.>",
+     "updatedAt": 1791497871458,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 79 car.>",
+       "at": 1791497871458
+      }
+     ]
+    },
+    "result": "<texte 79 car.>",
+    "prompt": "<texte 16 car.>",
+    "userText": "<texte 16 car.>",
+    "submittedAt": 1791497772021,
+    "updatedAt": 1791497871458
+   },
+   {
+    "success": true,
+    "runId": "run_1791497769857_1b41ff5d",
+    "clientRunId": "decisionv2-read-824b19c85a",
+    "sessionId": "decisionv2-live-read-20261008",
+    "state": "done",
+    "message": "<texte 105 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 105 car.>",
+     "updatedAt": 1791497771283,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 105 car.>",
+       "at": 1791497771283
+      }
+     ]
+    },
+    "result": "<texte 105 car.>",
+    "prompt": "<texte 31 car.>",
+    "userText": "<texte 31 car.>",
+    "submittedAt": 1791497769857,
+    "updatedAt": 1791497771283
+   },
+   {
+    "success": true,
+    "runId": "voice-b1e68202-4a46-2bd3-9ee8-c392863542dd",
+    "sessionId": "samantha-5271ede8-fa01-ade9-309a-fea7b64967fc",
+    "state": "unknown",
+    "message": "<texte 11 car.>",
+    "userText": "<texte 28 car.>",
+    "result": "<texte 0 car.>",
+    "submittedAt": 1791496457738,
+    "updatedAt": 1791496484619,
+    "modality": "voice",
+    "transcriptState": "interrupted"
+   },
+   {
+    "success": true,
+    "runId": "voice-0500ebdd-0d13-2ea7-f848-5f68cce656c8",
+    "sessionId": "samantha-5271ede8-fa01-ade9-309a-fea7b64967fc",
+    "state": "unknown",
+    "message": "<texte 11 car.>",
+    "userText": "<texte 28 car.>",
+    "result": "<texte 0 car.>",
+    "submittedAt": 1791496383876,
+    "updatedAt": 1791496385092,
+    "modality": "voice",
+    "transcriptState": "interrupted"
+   },
+   {
+    "success": true,
+    "runId": "run_1791491410897_bf918143",
+    "clientRunId": "samantha-clarify-terminal-b620849598a0",
+    "sessionId": "samantha-clarify-terminal-20261008",
+    "state": "done",
+    "message": "<texte 79 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 79 car.>",
+     "updatedAt": 1791491410996,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 79 car.>",
+       "at": 1791491410996
+      }
+     ]
+    },
+    "result": "<texte 79 car.>",
+    "prompt": "<texte 16 car.>",
+    "userText": "<texte 16 car.>",
+    "submittedAt": 1791491410897,
+    "updatedAt": 1791491410996
+   },
+   {
+    "success": true,
+    "runId": "run_1791491119902_dceef30c",
+    "clientRunId": "samantha-clarify-final-4284cb4b0693",
+    "sessionId": "samantha-clarify-final-20261008",
+    "state": "done",
+    "message": "<texte 79 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 79 car.>",
+     "updatedAt": 1791491119931,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 79 car.>",
+       "at": 1791491119931
+      }
+     ]
+    },
+    "result": "<texte 79 car.>",
+    "prompt": "<texte 16 car.>",
+    "userText": "<texte 16 car.>",
+    "submittedAt": 1791491119902,
+    "updatedAt": 1791491119931
+   },
+   {
+    "success": true,
+    "runId": "run_1791491016718_92a47ddc",
+    "clientRunId": "samantha-intent-clarify-ded69df4f166",
+    "sessionId": "samantha-intent-clarify-live-20261008",
+    "state": "done",
+    "message": "<texte 44 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 44 car.>",
+     "updatedAt": 1791637060290,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 44 car.>",
+       "at": 1791637060290
+      }
+     ]
+    },
+    "result": "<texte 42 car.>",
+    "prompt": "<texte 16 car.>",
+    "userText": "<texte 16 car.>",
+    "submittedAt": 1791491016718,
+    "updatedAt": 1791637060290
+   },
+   {
+    "success": true,
+    "runId": "run_1791488149308_932dc6f5",
+    "clientRunId": "samantha-live-closure-06efcf11b23f",
+    "sessionId": "samantha-live-closure-20261008",
+    "state": "done",
+    "message": "<texte 104 car.>",
+    "progress": {
+     "text": "<texte 10 car.>",
+     "detail": "<texte 104 car.>",
+     "updatedAt": 1791488151672,
+     "events": [
+      {
+       "type": "companion.completed",
+       "label": "<texte 10 car.>",
+       "detail": "<texte 104 car.>",
+       "at": 1791488151672
+      }
+     ]
+    },
+    "result": "<texte 104 car.>",
+    "prompt": "<texte 31 car.>",
+    "userText": "<texte 31 car.>",
+    "submittedAt": 1791488149308,
+    "updatedAt": 1791488151672
+   }
+  ]
+ }
+}

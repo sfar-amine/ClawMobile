@@ -1,6 +1,7 @@
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
-
+import {readUsage,readUsageDetails} from './usage';
+import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
 import {capabilityDetail} from "./capabilityControl";
 import {updatesRead} from "./updatesControl";
@@ -24,6 +25,7 @@ import { URL } from "url";
 import { android_health } from "../tools/android";
 import { clearAgentConversationMessages, listAgentConversationMessages, listAgentConversations, markAgentMessageRead } from "./agentMessages";
 import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRuntime } from "./openclawGatewayClient";
+import {readConversationMetadata,changeConversationMetadata} from "./conversationMetadata";
 import { submitIntent } from "./intent";
 import {securitySurfaces} from "./securitySurfaces";
 import { payments } from "./payments";
@@ -330,6 +332,19 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  const conversationMetadata=/^\/conversations\/([^/]+)\/metadata$/.exec(routePath);
+  if(conversationMetadata){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;}
+    if(!['GET','POST'].includes(method)){res.setHeader('Allow','GET, POST');writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(conversationMetadata[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      const value=method==='GET'?await readConversationMetadata(id):await changeConversationMetadata(id,await readJsonBody(req,2048));
+      res.setHeader('Cache-Control','no-store');writeJson(res,Number.isInteger(value.httpStatus)?value.httpStatus:value.state==='refused'?409:200,value);
+    }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'unavailable':'refused',receipt:null,error:status===400&&error?.message==='unsupported_thinking_level'?'unsupported_thinking_level':status===400?'invalid_conversation_metadata':status===404?'conversation_not_found':status===409&&['run_active','conversation_model_change_requires_idle','unknown_conversation_model','conversation_identity_unavailable','conversation_identity_changed','conversation_identity_ambiguous','conversation_label_already_used','protected_owner_activity','operation_conflict'].includes(error?.message)?error.message:status===409?'operation_conflict':'conversation_owner_unavailable'});}
+    return;
+  }
+
   if(routePath==="/security/surfaces"){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
     if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
@@ -363,6 +378,21 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       writeJson(res,value.state==='refused'?409:value.state==='failed'?503:200,value);
     }catch(error:any){const code=error instanceof URIError?400:[400,403,404,409].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,error:code===400?'invalid_approval_operation':code===403?(error?.message==='confirmation_not_found'?'confirmation_not_found':'confirmation_scope_mismatch'):code===404?'approval_run_not_found':code===409?'confirmation_not_usable':'approval_owner_unavailable'});}
+    return;
+  }
+
+  if(routePath==="/usage"||routePath==="/providers"){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{error:"native_loopback_required"});return;}
+    res.setHeader("Cache-Control","no-store");
+    if(method!=="GET"){writeJson(res,405,{error:"method_not_allowed"});return;}
+    const parameters=requestUrl.searchParams;
+    if(routePath==="/usage"){
+      if([...parameters.keys()].some(k=>k!=="details")||parameters.getAll("details").length>1||parameters.has("details")&&parameters.get("details")!=="cost"){writeJson(res,400,{error:"unsupported_parameter"});return;}
+      writeJson(res,200,parameters.has("details")?await readUsageDetails():await readUsage());
+    }else{
+      if([...parameters.keys()].some(k=>k!=="refresh")||parameters.getAll("refresh").length>1||parameters.has("refresh")&&parameters.get("refresh")!=="1"){writeJson(res,400,{error:"unsupported_parameter"});return;}
+      writeJson(res,200,await readProviders(parameters.get("refresh")==="1"));
+    }
     return;
   }
 
@@ -583,6 +613,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/extensions/nostr/contacts/:contactId",
         "/v1/extensions/nostr/send",
         "/v1/extensions/nostr/inbox",
+        "/v1/conversations/:sessionId/metadata",
         "/v1/extensions/agent/conversations",
         "/v1/extensions/agent/conversations/:agentId/messages",
         "/v1/extensions/agent/inbox/fetch",
