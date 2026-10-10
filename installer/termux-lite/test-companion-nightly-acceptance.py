@@ -77,6 +77,26 @@ class NightlyTests(unittest.TestCase):
    state=Path(td);self.assertEqual(m.health_view(state,NOW.timestamp())['state'],'unverified')
    m.atomic_receipt(state/'nightly-20261011.json',{'at':NOW.isoformat(),'state':'attention'})
    self.assertEqual(m.health_view(state,NOW.timestamp())['state'],'attention');self.assertEqual(m.health_view(state,NOW.timestamp()+37*3600)['state'],'stale')
+ def test_successful_parent_cleans_ready_descendant_before_unlock(self):
+  # Descendant signals readiness before its parent exits. It closes stdout and
+  # remains alive independently, reproducing the successful-parent leak.
+  with tempfile.TemporaryDirectory() as td:
+   ready=Path(td)/'ready';pidfile=Path(td)/'pid'
+   childcode="import pathlib,time;pathlib.Path(%r).write_text('ready');time.sleep(30)"%str(ready)
+   parentcode="import subprocess,sys,pathlib,time,json;child=subprocess.Popen([sys.executable,'-c',%r],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);pathlib.Path(%r).write_text(str(child.pid));deadline=time.monotonic()+2\nwhile not pathlib.Path(%r).exists():\n if time.monotonic()>deadline:raise RuntimeError('not_ready')\n time.sleep(.01)\nprint(json.dumps({'accepted':True,'checks':[]}))"%(childcode,str(pidfile),str(ready))
+   started=time.monotonic()
+   try:
+    code,row=m.bounded_command([sys.executable,'-c',parentcode],3)
+    self.assertEqual(code,0);self.assertTrue(row['accepted']);self.assertTrue(ready.exists())
+    pid=int(pidfile.read_text());proc=Path('/proc')/str(pid)/'stat'
+    # A zombie is already terminated; PID1 reaping is outside our ownership.
+    try:self.assertIn(proc.read_text().rsplit(')',1)[1].split()[0],('Z','X'))
+    except FileNotFoundError:pass
+    self.assertLess(time.monotonic()-started,5)
+   finally:
+    if pidfile.exists():
+     try:os.kill(int(pidfile.read_text()),9)
+     except ProcessLookupError:pass
  def test_bounded_real_process_stdout_and_timeout(self):
   code,row=m.bounded_command([sys.executable,'-c','import json;print(json.dumps({"accepted":True,"checks":[]}))'],1)
   self.assertEqual((code,row),(0,{'accepted':True,'checks':[]}))
