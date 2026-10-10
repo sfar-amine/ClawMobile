@@ -1,3 +1,4 @@
+import {updatesRead} from "./updatesControl";
 import {readAgentConfig,changeAgentConfig} from "./agentConfig";
 import {engineeringRead} from "./engineeringRead";
 import {cancelControlRequest} from "./controlActions";
@@ -289,6 +290,16 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(pc&&method==='DELETE'){writeJson(res,200,await laptopChange('revoke',decodeURIComponent(pc[1]),await readJsonBody(req,2048)));return;}
       writeJson(res,405,{success:false,state:'refused',receipt:null,reason:'unsupported_laptop_route'});
     }catch(error:any){const invalid=error?.statusCode===400||error instanceof URIError;writeJson(res,invalid?400:503,{success:false,state:invalid?'refused':'indeterminate',receipt:null,reason:invalid?'invalid_laptop_operation':'laptop_owner_indeterminate'});}
+    return;
+  }
+
+  if(routePath==="/updates"||routePath.startsWith("/updates/")){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+    if(routePath!=="/updates"){writeJson(res,404,{success:false,state:"not_found",receipt:null,error:"not_found"});return;}
+    if(requestUrl.search){writeJson(res,400,{success:false,state:"refused",receipt:null,error:"unsupported_parameter"});return;}
+    try{res.setHeader("Cache-Control","no-store");writeJson(res,200,await updatesRead());}
+    catch{writeJson(res,503,{success:false,state:"unavailable",receipt:null,error:"updates_unavailable"});}
     return;
   }
 
