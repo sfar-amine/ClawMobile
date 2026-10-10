@@ -1,0 +1,253 @@
+{
+  "_capture": {
+    "method": "sessions.files.list",
+    "params": {
+      "sessionKey": "agent:main:main",
+      "path": "memory",
+      "search": "2026-10"
+    },
+    "latencyMs": 2818,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true,
+    "note": "owner search; browser.path is reported as \"\" for a search request"
+  },
+  "response": {
+    "sessionKey": "agent:main:main",
+    "root": "/data/data/com.termux/files/home/.openclaw/workspace",
+    "gitCheckout": true,
+    "files": [],
+    "browser": {
+      "path": "",
+      "search": "2026-10",
+      "entries": [
+        {
+          "path": "memory/dreaming/light/2026-10-01.md",
+          "name": "2026-10-01.md",
+          "kind": "file",
+          "size": 442,
+          "updatedAtMs": 1790856029131
+        },
+        {
+          "path": "memory/dreaming/rem/2026-10-01.md",
+          "name": "2026-10-01.md",
+          "kind": "file",
+          "size": 1363,
+          "updatedAtMs": 1790856029703
+        },
+        {
+          "path": "memory/.dreams/session-corpus/2026-10-01.txt",
+          "name": "2026-10-01.txt",
+          "kind": "file",
+          "size": 10966,
+          "updatedAtMs": 1790942443158
+        },
+        {
+          "path": "memory/2026-10-02.md",
+          "name": "2026-10-02.md",
+          "kind": "file",
+          "size": 602,
+          "updatedAtMs": 1790945583558
+        },
+        {
+          "path": "memory/dreaming/light/2026-10-02.md",
+          "name": "2026-10-02.md",
+          "kind": "file",
+          "size": 2244,
+          "updatedAtMs": 1790942441178
+        },
+        {
+          "path": "memory/dreaming/rem/2026-10-02.md",
+          "name": "2026-10-02.md",
+          "kind": "file",
+          "size": 620,
+          "updatedAtMs": 1790942449354
+        },
+        {
+          "path": "memory/.dreams/session-corpus/2026-10-02.txt",
+          "name": "2026-10-02.txt",
+          "kind": "file",
+          "size": 2350,
+          "updatedAtMs": 1791028878453
+        },
+        {
+          "path": "memory/dreaming/deep/2026-10-03.md",
+          "name": "2026-10-03.md",
+          "kind": "file",
+          "size": 154,
+          "updatedAtMs": 1791028901801
+        },
+        {
+          "path": "memory/dreaming/light/2026-10-03.md",
+          "name": "2026-10-03.md",
+          "kind": "file",
+          "size": 1192,
+          "updatedAtMs": 1791028891965
+        },
+        {
+          "path": "memory/dreaming/rem/2026-10-03.md",
+          "name": "2026-10-03.md",
+          "kind": "file",
+          "size": 128,
+          "updatedAtMs": 1791028894257
+        },
+        {
+          "path": "memory/.dreams/session-corpus/2026-10-03.txt",
+          "name": "2026-10-03.txt",
+          "kind": "file",
+          "size": 5178,
+          "updatedAtMs": 1791116597616
+        },
+        {
+          "path": "memory/dreaming/light/2026-10-04.md",
+          "name": "2026-10-04.md",
+          "kind": "file",
+          "size": 1200,
+          "updatedAtMs": 1791116602168
+        },
+        {
+          "path": "memory/dreaming/rem/2026-10-04.md",
+          "name": "2026-10-04.md",
+          "kind": "file",
+          "size": 1251,
+          "updatedAtMs": 1791116603036
+        },
+        {
+          "path": "memory/.dreams/session-corpus/2026-10-04.txt",
+          "name": "2026-10-04.txt",
+          "kind": "file",
+          "size": 166,
+          "updatedAtMs": 1791116597624
+        },
+        {
+          "path": "memory/dreaming/light/2026-10-05.md",
+          "name": "2026-10-05.md",
+          "kind": "file",
+          "size": 434,
+          "updatedAtMs": 1791201752666
+        },
+        {
+          "path": "memory/dreaming/rem/2026-10-05.md",
+          "name": "2026-10-05.md",
+          "kind": "file",
+          "size": 1358,
+          "updatedAtMs": 1791201755474
+        },
+        {
+          "path": "memory/.dreams/session-corpus/2026-10-05.txt",
+          "name": "2026-10-05.txt",
+          "kind": "file",
+          "size": 1561,
+          "updatedAtMs": 1791288052554
+        },
+        {
+          "path": "memory/dreaming/light/2026-10-06.md",
+          "name": "2026-10-06.md",
+          "kind": "file",
+          "size": 434,
+          "updatedAtMs": 1791288058314
+        },
+        {
+          "path": "memory/dreaming/rem/2026-10-06.md",
+          "name": "2026-10-06.md",
+          "kind": "file",
+          "size": 1685,
+          "updatedAtMs": 1791288059254
+        },
+        {
+          "path": "memory/.dreams/session-corpus/2026-10-06.txt",
+          "name": "2026-10-06.txt",
+          "kind": "file",
+          "size": 12577,
+          "updatedAtMs": 1791374463998
+        },
+        {
+          "path": "memory/dreaming/light/2026-10-07.md",
+          "name": "2026-10-07.md",
+          "kind": "file",
+          "size": 701,
+          "updatedAtMs": 1791374472974
+        },
+        {
+          "path": "memory/dreaming/rem/2026-10-07.md",
+          "name": "2026-10-07.md",
+          "kind": "file",
+          "size": 512,
+          "updatedAtMs": 1791374475354
+        },
+        {
+          "path": "memory/.dreams/session-corpus/2026-10-07.txt",
+          "name": "2026-10-07.txt",
+          "kind": "file",
+          "size": 1803,
+          "updatedAtMs": 1791460844414
+        },
+        {
+          "path": "memory/dreaming/light/2026-10-08.md",
+          "name": "2026-10-08.md",
+          "kind": "file",
+          "size": 607,
+          "updatedAtMs": 1791460851182
+        },
+        {
+          "path": "memory/dreaming/rem/2026-10-08.md",
+          "name": "2026-10-08.md",
+          "kind": "file",
+          "size": 1772,
+          "updatedAtMs": 1791460853242
+        },
+        {
+          "path": "memory/.dreams/session-corpus/2026-10-08.txt",
+          "name": "2026-10-08.txt",
+          "kind": "file",
+          "size": 10317,
+          "updatedAtMs": 1791633718961
+        },
+        {
+          "path": "memory/dreaming/light/2026-10-09.md",
+          "name": "2026-10-09.md",
+          "kind": "file",
+          "size": 653,
+          "updatedAtMs": 1791547264148
+        },
+        {
+          "path": "memory/dreaming/rem/2026-10-09.md",
+          "name": "2026-10-09.md",
+          "kind": "file",
+          "size": 2024,
+          "updatedAtMs": 1791547272576
+        },
+        {
+          "path": "memory/.dreams/session-corpus/2026-10-09.txt",
+          "name": "2026-10-09.txt",
+          "kind": "file",
+          "size": 3782,
+          "updatedAtMs": 1791633718965
+        },
+        {
+          "path": "memory/dreaming/light/2026-10-10.md",
+          "name": "2026-10-10.md",
+          "kind": "file",
+          "size": 902,
+          "updatedAtMs": 1791633716937
+        },
+        {
+          "path": "memory/dreaming/rem/2026-10-10.md",
+          "name": "2026-10-10.md",
+          "kind": "file",
+          "size": 1267,
+          "updatedAtMs": 1791633729465
+        },
+        {
+          "path": "memory/.dreams/session-corpus/2026-10-10.txt",
+          "name": "2026-10-10.txt",
+          "kind": "file",
+          "size": 351,
+          "updatedAtMs": 1791633701789
+        }
+      ]
+    }
+  }
+}
