@@ -173,3 +173,9 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: H8 nightly read-only acceptance, deployment lock and drift receipts
+        run: |
+          node scripts/test-nightly-health-http.cjs
+          python3 ../installer/termux-lite/test-companion-nightly-acceptance.py
+          python3 ../installer/termux-lite/test-health-verdict.py
