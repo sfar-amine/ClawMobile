@@ -27,7 +27,7 @@
     {
       "name": "full-current-ci",
       "status": "passed",
-      "evidence": "Tous les 36 blocs run de ci.yml exécutés localement. Rejeu owner pur comparé à la projection FR attendue explicite, receipt deepEqual inchangé. Installation bloc MCP relancée avec cache /tmp après défaut permissions cache par défaut ; tests provenance et MCP passent. Aucun changement owner ou garde."
+      "evidence": "Tous les 34 blocs run de ci.yml exécutés localement. Rejeu owner pur comparé à la projection FR attendue explicite, receipt deepEqual inchangé. Installation bloc MCP relancée avec cache /tmp après défaut permissions cache par défaut ; tests provenance et MCP passent. Aucun changement owner ou garde."
     }
   ],
   "documentation": [

@@ -6,4 +6,4 @@ Build et test-server-localization.cjs réussis : fixtures santé et automatisati
 
 Livraison partielle autorisée : descriptions libres non traduites faute de provenance structurée ; signal de langue app à confirmer par Claude dans la future PR. Base runtime bfa210c intégrée par merge normal. Publication de ce périmètre autorisée ; aucun merge de PR, déploiement ou effet S24 par Codex.
 
-Correctif CI : le test de redémarrage du reçu scheduler compare désormais explicitement la projection HTTP française au reçu owner pur, avec invariance stricte du receipt. Les 36 blocs CI fonctionnels passent localement ; le bloc installation MCP a été relancé avec un cache temporaire accessible après défaut du cache par défaut.
+Correctif CI : le test de redémarrage du reçu scheduler compare désormais explicitement la projection HTTP française au reçu owner pur, avec invariance stricte du receipt. Les 34 blocs CI fonctionnels passent localement ; le bloc installation MCP a été relancé avec un cache temporaire accessible après défaut du cache par défaut.
