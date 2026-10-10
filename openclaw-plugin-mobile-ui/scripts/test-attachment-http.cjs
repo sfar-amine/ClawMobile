@@ -6,18 +6,28 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
  const registry=path.join(process.env.OPENCLAW_STATE_DIR,'clawmobile-companion','runs.json');fs.mkdirSync(path.dirname(registry),{recursive:true});const history=JSON.stringify({version:1,runs:[],archivedSessionIds:[],ownerConfirmations:[],paymentRequests:[],runDeletions:[]});fs.writeFileSync(registry,history);
  const headers={'content-type':'text/plain','x-clawmobile-owner-flow':'v1','x-clawmobile-operation-id':'upload-one','x-clawmobile-attachment-id':'test-file','x-clawmobile-filename':'example.txt'};
  assert.equal((await request('POST','/v1/attachments','plain text')).status,403);
+ for(const browser of [{Origin:'http://127.0.0.1:8765'},{Referer:'http://127.0.0.1:8765/'},{'Sec-Fetch-Site':'same-origin'}]){
+  assert.equal((await request('POST','/v1/attachments','plain text',{...headers,...browser})).status,403);
+  assert.equal((await request('POST','/v1/attachments/share','{}',{...headers,...browser})).status,403);
+ }
+ assert.equal(fs.existsSync(process.env.CLAWMOBILE_ATTACHMENT_DIR),false);
+ const fakeRes={statusCode:null,setHeader(){},end(){}};
+ await route({method:'GET',url:'/v1/attachments/test-file/content',headers:{},socket:{remoteAddress:'192.0.2.1'}},fakeRes);assert.equal(fakeRes.statusCode,403);
+
+ fs.mkdirSync(path.join(process.env.CLAWMOBILE_ATTACHMENT_DIR,'foreign-directory'),{recursive:true});
  let first=JSON.parse((await request('POST','/v1/attachments','plain text',headers)).body);assert.equal(first.state,'completed');assert.equal(first.type,'file');assert.equal(first.displayName,'example.txt');assert.ok(first.receipt);
  assert.deepEqual(JSON.parse((await request('POST','/v1/attachments','plain text',headers)).body),first);
  assert.equal(fs.readFileSync(registry,'utf8'),history);
  const png=Buffer.alloc(32);Buffer.from([137,80,78,71,13,10,26,10]).copy(png);png.write('IHDR',12);
  const image=await request('POST','/v1/attachments',png,{...headers,'content-type':'image/png','x-clawmobile-attachment-id':'image-ok'});assert.equal(image.status,200);assert.equal(JSON.parse(image.body).type,'image');assert.equal(fs.readFileSync(registry,'utf8'),history);
+ for(const browser of [{Origin:'http://127.0.0.1:8765'},{Referer:'http://127.0.0.1:8765/'},{'Sec-Fetch-Site':'same-origin'}])assert.equal((await request('GET','/v1/attachments/test-file/content',null,browser)).status,403);
  const downloaded=await request('GET','/v1/attachments/test-file/content');assert.equal(downloaded.body,'plain text');assert.equal(downloaded.headers['x-content-type-options'],'nosniff');assert.equal(downloaded.headers['content-disposition'],'attachment');
  const old=path.join(process.env.CLAWMOBILE_ATTACHMENT_DIR,'old.img');fs.writeFileSync(old,png);assert.equal((await request('GET','/v1/attachments/old/content')).status,404);
  const collision=JSON.parse((await request('POST','/v1/attachments','different text',headers)).body);assert.equal(collision.state,'refused');assert.equal(collision.reason,'attachment_id_collision');
  const unknown=await request('POST','/v1/runs',JSON.stringify({text:'Analyze',attachments:[{id:'absent'}]}),{'content-type':'application/json'});assert.equal(unknown.status,404);assert.equal(JSON.parse(unknown.body).error,'attachment_not_found');
  const missingId=await request('POST','/v1/attachments','text',{'content-type':'text/plain','x-clawmobile-owner-flow':'v1'});assert.equal(missingId.status,400);
  const bad=JSON.parse((await request('POST','/v1/attachments','<html>not png</html>',{...headers,'content-type':'image/png','x-clawmobile-operation-id':'fake-png','x-clawmobile-attachment-id':'fake-png'})).body);assert.equal(bad.state,'refused');
- const large=await request('POST','/v1/attachments',Buffer.alloc(10*1024*1024+1),{...headers,'x-clawmobile-operation-id':'too-large','x-clawmobile-attachment-id':'too-large'});assert.equal(large.status,413);assert.equal(JSON.parse(large.body).state,'refused');
+ const large=await request('POST','/v1/attachments',Buffer.alloc(10*1024*1024+1),{...headers,'x-clawmobile-operation-id':'too-large','x-clawmobile-attachment-id':'too-large'}).catch(e=>({status:0,error:e.code}));assert.equal(large.status,0);assert.equal(large.error,'ECONNRESET');
  const files=Array.from({length:6},(_,i)=>({id:'share-'+i,mimeType:'text/plain',base64:Buffer.from('text').toString('base64')}));assert.equal((await request('POST','/v1/attachments/share',JSON.stringify({files}),{...headers,'content-type':'application/json','x-clawmobile-operation-id':'share-six'})).status,413);
  console.log('Attachment owner boundary, HTTP receipt replay, MIME refusal, share limit and download headers passed');
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});}
