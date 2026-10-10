@@ -20,6 +20,8 @@ READS = [
     ("/security/surfaces", 2.0),
     # R8 provisional budget; S24 P0-2 captures and volume qualification are pending.
     ("/skills/candidates?limit=50", 2.0),
+    ("/voice/voices", 1.0),
+    ("/control/automations?contract=2", 1.0),
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
@@ -27,6 +29,7 @@ OWNER_GUARDS = [
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
     ("POST", "/skills/learn"),
+    ("POST", "/runs/acceptance-probe/approval"),
 ]
 OWNER_GUARD_BUDGETS = {"/skills/learn": 1.0}  # provisional refusal latency, no effect allowed
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY|\+\d{11,}")
