@@ -1,3 +1,4 @@
+import {completeUsageAttention} from './usageControl';
 import {allJobs,protectedJob} from "./automations";
 import { execFile, spawn } from "child_process";
 import {existsSync} from "fs";
@@ -45,7 +46,7 @@ export function readControl(section: string, signal?: AbortSignal): Promise<unkn
           else Object.assign(value,automationNotificationProjection(value,jobs));
         }
         if(value.notifications)value.notifications=automationNotificationProjection(value.notifications,jobs);
-        resolve(value);
+        resolve(completeUsageAttention(value));
       } catch { reject(new Error("control_invalid_response")); }
     });
   });
@@ -309,7 +310,7 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
     return value;
   };
   const result=controlReads.read(key,guardedGenerate,signal,{force,cache:fast||process.env.SAMANTHA_CONTROL_CACHE==="1"});
-  if(!fast)return result;
+  if(!fast)return result.then(completeUsageAttention);
   // The existing bounded collector continues; polling shares its single flight.
   let timer:ReturnType<typeof setTimeout>|undefined;
   try{return await Promise.race([result,new Promise<ControlResult>(resolve=>{

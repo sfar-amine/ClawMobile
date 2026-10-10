@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "codex-c6-context-scopes-surface-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Forward technical rule scopes and derive context surface from admitted relay identity",
+  "reason": "Programme31/33 C6: bridge dropped scopes and left all external clients on chat provenance.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "cloud/voice-relay/src/mcp.mjs",
+    "cloud/voice-relay/test-mcp.mjs",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-context-provenance.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/context/c6-context-provenance.json",
+    "docs/changes/codex-c6-context-scopes-surface-20261010.json",
+    "docs/changes/codex-c6-context-scopes-surface-20261010.md",
+    "docs/work/samantha-runtime/contracts/c6.md"
+  ],
+  "tests": [
+    {
+      "name": "c6-targeted",
+      "status": "passed",
+      "evidence": "TypeScript build, Companion argv/provenance validation and real SDK MCP HTTP schema/auth tests passed."
+    },
+    {
+      "name": "full-ci-2c2c18f",
+      "status": "passed",
+      "evidence": "All current ci.yml run commands on 2c2c18f plus C6 Companion/MCP schema tests passed CI_LOCAL_OK; npm cache explicitly routed to /tmp in this hosted workspace."
+    },
+    {
+      "name": "full-ci-current-d8e2f7f",
+      "status": "passed",
+      "evidence": "After merging fresh runtime d8e2f7f, all current ci.yml run commands (including R17 paired owner and P2-b) plus C6 tests passed CI_LOCAL_OK."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-c6-context-scopes-surface-20261010.md",
+    "docs/work/samantha-runtime/contracts/c6.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY: existing internal projection only, no route or capability admission."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing event owner and projection only; no new store or scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "updated",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Optional scopes and provenance forwarding updated; read authorization and five other primitive contracts unchanged."
+  },
+  "rollback": "Revert both C6 PRs and the optional MCP schema change; no persistent state migration.",
+  "limitations": [
+    "No deployment, S24 activation or post-change client qualification by Codex.",
+    "Playbooks must be merged/pinned before Companion/relay schema activation."
+  ]
+}

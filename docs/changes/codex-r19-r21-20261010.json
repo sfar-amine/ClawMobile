@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "id": "codex-r19-r21-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Read quota and providers through existing shared Gateway owners",
+  "reason": "Revue Claude32/core51 : captures r\u00e9elles envelopp\u00e9es base6b7c68f, co\u00fbt global/computing et budget12s/cache10min, cache canoniqueR6/R11 et capabilities jumelles planned.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/modelOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/providers.ts",
+    "openclaw-plugin-mobile-ui/src/companion/usage.ts",
+    "openclaw-plugin-mobile-ui/src/companion/usageControl.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-usage-providers.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/README.md",
+    "docs/work/samantha-runtime/contracts/r19.md",
+    "docs/work/samantha-runtime/contracts/r21.md",
+    "docs/changes/codex-r19-r21-20261010.json",
+    "docs/changes/codex-r19-r21-20261010.md"
+  ],
+  "tests": [
+    {
+      "name": "usage-provider-real-captures",
+      "status": "passed",
+      "evidence": "Real wrapped PR48 fixtures, exact projection/privacy, injected3200/4766/7651ms, concurrent singleflight, explicit global cost and stale computing, ten-minute cache, shared provider outcomes and contextWindow fallback; no new endpoint S24 proof."
+    },
+    {
+      "name": "runtime-ci-current-union",
+      "status": "passed",
+      "evidence": "/tmp/r19-r21-review-ci.log CI_LOCAL_OK on6b7c68f with inheritedR11; final targeted test also passed after additional stale refresh/private metadata cases."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r19.md",
+    "docs/work/samantha-runtime/contracts/r21.md",
+    "docs/changes/codex-r19-r21-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [
+      "samantha.app.usage",
+      "samantha.app.providers"
+    ],
+    "reason": "Companion read facades only; new planned registry entries are assessed in the twin playbooks change, not stored or routed in core."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse existing Gateway and shared R6/R11 model owner with memory caches only; no new persistent store, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native read-only route projections; existing Gateway source and shared R6/R11 cache. No MCP schema/tool change."
+  },
+  "rollback": "Revert this draft; never modify owner configs or runtime data.",
+  "limitations": [
+    "Core#28 R11 must merge first. Planned playbooks capabilities must be reviewed and pinned before agent activation.",
+    "No Codex S24 activation; physical route budget qualification belongs to Claude."
+  ]
+}
