@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "id": "codex-c7-private-sync-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Refresh curated private snapshots before existing save owner",
+  "reason": "Audit31 and programme33: clean Git status cannot detect uncopied workspace changes.",
+  "files": [
+    "scripts/sync-context-background.sh",
+    "scripts/test-context-background-sync.py",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/c7.md",
+    "docs/changes/codex-c7-private-sync-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "private-context-sync",
+      "status": "passed",
+      "evidence": "Two isolated tests: copy-before-save, stable mtimes on repeat, closed file allowlist, no external publication; bash syntax and diff checks."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c7.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing scheduled private backup owner; no app route or tool added."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing sync and save.sh owners reused, no new scheduler or store."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Only existing private context maintenance orchestration changed; external owner tools unchanged."
+  },
+  "rollback": "Revert this PR through Claude; no private context publication or S24 mutation during development.",
+  "limitations": [
+    "Installed sync/save source and snapshot mapping await sanitized Claude confirmation; Git/local copies are not S24 proof."
+  ]
+}

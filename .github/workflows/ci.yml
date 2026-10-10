@@ -99,6 +99,9 @@ jobs:
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
 
+      - name: Refresh curated private context before background save
+        run: python3 ../scripts/test-context-background-sync.py
+
       - name: Run reviewed approval confirmation contract
         run: node scripts/test-agent-approvals.cjs
 
