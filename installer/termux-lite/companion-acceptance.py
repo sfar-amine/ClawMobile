@@ -24,7 +24,7 @@ READS = [
     ("/security/surfaces", 1.5),
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
-    ("/conversations?limit=50", 0.3),
+    ("/runs?contract=2&view=conversations&limit=20", 0.3),
     ("/control/engineering?limit=20", 2.0),
     ("/control/diagnostic/export", 3.0),
     ("/updates", 4.0),
@@ -127,7 +127,7 @@ def main(session_id=None):
         status = "skipped" if code == 404 else ("ok" if ok and not leak and settled else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "settled": settled, "status": status})
-        if path == "/conversations?limit=50" and code == 200 and conversation_id is None:
+        if path == "/runs?contract=2&view=conversations&limit=20" and code == 200 and conversation_id is None:
             try:
                 items = json.loads(body).get("items")
                 if not isinstance(items, list): raise ValueError("conversation_projection_invalid")
