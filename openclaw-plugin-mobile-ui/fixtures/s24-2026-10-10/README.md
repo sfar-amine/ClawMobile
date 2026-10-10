@@ -34,6 +34,10 @@ Conséquence pour R8 :
 | `gateway/agents.files.get.json` | `agents.files.get` | `{"agentId":"main","name":"IDENTITY.md"}` | 3454 ms |
 | `gateway/sessions.files.list.json` | `sessions.files.list` | `{"sessionKey":"<sessions.list[1].key>"}` | 3105 ms |
 | `gateway/sessions.files.get.json` | `sessions.files.get` | `{"sessionKey":"…","path":"IDENTITY.md"}` | 2438 ms |
+| `gateway/sessions.list.main.json` | `sessions.list` | `{"search":"agent:main:main","limit":100}` | 3701 ms |
+| `gateway/sessions.files.list.main.json` | `sessions.files.list` | `{"sessionKey":"agent:main:main"}` | 1680 ms |
+| `gateway/sessions.files.list.main-search.json` | `sessions.files.list` | `{"sessionKey":"agent:main:main","path":"memory","search":"2026-10"}` | 2818 ms |
+| `gateway/sessions.files.get.main.json` | `sessions.files.get` | `{"sessionKey":"agent:main:main","path":"IDENTITY.md"}` | 1563 ms |
 | `r17/inbound-schema.json` | sqlite `openclaw-agent.sqlite`, ouvert en `?mode=ro` | — | — |
 
 **Nettoyage.** Il a été fait sur le téléphone, avant publication :
@@ -56,3 +60,7 @@ Sont conservés : les noms de champs, les types, les valeurs d'énumération, le
 - `sessions.files.list` : paramètres `{sessionKey, agentId?, path?, search?}`. Il renvoie `files[]` (fichiers lus ou modifiés selon le transcript) et `browser.entries[]`. Le navigateur est plafonné à 250 entrées (`truncated:true` au-delà) et la recherche à 500. Il n'y a ni curseur ni pagination. `sessions.files.get` renvoie `previewKind` `text`, `image` (base64 pour png, jpeg, gif, webp, avif) ou `unsupported`. L'aperçu est limité à 256 Kio, au-delà l'appel renvoie l'erreur `session_file_too_large`.
 
 **R17.** L'horodatage canonique de réception d'un message WhatsApp entrant est `transcript_events.event_json → $.message.timestamp`, en epoch ms : c'est l'horodatage fourni par WhatsApp, à la seconde près. On le filtre avec `$.type='message'`, `$.message.role='user'` et `$.message.__openclaw.transport.channel='whatsapp'`. `transcript_events.created_at` est l'heure à laquelle la Gateway a enregistré le message. Voir `r17/inbound-schema.json` pour le schéma, la requête SQL, des lignes d'exemple et les réserves (`event_zstd`).
+
+## Session principale de `main` (R20, ajout du 10/10 par Claude)
+Les quatre fichiers `*.main*.json` ont été capturés de la même façon pour R20 (#53), après vérification dans `dist/` que `sessions.list` accepte `search` et `agentId`. `sessions.list` filtré renvoie une seule ligne : `key:"agent:main:main"`, `isMain:true`, `agentId:"main"`. La clé et le `sessionId` sont conservés tels quels ; seule une sélection de champs de la ligne est publiée (pas de libellé, de participants ni de dernier message). La liste du workspace et le résultat de recherche sont publiés sans modification (noms de dossiers et de fichiers, tailles, dates). Le contenu de `IDENTITY.md` est remplacé par `<texte N car.>` et son `hash` mis à zéro. À noter : pour une recherche, le propriétaire renvoie `browser.path:""` même quand `path` est fourni.
+

@@ -17,4 +17,6 @@ const expanded=api.boundedFileContent('notes/redactions.txt',Buffer.from('@\n'.r
 assert.equal(api.FILE_LIST_LIMIT,250);
 assert.equal(api.safeFileName("memory/2026-10-10.md"),"memory/2026-10-10.md");
 assert.equal(api.safeFileName("notes/code123456.txt"),"notes/code123456.txt");
+const dated=api.boundedFileContent('memory/2026-10-10.md',Buffer.from('Journal du 2026-10-10\nPoint 10/10/2026 à 22:00'));assert.equal(dated.bytes.toString(),'Journal du 2026-10-10\nPoint 10/10/2026 à 22:00');assert.equal(dated.redacted,false);
+assert.equal(api.boundedFileContent('notes/numbers.txt',Buffer.from('n 4111 1111 1111 1111')).bytes.toString(),'[masqué]');
 console.log('R20 local boundary fixtures passed: paths, secret/payment redaction, list-only sensitive media, UTF-8 cap and PNG/JPEG magic; no Gateway or S24 qualification');

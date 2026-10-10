@@ -7,18 +7,19 @@ const failure=(code:string,statusCode=400)=>Object.assign(new Error(code),{statu
 const identity=/^[A-Za-z0-9:_+.@-]{1,200}$/;
 // Reuse the bounded Control collector; no filesystem, registry or session creation.
 const pool=new ControlReadPool(14000,2,8,10*1024*1024);
+// Same contract as the other deferred owner reads: 200 + deliveryMode deferred until settled.
 const pending={success:false,state:"warming",receipt:null,ready:false,retryAfterMs:500,computation:{deliveryMode:"deferred"}};
 let mainCache:{at:number;row:{key:string;sessionId:string}|null}|null=null;
 let mainFlight:Promise<{key:string;sessionId:string}|null>|undefined;
 async function mainSession(deadline:number){
- if(mainCache&&Date.now()-mainCache.at<15000){if(!mainCache.row)throw failure('files_owner_unavailable',503);return mainCache.row;}
+ if(mainCache&&Date.now()-mainCache.at<(mainCache.row?600000:15000)){if(!mainCache.row)throw failure('files_owner_unavailable',503);return mainCache.row;}
  if(!mainFlight){mainFlight=(async()=>{
   try{
    const remaining=Math.min(10000,deadline-Date.now());if(remaining<=0)throw Error();
    const value=await callOpenClawGateway('sessions.list',{search:'agent:main:main',limit:100},{timeoutMs:remaining,hardTimeoutMs:remaining,strictOutput:{stdoutMaxBytes:1024*1024,stderrMaxBytes:65536,killGraceMs:250}});
    if(!Array.isArray(value?.sessions)||value.sessions.length>100)throw Error();
    // The string is only a selector. Dispatch always uses the owner's actual key.
-   const found=value.sessions.filter((row:any)=>row?.key==='agent:main:main'&&identity.test(row.key)&&typeof row.sessionId==='string'&&identity.test(row.sessionId));
+   const found=value.sessions.filter((row:any)=>row?.key==='agent:main:main'&&row.agentId==='main'&&row.isMain!==false&&identity.test(row.key)&&typeof row.sessionId==='string'&&identity.test(row.sessionId));
    const row=found.length===1?{key:found[0].key,sessionId:found[0].sessionId}:null;mainCache={at:Date.now(),row};return row;
   }catch{mainCache={at:Date.now(),row:null};return null;}
  })();}

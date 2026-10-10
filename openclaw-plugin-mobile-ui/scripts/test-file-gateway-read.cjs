@@ -12,7 +12,7 @@ require('../dist/companion/openclawAgentClient').callOpenClawGateway=async(metho
 const api=require('../dist/companion/fileGatewayRead');
 (async()=>{
  const agent={scope:'agent'},session={scope:'session',sessionKey:sessionList.sessionKey};
- let result=await api.gatewayFileList(agent);assert.deepEqual(result.items.map(x=>x.name),['AGENTS.md','SOUL.md','USER.md','IDENTITY.md']);assert.ok(!JSON.stringify(result).includes(agentList.workspace));assert.deepEqual(calls[0].params,{agentId:'main'});assert.deepEqual(calls.slice(1).map(c=>c.params.name),['IDENTITY.md','BOOTSTRAP.md']);
+ let result=await api.gatewayFileList(agent);assert.deepEqual(result.items.map(x=>x.name),['AGENTS.md','SOUL.md','USER.md','IDENTITY.md']);assert.ok(!JSON.stringify(result).includes(agentList.workspace));assert.equal(calls.length,3,'list plus two root probes, issued in parallel');assert.deepEqual(calls.find(c=>c.method==='agents.files.list').params,{agentId:'main'});assert.deepEqual(calls.filter(c=>c.method==='agents.files.get').map(c=>c.params.name),['IDENTITY.md','BOOTSTRAP.md']);
  result=await api.gatewayFileContent(agent,'IDENTITY.md');assert.equal(result.bytes.toString(),agentGet.file.content);
  for(const name of ['BOOTSTRAP.md','MEMORY.md'])await assert.rejects(api.gatewayFileContent(agent,name),e=>e.statusCode===404);
  for(const name of ['MEMORY.md','BOOTSTRAP.md']){custom={...agentGet,file:{...agentGet.file,name,path:agentGet.workspace+'/'+name}};assert.equal((await api.gatewayFileContent(agent,name)).bytes.toString(),agentGet.file.content);}custom=null;
@@ -35,5 +35,17 @@ const api=require('../dist/companion/fileGatewayRead');
  custom={...sessionList,unknown:true};await assert.rejects(api.gatewayFileList(session),e=>e.statusCode===503);
  custom=null;fail=true;await assert.rejects(api.gatewayFileList(agent),e=>e.message==='file_owner_unavailable');fail=false;
  delay=30;const prior=calls.length;await assert.rejects(api.gatewayFileContent(session,'IDENTITY.md',{deadline:Date.now()-1}),e=>e.statusCode===503);assert.equal(calls.length,prior);delay=0;
- console.log('R20 real S24 captures: six root policy/probe supplement, exact owner params, one-RPC preview, owner search500/list250, dates, closed identity, private aliases, five image magics, 256KiB owner cap/deadline passed; main-session capture still required.');
+ // Root probes run alongside the list: one owner latency, not three in sequence.
+ delay=300;let began=Date.now();await api.gatewayFileList(agent);assert.ok(Date.now()-began<800,'probes must not serialize after the list');delay=0;
+ // Captures of the real main session (sessions.list search agent:main:main, 10/10).
+ const mainList=capture('sessions.files.list.main'),mainGet=capture('sessions.files.get.main'),mainSearch=capture('sessions.files.list.main-search'),mainRow=capture('sessions.list.main').sessions[0];
+ assert.equal(mainRow.key,'agent:main:main');assert.equal(mainRow.isMain,true);const main={scope:'session',sessionKey:mainRow.key};
+ custom=mainList;result=await api.gatewayFileList(main);const names=result.items.map(x=>x.name);
+ for(const hidden of ['.git','.openclaw','context','context-backup','backup-emoji-20260924-172227','AGENTS.md.bak-ui-playbooks-20260925-020337','SOUL.md.backup-20260924-224044'])assert.ok(!names.includes(hidden),hidden);
+ for(const shown of ['memory','skills','work','screenshots','ui-dumps','AGENTS.md','IDENTITY.md','SOUL.md','USER.md'])assert.ok(names.includes(shown),shown);
+ assert.equal(result.items.find(x=>x.name==='screenshots').previewable,false);assert.equal(result.ownerTruncated,false);assert.deepEqual(calls.at(-1).params,{sessionKey:'agent:main:main',path:''});
+ custom=mainSearch;result=await api.gatewayFileList(main,'memory',{},'2026-10');assert.equal(calls.at(-1).params.search,'2026-10');
+ assert.ok(result.items.some(x=>x.path==='memory/2026-10-02.md'),'dated daily note stays visible');assert.ok(result.items.some(x=>x.path==='memory/dreaming/light/2026-10-10.md'));assert.ok(result.items.every(x=>!x.path.includes('/.dreams/')),'dot segments stay hidden');
+ custom=mainGet;result=await api.gatewayFileContent(main,'IDENTITY.md');assert.equal(result.bytes.toString(),mainGet.file.content);assert.equal(result.redacted,false);custom=null;
+ console.log('R20 real S24 captures: six root policy/probe supplement, exact owner params, one-RPC preview, owner search500/list250, dates, closed identity, private aliases, five image magics, 256KiB owner cap/deadline passed; main session captures (list, search, get) passed.');
 })().catch(e=>{console.error(e);process.exitCode=1});

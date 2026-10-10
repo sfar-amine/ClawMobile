@@ -1,9 +1,7 @@
-# R20 : façade de lecture Gateway en brouillon
+# R20 : lecture des fichiers via les propriétaires Gateway
 
-Les routes /v1/files et /v1/files/content réutilisent les méthodes de lecture Gateway et un cache RAM borné. Le chemin HTTP cold répond warming ; listes limitées, projection sans racine, exclusions avant get, liaison canonique du run et garde paiement relue même sur cache hit. Le client existant reçoit une option stricte R20 seulement, qui borne les sorties et nettoie le groupe CLI au timeout.
+Routes `GET /v1/files` et `GET /v1/files/content`, lecture seule, loopback, sur `agents.files.*` (six fichiers racine de `main`, IDENTITY/BOOTSTRAP ajoutés quand `get` réussit) et `sessions.files.*` (session principale `agent:main:main` prise dans `sessions.list`, jamais construite). Limites du propriétaire conservées (250 entrées, recherche 500, aperçu 256 Kio, images png/jpeg/gif/webp/avif), sans pagination maison ni limite de 5 Mio. Dates visibles dans les chemins et dans le texte. Cache `ControlReadPool`, réponse différée 200 jusqu'au résultat. NO_CAPABILITY définitif (voir `contracts/r20.md`).
 
-Les quatre suites locales vérifient schémas publics 2026.9.6, HTTP/pagination/cache, confidentialité, bornes UTF-8/images et nettoyage réel d'un processus simulé. Aucun paquet propriétaire n'est exécuté et aucune qualification S24 n'est revendiquée.
+Reprise Claude (10/10) : captures réelles de la session principale ajoutées aux fixtures, sélection par `agentId`/`isMain`, cache de découverte 10 min, sondes racine parallèles, recherche avec `browser.path:""`, masquage des cartes limité à 13-19 chiffres, recette par `settle()` de la base avec échec conditionnel.
 
-La PR reste draft/non activable : captures installées et racine physique à qualifier, dépendance garde financier P2-b, navigateur propriétaire limité à 250 sans curseur, aperçus session limités à 256 Kio et liste blanche fallback absente. Les limites du contrat ne sont pas contournées.
-
-Process PR #52 intégré (base85aeb07), AGENTS.md lu : NO_CAPABILITY temporaire et mapping canonique requis avant activation. Aucun nouveau code fonctionnel avant les captures S24 ; preuve runtime, latences réalistes, volumes et limite d’attente de 15 s restent bloqués. Retour arrière uniquement via le pipeline documenté après qualification.
+Retour arrière : revert du lot ; déploiement et retour arrière automatiques par `companion-deploy.sh`. Paiement inchangé.

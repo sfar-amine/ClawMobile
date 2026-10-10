@@ -3,10 +3,10 @@
   "id": "codex-r20-files-preparation-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Draft read-only file routes with bounded Gateway cache and fail-closed projection",
-  "reason": "Draft: installed file schemas/root and required P2-b financial guard remain unqualified; merge and activation blocked.",
+  "summary": "Read-only file routes on the Gateway file owners, main session from sessions.list",
+  "reason": "Revue Claude de core #53 (fichiers 27/32) : six racines agent, session principale réelle, limites du propriétaire, recette conditionnelle ; captures S24 de la session principale ajoutées.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/work/samantha-runtime/contracts/r20.md",
@@ -22,13 +22,18 @@
     "openclaw-plugin-mobile-ui/scripts/test-files-http.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-file-gateway-limits.cjs",
     "installer/termux-lite/companion-acceptance.py",
-    "openclaw-plugin-mobile-ui/scripts/test-files-acceptance.py"
+    "openclaw-plugin-mobile-ui/scripts/test-files-acceptance.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/sessions.list.main.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/sessions.files.list.main.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/sessions.files.list.main-search.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/sessions.files.get.main.json"
   ],
   "tests": [
     {
-      "name": "r20-file-boundary",
+      "name": "r20-file-reads",
       "status": "passed",
-      "evidence": "Four local suites: read boundaries, public versioned closed Gateway schema and pre-get gates, HTTP cache/pagination/budget/ledger/no-effect guards, strict CLI output/deadline/group-kill. No installed or physical proof. Acceptance fixture rejects warming/unqualified evidence and hides fixture identity."
+      "evidence": "Five suites in ci.yml on real S24 captures (#48 and main-session captures of 10/10): six roots with parallel probes, main session from sessions.list, owner list/search limits, dated paths and text, one-RPC preview, exclusions, five image formats, strict CLI bounds, deferred cache with 2.4 s injected RPCs, acceptance via base settle() with conditional failure. Full local ci.yml green."
     }
   ],
   "documentation": [
@@ -38,7 +43,7 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Read-only file facade reuses existing Gateway file owners, no capability registry change"
+    "reason": "Owner screen only; NO_CAPABILITY with final reason (the agent already has native file tools; no voice exposure of file content)."
   },
   "architecture": {
     "changed": false,
@@ -55,14 +60,9 @@
     },
     "reason": "Existing MCP tools and execution contracts unchanged."
   },
-  "rollback": "No deployment by Codex. Revert isolated R20 under review; any later qualified runtime rollback uses companion-deploy.sh and a Claude-qualified SHA, automatic acceptance/rollback and receipt.",
+  "rollback": "Revert of the R20 commits; runtime rollback only through companion-deploy.sh (preflight, acceptance, automatic rollback, receipt).",
   "limitations": [
-    "Draft routes, installed schema and physical workspace root unqualified.",
-    "Browser owner capped 250 without cursor; session preview cap256KiB, no 5MiB image bypass.",
-    "Installed captures and uncovered fallback whitelist missing.",
-    "P2-b enriched shared financial guard mandatory before activation.",
-    "No S24, workspace direct access, write, cleanup or physical qualification.",
-    "AGENTS.md 85aeb07: real S24 fixtures, realistic CLI latency/volumes and canonical capability mapping remain mandatory before functional continuation or activation.",
-    "NO_CAPABILITY temporary draft table; collection24s does not satisfy pending-under15s production requirement."
+    "Route budgets are verified in CI with injected latency; physical S24 acceptance happens at deployment.",
+    "Owner limits kept: 250 entries, 500 search results, 256 KiB preview, no cursor."
   ]
 }
