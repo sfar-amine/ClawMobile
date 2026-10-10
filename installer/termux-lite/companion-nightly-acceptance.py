@@ -92,9 +92,28 @@ def retain(state):
    try:path.unlink()
    except FileNotFoundError:pass
 
+def stop_command_group(child):
+ # A successful parent can leave descendants with stdout closed. Terminate the
+ # isolated group on every exit, before the caller releases its deployment lock.
+ try:os.killpg(child.pid,signal.SIGKILL)
+ except ProcessLookupError:pass
+ child.wait(timeout=2)
+ deadline=time.monotonic()+2
+ while True:
+  live=False
+  for entry in Path('/proc').iterdir():
+   if not entry.name.isdigit():continue
+   try:
+    fields=(entry/'stat').read_text().rsplit(')',1)[1].split()
+    if int(fields[2])==child.pid and fields[0] not in ('Z','X'):live=True;break
+   except (OSError,ValueError,IndexError):continue
+  if not live:return
+  if time.monotonic()>=deadline:raise TimeoutError('acceptance_cleanup_timeout')
+  time.sleep(0.01)
+
 def bounded_command(command,timeout,max_bytes=MAX_RECEIPT_BYTES):
  child=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,start_new_session=True)
- data=bytearray();deadline=time.monotonic()+timeout;selector=selectors.DefaultSelector();selector.register(child.stdout,selectors.EVENT_READ);completed=False
+ data=bytearray();deadline=time.monotonic()+timeout;selector=selectors.DefaultSelector();selector.register(child.stdout,selectors.EVENT_READ)
  try:
   while selector.get_map():
    remaining=deadline-time.monotonic()
@@ -105,13 +124,10 @@ def bounded_command(command,timeout,max_bytes=MAX_RECEIPT_BYTES):
     if len(data)+len(chunk)>max_bytes:raise ValueError('acceptance_output_too_large')
     data.extend(chunk)
   code=child.wait(timeout=max(0.001,deadline-time.monotonic()))
-  value=json.loads(data);completed=True;return code,value
+  value=json.loads(data);return code,value
  finally:
   selector.close();child.stdout.close()
-  if not completed:
-   try:os.killpg(child.pid,signal.SIGKILL)
-   except ProcessLookupError:pass
-  if child.poll() is None:child.wait()
+  stop_command_group(child)
 
 def deployment_preflight():
  # Same installed deployment preflight, observed on S24 before this code:
