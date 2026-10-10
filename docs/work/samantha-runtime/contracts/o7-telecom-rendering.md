@@ -12,7 +12,7 @@ Le rendu prend au plus 32 cartes, des libellés de 80 caractères et des unités
 fermées. Une valeur non numérique, un champ manquant ou inattendu n'est pas
 imprimé. Les autres objets/listes ont un repli générique lisible ; une chaîne
 qui commence par `{` ou `[` n'est pas affichée comme réponse. Les lectures
-composées sont bornées à 32 lignes et quatre niveaux. Aucun compte, adresse,
+composées sont bornées à 32 lignes, quatre niveaux, 128 nœuds et 8 000 caractères. Aucun compte, adresse,
 URL, contexte de connexion ni JSON brut n'est repris à partir de ces objets.
 Les contrôles ne sont pas des captures S24 et ne prétendent pas l'être.
 

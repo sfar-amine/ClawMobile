@@ -37,6 +37,10 @@ class DisplayTests(unittest.TestCase):
   x={'text':'hello'}
   for _ in range(100):x={'ok':True,'strategy':'composed_read','results':[{'state':'completed','result':x}]}
   self.assertLess(len(fast._display_text(x)),1000)
+ def test_composed_width_and_depth_total_bounded(self):
+  x={'ok':True,'text':'x'*4000}
+  for _ in range(10):x={'ok':True,'strategy':'composed_read','results':[{'state':'completed','result':x}]*32}
+  self.assertLessEqual(len(fast._display_text(x)),8000)
  def test_provenance_ids_not_truncated_or_unbounded(self):
   for v in ['x'*161,'https://private.example','owner@example.invalid',None]:self.assertIsNone(fast._execution_provenance({'capability':'orange.balance','route':v},{}))
 if __name__=='__main__':unittest.main()

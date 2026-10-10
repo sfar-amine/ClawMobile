@@ -275,8 +275,10 @@ def _execution_provenance(selected: dict[str, Any], execution: dict[str, Any]) -
     return result
 
 
-def _display_text(value: Any, depth: int = 0) -> str:
-    if depth >= 4:
+def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None) -> str:
+    remaining = [128] if remaining is None else remaining
+    remaining[0] -= 1
+    if depth >= 4 or remaining[0] < 0:
         return "Résultat disponible auprès de Claw ; détails non affichables en texte."
     if isinstance(value, dict):
         cards = _telecom_cards(value)
@@ -290,14 +292,19 @@ def _display_text(value: Any, depth: int = 0) -> str:
                 label = _plain_display(row.get("label") or row.get("target"), 80) or "Lecture"
                 payload = row.get("result")
                 if row.get("state") == "completed" and isinstance(payload, dict) and payload.get("ok") is True:
-                    text = _display_text(payload, depth + 1)
+                    text = _display_text(payload, depth + 1, remaining)
                 elif row.get("state") == "indeterminate":
                     text = "Résultat à vérifier ; lecture non rejouée."
                 elif row.get("state") == "not_started":
                     text = "Lecture non exécutée."
                 else:
                     text = "Lecture indisponible."
-                lines.append(label + " : " + text)
+                line = label + " : " + text
+                if sum(len(item) + 1 for item in lines) + len(line) > 8000:
+                    break
+                lines.append(line)
+                if remaining[0] <= 0:
+                    break
             if lines:
                 return "\n".join(lines)
         for key in ("text", "message", "summary", "answer"):
