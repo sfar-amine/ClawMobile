@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "codex-local-p2-f-companion-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose owner laptop pairing and revocation with single use signed confirmation scopes",
+  "reason": "Explicit local-only Codex backlog delivery.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-local-p2-f-companion-20261010.json",
+    "docs/changes/codex-local-p2-f-companion-20261010.md",
+    "docs/work/samantha-runtime/contracts/p2-f.md",
+    "openclaw-plugin-mobile-ui/scripts/test-laptop-access.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/laptopAccess.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "P2-f-companion",
+      "status": "passed",
+      "evidence": "Build/full CI_LOCAL_OK; default fixture and real paired controller tests verify P-256 signatures, payment isolation, durable replay and native HTTP boundaries."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p2-f.md",
+    "docs/changes/codex-local-p2-f-companion-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Canonical owner capability impact is registered in paired P2-f playbooks delivery; Companion delegates to this owner."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "Local patch/bundle only; no deployment or S24 receipt claimed."
+  ]
+}
