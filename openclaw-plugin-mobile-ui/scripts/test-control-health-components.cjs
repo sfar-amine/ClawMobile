@@ -57,7 +57,7 @@ const request = (port, url) => new Promise((resolve, reject) => {
   const failed=projectHealthComponents(healthyInput,verdict({capabilities:{'immune.health_manager':{state:'down',reason:'daily_log_audit',checked_at:now/1000}}}),now).components[0];
   assert.equal(failed.description,'Audit du journal quotidien incomplet.');assert.equal(failed.checkedAt,new Date(now).toISOString());
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'control-health-contract-'));
-  const saved={home:process.env.HOME, playbooks:process.env.SAMANTHA_CONTROL_PLAYBOOKS};
+  const saved={home:process.env.HOME, playbooks:process.env.SAMANTHA_CONTROL_PLAYBOOKS, cache:process.env.SAMANTHA_CONTROL_CACHE};
   let server;
   try {
     const source=path.join(root,'current.json'); await fs.writeFile(source,JSON.stringify(verdict()));
@@ -78,7 +78,8 @@ const request = (port, url) => new Promise((resolve, reject) => {
     await fs.writeFile(path.join(root,'reporting/control_snapshot.py'),'import json\nprint('+JSON.stringify(JSON.stringify(envelope()))+')\n');
     const liveVerdict=verdict({generated_at:Date.now()/1000}); liveVerdict.capabilities['control_plane.maintenance'].reason='unknown_reason';
     await fs.writeFile(path.join(root,'.openclaw/health/current.json'),JSON.stringify(liveVerdict));
-    process.env.HOME=root; process.env.SAMANTHA_CONTROL_PLAYBOOKS=root;
+    // Hermetic: the S24 runs with SAMANTHA_CONTROL_CACHE=1 (companion-server.sh); this contract checks uncached reads.
+    process.env.HOME=root; process.env.SAMANTHA_CONTROL_PLAYBOOKS=root; delete process.env.SAMANTHA_CONTROL_CACHE;
     server=http.createServer(async(req,res)=>{if(!await handleControl(req,res,req.url)){res.writeHead(404);res.end();}});
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const port=server.address().port;
     const response=await request(port,'/control/health?contract=2');assert.equal(response.status,200);
@@ -91,7 +92,7 @@ const request = (port, url) => new Promise((resolve, reject) => {
     console.log('control-health-components: projection, privacy, freshness, revision and HTTP contract passed');
   } finally {
     if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
-    for(const [name,value] of [['HOME',saved.home],['SAMANTHA_CONTROL_PLAYBOOKS',saved.playbooks]]){if(value===undefined)delete process.env[name];else process.env[name]=value;}
+    for(const [name,value] of [['HOME',saved.home],['SAMANTHA_CONTROL_PLAYBOOKS',saved.playbooks],['SAMANTHA_CONTROL_CACHE',saved.cache]]){if(value===undefined)delete process.env[name];else process.env[name]=value;}
     await fs.rm(root,{recursive:true,force:true});
   }
 })().catch(error=>{console.error(error);process.exitCode=1});
