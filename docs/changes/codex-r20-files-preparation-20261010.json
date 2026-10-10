@@ -3,10 +3,10 @@
   "id": "codex-r20-files-preparation-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "allowed",
+  "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Draft read-only file routes with bounded Gateway cache and fail-closed projection",
-  "reason": "File27 R20 lot1 only; no fabricated installed owner schemas.",
+  "reason": "Draft: installed file schemas/root and required P2-b financial guard remain unqualified; merge and activation blocked.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/work/samantha-runtime/contracts/r20.md",
@@ -21,13 +21,14 @@
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/scripts/test-files-http.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-file-gateway-limits.cjs",
-    "installer/termux-lite/companion-acceptance.py"
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/scripts/test-files-acceptance.py"
   ],
   "tests": [
     {
       "name": "r20-file-boundary",
       "status": "passed",
-      "evidence": "Four local suites: read boundaries, public versioned closed Gateway schema and pre-get gates, HTTP cache/pagination/budget/ledger/no-effect guards, strict CLI output/deadline/group-kill. No installed or physical proof."
+      "evidence": "Four local suites: read boundaries, public versioned closed Gateway schema and pre-get gates, HTTP cache/pagination/budget/ledger/no-effect guards, strict CLI output/deadline/group-kill. No installed or physical proof. Acceptance fixture rejects warming/unqualified evidence and hides fixture identity."
     }
   ],
   "documentation": [

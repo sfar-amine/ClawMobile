@@ -105,6 +105,7 @@ jobs:
           node scripts/test-file-gateway-read.cjs
           node scripts/test-files-http.cjs
           node scripts/test-file-gateway-limits.cjs
+          python3 scripts/test-files-acceptance.py
       - name: Run memory control and atomic export import contracts
         run: |
           node scripts/test-memory-control.cjs

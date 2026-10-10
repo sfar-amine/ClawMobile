@@ -2,12 +2,12 @@
 """Post-deploy acceptance of the loopback Companion: every owner route must answer within its budget,
 refuse what it must refuse, and never return secret-shaped content. Read-only: no mutation is sent.
 
-Exit 0 = accepted, 1 = regression (the deploy script rolls back), 2 = usage error.
+Exit 0 = accepted, 1 = regression or pending mandatory qualification (deploy rolls back), 2 = usage error.
 A route that is not present in this build (404) is skipped, so the same check serves every release."""
 import argparse, json, re, sys, time, urllib.error, urllib.request, urllib.parse
 
 BASE = "http://127.0.0.1:8765/v1"
-# (path, budget seconds). Budgets are S24 numbers measured on 10/10 with margin; a cold first call gets one retry.
+# (path, budget seconds). Existing budgets measured on S24 with margin; R20 budgets below are requirements, still unqualified.
 READS = [
     ("/health", 2.0),
     ("/security/surfaces", 1.5),

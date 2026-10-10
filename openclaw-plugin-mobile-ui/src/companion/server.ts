@@ -504,6 +504,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       protocol: "v1",
       endpoints: [
         "/v1/health",
+        "/v1/files",
+        "/v1/files/content",
         "/v1/capabilities",
         "/v1/attachments",
         "/v1/attachments/:attachmentId/content",
