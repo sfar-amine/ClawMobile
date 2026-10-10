@@ -24,10 +24,10 @@
     "installer/termux-lite/companion-acceptance.py",
     "openclaw-plugin-mobile-ui/scripts/test-files-acceptance.py",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/README.md",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/sessions.list.main.json",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/sessions.files.list.main.json",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/sessions.files.list.main-search.json",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/sessions.files.get.main.json"
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r20/sessions.list.main.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r20/sessions.files.list.main.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r20/sessions.files.list.main-search.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r20/sessions.files.get.main.json"
   ],
   "tests": [
     {

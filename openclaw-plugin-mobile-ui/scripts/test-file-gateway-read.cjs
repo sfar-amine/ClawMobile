@@ -38,7 +38,8 @@ const api=require('../dist/companion/fileGatewayRead');
  // Root probes run alongside the list: one owner latency, not three in sequence.
  delay=300;let began=Date.now();await api.gatewayFileList(agent);assert.ok(Date.now()-began<800,'probes must not serialize after the list');delay=0;
  // Captures of the real main session (sessions.list search agent:main:main, 10/10).
- const mainList=capture('sessions.files.list.main'),mainGet=capture('sessions.files.get.main'),mainSearch=capture('sessions.files.list.main-search'),mainRow=capture('sessions.list.main').sessions[0];
+ const r20=name=>JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-10/r20/',name+'.json'))).response;
+ const mainList=r20('sessions.files.list.main'),mainGet=r20('sessions.files.get.main'),mainSearch=r20('sessions.files.list.main-search'),mainRow=r20('sessions.list.main').sessions[0];
  assert.equal(mainRow.key,'agent:main:main');assert.equal(mainRow.isMain,true);const main={scope:'session',sessionKey:mainRow.key};
  custom=mainList;result=await api.gatewayFileList(main);const names=result.items.map(x=>x.name);
  for(const hidden of ['.git','.openclaw','context','context-backup','backup-emoji-20260924-172227','AGENTS.md.bak-ui-playbooks-20260925-020337','SOUL.md.backup-20260924-224044'])assert.ok(!names.includes(hidden),hidden);

@@ -3,7 +3,7 @@ const realNow=Date.now;
 (async()=>{
 const capture=name=>JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-10/gateway/',name+'.json'))).response;
 // Real S24 main row (sessions.list search agent:main:main) beside the limit-5 capture that lacks it.
-const captured=capture('sessions.list.main'),others=capture('sessions.list');
+const captured=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-10/r20/sessions.list.main.json'))).response,others=capture('sessions.list');
 const main=captured.sessions[0];
 let calls=[],clock=Date.now(),absent=false,delay=2400;Date.now=()=>clock;
 require('../dist/companion/openclawAgentClient').callOpenClawGateway=async(method,params)=>{calls.push({method,params});await new Promise(r=>setTimeout(r,delay));
