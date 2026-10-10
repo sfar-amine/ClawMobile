@@ -1,6 +1,6 @@
 # G3 — intégrer, activer et vérifier le runtime natif
 
-Ce runbook est une livraison documentaire sur la base Companion `6b7c68f128fa31b333510edfee3d9ffb00f1561b`. Les commandes d'activation ci-dessous sont destinées à Claude sur le S24 après relecture et fusion. Codex ne les exécute pas, ne fusionne pas les PR et ne déclare aucune activation ou recette physique. Une PR ouverte fournit une interface en revue ; elle ne prouve ni sa présence dans le build actif ni sa qualification.
+Ce runbook est une livraison documentaire sur la base Companion `2c2c18fff0631d1545035c0cedacf42e7d8f4065`. Les commandes d'activation ci-dessous sont destinées à Claude sur le S24 après relecture et fusion. Codex ne les exécute pas, ne fusionne pas les PR et ne déclare aucune activation ou recette physique. Une PR ouverte fournit une interface en revue ; elle ne prouve ni sa présence dans le build actif ni sa qualification.
 
 ## Inventaire des interfaces
 
@@ -17,6 +17,7 @@ Les chemins sont complets. Les objets, corps, confirmations et états viennent d
 | P2-f | GET `/v1/laptop-access/computers`, `/v1/laptop-access/pairings/{id}` | POST `/v1/laptop-access/pairings`, `/v1/laptop-access/pairings/{id}/commit` ; DELETE `/v1/laptop-access/computers/{id}` | Fusionné ; biométrie avant autorisation/révocation, dernière clé protégée |
 | R6 | GET `/v1/agent/config` | POST `/v1/agent/config` avec révision opaque du GET et confirmation lorsque requise | Fusionné, y compris hash opaque #33 ; outils restent en lecture, capacités d'écriture indiquées dans la projection |
 | R7 | GET `/v1/updates` | Aucune : les méthodes de mutation sont refusées | Fusionné #22 ; versions et releases préparées vérifiées, aucune route `/updates/update` ou `/updates/rollback` |
+| R8 | GET `/v1/skills/candidates?limit=50`, `/v1/skills/candidates/{traceId}` | POST `/v1/skills/learn` (en-tête propriétaire) | [#47](https://github.com/sfar-amine/samantha-core/pull/47) fusionné 2c2c18f ; brouillons candidats, aucune promotion ; volume réel d'enregistrements nul sur le S24 |
 | R9 | GET `/v1/notifications/sources`, `/v1/control/notifications?contract=2` | Uniquement les routes enable/disable P2-a pour les items scheduled avec automationId | Fusionné ; incidents/situations non désactivables, états inconnus explicites, pas de route de mutation R9 ; sans P2-a actif, aucun interrupteur |
 | R11 | GET `/v1/conversations/{sessionId}/metadata` | POST sur le même chemin : titre, épinglage ou modèle fermé | [#28](https://github.com/sfar-amine/samantha-core/pull/28) en revue ; modèle refusé pendant un run actif, aucun nouveau registre |
 | R12 | GET `/v1/control/engineering` | Aucune | Fusionné #23 ; continuations du propriétaire existant, aucune réconciliation déclenchée par lecture |
@@ -27,7 +28,7 @@ Les chemins sont complets. Les objets, corps, confirmations et états viennent d
 | R17 | GET `/v1/whatsapp/allowlist`, `/{contactId}`, `/history`, `/{contactId}/note` | POST liste, PATCH/DELETE contact, PUT note sous `/v1/whatsapp/allowlist` | [Core #39](https://github.com/sfar-amine/samantha-core/pull/39), [playbooks #17](https://github.com/sfar-amine/samantha-ui-playbooks/pull/17) ; claim avant consommation biométrique, owner protégé, sweep dans le cycle santé existant |
 | V5 | GET `/v1/voice/voices` | Choix `voice` lors de l'ouverture via POST `/v1/extensions/claw-live/token` ou `/prewarm`, socket existante | [#34](https://github.com/sfar-amine/samantha-core/pull/34) fusionné 61a1994 ; préférences Android, aucun PUT `/v1/voice/voice` ni stockage Companion, candidats fournisseur à qualifier |
 
-L'inventaire décrit les lots connus lors de cette rédaction. Relire la version finale de chaque PR avant activation : un chemin 404 dans une ancienne version est un endpoint absent, pas un résultat de recette réussi. R8 est en relecture (#47). C2 est une clôture de continuations par Claude ; C4 ajoute uniquement des tests JVM (#45), sans écart runtime. A5 est clos selon Claude. Ce runbook ne déclare pas la recette des lots ouverts.
+L'inventaire décrit les lots connus lors de cette rédaction. Relire la version finale de chaque PR avant activation : un chemin 404 dans une ancienne version est un endpoint absent, pas un résultat de recette réussi. R8 est fusionné ([#47](https://github.com/sfar-amine/samantha-core/pull/47), `2c2c18f`) : POST `/v1/skills/learn` (en-tête propriétaire), GET `/v1/skills/candidates?limit=50` et `/v1/skills/candidates/{traceId}`, sans promotion automatique ; les suites de la revue 26 sont fusionnées (#49, `af80166`). C2 est une clôture de continuations par Claude ; C4 ajoute uniquement des tests JVM (#45), sans écart runtime. A5 est clos selon Claude. Ce runbook ne déclare pas la recette des lots ouverts.
 
 ## Outils runtime : journal live, shell, redémarrage
 
@@ -108,7 +109,7 @@ Retour au snapshot précédent, seulement par Claude si la recette impose ce ret
 
 ## Companion : déploiement et retour arrière réel
 
-`installer/termux-lite/companion-deploy.sh` et `companion-acceptance.py` viennent de #35 (fusionnée, `f1e1800`) ; le correctif du verrou #46 est fusionné (`a841936`) : le Companion relancé ne garde plus le descripteur du verrou. Tous deux sont dans la base `6b7c68f`. **C'est le seul chemin de déploiement du Companion.**
+`installer/termux-lite/companion-deploy.sh` et `companion-acceptance.py` viennent de #35 (fusionnée, `f1e1800`) ; le correctif du verrou #46 est fusionné (`a841936`) : le Companion relancé ne garde plus le descripteur du verrou. Tous deux sont dans la base `2c2c18f`. **C'est le seul chemin de déploiement du Companion.**
 
 Ce que fait le script, dans l'ordre (vérifié dans le script de la base) :
 1. **Verrou** `~/.openclaw/deploys/companion-deploy.lock` (`flock -n`) : un second déploiement sort en code 3 `deploy_already_running`.
@@ -116,7 +117,7 @@ Ce que fait le script, dans l'ordre (vérifié dans le script de la base) :
 3. `git fetch samantha-private runtime/samantha-companion-private` ; la cible doit être un commit de cette branche (`commit_not_on_branch` sinon), le checkout propre (`dirty_checkout`) et l'avance **rapide uniquement** (`not_fast_forward`).
 4. Sauvegarde du `dist` dans `~/.openclaw/backups/companion-<sha7>-<horodatage>` (5 gardées, `COMPANION_DEPLOY_KEEP`).
 5. `npm run build` (nice 10), redémarrage du Companion, attente de `/v1/health` (2 min).
-6. **Recette automatique** `companion-acceptance.py` : chaque lecture dans son budget ; chaque mutation refusée sans en-tête propriétaire ; `settle()` : une réponse `deferred` doit livrer ses données sous 15 s ; `LEAK` limité aux secrets (Bearer, `sk-`, `ghp_`…, `github_pat_`, AKIA, `refresh_token`/`access_token`, clés privées), un numéro ou un texte du propriétaire ne déclenche pas de retour arrière. Une route absente (404) est `skipped`.
+6. **Recette automatique** `companion-acceptance.py` : chaque lecture dans son budget ; chaque mutation refusée sans en-tête propriétaire ; `settle()` : une réponse `deferred` doit livrer ses données sous 15 s ; `LEAK` limité aux secrets (Bearer, `sk-`, `ghp_`…, `github_pat_`, AKIA, `refresh_token`/`access_token`, clés privées), un numéro ou un texte du propriétaire ne déclenche pas de retour arrière. Une route absente (404) est `skipped`. Depuis R8, la recette lit aussi le détail du premier candidat existant (jamais une trace fabriquée) et borne le refus de `POST /skills/learn` à 2 s.
 7. **Retour arrière automatique** en cas d'échec de build, de santé ou de recette : `git reset --hard <précédent>`, restauration du `dist` sauvegardé, redémarrage et nouvelle recette. Reçu `rolled_back` si sain, sinon `rollback_failed` et incident `human_required` (`incident-notify.sh`).
 8. **Reçu** `~/.openclaw/deploys/companion-<horodatage>.json` (`state` : `deployed`, `refused`, `failed`, `rolled_back`, `rollback_failed` ; `target`, `previous`, `detail`, `acceptance`) et journal `companion-<horodatage>.log` ; événement `context-event.sh work completed_action` après succès.
 
@@ -162,7 +163,7 @@ Pour une opération déjà engagée et devenue incertaine, `claw_status` conserv
 
 ## Recette et clôture
 
-G2 est fusionné (#43, d7ae8f1) : `openclaw-plugin-mobile-ui/scripts/runtime-contract-report.py`, son inventaire `runtime-contract-cases.json` et `docs/work/samantha-runtime/contracts/g2.md` sont les chemins convenus avec son propriétaire. Ces fichiers sont présents dans la base `6b7c68f` ; leur présence ne prouve pas une couverture complète sur le S24. Le rapport exerce uniquement les GET, sans envoyer de mutation. Les mutations non financières exigent leurs preuves offline obligatoires ; le paiement est exclu. Des états pending/unknown, une interface absente ou une preuve manquante empêchent la couverture complète. Aucun rejeu d'un effet pour fabriquer la preuve d'idempotence.
+G2 est fusionné (#43, d7ae8f1) : `openclaw-plugin-mobile-ui/scripts/runtime-contract-report.py`, son inventaire `runtime-contract-cases.json` et `docs/work/samantha-runtime/contracts/g2.md` sont les chemins convenus avec son propriétaire. Ces fichiers sont présents dans la base `2c2c18f` ; leur présence ne prouve pas une couverture complète sur le S24. Le rapport exerce uniquement les GET, sans envoyer de mutation. Les mutations non financières exigent leurs preuves offline obligatoires ; le paiement est exclu. Des états pending/unknown, une interface absente ou une preuve manquante empêchent la couverture complète. Aucun rejeu d'un effet pour fabriquer la preuve d'idempotence.
 
 Fournir des identifiants dédiés pour les détails et distinguer absents, non exercés et réussis. Un 404 ignoré par l'ancien contrôle de déploiement ne remplace pas la couverture requise de G2. Ne pas exporter une réponse brute, un numéro, un nom de contact, une note ou une conversation. Le [plan G4 #42](https://github.com/sfar-amine/samantha-core/pull/42) réserve le ménage runtime à Claude après les qualifications ; aucune suppression S24 n'est effectuée par G3 ou G4 Git.
 
