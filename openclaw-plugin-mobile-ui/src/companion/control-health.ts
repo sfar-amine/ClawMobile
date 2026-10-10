@@ -14,12 +14,10 @@ function status(value: unknown) {
   const raw = typeof value === "string" ? value.toLowerCase() : "unknown";
   return states[raw] || (allowed.has(raw) ? raw : "unknown");
 }
-function description(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  let text = value.replace(/\s+/g, " ").trim();
-  if (/(?:password|passwd|secret|token|cookie|authorization|credential|api[_ -]?key|otp|cvv|cvc)\s*[:=]|\bbearer\s+|-----BEGIN .*PRIVATE KEY-----|\b(?:otp|2fa|verification code|security code|code)\s*[:= -]?\s*\d{4,8}\b/i.test(text)) return "Détail sensible masqué";
-  text = text.replace(/https?:\/\/\S+|[\w.+-]+@[\w.-]+|\+\d[\d ()-]{7,}|\b[A-Za-z0-9_+/=-]{48,}\b|(?:\/data\/data\/|\/home\/|\/tmp\/)\S+|(?<!\d)(?:\d[ -]?){13,19}(?!\d)/g, "[donnée masquée]");
-  return text.slice(0, 200) || null;
+const descriptions: Record<string, string> = {daily_log_audit: "Audit du journal quotidien incomplet."};
+function description(value: unknown): string {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(descriptions,value)
+    ? descriptions[value] : "Diagnostic du composant indisponible.";
 }
 function stamp(value: unknown): string | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 253402300799
@@ -41,13 +39,13 @@ export function projectHealthComponents(data: any, verdict: any, now = Date.now(
       const observed = status(row.state);
       if (observed === "healthy" && existing < 0) continue;
       const label = labels[id] || {fr: id, en: id};
-      const item = {...(existing >= 0 ? components[existing] : {}), id, name: label.fr, label,
+      const item = {...(existing >= 0 ? components[existing] : {}), id, name: existing >= 0 ? components[existing].name : label.fr, label,
         status: fresh ? observed : "unknown", checkedAt: stamp(row.checked_at), description: description(row.reason)};
       if (existing >= 0) components[existing] = item; else components.push(item);
     }
   }
-  return {...data, components, fresh, status: fresh ? status(verdict.overall) : "unknown",
-    checkedAt: stamp(generated)};
+  return {...data, components, canonicalVerdict: {fresh, status: fresh ? status(verdict.overall) : "unknown",
+    checkedAt: stamp(generated)}};
 }
 
 export async function completeHealthSection(result: any, source: string, now = Date.now()) {
@@ -63,10 +61,5 @@ export async function completeHealthSection(result: any, source: string, now = D
   } catch { /* Missing/invalid authority does not invent a health result. */ }
   section.data = projectHealthComponents(section.data, verdict, now);
   section.dataRevision = createHash("sha256").update(JSON.stringify(["health-components-c12-v1", section.dataRevision, section.data])).digest("hex");
-  const generated = verdict?.generated_at;
-  const remaining = typeof generated === "number" && Number.isFinite(generated) && now >= generated * 1000
-    ? Math.max(0, generated * 1000 + 300000 - now) : 0;
-  section.remainingFreshMs = Math.min(section.remainingFreshMs || 0, remaining);
-  if (!remaining) section.freshness = "stale";
   return result;
 }
