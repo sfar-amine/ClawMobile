@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Extend existing attachment storage with bounded safe file shares and R3 cleanup",
-  "reason": "Relecture 17 et intégration runtime 639ae68 ; activation et recette par Claude.",
+  "reason": "Relecture 17 et intégration runtime 9a04980 ; activation et recette par Claude.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-local-r14-20261010.json",
@@ -25,7 +25,7 @@
     {
       "name": "review-17-r14",
       "status": "passed",
-      "evidence": "All runtime CI commands passed; file-hash replay, unchanged run history, HTTP image upload, missing attachment 404, quota/retention, appendAttachmentContext and R3 cleanup verified."
+      "evidence": "Full runtime CI commands passed on 639ae68; after integrating 9a04980, rebuild, storage/HTTP and R3/R2/conversation checks passed. File-hash replay, unchanged run history, HTTP image upload, missing attachment 404, quota/retention, appendAttachmentContext and R3 cleanup verified."
     }
   ],
   "documentation": [
