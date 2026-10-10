@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Expose skill statistics and canonical activation/trial receipts",
-  "reason": "Revue 26, base runtime 0bf30ab int\u00e9gr\u00e9e : protection financi\u00e8re des sources compl\u00e8tes et budgets explicites.",
+  "reason": "Revue 26, base runtime 0bf30ab intégrée : protection financière des sources complètes et budgets explicites.",
   "files": [
     "docs/changes/codex-p2-b-current-20261010.json",
     "docs/changes/codex-p2-b-current-20261010.md",
@@ -23,7 +23,7 @@
     {
       "name": "p2-b-control",
       "status": "passed",
-      "evidence": "Skill owner/HTTP tests, durable restart replay, parallel trials, bank protection, pre-effect retry and all runtime CI commands."
+      "evidence": "CI entière sur 6b7c68f : CI_LOCAL_OK ; six cas financiers sur instruction, titre, SKILL.md et fast-path ; motif exactement partagé avec R8, budgets explicites et recette préservée."
     }
   ],
   "documentation": [

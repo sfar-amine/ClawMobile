@@ -1,0 +1,3 @@
+health?contract=2 200 575ms
+requests?contract=2 200 111ms
+automations?contract=2 200 119ms

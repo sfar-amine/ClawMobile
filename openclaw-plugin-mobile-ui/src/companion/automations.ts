@@ -20,11 +20,15 @@ async function jobById(id:string){
  if(!job)throw nativeError("automation_not_found",404);
  return job;
 }
+export const AUTOMATION_PAYMENT_PATTERN=/financial|financi|finance|money|argent|payment|paiement|\bpay|paye|r[ée]gler|banqu|bank|bancair|biometr|3.?d.?secure|confirmation|clic.?to.?pay|topnet|maxit|termux[-_ ]notification|wallet|flouci|\botp\b|virement|transaction|carte|card|top.?up|recharge|d17|achat|achet|purchase|checkout|facture|invoice|\d+(?:[.,]\d+)?\s*(?:eur|usd|gbp|tnd|dt|dinars?|euros?|dollars?|€|\$)/iu;
 export function protectedPayment(value:any){
- // No scheduler action may bypass the existing financial/human boundary.
- return /\bpay|payment|paiement|payer|paye|r[ée]gler|bank|banque|bancair|biometr|3.?d.?secure|confirmation|clic.?to.?pay|topnet|maxit|termux[-_ ]notification|wallet|flouci|\botp\b|virement|transaction|carte|card|top.?up|recharge|d17|achat|achet|purchase|facture|invoice|(?:\d+(?:[.,]\d+)?)\s*(?:TND|EUR|USD|GBP|DT|dinar|euro|dollar)\b/i.test(typeof value==="string"?value:JSON.stringify(value).replace(/\\[nrt]/g," "));
+ const text=typeof value==="string"?value:JSON.stringify(value);
+ return AUTOMATION_PAYMENT_PATTERN.test((text||"").replace(/[\n\r\t]|\\[nrt]/g," "));
 }
-export function protectedJob(job:any){return protectedPayment(job);}
+export function protectedJob(job:any){
+ // No scheduler action may bypass the existing financial/human boundary.
+ return protectedPayment(job);
+}
 export async function automationDetail(id:string){
  const job=await jobById(id);
  const history=await callOpenClawGateway("cron.runs",{id,limit:10});

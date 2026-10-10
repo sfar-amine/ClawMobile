@@ -101,3 +101,9 @@ jobs:
 
       - name: Run skill detail and owner controls contract
         run: node scripts/test-skill-control.cjs
+      - name: Run memory control and atomic export import contracts
+        run: |
+          node scripts/test-memory-control.cjs
+          python3 ../installer/termux-lite/test-context-import.py
+      - name: Run read-only security surfaces contract
+        run: node scripts/test-security-surfaces.cjs
