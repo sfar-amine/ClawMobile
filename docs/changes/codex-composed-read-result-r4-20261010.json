@@ -11,8 +11,7 @@
     "installer/termux-lite/model-fast-path.py",
     "openclaw-plugin-mobile-ui/scripts/test-composed-read-result.py",
     "openclaw-plugin-mobile-ui/scripts/test-model-fast-path.cjs",
-    ".github/workflows/ci.yml",
-    "docs/work/samantha-android/27_CONVERGENCE_LOT0_CONTRACTS.md",
+    "docs/work/samantha-runtime/contracts/r4.md",
     "docs/changes/codex-composed-read-result-r4-20261010.md",
     "docs/changes/codex-composed-read-result-r4-20261010.json"
   ],
@@ -29,7 +28,7 @@
     }
   ],
   "documentation": [
-    "docs/work/samantha-android/27_CONVERGENCE_LOT0_CONTRACTS.md",
+    "docs/work/samantha-runtime/contracts/r4.md",
     "docs/changes/codex-composed-read-result-r4-20261010.md"
   ],
   "capabilities": {
