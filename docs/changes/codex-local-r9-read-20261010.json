@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "codex-local-r9-read-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose native notification source reads and explicit unavailable activation",
+  "reason": "Explicit local-only Codex backlog delivery.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-local-r9-read-20261010.json",
+    "docs/changes/codex-local-r9-read-20261010.md",
+    "docs/work/samantha-runtime/contracts/r9.md",
+    "openclaw-plugin-mobile-ui/scripts/test-notification-sources.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/notificationSources.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "R9-read",
+      "status": "passed",
+      "evidence": "Native fixture and paired owner HTTP, build/full CI_LOCAL_OK passed; C9 activation source still required."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r9.md",
+    "docs/changes/codex-local-r9-read-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this local lot.",
+  "limitations": [
+    "Local patch/bundle only; no deployment or S24 receipt claimed."
+  ]
+}
