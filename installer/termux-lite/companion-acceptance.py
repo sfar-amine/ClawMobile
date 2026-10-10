@@ -62,8 +62,11 @@ OWNER_GUARDS = [
 ]
 OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0}  # admission/refusal budget, no effect without owner proof
 SETTLE_SECONDS = 15
-# Secrets only: preserve the acceptance policy of the runtime base.
+# Secrets and account e-mails. 10/10 (recette UI): /agent/config published the OAuth profile e-mail.
+# Measured read-only on the S24 the same day: no other READS route returns an e-mail address.
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bAKIA[0-9A-Z]{16}\b|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY")
+# An e-mail address is reported as a warning, never a failure: it must not roll a deploy back (Amine, 10/10).
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}")
 
 
 def call(method, path, timeout, headers=None):
@@ -103,6 +106,7 @@ def main(session_id=None):
     if session_id is not None and (not isinstance(session_id,str) or not re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*",session_id) or len(session_id)>80):
         return 2
     results, failed, candidate_id, conversation_id = [], False, None, session_id
+    warnings = []
     def metadata_checks(identifier):
         nonlocal failed
         for label,budget in (("cold",6.0),("warm",1.5)):
@@ -124,6 +128,8 @@ def main(session_id=None):
                 break
         leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
         settled = settle(path, body) if code == 200 else True
+        if code == 200 and EMAIL.search(body.decode("utf-8", "replace")):
+            warnings.append({"route": path, "warning": "email_address_in_response"})
         status = "skipped" if code == 404 else ("ok" if ok and not leak and settled else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "settled": settled, "status": status})
@@ -176,7 +182,7 @@ def main(session_id=None):
         status = "skipped" if code == 404 else ("ok" if refused and took <= budget else "fail")
         failed |= status == "fail"
         results.append({"route": method + " " + path + " (no owner header)", "code": code, "seconds": round(took, 2), "budget": budget, "status": status})
-    print(json.dumps({"accepted": not failed, "checks": results}, ensure_ascii=False))
+    print(json.dumps({"accepted": not failed, "checks": results, "warnings": warnings}, ensure_ascii=False))
     return 1 if failed else 0
 
 

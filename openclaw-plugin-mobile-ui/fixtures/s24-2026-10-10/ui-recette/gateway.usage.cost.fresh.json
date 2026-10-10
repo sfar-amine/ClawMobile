@@ -1,0 +1,91 @@
+{
+ "_capture": {
+  "method": "usage.cost",
+  "params": {
+   "days": 30
+  },
+  "latencyMs": 1815,
+  "exit": "rc=0",
+  "capturedAt": "2026-10-10T19:39:30+00:00",
+  "via": "timeout 60 nice openclaw gateway call <method> --params <json> --json",
+  "gateway": "OpenClaw 2026.9.6",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "cache fresh au moment de la capture ; montants remplacés par 1.25 ; daily réduit aux 3 derniers jours sur 30 (compteurs de tokens réels)"
+ },
+ "response": {
+  "updatedAt": 1791660714446,
+  "days": 30,
+  "_trimmed": {
+   "dailyKept": 3,
+   "dailyCaptured": 30
+  },
+  "daily": [
+   {
+    "date": "2026-10-08",
+    "input": 412201,
+    "output": 1941,
+    "cacheRead": 1464235,
+    "cacheWrite": 0,
+    "totalTokens": 1878377,
+    "totalCost": 1.25,
+    "inputCost": 1.25,
+    "outputCost": 1.25,
+    "cacheReadCost": 1.25,
+    "cacheWriteCost": 1.25,
+    "missingCostEntries": 0
+   },
+   {
+    "date": "2026-10-09",
+    "input": 368815,
+    "output": 1168,
+    "cacheRead": 81235,
+    "cacheWrite": 0,
+    "totalTokens": 451218,
+    "totalCost": 1.25,
+    "inputCost": 1.25,
+    "outputCost": 1.25,
+    "cacheReadCost": 1.25,
+    "cacheWriteCost": 1.25,
+    "missingCostEntries": 0
+   },
+   {
+    "date": "2026-10-10",
+    "input": 24537,
+    "output": 347,
+    "cacheRead": 101888,
+    "cacheWrite": 0,
+    "totalTokens": 126772,
+    "totalCost": 1.25,
+    "inputCost": 1.25,
+    "outputCost": 1.25,
+    "cacheReadCost": 1.25,
+    "cacheWriteCost": 1.25,
+    "missingCostEntries": 0
+   }
+  ],
+  "totals": {
+   "input": 6491414,
+   "output": 140604,
+   "cacheRead": 43140605,
+   "cacheWrite": 1284789,
+   "totalTokens": 51057412,
+   "totalCost": 1.25,
+   "inputCost": 1.25,
+   "outputCost": 1.25,
+   "cacheReadCost": 1.25,
+   "cacheWriteCost": 1.25,
+   "missingCostEntries": 59,
+   "missingCostByModel": {
+    "custom-po-zapro-su/gpt-5.6-sol": 59
+   }
+  },
+  "cacheStatus": {
+   "status": "fresh",
+   "cachedFiles": 92,
+   "pendingFiles": 0,
+   "staleFiles": 0,
+   "refreshedAt": 1791649248523
+  }
+ }
+}

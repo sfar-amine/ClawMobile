@@ -157,6 +157,11 @@ jobs:
       - name: Run usage and shared provider read contracts
         run: node scripts/test-usage-providers.cjs
 
+      - name: Run UI recette server fixes on S24 captures (account privacy, cost, composer, history, previews)
+        run: |
+          node scripts/test-ui-recette-server.cjs
+          python3 scripts/test-acceptance-email-leak.py
+
       - name: Run memory control and atomic export import contracts
         run: |
           node scripts/test-memory-control.cjs
