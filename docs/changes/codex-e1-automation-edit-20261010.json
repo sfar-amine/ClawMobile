@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Préparer les validations R23 E1 sans route ni mutation Gateway.",
-  "reason": "Publication suspendue par parent ; CAS R5-bis et captures cron.get/update manquent. Aucun effet runtime activé.",
+  "reason": "CAS R5-bis, captures réelles cron.get/update et qualification du propriétaire manquent. Préparation pure ; aucune route active ni mutation Gateway.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/automationEditValidation.ts",
@@ -27,11 +27,9 @@
     "docs/changes/codex-e1-automation-edit-20261010.md"
   ],
   "capabilities": {
-    "impact": "unchanged",
-    "ids": [
-      "samantha.app.automation.edit"
-    ],
-    "reason": "Twin planned, pas de mise en service."
+    "impact": "none",
+    "ids": [],
+    "reason": "Préparation pure des validateurs ; aucune route ou capability active. Capability planned dans le dépôt playbooks jumelle."
   },
   "architecture": {
     "changed": false,
@@ -61,7 +59,7 @@
   },
   "rollback": "Revert de la préparation ; aucun effet S24.",
   "limitations": [
-    "PR non publiée ; fixtures cron.get/update et fusion R5-bis préalables.",
+    "fixtures cron.get/update et fusion R5-bis préalables.",
     "protectedJob actuel confond la clé payload avec pay ; correction propriétaire requise.",
     "Aucune preuve CAS, reçu mutation ou budget PATCH complet ; aucun déploiement."
   ]
