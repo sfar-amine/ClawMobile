@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "codex-r19-r21-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Read quota and providers through existing shared Gateway owners",
+  "reason": "File27: one R19/R21 draft; captured usage.status, shared R6/R11 cache, provider schemas and physical timings still require P0-2.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/modelOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/providers.ts",
+    "openclaw-plugin-mobile-ui/src/companion/usage.ts",
+    "openclaw-plugin-mobile-ui/src/companion/usageControl.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-usage-providers.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/gateway/usage.status.json",
+    "docs/work/samantha-runtime/contracts/r19.md",
+    "docs/work/samantha-runtime/contracts/r21.md",
+    "docs/changes/codex-r19-r21-20261010.json",
+    "docs/changes/codex-r19-r21-20261010.md"
+  ],
+  "tests": [
+    {
+      "name": "usage-real-fixture-and-provider-synthetic",
+      "status": "passed",
+      "evidence": "Real sanitized PR48 usage fixture, 70 adversarial privacy variations, thresholds/missing, ten concurrent reads, injected3.2s delay, negative cache, refresh throttle, legacy/fallback inheritance, pure Control attention and HTTP guards. Provider/auth/config/cost fixtures synthetic or absent, no physical endpoint qualification."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r19.md",
+    "docs/work/samantha-runtime/contracts/r21.md",
+    "docs/changes/codex-r19-r21-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Extend existing people-trusted owner and native Companion routes; no additional capability registry."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing Gateway config, Directory receipts/meta, private context, confirmations and health cycle; no new store, table, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native read-only route projections; existing Gateway source and shared R6/R11 cache. No MCP schema/tool change."
+  },
+  "rollback": "Revert this draft; never modify owner configs or runtime data.",
+  "limitations": [
+    "Depends on PR28 shared modelOwner being merged first; no third standalone owner path.",
+    "models.list/models.authStatus/config.get and usage.cost S24 sanitized captures absent; R21/P0-2 and physical route timings blocked.",
+    "Public OpenClaw2026.9.6 usage.cost summary has no provider breakdown; explicit query is unqualified, no invented aggregation.",
+    "3.2s injected unit delay is not a physical endpoint measurement; P0-1 persistent transport later.",
+    "No runtime mutation, merge, deployment, UI or payment changes."
+  ]
+}

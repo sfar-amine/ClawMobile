@@ -1,0 +1,33 @@
+{
+  "updatedAt": 1791644489171,
+  "providers": [
+    {
+      "provider": "github-copilot",
+      "displayName": "Copilot",
+      "windows": [
+        {
+          "label": "Premium",
+          "usedPercent": 100
+        },
+        {
+          "label": "Chat",
+          "usedPercent": 0.7000000000000028
+        }
+      ],
+      "plan": "individual"
+    },
+    {
+      "provider": "openai",
+      "displayName": "OpenAI",
+      "windows": [
+        {
+          "label": "720h",
+          "usedPercent": 0,
+          "resetAt": 1794219642000
+        }
+      ],
+      "plan": "free",
+      "accountEmail": "owner@example.invalid"
+    }
+  ]
+}

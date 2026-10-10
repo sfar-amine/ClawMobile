@@ -98,3 +98,6 @@ jobs:
 
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
+
+      - name: Run usage and shared provider read contracts
+        run: node scripts/test-usage-providers.cjs

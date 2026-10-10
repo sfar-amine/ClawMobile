@@ -1,3 +1,5 @@
+import {readUsage,readUsageCost} from './usage';
+import {readProviders} from './providers';
 import {capabilityDetail} from "./capabilityControl";
 import {updatesRead} from "./updatesControl";
 import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
@@ -322,6 +324,21 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       writeJson(res,value.state==='refused'?409:value.state==='failed'?503:200,value);
     }catch(error:any){const code=error instanceof URIError?400:[400,403,404,409].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,error:code===400?'invalid_approval_operation':code===403?'confirmation_scope_mismatch':code===404?'approval_run_not_found':code===409?'confirmation_not_usable':'approval_owner_unavailable'});}
+    return;
+  }
+
+  if(routePath==="/usage"||routePath==="/providers"){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{error:"native_loopback_required"});return;}
+    res.setHeader("Cache-Control","no-store");
+    if(method!=="GET"){writeJson(res,405,{error:"method_not_allowed"});return;}
+    const parameters=requestUrl.searchParams;
+    if(routePath==="/usage"){
+      if([...parameters.keys()].some(k=>k!=="details")||parameters.getAll("details").length>1||parameters.has("details")&&parameters.get("details")!=="cost"){writeJson(res,400,{error:"unsupported_parameter"});return;}
+      writeJson(res,200,parameters.has("details")?await readUsageCost():await readUsage());
+    }else{
+      if([...parameters.keys()].some(k=>k!=="refresh")||parameters.getAll("refresh").length>1||parameters.has("refresh")&&parameters.get("refresh")!=="1"){writeJson(res,400,{error:"unsupported_parameter"});return;}
+      writeJson(res,200,await readProviders(parameters.get("refresh")==="1"));
+    }
     return;
   }
 
