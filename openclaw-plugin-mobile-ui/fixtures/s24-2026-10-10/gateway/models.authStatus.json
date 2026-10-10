@@ -1,0 +1,294 @@
+{
+  "_capture": {
+    "method": "models.authStatus",
+    "params": {},
+    "latencyMs": 2608,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true
+  },
+  "response": {
+    "ts": 1791649211280,
+    "providers": [
+      {
+        "provider": "custom-po-zapro-su",
+        "authProvider": "custom-po-zapro-su",
+        "displayName": "custom-po-zapro-su",
+        "status": "static",
+        "profiles": [
+          {
+            "profileId": "custom-po-zapro-su:default",
+            "type": "api_key",
+            "status": "static",
+            "source": "inherited",
+            "logoutSupported": true
+          }
+        ]
+      },
+      {
+        "provider": "github-copilot",
+        "authProvider": "github-copilot",
+        "displayName": "Copilot",
+        "status": "static",
+        "profiles": [
+          {
+            "profileId": "github-copilot:github",
+            "type": "token",
+            "status": "static",
+            "source": "inherited",
+            "logoutSupported": true
+          }
+        ]
+      },
+      {
+        "provider": "google",
+        "authProvider": "google",
+        "displayName": "google",
+        "status": "static",
+        "profiles": [
+          {
+            "profileId": "google:claw-gemini-free",
+            "type": "api_key",
+            "status": "static",
+            "source": "inherited",
+            "logoutSupported": true
+          }
+        ]
+      },
+      {
+        "provider": "openai",
+        "authProvider": "openai",
+        "displayName": "openai",
+        "status": "ok",
+        "expiry": {
+          "at": 1792491589796,
+          "remainingMs": 842378370,
+          "label": "10d"
+        },
+        "profiles": [
+          {
+            "profileId": "openai:owner@example.invalid",
+            "type": "oauth",
+            "status": "ok",
+            "source": "inherited",
+            "expiry": {
+              "at": 1792491589796,
+              "remainingMs": 842378507,
+              "label": "10d"
+            },
+            "logoutSupported": true
+          }
+        ],
+        "profileOrder": [
+          "openai:owner@example.invalid"
+        ],
+        "profileOrderStored": true
+      }
+    ],
+    "providerCapabilities": [
+      {
+        "provider": "anthropic",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "cerebras",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "clawrouter",
+        "apiKeySupported": true,
+        "quickApiKeySetup": false
+      },
+      {
+        "provider": "copilot-proxy",
+        "apiKeySupported": false,
+        "quickApiKeySetup": false
+      },
+      {
+        "provider": "deepseek",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "github-copilot",
+        "apiKeySupported": false,
+        "quickApiKeySetup": false,
+        "loginOptions": [
+          {
+            "id": "github-copilot/github-copilot",
+            "brandId": "github-copilot",
+            "label": "GitHub Copilot",
+            "hint": "Device login with your GitHub account",
+            "groupLabel": "Copilot",
+            "kind": "device-code",
+            "featured": false
+          },
+          {
+            "id": "github-copilot/github-copilot-enterprise",
+            "brandId": "github-copilot",
+            "label": "GitHub Copilot (Enterprise / data residency)",
+            "hint": "Device login against your GitHub Enterprise (*.ghe.com) tenant",
+            "groupLabel": "Copilot",
+            "kind": "device-code",
+            "featured": false
+          }
+        ]
+      },
+      {
+        "provider": "google",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "google-vertex",
+        "apiKeySupported": true,
+        "quickApiKeySetup": false
+      },
+      {
+        "provider": "huggingface",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "litellm",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "lmstudio",
+        "apiKeySupported": false,
+        "quickApiKeySetup": false
+      },
+      {
+        "provider": "microsoft-foundry",
+        "apiKeySupported": true,
+        "quickApiKeySetup": false
+      },
+      {
+        "provider": "minimax",
+        "apiKeySupported": false,
+        "quickApiKeySetup": false
+      },
+      {
+        "provider": "minimax-portal",
+        "apiKeySupported": false,
+        "quickApiKeySetup": false,
+        "loginOptions": [
+          {
+            "id": "minimax/minimax-cn-oauth",
+            "brandId": "minimax-portal",
+            "label": "MiniMax OAuth (CN)",
+            "hint": "CN endpoint - api.minimaxi.com",
+            "groupLabel": "MiniMax",
+            "kind": "device-code",
+            "featured": false
+          },
+          {
+            "id": "minimax/minimax-global-oauth",
+            "brandId": "minimax-portal",
+            "label": "MiniMax OAuth (Global)",
+            "hint": "Global endpoint - api.minimax.io",
+            "groupLabel": "MiniMax",
+            "kind": "device-code",
+            "featured": false
+          }
+        ]
+      },
+      {
+        "provider": "nvidia",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "ollama",
+        "apiKeySupported": false,
+        "quickApiKeySetup": false
+      },
+      {
+        "provider": "ollama-cloud",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "openai",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true,
+        "loginOptions": [
+          {
+            "id": "openai/openai-device-code",
+            "brandId": "openai",
+            "label": "ChatGPT Device Pairing",
+            "hint": "Pair your ChatGPT account in browser with a device code",
+            "groupLabel": "OpenAI",
+            "kind": "device-code",
+            "featured": true
+          },
+          {
+            "id": "openai/openai",
+            "brandId": "openai",
+            "label": "ChatGPT Login",
+            "hint": "Sign in with your ChatGPT or Codex subscription",
+            "groupLabel": "OpenAI",
+            "kind": "oauth",
+            "featured": false
+          }
+        ]
+      },
+      {
+        "provider": "opencode-go",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "openrouter",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true,
+        "loginOptions": [
+          {
+            "id": "openrouter/openrouter-oauth",
+            "brandId": "openrouter",
+            "label": "OpenRouter OAuth",
+            "hint": "Browser sign-in",
+            "groupLabel": "OpenRouter",
+            "kind": "oauth",
+            "featured": true
+          }
+        ]
+      },
+      {
+        "provider": "qwen",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "qwen-token-plan",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "sglang",
+        "apiKeySupported": false,
+        "quickApiKeySetup": false
+      },
+      {
+        "provider": "together",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      },
+      {
+        "provider": "vllm",
+        "apiKeySupported": false,
+        "quickApiKeySetup": false
+      },
+      {
+        "provider": "xai",
+        "apiKeySupported": true,
+        "quickApiKeySetup": true
+      }
+    ]
+  }
+}

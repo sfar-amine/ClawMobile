@@ -1,0 +1,34 @@
+{
+  "_capture": {
+    "method": "sessions.files.get",
+    "params": {
+      "sessionKey": "agent:engineering-lite:engineering-899830de8aa9ea1d34e24577",
+      "path": "IDENTITY.md"
+    },
+    "latencyMs": 2438,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true,
+    "note": "file.content replaced by placeholder; size/hash/mime fields kept (hash zeroed)"
+  },
+  "response": {
+    "sessionKey": "agent:engineering-lite:engineering-899830de8aa9ea1d34e24577",
+    "root": "/data/data/com.termux/files/home/.openclaw/workspaces/autonomous-engineering",
+    "file": {
+      "path": "IDENTITY.md",
+      "name": "IDENTITY.md",
+      "kind": "read",
+      "workspacePath": "IDENTITY.md",
+      "missing": false,
+      "size": 71,
+      "updatedAtMs": 1790462324999,
+      "mimeType": "text/plain",
+      "contentEncoding": "utf8",
+      "previewKind": "text",
+      "content": "<texte 71 car.>",
+      "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  }
+}
