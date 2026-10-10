@@ -77,3 +77,5 @@ jobs:
           node scripts/test-conversation-pages.cjs
           node scripts/test-submit-reconciliation.cjs
           node scripts/test-payment-core.cjs
+      - name: Run read-only notification source contract
+        run: node scripts/test-notification-sources.cjs
