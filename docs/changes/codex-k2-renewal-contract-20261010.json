@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "id": "codex-k2-renewal-contract-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applicable",
+  "summary": "Proposition documentaire K2 de rappel et renouvellement biométrique R17",
+  "reason": "Le fichier 36 demande un contrat à soumettre à Amine avant tout code ; le propriétaire de livraison et sa déduplication restent à confirmer.",
+  "files": [
+    "docs/work/samantha-runtime/contracts/k2.md",
+    "docs/changes/codex-k2-renewal-contract-20261010.md",
+    "docs/changes/codex-k2-renewal-contract-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "validation documentaire existante",
+      "status": "passed",
+      "evidence": "tools/validate_docs.py des playbooks, validate(Path(core)) : aucune erreur documentaire ; aucun nouveau test ni modification CI pour ce lot documentaire."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/k2.md",
+    "docs/changes/codex-k2-renewal-contract-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Contrat seulement : aucun nouveau parcours exécutable ni route ou capability ; prolongation proposée par R17 existant."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Aucune implémentation : propriétaires existants seulement proposés, aucun nouveau store, scheduler ou daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Proposition documentaire sans changement d'outil ou d'effet MCP."
+  },
+  "rollback": "Retirer les trois fichiers documentaires de la proposition K2 ; aucun état S24 ni configuration à restaurer.",
+  "limitations": [
+    "Décision Amine en attente, notamment rappel immédiat pour un accès de 1 jour.",
+    "Propriétaire de notification, canal, reçu de livraison et déduplication durable non prouvés pour ce rappel.",
+    "Aucun code, activation, envoi, prolongation ni recette S24 ; aucune couverture des fichiers non lus au-delà de la borne R17."
+  ]
+}
