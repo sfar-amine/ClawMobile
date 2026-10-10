@@ -5,3 +5,5 @@ Confirmation inconnue refusée en403 avec code propre, statut local vérifié av
 Base0bf30ab. Suites existantes enrichies et inscrites dans ci.yml, toutes étapes de base conservées. Build et CI locale entière réussis, revue indépendante sans blocage. Contrat : docs/work/samantha-runtime/contracts/review26-followups.md. POST /attachments sans owner ajouté à companion-acceptance.py.
 
 Aucun effet S24, déploiement ou paiement. Les tests sont locaux, les voix restent non qualifiées par le fournisseur. Claude relit le delta et fait sa recette après fusion/déploiement.
+
+Dernière revue #49 : budgets G2 dérivés par lecture AST de READS (aucun appel ni effet), suffixes de clés token sauf compteurs maxTokens/totalTokens, descriptions françaises spécifiques à chaque voix. Union de toutes les étapes CI et protections de recette de la base 6b7c68f.

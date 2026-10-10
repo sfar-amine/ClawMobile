@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only contract census. An incomplete census never qualifies a release."""
 import argparse
+import ast
 import hashlib
 import json
 import re
@@ -17,7 +18,7 @@ REASONS = {'binary_upload_requires_fixture_file_and_owner_recipe', 'binary_magic
 KINDS = {'object', 'array', 'string', 'number', 'boolean', 'null'}
 CASE_KEYS = {'id', 'template', 'method', 'phase', 'source', 'types', 'reason', 'test', 'fixtureOwner'}
 BLOCKED = re.compile(r'/(?:payments|confirmations|token|socket|setup|terminal)(?:/|$)')
-PRIVATE_KEY = re.compile(r'^(?:token|(?:access|refresh|id|auth)[_-]?token|password|secret|client[_-]?secret|authorization|private[_-]?key|cookie|api[_-]?key|credentials)$', re.I)
+PRIVATE_KEY = re.compile(r'^(?:(?!maxTokens$|totalTokens$|max_tokens$|total_tokens$).*token|password|secret|client[_-]?secret|authorization|private[_-]?key|cookie|api[_-]?key|credentials)$', re.I)
 PRIVATE_VALUE = re.compile(r'Bearer\s+\S+|-----BEGIN .*PRIVATE KEY-----|\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,})', re.I)
 
 class ContractError(ValueError):
@@ -137,7 +138,20 @@ def fetch_json(opener, url, timeout):
     except (OSError, urllib.error.URLError, TimeoutError):
         return None, None, 'transport_error_no_retry', time.monotonic() - started
 
-READ_BUDGET_SECONDS = {"/v1/agent/config": 9, "/v1/notifications/sources": 6}
+ACCEPTANCE = Path(__file__).resolve().parents[2] / "installer/termux-lite/companion-acceptance.py"
+
+def read_budgets(source=ACCEPTANCE):
+    """Read the literal recipe table without executing the acceptance program."""
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    reads = next(ast.literal_eval(node.value) for node in tree.body
+                 if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "READS" for target in node.targets))
+    budgets = {}
+    for path, seconds in reads:
+        route = "/v1" + path.split("?")[0]
+        budgets[route] = max(budgets.get(route, 0), seconds)
+    return budgets
+
+READ_BUDGET_SECONDS = read_budgets()
 
 def request_timeout(path, override):
     return override if override is not None else READ_BUDGET_SECONDS.get(path.split("?")[0], 1) + 2

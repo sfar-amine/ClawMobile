@@ -24,10 +24,16 @@ const LIVE_VOICES:ReadonlyArray<{id:string;validated:boolean}> = Object.freeze([
 ]);
 
 /** Provider candidates; qualification is a reviewed catalogue change, never a settings store. */
+const VOICE_DESCRIPTIONS: Record<string, string> = {
+  Puck: "Voix enjouée.", Charon: "Voix informative.", Kore: "Voix ferme.",
+  Fenrir: "Voix enthousiaste.", Aoede: "Voix légère.", Leda: "Voix jeune.",
+  Orus: "Voix ferme et assurée.", Zephyr: "Voix lumineuse.",
+};
+
 export function clawLiveVoices() {
   return {success:true,state:"ok",receipt:null,schemaVersion:1, model:CLAW_LIVE_MODEL, appliesTo:"next_session", items:[
     {id:null, label:"Par défaut", description:"Choix du fournisseur déjà utilisé.", current:null, validated:true, validation:"existing_default"},
-    ...LIVE_VOICES.map(({id,validated})=>({id,label:"Voix "+id,description:validated?"Voix qualifiée pour une nouvelle session.":"Voix candidate, qualification à confirmer.",current:null,validated,reason:validated?"provider_setup_qualified":"provider_setup_not_qualified"})),
+    ...LIVE_VOICES.map(({id,validated})=>({id,label:"Voix "+id,description:VOICE_DESCRIPTIONS[id],current:null,validated,reason:validated?"provider_setup_qualified":"provider_setup_not_qualified"})),
   ]};
 }
 

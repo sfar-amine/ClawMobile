@@ -1,0 +1,65 @@
+{
+ "schema_version": "clawmobile.skill_candidate.v1",
+ "source_trace_id": "mock_text_input_trace",
+ "task_summary": "Send a message in the example app.",
+ "app": {
+  "package": "com.example",
+  "activity": "com.example.MainActivity"
+ },
+ "intent": {
+  "name": "send_example_message",
+  "description": "Send a parameterized message in the current example app screen.",
+  "parameters": {
+   "message": {
+    "type": "string",
+    "required": true
+   }
+  }
+ },
+ "preconditions": [
+  "The example app is open."
+ ],
+ "anchors": {
+  "send_button": {
+   "type": "coordinate_anchor",
+   "source_anchor_id": "step_5_tap",
+   "x_norm": 0.93342,
+   "y_norm": 0.558439,
+   "evidence": [
+    "step_5_tap",
+    "screens/keyboard-hi.png"
+   ],
+   "confidence": 0.8,
+   "x": 1008,
+   "y": 1354,
+   "source_step_id": "",
+   "role": "possible_send_or_confirm",
+   "replay_allowed": true,
+   "derived_cluster_id": "text_input_cluster_1",
+   "suggested_replay_action": "tap_anchor_after_type_parameter"
+  }
+ },
+ "steps": [
+  {
+   "action": "type_parameter",
+   "parameter": "message"
+  },
+  {
+   "action": "tap_anchor",
+   "target": "send_button"
+  }
+ ],
+ "verification": [
+  "Confirm the app remains visible."
+ ],
+ "fallback": [
+  "Ask for a clearer demonstration if the anchor is missing."
+ ],
+ "warnings": [],
+ "validation": {
+  "grounded_anchor_count": 1,
+  "rejected_anchor_count": 0,
+  "rejected_anchors": {},
+  "warnings": []
+ }
+}

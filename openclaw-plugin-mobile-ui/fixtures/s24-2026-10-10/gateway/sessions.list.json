@@ -1,0 +1,729 @@
+{
+  "_capture": {
+    "method": "sessions.list",
+    "params": {
+      "limit": 5
+    },
+    "latencyMs": 2376,
+    "exit": "rc=0",
+    "capturedAt": "2026-10-10",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true,
+    "note": "limit 5 of totalCount; text/labels -> placeholders, ids hashed (format preserved)"
+  },
+  "response": {
+    "ts": 1791649186340,
+    "path": "(multiple)",
+    "count": 5,
+    "totalCount": 933,
+    "limitApplied": 5,
+    "nextOffset": 5,
+    "hasMore": true,
+    "owners": [
+      {
+        "type": "human",
+        "id": "gateway-owner",
+        "identity": {
+          "type": "profile",
+          "id": "gateway-owner"
+        }
+      }
+    ],
+    "defaults": {
+      "modelProvider": "openai",
+      "model": "gpt-5.6-sol",
+      "contextTokens": 272000,
+      "agentRuntime": {
+        "id": "codex",
+        "cloudPlacementSupported": false,
+        "devicePlacementSupported": false,
+        "source": "implicit"
+      },
+      "thinkingLevels": [
+        {
+          "id": "off",
+          "label": "off"
+        },
+        {
+          "id": "minimal",
+          "label": "minimal"
+        },
+        {
+          "id": "low",
+          "label": "low"
+        },
+        {
+          "id": "medium",
+          "label": "medium"
+        },
+        {
+          "id": "high",
+          "label": "high"
+        },
+        {
+          "id": "xhigh",
+          "label": "xhigh"
+        },
+        {
+          "id": "max",
+          "label": "max"
+        },
+        {
+          "id": "ultra",
+          "label": "ultra"
+        }
+      ],
+      "thinkingOptions": [
+        "off",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra"
+      ],
+      "thinkingDefault": "low",
+      "modelSelectionTarget": "session"
+    },
+    "sessions": [
+      {
+        "key": "agent:main:companion-chat-decision-v2-live-5a66bfd3a1",
+        "visibility": "shared",
+        "permissionModePending": false,
+        "createdVia": "run",
+        "participants": [
+          {
+            "identity": {
+              "type": "observation",
+              "pluginId": null,
+              "accountId": null,
+              "senderKind": "unknown",
+              "id": "cli"
+            }
+          }
+        ],
+        "expandedParticipants": [
+          {
+            "identity": {
+              "type": "observation",
+              "pluginId": null,
+              "accountId": null,
+              "senderKind": "unknown",
+              "id": "cli"
+            }
+          }
+        ],
+        "participantCount": 1,
+        "createdAt": 1791498324447,
+        "kind": "direct",
+        "label": "<texte 20 car.>",
+        "classification": "custom",
+        "agentId": "main",
+        "isMain": false,
+        "isBackground": false,
+        "displayName": "<name>",
+        "updatedAt": 1791648947221,
+        "archived": false,
+        "pinned": false,
+        "unread": true,
+        "lastReadAt": 1791498502257,
+        "lastInteractionAt": 1791648947189,
+        "lastActivityAt": 1791648947189,
+        "sessionId": "f24473b3-1d81-edff-e96f-68951e4e3003",
+        "abortedLastRun": false,
+        "thinkingLevels": [
+          {
+            "id": "off",
+            "label": "off"
+          },
+          {
+            "id": "minimal",
+            "label": "minimal"
+          },
+          {
+            "id": "low",
+            "label": "low"
+          },
+          {
+            "id": "medium",
+            "label": "medium"
+          },
+          {
+            "id": "high",
+            "label": "high"
+          },
+          {
+            "id": "xhigh",
+            "label": "xhigh"
+          },
+          {
+            "id": "max",
+            "label": "max"
+          },
+          {
+            "id": "ultra",
+            "label": "ultra"
+          }
+        ],
+        "thinkingOptions": [
+          "off",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "ultra"
+        ],
+        "thinkingDefault": "low",
+        "effectiveFastMode": true,
+        "effectiveFastModeSource": "agent",
+        "fastAutoOnSeconds": 60,
+        "inputTokens": 24537,
+        "outputTokens": 347,
+        "totalTokens": 22448,
+        "totalTokensFresh": true,
+        "estimatedCostUsd": 0.0368078,
+        "status": "done",
+        "startedAt": 1791648888544,
+        "endedAt": 1791648947210,
+        "runtimeMs": 58666,
+        "lastRunId": "run_1791648877631_9bc4ab68",
+        "effectiveResponseUsage": "off",
+        "effectiveQueueMode": "steer",
+        "modelProvider": "openai",
+        "model": "gpt-5.6-sol",
+        "modelOverrideSource": null,
+        "runtimeSelectionLocked": false,
+        "agentRuntime": {
+          "id": "codex",
+          "cloudPlacementSupported": false,
+          "devicePlacementSupported": false,
+          "source": "implicit"
+        },
+        "contextTokens": 272000,
+        "snapshotAt": 1791649186340,
+        "placement": {
+          "state": "local",
+          "generation": 0,
+          "createdAtMs": 1791498329718,
+          "updatedAtMs": 1791648947160,
+          "stateChangedAtMs": 1791498329718
+        },
+        "hasActiveRun": false,
+        "activeRunIds": [],
+        "sharingRole": "owner"
+      },
+      {
+        "key": "agent:engineering-lite:engineering-899830de8aa9ea1d34e24577",
+        "visibility": "shared",
+        "permissionModePending": false,
+        "createdVia": "run",
+        "participants": [
+          {
+            "identity": {
+              "type": "observation",
+              "pluginId": null,
+              "accountId": null,
+              "senderKind": "unknown",
+              "id": "gateway-client"
+            }
+          }
+        ],
+        "expandedParticipants": [
+          {
+            "identity": {
+              "type": "observation",
+              "pluginId": null,
+              "accountId": null,
+              "senderKind": "unknown",
+              "id": "gateway-client"
+            }
+          }
+        ],
+        "participantCount": 1,
+        "createdAt": 1791644439196,
+        "kind": "direct",
+        "classification": "custom",
+        "agentId": "engineering-lite",
+        "isMain": false,
+        "isBackground": false,
+        "displayName": "<name>",
+        "updatedAt": 1791644447255,
+        "archived": false,
+        "pinned": false,
+        "unread": false,
+        "lastInteractionAt": 1791644439192,
+        "sessionId": "bade929f-3a9e-24bc-53f7-8c50584dffc0",
+        "abortedLastRun": false,
+        "thinkingLevels": [
+          {
+            "id": "off",
+            "label": "off"
+          },
+          {
+            "id": "minimal",
+            "label": "minimal"
+          },
+          {
+            "id": "low",
+            "label": "low"
+          },
+          {
+            "id": "medium",
+            "label": "medium"
+          },
+          {
+            "id": "high",
+            "label": "high"
+          },
+          {
+            "id": "xhigh",
+            "label": "xhigh"
+          },
+          {
+            "id": "max",
+            "label": "max"
+          },
+          {
+            "id": "ultra",
+            "label": "ultra"
+          }
+        ],
+        "thinkingOptions": [
+          "off",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "ultra"
+        ],
+        "thinkingDefault": "low",
+        "effectiveFastMode": true,
+        "effectiveFastModeSource": "agent",
+        "fastAutoOnSeconds": 60,
+        "totalTokensFresh": false,
+        "status": "failed",
+        "startedAt": 1791644442014,
+        "endedAt": 1791644447245,
+        "runtimeMs": 5231,
+        "lastRunError": "⚠️ The configured model is unavailable from the pro ... nt. This needs a config update (agents.defaults.model); retrying or starting a new session won't fix it.",
+        "lastRunId": "bd6a0dbe-b999-ff79-deff-dcf23e951924",
+        "effectiveResponseUsage": "off",
+        "effectiveQueueMode": "steer",
+        "modelProvider": "openai",
+        "model": "gpt-5.6-sol",
+        "modelOverrideSource": null,
+        "runtimeSelectionLocked": false,
+        "agentRuntime": {
+          "id": "openclaw",
+          "cloudPlacementSupported": true,
+          "cloudPlacementExecutionMode": "worker-turn",
+          "devicePlacement": {
+            "requiredNodeCommands": [],
+            "consumesWorkerSlot": true
+          },
+          "devicePlacementSupported": true,
+          "source": "model"
+        },
+        "contextTokens": 272000,
+        "snapshotAt": 1791649186340,
+        "placement": {
+          "state": "local",
+          "generation": 0,
+          "createdAtMs": 1791644442040,
+          "updatedAtMs": 1791644447171,
+          "stateChangedAtMs": 1791644442040
+        },
+        "hasActiveRun": false,
+        "activeRunIds": [],
+        "sharingRole": "owner"
+      },
+      {
+        "key": "agent:engineering-lite:engineering-70651c9192d4c6f0ec367a1c",
+        "visibility": "shared",
+        "permissionModePending": false,
+        "createdVia": "run",
+        "participants": [
+          {
+            "identity": {
+              "type": "observation",
+              "pluginId": null,
+              "accountId": null,
+              "senderKind": "unknown",
+              "id": "gateway-client"
+            }
+          }
+        ],
+        "expandedParticipants": [
+          {
+            "identity": {
+              "type": "observation",
+              "pluginId": null,
+              "accountId": null,
+              "senderKind": "unknown",
+              "id": "gateway-client"
+            }
+          }
+        ],
+        "participantCount": 1,
+        "createdAt": 1791643822328,
+        "kind": "direct",
+        "classification": "custom",
+        "agentId": "engineering-lite",
+        "isMain": false,
+        "isBackground": false,
+        "displayName": "<name>",
+        "updatedAt": 1791643831234,
+        "archived": false,
+        "pinned": false,
+        "unread": false,
+        "lastInteractionAt": 1791643822316,
+        "sessionId": "dd1ae4bb-5424-68d6-b382-2edfa2a1f0b3",
+        "abortedLastRun": false,
+        "thinkingLevels": [
+          {
+            "id": "off",
+            "label": "off"
+          },
+          {
+            "id": "minimal",
+            "label": "minimal"
+          },
+          {
+            "id": "low",
+            "label": "low"
+          },
+          {
+            "id": "medium",
+            "label": "medium"
+          },
+          {
+            "id": "high",
+            "label": "high"
+          },
+          {
+            "id": "xhigh",
+            "label": "xhigh"
+          },
+          {
+            "id": "max",
+            "label": "max"
+          },
+          {
+            "id": "ultra",
+            "label": "ultra"
+          }
+        ],
+        "thinkingOptions": [
+          "off",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "ultra"
+        ],
+        "thinkingDefault": "low",
+        "effectiveFastMode": true,
+        "effectiveFastModeSource": "agent",
+        "fastAutoOnSeconds": 60,
+        "totalTokensFresh": false,
+        "status": "failed",
+        "startedAt": 1791643826369,
+        "endedAt": 1791643831217,
+        "runtimeMs": 4848,
+        "lastRunError": "⚠️ The configured model is unavailable from the pro ... nt. This needs a config update (agents.defaults.model); retrying or starting a new session won't fix it.",
+        "lastRunId": "a70db832-640c-7e19-732d-e2eb5755ec67",
+        "effectiveResponseUsage": "off",
+        "effectiveQueueMode": "steer",
+        "modelProvider": "openai",
+        "model": "gpt-5.6-sol",
+        "modelOverrideSource": null,
+        "runtimeSelectionLocked": false,
+        "agentRuntime": {
+          "id": "openclaw",
+          "cloudPlacementSupported": true,
+          "cloudPlacementExecutionMode": "worker-turn",
+          "devicePlacement": {
+            "requiredNodeCommands": [],
+            "consumesWorkerSlot": true
+          },
+          "devicePlacementSupported": true,
+          "source": "model"
+        },
+        "contextTokens": 272000,
+        "snapshotAt": 1791649186340,
+        "placement": {
+          "state": "local",
+          "generation": 0,
+          "createdAtMs": 1791643826412,
+          "updatedAtMs": 1791643831104,
+          "stateChangedAtMs": 1791643826412
+        },
+        "hasActiveRun": false,
+        "activeRunIds": [],
+        "sharingRole": "owner"
+      },
+      {
+        "key": "agent:engineering-lite:engineering-3ac97503fcac2970616b62e1",
+        "visibility": "shared",
+        "permissionModePending": false,
+        "createdVia": "run",
+        "participants": [
+          {
+            "identity": {
+              "type": "observation",
+              "pluginId": null,
+              "accountId": null,
+              "senderKind": "unknown",
+              "id": "gateway-client"
+            }
+          }
+        ],
+        "expandedParticipants": [
+          {
+            "identity": {
+              "type": "observation",
+              "pluginId": null,
+              "accountId": null,
+              "senderKind": "unknown",
+              "id": "gateway-client"
+            }
+          }
+        ],
+        "participantCount": 1,
+        "createdAt": 1791634509174,
+        "kind": "direct",
+        "classification": "custom",
+        "agentId": "engineering-lite",
+        "isMain": false,
+        "isBackground": false,
+        "displayName": "<name>",
+        "updatedAt": 1791634513606,
+        "archived": false,
+        "pinned": false,
+        "unread": false,
+        "lastInteractionAt": 1791634509171,
+        "sessionId": "c4895994-a922-517f-360c-2e111c372591",
+        "abortedLastRun": false,
+        "thinkingLevels": [
+          {
+            "id": "off",
+            "label": "off"
+          },
+          {
+            "id": "minimal",
+            "label": "minimal"
+          },
+          {
+            "id": "low",
+            "label": "low"
+          },
+          {
+            "id": "medium",
+            "label": "medium"
+          },
+          {
+            "id": "high",
+            "label": "high"
+          },
+          {
+            "id": "xhigh",
+            "label": "xhigh"
+          },
+          {
+            "id": "max",
+            "label": "max"
+          },
+          {
+            "id": "ultra",
+            "label": "ultra"
+          }
+        ],
+        "thinkingOptions": [
+          "off",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "ultra"
+        ],
+        "thinkingDefault": "low",
+        "effectiveFastMode": true,
+        "effectiveFastModeSource": "agent",
+        "fastAutoOnSeconds": 60,
+        "totalTokensFresh": false,
+        "status": "failed",
+        "startedAt": 1791634510913,
+        "endedAt": 1791634513603,
+        "runtimeMs": 2690,
+        "lastRunError": "⚠️ The configured model is unavailable from the pro ... nt. This needs a config update (agents.defaults.model); retrying or starting a new session won't fix it.",
+        "lastRunId": "ec432a1f-50c9-1356-3abe-393c87dfce20",
+        "effectiveResponseUsage": "off",
+        "effectiveQueueMode": "steer",
+        "modelProvider": "openai",
+        "model": "gpt-5.6-sol",
+        "modelOverrideSource": null,
+        "runtimeSelectionLocked": false,
+        "agentRuntime": {
+          "id": "openclaw",
+          "cloudPlacementSupported": true,
+          "cloudPlacementExecutionMode": "worker-turn",
+          "devicePlacement": {
+            "requiredNodeCommands": [],
+            "consumesWorkerSlot": true
+          },
+          "devicePlacementSupported": true,
+          "source": "model"
+        },
+        "contextTokens": 272000,
+        "snapshotAt": 1791649186340,
+        "placement": {
+          "state": "local",
+          "generation": 0,
+          "createdAtMs": 1791634510964,
+          "updatedAtMs": 1791634513574,
+          "stateChangedAtMs": 1791634510964
+        },
+        "hasActiveRun": false,
+        "activeRunIds": [],
+        "sharingRole": "owner"
+      },
+      {
+        "key": "agent:engineering-lite:engineering-c6fbae9ac304d3f9331d70fa",
+        "visibility": "shared",
+        "permissionModePending": false,
+        "createdVia": "run",
+        "participants": [
+          {
+            "identity": {
+              "type": "observation",
+              "pluginId": null,
+              "accountId": null,
+              "senderKind": "unknown",
+              "id": "gateway-client"
+            }
+          }
+        ],
+        "expandedParticipants": [
+          {
+            "identity": {
+              "type": "observation",
+              "pluginId": null,
+              "accountId": null,
+              "senderKind": "unknown",
+              "id": "gateway-client"
+            }
+          }
+        ],
+        "participantCount": 1,
+        "createdAt": 1791633916873,
+        "kind": "direct",
+        "classification": "custom",
+        "agentId": "engineering-lite",
+        "isMain": false,
+        "isBackground": false,
+        "displayName": "<name>",
+        "updatedAt": 1791633920589,
+        "archived": false,
+        "pinned": false,
+        "unread": false,
+        "lastInteractionAt": 1791633916869,
+        "sessionId": "f266d857-875b-ed26-a50a-03dd91a822bc",
+        "abortedLastRun": false,
+        "thinkingLevels": [
+          {
+            "id": "off",
+            "label": "off"
+          },
+          {
+            "id": "minimal",
+            "label": "minimal"
+          },
+          {
+            "id": "low",
+            "label": "low"
+          },
+          {
+            "id": "medium",
+            "label": "medium"
+          },
+          {
+            "id": "high",
+            "label": "high"
+          },
+          {
+            "id": "xhigh",
+            "label": "xhigh"
+          },
+          {
+            "id": "max",
+            "label": "max"
+          },
+          {
+            "id": "ultra",
+            "label": "ultra"
+          }
+        ],
+        "thinkingOptions": [
+          "off",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "ultra"
+        ],
+        "thinkingDefault": "low",
+        "effectiveFastMode": true,
+        "effectiveFastModeSource": "agent",
+        "fastAutoOnSeconds": 60,
+        "totalTokensFresh": false,
+        "status": "failed",
+        "startedAt": 1791633918561,
+        "endedAt": 1791633920579,
+        "runtimeMs": 2018,
+        "lastRunError": "⚠️ The configured model is unavailable from the pro ... nt. This needs a config update (agents.defaults.model); retrying or starting a new session won't fix it.",
+        "lastRunId": "d554c87a-a891-cbef-8834-97f61856f939",
+        "effectiveResponseUsage": "off",
+        "effectiveQueueMode": "steer",
+        "modelProvider": "openai",
+        "model": "gpt-5.6-sol",
+        "modelOverrideSource": null,
+        "runtimeSelectionLocked": false,
+        "agentRuntime": {
+          "id": "openclaw",
+          "cloudPlacementSupported": true,
+          "cloudPlacementExecutionMode": "worker-turn",
+          "devicePlacement": {
+            "requiredNodeCommands": [],
+            "consumesWorkerSlot": true
+          },
+          "devicePlacementSupported": true,
+          "source": "model"
+        },
+        "contextTokens": 272000,
+        "snapshotAt": 1791649186340,
+        "placement": {
+          "state": "local",
+          "generation": 0,
+          "createdAtMs": 1791633918579,
+          "updatedAtMs": 1791633920494,
+          "stateChangedAtMs": 1791633918579
+        },
+        "hasActiveRun": false,
+        "activeRunIds": [],
+        "sharingRole": "owner"
+      }
+    ]
+  }
+}

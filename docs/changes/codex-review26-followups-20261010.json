@@ -32,7 +32,7 @@
     {
       "name": "review26-full-ci",
       "status": "passed",
-      "evidence": "All existing CI run steps and added R16/V5/G2 suites executed, CI_LOCAL_OK; independent targeted review; 13 G2 tests and HTTP attachment regression cases."
+      "evidence": "Union de toutes les étapes CI sur base 6b7c68f : CI_LOCAL_OK ; 13 tests G2 dont budgets READS et sessionToken/bearerToken ; suite V5 relancée avec descriptions françaises spécifiques."
     }
   ],
   "documentation": [
