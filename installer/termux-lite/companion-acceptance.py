@@ -30,6 +30,7 @@ OWNER_GUARDS = [
     ("POST", "/automations/acceptance-probe/run"),
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
+    ("POST", "/conversations/x/metadata"),
     ("POST", "/control/memory/import/preview"),
     ("POST", "/control/memory/import"),
     ("POST", "/control/memory/" + "a" * 64 + "/forget"),
@@ -110,7 +111,8 @@ def main():
     results.append({"route": "/conversations/{sessionId}/metadata", "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "status": status})
     for method, path in OWNER_GUARDS:
         code, _, took = call(method, path, 10)
-        status = "skipped" if code == 404 else ("ok" if code in (400, 403, 405) else "fail")
+        # The metadata guard runs before any lookup: a present route must answer 403, an absent one (404) is skipped.
+        status = "skipped" if code == 404 else (("ok" if code == 403 else "fail") if path == "/conversations/x/metadata" else ("ok" if code in (400, 403, 405) else "fail"))
         failed |= status == "fail"
         results.append({"route": method + " " + path + " (no owner header)", "code": code, "seconds": round(took, 2), "status": status})
     print(json.dumps({"accepted": not failed, "checks": results}, ensure_ascii=False))

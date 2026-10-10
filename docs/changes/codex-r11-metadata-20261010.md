@@ -10,4 +10,4 @@ Lecteur modèles partagé avec R6 : single-flight, cache sélectionné sans secr
 
 Intégration finale : runtime71af984 fusionné, union CI/serveur/acceptance conservée et CI complète rejouée verte. Échec connu de config/auth : cache immédiatement stale tout en conservant les données antérieures.
 
-Revue fichier32 : base runtime6b7c68f et fixtures48 intégrées ; 5 tests acceptance couvrent absence de fil, 404, vrais échecs et budgets. LEAK de la base (secrets seulement) conservé.
+Revue fichier32 : base runtime6b7c68f et fixtures48 intégrées ; 9 tests acceptance couvrent absence de fil, liste 404, détail 404, vrais échecs, budgets et la garde POST sans en-tête propriétaire (403 exigé, 404 skipped). LEAK de la base (secrets seulement) conservé.
