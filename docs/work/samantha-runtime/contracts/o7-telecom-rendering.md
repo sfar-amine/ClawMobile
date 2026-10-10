@@ -14,11 +14,19 @@ imprimé. Les autres objets/listes ont un repli générique lisible ; une chaîn
 qui commence par `{` ou `[` n'est pas affichée comme réponse. Les lectures
 composées sont bornées à 32 lignes, quatre niveaux, 128 nœuds et 8 000 caractères. Aucun compte, adresse,
 URL, contexte de connexion ni JSON brut n'est repris à partir de ces objets.
+Le texte libre réutilise le filtre `SENSITIVE` du propriétaire canonique
+`context_import.py` (JWT, OTP, tokens…), avant troncature ; les montants
+structurés des cartes ne passent pas dans son heuristique de chiffres.
 Les contrôles ne sont pas des captures S24 et ne prétendent pas l'être.
 
 ## Provenance
 
 Le reçu canonique porte uniquement `{capability, route, network_path?}`.
+La route vient en priorité de `execution.actual_route` (A8), et non de la
+route planifiée. Si ce champ est absent dans un ancien reçu, le seul repli est
+`selected.route` ; c’est alors une provenance planifiée, pas une preuve de
+route réellement suivie. Un `actual_route` présent mais invalide ne retombe
+pas sur le plan et ne produit aucune provenance.
 Les deux identifiants sont ASCII, au plus 160 caractères chacun, sans URL ou
 adresse. `network_path` vaut exclusivement `wifi_off` ou
 `cellular_bind_wifi_on`, lorsqu'il est fourni par l'exécution ou le payload

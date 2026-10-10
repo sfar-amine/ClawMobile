@@ -41,6 +41,18 @@ class DisplayTests(unittest.TestCase):
   x={'ok':True,'text':'x'*4000}
   for _ in range(10):x={'ok':True,'strategy':'composed_read','results':[{'state':'completed','result':x}]*32}
   self.assertLessEqual(len(fast._display_text(x)),8000)
+ def test_actual_a8_route_wins_over_planned_route(self):
+  selected={'capability':'orange.summary','route':'orange.summary.planned'}
+  result=fast._execution_provenance(selected,{'actual_route':'orange.usage.actual','network_path':'wifi_off'})
+  self.assertEqual(result['route'],'orange.usage.actual')
+  self.assertEqual(fast._execution_provenance(selected,{})['route'],'orange.summary.planned')
+  for actual in ['x'*161,'https://private.example','',None]:
+   self.assertIsNone(fast._execution_provenance(selected,{'actual_route':actual}))
+ def test_canonical_free_text_privacy_without_filtering_card_amounts(self):
+  for text in ['eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.signatureTest','mon code est 482913','token: private-value','otp 123456','secret field private-value','eyJ'+('a'*10000)+'.'+('b'*10000)+'.signature']:
+   for key in ['text','message','summary','answer']:
+    with self.subTest(key=key,text=text):self.assertNotIn(text,fast._display_text({key:text}))
+  self.assertEqual(fast._display_text({'cards':[{'title':'Compte','value':'482913','unit':'TND'}]}),'Compte : 482913 TND')
  def test_provenance_ids_not_truncated_or_unbounded(self):
   for v in ['x'*161,'https://private.example','owner@example.invalid',None]:self.assertIsNone(fast._execution_provenance({'capability':'orange.balance','route':v},{}))
 if __name__=='__main__':unittest.main()

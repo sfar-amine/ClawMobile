@@ -27,7 +27,7 @@
     {
       "name": "telecom display and transport",
       "status": "passed",
-      "evidence": "test-telecom-display.py: 11 cases, published historical real receipt fallback, shape/negative card controls, numeric values unchanged, no JSON prefix, no unlisted fields, closed provenance, deep and wide composed payload bounds (128nodes/8000characters); live eight-card capture pending"
+      "evidence": "test-telecom-display.py: 13 cases, published historical real receipt fallback, shape/negative card controls, numeric values unchanged, no JSON prefix, no unlisted fields, closed provenance, deep and wide composed payload bounds (128nodes/8000characters); live eight-card capture pending; actual A8 route differs from selected planned route, invalid actual does not degrade to plan; canonical context_import free-text privacy JWT/OTP/token (before truncation), structured card amount retained"
     },
     {
       "name": "registry provenance and realistic retention",
@@ -56,6 +56,7 @@
   "rollback": "Revert O7 PR; additive provenance optional",
   "limitations": [
     "Draft: actual eight-card output from S24 2026-10-10 09:41 missing; historical receipt is not this capture. Claude capture and real qualification required.",
-    "No deployment, state reconciliation or deterministic payment change by Codex. Network path field uses O1 closed enum, not network settings or full guard."
+    "No deployment, state reconciliation or deterministic payment change by Codex. Network path field uses O1 closed enum, not network settings or full guard.",
+    "Legacy receipt without execution.actual_route falls back explicitly to selected.route (planned only); actual route is never inferred."
   ]
 }

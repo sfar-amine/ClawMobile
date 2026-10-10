@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -227,11 +228,22 @@ def capability_first_eligibility(value: dict[str, Any]) -> tuple[str, str]:
     return "eligible", "capability_first"
 
 
+# Reuse the canonical memory import privacy boundary for free text only.
+# Do not apply its number/OTP heuristic to structured telecom amounts.
+_display_privacy_spec = importlib.util.spec_from_file_location(
+    "_claw_display_context_import", Path(__file__).with_name("context_import.py"))
+_display_privacy_owner = importlib.util.module_from_spec(_display_privacy_spec)
+_display_privacy_spec.loader.exec_module(_display_privacy_owner)
+_DISPLAY_SENSITIVE = _display_privacy_owner.SENSITIVE
+
+
 def _plain_display(value: Any, maximum: int = 120) -> str:
     if not isinstance(value, str):
         return ""
+    if _DISPLAY_SENSITIVE.search(value):
+        return ""
     text = " ".join(value.split())[:maximum].strip()
-    if not text or text.startswith(("{", "[")) or "@" in text or re.search(r"https?://|\bBearer\b|\+\d{8,}|\b(?:ghp_|github_pat_|sk-|AKIA)[A-Za-z0-9_-]+", text, re.I):
+    if not text or text.startswith(("{", "[")) or re.search(r"https?://|\bBearer\b|\+\d{8,}|\b(?:ghp_|github_pat_|sk-|AKIA)[A-Za-z0-9_-]+", text, re.I):
         return ""
     return text
 
@@ -263,7 +275,7 @@ def _telecom_cards(value: dict[str, Any]) -> str:
 def _execution_provenance(selected: dict[str, Any], execution: dict[str, Any]) -> dict[str, str] | None:
     result = {}
     for key in ("capability", "route"):
-        value = selected.get(key)
+        value = execution.get("actual_route") if key == "route" and "actual_route" in execution else selected.get(key)
         if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{0,159}", value):
             return None
         result[key] = value
