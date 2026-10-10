@@ -28,7 +28,8 @@ export async function submitToOpenClawAgent(
     sessionKey,
     ...(agentId ? { agentId } : {}),
     label: "ClawMobile Companion",
-    message: text,
+    // The first line is transport metadata; later lookalike lines are user content.
+    message: `[companion-session:${normalizedSessionId}]\n${text}`,
     deliver: false,
     bootstrapContextMode: "lightweight",
     idempotencyKey: runId,
