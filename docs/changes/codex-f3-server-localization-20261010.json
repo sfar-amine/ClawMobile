@@ -15,13 +15,19 @@
     "openclaw-plugin-mobile-ui/scripts/test-server-localization.cjs",
     "docs/work/samantha-runtime/contracts/f3.md",
     "docs/changes/codex-f3-server-localization-20261010.md",
-    "docs/changes/codex-f3-server-localization-20261010.json"
+    "docs/changes/codex-f3-server-localization-20261010.json",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-detail.cjs"
   ],
   "tests": [
     {
       "name": "f3-localization",
       "status": "passed",
       "evidence": "Base runtime bfa210c intégrée par merge. npm run build ; test-server-localization.cjs ; test-control-health-components.cjs ; test-agent-config.cjs ; test-control-v2.cjs avec propriétaire playbooks local explicite. Fixtures santé/automatisations, vrais writers HTTP, textes utilisateurs et source partagée intacts, une lecture FR/EN par section ; pas de nouvelle latence owner native revendiquée."
+    },
+    {
+      "name": "full-current-ci",
+      "status": "passed",
+      "evidence": "Tous les 36 blocs run de ci.yml exécutés localement. Rejeu owner pur comparé à la projection FR attendue explicite, receipt deepEqual inchangé. Installation bloc MCP relancée avec cache /tmp après défaut permissions cache par défaut ; tests provenance et MCP passent. Aucun changement owner ou garde."
     }
   ],
   "documentation": [
