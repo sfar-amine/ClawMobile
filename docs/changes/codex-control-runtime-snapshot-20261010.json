@@ -17,9 +17,9 @@
   ],
   "tests": [
     {
-      "name": "Runtime snapshot selection and current-base CI",
+      "name": "review-17-runtime-root",
       "status": "passed",
-      "evidence": "Actual Python source reads prove pinned snapshot wins; explicit override and legacy fallback; CI_LOCAL_OK."
+      "evidence": "All current runtime CI commands passed, including CLAW_UI_PLAYBOOKS_ROOT selection, SAMANTHA_CONTROL_PLAYBOOKS precedence and markerless current fallback."
     }
   ],
   "documentation": [

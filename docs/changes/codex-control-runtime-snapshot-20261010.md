@@ -5,3 +5,5 @@ La page Contrôle préfère le snapshot runtime épinglé à la copie de travail
 Validation : test exécutant deux modules Python différents, override et repli legacy ; CI complète locale verte sur 066a340, toutes les étapes dont PR #12 conservées.
 
 Claude relit, fusionne, active et recette. Aucun changement S24 par Codex. Retour arrière : revert de cette PR.
+
+Relecture 17 corrigée ; tous les contrôles CI locaux passent. Aucun merge ni déploiement.
