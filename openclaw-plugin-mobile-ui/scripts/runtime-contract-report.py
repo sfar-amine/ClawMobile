@@ -17,8 +17,8 @@ REASONS = {'binary_upload_requires_fixture_file_and_owner_recipe', 'binary_magic
 KINDS = {'object', 'array', 'string', 'number', 'boolean', 'null'}
 CASE_KEYS = {'id', 'template', 'method', 'phase', 'source', 'types', 'reason', 'test', 'fixtureOwner'}
 BLOCKED = re.compile(r'/(?:payments|confirmations|token|socket|setup|terminal)(?:/|$)')
-PRIVATE_KEY = re.compile(r'(?:token|password|secret|authorization|private.?key|cookie)', re.I)
-PRIVATE_VALUE = re.compile(r'Bearer\s+\S+|-----BEGIN .*PRIVATE KEY-----|\b(?:sk|ghp|github_pat)-[A-Za-z0-9_]{12,}', re.I)
+PRIVATE_KEY = re.compile(r'^(?:token|(?:access|refresh|id|auth)[_-]?token|password|secret|client[_-]?secret|authorization|private[_-]?key|cookie|api[_-]?key|credentials)$', re.I)
+PRIVATE_VALUE = re.compile(r'Bearer\s+\S+|-----BEGIN .*PRIVATE KEY-----|\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,})', re.I)
 
 class ContractError(ValueError):
     pass
@@ -137,13 +137,18 @@ def fetch_json(opener, url, timeout):
     except (OSError, urllib.error.URLError, TimeoutError):
         return None, None, 'transport_error_no_retry', time.monotonic() - started
 
-def report(base, manifest, bindings=None, timeout=3, fixture=False):
+READ_BUDGET_SECONDS = {"/v1/agent/config": 9, "/v1/notifications/sources": 6}
+
+def request_timeout(path, override):
+    return override if override is not None else READ_BUDGET_SECONDS.get(path.split("?")[0], 1) + 2
+
+def report(base, manifest, bindings=None, timeout=None, fixture=False):
     base = base_url(base)
     validate_manifest(manifest)
     if not fixture and manifest != json.loads(CANONICAL.read_text()):
         raise ContractError('canonical_manifest_required')
     bindings = validate_bindings(bindings or {}, manifest)
-    if not isinstance(timeout, (float, int)) or not 0.01 <= timeout <= 30:
+    if timeout is not None and (not isinstance(timeout, (float, int)) or isinstance(timeout, bool) or not 0.01 <= timeout <= 30):
         raise ContractError('invalid_timeout')
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     rows = []
@@ -156,7 +161,7 @@ def report(base, manifest, bindings=None, timeout=3, fixture=False):
             if path is None:
                 row.update(verdict='unqualified', reason='fixture_binding_required')
             else:
-                data, status, error, elapsed = fetch_json(opener, base + path, timeout)
+                data, status, error, elapsed = fetch_json(opener, base + path, request_timeout(path, timeout))
                 row.update(attempts=1, httpStatus=status, elapsedMs=round(elapsed * 1000))
                 if error: row.update(verdict='failed', reason=error)
                 elif secret_present(data): row.update(verdict='failed', reason='secret_detected')
@@ -164,7 +169,7 @@ def report(base, manifest, bindings=None, timeout=3, fixture=False):
                 else: row.update(verdict='passed')
         rows.append(row)
     # Inventory is drift evidence only, never the completeness authority.
-    inventory, status, error, _ = fetch_json(opener, base + '/v1', timeout)
+    inventory, status, error, _ = fetch_json(opener, base + '/v1', request_timeout('/v1', timeout))
     advertised = inventory.get('endpoints') if isinstance(inventory, dict) else None
     templates = {c['template'].split('?')[0] for c in manifest['cases']}
     drift = isinstance(advertised, list) and any(not isinstance(p, str) or p not in templates for p in advertised)
@@ -181,7 +186,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base-url', default='http://127.0.0.1:8765')
     parser.add_argument('--bindings', type=Path)
-    parser.add_argument('--timeout', type=float, default=3)
+    parser.add_argument('--timeout', type=float, help='Explicit timeout override; default uses per-route measured read budgets plus 2 seconds')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     try:

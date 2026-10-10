@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "codex-review26-followups-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Fix reviewed approval, voice rewarm, attachment HTTP and contract-report regressions",
+  "reason": "Claude review26 reproduced defects on merged lots; corrections and CI coverage in one followup.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-review26-followups-20261010.json",
+    "docs/changes/codex-review26-followups-20261010.md",
+    "docs/work/samantha-runtime/contracts/g2.md",
+    "docs/work/samantha-runtime/contracts/r14.md",
+    "docs/work/samantha-runtime/contracts/r16.md",
+    "docs/work/samantha-runtime/contracts/review26-followups.md",
+    "docs/work/samantha-runtime/contracts/v5.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-report.py",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-approvals.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-attachment-http.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-runtime-contract-report.py",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-choices.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/agentApprovals.ts",
+    "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "review26-full-ci",
+      "status": "passed",
+      "evidence": "All existing CI run steps and added R16/V5/G2 suites executed, CI_LOCAL_OK; independent targeted review; 13 G2 tests and HTTP attachment regression cases."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/review26-followups.md",
+    "docs/changes/codex-review26-followups-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing native boundaries and projections only, no registry capability or MCP admission change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing confirmation, attachment and voice owners; no new persistent state, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Revert this followup PR; retain private state and existing deployment owner.",
+  "limitations": [
+    "Local tests only; no S24 qualification or deployment by Codex.",
+    "Voice catalogue candidates still await provider qualification."
+  ]
+}

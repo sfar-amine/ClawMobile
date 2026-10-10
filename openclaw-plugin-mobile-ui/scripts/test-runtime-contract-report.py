@@ -5,6 +5,7 @@ from pathlib import Path
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SPEC = importlib.util.spec_from_file_location('g2', Path(__file__).with_name('runtime-contract-report.py'))
@@ -92,6 +93,22 @@ class Tests(unittest.TestCase):
             c=case();c[key]=value
             with self.assertRaises(g2.ContractError):self.run_report([c])
         self.assertEqual(self.requests,[])
+    def test_token_limits_are_not_secrets_and_real_github_tokens_are(self):
+        type(self).payload={'maxTokens':8192,'max_tokens':4096,'usage':{'tokens':12}}
+        self.assertTrue(self.run_report()['fixtureReadChecksPassed'])
+        for value in ['ghp_'+'A'*36,'github_pat_'+'B'*40]:
+            type(self).payload={'text':value}
+            result=self.run_report();self.assertEqual(result['cases'][0]['reason'],'secret_detected');self.assertNotIn(value,json.dumps(result))
+        type(self).payload={'accessToken':'private-credential'}
+        self.assertEqual(self.run_report()['cases'][0]['reason'],'secret_detected')
+    def test_default_timeouts_use_route_budgets_with_margin(self):
+        calls=[]
+        def fetch(opener,url,timeout):
+            calls.append((url,timeout));return ({'endpoints':['/v1/agent/config','/v1/notifications/sources','/v1/read']} if url.endswith('/v1') else {},200,None,0)
+        with patch.object(g2,'fetch_json',side_effect=fetch):
+            result=g2.report(self.base,manifest([case('agent','/v1/agent/config'),case('notification','/v1/notifications/sources'),case()]),fixture=True)
+        self.assertEqual([timeout for _,timeout in calls],[11,8,3,3]);self.assertTrue(result['fixtureReadChecksPassed']);self.assertFalse(result['complete'])
+        self.assertEqual(g2.request_timeout('/v1/agent/config',.5),.5)
     def test_repository_manifest_closed(self):
         data=json.loads(Path(__file__).with_name('runtime-contract-cases.json').read_text());g2.validate_manifest(data)
         self.assertGreater(len(data['cases']),100)

@@ -98,3 +98,12 @@ jobs:
 
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
+
+      - name: Run reviewed approval confirmation contract
+        run: node scripts/test-agent-approvals.cjs
+
+      - name: Run reviewed voice choice and rewarm contract
+        run: node scripts/test-voice-choices.cjs
+
+      - name: Run reviewed runtime contract report
+        run: python3 scripts/test-runtime-contract-report.py

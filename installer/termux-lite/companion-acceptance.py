@@ -23,6 +23,7 @@ READS = [
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
+    ("POST", "/attachments"),
     ("POST", "/automations/acceptance-probe/run"),
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
