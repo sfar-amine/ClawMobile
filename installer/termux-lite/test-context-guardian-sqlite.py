@@ -68,15 +68,15 @@ class GuardianSqlite(unittest.TestCase):
     def test_real_s24_schema_and_closed_metadata_projection(self):
         self.captured_databases()
         rows = {r['key']:r for r in self.read()['sessions']}
-        self.assertEqual(len(rows),15)
-        for captured in CAPTURE['rows']:
+        self.assertEqual(len(rows),5)
+        for captured in (r for r in CAPTURE['rows'] if r['agentId']=='main'):
             entry = captured['entry_json_projection']; projected = rows[captured['session_key']]
             # Exactly the historical Guardian's arithmetic on recorded metadata.
             # This does not pretend that raw entries include CLI model/context/kind derivations.
-            total = entry.get('totalTokens') or 0; context = entry.get('contextTokens') or 0
+            total = entry.get('totalTokens') or 0; context = entry.get('contextTokens',guardian.DEFAULT_CONTEXT_TOKENS)
             expected = {'key':captured['session_key'],'sessionId':entry.get('sessionId'),
                         'updatedAt':entry.get('updatedAt'),'totalTokens':total,'contextTokens':context,
-                        'ratio':total/context if context else None,'kind':entry.get('kind'),'status':entry.get('status')}
+                        'ratio':total/context if context else None,'kind':'cron' if ':cron:' in captured['session_key'] else 'direct','status':entry.get('status')}
             self.assertEqual({k:projected[k] for k in expected},expected)
             self.assertEqual(projected['compactionCount'],entry.get('compactionCount'))
             self.assertNotIn('contextBudgetStatus',projected)
@@ -84,14 +84,15 @@ class GuardianSqlite(unittest.TestCase):
         self.assertEqual({r['compactionCount'] for r in rows.values()}, {None,0,6})
         self.assertTrue(any(r['ratio'] and r['ratio'] >= .6 for r in rows.values()))
 
-    def test_real_937_row_volume_expanded_from_captured_forms(self):
+    def test_real_main84_scope_ignores_853_other_agent_rows(self):
         # These replicas exercise real volume/schema, not a fictitious capture of 937 entries.
         self.assertEqual(sum(v['sessionNodes'] for v in CAPTURE['volume']),937)
         self.captured_databases(expand=True)
         started = time.monotonic(); rows = self.read()['sessions']
-        self.assertEqual(len(rows),937)
+        self.assertEqual(len(rows),84)
         self.assertLess(time.monotonic()-started,guardian.READ_SECONDS)
-        self.assertEqual(len({r['key'] for r in rows}),937)
+        self.assertEqual(len({r['key'] for r in rows}),84)
+        self.assertTrue(all(r['key'].startswith('agent:main:') for r in rows))
 
     def test_multiple_agents_metadata_pressure_and_no_source_writes(self):
         entry = {'sessionId':'uuid_with_underscore','updatedAt':456,'totalTokens':80,'contextTokens':100,
@@ -99,15 +100,32 @@ class GuardianSqlite(unittest.TestCase):
                  'access_token':'fixture-private-token','other':'fixture-private-context'}
         db = self.database(rows=[('agent:main:main',json.dumps(entry))])
         other = self.database('worker',[('agent:worker:main',json.dumps({'sessionId':'worker','updatedAt':10,'totalTokens':6}))])
-        before = {p.name:digest(p) for p in (db,other)}
+        before = {str(p):digest(p) for p in (db,other)}
         doc = self.read()
         self.assertEqual(doc['version'],1); self.assertEqual(doc['checkedAtMs'],123)
         self.assertEqual(doc['sessions'][0],{'key':'agent:main:main','sessionId':'uuid_with_underscore','updatedAt':456,
           'totalTokens':80,'contextTokens':100,'compactionCount':2,'ratio':.8,'kind':'direct','status':'running'})
-        self.assertEqual(doc['sessions'][1]['ratio'],None)
+        self.assertEqual(len(doc['sessions']),1)
         self.assertNotIn('fixture-private',json.dumps(doc))
-        self.assertEqual(before,{p.name:digest(p) for p in (db,other)})
+        self.assertEqual(before,{str(p):digest(p) for p in (db,other)})
         self.assertEqual(sorted(p.name for p in db.parent.iterdir()),['openclaw-agent.sqlite'])
+
+    def test_main_only_no_time_window_kind_and_absent_window_fallback(self):
+        self.database(rows=[
+          ('agent:main:cron:fixture',json.dumps({'sessionId':'cron','updatedAt':1,'totalTokens':160000,'kind':'wrong'})),
+          ('agent:main:job:fixture',json.dumps({'sessionId':'job','updatedAt':0,'totalTokens':5})),
+          ('agent:main:old',json.dumps({'sessionId':'old','updatedAt':1,'totalTokens':80,'contextTokens':100})),
+        ])
+        # Even corrupted irrelevant stores are outside the historical scope.
+        self.database('engineering-lite',rows=[('invalid-other','{')])
+        rows={r['key']:r for r in self.read()['sessions']}
+        self.assertEqual(len(rows),3)
+        self.assertEqual(rows['agent:main:cron:fixture']['kind'],'cron')
+        self.assertEqual(rows['agent:main:job:fixture']['kind'],'direct')
+        self.assertEqual(rows['agent:main:cron:fixture']['contextTokens'],200000)
+        self.assertEqual(rows['agent:main:cron:fixture']['ratio'],.8)
+        self.assertEqual(rows['agent:main:old']['contextTokens'],100)
+        self.assertEqual(rows['agent:main:old']['ratio'],.8)
 
     def test_read_only_wal_sees_committed_owner_update(self):
         db = self.database(rows=[('agent:main:main',json.dumps({'sessionId':'first','totalTokens':1}))])

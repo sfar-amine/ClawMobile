@@ -14,11 +14,11 @@ import sqlite3
 import sys
 import time
 
-MAX_AGENTS = 128
 MAX_ROWS = 10000
 MAX_ENTRY_BYTES = 65536
 MAX_OUTPUT_BYTES = 8 << 20
-READ_SECONDS = 8
+READ_SECONDS = 1
+DEFAULT_CONTEXT_TOKENS = 200000
 IDENTITY = re.compile(r"^[A-Za-z0-9:_+.@-]{1,200}$")
 AGENT = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 
@@ -39,14 +39,9 @@ def read_health(agents_root, *, now_ms=None):
     root = Path(agents_root)
     if any(part.is_symlink() for part in (root, *root.parents)) or not root.is_dir():
         raise Unavailable("session_source_unavailable")
-    roots = []
-    for entry in root.iterdir():
-        if time.monotonic() >= deadline:
-            raise Unavailable("session_read_budget")
-        if len(roots) >= MAX_AGENTS:
-            raise Unavailable("session_agent_limit")
-        roots.append(entry)
-    roots.sort(key=lambda p: p.name)
+    # Historical CLI without --all-agents selects main only. No directory
+    # enumeration and no implicit expansion to other configured agents.
+    roots = [root / "main"]
     rows, keys, databases = [], set(), 0
     for agent in roots:
         if time.monotonic() >= deadline:
@@ -86,13 +81,13 @@ def read_health(agents_root, *, now_ms=None):
                     sid = entry.get("sessionId")
                     if sid is not None and (not isinstance(sid, str) or not IDENTITY.fullmatch(sid)):
                         raise Unavailable("session_entry_invalid")
-                    total, context = numeric(entry.get("totalTokens")), numeric(entry.get("contextTokens"))
+                    total = numeric(entry.get("totalTokens"))
+                    context = numeric(entry.get("contextTokens"), DEFAULT_CONTEXT_TOKENS)
                     ratio = total / context if context else None
                     if ratio is not None and not math.isfinite(ratio):
                         ratio = None
-                    kind = entry.get("kind")
-                    if kind is not None and (not isinstance(kind, str) or not re.fullmatch(r"[A-Za-z_-]{1,40}", kind)):
-                        kind = None
+                    # CLI classifies cron keys; raw entries do not carry kind.
+                    kind = "cron" if ":cron:" in key else "direct"
                     status = entry.get("status")
                     if status not in ("running", "done", "failed", "killed", "timeout"):
                         status = None

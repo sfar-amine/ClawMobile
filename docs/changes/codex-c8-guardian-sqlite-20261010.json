@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Context Guardian observes the existing SQLite logical-session owner without Node CLI.",
-  "reason": "Real S24 schema/rows integrated from PR82; exact historical CLI projection remains unproved because CLI derives context window, kind and token totals.",
+  "reason": "Historic main-only scope, cron/direct kind and absent-window fallback corrected; present SQLite windows differ from the measured CLI projection, so exact parity remains blocked.",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/context-guardian.sh",
@@ -20,7 +20,7 @@
     {
       "name": "Context Guardian SQLite read-only owner contracts",
       "status": "passed",
-      "evidence": "Ten SQLite/shell tests pass. Real S24 STRICT 30-column schema and 15 metadata projections replayed; generated 937-row volume matches captured 692/161/84/0 counts; 200001-row defensive bound, WAL RO, atomic0600 and prior-snapshot preservation remain tested. Normal base merge9cdd84f with union of all CI steps."
+      "evidence": "Eleven SQLite/shell tests pass with real STRICT schema and five main metadata rows from PR82. Generated84 main out of937 total proves other agents are ignored; no time window; cron/direct classification; missing-window fallback200000 with present windows preserved; deadline1s; WAL RO,200001-row bound, atomic0600 and prior-health preservation. Normal base merge bfa210cd4361f2a3273ec76032ef6d23599015fd retains union CI."
     }
   ],
   "documentation": [
@@ -34,7 +34,7 @@
   },
   "architecture": {
     "changed": false,
-    "reason": "Existing confirmation and run receipt owners reused; no new store, scheduler, daemon or tool-policy owner."
+    "reason": "Existing Guardian lock, periodic cycle and private health snapshot reused; no new store, scheduler, daemon or projection configuration owner."
   },
   "mcp_owner_parity": {
     "tools": {
@@ -49,10 +49,10 @@
   },
   "rollback": "Revert the Guardian reader delta; no runtime deployment performed.",
   "limitations": [
-    "Actual old CLI output is not captured: kind, contextTokens model/config fallback and totalTokens derivations cannot be claimed equivalent to raw entry_json.",
-    "Legacy CLI store selection is configuration-derived; current reader enumerates all agent stores. Clarification requested from Claude before readiness.",
-    "Physical before p50=4965.5ms (40 runs); captured SQLite reads=128.2ms total, not an activated C8 after benchmark.",
-    "Bound10000 sessions refuses overflow, SQLite WAL SHM reader coordination may change; logical DB/WAL data unchanged.",
-    "Public OpenClaw2026.9.6 SDK exports do not expose the six CLI projection/store-selection helpers; no internal hashed import or parallel Python config projection introduced."
+    "Line-by-line historic CLI fixture is pending. SQLite main samples contain contextTokens272000/128000 while Claude measured CLI200000 on84/84 rows; effective installed window/token resolution remains unproved.",
+    "Scope is main only,84 sessions with no active window; other agent stores are deliberately ignored, matching the confirmed historical command.",
+    "CLI before9659ms measured by Claude; local eleven-test runtime below1s is not a physical Guardian after benchmark or proof of3 soft/3 hard parity.",
+    "Bound10000 sessions refuses overflow; SQLite WAL SHM reader coordination may change while logical DB/WAL data stays unchanged.",
+    "Public OpenClaw2026.9.6 SDK exposes no six CLI projection/store-selection helpers; no internal hashed import or parallel Python configuration truth introduced."
   ]
 }
