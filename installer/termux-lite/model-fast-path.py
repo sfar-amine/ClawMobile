@@ -45,6 +45,23 @@ def _python_env(ui_root: Path) -> dict[str, str]:
     return env
 
 
+# O6 (fichier 37, décision du 11/10/2026) : une consultation opérateur gardée tient en 60 s au total
+# (borne du garde réseau, CONSULTATION_TOTAL_S d'android-network-mutation-guard.py). Le fast path l'attend
+# avec marge et n'abandonne jamais pendant que le garde tient le Wi-Fi coupé.
+GUARDED_OPERATOR_ENTRYPOINTS = ("python -m telecom.maxit_guarded_service ",)
+GUARDED_ENTRY_TOTAL_S = 60
+GUARDED_ENTRY_WAIT_S = 70
+
+
+def guarded_execution_timeout(timeout: int, *selections: Any) -> int:
+    """Execution wait for the selected route: at least the guarded total plus margin for a guarded entry."""
+    for selected in selections:
+        entrypoint = str(selected.get("entrypoint") or "") if isinstance(selected, dict) else ""
+        if entrypoint.startswith(GUARDED_OPERATOR_ENTRYPOINTS):
+            return min(120, max(int(timeout), GUARDED_ENTRY_WAIT_S))
+    return timeout
+
+
 def _run_json(
     cmd: list[str],
     *,
@@ -708,16 +725,20 @@ def try_fast_path(
             ) | {"decision": decision or None}
 
         continuum = resolution.get("continuum") if isinstance(resolution.get("continuum"), dict) else {}
+        # Read execution only (the confirmed handoff above keeps its own budget): O6 guarded wait.
+        execution_timeout = guarded_execution_timeout(
+            timeout, resolution.get("selected"), decision.get("selected") if isinstance(decision, dict) else None,
+        )
         if continuum.get("mode") == "durable":
             executed = _durable_capability_execute(
                 resolution, message, ui_root=ui_root, surface=surface, caller=caller,
-                origin_id=origin_id, timeout=timeout, decision=decision or None,
+                origin_id=origin_id, timeout=execution_timeout, decision=decision or None,
             )
         else:
             executed = (
-                execute_capability_decision(message, decision, ui_root, timeout=timeout)
+                execute_capability_decision(message, decision, ui_root, timeout=execution_timeout)
                 if decision
-                else execute_capability(message, ui_root, surface=surface, caller=caller, timeout=timeout)
+                else execute_capability(message, ui_root, surface=surface, caller=caller, timeout=execution_timeout)
             )
         execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
         state = str(execution.get("state") or "")

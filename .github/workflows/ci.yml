@@ -261,3 +261,8 @@ jobs:
         run: |
           node scripts/test-voice-run-terminal-state.cjs
           python3 ../installer/termux-lite/test-companion-acceptance-voice.py
+
+      - name: O6 fast path waits for the guarded operator entry (60 s bound)
+        run: |
+          python3 ../installer/termux-lite/test-guarded-operator-wait.py
+          node scripts/test-guarded-entry-wait.cjs
