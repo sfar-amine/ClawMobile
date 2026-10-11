@@ -5,7 +5,7 @@
   "kind": "repair",
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
-  "summary": "P1 : admission native signée (clé Keystore enrôlée par biométrie) pour les tours owner de l'app, connexion Gateway admin dédiée par tour admis.",
+  "summary": "P1 reprise46 : ticket courant pour résolution et effets déterministes/voix, preuve Gateway public isolé et limites SDK avant ACK explicites.",
   "reason": "Les tours app arrivent avec senderIsOwner:false ; l'ancienne admission owner reposait sur le loopback seul (reproductible par tout processus local). Contrat playbooks 43 v2, revue 6108649302.",
   "files": [
     "openclaw-plugin-mobile-ui/src/companion/ownerTurnAdmission.ts",
@@ -29,13 +29,19 @@
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/callgatewayfromcli-signature.json",
     "installer/termux-lite/companion-deploy.sh",
     "installer/termux-lite/test-companion-acceptance-owner-transport.py",
-    "installer/termux-lite/test-skill-learning-acceptance.py"
+    "installer/termux-lite/test-skill-learning-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/capabilityClarification.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-understanding.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/gateway-owner-revocation-cancel-clarify.json"
   ],
   "tests": [
     {
       "name": "P1 admission adverse",
       "status": "passed",
-      "evidence": "scripts/test-owner-turn-admission.cjs : 53 cas (44 initiaux + présentation non canonique, statut sans keyId, contrat de signature callGatewayFromCli figé sur fixture S24, ownerTransport persisté/listé, replayOf sans preuve 403 et avec preuve admin, CLARIFY confused deputy dans les deux sens, permissions du fichier d'enrôlement). Inscrit dans ci.yml."
+      "evidence": "scripts/test-owner-turn-admission.cjs : 64/64 cas ciblés locaux verts, dont import SDK révoqué, EXECUTE non admis/nonce invalide/révocation pendant résolution/proof valide, capability voice refusée avant résolution, clarification liée session sans grant. Étape CI P1 existante, aucune étape retirée. Log b46-p1-effects-targeted.log."
     },
     {
       "name": "Édition-relecture avec admission",
@@ -45,7 +51,17 @@
     {
       "name": "Recette alerte transport owner",
       "status": "passed",
-      "evidence": "installer/termux-lite/test-companion-acceptance-owner-transport.py (3 tests), inscrit dans ci.yml."
+      "evidence": "Python 3/3 verts, ajout du probe refusal /extensions/claw-live/capability à la recette existante sans mutation autorisée ; log b46-p1-acceptance-targeted.log. Étape CI existante."
+    },
+    {
+      "name": "P1 reprise voix et surfaces",
+      "status": "passed",
+      "evidence": "Ciblés EX après correctif learning84b8a0ed : build, voix HS3 21/21, E3 44 contrôles et édition-relecture verts ; log b46-p1-learning-final-targeted.log. Test différé : effet accepté conservé et learning capture0 après révocation. Aucun budget augmenté, aucun skip."
+    },
+    {
+      "name": "Gateway public isolé local",
+      "status": "passed",
+      "evidence": "Cinq vérifications réelles passent ; fixture local-isolated-p1-2026-10-11/gateway-owner-revocation-cancel-clarify.json avec checksums des scripts/preuve. Annulation SDK admin, pas recette app/S24. Avant ACK reste non qualifié."
     }
   ],
   "documentation": [
@@ -74,9 +90,10 @@
   },
   "rollback": "Revert de la PR : retour au non-owner partout et au contexte loopback ; fichier d'enrôlement ignoré.",
   "limitations": [
-    "Signature callGatewayFromCli et présence de owner-confirmation-public.pem confirmées en lecture seule sur le S24 (claw_exec p1adm-20261011-r03) ; aucun tour réel exécuté.",
-    "Recettes de tours réels owner/non-owner, révocation pendant un tour et annulation à jouer sur Gateway isolé avec jeton jetable.",
-    "Processus de l'UID Termux restent équivalents owner (jeton Gateway) ; fenêtre de rejeu ≤ 30 s après redémarrage neutralisée par la déduplication clientRunId.",
-    "Ordre : APK #183 avant ce Companion (précondition companion-deploy)."
+    "App #186 fusionnée dans sa branche de base orbe ; APK signé, installation et biométrie S24 réservés à Claude.",
+    "La façade publique SDK 2026.9.6 ne transmet pas assertDispatchCurrent/onAccepted : la revérification ferme l'import asynchrone du Companion, sans prouver la révocation pendant bootstrap/handshake avant ACK.",
+    "Gateway public isolé : cinq vérifications owner/non-owner, révocation après ACK, annulation admin et CLARIFY passent. Le tour accepté garde owner et son effet malgré révocation Companion ; annulation admin ferme la garde avant effet. Une autre connexion write ne peut pas annuler ce run, aucune annulation app qualifiée.",
+    "Processus de l'UID Termux restent équivalents owner (jeton Gateway) ; fenêtre de rejeu ≤ 30 s après redémarrage neutralisée par déduplication clientRunId.",
+    "Publication conditionnée à CI entière locale verte au SHA exact et revue des limites de remise Gateway ; aucun déploiement Codex."
   ]
 }

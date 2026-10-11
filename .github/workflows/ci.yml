@@ -327,3 +327,31 @@ jobs:
 
       - name: H6 canonical resolved intention and free vocabulary boundary
         run: node scripts/test-payment-pattern-boundary.cjs
+
+  p1-isolated-gateway:
+    name: P1 public Gateway isolated integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: openclaw-plugin-mobile-ui
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node 26 for public Gateway integration
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26.11.1
+          cache: npm
+          cache-dependency-path: openclaw-plugin-mobile-ui/package-lock.json
+      - name: Install integration plugin dependencies
+        run: npm ci
+      - name: Build integration plugin
+        run: npm run build
+      - name: Install pinned public OpenClaw SDK without lifecycle scripts
+        run: |
+          curl --fail --silent --show-error --location https://registry.npmjs.org/openclaw/-/openclaw-2026.9.6.tgz --output "$RUNNER_TEMP/p1-openclaw-2026.9.6.tgz"
+          echo "1a7355691bc0e605222ba818f1f72c1787253c78dfeb0df6be2086ec73b71e63  $RUNNER_TEMP/p1-openclaw-2026.9.6.tgz" | sha256sum --check
+          npm install --prefix "$RUNNER_TEMP/p1-sdk" --ignore-scripts --omit=dev --no-audit --no-fund "$RUNNER_TEMP/p1-openclaw-2026.9.6.tgz"
+      - name: Test actual public Gateway admission revocation cancellation and clarification
+        run: node scripts/diagnostics/p1-gateway-isolated.cjs "$RUNNER_TEMP/p1-sdk/node_modules/openclaw" "$(command -v node)" "$RUNNER_TEMP/p1-gateway-proof"

@@ -49,6 +49,7 @@
   "rollback": "Revert this small CLI cleanup lot; no migration or deployment by Codex.",
   "limitations": [
     "Readiness is conditional on whole local CI green at the final SHA, with proof in the PR; targeted checks alone do not declare readiness.",
+
     "Unknown termination does not guarantee cessation of D-state/invisible descendants; existing readers/pool do not propagate a quarantine contract.",
     "Local real process fixtures are not S24 qualification; Claude must verify Linux/Android visibility and physical recipe."
   ]

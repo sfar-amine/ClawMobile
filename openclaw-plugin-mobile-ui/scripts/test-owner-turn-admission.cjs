@@ -35,14 +35,17 @@ const cliLog=path.join(root,'cli.jsonl'),cli=path.join(root,'openclaw-cli.py');
 fs.writeFileSync(cli,'#!/usr/bin/env python3\nimport json,sys\np=json.loads(sys.argv[sys.argv.index("--params")+1])\nopen('+JSON.stringify(cliLog)+',"a").write(json.dumps({"transport":"cli_write","method":sys.argv[3] if sys.argv[3]!="--expect-final" else sys.argv[4],"sessionKey":p["sessionKey"],"id":p["idempotencyKey"],"extra":"extraSystemPrompt" in p})+"\\n")\nprint(json.dumps({"runId":p["idempotencyKey"],"status":"accepted"}))\n');
 fs.chmodSync(cli,0o700);process.env.CLAWMOBILE_OPENCLAW_BIN=cli;
 const sdkCalls=[];let sdkMode='ok';
+// Clock captured by the canonical admission instance; only expiry test changes the offset.
+const nativeClock=Date.now;let admissionClockOffset=0;Date.now=()=>nativeClock()+admissionClockOffset;
 const gatewayTransport=require('../dist/companion/ownerTurnGateway');
+const {fakePublicSdk}=require('./fixtures/owner-turn-public-sdk.cjs');
 gatewayTransport.setOwnerTurnSdkLoader(async()=>{
  if(sdkMode==='missing')throw Object.assign(new Error('x'),{code:'owner_transport_unavailable'});
- return {callGatewayFromCli:async(method,opts,params,extra)=>{
+ return fakePublicSdk(async(method,opts,params,extra)=>{
   sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,progress:extra.progress,opts,extraKeys:Object.keys(extra).sort(),message:params.message,signal:extra.signal});
   if(sdkMode==='fail')throw Object.assign(new Error('boom'),{gatewayCode:'UNAVAILABLE'});
   return {runId:params.idempotencyKey,status:'accepted'};
- }};
+ });
 });
 const {turnAdmission,createTurnAdmission,admissionMessage,enrollmentMessage,enrollmentPresentation,recentAdmissionRefusals,ADMISSION_WINDOW_MS,NONCE_CAPACITY,sha256Hex}=require('../dist/companion/ownerTurnAdmission');
 const lastReason=()=>{const r=recentAdmissionRefusals();return r.length?r[r.length-1].reason:undefined;};
@@ -133,7 +136,7 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    assert.match(sig.signature,/^callGatewayFromCli\(method, opts, params, extra\)/);
    for(const line of ['scopes: extra?.scopes,','signal: extra?.signal,','expectFinal: extra?.expectFinal ?? Boolean(opts.expectFinal),','clientName: extra?.clientName ?? GATEWAY_CLIENT_NAMES.CLI,'])assert.ok(sig.runtime_excerpt.includes(line),line);
    assert.ok(sig.call_excerpt.includes('if (Array.isArray(opts.scopes)) return await callGatewayWithScopes(opts, opts.scopes);'));
-   assert.deepEqual(hit.extraKeys,['expectFinal','progress','scopes','signal','timeoutMs']);assert.ok(hit.signal instanceof AbortSignal);
+   assert.ok(hit.signal instanceof AbortSignal);assert.ok(hit.extraKeys.includes('clientOptions'));
    assert.deepEqual(hit.opts,{json:true,timeout:'15000',expectFinal:false});count('sdk_signature_contract');}
   {let run;for(let i=0;i<50&&!(run=(await request('GET','/v1/runs/'+r.runId)).body).ownerTransport;i++)await new Promise(x=>setTimeout(x,20));
    assert.equal(run.ownerTransport,'admin_admitted');assert.equal(run.ownerAdmitted,true);
@@ -189,13 +192,12 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
 
   // --- 5. Transport admin indisponible AVANT envoi : le tour reste non-owner (CLI) ; échec APRÈS envoi : aucun rejeu.
   gatewayTransport.setOwnerTurnSdkLoader(async()=>{throw Object.assign(new Error('x'),{code:'owner_transport_unavailable'})});
-  r=await submit();assert.equal(r.response.body.ownerAdmission.owner,true);assert.equal((await settled(r.runId)).transport,'cli_write');
-  {let run;for(let i=0;i<50&&!(run=(await request('GET','/v1/runs/'+r.runId)).body).ownerTransport;i++)await new Promise(x=>setTimeout(x,20));assert.equal(run.ownerTransport,'write_cli_owner_unavailable');}count('admin_unavailable_downgrades');
-  gatewayTransport.setOwnerTurnSdkLoader(async()=>({callGatewayFromCli:async(method,o,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,id:params.idempotencyKey});throw new Error('after dispatch');}}));
+  r=await submit();assert.equal(r.response.body.ownerAdmission.owner,true);await new Promise(x=>setTimeout(x,150));assert.equal(readLines(cliLog).filter(x=>x.id===r.runId).length,0);assert.equal((await request('GET','/v1/runs/'+r.runId)).body.state,'failed');count('admin_unavailable_fail_closed');
+  gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,o,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,id:params.idempotencyKey});throw new Error('after dispatch');}));
   r=await submit();await settled(r.runId);await new Promise(x=>setTimeout(x,200));
   assert.equal(readLines(cliLog).filter(x=>x.id===r.runId).length,0,'pas de repli après envoi');
   const failed=(await request('GET','/v1/runs/'+r.runId)).body;assert.equal(failed.state,'failed');count('no_replay_after_dispatch');
-  gatewayTransport.setOwnerTurnSdkLoader(async()=>({callGatewayFromCli:async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,message:params.message});await new Promise(x=>setTimeout(x,30));return {runId:params.idempotencyKey,status:'accepted'};}}));
+  gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,message:params.message});await new Promise(x=>setTimeout(x,30));return {runId:params.idempotencyKey,status:'accepted'};}));
 
   // --- 6. Concurrence : tours admis et non admis simultanés, sans croisement de connexion.
   {const jobs=[];for(let i=0;i<8;i++){jobs.push(submit({sessionId:'own-'+i}).then(x=>({x,owner:true})));jobs.push(submit({sessionId:'pub-'+i,sign:false}).then(x=>({x,owner:false})));}
@@ -243,14 +245,14 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    for(const opts of [{},{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true},{admission:admitted.ticket,clientRunId:'other-client',voiceDelegation:true}]) {
     await assert.rejects(()=>client.submitToOpenClawAgent('Mémoire','voice-refused-'+crypto.randomUUID(),'other-session',{voiceDelegation:true,...opts}),/voice_owner_admission_required/);count('voice_ticket_bound');
    }
-   let delegated;gatewayTransport.setOwnerTurnSdkLoader(async()=>({callGatewayFromCli:async(method,opts,params)=>{delegated=params;return {runId:params.idempotencyKey,status:'accepted'};}}));
+   let delegated;gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params)=>{delegated=params;return {runId:params.idempotencyKey,status:'accepted'};}));
    process.env.CLAWMOBILE_AGENT_ID='other-agent';const result=await client.submitToOpenClawAgent('Souviens-toi du rendez-vous','voice-main-run','voice-parity',{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true});process.env.CLAWMOBILE_AGENT_ID='main';
    assert.equal(result.ownerTransport,'admin_admitted');assert.equal(delegated.agentId,'main');assert.equal(delegated.sessionKey,'companion-chat-voice-parity');assert(delegated.message.endsWith('Souviens-toi du rendez-vous'));count('voice_main_same_conversation');
    gatewayTransport.setOwnerTurnSdkLoader(async()=>{throw Object.assign(new Error('missing'),{code:'owner_transport_unavailable'});});
    await assert.rejects(()=>client.submitToOpenClawAgent('Mémoire','voice-no-fallback','voice-parity',{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true}));assert.equal(readLines(cliLog).filter(x=>x.id==='voice-no-fallback').length,0);count('voice_no_write_fallback');
    await assert.rejects(()=>client.submitToOpenClawAgent('Mémoire','voice-wrong-client','voice-parity',{admission:admitted.ticket,clientRunId:'other-client',voiceDelegation:true}),/voice_owner_admission_required/);count('voice_wrong_client_same_session');
    let began,release;const started=new Promise(r=>began=r),gate=new Promise(r=>release=r);let sent=0;
-   gatewayTransport.setOwnerTurnSdkLoader(async()=>{began();await gate;return {callGatewayFromCli:async()=>{sent++;return {};}}});
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>{began();await gate;return fakePublicSdk(async()=>{sent++;return {};})});
    const loading=client.submitToOpenClawAgent('Mémoire','voice-revoked-loading','voice-parity',{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true});
    const refused=assert.rejects(loading,/owner_turn_admission_expired/);await started;turnAdmission.revoke();release();await refused;
    assert.equal(sent,0);assert.equal(readLines(cliLog).filter(x=>x.id==='voice-revoked-loading').length,0);count('voice_revoked_loading_no_fallback');
@@ -261,14 +263,33 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    const ticket=turnAdmission.verifyRequest({method:'POST',path:'/v1/runs',headers:proof({body:'{}',clientRunId,sessionId}),rawBody,clientRunId,sessionId});assert.equal(ticket.admitted,true);
    let entered,release;const loadingStarted=new Promise(r=>entered=r),loadingGate=new Promise(r=>release=r);
    const before=sdkCalls.length;
-   gatewayTransport.setOwnerTurnSdkLoader(async()=>{entered();await loadingGate;return {callGatewayFromCli:async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',id:params.idempotencyKey});return {runId:params.idempotencyKey,status:'accepted'};}}});
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>{entered();await loadingGate;return fakePublicSdk(async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',id:params.idempotencyKey});return {runId:params.idempotencyKey,status:'accepted'};});});
    const pending=require('../dist/companion/openclawAgentClient').submitToOpenClawAgent('tour','p1-sdk-race-run',sessionId,{admission:ticket.ticket,clientRunId});
    await loadingStarted;turnAdmission.revoke();release();
-   const response=await pending;assert.equal(response.ownerTransport,'write_cli_owner_unavailable');
+   await assert.rejects(pending,e=>e.code==='owner_turn_admission_expired');
    assert.equal(sdkCalls.length,before,'revoked while SDK loading: no admin request');
-   assert.equal(readLines(cliLog).filter(r=>r.id==='p1-sdk-race-run').length,1);
+   assert.equal(readLines(cliLog).filter(r=>r.id==='p1-sdk-race-run').length,0);
    const again=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(again),owner)).status,200);
    count('revocation_during_sdk_loading');}
+
+  // Public client bootstrap/HELLO boundary. Synthetic client, no real connection/account.
+  {const reEnroll=async()=>{const c=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(c),owner)).status,200);};
+   let seq=0;
+   const admitted=()=>{const clientRunId='public-sdk-'+(++seq),sessionId='public-sdk',body='{}';
+    const ticket=turnAdmission.verifyRequest({method:'POST',path:'/v1/runs',headers:proof({body,clientRunId,sessionId}),rawBody:Buffer.from(body),clientRunId,sessionId});assert.equal(ticket.admitted,true);
+    return {params:{message:'synthetic only',sessionKey:'agent:main:companion-chat-public-sdk',idempotencyKey:'public-'+seq},options:{timeoutMs:1000,admission:ticket.ticket,binding:{clientRunId,sessionId}}};};
+   async function rejectBefore(hooks, code){let calls=0;gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(()=>{calls++;return {}},hooks));const x=admitted();await assert.rejects(gatewayTransport.submitOwnerTurn(x.params,x.options),e=>e.code===code&&e.requestSent===false);assert.equal(calls,0);}
+   await rejectBefore({config:{gateway:{mode:'remote',port:1234,auth:{mode:'token',token:'fake'}}}},'owner_transport_target_unsupported');count('public_remote_closed');
+   await rejectBefore({config:{gateway:{mode:'local',tls:{enabled:true},port:1234,auth:{mode:'token',token:'fake'}}}},'owner_transport_target_unsupported');count('public_tls_closed');
+   process.env.OPENCLAW_GATEWAY_URL='ws://127.0.0.1:1234';try{await rejectBefore({},'owner_transport_target_unsupported');}finally{delete process.env.OPENCLAW_GATEWAY_URL;}count('public_url_override_closed');
+   await rejectBefore({secret:async()=>({secretRefConfigured:true,unresolvedRefReason:'synthetic unresolved'})},'owner_transport_auth_unavailable');count('public_secretref_closed');
+   await rejectBefore({scopes:['operator.write']},'owner_transport_scopes_unavailable');count('public_scope_grant_checked');
+   await rejectBefore({secret:async()=>{turnAdmission.revoke();return {value:'synthetic-only'}}},'owner_turn_admission_expired');await reEnroll();count('public_revoke_during_bootstrap');
+   await rejectBefore({beforeHello:()=>turnAdmission.revoke()},'owner_turn_admission_expired');await reEnroll();count('public_revoke_during_handshake');
+   try{await rejectBefore({secret:async()=>{admissionClockOffset=61000;return {value:'synthetic-only'}}},'owner_turn_admission_expired');}finally{admissionClockOffset=0;}count('public_expiry_during_bootstrap');
+   let calls=0;const hooks={deferHello:true};const sdk=fakePublicSdk(()=>{calls++;return {status:'accepted'}},hooks);gatewayTransport.setOwnerTurnSdkLoader(async()=>sdk);
+   const x=admitted(),pending=gatewayTransport.submitOwnerTurn(x.params,x.options);for(let i=0;i<20&&!sdk.getClient();i++)await new Promise(r=>setTimeout(r,5));sdk.getClient().hello();sdk.getClient().hello();await pending;assert.equal(calls,1);assert.ok(hooks.stops);count('public_one_request_and_close');
+  }
 
   // Synthetic write executor: never executes a real capability. It denies caller=other.
   {let x=await submit({sign:false,text:'p1-write unsigned',sessionId:'write-unsigned'});
