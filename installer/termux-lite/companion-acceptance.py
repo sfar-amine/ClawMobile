@@ -9,7 +9,7 @@ import json, re, sys, time, urllib.error, urllib.request
 BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
-    ("/catalog", 0.3), # HS2 target; S24 qualification is pending.
+    ("/catalog", 0.3), # HS2: warm reads from memory; one HS1 generation is ≈ 360 ms on the S24, so the cold first read uses the retry.
     ("/health", 2.0),
     ("/control/health?contract=2", 1.5),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).

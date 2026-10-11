@@ -466,11 +466,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     res.setHeader('Cache-Control','private, no-cache');
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']){writeJson(res,403,{success:false,error:'native_loopback_required'});return;}
     if(method!=='GET'){writeJson(res,405,{success:false,error:'method_not_allowed'});return;}
-    if(requestUrl.search){writeJson(res,400,{success:false,error:'unsupported_parameter'});return;}
-    const locale=/^en(?:-|,|;|$)/i.test(String(req.headers['accept-language']||''))?'en':'fr';
+    // The app sends ?locale=fr|en (HomeCatalog.kt); any other parameter is refused.
+    const params=[...requestUrl.searchParams.keys()];const queryLocale=requestUrl.searchParams.get('locale');
+    if(params.some(k=>k!=='locale')||params.length>1||(queryLocale!==null&&!['fr','en'].includes(queryLocale))){writeJson(res,400,{success:false,error:'unsupported_parameter'});return;}
+    const locale=(queryLocale as 'fr'|'en'|null)||(/^en(?:-|,|;|$)/i.test(String(req.headers['accept-language']||''))?'en':'fr');
     res.setHeader('Vary','Accept-Language');res.setHeader('Content-Language',locale);
     try{const value=await readCatalogResponse(locale);
-      if(value.computation?.deliveryMode==='deferred'){writeJson(res,200,value);return;}
       const tag=catalogETag(value);res.setHeader('ETag',tag);
       if(req.headers['if-none-match']===tag){res.writeHead(304);res.end();return;}
       writeJson(res,200,value);

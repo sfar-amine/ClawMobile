@@ -3,9 +3,9 @@
   "id": "codex-hs2-catalog-20261011",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Prepare guarded canonical catalogue presentation and Control-pool cache; runtime readiness and badges remain unqualified.",
+  "summary": "HS2 : GET /v1/catalog, vue dérivée du registre (HS1) avec santé des routes, gardes du propriétaire de paiement et atteignabilité de la vue de surface app",
   "reason": "HS1 Git presentation exists, but S24 catalogue capture and canonical Graph/health/gate/cache badge evidence are absent.",
   "files": [
     ".github/workflows/ci.yml",
@@ -13,19 +13,20 @@
     "docs/changes/codex-hs2-catalog-20261011.md",
     "docs/work/samantha-runtime/contracts/hs2.md",
     "installer/termux-lite/companion-acceptance.py",
-    "openclaw-plugin-mobile-ui/fixtures/hs1-git-catalog/README.md",
-    "openclaw-plugin-mobile-ui/fixtures/hs1-git-catalog/en.json",
-    "openclaw-plugin-mobile-ui/fixtures/hs1-git-catalog/fr.json",
     "openclaw-plugin-mobile-ui/scripts/test-catalog.cjs",
     "openclaw-plugin-mobile-ui/src/companion/catalog.ts",
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
-    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11d/hs2-catalog-sources.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11d/hs1-catalog-from-s24-sources.fr.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11d/hs1-catalog-from-s24-sources.en.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11d/README.md"
   ],
   "tests": [
     {
-      "name": "catalog-http-cache",
+      "name": "scripts/test-catalog.cjs",
       "status": "passed",
-      "evidence": "Build; actual cold HTTP route and existing Control pool, canonical HS1 Git presentation, owner delay2.3s. Ten cold requests share one flight and answer unavailable/deferred without catalogue/ETag in205.02ms; settle receives entries after2102.31ms. Warm40p95=78.97ms locally. Actual15s pool expiry causes one fresh generation for ten callers, no stale ETag. Strict identities/orders/date/pins/slots, unknown owner/gates/account stripping, FR/EN, source error503 and live owner spies zero. Existing acceptance12/files/email tests passed. Not a S24 capture or physical qualification."
+      "evidence": "Sources S24 réelles et projection HS1 calculée dessus : 47/80 actions disponibles, Topnet grisé faute de garde projetée, recharge Orange active (garde Maxit du propriétaire), vue absente ou capability hors vue grisées ; contrat HomeCatalog.kt ; HTTP froid ≈ 390 ms, chaud p95 ≈ 90 ms, périmé p95 ≈ 35 ms avec 360 ms de génération S24 injectés ; aucune lecture fournisseur ni Gateway ; 503 sans entrée inventée."
     }
   ],
   "documentation": [
@@ -52,13 +53,10 @@
     },
     "reason": "No MCP mutation or owner admission change."
   },
-  "rollback": "Revert HS2 preparation; no migration.",
+  "rollback": "Revert de la PR ; aucun état runtime.",
   "limitations": [
-    "Runtime catalogue capture and proof of reachability/health/gates await canonical owner confirmation.",
-    "All actions unavailable and badges absent until evidence is available; no final HS2 qualification.",
-    "Voice memo remains unavailable; HS8 issue126.",
-    "Requires pinned HS1 snapshot before Companion deployment; Claude only.",
-    "Cold response is not catalogue data: unavailable/deferred while existing Control generation runs; the actual projection must settle within15s and production qualification is still missing.",
-    "Current GitHub authentication prevents checking any new response to the existing PR69 evidence request or publishing; no duplicate request is made."
+    "Badges non servis : aucune source de reçu qualifiée.",
+    "Garde Topnet non projetée par le propriétaire de paiement : « Payer Topnet » grisé (modification hors périmètre paiement).",
+    "Mesure physique S24 du p95 au déploiement."
   ]
 }
