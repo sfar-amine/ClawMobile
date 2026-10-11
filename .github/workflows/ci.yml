@@ -84,7 +84,7 @@ jobs:
         run: node scripts/test-run-progress.cjs
 
       - name: HS3 payment handoff run reflects its payment request (S24 capture core 176)
-        run: node scripts/test-run-payment-presentation.cjs
+        run: node scripts/test-run-payment-presentation.cjs && node scripts/test-hs3-initial-failure.cjs
 
       - name: Run composed read and model fast path contracts
         run: |
