@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "claude-o10-voice-low-risk-admission-20261011",
+  "origin": "chat",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Voice relay executes the low-risk owner voice decision record and forwards its missing-parameter question",
+  "reason": "File37 O10 (decision of Amine 10/10): the voice decision capability is risk low, no confirmation; the voice relay only executed risk read directly.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/claude-o10-voice-low-risk-admission-20261011.json",
+    "docs/work/samantha-runtime/contracts/o10-core.md",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-low-risk-admission.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts"
+  ],
+  "tests": [
+    {
+      "name": "o10-voice-admission",
+      "status": "passed",
+      "evidence": "test-voice-low-risk-admission.cjs: captured Orange resolution (read) and the Graph output for the voice decision (low) admitted; write/transaction/external_send/sensitive/destructive, confirmation, non-deterministic and failed resolutions refused; recorded message spoken, needs_parameter becomes the question, a refusal is not spoken."
+    },
+    {
+      "name": "existing-regressions",
+      "status": "passed",
+      "evidence": "tsc, test-voice-relay.cjs, test-voice-relay-reconnect.cjs pass."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/o10-core.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "samantha.voice.decision.record is declared and implemented in playbooks (O10); the relay only admits its registry risk."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Admission rule of the existing voice relay; no route, store, router or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP contracts unchanged.",
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "docs/work/samantha-runtime/contracts/o10-core.md"
+    ]
+  },
+  "rollback": "Revert this PR; voice falls back to the agent turn for the decision record.",
+  "limitations": [
+    "Needs playbooks O10 pinned (capability implemented).",
+    "Physical voice qualification by Claude after activation."
+  ]
+}

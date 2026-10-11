@@ -71,6 +71,20 @@ OWNER_GUARDS = [
 ]
 OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0, "/payments/local-handoffs": 2.0, "/payments/local-start": 2.0}  # admission/refusal budget, no effect without owner proof
 SETTLE_SECONDS = 15
+# O9 (fichier 37): a voice run whose transcript is final (completed/interrupted) is never state=unknown.
+VOICE_TERMINAL_ROUTE = "/runs?limit=50"
+
+
+def voice_terminal_unknown(body):
+    """Read-only invariant on the already fetched run list: ids of voice runs left unknown with a final transcript."""
+    try:
+        listed = json.loads(body or b"{}").get("runs")
+    except (ValueError, AttributeError):
+        return None
+    if not isinstance(listed, list):
+        return None
+    return [str(run.get("runId"))[:80] for run in listed if isinstance(run, dict) and run.get("modality") == "voice"
+            and run.get("transcriptState") in ("completed", "interrupted") and run.get("state") == "unknown"]
 # Secrets and account e-mails. 10/10 (recette UI): /agent/config published the OAuth profile e-mail.
 # Measured read-only on the S24 the same day: no other READS route returns an e-mail address.
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bAKIA[0-9A-Z]{16}\b|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY")
@@ -142,6 +156,12 @@ def main(session_id=None):
         status = "skipped" if code == 404 else ("ok" if ok and not leak and settled else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "settled": settled, "status": status})
+        if path == VOICE_TERMINAL_ROUTE and code == 200:
+            stale = voice_terminal_unknown(body)
+            # No run list to judge (route shape owned by its READS row): skipped, never a rollback by itself.
+            voice_status = "skipped" if stale is None else ("ok" if stale == [] else "fail")
+            failed |= voice_status == "fail"
+            results.append({"route": path, "check": "voice_runs_terminal_state", "unknown_terminal": len(stale) if stale is not None else None, "status": voice_status})
         if path == "/runs?contract=2&view=conversations&limit=20" and code == 200 and conversation_id is None:
             try:
                 items = json.loads(body).get("items")
