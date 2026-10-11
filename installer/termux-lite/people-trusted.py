@@ -497,6 +497,13 @@ ROOMS = ('conversation', 'projet', 'agenda', 'taches', 'lignes', 'memoire', 'act
 ENFORCED_ROOMS = {'conversation', 'projet', 'maison'}
 PROJECT_AGENT = 'contacts-projet'
 ROOM_TAG = 'r17-rooms:'
+# M4 (décision d'Amine 12/10): contact material stays in the private context repo and is
+# forgotten 30 days after access ended (expiry or removal). Bounded per 60s sweep pass.
+FORGET_RETENTION_DAYS = 30
+FORGET_BATCH = 20
+INBOX_LIMIT = 1024*1024
+INBOX_ENTRY = re.compile(r'^- ', re.M)
+INBOX_SENDER = re.compile(r'^\s+- Sender:.*?(\+?[0-9][0-9 ]{6,}[0-9])', re.M)
 
 def normalize_rooms(value):
     if not isinstance(value,list) or not value or len(value)>len(ROOMS) or any(r not in ROOMS for r in value): fail('invalid_rooms')
@@ -1101,7 +1108,96 @@ class Contacts:
         # Bound extra delivery work to the existing sweep's 20s cycle budget.
         # Expiry mutation always has priority; backlog remains in canonical R17.
         owner_message=self.deliver_owner_change() if time.monotonic()+17<deadline else {'state':'deferred'}
-        return {'success':success,'state':('partial' if pages>1 else 'completed') if success else 'expired_pending','receipt':None,'processed':len(results),'remaining':len(due)-sum(row['success'] for row in results),'scanComplete':pages==1,'scanPage':page,'scanPages':pages,'ownerMessage':owner_message}
+        # Forget runs last, on what remains of the same cycle; backlog waits for the next pass.
+        try: forget=self.forget(deadline) if time.monotonic()+6<deadline else {'state':'deferred'}
+        except Refused as error: forget={'state':'unavailable','reason':error.code}
+        except Exception: forget={'state':'unavailable'}  # never fails the expiry sweep; retried next pass
+        return {'success':success,'state':('partial' if pages>1 else 'completed') if success else 'expired_pending','receipt':None,'processed':len(results),'remaining':len(due)-sum(row['success'] for row in results),'scanComplete':pages==1,'scanPage':page,'scanPages':pages,'ownerMessage':owner_message,'forget':forget}
+    def access_ended(self):
+        """contactId -> access end (epoch s) for contacts whose LAST terminal R17 receipt is a completed removal/expiry."""
+        if not self.people.DB.exists(): return {}
+        with closing(sqlite3.connect(f'file:{self.people.DB}?mode=ro',uri=True,timeout=1)) as c:
+            # The latest grant/removal decides (same-second ties: insertion order).
+            rows=c.execute("SELECT target,state,updated_at FROM (SELECT target,state,updated_at,ROW_NUMBER() OVER (PARTITION BY target ORDER BY updated_at DESC,rowid DESC) AS rank FROM send_receipts WHERE idempotency_key LIKE 'r17:%' AND state IN ('added','reactivated','removed')) WHERE rank=1").fetchall()
+        return {target:int(ended) for target,state,ended in rows if state=='removed' and CID.fullmatch(target or '')}
+    def inbox_path(self): return self.people.WORKSPACE/'memory'/'amine-inbox.md'
+    def inbox_text(self):
+        path=self.inbox_path()
+        try:
+            real=path.resolve(strict=True)
+            if real.is_symlink() or not real.is_file() or real.stat().st_size>INBOX_LIMIT: return None,None
+            return real,real.read_text(encoding='utf-8')
+        except FileNotFoundError: return None,''
+        except (OSError,RuntimeError,UnicodeDecodeError): return None,None
+    @staticmethod
+    def inbox_entries(text):
+        starts=[m.start() for m in INBOX_ENTRY.finditer(text)]
+        return text[:starts[0]] if starts else text,[text[a:b] for a,b in zip(starts,starts[1:]+[len(text)])]
+    @staticmethod
+    def inbox_sender(entry):
+        found=INBOX_SENDER.search(entry)
+        if not found: return None
+        digits=re.sub(r'\D','',found.group(1))
+        return '+'+digits if E164.fullmatch('+'+digits) else None
+    def forget(self, deadline):
+        ended=self.access_ended();cutoff=self.clock()-FORGET_RETENTION_DAYS*86400
+        due={cid:at for cid,at in ended.items() if at<=cutoff}
+        if not due: return {'state':'idle','forgotten':0,'remaining':0}
+        numbers={}
+        paths=sorted(self.people.CONTACTS.glob('wa_*.md')) if self.people.CONTACTS.exists() else []
+        for path in paths:
+            number='+'+path.stem[3:]
+            if E164.fullmatch(number) and contact_id(number) in due: numbers[number]=True
+        inbox_real,inbox=self.inbox_text()
+        if inbox:
+            for entry in self.inbox_entries(inbox)[1]:
+                number=self.inbox_sender(entry)
+                if number and contact_id(number) in due: numbers[number]=True
+        if not numbers: return {'state':'idle','forgotten':0,'remaining':0}
+        # One authoritative read per pass, only when material is actually due.
+        config=self.people.gateway_call('config.get',{},timeout_ms=5000).get('config')
+        if not isinstance(config,dict): fail('contacts_unavailable',503)
+        owners=self.owners(config);allow,direct=self.people.whatsapp_state(config)
+        candidates=[n for n in sorted(numbers) if n not in owners and n not in allow and n not in direct and self.metadata(n) is None]
+        done=[];protected=len(numbers)-len(candidates)
+        for number in candidates[:FORGET_BATCH]:
+            if time.monotonic()>=deadline: break
+            done.append(self.forget_one(number,due[contact_id(number)]))
+        return {'state':'completed' if len(done)==len(candidates) else 'partial','forgotten':len(done),
+                'remaining':len(candidates)-len(done),'protected':protected,
+                'contactFiles':sum(r['contactFile'] for r in done),'inboxEntries':sum(r['inboxEntries'] for r in done)}
+    def forget_one(self, number, ended_at):
+        identity=contact_id(number);operation='forget:'+identity+':'+str(ended_at)
+        key='r17:'+digest(operation);now=int(self.clock())
+        receipt={'version':1,'operationId':operation,'action':'forgotten','contactId':identity,'state':'indeterminate',
+                 'at':utc(self.clock()),'accessEndedAt':utc(ended_at),'retentionDays':FORGET_RETENTION_DAYS}
+        # Intent persisted before any deletion; a crashed pass is finished (never doubled) by the next one.
+        c=self.people.connect()
+        c.execute("INSERT OR IGNORE INTO send_receipts VALUES(?,?,?,'pending',?,?,?)",(key,identity,digest(operation),canonical({'success':False,'state':'indeterminate','receipt':receipt}),now,now));c.commit();c.close()
+        removed_file=False
+        path=self.path(number)
+        try:
+            directory=path.parent.resolve(strict=True);real=directory/path.name
+            if real.is_symlink(): fail('contact_state_invalid',503)
+            real.unlink();removed_file=True
+        except FileNotFoundError: pass
+        entries=0;inbox_real,inbox=self.inbox_text()
+        if inbox_real and inbox:
+            head,items=self.inbox_entries(inbox)
+            kept=[e for e in items if self.inbox_sender(e)!=number];entries=len(items)-len(kept)
+            if entries:
+                temporary=inbox_real.with_name('.'+inbox_real.name+'.m4.tmp')
+                fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,stat.S_IMODE(inbox_real.stat().st_mode))
+                try:
+                    with os.fdopen(fd,'w',encoding='utf-8') as file: file.write(head+''.join(kept));file.flush();os.fsync(file.fileno())
+                    os.replace(temporary,inbox_real)
+                finally:
+                    try: temporary.unlink()
+                    except FileNotFoundError: pass
+        receipt.update(state='forgotten',purged={'contactFile':removed_file,'inboxEntries':entries})
+        c=self.people.connect()
+        c.execute("UPDATE send_receipts SET state='forgotten',message_id=?,updated_at=? WHERE idempotency_key=?",(canonical({'success':True,'state':'forgotten','receipt':receipt}),int(self.clock()),key));c.commit();c.close()
+        return {'contactFile':removed_file,'inboxEntries':entries}
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}

@@ -175,13 +175,15 @@ check_slack_bridge(){
 # last_sweep extends the existing per-service health state (same sf/get/put).
 ALLOWLIST_LAST_CHECK=$(get whatsapp_allowlist last_sweep 0)
 check_allowlist_expiry(){
- local tick elapsed result processed
+ local tick elapsed result processed forgotten remaining
  tick=$(now);elapsed=$((tick-ALLOWLIST_LAST_CHECK))
  [ "$elapsed" -ge 60 ] || [ "$elapsed" -lt 0 ] || return 0
  ALLOWLIST_LAST_CHECK="$tick"
  result=$(timeout --kill-after=2 22 python3 "$ROOT/people-trusted.py" allowlist sweep 9>&- <<<'{}' 2>/dev/null) || { log 'service=whatsapp_allowlist state=expired_pending reason=sweep_budget'; return 0; }
- processed=$(printf '%s' "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("processed",0))' 9>&- 2>/dev/null) || return 0
+ read -r processed forgotten remaining <<<"$(printf '%s' "$result" | python3 -c 'import json,sys; v=json.load(sys.stdin); f=v.get("forget") or {}; print(v.get("processed",0),f.get("forgotten",0),f.get("remaining",0))' 9>&- 2>/dev/null)" || return 0
  case "$processed" in ''|*[!0-9]*) return 0;; esac
+ # M4 forget-on-expiry: counts only, never a number, name or message.
+ case "$forgotten$remaining" in ''|*[!0-9]*) ;; *) [ "$forgotten" -gt 0 ] && log "service=whatsapp_allowlist event=forget forgotten=$forgotten remaining=$remaining";; esac
  # No R17 disk write when no expiry was processed.
  [ "$processed" -gt 0 ] && put whatsapp_allowlist last_sweep "$tick"
  return 0
