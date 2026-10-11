@@ -178,11 +178,17 @@ function codesOf(envelope: Record<string, any>): string[] {
 export function receiptProvesNoDebit(envelope: unknown): boolean {
   if (!obj(envelope)) return false;
   const p = presentationOf(envelope);
-  const { result } = resultOf(envelope);
-  const rows = [result, obj(result.payment) ? result.payment : null, obj(envelope.payment) ? envelope.payment : null]
-    .filter(obj) as (Partial<PaymentExecutionResult> & { financialSubmissionAttempted?: unknown })[];
-  // Any submission evidence wins over a contradictory not-submitted code.
-  if (rows.some((row) => row.financialSubmissionAttempted === true)) return false;
+  const { execution, result } = resultOf(envelope);
+  const rows = [result, obj(result.payment) ? result.payment : null, obj(envelope.payment) ? envelope.payment : null,
+    obj(execution.payment) ? execution.payment : null].filter(obj) as Record<string, unknown>[];
+  // Canonical S24 trace can establish a dispatch even when the public boolean is
+  // absent. Its absence must never turn a contradictory not-submitted code into proof.
+  const submitted = rows.some((row) => {
+    if (row.financialSubmissionAttempted === true) return true;
+    return [row.trace, row.timeline].some((events) => Array.isArray(events)
+      && (events.length > 160 || events.some((event) => obj(event) && event.stage === "financial_dispatch_committed")));
+  });
+  if (submitted) return false;
   if (p?.failure?.notDone?.code === "payment_not_submitted") return true;
   return rows.some((row) => row.reasonCode === "payment_not_submitted");
 }

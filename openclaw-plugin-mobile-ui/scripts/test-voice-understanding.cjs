@@ -330,3 +330,19 @@ test("Canonical clarification owner retains decision and HS3 without a second wa
   assert.equal(out.voice.verbatim,"J'ai compris : Recharger mon numéro · Orange · 5 DT · ta ligne.");
   assert.equal(out.decision.risk,"transaction");assert.equal(JSON.stringify(out).includes("not forwarded"),false);
 });
+
+test("Real S24 #176 dispatch trace wins even when the attempt boolean is absent or inconsistent",()=>{
+  // Exact capture bytes from core #176 f036943cc63af9401e7d5e242ba3b379d61056ea.
+  // The masked decision.type is deliberately never decoded or used for execution.
+  const capture=fx("hs3/failed-payment-handoff.json");
+  const linked=capture.failedPaymentChains.filter((row)=>row.runLinked);
+  assert.equal(linked.length,2);
+  for(const row of linked){
+    assert.equal(row.run.decision.type,"<texte:7 car.>");
+    assert.ok(row.payment.trace.some((event)=>event.stage==="financial_dispatch_committed"));
+    assert.equal(m.receiptProvesNoDebit({payment:row.payment}),false);
+    assert.equal(m.receiptProvesNoDebit({execution:{result:row.payment}}),false);
+    // Synthetic boolean mutation is explicitly distinct from the unchanged capture.
+    assert.equal(m.receiptProvesNoDebit({payment:{...row.payment,financialSubmissionAttempted:false}}),false);
+  }
+});
