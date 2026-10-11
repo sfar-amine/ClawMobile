@@ -217,6 +217,7 @@ jobs:
           node scripts/test-nightly-health-http.cjs
           python3 ../installer/termux-lite/test-companion-nightly-acceptance.py
           python3 ../installer/termux-lite/test-health-verdict.py
+          python3 ../installer/termux-lite/test-health-verdict-f5.py
       - name: G4 deployment receipts and route budget
         run: node scripts/test-deployment-receipts.cjs
       - name: C5 canonical voice owner transport fixture
