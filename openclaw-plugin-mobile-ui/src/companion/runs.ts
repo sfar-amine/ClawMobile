@@ -2218,11 +2218,14 @@ export async function conversationSummariesPage(options:PageOptions={}){
       const latest=rows[0],status=statusFromStoredRun(latest),owner:any=metadata.get(latest.sessionKey||expectedCompanionSessionKey(sessionId));
       const title=typeof owner?.label==='string'&&owner.label.length<=160&&!/[\p{C}\p{Zl}\p{Zp}]/u.test(owner.label)?owner.label:null;
       const pinned=typeof owner?.pinned==='boolean'?owner.pinned:null;
-      return {sessionId,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview:(latest.userText||latest.text||"").slice(0,160),
+      // First retained authentic request; routed prompt, assistant text and catalogue labels are not title evidence.
+      const original=[...rows].reverse().find(row=>typeof row.userText==='string'&&row.userText.trim().length>0);
+      const titlePreview=(original?.userText||'').slice(0,160);
+      return {sessionId,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview,
         lastResultPreview:readablePreview(latest.result||""),lastRunState:status.state,
         lastActivityAt:latest.updatedAt||latest.acceptedAt,sortAt:latest.acceptedAt,
         modality:latest.modality||"text",transcriptState:latest.transcriptState||"",
-        availableTurnCount:rows.length,previewTruncated:(!/^\s*[{\[]/.test(latest.result||"")&&(latest.result?.length||0)>140)||(latest.userText||latest.text||"").length>160};
+        availableTurnCount:rows.length,previewTruncated:(!/^\s*[{\[]/.test(latest.result||"")&&(latest.result?.length||0)>140)||(original?.userText||"").length>160};
     }).sort((a,b)=>b.sortAt-a.sortAt||a.sessionId.localeCompare(b.sessionId));
   const revision=digest({items,retainedRunCount:runs.length,availableConversations:grouped.size}),scope=pageScope("conversations",query,limit),anchor=cursorAnchor(cursor,scope,revision);
   const index=anchor?items.findIndex(x=>x.sessionId===anchor):-1;

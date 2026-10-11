@@ -1,4 +1,4 @@
-import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision} from "./receiptPresentation";
+import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,publicReceiptMetadata,publicDecision} from "./receiptPresentation";
 import crypto from "crypto";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
@@ -83,10 +83,8 @@ export async function submitIntent(
     );
   }
   if (fastPathCheck.status === "error") {
-    return notSubmitted(
-      normalizedSessionId, clientRunId,
-      "Claw capability routing is temporarily unavailable.",
-    );
+    const presentation=fastPathFailurePresentation(fastPathCheck,'resolution');
+    return {...notSubmitted(normalizedSessionId,clientRunId,presentation.spoken),...publicReceiptMetadata(presentation)};
   }
 
   if (parentClarificationRunId) {
@@ -201,7 +199,8 @@ async function executeCapabilityFirst(
       message = String(result.text || "Claw could not complete the known capability.");
     } else {
       state = "failed";
-      message = "Claw capability state changed before deterministic execution; no model fallback was used.";
+      presentation=fastPathFailurePresentation(result,'execution');
+      message=presentation.spoken;
     }
   }
 

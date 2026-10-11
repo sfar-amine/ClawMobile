@@ -32,6 +32,22 @@ export function readReceiptPresentation(raw:unknown):ReceiptPresentation|undefin
  return {version:1,locale:p.locale as 'fr'|'en',status:p.status as 'info'|'error',label:p.label,title:p.title,rows:[],spoken:p.spoken,primary:{label:p.primary.label,action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:cid as string|null},understood:{capability:cid as string|null,label:p.understood.label,slots,...(summary?{text:summary}:{})},alternatives,...(payment?{payment}:{}),...(failure?{failure}:{})};
 }
 export function fallbackReceiptPresentation(failed=false):ReceiptPresentation{return {version:1,locale:'fr',status:failed?'error':'info',label:'Demande',title:'Résultat à vérifier',rows:[],spoken:failed?'La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.':'Le résultat de la demande reste à vérifier.',primary:{label:'Terminer',action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:null},understood:{capability:null,label:'Demande',slots:{}},alternatives:[],...(failed?{failure:{step:'Étape non établie',reason:'La cause n’est pas établie par le reçu.'}}:{})};}
+/** Public helper failures describe the observed transport boundary, never a business/financial outcome. */
+export function fastPathFailurePresentation(raw:unknown,stage:'resolution'|'execution'):ReceiptPresentation {
+ const receipt=readReceiptPresentation(raw);if(receipt?.status==='error')return receipt;
+ const p=fallbackReceiptPresentation(true);
+ const reasons:Record<string,string>={
+  helper_missing:'Le service de traitement est introuvable.',
+  helper_failed:'Le service de traitement n’a pas renvoyé de résultat exploitable.',
+  invalid_result:'Le service de traitement a renvoyé un résultat invalide.',
+  invalid_check_budget:'Le budget de résolution est invalide.',
+  check_budget_exceeded:'Le délai de résolution a été dépassé.',
+ };
+ const code=obj(raw)&&raw.status==='error'&&typeof raw.reason==='string'&&Object.prototype.hasOwnProperty.call(reasons,raw.reason)?raw.reason:undefined;
+ const reason=code?reasons[code]:p.failure!.reason;
+ const step=stage==='resolution'?'Résolution de la demande':'Lecture du résultat d’exécution';
+ return {...p,title:'Demande interrompue',spoken:reason,failure:{step,reason,stepId:stage,...(code?{reasonCode:code}:{}),notDone:{code:'unknown'}}};
+}
 export function publicReceiptMetadata(p:ReceiptPresentation|undefined){return p?{presentation:p,understood:p.understood,alternatives:p.alternatives,...(p.failure?{failure:p.failure}:{})}:{};}
 /** Closed public projection of the stored v2 decision (no recalculation, no raw payload):
  * type, capability, intent, target, risk, confirmationRequired and owner-validated parameters. */

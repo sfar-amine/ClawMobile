@@ -71,6 +71,7 @@ jobs:
         run: |
           python3 scripts/test-receipt-presentation-read.py
           node scripts/test-receipt-presentation.cjs
+          node scripts/test-n1-factual-failure.cjs
 
       - name: HS6 shared receipt privacy (OTP/PIN)
         run: node scripts/test-voice-receipt-metadata.cjs
