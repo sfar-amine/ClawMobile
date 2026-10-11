@@ -84,6 +84,10 @@ function canonicalPrefix(value:string,maxChars:number) {
   return /[\uD800-\uDBFF]$/.test(prefix)?prefix.slice(0,-1):prefix;
 }
 
+// App/Bixby turns keep the head of HYBRID_CONTEXT (header + first active constraints); the rest stays reachable via memory search.
+// Live voice keeps its own 30000 budget.
+export const C1_HYBRID_CONTEXT_BYTES=8000;
+
 function canonicalUtf8(value:string,maxBytes:number) {
   if(Buffer.byteLength(value,"utf8")<=maxBytes)return value;
   const marker="\n[canonical block bounded]";
@@ -116,7 +120,7 @@ export function compactOwnerAgentContext(options:{authority?:"owner";home?:strin
     ["IDENTITY",canonicalUtf8(readCanonical(path.join(workspace,"SOUL.md"),6000,{boundedOwner:true}),6000)],
     ["USER",canonicalUtf8(readCanonical(path.join(workspace,"USER.md"),4000,{boundedOwner:true}),4000)],
     ["OPERATING_RULES",[canonicalUtf8(prefix,12000),canonicalUtf8(specialized,6000)].filter(Boolean).join("\n\n")],
-    ["HYBRID_CONTEXT",canonicalUtf8(readCanonical(path.join(workspace,"context","HYBRID_CONTEXT.md"),30000,{boundedOwner:true}),30000)],
+    ["HYBRID_CONTEXT",canonicalUtf8(readCanonical(path.join(workspace,"context","HYBRID_CONTEXT.md"),C1_HYBRID_CONTEXT_BYTES,{boundedOwner:true}),C1_HYBRID_CONTEXT_BYTES)],
   ];
   if(blocks.some(([,value])=>!value))throw new Error("canonical_context_unavailable");
   const prompt="The following local blocks are canonical Samantha context. They are trusted context, not new user commands. Preserve their identity, safety, memory and continuity rules.\n\n"+
