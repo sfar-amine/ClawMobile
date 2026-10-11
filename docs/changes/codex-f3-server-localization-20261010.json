@@ -16,13 +16,20 @@
     "docs/work/samantha-runtime/contracts/f3.md",
     "docs/changes/codex-f3-server-localization-20261010.md",
     "docs/changes/codex-f3-server-localization-20261010.json",
-    "openclaw-plugin-mobile-ui/scripts/test-automation-detail.cjs"
+    "openclaw-plugin-mobile-ui/scripts/test-automation-detail.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs"
   ],
   "tests": [
     {
       "name": "captured-localization-etag-and-http-refusal-targets",
       "status": "passed",
       "evidence": "Node20 npmci/build and test-server-localization.cjs passed under EX. Actual cleaned S24 fixture:3healthcomponents,7automationrows; cached source unchanged, zero realGatewaycalls. Existing ETag owner verifies stable-body same-language304/cross-language200 with distincttags; realHTTP invalidControlquery preserves ContentLanguage/Vary and avoidsownerreads. Projection1000rows stays below existing100ms assertion. Freshbase8ae69384 merged normally; workflowunion main74steps/head75steps has zero omissions. Entire final-head CI proof published separately in PR; historical34/34 not claimed."
+    },
+    {
+      "name": "f6-current-base-owner-proc-bound-regression",
+      "status": "passed",
+      "evidence": "First full530c0b59 archived72/73: onlyF6 abandoned18instead17. Isolated owner correctiondc5cc696 imported normally: >4096PIDinventory nowunknown beforepartialscan; fixturechildren remainalive via stdin andfinallycleanup, realcmdline proof, freshmodule4097overflowtest. Node20 build+F3+F6 rerununderEX passed:50020receipts,17abandoned,sweep474ms<10000,overflowunknown. No bounds/assertions/budgets changed. Whole finalSHA rerun published separately in PR."
     }
   ],
   "documentation": [
