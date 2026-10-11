@@ -31,7 +31,14 @@ function model(value:any){
 function agent(value:any){
  if(!value||typeof value!=='object'||Array.isArray(value))return undefined;
  return {model:model(value.model),thinkingDefault:text(value.thinkingDefault,40),tools:tools(value.tools),
-  modelPolicy:{allow:strings(value.modelPolicy?.allow,2000,200)?.filter(x=>identity(x))}};
+  modelPolicy:{allow:strings(value.modelPolicy?.allow,2000,200)?.filter(x=>identity(x))},compaction:{model:model(value.compaction?.model)}};
+}
+/** Same explicit-agent then default allow precedence as OpenClaw resolveConfiguredModelPolicyAllow.
+ * An explicit empty agent allow remains empty; no policy is widened or persisted. */
+export function configuredModelAllow(config:any,agentId='main'):string[]{
+ const entry=config?.agents?.entries?.[agentId]??config?.agents?.list?.find((row:any)=>row.id===agentId);
+ const selected=Array.isArray(entry?.modelPolicy?.allow)?entry.modelPolicy.allow:config?.agents?.defaults?.modelPolicy?.allow;
+ return Array.isArray(selected)&&selected.length<=2000?selected.filter((ref:any)=>identity(ref)) : [];
 }
 function projected(value:ModelOwnerRead):ModelOwnerSnapshot|null{
  const config=value.raw?.config;
@@ -55,7 +62,7 @@ function projected(value:ModelOwnerRead):ModelOwnerSnapshot|null{
   if(!provider||!status)return [];
   return [{provider,status,...(publicName(row.displayName)?{displayName:publicName(row.displayName)}:{}),...(Array.isArray(row.profiles)&&row.profiles.length<=2000?{profiles:row.profiles.flatMap((profile:any)=>{const profileId=typeof profile?.profileId==='string'&&/^[A-Za-z0-9._:+-]{1,128}$/.test(profile.profileId)?profile.profileId:undefined,status=authState(profile?.status);return profileId&&status?[{profileId,status}]:[];})}:{})}];
  });
- return {config:{agents:{entries:{main:agent(config.agents?.entries?.main)},defaults:agent(config.agents?.defaults),...(Array.isArray(config.agents?.list)&&config.agents.list.length<=100?{list:config.agents.list.filter((row:any)=>row?.id==='main').slice(0,1).map((row:any)=>({id:'main',...agent(row)}))}:{})},plugins:{entries:plugins},tools:tools(config.tools)},catalog:{models,providerOutcomes:Array.isArray(value.catalog.providerOutcomes)&&value.catalog.providerOutcomes.length<=2000?value.catalog.providerOutcomes.flatMap((row:any)=>typeof row?.provider==='string'&&/^[A-Za-z0-9._+-]{1,200}$/.test(row.provider)&&['ready','needs_auth','unknown'].includes(row.status)?[{provider:row.provider,status:row.status}]:[]):[]},auth:{providers},revision:text(value.raw.hash)||null,updatedAt:Date.now()};
+ return {config:{agents:{entries:{main:agent(config.agents?.entries?.main),"engineering-lite":agent(config.agents?.entries?.["engineering-lite"]),gemini:agent(config.agents?.entries?.gemini)},defaults:agent(config.agents?.defaults),...(Array.isArray(config.agents?.list)&&config.agents.list.length<=100?{list:config.agents.list.filter((row:any)=>row?.id==='main').slice(0,1).map((row:any)=>({id:'main',...agent(row)}))}:{})},plugins:{entries:plugins},tools:tools(config.tools),talk:{realtime:{provider:identity(config.talk?.realtime?.provider),model:identity(config.talk?.realtime?.model)}},memory:{search:{provider:identity(config.memory?.search?.provider),model:identity(config.memory?.search?.model)}}},catalog:{models,providerOutcomes:Array.isArray(value.catalog.providerOutcomes)&&value.catalog.providerOutcomes.length<=2000?value.catalog.providerOutcomes.flatMap((row:any)=>typeof row?.provider==='string'&&/^[A-Za-z0-9._+-]{1,200}$/.test(row.provider)&&['ready','needs_auth','unknown'].includes(row.status)?[{provider:row.provider,status:row.status}]:[]):[]},auth:{providers},revision:text(value.raw.hash)||null,updatedAt:Date.now()};
 }
 
 /** Explicit fresh owner read; concurrent consumers share only the in-flight read. */

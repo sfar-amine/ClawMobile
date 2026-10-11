@@ -1,0 +1,21 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {projectModelRoles}=require('../dist/companion/providers');
+const {configuredModelAllow}=require('../dist/companion/modelOwner');
+const capture=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-10/ui-recette/gateway.config.get.json'),'utf8'));
+assert.equal(capture._capture.sanitized,true);
+const before=JSON.stringify(capture.response.config);
+const roles=projectModelRoles({config:capture.response.config,auth:{providers:[]},catalog:{models:[]},revision:null,updatedAt:0});
+const conversation=roles.find(row=>row.id==='conversation');
+const raw=capture.response.config.agents.entries.main.model;
+assert.equal(conversation.model,(typeof raw==='string'?raw:raw.primary).split('@')[0]);
+assert.ok(roles.length<=12);assert.equal(roles.find(row=>row.id==='realtime_voice').state,'unavailable');
+assert.equal(roles.find(row=>row.id==='routing').state,'deterministic');
+assert.equal(roles.find(row=>row.id==='spoken_voice').model,null);
+assert.equal(JSON.stringify(capture.response.config),before);
+// Explicit synthetic negative: public projection must drop private account identifiers and secrets.
+const synthetic={config:{agents:{entries:{main:{model:{primary:'openai/synthetic@private-account',fallbacks:['openai/synthetic@private-account','sk-synthetic-private-token']}}}}},auth:{providers:[]}};
+assert.ok(!JSON.stringify(projectModelRoles(synthetic)).includes('private-account'));
+assert.ok(!JSON.stringify(projectModelRoles(synthetic)).includes('sk-synthetic-private-token'));
+assert.deepEqual(configuredModelAllow({agents:{defaults:{modelPolicy:{allow:['openai/gpt-5.6-terra']}}}}),['openai/gpt-5.6-terra']);
+assert.deepEqual(configuredModelAllow({agents:{entries:{main:{modelPolicy:{allow:[]}}},defaults:{modelPolicy:{allow:['openai/gpt-5.6-terra']}}}}),[]);
+console.log('R1 model roles: real S24 config, unknown sources refused, deterministic contracts, bounded projection and source immutability passed');

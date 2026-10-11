@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "codex-r-roles-modeles-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Prepare read-only usage roles and canonical effective model policy",
+  "reason": "Backlog42 lot R; preparation pending complete local CI and exact S24 captures.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-r-roles-modeles-20261011.json",
+    "docs/changes/codex-r-roles-modeles-20261011.md",
+    "docs/work/samantha-runtime/contracts/r-recette-roles.md",
+    "openclaw-plugin-mobile-ui/scripts/test-model-roles.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+    "openclaw-plugin-mobile-ui/src/companion/conversationMetadata.ts",
+    "openclaw-plugin-mobile-ui/src/companion/modelOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/providers.ts"
+  ],
+  "tests": [
+    {
+      "name": "complete_local_ci",
+      "status": "pending",
+      "evidence": "Not executed on this preparation head; no passing count claimed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-r-roles-modeles-20261011.md",
+    "docs/work/samantha-runtime/contracts/r-recette-roles.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing /providers, /agent/config and conversation metadata projections; no new action, route or execution owner."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP primitive admission/execution unchanged; preparation reuses canonical owners.",
+    "evidence": [
+      "docs/changes/codex-r-roles-modeles-20261011.md",
+      "docs/work/samantha-runtime/contracts/r-recette-roles.md"
+    ]
+  },
+  "rollback": "Revert this PR; no new store or migration.",
+  "limitations": [
+    "Exact fresh S24 role/config captures remain requested in programme45.",
+    "No full local CI or Android SDK/build result claimed; Claude owns signed APK and live acceptance."
+  ]
+}
