@@ -12,3 +12,6 @@ Base runtime actuelle intégrée par merge. Build + `test-memo-stt-boundary.cjs`
 Reprise 42 : décision Gemini → OpenAI reçue ; adaptateur du propriétaire SDK et format M4A préparés sous le garde de qualification existant. Configuration canonique réutilisée, aucun modèle/compte créé. Captures S24 audio/auth/budgets/journaux demandées à Claude ; aucun upload audio ni appel fournisseur activé.
 
 La préparation peut être intégrée sous le garde fermé ; les captures et la recette S24 restent obligatoires avant transcription produit ou activation du micro.
+
+
+Capture Claude #170 `a75955f8` : les exports publics existent en global, mais ne sont pas résolus depuis Companion ; `tools.media.models=[]`. Résolution existante complétée par la racine npm globale bornée, validation du paquet 2026.9.6 et imports ESM publics, sans installation ni auth maison. Test ajouté à la CI, non exécuté pendant le créneau R ; nouvelle suite complète requise. Proposition Google `gemini-3-flash-preview` puis OpenAI `gpt-4o-transcribe` documentée dans le contrat, issue du SDK public et non de la capture. Aucun micro ou chemin produit activé ; Claude/Amine gardent configuration et essais live.

@@ -1,4 +1,7 @@
 import fs from "fs";
+import path from "path";
+import { createRequire } from "module";
+import { execFile } from "child_process";
 import { pathToFileURL } from "url";
 import { attachmentContent, MAX_ATTACHMENT_BYTES } from "./attachmentStorage";
 import { MEMO_STT_QUALIFICATION, memoSttOwnerFailure, projectMemoTranscript } from "./memoSttBoundary";
@@ -14,12 +17,66 @@ export type MemoMediaOwner = {
 // Preserve native ESM import in this CommonJS build. Resolve only public exports;
 // no guessed installation path, credential reader or provider implementation.
 const nativeImport = new Function("url", "return import(url)") as (url: string) => Promise<any>;
-export async function loadMemoMediaOwner(): Promise<MemoMediaOwner> {
-  const [media, config, auth] = await Promise.all([
-    nativeImport(pathToFileURL(require.resolve("openclaw/plugin-sdk/media-understanding-runtime")).href),
-    nativeImport(pathToFileURL(require.resolve("openclaw/plugin-sdk/config-runtime")).href),
-    nativeImport(pathToFileURL(require.resolve("openclaw/plugin-sdk/agent-runtime")).href),
-  ]);
+const MEMO_SDK_EXPORTS = ["media-understanding-runtime", "config-runtime", "agent-runtime"] as const;
+export const MEMO_SDK_ROOT_TIMEOUT_MS = 3000;
+/** Existing npm installation metadata only, never config/credentials or a shell. */
+export function installedMemoSdkRoot(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile("npm", ["root", "-g"], { timeout: MEMO_SDK_ROOT_TIMEOUT_MS, maxBuffer: 4096, encoding: "utf8" },
+      (error, stdout) => error ? reject(new Error("memo_transcript_unavailable")) : resolve(stdout));
+  });
+}
+function checkedSdkPackage(packageFile: string): string {
+  const stat = fs.statSync(packageFile);
+  if (!stat.isFile() || stat.size > 1024 * 1024) throw new Error("memo_transcript_unavailable");
+  const metadata = JSON.parse(fs.readFileSync(packageFile, "utf8"));
+  // Only this version's public signatures have been qualified from installed evidence.
+  if (metadata.name !== "openclaw" || metadata.version !== "2026.9.6") throw new Error("memo_transcript_unavailable");
+  return fs.realpathSync(path.dirname(packageFile));
+}
+function checkedSdkEntries(resolve: (id: string) => string, expectedPackage?: string): string[] {
+  const entries = MEMO_SDK_EXPORTS.map(name => resolve("openclaw/plugin-sdk/" + name));
+  let folder = path.dirname(entries[0]), packageRoot: string | undefined;
+  for (let depth = 0; depth < 8; depth++) {
+    const metadata = path.join(folder, "package.json");
+    if (fs.existsSync(metadata)) { packageRoot = checkedSdkPackage(metadata); break; }
+    const parent = path.dirname(folder); if (parent === folder) break; folder = parent;
+  }
+  if (!packageRoot || (expectedPackage && packageRoot !== expectedPackage)) throw new Error("memo_transcript_unavailable");
+  return entries.map(entry => {
+    const real = fs.realpathSync(entry), relative = path.relative(packageRoot!, real);
+    if (!relative || relative.startsWith(".." + path.sep) || path.isAbsolute(relative) || relative === ".." ||
+        !fs.statSync(real).isFile()) throw new Error("memo_transcript_unavailable");
+    return real;
+  });
+}
+/** Internal offline seam; no path/loader inputs are exposed to an HTTP caller. */
+export async function resolveMemoSdkEntries(localResolve: (id: string) => string = require.resolve,
+  globalRoot: () => Promise<string> = installedMemoSdkRoot): Promise<string[]> {
+  let localPresent = true;
+  try { localResolve("openclaw/plugin-sdk/" + MEMO_SDK_EXPORTS[0]); }
+  catch (error: any) {
+    if (error?.code !== "MODULE_NOT_FOUND") throw new Error("memo_transcript_unavailable");
+    localPresent = false;
+  }
+  // A present but incompatible/partial package is not bypassed with another version.
+  if (localPresent) {
+    try { return checkedSdkEntries(localResolve); }
+    catch { throw new Error("memo_transcript_unavailable"); }
+  }
+  try {
+    const output = await globalRoot();
+    const root = output.trim();
+    if (!root || root.length > 4096 || /[\r\n\0]/.test(root) || !path.isAbsolute(root)) throw new Error("memo_transcript_unavailable");
+    const packageFile = path.join(root, "openclaw", "package.json");
+    const packageRoot = checkedSdkPackage(packageFile);
+    const fromInstalledPackage = createRequire(packageFile);
+    return checkedSdkEntries(fromInstalledPackage.resolve, packageRoot);
+  } catch { throw new Error("memo_transcript_unavailable"); }
+}
+export async function loadMemoMediaOwner(entriesForOwner: () => Promise<string[]> = resolveMemoSdkEntries): Promise<MemoMediaOwner> {
+  const entries = await entriesForOwner();
+  const [media, config, auth] = await Promise.all(entries.map(entry => nativeImport(pathToFileURL(entry).href)));
   if (typeof media.runMediaUnderstandingFile !== "function" || typeof config.loadConfig !== "function" ||
       typeof auth.resolveApiKeyForProvider !== "function") {
     throw new Error("memo_transcript_unavailable");

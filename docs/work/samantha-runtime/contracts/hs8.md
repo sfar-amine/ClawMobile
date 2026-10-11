@@ -70,3 +70,27 @@ Le SDK relit un pathname : conserver le descripteur du propriétaire ouvert ne p
 Le SDK expose aussi `resolveApiKeyForProvider` dans `openclaw/plugin-sdk/agent-runtime` (signature publique avec `lockedProfile`). L'adaptateur lui demande la disponibilité du profil gratuit avec `lockedProfile:true` avant média, puis vérifie uniquement les métadonnées `profileId` et `mode` ; aucune clé retournée n'est copiée, affichée ou réinjectée. Si cette prévalidation échoue ou renvoie un autre profil, la requête au même propriétaire média ne contient que l'entrée OpenAI déjà configurée. Il ne découvre jamais un autre Google. Le SDK doit également confirmer sur le S24 la disponibilité de cet export et la conformité de son chemin effectif, notamment en cas de changement de credentials entre prévalidation et média ; le garde d'activation reste fermé.
 
 Les trois couches d’en-têtes SDK (provider, audio, entrée) sont inspectées par noms uniquement. Un en-tête d’auth alternatif Google écarte le primaire ; un en-tête d’auth partagé ou OpenAI refuse la demande, sans exécution. Les en-têtes de transport ordinaires restent intacts, ainsi que les endpoints/proxies existants. La recherche provider suit la normalisation SDK (première clé trim/lowercase) ; casing et espaces ne contournent pas le contrôle de présence de `apiKey`. Les limites sont le minimum des plafonds locaux et des limites entry/audio, jamais la valeur entry prioritaire plus permissive.
+
+
+## Capture du 11/10 et correction de résolution du SDK public
+
+Capture Claude #170, commit `a75955f8bc21f84984a1df9c10f1afaf2d8ad87a`, commentaire [6108368633](https://github.com/sfar-amine/samantha-core/pull/138#issuecomment-6108368633), runtime capturé `363a6b8e`, OpenClaw `2026.9.6 (eb377ac)` : `fixtures/s24-2026-10-11/hs8/media-config-and-sdk-resolution.json`, SHA256 `8285b97c703eb941fcfe1c3b2136fcd208b46411c565778c141b1f470e7ac780`. La capture confirme un tableau `tools.media.models` **vide**, le profil gratuit Google disponible et OpenAI OAuth disponible ; aucun appel audio n'a été effectué. Les exports existent dans le paquet global mais leur résolution depuis le Companion donne `MODULE_NOT_FOUND`.
+
+La résolution conserve d'abord le paquet local. En son absence seulement, `execFile("npm", ["root", "-g"])` consulte l'installation existante, sans shell, installation ni modification de PATH/NODE_PATH. Limites : 3 secondes et 4 Kio de sortie ; une racine absolue unique est exigée. `createRequire` ancré sur le `package.json` du paquet global résout les **exports publics**, sans chemin interne de secours. Le nom/version du paquet est contrôlé (`openclaw`, `2026.9.6`, seules signatures ici attestées), les trois entrées doivent appartenir au même paquet réel et être des fichiers. Un paquet local présent mais incompatible/incomplet n'est pas contourné par un autre paquet. L'import reste ESM via `pathToFileURL`. Les échecs sont génériques ; aucune configuration privée n'est lue par cette résolution.
+
+`test-memo-sdk-resolution.cjs`, inscrit dans la CI existante, prépare les cas local/global ESM, racine absente/invalide, version différente, export absent, paquet local partiel, sortie npm excessive et vrai timeout du processus npm synthétique. Les paquets de test sont synthétiques ; ils ne prétendent pas prouver l'import ni l'auth du S24. Tests de ce correctif **non exécutés** à ce stade : attente du créneau CI exclusif, puis suite complète sur la nouvelle tête.
+
+### Proposition de configuration audio à appliquer par Claude
+
+La capture atteste l'absence de modèles ; les noms ci-dessous sont des **choix techniques proposés depuis les défauts du SDK public 2026.9.6**, pas des faits S24 ni une qualification audio : Google `gemini-3-flash-preview` (`dist/extensions/google/openclaw.plugin.json`, `mediaUnderstandingProviderMetadata.google.defaultModels.audio`) puis OpenAI `gpt-4o-transcribe` (`dist/default-models-DOFL1mMC.mjs`, défaut audio réutilisé par `dist/media-understanding-provider-CXO0EvwX.mjs`). Le patch suivant complète uniquement les entrées audio dans la config propriétaire existante ; Claude préserve les autres champs déjà installés.
+
+```json
+{"tools":{"media":{"models":[
+  {"type":"provider","provider":"google","model":"gemini-3-flash-preview","profile":"google:claw-gemini-free","capabilities":["audio"],"maxBytes":10485760,"timeoutSeconds":60},
+  {"type":"provider","provider":"openai","model":"gpt-4o-transcribe","capabilities":["audio"],"maxBytes":10485760,"timeoutSeconds":60}
+]}}}
+```
+
+L'entrée OpenAI réutilise l'unique profil OAuth/token existant attesté par `loadConfig` ; s'il y en a plusieurs, Claude épingle dans la config locale le profil de souscription existant retenu, sans publier son identifiant privé. Aucun compte, API-key, endpoint, rotation ou auth alternative n'est ajouté. Le primaire reste verrouillé sur `google:claw-gemini-free` et le repli OpenAI sur son profil configuré ; les refus d'overrides d'auth et limites minimales existants restent actifs. Ces plafonds de préparation ne constituent pas un budget global qualifié : délais cumulés, retries et arrêt effectif restent à mesurer.
+
+Claude doit encore attester l'import dans le processus Companion, capturer les seules métadonnées de config après application, puis réaliser avec Amine l'audio neutre et les cas succès Google/repli OpenAI/double échec, délais, rétention et journaux. **Le micro, l'admission et le catalogue restent fermés** jusqu'à ces preuves. Codex ne modifie pas la configuration S24 et n'active rien.

@@ -3,10 +3,10 @@
   "id": "codex-hs8-sdk-boundary-v2-20261011",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "allowed",
+  "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "HS8 : adaptateur SDK canonique Gemini → OpenAI et pièces jointes M4A sous garde de qualification S24",
-  "reason": "Décision Amine 11/10 : profil Gemini gratuit existant et repli OpenAI autorisés. Préparation intégrable car garde runtime toujours fermé ; captures audio/auth/budgets/journaux bloquent uniquement activation et micro.",
+  "reason": "Capture Claude #170 : SDK global non résolu et modèles média vides. Correctif de résolution préparé, tests et suite entière à rejouer sur nouvelle tête ; admission toujours fermée, audio live Claude/Amine requis.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-hs8-sdk-boundary-v2-20261011.json",
@@ -17,7 +17,9 @@
     "openclaw-plugin-mobile-ui/src/companion/memoSttBoundary.ts",
     "openclaw-plugin-mobile-ui/src/companion/memoSttOwner.ts",
     "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
-    "openclaw-plugin-mobile-ui/scripts/test-memo-stt-owner.cjs"
+    "openclaw-plugin-mobile-ui/scripts/test-memo-stt-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-sdk-resolution.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8/media-config-and-sdk-resolution.json"
   ],
   "tests": [
     {
@@ -29,6 +31,11 @@
       "name": "HS8 owner adapter contract",
       "status": "passed",
       "evidence": "npm run build ; node scripts/test-memo-stt-boundary.cjs ; node scripts/test-memo-stt-owner.cjs : exit 0 sous Node 20. Régression de config canonique, compte configuré épinglé, exclusion CLI/autres fournisseurs, refus texte long sans troncature, erreurs génériques et audio non activé. Contrats synthétiques, aucun appel fournisseur."
+    },
+    {
+      "name": "HS8 public installed SDK resolution",
+      "status": "pending",
+      "evidence": "Source et contrats local/global/ESM/exports/version/timeout préparés sans exécution pendant créneau R exclusif. Anciennes preuves CI ne qualifient pas cette nouvelle tête."
     }
   ],
   "documentation": [
@@ -59,6 +66,8 @@
   "limitations": [
     "Adaptateur SDK implémenté sous garde existant refusé : aucune route ni catalogue activé.",
     "Décision fournisseur levée ; qualification audio, auth disponible, budgets et confidentialité SDK S24 manquante.",
-    "Aucun appel fournisseur, aucune fusion ni activation par Codex."
+    "Aucun appel fournisseur, aucune fusion ni activation par Codex.",
+    "Capture #170 : configuration média actuelle vide ; proposition de modèles SDK distincte des faits S24 et à appliquer par Claude.",
+    "Résolution publique globale à vérifier dans Companion installé avant activation."
   ]
 }
