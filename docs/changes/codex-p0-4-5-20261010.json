@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "id": "codex-p0-4-5-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Prepare conservative health resource policy and bounded existing owner maintenance",
+  "reason": "P0-4 branché par Claude (fichier 41) : seuils mesurés, preuve de repos sur sources confirmées, refroidissement 6 h, reçu health/gateway-memory-guard.json, redémarrage gracieux via /v1/runtime/restart. P0-5 inchangé (prunes non branchés).",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-p0-4-5-20261010.json",
+    "docs/changes/codex-p0-4-5-20261010.md",
+    "docs/work/samantha-runtime/contracts/p0-4-5.md",
+    "installer/termux-lite/bounded-log.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/companion-server.sh",
+    "installer/termux-lite/context-compact.sh",
+    "installer/termux-lite/health-resource-policy.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-resource-policy.py",
+    "installer/termux-lite/test-owner-retention.py",
+    "installer/termux-lite/tier0-control.py",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-retention.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "installer/termux-lite/gateway-memory-guard.py",
+    "installer/termux-lite/test-gateway-memory-guard.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/p0-4-5/idle-sources.json"
+  ],
+  "tests": [
+    {
+      "name": "health-resource-owner-retention",
+      "status": "passed",
+      "evidence": "6 resource policy tests including real S24 fixture82 probe decoding and denied-loadavg/PSI handling;7 retention tests including measured36.6MB log extent/0600 inherited archives;110 releases/600 deployment logs/50060 read receipts remain generated bounds."
+    },
+    {
+      "name": "runtime-ci-union",
+      "status": "passed",
+      "evidence": "Full pre-R20 workflow commands passed CI_LOCAL_OK /tmp/p045-fixture-fresh-ci.log; base d142a9f integrated while tests ran, fresh build and all five newly added R20 commands separately passed. Six resource/seven retention/50060 receipt tests pass; union includes every d142a9f step. Gate remains intentionally blocked for missing runtime owner guarantees."
+    },
+    {
+      "name": "p0-4-gateway-memory-guard",
+      "status": "passed",
+      "evidence": "14 tests : seuils au-dessus de toutes les mesures réelles, repos sur capture réelle, refroidissement 6 h, reçu corrompu conservé, câblage health-manager."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p0-4-5.md",
+    "docs/changes/codex-p0-4-5-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal existing owner maintenance only, no new HTTP or agent capability. Release/read-receipt pruning has no new activation route or scheduler; memory restart not wired."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Use tier0, health/context log writers, deployment owner and Remote Bridge receipt owner; no new store, scheduler, registry, daemon or effect replay mechanism."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP tool/schema/adapter change; internal cleanup never deletes write/unknown/pending/continuum effect proofs."
+  },
+  "rollback": "Revert owner code/writers and tests. Purged ordinary logs/releases after future Claude activation cannot be reconstructed without backup: review captured plan before applying. No memory thresholds or restart activation changed.",
+  "limitations": [
+    "No Codex S24 action. Native plugin cleanup confirmed but four ownerless orphan roots persist; no blind external deletion.",
+    "Mutation/unknown receipts remain protected; replay duration unspecified. Gateway stderr writer ownership not confirmed, no claim that its active rotation is wired.",
+    "Tours de canaux Gateway hors task_runs non visibles dans la preuve de repos ; première activation et recette par Claude via companion-deploy.sh."
+  ]
+}

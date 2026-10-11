@@ -3,7 +3,7 @@ import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
 import {filesList,filesContent} from "./fileReads";
-import {readUsage,readUsageDetails} from './usage';
+import {prewarmUsage,readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
 import {capabilityDetail} from "./capabilityControl";
@@ -36,9 +36,10 @@ import { payments } from "./payments";
 import { confirmations } from "./confirmations";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
-import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
+import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
+import { SurfaceClarifications } from "../capabilityClarification";
+import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
@@ -120,6 +121,9 @@ export function startCompanionServer() {
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 
+  // One usage.status read at startup (1.6-4.4 s CLI on the S24): the first /usage, often the post-deploy
+  // acceptance, joins it instead of paying the whole cold read inside its 6 s budget.
+  prewarmUsage();
   startTerminalShellSession();
   startWhatsAppListenerWatchdog();
   startVoiceRecoveryWatchdog();
@@ -136,6 +140,15 @@ export function startCompanionServer() {
       console.warn("[claw-live-warm] startup prewarm failed: " + String(error?.message || error).slice(0, 160));
     });
   }, 1_000).unref();
+  // F6: one bounded pass after startup over receipts left by previous instances.
+  setTimeout(() => {
+    try {
+      const sweep = abandonStaleRemoteBridgeReceipts({ budgetMs: 3_000 });
+      console.log(`[remote-bridge] abandon sweep state=${sweep.state} scanned=${sweep.scanned} abandoned=${sweep.abandoned} uncertain=${sweep.effectUncertain}`);
+    } catch (error: any) {
+      console.warn("[remote-bridge] abandon sweep unavailable: " + String(error?.message || error).slice(0, 160));
+    }
+  }, Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_SWEEP_DELAY_MS || 30_000)).unref();
 
   return server;
 }
@@ -534,7 +547,10 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|bank-return|bank-ui-event|resume|cancel))?$/.exec(routePath);
     if (match) {
       const [, id, action] = match;
-      if (method === "GET" && !action) { writeJson(res,200,await payments.status(id)); return; }
+      if (method === "GET" && !action) {
+        // view=compact: bounded Android projection (no forensic timeline) used by the bank countdown/reconciliation.
+        writeJson(res,200,requestUrl.searchParams.get("view")==="compact"?await payments.statusCompact(id):await payments.status(id)); return;
+      }
       if (method === "GET" && action === "challenge") { writeJson(res,200,await payments.challenge(id)); return; }
       if (method === "POST" && action === "cancel") {
         const body=await readJsonBody(req,256);
@@ -770,9 +786,17 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/capability") {
     const body = await readJsonBody<any>(req);
-    const execute = () => capabilityBridge(String(body?.request || ""), {
-      execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35,
-    });
+    // 38 E3: canonical CLARIFY + resolve-clarification first, then the existing executor.
+    const execute = () => clawLiveCapabilityTurn(
+      {
+        request: body?.request,
+        // Android v2 has no clarificationId field: its pending question is scoped to the owned voice session.
+        clarificationId: typeof body?.clarificationId === "string" ? body.clarificationId
+          : body?.voiceTurn?.sessionEpoch !== undefined ? SurfaceClarifications.idFor("claw-live:" + String(body.voiceTurn.sessionEpoch)) : undefined,
+        originId: body?.voiceTurn?.turnId ? "claw-live-" + String(body.voiceTurn.turnId) : undefined,
+      },
+      (text) => capabilityBridge(text, { execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35 }),
+    );
     const result = body?.voiceTurn
       ? await clawLiveWarmCore.executeVoiceCapability(body.voiceTurn,String(body?.request||""),execute)
       : await execute();

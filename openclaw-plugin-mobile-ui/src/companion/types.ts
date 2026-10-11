@@ -114,6 +114,7 @@ export type CompanionRunStatus = {
   understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
   alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];
   failure?: import("./receiptPresentation").ReceiptPresentation["failure"];
+  provenance?: import("./capabilityProvenance").CapabilityProvenance;
   inactivityCorrectionReceipt?: import("./runInactivity").InactivityReceipt;
   modality?: "voice";
   clientRunId?: string;
@@ -127,6 +128,8 @@ export type CompanionRunStatus = {
   status?: string;
   message: string;
   result?: string;
+  /** F4: structured projection of `result` (summary list only); `result` stays the raw fallback. */
+  notification?: import("./notificationText").StructuredNotification | null;
   pendingApprovals?: unknown[];
   progress?: CompanionRunProgress;
   prompt?: string;
