@@ -5,8 +5,8 @@
   "kind": "maintenance",
   "merge_eligibility": "blocked",
   "deployment_state": "not_applicable",
-  "summary": "Proposition documentaire K2 de rappel et renouvellement biométrique R17",
-  "reason": "Le fichier 36 demande un contrat à soumettre à Amine avant tout code ; le propriétaire de livraison et sa déduplication restent à confirmer.",
+  "summary": "K2 : message propriétaire après chaque changement d’accès WhatsApp temporaire, aucun rappel",
+  "reason": "Décision Amine du 11/10 confirmée par Claude dans core119 commentaire6108204935. Avant code, propriétaire/canal/reçu de livraison et déduplication (contact, changement) encore à confirmer sur S24.",
   "files": [
     "docs/work/samantha-runtime/contracts/k2.md",
     "docs/changes/codex-k2-renewal-contract-20261010.md",
@@ -14,9 +14,9 @@
   ],
   "tests": [
     {
-      "name": "validation documentaire existante",
+      "name": "documentation ciblée",
       "status": "passed",
-      "evidence": "tools/validate_docs.py des playbooks, validate(Path(core)) : aucune erreur documentaire ; aucun nouveau test ni modification CI pour ce lot documentaire."
+      "evidence": "Validateur existant tools/validate_docs.py des playbooks appliqué au dépôt core après réécriture : 0 erreur documentaire. Suite entière core non exécutée sur la nouvelle tête ; gate bloqué par sources S24 de livraison/dédup inconnues."
     }
   ],
   "documentation": [
@@ -26,7 +26,7 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Contrat seulement : aucun nouveau parcours exécutable ni route ou capability ; prolongation proposée par R17 existant."
+    "reason": "Contrat seul, aucune capability ou route nouvelle ; prolongation par R17 existant."
   },
   "architecture": {
     "changed": false,
@@ -45,8 +45,8 @@
   },
   "rollback": "Retirer les trois fichiers documentaires de la proposition K2 ; aucun état S24 ni configuration à restaurer.",
   "limitations": [
-    "Décision Amine en attente, notamment rappel immédiat pour un accès de 1 jour.",
-    "Propriétaire de notification, canal, reçu de livraison et déduplication durable non prouvés pour ce rappel.",
-    "Aucun code, activation, envoi, prolongation ni recette S24 ; aucune couverture des fichiers non lus au-delà de la borne R17."
+    "Durées1/3/5 non tranchées : conserver les choix actuels R17 et sa biométrie.",
+    "Implémentation bloquée : propriétaire de livraison, canal, reçu et déduplication durable (contact, changement) non capturés sur S24.",
+    "Aucun code, envoi, mutation d’accès, activation, recette live ou suite entière exécutés sur cette tête."
   ]
 }
