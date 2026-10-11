@@ -671,10 +671,13 @@ def try_fast_path(
         if state in ASSISTED_EXECUTION_STATES:
             return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None, **metadata}
         if state == "confirmation_required":
-            return _execute_declared_handoff(
+            handed = _execute_declared_handoff(
                 executed, message, ui_root=ui_root, surface=surface, caller=caller,
                 origin_id=origin_id, timeout=timeout,
             ) | {"decision": executed.get("decision") or decision or None}
+            # The Graph metadata describes the pending confirmation (« Compris : … ») only
+            # when the handoff opened; a failed handoff keeps the generic error fallback.
+            return handed | metadata if handed.get("status") == "hit" else handed
         payload = execution.get("result")
         composed = (selected.get("execution_contract") or {}).get("strategy") == "composed_read"
         error_result = {
