@@ -60,10 +60,18 @@ def card_candidate(value):
     return luhn(value)
 
 
-# Only committed public source paths can relax a private-looking basename.
+# Accepted metadata is limited to these exact committed public test sources.
 PUBLIC_FIXTURE_PATHS = frozenset({
-    'core/installer/termux-lite/test-workspace-secret-scan.py',
-    'core_installer/termux-lite/test-workspace-secret-scan.py',
+    'core/installer/termux-lite/test-claw-live-control.py',
+    'core/installer/termux-lite/test-claw-live.py',
+    'core/installer/termux-lite/test-context-memory.py',
+    'core/installer/termux-lite/test-gemini-request.py',
+    'core/openclaw-plugin-mobile-ui/scripts/test-file-read-boundary.cjs',
+    'core_installer/termux-lite/test-claw-live-control.py',
+    'core_installer/termux-lite/test-claw-live.py',
+    'core_installer/termux-lite/test-context-memory.py',
+    'core_installer/termux-lite/test-gemini-request.py',
+    'core_plugin/scripts/test-file-read-boundary.cjs',
 })
 
 
@@ -214,17 +222,12 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                 if exhausted(): partial(); break
                 stats['entries'] += 1
                 name = entry.name
-                if name in EXCLUDED or any(ord(c) < 32 for c in name):
+                if name in EXCLUDED or PRIVATE_NAME.search(name) or any(ord(c) < 32 for c in name):
                     stats['skipped'] += 1; continue
                 relative = prefix + '/' + safe_name(name)
-                private_name = bool(PRIVATE_NAME.search(name))
-                if private_name and relative not in public_files:
-                    stats['skipped'] += 1; continue
                 try:
                     info = entry.stat(follow_symlinks=False)
                     if stat.S_ISDIR(info.st_mode):
-                        if private_name:
-                            stats['skipped'] += 1; continue
                         child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
                         try: visit(child, relative, depth+1)
                         finally: os.close(child)
@@ -256,8 +259,6 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                                         and digest.hexdigest() == public_files[relative]):
                                     attested_files.add(relative)
                                 os.lseek(child, 0, os.SEEK_SET)
-                            if private_name and relative not in attested_files:
-                                stats['skipped'] += 1; continue
                             allowance = min(file_bytes, max_bytes-stats['bytes'])
                             stats['files'] += 1
                             segments = iter_segments(child, allowance, deadline)
@@ -292,7 +293,7 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
         try: fd = open_root(path)
         except OSError: partial(); continue
         repository = Path(__file__).resolve().parents[2]
-        public_anchors = {'core': repository, 'core_installer': repository / 'installer'}
+        public_anchors = {'core': repository, 'core_installer': repository / 'installer', 'core_plugin': repository / 'openclaw-plugin-mobile-ui'}
         public_files = public_evidence if label in public_anchors and Path(path).absolute() == public_anchors[label] else {}
         attested_files.clear()
         try: visit(fd, safe_name(label))

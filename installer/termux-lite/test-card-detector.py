@@ -56,9 +56,9 @@ class CardDetectorTests(unittest.TestCase):
         self.assertEqual(len(self.scan_text(sample)['findings']),0)
     def test_exact_attested_public_signature_is_traced_but_extra_card_is_active(self):
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);source=root/'installer/termux-lite/test-workspace-secret-scan.py';source.parent.mkdir(parents=True)
+            root=Path(directory);source=root/'installer/termux-lite/test-context-memory.py';source.parent.mkdir(parents=True)
             accepted=valid_number('4',16);extra=valid_number('5',16);source.write_text(accepted+'\n'+extra)
-            relative='core/installer/termux-lite/test-workspace-secret-scan.py'
+            relative='core/installer/termux-lite/test-context-memory.py'
             rows=({'path':relative,'type':'public_fixture','hash':hashlib.sha256(source.read_bytes()).hexdigest(),'raison':'public test'}, {'path':relative,'type':'card','hash':hashlib.sha256(accepted.encode()).hexdigest()[:16],'raison':'synthetic checksum sample'})
             rows=tuple(rows)+tuple(dict(row,path=row['path'].replace('core/installer/','core_installer/',1)) for row in rows)
             with patch.object(scan,'__file__',str(root/'installer/termux-lite/workspace-secret-scan.py')),patch.object(scan,'accepted_signature_rows',lambda:rows):
@@ -74,9 +74,11 @@ class CardDetectorTests(unittest.TestCase):
                 self.assertEqual(limited['state'],'partial')
                 # A changed source loses attestation; a matching label in another root cannot enable it.
                 source.write_text(extra)
-                self.assertEqual(scan.scan_roots([('core',root)])['stats']['files'],0)
+                changed=scan.scan_roots([('core',root)])
+                self.assertEqual((len(changed['accepted']),len(changed['findings'])),(0,1))
             with patch.object(scan,'accepted_signature_rows',lambda:rows):
-                self.assertEqual(scan.scan_roots([('core',root)])['stats']['files'],0)
+                changed=scan.scan_roots([('core',root)])
+                self.assertEqual((len(changed['accepted']),len(changed['findings'])),(0,1))
     def test_nightly_receipt_preserves_accepted_metadata_without_alerting(self):
         spec=importlib.util.spec_from_file_location('hook',Path(__file__).with_name('nightly-secret-scan.py'))
         hook=importlib.util.module_from_spec(spec);spec.loader.exec_module(hook)
@@ -97,7 +99,12 @@ class CardDetectorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);(root/'credentials').mkdir();(root/'credentials/data.txt').write_text(valid_number('4',16))
             (root/'auth.json').write_text(valid_number('5',16))
-            with patch.object(scan,'__file__',str(root/'installer/termux-lite/workspace-secret-scan.py')):
-                self.assertEqual(scan.scan_roots([('core',root)])['stats']['files'],0)
+            private=root/'auth.json'
+            rows=({'path':'core/auth.json','type':'public_fixture','hash':hashlib.sha256(private.read_bytes()).hexdigest(),'raison':'must not authorize private file'},)
+            # Even a supplied source attestation cannot bypass the existing name exclusion.
+            with patch.object(scan,'__file__',str(root/'installer/termux-lite/workspace-secret-scan.py')),patch.object(scan,'accepted_signature_rows',lambda:rows):
+                changed=scan.scan_roots([('core',root)])
+                self.assertEqual(changed['stats']['files'],0)
+                self.assertEqual((len(changed['accepted']),len(changed['findings'])),(0,0))
 
 if __name__=='__main__':unittest.main()
