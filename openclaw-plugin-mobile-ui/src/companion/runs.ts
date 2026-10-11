@@ -1,5 +1,6 @@
 import {runProgressSteps} from "./runProgress";
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ReceiptPresentation} from "./receiptPresentation";
+import {projectRunPayment} from "./runPaymentPresentation";
 import { structuredNotification } from "./notificationText";
 import {capabilityProvenance,type CapabilityProvenance} from "./capabilityProvenance";
 import {conversationOwnerIndex,invalidateConversationOwner} from "./conversationOwnerIndex";
@@ -19,6 +20,8 @@ import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatu
 
 type StoredRun = {
   presentation?: ReceiptPresentation;
+  /** Derived on read from paymentRequests/ownerConfirmations (runPaymentPresentation.ts); stripped on write. */
+  paymentPresentation?: ReceiptPresentation;
   provenance?: CapabilityProvenance;
   inactivityCorrectionReceipt?: InactivityReceipt;
   runId: string;
@@ -620,7 +623,7 @@ function withRunSteps(status: CompanionRunStatus, stored?: StoredRun | null): Co
     executionSource: stored.executionSource, state: status.state, error: stored.error,
     acceptedAt: stored.acceptedAt, updatedAt: stored.updatedAt ?? status.updatedAt, modality: stored.modality,
     decision: stored.decision, clarificationState: stored.clarificationState,
-    presentation: readReceiptPresentation(stored.presentation), events: status.progress?.events,
+    presentation: runPresentation(stored), events: status.progress?.events,
   });
   if (!derived) return status;
   const base = status.progress || {text: "", events: []};
@@ -797,6 +800,11 @@ export function voiceRunState(transcriptState: StoredRun["transcriptState"]): Co
   return transcriptState === "completed" || transcriptState === "interrupted" ? "done" : "unknown";
 }
 
+/** Payment handoff projection first (derived on read), else the stored HS3 presentation. */
+function runPresentation(stored: StoredRun): ReceiptPresentation | undefined {
+  return stored.paymentPresentation || readReceiptPresentation(stored.presentation);
+}
+
 function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   if (stored.modality === "voice") return {
     success: true, runId: stored.runId, clientRunId: stored.clientRunId, sessionId: stored.sessionId,
@@ -819,7 +827,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     success: !failed,
     provenance: capabilityProvenance(stored.provenance),
     status: stored.error === "run_inactivity_expired" ? "expired" : undefined,
-    ...publicReceiptMetadata(readReceiptPresentation(stored.presentation)),
+    ...publicReceiptMetadata(runPresentation(stored)),
     ...(publicDecision(stored.decision) ? {decision: publicDecision(stored.decision)} : {}),
     inactivityCorrectionReceipt: stored.inactivityCorrectionReceipt,
     runId: stored.runId,
@@ -1786,7 +1794,9 @@ async function writeCompanionRunRegistry(runs: StoredRun[], archivedSessionIds: 
   const confirmations = ownerConfirmations ?? current.ownerConfirmations;
   const deletions = retainedRunDeletions(runDeletions ?? current.runDeletions);
   const deletedIds = new Set(deletions.map(row => row.runId));
-  const boundedRuns = retainStoredRuns(runs.filter(row => !deletedIds.has(row.runId)));
+  // The payment projection is derived on read: it never reaches the file nor the byte budget.
+  const boundedRuns = retainStoredRuns(runs.filter(row => !deletedIds.has(row.runId))
+    .map(({paymentPresentation: _derived, ...row}) => row as StoredRun));
   await fs.mkdir(path.dirname(runRegistryPath()), { recursive: true });
   const tmp = runRegistryPath() + ".tmp-" + process.pid;
   const file = await fs.open(tmp, "w", 0o600);
@@ -1814,12 +1824,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
         .filter((id: string) => id.length > 0),
     ))
     : [];
-  return {
-    archivedSessionIds,
-    paymentRequests,
-    ownerConfirmations,
-    runDeletions,
-    runs: runs
+  const parsedRuns: StoredRun[] = runs
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
@@ -1860,8 +1865,14 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       transcriptRevision: Number.isSafeInteger(run.transcriptRevision) ? run.transcriptRevision : undefined,
       playback: run.playback ? validateVoicePlayback(run.playback) : undefined,
       notThis: run.notThis ? validRunCorrection(run.notThis) : undefined,
-    })),
-  };
+    }));
+  // HS3: a run that handed off to a payment request shows that request's state (read-time projection only).
+  for (const run of parsedRuns) {
+    if (run.modality === "voice" || run.executionSource !== "capability_first") continue;
+    const projected = projectRunPayment(run, paymentRequests, ownerConfirmations);
+    if (projected) run.paymentPresentation = projected;
+  }
+  return {archivedSessionIds, paymentRequests, ownerConfirmations, runDeletions, runs: parsedRuns};
 }
 
 async function readArchivedSessionIds(): Promise<Set<string>> {
