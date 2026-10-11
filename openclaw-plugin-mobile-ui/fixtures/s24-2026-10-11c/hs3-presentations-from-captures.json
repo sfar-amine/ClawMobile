@@ -1,0 +1,222 @@
+{
+ "provenance": {
+  "generator": "samantha-ui-playbooks skill_intelligence/receipt_presentation.py (PR #72, 983b81b8)",
+  "inputs": "captures S24 réelles : openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/ (core #129) et s24-2026-10-11c/hs3-payment-terminal-records.json",
+  "note": "Sorties de la projection Graph sur captures réelles ; aucune valeur inventée."
+ },
+ "cases": {
+  "topup_confirmation_fr": {
+   "source": "hs3-resolution-slots-shortlist.json r11 + validated_slots[0] (E1 decision.parameters)",
+   "presentation": {
+    "version": 1,
+    "locale": "fr",
+    "status": "info",
+    "label": "Recharger mon numéro",
+    "title": "Résultat à vérifier",
+    "rows": [],
+    "spoken": "Ta confirmation est attendue avant de poursuivre.",
+    "primary": {
+     "label": "Terminer",
+     "action": "done"
+    },
+    "effect": {
+     "debited": "unknown",
+     "source": "receipt"
+    },
+    "meta": {
+     "capability": "payment.owner_native"
+    },
+    "understood": {
+     "capability": "payment.owner_native",
+     "label": "Recharger mon numéro",
+     "slots": {
+      "operator": "orange",
+      "amountTnd": "5",
+      "beneficiary": "owner"
+     },
+     "text": "Compris : Recharger mon numéro · Orange · 5 DT · ta ligne"
+    },
+    "alternatives": []
+   }
+  },
+  "topup_confirmation_en": {
+   "source": "hs3-resolution-slots-shortlist.json r11 + validated_slots[0] (E1 decision.parameters)",
+   "presentation": {
+    "version": 1,
+    "locale": "en",
+    "status": "info",
+    "label": "Top up my number",
+    "title": "Result to verify",
+    "rows": [],
+    "spoken": "Your confirmation is needed before proceeding.",
+    "primary": {
+     "label": "Done",
+     "action": "done"
+    },
+    "effect": {
+     "debited": "unknown",
+     "source": "receipt"
+    },
+    "meta": {
+     "capability": "payment.owner_native"
+    },
+    "understood": {
+     "capability": "payment.owner_native",
+     "label": "Top up my number",
+     "slots": {
+      "operator": "orange",
+      "amountTnd": "5",
+      "beneficiary": "owner"
+     },
+     "text": "Understood: Top up my number · Orange · 5 TND · your line"
+    },
+    "alternatives": []
+   }
+  },
+  "bills_terminal_fr": {
+   "source": "hs3-terminal-receipts.json families.factures",
+   "presentation": {
+    "version": 1,
+    "locale": "fr",
+    "status": "info",
+    "label": "État de la facture",
+    "title": "Résultat à vérifier",
+    "rows": [],
+    "spoken": "Le résultat de la demande reste à vérifier.",
+    "primary": {
+     "label": "Terminer",
+     "action": "done"
+    },
+    "effect": {
+     "debited": "unknown",
+     "source": "receipt"
+    },
+    "meta": {
+     "capability": "billing.utility.fast_path"
+    },
+    "understood": {
+     "capability": "billing.utility.fast_path",
+     "label": "État de la facture",
+     "slots": {},
+     "text": "Compris : État de la facture"
+    },
+    "alternatives": []
+   }
+  },
+  "payment_effect_unknown_fr": {
+   "source": "hs3-payment-terminal-records.json state=effect_unknown adapter=maxit.topup",
+   "presentation": {
+    "version": 1,
+    "locale": "fr",
+    "status": "error",
+    "label": "Shared native owner confirmation for payments",
+    "title": "Résultat à vérifier",
+    "rows": [],
+    "spoken": "La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.",
+    "primary": {
+     "label": "Terminer",
+     "action": "done"
+    },
+    "effect": {
+     "debited": "unknown",
+     "source": "receipt"
+    },
+    "meta": {
+     "capability": "payment.owner_native"
+    },
+    "understood": {
+     "capability": "payment.owner_native",
+     "label": "Shared native owner confirmation for payments",
+     "slots": {},
+     "text": "Compris : Shared native owner confirmation for payments"
+    },
+    "alternatives": [],
+    "failure": {
+     "step": "Exécution du paiement",
+     "stepId": "execution_error",
+     "reason": "L’effet du paiement n’est pas vérifié.",
+     "notDone": {
+      "code": "unknown"
+     }
+    }
+   }
+  },
+  "payment_blocked_after_dispatch_fr": {
+   "source": "hs3-payment-terminal-records.json state=blocked adapter=topnet",
+   "presentation": {
+    "version": 1,
+    "locale": "fr",
+    "status": "error",
+    "label": "Shared native owner confirmation for payments",
+    "title": "Résultat à vérifier",
+    "rows": [],
+    "spoken": "La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.",
+    "primary": {
+     "label": "Terminer",
+     "action": "done"
+    },
+    "effect": {
+     "debited": "unknown",
+     "source": "receipt"
+    },
+    "meta": {
+     "capability": "payment.owner_native"
+    },
+    "understood": {
+     "capability": "payment.owner_native",
+     "label": "Shared native owner confirmation for payments",
+     "slots": {},
+     "text": "Compris : Shared native owner confirmation for payments"
+    },
+    "alternatives": [],
+    "failure": {
+     "step": "Exécution du paiement",
+     "stepId": "execution_error",
+     "reason": "La cause n’est pas établie par le reçu.",
+     "notDone": {
+      "code": "unknown"
+     }
+    }
+   }
+  },
+  "payment_expired_not_submitted_fr": {
+   "source": "hs3-payment-terminal-records.json state=expired adapter=demo.confirmation",
+   "presentation": {
+    "version": 1,
+    "locale": "fr",
+    "status": "error",
+    "label": "Shared native owner confirmation for payments",
+    "title": "Résultat à vérifier",
+    "rows": [],
+    "spoken": "La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.",
+    "primary": {
+     "label": "Terminer",
+     "action": "done"
+    },
+    "effect": {
+     "debited": "unknown",
+     "source": "receipt"
+    },
+    "meta": {
+     "capability": "payment.owner_native"
+    },
+    "understood": {
+     "capability": "payment.owner_native",
+     "label": "Shared native owner confirmation for payments",
+     "slots": {},
+     "text": "Compris : Shared native owner confirmation for payments"
+    },
+    "alternatives": [],
+    "failure": {
+     "step": "Étape non établie",
+     "stepId": "unknown",
+     "reason": "La cause n’est pas établie par le reçu.",
+     "notDone": {
+      "code": "payment_not_submitted",
+      "text": "Rien n’a été envoyé au fournisseur."
+     }
+    }
+   }
+  }
+ }
+}

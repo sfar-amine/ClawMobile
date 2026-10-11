@@ -1,4 +1,5 @@
 import {conditionalRead} from "./readEtag";
+import {readCatalogResponse,catalogETag} from './catalog';
 import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
@@ -12,6 +13,7 @@ import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} fro
 import {withAttachmentReferences} from "./runs";
 import {readAgentConfig,changeAgentConfig} from "./agentConfig";
 import {engineeringRead} from "./engineeringRead";
+import {learningForget, learningList, learningNotThis} from "./learning";
 import {cancelControlRequest} from "./controlActions";
 import {diagnosticRead} from "./diagnostic";
 import {automationDetail,changeAutomation} from "./automations";
@@ -301,6 +303,27 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if(routePath==="/learning/associations"||routePath.startsWith("/learning/")){
+    // 38 A2 : owner natif uniquement ; mutations avec l'en-tête propriétaire. Jamais d'approve (D1).
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){
+      writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;
+    }
+    res.setHeader("Cache-Control","no-store");
+    try{
+      if(routePath==="/learning/associations"){
+        if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+        const value=await learningList(requestUrl.searchParams);writeJson(res,value.state==="unavailable"?503:200,value);return;
+      }
+      const forget=/^\/learning\/associations\/([a-f0-9]{64})\/forget$/.exec(routePath);
+      if(!forget&&routePath!=="/learning/not-this"){writeJson(res,404,{success:false,state:"not_found",receipt:null,error:"not_found"});return;}
+      if(method!=="POST"){res.setHeader("Allow","POST");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      const value=forget?await learningForget(forget[1],await readJsonBody(req,1024)):await learningNotThis(await readJsonBody(req,1024));
+      writeJson(res,value.state==="not_found"?404:200,value);
+    }catch(error:any){const status=error?.statusCode===400?400:503;writeJson(res,status,{success:false,state:status===400?"refused":"unavailable",receipt:null,error:status===400?"invalid_learning_request":"learning_owner_unavailable"});}
+    return;
+  }
+
   if (/^\/control\/requests\/[^/]+\/cancel$/.test(routePath)) {
     if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
         req.headers["x-clawmobile-owner-flow"] !== "v1") {
@@ -476,6 +499,23 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if(routePath==='/catalog'){
+    res.setHeader('Cache-Control','private, no-cache');
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']){writeJson(res,403,{success:false,error:'native_loopback_required'});return;}
+    if(method!=='GET'){writeJson(res,405,{success:false,error:'method_not_allowed'});return;}
+    // The app sends ?locale=fr|en (HomeCatalog.kt); any other parameter is refused.
+    const params=[...requestUrl.searchParams.keys()];const queryLocale=requestUrl.searchParams.get('locale');
+    if(params.some(k=>k!=='locale')||params.length>1||(queryLocale!==null&&!['fr','en'].includes(queryLocale))){writeJson(res,400,{success:false,error:'unsupported_parameter'});return;}
+    const locale=(queryLocale as 'fr'|'en'|null)||(/^en(?:-|,|;|$)/i.test(String(req.headers['accept-language']||''))?'en':'fr');
+    res.setHeader('Vary','Accept-Language');res.setHeader('Content-Language',locale);
+    try{const value=await readCatalogResponse(locale);
+      const tag=catalogETag(value);res.setHeader('ETag',tag);
+      if(req.headers['if-none-match']===tag){res.writeHead(304);res.end();return;}
+      writeJson(res,200,value);
+    }catch{writeJson(res,503,{success:false,error:'catalog_source_unavailable'});}
+    return;
+  }
+
   if(routePath==="/notifications/sources"||routePath.startsWith("/notifications/sources/")){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,error:"native_loopback_required"});return;}
     if(method!=='GET'){writeJson(res,405,{success:false,error:"canonical_source_toggle_unavailable"});return;}
@@ -614,6 +654,9 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/runs/:runId",
         "/v1/sessions/:sessionId/archive",
         "/v1/sessions/:sessionId",
+        "/v1/learning/associations",
+        "/v1/learning/associations/:associationId/forget",
+        "/v1/learning/not-this",
         "/v1/runtime/start",
         "/v1/runtime/stop",
         "/v1/runtime/restart",

@@ -9,6 +9,7 @@ import json, re, sys, time, urllib.error, urllib.request
 BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
+    ("/catalog", 0.3), # HS2: warm reads from memory; one HS1 generation is ≈ 360 ms on the S24, so the cold first read uses the retry.
     ("/health", 2.0),
     ("/control/health?contract=2", 2.0),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
@@ -41,6 +42,8 @@ READS = [
     # P2-b: an installed workspace skill on the S24 (fixtures/s24-2026-10-10/gateway/skills.status.json).
     # The Gateway wait is capped at 3 s (then partial); skills.status measured 1.8-2.4 s.
     ("/skills/clawmobile-capabilities", 4.0),
+    # 38 A2 : projection owner d'improvements.db (engineering.learning_gate), cache court 5 s.
+    ("/learning/associations?limit=20", 0.5),
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
@@ -55,6 +58,9 @@ OWNER_GUARDS = [
     ("POST", "/control/memory/import"),
     ("POST", "/control/memory/" + "a" * 64 + "/forget"),
     ("POST", "/runs/acceptance-probe/approval"),
+    # 38 A2 : oublier et « Ce n'est pas ça » refusés sans en-tête propriétaire, avant tout effet.
+    ("POST", "/learning/associations/" + "a" * 64 + "/forget"),
+    ("POST", "/learning/not-this"),
     ("POST", "/whatsapp/allowlist"),
     ("POST", "/skills/clawmobile-capabilities/disable"),
     ("POST", "/skills/clawmobile-capabilities/enable"),
