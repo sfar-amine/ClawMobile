@@ -2,7 +2,7 @@
   "version": 2,
   "id": "claude-o9-voice-terminal-state-20261011",
   "origin": "chat",
-  "kind": "fix",
+  "kind": "repair",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Voice runs with a final transcript (completed or interrupted) are terminal, never state=unknown",
