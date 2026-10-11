@@ -8,7 +8,17 @@ import type {IncomingMessage} from "http";
 
 const contactPattern=/^wa-[a-f0-9]{16}$/;
 const operationPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
-const reasons=new Set(["owner_contact_protected","country_code_required","invalid_e164","confirmation_required","confirmation_mismatch","confirmation_expired","invalid_scope","invalid_duration","note_too_long","unknown_contact","operation_conflict"]);
+export const allowlistReasons:ReadonlySet<string>=new Set(["owner_contact_protected","country_code_required","invalid_e164","confirmation_required","confirmation_mismatch","confirmation_expired","invalid_scope","invalid_duration","note_too_long","unknown_contact","operation_conflict","invalid_rooms","room_not_available","project_room_unavailable"]);
+/** Access rooms (people-trusted.py ROOMS): same normalization so both sides hash the same confirmation payload. */
+export const ROOMS=["conversation","projet","agenda","taches","lignes","memoire","actions","messages","maison"] as const;
+const ENFORCED_ROOMS=new Set(["conversation","projet","maison"]);
+export function normalizeRooms(value:any):string[]{
+ if(!Array.isArray(value)||!value.length||value.length>ROOMS.length||value.some(r=>!(ROOMS as readonly string[]).includes(r)))fail("invalid_rooms");
+ const rooms=value.includes("maison")?["maison"]:ROOMS.filter(r=>r==="conversation"||value.includes(r));
+ // Same refusal as people-trusted.py ENFORCED_ROOMS, before any confirmation is asked for a room that cannot be served.
+ if(rooms.some(r=>!ENFORCED_ROOMS.has(r)))fail("room_not_available",409);
+ return rooms;
+}
 const hash=(text:string)=>createHash("sha256").update(text,"utf8").digest("hex");
 const has=(value:any,key:string)=>Object.prototype.hasOwnProperty.call(value,key);
 const plain=(v:any)=>!!v&&typeof v==="object"&&!Array.isArray(v);
@@ -33,11 +43,11 @@ function identity(e:string){return "wa-"+hash(e).slice(0,16);}
 function iso(value:any){return typeof value==="string"&&/^\d{4}-\d{2}-\d{2}T/.test(value)&&Number.isFinite(Date.parse(value))?value:null;}
 function contact(value:any){
  if(!plain(value)||!contactPattern.test(value.contactId)||(typeof value.e164!=='string'||!/^\+[1-9][0-9]{7,14}$/.test(value.e164)||identity(value.e164)!==value.contactId)||typeof value.owner!=="boolean"||!["standard","claw","custom"].includes(value.scope)||!["active","suspended","expired_pending"].includes(value.state))fail("allowlist_unavailable",503);
- return {contactId:value.contactId,e164:value.e164,name:text(value.name,80)?value.name:null,owner:value.owner,scope:value.scope,scopeText:text(value.scopeText,500)?value.scopeText:null,state:value.state,expiresAt:iso(value.expiresAt),lastActivityAt:iso(value.lastActivityAt),addedAt:iso(value.addedAt),...(value.reason==='archived_history'?{reason:'archived_history'}:{})};
+ return {contactId:value.contactId,e164:value.e164,name:text(value.name,80)?value.name:null,owner:value.owner,scope:value.scope,scopeText:text(value.scopeText,500)?value.scopeText:null,state:value.state,rooms:Array.isArray(value.rooms)&&value.rooms.length&&value.rooms.every((r:any)=>(ROOMS as readonly string[]).includes(r))?value.rooms:["conversation"],expiresAt:iso(value.expiresAt),lastActivityAt:iso(value.lastActivityAt),addedAt:iso(value.addedAt),...(value.reason==='archived_history'?{reason:'archived_history'}:{})};
 }
 function receipt(value:any){if(value===null)return null;if(!plain(value)||value.version!==1||!operationPattern.test(value.operationId)||!contactPattern.test(value.contactId)||typeof value.action!=="string"||!['added','already_present','removed','already_absent','updated','suspended','reactivated','refused','failed','indeterminate','expired'].includes(value.state)||!iso(value.at))fail("allowlist_unavailable",503);return {version:1,operationId:value.operationId,action:value.action,contactId:value.contactId,state:value.state,at:value.at};}
-function outcome(value:any){if(!plain(value)||typeof value.success!=="boolean"||!['added','already_present','removed','already_absent','updated','suspended','reactivated','refused','failed','indeterminate','not_found'].includes(value.state))fail("allowlist_unavailable",503);const state=value.statusCode===503&&!value.success?'failed':value.state;return {success:value.success,state,receipt:receipt(value.receipt??null),...(state==='failed'?{error:'allowlist_unavailable'}:{}),...(reasons.has(value.reason||value.error)?{reason:value.reason||value.error}:{})};}
-function boundOutcome(value:any,body:any,action:string){const result=outcome(value);if(result.success&&!result.receipt||result.receipt&&result.receipt.state!==result.state)fail('allowlist_unavailable',503);if(result.receipt&&(result.receipt.operationId!==body.operationId||result.receipt.contactId!==body.contactId||!(({add:['added'],remove:['removed'],scope:['scope_changed'],suspend:['suspended'],reactivate:['reactivated'],expiry:['extended','shortened'],note:['note_updated']} as Record<string,string[]>)[action]||[]).includes(result.receipt.action)))fail('allowlist_unavailable',503);return result;}
+function outcome(value:any){if(!plain(value)||typeof value.success!=="boolean"||!['added','already_present','removed','already_absent','updated','suspended','reactivated','refused','failed','indeterminate','not_found'].includes(value.state))fail("allowlist_unavailable",503);const state=value.statusCode===503&&!value.success?'failed':value.state;return {success:value.success,state,receipt:receipt(value.receipt??null),...(state==='failed'?{error:'allowlist_unavailable'}:{}),...(allowlistReasons.has(value.reason||value.error)?{reason:value.reason||value.error}:{})};}
+function boundOutcome(value:any,body:any,action:string){const result=outcome(value);if(result.success&&!result.receipt||result.receipt&&result.receipt.state!==result.state)fail('allowlist_unavailable',503);if(result.receipt&&(result.receipt.operationId!==body.operationId||result.receipt.contactId!==body.contactId||!(({add:['added'],remove:['removed'],scope:['scope_changed'],suspend:['suspended'],reactivate:['reactivated'],expiry:['extended','shortened'],note:['note_updated'],rooms:['rooms_changed']} as Record<string,string[]>)[action]||[]).includes(result.receipt.action)))fail('allowlist_unavailable',503);return result;}
 function statusFor(value:any){if(value.success||value.state==="indeterminate")return 200;const reason=value.reason;if(reason==='unknown_contact'||value.state==='not_found')return 404;if(reason==='owner_contact_protected'||reason==='operation_conflict')return 409;if(reason?.startsWith('confirmation_'))return 403;if(value.state==='failed')return 503;return 400;}
 
 /** Existing people-trusted owner; neither argv nor diagnostics contain private request fields. */
@@ -61,7 +71,7 @@ export async function allowlistRead(kind:'list'|'get'|'history'|'note-get',conta
  if(kind==='list'){if(!Array.isArray(value.items)||value.items.length>500)fail('allowlist_unavailable',503);return {success:true,state:value.state==='partial'?'partial':'ok',receipt:null,items:value.items.map(contact),issues:Array.isArray(value.issues)?value.issues.filter((x:any)=>typeof x==='string'&&/^[a-z_]{1,80}$/.test(x)):[]};}
  if(kind==='note-get'){if(typeof value.text!=='string'||Array.from(value.text).length>2000||/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value.text))fail('allowlist_unavailable',503);return {success:true,state:value.state==='partial'?'partial':'ok',receipt:null,text:value.text,truncated:value.truncated===true,updatedAt:iso(value.updatedAt)};}
  if(!Array.isArray(value.items)||value.items.length>50)fail('allowlist_unavailable',503);
- const items=value.items.map((v:any)=>{if(!plain(v)||!contactPattern.test(v.contactId)||!iso(v.at)||!['added','removed','scope_changed','suspended','reactivated','expired','extended','shortened','note_updated'].includes(v.action))fail('allowlist_unavailable',503);return {at:v.at,action:v.action,contactId:v.contactId,name:null,...(['standard','claw','custom'].includes(v.scope)?{scope:v.scope}:{}),...([1,3,5,7].includes(v.durationDays)||v.durationDays===null?{durationDays:v.durationDays}:{})};});
+ const items=value.items.map((v:any)=>{if(!plain(v)||!contactPattern.test(v.contactId)||!iso(v.at)||!['added','removed','scope_changed','suspended','reactivated','expired','extended','shortened','note_updated','rooms_changed'].includes(v.action))fail('allowlist_unavailable',503);return {at:v.at,action:v.action,contactId:v.contactId,name:null,...(['standard','claw','custom'].includes(v.scope)?{scope:v.scope}:{}),...([1,3,5,7].includes(v.durationDays)||v.durationDays===null?{durationDays:v.durationDays}:{})};});
  return {success:true,state:value.state==='partial'?'partial':'ok',receipt:null,items,nextBefore:typeof value.nextBefore==='string'&&/^[A-Za-z0-9_-]{1,160}$/.test(value.nextBefore)?value.nextBefore:null};
 }
 async function confirmationView(confirmationId:any,type:string,reference:string,payloadHash:string,allowConsumed:boolean){
@@ -77,15 +87,16 @@ async function confirmationView(confirmationId:any,type:string,reference:string,
 }
 const flights=new Map<string,{hash:string;promise:Promise<any>}>();
 export async function allowlistChange(kind:'add'|'patch'|'remove'|'note',id:string|undefined,input:any){
- const fields=kind==='add'?['operationId','confirmationId','e164','displayName','scope','scopeText','durationDays','notify']:kind==='patch'?['operationId','confirmationId','scope','scopeText','state','durationDays']:kind==='remove'?['operationId','confirmationId']:['operationId','text'];
+ const fields=kind==='add'?['operationId','confirmationId','e164','displayName','scope','scopeText','durationDays','notify']:kind==='patch'?['operationId','confirmationId','scope','scopeText','state','durationDays','rooms']:kind==='remove'?['operationId','confirmationId']:['operationId','text'];
  const required=kind==='add'?['operationId','e164','scope','durationDays','notify']:kind==='note'?['operationId','text']:['operationId'];exact(input,fields,required);
  if(!operationPattern.test(input.operationId||''))fail('invalid_operation');if(id&&!contactPattern.test(id))fail('unknown_contact',404);
  let action:string=kind,body:any={...input};
  if(kind==='add'){body.e164=e164(input.e164);id=identity(body.e164);scope(input.scope,input.scopeText);duration(input.durationDays);if(typeof input.notify!=='boolean'||input.displayName!==undefined&&!text(input.displayName,80))fail('invalid_request');}
  if(kind==='note'&&!text(input.text,2000,true))fail('note_too_long');
  if(kind==='patch'){
-  const groups=[has(input,'scope')||has(input,'scopeText'),has(input,'state'),has(input,'durationDays')].filter(Boolean).length;if(groups!==1)fail('invalid_request');
-  if(has(input,'state')){if(!['active','suspended'].includes(input.state))fail('invalid_request');action=input.state==='active'?'reactivate':'suspend';}
+  const groups=[has(input,'scope')||has(input,'scopeText'),has(input,'state'),has(input,'durationDays'),has(input,'rooms')].filter(Boolean).length;if(groups!==1)fail('invalid_request');
+  if(has(input,'rooms')){body.rooms=normalizeRooms(input.rooms);action='rooms';}
+  else if(has(input,'state')){if(!['active','suspended'].includes(input.state))fail('invalid_request');action=input.state==='active'?'reactivate':'suspend';}
   else if(has(input,'durationDays')){duration(input.durationDays);action='expiry';}else{if(input.scope!==undefined)scope(input.scope,input.scopeText);else if(!text(input.scopeText,500))fail('invalid_scope');action='scope';}
  }
  body.contactId=id;const requestHash=digest(action,body);body.requestHash=requestHash;
@@ -105,6 +116,11 @@ async function perform(action:string,body:any,kind:string){
  else if(action==='scope'){
   const target=body.scope||current.scope;scope(target,body.scopeText);if(target==='custom'&&current.scope==='custom'&&body.scopeText===undefined)fail('invalid_scope');
   const levels:any={standard:0,claw:1,custom:2};if(levels[target]>levels[current.scope]||target==='custom'&&body.scopeText!==current.scopeText){confirmationType='raise';payloadHash=hash([current.e164,target,body.scopeText||''].join('|'));}
+ }
+ else if(action==='rooms'){
+  if(current.owner)fail('owner_contact_protected',409);
+  const before:string[]=current.rooms||['conversation'];
+  if(before[0]!=='maison'&&body.rooms.some((r:string)=>!before.includes(r))){confirmationType='rooms';payloadHash=hash([current.e164,...body.rooms].join('|'));}
  }
  else if(action==='expiry'){
   if(current.owner&&body.durationDays!==null)fail('owner_contact_protected',409);
