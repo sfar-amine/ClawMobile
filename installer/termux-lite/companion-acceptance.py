@@ -157,7 +157,8 @@ def main(session_id=None):
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "settled": settled, "status": status})
         if path == VOICE_TERMINAL_ROUTE and code == 200:
             stale = voice_terminal_unknown(body)
-            voice_status = "ok" if stale == [] else "fail"
+            # No run list to judge (route shape owned by its READS row): skipped, never a rollback by itself.
+            voice_status = "skipped" if stale is None else ("ok" if stale == [] else "fail")
             failed |= voice_status == "fail"
             results.append({"route": path, "check": "voice_runs_terminal_state", "unknown_terminal": len(stale) if stale is not None else None, "status": voice_status})
         if path == "/runs?contract=2&view=conversations&limit=20" and code == 200 and conversation_id is None:

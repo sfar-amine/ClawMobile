@@ -25,7 +25,7 @@
     {
       "name": "o9-acceptance-line",
       "status": "passed",
-      "evidence": "test-companion-acceptance-voice.py: 5 tests, the acceptance check voice_runs_terminal_state on GET /runs?limit=50 fails on the captured unknown runs and passes once reconciled; partial and text runs are not judged."
+      "evidence": "test-companion-acceptance-voice.py: 6 tests, the acceptance check voice_runs_terminal_state on GET /runs?limit=50 fails on the captured unknown runs and passes once reconciled; partial and text runs are not judged; a body without run list is skipped, never a rollback."
     },
     {
       "name": "existing-regressions",

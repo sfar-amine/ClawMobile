@@ -31,6 +31,14 @@ class VoiceTerminalAcceptance(unittest.TestCase):
         self.assertIsNone(acceptance.voice_terminal_unknown(b"[]"))
         self.assertIsNone(acceptance.voice_terminal_unknown(b'{"runs": {}}'))
 
+    def test_body_without_run_list_is_skipped_not_failed(self):
+        def call(method, path, timeout, headers=None):
+            return (403, b"{}", 0.01) if method != "GET" else ((200, b"{}", 0.05) if path == acceptance.VOICE_TERMINAL_ROUTE else (404, b"", 0.01))
+        with mock.patch.object(acceptance, "call", side_effect=call), mock.patch("builtins.print") as printed:
+            self.assertEqual(acceptance.main(), 0)
+        row = next(c for c in json.loads(printed.call_args.args[0])["checks"] if c.get("check") == "voice_runs_terminal_state")
+        self.assertEqual(row["status"], "skipped")
+
     def test_main_fails_on_stale_voice_run_and_passes_after_reconciliation(self):
         def fake_call(stale):
             def call(method, path, timeout, headers=None):
