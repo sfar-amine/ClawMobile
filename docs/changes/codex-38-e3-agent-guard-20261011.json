@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "id": "codex-38-e3-agent-guard-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Préparation pure inactive de la garde agent E3",
+  "reason": "SDK prouve la frontière requester/veto ; liaison canonique décision-exécution non encore prouvée, aucune restriction globale provisoire ajoutée.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-capability-guard.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/openclaw-2026.9.6/e3-hook-excerpts.d.ts",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/openclaw-2026.9.6/e3-hook-provenance.json",
+    "docs/work/samantha-runtime/contracts/38-e3.md",
+    "docs/changes/codex-38-e3-agent-guard-20261011.md",
+    "docs/changes/codex-38-e3-agent-guard-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "E3 préparation et régression P1",
+      "status": "passed",
+      "evidence": "Build ; 41 contrôles E3, 27 admission P1 ; régressions accesseur, preuve héritée, snapshot muté, inspection malformée et request borné. SDK public exact ; contrôles non qualifiants S24, aucune registration/exécution produit."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/38-e3.md",
+    "docs/changes/codex-38-e3-agent-guard-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Helper inactif, aucune route ou action nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Aucun owner, store, registry, dispatcher ajouté."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Préparation non enregistrée uniquement."
+  },
+  "rollback": "Revert du helper et de ses tests inactifs ; aucun état runtime.",
+  "limitations": [
+    "Non enregistré ; E3 complet non livré.",
+    "Liaison décision/exécution et texte original Gemini Live attendus ; captures core #124.",
+    "Aucune relecture GitHub possible ; dépend base locale P1 47b7780, sans push."
+  ]
+}

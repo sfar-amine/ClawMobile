@@ -178,3 +178,6 @@ jobs:
         run: |
           node scripts/test-capability-tool.cjs
           node scripts/test-capability-admission.cjs
+
+      - name: Prepare E3 agent capability policy boundary
+        run: node scripts/test-agent-capability-guard.cjs
