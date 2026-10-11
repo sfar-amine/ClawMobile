@@ -6,6 +6,7 @@ on:
       - main
       - feature/termux-adb-lite
   pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
 
 jobs:
   mobile-ui-plugin:
@@ -32,6 +33,11 @@ jobs:
 
       - name: Build Termux runtime plugin
         run: npm run build
+
+      - name: Test canonical context event surfaces
+        run: python3 ../installer/termux-lite/test-context-surfaces.py
+      - name: Test canonical app and authenticated Bixby bootstrap
+        run: node scripts/test-canonical-agent-bootstrap.cjs
 
       - name: Run trace induction tests
         run: npm run test:trace-induction
@@ -82,6 +88,15 @@ jobs:
           node scripts/test-conversation-pages.cjs
           node scripts/test-submit-reconciliation.cjs
           node scripts/test-payment-core.cjs
+      - name: Maxit top-up payment path (blocked proof, precise reasons, step receipts, nested budgets) — lot 11/10
+        run: |
+          node scripts/test-maxit-topup-payment-adapter.cjs
+          node scripts/test-payment-budgets.cjs
+          node scripts/test-payment-steps.cjs
+          node scripts/test-payment-api.cjs
+          node scripts/test-payment-handoff.cjs
+      - name: Network mutation guard (Auto Wi-Fi lease, Wi-Fi watch, exact restore) — lot 11/10
+        run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression
@@ -171,11 +186,40 @@ jobs:
           python3 ../installer/termux-lite/test-context-import.py
       - name: Run read-only security surfaces contract
         run: node scripts/test-security-surfaces.cjs
+
+      - name: Run bounded cross-surface native digest contract
+        run: |
+          python3 ../installer/termux-lite/test-context-digest.py
+          python3 ../installer/termux-lite/test-context-native-fixtures.py
+          python3 ../installer/termux-lite/test-context-scale.py
+          python3 ../installer/termux-lite/test-context-import.py
       - name: MCP context scopes and admitted client provenance
         run: |
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
 
+      - name: PR template section regression tests
+        run: python3 -m unittest discover -s ../tests -p test_pr_template.py
+      - name: PR description follows repository template
+        run: python3 ../tools/check_pr_template.py
+      - name: Run exact read projection ETags and existing owner budgets
+        run: node scripts/test-read-etags.cjs
+      - name: G5 deployed receipt date and HTTP budget
+        run: node scripts/test-update-deployment-date.cjs
+
+      - name: J1 bounded read-only secret scan and H8 integration
+        run: |
+          python3 ../installer/termux-lite/test-workspace-secret-scan.py
+          python3 ../installer/termux-lite/test-nightly-secret-scan.py
+      - name: H8 nightly read-only acceptance, deployment lock and drift receipts
+        run: |
+          node scripts/test-nightly-health-http.cjs
+          python3 ../installer/termux-lite/test-companion-nightly-acceptance.py
+          python3 ../installer/termux-lite/test-health-verdict.py
+      - name: G4 deployment receipts and route budget
+        run: node scripts/test-deployment-receipts.cjs
+      - name: C5 canonical voice owner transport fixture
+        run: python3 ../installer/termux-lite/test-context-voice-read.py
       - name: H9 read-only UI smoke synthetic safety boundaries
         run: python3 ../installer/termux-lite/test-ui-smoke.py

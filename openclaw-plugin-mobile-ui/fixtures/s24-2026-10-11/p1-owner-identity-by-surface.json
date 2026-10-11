@@ -1,0 +1,244 @@
+{
+  "provenance": {
+    "captured_at": "2026-10-11T00:46:45+0100",
+    "device": "S24 (Termux, profil owner)",
+    "captured_by": "Claude via claw_exec (lecture seule)",
+    "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+    "core_runtime_head": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "core_runtime_branch": "runtime/samantha-companion-private",
+    "playbooks_workspace_head": "dd251b71c0d6ca2c26b7740c73cce72e560ac109",
+    "playbooks_pinned": "6d567aa3252ff398513bd7c7b22ed63da7a31ffe",
+    "pseudonymization": "HMAC-SHA256 avec sel aléatoire propre à cette capture (non conservé) ; cohérent entre tous les fichiers de ce dossier",
+    "amounts": "montants remplacés par des valeurs fictives de même format (même nombre de décimales, millimes cohérents)",
+    "sources": [
+      "~/.openclaw/agents/{main,gemini}/agent/openclaw-agent.sqlite (mode=ro), table trajectory_runtime_events",
+      "ClawMobile/openclaw-plugin-mobile-ui/src/{index.ts,capabilityTool.ts,modelFastPath.ts}"
+    ]
+  },
+  "agents": {
+    "main": {
+      "turns_by_surface": {
+        "whatsapp": {
+          "turns": 21,
+          "last_user_senderIsOwner": {
+            "false": 19,
+            "true": 2
+          },
+          "openclaw_meta_keys": [
+            "senderId",
+            "senderIdentity",
+            "senderIsOwner",
+            "senderName",
+            "transport"
+          ],
+          "sessions": 4,
+          "first": "2026-09-28T17:11:55.886Z",
+          "last": "2026-10-09T14:18:09.731Z"
+        },
+        "main": {
+          "turns": 1,
+          "last_user_senderIsOwner": {
+            "false": 1
+          },
+          "openclaw_meta_keys": [
+            "senderIsOwner",
+            "transport"
+          ],
+          "sessions": 1,
+          "first": "2026-09-29T23:26:07.513Z",
+          "last": "2026-09-29T23:26:07.513Z"
+        },
+        "app": {
+          "turns": 12,
+          "last_user_senderIsOwner": {
+            "false": 12
+          },
+          "openclaw_meta_keys": [
+            "senderIsOwner"
+          ],
+          "sessions": 9,
+          "first": "2026-10-03T15:58:42.353Z",
+          "last": "2026-10-10T21:19:21.434Z"
+        },
+        "mcp": {
+          "turns": 9,
+          "last_user_senderIsOwner": {
+            "false": 9
+          },
+          "openclaw_meta_keys": [
+            "senderIsOwner"
+          ],
+          "sessions": 9,
+          "first": "2026-10-06T01:09:29.664Z",
+          "last": "2026-10-06T10:50:19.341Z"
+        },
+        "node": {
+          "turns": 11,
+          "last_user_senderIsOwner": {
+            "true": 11
+          },
+          "openclaw_meta_keys": [
+            "senderIsOwner"
+          ],
+          "sessions": 1,
+          "first": "2026-10-08T22:34:46.804Z",
+          "last": "2026-10-08T22:40:46.639Z"
+        }
+      },
+      "clawmobile_capability_tool_calls": [
+        {
+          "ts": "2026-09-30T10:34:12.925Z",
+          "surface_class": "capgraph-test",
+          "run_id": "run_b15567e1661c",
+          "provider": "openai",
+          "args": {
+            "caller": "owner",
+            "execute": false,
+            "surface": "chatgpt"
+          },
+          "turn_last_user_senderIsOwner": [
+            "<no prompt event in run>"
+          ]
+        },
+        {
+          "ts": "2026-09-30T10:42:01.458Z",
+          "surface_class": "capgraph-test",
+          "run_id": "run_13651669b655",
+          "provider": "openai",
+          "args": {
+            "caller": "owner",
+            "execute": false,
+            "surface": "chatgpt"
+          },
+          "turn_last_user_senderIsOwner": [
+            "<no prompt event in run>"
+          ]
+        },
+        {
+          "ts": "2026-10-10T16:15:15.592Z",
+          "surface_class": "app",
+          "run_id": "run_59bb5cc8e0fa",
+          "provider": "openai",
+          "args": {
+            "caller": "owner",
+            "execute": true,
+            "surface": null
+          },
+          "turn_last_user_senderIsOwner": [
+            "false"
+          ]
+        },
+        {
+          "ts": "2026-10-10T21:19:39.494Z",
+          "surface_class": "app",
+          "run_id": "run_1fa3e2ba2fe1",
+          "provider": "openai",
+          "args": {
+            "caller": "owner",
+            "execute": true,
+            "surface": null
+          },
+          "turn_last_user_senderIsOwner": [
+            "false"
+          ]
+        },
+        {
+          "ts": "2026-10-10T21:19:50.356Z",
+          "surface_class": "app",
+          "run_id": "run_1fa3e2ba2fe1",
+          "provider": "openai",
+          "args": {
+            "caller": "owner",
+            "execute": true,
+            "surface": "chatgpt"
+          },
+          "turn_last_user_senderIsOwner": [
+            "false"
+          ]
+        }
+      ]
+    },
+    "gemini": {
+      "turns_by_surface": {
+        "other": {
+          "turns": 9,
+          "last_user_senderIsOwner": {
+            "true": 9
+          },
+          "openclaw_meta_keys": [
+            "senderIsOwner"
+          ],
+          "sessions": 2,
+          "first": "2026-09-30T01:07:01.448Z",
+          "last": "2026-10-03T22:04:27.254Z"
+        }
+      },
+      "clawmobile_capability_tool_calls": [
+        {
+          "ts": "2026-09-30T10:34:26.469Z",
+          "surface_class": "capgraph-test",
+          "run_id": "run_67938be7084c",
+          "provider": "google",
+          "args": {
+            "caller": "owner",
+            "execute": false,
+            "surface": "gemini_claw"
+          },
+          "turn_last_user_senderIsOwner": [
+            "<no prompt event in run>"
+          ]
+        },
+        {
+          "ts": "2026-09-30T10:42:10.536Z",
+          "surface_class": "capgraph-test",
+          "run_id": "run_ec27d2289f19",
+          "provider": "google",
+          "args": {
+            "caller": "<absent>",
+            "execute": null,
+            "surface": null
+          },
+          "turn_last_user_senderIsOwner": [
+            "<no prompt event in run>"
+          ]
+        },
+        {
+          "ts": "2026-09-30T10:42:12.776Z",
+          "surface_class": "capgraph-test",
+          "run_id": "run_ec27d2289f19",
+          "provider": "google",
+          "args": {
+            "caller": "<absent>",
+            "execute": false,
+            "surface": null
+          },
+          "turn_last_user_senderIsOwner": [
+            "<no prompt event in run>"
+          ]
+        }
+      ]
+    }
+  },
+  "deployed_registration": {
+    "file": "openclaw-plugin-mobile-ui/src/index.ts",
+    "commit": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "registration_kind": "static_tool (api.registerTool(toolDef(...)))",
+    "factory_context_received": false,
+    "handler": "async (args) => clawmobile_capability(args)",
+    "caller_default_in_capabilityTool_ts": "const caller = args.caller || \"owner\";",
+    "senderIsOwner_consumers": [
+      "senderIsOwner?: boolean;",
+      "const owner = event.senderIsOwner === true || isTrustedLocalCompanionSession(event, ctx);"
+    ],
+    "assertInvocationCurrent_present_in_runtime_src": false
+  },
+  "voice": {
+    "openclaw_trajectory_turns": 0,
+    "note": "Aucun tour voix n'existe dans trajectory_runtime_events : la voix Samantha écrit ses tours par POST routePath /sessions/{id}/voice-turns (saveVoiceTurn, runs.ts) et ne passe pas par un tour agent OpenClaw ; aucun senderIsOwner ni contexte factory n'est donc journalisé pour la voix."
+  },
+  "limits": [
+    "Le contexte factory (ctx.senderIsOwner, assertInvocationCurrent) n'est pas journalisé : le runtime déployé enregistre clawmobile_capability en outil statique, sans factory ; la capture factory est impossible sans déployer #107 et sans provoquer un tour (appel de modèle interdit).",
+    "Les valeurs ci-dessus sont la métadonnée __openclaw.senderIsOwner du dernier message utilisateur, telle que le host OpenClaw l'a écrite dans la trajectoire.",
+    "node = session nœud Android OpenClaw ; la surface d'origine n'est pas attestée par la trajectoire."
+  ]
+}

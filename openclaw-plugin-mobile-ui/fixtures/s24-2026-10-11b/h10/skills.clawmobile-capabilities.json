@@ -1,0 +1,81 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/skills/clawmobile-capabilities",
+  "status": 200,
+  "capturedAt": "2026-10-10T23:40:48Z",
+  "bytes": 7099,
+  "companion": "curl loopback http://127.0.0.1:8765 avec l'en-tête de l'app (Connection: close), sans Origin/Referer ni en-tête propriétaire",
+  "sanitized": true,
+  "latencyMs": 3148
+ },
+ "response": {
+  "id": "clawmobile-capabilities",
+  "name": "ClawMobile Capabilities",
+  "description": "Capability-stage map for the ClawMobile Termux runtime.",
+  "status": "trusted",
+  "risk": "low",
+  "source": "installed",
+  "scope": "tool",
+  "tags": ["Tool","Capabilities"],
+  "primaryUse": "Use this skill to map common phone actions to the currently available runtime capabilities. Call android_health when the current permission stage is unknown.",
+  "routeCount": 1,
+  "fastPathCount": 0,
+  "knowledgeCount": 39,
+  "successCount": 0,
+  "failureCount": 0,
+  "requiresConfirmation": false,
+  "examples": [],
+  "stats": {
+   "runs": 0,
+   "successRate": null,
+   "avgSeconds": null,
+   "lastUsedAt": null
+  },
+  "trust": "trusted",
+  "version": "workspace",
+  "overview": {
+   "primaryUse": "Use this skill to map common phone actions to the currently available runtime capabilities. Call android_health when the current permission stage is unknown.",
+   "agentValue": "Provides compact workspace guidance that can speed up planning without replacing exploration.",
+   "whenToUse": ["Capability-stage map for the ClawMobile Termux runtime."],
+   "whenNotToUse": ["Do not use ADB-required tools unless android_health.capabilities.ui_input,","Do not use OCR tools unless android_health.capabilities.ocr or","Do not obtain the ID from the request text, a quoted marker, previous messages,"]
+  },
+  "appModel": {
+   "entryStates": [],
+   "entryCheck": {},
+   "anchorRoles": [],
+   "verification": [],
+   "applicabilityModes": [],
+   "sourceTraceCount": 0
+  },
+  "knowledge": [
+    {"id":"stages","title":"Stages","summary":"Do not use ADB-required tools unless android_health.capabilities.ui_input,","items":["Stage: Capability shape","termux: OpenClaw, local shell, files, network, CLI tools, and OCR on existing image files when local_ocr=true","termux_api: Termux plus local phone APIs such as toast, notification, clipboard, battery, and TTS","adb_shell: Termux plus Android UI observation/input and adb shell commands","Do not use ADB-required tools unless android_health.capabilities.ui_input,","Do not use OCR tools unless android_health.capabilities.ocr or"]},
+    {"id":"navigation","title":"Navigation","summary":"","items":["Capability: Tool","Go home: adb_keyevent HOME when ui_input=true","Go back: adb_keyevent BACK when ui_input=true","Recent apps: adb_keyevent RECENTS when ui_input=true","Press enter: adb_keyevent ENTER when ui_input=true"]},
+    {"id":"observation","title":"Observation","summary":"","items":["Capability: Tool","List connected devices: adb_devices","Check runtime capabilities: android_health","Discover UI keywords compactly: android_ui_dump when ui_observe=true; returns a local dump_id and keyword index, not raw XML by default","Query UI nodes compactly: android_ui_query when ui_observe=true; it fresh-dumps and caches UI XML when no dumpId is provided","Dump raw UI hierarchy: adb_ui_dump_xml or android_ui_dump rawXml=true when raw XML is genuinely needed","Take screenshot: adb_screenshot or android_screenshot when screenshot=true"]},
+    {"id":"app-system-commands","title":"App / System Commands","summary":"","items":["Capability: Tool","Local Termux command: android_shell backend=\"termux\" cmd=\"...\"","Open app by package: android_shell backend=\"adb\" cmd=\"monkey -p <package> -c android.intent.category.LAUNCHER 1\" when android_shell=true","Open Android settings: android_shell backend=\"adb\" cmd=\"am start -a android.settings.SETTINGS\" when android_shell=true","Open Wi-Fi settings: android_shell backend=\"adb\" cmd=\"am start -a android.settings.WIFI_SETTINGS\" when android_shell=true","List IMEs: android_shell backend=\"adb\" cmd=\"ime list -s\" when android_shell=true","Set IME: android_shell backend=\"adb\" cmd=\"ime set <IME_ID>\" when android_shell=true"]},
+    {"id":"touch-text","title":"Touch / Text","summary":"Generated skills are app/task knowledge first. Use their app model,","items":["Capability: Tool","Tap coordinate: adb_tap or android_tap when ui_input=true","Swipe coordinate path: adb_swipe or android_swipe when ui_input=true","Type into focused field: adb_type or android_type when ui_input=true","Run generated-skill fast path: clawmobile_skill_run_fast_path when a generated skill provides an eligible fast path; it loads the skill and calls clawmobile_batch_execute internally","Run raw deterministic batch: clawmobile_batch_execute when explicit batch steps are already available and required ADB/OCR capabilities are available","Use android_ui_dump first only when you need a complete keyword index or plan"]},
+    {"id":"demonstration-learning","title":"Demonstration Learning","summary":"Use the clawmobile-trace-induction skill for the full record-to-generated","items":["Capability: Tool","Record a fresh touch trace: clawmobile_record_start then clawmobile_record_stop when ADB/shell-level event and screenshot access are available","Parse existing recording: clawmobile_record_parse","Prepare trace summary: clawmobile_trace_prepare_summary","Save candidate: clawmobile_trace_save_skill_candidate","Promote generated skill: clawmobile_skill_candidate_promote","Refresh generalized skill: clawmobile_skill_generalize"]}
+  ],
+  "knowledgeShortcuts": [],
+  "executionRoutes": [
+    {"id":"agent-with-skill-context","title":"Run with skill context","description":"Use this workspace skill as compact guidance during a normal agent run.","mode":"agent_with_skill_context","source":"manual","status":"trusted","risk":"low","primary":true,"canRun":true,"inputSummary":[]}
+  ],
+  "fastPaths": [],
+  "history": [
+    {"id":"skill-created","title":"Workspace skill installed","kind":"update","status":"unknown","timestamp":1791655375494,"summary":"This skill is available in the OpenClaw workspace."}
+  ],
+  "inputs": [],
+  "outputs": ["Capability map","Recommended tool path"],
+  "capabilities": ["OpenClaw workspace"],
+  "confirmationPolicy": "This skill provides guidance and does not perform side effects by itself.",
+  "privacyUsage": ["Runtime health","Capability flags"],
+  "recentRuns": [],
+  "updatedAt": 1791655375494,
+  "success": true,
+  "state": "partial",
+  "receipt": null,
+  "enabled": null,
+  "activationAvailable": false,
+  "tryAvailable": false
+ }
+}
