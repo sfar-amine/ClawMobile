@@ -25,6 +25,9 @@
     "installer/termux-lite/companion-deploy.sh",
     "installer/termux-lite/test-companion-acceptance-owner-transport.py",
     "installer/termux-lite/test-skill-learning-acceptance.py",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/gateway-owner-revocation-cancel-clarify.json",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/public-gateway-client-dispatch.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/bonjour-samantha.m4a",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/media-config-projection.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/memo-audio.json",
@@ -41,6 +44,10 @@
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/README.md",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/callgatewayfromcli-signature.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/p1-owner-transport-admission.json",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/README-p1-gateway.md",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-clarify.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-isolated.cjs",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/owner-turn-public-sdk.cjs",
     "openclaw-plugin-mobile-ui/scripts/lib/memo-admission-fixture.cjs",
     "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json",
     "openclaw-plugin-mobile-ui/scripts/test-canonical-agent-bootstrap.cjs",
@@ -96,6 +103,11 @@
       "name": "HS8 final union P1 and R20 targeted",
       "status": "passed",
       "evidence": "Node20 build + P1 64/64 + voice21/21 + real HTTP signed memo + SDK owner + memo pipeline/deferred retry/SDK resolution + E3 44 + edit-replay + F6 17abandons sweep498ms + strict cleanup9/9. /workspace/artifacts/b42/hs8-46-p1-union-final-targeted-r2.log exit0, portable6283/84b8/197/a947 integrated; previous command with wrong script names archived, no code relaxation."
+    },
+    {
+      "name": "HS8 public Gateway final P1 admission and memo union",
+      "status": "passed",
+      "evidence": "Node20 build + actual P1 matrix73/73 + memo real signed HTTP/pipeline/deferred retry/SDKowner exit0, hs8-46-public-gateway-targeted.log. Node26.11.1 pinned public SDK OpenClaw2026.9.6 isolated diagnostic6/6 exit0, hs8-46-public-gateway-real-targeted.log and fresh hs8-46-public-gateway-real-proof ; realHELLOrevocation => zero agent/tool, tokenDestroyedtrue. Local synthetic provider only, no S24/provider account."
     }
   ],
   "documentation": [
@@ -134,6 +146,7 @@
     "Après réponsePOST perdue et audio supprimé, rapprochement GETparclient existant côté app ; pas de réupload ou nouveau run.",
     "Aucun appel fournisseur live, fusion PR, force-push, activation ni déploiement par Codex.",
     "Publication prête conditionnée à la suite entière verte sur SHA exact ; recette S24 et journaux privés requis avant activation.",
-    "Final whole CI at frozen final SHA remains pending after current targeted union; no readiness or Android activation until qualified."
+    "Final whole CI at frozen final SHA remains pending after current targeted union; no readiness or Android activation until qualified.",
+    "Public Gateway SDK revocation is checked immediately before synchronous agent issuance. Once a packet is sent/accepted revocation is not retrospective; ambiguous failures never retry or fall back CLI. Android cancellation wiring remains separate."
   ]
 }
