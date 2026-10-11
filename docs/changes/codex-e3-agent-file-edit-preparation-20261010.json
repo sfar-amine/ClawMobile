@@ -61,6 +61,7 @@
   "limitations": [
     "Budget d'écriture mesuré en CI avec la latence CLI capturée de agents.files.get (3,45 s) appliquée aussi à set ; mesure production après déploiement.",
     "Le CAS natif ne sérialise que les écritures agents.files.set du même process Gateway ; install-openclaw-instructions.sh ou un outil de l'agent peut écrire AGENTS.md hors de cette file : la relecture après effet incertain le détecte, sans rejeu.",
-    "Un fichier absent ne peut pas être créé (pas de révision) ; DREAMS.md reste hors liste Gateway."
+    "Un fichier absent ne peut pas être créé (pas de révision) ; DREAMS.md reste hors liste Gateway.",
+    "Reprise fichier 42 : suite locale entière sur SHA final à publier après exécution ; seules les sauvegardes .bak-samantha-* sont bornées et purgées par cette route, pas celles du propriétaire installateur."
   ]
 }
