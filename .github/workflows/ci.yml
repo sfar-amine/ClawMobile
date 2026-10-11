@@ -38,6 +38,12 @@ jobs:
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Health manager never repairs the Companion during a deploy
         run: python3 ../installer/termux-lite/test-health-deploy-lock.py
+
+      - name: Run immune I2/I3/I8 contracts (repair-handler gate, LKG hold, ingress root)
+        run: |
+          python3 ../installer/termux-lite/test-tier0-lkg-hold.py
+          python3 ../installer/termux-lite/test-incident-orchestrator.py
+          python3 ../installer/termux-lite/test-incident-ingress.py
       - name: Playbooks activation links ignored runtime dependencies
         run: bash ../installer/termux-lite/test-activate-ui-playbooks.sh
       - name: K2 owner access-change receipts without real sends
