@@ -4,6 +4,7 @@ import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
 import {filesList,filesContent} from "./fileReads";
+import {writeAgentFile} from "./agentFileWritePlan";
 import {prewarmUsage,readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
@@ -17,6 +18,7 @@ import {learningForget, learningList, learningNotThis} from "./learning";
 import {cancelControlRequest} from "./controlActions";
 import {diagnosticRead} from "./diagnostic";
 import {automationDetail,changeAutomation} from "./automations";
+import {editAutomation} from "./automationEditValidation";
 import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
 import {notificationSources} from "./notificationSources";
 import {allowlistRead,allowlistChange,allowlistBody} from "./whatsappAllowlist";
@@ -71,6 +73,12 @@ type TerminalShellSession = {
   running: boolean;
   updatedAt: number;
 };
+
+/** Une relecture refusée (source absente, active, déjà remplacée…) n'a rien soumis : 404/409 plutôt que 503. */
+export function replayRefusalStatusCode(result: { success?: boolean; submissionState?: string; message?: string }) {
+  if (result.success || result.submissionState !== "not_submitted" || !/^replay_[a-z_]+$/.test(String(result.message || ""))) return undefined;
+  return result.message === "replay_source_not_found" ? 404 : result.message === "replay_invalid" ? 400 : 409;
+}
 
 export function runSubmissionStatusCode(result: { success?: boolean; submissionState?: string }) {
   if (result.success) return 200;
@@ -254,6 +262,21 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if(routePath==="/files"||routePath==="/files/content"){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method==="PUT"&&routePath==="/files/content"&&req.headers["x-clawmobile-owner-flow"]==="v1"){
+      // E3 / R20 lot 2: agent files only, biometric agent.file_write, CAS on baseHash, bounded backup, payment lines kept.
+      res.setHeader("Cache-Control","no-store");
+      const params=requestUrl.searchParams;
+      try{
+        if([...params.keys()].some(k=>!["scope","path"].includes(k))||params.getAll("scope").length!==1||params.get("scope")!=="agent"||params.getAll("path").length!==1)throw Object.assign(new Error("invalid_file_write"),{statusCode:400});
+        const result:any=await writeAgentFile(params.get("path"),await readJsonBody(req,300*1024));
+        writeJson(res,result.state==="needs_confirmation"?403:result.state==="refused"||result.state==="blocked"?409:result.state==="completed"||result.state==="unchanged"?200:503,result);
+      }catch(error:any){
+        const status=[400,403,404,413,422].includes(error?.statusCode)?error.statusCode:503;
+        const known=["invalid_file_write","file_write_not_available","invalid_file_content","invalid_file_revision","invalid_operation_id","confirmation_mismatch","file_content_protected","file_protected_lines_changed","file_not_available","operation_conflict"];
+        writeJson(res,error?.statusCode===409?409:status,{success:false,state:status===503&&error?.statusCode!==409?"failed":"refused",receipt:null,error:known.includes(error?.message)?error.message:status===503?"files_owner_unavailable":"invalid_file_write"});
+      }
+      return;
+    }
     if(method!=="GET"){writeJson(res,req.headers["x-clawmobile-owner-flow"]!=="v1"?403:405,{success:false,state:"refused",receipt:null,error:"file_read_only"});return;}
     try{
       const value:any=routePath==="/files"?await filesList(requestUrl.searchParams):await filesContent(requestUrl.searchParams);
@@ -366,11 +389,23 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       let id:string;try{id=decodeURIComponent(match[1]);}catch{throw Object.assign(new Error("invalid_automation_id"),{statusCode:400});}
       res.setHeader("Cache-Control","no-store");
       if(method==="GET"&&!match[2]){writeJson(res,200,await automationDetail(id));return;}
+      if(method==="PATCH"&&!match[2]){
+        // R23 / E1: payment and validation refusals precede any owner read; CAS via If-Match (native configRevision).
+        const ifMatch=typeof req.headers["if-match"]==="string"?req.headers["if-match"].replace(/^"|"$/g,""):undefined;
+        let result:any;
+        try{result=await editAutomation(id,await readJsonBody(req,8*1024),ifMatch);}
+        catch(error:any){
+          const status=[400,404,409,413,422,428].includes(error?.statusCode)?error.statusCode:503;
+          const known=["invalid_automation_edit","invalid_automation_id","automation_sensitive_input","automation_payment_excluded","automation_message_unsupported","automation_guard_unavailable","automation_protected","automation_not_found","automation_revision_required","operation_conflict"];
+          writeJson(res,status,{success:false,state:status===503?"failed":"refused",receipt:null,error:known.includes(error?.message)?error.message:status===503?"automation_unavailable":"invalid_automation_request"});return;
+        }
+        writeJson(res,result.state==="needs_confirmation"?403:result.state==="refused"||result.state==="blocked"?409:result.state==="completed"?200:503,result);return;
+      }
       if((method==="POST"&&match[2])||(method==="DELETE"&&!match[2])){
         const result=await changeAutomation(id,match[2]||"delete",await readJsonBody(req,1024));
         writeJson(res,result.state==="blocked"?409:result.state==="not_found"?404:result.state==="failed"?503:result.state==="refused"?403:200,result);return;
       }
-      res.setHeader("Allow",match[2]?"POST":"GET, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
+      res.setHeader("Allow",match[2]?"POST":"GET, PATCH, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
     } catch(error:any) {
       const code=[400,404,409].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,error:code===400?"invalid_automation_request":code===404?"automation_not_found":code===409?"operation_conflict":"automation_unavailable"});
@@ -858,6 +893,15 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     }catch(e:any){const status=[400,404,413].includes(e?.statusCode)?e.statusCode:503;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":status===413?"attachment_share_limit":"invalid_attachment_request"});return;}
     const instruction = String(body?.instruction || body?.text || "");
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
+    const authority=isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner" as const:undefined;
+    // Édition-relecture : objet fermé {sessionId, runId}, réservé au propriétaire natif.
+    let replayOf:{sessionId:string;runId:string}|undefined;
+    if(body?.replayOf!==undefined){
+      const r:any=body.replayOf;
+      if(!r||typeof r!=="object"||Array.isArray(r)||Object.keys(r).sort().join(",")!=="runId,sessionId"||typeof r.sessionId!=="string"||typeof r.runId!=="string"){writeJson(res,400,{success:false,accepted:false,submissionState:"not_submitted",message:"replay_invalid"});return;}
+      if(!authority){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required"});return;}
+      replayOf={sessionId:r.sessionId,runId:r.runId};
+    }
     const result = await submitIntent(
       instruction,
       String(body?.sessionId || "default"),
@@ -865,10 +909,11 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       {
         userText: displayText,
         clientRunId: body?.clientRunId,
-        authority:isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner":undefined,
+        authority,
+        ...(replayOf?{replayOf}:{}),
       },
     );
-    const statusCode = runSubmissionStatusCode(result);
+    const statusCode = replayRefusalStatusCode(result) ?? runSubmissionStatusCode(result);
     writeJson(res, statusCode, result);
     return;
   }
