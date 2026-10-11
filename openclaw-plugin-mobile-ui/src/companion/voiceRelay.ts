@@ -161,6 +161,22 @@ function questionForChoices(choices: unknown[]) {
   return "Précise : " + labelsForChoices(choices).join(" ou ") + ".";
 }
 
+/** Voice executes a resolved capability directly only when it is deterministic, needs no confirmation and its
+ * registry risk is "read" or "low". O10 (fichier 37) : "low" is the owner-only voice decision record
+ * (samantha.voice.decision.record, no biometrics, no confirmation, decision of Amine 10/10). Anything else, and
+ * every payment or confirmed path, keeps going to the agent turn. */
+export const VOICE_DIRECT_RISKS = new Set(["read", "low"]);
+export function deterministicVoiceAdmission(resolved: any): boolean {
+  const selected = resolved?.selected;
+  return !(
+    resolved?.success === false ||
+    selected?.deterministic !== true ||
+    !VOICE_DIRECT_RISKS.has(String(selected?.risk || "")) ||
+    resolved?.confirmation_required === true ||
+    selected?.confirmation_required === true
+  );
+}
+
 export function extractFastClarification(value: any) {
   const execution = value?.execution;
   const result = execution?.result;
@@ -171,6 +187,10 @@ export function extractFastClarification(value: any) {
     typeof result !== "object"
   ) {
     return null;
+  }
+  // A capability that lacks one parameter asks its own question (O10: "Quelle décision veux-tu que je note ?").
+  if (result.state === "needs_parameter" && typeof result.question === "string" && result.question.trim()) {
+    return { question: result.question.trim().slice(0, 300), choices: [] as string[] };
   }
   if (
     result.state === "needs_counter" &&
@@ -345,13 +365,7 @@ async function resolveDeterministic(request: string, targetHint?: string) {
     timeoutSeconds: 20,
     targetHint,
   });
-  const selected = resolved?.selected;
-  if (
-    resolved?.success === false ||
-    selected?.deterministic !== true ||
-    selected?.risk !== "read" ||
-    resolved?.confirmation_required === true
-  ) {
+  if (!deterministicVoiceAdmission(resolved)) {
     return null;
   }
 

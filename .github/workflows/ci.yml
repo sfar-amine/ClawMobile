@@ -266,3 +266,6 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-guarded-operator-wait.py
           node scripts/test-guarded-entry-wait.cjs
+
+      - name: O10 voice admits the low-risk owner decision record, never payment or confirmed paths
+        run: node scripts/test-voice-low-risk-admission.cjs
