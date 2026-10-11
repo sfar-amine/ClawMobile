@@ -9,3 +9,5 @@
 
 Fixtures : captures #131 (`s24-2026-10-11b/e1/`) et lecture seule du schéma installé (`s24-2026-10-11-r34/e1/`).
 Limite : le prédicat actuel protège toutes les automatisations du S24 ; correction chez son propriétaire, en PR séparée.
+
+Reprise du 11/10 : H6 42dc3460 intégré par merge normal ; build et quatre suites ciblées verts (validation 41, HTTP 46 assertions sur capture S24 cron-lifecycle, PATCH 7199 ms). Le code automation_guard_unavailable est désormais conservé dans la liste fermée des erreurs publiques. Première divergence ciblée corrigée, aucune baisse de garde ni augmentation de budget. Suite entière à exécuter sur la tête documentée avant ready ; aucune recette S24 prétendue.

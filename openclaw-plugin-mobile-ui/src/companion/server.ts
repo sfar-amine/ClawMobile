@@ -374,7 +374,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         try{result=await editAutomation(id,await readJsonBody(req,8*1024),ifMatch);}
         catch(error:any){
           const status=[400,404,409,413,422,428].includes(error?.statusCode)?error.statusCode:503;
-          const known=["invalid_automation_edit","invalid_automation_id","automation_sensitive_input","automation_payment_excluded","automation_message_unsupported","automation_protected","automation_not_found","automation_revision_required","operation_conflict"];
+          const known=["invalid_automation_edit","invalid_automation_id","automation_sensitive_input","automation_payment_excluded","automation_message_unsupported","automation_guard_unavailable","automation_protected","automation_not_found","automation_revision_required","operation_conflict"];
           writeJson(res,status,{success:false,state:status===503?"failed":"refused",receipt:null,error:known.includes(error?.message)?error.message:status===503?"automation_unavailable":"invalid_automation_request"});return;
         }
         writeJson(res,result.state==="needs_confirmation"?403:result.state==="refused"||result.state==="blocked"?409:result.state==="completed"?200:503,result);return;

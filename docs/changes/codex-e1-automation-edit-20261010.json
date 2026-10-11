@@ -27,18 +27,18 @@
   "tests": [
     {
       "name": "R23-pure-validation",
-      "status": "pending",
-      "evidence": "Reprise et tests adaptés à H6 : exécution locale ciblée puis suite CI entière en attente. Les anciennes preuves ne couvrent pas le SHA de reprise."
+      "status": "passed",
+      "evidence": "2026-10-11 after normal H6 merge 42dc3460: build + automation-edit-validation (41 assertions), automation-edit-http (46 assertions; real S24 cron-lifecycle capture; PATCH 7199 ms), automation-detail and H6 boundary passed. Missing public automation_guard_unavailable code was corrected in the closed server error list and targeted suite rerun. Entire ci.yml to execute on final documented commit; no S24 mutation/recipe claimed."
     },
     {
       "name": "R23-http-real-captures",
-      "status": "pending",
-      "evidence": "Reprise et tests adaptés à H6 : exécution locale ciblée puis suite CI entière en attente. Les anciennes preuves ne couvrent pas le SHA de reprise."
+      "status": "passed",
+      "evidence": "2026-10-11 after normal H6 merge 42dc3460: build + automation-edit-validation (41 assertions), automation-edit-http (46 assertions; real S24 cron-lifecycle capture; PATCH 7199 ms), automation-detail and H6 boundary passed. Missing public automation_guard_unavailable code was corrected in the closed server error list and targeted suite rerun. Entire ci.yml to execute on final documented commit; no S24 mutation/recipe claimed."
     },
     {
       "name": "P2-a-automation-detail",
-      "status": "pending",
-      "evidence": "Reprise et tests adaptés à H6 : exécution locale ciblée puis suite CI entière en attente. Les anciennes preuves ne couvrent pas le SHA de reprise."
+      "status": "passed",
+      "evidence": "2026-10-11 after normal H6 merge 42dc3460: build + automation-edit-validation (41 assertions), automation-edit-http (46 assertions; real S24 cron-lifecycle capture; PATCH 7199 ms), automation-detail and H6 boundary passed. Missing public automation_guard_unavailable code was corrected in the closed server error list and targeted suite rerun. Entire ci.yml to execute on final documented commit; no S24 mutation/recipe claimed."
     }
   ],
   "documentation": [
