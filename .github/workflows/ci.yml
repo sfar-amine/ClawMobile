@@ -42,6 +42,9 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
+      - name: HS8 SDK export proof and memo transcript boundary (inactive)
+        run: node scripts/test-memo-stt-boundary.cjs
+
       - name: Run claw-live Control and owner view projections
         run: python3 ../installer/termux-lite/test-claw-live-control.py
 

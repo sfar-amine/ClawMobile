@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "id": "codex-hs8-sdk-boundary-v2-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "HS8 : preuve des exports SDK installés et projection de transcription non branchée",
+  "reason": "Le fournisseur, la fixture audio, les délais globaux et les journaux ne sont pas encore qualifiés.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-hs8-sdk-boundary-v2-20261011.json",
+    "docs/changes/codex-hs8-sdk-boundary-v2-20261011.md",
+    "docs/work/samantha-runtime/contracts/hs8.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8/sdk-exports.json",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-stt-boundary.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/memoSttBoundary.ts"
+  ],
+  "tests": [
+    {
+      "name": "HS8 build + boundary",
+      "status": "passed",
+      "evidence": "npm run build et node scripts/test-memo-stt-boundary.cjs, exit 0. Export installé confirmé ; tests de projection contractuels générés, aucune transcription réelle."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs8.md",
+    "docs/changes/codex-hs8-sdk-boundary-v2-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Retirer la préparation et son test CI ; aucune donnée runtime à restaurer.",
+  "limitations": [
+    "Préparation locale non branchée : aucune route ni catalogue activé.",
+    "Exports installés confirmés ; fournisseur, audio, deadline globale et confidentialité SDK non qualifiés.",
+    "Aucun appel fournisseur, merge, push ou déploiement."
+  ]
+}
