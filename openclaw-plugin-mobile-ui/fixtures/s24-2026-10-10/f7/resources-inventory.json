@@ -1,0 +1,217 @@
+{
+ "_capture": {
+  "method": "procfs + filesystem + sqlite (lecture seule)",
+  "capturedAt": "2026-10-10T18:28:05+00:00",
+  "sanitized": true,
+  "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+  "context": "shell Termux u0_a554 (même UID que health-manager)"
+ },
+ "gateway": {
+  "pidSource": "pgrep -f openclaw-gateway (nom de process 'openclaw-gatewa')",
+  "etime": "02:19:45",
+  "procStatus": {
+   "Name": "openclaw-gatewa",
+   "State": "S (sleeping)",
+   "VmPeak": "73186928 kB",
+   "VmSize": "72412980 kB",
+   "VmHWM": "2319432 kB",
+   "VmRSS": "1286788 kB",
+   "RssAnon": "1249408 kB",
+   "RssFile": "37380 kB",
+   "RssShmem": "0 kB",
+   "VmSwap": "624940 kB",
+   "Threads": "20"
+  }
+ },
+ "meminfo": {
+  "MemTotal": "11350700 kB",
+  "MemFree": "646668 kB",
+  "MemAvailable": "2816996 kB",
+  "Cached": "2123476 kB",
+  "SwapTotal": "12582908 kB",
+  "SwapFree": "4787456 kB"
+ },
+ "uptime": "19:28:05 up  8:54,  0 users,  load average: 3.57, 4.14, 4.27",
+ "androidRefusals": {
+  "/proc/loadavg": {
+   "ok": false,
+   "error": "PermissionError: [Errno 13] Permission denied: '/proc/loadavg'"
+  },
+  "/proc/pressure/memory": {
+   "ok": false,
+   "error": "PermissionError: [Errno 13] Permission denied: '/proc/pressure/memory'"
+  },
+  "note": "la charge est lisible via `uptime` (sysinfo) ; /proc/loadavg et PSI refusés par SELinux pour l'app Termux"
+ },
+ "thresholdOwner": {
+  "found": false,
+  "searched": [
+   "releases/current/termux-lite/*.py|*.sh (RSS|VmRSS|MemAvailable|MEM_*)",
+   "~/.openclaw/openclaw.json (pas de clé de garde mémoire connue)"
+  ],
+  "existingNearestOwners": {
+   "deployPreflight": "installer/termux-lite/companion-deploy.sh : refus si MemAvailable < 1200 Mo ou charge > 7 (AGENTS.md)",
+   "healthManager": "~/.openclaw/health/health.log : actions restart par service (whatsapp stale lock, slack_bridge), aucune garde RSS Gateway"
+  }
+ },
+ "idleSources": {
+  "task_runs": {
+   "statusCounts": {
+    "cancelled": 11,
+    "failed": 804,
+    "succeeded": 8560,
+    "timed_out": 170
+   },
+   "running": 0,
+   "note": "porte runs cron (automation_run) et cli ; aucune ligne paiement dédiée"
+  },
+  "cron_run_receipts_running": 0,
+  "state_leases": [
+   {
+    "scope": "gateway-owner",
+    "lease_key": "global",
+    "expires_at": 1791657165861,
+    "heartbeat_at": 1791656865861
+   }
+  ],
+  "remote_bridge_requests_stale_running": "voir inventory.remote_bridge_requests : 15 'running' (jusqu'à 245 h) + 1 'indeterminate', tous mutationRisk 'unknown' → une preuve d'inactivité fondée sur ces fichiers ne serait jamais vraie sans réconciliation",
+  "payment_confirmations": "aucune table/fichier canonique unique trouvé en lecture : le parcours paiement reste hors périmètre (non lu)"
+ },
+ "inventory": {
+  "releases": {
+   "dirs": 108,
+   "files_other": 22,
+   "links": {
+    "last-known-good": "~/.openclaw/releases/20261010T120821-d3beb769",
+    "current": "~/.openclaw/releases/20261010T120821-d3beb769"
+   },
+   "oldest": "20260929T133436-9d603c9e",
+   "newest": "20261010T120821-d3beb769",
+   "bytes": 102411937
+  },
+  "tier0_state_keys": [
+   "critical_capabilities",
+   "current",
+   "last_known_good",
+   "soak_bad_samples",
+   "soak_completed_at",
+   "soak_deadline_epoch",
+   "soak_grace_until_epoch",
+   "soak_started_at",
+   "soak_state",
+   "updated_at"
+  ],
+  "tier0_current": "20261010T120821-d3beb769",
+  "tier0_lkg": "20261010T120821-d3beb769",
+  "deploys": {
+   "files": 38,
+   "byExt": {
+    ".lock": 1,
+    ".log": 9,
+    ".json": 14,
+    ".out": 14
+   },
+   "bytes": 30624
+  },
+  "backups": {
+   "entries": 14,
+   "bytes": 23229391
+  },
+  "logs_top": [
+   [
+    "~/.openclaw/health/gateway.stderr.log",
+    36653070
+   ],
+   [
+    "~/.openclaw/context-sync/context-compact.log",
+    2956515
+   ],
+   [
+    "~/.openclaw/health/health.log",
+    768687
+   ],
+   [
+    "~/.openclaw/context-sync/context-guardian.log",
+    436900
+   ],
+   [
+    "~/.openclaw/health/gateway-auth-reload.log",
+    421272
+   ],
+   [
+    "~/.openclaw/health/companion.stderr.log",
+    243539
+   ],
+   [
+    "~/.openclaw/logs/config-audit.jsonl.migrated",
+    76044
+   ],
+   [
+    "~/.openclaw/logs/config-audit.jsonl.migrated.raw",
+    76044
+   ],
+   [
+    "~/.openclaw/health/whatsapp-outbound.log",
+    47308
+   ],
+   [
+    "~/.openclaw/health/slack_purge.log",
+    34037
+   ],
+   [
+    "~/.openclaw/logs/companion-server.log",
+    5678
+   ],
+   [
+    "~/.openclaw/health/root_guardian.stderr.log",
+    5334
+   ]
+  ],
+  "logs_count": 39,
+  "remote_bridge_dirs": [
+   "acceptance",
+   "artifacts",
+   "binary-roundtrip.bin",
+   "primary-repair.log",
+   "processes",
+   "requests",
+   "route-events.log",
+   "route-policy.json",
+   "slack"
+  ],
+  "remote_bridge_requests": {
+   "count": 6459,
+   "bytes": 23177363,
+   "states": {
+    "completed": 6427,
+    "failed": 16,
+    "running": 15,
+    "indeterminate": 1
+   },
+   "kinds": {
+    "exec_wait": 4898,
+    "ping": 1133,
+    "read_file": 158,
+    "patch_file": 65,
+    "process_status": 39,
+    "request_status": 36,
+    "write_binary_file": 26,
+    "process_start": 24,
+    "write_file": 22,
+    "artifact_read": 19,
+    "mcp_capability_execute_owner": 17,
+    "mcp_capability_execute_readonly": 6
+   }
+  },
+  "plugin_captures": {
+   "bytes_files": [
+    643334535,
+    74861
+   ],
+   "entries": 5,
+   "owner_sqlite": [
+    "~/.openclaw/tmp/plugin-captures/e12be4e0-032a-447b-ba66-314bbb26dce0/owner.sqlite"
+   ]
+  }
+ }
+}

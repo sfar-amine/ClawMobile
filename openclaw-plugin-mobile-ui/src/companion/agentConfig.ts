@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import {readModelOwnerFresh} from "./modelOwner";
+import {readModelOwnerFresh,configuredModelAllow} from "./modelOwner";
 import {confirmations} from "./confirmations";
 import {callOpenClawGateway} from "./openclawAgentClient";
 import {readPaymentRequests,readOwnerConfirmations} from "./runs";
@@ -35,7 +35,7 @@ function thinkingFor(row:any,defaults:any){
 }
 function modelList(value:any,config:any,auth:any,defaults:any=null){
  if(!Array.isArray(value?.models)||value.models.length>2000)throw nativeError('agent_models_unavailable',503);
- const allow=config.agents?.entries?.main?.modelPolicy?.allow;
+ const allow=configuredModelAllow(config);
  if(!Array.isArray(allow))return [];
  return value.models.flatMap((row:any)=>{
   const ref=row?.id?.startsWith(row?.provider+'/')?row.id:row?.provider+'/'+row?.id;
