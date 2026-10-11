@@ -98,7 +98,8 @@ async function forwardTrace(sink:PaymentTraceSink|undefined,event:any){
 
 function validContinuation(value:any):value is PaymentContinuation{
   return !!value&&typeof value==="object"&&!Array.isArray(value)&&
-    value.provider==="maxit.topup"&&typeof value.checkoutId==="string"&&TX.test(value.checkoutId)&&
+    // Webview contract (11/10): Maxit no longer returns its transaction id, the continuation keeps it empty.
+    value.provider==="maxit.topup"&&typeof value.checkoutId==="string"&&(value.checkoutId===""||TX.test(value.checkoutId))&&
     typeof value.gatewayOrderId==="string"&&UUID.test(value.gatewayOrderId);
 }
 
