@@ -3,6 +3,9 @@ import argparse,json,os,sqlite3,subprocess,time,importlib.util
 from pathlib import Path
 H=Path.home(); OC=H/'.openclaw'; ROOT=H/'ClawMobile/installer/termux-lite'; OUT=OC/'health/current.json'
 NOW=time.time()
+# S24 #131: maintenance every 900 s, up to 105 s execution + one 60 s probe.
+MAINTENANCE_FRESH_S=1080
+TRANSACTION_WINDOW_S=3600
 def run(cmd,timeout=5):
  try:return subprocess.run(cmd,shell=True,text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=timeout).stdout.strip()
  except Exception:return ''
@@ -92,7 +95,7 @@ def live():
  tx=OC/'health/transaction-health.json'
  try:
   td=json.loads(tx.read_text()); ta=NOW-float(td.get('checked_at',0)); ts=td.get('status','unverified')
-  x['transactions.runtime']=item(ts if ta<=660 else 'stale',True,reason=f"pending_archives={td.get('pending_archives',0)} repeated_failures={sum(1 for r in td.get('failures',{}).values() if int(r.get('count',0))>=2)}",evidence=str(tx),freshness=ta)
+  x['transactions.runtime']=item(ts if -30<=ta<=MAINTENANCE_FRESH_S else 'stale',True,reason=f"pending_archives={td.get('pending_archives',0)} repeated_failures={sum(1 for r in td.get('failures',{}).values() if int(r.get('count',0))>=2 and 0<=NOW-float(r.get('last_seen',0))<=TRANSACTION_WINDOW_S)}",evidence=str(tx),freshness=ta)
  except (OSError,ValueError,TypeError):
   x['transactions.runtime']=item('unverified',True,reason='transaction health receipt absent or invalid',evidence=str(tx))
  x['boot.persistence']=item('ready' if (H/'.termux/boot/start-samantha').exists() else 'down',True,evidence='Termux:Boot')
@@ -157,7 +160,7 @@ def maintenance_view():
  try:
   row=json.loads(p.read_text())
   stamp=row.get('checked_at',0)
-  if not isinstance(stamp,(int,float)) or NOW-stamp>660 or stamp>NOW+30:
+  if not isinstance(stamp,(int,float)) or NOW-stamp>MAINTENANCE_FRESH_S or stamp>NOW+30:
    return {'state':'stale','reason':'maintenance_receipt_stale'}
   tasks=row.get('task_health')
   if not isinstance(tasks,dict):return {'state':'unverified','reason':'task_accounting_absent'}
@@ -173,6 +176,35 @@ def maintenance_view():
  except (OSError,ValueError,TypeError):
   return {'state':'unverified','reason':'maintenance_receipt_unreadable'}
 
+def stabilize_components(caps, previous, now):
+ # Bounded state in the existing current.json; never delay hard failure or
+ # unknown evidence, and never turn a persistent real degradation healthy.
+ prior=previous.get('capabilities',{}) if isinstance(previous,dict) else {}
+ fresh=isinstance(previous,dict) and 0<now-float(previous.get('generated_at',0))<=180
+ soft={'healthy','ready','degraded','stale'}
+ for key in ('control_plane.maintenance','transactions.runtime'):
+  if key not in caps:continue
+  current=caps[key]; old=prior.get(key,{}) if fresh else {}
+  raw=current['state']; stable=old.get('state')
+  current['observed_state']=raw
+  current['hysteresis']={'candidate':raw,'count':1}
+  if raw not in soft or stable not in soft or raw==stable:continue
+  pending=old.get('hysteresis',{})
+  count=min(2,int(pending.get('count',0))+1) if pending.get('candidate')==raw else 1
+  current['hysteresis']['count']=count
+  if count<2:
+   current['state']=stable
+   current['pending_reason']=current.get('reason')
+   current['reason']=old.get('reason')
+ return caps
+
+def previous_verdict():
+ try:
+  if OUT.stat().st_size>1024*1024:return {}
+  value=json.loads(OUT.read_text())
+  return value if isinstance(value,dict) else {}
+ except (OSError,ValueError,TypeError):return {}
+
 def build():
  caps=live(); maintenance=maintenance_view(); active,failed,human=incidents(caps); cont=continuations(); warnings=[]
  mstate=maintenance.get('state')
@@ -182,6 +214,7 @@ def build():
  ) or 'semantic maintenance requires attention'
  caps['control_plane.maintenance']=item(cstate,True,reason=reason,evidence=str(OC/'autonomous-engineering/maintenance-last.json'),
                                         freshness=(NOW-maintenance.get('checked_at')) if isinstance(maintenance.get('checked_at'),(int,float)) else None)
+ stabilize_components(caps,previous_verdict(),NOW)
  live_components={k.split('.',1)[-1]:v for k,v in caps.items()}
  for i in active:
   ck=i['component']

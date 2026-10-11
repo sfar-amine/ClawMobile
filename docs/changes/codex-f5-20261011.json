@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "id": "codex-f5-20261011",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Align maintenance freshness and confirm soft health transitions twice.",
+  "reason": "S24 cadence is 900 seconds plus runtime, while verdict expires at 660 seconds.",
+  "files": [
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/test-health-hysteresis.py",
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-f5-20261011.md",
+    "docs/changes/codex-f5-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "health-verdict",
+      "status": "passed",
+      "evidence": "13 tests"
+    },
+    {
+      "name": "health-hysteresis",
+      "status": "passed",
+      "evidence": "4 tests with S24 #131"
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-f5-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing health projection, no new capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "State bounded in existing current.json owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP handler change."
+  },
+  "rollback": "Revert commit; no migration.",
+  "limitations": [
+    "S24 observation and deployment remain with Claude."
+  ]
+}
