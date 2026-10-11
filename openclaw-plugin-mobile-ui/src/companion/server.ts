@@ -1,9 +1,10 @@
 import {conditionalRead} from "./readEtag";
+import {readCatalogResponse,catalogETag} from './catalog';
 import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
 import {filesList,filesContent} from "./fileReads";
-import {readUsage,readUsageDetails} from './usage';
+import {prewarmUsage,readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
 import {capabilityDetail} from "./capabilityControl";
@@ -36,9 +37,10 @@ import { payments } from "./payments";
 import { confirmations } from "./confirmations";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
-import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
+import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
+import { SurfaceClarifications } from "../capabilityClarification";
+import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { clawLiveCapability, clawLiveDecision } from "./clawLiveUnderstanding";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
@@ -121,6 +123,9 @@ export function startCompanionServer() {
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 
+  // One usage.status read at startup (1.6-4.4 s CLI on the S24): the first /usage, often the post-deploy
+  // acceptance, joins it instead of paying the whole cold read inside its 6 s budget.
+  prewarmUsage();
   startTerminalShellSession();
   startWhatsAppListenerWatchdog();
   startVoiceRecoveryWatchdog();
@@ -137,6 +142,15 @@ export function startCompanionServer() {
       console.warn("[claw-live-warm] startup prewarm failed: " + String(error?.message || error).slice(0, 160));
     });
   }, 1_000).unref();
+  // F6: one bounded pass after startup over receipts left by previous instances.
+  setTimeout(() => {
+    try {
+      const sweep = abandonStaleRemoteBridgeReceipts({ budgetMs: 3_000 });
+      console.log(`[remote-bridge] abandon sweep state=${sweep.state} scanned=${sweep.scanned} abandoned=${sweep.abandoned} uncertain=${sweep.effectUncertain}`);
+    } catch (error: any) {
+      console.warn("[remote-bridge] abandon sweep unavailable: " + String(error?.message || error).slice(0, 160));
+    }
+  }, Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_SWEEP_DELAY_MS || 30_000)).unref();
 
   return server;
 }
@@ -464,6 +478,23 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if(routePath==='/catalog'){
+    res.setHeader('Cache-Control','private, no-cache');
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']){writeJson(res,403,{success:false,error:'native_loopback_required'});return;}
+    if(method!=='GET'){writeJson(res,405,{success:false,error:'method_not_allowed'});return;}
+    // The app sends ?locale=fr|en (HomeCatalog.kt); any other parameter is refused.
+    const params=[...requestUrl.searchParams.keys()];const queryLocale=requestUrl.searchParams.get('locale');
+    if(params.some(k=>k!=='locale')||params.length>1||(queryLocale!==null&&!['fr','en'].includes(queryLocale))){writeJson(res,400,{success:false,error:'unsupported_parameter'});return;}
+    const locale=(queryLocale as 'fr'|'en'|null)||(/^en(?:-|,|;|$)/i.test(String(req.headers['accept-language']||''))?'en':'fr');
+    res.setHeader('Vary','Accept-Language');res.setHeader('Content-Language',locale);
+    try{const value=await readCatalogResponse(locale);
+      const tag=catalogETag(value);res.setHeader('ETag',tag);
+      if(req.headers['if-none-match']===tag){res.writeHead(304);res.end();return;}
+      writeJson(res,200,value);
+    }catch{writeJson(res,503,{success:false,error:'catalog_source_unavailable'});}
+    return;
+  }
+
   if(routePath==="/notifications/sources"||routePath.startsWith("/notifications/sources/")){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,error:"native_loopback_required"});return;}
     if(method!=='GET'){writeJson(res,405,{success:false,error:"canonical_source_toggle_unavailable"});return;}
@@ -775,11 +806,18 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/capability") {
     const body = await readJsonBody<any>(req);
-    // Lot 41 V1/V2/V3: imposed « J'ai compris » / failure text on the verified receipt, realignment gesture.
-    const execute = (request: string) => capabilityBridge(request, {
-      execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35,
-    });
+    // Shared understanding wraps the canonical clarification owner; warm admission happens once.
+    const execute = (request: string) => clawLiveCapabilityTurn(
+      {
+        request,
+        clarificationId: typeof body?.clarificationId === "string" ? body.clarificationId
+          : body?.voiceTurn?.sessionEpoch !== undefined ? SurfaceClarifications.idFor("claw-live:" + String(body.voiceTurn.sessionEpoch)) : undefined,
+        originId: body?.voiceTurn?.turnId ? "claw-live-" + String(body.voiceTurn.turnId) : undefined,
+      },
+      (text) => capabilityBridge(text, { execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35 }),
+    );
     const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute);
+
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;

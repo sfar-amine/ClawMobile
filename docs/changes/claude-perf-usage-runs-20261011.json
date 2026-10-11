@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "id": "claude-perf-usage-runs-20261011",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "/v1/usage serves its last-good view while one background read revalidates it (plus a startup read); /v1/runs?limit=50 bounds its whole live part to 1.5 s with a short single-flight sessions index and one transcript read per run",
+  "reason": "AGENTS.md: a route above 80 % of its budget in a receipt becomes an optimisation task. Receipts companion-20261011T064639 (/usage 5.28 s / 6 s) and companion-20261011T034317 (/runs?limit=50 3.82 s / 4 s). S24 read-only measurements: the openclaw gateway call CLI costs 1.6-4.4 s while the Gateway answers health in 32 ms; sessions.list became a CLI read after the SQLite migration removed sessions.json and was unbounded before the 2.5 s transcript budget.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/claude-perf-usage-runs-20261011.json",
+    "docs/work/samantha-runtime/contracts/perf-usage-runs-20261011.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/perf-usage-runs-latency.json",
+    "openclaw-plugin-mobile-ui/scripts/test-read-etags.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-recette2-server.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-usage-runs-latency.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/usage.ts"
+  ],
+  "tests": [
+    {
+      "name": "usage-runs-latency-s24",
+      "status": "passed",
+      "evidence": "test-usage-runs-latency.cjs (CI): real HTTP route, S24 captures, 100 runs, injected S24 latencies (usage.status 4430 ms, sessions.list 4259/1652 ms, chat.history 2774 ms). /usage after each minute <= 4 ms (target 3000 ms), first read after restart joins the startup read (2937 ms, budget 6000 ms); /runs?limit=50 cold 1514 ms, with transcript in flight 1514 ms (target 2000 ms), one sessions.list and one chat.history for concurrent lists, result persisted for the next poll. Fails on the base build."
+    },
+    {
+      "name": "s24-bench",
+      "status": "passed",
+      "evidence": "S24, real CLI, deployed dist with only usage.js/runs.js swapped (base build byte-identical to the S24 dist): readUsage after each minute 1667-4234 ms -> 10-18 ms; listRuns({limit:50}) with a running run 6789/6465 ms -> 1504/1502/1501 ms."
+    },
+    {
+      "name": "existing-regressions",
+      "status": "passed",
+      "evidence": "All node/python test commands of .github/workflows/ci.yml run locally; test-recette2-server and test-read-etags adapted to stale-while-revalidate with every invariant kept."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/perf-usage-runs-20261011.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "No new route or action; GET /usage and GET /runs keep their contract and acceptance budgets."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "In-memory caches inside the existing owners (usage.ts last-good, runs.ts listRuns); no store, job, scheduler, daemon or retry engine; does not duplicate P0-1 (#68, persistent Gateway client, not merged)."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP contracts unchanged.",
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "docs/work/samantha-runtime/contracts/perf-usage-runs-20261011.md"
+    ]
+  },
+  "rollback": "Revert this PR; nothing new is persisted (usage cache and sessions index are in memory).",
+  "limitations": [
+    "Without a last-good view (just after a restart) the first /usage still waits for the remainder of the startup CLI read: within the 6 s budget, above 3 s when the CLI exceeds ~4.5 s under load. P0-1 (#68) removes that cost.",
+    "Live recipe after deployment by Claude: acceptance receipt /usage and /runs?limit=50, then /usage after one minute.",
+    "test-companion-sqlite.cjs and test-conversation-continuity.cjs already fail on the runtime base (not in CI); unrelated."
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "_capture": {
+    "by": "claude-code (session rel41)",
+    "at": "2026-10-11T01:55Z",
+    "via": "claw_exec, lecture seule : state/openclaw.sqlite (mode=ro), clawmobile-companion/runs.json (champs state/expiresAt seulement), remote-bridge/requests",
+    "cleaning": "comptes et états seulement ; aucune donnée de paiement, montant, numéro, intention ni preuve ; âges en heures relatifs à la capture",
+    "payment_boundary": "lecture des seuls champs state et expiresAt des demandes de paiement et confirmations, pour refuser un redémarrage ; aucun code du parcours de paiement modifié ni appelé"
+  },
+  "openclaw_sqlite": {
+    "task_runs": { "status_column": "status", "counts": { "cancelled": 11, "failed": 769, "succeeded": 8517, "timed_out": 170 } },
+    "cron_run_receipts": { "status_column": "status", "counts": { "error": 10, "ok": 523, "skipped": 64 }, "other_columns": ["owner_pid", "started_at_ms", "finished_at_ms"] },
+    "state_leases": { "rows": [{ "scope": "gateway-owner", "lease_key": "global" }] }
+  },
+  "companion_runs_json": {
+    "keys": ["version", "runs", "archivedSessionIds", "paymentRequests", "ownerConfirmations", "runDeletions"],
+    "runs_state_counts": { "done": 19, "unknown": 3, "failed": 1 },
+    "paymentRequests": [
+      { "state": "cancelled", "n": 11 }, { "state": "failed", "n": 4 }, { "state": "expired", "n": 2 },
+      { "state": "confirmed", "n": 1 }, { "state": "demo_confirmed", "n": 1 },
+      { "state": "blocked", "expiresAgeHours": 150.0 },
+      { "state": "effect_unknown", "expiresAgeHours": 77.5 },
+      { "state": "effect_unknown", "expiresAgeHours": 76.0 }
+    ],
+    "ownerConfirmations": [
+      { "state": "consumed", "n": 16 }, { "state": "expired", "n": 7 }, { "state": "cancelled", "n": 4 },
+      { "state": "approved", "expiresAgeHours": 175.9 }, { "state": "awaiting_owner", "expiresAgeHours": 145.2 },
+      { "state": "awaiting_owner", "expiresAgeHours": 77.4 }, { "state": "awaiting_owner", "expiresAgeHours": 77.1 },
+      { "state": "approved", "expiresAgeHours": 77.1 }, { "state": "approved", "expiresAgeHours": 76.9 },
+      { "state": "approved", "expiresAgeHours": 76.8 }, { "state": "awaiting_owner", "expiresAgeHours": 76.6 },
+      { "state": "approved", "expiresAgeHours": 76.6 }, { "state": "awaiting_owner", "expiresAgeHours": 75.3 },
+      { "state": "approved", "expiresAgeHours": 75.3 }, { "state": "awaiting_owner", "expiresAgeHours": 75.2 }
+    ],
+    "expiresAt_unit": "epoch ms"
+  },
+  "remote_bridge": { "receipts": 7325, "running_exec_wait": 17, "note": "16 bloqués d'instances mortes (capture f6) + la requête de capture de l'instance vivante" },
+  "gateway_process": { "pgrep": "openclaw-gateway", "comm": "openclaw-gatewa" }
+}
