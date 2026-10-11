@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "codex-l3-core-pr-template-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Validate the core-owned PR template headings using GitHub event payload, with shared seven-day grace",
+  "reason": "L3 requests executable delivery rules without executing or exposing PR body text",
+  "files": [
+    "tools/check_pr_template.py",
+    "tests/test_pr_template.py",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/l3.md",
+    "docs/changes/codex-l3-core-pr-template-20261010.md",
+    "docs/changes/codex-l3-core-pr-template-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "L3-PR-template",
+      "status": "passed",
+      "evidence": "Ten generated GitHub payload tests passed against core-owned template, including exact grace boundary, ignored fences/comments, private body not executed or printed, size bounds and unchanged safe workflow permissions"
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/l3.md",
+    "docs/changes/codex-l3-core-pr-template-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY: GitHub delivery check only, no app/runtime route"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new store, registry, scheduler, daemon or runtime owner"
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "CI-only check leaves MCP methods and execution contracts unchanged"
+  },
+  "rollback": "Revert L3 workflow and checker; no migration or runtime deployment",
+  "limitations": [
+    "Section syntax checked, not semantic evidence or checkbox validity",
+    "Common grace starts2026-10-11T00:00Z, blocking2026-10-18T00:00Z; core-owned template checked, playbooks counterpart independent"
+  ]
+}

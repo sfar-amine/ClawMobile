@@ -3,6 +3,7 @@ import { constants } from "fs";
 import { createHash } from "crypto";
 
 const labels: Record<string, {fr: string; en: string}> = {
+  "control_plane.nightly_acceptance": {fr: "Recette nocturne", en: "Nightly acceptance"},
   "control_plane.maintenance": {fr: "Maintenance du système", en: "System maintenance"},
   "immune.root_guardian": {fr: "Supervision principale", en: "Root guardian"},
   "immune.health_manager": {fr: "Gestionnaire de santé", en: "Health manager"},
@@ -15,6 +16,11 @@ function status(value: unknown) {
   return states[raw] || (allowed.has(raw) ? raw : "unknown");
 }
 const descriptions: Record<string, string> = {
+  nightly_acceptance_attention: "La recette nocturne signale une dérive de latence.",
+  nightly_acceptance_failed: "La recette nocturne a échoué.",
+  nightly_acceptance_stale: "La preuve de recette nocturne est ancienne.",
+  nightly_acceptance_unavailable: "Aucune preuve de recette nocturne disponible.",
+  nightly_acceptance_incomplete: "La recette nocturne est incomplète.",
   daily_log_audit: "Audit du journal quotidien incomplet.",
   scheduler_health: "Planificateur à surveiller.",
 };

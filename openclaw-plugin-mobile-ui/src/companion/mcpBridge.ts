@@ -62,6 +62,15 @@ function projectReceipt(receipt: any) {
     step_id: receipt.stepId,
     retry_allowed: false,
   };
+  if (receipt.state === "abandoned") {
+    return {
+      ...base,
+      state: "abandoned",
+      application: receipt.abandonment?.application || "effect_uncertain",
+      mutation_risk: receipt.mutationRisk,
+      error: "claw_execution_abandoned",
+    };
+  }
   if (receipt.state !== "completed") {
     return { ...base, state: receipt.state, error: receipt.error ? "claw_execution_failed" : undefined };
   }
