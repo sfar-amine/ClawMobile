@@ -6,11 +6,13 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applicable",
   "summary": "K2 : message propriétaire après chaque changement d’accès WhatsApp temporaire, aucun rappel",
-  "reason": "Décision Amine du 11/10 confirmée par Claude dans core119 commentaire6108204935. Avant code, propriétaire/canal/reçu de livraison et déduplication (contact, changement) encore à confirmer sur S24.",
+  "reason": "Décision no reminder définitive. Source PR184 SHA 07be0bbb confirme R17 et primitives existantes mais aucun message propriétaire K2, reçu de livraison corrélé ou déduplication par changement. Code toujours bloqué.",
   "files": [
     "docs/work/samantha-runtime/contracts/k2.md",
     "docs/changes/codex-k2-renewal-contract-20261010.md",
-    "docs/changes/codex-k2-renewal-contract-20261010.json"
+    "docs/changes/codex-k2-renewal-contract-20261010.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/k2/access-change-owner-delivery-pr184.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/k2/README.md"
   ],
   "tests": [
     {
@@ -22,11 +24,17 @@
       "name": "backlog42-current-documentation-targeted",
       "status": "passed",
       "evidence": "Existing validate_docs.py applied to this repository:0 errors in59ms; git diff --check against current base exit0. Source preparation head 13b3d4e5514aeec496406bf382785d89e5c81d67. Documentation-only evidence; functional targeted tests and entire local workflow remain pending on the final prepared SHA."
+    },
+    {
+      "name": "pr184-partial-source-documentation",
+      "status": "passed",
+      "evidence": "Existing validate_docs.py applied to core:0 errors; git diff --check green after exact fixture copy and partial source clarification. Parent c608abd9. Documentation only; native delivery unimplemented/blocked, entire CI pending."
     }
   ],
   "documentation": [
     "docs/work/samantha-runtime/contracts/k2.md",
-    "docs/changes/codex-k2-renewal-contract-20261010.md"
+    "docs/changes/codex-k2-renewal-contract-20261010.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/k2/README.md"
   ],
   "capabilities": {
     "impact": "none",
@@ -52,6 +60,7 @@
   "limitations": [
     "Durées1/3/5 non tranchées : conserver les choix actuels R17 et sa biométrie.",
     "Implémentation bloquée : propriétaire de livraison, canal, reçu et déduplication durable (contact, changement) non capturés sur S24.",
-    "Aucun code, envoi, mutation d’accès, activation, recette live ou suite entière exécutés sur cette tête."
+    "Aucun code, envoi, mutation d’accès, activation, recette live ou suite entière exécutés sur cette tête.",
+    "PR184 : dédup R17 des mutations seulement ; notification incidente par empreinte texte insuffisante, aucun reçu K2 réel. Canal direct/file existante et observation après timeout à qualifier."
   ]
 }
