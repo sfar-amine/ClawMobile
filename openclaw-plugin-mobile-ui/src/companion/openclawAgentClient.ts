@@ -67,6 +67,11 @@ export async function callOpenClawGateway(
   params: Record<string, any> = {},
   options: { expectFinal?: boolean; timeoutMs?: number; hardTimeoutMs?: number; strictOutput?: {stdoutMaxBytes:number;stderrMaxBytes:number;killGraceMs:number} } = {},
 ): Promise<any> {
+  // Host turns retain the canonical CLI least-privilege policy until P1 admission is qualified.
+  // This is the sole dispatch path for these methods, never a replay after a WS request.
+  if (method === "agent" || method === "chat.send") return callOpenClawGatewayCli(method, params, {
+    ...options, timeoutMs: options.timeoutMs ?? DEFAULT_GATEWAY_CALL_TIMEOUT_MS,
+  });
   if (!gatewayTransport) {
     gatewayTransport = new PersistentGatewayTransport(createOfficialGatewayOwner, callOpenClawGatewayCli);
   }

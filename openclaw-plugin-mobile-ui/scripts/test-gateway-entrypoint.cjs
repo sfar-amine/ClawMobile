@@ -30,7 +30,22 @@ const handshake=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-
 const capturedConnect=handshake.frames.find(x=>x.frame.method==='connect').frame.params;
 const api=require('../dist/companion/openclawAgentClient');
 (async()=>{
- const s=globalThis.gatewayEntryFixture,began=Date.now();
+ const s=globalThis.gatewayEntryFixture;
+ // Canonical host turns must never initialize or borrow the shared admin connection.
+ const turnCli=path.join(root,'turn-cli'),turnLog=path.join(root,'turn-cli.jsonl');
+ fs.writeFileSync(turnCli,'#!/usr/bin/env node\nconst fs=require("node:fs");fs.appendFileSync('+JSON.stringify(turnLog)+',JSON.stringify(process.argv.slice(2))+"\\n");process.stdout.write(JSON.stringify({runId:"fixture-run",status:"accepted"}));\n');fs.chmodSync(turnCli,0o700);
+ process.env.CLAWMOBILE_OPENCLAW_BIN=turnCli;
+ const originalTurn={sessionKey:'agent:main:companion-fixture',idempotencyKey:'fixture-run',message:'quelle heure est-il ?'};
+ await api.callOpenClawGateway('agent',originalTurn,{expectFinal:true,timeoutMs:1000});
+ await api.callOpenClawGateway('chat.send',{...originalTurn,message:'fixture chat'},{timeoutMs:750});
+ await api.callOpenClawGateway('agent',{...originalTurn,message:'/reset'},{timeoutMs:600});
+ assert.equal(s.instances,0);assert.equal(s.calls,0);
+ let turnCalls=fs.readFileSync(turnLog,'utf8').trim().split('\n').map(JSON.parse);
+ assert.equal(turnCalls.length,3);
+ assert.deepEqual(turnCalls[0],['gateway','call','agent','--expect-final','--json','--timeout','1000','--params',JSON.stringify(originalTurn)]);
+ assert.deepEqual(turnCalls[1],['gateway','call','chat.send','--json','--timeout','750','--params',JSON.stringify({...originalTurn,message:'fixture chat'})]);
+ assert.deepEqual(turnCalls[2],['gateway','call','agent','--json','--timeout','600','--params',JSON.stringify({...originalTurn,message:'/reset'})]);
+ const began=Date.now();
  const results=await Promise.all(Array.from({length:8},()=>api.callOpenClawGateway('models.list',{}, {timeoutMs:1000})));
  assert.ok(results.every(x=>JSON.stringify(x)===JSON.stringify(fixture.response)));
  assert.equal(s.instances,1);assert.equal(s.calls,8);assert.equal(s.max,4);
@@ -38,8 +53,20 @@ const api=require('../dist/companion/openclawAgentClient');
  assert.equal(s.options.role,capturedConnect.role);assert.equal(s.options.mode,capturedConnect.client.mode);assert.equal(s.options.clientName,capturedConnect.client.id);assert.equal(s.options.minProtocol,capturedConnect.minProtocol);assert.equal(s.options.maxProtocol,capturedConnect.maxProtocol);assert.equal(capturedConnect.device,undefined);assert.deepEqual(s.options.caps,capturedConnect.caps);
  assert.ok(!s.options.scopes.includes('operator.talk.secrets'));
  assert.ok(!s.options.scopes.includes('operator.pairing'));
+ const wsCallsBeforeTurns=s.calls;
  await api.callOpenClawGateway('agent',{idempotencyKey:'fixture-run',message:'/status'}, {expectFinal:true,timeoutMs:1000});
- assert.equal(s.last.options.expectFinal,true);assert.deepEqual(s.last.params,{idempotencyKey:'fixture-run',message:'/status'});
+ await api.callOpenClawGateway('chat.send',{...originalTurn,message:'fixture concurrent chat'},{timeoutMs:1000});
+ // Existing admin RPC activity cannot grant owner to a later turn; owner prompt options cannot change dispatch.
+ process.env.CLAWMOBILE_GATEWAY_TURN_WS='true';
+ await api.submitToOpenClawAgent('fixture ordinary turn','fixture-run','fixture-session',{authority:'owner'});
+ delete process.env.CLAWMOBILE_GATEWAY_TURN_WS;
+ assert.equal(s.calls,wsCallsBeforeTurns);assert.equal(s.instances,1);
+ turnCalls=fs.readFileSync(turnLog,'utf8').trim().split('\n').map(JSON.parse);assert.equal(turnCalls.length,6);
+ assert.equal(turnCalls[3][2],'agent');assert.ok(turnCalls[3].includes('--expect-final'));
+ assert.equal(turnCalls[4][2],'chat.send');assert.equal(turnCalls[5][2],'agent');
+ const submitted=JSON.parse(turnCalls[5][turnCalls[5].indexOf('--params')+1]);assert.equal(submitted.idempotencyKey,'fixture-run');
+ assert.ok(!turnCalls.some(args=>args.includes('--token')||args.includes('--password')||args.includes('--scopes')));
+
  s.failure={name:'GatewayClientRequestError',gatewayCode:'INVALID_REQUEST',message:'config changed since last load; re-run config.get and retry',details:{private:'owner@example.invalid'}};
  await assert.rejects(api.callOpenClawGateway('config.patch',{baseHash:'fixture'}, {timeoutMs:1000}),e=>e.code==='gateway_config_revision_conflict'&&e.effectNotStarted&&!e.details&&e.message==='config baseHash conflict');
  s.failure={name:'Error',message:'private token fixture owner@example.invalid'};const calls=s.calls;
@@ -67,5 +94,5 @@ const api=require('../dist/companion/openclawAgentClient');
  `],{env:{...process.env,NODE_PATH:'',CLAWMOBILE_OPENCLAW_BIN:cli},encoding:'utf8',timeout:3000});
  assert.equal(cronChild.status,0,cronChild.stderr);assert.equal(cronChild.stdout,'');
  console.log('Captured S24 owner timing: CLI models.list '+fixture._capture.latencyMs+'ms; handshake owner import/connect/health '+handshake._capture.latencyMs+'ms; operations differ, no production wiring comparison claimed.');
- console.log('P0-1 real callOpenClawGateway entrypoint: shared official SDK owner, hello gate, four RPCs, unchanged params/expectFinal, reduced scopes, CAS refusal, no replay, shutdown; SDK boundary synthetic, S24 payload real.');
+ console.log('P0-1 real callOpenClawGateway entrypoint: shared official SDK owner, hello gate, four RPCs, control RPC unchanged params/expectFinal, host turns CLI only, reduced control scopes, CAS refusal, no replay, shutdown; SDK boundary synthetic, S24 payload real.');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{api.closeOpenClawGateway();fs.rmSync(root,{recursive:true,force:true});delete globalThis.gatewayEntryFixture;});

@@ -22,28 +22,33 @@
   "tests": [
     {
       "name": "persistent-gateway-owner-preparation",
-      "status": "passed",
-      "evidence": "Build and three P0-1 suites passed: real entrypoint, shared SDK, hello gate, canonical SecretRef resolver, global install, four RPCs, queue32, budgets, explicit reduced scopes, captured structured refusals and fixed CAS, lifecycle and no replay. Payload and handshake fixture real; SDK boundary simulated."
+      "status": "pending",
+      "evidence": "Historique seulement pour les têtes précédentes. Prévention P1 préparée : agent/chat.send CLI canonique avant WS ; nouveau SHA à valider par ciblés puis CI entière, aucun résultat courant revendiqué."
     },
     {
       "name": "complete-current-ci-workflow",
-      "status": "passed",
-      "evidence": "Toutes les étapes du ci.yml de la base b40b867 ont passé localement. Dernière installation voice-relay relancée avec cache npm /tmp après erreur du cache hors workspace, puis test-mcp.mjs passé. Build et trois suites P0-1 repassés après le test du repli CLI JSON CAS."
+      "status": "pending",
+      "evidence": "Historique seulement pour les têtes précédentes. Prévention P1 préparée : agent/chat.send CLI canonique avant WS ; nouveau SHA à valider par ciblés puis CI entière, aucun résultat courant revendiqué."
     },
     {
       "name": "r20-merged-read-limits",
-      "status": "passed",
-      "evidence": "Base d142a9f merge normal preserves strictOutput owner controls. SDK parsed JSON byte ceiling and pre-dispatch bound validation tested; CLI fallback keeps original bounded stdout/stderr/process-group cleanup. Targeted P0-1 and five merged R20 suites verification recorded in PR."
+      "status": "pending",
+      "evidence": "Historique seulement pour les têtes précédentes. Prévention P1 préparée : agent/chat.send CLI canonique avant WS ; nouveau SHA à valider par ciblés puis CI entière, aucun résultat courant revendiqué."
     },
     {
       "name": "cli-structured-refusal-parity",
-      "status": "passed",
-      "evidence": "Revue indépendante a reproduit perte du code CRON_JOB_NOT_FOUND via CLI. Corrigé: seuls details.code CRON_JOB_NOT_FOUND/MISSING_SCOPE gardés en interne, même safe projector SDK/CLI. Vrai entrypoint avec CLI temporaire rejoue fixture82 cron.runs.unknown-id, résultat code/message fixe et effectNotStarted, aucun details ou sortie publique. Build, entrypoint, wrapper et file limits passent."
+      "status": "pending",
+      "evidence": "Historique seulement pour les têtes précédentes. Prévention P1 préparée : agent/chat.send CLI canonique avant WS ; nouveau SHA à valider par ciblés puis CI entière, aucun résultat courant revendiqué."
     },
     {
       "name": "deployed-acceptance-source-union",
-      "status": "passed",
-      "evidence": "Base9cdd84f PR84 intégrée par merge normal : recette du checkout et vraie liste /sessions/conversations conservées. 12tests conversation-acceptance et3skill-learning-acceptance plus entrée Gateway passent. CI distante tête précédente6f6c687 success ; aucun changement des fichiers serveur réservés par35."
+      "status": "pending",
+      "evidence": "Historique seulement pour les têtes précédentes. Prévention P1 préparée : agent/chat.send CLI canonique avant WS ; nouveau SHA à valider par ciblés puis CI entière, aucun résultat courant revendiqué."
+    },
+    {
+      "name": "host-turn-cli-scope-preservation",
+      "status": "pending",
+      "evidence": "Spy SDK/CLI dans test-gateway-entrypoint.cjs préparé : agent/chat.send/reset avant et après pool Control, aucune initialisation/dispatch WS pour les tours, params/idempotency/expectFinal/budgets et absence credentials CLI conservés. Pas exécuté à cette étape."
     }
   ],
   "documentation": [
@@ -77,6 +82,6 @@
     "Captured handshake requested operator.read; persistent union admin/read/write/approvals requires Claude review before activation.",
     "CAS error forms come from exact public OpenClaw handler source, actual stale-hash capture remains Claude recipe.",
     "Identité owner des tours app : contrat séparé ; aucun texte ni nom de session ne crée une autorité dans le transport P0-1.",
-    "Reprise fichier 42 : base runtime 9847255 intégrée, workflow actuel 65 étapes run. Requalification locale complète sur SHA final requise ; les preuves historiques de tests ne couvrent pas cette tête. Résultat exact publié dans le commentaire de livraison après exécution."
+    "Prévention régression P1 : agent et chat.send restent exclusivement CLI ; raccordement des tours WS différé à validation contrat playbooks87 et recette S24. Dernière CI67/67 antérieure historique seulement ; ciblés puis suite entière sur nouveau SHA requis."
   ]
 }
