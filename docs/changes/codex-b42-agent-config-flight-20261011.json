@@ -3,7 +3,7 @@
   "id": "codex-b42-agent-config-flight-20261011",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Partager les lectures sessions.list et sessions.usage simultanées de /agent/config.",
   "reason": "Backlog42 lot6 : capture S24 #170 du 11/10, 12/12 requêtes concurrentes en 503 avant correction ; coalescer les lectures sans changer fraîcheur ni validation CAS.",
@@ -19,8 +19,8 @@
   "tests": [
     {
       "name": "agent-config-flight",
-      "status": "pending",
-      "evidence": "Tests de concurrence sur captures S24 nettoyées, échec injecté synthétique ; validation locale complète à effectuer."
+      "status": "passed",
+      "evidence": "Node20 npm ci + npm run build + scripts/test-agent-config-flight.cjs + scripts/test-agent-config.cjs passés en local sur source61692019, douze lecteurs simultanés et erreur injectée ; journal artifacts/b42/agent-config-targeted.log. Suite CI entière encore requise au SHA final."
     }
   ],
   "documentation": [
