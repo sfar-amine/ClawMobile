@@ -1,3 +1,4 @@
+import { structuredNotification } from "./notificationText";
 import {conversationOwnerIndex,invalidateConversationOwner} from "./conversationOwnerIndex";
 import {stripConversationTransport} from "./conversationText";
 import {removeAttachments} from "./attachmentStorage";
@@ -392,11 +393,16 @@ export async function listRunSummaries(options: { limit?: number } = {}): Promis
   const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
   const storedRuns = await readStoredRuns();
   if (storedRuns.length > 0) {
-    return storedRuns.slice(0, limit).map(statusFromStoredRun);
+    return storedRuns.slice(0, limit).map((stored) => withNotification(statusFromStoredRun(stored)));
   }
   // Legacy/no-registry fallback only. Normal Samantha history uses the existing registry and avoids
   // sessions.list, transcript and trajectory enrichment on every visible list refresh.
-  return listRuns({ limit });
+  return (await listRuns({ limit })).map(withNotification);
+}
+
+// F4: the Notifications screen reads this summary list; `result` is kept verbatim.
+function withNotification(status: CompanionRunStatus): CompanionRunStatus {
+  return { ...status, notification: structuredNotification(status.result, status.userText) };
 }
 
 const LIST_LIVE_REFRESH_MAX=3;

@@ -50,7 +50,7 @@ class T(unittest.TestCase):
    hv.live=lambda:{'device.adb':hv.item('healthy',True),'device.adb.recovery_readiness':hv.item('standby',False,reason='wireless_debugging_disabled_primary_healthy')}
    hv.incidents=lambda caps=None:([],[],[]);hv.continuations=lambda:{'blocked':0,'resuming':0,'stuck':0,'details':[]}
    hv.maintenance_view=lambda:{'state':'observed','semantic_state':'healthy','checked_at':hv.NOW,'task_health':{}}
-   out=hv.build();self.assertEqual(out['overall'],'healthy');self.assertEqual(out['summary']['noncritical_advisories'],1)
+   out=hv.build();self.assertEqual(out['overall'],'healthy');self.assertEqual(out['summary']['noncritical_advisories'],2);self.assertEqual(out['capabilities']['control_plane.nightly_acceptance']['state'],'unverified')
   finally:
    hv.live,hv.incidents,hv.continuations,hv.maintenance_view=old_live,old_inc,old_cont,old_maint
  def test_healthy_live_component_suppresses_recent_failed_projection(self):

@@ -31,14 +31,25 @@ export function projectUsage(value:any):UsageView{
  return {schemaVersion:1,updatedAt:isoTimestamp(value.updatedAt),providers,issues:[...new Set(issues)]};
 }
 const ttl=60000;
-let cache:{view:UsageView;at:number}|null=null;
+/**
+ * A failed `usage.status` (5.5 s budget lost among parallel CLI reads on the S24, 10/10 20:47) used to replace the
+ * quotas by an empty list for the whole minute: Copilot went from « exhausted » to « ready » on /providers. The last
+ * successful view stays served up to [USAGE_KEEP_MS] with `usage_source_stale`, and a failure is retried after 15 s.
+ */
+const USAGE_FAILURE_TTL_MS=15000,USAGE_KEEP_MS=600000;
+let lastUsageOk:{view:UsageView;at:number}|null=null;
+let cache:{view:UsageView;at:number;ttl?:number}|null=null;
 let pending:Promise<UsageView>|null=null;
 let costPending:Promise<any>|null=null;
 let costCache:{at:number;view:any}|null=null;
-export function peekUsage():UsageView|null{return cache&&Date.now()-cache.at<ttl?structuredClone(cache.view):null;}
+export function peekUsage():UsageView|null{return cache&&Date.now()-cache.at<(cache.ttl??ttl)?structuredClone(cache.view):null;}
+function usageFailure():UsageView{
+ if(lastUsageOk&&Date.now()-lastUsageOk.at<USAGE_KEEP_MS)return {...structuredClone(lastUsageOk.view),issues:[...new Set([...lastUsageOk.view.issues,'usage_source_stale'])]};
+ return {schemaVersion:1,updatedAt:null,providers:[],issues:['usage_source_unavailable']};
+}
 export async function readUsage():Promise<UsageView>{
  const current=peekUsage();if(current)return current;if(pending)return structuredClone(await pending);
- pending=(async()=>{try{const value=projectUsage(await callOpenClawGateway('usage.status',{}, {timeoutMs:5500,hardTimeoutMs:5500}));cache={view:value,at:Date.now()};return value;}catch{const view:UsageView={schemaVersion:1,updatedAt:null,providers:[],issues:['usage_source_unavailable']};cache={view,at:Date.now()};return view;}})();
+ pending=(async()=>{try{const value=projectUsage(await callOpenClawGateway('usage.status',{}, {timeoutMs:5500,hardTimeoutMs:5500}));cache={view:value,at:Date.now()};if(value.providers.length)lastUsageOk={view:value,at:Date.now()};return value;}catch{const view=usageFailure();cache={view,at:Date.now(),ttl:USAGE_FAILURE_TTL_MS};return view;}})();
  try{return structuredClone(await pending);}finally{pending=null;}
 }
 const COST_TTL_MS=600000;
@@ -90,7 +101,7 @@ export async function readUsageDetails(){
  let timer:ReturnType<typeof setTimeout>|undefined;
  const reads=Promise.all([readUsage(),readUsageCost()]).then(([base,cost])=>({...base,cost}));
  const bounded=new Promise<UsageView&{cost:any}>(resolve=>{timer=setTimeout(()=>resolve({
-  ...(peekUsage()||{schemaVersion:1 as const,updatedAt:null,providers:[],issues:['usage_source_unavailable']}),
+  ...(peekUsage()||usageFailure()),
   cost:{schemaVersion:1,state:'unavailable',periodDays:30,issues:['usage_cost_budget_exceeded']}
  }),12000);});
  try{return await Promise.race([reads,bounded]);}finally{if(timer)clearTimeout(timer);}

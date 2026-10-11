@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 from __future__ import annotations
-import argparse,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile
+import argparse,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile,fcntl
 from pathlib import Path
 
 HOME=Path.home()
@@ -157,6 +157,51 @@ def cmd_root(a):
     if not CURRENT.exists(): raise SystemExit('no_active_release')
     print(CURRENT.resolve()/'termux-lite')
 
+def prune_plan(keep=10):
+    """Only releases owned by tier0; never follow an arbitrary symlink."""
+    if not 1 <= keep <= 100:
+        raise ValueError('invalid_release_retention')
+    protected=set()
+    for link in (CURRENT,LKG):
+        if not link.is_symlink():
+            raise ValueError('release_reference_unknown')
+        target=link.resolve(strict=True)
+        if target.parent != RELEASES.resolve() or not target.is_dir():
+            raise ValueError('release_reference_invalid')
+        protected.add(target.name)
+    candidates=[]; skipped=0
+    for root in RELEASES.iterdir():
+        if root.is_symlink() or not root.is_dir() or root.name.endswith('.tmp'):
+            continue
+        try:
+            manifest_path=root/'manifest.json'
+            if manifest_path.is_symlink() or not manifest_path.is_file():
+                raise ValueError('manifest_unknown')
+            meta=json.loads(manifest_path.read_text())
+            if meta.get('version') != 1 or meta.get('release_id') != root.name or not isinstance(meta.get('files'),dict):
+                raise ValueError('manifest_unknown')
+            created=dt.datetime.fromisoformat(meta['created_at'])
+            if created.tzinfo is None:
+                raise ValueError('manifest_date_unknown')
+            candidates.append((created.timestamp(),root.name))
+        except (OSError,ValueError,KeyError,TypeError):
+            skipped+=1
+    candidates.sort(reverse=True)
+    retained=protected | {name for _,name in candidates[:keep]}
+    return {'retained':sorted(retained),'remove':[name for _,name in candidates if name not in retained],
+            'unknown_preserved':skipped,'keep_newest':keep}
+
+def cmd_prune(a):
+    plan=prune_plan(a.keep)
+    # main() holds the same owner lock for packaging, promotion and pruning.
+    if a.apply:
+        for name in plan['remove']:
+            root=RELEASES/name
+            if root.is_symlink() or root.parent.resolve()!=RELEASES.resolve():
+                raise ValueError('release_changed')
+            shutil.rmtree(root)
+    print(json.dumps({'success':True,'state':'applied' if a.apply else 'planned',**plan}))
+
 def main():
     p=argparse.ArgumentParser(); sp=p.add_subparsers(dest='cmd',required=True)
     q=sp.add_parser('package'); q.add_argument('--source',required=True); q.add_argument('--source-commit'); q.add_argument('--release-id'); q.add_argument('--soak-seconds',type=int,default=300); q.add_argument('--startup-grace-seconds',type=int,default=30); q.add_argument('--critical-capability',action='append'); q.add_argument('--product-manifest')
@@ -164,6 +209,9 @@ def main():
     q=sp.add_parser('rollback'); q.add_argument('--reason',default='manual')
     q=sp.add_parser('stop'); q.add_argument('--reason',default='manual')
     sp.add_parser('resume'); sp.add_parser('status'); sp.add_parser('root')
+    q=sp.add_parser('prune'); q.add_argument('--keep',type=int,default=10); q.add_argument('--apply',action='store_true')
     a=p.parse_args(); RELEASES.mkdir(parents=True,exist_ok=True); TIER0.mkdir(parents=True,exist_ok=True)
-    return globals()['cmd_'+a.cmd.replace('-','_')](a)
+    with open(TIER0/'control.lock','a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        return globals()['cmd_'+a.cmd.replace('-','_')](a)
 if __name__=='__main__': main()
