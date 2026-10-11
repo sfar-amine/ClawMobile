@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "id": "codex-hs2-catalog-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Prepare guarded canonical catalogue presentation and Control-pool cache; runtime readiness and badges remain unqualified.",
+  "reason": "HS1 Git presentation exists, but S24 catalogue capture and canonical Graph/health/gate/cache badge evidence are absent.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-hs2-catalog-20261011.json",
+    "docs/changes/codex-hs2-catalog-20261011.md",
+    "docs/work/samantha-runtime/contracts/hs2.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/fixtures/hs1-git-catalog/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/hs1-git-catalog/en.json",
+    "openclaw-plugin-mobile-ui/fixtures/hs1-git-catalog/fr.json",
+    "openclaw-plugin-mobile-ui/scripts/test-catalog.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/catalog.ts",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "catalog-http-cache",
+      "status": "passed",
+      "evidence": "Build; actual cold HTTP route and existing Control pool, canonical HS1 Git presentation, owner delay2.3s. Ten cold requests share one flight and answer unavailable/deferred without catalogue/ETag in205.02ms; settle receives entries after2102.31ms. Warm40p95=78.97ms locally. Actual15s pool expiry causes one fresh generation for ten callers, no stale ETag. Strict identities/orders/date/pins/slots, unknown owner/gates/account stripping, FR/EN, source error503 and live owner spies zero. Existing acceptance12/files/email tests passed. Not a S24 capture or physical qualification."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs2.md",
+    "docs/changes/codex-hs2-catalog-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Implements paired planned samantha.app.catalog capability in playbooks PR69; no duplicate registry."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing canonical reader, controlPaths and bounded volatile ControlReadPool; no new persistent store, scheduler, router or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP mutation or owner admission change."
+  },
+  "rollback": "Revert HS2 preparation; no migration.",
+  "limitations": [
+    "Runtime catalogue capture and proof of reachability/health/gates await canonical owner confirmation.",
+    "All actions unavailable and badges absent until evidence is available; no final HS2 qualification.",
+    "Voice memo remains unavailable; HS8 issue126.",
+    "Requires pinned HS1 snapshot before Companion deployment; Claude only.",
+    "Cold response is not catalogue data: unavailable/deferred while existing Control generation runs; the actual projection must settle within15s and production qualification is still missing.",
+    "Current GitHub authentication prevents checking any new response to the existing PR69 evidence request or publishing; no duplicate request is made."
+  ]
+}

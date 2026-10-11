@@ -176,3 +176,6 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: Run derived catalogue fail-closed projection and real HTTP cache contract
+        run: node scripts/test-catalog.cjs
