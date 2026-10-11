@@ -31,13 +31,14 @@ function model(value:any){
 function agent(value:any){
  if(!value||typeof value!=='object'||Array.isArray(value))return undefined;
  return {model:model(value.model),thinkingDefault:text(value.thinkingDefault,40),tools:tools(value.tools),
-  modelPolicy:{allow:strings(value.modelPolicy?.allow,2000,200)?.filter(x=>identity(x))},compaction:{model:model(value.compaction?.model)}};
+  modelPolicy:value.modelPolicy&&Object.prototype.hasOwnProperty.call(value.modelPolicy,'allow')?{allow:strings(value.modelPolicy.allow,2000,200)?.filter(x=>identity(x))}:undefined,compaction:{model:model(value.compaction?.model)}};
 }
 /** Same explicit-agent then default allow precedence as OpenClaw resolveConfiguredModelPolicyAllow.
  * An explicit empty agent allow remains empty; no policy is widened or persisted. */
 export function configuredModelAllow(config:any,agentId='main'):string[]{
  const entry=config?.agents?.entries?.[agentId]??config?.agents?.list?.find((row:any)=>row.id===agentId);
- const selected=Array.isArray(entry?.modelPolicy?.allow)?entry.modelPolicy.allow:config?.agents?.defaults?.modelPolicy?.allow;
+ const ownsAllow=entry?.modelPolicy&&Object.prototype.hasOwnProperty.call(entry.modelPolicy,'allow');
+ const selected=ownsAllow?entry.modelPolicy.allow:config?.agents?.defaults?.modelPolicy?.allow;
  return Array.isArray(selected)&&selected.length<=2000?selected.filter((ref:any)=>identity(ref)) : [];
 }
 function projected(value:ModelOwnerRead):ModelOwnerSnapshot|null{

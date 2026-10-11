@@ -18,4 +18,6 @@ assert.ok(!JSON.stringify(projectModelRoles(synthetic)).includes('private-accoun
 assert.ok(!JSON.stringify(projectModelRoles(synthetic)).includes('sk-synthetic-private-token'));
 assert.deepEqual(configuredModelAllow({agents:{defaults:{modelPolicy:{allow:['openai/gpt-5.6-terra']}}}}),['openai/gpt-5.6-terra']);
 assert.deepEqual(configuredModelAllow({agents:{entries:{main:{modelPolicy:{allow:[]}}},defaults:{modelPolicy:{allow:['openai/gpt-5.6-terra']}}}}),[]);
+assert.deepEqual(configuredModelAllow({agents:{entries:{main:{modelPolicy:{allow:null}}},defaults:{modelPolicy:{allow:['openai/synthetic']}}}}),[]);
+assert.equal(projectModelRoles({config:{talk:{realtime:{model:{malformed:true}}}},auth:{providers:[]}}).find(row=>row.id==='realtime_voice').state,'unavailable');
 console.log('R1 model roles: real S24 config, unknown sources refused, deterministic contracts, bounded projection and source immutability passed');

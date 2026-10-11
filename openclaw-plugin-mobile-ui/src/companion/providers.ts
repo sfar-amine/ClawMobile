@@ -19,9 +19,9 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null){
   const fallback=Array.isArray(value?.fallbacks)?value.fallbacks.slice(0,20).map(modelReference).filter(Boolean):[];
   return {model:primary??null,fallbacks:[...new Set(fallback)],state:primary?'configured':'unavailable'};
  };
- const main=config?.agents?.entries?.main?.model??config?.agents?.defaults?.model;
+ const main=config?.agents?.entries?.main?.model??config?.agents?.list?.find((row:any)=>row.id==='main')?.model??config?.agents?.defaults?.model;
  const entry=(id:string)=>config?.agents?.entries?.[id]?.model??config?.agents?.list?.find((row:any)=>row.id===id)?.model;
- const scalar=(value:any)=>chain(value?.model?((value.provider&&!value.model.includes('/'))?value.provider+'/'+value.model:value.model):null);
+ const scalar=(value:any)=>chain(typeof value?.model==='string'?((typeof value.provider==='string'&&!value.model.includes('/'))?value.provider+'/'+value.model:value.model):null);
  const roles=[
   {id:'conversation',...chain(main)},
   {id:'realtime_voice',...scalar(config?.talk?.realtime)},
