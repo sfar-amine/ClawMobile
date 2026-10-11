@@ -108,6 +108,11 @@
       "name": "HS8 public Gateway final P1 admission and memo union",
       "status": "passed",
       "evidence": "Node20 build + actual P1 matrix73/73 + memo real signed HTTP/pipeline/deferred retry/SDKowner exit0, hs8-46-public-gateway-targeted.log. Node26.11.1 pinned public SDK OpenClaw2026.9.6 isolated diagnostic6/6 exit0, hs8-46-public-gateway-real-targeted.log and fresh hs8-46-public-gateway-real-proof ; realHELLOrevocation => zero agent/tool, tokenDestroyedtrue. Local synthetic provider only, no S24/provider account."
+    },
+    {
+      "name": "Fresh base core191 captured Maxit quote shape",
+      "status": "passed",
+      "evidence": "Normal merge runtimef5d8a6d7b327d3a3769b9b04bf97174084ea6e6c, Node20 build + real cleaned quote3/3 in each worktree, hs8-hs3-base191-targeted.log exit0. HS3 initial-failure HTTP and presentation176 also pass (maxReadMs19). Only captured fixture/new CI test imported; no payment owner modified or provider live called."
     }
   ],
   "documentation": [
@@ -147,6 +152,7 @@
     "Aucun appel fournisseur live, fusion PR, force-push, activation ni déploiement par Codex.",
     "Publication prête conditionnée à la suite entière verte sur SHA exact ; recette S24 et journaux privés requis avant activation.",
     "Final whole CI at frozen final SHA remains pending after current targeted union; no readiness or Android activation until qualified.",
-    "Public Gateway SDK revocation is checked immediately before synchronous agent issuance. Once a packet is sent/accepted revocation is not retrospective; ambiguous failures never retry or fall back CLI. Android cancellation wiring remains separate."
+    "Public Gateway SDK revocation is checked immediately before synchronous agent issuance. Once a packet is sent/accepted revocation is not retrospective; ambiguous failures never retry or fall back CLI. Android cancellation wiring remains separate.",
+    "Runtime base refreshed by normal merge of core191f5d8a6d7; full CI at the new frozen SHA is still pending, prior whole results are not reused."
   ]
 }
