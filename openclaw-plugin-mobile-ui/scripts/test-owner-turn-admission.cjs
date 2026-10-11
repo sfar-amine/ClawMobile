@@ -239,6 +239,13 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    assert.equal(result.ownerTransport,'admin_admitted');assert.equal(delegated.agentId,'main');assert.equal(delegated.sessionKey,'companion-chat-voice-parity');assert(delegated.message.endsWith('Souviens-toi du rendez-vous'));count('voice_main_same_conversation');
    gatewayTransport.setOwnerTurnSdkLoader(async()=>{throw Object.assign(new Error('missing'),{code:'owner_transport_unavailable'});});
    await assert.rejects(()=>client.submitToOpenClawAgent('Mémoire','voice-no-fallback','voice-parity',{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true}));assert.equal(readLines(cliLog).filter(x=>x.id==='voice-no-fallback').length,0);count('voice_no_write_fallback');
+   await assert.rejects(()=>client.submitToOpenClawAgent('Mémoire','voice-wrong-client','voice-parity',{admission:admitted.ticket,clientRunId:'other-client',voiceDelegation:true}),/voice_owner_admission_required/);count('voice_wrong_client_same_session');
+   let began,release;const started=new Promise(r=>began=r),gate=new Promise(r=>release=r);let sent=0;
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>{began();await gate;return {callGatewayFromCli:async()=>{sent++;return {};}}});
+   const loading=client.submitToOpenClawAgent('Mémoire','voice-revoked-loading','voice-parity',{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true});
+   const refused=assert.rejects(loading,/owner_turn_admission_expired/);await started;turnAdmission.revoke();release();await refused;
+   assert.equal(sent,0);assert.equal(readLines(cliLog).filter(x=>x.id==='voice-revoked-loading').length,0);count('voice_revoked_loading_no_fallback');
+   const enroll=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(enroll),owner)).status,200);
   }
   // SDK loading is an await before dispatch: revocation during it must never reach admin.
   {const clientRunId='p1-sdk-race-0001',sessionId='sdk-race',rawBody=Buffer.from('{}');
