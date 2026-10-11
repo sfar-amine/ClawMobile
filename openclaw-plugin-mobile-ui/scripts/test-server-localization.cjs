@@ -81,6 +81,11 @@ async function verifyHttp(){
    const response=await fetch(base+'/notifications/sources?unsupported=1',{headers:{'Accept-Language':language}});
    assert.equal(response.status,400);assert.equal(response.headers.get('content-language'),language);assert.equal(response.headers.get('vary'),'Accept-Language');assert.equal((await response.json()).error,'unsupported_parameter');
   }
+  for(const language of ['fr','en']){
+   const refused=await fetch(base+'/control/automations?contract=2&unsupported=1',{headers:{'Accept-Language':language}});
+   assert.equal(refused.status,400);assert.equal(refused.headers.get('content-language'),language);assert.equal(refused.headers.get('vary'),'Accept-Language');
+   assert.equal((await refused.json()).error,'invalid_control_request');assert.deepEqual(ownerCalls,[],'refused parameters never invoke the owner');
+  }
   const response=await fetch(base+'/notifications/sources?unsupported=1');assert.equal(response.headers.get('content-language'),'fr');
   for(const section of ['health','automations']){
    let revision;
