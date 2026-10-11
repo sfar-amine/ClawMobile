@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "codex-e3-agent-file-edit-preparation-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "E3 / R20: PUT agent file with exact biometric scope, native CAS, preserved private masked lines, free financial vocabulary and 5 bounded backups.",
+  "reason": "S24 agents.files.set/CAS captures confirmed in #131; normal H6 merge, targeted contracts passed, full local CI to execute on final documented commit.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/test-skill-learning-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/companion/agentFileWritePlan.ts",
+    "openclaw-plugin-mobile-ui/src/companion/fileReadBoundary.ts",
+    "openclaw-plugin-mobile-ui/src/companion/fileGatewayRead.ts",
+    "openclaw-plugin-mobile-ui/src/companion/fileReads.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-file-write-plan.cjs",
+    "docs/work/samantha-runtime/contracts/e3.md",
+    "docs/changes/codex-e3-agent-file-edit-preparation-20261010.md",
+    "docs/changes/codex-e3-agent-file-edit-preparation-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "e3-agent-file-write-http",
+      "status": "passed",
+      "evidence": "2026-10-11 after H6 42dc3460 normal merge: build and seven targeted suites passed: agent-file-write-plan (49 assertions, PUT 6931 ms, 5 backups), file-read-boundary, file-gateway-read, files-http (2.4s injected RPCs), file-gateway-limits, files-acceptance and H6 boundary. Real S24 main/file/schema captures preserved; no S24 mutation. Entire ci.yml to execute on final documented head."
+    },
+    {
+      "name": "r20-read-regression",
+      "status": "passed",
+      "evidence": "2026-10-11 after H6 42dc3460 normal merge: build and seven targeted suites passed: agent-file-write-plan (49 assertions, PUT 6931 ms, 5 backups), file-read-boundary, file-gateway-read, files-http (2.4s injected RPCs), file-gateway-limits, files-acceptance and H6 boundary. Real S24 main/file/schema captures preserved; no S24 mutation. Entire ci.yml to execute on final documented head."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/e3.md",
+    "docs/changes/codex-e3-agent-file-edit-preparation-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Aucune capability dans ce dépôt : la capability planned jumelle (samantha.app.agent_file.write, playbooks #47) décrit cette route owner."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Revert de la PR. Les sauvegardes <NOM>.bak-samantha-* éventuellement créées restent dans le workspace (5 au plus par fichier) et se suppriment à la main si besoin.",
+  "limitations": [
+    "Budget d'écriture mesuré en CI avec la latence CLI capturée de agents.files.get (3,45 s) appliquée aussi à set ; mesure production après déploiement.",
+    "Le CAS natif ne sérialise que les écritures agents.files.set du même process Gateway ; install-openclaw-instructions.sh ou un outil de l'agent peut écrire AGENTS.md hors de cette file : la relecture après effet incertain le détecte, sans rejeu.",
+    "Un fichier absent ne peut pas être créé (pas de révision) ; DREAMS.md reste hors liste Gateway.",
+    "Reprise fichier 42 : suite locale entière sur SHA final à publier après exécution ; seules les sauvegardes .bak-samantha-* sont bornées et purgées par cette route, pas celles du propriétaire installateur."
+  ]
+}

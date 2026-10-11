@@ -6,6 +6,7 @@ import { promisify } from "util";
 
 import { SurfaceClarifications } from "../capabilityClarification";
 import { runModelFastPath } from "../modelFastPath";
+import { publicDecision, publicReceiptMetadata, readReceiptPresentation } from "./receiptPresentation";
 
 const execFileAsync = promisify(execFile);
 export const CLAW_LIVE_MODEL = "gemini-3.8-live";
@@ -168,12 +169,13 @@ export async function clawLiveCapabilityTurn(
     return {
       success: true, state: "needs_clarification", source: "capability",
       clarificationId: turn.clarificationId, question: turn.question, choices: turn.choices,
+      decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)),
       execution: { state: "needs_clarification", question: turn.question, choices: turn.choices },
       instruction: "Read the question aloud verbatim. Send the user's spoken answer verbatim with this clarificationId.",
     };
   }
   if (turn.state === "done" || turn.state === "failed") {
-    return { success: true, state: turn.state, source: "capability", text: turn.text, execution: { state: turn.state === "done" ? "completed" : "failed" } };
+    return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), execution: { state: turn.state === "done" ? "completed" : "failed" } };
   }
   return execute(turn.text);
 }
@@ -204,6 +206,7 @@ export function buildClawLiveSetup(
     "When calling clawmobile_capability, pass the user's request verbatim whenever possible; do not generalize or drop qualifiers.",
     "Treat the returned harness.tool_policy and execution receipt as authoritative. For tool_policy=required, do not claim a result, say you checked, or promise an action unless the returned execution receipt supports it.",
     "If execution is unavailable, failed, needs clarification or requires confirmation, report that state accurately instead of inventing successful execution.",
+    "When a clawmobile_capability result contains voice.verbatim, start your spoken answer with exactly that text, word for word, without rephrasing, translating or shortening it; it states what Claw understood and, on failure, the step and readable reason. Never speak an error code, and never say that nothing was charged unless voice.verbatim says so.",
     "When the result state is needs_clarification, read its question aloud verbatim; when Amine answers, call clawmobile_capability again with his answer verbatim as request and the same clarificationId. Never merge the answer into the earlier request yourself.",
   ].filter(Boolean).join("\n\n");
   const setup: any = {
