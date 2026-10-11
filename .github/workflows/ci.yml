@@ -67,6 +67,8 @@ jobs:
 
       - name: Lot 41 piste 2 — la voix dit ce qu'elle a compris (V1, V2, V3) sur fixtures S24
         run: node scripts/test-voice-understanding.cjs
+      - name: Voice option A canonical admission
+        run: node scripts/test-voice-option-a.cjs
       - name: HS3 closed presentation and existing run transport
         run: |
           python3 scripts/test-receipt-presentation-read.py

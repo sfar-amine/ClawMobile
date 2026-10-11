@@ -222,6 +222,24 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    const b3=helperCalls().length;const own3=await submit({sessionId:'clarify-2',text:'agir'});assert.ok(!helperCalls().slice(b3).some(c=>c.mode==='resolve'));
    await settled(own3.runId);count('clarify_unadmitted_cannot_touch_admitted');}
 
+  // Voice option A: the marker is signed data, not admission or an arbitrary agent selector.
+  {const client=require('../dist/companion/openclawAgentClient');
+   for(const extra of [{}, {agentId:'attacker'}, {voiceDelegation:'true'}, {replayOf:{sessionId:'x',runId:'y'}}, {attachments:[]}]) {
+    const cid='voice-negative-'+crypto.randomUUID(),body=JSON.stringify({instruction:'Souviens-toi du rendez-vous',sessionId:'voice-parity',clientRunId:cid,voiceDelegation:true,...extra});
+    const signed=Object.keys(extra).length?proof({body,clientRunId:cid,sessionId:'voice-parity'}):{};
+    const refusal=await request('POST','/v1/runs',body,signed);assert.equal(refusal.status,Object.keys(extra).length?400:403);assert.equal(refusal.body.submissionState,'not_submitted');count('voice_closed_delegation');
+   }
+   const cid='voice-native-'+crypto.randomUUID(),body=JSON.stringify({instruction:'Souviens-toi du rendez-vous',sessionId:'voice-parity',clientRunId:cid,voiceDelegation:true});
+   const headers=proof({body,clientRunId:cid,sessionId:'voice-parity'}),admitted=turnAdmission.verifyRequest({method:'POST',path:'/v1/runs',headers,rawBody:Buffer.from(body),clientRunId:cid,sessionId:'voice-parity'});assert(admitted.admitted);
+   for(const opts of [{},{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true},{admission:admitted.ticket,clientRunId:'other-client',voiceDelegation:true}]) {
+    await assert.rejects(()=>client.submitToOpenClawAgent('Mémoire','voice-refused-'+crypto.randomUUID(),'other-session',{voiceDelegation:true,...opts}),/voice_owner_admission_required/);count('voice_ticket_bound');
+   }
+   let delegated;gatewayTransport.setOwnerTurnSdkLoader(async()=>({callGatewayFromCli:async(method,opts,params)=>{delegated=params;return {runId:params.idempotencyKey,status:'accepted'};}}));
+   process.env.CLAWMOBILE_AGENT_ID='other-agent';const result=await client.submitToOpenClawAgent('Souviens-toi du rendez-vous','voice-main-run','voice-parity',{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true});process.env.CLAWMOBILE_AGENT_ID='main';
+   assert.equal(result.ownerTransport,'admin_admitted');assert.equal(delegated.agentId,'main');assert.equal(delegated.sessionKey,'companion-chat-voice-parity');assert(delegated.message.endsWith('Souviens-toi du rendez-vous'));count('voice_main_same_conversation');
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>{throw Object.assign(new Error('missing'),{code:'owner_transport_unavailable'});});
+   await assert.rejects(()=>client.submitToOpenClawAgent('Mémoire','voice-no-fallback','voice-parity',{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true}));assert.equal(readLines(cliLog).filter(x=>x.id==='voice-no-fallback').length,0);count('voice_no_write_fallback');
+  }
   // --- 7. Révocation : signée par la clé enrôlée ; ensuite non-owner. Un tour déjà remis au Gateway n'est pas touché.
   assert.equal((await request('DELETE','/v1/owner-admission/enrollment','{"operationId":"revoke-0001"}',owner)).status,403,'révocation non signée');
   {const body='{"operationId":"revoke-0002"}';assert.equal((await request('DELETE','/v1/owner-admission/enrollment',body,{...owner,...proof({method:'DELETE',pathName:'/v1/owner-admission/enrollment',body,clientRunId:'revoke-0002',sessionId:'owner-admission',key:rogue})})).status,403);}
@@ -231,6 +249,7 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    const body2='{"operationId":"revoke-0003"}';const rv=await request('DELETE','/v1/owner-admission/enrollment',body2,{...owner,...proof({method:'DELETE',pathName:'/v1/owner-admission/enrollment',body:body2,clientRunId:'revoke-0003',sessionId:'owner-admission'})});
    assert.equal(rv.status,200);assert.equal(rv.body.state,'revoked');
    assert.equal(turnAdmission.isCurrent(admitted.ticket,{clientRunId:'p1-race-0001',sessionId:'race'}),false);
+   await assert.rejects(()=>require('../dist/companion/openclawAgentClient').submitToOpenClawAgent('Mémoire','voice-revoked','race',{admission:admitted.ticket,clientRunId:'p1-race-0001',voiceDelegation:true}),/voice_owner_admission_required/);count('voice_revoked_refused');
    const client=require('../dist/companion/openclawAgentClient');const res=await client.submitToOpenClawAgent('tour','p1-race-run','race',{authority:'owner',admission:admitted.ticket,clientRunId:'p1-race-0001'});
    assert.equal(res.ownerTransport,'write_cli');count('revocation_before_dispatch');}
   r=await submit();assert.equal(lastReason(),'not_enrolled');assert.equal((await settled(r.runId)).transport,'cli_write');count('after_revocation_non_owner');

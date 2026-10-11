@@ -63,6 +63,17 @@ type Owner = {
 type Execute = (request: string) => Promise<Record<string, any>>;
 type Deps = { capture?: RoundCaptureRunner; now?: () => number };
 
+/** Admission is a projection of the resolver's canonical decision, never a lexical pre-router.
+ * Confirmed/payment routes still enter the existing executor and its human boundary.
+ */
+export function deterministicLiveDecision(result: any): boolean {
+  const decision = result?.decision;
+  const selected = decision?.selected;
+  return result?.success !== false && decision?.version === 2 && decision?.type === "EXECUTE"
+    && typeof decision?.capability === "string" && decision.capability.length > 0
+    && selected?.deterministic === true && selected?.model_required === false;
+}
+
 /** Harness answer for a correction gesture: evidence required, no resolver or model call. */
 export function realignmentDecision() {
   return {
@@ -96,7 +107,8 @@ export async function clawLiveDecision(owner: Owner, request: string, resolve: (
   owner.understanding.noteTurn(request);
   // « La première » after a realignment must reach the capability route, not a free model answer.
   if (realignmentChoice(request, owner.understanding.pendingAnswer())) return { ...realignmentDecision(), state: "voice_realignment_choice" };
-  return resolve();
+  const result = await resolve();
+  return {...result, voiceFastPath: {version: 1, execute: deterministicLiveDecision(result)}};
 }
 
 /** /claw-live/capability: V1/V3 imposed text on every receipt, V2 realignment + Round Learning. */
