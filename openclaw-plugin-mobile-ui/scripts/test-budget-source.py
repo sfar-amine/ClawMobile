@@ -16,6 +16,20 @@ reporter = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(reporter)
 
 class BudgetSourceTests(unittest.TestCase):
+    def test_unreadable_utf8_source_has_fixed_code_without_path(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = Path(root) / 'unreadable-private-path.py'
+            source.write_bytes(b'READS = []\n\xff')
+            with self.assertRaisesRegex(reporter.ContractError, '^budget_source_unreadable$'):
+                reporter.read_budgets(source)
+            output = Path(root) / 'report.json'
+            result = subprocess.run([sys.executable, str(SCRIPT), '--acceptance', str(source), '--output', str(output)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(result.stderr, '')
+            self.assertEqual(result.stdout.strip(), 'invalid_configuration')
+            self.assertEqual(json.loads(output.read_text())['reason'], 'budget_source_unreadable')
+            self.assertNotIn(str(source), output.read_text() + result.stdout + result.stderr)
+
     def test_missing_source_has_fixed_code(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / 'missing-private-path.py'
