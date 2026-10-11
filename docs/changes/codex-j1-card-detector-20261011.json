@@ -21,13 +21,20 @@
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/README-j1-hs2-hs3.md",
     "installer/termux-lite/test-nightly-secret-scan.py",
     "installer/termux-lite/test-secret-scan-root-partition.py",
-    "docs/work/samantha-runtime/contracts/j1.md"
+    "docs/work/samantha-runtime/contracts/j1.md",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs"
   ],
   "tests": [
     {
       "name": "J1 bounded root partitions and inherited owners",
       "status": "passed",
       "evidence": "EX stage lock: test-secret-scan-root-partition.py 12/12; test-nightly-secret-scan.py 7/7; test-card-detector.py 7/7; test-workspace-secret-scan.py 16/16; test-companion-nightly-acceptance.py 12/12. Total 54/54 on prepared code; complete frozen-head CI still pending."
+    },
+    {
+      "name": "Shared F6/R20 process cleanup corrections",
+      "status": "passed",
+      "evidence": "EX lock, Node20 npm ci/build + five script gates passed: remote-bridge-abandoned, strict-process-cleanup (9/9 physical groups), file-gateway-limits, file-read-boundary, file-gateway-read. J1 54/54 rerun passed. Log /workspace/artifacts/b42/j1-detector/shared-corrections-targeted-r2.log. First attempt stopped before tests because node_modules was absent; archived. Whole exact-head CI remains pending."
     }
   ],
   "documentation": [
