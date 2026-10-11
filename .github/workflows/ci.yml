@@ -34,6 +34,8 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
+        run: python3 ../installer/termux-lite/test-project-room.py
       - name: Health manager never repairs the Companion during a deploy
         run: python3 ../installer/termux-lite/test-health-deploy-lock.py
       - name: Playbooks activation links ignored runtime dependencies

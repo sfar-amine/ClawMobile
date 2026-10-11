@@ -488,7 +488,36 @@ CID = re.compile(r'wa-[a-f0-9]{16}\Z')
 E164 = re.compile(r'\+[1-9][0-9]{7,14}\Z')
 FIELDS = {'state', 'scope', 'scopeText', 'expiresAt', 'addedAt', 'suspendedScope', 'personId'}
 EVENTS = {'add':'added', 'remove':'removed', 'scope':'scope_changed', 'suspend':'suspended',
-          'reactivate':'reactivated', 'expiry':'extended', 'note':'note_updated', 'sweep':'expired'}
+          'reactivate':'reactivated', 'expiry':'extended', 'note':'note_updated', 'sweep':'expired',
+          'rooms':'rooms_changed'}
+# Access "rooms" (decision d'Amine 11/10). Enforced by agent routing, never by prompt: plain conversation is the
+# wildcard `contacts` agent, `projet` a read-only project snapshot agent, `maison` the owner's main agent.
+ROOMS = ('conversation', 'projet', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'maison')
+# The other rooms need per-contact capability filtering in the harness first: refused, never granted by prompt.
+ENFORCED_ROOMS = {'conversation', 'projet', 'maison'}
+PROJECT_AGENT = 'contacts-projet'
+ROOM_TAG = 'r17-rooms:'
+
+def normalize_rooms(value):
+    if not isinstance(value,list) or not value or len(value)>len(ROOMS) or any(r not in ROOMS for r in value): fail('invalid_rooms')
+    rooms=['maison'] if 'maison' in value else sorted(set(value)|{'conversation'},key=ROOMS.index)
+    if any(r not in ENFORCED_ROOMS for r in rooms): fail('room_not_available',409)
+    return rooms
+
+def room_agent(rooms):
+    return 'main' if 'maison' in (rooms or ()) else PROJECT_AGENT if 'projet' in (rooms or ()) else None
+
+def route_rooms(cfg, number, rooms, identity):
+    """One concrete-peer binding per contact with rooms; plain conversation needs none (wildcard → contacts)."""
+    bindings=[b for b in (cfg.get('bindings') or []) if not (isinstance(b,dict) and b.get('comment')==ROOM_TAG+identity)]
+    agent=room_agent(rooms)
+    if agent:
+        if agent==PROJECT_AGENT and PROJECT_AGENT not in ((cfg.get('agents') or {}).get('entries') or {}): fail('project_room_unavailable',503)
+        entry={'agentId':agent,'comment':ROOM_TAG+identity,'match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':number}}}
+        # Listed before the wildcard DM binding: within one tier the first binding in config order wins.
+        at=next((i for i,b in enumerate(bindings) if ((b.get('match') or {}).get('peer') or {}).get('id')=='*'),len(bindings))
+        bindings.insert(at,entry)
+    cfg['bindings']=bindings
 
 class Refused(Exception):
     def __init__(self, code, status=400): self.code, self.status = code, status
@@ -584,7 +613,8 @@ class Contacts:
         try:
             line=prefix.split(b'\n',2)[1]; value=json.loads(line)
             if not prefix.split(b'\n',2)[2].startswith(END.encode()): raise ValueError()
-            if set(value)!=FIELDS or value['state'] not in ('active','suspended') or value['scope'] not in ('standard','claw','custom'): raise ValueError()
+            if set(value)-{'rooms'}!=FIELDS or value['state'] not in ('active','suspended') or value['scope'] not in ('standard','claw','custom'): raise ValueError()
+            if 'rooms' in value and (not isinstance(value['rooms'],list) or not value['rooms'] or any(r not in ROOMS for r in value['rooms'])): raise ValueError()
             if value['expiresAt'] is not None: stamp(value['expiresAt'])
             if value['addedAt'] is not None: stamp(value['addedAt'])
             if value['scopeText'] is not None: safe_text(value['scopeText'],500,False)
@@ -681,6 +711,7 @@ class Contacts:
             if state=='active' and metadata['expiresAt'] and stamp(metadata['expiresAt'])<self.clock(): state='expired_pending'
             out.append({'contactId':contact_id(number),'e164':number,'name':directory.get(number,{}).get('name') or None,'owner':number in owners,
                         'scope':metadata['scope'],'scopeText':metadata['scopeText'],'state':state,
+                        'rooms':['maison'] if number in owners else (metadata.get('rooms') or ['conversation']),
                         'expiresAt':metadata['expiresAt'],'addedAt':metadata['addedAt'],'personId':metadata['personId'],
                         'lastActivityAt':utc(activity[number]['timestamp']/1000) if activity.get(number,{}).get('timestamp') and not activity[number]['reason'] else None,
                         **({'reason':'archived_history'} if activity.get(number,{}).get('reason')=='archived_history' else {})})
@@ -770,7 +801,7 @@ class Contacts:
         row=c.execute("SELECT idempotency_key,message_id FROM send_receipts WHERE idempotency_key LIKE 'r17:%' AND json_valid(message_id) AND json_extract(message_id,'$.receipt.ownerMessage.state') IN ('pending','failed_before_effect') ORDER BY created_at,idempotency_key LIMIT 1").fetchone()
         if not row: c.rollback();c.close();return {'state':'idle'}
         value=json.loads(row[1]);receipt=value['receipt'];notice=receipt['ownerMessage']
-        labels={'added':'accordé','extended':'prolongé','removed':'retiré','expired':'expiré'}
+        labels={'added':'accordé','extended':'prolongé','removed':'retiré','expired':'expiré','rooms_changed':'élargi (pièces)'}
         if notice.get('change') not in labels or receipt.get('action')!=notice['change']:
             c.rollback();c.close();return {'state':'invalid_receipt'}
         # Includes stable operation/contact/change identity; identical message
@@ -874,20 +905,21 @@ class Contacts:
         except Exception:
             return self.legacy_patch(before,after)
         current=snap.get('config')
-        if not isinstance(current,dict) or self.people.whatsapp_state(current)!=self.people.whatsapp_state(before) or self.owners(current)!=self.owners(before): fail('config_changed',409)
+        if not isinstance(current,dict) or self.people.whatsapp_state(current)!=self.people.whatsapp_state(before) or self.owners(current)!=self.owners(before) or current.get('bindings')!=before.get('bindings'): fail('config_changed',409)
         a,d=self.people.whatsapp_state(after); olda,oldd=self.people.whatsapp_state(before)
         patch={'channels':{'whatsapp':{}}}; replacements=[]
         if a!=olda: patch['channels']['whatsapp']['allowFrom']=a;replacements.append('channels.whatsapp.allowFrom')
         if d!=oldd:
             # Replace exact direct map under CAS: JSON merge cannot remove a property safely.
             patch['channels']['whatsapp']['direct']=d;replacements.append('channels.whatsapp.direct')
+        if after.get('bindings')!=before.get('bindings'): patch['bindings']=after.get('bindings') or [];replacements.append('bindings')
         params={'raw':canonical(patch),'baseHash':snap.get('hash'),'replacePaths':replacements,'note':'whatsapp allowlist owner operation'}
         try: self.people.gateway_call('config.patch',params,timeout_ms=5000)
         except Exception: pass
         # One verification after success or uncertainty, never redispatch.
         try: verified=self.people.gateway_call('config.get',{},timeout_ms=5000).get('config')
         except Exception: return False
-        return isinstance(verified,dict) and self.people.whatsapp_state(verified)==self.people.whatsapp_state(after) and self.owners(verified)==self.owners(after)
+        return isinstance(verified,dict) and self.people.whatsapp_state(verified)==self.people.whatsapp_state(after) and self.owners(verified)==self.owners(after) and verified.get('bindings')==after.get('bindings')
     def legacy_patch(self,before,after):
         olda,oldd=self.people.whatsapp_state(before);a,d=self.people.whatsapp_state(after)
         try:
@@ -897,6 +929,7 @@ class Contacts:
             if adding and d!=oldd: self.people.legacy_cfg_set('channels.whatsapp.direct',d,oldd,timeout=5)
             if a!=olda: self.people.legacy_cfg_set('channels.whatsapp.allowFrom',a,olda,timeout=5)
             if not adding and d!=oldd: self.people.legacy_cfg_set('channels.whatsapp.direct',d,oldd,timeout=5)
+            if after.get('bindings')!=before.get('bindings'): self.people.legacy_cfg_set('bindings',after.get('bindings') or [],before.get('bindings') or [],timeout=5)
         except Exception: return False
         try: return self.local_config()==after
         except Exception: return False
@@ -964,7 +997,16 @@ class Contacts:
             if rule: wa['direct'][number]=rule
             else: wa['direct'].pop(number,None)
             metadata.update(scope=scope,scopeText=text,state='active')
+        elif action=='rooms':
+            if number in owners: fail('owner_contact_protected',409)
+            rooms=normalize_rooms(body.get('rooms'));current=metadata.get('rooms') or ['conversation']
+            if any(r not in current for r in rooms) and current!=['maison']: self.confirmation(body,'rooms',identity,digest('|'.join([number]+rooms)),retry=retry)
+            metadata['rooms']=rooms;route_rooms(after,number,rooms,identity)
+            if after.get('bindings')==before.get('bindings') and current==rooms:
+                if phase=='preflight': return {'success':True,'state':'already_present','receipt':None}
+                return self.noop(operation,identity,wanted,'already_present')
         elif action in ('remove','suspend','sweep'):
+            if action in ('remove','sweep') and any(isinstance(b,dict) and b.get('comment')==ROOM_TAG+identity for b in (before.get('bindings') or [])): route_rooms(after,number,[],identity)
             if action=='remove': self.confirmation(body,'remove',identity,digest(number),retry=retry)
             if action=='sweep' and (not metadata['expiresAt'] or stamp(metadata['expiresAt'])>=self.clock()): return {'success':True,'state':'not_due','receipt':None}
             wa['allowFrom']=[x for x in allow if x!=number]
@@ -988,7 +1030,7 @@ class Contacts:
             if isinstance(body.get('text'),str) and len(body['text'])>2000: fail('note_too_long')
             note=safe_text(body.get('text'),2000)
         if len((MARKER+'\n'+canonical(metadata)+'\n'+END+'\n').encode())>2048: fail('invalid_scope')
-        owner_change=(action=='add' or
+        owner_change=(action=='add' or (action=='rooms' and any(r not in (original.get('rooms') or ['conversation']) for r in metadata['rooms'])) or
             (action=='expiry' and event=='extended' and original['expiresAt'] is not None and metadata['expiresAt']!=original['expiresAt']) or
             action in ('remove','sweep'))
         if phase=='preflight': return {'success':True,'state':'validated','receipt':None}
@@ -999,6 +1041,7 @@ class Contacts:
             return {'success':True,'state':'prepared','receipt':None,'confirmationClaim':self.confirmation_claim,'allowConsumedRetry':retry}
         if not self.reserve(operation,identity,wanted,body.get('confirmationId'),event,owner_change): return self.read_operation(operation,wanted)
         receipt={'version':1,'operationId':operation,'contactId':identity,'action':event,'at':utc(self.clock()),'state':state,'scope':metadata['scope'],'durationDays':duration if action in ('add','expiry') else self.duration_days(identity)}
+        if action=='rooms': receipt['rooms']=metadata['rooms']
         effect_possible=False;staged_content=None;previous_context=None
         try:
             # Persist expiry BEFORE access becomes effective: a kill after CAS
@@ -1062,7 +1105,7 @@ class Contacts:
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}
-        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'}}
+        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms'}}
         if action not in allowed or set(body)-allowed[action]: fail('invalid_request')
         if action=='list': return {'success':True,'state':'partial' if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else 'ok','receipt':None,'items':self.rows(),'issues':['contact_scan_partial'] if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else []}
         if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId')),'historyCount':self.history_count(body.get('contactId'))}
