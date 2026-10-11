@@ -294,3 +294,6 @@ jobs:
         run: |
           node scripts/test-automation-edit-validation.cjs
           node scripts/test-automation-edit-http.cjs
+
+      - name: H6 canonical resolved intention and free vocabulary boundary
+        run: node scripts/test-payment-pattern-boundary.cjs
