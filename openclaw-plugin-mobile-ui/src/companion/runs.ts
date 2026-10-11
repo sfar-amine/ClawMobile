@@ -564,16 +564,22 @@ export async function markRunNotThis(runId: string, correction: RunCorrection): 
 }
 
 /** 38 M1 : projection minimale des reçus de runs existants (aucun texte). */
-export async function comprehensionRunFacts(): Promise<Array<{acceptedAt: number; decisionType?: string;
-  learned: boolean; clarificationAnswer: boolean; notThisAt?: number}>> {
-  return (await readStoredRuns(false)).map(run => ({
-    acceptedAt: run.acceptedAt,
-    decisionType: typeof run.decision?.type === "string" ? String(run.decision.type) : undefined,
-    learned: typeof (run.decision as any)?.plan?.learned_association === "string" ||
-      typeof (run.decision as any)?.learnedAssociation === "string" || typeof (run.decision as any)?.learned_association === "string",
-    clarificationAnswer: typeof run.parentClarificationRunId === "string",
-    notThisAt: run.notThis?.at,
-  }));
+export type ComprehensionRunFact = {acceptedAt: number; decisionType?: string; decisionRisk?: string;
+  learned: boolean; clarificationAnswer: boolean; notThisAt?: number; agent: boolean};
+export async function comprehensionRunFacts(): Promise<{facts: ComprehensionRunFact[]; retainedCap: number}> {
+  const facts = (await readStoredRuns(false)).map(run => {
+    const decision: any = run.decision;
+    return {
+      acceptedAt: run.acceptedAt,
+      decisionType: typeof decision?.type === "string" ? String(decision.type) : undefined,
+      decisionRisk: typeof decision?.risk === "string" ? String(decision.risk) : undefined,
+      learned: typeof decision?.plan?.learned_association === "string" || typeof decision?.learnedAssociation === "string",
+      clarificationAnswer: typeof run.parentClarificationRunId === "string",
+      notThisAt: run.notThis?.at,
+      agent: !decision && run.executionSource === "gateway",
+    };
+  });
+  return {facts, retainedCap: MAX_PERSISTED_RUNS};
 }
 
 export async function findSubmittedRunByClientRunId(
