@@ -1,0 +1,45 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/files?scope=agent",
+  "status": 200,
+  "capturedAt": "2026-10-10T23:41:16Z",
+  "bytes": 939,
+  "companion": "curl loopback http://127.0.0.1:8765 avec l'en-tête de l'app (Connection: close), sans Origin/Referer ni en-tête propriétaire",
+  "sanitized": true,
+  "attempts": 9,
+  "totalMs": 7323,
+  "lastLatencyMs": 167,
+  "retryPolicy": "relance toutes les 500 ms tant que computation.deliveryMode=deferred (comme l'app, retryAfterMs=500)",
+  "firstCall": {
+   "status": 200,
+   "latencyMs": 143,
+   "at": "2026-10-10T23:40:20Z",
+   "response": {
+    "success": false,
+    "state": "warming",
+    "receipt": null,
+    "ready": false,
+    "retryAfterMs": 500,
+    "computation": {"deliveryMode":"deferred"}
+   }
+  }
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "ready": true,
+  "installedSchemaQualified": false,
+  "items": [
+    {"name":"AGENTS.md","path":"AGENTS.md","kind":"file","size":6440,"modifiedAt":"2026-10-10T18:53:13.893Z","previewable":true},
+    {"name":"SOUL.md","path":"SOUL.md","kind":"file","size":4460,"modifiedAt":"2026-09-25T21:10:16.881Z","previewable":true},
+    {"name":"USER.md","path":"USER.md","kind":"file","size":955,"modifiedAt":"2026-09-24T16:12:51.763Z","previewable":true},
+    {"name":"IDENTITY.md","path":"IDENTITY.md","kind":"file","size":456,"modifiedAt":"2026-09-29T18:38:54.202Z","previewable":true}
+  ],
+  "truncated": false,
+  "ownerTruncated": false,
+  "search": null,
+  "cursor": null
+ }
+}
