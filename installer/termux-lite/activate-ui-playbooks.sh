@@ -27,7 +27,8 @@ while IFS= read -r rel; do
   [ -d "$D/$sha/$(dirname "$rel")" ] || continue
   [ -e "$D/$sha/$rel" ] || ln -s "$W/$rel" "$D/$sha/$rel"
   [ -f "$D/$sha/$(dirname "$rel")/package.json" ] || continue
-  "$NODE" -e 'const d=process.argv[1],p=require(d+"/package.json");for(const n of Object.keys(p.dependencies||{}))require.resolve(n+"/package.json",{paths:[d]})' "$D/$sha/$(dirname "$rel")" \
+  # Presence check, not require.resolve: packages with an "exports" map hide package.json (tough-cookie, parse5).
+  "$NODE" -e 'const fs=require("fs"),d=process.argv[1],p=require(d+"/package.json");for(const n of Object.keys(p.dependencies||{}))if(!fs.existsSync(d+"/node_modules/"+n+"/package.json"))process.exit(1)' "$D/$sha/$(dirname "$rel")" \
     || { echo "runtime_dependencies_unresolved $(dirname "$rel")" >&2; exit 3; }
 done < <(cd "$W" && find . -maxdepth 4 -path ./.git -prune -o -type d -name node_modules -print -prune | sed 's|^\./||')
 (cd "$D/$sha" && PYTHONPATH=. python3 -B -m unittest -q tests.test_capability_decision_contract tests.test_composed_reads)
