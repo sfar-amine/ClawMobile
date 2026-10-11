@@ -60,8 +60,14 @@ OWNER_GUARDS = [
     ("POST", "/skills/clawmobile-capabilities/try"),
     ("POST", "/files"),
     ("POST", "/files/content"),
+    # Lot paiement Maxit 11/10 (P1-5): these routes changed budget (Payment Core quote 45 s,
+    # local start = quote 45 s + execution 230 s, resume 65 s). Acceptance never sends an authorized
+    # payment mutation: without the native owner header they must be refused before any effect.
+    ("POST", "/payments/local-handoffs"),
+    ("POST", "/payments/local-start"),
+    ("POST", "/payments/" + "1" * 8 + "-1111-4111-8111-" + "1" * 12 + "/bank-return"),
 ]
-OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0}  # admission/refusal budget, no effect without owner proof
+OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0, "/payments/local-handoffs": 2.0, "/payments/local-start": 2.0}  # admission/refusal budget, no effect without owner proof
 SETTLE_SECONDS = 15
 # Secrets and account e-mails. 10/10 (recette UI): /agent/config published the OAuth profile e-mail.
 # Measured read-only on the S24 the same day: no other READS route returns an e-mail address.
