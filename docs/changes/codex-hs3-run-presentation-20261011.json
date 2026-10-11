@@ -3,9 +3,9 @@
   "id": "codex-hs3-run-presentation-20261011",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Transport validé de la présentation générique HS3 dans les runs existants",
+  "summary": "HS3 : présentation des reçus (Compris, échec explicite, alternatives Harness) transportée dans les runs existants, sur captures S24",
   "reason": "Le fastpath perdait les métadonnées top-level Graph et les runs ne les stockaient pas ; ajout de readers fermés sans nouvelle autorité.",
   "files": [
     ".github/workflows/ci.yml",
@@ -20,13 +20,16 @@
     "openclaw-plugin-mobile-ui/scripts/test-receipt-presentation.cjs",
     "docs/work/samantha-runtime/contracts/hs3.md",
     "docs/changes/codex-hs3-run-presentation-20261011.md",
-    "docs/changes/codex-hs3-run-presentation-20261011.json"
+    "docs/changes/codex-hs3-run-presentation-20261011.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/hs3-payment-terminal-records.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/hs3-presentations-from-captures.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/README.md"
   ],
   "tests": [
     {
       "name": "HS3 lecteurs et transport",
       "status": "passed",
-      "evidence": "4 tests Python et scénario réel submitIntent/helper simulé → registre existant → GET HTTP → relecture processus neuf, replay et rejet données sensibles ; aucune qualification S24. Build et régressions fastpath plugin, composed read, durable fastpath, Companion runs et delete-run verts."
+      "evidence": "8 tests Python (dont présentations calculées sur captures S24 et PaymentRecord réels) et transport submitIntent → runs.json → GET /v1/runs/{id} → processus neuf avec une présentation issue de capture. Build vert."
     }
   ],
   "documentation": [
@@ -53,11 +56,10 @@
     },
     "reason": "Aucun changement d’admission ni des six primitives owner."
   },
-  "rollback": "Revert des readers et champs metadata ; anciens runs lisibles, aucun état métier ou paiement à restaurer.",
+  "rollback": "Revert de la PR ; anciens runs lisibles, aucun état métier ni paiement à restaurer.",
   "limitations": [
-    "Captures finales absentes : issue core #124 ; formes de transport générées explicitement non qualifiantes S24.",
-    "Dépend playbooks #72 ; sous-contrat générique info/error, effet unknown, aucun formateur métier ni succès financier.",
-    "Snapshot signé actuel omet shortlist ; slots non prouvés et locale explicitement non câblée depuis le réglage app.",
-    "Ancien repli legacy préservé, pas affirmation que tout JSON brut a disparu ; qualification O7/familles reste nécessaire."
+    "Pas de formateur métier : statut info/error, effet toujours unknown.",
+    "Montant seulement avec decision.parameters (38 E1).",
+    "Handoff de paiement en échec : repli d'erreur générique (pas de « Compris »)."
   ]
 }

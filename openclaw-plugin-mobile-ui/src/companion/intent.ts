@@ -1,4 +1,4 @@
-import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata} from "./receiptPresentation";
+import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision} from "./receiptPresentation";
 import crypto from "crypto";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
@@ -157,6 +157,7 @@ async function executeCapabilityFirst(
   }
 
   let presentation = readReceiptPresentation(check);
+  let provenance: FastPathResult["provenance"];
   let state: "done" | "failed";
   let message: string;
   if (check.status === "clarification") {
@@ -174,6 +175,7 @@ async function executeCapabilityFirst(
       preparedDecision: check.decision,
     });
     presentation = readReceiptPresentation(result);
+    provenance = result.provenance;
     if (result.status === "hit") {
       state = "done";
       message = String(result.text || "Claw completed the capability.");
@@ -187,7 +189,7 @@ async function executeCapabilityFirst(
   }
 
   presentation ||= fallbackReceiptPresentation(state === "failed");
-  await settleSubmittedRun(runId, state, message, presentation);
+  await settleSubmittedRun(runId, state, message, {provenance, presentation});
   return {
     success: true,
     accepted: true,
@@ -195,6 +197,7 @@ async function executeCapabilityFirst(
     retrySafe: false,
     duplicate,
     ...publicReceiptMetadata(presentation),
+    ...(publicDecision(check.decision) ? {decision: publicDecision(check.decision)} : {}),
     runId,
     clientRunId,
     sessionId,
@@ -239,6 +242,7 @@ function responseFromExisting(
     retrySafe: false,
     duplicate: true,
     ...publicReceiptMetadata(readReceiptPresentation(status.presentation)),
+    ...(status.decision ? {decision: status.decision} : {}),
     runId: status.runId,
     clientRunId: status.clientRunId,
     sessionId: status.sessionId,
