@@ -26,7 +26,7 @@ class NightlyTests(unittest.TestCase):
    result,code=m.execute(state,root,NOW,runner=runner,notifier=lambda:notifications.append(1),preflight=lambda:True)
    self.assertIn(result['state'],('ok','attention'));self.assertEqual(len(calls),1)
    self.assertEqual((state/'nightly-20261011.json').stat().st_mode&0o777,0o600)
-   self.assertEqual(m.read_receipt(state/'nightly-20261011.json')['secretScan']['state'],'not_installed')
+   self.assertEqual(m.read_receipt(state/'nightly-20261011.json')['secretScan']['state'],'not_configured')
    again,_=m.execute(state,root,NOW,runner=runner,notifier=lambda:notifications.append(1),preflight=lambda:True)
    self.assertEqual(again['state'],'already_checked');self.assertEqual(len(calls),1);self.assertLessEqual(len(notifications),1)
  def test_busy_lock_and_preflight_do_not_run_or_write_receipt(self):

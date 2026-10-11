@@ -191,6 +191,10 @@ jobs:
       - name: G5 deployed receipt date and HTTP budget
         run: node scripts/test-update-deployment-date.cjs
 
+      - name: J1 bounded read-only secret scan and H8 integration
+        run: |
+          python3 ../installer/termux-lite/test-workspace-secret-scan.py
+          python3 ../installer/termux-lite/test-nightly-secret-scan.py
       - name: H8 nightly read-only acceptance, deployment lock and drift receipts
         run: |
           node scripts/test-nightly-health-http.cjs
