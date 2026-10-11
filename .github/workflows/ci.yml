@@ -82,6 +82,15 @@ jobs:
           node scripts/test-conversation-pages.cjs
           node scripts/test-submit-reconciliation.cjs
           node scripts/test-payment-core.cjs
+      - name: Maxit top-up payment path (blocked proof, precise reasons, step receipts, nested budgets) — lot 11/10
+        run: |
+          node scripts/test-maxit-topup-payment-adapter.cjs
+          node scripts/test-payment-budgets.cjs
+          node scripts/test-payment-steps.cjs
+          node scripts/test-payment-api.cjs
+          node scripts/test-payment-handoff.cjs
+      - name: Network mutation guard (Auto Wi-Fi lease, Wi-Fi watch, exact restore) — lot 11/10
+        run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression

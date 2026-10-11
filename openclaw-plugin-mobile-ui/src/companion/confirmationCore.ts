@@ -6,7 +6,14 @@ export type ConfirmationRecord={
  nonce:string;keyId:string;createdAt:number;expiresAt:number;
  state:"awaiting_owner"|"approved"|"cancelled"|"expired"|"consumed";
  decidedAt?:number;consumedAt?:number;proof?:OwnerProof;
+ /** Bounded pre-payment receipt (P0-8): what happened to this request before any PaymentRecord.
+  *  Outside the signed binding: it never changes what the owner approves or what consume() checks. */
+ steps?:ConfirmationStep[];
 };
+export type ConfirmationStep={stage:string;at:number;outcome?:string;reasonCode?:string};
+const STEP_STAGES=new Set(["handoff_prepared","owner_confirmation","quote_revalidation","confirmation_consume","payment_dispatch"]);
+const STEP_TEXT=/^[a-z0-9_]{1,96}$/;
+const STEP_CAPACITY=12;
 export interface ConfirmationStore {
  read():Promise<ConfirmationRecord[]>;
  change<T>(operation:(rows:ConfirmationRecord[])=>T):Promise<T>;
@@ -16,6 +23,12 @@ function draft(value:any) {
  if(typeof value.requestKey!=="string"||!ownerUuid.test(value.requestKey))ownerError("invalid_confirmation_request");
  const intent=validateOwnerIntent({audience:"confirmation",action:value.action,presentation:value.presentation,origin:value.origin});
  return {requestKey:value.requestKey,intent,fingerprint:ownerHash(value.requestKey+"\n"+ownerBinding(intent))};
+}
+function validStep(v:any):v is ConfirmationStep {
+ return !!v&&typeof v==="object"&&!Array.isArray(v)&&STEP_STAGES.has(v.stage)&&Number.isSafeInteger(v.at)&&
+  Object.keys(v).every(k=>["stage","at","outcome","reasonCode"].includes(k))&&
+  (v.outcome===undefined||(typeof v.outcome==="string"&&STEP_TEXT.test(v.outcome)))&&
+  (v.reasonCode===undefined||(typeof v.reasonCode==="string"&&STEP_TEXT.test(v.reasonCode)));
 }
 export function createConfirmationCore(options:{store:ConfirmationStore;key:()=>{key:KeyObject;id:string};clock?:()=>number}) {
  const now=options.clock||Date.now;
@@ -29,6 +42,8 @@ export function createConfirmationCore(options:{store:ConfirmationStore;key:()=>
    if(!Number.isSafeInteger(r.decidedAt)||r.decidedAt! < r.createdAt||r.decidedAt! >= r.expiresAt)ownerError("confirmation_record_invalid",503);
    verifyOwnerProof(r,r.proof,options.key());
   }
+  if(r.steps!==undefined&&(!Array.isArray(r.steps)||r.steps.length>STEP_CAPACITY||!r.steps.every(validStep)))
+   ownerError("confirmation_record_invalid",503);
   if((r.state==="awaiting_owner"||r.state==="approved")&&(now()>=r.expiresAt||now()<r.createdAt))r.state="expired";
   return r;
  }
@@ -59,6 +74,22 @@ export function createConfirmationCore(options:{store:ConfirmationStore;key:()=>
    });
   },
   async status(id:string) {return options.store.change(rows=>view(locate(rows,id)));},
+  /** Append a pre-payment step to the existing record. No state, binding or proof is touched. */
+  async recordStep(id:string,step:{stage:string;outcome?:string;reasonCode?:string}) {
+   return options.store.change(rows=>{
+    const r=locate(rows,id);
+    const item:ConfirmationStep={stage:step?.stage,at:now(),
+     ...(step?.outcome!==undefined?{outcome:step.outcome}:{}),...(step?.reasonCode!==undefined?{reasonCode:step.reasonCode}:{})};
+    if(!validStep(item))ownerError("invalid_confirmation_step",400);
+    const steps=r.steps??(r.steps=[]);
+    if(steps.length>=STEP_CAPACITY)steps.splice(1,1); // keep the first (handoff) and the latest
+    steps.push(item);
+    return item;
+   });
+  },
+  async lastStep(id:string):Promise<ConfirmationStep|null> {
+   return options.store.change(rows=>{const r=locate(rows,id);return r.steps?.length?{...r.steps[r.steps.length-1]}:null;});
+  },
   async challenge(id:string) {
    return options.store.change(rows=>{
     const r=locate(rows,id);

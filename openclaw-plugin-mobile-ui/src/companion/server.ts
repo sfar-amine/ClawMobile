@@ -523,7 +523,10 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|bank-return|bank-ui-event|resume|cancel))?$/.exec(routePath);
     if (match) {
       const [, id, action] = match;
-      if (method === "GET" && !action) { writeJson(res,200,await payments.status(id)); return; }
+      if (method === "GET" && !action) {
+        // view=compact: bounded Android projection (no forensic timeline) used by the bank countdown/reconciliation.
+        writeJson(res,200,requestUrl.searchParams.get("view")==="compact"?await payments.statusCompact(id):await payments.status(id)); return;
+      }
       if (method === "GET" && action === "challenge") { writeJson(res,200,await payments.challenge(id)); return; }
       if (method === "POST" && action === "cancel") {
         const body=await readJsonBody(req,256);
