@@ -15,3 +15,6 @@ La préparation peut être intégrée sous le garde fermé ; les captures et la 
 
 
 Capture Claude #170 `a75955f8` : les exports publics existent en global, mais ne sont pas résolus depuis Companion ; `tools.media.models=[]`. Résolution existante complétée par la racine npm globale bornée, validation du paquet 2026.9.6 et imports ESM publics, sans installation ni auth maison. Test ajouté à la CI ; npm ci/build et cinq suites ciblées Node20 verts sous verrou EX. Première passe interrompue par mauvais nom pipeline conservée ; passe finale corrigée entièrement verte. Nouvelle suite complète toujours requise. Proposition Google `gemini-3-flash-preview` puis OpenAI `gpt-4o-transcribe` documentée dans le contrat, issue du SDK public et non de la capture. Aucun micro ou chemin produit activé ; Claude/Amine gardent configuration et essais live.
+
+
+Correctif après revue M1 : présence du paquet local séparée de la résolution du premier export via les chemins publics Node ; paquet local partiel n’ouvre jamais le fallback global. Build et cinq suites ciblées verts, cas premier/all fichiers absents et exports absents inclus. Première full670 arrêtée/logs intacts ; suite entière sur nouvelle tête requise.

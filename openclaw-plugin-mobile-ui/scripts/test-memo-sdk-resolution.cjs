@@ -49,6 +49,18 @@ function fixture(name,version='2026.9.6',omitAuth=false){
  const partial=fixture('partial','2026.9.6',true);let partialFallback=0;
  await assert.rejects(resolveMemoSdkEntries(partial.resolve,async()=>{partialFallback++;return global.root;}),/memo_transcript_unavailable/);
  assert.equal(partialFallback,0);
+ // Review regression: the FIRST public export is declared, but its file is absent.
+ // A different public export remains resolvable: package presence must close fallback.
+ const firstMissing=fixture('first-missing');fs.unlinkSync(path.join(firstMissing.folder,'media-understanding-runtime.js'));
+ assert.ok(firstMissing.resolve('openclaw/plugin-sdk/config-runtime'));
+ await assert.rejects(resolveMemoSdkEntries(firstMissing.resolve,async()=>{partialFallback++;return global.root;},[firstMissing.root]),/memo_transcript_unavailable/);
+ const allMissing=fixture('all-missing');
+ for(const name of ['media-understanding-runtime','config-runtime','agent-runtime'])fs.unlinkSync(path.join(allMissing.folder,name+'.js'));
+ await assert.rejects(resolveMemoSdkEntries(allMissing.resolve,async()=>{partialFallback++;return global.root;},[allMissing.root]),/memo_transcript_unavailable/);
+ const noExports=fixture('no-exports');const noManifest=path.join(noExports.folder,'package.json');
+ fs.writeFileSync(noManifest,JSON.stringify({name:'openclaw',version:'2026.9.6',type:'module',exports:{}}));
+ await assert.rejects(resolveMemoSdkEntries(noExports.resolve,async()=>{partialFallback++;return global.root;},[noExports.root]),/memo_transcript_unavailable/);
+ assert.equal(partialFallback,0);
  const badExport=fixture('bad-export');fs.writeFileSync(path.join(badExport.folder,'agent-runtime.js'),'export const unrelated=true');
  await assert.rejects(loadMemoMediaOwner(()=>resolveMemoSdkEntries(missing,async()=>badExport.root)),/memo_transcript_unavailable/);
  // Real execFile boundary: fixed npm arguments, no shell, bounded output and timeout.

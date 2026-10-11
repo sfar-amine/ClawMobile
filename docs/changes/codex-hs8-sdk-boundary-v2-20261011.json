@@ -36,6 +36,11 @@
       "name": "HS8 public installed SDK resolution",
       "status": "passed",
       "evidence": "Node20 : npm ci et npm run build exit0 ; cinq suites finales exit0 : test-memo-stt-boundary.cjs, test-memo-stt-owner.cjs, test-memo-sdk-resolution.cjs, test-memo-intent-pipeline.cjs, test-attachment-http.cjs. Verrou EX ci-stage.lock respecté. Local/global ESM, package/export/version, timeout npm3s/output4K, gate false sans npm/import/I/O. Logs /workspace/artifacts/b42/hs8-sdk-global-targeted.log (première passe interrompue par mauvais nom script) et hs8-sdk-global-targeted-final.log (tout vert). Paquets synthétiques, zéro fournisseur/S24."
+    },
+    {
+      "name": "HS8 local partial package fail-closed review regression",
+      "status": "passed",
+      "evidence": "Revue M1 : premier export déclaré mais fichier absent ne doit pas déclencher fallbackglobal si paquetlocalprésent. Corrigé via chemins Node require.resolve.paths ; build +cinq suites Node20 exit0 sousEX, dont premier fichier absent/configvalide, tousfichiersabsents et exportsvides, zéro globaldiscovery. Log /workspace/artifacts/b42/hs8-sdk-global-partial-fix-targeted.log. Première full670 stoppée après revue, dossier intact ; suite entière requise nouvelle tête."
     }
   ],
   "documentation": [

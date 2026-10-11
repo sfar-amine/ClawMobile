@@ -52,11 +52,16 @@ function checkedSdkEntries(resolve: (id: string) => string, expectedPackage?: st
 }
 /** Internal offline seam; no path/loader inputs are exposed to an HTTP caller. */
 export async function resolveMemoSdkEntries(localResolve: (id: string) => string = require.resolve,
-  globalRoot: () => Promise<string> = installedMemoSdkRoot): Promise<string[]> {
+  globalRoot: () => Promise<string> = installedMemoSdkRoot,
+  localSearchPaths: readonly string[] = require.resolve.paths("openclaw") || []): Promise<string[]> {
+  // Export resolution alone cannot distinguish an absent package from a declared
+  // first export whose target is missing. Node's own package search paths attest
+  // local installation presence independently of any public export target.
+  const localInstalled = localSearchPaths.some(folder => fs.existsSync(path.join(folder, "openclaw")));
   let localPresent = true;
   try { localResolve("openclaw/plugin-sdk/" + MEMO_SDK_EXPORTS[0]); }
   catch (error: any) {
-    if (error?.code !== "MODULE_NOT_FOUND") throw new Error("memo_transcript_unavailable");
+    if (error?.code !== "MODULE_NOT_FOUND" || localInstalled) throw new Error("memo_transcript_unavailable");
     localPresent = false;
   }
   // A present but incompatible/partial package is not bypassed with another version.
