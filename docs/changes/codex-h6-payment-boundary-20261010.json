@@ -3,10 +3,10 @@
   "id": "codex-h6-payment-boundary-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "allowed",
+  "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
-  "summary": "Remplacer les gardes lexicales financières par l’intention canonique résolue, sans aucun mot bloqué.",
-  "reason": "Décision d’Amine du 11/10, backlog42 H6 : intention résolue uniquement.",
+  "summary": "Remplacer les gardes lexicales financi\u00e8res par l\u2019intention canonique r\u00e9solue, sans aucun mot bloqu\u00e9.",
+  "reason": "D\u00e9cision d\u2019Amine du 11/10, backlog42 H6 : intention r\u00e9solue uniquement.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/automations.ts",
@@ -29,9 +29,9 @@
   ],
   "tests": [
     {
-      "name": "H6-resolved-intent-boundary",
+      "name": "complete_local_ci",
       "status": "pending",
-      "evidence": "Source préparée ; matrice synthétique checkOnly et suite CI locale entière à rejouer au SHA final."
+      "evidence": "Contradiction matrix prepared, no tests executed on this corrected head."
     }
   ],
   "documentation": [
@@ -41,11 +41,11 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Routes et capabilities existantes conservées ; qualification canonique checkOnly avant effet."
+    "reason": "Routes et capabilities existantes conserv\u00e9es ; qualification canonique checkOnly avant effet."
   },
   "architecture": {
     "changed": false,
-    "reason": "Propriétaires existants ; décision canonique conservée dans le registre existant des runs Gateway."
+    "reason": "Propri\u00e9taires existants ; d\u00e9cision canonique conserv\u00e9e dans le registre existant des runs Gateway."
   },
   "mcp_owner_parity": {
     "tools": {
@@ -56,7 +56,7 @@
       "claw_status": "verified_no_impact",
       "claw_artifact_read": "verified_no_impact"
     },
-    "reason": "Résolution checkOnly canonique sans exécution ; aucun outil parallèle.",
+    "reason": "R\u00e9solution checkOnly canonique sans ex\u00e9cution ; aucun outil parall\u00e8le.",
     "evidence": [
       "openclaw-plugin-mobile-ui/scripts/test-payment-pattern-boundary.cjs",
       "docs/work/samantha-runtime/contracts/h6.md"
@@ -64,9 +64,9 @@
   },
   "rollback": "Revert H6, sans intervention Codex sur le S24.",
   "limitations": [
-    "Préparation anticipée uniquement : aucune validation locale complète revendiquée.",
-    "Les décisions de tests sont synthétiques ; recette S24 par Claude.",
-    "Notification sans qualification vérifiée : action indisponible jusqu’au détail/action propriétaire.",
-    "Anciens runs sans décision : absence de preuve, correction inactivity suspendue."
+    "Pr\u00e9paration anticip\u00e9e uniquement : aucune validation locale compl\u00e8te revendiqu\u00e9e.",
+    "Les d\u00e9cisions de tests sont synth\u00e9tiques ; recette S24 par Claude.",
+    "Notification sans qualification v\u00e9rifi\u00e9e : action indisponible jusqu\u2019au d\u00e9tail/action propri\u00e9taire.",
+    "Anciens runs sans d\u00e9cision : absence de preuve, correction inactivity suspendue."
   ]
 }

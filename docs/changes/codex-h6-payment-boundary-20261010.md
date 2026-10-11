@@ -7,3 +7,5 @@ leurs gardes. [Contrat H6](../work/samantha-runtime/contracts/h6.md).
 
 Préparation de source : les validations locales complètes et la recette S24
 restent à effectuer avant livraison.
+
+Revue source : confirmations et frontières humaines imbriquées agrégées, contradictions protégées, snapshots/types invalides refusés. Matrice préparée ; aucune suite de cette nouvelle tête encore exécutée.
