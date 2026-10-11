@@ -149,6 +149,18 @@ test("V2 Claw Live: gesture → realignment (recall, 2–3 shortlist candidates,
   assert.equal(answer.realignment_learning.state,"pending");
 });
 
+test("P1 revocation during accepted voice effect preserves its receipt and skips subsequent learning",async()=>{
+  const o=owner();let captures=0,current=true;
+  const deps={capture:async()=>{captures++;return {state:"pending"}},now:()=>o.st.t,assertCurrent:()=>{if(!current)throw new Error("owner_admission_expired")}};
+  await clawLiveCapability(o,{request:RES.resolutions.r11.text},async()=>fromResolution("r11",{presentation:HS3.topup_fr}),deps);
+  await clawLiveCapability(o,{request:"Non, c'est pas ça"},async()=>{throw new Error("unexpected execute")},deps);
+  captures=0;let release,entered;const gate=new Promise(r=>release=r),started=new Promise(r=>entered=r),receipt=orangeEnvelope();
+  const pending=clawLiveCapability(o,{request:"la première"},async()=>{entered();await gate;return receipt},deps);
+  await started;current=false;release();const result=await pending;
+  assert.equal(captures,0);assert.equal(result.success,receipt.success);assert.deepEqual(result.execution,receipt.execution);
+  assert.deepEqual(result.realignment_learning,{state:"skipped",reason:"owner_admission_expired"});
+});
+
 test("V2 Claw Live: no realignment after 2 minutes or after an intervening turn without capability",async()=>{
   const o=owner();let resolves=0;const deps={capture:async()=>({state:"pending"}),now:()=>o.st.t};
   const text=RES.resolutions.r11.text;

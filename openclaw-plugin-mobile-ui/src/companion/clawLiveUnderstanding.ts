@@ -121,6 +121,7 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
     });
   }
 
+  const stillCurrent = () => { try { deps.assertCurrent?.(); return true; } catch { return false; } };
   const pending = state.pendingAnswer();
   const choice = realignmentChoice(request, pending);
   return admit(async () => {
@@ -129,9 +130,9 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
     if (pending) {
       const corrected = readVoiceUnderstood(result, locale);
       const payload = realignmentRoundPayload(pending, "resolved", { capability: corrected?.capability || null, route: corrected?.route || null });
-      if (payload) learning = await capture(payload);
+      if (payload) learning = stillCurrent() ? await capture(payload) : {state:"skipped",reason:"owner_admission_expired"};
     }
-    state.remember(voiceTurnContext(result, request, { locale, now: now(), scope: String(body?.voiceTurn?.sessionEpoch || "") }), request);
+    if (stillCurrent()) state.remember(voiceTurnContext(result, request, { locale, now: now(), scope: String(body?.voiceTurn?.sessionEpoch || "") }), request);
     return { ...result, ...voiceReceiptProjection(result, locale), ...(learning ? { realignment_learning: learning } : {}), ...(choice ? { realignment_choice: choice.capability } : {}) };
   });
 }
