@@ -80,5 +80,10 @@ class Receipt(unittest.TestCase):
   import ast,json,hashlib
   capture=json.loads((Path(__file__).parents[2]/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/o1/network-guard-source.json').read_text())
   code=source.read_text();tree=ast.parse(code);function=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='with_wifi_off')
-  self.assertEqual(ast.get_source_segment(code,function),capture['functions']['with_wifi_off'])
+  # with_wifi_off (and its Wi-Fi watch) belongs to the payment path. The S24 capture (c6450f3) predates the
+  # payment lot 5eb2b53b; O1 must leave the runtime base version (352a8b97) byte-identical, never rewrite it.
+  segment=lambda name:ast.get_source_segment(code,next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name==name))
+  self.assertEqual(hashlib.sha256(segment('with_wifi_off').encode()).hexdigest(),'7f43d3b45c41384afbc43c316b740b90f59eddc39125c2e4f2c654f4ff2c4825')
+  self.assertEqual(hashlib.sha256(segment('run_while_wifi_stays_off').encode()).hexdigest(),'a770bf55bb310dbdb4a3deefdde431c035245b54ef6390ffd863a32e5e6f7e46')
+  self.assertIn('def with_wifi_off(purpose: str, command: list[str]) -> int:',capture['functions']['with_wifi_off'])
 if __name__=='__main__':unittest.main()

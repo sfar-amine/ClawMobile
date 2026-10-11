@@ -30,6 +30,13 @@ KEYS = (
     "global_http_proxy_exclusion_list",
     "global_proxy_pac_url",
 )
+# Samsung "Auto Wi-Fi" re-enables Wi-Fi near known networks during a Wi-Fi-off operation
+# (payment incident 11/10: Maxit fell back to Wi-Fi mid-flow). Both keys live in
+# `settings global` on the S24 (read-only probe 10/10: auto_wifi=1, sem_auto_wifi_control_enabled=1).
+AUTO_WIFI_KEYS = ("auto_wifi", "sem_auto_wifi_control_enabled")
+WIFI_WATCH_INTERVAL_S = 0.5
+CHILD_STOP_GRACE_S = 2.0
+WIFI_REENABLED_EXIT = 3
 MAX_LEASE_AGE = int(os.environ.get("NETWORK_MUTATION_MAX_LEASE_AGE", "900"))
 TERMUX_PACKAGES = ("com.termux", "com.termux.api", "com.termux.boot")
 
@@ -40,14 +47,41 @@ def adb(*args: str, timeout: int = 6, check: bool = False, serial: str | None = 
         raise RuntimeError("adb_command_failed")
     return p
 
-def settings_state() -> dict:
+def settings_state(keys: tuple[str, ...] = KEYS) -> dict:
     raw = adb("shell", "settings", "list", "global", check=True).stdout
     rows = {}
     for line in raw.splitlines():
         if "=" in line:
             key, value = line.split("=", 1)
             rows[key] = value
-    return {key: {"exists": key in rows, "value": rows.get(key)} for key in KEYS}
+    return {key: {"exists": key in rows, "value": rows.get(key)} for key in keys}
+
+def auto_wifi_state() -> dict:
+    return settings_state(AUTO_WIFI_KEYS)
+
+def disable_auto_wifi(snapshot: dict) -> None:
+    """Force both Auto Wi-Fi keys to 0 for the operation; the lease already holds the exact pre-state."""
+    for key in AUTO_WIFI_KEYS:
+        if snapshot[key] != {"exists": True, "value": "0"}:
+            adb("shell", "settings", "put", "global", key, "0", check=True)
+    if any(row != {"exists": True, "value": "0"} for row in auto_wifi_state().values()):
+        raise RuntimeError("auto_wifi_disable_mismatch")
+
+def restore_auto_wifi(snapshot: dict) -> None:
+    """Exact restore: an originally absent key is deleted, never written as null."""
+    current = auto_wifi_state()
+    for key in AUTO_WIFI_KEYS:
+        wanted = snapshot[key]
+        if current[key] == wanted:
+            continue
+        if wanted["exists"]:
+            if wanted["value"] in (None, ""):
+                raise RuntimeError("empty_auto_wifi_restore_unsupported")
+            adb("shell", "settings", "put", "global", key, wanted["value"], check=True)
+        else:
+            adb("shell", "settings", "delete", "global", key, check=True)
+    if auto_wifi_state() != snapshot:
+        raise RuntimeError("auto_wifi_restore_mismatch")
 
 def wifi_enabled() -> bool:
     raw = adb("shell", "cmd", "wifi", "status", check=True).stdout.strip().lower()
@@ -108,10 +142,19 @@ def restore_lease(row: dict) -> None:
     restore_state(row["settings"])
     if row.get("type") == "wifi_off":
         expected = bool(row.get("wifi_enabled"))
-        if wifi_enabled() is not expected:
-            set_wifi(expected)
-        if wifi_enabled() is not expected:
-            raise RuntimeError("wifi_restore_mismatch")
+        wifi_error = None
+        try:
+            if wifi_enabled() is not expected:
+                set_wifi(expected)
+            if wifi_enabled() is not expected:
+                raise RuntimeError("wifi_restore_mismatch")
+        except Exception as exc:  # still restore Auto Wi-Fi, then report the first failure
+            wifi_error = exc
+        # Leases written before Auto Wi-Fi snapshotting carry no key: nothing of ours to restore.
+        if isinstance(row.get("auto_wifi"), dict):
+            restore_auto_wifi(row["auto_wifi"])
+        if wifi_error is not None:
+            raise wifi_error
 
 def proxy_active(state: dict) -> bool:
     hp = (state["http_proxy"]["value"] or "").strip().lower()
@@ -228,6 +271,7 @@ def create_lease(purpose: str, *, lease_type: str = "global_proxy", include_wifi
     }
     if include_wifi:
         row["wifi_enabled"] = wifi_enabled()
+        row["auto_wifi"] = auto_wifi_state()
     write_json(lease, row)
     return lease
 
@@ -657,6 +701,38 @@ def with_global_proxy(endpoint: str, purpose: str, command: list[str]) -> int:
         if restore_error:
             raise RuntimeError("temporary_proxy_restore_failed")
 
+def _stop_child(child: subprocess.Popen) -> None:
+    if child.poll() is not None:
+        return
+    child.terminate()
+    try:
+        child.wait(timeout=CHILD_STOP_GRACE_S)
+    except subprocess.TimeoutExpired:
+        child.kill()
+        child.wait()
+
+def run_while_wifi_stays_off(command: list[str], *, interval_s: float = WIFI_WATCH_INTERVAL_S,
+                             sleep=time.sleep) -> tuple[int, bool]:
+    """Run the child while sampling Wi-Fi every interval. Returns (returncode, wifi_reenabled).
+
+    An unreadable sample is not proof that Wi-Fi came back; only an explicit "enabled" stops the child."""
+    child = subprocess.Popen(command)
+    try:
+        while True:
+            code = child.poll()
+            if code is not None:
+                return code, False
+            try:
+                back = wifi_enabled()
+            except (RuntimeError, OSError, subprocess.SubprocessError):
+                back = False
+            if back:
+                _stop_child(child)
+                return WIFI_REENABLED_EXIT, True
+            sleep(interval_s)
+    finally:
+        _stop_child(child)
+
 def canonical_consultation_owner(pid: int) -> bool:
     """A birth identity alone cannot turn an ordinary Python process into the guard."""
     try:
@@ -945,20 +1021,28 @@ def with_wifi_off(purpose: str, command: list[str]) -> int:
     lease = create_lease(purpose, lease_type="wifi_off", include_wifi=True)
     row = json.loads(lease.read_text())
     restore_error = None
+    reenabled = False
     def interrupted(_sig, _frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
     try:
+        # Auto Wi-Fi first, so it cannot undo the toggle below. Lease (exact snapshot) is durable already.
+        disable_auto_wifi(row["auto_wifi"])
         if row["wifi_enabled"] is True:
             set_wifi(False)
-        child = subprocess.run(command)
-        return child.returncode
+        code, reenabled = run_while_wifi_stays_off(command)
+        if reenabled:
+            # Last stdout line is what every caller parses: a precise, no-effect-claim blocked result.
+            print(json.dumps({"schemaVersion": 1, "state": "blocked", "reasonCode": "wifi_reenabled"},
+                             separators=(",", ":")), flush=True)
+        return code
     finally:
         try:
             restore_lease(row)
             lease.unlink(missing_ok=True)
-            write_receipt("healthy", "temporary_wifi_restored", wifi_initially_enabled=bool(row["wifi_enabled"]))
+            write_receipt("healthy", "temporary_wifi_restored", wifi_initially_enabled=bool(row["wifi_enabled"]),
+                          auto_wifi_restored=True, wifi_reenabled_during_operation=reenabled)
         except Exception as exc:
             restore_error = type(exc).__name__
             write_receipt("degraded", "temporary_wifi_restore_failed", lease=lease.name, error=restore_error)
