@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "claude-38-m1-comprehension-20261011",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "38 M1 : mesure de compréhension (CLARIFY, Ce n'est pas ça, résolutions apprises) dans Contrôle › Santé, 24 h / 7 j.",
+  "reason": "Fichier 38 § 3.4 et M1 : rendre visible si Samantha comprend mieux après apprentissage, depuis les reçus existants.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-control-comprehension.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/learning/runs-comprehension-facts.json",
+    "docs/work/samantha-runtime/contracts/38-m1-comprehension.md",
+    "docs/changes/claude-38-m1-comprehension-20261011.md",
+    "docs/changes/claude-38-m1-comprehension-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "38 M1 comprehension",
+      "status": "passed",
+      "evidence": {
+        "command": "node scripts/test-control-comprehension.cjs",
+        "fixture": "capture S24 nettoyée runs.json 2026-10-11 (25 runs, 9 décidés, 2 CLARIFY sur 7 j)",
+        "http_ms": "≈40 (budget 2 s)",
+        "projection_500_runs_ms": "≈3"
+      }
+    },
+    {
+      "name": "Control health components contract",
+      "status": "passed",
+      "evidence": "node scripts/test-control-health-components.cjs vert (révision et confidentialité inchangées)."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/38-m1-comprehension.md",
+    "docs/changes/claude-38-m1-comprehension-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Champ ajouté à la lecture existante Contrôle › Santé ; aucune route ni capability nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Projection du registre de runs existant dans la section santé existante ; pas de store, routeur ni démon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Aucun outil MCP modifié."
+  },
+  "rollback": "Revert de la PR ; le champ disparaît de la section santé.",
+  "limitations": [
+    "Empilé sur A2 core (trace notThis).",
+    "learnedDirect à 0 tant que plan.learned_association n'est pas dans la décision v2 (PR M1 playbooks).",
+    "Rétention runs.json bornée à 500 runs ; fenêtre signalée partielle si besoin.",
+    "Écran app C3 non livré."
+  ]
+}

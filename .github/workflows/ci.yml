@@ -45,6 +45,9 @@ jobs:
       - name: Run Control health components contract
         run: node scripts/test-control-health-components.cjs
 
+      - name: Run 38 M1 comprehension health field (real S24 runs capture)
+        run: node scripts/test-control-comprehension.cjs
+
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
