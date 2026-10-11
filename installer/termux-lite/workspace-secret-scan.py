@@ -228,16 +228,21 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                                 if current.st_size > min(file_bytes, max_bytes-stats['bytes']):
                                     partial(); continue
                                 digest = hashlib.sha256()
-                                while True:
+                                remaining = current.st_size
+                                while remaining:
                                     if time.monotonic() >= deadline:
                                         partial(); break
-                                    block = os.read(child, BLOCK)
+                                    block = os.read(child, min(BLOCK, remaining))
                                     stats['bytes'] += len(block)
+                                    remaining -= len(block)
                                     if not block:
-                                        if digest.hexdigest() == public_files[relative]:
-                                            attested_files.add(relative)
                                         break
                                     digest.update(block)
+                                latest = os.fstat(child)
+                                if (remaining == 0 and latest.st_size == current.st_size
+                                        and latest.st_mtime_ns == current.st_mtime_ns
+                                        and digest.hexdigest() == public_files[relative]):
+                                    attested_files.add(relative)
                                 os.lseek(child, 0, os.SEEK_SET)
                             if private_name and relative not in attested_files:
                                 stats['skipped'] += 1; continue
