@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Protection des OTP/PIN courts dans le lecteur HS3 partagé ; voix consolidée dans #150",
-  "reason": "Supprimer les rendus et gestes doublons tout en conservant la protection des codes humains désignés.",
+  "reason": "Conserver une protection commune des codes humains et retirer les rendus doublons. Readiness conditionnée à la CI entière verte au SHA final, preuve publiée dans la PR.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/scripts/test-voice-receipt-metadata.cjs",
@@ -17,9 +17,9 @@
   ],
   "tests": [
     {
-      "name": "HS6 adaptateur voix pur",
+      "name": "HS6 confidentialité du lecteur HS3 partagé",
       "status": "passed",
-      "evidence": "Tests contractuels authored du lecteur partagé, aucune fixture audio inventée."
+      "evidence": "Node 20 : npm run build, test-voice-receipt-metadata.cjs (11 cas) et test-receipt-presentation.cjs réussis. Les cas sont contractuels authored ; aucune qualification audio revendiquée."
     }
   ],
   "documentation": [
