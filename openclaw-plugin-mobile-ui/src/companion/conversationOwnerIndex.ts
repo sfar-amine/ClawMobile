@@ -18,6 +18,30 @@ function row(value:any){
  if(Array.isArray(value.thinkingLevels)&&value.thinkingLevels.length<=32)extra.thinkingLevels=value.thinkingLevels.flatMap((level:any)=>typeof level?.id==='string'&&/^[a-z]{1,40}$/.test(level.id)?[{id:level.id}]:[]);
  return {key:value.key,...extra,...(typeof value.label==='string'&&value.label.length<=160&&!/[\p{C}\p{Zl}\p{Zp}]/u.test(value.label)?{label:value.label}:{}),...(typeof value.pinned==='boolean'?{pinned:value.pinned}:{})};
 }
+/**
+ * `sessions.list` also returns the Gateway session `defaults` (default model and its thinking levels, the R18 source).
+ * Every successful page read here keeps that one small projection so R6 (`/agent/config`) does not spawn a sixth
+ * parallel CLI read for it: on the S24 (10/10 20:45) that extra `sessions.list {limit:1}` lost its 5.5 s budget
+ * among five concurrent CLI calls and gpt-5.6-sol fell back to « off » with `session_thinking_defaults_unavailable`.
+ */
+export type SessionDefaults={modelProvider:string,model:string,thinkingOptions:string[],thinkingDefault:string|null};
+let defaultsView:{value:SessionDefaults,at:number}|null=null;
+const level=(value:any)=>typeof value==='string'&&/^[a-z][a-z0-9_-]{0,39}$/.test(value);
+export function observeSessionDefaults(value:any){
+ if(!value||typeof value!=='object'||Array.isArray(value))return;
+ const provider=typeof value.modelProvider==='string'&&/^[A-Za-z0-9._+-]{1,200}$/.test(value.modelProvider)?value.modelProvider:null;
+ const model=typeof value.model==='string'&&/^[A-Za-z0-9._:/+-]{1,200}$/.test(value.model)?value.model:null;
+ const source=Array.isArray(value.thinkingOptions)&&value.thinkingOptions.length<=32?value.thinkingOptions:Array.isArray(value.thinkingLevels)&&value.thinkingLevels.length<=32?value.thinkingLevels.map((x:any)=>x?.id):[];
+ const options=[...new Set<string>(source.filter(level))];
+ if(!provider||!model||!options.length)return;
+ defaultsView={value:{modelProvider:provider,model,thinkingOptions:options,thinkingDefault:options.includes(value.thinkingDefault)?value.thinkingDefault:null},at:Date.now()};
+}
+/** Last observed Gateway session defaults, when younger than [maxAgeMs]. No I/O. */
+export function peekSessionDefaults(maxAgeMs:number):SessionDefaults|null{
+ return defaultsView&&Date.now()-defaultsView.at<maxAgeMs?structuredClone(defaultsView.value):null;
+}
+/** An agent configuration write may change the default model: the next read asks the Gateway again. */
+export function invalidateSessionDefaults(){defaultsView=null;}
 function bounded(next:typeof rows){
  while(next.size>100){const key=next.keys().next().value!;next.delete(key);versions.delete(key);}
  return next;
@@ -33,6 +57,7 @@ export function conversationOwnerIndex(){
    try{
     const value=await callOpenClawGateway('sessions.list',{search:'companion-',limit:100},{timeoutMs:5500,hardTimeoutMs:5500});
     if(!Array.isArray(value?.sessions)||value.sessions.length>100)throw Error("conversation_owner_index_unavailable");
+    observeSessionDefaults(value.defaults);
     const owners=value.sessions.map(row),next=new Map<string,ReturnType<typeof row>>(owners.map((owner:any)=>[owner.key,owner]));
     if(next.size!==owners.length)throw Error("conversation_owner_index_unavailable");
     for(const [key,owner] of rows)if((versions.get(key)||0)>startedEpoch)next.set(key,owner);

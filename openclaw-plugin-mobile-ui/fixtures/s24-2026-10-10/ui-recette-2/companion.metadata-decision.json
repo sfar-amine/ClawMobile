@@ -1,0 +1,59 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-10T20:48:43Z",
+  "host": "Samsung S24 / Termux",
+  "companion": "f95be8d",
+  "gateway": "OpenClaw 2026.9.6",
+  "route": "/conversations/decision-v2-live-5a66bfd3a1/metadata",
+  "status": 200,
+  "seconds": 0.03,
+  "readOnly": true,
+  "method": "claw_exec: curl -H 'Connection: close' http://127.0.0.1:8765/v1/conversations/decision-v2-live-5a66bfd3a1/metadata",
+  "sanitized": "amounts replaced by fictitious values; account handles, revision and private session ids replaced; account e-mail fields removed",
+  "note": "test session; same answer with x-clawmobile-owner-flow: v1"
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "sessionId": "decision-v2-live-5a66bfd3a1",
+  "thinkingLevel": "low",
+  "thinkingLevelSource": "default",
+  "thinkingLevels": [
+   "off",
+   "minimal",
+   "low",
+   "medium",
+   "high",
+   "xhigh",
+   "max",
+   "ultra"
+  ],
+  "hasActiveRun": false,
+  "thinkingChangeAvailable": true,
+  "context": {
+   "usedTokens": 22448,
+   "windowTokens": 272000,
+   "percent": 8,
+   "source": "gateway",
+   "measuredAt": 1791665263455
+  },
+  "title": "ClawMobile Companion",
+  "pinned": false,
+  "model": "openai/gpt-5.6-sol",
+  "modelAuthProfile": null,
+  "modelSource": null,
+  "mutationAvailable": true,
+  "issues": [
+   "conversation_auth_profile_unknown"
+  ],
+  "models": [
+   "google/gemini-3.5-flash-lite",
+   "google/gemini-3.5-flash-lite@acct-0000000000a2",
+   "openai/gpt-5.6-luna",
+   "openai/gpt-5.6-sol"
+  ],
+  "modelChangeAvailable": true,
+  "modelAccount": null
+ }
+}
