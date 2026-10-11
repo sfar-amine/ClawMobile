@@ -261,6 +261,8 @@ jobs:
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
           node ../cloud/voice-relay/test-long-action.mjs
+      - name: M2 claw_remember MCP owner capture through canonical context-event writer (200k events)
+        run: node scripts/test-mcp-remember.cjs
 
       - name: Verify host-bound capability owner admission (P1)
         run: |
