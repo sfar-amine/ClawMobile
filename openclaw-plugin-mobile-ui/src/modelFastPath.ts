@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { SurfaceClarifications } from "./capabilityClarification";
 
 const execFileAsync = promisify(execFile);
 const MAX_MESSAGE_CHARS = 12000;
@@ -44,7 +45,7 @@ type InboundContext = {
   messageProvider?: string;
 };
 
-type RunnerOptions = {
+export type RunnerOptions = {
   helperPath?: string;
   home?: string;
   surface?: string;
@@ -179,14 +180,36 @@ export async function runModelFastPath(
   return { status: "error", reason: lastError };
 }
 
+let whatsappClarifications: SurfaceClarifications | null = null;
+
+/** Exposed for tests: the bounded pending CLARIFY questions of inbound (WhatsApp) conversations. */
+export function inboundClarifications(runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath) {
+  if (!whatsappClarifications) whatsappClarifications = new SurfaceClarifications(runner);
+  return whatsappClarifications;
+}
+
+function conversationKey(event: InboundEvent, ctx: InboundContext): string {
+  return String(ctx.sessionKey || event.sessionKey || ctx.channel || "inbound").slice(0, 240);
+}
+
 export async function handleOwnerFastPath(
   event: InboundEvent,
   ctx: InboundContext,
   runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
+  clarifications: SurfaceClarifications = runner === runModelFastPath ? inboundClarifications() : new SurfaceClarifications(runner),
 ): Promise<{ handled: boolean; reply?: { text: string } }> {
   if (!isOwnerFastPathEligible(event, ctx)) return { handled: false };
   const message = (event.bodyForAgent ?? event.content ?? "").trim();
   try {
+    const id = SurfaceClarifications.idFor(conversationKey(event, ctx));
+    // 38 E3: a pending CLARIFY of this conversation is answered through resolve-clarification.
+    if (clarifications.hasPending(id)) {
+      const turn = await clarifications.turn(message, { surface: surfaceFor(ctx), id, originId: originId(event, ctx), timeoutSeconds: 30 });
+      if (turn.state === "needs_clarification") return { handled: true, reply: { text: turn.question } };
+      if (turn.state === "done" || turn.state === "failed") return { handled: true, reply: { text: turn.text } };
+      // Resolved but not deterministic: the agent continues in the same session (question + answer).
+      return { handled: false };
+    }
     const result = await runner(message, {
       surface: surfaceFor(ctx),
       caller: "owner",
@@ -196,6 +219,11 @@ export async function handleOwnerFastPath(
     const text = typeof result.text === "string" ? result.text.trim() : "";
     if ((result.status === "hit" || result.status === "known_error") && text) {
       return { handled: true, reply: { text } };
+    }
+    if (result.status === "clarification" && result.decision) {
+      // Same question on every surface; the answer comes back through resolve-clarification.
+      const question = text || String((result.clarification as any)?.question || "Précise ce que tu veux faire.");
+      if (clarifications.hold(id, message, result.decision, surfaceFor(ctx))) return { handled: true, reply: { text: question } };
     }
     return { handled: false };
   } catch {
