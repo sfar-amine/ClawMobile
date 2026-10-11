@@ -1,0 +1,7 @@
+# R20 — acquittement borné de terminaison CLI
+
+Le collecteur strict ne rejette plus immédiatement au retour de SIGKILL : la grâce existante est partagée entre TERM et vérification de l'arrêt observé, sans relever aucun plafond de sortie ni délai. Le parent fermé ne suffit pas à confirmer ses descendants. En cas de proc inaccessible, plafond ou délai, l'erreur fixe conserve cleanupState unknown. Aucun payload agent/P1, budget de route, parcours paiement, pool, store ou service modifié.
+
+Le pool existant termine aujourd'hui sa réservation même sur erreur ; aucune quarantaine ou garantie d'arrêt d'un descendant non observable n'est revendiquée. Le correctif est d'abord soumis à root comme petit delta portable avant partage aux branches gelées. Tests de vrais groupes locaux et contrôles R20 hérités ; CI entière et recette S24 encore en attente. Retour arrière par revert.
+
+Ciblés EX : build et quatre scripts R20, 4/4 gates verts ; neuf scénarios réels de groupes, 9/9 descendants observés non vivants à la rejection. Le groupe réabsorbé est confirmed ; les huit autres restent unknown sur ce host à grand census, sans garantie globale revendiquée. Le test d’effet SIGKILL différé a d’abord échoué avec un census synchronisé ; le census cède maintenant l’event loop tous les 32 éléments dans la même enveloppe. Échec r2 archivé ; r4 verte après correction du signal error : un parent avec PID reste non fermé jusqu’à son événement close. Le nouveau test SIGKILL différé est exécuté dans la CI R20 existante.
