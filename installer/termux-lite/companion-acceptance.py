@@ -24,6 +24,7 @@ READS = [
     ("/security/surfaces", 1.5),
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
+    ("/runs?limit=40&summary=1", 1.0),  # F4 : écran Notifications (80 ms capturés), projection structurée
     ("/runs?contract=2&view=conversations&limit=20", 0.3),
     ("/control/deploys?limit=20", 0.5),
     ("/control/engineering?limit=20", 2.0),

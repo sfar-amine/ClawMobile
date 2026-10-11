@@ -22,6 +22,7 @@ export function remoteBridgeHealth() {
     state: "ready",
     instanceId: INSTANCE_ID,
     protocol: "claw-rpc-v1",
+    abandonSweep: remoteBridgeAbandonSweep(),
   };
 }
 export function remoteBridgeReceiptDirectory() { return REQUEST_DIR; }
@@ -70,7 +71,7 @@ export async function pruneRemoteBridgeReadReceipts(keep = 50000) {
 }
 
 export type ClawAccess = {client_id:string;profile:"chat-owner"|"chat-owner-shadow";owner:boolean;read_only:boolean};
-type BridgeState = "received" | "running" | "completed" | "failed" | "indeterminate";
+type BridgeState = "received" | "running" | "completed" | "failed" | "indeterminate" | "abandoned";
 
 export type ContinuumFence = {
   version: 1;
@@ -109,6 +110,23 @@ export type RemoteBridgeReceipt = {
   continuumFence?: { version: 1; attemptId: string; effectKey: string; ownershipEpoch: number };
   result?: unknown;
   error?: string;
+  abandonment?: RemoteBridgeAbandonment;
+};
+
+// F6 (fichiers 35/41) : terminal state of a receipt whose owner instance is gone.
+// "not_applied_verified" only when dispatch never started (state "received": the
+// receipt is moved to "running" before dispatch). Otherwise the past effect stays
+// unknown and mutationRisk is preserved; abandoned never authorizes a replay.
+export type RemoteBridgeAbandonment = {
+  version: 1;
+  at: number;
+  previousState: "received" | "running" | "indeterminate";
+  reason: "owner_instance_gone";
+  application: "not_applied_verified" | "effect_uncertain";
+  ownerInstanceAlive: false;
+  liveCommandEvidence: false;
+  ageMs: number;
+  afterMs: number;
 };function ensureDirs() {
   for (const dir of [ROOT, REQUEST_DIR, ARTIFACT_DIR]) {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -267,7 +285,126 @@ function writeReceipt(receipt: RemoteBridgeReceipt) {
   atomicWrite(requestPath(receipt.requestId), JSON.stringify(receipt, null, 2));
 }
 
+// Bounded delay before a receipt of a dead instance becomes terminal. Above the
+// longest dispatch the bridge allows (exec_wait 300 s, capability 30 s).
+export const REMOTE_BRIDGE_ABANDON_AFTER_MS = Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_AFTER_MS || 0) > 0
+  ? Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_AFTER_MS)
+  : 60 * 60 * 1000;
+const LIVE_SCRIPT_WINDOW_MS = 10_000;
+const MAX_PROC_ENTRIES = 4096;
+let liveScriptCache: { until: number; starts: number[] | null } | null = null;
+
+function instancePid(instanceId: string) {
+  const match = /^(\d{1,10})-\d{10,16}-[0-9a-f]{8}$/.exec(String(instanceId || ""));
+  const pid = match ? Number(match[1]) : NaN;
+  return Number.isSafeInteger(pid) && pid > 1 ? pid : null;
+}
+
+// Unknown liveness (unparseable instance, EPERM, unexpected error) counts as alive.
+export function remoteBridgeInstanceAlive(instanceId: string) {
+  if (instanceId === INSTANCE_ID) return true;
+  const pid = instancePid(instanceId);
+  if (pid === null) return true;
+  try { process.kill(pid, 0); return true; }
+  catch (error: any) { return error?.code !== "ESRCH"; }
+}
+
+// Start times (ms) of exec_wait/process scripts still in a live command line.
+// null = /proc unreadable: liveness of the command cannot be excluded.
+function liveBridgeScriptStarts(): number[] | null {
+  const now = Date.now();
+  if (liveScriptCache && liveScriptCache.until > now) return liveScriptCache.starts;
+  let starts: number[] | null = [];
+  try {
+    const pids = fs.readdirSync("/proc").filter((name) => /^\d+$/.test(name)).slice(0, MAX_PROC_ENTRIES);
+    for (const pid of pids) {
+      let cmdline = "";
+      try { cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8"); } catch { continue; }
+      for (const match of cmdline.matchAll(/remote-bridge\/processes\/cmd-(\d{10,16})-[0-9a-f]+\.sh/g)) {
+        starts.push(Number(match[1]));
+      }
+    }
+  } catch { starts = null; }
+  liveScriptCache = { until: now + 5_000, starts };
+  return starts;
+}
+
+function abandonmentFor(receipt: RemoteBridgeReceipt, now = Date.now()): RemoteBridgeAbandonment | null {
+  if (!["received", "running", "indeterminate"].includes(receipt.state)) return null;
+  if (receipt.instanceId === INSTANCE_ID) return null;
+  const origin = Number(receipt.startedAt || receipt.receivedAt || 0);
+  if (!Number.isFinite(origin) || origin <= 0) return null;
+  const ageMs = now - origin;
+  if (ageMs < REMOTE_BRIDGE_ABANDON_AFTER_MS) return null;
+  if (remoteBridgeInstanceAlive(receipt.instanceId)) return null;
+  const starts = liveBridgeScriptStarts();
+  if (starts === null) return null;
+  if (starts.some((start) => Math.abs(start - origin) <= LIVE_SCRIPT_WINDOW_MS)) return null;
+  return {
+    version: 1,
+    at: now,
+    previousState: receipt.state as RemoteBridgeAbandonment["previousState"],
+    reason: "owner_instance_gone",
+    application: receipt.state === "received" ? "not_applied_verified" : "effect_uncertain",
+    ownerInstanceAlive: false,
+    liveCommandEvidence: false,
+    ageMs,
+    afterMs: REMOTE_BRIDGE_ABANDON_AFTER_MS,
+  };
+}
+
+function writeAbandoned(receipt: RemoteBridgeReceipt, abandonment: RemoteBridgeAbandonment) {
+  const next: RemoteBridgeReceipt = {
+    ...receipt,
+    state: "abandoned",
+    completedAt: receipt.completedAt || abandonment.at,
+    error: abandonment.application === "not_applied_verified"
+      ? "Bridge instance gone before dispatch. Not applied."
+      : "Bridge instance gone while request was running. Effect unknown: verify before any new request.",
+    abandonment,
+  };
+  const filePath = requestPath(receipt.requestId);
+  let times: fs.Stats | null = null;
+  try { times = fs.statSync(filePath); } catch {}
+  writeReceipt(next);
+  // Keep the original mtime: readers rank receipts by mtime as last activity.
+  if (times) { try { fs.utimesSync(filePath, times.atime, times.mtime); } catch {} }
+  return next;
+}
+
+// One bounded pass over the existing receipt directory. Called once after startup
+// (no timer loop); lazy reads below apply the same rule.
+export function abandonStaleRemoteBridgeReceipts(options: { budgetMs?: number; maxFiles?: number } = {}) {
+  const budgetMs = Math.max(50, Math.min(10_000, Number(options.budgetMs || 3_000)));
+  const maxFiles = Math.max(1, Math.min(200_000, Number(options.maxFiles || 100_000)));
+  const deadline = Date.now() + budgetMs;
+  const summary = { state: "complete" as "complete" | "partial", scanned: 0, abandoned: 0,
+    notAppliedVerified: 0, effectUncertain: 0, keptAlive: 0, at: Date.now() };
+  const files = receiptFiles();
+  for (const filePath of files.slice(0, maxFiles)) {
+    if (Date.now() > deadline) { summary.state = "partial"; break; }
+    summary.scanned++;
+    let receipt: RemoteBridgeReceipt;
+    try { receipt = JSON.parse(fs.readFileSync(filePath, "utf8")) as RemoteBridgeReceipt; } catch { continue; }
+    if (!["received", "running", "indeterminate"].includes(receipt.state)) continue;
+    if (path.basename(filePath) !== `${receipt.requestId}.json`) continue;
+    const abandonment = abandonmentFor(receipt);
+    if (!abandonment) { summary.keptAlive++; continue; }
+    writeAbandoned(receipt, abandonment);
+    summary.abandoned++;
+    if (abandonment.application === "not_applied_verified") summary.notAppliedVerified++;
+    else summary.effectUncertain++;
+  }
+  if (files.length > maxFiles) summary.state = "partial";
+  lastAbandonSweep = summary;
+  return summary;
+}
+let lastAbandonSweep: ReturnType<typeof abandonStaleRemoteBridgeReceipts> | null = null;
+export function remoteBridgeAbandonSweep() { return lastAbandonSweep; }
+
 function normalizeStaleReceipt(receipt: RemoteBridgeReceipt) {
+  const abandonment = abandonmentFor(receipt);
+  if (abandonment) return writeAbandoned(receipt, abandonment);
   if (receipt.state !== "running" || receipt.instanceId === INSTANCE_ID) return receipt;
   const next: RemoteBridgeReceipt = {
     ...receipt,

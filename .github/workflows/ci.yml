@@ -205,6 +205,10 @@ jobs:
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
 
+      - name: Verify host-bound capability owner admission (P1)
+        run: |
+          node scripts/test-capability-tool.cjs
+          node scripts/test-capability-admission.cjs
       - name: PR template section regression tests
         run: python3 -m unittest discover -s ../tests -p test_pr_template.py
       - name: PR description follows repository template
@@ -223,7 +227,14 @@ jobs:
           node scripts/test-nightly-health-http.cjs
           python3 ../installer/termux-lite/test-companion-nightly-acceptance.py
           python3 ../installer/termux-lite/test-health-verdict.py
+          python3 ../installer/termux-lite/test-health-verdict-f5.py
+      - name: F6 Remote Bridge stuck receipts become bounded abandoned without replay
+        run: node scripts/test-remote-bridge-abandoned.cjs
+      - name: F4 structured notifications on the captured runs summary
+        run: node scripts/test-notification-structured.cjs
       - name: G4 deployment receipts and route budget
         run: node scripts/test-deployment-receipts.cjs
       - name: C5 canonical voice owner transport fixture
         run: python3 ../installer/termux-lite/test-context-voice-read.py
+      - name: H9 read-only UI smoke synthetic safety boundaries
+        run: python3 ../installer/termux-lite/test-ui-smoke.py
