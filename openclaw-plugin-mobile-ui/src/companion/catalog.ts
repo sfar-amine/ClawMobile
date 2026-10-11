@@ -4,6 +4,7 @@ import {readFile} from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import {controlPaths,readControlProjection} from './control';
+import {billStatuses,readBillObservations,BILLING_CAPABILITY,BILL_PROVIDERS,type BillStatus,type BillProvider} from './billStatus';
 
 /**
  * HS2 — GET /v1/catalog: a derived view, compiled from the canonical registry (HS1 `catalog()`), the
@@ -58,7 +59,14 @@ export function parseSurfaceView(raw:any):SurfaceView{
 const unavailableText=(locale:string)=>locale==='fr'?'Indisponible pour l’instant':'Currently unavailable';
 
 /** Validates the HS1 projection, keeps its availability and greys what the app surface cannot reach. */
-export function catalogProjection(source:any,view:SurfaceView):any {
+export type BillStatuses=Partial<Record<BillProvider,BillStatus>>;
+/** Bills status contract: a provider group (bills.steg|sonede|topnet) holding the billing read carries `status`. */
+function billStatusFor(groupId:string,actions:any[],bills:BillStatuses|undefined):BillStatus|undefined{
+  if(!bills||!(BILL_PROVIDERS as readonly string[]).includes(groupId)||!actions.some(a=>a.capability===BILLING_CAPABILITY))return undefined;
+  return bills[groupId as BillProvider];
+}
+
+export function catalogProjection(source:any,view:SurfaceView,bills?:BillStatuses):any {
   if(!source||source.version!==1||!['fr','en'].includes(source.locale)||!Array.isArray(source.themes)||!source.themes.length||source.themes.length>32||!Array.isArray(source.defaultPinned)||source.defaultPinned.length>9||typeof source.generatedAt!=='string'||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$/.test(source.generatedAt)||!Number.isFinite(Date.parse(source.generatedAt)))throw fail();
   const locale=source.locale as 'fr'|'en';
   const reach=new Map((view?.capabilities||[]).map(c=>[c.id,c.reachability]));
@@ -94,12 +102,19 @@ export function catalogProjection(source:any,view:SurfaceView):any {
           information:available?null:reason==='in_development'?(locale==='fr'?'En cours de développement':'In development'):unavailableText(locale),
           ...(typeof a.intent==='string'?{intent:id(a.intent)}:{})};
       });
-      return {id:groupId,title:text(group.title),icon:id(group.icon),actions};
+      const status=billStatusFor(groupId,actions,bills);
+      if(status)for(const a of actions)if(a.capability===BILLING_CAPABILITY)a.status=status;
+      return {id:groupId,title:text(group.title),icon:id(group.icon),...(status?{status}:{}),actions};
     });
+    const statuses=groups.map((g:any)=>g.status).filter(Boolean) as BillStatus[];
+    const unpaid=statuses.filter(s=>s.state==='unpaid');
+    const badge=unpaid.length?{tone:'alert',count:unpaid.length,source:'bridge_receipt',at:unpaid.map(s=>s.checkedAt).sort().pop()!,
+      text:locale==='fr'?`${unpaid.length} impayée${unpaid.length>1?'s':''}`:`${unpaid.length} unpaid`}:undefined;
     const all=groups.flatMap((g:any)=>g.actions);const available=all.some((a:any)=>a.available);
     return {id:themeId,title:text(theme.title),subtitle:text(theme.subtitle),icon:id(theme.icon),example:text(theme.example),
       // Phrase française à dire (« Ou dis simplement »), identique quelle que soit la locale ; absente d'un HS1 plus ancien → null.
       exampleFr:theme.exampleFr==null?null:text(theme.exampleFr),order:theme.order,groups,
+      ...(badge?{badge}:{}),
       available,availability:available?'available':all.every((a:any)=>a.reason==='in_development')?'soon':'unavailable'};
   });
   const defaultPinned=source.defaultPinned.map(id);if(new Set(defaultPinned).size!==defaultPinned.length||defaultPinned.some((pin:string)=>!themeIds.has(pin)))throw fail();
@@ -127,12 +142,20 @@ async function ownerGates():Promise<GateEvidence>{
 async function generate(locale:'fr'|'en',abort?:AbortSignal):Promise<any>{
   const root=controlPaths().playbooks;
   const healthPath=path.join(stateDir(),'skill-intelligence','route-health.json');
-  const [gates,view]=await Promise.all([ownerGates(),readSurfaceView()]);
+  const [gates,view,bills]=await Promise.all([ownerGates(),readSurfaceView(),readBills(locale)]);
   const source=await new Promise<any>((resolve,reject)=>execFile('python3',['-c',HS1_SCRIPT,locale,healthPath,JSON.stringify(gates)],{cwd:root,timeout:6000,maxBuffer:MAX_BYTES,signal:abort},(error,stdout)=>{
     if(error){reject(fail());return;}try{resolve(JSON.parse(stdout));}catch{reject(fail());}
   }));
   if(source?.locale!==locale)throw fail();
-  return catalogProjection(source,view);
+  return catalogProjection(source,view,bills);
+}
+
+/** Bills status from existing owners only (bridge receipts + confirmed payment requests); never fails the catalog. */
+async function readBills(locale:'fr'|'en'):Promise<BillStatuses>{
+  try{
+    const [observations,payments]=await Promise.all([readBillObservations(),import('./runs').then(m=>m.readPaymentRequests()).catch(()=>[])]);
+    return billStatuses(observations,payments,locale);
+  }catch{return {};}
 }
 
 const lastGood=new Map<string,{value:any;at:number}>();
