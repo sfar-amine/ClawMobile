@@ -85,6 +85,11 @@ export type TerminalSessionResponse = {
 };
 
 export type IntentSubmitResponse = {
+  decision?: import("./receiptPresentation").PublicDecision;
+  presentation?: import("./receiptPresentation").ReceiptPresentation;
+  understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
+  alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];
+  failure?: import("./receiptPresentation").ReceiptPresentation["failure"];
   success: boolean;
   accepted?: boolean;
   submissionState?: "accepted" | "not_submitted";
@@ -103,6 +108,13 @@ export type IntentSubmitResponse = {
 };
 
 export type CompanionRunStatus = {
+  /** Closed projection of the stored decision (receiptPresentation.publicDecision). */
+  decision?: import("./receiptPresentation").PublicDecision;
+  presentation?: import("./receiptPresentation").ReceiptPresentation;
+  understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
+  alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];
+  failure?: import("./receiptPresentation").ReceiptPresentation["failure"];
+  provenance?: import("./capabilityProvenance").CapabilityProvenance;
   inactivityCorrectionReceipt?: import("./runInactivity").InactivityReceipt;
   modality?: "voice";
   clientRunId?: string;
@@ -116,6 +128,8 @@ export type CompanionRunStatus = {
   status?: string;
   message: string;
   result?: string;
+  /** F4: structured projection of `result` (summary list only); `result` stays the raw fallback. */
+  notification?: import("./notificationText").StructuredNotification | null;
   pendingApprovals?: unknown[];
   progress?: CompanionRunProgress;
   prompt?: string;
@@ -146,6 +160,11 @@ export type CompanionRunProgress = {
   detail?: string;
   updatedAt?: number;
   events: CompanionRunProgressEvent[];
+  /** HS5: real steps derived on read (runProgress.ts); absent for voice runs. */
+  steps?: import("./runProgress").RunStep[];
+  failedStep?: string;
+  cause?: string;
+  effect?: {debited: "unknown"; source: "receipt"};
 };
 
 export type CompanionRunProgressEvent = {

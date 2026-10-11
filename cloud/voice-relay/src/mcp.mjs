@@ -202,7 +202,7 @@ function registerTools(server, auth, invoke) {
   if (ownerProfile) {
     server.registerTool("claw_exec", {
       title: "Execute arbitrary S24 command",
-      description: "Execute an arbitrary shell command directly on the S24/Termux owner runtime through the existing Claw Remote Bridge. This is a generic owner terminal primitive, not a business capability route. Reuse action_key for retries of the same command; use a new stable step_key only for a materially new command.",
+      description: "Execute an arbitrary shell command directly on the S24/Termux owner runtime through the existing Claw Remote Bridge. This is a generic owner terminal primitive, not a business capability route. Reuse action_key for retries of the same command; use a new stable step_key only for a materially new command. A command still running after ~28 s returns state running (not an error): read claw_status with the same keys, never replay.",
       inputSchema: {
         command: z.string().min(1).max(32768),
         action_key: z.string().regex(ACTION_ID_RE),

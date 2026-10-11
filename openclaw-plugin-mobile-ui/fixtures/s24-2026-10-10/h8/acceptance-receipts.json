@@ -1,0 +1,759 @@
+{
+  "samples": [
+    {
+      "filename": "companion-20261010T210633.json",
+      "receipt": {
+        "version": 1,
+        "state": "deployed",
+        "at": "2026-10-10T20:08:06.398531+00:00"
+      },
+      "acceptance": {
+        "accepted": true,
+        "checks": [
+          {
+            "code": 200,
+            "seconds": 0.15,
+            "budget": 2.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/health"
+          },
+          {
+            "code": 200,
+            "seconds": 0.14,
+            "budget": 1.5,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/files?scope=agent"
+          },
+          {
+            "code": 200,
+            "seconds": 0.07,
+            "budget": 1.5,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/files?scope=session"
+          },
+          {
+            "code": 200,
+            "seconds": 0.08,
+            "budget": 2.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/files/content?scope=agent&path=AGENTS.md"
+          },
+          {
+            "code": 200,
+            "seconds": 0.05,
+            "budget": 2.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/files/content?scope=session&path=IDENTITY.md"
+          },
+          {
+            "code": 200,
+            "seconds": 5.01,
+            "budget": 6.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/usage"
+          },
+          {
+            "code": 200,
+            "seconds": 3.53,
+            "budget": 12.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/usage?details=cost"
+          },
+          {
+            "code": 200,
+            "seconds": 4.97,
+            "budget": 6.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/providers"
+          },
+          {
+            "code": 200,
+            "seconds": 4.05,
+            "budget": 10.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/whatsapp/allowlist"
+          },
+          {
+            "code": 200,
+            "seconds": 0.15,
+            "budget": 10.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/whatsapp/allowlist/history?limit=50"
+          },
+          {
+            "code": 200,
+            "seconds": 1.03,
+            "budget": 1.5,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/security/surfaces"
+          },
+          {
+            "code": 200,
+            "seconds": 4.71,
+            "budget": 6.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/notifications/sources"
+          },
+          {
+            "code": 200,
+            "seconds": 0.02,
+            "budget": 4.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/runs?limit=50"
+          },
+          {
+            "code": 200,
+            "seconds": 0.04,
+            "budget": 0.3,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/runs?contract=2&view=conversations&limit=20"
+          },
+          {
+            "code": 200,
+            "seconds": 0.34,
+            "budget": 2.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/control/engineering?limit=20"
+          },
+          {
+            "code": 200,
+            "seconds": 0.21,
+            "budget": 3.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/control/diagnostic/export"
+          },
+          {
+            "code": 200,
+            "seconds": 0.66,
+            "budget": 4.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/updates"
+          },
+          {
+            "code": 200,
+            "seconds": 0.28,
+            "budget": 3.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/control/memory?limit=20"
+          },
+          {
+            "code": 200,
+            "seconds": 7.65,
+            "budget": 9.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/agent/config"
+          },
+          {
+            "code": 200,
+            "seconds": 0.17,
+            "budget": 6.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/laptop-access/computers"
+          },
+          {
+            "code": 200,
+            "seconds": 1.04,
+            "budget": 2.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/security/surfaces"
+          },
+          {
+            "code": 200,
+            "seconds": 0.01,
+            "budget": 1.5,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/skills/candidates?limit=50"
+          },
+          {
+            "code": 200,
+            "seconds": 0.0,
+            "budget": 1.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/voice/voices"
+          },
+          {
+            "code": 200,
+            "seconds": 0.01,
+            "budget": 1.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/control/automations?contract=2"
+          },
+          {
+            "code": 200,
+            "seconds": 2.9,
+            "budget": 4.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/skills/clawmobile-capabilities"
+          },
+          {
+            "code": 200,
+            "seconds": 2.62,
+            "budget": 6.0,
+            "leak": false,
+            "status": "ok",
+            "read": "cold",
+            "route": "/conversations/{sessionId}/metadata"
+          },
+          {
+            "code": 200,
+            "seconds": 0.0,
+            "budget": 1.5,
+            "leak": false,
+            "status": "ok",
+            "read": "warm",
+            "route": "/conversations/{sessionId}/metadata"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /attachments (no owner header)"
+          },
+          {
+            "code": 405,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /security/surfaces (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /automations/acceptance-probe/run (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /control/requests/REQ-0/cancel (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /agent/config (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /conversations/x/metadata (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 2.0,
+            "status": "ok",
+            "route": "POST /skills/learn (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /control/memory/import/preview (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /control/memory/import (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /control/memory/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/forget (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /runs/acceptance-probe/approval (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /whatsapp/allowlist (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /skills/clawmobile-capabilities/disable (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /skills/clawmobile-capabilities/enable (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /skills/clawmobile-capabilities/try (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /files (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /files/content (no owner header)"
+          }
+        ]
+      }
+    },
+    {
+      "filename": "companion-20261010T205754.json",
+      "receipt": {
+        "version": 1,
+        "state": "deployed",
+        "at": "2026-10-10T19:59:11.688140+00:00"
+      },
+      "acceptance": {
+        "accepted": true,
+        "checks": [
+          {
+            "code": 200,
+            "seconds": 0.07,
+            "budget": 2.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/health"
+          },
+          {
+            "code": 200,
+            "seconds": 0.12,
+            "budget": 1.5,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/files?scope=agent"
+          },
+          {
+            "code": 200,
+            "seconds": 0.07,
+            "budget": 1.5,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/files?scope=session"
+          },
+          {
+            "code": 200,
+            "seconds": 0.07,
+            "budget": 2.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/files/content?scope=agent&path=AGENTS.md"
+          },
+          {
+            "code": 200,
+            "seconds": 0.06,
+            "budget": 2.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/files/content?scope=session&path=IDENTITY.md"
+          },
+          {
+            "code": 200,
+            "seconds": 5.3,
+            "budget": 6.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/usage"
+          },
+          {
+            "code": 200,
+            "seconds": 3.46,
+            "budget": 12.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/usage?details=cost"
+          },
+          {
+            "code": 200,
+            "seconds": 5.52,
+            "budget": 6.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/providers"
+          },
+          {
+            "code": 200,
+            "seconds": 3.01,
+            "budget": 10.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/whatsapp/allowlist"
+          },
+          {
+            "code": 200,
+            "seconds": 0.15,
+            "budget": 10.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/whatsapp/allowlist/history?limit=50"
+          },
+          {
+            "code": 200,
+            "seconds": 1.02,
+            "budget": 1.5,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/security/surfaces"
+          },
+          {
+            "code": 200,
+            "seconds": 2.73,
+            "budget": 6.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/notifications/sources"
+          },
+          {
+            "code": 200,
+            "seconds": 0.01,
+            "budget": 4.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/runs?limit=50"
+          },
+          {
+            "code": 200,
+            "seconds": 0.02,
+            "budget": 0.3,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/runs?contract=2&view=conversations&limit=20"
+          },
+          {
+            "code": 200,
+            "seconds": 0.21,
+            "budget": 2.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/control/engineering?limit=20"
+          },
+          {
+            "code": 200,
+            "seconds": 0.17,
+            "budget": 3.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/control/diagnostic/export"
+          },
+          {
+            "code": 200,
+            "seconds": 0.47,
+            "budget": 4.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/updates"
+          },
+          {
+            "code": 200,
+            "seconds": 0.2,
+            "budget": 3.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/control/memory?limit=20"
+          },
+          {
+            "code": 200,
+            "seconds": 7.01,
+            "budget": 9.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/agent/config"
+          },
+          {
+            "code": 200,
+            "seconds": 0.14,
+            "budget": 6.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/laptop-access/computers"
+          },
+          {
+            "code": 200,
+            "seconds": 0.36,
+            "budget": 2.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/security/surfaces"
+          },
+          {
+            "code": 200,
+            "seconds": 0.0,
+            "budget": 1.5,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/skills/candidates?limit=50"
+          },
+          {
+            "code": 200,
+            "seconds": 0.0,
+            "budget": 1.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/voice/voices"
+          },
+          {
+            "code": 200,
+            "seconds": 0.01,
+            "budget": 1.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/control/automations?contract=2"
+          },
+          {
+            "code": 200,
+            "seconds": 2.48,
+            "budget": 4.0,
+            "leak": false,
+            "settled": true,
+            "status": "ok",
+            "route": "/skills/clawmobile-capabilities"
+          },
+          {
+            "code": 200,
+            "seconds": 2.36,
+            "budget": 6.0,
+            "leak": false,
+            "status": "ok",
+            "read": "cold",
+            "route": "/conversations/{sessionId}/metadata"
+          },
+          {
+            "code": 200,
+            "seconds": 0.0,
+            "budget": 1.5,
+            "leak": false,
+            "status": "ok",
+            "read": "warm",
+            "route": "/conversations/{sessionId}/metadata"
+          },
+          {
+            "code": 403,
+            "seconds": 0.02,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /attachments (no owner header)"
+          },
+          {
+            "code": 405,
+            "seconds": 0.02,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /security/surfaces (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /automations/acceptance-probe/run (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /control/requests/REQ-0/cancel (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /agent/config (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /conversations/x/metadata (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.02,
+            "budget": 2.0,
+            "status": "ok",
+            "route": "POST /skills/learn (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /control/memory/import/preview (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.02,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /control/memory/import (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.02,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /control/memory/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/forget (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.02,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /runs/acceptance-probe/approval (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /whatsapp/allowlist (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.02,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /skills/clawmobile-capabilities/disable (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /skills/clawmobile-capabilities/enable (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.01,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /skills/clawmobile-capabilities/try (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /files (no owner header)"
+          },
+          {
+            "code": 403,
+            "seconds": 0.0,
+            "budget": 10.0,
+            "status": "ok",
+            "route": "POST /files/content (no owner header)"
+          }
+        ]
+      }
+    }
+  ],
+  "capture": {
+    "source": "S24 deployment acceptance receipts, read-only; route values restricted to installed acceptance route allowlist",
+    "actionKey": "codex-h8-source-metadata-20261011",
+    "stepKey": "read-acceptance-receipts"
+  }
+}

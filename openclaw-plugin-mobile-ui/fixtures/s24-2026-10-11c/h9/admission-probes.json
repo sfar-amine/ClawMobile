@@ -1,0 +1,28 @@
+{
+  "_capture": {
+    "by": "claude-code (session rel41)",
+    "at": "2026-10-11T01:50Z",
+    "via": "claw_exec, lecture seule : adb -s 127.0.0.1:5556 shell dumpsys package|window|window policy|power, cat /proc/uptime ; ls du verrou UI partagé",
+    "state": "téléphone verrouillé et en veille (Dozing) : aucune interface n'a été ouverte, touchée ni déverrouillée ; aucun dump UI",
+    "cleaning": "lignes de sortie verbatim filtrées par grep ; aucun texte d'interface, aucune donnée personnelle"
+  },
+  "package": {
+    "pm_list": "package:ai.samantha.android.dev",
+    "dumpsys_package": "    versionCode=20 minSdk=36 targetSdk=36\n    versionName=0.10.1-native-dev-opt\n    lastUpdateTime=2026-10-11 01:47:33\n      firstInstallTime=2026-10-02 22:37:16\n",
+    "not_installed": "ai.samantha.android"
+  },
+  "keyguard": { "dumpsys_window_policy": "    KeyguardServiceDelegate\n      showing=true\n" },
+  "power": {
+    "dumpsys_power": "  mWakefulness=Dozing\n  mLastWakeTime=44943408 (13593962 ms ago)\n mLastUserActivityTime(excludingAttention)=56987730\n",
+    "uptime": "58557.73 313648.31\n"
+  },
+  "focus": { "dumpsys_window": "  mCurrentFocus=Window{edf4ecf u0 NotificationShade}\n" },
+  "shared_ui_lock": {
+    "path": "~/.openclaw/billing-auth/execution.lock",
+    "mode": "0600",
+    "owners": "samantha-ui-playbooks qa_testing/executors.py SHARED_UI_LOCK (flock LOCK_EX|LOCK_NB, refus shared_ui_busy) ; billing/auth_guard.py execution_lock ; tests/accept_qa_android_native_live.py"
+  },
+  "app_tags": {
+    "testTagsAsResourceId": "absent des sources app (feature/samantha-ux-c11-20261009, main) au 11/10 : les testTag Compose ne sont pas exposés à uiautomator"
+  }
+}

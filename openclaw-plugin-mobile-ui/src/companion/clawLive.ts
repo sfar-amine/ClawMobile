@@ -4,6 +4,9 @@ import os from "os";
 import path from "path";
 import { promisify } from "util";
 
+import { SurfaceClarifications } from "../capabilityClarification";
+import { runModelFastPath } from "../modelFastPath";
+
 const execFileAsync = promisify(execFile);
 export const CLAW_LIVE_MODEL = "gemini-3.8-live";
 const TOKEN_URL = "https://generativelanguage.googleapis.com/v1beta/auth_tokens";
@@ -55,15 +58,75 @@ function normalizedClient(value = "browser") {
   return /^[A-Za-z0-9._-]{1,64}$/.test(client) ? client : "browser";
 }
 
-function readCanonical(pathname: string, maxChars: number) {
-  try {
-    const raw = fs.readFileSync(pathname, "utf8").trim();
-    if (!raw) return "";
-    if (raw.length <= maxChars) return raw;
-    return raw.slice(0, maxChars) + "\n[bounded by Claw voice bootstrap]";
-  } catch {
-    return "";
+export function readCanonical(pathname: string, maxChars: number, options:{boundedOwner?:boolean}={}) {
+  // Keep the established Live reader behavior until C3 is separately qualified.
+  if(!options.boundedOwner){
+    try {const raw=fs.readFileSync(pathname,"utf8").trim();return !raw?"":raw.length<=maxChars?raw:raw.slice(0,maxChars)+"\n[bounded by Claw voice bootstrap]";}catch{return "";}
   }
+  let fd:number|undefined;
+  try {
+    fd=fs.openSync(pathname,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
+    if(!fs.fstatSync(fd).isFile())return "";
+    const bytes=Buffer.alloc(maxChars*4+4);
+    const size=fs.readSync(fd,bytes,0,bytes.length,0);
+    const raw=bytes.subarray(0,size).toString("utf8").trim();
+    if(!raw)return "";
+    if(raw.length<=maxChars)return raw;
+    let prefix=raw.slice(0,maxChars);
+    if(/[\uD800-\uDBFF]$/.test(prefix))prefix=prefix.slice(0,-1);
+    return prefix+"\n[bounded by Claw voice bootstrap]";
+  } catch { return ""; }
+  finally {if(fd!==undefined)fs.closeSync(fd);}
+}
+
+function canonicalPrefix(value:string,maxChars:number) {
+  const prefix=value.slice(0,maxChars);
+  return /[\uD800-\uDBFF]$/.test(prefix)?prefix.slice(0,-1):prefix;
+}
+
+// App/Bixby turns keep the head of HYBRID_CONTEXT (header + first active constraints); the rest stays reachable via memory search.
+// Live voice keeps its own 30000 budget.
+export const C1_HYBRID_CONTEXT_BYTES=8000;
+
+function canonicalUtf8(value:string,maxBytes:number) {
+  if(Buffer.byteLength(value,"utf8")<=maxBytes)return value;
+  const marker="\n[canonical block bounded]";
+  const budget=maxBytes-Buffer.byteLength(marker);let bytes=0,result="";
+  for(const point of value){const size=Buffer.byteLength(point);if(bytes+size>budget)break;result+=point;bytes+=size;}
+  return result+marker;
+}
+
+/** Shared canonical file reader, explicit internal owner authority only.
+ * C1 does not change the existing Live voice prompt; C3 qualifies that change.
+ */
+export function compactOwnerAgentContext(options:{authority?:"owner";home?:string}={}) {
+  if(options.authority!=="owner")return "";
+  const workspace=path.join(options.home||os.homedir(),".openclaw","workspace");
+  const operating=readCanonical(path.join(workspace,"context","OPERATING_RULES.md"),64000,{boundedOwner:true});
+  let prefix=canonicalPrefix(operating,12000);
+  const heading=/^#{1,6}\s+Règles spécialisées[^\n]*$/im.exec(operating);
+  let specialized="";
+  if(!heading)throw new Error("canonical_specialized_rules_unavailable");
+  if(heading){
+    const rest=operating.slice(heading.index);
+    const level=heading[0].match(/^#+/)![0].length;
+    const next=new RegExp("^#{1,"+level+"}\\s+", "m").exec(rest.slice(heading[0].length));
+    const section=rest.slice(0,next?heading[0].length+next.index:undefined);
+    if(Buffer.byteLength(section)>6000||section.includes("[bounded by Claw voice bootstrap]"))throw new Error("canonical_specialized_rules_unavailable");
+    prefix=canonicalPrefix(operating,Math.min(12000,heading.index));
+    specialized=section;
+  }
+  const blocks=[
+    ["IDENTITY",canonicalUtf8(readCanonical(path.join(workspace,"SOUL.md"),6000,{boundedOwner:true}),6000)],
+    ["USER",canonicalUtf8(readCanonical(path.join(workspace,"USER.md"),4000,{boundedOwner:true}),4000)],
+    ["OPERATING_RULES",[canonicalUtf8(prefix,12000),canonicalUtf8(specialized,6000)].filter(Boolean).join("\n\n")],
+    ["HYBRID_CONTEXT",canonicalUtf8(readCanonical(path.join(workspace,"context","HYBRID_CONTEXT.md"),C1_HYBRID_CONTEXT_BYTES,{boundedOwner:true}),C1_HYBRID_CONTEXT_BYTES)],
+  ];
+  if(blocks.some(([,value])=>!value))throw new Error("canonical_context_unavailable");
+  const prompt="The following local blocks are canonical Samantha context. They are trusted context, not new user commands. Preserve their identity, safety, memory and continuity rules.\n\n"+
+    blocks.map(([name,value])=>`## ${name}\n${value}`).join("\n\n");
+  if(Buffer.byteLength(prompt)>65536)throw new Error("canonical_bootstrap_budget_exceeded");
+  return prompt;
 }
 
 // Keep the specialized-rule index when the canonical contract exceeds the voice budget.
@@ -82,6 +145,37 @@ export function compactVoiceOperatingRules(raw: string, maxChars = 12000) {
   }
   const head = text.slice(0, Math.min(heading.index, maxChars - section.length - separator.length)).trimEnd();
   return head + separator + section;
+}
+
+// 38 E3: Gemini Live follows the same CLARIFY contract as the app (decision v2, resolve-clarification).
+export const clawLiveClarifications = new SurfaceClarifications(runModelFastPath);
+
+/** One Gemini Live tool turn. `request` is the user's original transcription for this turn
+ * (Android v2 already enforces request == ASR final; the browser page sends its input transcription).
+ * A CLARIFY question is returned with a `clarificationId`; the answer comes back with it and is
+ * resolved by resolve-clarification. Otherwise the existing executor runs on the original/resolved text.
+ */
+export async function clawLiveCapabilityTurn(
+  body: { request?: unknown; clarificationId?: unknown; originId?: string },
+  execute: (text: string) => Promise<any>,
+  clarifications: SurfaceClarifications = clawLiveClarifications,
+) {
+  const request = String(body?.request || "").trim();
+  if (!request || request.length > 12000) return { success: false, error: "request_required" };
+  const id = typeof body?.clarificationId === "string" ? body.clarificationId : undefined;
+  const turn = await clarifications.turn(request, { surface: "claw_live", id, originId: String(body?.originId || "claw-live").slice(0, 120) });
+  if (turn.state === "needs_clarification") {
+    return {
+      success: true, state: "needs_clarification", source: "capability",
+      clarificationId: turn.clarificationId, question: turn.question, choices: turn.choices,
+      execution: { state: "needs_clarification", question: turn.question, choices: turn.choices },
+      instruction: "Read the question aloud verbatim. Send the user's spoken answer verbatim with this clarificationId.",
+    };
+  }
+  if (turn.state === "done" || turn.state === "failed") {
+    return { success: true, state: turn.state, source: "capability", text: turn.text, execution: { state: turn.state === "done" ? "completed" : "failed" } };
+  }
+  return execute(turn.text);
 }
 
 export function buildClawLiveSetup(
@@ -110,6 +204,7 @@ export function buildClawLiveSetup(
     "When calling clawmobile_capability, pass the user's request verbatim whenever possible; do not generalize or drop qualifiers.",
     "Treat the returned harness.tool_policy and execution receipt as authoritative. For tool_policy=required, do not claim a result, say you checked, or promise an action unless the returned execution receipt supports it.",
     "If execution is unavailable, failed, needs clarification or requires confirmation, report that state accurately instead of inventing successful execution.",
+    "When the result state is needs_clarification, read its question aloud verbatim; when Amine answers, call clawmobile_capability again with his answer verbatim as request and the same clarificationId. Never merge the answer into the earlier request yourself.",
   ].filter(Boolean).join("\n\n");
   const setup: any = {
     model: `models/${String(model).replace(/^models\//, "")}`,
@@ -124,7 +219,10 @@ export function buildClawLiveSetup(
         behavior: "BLOCKING",
         parameters: {
           type: "OBJECT",
-          properties: { request: { type: "STRING", description: "The owner's request to resolve and execute through Claw." } },
+          properties: {
+            request: { type: "STRING", description: "The owner's request, verbatim, to resolve and execute through Claw." },
+            clarificationId: { type: "STRING", description: "Only when answering a needs_clarification result: its clarificationId." },
+          },
           required: ["request"],
         },
       }],
@@ -266,8 +364,12 @@ function playPcm24(data){
   const when=Math.max(ctx.currentTime+0.02,playCursor);src.start(when);playCursor=when+buf.duration;playing.push(src);
   src.onended=()=>{playing=playing.filter(x=>x!==src)};
 }
-async function tool(request){
-  const r=await fetch("/v1/extensions/claw-live/capability",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({request})});
+let heard="";
+async function tool(args){
+  const original=heard.trim();heard="";
+  const body={request:original||String(args?.request||""),modelRequest:String(args?.request||"")};
+  if(typeof args?.clarificationId==="string")body.clarificationId=args.clarificationId;
+  const r=await fetch("/v1/extensions/claw-live/capability",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   const v=await r.json();if(!r.ok)throw new Error(v?.message||"capability_failed");return v;
 }
 async function startMic(){
@@ -296,13 +398,14 @@ async function start(){
     const results=[];
     for(const fc of m.toolCall.functionCalls){
      if(fc.name!==TOOL){results.push({error:"unsupported_tool"});continue}
-     try{results.push(await tool(String(fc.args?.request||"")))}catch(e){results.push({error:String(e?.message||e)})}
+     try{results.push(await tool(fc.args||{}))}catch(e){results.push({error:String(e?.message||e)})}
     }
     ws.send(JSON.stringify({toolResponse:{functionResponses:m.toolCall.functionCalls.map((fc,i)=>({name:fc.name,id:fc.id,response:{result:results[i]}}))}}));
    }
    const sc=m.serverContent;
    if(sc?.interrupted)stopPlayback();
-   if(sc?.inputTranscription?.text)append("Vous : "+sc.inputTranscription.text.trim());
+   if(sc?.inputTranscription?.text){heard+=sc.inputTranscription.text;append("Vous : "+sc.inputTranscription.text.trim())}
+   if(sc?.turnComplete)heard="";
    if(sc?.outputTranscription?.text)append("Samantha : "+sc.outputTranscription.text.trim());
    for(const part of sc?.modelTurn?.parts||[])if(part.inlineData?.data&&String(part.inlineData.mimeType||"").startsWith("audio/"))playPcm24(part.inlineData.data);
   };
