@@ -5,21 +5,33 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Exclure uniquement pays et paysage du motif paiement partagé, sans changer les termes ambigus.",
-  "reason": "H6 backlog34 : faux positifs explicites, protection financière conservée.",
+  "summary": "Remplacer les gardes lexicales financières par l’intention canonique résolue, sans aucun mot bloqué.",
+  "reason": "Décision d’Amine du 11/10, backlog42 H6 : intention résolue uniquement.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/automations.ts",
     "openclaw-plugin-mobile-ui/scripts/test-payment-pattern-boundary.cjs",
     "docs/work/samantha-runtime/contracts/h6.md",
     "docs/changes/codex-h6-payment-boundary-20261010.json",
-    "docs/changes/codex-h6-payment-boundary-20261010.md"
+    "docs/changes/codex-h6-payment-boundary-20261010.md",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/fileReadBoundary.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runInactivity.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skillControl.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skillLearning.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skills.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-detail.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-file-read-boundary.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-inactivity.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-control.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-learning-guard.cjs"
   ],
   "tests": [
     {
-      "name": "H6-shared-payment-boundary",
-      "status": "passed",
-      "evidence": "Build TypeScript + corpus32positifs conservés/deuxnégatifs exacts. changeSkill refuse32essais avant owner. skillControlDetail accepte les deux mots avec fixture skills.status réelle. Suites automation-detail, skill-control et learning-guard rejouées."
+      "name": "H6-resolved-intent-boundary",
+      "status": "pending",
+      "evidence": "Source préparée ; matrice synthétique checkOnly et suite CI locale entière à rejouer au SHA final."
     }
   ],
   "documentation": [
@@ -29,11 +41,11 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Aucune nouvelle capability ni route ; seuls les deux faux positifs lexicaux sont exclus."
+    "reason": "Routes et capabilities existantes conservées ; qualification canonique checkOnly avant effet."
   },
   "architecture": {
     "changed": false,
-    "reason": "Propriétaire et motif exporté existants, aucune nouvelle persistance ou routing."
+    "reason": "Propriétaires existants ; décision canonique conservée dans le registre existant des runs Gateway."
   },
   "mcp_owner_parity": {
     "tools": {
@@ -44,7 +56,7 @@
       "claw_status": "verified_no_impact",
       "claw_artifact_read": "verified_no_impact"
     },
-    "reason": "Aucune primitive MCP ou route ; motif shared applique les mêmes protections hors deux mots manifestement sans rapport.",
+    "reason": "Résolution checkOnly canonique sans exécution ; aucun outil parallèle.",
     "evidence": [
       "openclaw-plugin-mobile-ui/scripts/test-payment-pattern-boundary.cjs",
       "docs/work/samantha-runtime/contracts/h6.md"
@@ -52,7 +64,9 @@
   },
   "rollback": "Revert H6, sans intervention Codex sur le S24.",
   "limitations": [
-    "Codex ne déploie pas ; Claude décide de la fusion.",
-    "Le défaut structurel payload E1 reste distinct et inchangé."
+    "Préparation anticipée uniquement : aucune validation locale complète revendiquée.",
+    "Les décisions de tests sont synthétiques ; recette S24 par Claude.",
+    "Notification sans qualification vérifiée : action indisponible jusqu’au détail/action propriétaire.",
+    "Anciens runs sans décision : absence de preuve, correction inactivity suspendue."
   ]
 }

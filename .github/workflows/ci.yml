@@ -289,5 +289,5 @@ jobs:
       - name: O10 voice admits the low-risk owner decision record, never payment or confirmed paths
         run: node scripts/test-voice-low-risk-admission.cjs
 
-      - name: H6 shared payment pattern exact-word non-regression
+      - name: H6 canonical resolved intention and free vocabulary boundary
         run: node scripts/test-payment-pattern-boundary.cjs
