@@ -332,7 +332,7 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
     if (authorized?.() !== true || !row || row.state !== "running" || row.memo?.phase !== "ready" || row.text !== text ||
         registry.runDeletions.some(r => r.runId === runId)) return false;
     const now = Date.now();
-    const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId, ownerAdmitted,
+    const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId, ownerAdmitted: ownerAdmitted === true ? true as const : undefined,
       memo: {...row.memo, phase: "dispatched", ownerEpoch: MEMO_OWNER_EPOCH}, updatedAt: now,
       clarificationState: decision?.type === "CLARIFY" ? "pending" : undefined,
       clarificationExpiresAt: decision?.type === "CLARIFY" ? now + 10 * 60 * 1000 : undefined};

@@ -310,7 +310,7 @@ jobs:
         run: node scripts/test-voice-low-risk-admission.cjs
 
       - name: HS8 memo owner pipeline idempotence and canonical text continuation
-        run: node scripts/test-memo-intent-pipeline.cjs && node scripts/test-memo-deferred-retry.cjs
+        run: node scripts/test-memo-intent-pipeline.cjs && node scripts/test-memo-deferred-retry.cjs && node scripts/test-memo-p1-http.cjs
       - name: R1 model usage roles from canonical config owner
         run: node scripts/test-model-roles.cjs
 
