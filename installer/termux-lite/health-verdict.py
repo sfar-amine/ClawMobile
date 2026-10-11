@@ -3,6 +3,15 @@ import argparse,json,os,sqlite3,subprocess,time,importlib.util
 from pathlib import Path
 H=Path.home(); OC=H/'.openclaw'; ROOT=H/'ClawMobile/installer/termux-lite'; OUT=OC/'health/current.json'
 NOW=time.time()
+# F5 (fichiers 35/41) : reçus écrits par « Samantha Engineering Maintenance » (every 900 s,
+# checked_at = début du run, durée mesurée 80-105 s). L'ancien seuil 660 s rendait le reçu
+# « stale » à chaque cycle pendant ~5 min (capture s24-2026-10-11b/f5).
+MAINTENANCE_CADENCE_S=900; MAINTENANCE_RUN_MAX_S=180
+MAINTENANCE_RECEIPT_STALE_S=MAINTENANCE_CADENCE_S+MAINTENANCE_RUN_MAX_S+120
+TX_WINDOW_S=3600; TX_REPEAT_THRESHOLD=2  # identiques à skill_intelligence/transaction_health.py
+# Hystérésis : un composant sain ne passe en attention qu'au 2e relevé non sain consécutif.
+ATTENTION_STATES=('degraded','stale','unverified'); HEALTHY_STATES=('healthy','ready')
+HYSTERESIS_PREVIOUS_MAX_AGE_S=300
 def run(cmd,timeout=5):
  try:return subprocess.run(cmd,shell=True,text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=timeout).stdout.strip()
  except Exception:return ''
@@ -12,6 +21,36 @@ def age(p):
  except:return None
 def item(state,critical=True,reason='',evidence='',freshness=None):
  return {'state':state,'critical':critical,'reason':reason or None,'evidence':evidence or None,'freshness_s':round(freshness,1) if freshness is not None else None,'checked_at':int(NOW)}
+def repeated_failures(td):
+ # Même règle que le propriétaire : count>=2 ET dernier échec dans la fenêtre de 3600 s.
+ try:ref=float(td.get('checked_at') or NOW)
+ except (TypeError,ValueError):ref=NOW
+ n=0
+ for r in (td.get('failures') or {}).values():
+  try:
+   if int(r.get('count',0))>=TX_REPEAT_THRESHOLD and ref-float(r.get('last_seen',0))<=TX_WINDOW_S:n+=1
+  except (TypeError,ValueError,AttributeError):continue
+ return n
+def previous_verdict(path=None):
+ try:
+  row=json.loads((path or OUT).read_text());gen=float(row.get('generated_at',0))
+  if 0<=NOW-gen<=HYSTERESIS_PREVIOUS_MAX_AGE_S and isinstance(row.get('capabilities'),dict):return row
+ except (OSError,ValueError,TypeError):pass
+ return None
+def apply_hysteresis(caps,previous):
+ # Publie l'état observé, sauf premier relevé « attention » d'un composant sain au relevé
+ # précédent (verdict précédent récent) : l'état sain est conservé une fois, avec la trace
+ # pending_attention. 'down' n'est jamais retardé. Sans verdict précédent récent : aucun effet.
+ prev_caps=(previous or {}).get('capabilities') or {}
+ for k,v in caps.items():
+  raw=v.get('state');v['observed_state']=raw
+  p=prev_caps.get(k) if isinstance(prev_caps.get(k),dict) else None
+  if raw not in ATTENTION_STATES or not p:continue
+  prev_observed=p.get('observed_state',p.get('state'))
+  if prev_observed in HEALTHY_STATES and p.get('state') in HEALTHY_STATES:
+   v['pending_attention']={'state':raw,'reason':v.get('reason'),'readings':1,'required':2}
+   v['state']=p.get('state')
+ return caps
 def whatsapp_health(raw,last_outbound=''):
  lines=[z.strip().lower() for z in raw.splitlines()]
  status=next((z for z in lines if z.startswith('- whatsapp ')), '')
@@ -92,7 +131,7 @@ def live():
  tx=OC/'health/transaction-health.json'
  try:
   td=json.loads(tx.read_text()); ta=NOW-float(td.get('checked_at',0)); ts=td.get('status','unverified')
-  x['transactions.runtime']=item(ts if ta<=660 else 'stale',True,reason=f"pending_archives={td.get('pending_archives',0)} repeated_failures={sum(1 for r in td.get('failures',{}).values() if int(r.get('count',0))>=2)}",evidence=str(tx),freshness=ta)
+  x['transactions.runtime']=item(ts if ta<=MAINTENANCE_RECEIPT_STALE_S else 'stale',True,reason=f"pending_archives={td.get('pending_archives',0)} repeated_failures={repeated_failures(td)}",evidence=str(tx),freshness=ta)
  except (OSError,ValueError,TypeError):
   x['transactions.runtime']=item('unverified',True,reason='transaction health receipt absent or invalid',evidence=str(tx))
  x['boot.persistence']=item('ready' if (H/'.termux/boot/start-samantha').exists() else 'down',True,evidence='Termux:Boot')
@@ -157,7 +196,7 @@ def maintenance_view():
  try:
   row=json.loads(p.read_text())
   stamp=row.get('checked_at',0)
-  if not isinstance(stamp,(int,float)) or NOW-stamp>660 or stamp>NOW+30:
+  if not isinstance(stamp,(int,float)) or NOW-stamp>MAINTENANCE_RECEIPT_STALE_S or stamp>NOW+30:
    return {'state':'stale','reason':'maintenance_receipt_stale'}
   tasks=row.get('task_health')
   if not isinstance(tasks,dict):return {'state':'unverified','reason':'task_accounting_absent'}
@@ -173,6 +212,14 @@ def maintenance_view():
  except (OSError,ValueError,TypeError):
   return {'state':'unverified','reason':'maintenance_receipt_unreadable'}
 
+def nightly_view():
+ try:
+  spec=importlib.util.spec_from_file_location('companion_nightly',Path(__file__).with_name('companion-nightly-acceptance.py'))
+  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+  return module.health_view(OC/'deploys',NOW)
+ except (OSError,ValueError,TypeError):
+  return {'state':'unverified','reason':'nightly_acceptance_unavailable','checked_at':None,'freshness_s':None}
+
 def build():
  caps=live(); maintenance=maintenance_view(); active,failed,human=incidents(caps); cont=continuations(); warnings=[]
  mstate=maintenance.get('state')
@@ -182,6 +229,10 @@ def build():
  ) or 'semantic maintenance requires attention'
  caps['control_plane.maintenance']=item(cstate,True,reason=reason,evidence=str(OC/'autonomous-engineering/maintenance-last.json'),
                                         freshness=(NOW-maintenance.get('checked_at')) if isinstance(maintenance.get('checked_at'),(int,float)) else None)
+ nightly=nightly_view()
+ caps['control_plane.nightly_acceptance']=item(nightly['state'],False,reason=nightly['reason'],evidence='nightly acceptance receipt',freshness=nightly.get('freshness_s'))
+ caps['control_plane.nightly_acceptance']['checked_at']=nightly.get('checked_at')
+ apply_hysteresis(caps,previous_verdict())
  live_components={k.split('.',1)[-1]:v for k,v in caps.items()}
  for i in active:
   ck=i['component']

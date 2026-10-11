@@ -1,0 +1,142 @@
+{
+  "provenance": {
+    "captured_at": "2026-10-11T00:46:45+0100",
+    "device": "S24 (Termux, profil owner)",
+    "captured_by": "Claude via claw_exec (lecture seule)",
+    "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+    "core_runtime_head": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "core_runtime_branch": "runtime/samantha-companion-private",
+    "playbooks_workspace_head": "dd251b71c0d6ca2c26b7740c73cce72e560ac109",
+    "playbooks_pinned": "6d567aa3252ff398513bd7c7b22ed63da7a31ffe",
+    "pseudonymization": "HMAC-SHA256 avec sel aléatoire propre à cette capture (non conservé) ; cohérent entre tous les fichiers de ce dossier",
+    "amounts": "montants remplacés par des valeurs fictives de même format (même nombre de décimales, millimes cohérents)",
+    "sources": [
+      "~/.openclaw/clawmobile-companion/runs.json (registre version 1, 17 runs)"
+    ]
+  },
+  "runs": [
+    {
+      "runId": "voice_a5548d112728",
+      "runId_format": "voice-<uuid v4>",
+      "sessionId": "sess_76a2f681b5e8",
+      "modality": "voice",
+      "state": "unknown",
+      "transcriptState": "interrupted",
+      "transcriptRevision": 8,
+      "acceptedAt": 1791573775291,
+      "updatedAt": 1791573787104,
+      "duration_ms": 11813,
+      "acceptedAt_local": "2026-10-09T20:22:55+0100",
+      "playback_present": false,
+      "clientRunId_present": false,
+      "executionSource_present": false,
+      "decision_present": false,
+      "fields_present": [
+        "acceptedAt",
+        "modality",
+        "result",
+        "runId",
+        "sessionId",
+        "state",
+        "text",
+        "transcriptRevision",
+        "transcriptState",
+        "updatedAt",
+        "userText"
+      ],
+      "input_chars": 3,
+      "output_chars": 137,
+      "other_runs_same_session": 0
+    },
+    {
+      "runId": "voice_e86e37e28b24",
+      "runId_format": "voice-<uuid v4>",
+      "sessionId": "sess_2b3d31bdb5c8",
+      "modality": "voice",
+      "state": "unknown",
+      "transcriptState": "interrupted",
+      "transcriptRevision": 2,
+      "acceptedAt": 1791496457738,
+      "updatedAt": 1791496484619,
+      "duration_ms": 26881,
+      "acceptedAt_local": "2026-10-08T22:54:17+0100",
+      "playback_present": false,
+      "clientRunId_present": false,
+      "executionSource_present": false,
+      "decision_present": false,
+      "fields_present": [
+        "acceptedAt",
+        "modality",
+        "result",
+        "runId",
+        "sessionId",
+        "state",
+        "text",
+        "transcriptRevision",
+        "transcriptState",
+        "updatedAt",
+        "userText"
+      ],
+      "input_chars": 28,
+      "output_chars": 0,
+      "other_runs_same_session": 1
+    },
+    {
+      "runId": "voice_03f70407d0c2",
+      "runId_format": "voice-<uuid v4>",
+      "sessionId": "sess_2b3d31bdb5c8",
+      "modality": "voice",
+      "state": "unknown",
+      "transcriptState": "interrupted",
+      "transcriptRevision": 2,
+      "acceptedAt": 1791496383876,
+      "updatedAt": 1791496385092,
+      "duration_ms": 1216,
+      "acceptedAt_local": "2026-10-08T22:53:03+0100",
+      "playback_present": false,
+      "clientRunId_present": false,
+      "executionSource_present": false,
+      "decision_present": false,
+      "fields_present": [
+        "acceptedAt",
+        "modality",
+        "result",
+        "runId",
+        "sessionId",
+        "state",
+        "text",
+        "transcriptRevision",
+        "transcriptState",
+        "updatedAt",
+        "userText"
+      ],
+      "input_chars": 28,
+      "output_chars": 0,
+      "other_runs_same_session": 1
+    }
+  ],
+  "turn_linkage": {
+    "key": "(sessionId, runId)",
+    "turn_identity_conflict_guard": "saveVoiceTurn refuse un runId existant d'une autre session ou non voix (409 turn_identity_conflict)",
+    "other_stores_referencing_these_ids": "aucun (recherche des fragments d'identifiants dans ~/.openclaw hors pont distant : seulement runs.json)"
+  },
+  "terminal_proof": {
+    "rule": "runs.ts : un run voix est terminal si transcriptState ∈ {completed, interrupted} (fonction terminal(), ~l.2002) ; state = 'done' seulement si transcriptState == 'completed', sinon 'unknown' (saveVoiceTurn l.1764, statusFromStoredRun l.669).",
+    "observed": "les 3 runs ont transcriptState=interrupted (terminal) mais state=unknown ; aucun playback enregistré."
+  },
+  "reconciliation_owner": {
+    "route": "POST routePath /sessions/{sessionId}/voice-turns (server.ts l.1287-1296)",
+    "function": "saveVoiceTurn (openclaw-plugin-mobile-ui/src/companion/runs.ts l.1738)",
+    "file_commit": "363bf8539ee1868d67b059b29d2b7b98ca9eb2da",
+    "accepted_payload_keys": [
+      "runId",
+      "revision",
+      "input",
+      "output",
+      "state",
+      "playback"
+    ],
+    "state_mapping": "value.state === 'completed' ? 'done' : 'unknown'"
+  },
+  "excluded": "aucun texte, transcription ou audio : seules les longueurs (input_chars/output_chars) sont publiées"
+}
