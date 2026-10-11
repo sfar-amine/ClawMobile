@@ -224,6 +224,8 @@ jobs:
           python3 ../installer/termux-lite/test-health-verdict-f5.py
       - name: F6 Remote Bridge stuck receipts become bounded abandoned without replay
         run: node scripts/test-remote-bridge-abandoned.cjs
+      - name: F4 structured notifications on the captured runs summary
+        run: node scripts/test-notification-structured.cjs
       - name: G4 deployment receipts and route budget
         run: node scripts/test-deployment-receipts.cjs
       - name: C5 canonical voice owner transport fixture
