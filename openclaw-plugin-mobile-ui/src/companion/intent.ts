@@ -12,7 +12,7 @@ export async function submitIntent(
   text: string,
   sessionId = "default",
   attachments: IntentAttachment[] = [],
-  options: { userText?: string; clientRunId?: string; learningOnly?: true } = {},
+  options: { userText?: string; clientRunId?: string; learningOnly?: true; authority?:"owner" } = {},
 ): Promise<IntentSubmitResponse> {
   const normalized = text.trim();
   const visibleUserText = (options.userText || normalized).trim();
@@ -105,7 +105,7 @@ export async function submitIntent(
   if (!clientRunId) {
     await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments });
   }
-  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments);
+  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority);
 
   const message = describeOpenClawResult(accepted);
   return {
@@ -155,6 +155,7 @@ async function executeCapabilityFirst(
     await markClarificationRun(parentClarificationRunId, "resolved");
   }
 
+  let provenance: FastPathResult["provenance"];
   let state: "done" | "failed";
   let message: string;
   if (check.status === "clarification") {
@@ -171,6 +172,7 @@ async function executeCapabilityFirst(
       timeoutSeconds: 75,
       preparedDecision: check.decision,
     });
+    provenance = result.provenance;
     if (result.status === "hit") {
       state = "done";
       message = String(result.text || "Claw completed the capability.");
@@ -183,7 +185,7 @@ async function executeCapabilityFirst(
     }
   }
 
-  await settleSubmittedRun(runId, state, message);
+  await settleSubmittedRun(runId, state, message, {provenance});
   return {
     success: true,
     accepted: true,
@@ -251,9 +253,10 @@ async function submitIntentInBackground(
   sessionId: string,
   userText: string,
   attachments: IntentAttachment[],
+  authority?:"owner",
 ) {
   try {
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId);
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority});
     await rememberSubmittedRun(text, {
       ...openclaw,
       runId,

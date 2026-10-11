@@ -6,6 +6,7 @@ on:
       - main
       - feature/termux-adb-lite
   pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
 
 jobs:
   mobile-ui-plugin:
@@ -32,6 +33,11 @@ jobs:
 
       - name: Build Termux runtime plugin
         run: npm run build
+
+      - name: Test canonical context event surfaces
+        run: python3 ../installer/termux-lite/test-context-surfaces.py
+      - name: Test canonical app and authenticated Bixby bootstrap
+        run: node scripts/test-canonical-agent-bootstrap.cjs
 
       - name: Run trace induction tests
         run: npm run test:trace-induction
@@ -82,6 +88,15 @@ jobs:
           node scripts/test-conversation-pages.cjs
           node scripts/test-submit-reconciliation.cjs
           node scripts/test-payment-core.cjs
+      - name: Maxit top-up payment path (blocked proof, precise reasons, step receipts, nested budgets) — lot 11/10
+        run: |
+          node scripts/test-maxit-topup-payment-adapter.cjs
+          node scripts/test-payment-budgets.cjs
+          node scripts/test-payment-steps.cjs
+          node scripts/test-payment-api.cjs
+          node scripts/test-payment-handoff.cjs
+      - name: Network mutation guard (Auto Wi-Fi lease, Wi-Fi watch, exact restore) — lot 11/10
+        run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression
@@ -162,14 +177,95 @@ jobs:
           node scripts/test-ui-recette-server.cjs
           python3 scripts/test-acceptance-email-leak.py
 
+      - name: Run UI recette 2 server fixes on S24 captures (agent thinking defaults, providers after a failed refresh, usage kept)
+        run: node scripts/test-recette2-server.cjs
+
       - name: Run memory control and atomic export import contracts
         run: |
           node scripts/test-memory-control.cjs
           python3 ../installer/termux-lite/test-context-import.py
       - name: Run read-only security surfaces contract
         run: node scripts/test-security-surfaces.cjs
+
+      - name: Run bounded cross-surface native digest contract
+        run: |
+          python3 ../installer/termux-lite/test-context-digest.py
+          python3 ../installer/termux-lite/test-context-native-fixtures.py
+          python3 ../installer/termux-lite/test-context-scale.py
+          python3 ../installer/termux-lite/test-context-import.py
+      - name: Test health manager resource restart policy
+        run: |
+          python3 ../installer/termux-lite/test-health-resource-policy.py
+          python3 ../installer/termux-lite/test-gateway-memory-guard.py
+          python3 ../installer/termux-lite/test-owner-retention.py
+          node scripts/test-remote-bridge-retention.cjs
       - name: MCP context scopes and admitted client provenance
         run: |
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+          node ../cloud/voice-relay/test-long-action.mjs
+
+      - name: Verify host-bound capability owner admission (P1)
+        run: |
+          node scripts/test-capability-tool.cjs
+          node scripts/test-capability-admission.cjs
+
+      - name: E3 agent cannot run operator or transaction capabilities outside the harness
+        run: |
+          node scripts/test-agent-capability-guard.cjs
+          python3 ../installer/termux-lite/test-claw-capability-agent-policy.py
+      - name: E3 CLARIFY and resolve-clarification on WhatsApp, voice relay and Gemini Live (T5)
+        run: node scripts/test-e3-surfaces.cjs
+      - name: PR template section regression tests
+        run: python3 -m unittest discover -s ../tests -p test_pr_template.py
+      - name: PR description follows repository template
+        run: python3 ../tools/check_pr_template.py
+      - name: Run exact read projection ETags and existing owner budgets
+        run: node scripts/test-read-etags.cjs
+      - name: G5 deployed receipt date and HTTP budget
+        run: node scripts/test-update-deployment-date.cjs
+
+      - name: J1 bounded read-only secret scan and H8 integration
+        run: |
+          python3 ../installer/termux-lite/test-workspace-secret-scan.py
+          python3 ../installer/termux-lite/test-nightly-secret-scan.py
+      - name: H8 nightly read-only acceptance, deployment lock and drift receipts
+        run: |
+          node scripts/test-nightly-health-http.cjs
+          python3 ../installer/termux-lite/test-companion-nightly-acceptance.py
+          python3 ../installer/termux-lite/test-health-verdict.py
+          python3 ../installer/termux-lite/test-health-verdict-f5.py
+      - name: F6 Remote Bridge stuck receipts become bounded abandoned without replay
+        run: node scripts/test-remote-bridge-abandoned.cjs
+      - name: F4 structured notifications on the captured runs summary
+        run: node scripts/test-notification-structured.cjs
+      - name: G4 deployment receipts and route budget
+        run: node scripts/test-deployment-receipts.cjs
+      - name: C5 canonical voice owner transport fixture
+        run: python3 ../installer/termux-lite/test-context-voice-read.py
+      - name: H9 read-only UI smoke synthetic safety boundaries
+        run: python3 ../installer/termux-lite/test-ui-smoke.py
+
+      - name: O8 baseline model efficiency and Gemini client regression
+        run: |
+          python3 ../installer/termux-lite/test-model-efficiency.py
+          python3 ../installer/termux-lite/test-gemini-request.py
+
+      - name: Verify telecom display and bounded execution provenance (O7)
+        run: |
+          python3 ../installer/termux-lite/test-telecom-display.py
+          node scripts/test-capability-provenance.cjs
+
+      - name: O9 voice runs terminal state on the captured S24 runs and acceptance line
+        run: |
+          node scripts/test-voice-run-terminal-state.cjs
+          python3 ../installer/termux-lite/test-companion-acceptance-voice.py
+
+      - name: O6 fast path waits for the guarded operator entry (60 s bound)
+        run: |
+          python3 ../installer/termux-lite/test-guarded-operator-wait.py
+          node scripts/test-guarded-entry-wait.cjs
+
+      - name: O10 voice admits the low-risk owner decision record, never payment or confirmed paths
+        run: node scripts/test-voice-low-risk-admission.cjs

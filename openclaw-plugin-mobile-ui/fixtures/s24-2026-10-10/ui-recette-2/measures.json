@@ -1,0 +1,40 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-10T20:47-20:51+00:00",
+  "host": "Samsung S24 / Termux",
+  "companion": "f95be8d",
+  "readOnly": true
+ },
+ "latenciesSeconds": {
+  "/providers (cold owner)": 5.63,
+  "/providers (warm, x3)": [
+   0.012,
+   0.006,
+   0.006
+  ],
+  "/usage": 0.003,
+  "/usage?details=cost": 0.024,
+  "/agent/config": 6.14,
+  "/agent/config (Amine, 20:45)": 8.6,
+  "/conversations/decision-v2-live-5a66bfd3a1/metadata": 0.033,
+  "/conversations/<historique>/metadata": 4.07,
+  "/conversations/<inconnue>/metadata (404)": 4.52,
+  "/extensions/samantha-control/snapshot": 8.94,
+  "gateway sessions.list {limit:1} alone": 2.21,
+  "gateway usage.status alone": 3.52
+ },
+ "appReaderBudgets": {
+  "CompanionReader": "connect 3 s, read 12 s, call 14 s",
+  "CompanionApi.readJson": "read 45 s, call 50 s",
+  "AgentConfigApi.read": "CompanionReader (14 s)"
+ },
+ "ownerHeader": "GET metadata with and without x-clawmobile-owner-flow: identical body",
+ "findings": [
+  "/providers: one failed owner refresh marks the snapshot stale; every provider then projects unknown (0/0/4)",
+  "app Providers: reread keyed on an equal Compose state stops after one reread; Refresh shows no change",
+  "app Usage: cost.totals.totalCost and daily[].totalCost not read: total « — »",
+  "/agent/config: sessions.list {limit:1} with 5.5 s budget among 5 parallel CLI reads; defaults lost: gpt-5.6-sol = [off]",
+  "/usage: usage.status failure cached 60 s as providers:[]; Copilot flips from exhausted to ready on /providers",
+  "metadata: listed conversation without Gateway session = state degraded/readOnly, app shows « Not adjustable for this model »"
+ ]
+}

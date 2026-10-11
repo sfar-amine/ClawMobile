@@ -14,6 +14,26 @@ mod = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader
 SPEC.loader.exec_module(mod)
 
+# O8: real S24 capture of the 10/10 09:41 "Mon solde Orange" run and the current gemini_claw resolution and
+# capability_hint() output (resolution only, no operator call, no provider_call). Provenance:
+# openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/README.md (core runtime 5de1c49).
+CAPTURE = json.loads((HERE.parents[1] / "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json").read_text(encoding="utf-8"))
+
+
+def captured_fast_path_hit() -> dict:
+    """Fast-path hit for gemini_claw built from the captured selection and cards (text derived, one card per line)."""
+    selected = CAPTURE["resolution_now"]["gemini_claw"]["selected"]
+    cards = CAPTURE["client_received_result"]["data"]["cards"]
+    return {
+        "status": "hit",
+        "text": "\n".join(f"{c['title']} : {c['value']} {c['unit']}" for c in cards),
+        "result": CAPTURE["client_received_result"],
+        "target": selected["target"],
+        "intent": selected["intent"],
+        "route": selected["route"],
+        "capability": selected["capability"],
+    }
+
 
 def config() -> dict:
     return {
@@ -183,13 +203,7 @@ class GeminiRequestTests(unittest.TestCase):
             old_state = mod.STATE
             mod.STATE = Path(td) / "state.json"
             try:
-                with mock.patch.object(mod, "ensure_free_policy"),                      mock.patch.object(mod, "ensure_efficiency_policy"),                      mock.patch.object(mod, "fast_path_request", return_value={
-                         "status": "hit",
-                         "text": "Précise : recharge / balances",
-                         "target": "maxit-tunisie",
-                         "intent": "telecom.balance",
-                         "route": "orange.silent_first.balance",
-                     }),                      mock.patch.object(mod, "provider_call") as provider,                      mock.patch.object(sys, "argv", ["gemini-request.py", "mon", "solde", "maxit"]),                      mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+                with mock.patch.object(mod, "ensure_free_policy"),                      mock.patch.object(mod, "ensure_efficiency_policy"),                      mock.patch.object(mod, "fast_path_request", return_value=captured_fast_path_hit()),                      mock.patch.object(mod, "provider_call") as provider,                      mock.patch.object(sys, "argv", ["gemini-request.py", *CAPTURE["companion_run"]["userText"].split()]),                      mock.patch("sys.stdout", new_callable=io.StringIO) as output:
                     rc = mod.main()
                 result = json.loads(output.getvalue())
             finally:
@@ -197,6 +211,9 @@ class GeminiRequestTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(result["provider_attempts"], 0)
         self.assertEqual(result["source"], "deterministic")
+        self.assertEqual(result["fast_path"], {"target": "maxit-tunisie", "intent": "telecom.balance", "route": "orange.summary.maxit.v1"})
+        self.assertEqual(result["text"].count("\n"), 7)
+        self.assertEqual((result["reported_cost_usd"], result["rerouted"]), (0, False))
         provider.assert_not_called()
 
     def test_known_error_does_not_call_provider(self):
@@ -267,29 +284,25 @@ class GeminiRequestTests(unittest.TestCase):
 
     def test_capability_hint_is_compact_and_surface_scoped(self):
         import subprocess
-        payload = {
-            "capability_revision": "abc123",
-            "capability": "telecom.orange.consultation",
-            "selected": {
-                "executor": "claw.skill_route",
-                "route": "orange.silent_first.balance",
-                "state": "ready",
-                "risk": "read",
-                "deterministic": True,
-                "entrypoint": "hidden",
-            },
-            "matches": [
-                {"id": "telecom.orange.consultation", "name": "Orange", "score": 1.0, "notes": "hidden"}
-            ],
-        }
+        # Resolver output: the captured gemini_claw resolution (selected carries the guarded entrypoint), plus
+        # the three captured matches with an extra private field the hint must drop.
+        payload = dict(CAPTURE["resolution_now"]["gemini_claw"])
+        captured_hint = CAPTURE["gemini_claw_hint_now"]["hint"]
+        payload["matches"] = [{**row, "notes": "hidden"} for row in captured_hint["matches"]] + [
+            {"id": "device.assistance", "name": "Device", "score": 0.26}
+        ]
+        self.assertEqual(payload["selected"]["entrypoint"], "python -m telecom.maxit_guarded_service balance --mode auto")
         completed = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
         with mock.patch.object(mod.subprocess, "run", return_value=completed) as run:
-            hint = mod.capability_hint("mon solde orange")
+            hint = mod.capability_hint(CAPTURE["gemini_claw_hint_now"]["text"])
+        self.assertEqual(hint, captured_hint)
         self.assertEqual(hint["capability"], "telecom.orange.consultation")
         self.assertNotIn("entrypoint", hint["selected"])
         self.assertNotIn("notes", hint["matches"][0])
         argv = run.call_args.args[0]
         self.assertIn("gemini_claw", argv)
+        prompt = mod.build_prompt(CAPTURE["gemini_claw_hint_now"]["text"], 42, [], hint)
+        self.assertTrue(prompt.count(CAPTURE["gemini_claw_hint_now"]["prompt_hint_prefix"]) == 1)
 
     def test_prompt_mentions_single_capability_tool_when_hint_present(self):
         prompt = mod.build_prompt(

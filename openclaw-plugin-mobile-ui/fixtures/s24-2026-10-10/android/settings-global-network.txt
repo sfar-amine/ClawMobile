@@ -1,0 +1,9 @@
+airplane_mode_on=0
+auto_wifi=1
+global_http_proxy_exclusion_list=
+global_http_proxy_host=
+global_http_proxy_port=0
+global_proxy_pac_url=
+http_proxy=:0
+sem_auto_wifi_control_enabled=1
+wifi_on=1

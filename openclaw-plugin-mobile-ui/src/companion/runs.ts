@@ -1,3 +1,5 @@
+import { structuredNotification } from "./notificationText";
+import {capabilityProvenance,type CapabilityProvenance} from "./capabilityProvenance";
 import {conversationOwnerIndex,invalidateConversationOwner} from "./conversationOwnerIndex";
 import {stripConversationTransport} from "./conversationText";
 import {removeAttachments} from "./attachmentStorage";
@@ -14,6 +16,7 @@ import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSes
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment } from "./types";
 
 type StoredRun = {
+  provenance?: CapabilityProvenance;
   inactivityCorrectionReceipt?: InactivityReceipt;
   runId: string;
   clientRunId?: string;
@@ -216,12 +219,14 @@ export async function settleSubmittedRun(
   runId: string,
   state: "done" | "failed",
   result: string,
+  options: {provenance?: unknown} = {},
 ) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));
   if (!existing) return;
   const stored: StoredRun = {
     ...existing,
+    provenance: capabilityProvenance(options.provenance) || existing.provenance,
     state,
     inactivityCorrectionReceipt: state === "done" && (existing.error === "run_inactivity_expired" || existing.inactivityCorrectionReceipt?.to === "running") ? {
       version: 1, action: "correct_run_expiration", runId, from: "expired", to: "done",
@@ -392,11 +397,16 @@ export async function listRunSummaries(options: { limit?: number } = {}): Promis
   const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
   const storedRuns = await readStoredRuns();
   if (storedRuns.length > 0) {
-    return storedRuns.slice(0, limit).map(statusFromStoredRun);
+    return storedRuns.slice(0, limit).map((stored) => withNotification(statusFromStoredRun(stored)));
   }
   // Legacy/no-registry fallback only. Normal Samantha history uses the existing registry and avoids
   // sessions.list, transcript and trajectory enrichment on every visible list refresh.
-  return listRuns({ limit });
+  return (await listRuns({ limit })).map(withNotification);
+}
+
+// F4: the Notifications screen reads this summary list; `result` is kept verbatim.
+function withNotification(status: CompanionRunStatus): CompanionRunStatus {
+  return { ...status, notification: structuredNotification(status.result, status.userText) };
 }
 
 const LIST_LIVE_REFRESH_MAX=3;
@@ -663,10 +673,18 @@ function statusFromSessionInfo(sessionInfo: any, preferredRunId?: string, stored
   };
 }
 
+/** O9: a voice turn whose transcript is final (completed or interrupted, see terminal()) is terminal.
+ * "interrupted" is a normal end of turn (barge-in or hang-up), not an error: state "done", status "interrupted".
+ * Only a partial transcript stays non-terminal. S24 capture: fixtures/s24-2026-10-11/o9-voice-unknown-runs.json. */
+export function voiceRunState(transcriptState: StoredRun["transcriptState"]): CompanionRunStatus["state"] {
+  return transcriptState === "completed" || transcriptState === "interrupted" ? "done" : "unknown";
+}
+
 function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   if (stored.modality === "voice") return {
     success: true, runId: stored.runId, clientRunId: stored.clientRunId, sessionId: stored.sessionId,
-    state: stored.transcriptState === "completed" ? "done" : "unknown",
+    state: voiceRunState(stored.transcriptState),
+    ...(stored.transcriptState === "interrupted" ? {status: "interrupted"} : {}),
     message: stored.transcriptState || "partial", userText: stored.userText || "",
     result: stored.result || "", submittedAt: stored.acceptedAt, updatedAt: stored.updatedAt,
     modality: "voice", transcriptState: stored.transcriptState, playback: stored.playback,
@@ -682,6 +700,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
       : "OpenClaw is still working on this run.";
   return {
     success: !failed,
+    provenance: capabilityProvenance(stored.provenance),
     status: stored.error === "run_inactivity_expired" ? "expired" : undefined,
     inactivityCorrectionReceipt: stored.inactivityCorrectionReceipt,
     runId: stored.runId,
@@ -1685,6 +1704,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
+      provenance: capabilityProvenance(run.provenance),
       runId: run.runId,
       clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
       requestHash: typeof run.requestHash === "string" && /^[a-f0-9]{64}$/.test(run.requestHash) ? run.requestHash : undefined,
@@ -1706,7 +1726,11 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       attachments: Array.isArray(run.attachments) ? run.attachments : undefined,
       acceptedAt: typeof run.acceptedAt === "number" ? run.acceptedAt : 0,
       updatedAt: typeof run.updatedAt === "number" ? run.updatedAt : undefined,
-      state: ["running", "done", "failed", "unknown"].includes(String(run.state || ""))
+      // O9 reconciliation on read: stored voice runs left "unknown" with a final transcript become terminal,
+      // and the next registry write persists it (no migration job, no second store).
+      state: run.modality === "voice" && ["completed", "interrupted"].includes(run.transcriptState)
+        ? voiceRunState(run.transcriptState)
+        : ["running", "done", "failed", "unknown"].includes(String(run.state || ""))
         ? run.state
         : undefined,
       error: typeof run.error === "string" ? run.error : undefined,
@@ -1765,7 +1789,7 @@ export async function saveVoiceTurn(sessionId: string, value: any) {
     }
     const run: StoredRun = {runId: value.runId, sessionId, text: value.input, userText: value.input,
       result: value.output, modality: "voice", transcriptState: value.state, transcriptRevision: value.revision,playback,
-      acceptedAt: old?.acceptedAt || Date.now(), updatedAt: Date.now(), state: value.state === "completed" ? "done" : "unknown"};
+      acceptedAt: old?.acceptedAt || Date.now(), updatedAt: Date.now(), state: voiceRunState(value.state)};
     await writeCompanionRunRegistry([run, ...registry.runs.filter(row => row.runId !== run.runId)], registry.archivedSessionIds);
     submittedRuns.set(run.runId,run);
     return statusFromStoredRun(run);

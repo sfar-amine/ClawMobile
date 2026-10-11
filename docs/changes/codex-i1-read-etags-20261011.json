@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "id": "codex-i1-read-etags-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Ajouter des ETag forts et 304 uniquement aux projections identiques des lectures lourdes existantes, après gardes et owner.",
+  "reason": "I1 backlog36 : réduire les octets transférés sans retirer les preuves de fraîcheur ni créer un cache parallèle.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/readEtag.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-read-etags.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/i1/native-automations.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/i1/native-runs-registry.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/i1/README.md",
+    "docs/work/samantha-runtime/contracts/i1.md",
+    "docs/changes/codex-i1-read-etags-20261011.json",
+    "docs/changes/codex-i1-read-etags-20261011.md"
+  ],
+  "tests": [
+    {
+      "name": "exact-read-etags-real-HTTP",
+      "status": "passed",
+      "evidence": "Build et vrai HTTP sur six handlers ; captures réelles, latences 4766/3200/4333/2290 ms, budgets AST acceptance, dix requêtes conditionnelles partageant le cache, 200/304/200 après changement data ou TTL, refus et différés exclus."
+    },
+    {
+      "name": "existing-owner-regressions",
+      "status": "passed",
+      "evidence": "test-agent-config, test-usage-providers, test-conversation-pages, test-file-gateway-read et test-control-v2 verts ; Control testé avec paths explicitement choisis dans le workspace Git, aucun S24."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/i1.md",
+    "docs/changes/codex-i1-read-etags-20261011.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/i1/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Transport conditionnel de lectures existantes ; aucune route, action ou information métier nouvelle, registre inchangé."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Deux writers existants et helper transport à routes fermées ; owners et caches inchangés."
+  },
+  "rollback": "Revert I1, propriétaires et caches existants inchangés.",
+  "limitations": [
+    "Gain physique et usage client If-None-Match à qualifier par Claude après déploiement.",
+    "Le hash exact inclut TTL et computation ; Control contrat2 peut donc rarement renvoyer304 en temps réel.",
+    "I1 ne réduit pas les appels frais R6 ; un304 économise le corps HTTP, pas nécessairement la latence Gateway.",
+    "Control est réchauffé par le reader existant pour le budget chaud ; le natif froid de2290 ms sanssource de révision lisible reste horsbudget1s et aucun correctif propriétaire n’est inventé."
+  ]
+}
