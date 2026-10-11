@@ -34,6 +34,8 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: Health manager never repairs the Companion during a deploy
+        run: python3 ../installer/termux-lite/test-health-deploy-lock.py
       - name: Playbooks activation links ignored runtime dependencies
         run: bash ../installer/termux-lite/test-activate-ui-playbooks.sh
       - name: K2 owner access-change receipts without real sends
