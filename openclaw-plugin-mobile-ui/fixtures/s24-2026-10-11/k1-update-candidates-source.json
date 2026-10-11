@@ -1,0 +1,288 @@
+{
+  "provenance": {
+    "captured_at": "2026-10-11T00:49:57+0100",
+    "device": "S24 (Termux, profil owner)",
+    "captured_by": "Claude via claw_exec (lecture seule)",
+    "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+    "core_runtime_head": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "core_runtime_branch": "runtime/samantha-companion-private",
+    "playbooks_workspace_head": "dd251b71c0d6ca2c26b7740c73cce72e560ac109",
+    "playbooks_pinned": "6d567aa3252ff398513bd7c7b22ed63da7a31ffe",
+    "pseudonymization": "HMAC-SHA256 avec sel aléatoire propre à cette capture (non conservé) ; cohérent entre tous les fichiers de ce dossier",
+    "amounts": "montants remplacés par des valeurs fictives de même format (même nombre de décimales, millimes cohérents)",
+    "sources": [
+      "installer/termux-lite/tier0-native-read.py --home ~ --companion-version 0.1.0 (lecteur de /v1/updates, updatesControl.ts)",
+      "~/.openclaw/releases/*/manifest.json, ~/.openclaw/tier0/state.json",
+      "dépôt ~/ClawMobile (git, lecture)"
+    ]
+  },
+  "updates_owner": {
+    "route": "GET routePath /updates (server.ts) -> updatesControl.ts -> tier0-native-read.py",
+    "fingerprint_sources": [
+      "releases",
+      "releases/current",
+      "releases/last-known-good",
+      "tier0/state.json",
+      "runtime-ui-playbooks/current"
+    ],
+    "candidates_field": "available[] (releases tier0 Termux-lite plus récentes que current, max 100)"
+  },
+  "tier0_read_now": {
+    "success": true,
+    "state": "partial",
+    "receipt": null,
+    "schemaVersion": 1,
+    "current": {
+      "id": "20261010T120821-d3beb769",
+      "createdAt": "2026-10-10T11:08:21.455383+00:00",
+      "sourceCommit": "066a3409cf7be97a65c7d0ed95eca0f491e2c8fa",
+      "verified": true
+    },
+    "lastKnownGood": {
+      "id": "20261010T120821-d3beb769",
+      "createdAt": "2026-10-10T11:08:21.455383+00:00",
+      "sourceCommit": "066a3409cf7be97a65c7d0ed95eca0f491e2c8fa",
+      "verified": true
+    },
+    "available": [],
+    "updateAvailable": false,
+    "updateReason": null,
+    "versionSource": "tier0_manifest_verified",
+    "activationQualified": false,
+    "items": [
+      {
+        "id": "app",
+        "label": "Samantha Android",
+        "version": null,
+        "source": "android",
+        "reason": "app_version_owned_by_android"
+      },
+      {
+        "id": "companion",
+        "label": "Companion",
+        "version": "0.1.0",
+        "source": "installed_package",
+        "reason": null
+      },
+      {
+        "id": "playbooks",
+        "label": "Playbooks",
+        "version": "6d567aa3252ff398513bd7c7b22ed63da7a31ffe",
+        "source": "pinned_runtime",
+        "reason": null
+      },
+      {
+        "id": "termux-lite",
+        "label": "Termux-lite",
+        "version": "066a3409cf7be97a65c7d0ed95eca0f491e2c8fa",
+        "source": "tier0_manifest_verified",
+        "reason": null
+      }
+    ],
+    "issues": [],
+    "actions": []
+  },
+  "releases": {
+    "count": 69,
+    "oldest": "20260929T133436-9d603c9e",
+    "newest": "20261010T120821-d3beb769",
+    "current": "20261010T120821-d3beb769",
+    "last_known_good": "20261010T120821-d3beb769",
+    "manifest_keys": [
+      "created_at",
+      "critical_capabilities",
+      "engineering_bridge_required",
+      "files",
+      "product_manifest",
+      "release_id",
+      "soak_seconds",
+      "source",
+      "source_commit",
+      "startup_grace_seconds",
+      "version"
+    ]
+  },
+  "physical_repository": {
+    "path": "~/ClawMobile (manifest.source = ~/ClawMobile/installer/termux-lite)",
+    "git_dir": ".git",
+    "branch": "runtime/samantha-companion-private",
+    "head": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02"
+  },
+  "real_pair_previous_to_current": {
+    "from_release": "20261010T113438-d3beb769",
+    "from_commit": "99f5a2ae4f24dce61955587cf88aa2d8be2fed1a",
+    "to_release": "20261010T120821-d3beb769",
+    "to_commit": "066a3409cf7be97a65c7d0ed95eca0f491e2c8fa",
+    "objects_present": true,
+    "ancestor": true,
+    "commit_count": 3,
+    "commits": [
+      "066a340 2026-10-10T12:03:02+01:00 Merge pull request #12 from sfar-amine/feat/claw-live-owner-view-20261010",
+      "1dbfc9c 2026-10-10T11:01:07Z ci: run claw-live Control and owner view projection tests",
+      "dfff43c 2026-10-10T11:00:58Z feat(claw-live): owner view for Samantha runtime tools"
+    ],
+    "notes_v2": [
+      {
+        "file": "docs/changes/claw-live-owner-view-20261010.json",
+        "version": 1,
+        "id": "claw-live-owner-view-20261010",
+        "summary": "Owner view of claw-live for Samantha's Runtime tools: the same tags, action, status and scrubbed previews as the claw-live terminal, as JSON over the existing loopback Control stream (?view=owner).",
+        "summary_language": "en_or_other",
+        "keys": [
+          "architecture",
+          "date",
+          "human_boundary",
+          "id",
+          "restart_policy",
+          "rollback",
+          "root_cause",
+          "summary",
+          "version"
+        ]
+      }
+    ]
+  },
+  "pending_not_candidate_current_to_runtime_head": {
+    "from_commit": "066a3409cf7be97a65c7d0ed95eca0f491e2c8fa",
+    "to_commit": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "commit_count": 321,
+    "is_tier0_candidate": false,
+    "reason": "aucune release tier0 construite depuis ces commits ; available[] reste vide",
+    "notes_v2_count": 35,
+    "notes_v2_versions": [
+      "2"
+    ],
+    "summary_language_counts": {
+      "fr": 6,
+      "en_or_other": 29
+    },
+    "notes_v2_sample": [
+      {
+        "file": "docs/changes/codex-c3-voice-rules-20261010.json",
+        "version": 2,
+        "id": "codex-c3-voice-rules-20261010",
+        "summary": "Preserve the specialized-rule index in the existing bounded voice context",
+        "summary_language": "en_or_other",
+        "keys": [
+          "architecture",
+          "capabilities",
+          "deployment_state",
+          "documentation",
+          "files",
+          "id",
+          "kind",
+          "limitations",
+          "mcp_owner_parity",
+          "merge_eligibility",
+          "origin",
+          "reason",
+          "rollback",
+          "summary",
+          "tests",
+          "version"
+        ]
+      },
+      {
+        "file": "docs/changes/codex-c6-context-scopes-surface-20261010.json",
+        "version": 2,
+        "id": "codex-c6-context-scopes-surface-20261010",
+        "summary": "Forward technical rule scopes and derive context surface from admitted relay identity",
+        "summary_language": "en_or_other",
+        "keys": [
+          "architecture",
+          "capabilities",
+          "deployment_state",
+          "documentation",
+          "files",
+          "id",
+          "kind",
+          "limitations",
+          "mcp_owner_parity",
+          "merge_eligibility",
+          "origin",
+          "reason",
+          "rollback",
+          "summary",
+          "tests",
+          "version"
+        ]
+      },
+      {
+        "file": "docs/changes/codex-control-runtime-snapshot-20261010.json",
+        "version": 2,
+        "id": "codex-control-runtime-snapshot-20261010",
+        "summary": "Prefer pinned runtime playbooks for Control reads",
+        "summary_language": "en_or_other",
+        "keys": [
+          "architecture",
+          "capabilities",
+          "deployment_state",
+          "documentation",
+          "files",
+          "id",
+          "kind",
+          "limitations",
+          "mcp_owner_parity",
+          "merge_eligibility",
+          "origin",
+          "reason",
+          "rollback",
+          "summary",
+          "tests",
+          "version"
+        ]
+      },
+      {
+        "file": "docs/changes/codex-g2-contract-report-20261010.json",
+        "version": 2,
+        "id": "codex-g2-contract-report-20261010",
+        "summary": "Read-only contract census with mandatory pending and offline coverage",
+        "summary_language": "en_or_other",
+        "keys": [
+          "architecture",
+          "capabilities",
+          "deployment_state",
+          "documentation",
+          "files",
+          "id",
+          "kind",
+          "limitations",
+          "mcp_owner_parity",
+          "merge_eligibility",
+          "origin",
+          "reason",
+          "rollback",
+          "summary",
+          "tests",
+          "version"
+        ]
+      },
+      {
+        "file": "docs/changes/codex-g3-runbooks-current-20261010.json",
+        "version": 2,
+        "id": "codex-g3-runbooks-current-20261010",
+        "summary": "Complete current native runbooks with runtime tools, owner live view and native ADB recovery",
+        "summary_language": "en_or_other",
+        "keys": [
+          "architecture",
+          "capabilities",
+          "deployment_state",
+          "documentation",
+          "files",
+          "id",
+          "kind",
+          "limitations",
+          "mcp_owner_parity",
+          "merge_eligibility",
+          "origin",
+          "reason",
+          "rollback",
+          "summary",
+          "tests",
+          "version"
+        ]
+      }
+    ]
+  },
+  "french_summary_field": "aucun champ résumé français dédié dans les notes v2 ; summary est libre"
+}

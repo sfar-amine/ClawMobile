@@ -2,6 +2,40 @@ import { handleMcpHttp } from "./mcp.mjs";
 
 const ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 const MAX_TEXT_CHARS = 12000;
+// Edge wait for one device answer. Kept under the ~30 s MCP client budget.
+export const RELAY_WAIT_MS = 28000;
+// Tools whose device receipt is idempotent per action_key/step_key (canonical
+// remote-bridge receipt). Only these may report a pending state instead of an error.
+const ACTION_TOOLS = new Set(["claw_exec", "claw_execute"]);
+
+// Transport outcome of an action tool, before the device answered.
+// device_timeout: the request was sent and the edge stopped waiting; the device
+// keeps running it and writes its receipt (observed 11/10: claw_exec of 35 s
+// answered device_timeout at ~28 s, receipt completed at 35 s).
+// device_disconnected: the socket dropped after the send; the effect is unknown.
+// Both are read back with claw_status using the same keys; never replayed here.
+export function pendingActionResult(requestId, tool, args, error) {
+  if (!ACTION_TOOLS.has(String(tool || ""))) return null;
+  if (error !== "device_timeout" && error !== "device_disconnected") return null;
+  const actionKey = String(args?.action_key || "");
+  const stepKey = String(args?.step_key || "execute");
+  return {
+    state: error === "device_timeout" ? "running" : "indeterminate",
+    request_id: requestId,
+    retry_allowed: false,
+    transport: error,
+    status: { tool: "claw_status", action_key: actionKey, step_key: stepKey },
+    message: error === "device_timeout"
+      ? "Commande transmise au S24, toujours en cours. Lire claw_status avec les mêmes clés ; ne pas rejouer."
+      : "Liaison coupée après l'envoi : effet inconnu. Lire claw_status avec les mêmes clés avant toute nouvelle tentative.",
+  };
+}
+
+function transportError(response) {
+  return response && typeof response === "object" && response.success === false
+    ? String(response.error || "")
+    : "";
+}
 
 export function parseBearer(request) {
   const raw = String(request.headers.get("authorization") || "");
@@ -208,11 +242,17 @@ export class VoiceRelay {
         arguments: args || {},
       }),
     );
+    const error = transportError(response);
+    if (["device_timeout", "device_disconnected", "device_send_failed"].includes(error)) {
+      // Not cached: a later call with the same keys must reach the device, whose
+      // receipt answers running/completed without a second dispatch.
+      return pendingActionResult(requestId, tool, args, error) || response;
+    }
     this.recent.set(requestId, { turnKey, response, at: Date.now() });
     return response;
   }
 
-  waitForResponse(requestId, ws, message) {
+  waitForResponse(requestId, ws, message, waitMs = this.waitMs || RELAY_WAIT_MS) {
     const existing = this.pending.get(requestId);
     if (existing) return existing.promise;
 
@@ -223,7 +263,7 @@ export class VoiceRelay {
     const timer = setTimeout(() => {
       this.pending.delete(requestId);
       resolvePending({ success: false, error: "device_timeout" });
-    }, 28000);
+    }, waitMs);
 
     this.pending.set(requestId, {
       promise,

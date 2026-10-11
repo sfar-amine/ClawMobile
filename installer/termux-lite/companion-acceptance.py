@@ -12,6 +12,7 @@ READS = [
     ("/health", 2.0),
     # R22 real non-sensitive Context Sync job (fixture PR82); absent jobs are skipped.
     ("/automations/d1d0e51c-6815-4e7a-8eda-c7302bab8118/runs?limit=20", 6.0),
+    ("/control/health?contract=2", 2.0),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
     ("/files?scope=agent", 1.5),
     ("/files?scope=session", 1.5),
@@ -25,7 +26,9 @@ READS = [
     ("/security/surfaces", 1.5),
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
-    ("/conversations?limit=50", 0.3),
+    ("/runs?limit=40&summary=1", 1.0),  # F4 : écran Notifications (80 ms capturés), projection structurée
+    ("/runs?contract=2&view=conversations&limit=20", 0.3),
+    ("/control/deploys?limit=20", 0.5),
     ("/control/engineering?limit=20", 2.0),
     ("/control/diagnostic/export", 3.0),
     ("/updates", 4.0),
@@ -60,11 +63,20 @@ OWNER_GUARDS = [
     ("POST", "/skills/clawmobile-capabilities/try"),
     ("POST", "/files"),
     ("POST", "/files/content"),
+    # Lot paiement Maxit 11/10 (P1-5): these routes changed budget (Payment Core quote 45 s,
+    # local start = quote 45 s + execution 230 s, resume 65 s). Acceptance never sends an authorized
+    # payment mutation: without the native owner header they must be refused before any effect.
+    ("POST", "/payments/local-handoffs"),
+    ("POST", "/payments/local-start"),
+    ("POST", "/payments/" + "1" * 8 + "-1111-4111-8111-" + "1" * 12 + "/bank-return"),
 ]
-OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0}  # admission/refusal budget, no effect without owner proof
+OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0, "/payments/local-handoffs": 2.0, "/payments/local-start": 2.0}  # admission/refusal budget, no effect without owner proof
 SETTLE_SECONDS = 15
-# Secrets only: preserve the acceptance policy of the runtime base.
+# Secrets and account e-mails. 10/10 (recette UI): /agent/config published the OAuth profile e-mail.
+# Measured read-only on the S24 the same day: no other READS route returns an e-mail address.
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bAKIA[0-9A-Z]{16}\b|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY")
+# An e-mail address is reported as a warning, never a failure: it must not roll a deploy back (Amine, 10/10).
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}")
 
 
 def call(method, path, timeout, headers=None):
@@ -104,6 +116,7 @@ def main(session_id=None):
     if session_id is not None and (not isinstance(session_id,str) or not re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*",session_id) or len(session_id)>80):
         return 2
     results, failed, candidate_id, conversation_id = [], False, None, session_id
+    warnings = []
     def metadata_checks(identifier):
         nonlocal failed
         for label,budget in (("cold",6.0),("warm",1.5)):
@@ -125,10 +138,12 @@ def main(session_id=None):
                 break
         leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
         settled = settle(path, body) if code == 200 else True
+        if code == 200 and EMAIL.search(body.decode("utf-8", "replace")):
+            warnings.append({"route": path, "warning": "email_address_in_response"})
         status = "skipped" if code == 404 else ("ok" if ok and not leak and settled else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "settled": settled, "status": status})
-        if path == "/conversations?limit=50" and code == 200 and conversation_id is None:
+        if path == "/runs?contract=2&view=conversations&limit=20" and code == 200 and conversation_id is None:
             try:
                 items = json.loads(body).get("items")
                 if not isinstance(items, list): raise ValueError("conversation_projection_invalid")
@@ -177,7 +192,7 @@ def main(session_id=None):
         status = "skipped" if code == 404 else ("ok" if refused and took <= budget else "fail")
         failed |= status == "fail"
         results.append({"route": method + " " + path + " (no owner header)", "code": code, "seconds": round(took, 2), "budget": budget, "status": status})
-    print(json.dumps({"accepted": not failed, "checks": results}, ensure_ascii=False))
+    print(json.dumps({"accepted": not failed, "checks": results, "warnings": warnings}, ensure_ascii=False))
     return 1 if failed else 0
 
 

@@ -1,0 +1,67 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-10T23:49:08Z",
+  "mode": "lecture /proc/<pid>/status, /proc/meminfo, uptime ; journaux existants en lecture seule",
+  "uptime": "00:49:08 up 14:15,  0 users,  load average: 6.13, 6.26, 5.95"
+ },
+ "current": {
+  "companion": {
+   "comm": "MainThread",
+   "VmRSS_kB": 189684,
+   "VmHWM_kB": 196904,
+   "VmSwap_kB": 30796,
+   "Threads": 11,
+   "uptimeSeconds": 4508
+  },
+  "gateway": {
+   "comm": "openclaw-gatewa",
+   "VmRSS_kB": 1601380,
+   "VmHWM_kB": 2319432,
+   "VmSwap_kB": 606288,
+   "Threads": 20,
+   "uptimeSeconds": 27649
+  },
+  "meminfo_kB": {
+   "MemTotal": 11350700,
+   "MemAvailable": 2459156,
+   "SwapTotal": 12582908,
+   "SwapFree": 4896516
+  }
+ },
+ "history": {
+  "gatewayNativePressureLog": {
+   "source": "~/.openclaw/workspace/logs/companion-openclaw-gateway.log (tronqué par le Companion à chaque démarrage de la Gateway ; couvre seulement l'instance actuelle)",
+   "owner": "OpenClaw diagnostics/memory (dist/diagnostic-CdCgC6lV.mjs) : avertissement rss >= 1536 MiB, critique >= 3072 MiB ; croissance rss >= 512 MiB (avert.) / 1024 MiB (crit.)",
+   "events": [
+     {"at":"2026-10-10T16:09:53.343+00:00","level":"warning","reason":"rss_threshold","rssBytes":1928314880,"heapUsedBytes":574264784,"threshold":"1.5","thresholdRatio":"119.7%","rssGrowth":null},
+     {"at":"2026-10-10T16:14:58.372+00:00","level":"warning","reason":"rss_threshold","rssBytes":1633161216,"heapUsedBytes":538361816,"threshold":"1.5","thresholdRatio":"101.4%","rssGrowth":null},
+     {"at":"2026-10-10T16:20:58.841+00:00","level":"warning","reason":"rss_threshold","rssBytes":1685757952,"heapUsedBytes":644236960,"threshold":"1.5","thresholdRatio":"104.7%","rssGrowth":null},
+     {"at":"2026-10-10T19:20:29.129+00:00","level":"warning","reason":"rss_growth","rssBytes":1447329792,"heapUsedBytes":662767432,"threshold":"512","thresholdRatio":"115.3%","rssGrowth":"590.2"},
+     {"at":"2026-10-10T20:30:29.361+00:00","level":"warning","reason":"rss_growth","rssBytes":1325228032,"heapUsedBytes":702197592,"threshold":"512","thresholdRatio":"120.6%","rssGrowth":"617.5"},
+     {"at":"2026-10-10T20:35:29.371+00:00","level":"warning","reason":"rss_growth","rssBytes":1488920576,"heapUsedBytes":739569448,"threshold":"512","thresholdRatio":"169.5%","rssGrowth":"867.8"},
+     {"at":"2026-10-10T21:00:59.626+00:00","level":"warning","reason":"rss_threshold","rssBytes":1768128512,"heapUsedBytes":662989096,"threshold":"1.5","thresholdRatio":"109.8%","rssGrowth":null},
+     {"at":"2026-10-10T21:15:29.640+00:00","level":"warning","reason":"rss_growth","rssBytes":1366646784,"heapUsedBytes":729676664,"threshold":"512","thresholdRatio":"129.8%","rssGrowth":"664.4"},
+     {"at":"2026-10-10T21:53:59.727+00:00","level":"warning","reason":"rss_threshold","rssBytes":1759981568,"heapUsedBytes":710701032,"threshold":"1.5","thresholdRatio":"109.3%","rssGrowth":null},
+     {"at":"2026-10-10T22:42:08.285+00:00","level":"warning","reason":"rss_threshold","rssBytes":1667653632,"heapUsedBytes":778842664,"threshold":"1.5","thresholdRatio":"103.5%","rssGrowth":null},
+     {"at":"2026-10-10T23:04:08.350+00:00","level":"warning","reason":"rss_threshold","rssBytes":1643913216,"heapUsedBytes":747373184,"threshold":"1.5","thresholdRatio":"102.1%","rssGrowth":null},
+     {"at":"2026-10-10T23:10:08.363+00:00","level":"warning","reason":"rss_threshold","rssBytes":1678733312,"heapUsedBytes":850941456,"threshold":"1.5","thresholdRatio":"104.2%","rssGrowth":null},
+     {"at":"2026-10-10T23:41:08.390+00:00","level":"warning","reason":"rss_threshold","rssBytes":1687015424,"heapUsedBytes":814683544,"threshold":"1.5","thresholdRatio":"104.7%","rssGrowth":null},
+     {"at":"2026-10-10T23:46:08.392+00:00","level":"warning","reason":"rss_growth","rssBytes":1602949120,"heapUsedBytes":820112608,"threshold":"512","thresholdRatio":"128.8%","rssGrowth":"659.7"},
+     {"at":"2026-10-10T23:46:38.395+00:00","level":"warning","reason":"rss_threshold","rssBytes":1766227968,"heapUsedBytes":779954784,"threshold":"1.5","thresholdRatio":"109.7%","rssGrowth":null}
+   ]
+  },
+  "gatewayStabilitySnapshots": {
+   "source": "~/.openclaw/logs/stability/openclaw-stability-*.json (bundles OpenClaw écrits lors d'arrêts/échecs ; 12 fichiers, dont 4 avec mémoire)",
+   "rows": [
+     {"at":"2026-09-24T19-49-06-961Z","event":"gateway.restart_close_failed","rssBytes":1156042752,"heapUsedBytes":771577928,"maxRssBytes":1620385792,"maxHeapUsedBytes":850711416,"pressureCount":2},
+     {"at":"2026-09-25T18-31-18-075Z","event":"gateway.restart_startup_failed","rssBytes":1384976384,"heapUsedBytes":563968272,"maxRssBytes":1627623424,"maxHeapUsedBytes":564968888,"pressureCount":1},
+     {"at":"2026-09-29T23-23-13-540Z","event":"gateway.stop_close_failed","rssBytes":1720950784,"heapUsedBytes":1301071896,"maxRssBytes":1945825280,"maxHeapUsedBytes":1301071896,"pressureCount":27},
+     {"at":"2026-10-07T18-30-57-867Z","event":"gateway.restart_shutdown_timeout","rssBytes":1700331520,"heapUsedBytes":637434872,"maxRssBytes":1793355776,"maxHeapUsedBytes":704874464,"pressureCount":2}
+   ]
+  },
+  "companion": {
+   "source": "aucun historique RSS du Companion trouvé (ni journal, ni table, ni reçu) ; seules la valeur courante et VmHWM de l'instance sont disponibles"
+  },
+  "searched": ["~/.openclaw/**/*.json|*.jsonl|*.log (hors workspace, releases, plugin-captures, artifacts, node_modules) : VmRSS|rss_kb|rssKb|\"rss\"|rss_mb|maxrss","state/openclaw.sqlite diagnostic_events (274 lignes, aucun échantillon mémoire)","health/health.log (aucune mesure RSS)"]
+ }
+}
