@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "codex-r20-cli-cleanup-20261011",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Wait for observable strict CLI group termination instead of treating SIGKILL delivery as completion.",
+  "reason": "Shared R20 diagnosis: real SIGKILL/descendant race seen in K2 full CI and earlier F5; bounded existing CLI owner only.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-strict-process-cleanup.cjs",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/r20.md",
+    "docs/changes/codex-r20-cli-cleanup-20261011.json",
+    "docs/changes/codex-r20-cli-cleanup-20261011.md"
+  ],
+  "tests": [
+    {
+      "name": "bounded strict CLI cleanup and inherited R20 gates",
+      "status": "passed",
+      "evidence": "EX stage: npm run build then four script gates 4/4 passed (strict-process-cleanup, file-gateway-limits unchanged, file-read-boundary unchanged, file-gateway-read unchanged). New local real group scenarios 9/9 observed stopped at rejection, including delayed SIGKILL effect and explicit unknown on invisible/capped proc. Log /workspace/artifacts/b42/r20-cleanup-targeted-r4.log. No whole-CI or S24 claim."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r20.md",
+    "docs/changes/codex-r20-cli-cleanup-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal existing read collector cleanup; no new route, dispatcher or capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse canonical CLI collector and current Control pool, no quarantine/new store/service."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing internal strict Gateway READ failure cleanup; MCP tool contracts unchanged."
+  },
+  "rollback": "Revert this small CLI cleanup lot; no migration or deployment by Codex.",
+  "limitations": [
+    "Whole final-head local CI pending root reservation, no readiness claim.",
+    "Unknown termination does not guarantee cessation of D-state/invisible descendants; existing readers/pool do not propagate a quarantine contract.",
+    "Local real process fixtures are not S24 qualification; Claude must verify Linux/Android visibility and physical recipe."
+  ]
+}
