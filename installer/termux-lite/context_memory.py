@@ -38,6 +38,22 @@ def ensure_indexes(connection):
     connection.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('search_index_version','1')")
 
 
+def day(item):
+    """Doc 49 M3: every fact in the shared view carries its date (Tunis), so Samantha can tell old from new."""
+    raw = item.get('createdAt') or ''
+    try:
+        import datetime
+        stamp = datetime.datetime.fromisoformat(raw.replace('Z', '+00:00'))
+        try:
+            from zoneinfo import ZoneInfo
+            stamp = stamp.astimezone(ZoneInfo('Africa/Tunis'))
+        except Exception:
+            pass
+        return stamp.strftime('%d/%m')
+    except Exception:
+        return '--/--'
+
+
 def event(row):
     return dict(zip(('id', 'revision', 'surface', 'kind', 'text', 'createdAt', 'supersedes'), row))
 
@@ -136,7 +152,7 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
     queue = [group[index] for index in range(max(RECENT_CAPS.values())) for group in candidates if index < len(group)]
     for item in queue:
         short, cut = excerpt(item['text'], 240)
-        line = f"- [{item['surface']}/{item['kind']}] {short} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
+        line = f"- {day(item)} [{item['surface']}/{item['kind']}] {short} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
         recent.append((item, line, cut))
     reserved = []
     for item, line, cut in recent:
@@ -148,7 +164,7 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
     lines.append('### Active constraints — texte intégral')
     for row in connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision', ('constraint',)):
         item = event(row)
-        line = f"- [{item['surface']}/constraint] {item['text']} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
+        line = f"- {day(item)} [{item['surface']}/constraint] {item['text']} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
         cost = len(line.encode()) + 1
         if used + cost <= budget_bytes:
             lines.append(line); used += cost; rendered_ids.append(item['id'])
@@ -161,7 +177,7 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
         bare = f"- REQ-{item['revision']} [{item['surface']}]"
         rest = sum(len(f"- REQ-{t['revision']} [{t['surface']}]".encode()) + 1 for t in threads[position + 1:])
         short, cut = excerpt(item['text'], THREAD_EXCERPT_CHARS)
-        line = f"{bare} {short}"
+        line = f"{bare} {day(item)} {short}"
         if used + len(line.encode()) + 1 + rest <= budget_bytes:
             lines.append(line); used += len(line.encode()) + 1; excerpts += int(cut)
         elif used + len(bare.encode()) + 1 <= budget_bytes:

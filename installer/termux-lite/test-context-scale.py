@@ -101,6 +101,16 @@ class ScaleTests(unittest.TestCase):
         self.assertNotIn('LEARNING_GATE_V2', body); self.assertNotIn('Companion déployé', body)
         self.assertEqual(search(self.c, 'LEARNING_GATE_V2')[0]['revision'], 1)
 
+    def test_every_fact_line_carries_its_tunis_date(self):
+        # Doc 49 M3: dated facts. 2026-01-01T00:00Z is 01/01 01:00 in Tunis.
+        add(self.c, 1, 'constraint', 'Toujours dire Bonjour Amine')
+        add(self.c, 2, 'open_thread', 'Relancer la SEREPT')
+        add(self.c, 3, 'decision', 'Dreaming à 22:00')
+        body, _ = build_view(self.c, 3)
+        self.assertIn('- 01/01 [chat/constraint] Toujours dire Bonjour Amine', body)
+        self.assertIn('- 01/01 [chat/decision] Dreaming à 22:00', body)
+        self.assertIn('- REQ-2 [chat] 01/01 Relancer la SEREPT', body)
+
     def test_read_only_lookup_pagination_and_query_escaping(self):
         for i in range(1, 8): add(self.c, i, 'constraint', f'Consigne {i} ponctuation')
         with closing(sqlite3.connect(self.db.as_uri() + '?mode=ro', uri=True)) as reader:
