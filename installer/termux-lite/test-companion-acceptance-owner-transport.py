@@ -44,6 +44,7 @@ class OwnerTransportAlertTests(unittest.TestCase):
         self.assertIn('("DELETE", "/owner-admission/enrollment")', text)
         self.assertIn('("POST", "/owner-admission/enrollment")', text)
         self.assertIn('("/owner-admission", 0.5)', text)
+        self.assertIn('("POST", "/extensions/claw-live/capability")', text)
 
 
 if __name__ == '__main__':
