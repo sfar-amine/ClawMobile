@@ -222,6 +222,20 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    const b3=helperCalls().length;const own3=await submit({sessionId:'clarify-2',text:'agir'});assert.ok(!helperCalls().slice(b3).some(c=>c.mode==='resolve'));
    await settled(own3.runId);count('clarify_unadmitted_cannot_touch_admitted');}
 
+  // SDK loading is an await before dispatch: revocation during it must never reach admin.
+  {const clientRunId='p1-sdk-race-0001',sessionId='sdk-race',rawBody=Buffer.from('{}');
+   const ticket=turnAdmission.verifyRequest({method:'POST',path:'/v1/runs',headers:proof({body:'{}',clientRunId,sessionId}),rawBody,clientRunId,sessionId});assert.equal(ticket.admitted,true);
+   let entered,release;const loadingStarted=new Promise(r=>entered=r),loadingGate=new Promise(r=>release=r);
+   const before=sdkCalls.length;
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>{entered();await loadingGate;return {callGatewayFromCli:async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',id:params.idempotencyKey});return {runId:params.idempotencyKey,status:'accepted'};}}});
+   const pending=require('../dist/companion/openclawAgentClient').submitToOpenClawAgent('tour','p1-sdk-race-run',sessionId,{admission:ticket.ticket,clientRunId});
+   await loadingStarted;turnAdmission.revoke();release();
+   const response=await pending;assert.equal(response.ownerTransport,'write_cli_owner_unavailable');
+   assert.equal(sdkCalls.length,before,'revoked while SDK loading: no admin request');
+   assert.equal(readLines(cliLog).filter(r=>r.id==='p1-sdk-race-run').length,1);
+   const again=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(again),owner)).status,200);
+   count('revocation_during_sdk_loading');}
+
   // --- 7. Révocation : signée par la clé enrôlée ; ensuite non-owner. Un tour déjà remis au Gateway n'est pas touché.
   assert.equal((await request('DELETE','/v1/owner-admission/enrollment','{"operationId":"revoke-0001"}',owner)).status,403,'révocation non signée');
   {const body='{"operationId":"revoke-0002"}';assert.equal((await request('DELETE','/v1/owner-admission/enrollment',body,{...owner,...proof({method:'DELETE',pathName:'/v1/owner-admission/enrollment',body,clientRunId:'revoke-0002',sessionId:'owner-admission',key:rogue})})).status,403);}

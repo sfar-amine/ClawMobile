@@ -14,6 +14,7 @@ import fs from "fs/promises";
 import path from "path";
 import {createRequire} from "module";
 import {pathToFileURL} from "url";
+import {turnAdmission, type AdmissionTicket} from "./ownerTurnAdmission";
 
 export const OWNER_TURN_SCOPES = Object.freeze(["operator.admin", "operator.write"]);
 export const OWNER_TURN_METHOD = "agent";
@@ -66,7 +67,7 @@ let loading: Promise<GatewaySdk> | undefined;
 export function setOwnerTurnSdkLoader(next: OwnerTurnSdkLoader) { loader = next; loading = undefined; }
 
 /** Soumet un tour admis owner. Seul appelant : openclawAgentClient, après `turnAdmission.isCurrent`. */
-export async function submitOwnerTurn(params: Record<string, any>, options: {expectFinal?: boolean; timeoutMs: number}) {
+export async function submitOwnerTurn(params: Record<string, any>, options: {expectFinal?: boolean; timeoutMs: number; admission: AdmissionTicket; binding: {clientRunId?: string; sessionId: string}}) {
   if (!params || typeof params !== "object" || Array.isArray(params) || typeof params.idempotencyKey !== "string" ||
     typeof params.sessionKey !== "string" || typeof params.message !== "string") throw unavailable("owner_turn_invalid");
   const timeoutMs = options.timeoutMs;
@@ -74,6 +75,8 @@ export async function submitOwnerTurn(params: Record<string, any>, options: {exp
   let sdk: GatewaySdk;
   try { sdk = await (loading ??= loader()); }
   catch (error: any) { loading = undefined; throw unavailable(typeof error?.code === "string" && /^owner_transport_[a-z_]+$/.test(error.code) ? error.code : "owner_transport_unavailable"); }
+  // Loading the installed SDK may await disk/import. Revocation or expiry during it cannot open admin.
+  if (!turnAdmission.isCurrent(options.admission, options.binding)) throw unavailable("owner_turn_admission_expired");
   const abort = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const hard = new Promise<never>((_, reject) => {
