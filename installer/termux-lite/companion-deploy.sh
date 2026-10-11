@@ -3,6 +3,7 @@
 # restart, acceptance (companion-acceptance.py), automatic rollback on regression, receipt.
 # Runs detached: restarting the Companion drops the Claw link, so the caller polls the receipt file.
 #   companion-deploy.sh <commit>        deploy that commit of samantha-private/runtime/samantha-companion-private
+#   COMPANION_DEPLOY_WAIT_CALM_S=1200   wait up to that long for a calm phone instead of refusing at once
 #   companion-deploy.sh --status        print the last receipt
 set -uo pipefail
 ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
@@ -39,7 +40,26 @@ health(){ for _ in $(seq 1 60); do curl -fsS -m 3 http://127.0.0.1:8765/v1/healt
 # The Companion is started with the lock fd closed: otherwise it inherits it and holds the deploy lock forever.
 restart(){ pkill -f 'dist/companion/server.js' 2>/dev/null; sleep 3
   pgrep -f 'dist/companion/server.js' >/dev/null || { nohup "$ROOT/companion-server.sh" >>"$log" 2>&1 </dev/null & } 9>&-
-  health; }
+  health || return 1
+  # Settle before judging: Gateway session ready and load back under the preflight ceiling (bounded, 3 min).
+  gateway_ready || echo "settle: gateway_not_ready" >>"$log"
+  wait_calm 180 "$MAX_LOAD" || echo "settle: load_still_high=$(load1)" >>"$log"
+  return 0; }
+
+# Doc 51 / retro 12/10: the acceptance used to run while the phone was still loaded and the Gateway not yet
+# ready after the restart (metadata 503, /agent/config 9.5 s): two false rollbacks and one false "rollback not
+# healthy" alert. The deploy now waits for a calm phone, both before and after the restart.
+load1(){ l=$(uptime 2>/dev/null | sed -n 's/.*load average: *\([0-9.]*\).*/\1/p'); echo "${l:-0}"; }
+calm(){ awk -v l="$(load1)" -v m="$1" 'BEGIN{exit !(l<=m)}'; }
+wait_calm(){ limit="$1"; max="$2"; waited=0; ok=0
+  while [ "$waited" -lt "$limit" ]; do
+    if calm "$max"; then ok=$((ok+1)); [ "$ok" -ge 3 ] && return 0; else ok=0; fi
+    sleep 10; waited=$((waited+10))
+  done; return 1; }
+# Gateway-backed reads answer again (not 503) before they are judged.
+gateway_ready(){ for _ in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:8765/v1/control/health?contract=2 2>/dev/null); [ "$code" = 200 ] && return 0; sleep 4; done; return 1; }
+WAIT_CALM_S="${COMPANION_DEPLOY_WAIT_CALM_S:-0}"
+[ "$WAIT_CALM_S" -gt 0 ] && wait_calm "$WAIT_CALM_S" "$MAX_LOAD" >/dev/null 2>&1 || true
 
 # Preflight: never stack a deploy on a heavy job (Gradle, another build) or on a phone short of memory.
 available=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo); # /proc/loadavg is denied to detached processes on Android: read the 1-minute load from uptime.

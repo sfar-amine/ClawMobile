@@ -44,6 +44,7 @@ jobs:
           python3 ../installer/termux-lite/test-tier0-lkg-hold.py
           python3 ../installer/termux-lite/test-incident-orchestrator.py
           python3 ../installer/termux-lite/test-incident-ingress.py
+          python3 ../installer/termux-lite/test-companion-acceptance-settle.py
       - name: Playbooks activation links ignored runtime dependencies
         run: bash ../installer/termux-lite/test-activate-ui-playbooks.sh
       - name: K2 owner access-change receipts without real sends
