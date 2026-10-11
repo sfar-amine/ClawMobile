@@ -60,6 +60,9 @@ class ProjectRoomTests(unittest.TestCase):
             self.assertFalse((self.target / absent).exists(), absent)
         self.assertEqual(out['droppedSecretLike'], 1)
         for name in ('AGENTS.md', 'USER.md', 'SOUL.md', 'IDENTITY.md'): self.assertTrue((self.target / name).is_file())
+        index = (self.target / 'INDEX.md').read_text(encoding='utf-8').splitlines()
+        self.assertIn('samantha-core/src/a.ts', index); self.assertIn('ui-playbooks/docs/README.md', index)
+        self.assertEqual(len([l for l in index if '/' in l]), out['copied'])
         self.run_room('build'); self.assertFalse(self.target.with_name('workspace-projet.next').exists())
 
     def test_provision_adds_a_read_only_workspace_confined_agent_once(self):

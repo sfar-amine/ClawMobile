@@ -187,6 +187,7 @@ jobs:
           python3 ../installer/termux-lite/test-whatsapp-allowlist-acceptance.py
           node scripts/test-whatsapp-allowlist.cjs
           node scripts/test-whatsapp-allowlist-paired.cjs
+          node scripts/test-whatsapp-rooms-paired.cjs
 
       - name: Run skill detail and owner controls contract
         run: node scripts/test-skill-control.cjs

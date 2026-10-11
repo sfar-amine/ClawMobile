@@ -21,7 +21,7 @@ import {automationDetail,changeAutomation} from "./automations";
 import {editAutomation} from "./automationEditValidation";
 import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
 import {notificationSources} from "./notificationSources";
-import {allowlistRead,allowlistChange,allowlistBody} from "./whatsappAllowlist";
+import {allowlistRead,allowlistChange,allowlistBody,allowlistReasons} from "./whatsappAllowlist";
 import { handleControl } from "./control";
 import {accountGuardedRoute,redactAccountIdentifiers} from "./accountIdentity";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
@@ -530,7 +530,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       }
       writeJson(res,match||!suffix||suffix==='/history'?405:404,{success:false,state:match||!suffix||suffix==='/history'?'refused':'not_found',receipt:null});
     }catch(error:any){
-      const reason=error?.message;const known=['owner_contact_protected','country_code_required','invalid_e164','confirmation_required','confirmation_mismatch','confirmation_expired','invalid_scope','invalid_duration','note_too_long','unknown_contact','operation_conflict'].includes(reason);
+      const reason=error?.message;const known=allowlistReasons.has(reason);
       const code=error?.statusCode===413?400:[400,403,404,409,503].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,...(known?{reason}:code===503?{error:'allowlist_unavailable'}:{})});
     }
