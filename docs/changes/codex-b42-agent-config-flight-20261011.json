@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Partager les lectures sessions.list et sessions.usage simultanées de /agent/config.",
-  "reason": "Backlog42 lot6 : capture S24 #170 du 11/10, 12/12 requêtes concurrentes en 503 avant correction ; coalescer les lectures sans changer fraîcheur ni validation CAS. Complément PR173 au SHA3bd2e742 : 18/18 appels hors9s avant#167, sans résultat après correction.",
+  "reason": "Backlog42 lot6 : capture S24 #170 du 11/10, 12/12 requêtes concurrentes en 503 avant correction ; coalescer les lectures sans changer fraîcheur ni validation CAS. Complément PR173 au SHA 3bd2e742 : 18/18 appels hors 9 s avant #167, sans résultat après correction.",
   "files": [
     "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
     "openclaw-plugin-mobile-ui/scripts/test-agent-config-flight.cjs",
@@ -54,6 +54,6 @@
   "limitations": [
     "Aucune mesure S24 post-correctif revendiquée.",
     "Le débit concurrent sera qualifié sur S24 par Claude avant activation.",
-    "PR173 avant#167 seulement : authStatus9,809s et charge13,08 ; mesure après déploiement requise avant conclusion de performance."
+    "PR173 avant #167 seulement : authStatus 9,809 s et charge 13,08 ; mesure après déploiement requise avant conclusion de performance."
   ]
 }
