@@ -97,7 +97,9 @@ export function catalogProjection(source:any,view:SurfaceView):any {
       return {id:groupId,title:text(group.title),icon:id(group.icon),actions};
     });
     const all=groups.flatMap((g:any)=>g.actions);const available=all.some((a:any)=>a.available);
-    return {id:themeId,title:text(theme.title),subtitle:text(theme.subtitle),icon:id(theme.icon),example:text(theme.example),order:theme.order,groups,
+    return {id:themeId,title:text(theme.title),subtitle:text(theme.subtitle),icon:id(theme.icon),example:text(theme.example),
+      // Phrase française à dire (« Ou dis simplement »), identique quelle que soit la locale ; absente d'un HS1 plus ancien → null.
+      exampleFr:theme.exampleFr==null?null:text(theme.exampleFr),order:theme.order,groups,
       available,availability:available?'available':all.every((a:any)=>a.reason==='in_development')?'soon':'unavailable'};
   });
   const defaultPinned=source.defaultPinned.map(id);if(new Set(defaultPinned).size!==defaultPinned.length||defaultPinned.some((pin:string)=>!themeIds.has(pin)))throw fail();
