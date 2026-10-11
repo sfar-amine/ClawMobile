@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "id": "codex-p1-owner-admission-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "P1: host-bound current-turn owner admission for compact capability tool",
+  "reason": "Wave37 P1; model-supplied caller cannot establish owner identity",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/capabilityTool.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-capability-tool.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-capability-admission.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/openclaw-2026.9.6/tool-context-excerpts.d.ts",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/openclaw-2026.9.6/provenance.json",
+    "docs/work/samantha-runtime/contracts/p1-owner-admission.md",
+    "docs/changes/codex-p1-owner-admission-20261010.md",
+    "docs/changes/codex-p1-owner-admission-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "build and capability admission",
+      "status": "passed",
+      "evidence": "tsc; test-capability-tool; test-capability-admission 27 checks: four surfaces, forged owner/trusted, absent host context, live authority rejection, actual plugin registration; helper count zero on rejected cases"
+    },
+    {
+      "name": "existing model and voice regressions",
+      "status": "passed",
+      "evidence": "test-model-fast-path, test-provider-fallback and test-claw-live passed; portable test homedir/TMPDIR in container, no production behavior change"
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p1-owner-admission.md",
+    "docs/changes/codex-p1-owner-admission-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Admission of existing canonical compact tool; no route or registry changes"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing OpenClaw factory and canonical helper; no new persistence, router or daemon"
+  },
+  "rollback": "Revert this PR; no schema migration",
+  "limitations": [
+    "Live S24 factory owner/non-owner capture per surface pending Claude; public exact-version schema and real S24 inbound-message fixture identified. MCP direct authenticated bridge unchanged; no deployment by Codex.",
+    "Independent baseline test-mcp-bridge needs local runtime context fixture: invalid_global_context_path in container; no bridge file changed. Targeted actual plugin registration test passes."
+  ]
+}

@@ -1,13 +1,17 @@
 import crypto from "crypto";
+import {compactOwnerAgentContext} from "./clawLive";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { capabilityBridge } from "./capabilityBridge";
 import { handleMcpRelayRequest } from "./mcpBridge";
 import { reconnectDelay } from "./reconnectPolicy";
+import { SurfaceClarifications } from "../capabilityClarification";
+import { runModelFastPath } from "../modelFastPath";
 export { reconnectDelay } from "./reconnectPolicy";
 import {
   callOpenClawGateway,
+  assertCanonicalAgentPayload,
   expectedCompanionSessionKey,
 } from "./openclawAgentClient";
 
@@ -26,7 +30,8 @@ type RelayState =
   | "unavailable";
 
 type PendingConversation = {
-  kind: "deterministic" | "agent";
+  kind: "deterministic" | "agent" | "capability";
+  clarificationId?: string;
   originalRequest: string;
   target?: string;
   agentSessionId?: string;
@@ -61,6 +66,9 @@ let lastPongAt = 0;
 let lastError = "";
 
 const recent = new Map<string, { hash: string; at: number; response: any }>();
+// 38 E3: canonical CLARIFY (decision v2) first, answered by resolve-clarification.
+let voiceClarifications = new SurfaceClarifications(runModelFastPath);
+const VOICE_SURFACE = "bixby_claw";
 const conversations = new Map<string, PendingConversation>();
 
 function expandHome(value: string) {
@@ -153,6 +161,22 @@ function questionForChoices(choices: unknown[]) {
   return "Précise : " + labelsForChoices(choices).join(" ou ") + ".";
 }
 
+/** Voice executes a resolved capability directly only when it is deterministic, needs no confirmation and its
+ * registry risk is "read" or "low". O10 (fichier 37) : "low" is the owner-only voice decision record
+ * (samantha.voice.decision.record, no biometrics, no confirmation, decision of Amine 10/10). Anything else, and
+ * every payment or confirmed path, keeps going to the agent turn. */
+export const VOICE_DIRECT_RISKS = new Set(["read", "low"]);
+export function deterministicVoiceAdmission(resolved: any): boolean {
+  const selected = resolved?.selected;
+  return !(
+    resolved?.success === false ||
+    selected?.deterministic !== true ||
+    !VOICE_DIRECT_RISKS.has(String(selected?.risk || "")) ||
+    resolved?.confirmation_required === true ||
+    selected?.confirmation_required === true
+  );
+}
+
 export function extractFastClarification(value: any) {
   const execution = value?.execution;
   const result = execution?.result;
@@ -163,6 +187,10 @@ export function extractFastClarification(value: any) {
     typeof result !== "object"
   ) {
     return null;
+  }
+  // A capability that lacks one parameter asks its own question (O10: "Quelle décision veux-tu que je note ?").
+  if (result.state === "needs_parameter" && typeof result.question === "string" && result.question.trim()) {
+    return { question: result.question.trim().slice(0, 300), choices: [] as string[] };
   }
   if (
     result.state === "needs_counter" &&
@@ -337,13 +365,7 @@ async function resolveDeterministic(request: string, targetHint?: string) {
     timeoutSeconds: 20,
     targetHint,
   });
-  const selected = resolved?.selected;
-  if (
-    resolved?.success === false ||
-    selected?.deterministic !== true ||
-    selected?.risk !== "read" ||
-    resolved?.confirmation_required === true
-  ) {
+  if (!deterministicVoiceAdmission(resolved)) {
     return null;
   }
 
@@ -384,16 +406,19 @@ async function runAgentTurn(
   message: string,
 ) {
   const sessionKey = expectedCompanionSessionKey(sessionId);
-  const raw = await callOpenClawGateway(
-    "agent",
-    {
+  const canonical=compactOwnerAgentContext({authority:"owner"});
+  const params = {
       sessionKey,
       label: "Bixby Voice",
       message,
       deliver: false,
       bootstrapContextMode: "lightweight",
+      ...(canonical?{extraSystemPrompt:canonical}:{}),
       idempotencyKey: requestId,
-    },
+  };
+  assertCanonicalAgentPayload(params);
+  const raw = await callOpenClawGateway(
+    "agent", params,
     { expectFinal: true, timeoutMs: 20_000 },
   );
   return classifyAgentTurn(raw);
@@ -417,6 +442,42 @@ function clarificationResponse(
 }
 
 async function runVoiceRequest(requestId: string, request: string) {
+  const turn = await voiceClarifications.turn(request, { surface: VOICE_SURFACE, originId: requestId });
+  if (turn.state === "needs_clarification") {
+    const conversationId = newConversationId();
+    conversations.set(conversationId, {
+      kind: "capability", originalRequest: request, clarificationId: turn.clarificationId, at: Date.now(),
+    });
+    return clarificationResponse(conversationId, "capability", turn.question, { choices: turn.choices });
+  }
+  if (turn.state === "done" || turn.state === "failed") {
+    return { success: turn.state === "done", state: "done", source: "capability", text: spokenCapabilityText(turn) };
+  }
+  return runVoiceLegacy(requestId, turn.text);
+}
+
+function spokenCapabilityText(turn: { text: string; result?: unknown }) {
+  const rendered = turn.result && typeof turn.result === "object"
+    ? renderFastVoiceResult({ execution: { state: "completed", result: turn.result } }) : null;
+  return rendered || turn.text;
+}
+
+async function runVoiceCapabilityContinuation(requestId: string, conversationId: string, pending: PendingConversation, answer: string) {
+  const turn = await voiceClarifications.turn(answer, { surface: VOICE_SURFACE, id: pending.clarificationId, originId: requestId });
+  if (turn.state === "needs_clarification") {
+    pending.clarificationId = turn.clarificationId;
+    pending.at = Date.now();
+    return clarificationResponse(conversationId, "capability", turn.question, { choices: turn.choices });
+  }
+  conversations.delete(conversationId);
+  if (turn.state === "done" || turn.state === "failed") {
+    return { success: turn.state === "done", state: "done", source: "capability", text: spokenCapabilityText(turn) };
+  }
+  // Resolved (or unrelated) text from resolve-clarification; never "original + Précision utilisateur".
+  return runVoiceLegacy(requestId, turn.text);
+}
+
+async function runVoiceLegacy(requestId: string, request: string) {
   const deterministic = await resolveDeterministic(request);
   if (deterministic?.state === "needs_clarification") {
     const conversationId = newConversationId();
@@ -481,6 +542,10 @@ async function runVoiceContinuation(
   }
 
   pending.at = Date.now();
+
+  if (pending.kind === "capability") {
+    return runVoiceCapabilityContinuation(requestId, conversationId, pending, answer);
+  }
 
   if (pending.kind === "deterministic") {
     const scoped = pending.target
@@ -786,6 +851,13 @@ function connect() {
     abandonSocket(ws, lastError || "voice_relay_closed");
   });
 }
+
+/** Test seam: canonical voice turns with an injected fast-path runner (no relay socket). */
+export const voiceRelayTurnsForTest = {
+  useClarifications(value: SurfaceClarifications) { voiceClarifications = value; },
+  request: (requestId: string, request: string) => runVoiceRequest(requestId, request),
+  continuation: (requestId: string, conversationId: string, answer: string) => runVoiceContinuation(requestId, conversationId, answer),
+};
 
 export function startVoiceRelay() {
   try {

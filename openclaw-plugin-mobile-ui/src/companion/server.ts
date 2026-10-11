@@ -1,3 +1,5 @@
+import {conditionalRead} from "./readEtag";
+import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
 import {filesList,filesContent} from "./fileReads";
@@ -34,9 +36,10 @@ import { payments } from "./payments";
 import { confirmations } from "./confirmations";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
-import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
+import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
+import { SurfaceClarifications } from "../capabilityClarification";
+import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
@@ -134,6 +137,15 @@ export function startCompanionServer() {
       console.warn("[claw-live-warm] startup prewarm failed: " + String(error?.message || error).slice(0, 160));
     });
   }, 1_000).unref();
+  // F6: one bounded pass after startup over receipts left by previous instances.
+  setTimeout(() => {
+    try {
+      const sweep = abandonStaleRemoteBridgeReceipts({ budgetMs: 3_000 });
+      console.log(`[remote-bridge] abandon sweep state=${sweep.state} scanned=${sweep.scanned} abandoned=${sweep.abandoned} uncertain=${sweep.effectUncertain}`);
+    } catch (error: any) {
+      console.warn("[remote-bridge] abandon sweep unavailable: " + String(error?.message || error).slice(0, 160));
+    }
+  }, Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_SWEEP_DELAY_MS || 30_000)).unref();
 
   return server;
 }
@@ -191,6 +203,7 @@ function startWhatsAppListenerWatchdog() {
 }
 
 export async function route(req: http.IncomingMessage, res: http.ServerResponse) {
+  conditionalRequests.set(res,req);
   const method = req.method || "GET";
   const requestUrl = new URL(req.url || "/", "http://localhost");
   const routePath = normalizeProtocolPath(requestUrl.pathname);
@@ -224,6 +237,14 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       message: "This endpoint is restricted to local companion app requests.",
     });
     return;
+  }
+
+  if(routePath==="/control/deploys"){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{error:"native_loopback_required"});return;}
+    if(method!=="GET"){writeJson(res,405,{error:"method_not_allowed"});return;}
+    const query=requestUrl.searchParams;const limit=query.get("limit")??"20";
+    if([...query.keys()].some(k=>k!=="limit")||query.getAll("limit").length>1||!/^([1-9]|[1-4][0-9]|50)$/.test(limit)){writeJson(res,400,{error:"invalid_deployments_query"});return;}
+    res.setHeader("Cache-Control","no-store");writeJson(res,200,await readDeploymentReceipts(Number(limit)));return;
   }
 
   if(routePath==="/files"||routePath==="/files/content"){
@@ -523,7 +544,10 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|bank-return|bank-ui-event|resume|cancel))?$/.exec(routePath);
     if (match) {
       const [, id, action] = match;
-      if (method === "GET" && !action) { writeJson(res,200,await payments.status(id)); return; }
+      if (method === "GET" && !action) {
+        // view=compact: bounded Android projection (no forensic timeline) used by the bank countdown/reconciliation.
+        writeJson(res,200,requestUrl.searchParams.get("view")==="compact"?await payments.statusCompact(id):await payments.status(id)); return;
+      }
       if (method === "GET" && action === "challenge") { writeJson(res,200,await payments.challenge(id)); return; }
       if (method === "POST" && action === "cancel") {
         const body=await readJsonBody(req,256);
@@ -759,9 +783,17 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/capability") {
     const body = await readJsonBody<any>(req);
-    const execute = () => capabilityBridge(String(body?.request || ""), {
-      execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35,
-    });
+    // 38 E3: canonical CLARIFY + resolve-clarification first, then the existing executor.
+    const execute = () => clawLiveCapabilityTurn(
+      {
+        request: body?.request,
+        // Android v2 has no clarificationId field: its pending question is scoped to the owned voice session.
+        clarificationId: typeof body?.clarificationId === "string" ? body.clarificationId
+          : body?.voiceTurn?.sessionEpoch !== undefined ? SurfaceClarifications.idFor("claw-live:" + String(body.voiceTurn.sessionEpoch)) : undefined,
+        originId: body?.voiceTurn?.turnId ? "claw-live-" + String(body.voiceTurn.turnId) : undefined,
+      },
+      (text) => capabilityBridge(text, { execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35 }),
+    );
     const result = body?.voiceTurn
       ? await clawLiveWarmCore.executeVoiceCapability(body.voiceTurn,String(body?.request||""),execute)
       : await execute();
@@ -787,6 +819,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       {
         userText: displayText,
         clientRunId: body?.clientRunId,
+        authority:isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner":undefined,
       },
     );
     const statusCode = runSubmissionStatusCode(result);
@@ -900,7 +933,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(routePath==="/skills/learn"){
         if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
         let body:any;try{body=await readJsonBody(req);}catch{throw Object.assign(new Error("invalid_learning_request"),{statusCode:400});}
-        result=await learnSkill(body);
+        result=await learnSkill(body,undefined,{authority:"owner"});
       }else if(routePath==="/skills/candidates"){
         const keys=[...requestUrl.searchParams.keys()];if(keys.some(key=>key!=="limit")||keys.length>1)throw Object.assign(new Error(),{statusCode:400});
         const raw=requestUrl.searchParams.get("limit");if(raw!==null&&!/^[1-9][0-9]?$/.test(raw))throw Object.assign(new Error(),{statusCode:400});
@@ -1109,7 +1142,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     }
     if(method!=="POST"){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
     try{let id:string;try{id=decodeURIComponent(skillStateMatch[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
-      res.setHeader("Cache-Control","no-store");writeJson(res,200,await changeSkill(id,skillStateMatch[2],await readJsonBody(req,4096)));
+      res.setHeader("Cache-Control","no-store");writeJson(res,200,await changeSkill(id,skillStateMatch[2],await readJsonBody(req,4096),{authority:"owner"}));
     }catch(error:any){const status=[400,404,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:"refused",receipt:null,error:status===503?"skill_owner_unavailable":"invalid_or_protected_skill"});}
     return;
   }
@@ -1164,7 +1197,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   if (method === "POST" && skillRunMatch) {
     const skillId = decodeURIComponent(skillRunMatch[1]);
     const body = await readJsonBody<Record<string, any>>(req);
-    const result = await runWorkspaceSkill(skillId, body || {});
+    const result = await runWorkspaceSkill(skillId, body || {}, {authority:isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner":undefined});
     writeJson(res, result ? 200 : 404, result || {
       success: false,
       message: `Workspace skill not found: ${skillId}`,
@@ -1939,6 +1972,7 @@ function writeHtml(res: http.ServerResponse, statusCode: number, body: string) {
 
 // App-facing state routes: no account e-mail may leave, whatever the producer.
 const accountGuardedResponses=new WeakSet<http.ServerResponse>();
+const conditionalRequests=new WeakMap<http.ServerResponse,http.IncomingMessage>();
 function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
   if(accountGuardedResponses.has(res))value=redactAccountIdentifiers(value);
   const body = statusCode === 204 ? "" : JSON.stringify(value, null, 2);
@@ -1950,6 +1984,8 @@ function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
     res.setHeader("Access-Control-Allow-Headers", "content-type, authorization, x-clawmobile-client, x-clawmobile-request-id, x-clawmobile-attachment-id, x-clawmobile-filename, x-clawmobile-attachment-type, x-clawmobile-owner-flow, x-clawmobile-operation-id");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   }
+  const request=conditionalRequests.get(res);
+  if(request&&conditionalRead(request,res,statusCode,value,body))return;
   res.end(body);
 }
 
