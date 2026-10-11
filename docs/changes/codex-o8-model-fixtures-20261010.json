@@ -3,20 +3,22 @@
   "id": "codex-o8-model-fixtures-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Register model client baseline regression while awaiting current canonical operator fixtures",
-  "reason": "File37 O8: real S24 fixture capture required before replacing obsolete shapes; available PR82 captures do not prove Orange fast-path/hint form.",
+  "summary": "Model client regressions run on the real 10/10 09:41 Orange capture and current gemini_claw resolution",
+  "reason": "File37 O8: obsolete orange.silent_first.balance / telecom.service shapes replaced by the S24 capture fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json (core runtime 5de1c49), without weakening assertions.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-o8-model-fixtures-20261010.json",
-    "docs/work/samantha-runtime/contracts/o8.md"
+    "docs/work/samantha-runtime/contracts/o8.md",
+    "installer/termux-lite/test-model-efficiency.py",
+    "installer/termux-lite/test-gemini-request.py"
   ],
   "tests": [
     {
-      "name": "o8-existing-model-client-regressions",
+      "name": "o8-model-client-regressions-on-real-capture",
       "status": "passed",
-      "evidence": "19 model-efficiency and20 gemini-request tests unchanged pass locally with simulated clients; no provider or S24 consultation. Existing assertions remain intact. No claim current Orange fixtures validated."
+      "evidence": "test-model-efficiency.py 22/22 (3 new: canonical guarded entry, capability_first eligibility of the captured decision and of both current resolutions, captured execution bypasses the model with 8 cards); test-gemini-request.py 20/20 (fast-path hit from captured selection, hint projection equal to the captured capability_hint output). Simulated clients; no provider call, no operator consultation."
     }
   ],
   "documentation": [
@@ -52,9 +54,9 @@
       "docs/work/samantha-runtime/contracts/o8.md"
     ]
   },
-  "rollback": "Revert tests registration and documentation; no runtime effect.",
+  "rollback": "Revert this PR (tests, CI registration and documentation only); no runtime effect.",
   "limitations": [
-    "Draft blocked until Claude publishes actual current Orange fast-path receipt and gemini_claw resolve/hint capture with provenance.",
-    "No production or target test fixture updated yet. Baseline passing is not proof of current runtime shape."
+    "The captured run predates O1/O7: it records neither execution.actual_route nor network_path; O8 asserts only what the capture proves.",
+    "Card values in the capture are format-preserving substitutes; titles, units, validity, kind and section are real."
   ]
 }
