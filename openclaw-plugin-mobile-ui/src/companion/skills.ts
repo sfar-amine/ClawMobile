@@ -757,7 +757,7 @@ function loadSkill(skillDir: string, id: string): LoadedSkill | null {
   const candidateJson = readJson(path.join(skillDir, "skill_candidate.json"));
   const generated = frontmatter.clawmobile_generated === "true" || !!generatedJson || !!candidateJson;
   const feedback = readFeedback(path.join(skillDir, "execution_feedback.jsonl"));
-  // Shared automations.ts payment guard over title, SKILL.md body and fast-path metadata.
+  // Structured trace risk only; title and markdown words cannot qualify an action.
   const risk = inferRisk(id, description, generated, {name,markdown,generatedJson,candidateJson});
   const scope = inferScope(id, description, generatedJson, candidateJson);
   const overview = buildOverview(markdown, description, scope, generated);

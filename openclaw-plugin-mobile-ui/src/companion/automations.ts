@@ -25,14 +25,34 @@ async function jobById(id:string){
  * labels, paths and provider names are never payment guards. */
 export type IntentProtection = "safe" | "protected" | "unavailable";
 export function resolvedIntentProtection(decision:any):IntentProtection {
- if(!decision||typeof decision!=="object"||Array.isArray(decision)||decision.version!==2||
-    !["EXECUTE","CLARIFY","REASON","STOP"].includes(decision.type))return "unavailable";
- const risks=[decision.risk,...[decision.plan?.risk,decision.selected?.risk].filter(x=>x!==undefined)];
- if(risks.some(r=>!["read","write","transaction","external_send","sensitive","destructive","payment","financial","finance","high","human"].includes(r)))return "unavailable";
- if(["STOP","CLARIFY"].includes(decision.type)||risks.some(r=>!["read","write"].includes(r))||
-    decision.confirmationRequired===true||decision.confirmation_required===true||
-    decision.humanBoundary||decision.human_boundary||decision.plan?.confirmation_required===true)return "protected";
- return "safe";
+ const object=(value:any)=>!!value&&typeof value==="object"&&!Array.isArray(value);
+ if(!object(decision)||decision.version!==2||!["EXECUTE","CLARIFY","REASON","STOP"].includes(decision.type))return "unavailable";
+ if((decision.plan!==undefined&&!object(decision.plan))||
+    (decision.selected!==undefined&&decision.selected!==null&&!object(decision.selected)))return "unavailable";
+ const records=[decision,decision.plan,decision.selected].filter(object);
+ const risks=[decision.risk,...records.slice(1).flatMap(row=>row.risk===undefined?[]:[row.risk])];
+ if(risks.some(r=>!["read","write","transaction","external_send","sensitive","destructive","admin","payment","financial","finance","high","human"].includes(r)))return "unavailable";
+ let protectedBoundary=false;
+ const boundary=(value:any)=>{
+  if(value===undefined||value===null)return true;
+  if(typeof value!=="string")return false;
+  if(value.trim())protectedBoundary=true;
+  return true;
+ };
+ for(const row of records){
+  for(const key of ["confirmationRequired","confirmation_required"]){
+   if(row[key]!==undefined&&typeof row[key]!=="boolean")return "unavailable";
+   if(row[key]===true)protectedBoundary=true;
+  }
+  if(!boundary(row.humanBoundary)||!boundary(row.human_boundary))return "unavailable";
+  const contract=row.execution_contract;
+  if(contract!==undefined&&contract!==null){
+   if(!object(contract)||!boundary(contract.humanBoundary)||!boundary(contract.human_boundary))return "unavailable";
+   const handoff=contract.pre_model_handoff;
+   if(handoff!==undefined&&handoff!==null&&(!object(handoff)||!boundary(handoff.boundary)))return "unavailable";
+  }
+ }
+ return ["STOP","CLARIFY"].includes(decision.type)||risks.some(r=>!["read","write"].includes(r))||protectedBoundary?"protected":"safe";
 }
 export function protectedPayment(decision:any){return resolvedIntentProtection(decision)!=="safe";}
 
