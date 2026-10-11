@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bounded read-only diagnostics. Values never leave this process; no runtime defaults."""
 import argparse
+import codecs
 import hashlib
 import importlib.util
 import json
@@ -19,8 +20,19 @@ PRIVATE = re.compile(r'-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----')
 JWT = re.compile(r'\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}')
 OTP = re.compile(r'(?i)\b(?:otp|one[- ]time (?:code|password)|code (?:de verification|de validation))\s*[:=]?\s*(\d{4,8})\b')
 CARD = re.compile(r'(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)')
-EMAIL = re.compile(r'\b[A-Za-z0-9.!#$%&\x27*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b')
+# Bounded local part/domain (RFC 5321 limits): an unbounded `+` is quadratic on a long minified line.
+EMAIL = re.compile(r'\b[A-Za-z0-9.!#$%&\x27*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}\b')
 EXCLUDED = {'.git', 'node_modules', 'context', 'context-backup', 'contacts', 'credentials', 'payments'}
+# Binary or generated bundles are ignored without reading, never reported as a truncated text file.
+BINARY_SUFFIXES = frozenset('''
+png jpg jpeg gif webp bmp ico heic avif svgz tif tiff psd pdf
+zip gz tgz xz bz2 zst 7z rar tar jar apk aab aar dex so o a class pyc pyo whl
+woff woff2 ttf otf eot mp3 mp4 m4a aac ogg opus wav flac webm mkv mov avi
+sqlite sqlite3 db db-wal db-shm sqlite-wal sqlite-shm bin dat pack idx onnx tflite gguf pt npz npy map
+'''.split())
+BLOCK = 64 * 1024          # read and decode a file by blocks
+SEGMENT = 64 * 1024        # longest slice of one line matched in one regex pass
+OVERLAP = 4 * 1024         # carried between slices so a value on the boundary is still matched once
 PRIVATE_NAME = re.compile(r'(?i)(?:\.env(?:\.|$)|credential|secret|token|\.key$|\.pem$|^auth.*\.json$|payment|bank)')
 
 
@@ -38,13 +50,27 @@ def luhn(value):
     return sum((n * 2 - 9 if n > 4 else n * 2) if i % 2 == len(digits) % 2 else n for i, n in enumerate(digits)) % 10 == 0
 
 
-def open_root(path):
+def is_binary_name(name):
+    suffix = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    return suffix in BINARY_SUFFIXES
+
+
+# Android denies read on `/`, `/data` and `/data/data` but grants search: parents are anchored
+# with O_PATH (no read needed, still no link followed); only the root itself is opened for reading.
+PARENT_FLAGS = getattr(os, 'O_PATH', os.O_RDONLY) | os.O_DIRECTORY
+
+
+def open_root(path, *, _open=None):
     """Anchor every absolute path component, including parents, without following links."""
-    path = Path(path).absolute()
-    fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
+    _open = _open or os.open
+    parts = Path(path).absolute().parts[1:]
+    if not parts:
+        return _open('/', os.O_RDONLY | os.O_DIRECTORY)
+    fd = _open('/', PARENT_FLAGS)
     try:
-        for part in path.parts[1:]:
-            next_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+        for index, part in enumerate(parts):
+            flags = (os.O_RDONLY | os.O_DIRECTORY) if index == len(parts) - 1 else PARENT_FLAGS
+            next_fd = _open(part, flags | os.O_NOFOLLOW, dir_fd=fd)
             os.close(fd)
             fd = next_fd
         return fd
@@ -53,8 +79,56 @@ def open_root(path):
         raise
 
 
+def iter_segments(fd, allowance, deadline):
+    """Yield (line_number, text_slice, slice_offset, accept_before) while reading by blocks.
+
+    accept_before is None for the last slice of a line, otherwise the absolute offset from which
+    matches belong to the next slice. Returns (outcome, bytes_read), outcome in ok/binary/time. A line longer than SEGMENT is
+    cut in overlapping slices, so the deadline is also checked inside one huge line."""
+    decoder = codecs.getincrementaldecoder('utf-8')('strict')
+    pending = ''
+    number = 1
+    remaining = allowance
+    while True:
+        if time.monotonic() >= deadline:
+            return 'time', allowance - remaining
+        block = os.read(fd, min(BLOCK, remaining)) if remaining > 0 else b''
+        remaining -= len(block)
+        if b'\0' in block:
+            return 'binary', allowance - remaining
+        try:
+            # At the byte allowance a multi-byte character may be cut: that is truncation, not binary.
+            pending += decoder.decode(block, final=not block and remaining > 0)
+        except UnicodeError:
+            return 'binary', allowance - remaining
+        pieces = pending.splitlines(keepends=True)
+        # Keep the last unterminated piece (or a lone '\r' that may precede '\n') for the next block.
+        tail = ''
+        if block and pieces and (pieces[-1] == pieces[-1].rstrip('\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029') or pieces[-1].endswith('\r')):
+            tail = pieces.pop()
+        for piece in pieces:
+            line = piece.rstrip('\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029')
+            start = 0
+            while len(line) - start > SEGMENT + OVERLAP:
+                yield number, line[start:start + SEGMENT + OVERLAP], start, start + SEGMENT
+                start += SEGMENT
+                if time.monotonic() >= deadline:
+                    return 'time', allowance - remaining
+            yield number, line[start:], start, None
+            number += 1
+        # An unterminated line that grows past one slice is matched now instead of being buffered.
+        while len(tail) > SEGMENT + OVERLAP:
+            yield number, tail[:SEGMENT + OVERLAP], 0, SEGMENT
+            tail = tail[SEGMENT:]
+            if time.monotonic() >= deadline:
+                return 'time', allowance - remaining
+        pending = tail
+        if not block:
+            return 'ok', allowance - remaining
+
+
 def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=1024*1024, max_entries=20000, max_findings=1000, seconds=10):
-    result = {'schemaVersion': 1, 'state': 'ok', 'findings': [], 'warnings': [], 'stats': {'files': 0, 'bytes': 0, 'entries': 0, 'skipped': 0}}
+    result = {'schemaVersion': 1, 'state': 'ok', 'findings': [], 'warnings': [], 'stats': {'files': 0, 'bytes': 0, 'entries': 0, 'skipped': 0, 'binary': 0}}
     deadline = time.monotonic() + seconds
     stats = result['stats']
     def partial(): result['state'] = 'partial'
@@ -82,27 +156,38 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                         try: visit(child, relative, depth+1)
                         finally: os.close(child)
                     elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+                        if is_binary_name(name):
+                            stats['skipped'] += 1; stats['binary'] += 1; continue
                         child = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
                         try:
                             current = os.fstat(child)
                             if not stat.S_ISREG(current.st_mode) or current.st_nlink != 1: partial(); continue
                             allowance = min(file_bytes, max_bytes-stats['bytes'])
-                            data = os.read(child, allowance)
-                            stats['files'] += 1; stats['bytes'] += len(data)
-                            if current.st_size > len(data): partial()
+                            stats['files'] += 1
+                            segments = iter_segments(child, allowance, deadline)
+                            outcome, read = None, 0
+                            while True:
+                                try: number, line, offset, accept_before = next(segments)
+                                except StopIteration as done:
+                                    outcome, read = done.value; break
+                                if len(result['findings']) + len(result['warnings']) >= max_findings:
+                                    outcome, read = 'findings', allowance; break
+                                for kind, pattern in [('token', TOKEN), ('private_key', PRIVATE), ('jwt', JWT), ('otp', OTP), ('card', CARD), ('email', EMAIL)]:
+                                    for match in pattern.finditer(line):
+                                        # Overlapping slices: the next slice owns matches starting in the overlap.
+                                        if accept_before is not None and offset + match.start() >= accept_before:
+                                            continue
+                                        value = match.group(1) if kind == 'otp' else match.group()
+                                        # API field names alone are not secret values in source code.
+                                        if kind == 'token' and value.lower() in {'access_token', 'refresh_token'}:
+                                            continue
+                                        if kind != 'card' or luhn(value): append(kind, value, relative, number, kind == 'email')
+                            stats['bytes'] += read
+                            if outcome == 'binary':
+                                stats['skipped'] += 1; stats['binary'] += 1
+                            elif outcome in ('time', 'findings') or current.st_size > allowance:
+                                partial()
                         finally: os.close(child)
-                        if b'\0' in data: continue
-                        try: text = data.decode('utf-8')
-                        except UnicodeError: partial(); continue
-                        for number, line in enumerate(text.splitlines(), 1):
-                            if time.monotonic() >= deadline or len(result['findings']) + len(result['warnings']) >= max_findings: partial(); break
-                            for kind, pattern in [('token', TOKEN), ('private_key', PRIVATE), ('jwt', JWT), ('otp', OTP), ('card', CARD), ('email', EMAIL)]:
-                                for match in pattern.finditer(line):
-                                    value = match.group(1) if kind == 'otp' else match.group()
-                                    # API field names alone are not secret values in source code.
-                                    if kind == 'token' and value.lower() in {'access_token', 'refresh_token'}:
-                                        continue
-                                    if kind != 'card' or luhn(value): append(kind, value, relative, number, kind == 'email')
                     else: stats['skipped'] += 1
                 except OSError: partial()
     for label, path in roots:

@@ -43,7 +43,20 @@ type StoredRun = {
   transcriptState?: "partial" | "completed" | "interrupted";
   transcriptRevision?: number;
   playback?: VoicePlaybackMetadata;
+  notThis?: RunCorrection;
 };
+
+/** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */
+export type RunCorrection = {version: 1; operationId: string; at: number; neutralized: number;
+  counterExample: "recorded" | "not_stored" | "none"; roundSignal: "pending" | "not_captured" | "none"};
+const CORRECTION_OPERATION_RE = /^[A-Za-z0-9_.:-]{1,128}$/;
+function validRunCorrection(value: any): RunCorrection | undefined {
+  if (value?.version !== 1 || typeof value.operationId !== "string" || !CORRECTION_OPERATION_RE.test(value.operationId) ||
+      !Number.isFinite(value.at) || !Number.isSafeInteger(value.neutralized) || value.neutralized < 0 ||
+      !["recorded", "not_stored", "none"].includes(value.counterExample) || !["pending", "not_captured", "none"].includes(value.roundSignal)) return undefined;
+  return {version: 1, operationId: value.operationId, at: value.at, neutralized: value.neutralized,
+    counterExample: value.counterExample, roundSignal: value.roundSignal};
+}
 
 type CompanionRunRegistry = {
   paymentRequests: PaymentRecord[];
@@ -528,6 +541,45 @@ export async function markClarificationRun(
   };
   submittedRuns.set(runId, stored);
   await saveStoredRun(stored);
+}
+
+/** 38 A2 : run lu pour « Ce n'est pas ça » (texte et décision v2 restent côté serveur, jamais renvoyés). */
+export async function readRunForCorrection(runId: string): Promise<{
+  runId: string; text: string; userText: string; decision?: Record<string, unknown>; notThis?: RunCorrection;
+} | null> {
+  const run = await findStoredRun(runId, false);
+  if (!run) return null;
+  return {runId: run.runId, text: run.text, userText: run.userText || run.text, decision: run.decision, notThis: run.notThis};
+}
+
+/** Pose la trace une seule fois ; une trace existante gagne (idempotence par run). */
+export async function markRunNotThis(runId: string, correction: RunCorrection): Promise<RunCorrection> {
+  const checked = validRunCorrection(correction);
+  if (!checked) throw Object.assign(new Error("invalid_run_correction"), {statusCode: 400});
+  const existing = await findStoredRun(runId, false);
+  if (!existing) throw Object.assign(new Error("run_not_found"), {statusCode: 404});
+  if (existing.notThis) return existing.notThis;
+  await saveStoredRun({...existing, notThis: checked, updatedAt: Date.now()});
+  return checked;
+}
+
+/** 38 M1 : projection minimale des reçus de runs existants (aucun texte). */
+export type ComprehensionRunFact = {acceptedAt: number; decisionType?: string; decisionRisk?: string;
+  learned: boolean; clarificationAnswer: boolean; notThisAt?: number; agent: boolean};
+export async function comprehensionRunFacts(): Promise<{facts: ComprehensionRunFact[]; retainedCap: number}> {
+  const facts = (await readStoredRuns(false)).map(run => {
+    const decision: any = run.decision;
+    return {
+      acceptedAt: run.acceptedAt,
+      decisionType: typeof decision?.type === "string" ? String(decision.type) : undefined,
+      decisionRisk: typeof decision?.risk === "string" ? String(decision.risk) : undefined,
+      learned: typeof decision?.plan?.learned_association === "string" || typeof decision?.learnedAssociation === "string",
+      clarificationAnswer: typeof run.parentClarificationRunId === "string",
+      notThisAt: run.notThis?.at,
+      agent: !decision && run.executionSource === "gateway",
+    };
+  });
+  return {facts, retainedCap: MAX_PERSISTED_RUNS};
 }
 
 export async function findSubmittedRunByClientRunId(
@@ -1803,6 +1855,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       transcriptState: ["partial", "completed", "interrupted"].includes(run.transcriptState) ? run.transcriptState : undefined,
       transcriptRevision: Number.isSafeInteger(run.transcriptRevision) ? run.transcriptRevision : undefined,
       playback: run.playback ? validateVoicePlayback(run.playback) : undefined,
+      notThis: run.notThis ? validRunCorrection(run.notThis) : undefined,
     })),
   };
 }
