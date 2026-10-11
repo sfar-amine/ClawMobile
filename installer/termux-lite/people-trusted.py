@@ -621,7 +621,14 @@ class Contacts:
         head='' if removed else MARKER+'\n'+canonical(metadata)+'\n'+END+'\n'
         if len(head.encode())>2048 or len((head+old).encode())>1024*1024: fail('contact_state_invalid',503)
         path=self.path(number); path.parent.mkdir(parents=True,exist_ok=True)
-        if path.parent.is_symlink(): fail('contact_state_invalid',503)
+        # S24: the contacts directory is an owner-configured symlink to the
+        # private context repo. Write in its resolved real directory; the
+        # contact file itself must never be a symlink (checked by context()).
+        try: directory=path.parent.resolve(strict=True)
+        except (OSError,RuntimeError): fail('contact_state_invalid',503)
+        if not directory.is_dir() or directory.is_symlink(): fail('contact_state_invalid',503)
+        path=directory/path.name
+        if path.is_symlink(): fail('contact_state_invalid',503)
         temporary=path.with_suffix('.r17.tmp')
         fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
         try:
@@ -1008,6 +1015,11 @@ class Contacts:
                 self.people.whatsapp_send(number,'Amine autorise ce contact à échanger avec Samantha.','trusted:r17-welcome:'+digest(operation))
         except Refused as error:
             if error.code=='config_changed':
+                if staged_content is not None and self.context(number)==staged_content: self.people.restore_context(self.path(number),previous_context)
+                return self.release_failed(operation)
+            # A refusal before any config dispatch (e.g. metadata-only expiry)
+            # had no effect: retryable failure, never an uncertain receipt.
+            if not effect_possible:
                 if staged_content is not None and self.context(number)==staged_content: self.people.restore_context(self.path(number),previous_context)
                 return self.release_failed(operation)
             state='indeterminate'

@@ -346,5 +346,27 @@ class AllowlistTests(unittest.TestCase):
         result=self.service.call('note-get',{'contactId':m.contact_id(NEW)})
         self.assertEqual(result['state'],'partial');self.assertTrue(result['truncated']);self.assertEqual(len(result['text']),2000)
         self.assertTrue(result['text'].startswith('legacy\n'))
+    def test_expiry_wildcard_contact_symlinked_contacts_dir_permanent_to_7_days(self):
+        # S24 regression 2026-10-11: contacts dir is a symlink to the private
+        # context repo; contact covered only by direct["*"], no allowlist block.
+        talel='+21610000004';identity=m.contact_id(talel)
+        self.cfg['channels']['whatsapp']['allowFrom'].append(talel);self.save()
+        real=self.root/'private-context'/'contacts';real.mkdir(parents=True);m.CONTACTS.symlink_to(real,target_is_directory=True)
+        (real/('wa_'+talel[1:]+'.md')).write_text('# Talel\nprivate note\n')
+        before=copy.deepcopy(self.cfg);body=self.body('expiry',operationId='talel-7d',contactId=identity,durationDays=7)
+        self.assertEqual(self.service.call('prepare',{'action':'expiry','body':body})['state'],'prepared')
+        result=self.service.call('expiry',body)
+        self.assertTrue(result['success']);self.assertEqual(result['state'],'updated');self.assertEqual(result['receipt']['action'],'shortened');self.assertEqual(result['receipt']['durationDays'],7)
+        self.assertEqual(self.service.find(identity)['expiresAt'],m.utc(self.now+7*86400));self.assertEqual(self.cfg,before)
+        self.assertNotIn('config.patch',[c[0] for c in self.calls]);self.assertTrue(m.CONTACTS.is_symlink())
+        self.assertTrue((real/('wa_'+talel[1:]+'.md')).read_text().endswith('# Talel\nprivate note\n'))
+    def test_metadata_write_refused_without_config_effect_is_retryable_not_indeterminate(self):
+        talel='+21610000004';identity=m.contact_id(talel)
+        self.cfg['channels']['whatsapp']['allowFrom'].append(talel);self.save();m.CONTACTS.mkdir(parents=True)
+        body=self.body('expiry',operationId='talel-7d-refused',contactId=identity,durationDays=7)
+        with patch.object(m.Contacts,'write_context',side_effect=m.Refused('contact_state_invalid',503)):result=self.service.call('expiry',body)
+        self.assertFalse(result['success']);self.assertEqual(result['state'],'failed');self.assertEqual(result['statusCode'],503)
+        self.assertTrue(self.service.call('operation',{'operationId':body['operationId'],'requestHash':body['requestHash']})['retryable'])
+        retried=self.service.call('expiry',body);self.assertEqual(retried['state'],'updated');self.assertEqual(retried['receipt']['action'],'shortened')
 
 if __name__=='__main__':unittest.main()
