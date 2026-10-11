@@ -1,0 +1,68 @@
+// health-verdict.py exécuté par samantha-health-manager.sh depuis ~/.openclaw/releases/20261010T120821-d3beb769/termux-lite/ (identique octet par octet à ~/ClawMobile/installer/termux-lite/health-verdict.py @ core 5de1c49) ; lignes 92-97, 155-160 et 176-190, verbatim
+ tx=OC/'health/transaction-health.json'
+ try:
+  td=json.loads(tx.read_text()); ta=NOW-float(td.get('checked_at',0)); ts=td.get('status','unverified')
+  x['transactions.runtime']=item(ts if ta<=660 else 'stale',True,reason=f"pending_archives={td.get('pending_archives',0)} repeated_failures={sum(1 for r in td.get('failures',{}).values() if int(r.get('count',0))>=2)}",evidence=str(tx),freshness=ta)
+ except (OSError,ValueError,TypeError):
+  x['transactions.runtime']=item('unverified',True,reason='transaction health receipt absent or invalid',evidence=str(tx))
+def maintenance_view():
+ p=OC/'autonomous-engineering/maintenance-last.json'
+ try:
+  row=json.loads(p.read_text())
+  stamp=row.get('checked_at',0)
+  if not isinstance(stamp,(int,float)) or NOW-stamp>660 or stamp>NOW+30:
+def build():
+ caps=live(); maintenance=maintenance_view(); active,failed,human=incidents(caps); cont=continuations(); warnings=[]
+ mstate=maintenance.get('state')
+ cstate=maintenance.get('semantic_state','unverified') if mstate=='observed' else mstate
+ reason='semantic maintenance healthy' if cstate=='healthy' else maintenance.get('reason') or ','.join(
+  str(x.get('component')) for x in maintenance.get('semantic_attention',[]) if isinstance(x,dict) and x.get('component')
+ ) or 'semantic maintenance requires attention'
+ caps['control_plane.maintenance']=item(cstate,True,reason=reason,evidence=str(OC/'autonomous-engineering/maintenance-last.json'),
+                                        freshness=(NOW-maintenance.get('checked_at')) if isinstance(maintenance.get('checked_at'),(int,float)) else None)
+ live_components={k.split('.',1)[-1]:v for k,v in caps.items()}
+ for i in active:
+  ck=i['component']
+  if ck in live_components and live_components[ck]['state'] in ('healthy','ready'):warnings.append({'type':'incident_live_mismatch','incident_id':i['id'],'component':ck})
+ if cont['stuck']:warnings.append({'type':'continuation_gap','count':cont['stuck']})
+ crit_bad=[k for k,v in caps.items() if v['critical'] and v['state'] not in ('healthy','ready')]
+// ~/.openclaw/runtime-ui-playbooks/current (6d567aa) skill_intelligence/transaction_health.py lignes 10-11 et 150-186, verbatim (identique au checkout de travail)
+WINDOW_S=3600
+INCIDENT_THRESHOLD=2
+    events=_scan_log(log_path,state,now);pending=_pending_rows(home)
+    if any(int(x.get("publish_attempts") or 0)>=INCIDENT_THRESHOLD for x in pending):events.append({"channel":"whatsapp","signature":"sqlite_transcript_archive_publish","classification":"local_runtime"})
+    failures=state.setdefault("failures",{});incidents=state.setdefault("incidents",{});opened=0
+    event_keys={ev["channel"]+"|"+ev["signature"] for ev in events}
+    for ev in events:
+        key=ev["channel"]+"|"+ev["signature"];row=failures.get(key,{})
+        if now-float(row.get("last_seen",0))>WINDOW_S:row={"count":0,"first_seen":now}
+        row.update(channel=ev["channel"],signature=ev["signature"],classification=ev["classification"],count=int(row.get("count",0))+1,last_seen=now);failures[key]=row
+        if row["count"]>=INCIDENT_THRESHOLD and key not in incidents and ev["classification"] in {"local_runtime","indeterminate"}:
+            component=_component(ev["channel"]);iid=_incident(helper,"open",component,f"Repeated transaction failure: {ev['signature']} ({ev['classification']})")
+            if iid:incidents[key]={"id":iid,"component":component,"opened_at":now};opened+=1
+    repair=repair_pending_archives(home);pending_after=_pending_rows(home)
+    archive_recovery_proven = not pending_after and repair.get("state") in {"repaired","verified"}
+    archive_key="whatsapp|sqlite_transcript_archive_publish"
+    if archive_recovery_proven and archive_key in failures:
+        failures[archive_key]["count"]=0
+        failures[archive_key]["recovered_at"]=now
+    if not pending_after:
+        for key,meta in incidents.items():
+            proven_quiet = key.endswith("|sqlite_transcript_archive_publish") and (key not in event_keys or archive_recovery_proven)
+            if proven_quiet and meta.get("state")!="recovered":
+                if _incident_state(home,str(meta.get("id") or ""))=="failed":
+                    reopened=_incident(helper,"open",meta["component"],"Reopened after independent transaction recovery proof")
+                    if reopened:meta["previous_id"]=meta.get("id");meta["id"]=reopened
+                if _incident(helper,"recover",meta["component"],"Pending transcript archive publication cleared and no new transaction failure observed"):
+                    meta["state"]="recovered";meta["recovered_at"]=now
+                    if key in failures:failures[key]["count"]=0
+    for key,meta in incidents.items():
+        if meta.get("state")=="recovered":continue
+        if _incident_state(home,str(meta.get("id") or ""))=="recovered":
+            meta["state"]="recovered";meta["recovered_at"]=now
+            if key in failures:failures[key]["count"]=0
+    recent=[r for r in failures.values() if now-float(r.get("last_seen",0))<=WINDOW_S and int(r.get("count",0))>=INCIDENT_THRESHOLD]
+    status="degraded" if pending_after or recent else "healthy"
+    state.update(version=1,checked_at=now,status=status,pending_archives=len(pending_after),last_repair=repair,opened_incidents=opened)
+    atomic(state_path,json.dumps(state,indent=2,sort_keys=True)+"\n")
+    return {"state":status,"events":len(events),"repeated_failures":len(recent),"pending_archives":len(pending_after),"incidents_opened":opened,"repair":repair}
