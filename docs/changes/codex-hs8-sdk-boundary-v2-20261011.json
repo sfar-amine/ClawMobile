@@ -3,10 +3,10 @@
   "id": "codex-hs8-sdk-boundary-v2-20261011",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "HS8 : adaptateur SDK canonique Gemini → OpenAI et pièces jointes M4A sous garde de qualification S24",
-  "reason": "Capture Claude #170 intégrée ; résolution SDK publique globale corrigée, build et cinq suites ciblées verts. Suite CI entière toujours à rejouer sur nouvelle tête avant publication ; admission fermée, config et audio live Claude/Amine requis.",
+  "reason": "Préparation SDK intégrable sous admission produit fermée : capture Claude #170 intégrée, résolution publique corrigée et ciblés verts. Publication prête conditionnée à la suite entière verte sur la tête exacte attestée dans la PR ; compatibilité STT live, import installé et budgets/journaux restent des qualifications d’activation Claude/Amine.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-hs8-sdk-boundary-v2-20261011.json",
@@ -40,7 +40,12 @@
     {
       "name": "HS8 local partial package fail-closed review regression",
       "status": "passed",
-      "evidence": "Revue M1 : premier export déclaré mais fichier absent ne doit pas déclencher fallbackglobal si paquetlocalprésent. Corrigé via chemins Node require.resolve.paths ; build +cinq suites Node20 exit0 sousEX, dont premier fichier absent/configvalide, tousfichiersabsents et exportsvides, zéro globaldiscovery. Log /workspace/artifacts/b42/hs8-sdk-global-partial-fix-targeted.log. Première full670 stoppée après revue, dossier intact ; suite entière requise nouvelle tête."
+      "evidence": "Revue M1 : premier export déclaré mais fichier absent ne doit pas déclencher fallbackglobal si paquetlocalprésent. Corrigé via chemins Node require.resolve.paths ; build +cinq suites Node20 exit0 sousEX, dont premier fichier absent/configvalide, tousfichiersabsents et exportsvides, zéro globaldiscovery. Log /workspace/artifacts/b42/hs8-sdk-global-partial-fix-targeted.log. Première full670 stoppée après revue et conservée. Suite entière27b4f083 ensuite verte68/68 ; preuve historique distincte de la tête finale documentée."
+    },
+    {
+      "name": "HS8 workflow complet source corrigée",
+      "status": "passed",
+      "evidence": "68/68 étapes vertes Node20, SHA27b4f08379c2f840569f378a53df8e90776ac76a, reçu /workspace/artifacts/b42/hs8-sdk-global-release-ci/results.json. Cette preuve complète source précède uniquement la correction documentaire ; la publication finale exige le reçu de sa tête exacte. Aucun fournisseur live ni activation."
     }
   ],
   "documentation": [
@@ -70,10 +75,10 @@
   "rollback": "Retirer la préparation et son test CI ; aucune donnée runtime à restaurer.",
   "limitations": [
     "Adaptateur SDK implémenté sous garde existant refusé : aucune route ni catalogue activé.",
-    "Décision fournisseur levée ; qualification audio, auth disponible, budgets et confidentialité SDK S24 manquante.",
     "Aucun appel fournisseur, aucune fusion ni activation par Codex.",
     "Capture #170 : configuration média actuelle vide ; proposition de modèles SDK distincte des faits S24 et à appliquer par Claude.",
-    "Toute la suite CI doit encore être rejouée sur la tête finale avant prêt à fusionner ; preuves ciblées ne sont pas un N/N complet.",
-    "Résolution publique globale à vérifier dans Companion installé avant activation."
+    "Résolution publique globale à vérifier dans Companion installé avant activation.",
+    "Capture #170 atteste la disponibilité auth en booléens/états ; compatibilité STT du compte, import SDK dans Companion installé et recette audio restent à qualifier avant activation.",
+    "Publication prête conditionnée au workflow entier vert sur la tête exacte, avec reçu et décompte dans la PR."
   ]
 }
