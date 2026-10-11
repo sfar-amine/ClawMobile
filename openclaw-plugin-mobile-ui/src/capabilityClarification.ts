@@ -63,7 +63,8 @@ export class SurfaceClarifications {
    * @param text the user's original text for this turn (transcription, message), never a model reformulation.
    * @param id   the pending clarification id for this conversation, when there is one.
    */
-  async turn(text: string, options: { surface: string; id?: string; originId: string; timeoutSeconds?: number }): Promise<SurfaceTurn> {
+  async turn(text: string, options: { surface: string; id?: string; originId: string; timeoutSeconds?: number; assertCurrent?: () => void }): Promise<SurfaceTurn> {
+    options.assertCurrent?.();
     this.cleanup();
     const original = String(text || "").trim();
     const surface = options.surface;
@@ -75,6 +76,7 @@ export class SurfaceClarifications {
         ...common, checkOnly: true,
         clarificationDecision: pending.decision, clarificationOriginalText: pending.originalText,
       });
+      options.assertCurrent?.();
       if (clarified.status === "clarification") {
         this.remember(id, { ...pending, decision: (clarified.decision as Record<string, unknown>) || pending.decision });
         return {
@@ -91,7 +93,7 @@ export class SurfaceClarifications {
           return { state: "failed", source: "capability", text: String(clarified.text || "La clarification Claw n'est plus valide."), decision: clarified.decision, ...publicReceiptMetadata(readReceiptPresentation(clarified)) };
         }
         if (clarified.status === "eligible" && clarified.decision) {
-          const executed = await this.executePrepared(resolvedText, clarified.decision as Record<string, unknown>, common);
+          const executed = await this.executePrepared(resolvedText, clarified.decision as Record<string, unknown>, common, options.assertCurrent);
           if (executed) return executed;
         }
         // miss/assist: the surface continues with the RESOLVED text (resolution.text), no concatenation.
@@ -100,6 +102,7 @@ export class SurfaceClarifications {
       // Unrelated answer: a new request, handled below from its own original text.
     }
     const check = await this.runner(original, { ...common, checkOnly: true });
+    options.assertCurrent?.();
     if (check.status === "clarification" && check.decision) {
       const newId = id || SurfaceClarifications.newId();
       this.remember(newId, { originalText: original, decision: check.decision as Record<string, unknown>, surface });
@@ -116,14 +119,15 @@ export class SurfaceClarifications {
     // A transaction (or any decision needing the owner confirmation) runs the prepared decision through
     // the same fast path as the app: owner confirmation card / handoff, never the agent.
     if (check.status === "eligible" && check.decision && !isPlainRead(check.decision as Record<string, unknown>)) {
-      const executed = await this.executePrepared(original, check.decision as Record<string, unknown>, common);
+      const executed = await this.executePrepared(original, check.decision as Record<string, unknown>, common, options.assertCurrent);
       if (executed) return executed;
     }
     // Plain reads keep the surface's existing executor and renderer, on the original text.
     return { state: "continue", text: original, decision: check.decision, ...publicReceiptMetadata(readReceiptPresentation(check)) };
   }
 
-  private async executePrepared(text: string, decision: Record<string, unknown>, common: RunnerOptions): Promise<SurfaceTurn | null> {
+  private async executePrepared(text: string, decision: Record<string, unknown>, common: RunnerOptions, assertCurrent?: () => void): Promise<SurfaceTurn | null> {
+    assertCurrent?.();
     const executed = await this.runner(text, {
       ...common, checkOnly: false, timeoutSeconds: Math.max(Number(common.timeoutSeconds || 12), 75), preparedDecision: decision,
     });

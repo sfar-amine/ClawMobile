@@ -157,14 +157,14 @@ export const clawLiveClarifications = new SurfaceClarifications(runModelFastPath
  * resolved by resolve-clarification. Otherwise the existing executor runs on the original/resolved text.
  */
 export async function clawLiveCapabilityTurn(
-  body: { request?: unknown; clarificationId?: unknown; originId?: string },
+  body: { request?: unknown; clarificationId?: unknown; originId?: string; assertCurrent?: () => void },
   execute: (text: string) => Promise<any>,
   clarifications: SurfaceClarifications = clawLiveClarifications,
 ) {
   const request = String(body?.request || "").trim();
   if (!request || request.length > 12000) return { success: false, error: "request_required" };
   const id = typeof body?.clarificationId === "string" ? body.clarificationId : undefined;
-  const turn = await clarifications.turn(request, { surface: "claw_live", id, originId: String(body?.originId || "claw-live").slice(0, 120) });
+  const turn = await clarifications.turn(request, { surface: "claw_live", id, originId: String(body?.originId || "claw-live").slice(0, 120), assertCurrent: body.assertCurrent });
   if (turn.state === "needs_clarification") {
     return {
       success: true, state: "needs_clarification", source: "capability",
@@ -177,6 +177,7 @@ export async function clawLiveCapabilityTurn(
   if (turn.state === "done" || turn.state === "failed") {
     return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), execution: { state: turn.state === "done" ? "completed" : "failed" } };
   }
+  body.assertCurrent?.();
   return execute(turn.text);
 }
 

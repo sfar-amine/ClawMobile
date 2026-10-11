@@ -112,6 +112,9 @@ export type IntentSubmitResponse = {
 };
 
 export type CompanionRunStatus = {
+  /** P1 : tour admis par preuve native, et connexion Gateway finalement utilisée. */
+  ownerAdmitted?: boolean;
+  ownerTransport?: "admin_admitted" | "write_cli" | "write_cli_owner_unavailable";
   /** Closed projection of the stored decision (receiptPresentation.publicDecision). */
   decision?: import("./receiptPresentation").PublicDecision;
   presentation?: import("./receiptPresentation").ReceiptPresentation;

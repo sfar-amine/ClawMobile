@@ -1,6 +1,8 @@
 import { spawn } from "child_process";
 import {opendirSync,readFileSync} from "fs";
 import {compactOwnerAgentContext} from "./clawLive";
+import {turnAdmission,type AdmissionTicket} from "./ownerTurnAdmission";
+import {submitOwnerTurn} from "./ownerTurnGateway";
 
 export type OpenClawAgentSubmitResult = {
   runId: string;
@@ -10,6 +12,8 @@ export type OpenClawAgentSubmitResult = {
   acceptedAt?: number;
   waitedForFinal: boolean;
   raw: any;
+  /** P1 : connexion effectivement utilisée pour ce tour. */
+  ownerTransport?: import("./runs").OwnerTransport;
 };
 
 const DEFAULT_SUBMIT_TIMEOUT_MS = 15_000;
@@ -20,7 +24,7 @@ export async function submitToOpenClawAgent(
   text: string,
   runId: string,
   sessionId = "default",
-  options: {authority?:"owner"} = {},
+  options: {authority?:"owner"; admission?:AdmissionTicket; clientRunId?:string} = {},
 ): Promise<OpenClawAgentSubmitResult> {
   const waitedForFinal = shouldWaitForFinal();
   const timeoutMs = configuredTimeoutMs(waitedForFinal);
@@ -41,11 +45,24 @@ export async function submitToOpenClawAgent(
   };
 
   assertCanonicalAgentPayload(params);
-  const raw = await callOpenClawGateway("agent", params, {
-    expectFinal: waitedForFinal,
-    timeoutMs,
-  });
+  // P1 : seul un ticket d'admission natif courant, pour ce tour et cette session, ouvre la connexion admin.
+  // `authority` (contexte canonique) ne choisit jamais la connexion.
+  const admitted = options.admission !== undefined &&
+    turnAdmission.isCurrent(options.admission, {clientRunId: options.clientRunId, sessionId: normalizedSessionId});
+  let raw: any;
+  let ownerTransport: OpenClawAgentSubmitResult["ownerTransport"] = "write_cli";
+  if (admitted) {
+    raw = await submitOwnerTurn(params, {expectFinal: waitedForFinal, timeoutMs, admission: options.admission!, binding: {clientRunId: options.clientRunId, sessionId: normalizedSessionId}});
+    ownerTransport = "admin_admitted";
+  }
+  if (ownerTransport !== "admin_admitted") {
+    raw = await callOpenClawGateway("agent", params, {
+      expectFinal: waitedForFinal,
+      timeoutMs,
+    });
+  }
   return {
+    ownerTransport,
     runId: String(raw?.runId || runId),
     sessionId: normalizedSessionId,
     sessionKey: typeof raw?.sessionKey === "string" ? raw.sessionKey : undefined,
