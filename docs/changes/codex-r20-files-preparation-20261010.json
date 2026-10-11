@@ -33,7 +33,7 @@
     {
       "name": "r20-file-reads",
       "status": "passed",
-      "evidence": "Five suites in ci.yml on real S24 captures (#48 and main-session captures of 10/10): six roots with parallel probes, main session from sessions.list, owner list/search limits, dated paths and text, one-RPC preview, exclusions, five image formats, strict CLI bounds, deferred cache with 2.4 s injected RPCs, acceptance via base settle() with conditional failure. Full local ci.yml green."
+      "evidence": "2026-10-11 after H6 42dc3460 normal merge: build and seven targeted suites passed: agent-file-write-plan (49 assertions, PUT 6931 ms, 5 backups), file-read-boundary, file-gateway-read, files-http (2.4s injected RPCs), file-gateway-limits, files-acceptance and H6 boundary. Real S24 main/file/schema captures preserved; no S24 mutation. Entire ci.yml to execute on final documented head."
     }
   ],
   "documentation": [

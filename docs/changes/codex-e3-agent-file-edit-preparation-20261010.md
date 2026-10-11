@@ -7,3 +7,5 @@
 - Garde des instructions de paiement et des secrets, que la Gateway n'a pas : chaque ligne `[masqué]` est restituée telle quelle, aucune ne peut être retirée, ajoutée ou modifiée, et aucune nouvelle ligne paiement ou secret n'est acceptée.
 - Sauvegarde de la version remplacée, que la Gateway ne fait pas : `<NOM>.bak-samantha-<horodatage>` dans le workspace (0600), 5 au plus par fichier.
 - Reçu natif, une seule écriture, une relecture après effet incertain, jamais de rejeu. Ni suppression ni renommage.
+
+Reprise 11/10 : H6 42dc3460 intégré par merge normal. Build et sept suites ciblées verts : écriture 49 assertions, PUT 6931 ms, 5 sauvegardes ; cinq contrats lecture/HTTP/CLI/acceptance sur captures S24 et frontière H6. Vocabulaire financier libre, confidentialité et lignes privées masquées préservées. Suite entière à rejouer sur la tête documentée avant ready ; aucune mutation/recette S24 revendiquée.

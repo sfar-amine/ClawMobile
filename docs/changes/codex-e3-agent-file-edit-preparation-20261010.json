@@ -5,8 +5,8 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "E3 / R20 lot 2 : PUT /v1/files/content?scope=agent&path=NOM via agents.files.set, biométrie agent.file_write, CAS expectedHash, lignes paiement/secrets conservées, 5 sauvegardes.",
-  "reason": "Schéma et CAS agents.files.set confirmés sur le S24 (#131). Reprise H6 : suppression du filtrage des mots de paiement, garde des secrets/identifiants et restitution des lignes masquées préservées. Tests adaptés, validation locale en attente.",
+  "summary": "E3 / R20: PUT agent file with exact biometric scope, native CAS, preserved private masked lines, free financial vocabulary and 5 bounded backups.",
+  "reason": "S24 agents.files.set/CAS captures confirmed in #131; normal H6 merge, targeted contracts passed, full local CI to execute on final documented commit.",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/companion-acceptance.py",
@@ -24,13 +24,13 @@
   "tests": [
     {
       "name": "e3-agent-file-write-http",
-      "status": "pending",
-      "evidence": "Reprise et tests adaptés à H6 : exécution locale ciblée puis suite CI entière en attente. Les anciennes preuves ne couvrent pas le SHA de reprise."
+      "status": "passed",
+      "evidence": "2026-10-11 after H6 42dc3460 normal merge: build and seven targeted suites passed: agent-file-write-plan (49 assertions, PUT 6931 ms, 5 backups), file-read-boundary, file-gateway-read, files-http (2.4s injected RPCs), file-gateway-limits, files-acceptance and H6 boundary. Real S24 main/file/schema captures preserved; no S24 mutation. Entire ci.yml to execute on final documented head."
     },
     {
       "name": "r20-read-regression",
-      "status": "pending",
-      "evidence": "Reprise et tests adaptés à H6 : exécution locale ciblée puis suite CI entière en attente. Les anciennes preuves ne couvrent pas le SHA de reprise."
+      "status": "passed",
+      "evidence": "2026-10-11 after H6 42dc3460 normal merge: build and seven targeted suites passed: agent-file-write-plan (49 assertions, PUT 6931 ms, 5 backups), file-read-boundary, file-gateway-read, files-http (2.4s injected RPCs), file-gateway-limits, files-acceptance and H6 boundary. Real S24 main/file/schema captures preserved; no S24 mutation. Entire ci.yml to execute on final documented head."
     }
   ],
   "documentation": [
