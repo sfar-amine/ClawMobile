@@ -11,6 +11,7 @@ BASE = "http://127.0.0.1:8765/v1"
 READS = [
     ("/catalog", 0.3), # HS2 target; S24 qualification is pending.
     ("/health", 2.0),
+    ("/control/health?contract=2", 1.5),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
     ("/files?scope=agent", 1.5),
     ("/files?scope=session", 1.5),
