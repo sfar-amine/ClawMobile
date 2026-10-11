@@ -1,0 +1,32 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-10T23:37:26Z",
+  "openclaw": "2026.9.6 (eb377ac)",
+  "mode": "lecture seule : aucun appel agents.files.set n'a été envoyé ; schéma et handler lus dans dist/",
+  "workspace": "~/.openclaw/workspace (agent main)",
+  "paymentPattern": "AUTOMATION_PAYMENT_PATTERN de companion/automations.ts (comptage de lignes seulement, aucun contenu publié)"
+ },
+ "workspaceFiles": [
+   {"name":"AGENTS.md","present":true,"size":6440,"mtimeUtc":"2026-10-10T18:53:13Z","linesMatchingPaymentPattern":2,"inAgentsFilesAllowlist":true},
+   {"name":"SOUL.md","present":true,"size":4460,"mtimeUtc":"2026-09-25T21:10:16Z","linesMatchingPaymentPattern":1,"inAgentsFilesAllowlist":true},
+   {"name":"IDENTITY.md","present":true,"size":456,"mtimeUtc":"2026-09-29T18:38:54Z","linesMatchingPaymentPattern":0,"inAgentsFilesAllowlist":true},
+   {"name":"USER.md","present":true,"size":955,"mtimeUtc":"2026-09-24T16:12:51Z","linesMatchingPaymentPattern":0,"inAgentsFilesAllowlist":true},
+   {"name":"BOOTSTRAP.md","present":false,"inAgentsFilesAllowlist":true},
+   {"name":"MEMORY.md","present":false,"inAgentsFilesAllowlist":true},
+   {"name":"TOOLS.md","present":false,"inAgentsFilesAllowlist":false},
+   {"name":"DREAMS.md","present":true,"size":22979,"mtimeUtc":"2026-10-10T21:00:33Z","linesMatchingPaymentPattern":2,"inAgentsFilesAllowlist":false}
+ ],
+ "existingBackupsInWorkspace": {
+  "count": 10,
+  "names": ["AGENTS.md.bak-ui-playbooks-<YYYYMMDD-HHMMSS>","AGENTS.md.bak-ui-playbooks-<YYYYMMDD-HHMMSS>","AGENTS.md.bak-ui-playbooks-<YYYYMMDD-HHMMSS>","AGENTS.md.bak-ui-playbooks-<YYYYMMDD-HHMMSS>","AGENTS.md.bak-ui-playbooks-<YYYYMMDD-HHMMSS>","AGENTS.md.bak-ui-playbooks-<YYYYMMDD-HHMMSS>","SOUL.md.backup-<YYYYMMDD-HHMMSS>","backup-emoji-<YYYYMMDD-HHMMSS>","backup-greeting-<YYYYMMDD-HHMMSS>","backup-samantha-<YYYYMMDD-HHMMSS>"],
+  "producers": {
+   "AGENTS.md.bak-ui-playbooks-*": "ui-playbooks/install-openclaw-instructions.sh ligne 11 (cp -p avant réinstallation des instructions), non borné, 6 fichiers du 25/09",
+   "SOUL.md.backup-*, backup-*": "copies manuelles du 24/09, aucun propriétaire actif"
+  },
+  "gatewayBackupOnSet": "aucune : le handler agents.files.set écrit directement, sans copie préalable"
+ },
+ "agentsFilesGetOutsideAllowlist": [
+   {"name":"DREAMS.md","exit":1,"latencyMs":3376,"response":{"ok":false,"error":{"type":"gateway_request_error","code":"INVALID_REQUEST","message":"unsupported file \"DREAMS.md\"","retryable":false}},"method":"agents.files.get","params":{"agentId":"main","name":"DREAMS.md"}},
+   {"name":"TOOLS.md","exit":1,"latencyMs":3092,"response":{"ok":false,"error":{"type":"gateway_request_error","code":"INVALID_REQUEST","message":"unsupported file \"TOOLS.md\"","retryable":false}},"method":"agents.files.get","params":{"agentId":"main","name":"TOOLS.md"}}
+ ]
+}
