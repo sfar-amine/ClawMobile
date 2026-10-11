@@ -17,6 +17,11 @@
       "name": "documentation ciblée",
       "status": "passed",
       "evidence": "Validateur existant tools/validate_docs.py des playbooks appliqué au dépôt core après réécriture : 0 erreur documentaire. Suite entière core non exécutée sur la nouvelle tête ; gate bloqué par sources S24 de livraison/dédup inconnues."
+    },
+    {
+      "name": "backlog42-current-documentation-targeted",
+      "status": "passed",
+      "evidence": "Existing validate_docs.py applied to this repository:0 errors in59ms; git diff --check against current base exit0. Source preparation head 13b3d4e5514aeec496406bf382785d89e5c81d67. Documentation-only evidence; functional targeted tests and entire local workflow remain pending on the final prepared SHA."
     }
   ],
   "documentation": [
