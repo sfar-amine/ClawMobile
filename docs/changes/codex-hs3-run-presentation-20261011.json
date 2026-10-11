@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "id": "codex-hs3-run-presentation-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "HS3 : présentation des reçus (Compris, échec explicite, alternatives Harness) transportée dans les runs existants, sur captures S24",
+  "reason": "Le fastpath perdait les métadonnées top-level Graph et les runs ne les stockaient pas ; ajout de readers fermés sans nouvelle autorité.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/receipt-presentation-read.py",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-receipt-presentation-read.py",
+    "openclaw-plugin-mobile-ui/scripts/test-receipt-presentation.cjs",
+    "docs/work/samantha-runtime/contracts/hs3.md",
+    "docs/changes/codex-hs3-run-presentation-20261011.md",
+    "docs/changes/codex-hs3-run-presentation-20261011.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/hs3-payment-terminal-records.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/hs3-presentations-from-captures.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/README.md"
+  ],
+  "tests": [
+    {
+      "name": "HS3 lecteurs et transport",
+      "status": "passed",
+      "evidence": "8 tests Python (dont présentations calculées sur captures S24 et PaymentRecord réels) et transport submitIntent → runs.json → GET /v1/runs/{id} → processus neuf avec une présentation issue de capture. Build vert."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs3.md",
+    "docs/changes/codex-hs3-run-presentation-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Métadonnées de routes existantes seulement ; aucune route ni action exécutable nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Propriétaire runs.json existant, bornes de rétention conservées ; aucun store, scheduler, registry ou routeur ajouté."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Aucun changement d’admission ni des six primitives owner."
+  },
+  "rollback": "Revert de la PR ; anciens runs lisibles, aucun état métier ni paiement à restaurer.",
+  "limitations": [
+    "Pas de formateur métier : statut info/error, effet toujours unknown.",
+    "Montant seulement avec decision.parameters (38 E1).",
+    "Handoff de paiement en échec : repli d'erreur générique (pas de « Compris »)."
+  ]
+}
