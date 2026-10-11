@@ -963,7 +963,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"];
     try{if(body?.attachments){
      if(!Array.isArray(body.attachments)||body.attachments.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
-     body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
+     body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':file.mime.startsWith('audio/')?'audio':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,...(file.mime==="audio/mp4"?{createdAt:file.createdAt,expiresAt:file.expiresAt}:{}),displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
      if(body.attachments.reduce((sum:number,x:any)=>sum+x.sizeBytes,0)>25*1024*1024)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
     }
     }catch(e:any){const status=[400,404,413].includes(e?.statusCode)?e.statusCode:503;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":status===413?"attachment_share_limit":"invalid_attachment_request"});return;}

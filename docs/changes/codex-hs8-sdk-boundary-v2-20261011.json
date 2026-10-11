@@ -1,0 +1,158 @@
+{
+  "version": 2,
+  "id": "codex-hs8-sdk-boundary-v2-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "HS8 : Gemini 3.5 flash-lite, audio qualifié par piste et retry différé dans le propriétaire RUNS, sous garde fermé",
+  "reason": "Passation46 et décision explicite Amine : Gemini gratuit exclusivement, aucun OpenAI ni clé concurrente sélectionnée. Projection éphémère sans lecture/modification des clés globales ; captures185/174 byte-identiques, retry RUNS et continuation P1 réelle intégrés. Publication après suite entière SHA exact ; activation produit encore refusée.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/claude-p1-native-admission-20261011.json",
+    "docs/changes/claude-p1-native-admission-20261011.md",
+    "docs/changes/codex-hs8-memo-pipeline-20261011.json",
+    "docs/changes/codex-hs8-memo-pipeline-20261011.md",
+    "docs/changes/codex-hs8-sdk-boundary-v2-20261011.json",
+    "docs/changes/codex-hs8-sdk-boundary-v2-20261011.md",
+    "docs/changes/codex-r20-cli-cleanup-20261011.json",
+    "docs/changes/codex-r20-cli-cleanup-20261011.md",
+    "docs/work/samantha-runtime/contracts/hs8-pipeline.md",
+    "docs/work/samantha-runtime/contracts/hs8.md",
+    "docs/work/samantha-runtime/contracts/p1-admission.md",
+    "docs/work/samantha-runtime/contracts/r20.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-companion-acceptance-owner-transport.py",
+    "installer/termux-lite/test-skill-learning-acceptance.py",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/gateway-owner-revocation-cancel-clarify.json",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/public-gateway-client-dispatch.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/bonjour-samantha.m4a",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/media-config-projection.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/memo-audio.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/sdk-resolution.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/stt-runs.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/android-memo.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/chatgpt-subscription-audio-probe.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/deferred-retry-owner.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/gemini-free-profile.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/sdk-installed-resolution.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8/media-config-and-sdk-resolution.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8/sdk-exports.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/callgatewayfromcli-signature.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/p1-owner-transport-admission.json",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/README-p1-gateway.md",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-clarify.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-isolated.cjs",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/owner-turn-public-sdk.cjs",
+    "openclaw-plugin-mobile-ui/scripts/lib/memo-admission-fixture.cjs",
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json",
+    "openclaw-plugin-mobile-ui/scripts/test-canonical-agent-bootstrap.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-edit-replay.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-deferred-retry.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-intent-pipeline.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-p1-http.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-sdk-resolution.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-stt-boundary.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-stt-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-strict-process-cleanup.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-understanding.cjs",
+    "openclaw-plugin-mobile-ui/src/capabilityClarification.ts",
+    "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
+    "openclaw-plugin-mobile-ui/src/companion/catalog.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/memoSttBoundary.ts",
+    "openclaw-plugin-mobile-ui/src/companion/memoSttOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnAdmission.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts"
+  ],
+  "tests": [
+    {
+      "name": "HS8 fichier46 ciblés owner et pipeline",
+      "status": "passed",
+      "evidence": "Node20, npm run build + huit suites boundary/owner/SDK resolution/memo pipeline/deferred retry/delete-run/edit-replay/catalog, exit0 sous verrou EX. Journal /workspace/artifacts/b42/hs8-46-targeted-r3.log ; 12 GET concurrents, trois essais, reprise après redémarrage, source expiration30d, partage, annulation et révocation. Aucun fournisseur live ; tickets P1 seam opaque hors ligne."
+    },
+    {
+      "name": "HS8 HTTP audio metadata-only et reprise",
+      "status": "passed",
+      "evidence": "Node20 build + attachment HTTP + memo pipeline + deferred retry + edit-replay exit0 sous EX ; /workspace/artifacts/b42/hs8-46-targeted-r4.log. Dates propriétaire ajoutées aux seules pièces audio, hash historique autres fichiers préservé."
+    },
+    {
+      "name": "HS8 composition HTTP P1 réelle et matrice propriétaire",
+      "status": "passed",
+      "evidence": "Node20 build + test-memo-p1-http.cjs + pipeline/retry + test-owner-turn-admission.cjs (54/54) + edit-replay exit0 sous EX ; /workspace/artifacts/b42/hs8-46-p1-real-targeted.log. P1 stable28108204 intégré par merge ; signature P256 réelle, nonce vérifié une seule fois, replay/refus/révocation, GET STT seul, POST frais même run et cleanup. Enrôlement contrôlé isolé, aucun fournisseur live ni qualification Android."
+    },
+    {
+      "name": "HS8 profil gratuit exclusif et F6 portable",
+      "status": "passed",
+      "evidence": "Node20 npm run build + memo-stt-owner + HTTP P1 réel + deferred-retry + remote-bridge-abandoned exit0 sous EX, /workspace/artifacts/b42/hs8-46-free-exclusive-targeted.log. apiKey getter qui jette jamais lu, champ omis aux préflight/média et config globale intacte ; gratuit indisponible/mismatch sans autre compte. Correctif portable dc5cc696 importé en e95c110c : overflow/proc indeterminate, 17 abandons, sweep463ms sous borne inchangée."
+    },
+    {
+      "name": "HS8 final union P1 and R20 targeted",
+      "status": "passed",
+      "evidence": "Node20 build + P1 64/64 + voice21/21 + real HTTP signed memo + SDK owner + memo pipeline/deferred retry/SDK resolution + E3 44 + edit-replay + F6 17abandons sweep498ms + strict cleanup9/9. /workspace/artifacts/b42/hs8-46-p1-union-final-targeted-r2.log exit0, portable6283/84b8/197/a947 integrated; previous command with wrong script names archived, no code relaxation."
+    },
+    {
+      "name": "HS8 public Gateway final P1 admission and memo union",
+      "status": "passed",
+      "evidence": "Node20 build + actual P1 matrix73/73 + memo real signed HTTP/pipeline/deferred retry/SDKowner exit0, hs8-46-public-gateway-targeted.log. Node26.11.1 pinned public SDK OpenClaw2026.9.6 isolated diagnostic6/6 exit0, hs8-46-public-gateway-real-targeted.log and fresh hs8-46-public-gateway-real-proof ; realHELLOrevocation => zero agent/tool, tokenDestroyedtrue. Local synthetic provider only, no S24/provider account."
+    },
+    {
+      "name": "Fresh base core191 captured Maxit quote shape",
+      "status": "passed",
+      "evidence": "Normal merge runtimef5d8a6d7b327d3a3769b9b04bf97174084ea6e6c, Node20 build + real cleaned quote3/3 in each worktree, hs8-hs3-base191-targeted.log exit0. HS3 initial-failure HTTP and presentation176 also pass (maxReadMs19). Only captured fixture/new CI test imported; no payment owner modified or provider live called."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs8.md",
+    "docs/changes/codex-hs8-sdk-boundary-v2-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Catalogue mémo existant conservé false ; aucune route/action/ID ajouté."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Retry réconcilié à la lecture sous verrou du registre RUNS existant ; stockage/rétention attachments et admission P1 propriétaires réutilisés, sans scheduler ni grant durable."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Retirer cette préparation avec catalogue micro et admission audio fermés ; aucune configuration globale ni donnée S24 modifiée par Codex.",
+  "limitations": [
+    "MEMO_STT_QUALIFICATION reste refusé : aucun upload audio, micro catalogue ou transcription produit activé.",
+    "Captures185/174 : import SDK et Gemini3.5flashlite synthétique attestés ; aucun vrai mémo Android ou codec AAC décodable qualifié par ce delta.",
+    "Amine choisit le gratuit exclusivement : clé provider concurrente omise par requête sans lecture de sa valeur, configuration globale intacte. Permission Termux encore à décider ; chemin SDK effectif à vérifier par Claude.",
+    "Admission P1 PR182 nécessaire et revalidée ; absence du propriétaire installé ferme la soumission. Composition HTTP cryptographique réelle et matrice P1 hors ligne vérifiées ; cela ne constitue pas recette runtime.",
+    "Politique trois essais après2/10min proposée dans185, implémentée et testée hors ligne ; pas une mesure de fiabilité runtime.",
+    "Plafond60s par entrée n’est pas un délai global SDK ; budget cumulé et arrêt fournisseur restent à qualifier.",
+    "SDK relit un pathname ; fd ouvert ne prouve pas absence de substitution concurrente. TTL30d issu du mtime propriétaire, suppression/protection partagée testées hors ligne.",
+    "Après réponsePOST perdue et audio supprimé, rapprochement GETparclient existant côté app ; pas de réupload ou nouveau run.",
+    "Aucun appel fournisseur live, fusion PR, force-push, activation ni déploiement par Codex.",
+    "Publication prête conditionnée à la suite entière verte sur SHA exact ; recette S24 et journaux privés requis avant activation.",
+    "Final whole CI at frozen final SHA remains pending after current targeted union; no readiness or Android activation until qualified.",
+    "Public Gateway SDK revocation is checked immediately before synchronous agent issuance. Once a packet is sent/accepted revocation is not retrospective; ambiguous failures never retry or fall back CLI. Android cancellation wiring remains separate.",
+    "Runtime base refreshed by normal merge of core191f5d8a6d7; full CI at the new frozen SHA is still pending, prior whole results are not reused."
+  ]
+}
