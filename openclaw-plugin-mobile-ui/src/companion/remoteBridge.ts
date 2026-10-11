@@ -219,11 +219,16 @@ function normalizeContinuumFence(value: any): ContinuumFence {
   return { version: 1, attemptId, effectKey, ownershipEpoch, ownerId, bootId };
 }
 
+/** Same classification as the receipt: an owner capability whose decision says `read` needs no effect fence. */
+export function continuumFenceRequired(method: string, params?: Record<string, unknown>): boolean {
+  return mutationRisk(method, params) !== "read";
+}
+
 function validateContinuumFence(
   request: RemoteBridgeRequest,
   paramsHash: string,
 ): RemoteBridgeReceipt["continuumFence"] | undefined {
-  if (mutationRisk(request.method) === "read") return undefined;
+  if (!continuumFenceRequired(request.method, request.params)) return undefined;
   if (!request.taskId) {
     if (request.continuumFence) throw statusError(409, "continuum_task_required");
     return undefined;
