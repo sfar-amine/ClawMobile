@@ -91,7 +91,7 @@
       "claw_status": "verified_no_impact",
       "claw_artifact_read": "verified_no_impact"
     },
-    "reason": "Seul POST /v1/runs de l'app change d'autorité ; les outils MCP ne passent pas par ce chemin."
+    "reason": "L’admission change les entrées app POST/runs et capability voix ; les outils MCP gardent leurs propriétaires existants et ne passent pas par ces preuves natives."
   },
   "rollback": "Revert de la PR : retour au non-owner partout et au contexte loopback ; fichier d'enrôlement ignoré.",
   "limitations": [

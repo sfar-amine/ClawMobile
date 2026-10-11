@@ -45,7 +45,7 @@ Depuis le correctif P1, les tours texte de l'app arrivent au modèle avec `sende
    - scopes `operator.admin` et `operator.write` ;
    - méthode `agent` uniquement, une connexion par tour, fermée après la réponse.
 
-   Tous les autres tours gardent le CLI canonique en `operator.write` : non admis, skills, apprentissage, voix. Le champ `authority` (contexte canonique) ne choisit jamais la connexion. Le pool Control P0-1 (#68) n'est pas touché et garde `agent` et `chat.send` hors de son chemin.
+   Tous les tours non admis gardent le CLI canonique en `operator.write`, y compris les anciennes entrées skills/apprentissage/voix sans preuve native. Une entrée voix signée valide reste un tour admis. Le champ `authority` (contexte canonique) ne choisit jamais la connexion. Le pool Control P0-1 (#68) n'est pas touché et garde `agent` et `chat.send` hors de son chemin.
 6. **Échecs.**
    - SDK absent/version différente/cible non prise en charge/credential non résolu **avant envoi** : le tour initialement admis est refusé, sans repli CLI.
    - Erreur **après envoi** : run `failed`, sans repli CLI ni rejeu.
@@ -148,6 +148,12 @@ Le correctif `6283dd76` ferme la valeur constante owner dans `/runs` : le résol
 
 `POST /v1/extensions/claw-live/capability` exige la même preuve P1 liée au corps brut exact, au `clientRunId` et au `sessionId`, avec nonce frais. Sans admission, refus 403 avant résolution/effet. Le chemin signé est le pathname original exact, même après résolution de l’alias interne. L’app utilise `clientRunId=voice-cap-<turnId>` et capture la session avant l’async ; aucun retry non signé. Le ticket mémoire n’est ni dans le corps, ni persistant. Il protège aussi l’exécution préparée dans `SurfaceClarifications`, puis le bridge final et l’admission warm/learning. La clarification est liée à `SurfaceClarifications.idFor("claw-live:" + sessionId)` ; une question précédente ne vaut jamais admission du tour suivant. `/claw-live/decision` reste une résolution seule.
 
-Les 64 cas natifs, les 21 cas voix HS3, les 44 contrôles E3 et l’édition/relecture ciblés passent. Les mutations native/voix sont vérifiées dans la recette existante par refus sans preuve ; aucune mutation autorisée n’est envoyée par cette recette. Les actions métier restent les capabilities du registre/Graph existants.
+La première correction d’effets6283/learning84b8 passait 64 cas natifs, 21 cas voix HS3, 44 contrôles E3 et l’édition/relecture. La matrice actuelle après GatewayClient public passe 73 cas natifs ; voix/E3/replay restent verts. Les mutations native/voix sont vérifiées dans la recette existante par refus sans preuve ; aucune mutation autorisée n’est envoyée par cette recette. Les actions métier restent les capabilities du registre/Graph existants.
 
 Le complément `84b8a0ed` revérifie l’admission avant un nouvel effet de learning après `await execute`. Si elle n’est plus courante, le reçu de l’effet déjà accepté est conservé et le learning est omis (`skipped`, `owner_admission_expired`), avec zéro capture. La recette `197221f7` vérifie le refus capability voice sans signature.
+
+## État actuel du transport public
+
+Le candidat82794746 utilise uniquement GatewayClient et les résolveurs publics config/SecretRef/port. Le test historique de signature callGatewayFromCli décrit la façade précédente, pas le transport actuel. La preuve `public-gateway-client-dispatch.json` et le job CI `p1-isolated-gateway` qualifient six assertions du nouveau client, dont révocation au HELLO réel avant émission sans invocation. Les anciennes captures172 et la preuve de façade run07 restent identifiées comme historiques.
+
+La garantie est immédiatement avant émission synchronique. Après émission, l’échec reste indéterminé, sans deuxième envoi/repli. Après acceptation, le reçu de l’effet est conservé même si l’admission expire ; le nouvel effet de learning est alors omis avec zéro capture. L’annulation app n’est pas livrée. La CI entière aux SHAs finaux conditionne la publication ; la recette et le déploiement appartiennent à Claude.
