@@ -95,7 +95,21 @@ check_gateway_memory(){
  esac
 }
 check_smtp(){ due smtp || return; if timeout 25 "$ROOT/incident-email.sh" --probe 9>&- >/dev/null 2>&1; then healthy smtp; put smtp next $(( $(now)+300 )); else fail smtp; fi; }
-check_network_safety(){ due network_safety || return; if "$ROOT/android-network-mutation-guard.py" check 9>&- >/dev/null 2>&1; then healthy network_safety; else fail network_safety; fi; }
+# Le check restaure tout bail réseau dont le garde est mort ou dont le TTL est échu (ligne de reçu
+# écrite par le garde dans ce journal). Wi-Fi coupé SANS bail : jamais réactivé automatiquement
+# (choix possible d'Amine), seulement signalé ici une fois par transition et dans le reçu santé.
+check_network_safety(){ due network_safety || return; if "$ROOT/android-network-mutation-guard.py" check 9>&- >/dev/null 2>&1; then healthy network_safety; else fail network_safety; fi; network_wifi_warning; }
+network_wifi_warning(){
+ w=$(python3 - "$D/network-mutation-safety.json" 9>&- 2>/dev/null <<'PY'
+import json,sys
+try: print('1' if 'wifi_disabled_without_lease' in (json.load(open(sys.argv[1])).get('warnings') or []) else '0')
+except Exception: print('0')
+PY
+)
+ [ "$w" = "$(get network_wifi_unmanaged status 0)" ] && return 0
+ put network_wifi_unmanaged status "$w"
+ if [ "$w" = 1 ]; then log 'service=network_safety state=warning reason=wifi_disabled_without_lease action=none'; else log 'service=network_safety state=warning_cleared reason=wifi_disabled_without_lease'; fi
+}
 check_android_phantom_headroom(){
  due android_phantom_headroom || return
  if ! adb_ok; then put android_phantom_headroom next $(( $(now)+PHANTOM_HEADROOM_CHECK_S )); return; fi
