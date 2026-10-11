@@ -1,11 +1,12 @@
 import crypto from "crypto";
+import { readReceiptPresentation, publicDecision } from "./receiptPresentation";
 import type { PaymentExecutionResult } from "./paymentTypes";
 
 /**
  * Lot 41 piste 2 (38 C1 à la voix). Pure, closed projection of a capability-owner receipt into
  * the sentences the voice must say verbatim. No routing, no model call, no persistence, no I/O.
  *
- * Sources, in order (never the model's prose):
+ * Sources, in order (never the model's prose, nor selected/quote recomputation):
  *  1. HS3 presentation contract (`presentation.understood`, `presentation.failure`, `alternatives`,
  *     or the same fields at top level as served by /v1/runs) when the owner supplies them;
  *  2. fallback: the capability and parameters of the v2 decision / selected route of the same receipt.
@@ -60,25 +61,25 @@ export function voiceLocale(value: unknown): VoiceLocale {
 }
 
 function presentationOf(envelope: Record<string, any>) {
-  return obj(envelope.presentation) ? envelope.presentation : null;
+  return readReceiptPresentation(envelope) || null;
 }
 
 function decisionOf(envelope: Record<string, any>) {
-  const d = obj(envelope.decision) ? envelope.decision : {};
-  const sel = obj(envelope.selected) ? envelope.selected : {};
-  const plan = obj(envelope.skill_plan) ? envelope.skill_plan : {};
+  const raw = obj(envelope.decision) ? envelope.decision : {};
+  const d = publicDecision(raw);
   const harness = obj(envelope.harness) ? envelope.harness : {};
-  const confidence = [d.confidence, harness.confidence, sel.confidence, plan.confidence]
+  const confidence = [raw.confidence, harness.confidence]
     .find((v) => typeof v === "number" && Number.isFinite(v));
   return {
-    type: typeof d.type === "string" ? d.type : null,
-    decisionId: typeof d.decisionId === "string" && /^[A-Za-z0-9]{8,64}$/.test(d.decisionId) ? d.decisionId : null,
-    capability: id(d.capability) || id(envelope.capability) || id(sel.capability),
-    target: id(d.target) || id(sel.target) || id(plan.target),
-    intent: id(d.intent) || id(sel.intent) || id(plan.intent),
-    route: id(d.route) || id(sel.route) || id(plan.route),
-    risk: String(d.risk || sel.risk || plan.risk || "read"),
-    confirmation: d.confirmationRequired === true || envelope.confirmation_required === true || sel.confirmation_required === true,
+    type: d?.type || null,
+    decisionId: typeof raw.decisionId === "string" && /^[A-Za-z0-9]{8,64}$/.test(raw.decisionId) ? raw.decisionId : null,
+    capability: d?.capability || null,
+    target: d?.target || null,
+    intent: d?.intent || null,
+    route: id(raw.route),
+    risk: d?.risk || "read",
+    confirmation: d?.confirmationRequired === true,
+    parameters: d?.parameters || {},
     confidence: confidence as number | undefined,
     shortlist: Array.isArray(harness.shortlist) ? harness.shortlist : [],
   };
@@ -90,33 +91,12 @@ function resultOf(envelope: Record<string, any>) {
   return { execution, result };
 }
 
-/** Closed slot reading: operator/line from HS3, amount from the owner's validated parameters or quote. */
-function slotPhrases(envelope: Record<string, any>, understoodSlots: Record<string, any> | null, locale: VoiceLocale) {
-  const out: string[] = [];
-  const operators: Record<string, string> = { orange: "Orange", tt: "Tunisie Telecom", zain: "Zain" };
-  if (understoodSlots && typeof understoodSlots.operator === "string" && operators[understoodSlots.operator]) out.push(operators[understoodSlots.operator]);
-  const { result } = resultOf(envelope);
-  const params = obj(result.parameters) ? result.parameters : obj(envelope.parameters) ? envelope.parameters : {};
-  let amount: string | null = null;
-  for (const raw of [understoodSlots?.amountTnd, params.amountTnd]) {
-    if (!amount && typeof raw === "string" && /^\d{1,4}(?:\.\d{1,3})?$/.test(raw)) amount = raw;
-  }
-  const quote = obj(result.quote) ? result.quote : null;
-  if (!amount && quote && quote.currency === "TND" && Number.isSafeInteger(quote.amountMinor) && Number.isInteger(quote.decimals)
-    && quote.decimals >= 0 && quote.decimals <= 3 && quote.amountMinor > 0 && quote.amountMinor < 10_000_000) {
-    amount = String(Number((quote.amountMinor / 10 ** quote.decimals).toFixed(quote.decimals)));
-  }
-  if (amount) out.push(locale === "fr" ? amount.replace(".", ",") + " DT" : amount + " TND");
-  if (understoodSlots && (understoodSlots.line === "owner" || understoodSlots.beneficiary === "owner")) out.push(locale === "fr" ? "ta ligne" : "your line");
-  return out;
-}
-
 /** « Compris » label: HS3 understood verbatim, else capability + parameters of the v2 decision. */
 export function readVoiceUnderstood(envelope: unknown, locale: VoiceLocale = "fr"): VoiceUnderstood | null {
   if (!obj(envelope)) return null;
   const d = decisionOf(envelope);
   const p = presentationOf(envelope);
-  const understood = obj(envelope.understood) ? envelope.understood : p && obj(p.understood) ? p.understood : null;
+  const understood = p?.understood || null;
   // HS3 « Compris : … » sentence, spoken verbatim (only its leading « Compris : » becomes « J'ai compris : »).
   const sentenceText = understood && typeof understood.text === "string" ? understood.text.trim() : "";
   const match = /^(?:compris|understood)\s*:\s*(.+)$/iu.exec(sentenceText);
@@ -125,10 +105,8 @@ export function readVoiceUnderstood(envelope: unknown, locale: VoiceLocale = "fr
       target: d.target, intent: d.intent, route: d.route, decisionId: d.decisionId };
   }
   if (understood && speakable(understood.label)) {
-    const slots = obj(understood.slots) ? understood.slots : null;
-    const extra = slotPhrases(envelope, slots, locale).filter((s) => !understood.label.includes(s));
     return {
-      label: [understood.label.trim(), ...extra].join(" · "),
+      label: understood.label.trim(),
       source: "presentation",
       capability: id(understood.capability) || d.capability,
       target: d.target, intent: d.intent, route: d.route, decisionId: d.decisionId,
@@ -137,7 +115,7 @@ export function readVoiceUnderstood(envelope: unknown, locale: VoiceLocale = "fr
   if (!d.capability) return null;
   const parts = [humanize(d.capability)];
   if (d.intent && humanize(d.intent) !== parts[0]) parts.push(humanize(d.intent));
-  parts.push(...slotPhrases(envelope, null, locale));
+  if (d.parameters.amountTnd) parts.push(locale === "fr" ? d.parameters.amountTnd.replace(".", ",") + " DT" : d.parameters.amountTnd + " TND");
   return { label: parts.join(" · "), source: "decision_v2", capability: d.capability, target: d.target, intent: d.intent, route: d.route, decisionId: d.decisionId };
 }
 
@@ -148,7 +126,7 @@ export function readVoiceAlternatives(envelope: unknown, max = 3): VoiceAlternat
   const p = presentationOf(envelope);
   const seen = new Set<string>(d.capability ? [d.capability] : []);
   const out: VoiceAlternative[] = [];
-  const declared = Array.isArray(envelope.alternatives) ? envelope.alternatives : p && Array.isArray(p.alternatives) ? p.alternatives : null;
+  const declared = p?.alternatives || null;
   if (declared && declared.length) {
     for (const row of declared) {
       const cap = obj(row) ? id(row.capability) : null;
@@ -200,19 +178,18 @@ function codesOf(envelope: Record<string, any>): string[] {
 export function receiptProvesNoDebit(envelope: unknown): boolean {
   if (!obj(envelope)) return false;
   const p = presentationOf(envelope);
-  const failure = obj(envelope.failure) ? envelope.failure : p && obj(p.failure) ? p.failure : null;
-  if (failure && obj(failure.notDone) && failure.notDone.code === "payment_not_submitted") return true;
   const { result } = resultOf(envelope);
   const rows = [result, obj(result.payment) ? result.payment : null, obj(envelope.payment) ? envelope.payment : null]
     .filter(obj) as (Partial<PaymentExecutionResult> & { financialSubmissionAttempted?: unknown })[];
-  // Real S24 capture (10/04, Topnet): state=blocked AFTER financial_dispatch_committed. « blocked » alone
-  // proves nothing; only the adapter's not-submitted code without any submission attempt does.
-  return rows.some((row) => row.reasonCode === "payment_not_submitted" && row.financialSubmissionAttempted !== true);
+  // Any submission evidence wins over a contradictory not-submitted code.
+  if (rows.some((row) => row.financialSubmissionAttempted === true)) return false;
+  if (p?.failure?.notDone?.code === "payment_not_submitted") return true;
+  return rows.some((row) => row.reasonCode === "payment_not_submitted");
 }
 
 function failureOf(envelope: Record<string, any>, locale: VoiceLocale): { step: string; reason: string } | null {
   const p = presentationOf(envelope);
-  const declared = obj(envelope.failure) ? envelope.failure : p && p.status === "error" && obj(p.failure) ? p.failure : null;
+  const declared = p?.status === "error" ? p.failure : null;
   if (declared && speakable(declared.step) && speakable(declared.reason, 240)) {
     const unknownStep = declared.stepId === "unknown" || /non établie|not established/i.test(declared.step);
     return { step: unknownStep ? "" : declared.step.trim(), reason: declared.reason.trim() };

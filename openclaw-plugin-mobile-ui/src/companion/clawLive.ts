@@ -6,6 +6,7 @@ import { promisify } from "util";
 
 import { SurfaceClarifications } from "../capabilityClarification";
 import { runModelFastPath } from "../modelFastPath";
+import { publicDecision, publicReceiptMetadata, readReceiptPresentation } from "./receiptPresentation";
 
 const execFileAsync = promisify(execFile);
 export const CLAW_LIVE_MODEL = "gemini-3.8-live";
@@ -168,12 +169,13 @@ export async function clawLiveCapabilityTurn(
     return {
       success: true, state: "needs_clarification", source: "capability",
       clarificationId: turn.clarificationId, question: turn.question, choices: turn.choices,
+      decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)),
       execution: { state: "needs_clarification", question: turn.question, choices: turn.choices },
       instruction: "Read the question aloud verbatim. Send the user's spoken answer verbatim with this clarificationId.",
     };
   }
   if (turn.state === "done" || turn.state === "failed") {
-    return { success: true, state: turn.state, source: "capability", text: turn.text, execution: { state: turn.state === "done" ? "completed" : "failed" } };
+    return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), execution: { state: turn.state === "done" ? "completed" : "failed" } };
   }
   return execute(turn.text);
 }

@@ -7,10 +7,12 @@ import { capabilityBridge } from "./capabilityBridge";
 import { handleMcpRelayRequest } from "./mcpBridge";
 import { reconnectDelay } from "./reconnectPolicy";
 import {
-  isVoiceRealignment, planVoiceSpeech, realignmentChoice, realignmentRoundPayload,
+  isVoiceRealignment, planVoiceSpeech, readVoiceUnderstood, realignmentChoice, realignmentRoundPayload,
   realignmentSpeech, voiceTurnContext, type VoiceTurnContext,
 } from "./voiceUnderstanding";
 import { captureVoiceRound, type RoundCaptureRunner } from "./voiceRoundLearning";
+import { readReceiptPresentation } from "./receiptPresentation";
+import type { SurfaceTurn } from "../capabilityClarification";
 import { SurfaceClarifications } from "../capabilityClarification";
 import { runModelFastPath } from "../modelFastPath";
 export { reconnectDelay } from "./reconnectPolicy";
@@ -432,8 +434,8 @@ async function resolveDeterministic(request: string, targetHint?: string) {
 
 /** V3 applies to an explicit failure of the owner: HS3 failure, or a failed/timeout/unavailable execution. */
 function explicitExecutionFailure(value: any) {
-  const p = value?.presentation;
-  if (value?.failure || (p && p.status === "error" && p.failure)) return true;
+  const p = readReceiptPresentation(value);
+  if (p?.status === "error" && p.failure) return true;
   return ["failed", "timeout", "unavailable"].includes(String(value?.execution?.state || ""));
 }
 
@@ -498,35 +500,47 @@ async function runVoiceRequest(requestId: string, request: string) {
     return realignmentResponse(previous, learning);
   }
   const turn = await voiceClarifications.turn(request, { surface: VOICE_SURFACE, originId: requestId });
+  if (turn.state !== "continue") lastRelayTurn = voiceTurnContext(surfaceVoiceReceipt(turn), request, { locale: "fr", scope: "bixby_claw" });
   if (turn.state === "needs_clarification") {
     const conversationId = newConversationId();
     conversations.set(conversationId, {
       kind: "capability", originalRequest: request, clarificationId: turn.clarificationId, at: Date.now(),
     });
-    return clarificationResponse(conversationId, "capability", turn.question, { choices: turn.choices });
+    return clarificationResponse(conversationId, "capability", spokenCapabilityText(turn), { choices: turn.choices });
   }
   if (turn.state === "done" || turn.state === "failed") {
-    return { success: turn.state === "done", state: "done", source: "capability", text: spokenCapabilityText(turn) };
+    return { success: turn.state === "done", state: turn.state, source: "capability", text: spokenCapabilityText(turn), capability: readVoiceUnderstood(surfaceVoiceReceipt(turn))?.capability || null, route: readVoiceUnderstood(surfaceVoiceReceipt(turn))?.route || null };
   }
   return runVoiceLegacy(requestId, turn.text);
 }
 
-function spokenCapabilityText(turn: { text: string; result?: unknown }) {
-  const rendered = turn.result && typeof turn.result === "object"
-    ? renderFastVoiceResult({ execution: { state: "completed", result: turn.result } }) : null;
-  return rendered || turn.text;
+function surfaceVoiceReceipt(turn: SurfaceTurn) {
+  return { ...turn, success: turn.state !== "failed", execution: {
+    state: turn.state === "failed" ? "failed" : turn.state === "needs_clarification" ? "needs_clarification" : "completed",
+    result: "result" in turn ? turn.result : undefined,
+  } };
+}
+function spokenCapabilityText(turn: SurfaceTurn) {
+  const envelope = surfaceVoiceReceipt(turn);
+  const speech = planVoiceSpeech(envelope, { locale: "fr" });
+  if (speech.failure) return speech.verbatim || ("text" in turn ? turn.text : turn.question);
+  const rendered = "result" in turn && turn.result && typeof turn.result === "object"
+    ? renderFastVoiceResult(envelope) : null;
+  const text = rendered || ("text" in turn ? turn.text : turn.question);
+  return speech.understood ? speech.understood + " " + text : text;
 }
 
 async function runVoiceCapabilityContinuation(requestId: string, conversationId: string, pending: PendingConversation, answer: string) {
   const turn = await voiceClarifications.turn(answer, { surface: VOICE_SURFACE, id: pending.clarificationId, originId: requestId });
+  if (turn.state !== "continue") lastRelayTurn = voiceTurnContext(surfaceVoiceReceipt(turn), answer, { locale: "fr", scope: "bixby_claw" });
   if (turn.state === "needs_clarification") {
     pending.clarificationId = turn.clarificationId;
     pending.at = Date.now();
-    return clarificationResponse(conversationId, "capability", turn.question, { choices: turn.choices });
+    return clarificationResponse(conversationId, "capability", spokenCapabilityText(turn), { choices: turn.choices });
   }
   conversations.delete(conversationId);
   if (turn.state === "done" || turn.state === "failed") {
-    return { success: turn.state === "done", state: "done", source: "capability", text: spokenCapabilityText(turn) };
+    return { success: turn.state === "done", state: turn.state, source: "capability", text: spokenCapabilityText(turn), capability: readVoiceUnderstood(surfaceVoiceReceipt(turn))?.capability || null, route: readVoiceUnderstood(surfaceVoiceReceipt(turn))?.route || null };
   }
   // Resolved (or unrelated) text from resolve-clarification; never "original + Précision utilisateur".
   return runVoiceLegacy(requestId, turn.text);
