@@ -1,0 +1,273 @@
+{
+  "_capture": {
+    "method": "automations",
+    "argv": [
+      "python3",
+      "-m",
+      "reporting.control_snapshot",
+      "--contract",
+      "2",
+      "--sections",
+      "automations"
+    ],
+    "latencyMs": 2290,
+    "capturedAt": "2026-10-10T20:43:39Z",
+    "ownerRoot": "/data/data/com.termux/files/home/.openclaw/runtime-ui-playbooks/current",
+    "host": "Samsung S24 / Termux",
+    "sanitized": true,
+    "note": "Free text redacted on S24 before transport; diagnostic ZIP JSON redacted and bytes/hash recomputed."
+  },
+  "response": {
+    "schemaVersion": 2,
+    "sections": {
+      "automations": {
+        "schemaVersion": 2,
+        "resourceKey": "<redacted>",
+        "dataRevision": "89b8eb9594c4607cf1f5188035aac0af18e776f3c834eaf23ba412610872c781",
+        "generatedAt": "2026-10-10T20:43:39.863685+00:00",
+        "sourceCheckedAt": "2026-10-10T20:43:39.862519+00:00",
+        "availability": "ready",
+        "freshness": "fresh",
+        "remainingFreshMs": 14999,
+        "issues": [],
+        "data": {
+          "items": [
+            {
+              "id": "09d7517c-658e-42ea-8987-f2ccb5800269",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T20:28:45.357000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 4057.0,
+              "nextRunAt": "2026-10-10T20:43:45.357000+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "31f05210-eedb-46c0-bb1a-f4b2ab4e6155",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T20:42:50.316000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 205.0,
+              "nextRunAt": "2026-10-10T20:43:50.316000+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "78e51e71-d961-41cf-8757-b831eaad4bc2",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T20:39:38.937000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 510.0,
+              "nextRunAt": "2026-10-10T20:44:38.937000+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "d1d0e51c-6815-4e7a-8eda-c7302bab8118",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T20:30:51.863000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 7746.0,
+              "nextRunAt": "2026-10-10T20:45:51.863000+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "9aee0e1e-5583-41a2-87e0-172ed077dfc0",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T20:39:28.354000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 5380.0,
+              "nextRunAt": "2026-10-10T20:54:28.354000+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "3dbfb721-1702-4d8c-82a9-fb023b279a81",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T20:40:16.772000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 106318.0,
+              "nextRunAt": "2026-10-10T20:55:16.772000+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "bb8eb48a-1305-42cc-80d9-73068f71d26d",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T12:00:00.701000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 132415.0,
+              "nextRunAt": "2026-10-10T21:00:00+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "1121f97a-0a06-4873-afaa-a25d17311150",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T20:00:35.619000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 11754.0,
+              "nextRunAt": "2026-10-10T21:00:35.619000+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "90762ca7-1f5e-496f-abdf-8c0983741593",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T20:30:45.854000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 306.0,
+              "nextRunAt": "2026-10-10T21:00:45.854000+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "e58e16d3-a106-49c0-9070-3a42bcfcd41c",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T09:00:01.939000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 5159.0,
+              "nextRunAt": "2026-10-11T09:00:00+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "ff8c7e99-5fdc-44c7-ad68-938b4693ec37",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T12:05:00.420000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 844.0,
+              "nextRunAt": "2026-10-11T12:05:00+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "fbe8f430-fdfa-4add-b8f2-002bdc8d3f6c",
+              "name": "<redacted>",
+              "enabled": true,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-10-10T16:00:00.086000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 18620.0,
+              "nextRunAt": "2026-10-11T16:00:00+00:00",
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "12cce38f-44e0-436b-b6e4-ef19be735dde",
+              "name": "<redacted>",
+              "enabled": false,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": null,
+              "lastRunStatus": "<redacted>",
+              "lastDuration": null,
+              "nextRunAt": null,
+              "consecutiveErrors": null
+            },
+            {
+              "id": "86342a0e-4160-472d-accb-997f9e98b040",
+              "name": "<redacted>",
+              "enabled": false,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-09-28T09:34:30.424000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 1154.0,
+              "nextRunAt": null,
+              "consecutiveErrors": 0.0
+            },
+            {
+              "id": "b9634a16-c31e-484e-afb7-f548da5f9da8",
+              "name": "<redacted>",
+              "enabled": false,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": null,
+              "lastRunStatus": "<redacted>",
+              "lastDuration": null,
+              "nextRunAt": null,
+              "consecutiveErrors": null
+            },
+            {
+              "id": "e05b9abf-9000-4fa8-811c-9dd0b8d9247e",
+              "name": "<redacted>",
+              "enabled": false,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": null,
+              "lastRunStatus": "<redacted>",
+              "lastDuration": null,
+              "nextRunAt": null,
+              "consecutiveErrors": null
+            },
+            {
+              "id": "f3bc55d7-da51-4357-9506-7df70ea500a2",
+              "name": "<redacted>",
+              "enabled": false,
+              "scheduleType": "<redacted>",
+              "scheduleLabel": "<redacted>",
+              "executor": null,
+              "lastRunAt": "2026-09-28T09:40:41.663000+00:00",
+              "lastRunStatus": "<redacted>",
+              "lastDuration": 17764.0,
+              "nextRunAt": null,
+              "consecutiveErrors": 0.0
+            }
+          ],
+          "available": true,
+          "active": 12,
+          "attention": 0
+        }
+      }
+    },
+    "computation": {
+      "durationMs": 2119.869,
+      "sources": {
+        "automations": {
+          "sourceReadCount": 1,
+          "durationMs": 2118.632
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "_capture": {
+    "source": "local isolated canonical context-event.sh \u2192 context-store.py, verified against actual owner SQL in CI",
+    "sourceRepository": "sfar-amine/samantha-core",
+    "sourceCommit": "b60366fe79a97ec6797ad49ec47ce9daf2549d93",
+    "notS24Capture": true,
+    "sanitized": true,
+    "eventsSha256": "cac30df9cd17ea6e43303d53041fd365f7ef3c1efda4116678bb96ff06faaede"
+  },
+  "events": [
+    {
+      "id": "b7b2cb97b16f02adef4d4824adb6aee6c05d1509ff29986810f8cd164adc4699",
+      "revision": 1,
+      "kind": "decision",
+      "text": "C5 explicit voice preference quiet mornings",
+      "supersedes": null
+    },
+    {
+      "id": "494ff909cc63311496630f9b2e9a262d53eafc5f877e01c739e5e284353f7c15",
+      "revision": 2,
+      "kind": "decision",
+      "text": "C5 explicit voice preference quiet afternoons",
+      "supersedes": "b7b2cb97b16f02adef4d4824adb6aee6c05d1509ff29986810f8cd164adc4699"
+    }
+  ]
+}

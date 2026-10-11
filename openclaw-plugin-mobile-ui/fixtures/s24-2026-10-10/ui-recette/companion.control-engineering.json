@@ -1,0 +1,107 @@
+{
+ "_capture": {
+  "route": "GET /v1/control/engineering?limit=20",
+  "status": 200,
+  "latencyMs": 358,
+  "capturedAt": "2026-10-10T19:39:22+00:00",
+  "companion": "9cdd84f",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "items réduits à 8 sur 20 (total réel 199) ; aucun compteur par état dans la réponse (produite par samantha-ui-playbooks reporting.control_engineering)"
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "items": [
+   {
+    "id": "ENG-79dffee79156af1d66387b4ac8bd72f250494b875aa5de80ec639f4e54ce6c93",
+    "kind": "engineering",
+    "label": "Demande interne",
+    "state": "completed",
+    "updatedAt": "2026-10-10T10:39:47.471000Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-5c1f6f338e35e216e3fe503993e930caa5c58fe1f2d533f9ad9bb8b4a7d90980",
+    "kind": "engineering",
+    "label": "Demande interne",
+    "state": "blocked",
+    "updatedAt": "2026-10-10T10:09:09.072300Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-92605d00c499c2225c45bdb38d11a0b6fc4abd3738460454691f4969bc34327c",
+    "kind": "engineering",
+    "label": "Demande interne",
+    "state": "cancelled",
+    "updatedAt": "2026-10-10T09:32:35.614206Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-2e3c189ef2aad914047a15e8c89b0b31eb4d07594b2331d3327f0083a14fe3df",
+    "kind": "engineering",
+    "label": "Demande interne",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:26:00.911915Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-15a3e756ae8873de02b8e5c4ca5d7178845b041146e3aaa9745429c229e52317",
+    "kind": "engineering",
+    "label": "Demande interne",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:26:00.759066Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-2a8eaa2b2f76cdd772e8cd540222db94b695489ef29059a8312edbf189ca0e85",
+    "kind": "engineering",
+    "label": "Demande interne",
+    "state": "completed",
+    "updatedAt": "2026-10-10T09:25:53.556534Z",
+    "ownerActive": false,
+    "attemptsCount": 0,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-1b9f425a248dc41dfaacdffc5735ee6e3d9c490e30cceea93a70ffdf2f84c91f",
+    "kind": "engineering",
+    "label": "Demande interne",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:59.715257Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   },
+   {
+    "id": "ENG-6a77c86caa0b2566363f7865a387c0b119c0d57ca2696491580770b139d154a0",
+    "kind": "engineering",
+    "label": "Demande interne",
+    "state": "superseded",
+    "updatedAt": "2026-10-10T09:21:59.432095Z",
+    "ownerActive": false,
+    "attemptsCount": 1,
+    "checkpointRevision": null
+   }
+  ],
+  "total": 199,
+  "offset": 0,
+  "limit": 20,
+  "nextOffset": 20,
+  "revision": "37066500ceb2a598fdb391681aafd1cd016a4c81142dd2ad46da6dcb3eb7c48e",
+  "issues": [],
+  "source": "foreground_checkpoint_projection",
+  "effectsReplayed": false
+ }
+}

@@ -5,13 +5,51 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-type CapabilityArgs = {
+export type CapabilityArgs = {
   request?: string;
   execute?: boolean;
   surface?: "chatgpt" | "gemini_claw" | "gemini_live" | "bixby" | "whatsapp";
   caller?: "owner" | "trusted" | "other";
   timeoutSeconds?: number;
 };
+
+/** OpenClaw 2026.9.6 plugin factory context; never supplied in model arguments. */
+export type CapabilityTurnContext = {
+  senderIsOwner?: boolean;
+  assertInvocationCurrent?: () => void;
+};
+
+type CapabilityOptions = { helperPath?: string; home?: string; turnContext?: CapabilityTurnContext };
+
+export function createCapabilityTool(context: CapabilityTurnContext, options: Omit<CapabilityOptions, "turnContext"> = {}) {
+  // Snapshot the host bit for this factory invocation, not a session-wide identity.
+  const turnContext = {
+    senderIsOwner: context?.senderIsOwner,
+    assertInvocationCurrent: typeof context?.assertInvocationCurrent === "function"
+      ? context.assertInvocationCurrent.bind(context) : undefined,
+  };
+  const schema = {
+    type: "object",
+    properties: {
+      request: { type: "string", minLength: 1, maxLength: 12000 },
+      execute: { type: "boolean" },
+      surface: { type: "string", enum: ["chatgpt", "gemini_claw", "gemini_live", "bixby", "whatsapp"] },
+      // Compatibility only. This field can never grant authority.
+      caller: { type: "string", enum: ["owner", "trusted", "other"] },
+      timeoutSeconds: { type: "integer", minimum: 2, maximum: 120 },
+    },
+    required: ["request"], additionalProperties: false,
+  };
+  return {
+    name: "clawmobile_capability",
+    description: "Resolve the canonical Claw capability graph using host-admitted turn authority, optionally executing its validated route.",
+    schema, inputSchema: schema, parameters: schema,
+    async execute(_toolCallId: unknown, args: CapabilityArgs) {
+      const result = await clawmobile_capability(args ?? {}, { ...options, turnContext });
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    },
+  };
+}
 
 function helperCandidates(home = os.homedir()): string[] {
   return [
@@ -22,14 +60,21 @@ function helperCandidates(home = os.homedir()): string[] {
 
 export async function clawmobile_capability(
   args: CapabilityArgs,
-  options: { helperPath?: string; home?: string } = {},
+  options: CapabilityOptions = {},
 ): Promise<Record<string, unknown>> {
   const request = String(args.request || "").trim();
   if (!request) return { status: "error", reason: "request_required" };
   if (request.length > 12000) return { status: "error", reason: "request_too_large" };
 
   const surface = args.surface || "chatgpt";
-  const caller = args.caller || "owner";
+  const caller = options.turnContext?.senderIsOwner === true ? "owner" : "other";
+  if (args.caller !== undefined && args.caller !== caller) {
+    return { status: "error", reason: "caller_not_admitted" };
+  }
+  // A missing owner bit is never reconstructed from an agent/session name.
+  if (options.turnContext?.senderIsOwner === undefined && args.execute !== false) {
+    return { status: "error", reason: "caller_not_admitted" };
+  }
   const execute = args.execute !== false;
   const timeout = Math.max(2, Math.min(Number(args.timeoutSeconds || 30), 120));
   const helpers = options.helperPath ? [options.helperPath] : helperCandidates(options.home);
@@ -45,6 +90,8 @@ export async function clawmobile_capability(
         "--caller", caller,
       ];
       if (execute) argv.push("--timeout", String(timeout));
+      try { options.turnContext?.assertInvocationCurrent?.(); }
+      catch { return { status: "error", reason: "caller_not_admitted" }; }
       const raw: any = await execFileAsync("python3", argv, {
         timeout: (timeout + 8) * 1000,
         maxBuffer: 2 * 1024 * 1024,
