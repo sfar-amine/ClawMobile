@@ -1,0 +1,6 @@
+{
+ "_provenance": "S24 11/10 15:45 CET, ~/.openclaw/clawmobile-companion/runs.json, dernière paymentRequest maxit.topup (devis tel que reçu par le Companion via POST /local-handoffs). Nettoyé : nonce et étiquette de ligne de la référence remplacés (d/e), 4 derniers chiffres du payee remplacés par 0000. Montants, libellé, devise, décimales et ensemble de clés inchangés.",
+ "schemaVersion": 1,
+ "state": "quote_ready",
+ "quote": {"payee": "Orange Maxit ••••0000", "reference": "topup-dddddddddddddddddddddddddddddddd-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-5000", "amountMinor": 5000, "currency": "TND", "decimals": 3, "feeMinor": 700, "totalMinor": 5700, "feeLabel": "Frais Maxit"}
+}
