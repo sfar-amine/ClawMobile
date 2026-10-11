@@ -101,13 +101,24 @@ export function validateDraft(v:any):PaymentDraft {
     !["demo","live"].includes(v.mode)||!["chatgpt","work","claw","samantha"].includes(v.origin.channel)||!safeText(v.origin.id)) paymentError("invalid_payment_request");
   return {requestKey:v.requestKey,adapterId:v.adapterId,reference:v.reference,mode:v.mode,origin:{channel:v.origin.channel,id:v.origin.id}};
 }
+const QUOTE_KEYS=["payee","reference","amountMinor","currency","decimals"];
+const FEE_KEYS=["feeMinor","totalMinor","feeLabel"];
+export function quoteHasFee(q:PaymentQuote):q is PaymentQuote&{feeMinor:number;totalMinor:number;feeLabel:string} {
+  return q.feeMinor!==undefined;
+}
 export function validateQuote(v:any):PaymentQuote {
-  object(v,["payee","reference","amountMinor","currency","decimals"]);
+  const withFee=!!v&&typeof v==="object"&&Object.prototype.hasOwnProperty.call(v,"feeMinor");
+  object(v,withFee?[...QUOTE_KEYS,...FEE_KEYS]:QUOTE_KEYS);
   if(!safeText(v.payee)||!safeText(v.reference,100)||!Number.isSafeInteger(v.amountMinor)||v.amountMinor<0||v.amountMinor>9000000000000||
     typeof v.currency!=="string"||!/^[A-Z]{3}$/.test(v.currency)||!Number.isInteger(v.decimals)||v.decimals<0||v.decimals>3) paymentError("invalid_payment_quote",502);
+  // A provider fee is only accepted as an exact breakdown: the total is what the owner confirms and what the gateway must equal.
+  if(withFee&&(!Number.isSafeInteger(v.feeMinor)||v.feeMinor<0||!Number.isSafeInteger(v.totalMinor)||v.totalMinor!==v.amountMinor+v.feeMinor||
+    v.totalMinor>9000000000000||!safeText(v.feeLabel,40))) paymentError("invalid_payment_quote",502);
   return {...v};
 }
 export function quoteDigest(adapterId:string,mode:string,q:PaymentQuote) {
+  if(quoteHasFee(q))
+    return hash(["claw.payment.quote.v2",adapterId,mode,q.payee,q.reference,q.amountMinor,q.feeMinor,q.totalMinor,q.feeLabel,q.currency,q.decimals].join("\n"));
   return hash(["claw.payment.quote.v1",adapterId,mode,q.payee,q.reference,q.amountMinor,q.currency,q.decimals].join("\n"));
 }
 function validateContinuation(v:any):PaymentContinuation {

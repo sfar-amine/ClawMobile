@@ -52,6 +52,33 @@ async function test(name,run){await run();passed++;console.log('PASS '+name)}
   let calls=0;const core=new ClawLiveWarmCore({WebSocketImpl:Provider,tokenFactory:async()=>{calls++;return bundle}}),a=new Local();
   try{await core.attach(a,meta('legacy',1));const provider=Provider.instances.at(-1);a.close();await tick();assert.equal(calls,1);assert.equal(provider.readyState,1);assert.equal(core.status().providerReady,true);}finally{core.shutdown()}
  });
+ await test('legacy detach with an unanswered tool call replaces the poisoned provider (S24 11/10)',async()=>{
+  let calls=0;const core=new ClawLiveWarmCore({WebSocketImpl:Provider,retryDelay:()=>0,tokenFactory:async()=>{calls++;return bundle}}),a=new Local();
+  try{
+   await core.attach(a,meta('legacy-tool',1));const provider=Provider.instances.at(-1);
+   a.emit('message',Buffer.from(JSON.stringify({realtimeInput:{activityStart:{}}})));
+   a.emit('message',Buffer.from(JSON.stringify({realtimeInput:{activityEnd:{}}})));
+   provider.emit('message',Buffer.from(JSON.stringify({toolCall:{functionCalls:[{id:'fc_1',name:'clawmobile_capability',args:{request:'x'}}]}})));
+   a.close();await tick();await tick();await tick();
+   assert.equal(provider.readyState,3);assert.equal(calls,2);assert.equal(core.status().providerReady,true);assert.equal(core.status().historyLoaded,false);
+   const b=new Local();await core.attach(b,meta('legacy-next',1));assert.equal(b.sent.find(v=>v.warmReady).warmReady.historyRequired,true);b.close(1001);
+  }finally{core.shutdown()}
+ });
+ await test('legacy detach while the owner is still speaking replaces the provider',async()=>{
+  let calls=0;const core=new ClawLiveWarmCore({WebSocketImpl:Provider,retryDelay:()=>0,tokenFactory:async()=>{calls++;return bundle}}),a=new Local();
+  try{await core.attach(a,meta('legacy-open',1));const provider=Provider.instances.at(-1);
+   a.emit('message',Buffer.from(JSON.stringify({realtimeInput:{activityStart:{}}})));a.close();await tick();await tick();
+   assert.equal(provider.readyState,3);assert.equal(calls,2);}finally{core.shutdown()}
+ });
+ await test('legacy detach after a completed turn and answered tool keeps the warm provider',async()=>{
+  let calls=0;const core=new ClawLiveWarmCore({WebSocketImpl:Provider,tokenFactory:async()=>{calls++;return bundle}}),a=new Local();
+  try{await core.attach(a,meta('legacy-done',1));const provider=Provider.instances.at(-1);
+   a.emit('message',Buffer.from(JSON.stringify({realtimeInput:{activityStart:{}}})));
+   provider.emit('message',Buffer.from(JSON.stringify({toolCall:{functionCalls:[{id:'fc_2',name:'clawmobile_capability',args:{request:'x'}}]}})));
+   a.emit('message',Buffer.from(JSON.stringify({toolResponse:{functionResponses:[{id:'fc_2',name:'clawmobile_capability',response:{result:{}}}]}})));
+   provider.emit('message',Buffer.from(JSON.stringify({serverContent:{turnComplete:true}})));
+   a.close();await tick();assert.equal(calls,1);assert.equal(provider.readyState,1);}finally{core.shutdown()}
+ });
  await test('prewarm failure consumes only the existing bounded retry budget',async()=>{
   let calls=0;const core=new ClawLiveWarmCore({WebSocketImpl:Provider,retryDelay:()=>0,tokenFactory:async()=>{if(++calls>1)throw Error('fixture');return bundle}}),a=new Local();
   try{await core.attach(a,meta('failure'));a.close();await tick();await tick();assert.equal(calls,4);assert.equal(core.status().providerReady,false);assert.equal(core.status().state,'error');}finally{core.shutdown()}

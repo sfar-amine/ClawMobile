@@ -1,3 +1,4 @@
+import {protectedPayment} from "./automations";
 import {stripConversationTransport} from "./conversationText";
 /** Conservative evidence from the owner Gateway, independent of its SQLite layout. */
 export const RUN_INACTIVITY_MS = 10 * 60 * 1000;
@@ -11,14 +12,7 @@ export function protectedRun(run: {decision?: Record<string, unknown>}, payments
   // or unrecognised guards therefore protect the entire candidate set.
   if (payments.some(p => !["confirmed", "demo_confirmed", "failed", "cancelled", "expired", "blocked"].includes(p?.state))) return true;
   if (confirmations.some(c => !["consumed", "cancelled", "expired"].includes(c?.state))) return true;
-  const guarded = (value: any): boolean => {
-    if (typeof value === "string") return /payment\.|bank|biometr|confirmation|awaiting_owner/i.test(value);
-    if (!value || typeof value !== "object") return false;
-    if (value.confirmationRequired === true || value.confirmation_required === true ||
-        value.humanBoundary || value.human_boundary) return true;
-    return Object.values(value).some(guarded);
-  };
-  return guarded(run.decision);
+  return protectedPayment(run.decision);
 }
 
 export function ownerTurnEvidence(messages: any[], prompt: string, now: number):
