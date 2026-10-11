@@ -41,6 +41,8 @@ if [ "$cur" = "$D/$sha" ]; then echo "ALREADY_ACTIVE $sha"; exit 0; fi
 [ -n "$cur" ] && swap previous "$cur"
 swap current "$D/$sha"
 echo "ACTIVATED $sha previous=$(basename "${cur:-none}")"
+# « Projet Samantha » WhatsApp room: refresh its read-only snapshot when the room exists (never fatal).
+[ -d "$HOME/.openclaw/workspace-projet" ] && { python3 "$(dirname "$0")/project-room.py" build >/dev/null 2>&1 || echo "project_room_refresh_failed" >&2; }
 # Retention (S24 11/10: 50 snapshots, ~450 MB/day): keep current, previous and the KEEP newest.
 KEEP="${CLAW_UI_PLAYBOOKS_KEEP:-5}"; keepers="$(readlink "$D/current") $(readlink "$D/previous" 2>/dev/null || true)"
 ls -1dt "$D"/*/ 2>/dev/null | sed 's|/$||' | tail -n +$((KEEP+1)) | while IFS= read -r old; do

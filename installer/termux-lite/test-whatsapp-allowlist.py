@@ -29,14 +29,16 @@ class AllowlistTests(unittest.TestCase):
         self.calls.append((method,params))
         if method=='config.get':return {'config':copy.deepcopy(self.cfg),'hash':'HASH'}
         if method=='config.patch':
-            self.assertEqual(params['baseHash'],'HASH');fields=json.loads(params['raw'])['channels']['whatsapp']
-            self.cfg['channels']['whatsapp'].update(fields);self.save();return {'config':copy.deepcopy(self.cfg)}
+            self.assertEqual(params['baseHash'],'HASH');raw=json.loads(params['raw']);fields=raw['channels']['whatsapp']
+            self.cfg['channels']['whatsapp'].update(fields)
+            if 'bindings' in raw:self.assertIn('bindings',params['replacePaths']);self.cfg['bindings']=raw['bindings']
+            self.save();return {'config':copy.deepcopy(self.cfg)}
         raise AssertionError(method)
     def body(self,action,**fields):
         fields={'operationId':fields.pop('operationId',action+'-operation'),**fields};fields['requestHash']=m.request_hash(action,fields);return fields
     def confirmed(self,body,action,number=NEW,scope='standard',text='',duration=None,prepare=True):
         cid=str(uuid.UUID(m.digest(body['operationId'])[:32]));body['confirmationId']=cid
-        raw={'add':number+'|'+scope+'|'+text+'|'+(str(duration) if duration else 'permanent'),'remove':number,'raise':number+'|'+scope+'|'+text,'reactivate':number+'|'+scope+'|'+text,'extend':number+'|'+(str(duration) if duration else 'permanent')}[action]
+        raw={'add':number+'|'+scope+'|'+text+'|'+(str(duration) if duration else 'permanent'),'remove':number,'raise':number+'|'+scope+'|'+text,'reactivate':number+'|'+scope+'|'+text,'extend':number+'|'+(str(duration) if duration else 'permanent'),'rooms':'|'.join([number]+text.split(','))}[action]
         file=self.root/'clawmobile-companion'/'runs.json';file.parent.mkdir(exist_ok=True)
         record={'id':cid,'state':'approved','consumedAt':self.now*1000,'expiresAt':(self.now+100)*1000,'intent':{'action':{'type':'whatsapp.allowlist_'+action,'reference':m.contact_id(number),'payloadHash':m.digest(raw)}}}
         file.write_text(json.dumps({'ownerConfirmations':[record]}));mutation={'raise':'scope','extend':'expiry'}.get(action,action);body['requestHash']=m.request_hash(mutation,body)
@@ -73,6 +75,53 @@ class AllowlistTests(unittest.TestCase):
         for action in ('remove','suspend','expiry'):
             with self.assertRaises(m.Refused) as e:self.service.call(action,self.body(action,operationId='owner-'+action,contactId=m.contact_id(OWNER),**({'durationDays':1} if action=='expiry' else {})))
             self.assertEqual(e.exception.code,'owner_contact_protected')
+    def rooms(self,rooms,operationId,confirm=True):
+        body=self.body('rooms',operationId=operationId,contactId=m.contact_id(NEW),rooms=rooms)
+        if confirm:self.confirmed(body,'rooms',text=','.join(m.normalize_rooms(rooms)))
+        return self.service.call('rooms',body)
+    def with_rooms_config(self):
+        self.cfg['agents']={'entries':{'main':{},'contacts':{},m.PROJECT_AGENT:{}}}
+        self.cfg['bindings']=[{'agentId':'main','match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':OWNER}}},
+                              {'agentId':'contacts','match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':'*'}}},
+                              {'agentId':'main','match':{'channel':'whatsapp','accountId':'*'}}];self.save()
+    def test_project_room_routes_before_wildcard_with_confirmation_and_narrowing_is_free(self):
+        self.add();self.with_rooms_config()
+        with self.assertRaises(m.Refused) as e:self.rooms(['projet'],'rooms-unconfirmed',confirm=False)
+        self.assertEqual(e.exception.code,'confirmation_required');self.assertEqual(len(self.cfg['bindings']),3)
+        out=self.rooms(['projet'],'rooms-projet');self.assertEqual(out['state'],'updated');self.assertEqual(out['receipt']['rooms'],['conversation','projet'])
+        ids=[(b['agentId'],b['match']['peer']['id'] if 'peer' in b['match'] else None) for b in self.cfg['bindings']]
+        self.assertEqual(ids,[('main',OWNER),(m.PROJECT_AGENT,NEW),('contacts','*'),('main',None)])
+        self.assertEqual(out['receipt']['ownerMessage']['change'],'rooms_changed')
+        self.assertEqual(self.service.find(m.contact_id(NEW))['rooms'],['conversation','projet'])
+        again=self.rooms(['projet'],'rooms-projet-again',confirm=False);self.assertEqual(again['state'],'already_present')
+        narrow=self.rooms(['conversation'],'rooms-narrow',confirm=False);self.assertEqual(narrow['state'],'updated')
+        self.assertEqual(len(self.cfg['bindings']),3);self.assertNotIn('ownerMessage',narrow['receipt'])
+    def test_maison_routes_to_main_and_remove_drops_the_binding(self):
+        self.add();self.with_rooms_config();self.rooms(['maison'],'rooms-maison')
+        self.assertIn(('main',NEW),[(b['agentId'],b['match'].get('peer',{}).get('id')) for b in self.cfg['bindings']])
+        remove=self.body('remove',contactId=m.contact_id(NEW));self.confirmed(remove,'remove');self.service.call('remove',remove)
+        self.assertNotIn(NEW,[b['match'].get('peer',{}).get('id') for b in self.cfg['bindings']])
+    def test_unenforced_room_unknown_room_and_owner_are_refused_without_write(self):
+        self.add();self.with_rooms_config();calls=len(self.calls)
+        for rooms,code in ((['agenda'],'room_not_available'),(['salon'],'invalid_rooms'),([],'invalid_rooms')):
+            with self.assertRaises(m.Refused) as e:self.rooms(rooms,'rooms-'+code+str(len(rooms)),confirm=False)
+            self.assertEqual(e.exception.code,code)
+        with self.assertRaises(m.Refused) as e:self.service.call('rooms',self.body('rooms',operationId='rooms-owner',contactId=m.contact_id(OWNER),rooms=['projet']))
+        self.assertEqual(e.exception.code,'owner_contact_protected')
+        self.assertFalse(any(method=='config.patch' for method,_ in self.calls[calls:]))
+    def test_project_room_requires_its_provisioned_agent(self):
+        self.add();self.with_rooms_config();del self.cfg['agents']['entries'][m.PROJECT_AGENT];self.save()
+        with self.assertRaises(m.Refused) as e:self.rooms(['projet'],'rooms-unprovisioned')
+        self.assertEqual(e.exception.code,'project_room_unavailable')
+    def test_concurrent_binding_change_is_a_conflict_not_an_overwrite(self):
+        self.add();self.with_rooms_config();real=self.gateway;start=len(self.calls)
+        def gateway(method,params=None,timeout_ms=7000):
+            if method=='config.get' and not any(x=='config.patch' for x,_ in self.calls[start:]):
+                value=real(method,params,timeout_ms);value['config']['bindings']=value['config']['bindings'][:1];return value
+            return real(method,params,timeout_ms)
+        self.gw.stop();self.gw=patch.object(m,'gateway_call',side_effect=gateway);self.gw.start()
+        out=self.rooms(['projet'],'rooms-race');self.assertFalse(out['success'])
+        self.assertEqual(len(self.cfg['bindings']),3)
     def test_expiry_sweep_injected_clock_idempotent_and_no_write_empty(self):
         initial=self.cfg.copy();out=self.service.call('sweep',{});self.assertEqual(out['processed'],0);self.assertFalse(m.DB.exists())
         self.add(durationDays=1);self.now+=86401;row=self.service.find(m.contact_id(NEW));self.assertEqual(row['state'],'expired_pending')
