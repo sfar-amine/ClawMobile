@@ -8,12 +8,13 @@ import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
+import type { AdmissionTicket } from "./ownerTurnAdmission";
 
 export async function submitIntent(
   text: string,
   sessionId = "default",
   attachments: IntentAttachment[] = [],
-  options: { userText?: string; clientRunId?: string; learningOnly?: true; authority?:"owner"; replayOf?: {sessionId: string; runId: string} } = {},
+  options: { userText?: string; clientRunId?: string; learningOnly?: true; authority?:"owner"; admission?: AdmissionTicket; replayOf?: {sessionId: string; runId: string} } = {},
 ): Promise<IntentSubmitResponse> {
   const normalized = text.trim();
   const visibleUserText = (options.userText || normalized).trim();
@@ -40,7 +41,8 @@ export async function submitIntent(
   // confirmation ni action de l'ancienne branche n'est reprise) ; seul le contexte historique est amorcé.
   let replay: PreparedReplay | undefined;
   if (options.replayOf) {
-    if (!clientRunId || options.authority !== "owner" || attachments.length || learningOnly)
+    // P1 : la relecture exige l'admission native signée (jamais le loopback ni le drapeau legacy).
+    if (!clientRunId || !options.admission || attachments.length || learningOnly)
       return notSubmitted(normalizedSessionId, clientRunId, "replay_invalid");
     try { replay = await prepareReplay(options.replayOf.sessionId, options.replayOf.runId, normalizedSessionId); }
     catch (error: any) {
@@ -49,11 +51,20 @@ export async function submitIntent(
   }
   const replayOf = replay ? {sessionId: replay.sourceSessionId, runId: replay.runId} : undefined;
 
+  // P1 : bit d'admission de ce tour, persisté sur le run. Une clarification ouverte par un tour non admis
+  // n'est jamais reprise par un tour admis (aucun texte dérivé d'un tiers sur la connexion admin).
+  const ownerAdmitted = !learningOnly && options.admission !== undefined;
   let routingText = normalized;
   let parentClarificationRunId: string | undefined;
   let fastPathCheck: FastPathResult = { status: "miss", reason: "attachments_require_model" };
   if (attachments.length === 0 && !learningOnly) {
-    const pending = await findPendingClarificationRun(normalizedSessionId);
+    let pending = await findPendingClarificationRun(normalizedSessionId);
+    if (pending && pending.ownerAdmitted !== ownerAdmitted) {
+      // Admis face à une clarification non admise : abandonnée. Non admis face à une clarification admise : ignorée
+      // (un tiers ne peut ni la reprendre ni l'annuler).
+      if (ownerAdmitted) await markClarificationRun(pending.runId, "abandoned");
+      pending = null;
+    }
     if (pending) {
       const clarified = await runModelFastPath(normalized, {
         surface: "claw_live", caller: "owner", originId: clientRunId || normalizedSessionId,
@@ -79,7 +90,7 @@ export async function submitIntent(
   if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
     return executeCapabilityFirst(
       routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
-      parentClarificationRunId, replayOf,
+      parentClarificationRunId, replayOf, ownerAdmitted,
     );
   }
   if (fastPathCheck.status === "error") {
@@ -110,7 +121,7 @@ export async function submitIntent(
       submittedPrompt,
       normalizedSessionId,
       clientRunId,
-      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", decision: fastPathCheck.decision, replayOf },
+      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", decision: fastPathCheck.decision, replayOf, ownerAdmitted },
     );
     runId = reservation.status.runId;
     duplicate = !reservation.created;
@@ -119,9 +130,10 @@ export async function submitIntent(
 
   const accepted = acceptedRun(runId, normalizedSessionId);
   if (!clientRunId) {
-    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision });
+    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted });
   }
-  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority);
+  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority,
+    learningOnly ? undefined : options.admission, clientRunId);
 
   const message = describeOpenClawResult(accepted);
   return {
@@ -153,20 +165,21 @@ async function executeCapabilityFirst(
   check: FastPathResult,
   parentClarificationRunId?: string,
   replayOf?: {sessionId: string; runId: string},
+  ownerAdmitted = false,
 ): Promise<IntentSubmitResponse> {
   let runId = `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
   if (clientRunId) {
     const reservation = await reserveSubmittedRun(text, sessionId, clientRunId, {
       userText, attachments, requestText: text, executionSource: "capability_first",
-      decision: check.decision, parentClarificationRunId, replayOf,
+      decision: check.decision, parentClarificationRunId, replayOf, ownerAdmitted,
     });
     runId = reservation.status.runId;
     duplicate = !reservation.created;
     if (duplicate) return responseFromExisting(reservation.status, userText);
   } else {
     await rememberSubmittedRun(text, acceptedRun(runId, sessionId), {
-      userText, attachments, executionSource: "capability_first", decision: check.decision, parentClarificationRunId,
+      userText, attachments, executionSource: "capability_first", decision: check.decision, parentClarificationRunId, ownerAdmitted,
     });
   }
   if (parentClarificationRunId) {
@@ -279,14 +292,17 @@ async function submitIntentInBackground(
   userText: string,
   attachments: IntentAttachment[],
   authority?:"owner",
+  admission?: AdmissionTicket,
+  clientRunId?: string,
 ) {
   try {
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority});
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId});
+    if (admission) console.log(`[companion] P1 turn ${runId}: transport=${openclaw.ownerTransport}`);
     await rememberSubmittedRun(text, {
       ...openclaw,
       runId,
       sessionId,
-    }, { userText, attachments });
+    }, { userText, attachments, ownerAdmitted: admission !== undefined });
   } catch (error: any) {
     await markSubmittedRunFailed(
       runId,

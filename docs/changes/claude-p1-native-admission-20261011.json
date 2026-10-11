@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "id": "claude-p1-native-admission-20261011",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "P1 : admission native signée (clé Keystore enrôlée par biométrie) pour les tours owner de l'app, connexion Gateway admin dédiée par tour admis.",
+  "reason": "Les tours app arrivent avec senderIsOwner:false ; l'ancienne admission owner reposait sur le loopback seul (reproductible par tout processus local). Contrat playbooks 43 v2, revue 6108649302.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnAdmission.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-canonical-agent-bootstrap.cjs",
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/p1-owner-transport-admission.json",
+    "installer/termux-lite/companion-acceptance.py",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/p1-admission.md",
+    "docs/changes/claude-p1-native-admission-20261011.json",
+    "docs/changes/claude-p1-native-admission-20261011.md",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-edit-replay.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/callgatewayfromcli-signature.json",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-companion-acceptance-owner-transport.py",
+    "installer/termux-lite/test-skill-learning-acceptance.py"
+  ],
+  "tests": [
+    {
+      "name": "P1 admission adverse",
+      "status": "passed",
+      "evidence": "scripts/test-owner-turn-admission.cjs : 53 cas (44 initiaux + présentation non canonique, statut sans keyId, contrat de signature callGatewayFromCli figé sur fixture S24, ownerTransport persisté/listé, replayOf sans preuve 403 et avec preuve admin, CLARIFY confused deputy dans les deux sens, permissions du fichier d'enrôlement). Inscrit dans ci.yml."
+    },
+    {
+      "name": "Édition-relecture avec admission",
+      "status": "passed",
+      "evidence": "scripts/test-edit-replay.cjs adapté : preuve signée, replayOf sans preuve (loopback, en-tête constant) => 403 owner_required."
+    },
+    {
+      "name": "Recette alerte transport owner",
+      "status": "passed",
+      "evidence": "installer/termux-lite/test-companion-acceptance-owner-transport.py (3 tests), inscrit dans ci.yml."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p1-admission.md",
+    "docs/changes/claude-p1-native-admission-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Routes natives de sécurité (NO_CAPABILITY) : état, enrôlement biométrique et révocation de l'admission ; jamais exposées à l'agent ni à la voix."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Frontière d'admission dans le Companion ; réutilise confirmations (biométrie), le fichier d'état Companion et callGatewayFromCli d'OpenClaw ; aucun store, routeur, scheduler ni démon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Seul POST /v1/runs de l'app change d'autorité ; les outils MCP ne passent pas par ce chemin."
+  },
+  "rollback": "Revert de la PR : retour au non-owner partout et au contexte loopback ; fichier d'enrôlement ignoré.",
+  "limitations": [
+    "Signature callGatewayFromCli et présence de owner-confirmation-public.pem confirmées en lecture seule sur le S24 (claw_exec p1adm-20261011-r03) ; aucun tour réel exécuté.",
+    "Recettes de tours réels owner/non-owner, révocation pendant un tour et annulation à jouer sur Gateway isolé avec jeton jetable.",
+    "Processus de l'UID Termux restent équivalents owner (jeton Gateway) ; fenêtre de rejeu ≤ 30 s après redémarrage neutralisée par la déduplication clientRunId.",
+    "Ordre : APK #183 avant ce Companion (précondition companion-deploy)."
+  ]
+}

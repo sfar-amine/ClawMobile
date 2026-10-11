@@ -56,6 +56,15 @@ git fetch -q "$REMOTE" "$BRANCH" >>"$log" 2>&1 || { write failed "$target" "$pre
 full="$(git rev-parse --verify "$target^{commit}" 2>/dev/null)" || { write failed "$target" "$previous" "unknown_commit"; exit 5; }
 git merge-base --is-ancestor "$full" "$REMOTE/$BRANCH" || { write refused "$full" "$previous" "commit_not_on_branch"; exit 5; }
 
+# P1 (#182) : l'admission native retire l'autorité loopback de /v1/runs. L'APK qui signe les tours (#183) doit être
+# installé AVANT ce Companion, sinon tous les tours de l'app deviennent non-owner jusqu'à l'installation et l'enrôlement.
+# Précondition refus-seulement : confirmée une fois par Claude (marqueur) ou explicitement pour ce déploiement.
+P1_FILE="openclaw-plugin-mobile-ui/src/companion/ownerTurnAdmission.ts"
+if git cat-file -e "$full:$P1_FILE" 2>/dev/null && ! git cat-file -e "$previous:$P1_FILE" 2>/dev/null \
+   && [ ! -f "$STATE/p1-app-admission-installed" ] && [ "${COMPANION_DEPLOY_P1_APP_READY:-}" != "1" ]; then
+  write refused "$full" "$previous" "p1_app_admission_not_installed"; echo "$receipt"; exit 5
+fi
+
 backup="$BACKUPS/companion-${previous:0:7}-$stamp"; mkdir -p "$backup" && cp -a "$PLUGIN/dist" "$backup/" || { write failed "$full" "$previous" "backup_failed"; exit 5; }
 # Bounded backups: keep the newest KEEP_BACKUPS Companion dist copies.
 ls -dt "$BACKUPS"/companion-* 2>/dev/null | tail -n +$((KEEP_BACKUPS+1)) | xargs -r rm -rf
