@@ -53,6 +53,8 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
+      - name: HS8 SDK export proof and memo transcript boundary (inactive)
+        run: node scripts/test-memo-stt-boundary.cjs && node scripts/test-memo-stt-owner.cjs && node scripts/test-memo-sdk-resolution.cjs
       - name: Run edit-and-replay contract (édition d'un message envoyé, audit sans suppression)
         run: node scripts/test-edit-replay.cjs
 
@@ -313,6 +315,8 @@ jobs:
       - name: O10 voice admits the low-risk owner decision record, never payment or confirmed paths
         run: node scripts/test-voice-low-risk-admission.cjs
 
+      - name: HS8 memo owner pipeline idempotence and canonical text continuation
+        run: node scripts/test-memo-intent-pipeline.cjs && node scripts/test-memo-deferred-retry.cjs && node scripts/test-memo-p1-http.cjs
       - name: R1 model usage roles from canonical config owner
         run: node scripts/test-model-roles.cjs
 
