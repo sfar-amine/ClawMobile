@@ -1,0 +1,41 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-10T20:48:43Z",
+  "host": "Samsung S24 / Termux",
+  "companion": "f95be8d",
+  "gateway": "OpenClaw 2026.9.6",
+  "route": "/conversations/<conversation « Mon solde Orange »>/metadata",
+  "status": 200,
+  "seconds": 4.07,
+  "readOnly": true,
+  "method": "claw_exec: curl -H 'Connection: close' http://127.0.0.1:8765/v1/conversations/<conversation « Mon solde Orange »>/metadata",
+  "sanitized": "amounts replaced by fictitious values; account handles, revision and private session ids replaced; account e-mail fields removed",
+  "note": "real samantha-<uuid> session id replaced"
+ },
+ "response": {
+  "success": true,
+  "state": "degraded",
+  "receipt": null,
+  "sessionId": "samantha-00000000-0000-4000-8000-00000000000a",
+  "readOnly": true,
+  "thinkingLevel": null,
+  "thinkingLevelSource": null,
+  "thinkingLevels": [],
+  "hasActiveRun": null,
+  "thinkingChangeAvailable": false,
+  "context": null,
+  "title": null,
+  "pinned": null,
+  "model": null,
+  "modelAuthProfile": null,
+  "modelAccount": null,
+  "modelSource": null,
+  "mutationAvailable": false,
+  "models": [],
+  "modelChangeAvailable": false,
+  "lastActivityAt": 1791621668937,
+  "issues": [
+   "conversation_gateway_session_unavailable"
+  ]
+ }
+}
