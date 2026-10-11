@@ -45,6 +45,7 @@ import { capabilityBridge } from "./capabilityBridge";
 import { SurfaceClarifications } from "../capabilityClarification";
 import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
+import { clawLiveCapability, clawLiveDecision } from "./clawLiveUnderstanding";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
 import { archiveSession, deleteSession, deleteRun, getRunStatus, getRunStatusByClientRunId, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
@@ -851,12 +852,13 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/decision") {
     const body = await readJsonBody<any>(req);
-    const result = await capabilityBridge(String(body?.request || ""), {
+    // Lot 41 V2: a listed correction gesture after a voice turn needs no resolver call.
+    const result: any = await clawLiveDecision(clawLiveWarmCore, String(body?.request || ""), () => capabilityBridge(String(body?.request || ""), {
       execute: false,
       surface: "claw_live",
       caller: "owner",
       timeoutSeconds: 10,
-    });
+    }));
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
@@ -864,20 +866,18 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/capability") {
     const body = await readJsonBody<any>(req);
-    // 38 E3: canonical CLARIFY + resolve-clarification first, then the existing executor.
-    const execute = () => clawLiveCapabilityTurn(
+    // Shared understanding wraps the canonical clarification owner; warm admission happens once.
+    const execute = (request: string) => clawLiveCapabilityTurn(
       {
-        request: body?.request,
-        // Android v2 has no clarificationId field: its pending question is scoped to the owned voice session.
+        request,
         clarificationId: typeof body?.clarificationId === "string" ? body.clarificationId
           : body?.voiceTurn?.sessionEpoch !== undefined ? SurfaceClarifications.idFor("claw-live:" + String(body.voiceTurn.sessionEpoch)) : undefined,
         originId: body?.voiceTurn?.turnId ? "claw-live-" + String(body.voiceTurn.turnId) : undefined,
       },
       (text) => capabilityBridge(text, { execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35 }),
     );
-    const result = body?.voiceTurn
-      ? await clawLiveWarmCore.executeVoiceCapability(body.voiceTurn,String(body?.request||""),execute)
-      : await execute();
+    const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute);
+
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
