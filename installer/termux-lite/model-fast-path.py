@@ -245,6 +245,30 @@ def capability_first_eligibility(value: dict[str, Any]) -> tuple[str, str]:
     return "eligible", "capability_first"
 
 
+_presentation_module = None
+
+def _presentation_metadata(value):
+    if not isinstance(value, dict) or not isinstance(value.get("presentation"), dict):
+        return {}
+    global _presentation_module
+    if _presentation_module is None:
+        spec = importlib.util.spec_from_file_location("_hs3_presentation_read", Path(__file__).with_name("receipt-presentation-read.py"))
+        _presentation_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_presentation_module)
+    return _presentation_module.read(value) or {}
+
+
+def _understood_prefix(metadata, text):
+    understood = (metadata.get("presentation") or {}).get("understood") if metadata else None
+    line = understood.get("text") if isinstance(understood, dict) and understood.get("capability") else None
+    return f"{line}\n{text}" if line and text else (text or line or "")
+
+
+def _presentation_display(value):
+    metadata = _presentation_metadata(value)
+    return _presentation_module.display(metadata) if metadata else None
+
+
 # Reuse the canonical memory import privacy boundary for free text only.
 # Do not apply its number/OTP heuristic to structured telecom amounts.
 _display_privacy_spec = importlib.util.spec_from_file_location(
@@ -324,6 +348,10 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
     remaining[0] -= 1
     if depth >= 4 or remaining[0] < 0:
         return "Résultat disponible auprès de Claw ; détails non affichables en texte."
+    if depth == 0:
+        presented = _presentation_display(value)
+        if presented:
+            return presented
     if isinstance(value, dict):
         cards = _telecom_cards(value)
         if cards:
@@ -743,10 +771,13 @@ def try_fast_path(
         execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
         state = str(execution.get("state") or "")
         selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
+        metadata = _presentation_metadata(executed)
         if state in SAFE_EXECUTION_STATES:
             payload = execution.get("result")
             return {
-                "status": "hit", "source": "capability", "text": _display_text(payload),
+                # Business rendering of the owner result (O7 cards…), preceded by the HS3 « Compris » line.
+                "status": "hit", "source": "capability", "text": _understood_prefix(metadata, _display_text(payload)),
+                **metadata,
                 "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
                 "route": selected.get("route"), "capability": selected.get("capability"),
                 "execution_state": state, "decision": executed.get("decision") or decision or None,
@@ -754,16 +785,20 @@ def try_fast_path(
                 "model_bypassed": True,
             }
         if state in ASSISTED_EXECUTION_STATES:
-            return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None}
+            return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None, **metadata}
         if state == "confirmation_required":
-            return _execute_declared_handoff(
+            handed = _execute_declared_handoff(
                 executed, message, ui_root=ui_root, surface=surface, caller=caller,
                 origin_id=origin_id, timeout=timeout,
             ) | {"decision": executed.get("decision") or decision or None}
+            # The Graph metadata describes the pending confirmation (« Compris : … ») only
+            # when the handoff opened; a failed handoff keeps the generic error fallback.
+            return handed | metadata if handed.get("status") == "hit" else handed
         payload = execution.get("result")
         composed = (selected.get("execution_contract") or {}).get("strategy") == "composed_read"
         error_result = {
             "status": "known_error", "reason": state or "known_execution_failed",
+            **metadata,
             "text": "Claw a identifié la capacité mais son exécution n'a pas atteint un état terminal vérifié.",
             "resolution": executed, "decision": executed.get("decision") or decision or None,
             "model_bypassed": True,
@@ -771,6 +806,8 @@ def try_fast_path(
         }
         if composed and isinstance(payload, dict):
             error_result.update(text=_display_text(payload), result=payload, execution_state=state)
+        if metadata:
+            error_result["text"] = _display_text(executed)
         return error_result
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}

@@ -1,0 +1,260 @@
+{
+ "provenance": {
+  "captured_at": "2026-10-11T02:00Z-08:16Z",
+  "device": "S24 (Termux, profil owner)",
+  "captured_by": "Claude via claw_exec / claw_resolve / claw_execute (lecture, tours inoffensifs)",
+  "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+  "p1_merge": "7210959cde605406ffe9e07e0e37db30faf17748 (core #107)",
+  "companion_deploy_receipt": {
+   "file": "companion-20261011T024525.json",
+   "state": "deployed",
+   "target": "7210959cde605406ffe9e07e0e37db30faf17748",
+   "previous": "e7afceb9669a95cee3127adfaebc4b7a4518d83f",
+   "acceptance_accepted": true,
+   "acceptance_checks": 49,
+   "warnings": [],
+   "sha256_16": "979d2e0de126e921"
+  },
+  "gateway_plugin_receipt": {
+   "file": "gateway-plugin-20261011T015736.json",
+   "state": "deployed",
+   "target": "7210959cde605406ffe9e07e0e37db30faf17748",
+   "owner": "clawmobile_install_plugin (installer/termux-lite/lib.sh) + Companion POST /v1/runtime/restart",
+   "backup": "~/.openclaw/backups/gateway-plugin-20261011T015736",
+   "verification": {
+    "factory_registration": true,
+    "caller_not_admitted_in_dist": true,
+    "gateway_log_plugin_error_lines": 0
+   },
+   "sha256_16": "4d06a1ca0955360d"
+  },
+  "privacy": "aucun numéro, texte utilisateur, contact, jeton ni secret ; seuls des bits d'admission, des raisons, des compteurs et des empreintes tronquées"
+ },
+ "why_gateway_refresh": "Le Gateway charge le plugin depuis ~/.openclaw/extensions/openclaw-plugin-mobile-ui (copie installée le 2026-10-08, enregistrement statique avec `const caller = args.caller || \"owner\"`). companion-deploy.sh ne construit que ~/ClawMobile/openclaw-plugin-mobile-ui et ne redémarre que le serveur Companion ; companion-server.sh ne réinstalle le plugin que si CLAWMOBILE_COMPANION_INSTALL_PLUGIN=1. Sans rafraîchissement, P1 n'était pas actif dans le Gateway. Écart Gateway avant rafraîchissement : index.js (hunk P1 seul), capabilityTool.js, modelFastPath.js (checkBudgetMs optionnel, sans effet s'il est absent).",
+ "host_owner_bit_source": {
+  "openclaw_2026_9_6_read": "dist/chat-send-handler-*.mjs : senderIsOwner = hasGatewayAdminScope(client) ; dist/agent-tools-*.mjs transmet options.senderIsOwner au contexte des factories d'outils de plugin. Le bit vient du client Gateway authentifié ou du canal entrant, jamais des arguments d'outil.",
+  "conclusion": "senderIsOwner est posé par l'hôte ; l'argument `caller` du modèle n'entre plus dans l'admission (voir probe)."
+ },
+ "factory_probe_on_gateway_loaded_bytes": {
+  "method": "node : require(~/.openclaw/extensions/openclaw-plugin-mobile-ui/dist/index.js).register(api factice) ; la factory enregistrée est appelée avec le contexte hôte de chaque surface ; child_process instrumenté pour compter les helpers lancés. Requête 'quelle heure est-il ?'. Aucun modèle, aucune exécution (le seul cas owner est en résolution seule).",
+  "dist": {
+   "index_sha256": "c706305da13b2e70",
+   "capabilityTool_sha256": "eefae899b599b067"
+  },
+  "registration": {
+   "kind": "factory",
+   "static_tool_registered": false,
+   "name": "clawmobile_capability"
+  },
+  "cases": [
+   {
+    "label": "companion-chat: non-owner host, forged caller owner, execute true",
+    "host_senderIsOwner": false,
+    "model_args": {
+     "caller": "owner",
+     "execute": true
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "companion-chat: non-owner host, forged caller trusted",
+    "host_senderIsOwner": false,
+    "model_args": {
+     "caller": "trusted",
+     "execute": false
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "whatsapp: non-owner host, forged caller owner, execute true",
+    "host_senderIsOwner": false,
+    "model_args": {
+     "caller": "owner",
+     "execute": true
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "whatsapp: non-owner host, forged caller trusted",
+    "host_senderIsOwner": false,
+    "model_args": {
+     "caller": "trusted",
+     "execute": false
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "mcp: non-owner host, forged caller owner, execute true",
+    "host_senderIsOwner": false,
+    "model_args": {
+     "caller": "owner",
+     "execute": true
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "mcp: non-owner host, forged caller trusted",
+    "host_senderIsOwner": false,
+    "model_args": {
+     "caller": "trusted",
+     "execute": false
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "voice: non-owner host, forged caller owner, execute true",
+    "host_senderIsOwner": false,
+    "model_args": {
+     "caller": "owner",
+     "execute": true
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "voice: non-owner host, forged caller trusted",
+    "host_senderIsOwner": false,
+    "model_args": {
+     "caller": "trusted",
+     "execute": false
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "host bit absent, forged owner + execute",
+    "host_senderIsOwner": "<absent>",
+    "model_args": {
+     "caller": "owner",
+     "execute": true
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "host bit absent, execute without caller",
+    "host_senderIsOwner": "<absent>",
+    "model_args": {
+     "caller": "<absent>",
+     "execute": "<absent>"
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "host bit string 'true' (not boolean)",
+    "host_senderIsOwner": "true",
+    "model_args": {
+     "caller": "owner",
+     "execute": true
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "owner host, expired invocation (assertInvocationCurrent throws)",
+    "host_senderIsOwner": true,
+    "model_args": {
+     "caller": "<absent>",
+     "execute": false
+    },
+    "status": "error",
+    "reason": "caller_not_admitted",
+    "caller_used": null,
+    "helper_processes_spawned": 0
+   },
+   {
+    "label": "owner host, model caller owner, resolve only",
+    "host_senderIsOwner": true,
+    "model_args": {
+     "caller": "owner",
+     "execute": false
+    },
+    "status": "ok",
+    "reason": null,
+    "caller_used": "owner",
+    "helper_processes_spawned": 1
+   }
+  ],
+  "total_helper_processes_spawned_by_refusals": 0
+ },
+ "real_turns_by_surface": {
+  "app": {
+   "captured": true,
+   "surface": "companion-chat (POST /v1/runs loopback, session dédiée p1-capture-20261011)",
+   "turn_1": {
+    "request": "quelle heure est-il ?",
+    "openclaw_turn": true,
+    "host_senderIsOwner": false,
+    "tools_called": [
+     "exec (date -u)"
+    ],
+    "clawmobile_capability_called": false,
+    "effect": "aucun"
+   },
+   "turn_2": {
+    "request": "lecture du niveau de batterie (demande explicite de passer par clawmobile_capability caller owner execute true)",
+    "openclaw_turn": false,
+    "served_by": "fast path Companion (autorité owner donnée par la surface loopback admise, pas par le modèle)",
+    "state": "done",
+    "duration_s": 1.5,
+    "effect": "lecture batterie, aucun effet"
+   },
+   "note": "Les tours app atteignent le modèle avec senderIsOwner:false (client Gateway du Companion sans portée admin). Depuis P1, un appel de l'outil du modèle sur ces tours est refusé (caller_not_admitted) ou résolu en 'other' (le Capability Graph n'autorise aucune ligne pour 'other') ; les routes Known restent servies par le fast path Companion."
+  },
+  "mcp": {
+   "captured": true,
+   "surface": "pont MCP authentifié (profil chat-owner)",
+   "resolve": {
+    "request": "quelle heure est-il ?",
+    "caller": "owner (posé par le pont, pas par le modèle)",
+    "decision": "REASON",
+    "capability": null
+   },
+   "execute": {
+    "delegated": true,
+    "state": "completed",
+    "effect": "aucun",
+    "answer_correct": true
+   },
+   "historical_host_bit_for_mcp_sessions": "false (9/9, capture du 10/10)"
+  },
+  "whatsapp": {
+   "captured": false,
+   "reason": "Aucun canal owner/self ne peut être provoqué sans Amine. Le seul tour owner réel après le rafraîchissement (02:00:32Z) a échoué avant le modèle : préflight de compaction (transcription 2,6 Mo > 1,6 Mo) qui exige le runtime 'codex', désactivé dans la config (owner-plugin-not-activatable). Bit hôte des derniers messages owner persistés (09/10) : senderIsOwner:true.",
+   "model_supplied_caller": "couvert par la probe sur les octets chargés (refus caller_not_admitted, 0 helper)"
+  },
+  "voice": {
+   "captured": false,
+   "reason": "La voix ne passe pas par un tour OpenClaw : Claw Live expose au modèle un schéma réduit à `request` (aucun `caller` possible) et appelle /v1/extensions/claw-live/capability côté Companion ; voiceRelay fixe caller côté serveur."
+  }
+ }
+}
