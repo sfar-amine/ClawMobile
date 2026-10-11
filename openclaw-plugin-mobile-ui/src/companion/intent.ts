@@ -1,22 +1,75 @@
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision} from "./receiptPresentation";
 import crypto from "crypto";
+import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
+import {transcribeMemoAttachment} from "./memoSttOwner";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { appendVoiceConversationContext, findPendingClarificationRun, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun } from "./runs";
+import { appendVoiceConversationContext, findPendingClarificationRun, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
 
-export async function submitIntent(
+type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"};
+
+/** The HTTP owner passes only ordinary submission fields. Continuation never comes from request data. */
+export async function submitIntent(text: string, sessionId = "default", attachments: IntentAttachment[] = [],
+  options: SubmissionOptions = {}): Promise<IntentSubmitResponse> {
+  if (attachments.some(a => a.mimeType?.startsWith("audio/"))) {
+    return submitMemoIntent(text, sessionId, attachments, options);
+  }
+  return submitTextIntent(text, sessionId, attachments, options);
+}
+
+async function submitMemoIntent(text: string, sessionId: string, attachments: IntentAttachment[],
+  options: SubmissionOptions): Promise<IntentSubmitResponse> {
+  const session = normalizeCompanionSessionId(sessionId);
+  if (!MEMO_STT_QUALIFICATION.success) return notSubmitted(session, options.clientRunId, "Le mémo vocal n’est pas encore disponible.");
+  const audio = attachments[0];
+  if (options.authority !== "owner" || options.learningOnly || text.trim() || attachments.length !== 1 ||
+      audio?.mimeType !== "audio/mp4" || !/^[A-Za-z0-9_-]{1,100}$/.test(audio.serverId || audio.id || "")) {
+    return notSubmitted(session, options.clientRunId, "Le mémo vocal ne peut pas être envoyé.");
+  }
+  const attachmentId = audio.serverId || audio.id;
+  const identity = "memo:" + attachmentId;
+  const clientRunId = options.clientRunId || "memo_" + crypto.createHash("sha256").update(JSON.stringify([session, attachmentId])).digest("hex");
+  const reservation = await reserveSubmittedRun(identity, session, clientRunId, {
+    userText: "Mémo vocal", attachments, requestText: identity, executionSource: "capability_first", memoAttachmentId: attachmentId,
+  });
+  if (reservation.created) {
+    // One durable reservation is the worker claim. A duplicate/restart never invokes STT again.
+    void continueMemoIntent(reservation.status.runId, session, clientRunId, attachmentId, options.authority);
+  }
+  return {...responseFromExisting(reservation.status, reservation.status.userText || "Mémo vocal"), duplicate: !reservation.created};
+}
+
+async function continueMemoIntent(runId: string, sessionId: string, clientRunId: string, attachmentId: string,
+  authority: "owner"): Promise<void> {
+  try {
+    const transcript = await transcribeMemoAttachment(attachmentId);
+    if (!transcript.success) {
+      await markSubmittedRunFailed(runId, "Transcription du mémo indisponible.");
+      return;
+    }
+    if (!await claimMemoTranscript(runId, attachmentId, transcript.text)) return;
+    const result = await submitTextIntent(transcript.text, sessionId, [], {userText: transcript.text, clientRunId, authority}, runId);
+    if (!result.accepted) await markSubmittedRunFailed(runId, "Le mémo n'a pas pu être pris en charge.");
+  } catch {
+    // Never expose provider errors, paths, config or raw details; never retry an uncertain effect.
+    await markSubmittedRunFailed(runId, "Transcription du mémo indisponible.");
+  }
+}
+
+async function submitTextIntent(
   text: string,
   sessionId = "default",
   attachments: IntentAttachment[] = [],
-  options: { userText?: string; clientRunId?: string; learningOnly?: true; authority?:"owner" } = {},
+  options: SubmissionOptions = {},
+  reservedMemoRunId?: string,
 ): Promise<IntentSubmitResponse> {
-  const normalized = text.trim();
-  const visibleUserText = (options.userText || normalized).trim();
+  const normalized = reservedMemoRunId ? text : text.trim();
+  const visibleUserText = reservedMemoRunId ? text : (options.userText || normalized).trim();
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
   const clientRunId = String(options.clientRunId || "").trim() || undefined;
   const learningOnly = options.learningOnly === true;
@@ -25,7 +78,7 @@ export async function submitIntent(
     return notSubmitted(normalizedSessionId, clientRunId, "Intent text is required.");
   }
 
-  if (clientRunId) {
+  if (clientRunId && !reservedMemoRunId) {
     const existing = await findSubmittedRunByClientRunId(clientRunId, {
       text: normalized,
       sessionId: normalizedSessionId,
@@ -65,7 +118,7 @@ export async function submitIntent(
   if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
     return executeCapabilityFirst(
       routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
-      parentClarificationRunId,
+      parentClarificationRunId, reservedMemoRunId,
     );
   }
   if (fastPathCheck.status === "error") {
@@ -88,9 +141,11 @@ export async function submitIntent(
   const routed = learningOnly ? null : buildAutoSkillContextForIntent(promptWithAttachments);
   const submittedPrompt = learningOnly ? promptWithAttachments : await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
 
-  let runId = `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
-  if (clientRunId) {
+  if (reservedMemoRunId) {
+    if (!await claimMemoDispatch(runId, normalized, "gateway")) return notSubmitted(normalizedSessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
+  } else if (clientRunId) {
     const reservation = await reserveSubmittedRun(
       submittedPrompt,
       normalizedSessionId,
@@ -136,10 +191,13 @@ async function executeCapabilityFirst(
   clientRunId: string | undefined,
   check: FastPathResult,
   parentClarificationRunId?: string,
+  reservedMemoRunId?: string,
 ): Promise<IntentSubmitResponse> {
-  let runId = `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
-  if (clientRunId) {
+  if (reservedMemoRunId) {
+    if (!await claimMemoDispatch(runId, userText, "capability_first", check.decision, parentClarificationRunId)) return notSubmitted(sessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
+  } else if (clientRunId) {
     const reservation = await reserveSubmittedRun(text, sessionId, clientRunId, {
       userText, attachments, requestText: text, executionSource: "capability_first",
       decision: check.decision, parentClarificationRunId,
