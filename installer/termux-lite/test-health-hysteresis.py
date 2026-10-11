@@ -1,39 +1,51 @@
-import importlib.util,json,time,unittest
+"""F5 regression evidence for the canonical health owner, using S24 #131."""
+import importlib.util,json,tempfile,unittest
 from pathlib import Path
+from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location('verdict',Path(__file__).with_name('health-verdict.py'));v=importlib.util.module_from_spec(spec);spec.loader.exec_module(v)
 FIXTURE=ROOT/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11b/f5/health-correlated-window.json'
 class Hysteresis(unittest.TestCase):
- def test_real_window_remains_degraded(self):
-  data=json.loads(FIXTURE.read_text());previous={};started=time.monotonic()
-  for values in data['samples']['rows']:
-   row=dict(zip(data['samples']['columns'],values));now=row['verdict.generated_at']
-   caps={}
-   for key,age in [('control_plane.maintenance','maintenance_last.age_s'),('transactions.runtime','transaction_health.age_s')]:
-    self.assertLess(row[age],v.MAINTENANCE_FRESH_S)
-    # Both canonical owners reported degraded, including during false stale.
-    caps[key]={'state':'degraded','reason':'transaction_health'}
-   v.stabilize_components(caps,previous,now)
-   self.assertEqual([c['state'] for c in caps.values()],['degraded','degraded'])
-   previous={'generated_at':now,'capabilities':caps}
-  self.assertLess(time.monotonic()-started,.1)
- def test_two_observations_both_directions_and_hard_failure(self):
-  previous={'generated_at':100,'capabilities':{'transactions.runtime':{'state':'healthy','reason':'ok'}}}
-  def step(state,now):
-   nonlocal previous
-   caps={'transactions.runtime':{'state':state,'reason':'observation'}}
-   v.stabilize_components(caps,previous,now);previous={'generated_at':now,'capabilities':caps};return caps['transactions.runtime']
-  self.assertEqual(step('degraded',160)['state'],'healthy')
-  self.assertEqual(step('degraded',220)['state'],'degraded')
-  self.assertEqual(step('healthy',280)['state'],'degraded')
-  self.assertEqual(step('healthy',340)['state'],'healthy')
-  self.assertEqual(step('down',400)['state'],'down')
-  self.assertEqual(step('unverified',460)['state'],'unverified')
- def test_stale_previous_does_not_hide_failure(self):
+ def test_real_window_has_no_mechanical_stale_and_keeps_degradation(self):
+  data=json.loads(FIXTURE.read_text())
+  self.assertEqual(v.MAINTENANCE_CADENCE_S,data['maintenanceJob']['schedule']['everyMs']/1000)
+  with tempfile.TemporaryDirectory() as directory:
+   owner=Path(directory);receipt=owner/'autonomous-engineering/maintenance-last.json';receipt.parent.mkdir()
+   for values in data['samples']['rows']:
+    row=dict(zip(data['samples']['columns'],values))
+    receipt.write_text(json.dumps({'checked_at':row['maintenance_last.checked_at'],'task_health':{},'semantic_health':{'state':'attention_required','attention':[{'component':'transaction_health'}]}}))
+    with patch.object(v,'OC',owner),patch.object(v,'NOW',row['verdict.generated_at']):
+     observed=v.maintenance_view()
+    self.assertEqual(observed['state'],'observed')
+    self.assertEqual(observed['semantic_state'],'degraded')
+    self.assertLess(row['transaction_health.age_s'],v.MAINTENANCE_RECEIPT_STALE_S)
+ def test_two_attention_observations_and_immediate_recovery_or_down(self):
+  previous={'capabilities':{'transactions.runtime':{'state':'healthy'}}}
+  first={'transactions.runtime':{'state':'degraded','reason':'real_failure'}}
+  v.apply_hysteresis(first,previous)
+  self.assertEqual(first['transactions.runtime']['state'],'healthy')
+  self.assertEqual(first['transactions.runtime']['observed_state'],'degraded')
+  self.assertEqual(first['transactions.runtime']['pending_attention']['reason'],'real_failure')
+  second={'transactions.runtime':{'state':'degraded','reason':'real_failure'}}
+  v.apply_hysteresis(second,{'capabilities':first})
+  self.assertEqual(second['transactions.runtime']['state'],'degraded')
+  for state in ('healthy','down'):
+   caps={'transactions.runtime':{'state':state}}
+   v.apply_hysteresis(caps,{'capabilities':second})
+   self.assertEqual(caps['transactions.runtime']['state'],state)
+ def test_previous_receipt_freshness_and_missing_evidence(self):
+  with tempfile.TemporaryDirectory() as directory:
+   path=Path(directory)/'current.json'
+   with patch.object(v,'NOW',1000):
+    for stamp,valid in ((700,True),(699,False),(1001,False)):
+     path.write_text(json.dumps({'generated_at':stamp,'capabilities':{'transactions.runtime':{'state':'healthy'}}}))
+     self.assertEqual(v.previous_verdict(path) is not None,valid)
   caps={'transactions.runtime':{'state':'degraded'}}
-  v.stabilize_components(caps,{'generated_at':1,'capabilities':{'transactions.runtime':{'state':'healthy'}}},500)
+  v.apply_hysteresis(caps,None)
   self.assertEqual(caps['transactions.runtime']['state'],'degraded')
- def test_real_failure_window(self):
-  rows=json.loads(FIXTURE.read_text())['transactionFailuresAtEnd']['failures']
-  self.assertEqual(sum(r['count']>=2 and 0<=r['minutesSinceLastSeen']*60<=v.TRANSACTION_WINDOW_S for r in rows),1)
+ def test_real_failure_count_uses_receipt_owner_time(self):
+  data=json.loads(FIXTURE.read_text())['transactionFailuresAtEnd'];reference=data['checked_at']
+  failures={row['signature']+str(i):{'count':row['count'],'last_seen':reference-row['minutesSinceLastSeen']*60} for i,row in enumerate(data['failures'])}
+  with patch.object(v,'NOW',reference+86400):
+   self.assertEqual(v.repeated_failures({'checked_at':reference,'failures':failures}),1)
 if __name__=='__main__':unittest.main()

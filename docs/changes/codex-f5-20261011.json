@@ -5,10 +5,9 @@
   "kind": "repair",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Align maintenance freshness and confirm soft health transitions twice.",
-  "reason": "S24 cadence is 900 seconds plus runtime, while verdict expires at 660 seconds.",
+  "summary": "Qualify canonical health cadence and attention hysteresis with S24 #131 evidence.",
+  "reason": "Runtime already owns the 1200-second freshness and 300-second attention hysteresis; remove the parallel earlier candidate.",
   "files": [
-    "installer/termux-lite/health-verdict.py",
     "installer/termux-lite/test-health-hysteresis.py",
     ".github/workflows/ci.yml",
     "docs/changes/codex-f5-20261011.md",
@@ -16,14 +15,9 @@
   ],
   "tests": [
     {
-      "name": "health-verdict",
-      "status": "passed",
-      "evidence": "13 tests"
-    },
-    {
-      "name": "health-hysteresis",
-      "status": "passed",
-      "evidence": "4 tests with S24 #131"
+      "name": "health-verdict-and-hysteresis",
+      "status": "pending",
+      "evidence": "Final-head complete local CI pending. Four F5 regressions exercise the existing owner and actual S24 #131 window; historical prior-candidate counts do not qualify this head."
     }
   ],
   "documentation": [
@@ -51,6 +45,6 @@
   },
   "rollback": "Revert commit; no migration.",
   "limitations": [
-    "S24 observation and deployment remain with Claude."
+    "Claude performs the new live 18-sample recipe and Tier0 promotion with Amine. No activation claimed."
   ]
 }
