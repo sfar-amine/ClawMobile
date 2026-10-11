@@ -61,7 +61,10 @@ def card_candidate(value):
 
 
 # Only committed public source paths can relax a private-looking basename.
-PUBLIC_FIXTURE_PATHS = frozenset({'core/installer/termux-lite/test-workspace-secret-scan.py'})
+PUBLIC_FIXTURE_PATHS = frozenset({
+    'core/installer/termux-lite/test-workspace-secret-scan.py',
+    'core_installer/termux-lite/test-workspace-secret-scan.py',
+})
 
 
 def accepted_signature_rows():
@@ -288,7 +291,9 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
         if exhausted(): partial(); break
         try: fd = open_root(path)
         except OSError: partial(); continue
-        public_files = public_evidence if label == 'core' and Path(path).absolute() == Path(__file__).resolve().parents[2] else {}
+        repository = Path(__file__).resolve().parents[2]
+        public_anchors = {'core': repository, 'core_installer': repository / 'installer'}
+        public_files = public_evidence if label in public_anchors and Path(path).absolute() == public_anchors[label] else {}
         attested_files.clear()
         try: visit(fd, safe_name(label))
         finally: os.close(fd)

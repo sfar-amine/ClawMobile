@@ -15,7 +15,8 @@
     ".github/workflows/ci.yml",
     "docs/work/samantha-runtime/contracts/j1-card-detector.md",
     "docs/changes/codex-j1-card-detector-20261011.md",
-    "docs/changes/codex-j1-card-detector-20261011.json"
+    "docs/changes/codex-j1-card-detector-20261011.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/j1/secret-scan-before.json"
   ],
   "tests": [
     {
@@ -51,6 +52,7 @@
   "rollback": "Revert this lot; no migration or new persistent owner.",
   "limitations": [
     "Claude must provide cleaned S24 before/after finding metadata to establish the actual reduction; no improvement count claimed.",
-    "Local full final-head CI pending. Activation and budget decision remain with Claude and Amine."
+    "Local full final-head CI pending. Activation and budget decision remain with Claude and Amine.",
+    "Claude PR170 before-capture is partial at the unchanged 10-second budget; no comparison with the 346 reference findings or after-reduction is possible yet."
   ]
 }
