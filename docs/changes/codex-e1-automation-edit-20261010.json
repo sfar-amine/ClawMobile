@@ -78,8 +78,8 @@
   },
   "rollback": "Revert de la PR (route PATCH, champ revision du détail, ligne de recette). Aucun état S24 à restaurer.",
   "limitations": [
-    "Le prédicat protectedJob actuel protège les 18 automatisations du S24 (14 seulement par la clé structurelle payload) : E1 refuse en 409 tant que le propriétaire n'est pas corrigé (PR séparée, H6-bis).",
     "Budget PATCH mesuré en CI avec les latences CLI capturées (3,6 + 3,5 s) ; mesure production après déploiement par Claude.",
-    "Aucune mutation S24 faite pour cette PR ; seules lectures : schéma installé et clés de cron.list."
+    "Aucune mutation S24 faite pour cette PR ; seules lectures : schéma installé et clés de cron.list.",
+    "Reprise fichier 42 : intégration du propriétaire H6 #104 nécessaire avant prêt à fusionner. Aucun mot blacklisté ; protection fondée sur intention résolue. Suite locale entière sur SHA final à publier après exécution, sans réutiliser les décomptes historiques."
   ]
 }
