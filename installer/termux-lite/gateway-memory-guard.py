@@ -250,12 +250,15 @@ def main(argv=None):
         return 0
     pid = gateway_pid()
     row = evaluate(now, prev, probe_metrics(pid), pid, idle_proof, gateway_healthy)
-    if args.observe or os.environ.get("SAMANTHA_GATEWAY_MEMORY_RESTART") == "0":
+    # First activation is observation only: a restart request needs the explicit
+    # SAMANTHA_GATEWAY_MEMORY_RESTART=1 (no S24 env file owns this switch yet).
+    row["mode"] = "restart" if not args.observe and os.environ.get("SAMANTHA_GATEWAY_MEMORY_RESTART") == "1" else "observe"
+    if row["mode"] == "observe":
         if row["action"] == "restart_requested":
             row["action"] = "observe_only"
             row["last_attempt"] = prev.get("last_attempt") or {"at": 0, "state": "none"}
     write_receipt(row)
-    print(json.dumps({"action": row["action"], "reason": row["decision"]["reason"],
+    print(json.dumps({"action": row["action"], "mode": row["mode"], "reason": row["decision"]["reason"],
                       "pressure": row["pressure"]["reasons"]}, sort_keys=True))
     return 0
 

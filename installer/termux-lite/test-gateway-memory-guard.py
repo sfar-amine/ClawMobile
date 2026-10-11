@@ -214,6 +214,32 @@ class Main(unittest.TestCase):
             row = json.loads(receipt.read_text())
             self.assertEqual(row["last_attempt"], {"at": 0, "state": "none"})
             self.assertEqual(oct(receipt.stat().st_mode & 0o777), "0o600")
+            self.assertEqual(row["mode"], "observe")
+
+    def _granted(self, env):
+        with tempfile.TemporaryDirectory() as td:
+            receipt = Path(td) / "g.json"
+            receipt.write_text(json.dumps({"version": 1, "pressure": {"since": time.time() - 700}, "last_attempt": {"at": 0, "state": "none"}}))
+            ok = ({k: 0 for k in ("gateway_tasks", "cron_runs", "companion_runs", "remote_bridge", "deploy", "heavy_job", "payments", "confirmations")}, None)
+            clean = {k: v for k, v in os.environ.items() if k != "SAMANTHA_GATEWAY_MEMORY_RESTART"}
+            with patch.object(guard, "RECEIPT", receipt), patch.object(guard, "gateway_pid", return_value=9), \
+                 patch.object(guard, "probe_metrics", return_value=m(2700)), patch.object(guard, "idle_proof", return_value=ok), \
+                 patch.dict(os.environ, {**clean, **env}, clear=True), patch("builtins.print") as out:
+                guard.main([])
+            return out.call_args.args[0], json.loads(receipt.read_text())
+
+    def test_default_is_observation_only(self):
+        printed, row = self._granted({})
+        self.assertIn("observe_only", printed)
+        self.assertNotIn("restart_requested", printed)
+        self.assertEqual(row["mode"], "observe")
+        self.assertEqual(row["last_attempt"], {"at": 0, "state": "none"})
+
+    def test_explicit_switch_requests_restart(self):
+        printed, row = self._granted({"SAMANTHA_GATEWAY_MEMORY_RESTART": "1"})
+        self.assertIn('"action": "restart_requested"', printed)
+        self.assertEqual(row["mode"], "restart")
+        self.assertEqual(row["last_attempt"]["state"], "requested")
 
     def test_health_manager_wiring(self):
         hm = (HERE / "samantha-health-manager.sh").read_text()
