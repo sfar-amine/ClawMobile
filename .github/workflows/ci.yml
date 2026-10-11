@@ -119,6 +119,7 @@ jobs:
           node scripts/test-payment-steps.cjs
           node scripts/test-payment-api.cjs
           node scripts/test-payment-handoff.cjs
+          node scripts/test-maxit-quote-real-shape.cjs
       - name: Network mutation guard (Auto Wi-Fi lease, Wi-Fi watch, exact restore) — lot 11/10
         run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py
       - name: Run request cancellation owner contract
