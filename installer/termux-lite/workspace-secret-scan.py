@@ -68,9 +68,18 @@ def accepted_signature_rows():
     # Immutable repository evidence only; no runtime configuration or persistent store.
     path = Path(__file__).with_name('workspace-secret-scan-fixtures.json')
     try:
-        if path.stat().st_size > 128 * 1024:
-            return ()
-        rows = json.loads(path.read_text())
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 128 * 1024:
+                return ()
+            with os.fdopen(fd, 'r', encoding='utf-8', closefd=False) as source:
+                text = source.read(128 * 1024 + 1)
+            if len(text) > 128 * 1024:
+                return ()
+            rows = json.loads(text)
+        finally:
+            os.close(fd)
         if not isinstance(rows, list) or len(rows) > 1000:
             return ()
         valid = []
