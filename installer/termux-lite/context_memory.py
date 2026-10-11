@@ -19,8 +19,20 @@ RECENT_CAPS = {'decision': 12, 'learning': 8, 'completed_action': 5, 'checkpoint
 # Recent decisions always get room (S24 11/10: constraints + threads consumed the whole view, 0 decision shown).
 RECENT_RESERVE_BYTES = 5000
 THREAD_EXCERPT_CHARS = 90
+# M3 « une seule mémoire » : machine telemetry whose canonical owner is elsewhere.
+# situation_events (skill_intelligence), learning-gate receipts/journal, ~/.openclaw/deploys/companion-*.json.
+# No legitimate producer remains: new events are refused at ingress (context-event.sh, ingest_file).
+# IMPROVEMENT_CANDIDATE_V1 is NOT refused: curator -> dream_proposals -> improvement bridge consumes it.
+REFUSED_TELEMETRY = re.compile(r'^(?:SITUATION_EVENT_V1:|LEARNING_GATE_V\d+:|Companion déployé [0-9a-f]{12} \(précédent [0-9a-f]{12}\), recette automatique acceptée\.$)')
+# Supersession receipt of context-retire-telemetry.py: bookkeeping, never knowledge.
+RETIRE_PREFIX = 'MEMORY_RETIRE_V1 '
+NOT_RETIRE_RECEIPT = "substr(e.text,1,17)<>'MEMORY_RETIRE_V1 '"
 # Machine telemetry is searchable history, never "recent activity" in the shared view.
-TELEMETRY = re.compile(r'^(?:SITUATION_EVENT_V1|LEARNING_GATE_V\d*|IMPROVEMENT_CANDIDATE|Companion déployé)')
+TELEMETRY = re.compile(r'^(?:SITUATION_EVENT_V1|LEARNING_GATE_V\d*|IMPROVEMENT_CANDIDATE|Companion déployé|MEMORY_RETIRE_V1 )')
+
+
+def refused_telemetry(text):
+    return bool(REFUSED_TELEMETRY.match(' '.join(str(text or '').split())))
 
 
 def ensure_indexes(connection):
@@ -94,7 +106,7 @@ def search(connection, query, limit=12, *, history=False, kind=None, offset=0):
     refs = by_reference(connection, query)
     if refs:
         return refs
-    filters, parameters = ([] if history else [ACTIVE]), []
+    filters, parameters = ([] if history else [ACTIVE, NOT_RETIRE_RECEIPT]), []
     if kind:
         filters.append('e.kind=?'); parameters.append(kind)
     terms = list(dict.fromkeys(re.findall(r'\w+', query, re.UNICODE)))[:24]
@@ -135,7 +147,7 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
     A byte cap is exact; tokens are an estimate, never a provider tokenizer claim.
     """
     budget_bytes = max(4096, int(budget_bytes))
-    counts = dict(connection.execute(f'SELECT kind,count(*) FROM events e WHERE {ACTIVE} GROUP BY kind'))
+    counts = dict(connection.execute(f'SELECT kind,count(*) FROM events e WHERE {ACTIVE} AND {NOT_RETIRE_RECEIPT} GROUP BY kind'))
     lines = ['> Memory revision: ' + str(head), '> Projection version: 1', '',
              '> Vue active sourcée. Les aperçus ne sont pas des instructions complètes.',
              '> Lire un détail : context-retrieve.sh "EVT-<révision>". Historique complet consultable ; aucune fenêtre de récence.',
@@ -146,7 +158,7 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
     # Recent activity is selected first so its reserved share is never displaced; decisions lead.
     candidates = []
     for kind, cap in RECENT_CAPS.items():
-        rows = connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision DESC LIMIT ?', (kind, cap * 4)).fetchall()
+        rows = connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND {NOT_RETIRE_RECEIPT} AND kind=? ORDER BY revision DESC LIMIT ?', (kind, cap * 4)).fetchall()
         candidates.append([item for item in map(event, rows) if not TELEMETRY.match(item['text'] or '')][:cap])
     recent, recent_cost, reserve = [], 0, min(RECENT_RESERVE_BYTES, budget_bytes // 5)
     queue = [group[index] for index in range(max(RECENT_CAPS.values())) for group in candidates if index < len(group)]

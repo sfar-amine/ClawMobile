@@ -105,5 +105,6 @@ restart || rollback health_failed
 acc=$(accept 2>>"$log"); rc=$?
 [ "$rc" -eq 0 ] || rollback acceptance_failed "$acc"
 write deployed "$full" "$previous" "ok" "$acc"
-"$ROOT/context-event.sh" work completed_action "Companion déployé ${full:0:12} (précédent ${previous:0:12}), recette automatique acceptée." >/dev/null 2>&1 || true
+# M3 « une seule mémoire » : the receipt above (~/.openclaw/deploys/companion-*.json, served by
+# deploymentReceipts.ts) is the canonical deploy record; no "Companion déployé" copy in memory.db.
 echo "$receipt"
