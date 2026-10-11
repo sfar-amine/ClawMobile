@@ -20,14 +20,9 @@
   ],
   "tests": [
     {
-      "name": "f3-localization",
-      "status": "passed",
-      "evidence": "Base runtime bfa210c intégrée par merge. npm run build ; test-server-localization.cjs ; test-control-health-components.cjs ; test-agent-config.cjs ; test-control-v2.cjs avec propriétaire playbooks local explicite. Fixtures santé/automatisations, vrais writers HTTP, textes utilisateurs et source partagée intacts, une lecture FR/EN par section ; pas de nouvelle latence owner native revendiquée."
-    },
-    {
-      "name": "full-current-ci",
-      "status": "passed",
-      "evidence": "Tous les 34 blocs run de ci.yml exécutés localement. Rejeu owner pur comparé à la projection FR attendue explicite, receipt deepEqual inchangé. Installation bloc MCP relancée avec cache /tmp après défaut permissions cache par défaut ; tests provenance et MCP passent. Aucun changement owner ou garde."
+      "name": "current-head-localization-and-whole-ci",
+      "status": "pending",
+      "evidence": "Fresh runtime3298d98d integrated by normal merge (HEADa439636d before this delta). Prepared existing F3 tests plus same-language stable-body304/cross-language200 ETag owner regression; no test/build executed during Android169 and voice slots. Historical34/34 is not evidence for this head. Targeted/full validation will use the released lot3 slot."
     }
   ],
   "documentation": [
@@ -56,9 +51,9 @@
   },
   "rollback": "Revert F3 ; aucune mutation runtime.",
   "limitations": [
-    "PR autorisée pour ce périmètre prouvé ; F3 global reste partiel tant que signal app et qualification intégrée manquent.",
-    "Préparation partielle : descriptions et résumés libres non traduits faute de provenance serveur structurée.",
-    "Signal Accept-Language app absent de l’audit Kotlin ; confirmation à demander dans future PR.",
-    "Intégration #70 : assertions notifications/automatisations à adapter à la présentation attendue, preuves propriétaires conservées ; aucune CI base #70 fusionnée revendiquée."
+    "Présentation serveur partielle : descriptions/résumés libres inchangés faute de provenance structurée ; consommation intégrée des champs additifs et recette S24 restent à qualifier.",
+    "Signal Accept-Language maintenant implémenté dans core#169 sourcebbb03c3743db7273a8f35dd1fe7c8b1a72b5bfab (RuntimeClient+LocaleSettings, menus selon téléphone). APK signé/installé et recette FR/EN pas encore attestés ici.",
+    "Base runtime3298d98d fraîche ; aucune CI34/34 historique revendiquée pour cette tête. Nouveau replay entier requis avant ready.",
+    "ETag304 démontré seulement pour corps projeté stable ; envelopes Control live peuvent changer remainingFreshMs/deliveryMode et renvoyer200 normalement."
   ]
 }

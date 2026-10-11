@@ -37,6 +37,26 @@ assert.equal(localizedRoute('/payments'),false);
 assert.equal(localizedRoute('/runs'),false);
 assert.equal(localizedRoute('/control/health'),true);
 for(const route of ['/control/memory','/control/engineering','/control/diagnostic','/laptop-access/computers','/confirmations'])assert.equal(localizedRoute(route),false);
+// Stable captured bodies exercise the existing ETag owner; live Control envelopes
+// have decreasing remainingFreshMs, so this is no claim of identical live bodies.
+const {conditionalRead}=require('../dist/companion/readEtag.js');
+function conditionalProjection(language,tag){
+ const value=localizeServerPresentation(automations,language),body=JSON.stringify(value);
+ const headers={};let output;
+ const req={method:'GET',url:'/v1/control/automations?contract=2',socket:{remoteAddress:'127.0.0.1'},headers:tag?{'if-none-match':tag}:{}};
+ const res={statusCode:200,setHeader:(name,value)=>{headers[name.toLowerCase()]=value;},removeHeader:name=>{delete headers[name.toLowerCase()];},end:value=>{output=value;}};
+ const notModified=conditionalRead(req,res,200,value,body);
+ if(!notModified)res.end(body);
+ return {status:res.statusCode,tag:headers.etag,body:output};
+}
+const french=conditionalProjection('fr'),english=conditionalProjection('en');
+assert.equal(french.status,200);assert.equal(english.status,200);assert.notEqual(french.tag,english.tag,'language variants use distinct localized-body ETags');
+for(const [language,previous,foreign] of [['fr',french,english],['en',english,french]]){
+ const same=conditionalProjection(language,previous.tag);assert.equal(same.status,304);assert.equal(same.tag,previous.tag);assert.equal(same.body,undefined);
+ const changed=conditionalProjection(language,foreign.tag);assert.equal(changed.status,200);assert.equal(changed.tag,previous.tag);assert.equal(changed.body,previous.body);
+}
+assert.equal(JSON.stringify([health,automations]),original,'conditional projections preserve the shared captured source');
+
 async function verifyHttp(){
  const http=require('node:http');
  const cp=require('node:child_process');const {EventEmitter}=require('node:events');const {PassThrough}=require('node:stream');
