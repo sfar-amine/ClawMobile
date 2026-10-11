@@ -28,6 +28,11 @@
       "name": "ci-workflow-h4-regression",
       "status": "passed",
       "evidence": "Toutes les 33 étapes run de tests ci.yml exécutées localement, build séparé ; installation du relais reprise avec cache npm sous /tmp après défaut du cache local. Tests MCP du relais verts. Aucun parcours de paiement modifié."
+    },
+    {
+      "name": "b42-lot3-current-base-targeted",
+      "status": "passed",
+      "evidence": "Base 8ae69384 merged normally; H4/R23/H6 CI union preserved. Node20 npm ci/build, challenge exact (8 cases, 18 owner calls, HTTP 2373/2361 ms vs 9000 ms, 0 successful effects), agent-config and UI-recette-server passed. Log h4-core-lot3-targeted.log. Complete workflow publication requires green replay at frozen exact SHA."
     }
   ],
   "documentation": [
@@ -57,6 +62,7 @@
   "rollback": "Revert H4 ; aucun effet S24 à annuler.",
   "limitations": [
     "App adaptée et recette physique par Claude ; mesures CI injectées seulement.",
-    "Aucune preuve positive config.patch nouvelle revendiquée ; dispatch de test refuse avant effet."
+    "Aucune preuve positive config.patch nouvelle revendiquée ; dispatch de test refuse avant effet.",
+    "Local source qualification; app #158 unsigned/JVM separately, physical biometric recipe and signed APK remain Claude. Publication requires complete workflow green on exact PR SHA."
   ]
 }
