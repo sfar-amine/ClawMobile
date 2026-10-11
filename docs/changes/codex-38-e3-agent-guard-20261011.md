@@ -1,10 +1,9 @@
-# 38 E3 — Préparation locale, qualification bloquée
+# 38 E3 — Surfaces et agent
 
-Branche séparée depuis P1 `47b77803b2a4d9cc7c88570ebab44b51ee9657b0`. Le helper et les contrôles SDK préparent la frontière requester/policy ; aucune activation ni restriction supplémentaire du runtime.
-Le lot E3 complet reste bloqué par la liaison canonique décision/exécution, le texte original Gemini Live et les captures des surfaces. L’état ne signifie pas que la garde existe en production. Paiement/biométrie/app inchangés.
-Voir le contrat 38-e3.md. Aucun push, aucune fusion, aucun déploiement par ce lot.
+Reprise par Claude de la préparation de Codex (#136) après fusion et déploiement de P1 (#107). Base `runtime/samantha-companion-private` intégrée par merge (union CI).
 
-Audit local de la préparation : accesseur caller levant une exception et preuve héritée risk/operatorTarget reproduits, puis refusés sans accesseur exécuté. Snapshot scalaire indépendant et champs request bornés ; 41 contrôles E3 et 27 P1 verts, build vert. Cette correction ne branche pas la garde et ne résout pas la liaison canonique d’exécution.
+- L'agent libre ne lance plus de capability opérateur ni transaction : `clawmobile_capability` passe par `claw-capability.py agent-execute` (une résolution canonique, politique E3, exécution `--read-only` de la décision exacte), sinon `capability_first_required` sans exécution.
+- Hook `before_tool_call` enregistré : `caller` pris du tour, arguments malformés refusés ; suivi providerFallback conservé.
+- WhatsApp, relais voix et Gemini Live suivent le contrat CLARIFY de l'app (`resolve-clarification`, texte original, aucune concaténation) ; Gemini Live transmet la transcription d'entrée et un `clarificationId`.
 
-### Suite sur la branche publiée
-Base runtime `1ef4fd2a` intégrée par merge, union CI conservée. Captures #129/#131 examinées : factory P1 non déployée, identité vocale non attestée ; le blocage est désormais documenté par une capture réelle. Build et 68 contrôles ciblés réussis. Helper toujours inactif, aucun parcours de paiement modifié.
+Contrat : `docs/work/samantha-runtime/contracts/38-e3.md`. Parcours de paiement intouché. Recette T5 réelle sur le S24 après déploiement.

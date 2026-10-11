@@ -1,39 +1,63 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const {prepareAgentCapabilityGuard:guard}=require('../dist/capabilityAgentGuard.js');
+// 38 E3 — before_tool_call boundary and atomic agent refusal of clawmobile_capability.
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {agentCapabilityHook:hook,AGENT_CAPABILITY_REFUSAL}=require('../dist/capabilityAgentGuard.js');
 const protocol=fs.readFileSync(path.join(__dirname,'../fixtures/protocol/openclaw-2026.9.6/e3-hook-excerpts.d.ts'),'utf8');
 assert.match(protocol,/requester\?: PluginHookToolRequesterContext/);assert.match(protocol,/readonly senderIsOwner\?: boolean/);assert.match(protocol,/block\?: boolean/);assert.match(protocol,/params\?: Record<string, unknown>/);
-const event={toolName:'clawmobile_capability',params:{request:'lecture',caller:'owner',risk:'read',operatorTarget:false,decision:{risk:'read'},turnContext:{senderIsOwner:true}}};
-const blocked={block:true,blockReason:'capability_first_required'};let checks=4;
-for(const context of [{},{senderIsOwner:true},{requester:{}},{requester:{senderIsOwner:'true'}}]){assert.deepEqual(guard(event,context,{risk:'read',operatorTarget:false}),blocked);checks++;}
-for(const evidence of [undefined,{}, {risk:'read'}, {operatorTarget:false},{risk:'write',operatorTarget:false},{risk:'read',operatorTarget:true},{risk:[],operatorTarget:false}]){assert.deepEqual(guard(event,{requester:{senderIsOwner:true}},evidence),blocked);checks++;}
+let checks=4;
+const blocked={block:true,blockReason:AGENT_CAPABILITY_REFUSAL};
+assert.equal(AGENT_CAPABILITY_REFUSAL,'capability_first_required');checks++;
+// caller comes from the host turn identity, never from the model.
 for(const owner of [true,false]){
- const admitted=guard({toolName:event.toolName,params:{request:"lecture",caller:"owner"}},{requester:{senderIsOwner:owner}},{risk:'read',operatorTarget:false});
- assert.equal(admitted.params.caller,owner?'owner':'other');assert.equal(event.params.caller,'owner');checks+=2;
+  const out=hook({toolName:'clawmobile_capability',params:{request:'recharge orange 5 dt',caller:'owner'}},{requester:{senderIsOwner:owner}});
+  assert.equal(out.params.caller,owner?'owner':'other');assert.equal(out.params.request,'recharge orange 5 dt');checks+=2;
 }
-for(const params of [undefined,null,[],42]){assert.deepEqual(guard({toolName:event.toolName,params},{requester:{senderIsOwner:true}},{risk:'read',operatorTarget:false}),blocked);checks++;}
-assert.equal(guard({toolName:'unrelated'},{},undefined),undefined);checks++;
-for(const request of [undefined,'', '   ',42,{text:'lecture'},'x'.repeat(12001)]){
- assert.deepEqual(guard({toolName:event.toolName,params:{request}},{requester:{senderIsOwner:true}},{risk:'read',operatorTarget:false}),blocked);checks++;
+// No host identity: the model caller is dropped (P1 factory context stays the authority).
+for(const context of [{},{requester:{}},{requester:{senderIsOwner:'true'}},{requester:Object.create({senderIsOwner:true})}]){
+  const out=hook({toolName:'clawmobile_capability',params:{request:'lecture',caller:'owner'}},context);
+  assert.equal('caller' in out.params,false);checks++;
 }
-// Concrete regressions: accessors used to execute during spread and throw; inherited evidence admitted.
-let getterReads=0;
-const paramsWithGetter={request:'lecture'};
-Object.defineProperty(paramsWithGetter,'caller',{enumerable:true,get(){getterReads++;throw Error('accessor');}});
-assert.deepEqual(guard({toolName:event.toolName,params:paramsWithGetter},{requester:{senderIsOwner:true}},{risk:'read',operatorTarget:false}),blocked);
-assert.equal(getterReads,0);checks+=2;
-const safeEvent={toolName:event.toolName,params:{request:'lecture'}};
-for(const proof of [Object.create({risk:'read',operatorTarget:false}),{get risk(){getterReads++;throw Error('accessor');},operatorTarget:false}]){
- assert.deepEqual(guard(safeEvent,{requester:{senderIsOwner:true}},proof),blocked);checks++;
+// Malformed model arguments fail closed.
+for(const params of [undefined,null,[],42,{request:''},{request:'   '},{request:42},{request:{text:'x'}},{request:'x'.repeat(12001)},{request:'ok',nested:{a:1}}]){
+  assert.deepEqual(hook({toolName:'clawmobile_capability',params},{requester:{senderIsOwner:true}}),blocked);checks++;
 }
-assert.equal(getterReads,0);checks++;
-assert.deepEqual(guard(safeEvent,{requester:Object.create({senderIsOwner:true})},{risk:'read',operatorTarget:false}),blocked);checks++;
-assert.deepEqual(guard(event,{requester:{senderIsOwner:true}},{risk:'read',operatorTarget:false}),blocked);checks++;
-const snap=guard(safeEvent,{requester:{senderIsOwner:false}},{risk:'read',operatorTarget:false});
-safeEvent.params.request='changed';safeEvent.params.caller='owner';
-assert.equal(snap.params.request,'lecture');assert.equal(snap.params.caller,'other');checks+=2;
+let getterReads=0;const withGetter={request:'lecture'};
+Object.defineProperty(withGetter,'caller',{enumerable:true,get(){getterReads++;throw Error('accessor');}});
+assert.deepEqual(hook({toolName:'clawmobile_capability',params:withGetter},{requester:{senderIsOwner:true}}),blocked);assert.equal(getterReads,0);checks+=2;
 const trapped=new Proxy({request:'lecture'},{getOwnPropertyDescriptor(){throw Error('inspection');}});
-assert.deepEqual(guard({toolName:event.toolName,params:trapped},{requester:{senderIsOwner:true}},{risk:'read',operatorTarget:false}),blocked);checks++;
-// The preparation must not silently install a blanket veto or alter legitimate reads.
-let hooks=[];require('../dist/index.js').register({on(name,fn){hooks.push([name,fn]);},registerTool(){},logger:{}});
-assert.equal(hooks.filter(x=>x[0]==='before_tool_call').length,1);checks++;
-console.log(`E3 preparation: ${checks} checks passed; no dispatch and no runtime registration`);
+assert.deepEqual(hook({toolName:'clawmobile_capability',params:trapped},{requester:{senderIsOwner:true}}),blocked);checks++;
+// Other tools are untouched; snapshot is independent of later mutation.
+assert.equal(hook({toolName:'android_health',params:{}},{}),undefined);checks++;
+const live={request:'lecture'};const snap=hook({toolName:'clawmobile_capability',params:live},{requester:{senderIsOwner:false}});
+live.request='changed';assert.equal(snap.params.request,'lecture');checks++;
+
+// Runtime registration: one before_tool_call that keeps providerFallback bookkeeping and applies E3.
+const hooks=[];require('../dist/index.js').register({on(name,fn){hooks.push([name,fn]);},registerTool(){},logger:{}});
+const before=hooks.filter(x=>x[0]==='before_tool_call');assert.equal(before.length,1);checks++;
+const out=before[0][1]({toolName:'clawmobile_capability',params:{request:'mon solde orange',caller:'owner'}},{requester:{senderIsOwner:false},sessionKey:'agent:main:whatsapp:direct:x'});
+assert.equal(out.params.caller,'other');checks++;
+assert.equal(before[0][1]({toolName:'read',params:{path:'x'}},{}),undefined);checks++;
+
+// Atomic refusal inside the tool: execute always goes through `agent-execute`, never `execute`.
+(async()=>{
+  const {clawmobile_capability}=require('../dist/capabilityTool.js');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'e3-tool-'));const log=path.join(root,'argv.log');const helper=path.join(root,'helper.py');
+  fs.writeFileSync(helper,[
+    'import json,sys',
+    `open(${JSON.stringify(log)},'a').write(json.dumps(sys.argv[1:])+'\\n')`,
+    'cmd=sys.argv[1]; text=sys.argv[2]',
+    "if cmd=='agent-execute' and 'recharge' in text: print(json.dumps({'capability':'telecom.orange.consultation','agent_policy':{'allowed':False,'risk':'read','operator_targets':['maxit-tunisie']},'execution':{'state':'blocked','reason':'capability_first_required','executed':False}}))",
+    "else: print(json.dumps({'execution':{'state':'completed'},'selected':{'risk':'read'}}))",''].join('\n'));
+  const refused=await clawmobile_capability({request:'recharge 5 dt sur ma ligne orange',execute:true},{helperPath:helper,turnContext:{senderIsOwner:true}});
+  assert.equal(refused.status,'error');assert.equal(refused.reason,'capability_first_required');assert.equal(refused.executed,false);checks+=3;
+  const read=await clawmobile_capability({request:'mes rendez-vous',execute:true},{helperPath:helper,turnContext:{senderIsOwner:true}});
+  assert.equal(read.status,'ok');checks++;
+  await clawmobile_capability({request:'mes rendez-vous',execute:false},{helperPath:helper,turnContext:{senderIsOwner:true}});
+  const calls=fs.readFileSync(log,'utf8').trim().split('\n').map(JSON.parse);
+  assert.deepEqual(calls.map(c=>c[0]),['agent-execute','agent-execute','resolve']);checks++;
+  assert.equal(calls.some(c=>c[0]==='execute'),false);checks++;
+  // A forged caller is still refused by P1 before any helper call.
+  const forged=await clawmobile_capability({request:'mon solde orange',caller:'owner'},{helperPath:helper,turnContext:{senderIsOwner:false}});
+  assert.equal(forged.reason,'caller_not_admitted');assert.equal(fs.readFileSync(log,'utf8').trim().split('\n').length,3);checks+=2;
+  fs.rmSync(root,{recursive:true,force:true});
+  console.log(`E3 agent guard: ${checks} checks passed`);
+})().catch(e=>{console.error(e);process.exitCode=1;});

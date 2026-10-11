@@ -1,11 +1,17 @@
-/** Preparation only: not registered until the canonical decision is bound to execution.
- * The evidence argument belongs to the future canonical owner boundary, never event.params.
- * No resolver, dispatcher, fallback or store is added here.
+/** 38 E3 — before_tool_call boundary for `clawmobile_capability`.
+ *
+ * The hook never resolves nor decides a route (no second router). It only:
+ *  - copies the model arguments as independent scalars and refuses malformed ones;
+ *  - replaces `caller` by the host turn identity (`requester.senderIsOwner`), never the model's.
+ * The risk/operator decision is atomic inside the tool: `claw-capability.py agent-execute`
+ * resolves once with the canonical Capability Graph, applies the E3 policy and executes exactly
+ * that decision with the graph's existing read-only policy (`capability_first_required` otherwise).
  */
-export type AgentCapabilityPolicyEvidence = { risk: unknown; operatorTarget: unknown };
 export type AgentCapabilityHookContext = { requester?: { senderIsOwner?: unknown } };
 export type AgentCapabilityHookEvent = { toolName?: unknown; params?: unknown };
 export type AgentCapabilityHookResult = { params?: Record<string, unknown>; block?: boolean; blockReason?: string };
+
+export const AGENT_CAPABILITY_REFUSAL = "capability_first_required";
 
 function plainRecord(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -35,23 +41,23 @@ function scalarSnapshot(value: unknown): Record<string, unknown> | null {
   return snapshot;
 }
 
-export function prepareAgentCapabilityGuard(
+export function agentCapabilityHook(
   event: AgentCapabilityHookEvent,
   context: AgentCapabilityHookContext,
-  evidence?: AgentCapabilityPolicyEvidence,
 ): AgentCapabilityHookResult | undefined {
-  const refused = (): AgentCapabilityHookResult => ({ block: true, blockReason: "capability_first_required" });
+  const refused = (): AgentCapabilityHookResult => ({ block: true, blockReason: AGENT_CAPABILITY_REFUSAL });
   try {
     const toolName = ownData(event, "toolName");
     if (typeof toolName !== "string") return refused();
     if (toolName !== "clawmobile_capability") return undefined;
     const params = scalarSnapshot(ownData(event, "params"));
+    if (!params || typeof params.request !== "string" || !params.request.trim() || params.request.length > 12000) return refused();
+    // The model never supplies authority: drop its caller, then use the host turn identity when present.
+    const { caller: _modelCaller, ...rest } = params;
     const owner = ownData(ownData(context, "requester"), "senderIsOwner");
-    if (!params || typeof owner !== "boolean" || typeof params.request !== "string" ||
-      !params.request.trim() || params.request.length > 12000) return refused();
-    // Model arguments and inherited/accessor fields are never policy evidence.
-    if (ownData(evidence, "risk") !== "read" || ownData(evidence, "operatorTarget") !== false) return refused();
-    return { params: { ...params, caller: owner ? "owner" : "other" } };
+    const next: Record<string, unknown> = { ...rest };
+    if (typeof owner === "boolean") next.caller = owner ? "owner" : "other";
+    return { params: next };
   } catch {
     // Descriptor/prototype inspection of a malformed object must also fail closed.
     return refused();
