@@ -1,0 +1,39 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/files/content?scope=agent&path=AGENTS.md",
+  "status": 200,
+  "capturedAt": "2026-10-10T23:41:29Z",
+  "bytes": 5965,
+  "companion": "curl loopback http://127.0.0.1:8765 avec l'en-tête de l'app (Connection: close), sans Origin/Referer ni en-tête propriétaire",
+  "sanitized": true,
+  "attempts": 5,
+  "totalMs": 3808,
+  "lastLatencyMs": 828,
+  "retryPolicy": "relance toutes les 500 ms tant que computation.deliveryMode=deferred (comme l'app, retryAfterMs=500)",
+  "firstCall": {
+   "status": 200,
+   "latencyMs": 146,
+   "at": "2026-10-10T23:40:20Z",
+   "response": {
+    "success": false,
+    "state": "warming",
+    "receipt": null,
+    "ready": false,
+    "retryAfterMs": 500,
+    "computation": {"deliveryMode":"deferred"}
+   }
+  }
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "ready": true,
+  "installedSchemaQualified": false,
+  "contentType": "text/plain; charset=utf-8",
+  "truncated": false,
+  "redacted": true,
+  "text": "<texte 5650 car.>"
+ }
+}

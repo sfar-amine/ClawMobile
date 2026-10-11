@@ -3,7 +3,7 @@ set -u
 ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; D="$HOME/.openclaw/health"; LOG="$D/health.log"; S="$D/state"; mkdir -p "$D" "$S"; export TMPDIR="$HOME/.cache/tmp"
 PHANTOM_HEADROOM_TARGET=128; PHANTOM_HEADROOM_CHECK_S=60
 exec 9>"$D/health.lock"; flock -n 9 || exit 0
-log(){ printf '%s component=health-manager %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
+log(){ python3 "$ROOT/bounded-log.py" "$LOG" --append "$(date -Iseconds) component=health-manager $*"; }
 proc(){ pgrep -f "$1" 9>&- >/dev/null 2>&1; }; http(){ timeout 3 curl -fsS "$1" 9>&- >/dev/null 2>&1; }; adb_ok(){ timeout 3 adb 9>&- -s 127.0.0.1:5556 get-state 2>/dev/null|grep -qx device 9>&-; }
 now(){ date +%s; }; sf(){ echo "$S/$1.$2"; }; get(){ cat "$(sf "$1" "$2")" 2>/dev/null || echo "${3:-0}"; }; put(){ printf '%s' "$3" >"$(sf "$1" "$2")"; }
 healthy(){ n="$1"; prev=$(get "$n" status unknown); old=$(get "$n" failures 0); [ "$prev" = healthy ] || log "service=$n state=healthy"; put "$n" status healthy; put "$n" failures 0; put "$n" next 0; if [ "$prev" = degraded ] && [ "$old" -ge 3 ]; then "$ROOT/incident-orchestrator.py" recover "$n" "$(scope "$n")" --source health-manager --reason "service health verified after recovery" >/dev/null 2>&1 || true; "$ROOT/incident-close.sh" "$n" "Samantha — $n est de nouveau opérationnel et la récupération est vérifiée." || true; fi; }
@@ -76,6 +76,23 @@ check_whatsapp(){
   if [ "$lock_rc" -eq 30 ]; then log "service=whatsapp state=lock_recovery_refused detail=$lock_out"; fail whatsapp; return; fi
  fi
  fail whatsapp
+}
+# P0-4: Gateway memory guard (measured thresholds, sustained 10 min, idle proof, 6 h cooldown,
+# receipt health/gateway-memory-guard.json). Graceful restart through the existing Companion route.
+check_gateway_memory(){
+ due gateway_memory || return
+ put gateway_memory next $(( $(now)+60 ))
+ out=$(timeout 15 python3 "$ROOT/gateway-memory-guard.py" 9>&- 2>/dev/null) || { log "service=gateway_memory state=guard_failed"; return; }
+ case "$out" in
+  *'"action": "restart_requested"'*)
+   log "service=gateway_memory state=restart_requested owner=companion detail=$out"
+   ( timeout --kill-after=5 240 curl -fsS --max-time 230 \
+       -X POST -H 'Content-Type: application/json' -d '{}' \
+       http://127.0.0.1:8765/v1/runtime/restart 2>&1 \
+     | python3 "$ROOT/bounded-log.py" "$D/gateway-memory-restart.log" --stream ) 9>&- </dev/null >/dev/null 2>&1 &
+   ;;
+  *'"pressure": ["'*) log "service=gateway_memory state=pressure detail=$out";;
+ esac
 }
 check_smtp(){ due smtp || return; if timeout 25 "$ROOT/incident-email.sh" --probe 9>&- >/dev/null 2>&1; then healthy smtp; put smtp next $(( $(now)+300 )); else fail smtp; fi; }
 check_network_safety(){ due network_safety || return; if "$ROOT/android-network-mutation-guard.py" check 9>&- >/dev/null 2>&1; then healthy network_safety; else fail network_safety; fi; }
@@ -182,6 +199,8 @@ while :; do
  # F7: existing maintenance cycle; Companion-owned O_APPEND log stays on its inode.
  timeout --kill-after=1 2 python3 "$ROOT/gateway-log-retention.py" 9>&- >/dev/null 2>&1 || true
  check_gateway
+ check_allowlist_expiry
+ check_gateway_memory
  check_allowlist_expiry
  check_whatsapp
  check_allowlist_expiry

@@ -1,0 +1,746 @@
+{
+  "provenance": {
+    "captured_at": "2026-10-11T00:51:25+0100",
+    "device": "S24 (Termux, profil owner)",
+    "captured_by": "Claude via claw_exec (lecture seule)",
+    "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+    "core_runtime_head": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "core_runtime_branch": "runtime/samantha-companion-private",
+    "playbooks_workspace_head": "dd251b71c0d6ca2c26b7740c73cce72e560ac109",
+    "playbooks_pinned": "6d567aa3252ff398513bd7c7b22ed63da7a31ffe",
+    "pseudonymization": "HMAC-SHA256 avec sel aléatoire propre à cette capture (non conservé) ; cohérent entre tous les fichiers de ce dossier",
+    "amounts": "montants remplacés par des valeurs fictives de même format (même nombre de décimales, millimes cohérents)",
+    "sources": [
+      "~/.openclaw/remote-bridge/requests/*.json (reçus canoniques claw_execute, lus par continuum_runtime)",
+      "~/.openclaw/clawmobile-companion/runs.json",
+      "~/.openclaw/continuations/foreground/",
+      "~/.openclaw/agenda/acceptance-move.json"
+    ],
+    "live_reads": "aucune ; reçus existants uniquement"
+  },
+  "families": {
+    "factures": {
+      "capability": "billing.utility.fast_path",
+      "receipt": {
+        "bridge_request": {
+          "requestId": "req_1e8022c39826",
+          "method": "mcp_capability_execute_owner",
+          "state": "completed",
+          "receivedAt": 1791290686705,
+          "completedAt": 1791290692215,
+          "mutationRisk": "read"
+        },
+        "envelope": {
+          "success": true,
+          "version": 1,
+          "capability_revision": "edc9520ff9256b9c",
+          "surface": "external_mcp",
+          "caller": "owner",
+          "text": "État de mes factures (en attente, échéances, montants, statut de paiement)",
+          "capability": "billing.utility.fast_path",
+          "confirmation_required": false,
+          "latency_ms": 37.286,
+          "harness": {
+            "tool_policy": "required",
+            "confidence": 0.923,
+            "reason": "known_route",
+            "allow_model_only": false,
+            "shortlist": [
+              {
+                "id": "billing.utility.fast_path",
+                "score": 0.923,
+                "operation": "read",
+                "risk": "read"
+              },
+              {
+                "id": "billing.authentication",
+                "score": 0.46,
+                "operation": "mixed",
+                "risk": "read"
+              },
+              {
+                "id": "device.adb",
+                "score": 0.46,
+                "operation": "mixed",
+                "risk": "write"
+              },
+              {
+                "id": "health.immune.verdict",
+                "score": 0.46,
+                "operation": "read",
+                "risk": "read"
+              },
+              {
+                "id": "tasks.personal_followup",
+                "score": 0.46,
+                "operation": "mixed",
+                "risk": "read"
+              }
+            ]
+          },
+          "selected": {
+            "executor": "claw.skill_route",
+            "capability": "billing.utility.fast_path",
+            "target": "utility-billing",
+            "intent": "billing.unpaid",
+            "route": "utility-billing.unpaid.direct.v2",
+            "route_layer": "script",
+            "entrypoint": "python3 -m billing.cli check --json",
+            "deterministic": true,
+            "model_required": false,
+            "risk": "read"
+          },
+          "execution": {
+            "state": "completed",
+            "executor": "claw.skill_route",
+            "route": "utility-billing.unpaid.direct.v2",
+            "actual_route": "utility-billing.unpaid.direct.v2",
+            "fallback": false,
+            "exit_code": 0,
+            "duration_ms": 4840.191,
+            "result": {
+              "schema_version": 2,
+              "business_rule": "B_provider_explicit_unpaid_or_remaining_due",
+              "status": "ok",
+              "coverage_complete": true,
+              "checked_at": "2026-10-06T12:44:51.978Z",
+              "live": true,
+              "currency": "TND",
+              "providers_requested": 3,
+              "providers_checked": 3,
+              "has_pending": true,
+              "pending_count": null,
+              "identified_invoice_count": 0,
+              "reference_balances_count": 1,
+              "known_total_pending": "27.664",
+              "total_pending": "27.664",
+              "providers": [
+                {
+                  "provider": "steg",
+                  "status": "ok",
+                  "has_pending": true,
+                  "pending_count": null,
+                  "total_pending": "27.664",
+                  "known_total_pending": "27.664",
+                  "currency": "TND",
+                  "items": [
+                    {
+                      "provider_invoice_id": null,
+                      "amount_pending": "27.664",
+                      "amount_pending_millimes": 27664,
+                      "unit": "reference_balance",
+                      "reference": "ref_797410b9c940",
+                      "reference_ordinal": 1,
+                      "source_label": "Arriérés"
+                    }
+                  ],
+                  "coverage_complete": true,
+                  "reason_code": null,
+                  "route_id": "steg.unpaid.direct.v2",
+                  "checked_at": "2026-10-06T12:44:51.977Z",
+                  "live": true,
+                  "warnings": [],
+                  "references_available": 1,
+                  "references_checked": 1,
+                  "coverage_basis": "all_account_references",
+                  "current_amount_to_pay_included": false,
+                  "amount_basis": "provider_remaining_due_or_arrears_no_addition",
+                  "identified_invoice_count": 0,
+                  "reference_balances_count": 1,
+                  "latency_ms": 2453,
+                  "request_count": 5,
+                  "login_attempts": 1,
+                  "read_retries": 0,
+                  "ui_used": false,
+                  "model_used": false
+                },
+                {
+                  "provider": "sonede",
+                  "status": "ok",
+                  "has_pending": false,
+                  "pending_count": 0,
+                  "total_pending": "0.000",
+                  "known_total_pending": "0.000",
+                  "currency": "TND",
+                  "items": [],
+                  "coverage_complete": true,
+                  "reason_code": null,
+                  "route_id": "sonede.unpaid.direct.v2",
+                  "checked_at": "2026-10-06T12:44:50.053Z",
+                  "live": true,
+                  "warnings": [],
+                  "coverage_basis": "provider_account_unpaid_list",
+                  "identified_invoice_count": 0,
+                  "reference_balances_count": 0,
+                  "latency_ms": 515,
+                  "request_count": 3,
+                  "login_attempts": 1,
+                  "read_retries": 0,
+                  "ui_used": false,
+                  "model_used": false
+                },
+                {
+                  "provider": "topnet",
+                  "status": "ok",
+                  "has_pending": false,
+                  "pending_count": 0,
+                  "total_pending": "0.000",
+                  "known_total_pending": "0.000",
+                  "currency": "TND",
+                  "items": [],
+                  "coverage_complete": true,
+                  "reason_code": null,
+                  "route_id": "topnet.unpaid.direct.v2",
+                  "checked_at": "2026-10-06T12:44:51.282Z",
+                  "live": true,
+                  "warnings": [],
+                  "declared_pending_count": 0,
+                  "coverage_basis": "provider_unpaid_counter_zero",
+                  "pages_read": 0,
+                  "identified_invoice_count": 0,
+                  "reference_balances_count": 0,
+                  "latency_ms": 1744,
+                  "request_count": 5,
+                  "login_attempts": 1,
+                  "read_retries": 0,
+                  "ui_used": false,
+                  "model_used": false
+                }
+              ],
+              "latency_ms": 2455,
+              "run_id": "run_a2aaccc3464d",
+              "process_wall_ms": 4484
+            },
+            "stderr": "",
+            "route_health_update": {
+              "state": "healthy",
+              "effective_state": "healthy",
+              "consecutive_failures": 0,
+              "last_success_at": 1791290692.1292975,
+              "last_failure_at": 1791119016.7917836,
+              "history_len": 17
+            }
+          }
+        }
+      }
+    },
+    "device": {
+      "capability": "device.assistance",
+      "receipt": {
+        "bridge_request": {
+          "requestId": "req_001b1090e682",
+          "method": "mcp_capability_execute_owner",
+          "state": "completed",
+          "receivedAt": 1791247749688,
+          "completedAt": 1791247750213,
+          "mutationRisk": "write"
+        },
+        "envelope": {
+          "success": true,
+          "version": 1,
+          "capability_revision": "60dc67af3a5ad067",
+          "surface": "external_mcp",
+          "caller": "owner",
+          "text": "active le wifi",
+          "capability": "device.assistance",
+          "confirmation_required": false,
+          "latency_ms": 14.815,
+          "harness": {
+            "tool_policy": "required",
+            "confidence": 1,
+            "reason": "capability_match",
+            "allow_model_only": false,
+            "shortlist": [
+              {
+                "id": "device.assistance",
+                "score": 1,
+                "operation": "write",
+                "risk": "write"
+              },
+              {
+                "id": "device.modes_routines",
+                "score": 0.571,
+                "operation": "write",
+                "risk": "write"
+              },
+              {
+                "id": "identity.people_directory",
+                "score": 0.286,
+                "operation": "read",
+                "risk": "read"
+              },
+              {
+                "id": "device.native_recovery",
+                "score": 0.205,
+                "operation": "write",
+                "risk": "write"
+              },
+              {
+                "id": "health.transaction.runtime",
+                "score": 0.156,
+                "operation": "mixed",
+                "risk": "read"
+              }
+            ]
+          },
+          "selected": {
+            "executor": "claw.capability_runtime",
+            "capability": "device.assistance",
+            "target": null,
+            "intent": null,
+            "route": null,
+            "route_layer": null,
+            "entrypoint": "python3 device/assistant.py",
+            "deterministic": true,
+            "model_required": false,
+            "risk": "write"
+          },
+          "execution": {
+            "state": "completed",
+            "executor": "claw.capability_runtime",
+            "capability": "device.assistance",
+            "exit_code": 0,
+            "duration_ms": 259.431,
+            "result": {
+              "ok": true,
+              "state": "completed",
+              "operation": "wifi",
+              "enabled": true,
+              "changed": false,
+              "verified": true
+            },
+            "stderr": ""
+          }
+        }
+      },
+      "companion_run": {
+        "runId": "run_729247169e2f",
+        "executionSource": "capability_first",
+        "state": "done",
+        "acceptedAt": 1791498186326,
+        "updatedAt": 1791498186951,
+        "userText": "quel est mon niveau de batterie",
+        "decision": {
+          "type": "EXECUTE",
+          "reason": "capability_first",
+          "surface": "claw_live",
+          "capability": "device.assistance",
+          "route": null,
+          "risk": "read"
+        },
+        "result": {
+          "ok": true,
+          "state": "completed",
+          "operation": "battery",
+          "level_percent": 35,
+          "charging": false,
+          "plugged": false
+        }
+      }
+    },
+    "laptop": {
+      "capability": "device.laptop_termux_access",
+      "receipts": [
+        {
+          "bridge_request": {
+            "requestId": "req_0bfb928093ef",
+            "method": "mcp_capability_execute_readonly",
+            "state": "completed",
+            "receivedAt": 1791585625053,
+            "completedAt": 1791585626074,
+            "mutationRisk": "read"
+          },
+          "envelope": {
+            "success": true,
+            "version": 1,
+            "capability_revision": "637237edc26dd55e",
+            "surface": "external_mcp",
+            "caller": "owner",
+            "text": "etat acces pc s24",
+            "capability": "device.laptop_termux_access",
+            "confirmation_required": false,
+            "latency_ms": null,
+            "harness": {
+              "tool_policy": "required",
+              "confidence": 1,
+              "reason": "known_route",
+              "allow_model_only": false,
+              "shortlist": null
+            },
+            "selected": {
+              "executor": "claw.capability_runtime",
+              "capability": "device.laptop_termux_access",
+              "target": null,
+              "intent": "laptop.s24.status",
+              "route": null,
+              "route_layer": null,
+              "entrypoint": "python3 device/laptop_access.py",
+              "deterministic": true,
+              "model_required": false,
+              "risk": "read"
+            },
+            "execution": {
+              "state": "completed",
+              "executor": "claw.capability_runtime",
+              "capability": "device.laptop_termux_access",
+              "exit_code": 0,
+              "duration_ms": 452.623,
+              "result": {
+                "version": 1,
+                "capability": "device.laptop_termux_access",
+                "action": "status",
+                "state": "closed",
+                "access": "closed",
+                "tailscale": {
+                  "state": "disconnected",
+                  "ip": null,
+                  "changed": false
+                },
+                "ssh": {
+                  "state": "ready",
+                  "port": 8022,
+                  "user": "u0_a554",
+                  "key": "id_ed25519_s24",
+                  "changed": false
+                },
+                "command": null,
+                "latency_ms": 186.3
+              },
+              "stderr": ""
+            }
+          }
+        }
+      ]
+    },
+    "qa": {
+      "capability": "qa.test_campaign",
+      "receipt": {
+        "bridge_request": {
+          "requestId": "req_7aca4e9c7198",
+          "method": "mcp_capability_execute_owner",
+          "state": "completed",
+          "receivedAt": 1791298396288,
+          "completedAt": 1791298397370,
+          "mutationRisk": "write"
+        },
+        "envelope": {
+          "success": true,
+          "version": 1,
+          "capability_revision": "870b1c683c201ee8",
+          "surface": "external_mcp",
+          "caller": "owner",
+          "text": "qa.test_campaign {\"operation\":\"docs\"}",
+          "capability": "qa.test_campaign",
+          "confirmation_required": false,
+          "latency_ms": 92.854,
+          "harness": {
+            "tool_policy": "required",
+            "confidence": 1,
+            "reason": "explicit_capability",
+            "allow_model_only": false,
+            "shortlist": [
+              {
+                "id": "qa.test_campaign",
+                "score": 1,
+                "operation": "mixed",
+                "risk": "write"
+              },
+              {
+                "id": "tasks.personal_followup",
+                "score": 0.149,
+                "operation": "mixed",
+                "risk": "read"
+              },
+              {
+                "id": "memory.cross_surface",
+                "score": 0.126,
+                "operation": "read",
+                "risk": "read"
+              },
+              {
+                "id": "engineering.autonomous",
+                "score": 0.091,
+                "operation": "mixed",
+                "risk": "read"
+              },
+              {
+                "id": "engineering.release_control",
+                "score": 0.091,
+                "operation": "mixed",
+                "risk": "read"
+              }
+            ]
+          },
+          "selected": {
+            "executor": "claw.capability_runtime",
+            "capability": "qa.test_campaign",
+            "target": null,
+            "intent": null,
+            "route": null,
+            "route_layer": null,
+            "entrypoint": "python3 -m qa_testing.cli --request",
+            "deterministic": true,
+            "model_required": false,
+            "risk": "write"
+          },
+          "execution": {
+            "state": "completed",
+            "executor": "claw.capability_runtime",
+            "capability": "qa.test_campaign",
+            "exit_code": 0,
+            "duration_ms": 267.406,
+            "result": {
+              "ok": true,
+              "capability_id": "qa.test_campaign",
+              "operation": "docs",
+              "result": {
+                "capability_id": "qa.test_campaign",
+                "name": "Tests applicatifs",
+                "description": "Tests fonctionnels et UX/UI web ou Android S24, cas Excel ou smoke, descriptif facultatif, historique, KPI, preuves et diagnostic API/JSON sur anomalie.",
+                "documents": [
+                  {
+                    "document_id": "skill",
+                    "title": "Procédure réutilisable de la capability",
+                    "name": "SKILL.md",
+                    "available": true,
+                    "size_bytes": 3613,
+                    "sha256": "h_e4f86d9ed273",
+                    "version": "1.0.0"
+                  },
+                  {
+                    "document_id": "acceptance",
+                    "title": "Recette physique, preuves et limites",
+                    "name": "ACCEPTANCE.md",
+                    "available": true,
+                    "size_bytes": 4697,
+                    "sha256": "h_28248910adb9",
+                    "version": "1.0.0"
+                  },
+                  {
+                    "document_id": "description",
+                    "title": "Descriptif et utilisation de la capability",
+                    "name": "README.md",
+                    "available": true,
+                    "size_bytes": 21586,
+                    "sha256": "h_1cae4d6dc0d8",
+                    "version": "1.0.0"
+                  },
+                  {
+                    "document_id": "reference",
+                    "title": "Référentiel de tests applicatifs",
+                    "name": "Claw_QA_Referentiel_v0_1.docx",
+                    "available": true,
+                    "size_bytes": 59680,
+                    "sha256": "h_ff0cca4db890",
+                    "version": "cadrage-v0.1-complete"
+                  },
+                  {
+                    "document_id": "excel-template",
+                    "title": "Modèle Excel de campagne",
+                    "name": "Claw_QA_Modele_Campagne_v0_1.xlsx",
+                    "available": true,
+                    "size_bytes": 176460,
+                    "sha256": "h_7c7f8b1d36c9",
+                    "version": "cadrage-v0.1-complete"
+                  },
+                  {
+                    "document_id": "request-schema",
+                    "title": "Contrat des requêtes et plans",
+                    "name": "request.schema.json",
+                    "available": true,
+                    "size_bytes": 10956,
+                    "sha256": "h_289493a522bd",
+                    "version": "1.0.0"
+                  },
+                  {
+                    "document_id": "engine-qualification",
+                    "title": "Qualification effective des moteurs et limites",
+                    "name": "ENGINE_QUALIFICATION.md",
+                    "available": true,
+                    "size_bytes": 14224,
+                    "sha256": "h_3d7613717f74",
+                    "version": "1.0.0"
+                  },
+                  {
+                    "document_id": "notification-examples",
+                    "title": "Guide des exemples de restitution",
+                    "name": "README.md",
+                    "available": true,
+                    "size_bytes": 914,
+                    "sha256": "h_4ec46ade0d65",
+                    "version": "1.0.0"
+                  },
+                  {
+                    "document_id": "email-example",
+                    "title": "Exemple de mail formaté — données synthétiques",
+                    "name": "demo_email.html",
+                    "available": true,
+                    "size_bytes": 12954,
+                    "sha256": "h_4304ed9452c3",
+                    "version": "1.0.0"
+                  },
+                  {
+                    "document_id": "whatsapp-example",
+                    "title": "Exemple WhatsApp condensé — données synthétiques",
+                    "name": "demo_whatsapp.txt",
+                    "available": true,
+                    "size_bytes": 402,
+                    "sha256": "h_e4fcf3a831f0",
+                    "version": "1.0.0"
+                  }
+                ],
+                "operations": [
+                  "docs",
+                  "document.get",
+                  "file.put",
+                  "prepare",
+                  "plan",
+                  "submit",
+                  "run",
+                  "resume",
+                  "status",
+                  "list",
+                  "history",
+                  "kpis",
+                  "compare",
+                  "reconcile",
+                  "cancel",
+                  "report",
+                  "artifact.get",
+                  "proof.get",
+                  "proof.review",
+                  "finding",
+                  "notify",
+                  "suite.list",
+                  "suite.get",
+                  "replay"
+                ],
+                "android_policy": "<texte:90 car.>",
+                "execution_contract": "<texte:167 car.>",
+                "file_delivery": "<texte:116 car.>",
+                "sensitive_data": "<texte:138 car.>",
+                "history_policy": "<texte:148 car.>"
+              }
+            },
+            "stderr": ""
+          }
+        }
+      }
+    },
+    "pulse": {
+      "capability": "pulse.backend_first",
+      "capability_receipt_in_bridge": null,
+      "note": "Aucun reçu claw_execute pulse.backend_first dans ~/.openclaw/remote-bridge/requests (7059 reçus). Seul reçu terminal existant : continuation foreground de la livraison forecast (état completed, preuves live).",
+      "foreground_continuation": {
+        "version": 2,
+        "kind": "engineering",
+        "run_id": "run_2ea7e41568f9",
+        "capability": "pulse.backend_first",
+        "state": "completed",
+        "step": "published-live-verified",
+        "fingerprint": "forecastaffairexls3-v1",
+        "owner": {
+          "id": "chatgpt",
+          "lease_until": 0
+        },
+        "updated_at": 1791371973.2401385,
+        "surface": "chat",
+        "attempts": {},
+        "evidence": {
+          "final-live-baseline": {
+            "fingerprint": "pulse-20495-457-2027_1_2-baseline",
+            "status": "passed",
+            "observed_at": 1791371972.81666,
+            "fresh_until": 1791372872.81666,
+            "summary": "Live re-read confirms 2027_1_2 blank and January total 4.0 after rollback."
+          },
+          "published-commit": {
+            "fingerprint": "h_fa794c149b3d",
+            "status": "passed",
+            "observed_at": 1791371973.0288303,
+            "fresh_until": null,
+            "summary": "Delivery h_f465697d5150 published and remote main verified."
+          }
+        },
+        "next_action": null,
+        "reconciliation": {
+          "reason": "owner_expired_revalidation_required",
+          "at": 1791371687.8684344,
+          "previous_action": "verify-temporary-write-then-restore",
+          "previous_fingerprint": "forecastaffairexls3-v1",
+          "preconditions_fingerprint": "h_4a863dca3530"
+        }
+      }
+    },
+    "agenda": {
+      "capability": "agenda.google_whatsapp",
+      "capability_receipt_in_bridge": null,
+      "note": "Aucun reçu claw_execute agenda.google_whatsapp dans le pont ni dans les runs Companion. Seule trace terminale : ~/.openclaw/agenda/acceptance-move.json (liens événement→rappels), projetée en forme ; compte et calendrier pseudonymisés, lieu masqué ; titre et messages conservés car il s'agit de l'événement de recette « TEST Samantha » (aucune donnée personnelle).",
+      "acceptance_move_shape": {
+        "version": 2,
+        "links": {
+          "b6354c5817eba5046bc282ae": {
+            "id": "h_9f9d98d7d39e",
+            "account": "acct_661a05dd9511",
+            "calendar": "cal_661a05dd9511",
+            "event_id": "evt_c6c592f7f225",
+            "timezone": "Africa/Tunis",
+            "items": {
+              "86c516bbe914cb6b76b430d2": {
+                "key": "h_401275676e00",
+                "due": 1790604000.0,
+                "message": "Rappel : TEST Samantha — synchronisation V2, le 29/09/2026 à 15:00 — Lieu technique initial.",
+                "late": false,
+                "status": "superseded",
+                "job_id": "job_65d413c50717"
+              },
+              "e6c4dbf984ab5893b711aeff": {
+                "key": "h_86d43e0a87de",
+                "due": 1790672400.0,
+                "message": "Rappel : TEST Samantha — déplacement détecté, le 30/09/2026 à 10:00 — Lieu technique modifié.",
+                "late": false,
+                "status": "scheduled",
+                "job_id": "job_ce411610602a"
+              }
+            },
+            "rules": null,
+            "native_minutes": [
+              1440
+            ],
+            "state": "active",
+            "checked_at": 1790550011.966113,
+            "snapshot": {
+              "local_id": 1390,
+              "start_ms": 1790758800000,
+              "end_ms": 1790759100000,
+              "deleted": 0,
+              "status": 1,
+              "all_day": 0,
+              "title": "TEST Samantha — déplacement détecté",
+              "location": "<texte:22 car.>",
+              "dirty": 0,
+              "recurrence": "",
+              "timezone": "Africa/Tunis",
+              "reminders": [
+                1440
+              ],
+              "native_rows": [
+                {
+                  "_id": 993,
+                  "minutes": 1440,
+                  "method": 1
+                }
+              ],
+              "calendar_visible": 0
+            },
+            "reason": null,
+            "source": "android_calendar_replica"
+          }
+        }
+      }
+    },
+    "orange": {
+      "see": "o7-o8-orange-20261010-0941.json (#113)"
+    }
+  }
+}

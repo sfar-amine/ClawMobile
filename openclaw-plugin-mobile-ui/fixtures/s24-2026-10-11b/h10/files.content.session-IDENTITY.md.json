@@ -1,0 +1,39 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/files/content?scope=session&path=IDENTITY.md",
+  "status": 200,
+  "capturedAt": "2026-10-10T23:41:33Z",
+  "bytes": 611,
+  "companion": "curl loopback http://127.0.0.1:8765 avec l'en-tête de l'app (Connection: close), sans Origin/Referer ni en-tête propriétaire",
+  "sanitized": true,
+  "attempts": 6,
+  "totalMs": 4374,
+  "lastLatencyMs": 59,
+  "retryPolicy": "relance toutes les 500 ms tant que computation.deliveryMode=deferred (comme l'app, retryAfterMs=500)",
+  "firstCall": {
+   "status": 200,
+   "latencyMs": 309,
+   "at": "2026-10-10T23:40:21Z",
+   "response": {
+    "success": false,
+    "state": "warming",
+    "receipt": null,
+    "ready": false,
+    "retryAfterMs": 500,
+    "computation": {"deliveryMode":"deferred"}
+   }
+  }
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "ready": true,
+  "installedSchemaQualified": false,
+  "contentType": "text/plain; charset=utf-8",
+  "truncated": false,
+  "redacted": true,
+  "text": "<texte 383 car.>"
+ }
+}

@@ -1,0 +1,36 @@
+{
+  "_capture": {
+    "by": "claude-code (session rel41)",
+    "at": "2026-10-11T01:35:46Z",
+    "via": "claw_exec / claw_status (connecteur Claw), lecture de ~/.openclaw/remote-bridge/requests/",
+    "mutation": "aucune hors la commande de démonstration `date; sleep 35; date; echo done` (aucun effet)",
+    "cleaning": "aucun identifiant privé ; requestId dérivé de client_id/action_key/step_key publics"
+  },
+  "inventory_at_capture": {
+    "receipts_total": 7325,
+    "external_mcp_exec_wait_over_25s": 70,
+    "of_which_completed": 69,
+    "of_which_indeterminate": 1,
+    "duration_s": { "min": 25.0, "median": 33.75, "max": 285.8 }
+  },
+  "demo": {
+    "action_key": "rel41-bridge-long-demo",
+    "step_key": "sleep35",
+    "request_id": "mcp-claude-chat-rel41-bridge-long-demo-sleep35",
+    "calls": [
+      { "tool": "claw_exec", "answer": { "success": false, "error": "device_timeout" }, "note": "réponse edge vers ~28 s" },
+      { "tool": "claw_exec", "same_keys": true, "answer": { "success": false, "error": "device_timeout" }, "note": "immédiat : réponse mise en cache par l'edge (recent, 10 min)" },
+      { "tool": "claw_status", "answer": { "state": "running", "retry_allowed": false } },
+      { "tool": "claw_exec", "same_keys": true, "after_completion": true, "answer": { "success": false, "error": "device_timeout" }, "note": "toujours le cache edge, alors que le reçu est terminé" },
+      { "tool": "claw_status", "answer": { "state": "completed", "retry_allowed": false, "result": { "exitCode": 0, "timedOut": false, "durationMs": 35140, "stdout": "01:35:46\n01:36:21\ndone\n" } } }
+    ],
+    "receipt": {
+      "state": "completed",
+      "receivedAt": 1791682546257,
+      "startedAt": 1791682546258,
+      "completedAt": 1791682581399,
+      "mutationRisk": "unknown",
+      "executions": 1
+    }
+  }
+}
