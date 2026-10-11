@@ -15,9 +15,12 @@
     "docs/changes/codex-hs8-memo-pipeline-20261011.md",
     "docs/changes/codex-hs8-sdk-boundary-v2-20261011.json",
     "docs/changes/codex-hs8-sdk-boundary-v2-20261011.md",
+    "docs/changes/codex-r20-cli-cleanup-20261011.json",
+    "docs/changes/codex-r20-cli-cleanup-20261011.md",
     "docs/work/samantha-runtime/contracts/hs8-pipeline.md",
     "docs/work/samantha-runtime/contracts/hs8.md",
     "docs/work/samantha-runtime/contracts/p1-admission.md",
+    "docs/work/samantha-runtime/contracts/r20.md",
     "installer/termux-lite/companion-acceptance.py",
     "installer/termux-lite/companion-deploy.sh",
     "installer/termux-lite/test-companion-acceptance-owner-transport.py",
@@ -50,8 +53,13 @@
     "openclaw-plugin-mobile-ui/scripts/test-memo-stt-owner.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-strict-process-cleanup.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-understanding.cjs",
+    "openclaw-plugin-mobile-ui/src/capabilityClarification.ts",
     "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
     "openclaw-plugin-mobile-ui/src/companion/catalog.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
     "openclaw-plugin-mobile-ui/src/companion/intent.ts",
     "openclaw-plugin-mobile-ui/src/companion/memoSttBoundary.ts",
     "openclaw-plugin-mobile-ui/src/companion/memoSttOwner.ts",
@@ -85,9 +93,9 @@
       "evidence": "Node20 npm run build + memo-stt-owner + HTTP P1 réel + deferred-retry + remote-bridge-abandoned exit0 sous EX, /workspace/artifacts/b42/hs8-46-free-exclusive-targeted.log. apiKey getter qui jette jamais lu, champ omis aux préflight/média et config globale intacte ; gratuit indisponible/mismatch sans autre compte. Correctif portable dc5cc696 importé en e95c110c : overflow/proc indeterminate, 17 abandons, sweep463ms sous borne inchangée."
     },
     {
-      "name": "HS8 suite CI entière SHA final",
-      "status": "pending",
-      "evidence": "Revue et gel du delta46 avant suite entière locale ; reçu N/N et SHA exact à publier dans PR138. Ancien68/68 SHA27b4f083 est historique et ne valide pas cette tête."
+      "name": "HS8 final union P1 and R20 targeted",
+      "status": "passed",
+      "evidence": "Node20 build + P1 64/64 + voice21/21 + real HTTP signed memo + SDK owner + memo pipeline/deferred retry/SDK resolution + E3 44 + edit-replay + F6 17abandons sweep498ms + strict cleanup9/9. /workspace/artifacts/b42/hs8-46-p1-union-final-targeted-r2.log exit0, portable6283/84b8/197/a947 integrated; previous command with wrong script names archived, no code relaxation."
     }
   ],
   "documentation": [
@@ -125,6 +133,7 @@
     "SDK relit un pathname ; fd ouvert ne prouve pas absence de substitution concurrente. TTL30d issu du mtime propriétaire, suppression/protection partagée testées hors ligne.",
     "Après réponsePOST perdue et audio supprimé, rapprochement GETparclient existant côté app ; pas de réupload ou nouveau run.",
     "Aucun appel fournisseur live, fusion PR, force-push, activation ni déploiement par Codex.",
-    "Publication prête conditionnée à la suite entière verte sur SHA exact ; recette S24 et journaux privés requis avant activation."
+    "Publication prête conditionnée à la suite entière verte sur SHA exact ; recette S24 et journaux privés requis avant activation.",
+    "Final whole CI at frozen final SHA remains pending after current targeted union; no readiness or Android activation until qualified."
   ]
 }
