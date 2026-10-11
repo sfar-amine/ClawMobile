@@ -3,6 +3,7 @@ import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
 import {filesList,filesContent} from "./fileReads";
+import {writeAgentFile} from "./agentFileWritePlan";
 import {readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
@@ -248,6 +249,21 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if(routePath==="/files"||routePath==="/files/content"){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method==="PUT"&&routePath==="/files/content"&&req.headers["x-clawmobile-owner-flow"]==="v1"){
+      // E3 / R20 lot 2: agent files only, biometric agent.file_write, CAS on baseHash, bounded backup, payment lines kept.
+      res.setHeader("Cache-Control","no-store");
+      const params=requestUrl.searchParams;
+      try{
+        if([...params.keys()].some(k=>!["scope","path"].includes(k))||params.getAll("scope").length!==1||params.get("scope")!=="agent"||params.getAll("path").length!==1)throw Object.assign(new Error("invalid_file_write"),{statusCode:400});
+        const result:any=await writeAgentFile(params.get("path"),await readJsonBody(req,300*1024));
+        writeJson(res,result.state==="needs_confirmation"?403:result.state==="refused"||result.state==="blocked"?409:result.state==="completed"||result.state==="unchanged"?200:503,result);
+      }catch(error:any){
+        const status=[400,403,404,413,422].includes(error?.statusCode)?error.statusCode:503;
+        const known=["invalid_file_write","file_write_not_available","invalid_file_content","invalid_file_revision","invalid_operation_id","confirmation_mismatch","file_content_protected","file_protected_lines_changed","file_not_available","operation_conflict"];
+        writeJson(res,error?.statusCode===409?409:status,{success:false,state:status===503&&error?.statusCode!==409?"failed":"refused",receipt:null,error:known.includes(error?.message)?error.message:status===503?"files_owner_unavailable":"invalid_file_write"});
+      }
+      return;
+    }
     if(method!=="GET"){writeJson(res,req.headers["x-clawmobile-owner-flow"]!=="v1"?403:405,{success:false,state:"refused",receipt:null,error:"file_read_only"});return;}
     try{
       const value:any=routePath==="/files"?await filesList(requestUrl.searchParams):await filesContent(requestUrl.searchParams);

@@ -240,5 +240,5 @@ jobs:
       - name: H9 read-only UI smoke synthetic safety boundaries
         run: python3 ../installer/termux-lite/test-ui-smoke.py
 
-      - name: E3 agent file edit preparation (pure plan and fail-closed owner probe)
+      - name: E3 agent file write (biometric, CAS, payment lines kept, five backups)
         run: node scripts/test-agent-file-write-plan.cjs

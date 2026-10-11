@@ -1,7 +1,9 @@
-# E3 — Préparation uniquement
+# E3 / R20 lot 2 — modifier un fichier de l'agent
 
-Le contrat E3 borne cinq fichiers agent, le hash de confirmation et la comparaison de révision. Aucun appel de mutation ni sauvegarde nouvelle. La capability jumelle reste planned et exclue du graphe live.
+`PUT /v1/files/content?scope=agent&path=NOM` (garde owner) écrit `AGENTS.md`, `SOUL.md`, `USER.md` ou `IDENTITY.md` via `agents.files.set`. [Contrat](../work/samantha-runtime/contracts/e3.md).
 
-La capture réelle IDENTITY.md confirme le format de lecture ; son hash nettoyé ne prouve aucun CAS. Mutation installée, CAS atomique, propriétaire des cinq sauvegardes et budget réel restent bloquants.
-
-Tests dans la CI propre à chaque dépôt ; déploiement réservé à Claude. [Contrat E3](../work/samantha-runtime/contracts/e3.md).
+- Biométrie `agent.file_write` : référence = nom, `payloadHash = sha256(contenu envoyé)` ; sans confirmation, 403 `needs_confirmation`.
+- CAS : `baseHash` = `revision` de la lecture (sha256 du propriétaire), précontrôle puis `expectedHash` natif.
+- Garde des instructions de paiement et des secrets, que la Gateway n'a pas : chaque ligne `[masqué]` est restituée telle quelle, aucune ne peut être retirée, ajoutée ou modifiée, et aucune nouvelle ligne paiement ou secret n'est acceptée.
+- Sauvegarde de la version remplacée, que la Gateway ne fait pas : `<NOM>.bak-samantha-<horodatage>` dans le workspace (0600), 5 au plus par fichier.
+- Reçu natif, une seule écriture, une relecture après effet incertain, jamais de rejeu. Ni suppression ni renommage.

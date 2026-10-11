@@ -5,11 +5,16 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "E3 preparation only: pure edit intent and planned capability; owner effects blocked",
-  "reason": "Programme 35 E3 : préparer sans inventer agents.files.set CAS ni stockage de sauvegardes ; captures mutations et propriétaire de rétention requis. Seule la préparation non branchée est fusionnable ; aucun effet E3 autorisé.",
+  "summary": "E3 / R20 lot 2 : PUT /v1/files/content?scope=agent&path=NOM via agents.files.set, biométrie agent.file_write, CAS expectedHash, lignes paiement/secrets conservées, 5 sauvegardes.",
+  "reason": "Schéma et handler agents.files.set relus sur le S24 (#131) : CAS natif entre écritures Gateway, aucune garde de contenu ni sauvegarde. Le Companion ajoute la garde des instructions de paiement (lignes masquées restituées telles quelles, aucune nouvelle) et la sauvegarde bornée à 5 par fichier, selon la convention <NOM>.bak-* du workspace, sans nouveau store.",
   "files": [
     ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
     "openclaw-plugin-mobile-ui/src/companion/agentFileWritePlan.ts",
+    "openclaw-plugin-mobile-ui/src/companion/fileReadBoundary.ts",
+    "openclaw-plugin-mobile-ui/src/companion/fileGatewayRead.ts",
+    "openclaw-plugin-mobile-ui/src/companion/fileReads.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/scripts/test-agent-file-write-plan.cjs",
     "docs/work/samantha-runtime/contracts/e3.md",
     "docs/changes/codex-e3-agent-file-edit-preparation-20261010.md",
@@ -17,9 +22,14 @@
   ],
   "tests": [
     {
-      "name": "e3-preparation-only",
+      "name": "e3-agent-file-write-http",
       "status": "passed",
-      "evidence": "npm run build ; test-agent-file-write-plan.cjs : cinq noms, hash UTF-8 exact, comparaison pure de révision, exclusions paiement/secrets, POST owner probe 403/405, zéro appel Gateway."
+      "evidence": "test-agent-file-write-plan.cjs : 48 assertions ; formes réelles agents.files.get (#48/#53) et schéma/handler/conflit agents.files.set (#131) ; noms fermés (DREAMS.md, MEMORY.md refusés), CAS préalable et natif, garde paiement (suppression, ajout, nouvelle ligne refusés ; lignes restituées), needs_confirmation puis consommation, sauvegarde 0600 bornée à 5, reçu idempotent, relecture unique, refus sans écriture ; PUT en 6,9 s avec la latence CLI capturée (budget 20 s)."
+    },
+    {
+      "name": "r20-read-regression",
+      "status": "passed",
+      "evidence": "test-file-gateway-read, test-files-http, test-file-read-boundary, test-file-gateway-limits, test-files-acceptance verts (champ revision ajouté à la lecture agent)."
     }
   ],
   "documentation": [
@@ -27,9 +37,11 @@
     "docs/changes/codex-e3-agent-file-edit-preparation-20261010.md"
   ],
   "capabilities": {
-    "impact": "none",
-    "ids": [],
-    "reason": "Module de préparation non branché ; capability planned dans la PR playbooks jumelle."
+    "impact": "planned",
+    "ids": [
+      "samantha.app.agent_file.write"
+    ],
+    "reason": "Capability planned (biométrie) dans playbooks #47, avec dependencies.json ; route PUT /v1/files/content?scope=agent&path=NOM."
   },
   "architecture": {
     "changed": false,
@@ -46,11 +58,10 @@
     },
     "reason": "Existing MCP tools and execution contracts unchanged."
   },
-  "rollback": "Retirer la préparation non branchée et la capability planned ; aucun effet S24 à annuler.",
+  "rollback": "Revert de la PR. Les sauvegardes <NOM>.bak-samantha-* éventuellement créées restent dans le workspace (5 au plus par fichier) et se suppriment à la main si besoin.",
   "limitations": [
-    "Aucune fixture agents.files.set ; schéma mutation, CAS atomique et propriétaire de cinq sauvegardes non confirmés.",
-    "Aucun endpoint E3 branché ; aucune mutation qualifiée.",
-    "Budget effectif reste à mesurer sur S24 ; plafond prévu de 20 s non qualifié.",
-    "Publication différée : ordre E1, E2, E3."
+    "Budget d'écriture mesuré en CI avec la latence CLI capturée de agents.files.get (3,45 s) appliquée aussi à set ; mesure production après déploiement.",
+    "Le CAS natif ne sérialise que les écritures agents.files.set du même process Gateway ; install-openclaw-instructions.sh ou un outil de l'agent peut écrire AGENTS.md hors de cette file : la relecture après effet incertain le détecte, sans rejeu.",
+    "Un fichier absent ne peut pas être créé (pas de révision) ; DREAMS.md reste hors liste Gateway."
   ]
 }

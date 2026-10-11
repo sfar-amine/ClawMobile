@@ -9,6 +9,10 @@ const secretName=/credential|token|secret|password|backup|\.bak(?:$|[._-])|autho
 const pathSecret=/\b(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,})|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|https?:\/\/|@|-----BEGIN/i;
 const sensitiveText=/\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,})|token|password|mot de passe|secret|credential|authorization|bearer|\bcvv\b|\bcvc\b|api[_ -]?key|iban|(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)|(?<!\d)\d{6}(?!\d)|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|https?:\/\/|@|-----BEGIN .*PRIVATE KEY-----/i;
 
+/** Line masked by every read and kept verbatim by every write (E3): payment, secret or identifier material. */
+export const MASKED_LINE="[masqué]";
+export function protectedFileLine(line:string):boolean{return sensitiveText.test(line)||protectedJob(line);}
+
 export function safeFileName(name:unknown):string{
  if(typeof name!=="string"||name.length<1||name.length>512||name!==name.normalize("NFC")||/[\p{C}\p{Zl}\p{Zp}\\%]/u.test(name)||name.startsWith("/")||name.includes(":"))throw denied();
  const segments=name.split("/");
@@ -55,7 +59,7 @@ export function boundedFileContent(name:unknown,bytes:Buffer):{contentType:strin
  if(/-----BEGIN [A-Z ]*PRIVATE KEY-----/i.test(text))return {contentType:"text/plain; charset=utf-8",bytes:Buffer.from("[masqué]"),truncated:bytes.length>end,redacted:true};
  let redacted=false;
  const output=text.split(/\r?\n/).map(line=>{
-  if(sensitiveText.test(line)||protectedJob(line)){redacted=true;return "[masqué]";}
+  if(protectedFileLine(line)){redacted=true;return MASKED_LINE;}
   return line;
  }).join("\n");
  const rendered=Buffer.from(output);
