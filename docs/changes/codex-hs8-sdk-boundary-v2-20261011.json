@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "HS8 : adaptateur SDK canonique Gemini → OpenAI et pièces jointes M4A sous garde de qualification S24",
-  "reason": "Capture Claude #170 : SDK global non résolu et modèles média vides. Correctif de résolution préparé, tests et suite entière à rejouer sur nouvelle tête ; admission toujours fermée, audio live Claude/Amine requis.",
+  "reason": "Capture Claude #170 intégrée ; résolution SDK publique globale corrigée, build et cinq suites ciblées verts. Suite CI entière toujours à rejouer sur nouvelle tête avant publication ; admission fermée, config et audio live Claude/Amine requis.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-hs8-sdk-boundary-v2-20261011.json",
@@ -34,8 +34,8 @@
     },
     {
       "name": "HS8 public installed SDK resolution",
-      "status": "pending",
-      "evidence": "Source et contrats local/global/ESM/exports/version/timeout préparés sans exécution pendant créneau R exclusif. Anciennes preuves CI ne qualifient pas cette nouvelle tête."
+      "status": "passed",
+      "evidence": "Node20 : npm ci et npm run build exit0 ; cinq suites finales exit0 : test-memo-stt-boundary.cjs, test-memo-stt-owner.cjs, test-memo-sdk-resolution.cjs, test-memo-intent-pipeline.cjs, test-attachment-http.cjs. Verrou EX ci-stage.lock respecté. Local/global ESM, package/export/version, timeout npm3s/output4K, gate false sans npm/import/I/O. Logs /workspace/artifacts/b42/hs8-sdk-global-targeted.log (première passe interrompue par mauvais nom script) et hs8-sdk-global-targeted-final.log (tout vert). Paquets synthétiques, zéro fournisseur/S24."
     }
   ],
   "documentation": [
@@ -68,6 +68,7 @@
     "Décision fournisseur levée ; qualification audio, auth disponible, budgets et confidentialité SDK S24 manquante.",
     "Aucun appel fournisseur, aucune fusion ni activation par Codex.",
     "Capture #170 : configuration média actuelle vide ; proposition de modèles SDK distincte des faits S24 et à appliquer par Claude.",
+    "Toute la suite CI doit encore être rejouée sur la tête finale avant prêt à fusionner ; preuves ciblées ne sont pas un N/N complet.",
     "Résolution publique globale à vérifier dans Companion installé avant activation."
   ]
 }
