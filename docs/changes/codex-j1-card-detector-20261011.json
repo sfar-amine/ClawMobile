@@ -17,8 +17,6 @@
     "docs/changes/codex-j1-card-detector-20261011.md",
     "docs/changes/codex-j1-card-detector-20261011.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/j1/secret-scan-before.json",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/j1/secret-scan-before-after-164.json",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/README-j1-hs2-hs3.md",
     "installer/termux-lite/test-nightly-secret-scan.py",
     "installer/termux-lite/test-secret-scan-root-partition.py",
     "docs/work/samantha-runtime/contracts/j1.md",
