@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "codex-bridge-long-20261011",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Return running for long exec_wait and retain completion in existing receipt.",
+  "reason": "Relay transport expires at 28 seconds while commands may run for 300 seconds.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-bridge-long.cjs",
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-bridge-long-20261011.md",
+    "docs/changes/codex-bridge-long-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "build",
+      "status": "passed",
+      "evidence": "npm run build"
+    },
+    {
+      "name": "bridge-long",
+      "status": "passed",
+      "evidence": "node scripts/test-bridge-long.cjs"
+    },
+    {
+      "name": "mcp-bridge",
+      "status": "blocked",
+      "evidence": "Requires canonical SOUL.md absent from cloud workspace; failure ENOENT after earlier assertions."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-bridge-long-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing device.remote_bridge execution and status contract; no new capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing owner, receipt, dispatch and status; only bounded response wait."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "claw_exec returns running with stable correlation; claw_status reads same terminal receipt."
+  },
+  "rollback": "Revert commit; no migration.",
+  "limitations": [
+    "Git-only delivery. Claude owns S24 receipt, integrated acceptance and activation.",
+    "Legacy MCP suite cannot finish without canonical SOUL.md; long receipt test passed."
+  ]
+}

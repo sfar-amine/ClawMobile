@@ -33,6 +33,9 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: Test long Remote Bridge receipt response budget
+        run: node scripts/test-bridge-long.cjs
+
       - name: Test canonical context event surfaces
         run: python3 ../installer/termux-lite/test-context-surfaces.py
       - name: Test canonical app and authenticated Bixby bootstrap
