@@ -10,7 +10,7 @@ import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
-import type { AdmissionTicket } from "./ownerTurnAdmission";
+import { turnAdmission, type AdmissionTicket } from "./ownerTurnAdmission";
 
 type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; admission?: AdmissionTicket; replayOf?: {sessionId: string; runId: string}};
 
@@ -91,6 +91,7 @@ async function submitTextIntent(
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
   const clientRunId = String(options.clientRunId || "").trim() || undefined;
   const learningOnly = options.learningOnly === true;
+  const currentOwner = () => !learningOnly && turnAdmission.isCurrent(options.admission, {clientRunId, sessionId: normalizedSessionId});
   if (learningOnly && (normalizedSessionId !== "skill-learning" || attachments.length)) return notSubmitted(normalizedSessionId, clientRunId, "Invalid learning submission.");
   if (!normalized) {
     return notSubmitted(normalizedSessionId, clientRunId, "Intent text is required.");
@@ -112,7 +113,7 @@ async function submitTextIntent(
   let replay: PreparedReplay | undefined;
   if (options.replayOf) {
     // P1 : la relecture exige l'admission native signée (jamais le loopback ni le drapeau legacy).
-    if (!clientRunId || !options.admission || attachments.length || learningOnly)
+    if (!clientRunId || !currentOwner() || attachments.length || learningOnly)
       return notSubmitted(normalizedSessionId, clientRunId, "replay_invalid");
     try { replay = await prepareReplay(options.replayOf.sessionId, options.replayOf.runId, normalizedSessionId); }
     catch (error: any) {
@@ -123,7 +124,8 @@ async function submitTextIntent(
 
   // P1 : bit d'admission de ce tour, persisté sur le run. Une clarification ouverte par un tour non admis
   // n'est jamais reprise par un tour admis (aucun texte dérivé d'un tiers sur la connexion admin).
-  const ownerAdmitted = !learningOnly && options.admission !== undefined;
+  const ownerAdmitted = currentOwner();
+  const caller = ownerAdmitted ? "owner" as const : "other" as const;
   let routingText = normalized;
   let parentClarificationRunId: string | undefined;
   let fastPathCheck: FastPathResult = { status: "miss", reason: "attachments_require_model" };
@@ -137,7 +139,7 @@ async function submitTextIntent(
     }
     if (pending) {
       const clarified = await runModelFastPath(normalized, {
-        surface: "claw_live", caller: "owner", originId: clientRunId || normalizedSessionId,
+        surface: "claw_live", caller, originId: clientRunId || normalizedSessionId,
         timeoutSeconds: 12, checkOnly: true,
         clarificationDecision: pending.decision, clarificationOriginalText: pending.text,
       });
@@ -151,11 +153,13 @@ async function submitTextIntent(
     }
     if (!parentClarificationRunId) {
       fastPathCheck = await runModelFastPath(normalized, {
-        surface: "claw_live", caller: "owner", originId: clientRunId || normalizedSessionId,
+        surface: "claw_live", caller, originId: clientRunId || normalizedSessionId,
         timeoutSeconds: 12, checkOnly: true,
       });
     }
   }
+
+  if (ownerAdmitted && !currentOwner()) return notSubmitted(normalizedSessionId, clientRunId, "owner_admission_expired");
 
   if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
     return executeCapabilityFirst(
@@ -276,9 +280,13 @@ async function executeCapabilityFirst(
     state = "failed";
     message = String(check.text || "Claw identified this capability but did not authorize its execution.");
   } else {
+    if (ownerAdmitted && !turnAdmission.isCurrent(admission, {clientRunId, sessionId})) {
+      await markSubmittedRunFailed(runId, "owner_admission_expired");
+      return notSubmitted(sessionId, clientRunId, "owner_admission_expired");
+    }
     const result = await runModelFastPath(text, {
       surface: "claw_live",
-      caller: "owner",
+      caller: ownerAdmitted ? "owner" : "other",
       originId: clientRunId || runId,
       timeoutSeconds: 75,
       preparedDecision: check.decision,

@@ -39,6 +39,7 @@ import {securitySurfaces} from "./securitySurfaces";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
 import { turnAdmission, legacyLoopbackOwnerContextEnabled, publicAdmission } from "./ownerTurnAdmission";
+import {normalizeCompanionSessionId} from "./openclawAgentClient";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
@@ -868,21 +869,40 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   }
 
   if (method === "POST" && routePath === "/claw-live/capability") {
-    const body = await readJsonBody<any>(req);
-    // Shared understanding wraps the canonical clarification owner; warm admission happens once.
+    const raw = await readRawBody(req, MAX_BODY_BYTES);
+    let body: any;
+    try { body = JSON.parse(raw.toString("utf8")); }
+    catch { throw new HttpError(400, "Request body must be valid JSON."); }
+    const admission = isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"]
+      ? turnAdmission.verifyRequest({method, path: requestUrl.pathname + requestUrl.search, headers: req.headers,
+          rawBody: raw, clientRunId: body?.clientRunId, sessionId: body?.sessionId})
+      : {admitted: false as const, reason: "no_proof" as const};
+    if (!admission.admitted) {
+      writeJson(res,403,{success:false,error:"owner_admission_required",ownerAdmission:publicAdmission(admission)});
+      return;
+    }
+    const sessionId = normalizeCompanionSessionId(String(body?.sessionId || "default"));
+    const binding = {clientRunId: body.clientRunId, sessionId};
+    const assertCurrent = () => {
+      if (!turnAdmission.isCurrent(admission.ticket, binding)) throw new HttpError(403,"owner_admission_required");
+    };
+    assertCurrent();
+    const clarificationId = SurfaceClarifications.idFor("claw-live:" + sessionId);
+    if (body.clarificationId !== undefined && body.clarificationId !== clarificationId) {
+      writeJson(res,400,{success:false,error:"clarification_session_mismatch"}); return;
+    }
+    // The same ephemeral ticket guards resolution, prepared execution and the final bridge.
+    // A stored clarification never grants admission to a following request.
     const execute = (request: string) => clawLiveCapabilityTurn(
-      {
-        request,
-        clarificationId: typeof body?.clarificationId === "string" ? body.clarificationId
-          : body?.voiceTurn?.sessionEpoch !== undefined ? SurfaceClarifications.idFor("claw-live:" + String(body.voiceTurn.sessionEpoch)) : undefined,
-        originId: body?.voiceTurn?.turnId ? "claw-live-" + String(body.voiceTurn.turnId) : undefined,
+      {request, clarificationId, originId: body.clientRunId, assertCurrent},
+      (text) => {
+        assertCurrent();
+        return capabilityBridge(text, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35});
       },
-      (text) => capabilityBridge(text, { execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35 }),
     );
-    const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute);
-
+    const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute, {assertCurrent});
     res.setHeader("Cache-Control", "no-store");
-    writeJson(res, result.success === false ? 400 : 200, result);
+    writeJson(res, result.success === false ? 400 : 200, {...result,ownerAdmission:publicAdmission(admission)});
     return;
   }
 
