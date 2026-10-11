@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "codex-hs6-voice-metadata-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "pending",
+  "deployment_state": "not_applied",
+  "summary": "Protection des OTP/PIN courts dans le lecteur HS3 partagé ; voix consolidée dans #150",
+  "reason": "Supprimer les rendus et gestes doublons tout en conservant la protection des codes humains désignés.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-receipt-metadata.cjs",
+    "docs/work/samantha-runtime/contracts/hs6.md",
+    "docs/changes/codex-hs6-voice-metadata-20261011.md",
+    "docs/changes/codex-hs6-voice-metadata-20261011.json",
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts"
+  ],
+  "tests": [
+    {
+      "name": "HS6 adaptateur voix pur",
+      "status": "passed",
+      "evidence": "Tests contractuels authored du lecteur partagé, aucune fixture audio inventée."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs6.md",
+    "docs/changes/codex-hs6-voice-metadata-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Adaptateur pur non branché, aucune route ni action nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise le reader HS3 existant ; aucun canal, store, registre, scheduler ou routeur."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Aucune primitive owner ni route active modifiée."
+  },
+  "rollback": "Revert du durcissement partagé, aucune donnée runtime.",
+  "limitations": [
+    "La recette voix live appartient à #150 ; aucune qualification audio revendiquée."
+  ]
+}

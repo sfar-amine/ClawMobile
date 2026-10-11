@@ -63,6 +63,8 @@ jobs:
           python3 scripts/test-receipt-presentation-read.py
           node scripts/test-receipt-presentation.cjs
 
+      - name: HS6 shared receipt privacy (OTP/PIN)
+        run: node scripts/test-voice-receipt-metadata.cjs
       - name: HS5 run progress steps from existing receipts
         run: node scripts/test-run-progress.cjs
 
