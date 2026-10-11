@@ -188,6 +188,19 @@ La route n'a pas été appelée, pour ne pas manipuler le jeton owner.
 - Banc `listRuns` : copie temporaire de `runs.json` sous `~/tmp/perf-bench` (supprimée ensuite), run Gateway le plus récent remis à `running`. Le registre et le Companion réels n'ont pas été modifiés.
 - `injectedLatencyMs` sert au test CI `scripts/test-usage-runs-latency.cjs`.
 
+## P1 après déploiement : admission par la factory du Gateway (11/10, 02:00-08:16Z)
+
+`p1-factory-admission-after-deploy.json` est la capture P1 demandée en core #107, faite après la fusion `7210959c` et son déploiement (reçus `companion-20261011T024525.json` et `gateway-plugin-20261011T015736.json`). Comme `perf-usage-runs-latency.json`, elle a été rédigée ici à partir des sorties des commandes, pas copiée depuis le téléphone ; elle n'a donc pas d'empreinte S24.
+
+- **Gateway rafraîchi.** Le Gateway charge le plugin depuis `~/.openclaw/extensions/`, que `companion-deploy.sh` ne met pas à jour. La copie a été rafraîchie par `clawmobile_install_plugin`, avec sauvegarde puis redémarrage via `POST /v1/runtime/restart`.
+- **Sonde sur les octets chargés par le Gateway.** Enregistrement en factory, sans outil statique. 12 refus `caller_not_admitted` (app, WhatsApp, MCP, voix ; bit absent, non booléen ou invocation expirée), 0 helper lancé.
+- **Origine du bit.** OpenClaw 2026.9.6 calcule `senderIsOwner = hasGatewayAdminScope(client)`. Le bit vient du client authentifié, jamais des arguments d'outil.
+- **Tours réels inoffensifs.**
+  - App : `senderIsOwner:false` posé par l'hôte.
+  - MCP : `caller` owner posé par le pont authentifié.
+  - WhatsApp non capturé : aucun canal owner provocable sans Amine, et le tour owner de 02:00Z a échoué avant le modèle, sur la compaction `codex`.
+  - Voix sans tour OpenClaw.
+
 ## Empreintes SHA-256 (identiques sur le S24 et ici)
 
 ```
