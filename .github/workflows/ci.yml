@@ -301,3 +301,11 @@ jobs:
 
       - name: H4 actionable agent fallback confirmation challenge on S24 captures
         run: node scripts/test-agent-confirmation-challenge.cjs
+      - name: R23 automation edit (validation, real cron captures, CAS, confirmation, receipts)
+        working-directory: openclaw-plugin-mobile-ui
+        run: |
+          node scripts/test-automation-edit-validation.cjs
+          node scripts/test-automation-edit-http.cjs
+
+      - name: H6 canonical resolved intention and free vocabulary boundary
+        run: node scripts/test-payment-pattern-boundary.cjs

@@ -17,6 +17,7 @@ import {learningForget, learningList, learningNotThis} from "./learning";
 import {cancelControlRequest} from "./controlActions";
 import {diagnosticRead} from "./diagnostic";
 import {automationDetail,changeAutomation} from "./automations";
+import {editAutomation} from "./automationEditValidation";
 import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
 import {notificationSources} from "./notificationSources";
 import {allowlistRead,allowlistChange,allowlistBody} from "./whatsappAllowlist";
@@ -372,11 +373,23 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       let id:string;try{id=decodeURIComponent(match[1]);}catch{throw Object.assign(new Error("invalid_automation_id"),{statusCode:400});}
       res.setHeader("Cache-Control","no-store");
       if(method==="GET"&&!match[2]){writeJson(res,200,await automationDetail(id));return;}
+      if(method==="PATCH"&&!match[2]){
+        // R23 / E1: payment and validation refusals precede any owner read; CAS via If-Match (native configRevision).
+        const ifMatch=typeof req.headers["if-match"]==="string"?req.headers["if-match"].replace(/^"|"$/g,""):undefined;
+        let result:any;
+        try{result=await editAutomation(id,await readJsonBody(req,8*1024),ifMatch);}
+        catch(error:any){
+          const status=[400,404,409,413,422,428].includes(error?.statusCode)?error.statusCode:503;
+          const known=["invalid_automation_edit","invalid_automation_id","automation_sensitive_input","automation_payment_excluded","automation_message_unsupported","automation_guard_unavailable","automation_protected","automation_not_found","automation_revision_required","operation_conflict"];
+          writeJson(res,status,{success:false,state:status===503?"failed":"refused",receipt:null,error:known.includes(error?.message)?error.message:status===503?"automation_unavailable":"invalid_automation_request"});return;
+        }
+        writeJson(res,result.state==="needs_confirmation"?403:result.state==="refused"||result.state==="blocked"?409:result.state==="completed"?200:503,result);return;
+      }
       if((method==="POST"&&match[2])||(method==="DELETE"&&!match[2])){
         const result=await changeAutomation(id,match[2]||"delete",await readJsonBody(req,1024));
         writeJson(res,result.state==="blocked"?409:result.state==="not_found"?404:result.state==="failed"?503:result.state==="refused"?403:200,result);return;
       }
-      res.setHeader("Allow",match[2]?"POST":"GET, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
+      res.setHeader("Allow",match[2]?"POST":"GET, PATCH, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
     } catch(error:any) {
       const code=[400,404,409].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,error:code===400?"invalid_automation_request":code===404?"automation_not_found":code===409?"operation_conflict":"automation_unavailable"});

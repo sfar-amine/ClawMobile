@@ -1,0 +1,24 @@
+{
+  "_capture": {
+    "capturedAt": "2026-10-11T03:42:00Z",
+    "by": "Claude (claw_exec, profil chat-owner), lecture seule",
+    "openclaw": "2026.9.6 (eb377ac)",
+    "companion": "~/ClawMobile @ runtime/samantha-companion-private (dist déployé)",
+    "method": "openclaw gateway call cron.list --params '{\"includeDisabled\":true}' --json, agrégé sur le téléphone ; aucune valeur de job publiée",
+    "latencyMs": [4256, 3646]
+  },
+  "jobs": 18,
+  "hasMore": false,
+  "topLevelKeys": ["deliveryPreviews", "hasMore", "jobs", "limit", "nextOffset", "offset", "snapshotRevision", "total"],
+  "jobsWithConfigRevision": 18,
+  "configRevisionFormat": "sha256:<base64url 43 car.> pour les 18",
+  "payloadKinds": ["agentTurn", "command", "heartbeat"],
+  "protectedJobCurrentPredicate": {
+    "note": "protectedJob() du dist déployé (automations.ts, JSON.stringify(job) testé contre AUTOMATION_PAYMENT_PATTERN)",
+    "protectedNow": 18,
+    "protectedOnlyByStructure": 14,
+    "agentTurnJobs": 4,
+    "agentTurnMessagesMatchingPaymentPattern": 0,
+    "consequence": "La clé structurelle `payload` correspond à \\bpay : toute automatisation est aujourd'hui protégée. E1 refuse donc toute modification (409 automation_protected) tant que le propriétaire du prédicat n'est pas corrigé (PR séparée, décision de Claude du 10/10)."
+  }
+}
