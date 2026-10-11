@@ -1,3 +1,4 @@
+import {runProgressSteps} from "./runProgress";
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ReceiptPresentation} from "./receiptPresentation";
 import {conversationOwnerIndex,invalidateConversationOwner} from "./conversationOwnerIndex";
 import {stripConversationTransport} from "./conversationText";
@@ -512,10 +513,32 @@ export async function getRunStatusByClientRunId(clientRunId: string): Promise<Co
   if (!stored) return unknownRun(clientId, "Client run was not found.");
   // Admission truth is the local atomic registry. Reconciliation must not depend
   // on Gateway reachability after the Companion has durably accepted a run.
-  return statusFromStoredRun(stored);
+  return withRunSteps(statusFromStoredRun(stored), stored);
+}
+
+/** HS5: progress.steps[] derived on read from the stored run and its receipts; nothing persisted. */
+function withRunSteps(status: CompanionRunStatus, stored?: StoredRun | null): CompanionRunStatus {
+  if (!stored) return status;
+  const derived = runProgressSteps({
+    executionSource: stored.executionSource, state: status.state, error: stored.error,
+    acceptedAt: stored.acceptedAt, updatedAt: stored.updatedAt ?? status.updatedAt, modality: stored.modality,
+    decision: stored.decision, clarificationState: stored.clarificationState,
+    presentation: readReceiptPresentation(stored.presentation), events: status.progress?.events,
+  });
+  if (!derived) return status;
+  const base = status.progress || {text: "", events: []};
+  return {...status, progress: {...base, ...derived}};
 }
 
 export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
+  const normalizedRunId = runId.trim();
+  const stored = normalizedRunId
+    ? (await findStoredRun(normalizedRunId, false).catch(() => null)) || submittedRuns.get(normalizedRunId)
+    : undefined;
+  return withRunSteps(await getRunStatusUnstepped(runId, stored), stored);
+}
+
+async function getRunStatusUnstepped(runId: string, preloaded: StoredRun | null | undefined): Promise<CompanionRunStatus> {
   const normalizedRunId = runId.trim();
   if (!normalizedRunId) {
     return unknownRun("", "Run id is required.");
@@ -523,7 +546,7 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
   if ((await registryOrEmpty().catch(() => defaultCompanionRunRegistry())).runDeletions.some(receipt => receipt.runId === normalizedRunId))
     return unknownRun(normalizedRunId, "Run deleted from companion history.");
 
-  const stored = (await findStoredRun(normalizedRunId, false).catch(() => null)) || submittedRuns.get(normalizedRunId);
+  const stored = preloaded;
   reconcileInactiveRuns(normalizedRunId);
   if(stored&&!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
   // Recent Gateway runs keep their normal live session/transcript refresh.

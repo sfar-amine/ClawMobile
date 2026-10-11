@@ -157,6 +157,11 @@ export type CompanionRunProgress = {
   detail?: string;
   updatedAt?: number;
   events: CompanionRunProgressEvent[];
+  /** HS5: real steps derived on read (runProgress.ts); absent for voice runs. */
+  steps?: import("./runProgress").RunStep[];
+  failedStep?: string;
+  cause?: string;
+  effect?: {debited: "unknown"; source: "receipt"};
 };
 
 export type CompanionRunProgressEvent = {
