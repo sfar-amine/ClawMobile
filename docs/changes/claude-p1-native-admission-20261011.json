@@ -40,7 +40,9 @@
     "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-isolated.cjs",
     "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-clarify.cjs",
     "openclaw-plugin-mobile-ui/scripts/diagnostics/README-p1-gateway.md",
-    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/public-gateway-client-dispatch.json"
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/public-gateway-client-dispatch.json",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs"
   ],
   "tests": [
     {
@@ -67,6 +69,11 @@
       "name": "Gateway public isolé local",
       "status": "passed",
       "evidence": "Nouvel adapter GatewayClient : 6/6 assertions réelles sous Node26.11.1, sortie0 ; public-client-run-02/proof.json, fixture public-gateway-client-dispatch.json. HELLO révoqué avant agent => requestSent:false, zéro invocation. Intégration inscrite dans job p1-isolated-gateway, SDK public2026.9.6 SHA256 vérifié. Aucun décompte entier revendiqué ici."
+    },
+    {
+      "name": "F6 inventaire proc borné",
+      "status": "passed",
+      "evidence": "Build puis test-remote-bridge-abandoned.cjs sous verrou EX : sortie0, 17 abandons, sweep442ms et procOverflowUnknown:true ; log b46-p1-f6-overflow-targeted.log. Étape F6 existante conservée. Le passage complet 40965914 est archivé 82/83, seul F6 rouge ; le correctif dc5 est porté avant une nouvelle entière au nouveau SHA."
     }
   ],
   "documentation": [
@@ -98,6 +105,7 @@
     "Le client public GatewayClient revalide le ticket après résolution de configuration/SecretRef et, après HELLO, immédiatement avant request synchrone. Les scopes effectivement accordés et la méthode agent sont vérifiés. Une seule connexion et un seul envoi, puis fermeture canonique. Remote/TLS/URL overrides et SecretRef irrésolu sont refusés, sans repli CLI d’un tour initialement admis. Après émission, le résultat est indéterminé jusqu’à réception : aucun second envoi ni repli. Après acceptation, l’effet peut se terminer malgré révocation ; reçu conservé. Aucune annulation app n’est livrée.",
     "APK signé, installation et biométrie S24 réservés à Claude ; ce diagnostic local ne les qualifie pas.",
     "Publication conditionnée à CI entière locale verte au SHA exact et revue Claude ; aucun déploiement Codex.",
-    "Les processus disposant du jeton Gateway restent équivalents owner ; aucun secret S24 utilisé par ce lot."
+    "Les processus disposant du jeton Gateway restent équivalents owner ; aucun secret S24 utilisé par ce lot.",
+    "F6 : un inventaire /proc supérieur à 4096 conserve une présence indéterminée et le reçu existant. Cette correction ne qualifie pas exhaustivement les cmdline illisibles ni la fraîcheur du cache de 5 secondes."
   ]
 }
