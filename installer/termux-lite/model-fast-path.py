@@ -254,32 +254,47 @@ def _telecom_cards(value: dict[str, Any]) -> str:
     if not isinstance(cards, list):
         return ""
     lines = []
+    skipped = 0
     for card in cards[:32]:
         if not isinstance(card, dict):
+            skipped += 1
             continue
         label = _plain_display(card.get("label") or card.get("title"), 80)
         amount = card.get("value")
         unit = _plain_display(card.get("unit"), 20)
         if unit not in {"TND", "DT", "GO", "MO", "KO", "GB", "MB", "KB", "Minutes", "MIN", "SMS", "USD", "EUR", "DZD", "MAD", "IQD", "JOD", "JD", "LYD", "%"}:
+            skipped += 1
             continue
         if not label or not unit or isinstance(amount, bool) or not re.fullmatch(r"-?\d{1,30}(?:[.,]\d{1,12})?", str(amount)):
+            skipped += 1
             continue
+        # One card per line: exact value, unit, validity. Never summed (cards of one unit are distinct counters).
         line = f"{label} : {amount} {unit}"
         days = card.get("days_remaining")
-        if type(days) is int and 0 <= days <= 3650:
+        # Real S24 capture (10/10 09:41): "Compte de recharge" carries 4100 days; bound at 100 years.
+        if type(days) is int and 0 <= days <= 36500:
             line += f" — validité restante : {days} jour(s)"
         lines.append(line)
+    if lines and skipped:
+        lines.append(f"{skipped} autre(s) carte(s) non affichable(s) en texte.")
     return "\n".join(lines)
 
 
 def _execution_provenance(selected: dict[str, Any], execution: dict[str, Any]) -> dict[str, str] | None:
     result = {}
+    payload = execution.get("result") if isinstance(execution.get("result"), dict) else {}
     for key in ("capability", "route"):
-        value = execution.get("actual_route") if key == "route" and "actual_route" in execution else selected.get(key)
+        value = selected.get(key)
+        if key == "route":
+            if "actual_route" in execution:
+                value = execution.get("actual_route")
+            elif isinstance(payload.get("route_id"), str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{0,159}", payload["route_id"]):
+                # Older receipts (S24 10/10 09:41) lack execution.actual_route; the owner result names the
+                # route it really executed (orange.usage.maxit.v1 while the plan was orange.summary.maxit.v1).
+                value = payload["route_id"]
         if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{0,159}", value):
             return None
         result[key] = value
-    payload = execution.get("result") if isinstance(execution.get("result"), dict) else {}
     guard = payload.get("network_guard") if isinstance(payload.get("network_guard"), dict) else {}
     network_path = execution.get("network_path") or payload.get("network_path") or guard.get("path")
     if network_path in ("wifi_off", "cellular_bind_wifi_on"):

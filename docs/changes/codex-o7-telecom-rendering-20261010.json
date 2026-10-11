@@ -5,7 +5,7 @@
   "kind": "repair",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "O7 readable telecom card lines and bounded canonical provenance in existing runs registry",
+  "summary": "Readable telecom cards (one per line: value, unit, validity, never summed, never raw JSON) and bounded provenance, tested on the real S24 capture",
   "reason": "Wave37 operator rendering; never display raw result JSON or sum independent counters",
   "files": [
     ".github/workflows/ci.yml",
@@ -27,17 +27,17 @@
     {
       "name": "telecom display and transport",
       "status": "passed",
-      "evidence": "test-telecom-display.py: 13 cases, published historical real receipt fallback, shape/negative card controls, numeric values unchanged, no JSON prefix, no unlisted fields, closed provenance, deep and wide composed payload bounds (128nodes/8000characters); live eight-card capture pending; actual A8 route differs from selected planned route, invalid actual does not degrade to plan; canonical context_import free-text privacy boundary (before truncation), structured card amount retained"
+      "evidence": "test-telecom-display.py: 17 cases. Nominal case = real S24 capture fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json: 8 cards, 8 lines in capture order (title : value unit — validité restante : N jour(s), 4100 days kept), no per-unit sum, no raw field, no JSON prefix; an unreadable card is counted on a closing line, never silently dropped; captured fast-path run carries text and provenance {telecom.orange.consultation, orange.usage.maxit.v1}. Negative mutations: privacy, bounds, closed provenance, A8 actual_route priority, canonical context_import free-text boundary."
     },
     {
       "name": "registry provenance and realistic retention",
       "status": "passed",
-      "evidence": "test-capability-provenance.cjs: canonical projection persisted and read, 10000 seeded history rows, max500 and <8MiB retained, <400byte provenance per row, payment and confirmation sections unchanged"
+      "evidence": "test-capability-provenance.cjs: canonical projection persisted and read, 10000 seeded history rows, max500 and <8MiB retained, <400byte provenance per row, payment and confirmation sections unchanged; captured 09:41 run persisted with {capability, owner route orange.usage.maxit.v1}, no transport or card in the provenance."
     },
     {
       "name": "build and existing regressions",
       "status": "passed",
-      "evidence": "tsc, test-model-efficiency 19, test-model-fast-path, test-composed-read-result 5, test-companion-runs and test-delete-run pass; CI union verified"
+      "evidence": "tsc, test-model-efficiency, test-gemini-request, test-model-fast-path, test-companion-runs and test-delete-run pass after merging runtime 352a8b97; CI union verified"
     }
   ],
   "documentation": [
@@ -55,8 +55,8 @@
   },
   "rollback": "Revert O7 PR; additive provenance optional",
   "limitations": [
-    "Draft: actual eight-card output from S24 2026-10-10 09:41 missing; historical receipt is not this capture. Claude capture and real qualification required.",
-    "No deployment, state reconciliation or deterministic payment change by Codex. Network path field uses O1 closed enum, not network settings or full guard.",
-    "Legacy receipt without execution.actual_route falls back explicitly to selected.route (planned only); actual route is never inferred."
+    "Live recipe on the deployed fast path remains Claude after activation; the capture predates O1 and records no network_path, so none is asserted for it.",
+    "No deployment, state reconciliation or deterministic payment change. Network path field uses O1 closed enum, not network settings or full guard.",
+    "Route priority: execution.actual_route (A8), then the owner-reported result.route_id (S24 capture: orange.usage.maxit.v1), then selected.route (planned only)."
   ]
 }

@@ -1,13 +1,53 @@
-"""O7 pure rendering/projection tests. Card cases are negative/shape controls, not S24 captures."""
+"""O7 rendering/projection tests.
+
+The nominal case is the real S24 capture of the 10/10 09:41 "Mon solde Orange" run (8 cards, values replaced by
+format-preserving substitutes, titles/units/validity real): fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json.
+Remaining card dicts are explicit negative mutations (privacy, bounds), not captures."""
 import importlib.util,json,pathlib,unittest
 from unittest import mock
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location('fast',ROOT/'installer/termux-lite/model-fast-path.py');fast=importlib.util.module_from_spec(spec);spec.loader.exec_module(fast)
+CAPTURE=json.loads((ROOT/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json').read_text(encoding='utf-8'))
 class DisplayTests(unittest.TestCase):
  def test_historical_real_receipt_generic_fallback(self):
   receipt=json.loads((ROOT/'openclaw-plugin-mobile-ui/fixtures/o7-historical/maxit-direct-live-results.json').read_text())
   self.assertTrue(receipt['private_values_omitted']);self.assertFalse(fast._display_text(receipt).lstrip().startswith(('{','[')))
+ def test_real_capture_one_card_per_line_with_value_unit_validity(self):
+  result=CAPTURE['client_received_result'];cards=result['data']['cards']
+  self.assertEqual(len(cards),8)
+  text=fast._display_text(result)
+  self.assertEqual(text.splitlines(),[
+   'Bonus internet mobile : 9.49 GO — validité restante : 21 jour(s)',
+   'Forfait du mois en cours : 13 TND — validité restante : 51 jour(s)',
+   'Compte de recharge : 34.084 TND — validité restante : 4100 jour(s)',
+   'Report du forfait : 22.473 TND — validité restante : 51 jour(s)',
+   'Option sur forfait Internet Mobile : 21.74 GO — validité restante : 21 jour(s)',
+   'Navigui 500Go (365j) : 68.42 GO — validité restante : 313 jour(s)',
+   'Option sur forfait appels vers le National 100h : 88 Minutes — validité restante : 21 jour(s)',
+   'Forfait Together : 47 Minutes — validité restante : 21 jour(s)'])
+ def test_real_capture_never_summed_nor_raw(self):
+  result=CAPTURE['client_received_result'];text=fast._display_text(result)
+  for unit in ('TND','GO','Minutes'):
+   total=sum(__import__('decimal').Decimal(c['value']) for c in result['data']['cards'] if c['unit']==unit)
+   with self.subTest(unit=unit):self.assertNotIn(str(total),text)
+  self.assertFalse(text.lstrip().startswith(('{','[')))
+  for raw in ('https_waaat','maxit_line_view_all','run_','org2','"cards"','DATA'):
+   self.assertNotIn(raw,text)
+ def test_real_capture_unreadable_card_is_counted_not_dropped_silently(self):
+  result=json.loads(json.dumps(CAPTURE['client_received_result']));result['data']['cards'][0]['unit']='private-unit'
+  lines=fast._display_text(result).splitlines()
+  self.assertEqual(len(lines),8);self.assertEqual(lines[-1],'1 autre(s) carte(s) non affichable(s) en texte.')
+ def test_real_capture_fast_path_transports_text_and_provenance(self):
+  resolved=CAPTURE['resolution_now']['claw_live']
+  executed={**resolved,'execution':{'state':'completed','result':CAPTURE['client_received_result']}}
+  with mock.patch.object(fast,'resolve_capability',return_value=resolved),mock.patch.object(fast,'execute_capability_decision',return_value=executed):
+   out=fast.try_fast_path(CAPTURE['companion_run']['userText'])
+  self.assertEqual(out['status'],'hit');self.assertEqual(len(out['text'].splitlines()),8)
+  # The capture has no execution.actual_route and no O1 network path: the owner-reported route wins over the plan.
+  self.assertEqual(out['provenance'],{'capability':'telecom.orange.consultation','route':'orange.usage.maxit.v1'})
+  self.assertEqual(CAPTURE['provenance_fields']['route_executed_by_owner'],out['provenance']['route'])
  def test_cards_separate_not_summed(self):
+  # Negative mutation: label alias and zero validity.
   x={'data':{'cards':[{'title':'Internet','value':'2.500','unit':'GO','days_remaining':3},{'label':'Forfait','value':'7','unit':'Minutes','days_remaining':0}]}}
   text=fast._display_text(x);self.assertEqual(text.splitlines(),['Internet : 2.500 GO — validité restante : 3 jour(s)','Forfait : 7 Minutes — validité restante : 0 jour(s)']);self.assertNotIn('9.5',text)
  def test_closed_card_fields_no_account_payload(self):

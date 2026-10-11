@@ -10,22 +10,26 @@ sont confirmés dans le code canonique `telecom/maxit_direct.py` et ses tests.
 
 Le rendu prend au plus 32 cartes, des libellés de 80 caractères et des unités
 fermées. Une valeur non numérique, un champ manquant ou inattendu n'est pas
-imprimé. Les autres objets/listes ont un repli générique lisible ; une chaîne
+imprimé ; la carte est alors comptée sur une ligne finale (« N autre(s) carte(s)
+non affichable(s) en texte. »), jamais omise en silence. La validité est affichée
+jusqu'à 36 500 jours (la capture réelle porte 4 100 jours pour « Compte de recharge »). Les autres objets/listes ont un repli générique lisible ; une chaîne
 qui commence par `{` ou `[` n'est pas affichée comme réponse. Les lectures
 composées sont bornées à 32 lignes, quatre niveaux, 128 nœuds et 8 000 caractères. Aucun compte, adresse,
 URL, contexte de connexion ni JSON brut n'est repris à partir de ces objets.
 Le texte libre réutilise le filtre `SENSITIVE` du propriétaire canonique
 `context_import.py` (JWT, OTP, tokens…), avant troncature ; les montants
 structurés des cartes ne passent pas dans son heuristique de chiffres.
-Les contrôles ne sont pas des captures S24 et ne prétendent pas l'être.
+Le cas nominal est la capture S24 réelle du 10/10 à 09:41 ; les autres cartes des tests sont des mutations négatives explicites.
 
 ## Provenance
 
 Le reçu canonique porte uniquement `{capability, route, network_path?}`.
 La route vient en priorité de `execution.actual_route` (A8), et non de la
-route planifiée. Si ce champ est absent dans un ancien reçu, le seul repli est
-`selected.route` ; c’est alors une provenance planifiée, pas une preuve de
-route réellement suivie. Un `actual_route` présent mais invalide ne retombe
+route planifiée. Si ce champ est absent (ancien reçu), la route rapportée par le
+propriétaire dans son résultat (`result.route_id`) est retenue : sur la capture
+du 10/10 à 09:41, le plan était `orange.summary.maxit.v1` et le propriétaire a
+exécuté `orange.usage.maxit.v1`. À défaut des deux, le repli est `selected.route`,
+provenance seulement planifiée. Un `actual_route` présent mais invalide ne retombe
 pas sur le plan et ne produit aucune provenance.
 Les deux identifiants sont ASCII, au plus 160 caractères chacun, sans URL ou
 adresse. `network_path` vaut exclusivement `wifi_off` ou
@@ -44,20 +48,23 @@ paiement ni état voix/O9 n'est modifié.
 
 ## Qualification et budget
 
-La sortie huit cartes du 10/10 à 09:41 n'est pas présente dans les captures
-publiées de la base bfa210c. La PR reste un brouillon en attendant cette preuve
-nettoyée de Claude. La fixture historique copiée depuis
-`telecom/maxit-direct-live-results.json` (playbooks 3862baa) est un vrai reçu
-publié sans valeurs privées ; elle ne contient pas ces cartes. Elle sert
-uniquement à vérifier le repli lisible, pas à prétendre qualifier les huit
-cartes. La provenance de cette copie est publiée à côté du fichier.
+Preuve : `openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json`
+(capture en lecture seule du 11/10, runtime `5de1c49`, nettoyage décrit dans le
+`README.md` du dossier : valeurs remplacées à format identique, titres, unités,
+validités, `kind` et `section` réels). Les tests vérifient les 8 lignes exactes dans
+l'ordre de la capture, l'absence de somme par unité, l'absence de champ brut et la
+provenance `{telecom.orange.consultation, orange.usage.maxit.v1}`, sans `network_path`
+(la capture précède O1). La fixture historique (playbooks `3862baa`) reste le contrôle
+du repli générique lisible.
 
-Les cas de cartes et de volumes des tests sont des contrôles de forme/bornes,
-explicitement distincts de la preuve manquante. Les tests sont inscrits dans
-la CI. Aucune route HTTP n'est ajoutée, donc aucune recette fictive dans
-`companion-acceptance.py`. Le budget du fast path n'est pas changé par O7 ;
-O6 conserve sa responsabilité sur le budget du wrapper réseau. La projection
-est locale, bornée et ne fait aucun appel Gateway.
+Les tests sont inscrits dans la CI. Aucune route HTTP n'est ajoutée, donc aucune
+ligne dans `companion-acceptance.py`. Le budget du fast path n'est pas changé par O7 ;
+O6 porte la borne du wrapper réseau. La projection est locale, bornée et ne fait aucun
+appel Gateway.
+
+Recette live (Claude, après activation) : une consultation « Mon solde Orange » par
+l'app, via l'entrée canonique ; la réponse affichée a une ligne par carte et le run
+`runs.json` porte `provenance` avec `network_path` issu du reçu O1.
 
 Retour arrière : revert de la PR ; les champs additionnels sont optionnels.
-Claude seul relit, fusionne, active et capture la recette S24.
+Claude seul relit, fusionne, active et fait la recette S24.
