@@ -70,6 +70,7 @@ OWNER_GUARDS = [
     ("POST", "/skills/clawmobile-capabilities/try"),
     ("POST", "/files"),
     ("POST", "/files/content"),
+    ("PUT", "/files/content?scope=agent&path=AGENTS.md"),  # E3 : écriture refusée sans en-tête propriétaire, avant toute lecture
     # Lot paiement Maxit 11/10 (P1-5): these routes changed budget (Payment Core quote 45 s,
     # local start = quote 45 s + execution 230 s, resume 65 s). Acceptance never sends an authorized
     # payment mutation: without the native owner header they must be refused before any effect.

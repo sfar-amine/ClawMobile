@@ -65,11 +65,15 @@ jobs:
           node scripts/test-voice-relay.cjs
           node scripts/test-voice-relay-reconnect.cjs
 
+      - name: Lot 41 piste 2 — la voix dit ce qu'elle a compris (V1, V2, V3) sur fixtures S24
+        run: node scripts/test-voice-understanding.cjs
       - name: HS3 closed presentation and existing run transport
         run: |
           python3 scripts/test-receipt-presentation-read.py
           node scripts/test-receipt-presentation.cjs
 
+      - name: HS6 shared receipt privacy (OTP/PIN)
+        run: node scripts/test-voice-receipt-metadata.cjs
       - name: HS5 run progress steps from existing receipts
         run: node scripts/test-run-progress.cjs
 
@@ -302,6 +306,15 @@ jobs:
 
       - name: O10 voice admits the low-risk owner decision record, never payment or confirmed paths
         run: node scripts/test-voice-low-risk-admission.cjs
+
+      - name: R1 model usage roles from canonical config owner
+        run: node scripts/test-model-roles.cjs
+
+      - name: F7 Gateway append log retention
+        run: python3 ../installer/termux-lite/test-gateway-log-retention.py
+
+      - name: E3 agent file write (biometric, CAS, privacy lines kept, free vocabulary, five backups)
+        run: node scripts/test-agent-file-write-plan.cjs
 
       - name: R23 automation edit (validation, real cron captures, CAS, confirmation, receipts)
         working-directory: openclaw-plugin-mobile-ui
