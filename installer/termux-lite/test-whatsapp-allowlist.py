@@ -19,7 +19,7 @@ class AllowlistTests(unittest.TestCase):
         self.old=(m.ROOT,m.DB,m.CONTACTS,m.CONFIG,m.SESSION_DB)
         m.ROOT=self.root/'people';m.DB=m.ROOT/'directory.db';m.CONTACTS=self.root/'contacts';m.CONFIG=self.root/'config.json';m.SESSION_DB=self.root/'sessions.sqlite'
         self.cfg={'commands':{'ownerAllowFrom':['whatsapp:'+OWNER]},'channels':{'whatsapp':{'allowFrom':[OTHER,OWNER],'direct':{OTHER:{'systemPrompt':'KEEP','other':'stay'},'*':{'systemPrompt':'BASE'}}}},'unrelated':{'stay':True}}
-        self.save();self.calls=[];self.service=m.Contacts(m._ExistingPeopleOwner(),clock=lambda:self.now,state_dir=self.root)
+        self.save();self.calls=[];self.service=m.Contacts(m._ExistingPeopleOwner(),clock=lambda:self.now,state_dir=self.root,owner_sender=lambda message,key: 'accepted')
         self.gw=patch.object(m,'gateway_call',side_effect=self.gateway);self.gw.start()
         self.send=patch.object(m,'whatsapp_send',return_value='safe-message-id');self.sender=self.send.start()
     def tearDown(self):
@@ -260,7 +260,9 @@ class AllowlistTests(unittest.TestCase):
         self.assertTrue(self.service.call('preflight',{'action':'add','body':body})['success']);self.assertFalse(m.DB.exists());self.assertFalse(m.CONTACTS.exists());self.assertEqual(self.calls,[])
 
     def test_expiry_boundary_strictly_after_deadline(self):
-        self.add(durationDays=1);self.now+=86400
+        self.add(durationDays=1)
+        # Settle the independent grant notice before proving expiry is write-free.
+        self.service.deliver_owner_change();self.now+=86400
         self.assertEqual(self.service.find(m.contact_id(NEW))['state'],'active')
         before=(m.DB.read_bytes(),m.CONFIG.read_bytes(),self.service.context(NEW))
         self.assertEqual(self.service.call('sweep',{})['processed'],0)

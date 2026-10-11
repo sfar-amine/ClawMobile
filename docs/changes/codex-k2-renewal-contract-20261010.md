@@ -1,7 +1,5 @@
-# K2 — décision propriétaire, sans rappel
+# K2 — message propriétaire, sans rappel
 
-La décision d’Amine du 11/10, [reportée par Claude dans core #119](https://github.com/sfar-amine/samantha-core/pull/119#issuecomment-6108204935), remplace la proposition de rappel : message au propriétaire à chaque changement effectif d’accès temporaire accordé/prolongé/retiré/expiré. Prolongation biométrique R17 existante, durées 1/3/5 non tranchées, choix R17 actuels conservés.
+Implémentation autorisée par le fichier 46 : propriétaires R17/send_receipts/whatsapp-owner-send et sweep 60 s existants, fixture 184 byte-identique. Intention avant effet, résultat et reçu dans le même JSON R17, claim atomique avant envoi ; accepté distinct de livré, incertitude sans renvoi aveugle. Message minimal avec référence contact vérifiable.
 
-Contrat uniquement. Livraison/canal/reçu et déduplication (contact, changement) restent à capturer sur S24 avant code ; gate bloqué sur ces sources, pas sur la décision désormais connue. Aucun nouveau store/timer, mutation ou envoi. CI complète locale non rejouée sur cette tête.
-
-Source réelle PR184 (`07be0bbb28a1947aacf97a8fa6222b4545bf594c`) reprise byte-identique : mutation R17 et primitives de livraison connues, mais message propriétaire K2 absent. Le canal et le reçu corrélé à operationId avec déduplication/relecture restent bloquants ; aucun code de livraison ni envoi.
+Tests ciblés isolés 48/48 verts sous verrou EX ; suite complète au SHA final encore requise. Aucun envoi WhatsApp réel, fusion ou déploiement par Codex. Revue/recette S24 par Claude.

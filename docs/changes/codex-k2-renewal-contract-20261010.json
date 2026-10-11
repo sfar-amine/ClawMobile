@@ -2,17 +2,21 @@
   "version": 2,
   "id": "codex-k2-renewal-contract-20261010",
   "origin": "chat",
-  "kind": "maintenance",
-  "merge_eligibility": "blocked",
-  "deployment_state": "not_applicable",
-  "summary": "K2 : message propriétaire après chaque changement d’accès WhatsApp temporaire, aucun rappel",
-  "reason": "Décision no reminder définitive. Source PR184 SHA 07be0bbb confirme R17 et primitives existantes mais aucun message propriétaire K2, reçu de livraison corrélé ou déduplication par changement. Code toujours bloqué.",
+  "kind": "feature",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "K2 : message propriétaire après accès accordé, prolongé, retiré ou expiré, sans rappel.",
+  "reason": "Fichier 46 autorise explicitement R17/send_receipts/whatsapp-owner-send/sweep existants, source réelle 184 ; reçu et dédup dans la même ligne canonique, sans nouveau store ni scheduler.",
   "files": [
     "docs/work/samantha-runtime/contracts/k2.md",
     "docs/changes/codex-k2-renewal-contract-20261010.md",
     "docs/changes/codex-k2-renewal-contract-20261010.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/k2/access-change-owner-delivery-pr184.json",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/k2/README.md"
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/k2/README.md",
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/test-k2-owner-message.py",
+    "installer/termux-lite/test-whatsapp-allowlist.py",
+    ".github/workflows/ci.yml"
   ],
   "tests": [
     {
@@ -29,6 +33,16 @@
       "name": "pr184-partial-source-documentation",
       "status": "passed",
       "evidence": "Existing validate_docs.py applied to core:0 errors; git diff --check green after exact fixture copy and partial source clarification. Parent c608abd9. Documentation only; native delivery unimplemented/blocked, entire CI pending."
+    },
+    {
+      "name": "k2-owner-message-r17-isolated",
+      "status": "passed",
+      "evidence": "EX shared stage lock:13 K2 +30 R17 +3 health manager +2 acceptance tests,48/48 green (0.225/1.244/0.105/0.000 seconds), synthetic transports/temp directory.db and exact PR184 fixture. Includes50,000 historical rows,2 concurrent sweeps, permanent grants/removals and extension to permanent, crash between effect and finish retaining intent without mutation retry. Source working tree after parent8b94781e; no real WhatsApp send. Entire CI pending final frozen SHA."
+    },
+    {
+      "name": "k2-file46-implementation-documentation",
+      "status": "passed",
+      "evidence": "Existing validate_docs.py:0 errors; git diff --check green after file46 authorization report and actual K2 implementation contract. No current full workflow claimed; all functional sends isolated."
     }
   ],
   "documentation": [
@@ -58,9 +72,9 @@
   },
   "rollback": "Retirer les trois fichiers documentaires de la proposition K2 ; aucun état S24 ni configuration à restaurer.",
   "limitations": [
-    "Durées1/3/5 non tranchées : conserver les choix actuels R17 et sa biométrie.",
-    "Implémentation bloquée : propriétaire de livraison, canal, reçu et déduplication durable (contact, changement) non capturés sur S24.",
-    "Aucun code, envoi, mutation d’accès, activation, recette live ou suite entière exécutés sur cette tête.",
-    "PR184 : dédup R17 des mutations seulement ; notification incidente par empreinte texte insuffisante, aucun reçu K2 réel. Canal direct/file existante et observation après timeout à qualifier."
+    "Durées 1/3/5 non tranchées : conserver les choix actuels R17 et sa biométrie.",
+    "Accepté signifie validation Gateway, jamais livré sans preuve. Timeout/crash transport conserve indéterminé sans renvoi automatique.",
+    "Crash avant finalisation R17 : intention observable awaiting_change, mutation réellement indéterminée non rejouée ; aucune garantie de livraison sur effet non qualifié.",
+    "Un message maximum par sweep borne le cycle 20 s, pas le délai/volume historique du backlog existant. Recette S24 et déploiement par Claude requis."
   ]
 }
