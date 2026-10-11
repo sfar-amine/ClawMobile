@@ -18,6 +18,7 @@ import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSes
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment } from "./types";
 
 type StoredRun = {
+  memo?: {attachmentId: string; ownerEpoch: string; phase: "transcribing" | "ready" | "dispatched"};
   presentation?: ReceiptPresentation;
   provenance?: CapabilityProvenance;
   inactivityCorrectionReceipt?: InactivityReceipt;
@@ -78,6 +79,7 @@ type TranscriptSummary = {
 };
 
 const submittedRuns = new Map<string, StoredRun>();
+const MEMO_OWNER_EPOCH = randomUUID();
 const CLIENT_RUN_ID_RE = /^[A-Za-z0-9._:-]{1,160}$/;
 const MAX_PERSISTED_RUNS = 500;
 const MAX_PERSISTED_RUN_BYTES = 8 * 1024 * 1024;
@@ -140,6 +142,7 @@ export async function reserveSubmittedRun(
     executionSource?: "gateway" | "capability_first";
     decision?: Record<string, unknown>;
     parentClarificationRunId?: string;
+    memoAttachmentId?: string;
   } = {},
 ): Promise<{ created: boolean; status: CompanionRunStatus }> {
   const clientId = requireClientRunId(clientRunId);
@@ -156,7 +159,8 @@ export async function reserveSubmittedRun(
     if (existing) {
       const expectedSource = options.executionSource || existing.executionSource || "gateway";
       if (existing.requestHash !== requestHash || existing.sessionId !== normalizedSessionId ||
-          (existing.executionSource || "gateway") !== expectedSource) {
+          ((existing.executionSource || "gateway") !== expectedSource &&
+           !(options.memoAttachmentId && existing.memo?.attachmentId === options.memoAttachmentId))) {
         throw Object.assign(new Error("client_run_identity_conflict"), { statusCode: 409 });
       }
       submittedRuns.set(existing.runId, existing);
@@ -168,6 +172,7 @@ export async function reserveSubmittedRun(
       runId: `run_${now}_${randomBytes(4).toString("hex")}`,
       clientRunId: clientId,
       requestHash,
+      memo: options.memoAttachmentId ? {attachmentId: options.memoAttachmentId, ownerEpoch: MEMO_OWNER_EPOCH, phase: "transcribing"} : undefined,
       executionSource: options.executionSource || "gateway",
       presentation: options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined,
       decision: options.decision && typeof options.decision === "object" ? options.decision : undefined,
@@ -188,6 +193,40 @@ export async function reserveSubmittedRun(
     submittedRuns.set(stored.runId, stored);
     await writeCompanionRunRegistry(next, archivedSessionIds);
     return { created: true, status: statusFromStoredRun(stored) };
+  });
+}
+
+/** HS8 internal continuation: durable audio identity is never replaced by transcript identity.
+ * A transcript is claimed once, then dispatch is claimed once under the existing registry lock.
+ * Deletion/failure wins before either claim; an interrupted claim is never redispatched. */
+export async function claimMemoTranscript(runId: string, attachmentId: string, text: string): Promise<boolean> {
+  return mutateRegistry(async () => {
+    const registry = await registryOrEmpty();
+    const row = registry.runs.find(run => run.runId === runId);
+    if (!row || row.state !== "running" || row.memo?.phase !== "transcribing" || row.memo.ownerEpoch !== MEMO_OWNER_EPOCH ||
+        row.memo.attachmentId !== attachmentId || registry.runDeletions.some(r => r.runId === runId)) return false;
+    const claimed: StoredRun = {...row, text, userText: text, memo: {...row.memo, phase: "ready"}, updatedAt: Date.now()};
+    await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? claimed : r), registry.archivedSessionIds);
+    submittedRuns.set(runId, claimed);
+    return true;
+  });
+}
+
+export async function claimMemoDispatch(runId: string, text: string, executionSource: "gateway" | "capability_first",
+  decision?: Record<string, unknown>, parentClarificationRunId?: string): Promise<boolean> {
+  return mutateRegistry(async () => {
+    const registry = await registryOrEmpty();
+    const row = registry.runs.find(run => run.runId === runId);
+    if (!row || row.state !== "running" || row.memo?.phase !== "ready" || row.memo.ownerEpoch !== MEMO_OWNER_EPOCH || row.text !== text ||
+        registry.runDeletions.some(r => r.runId === runId)) return false;
+    const now = Date.now();
+    const claimed: StoredRun = {...row, executionSource, decision, parentClarificationRunId,
+      memo: {...row.memo, phase: "dispatched"}, updatedAt: now,
+      clarificationState: decision?.type === "CLARIFY" ? "pending" : undefined,
+      clarificationExpiresAt: decision?.type === "CLARIFY" ? now + 10 * 60 * 1000 : undefined};
+    await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? claimed : r), registry.archivedSessionIds);
+    submittedRuns.set(runId, claimed);
+    return true;
   });
 }
 
@@ -327,7 +366,13 @@ export async function deleteSession(sessionId: string) {
     }
   }
   removedRuns += registry.runs.length - nextRuns.length;
-  await writeCompanionRunRegistry(nextRuns, archivedSessionIds);
+  const memoDeletions: RunDeletionReceipt[] = registry.runs.filter(run => run.memo &&
+    normalizeCompanionSessionId(run.sessionId) === normalizedSessionId).map(run => ({
+      version: 1, operationId: "memo-session-delete-" + run.runId, runId: run.runId,
+      clientRunId: run.clientRunId, sessionId: run.sessionId, action: "delete_run", state: "completed", at: Date.now(),
+    }));
+  await writeCompanionRunRegistry(nextRuns, archivedSessionIds, registry.paymentRequests,
+    registry.ownerConfirmations, [...registry.runDeletions, ...memoDeletions]);
 
   return {
     success: true,
@@ -755,18 +800,22 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     modality: "voice", transcriptState: stored.transcriptState, playback: stored.playback,
   };
 
-  const failed = stored.state === "failed";
+  const interruptedMemo = !!stored.memo && stored.memo.ownerEpoch !== MEMO_OWNER_EPOCH &&
+    (stored.memo.phase !== "dispatched" || stored.executionSource === "capability_first") && stored.state === "running";
+  const failed = stored.state === "failed" || interruptedMemo;
   const expired = stored.error === "run_inactivity_expired";
   const done = stored.state === "done";
-  const message = failed
+  const message = interruptedMemo ? "Prise en charge du mémo interrompue ; aucune relance automatique." : failed
     ? expired ? "Run expired after verified inactivity. A later result can still correct this status." : stored.error || "OpenClaw did not accept this run."
     : done
       ? stored.result || "OpenClaw completed this run."
-      : "OpenClaw is still working on this run.";
+      : stored.memo && stored.memo.phase !== "dispatched" ? "Transcription du mémo en cours."
+        : "OpenClaw is still working on this run.";
   return {
     success: !failed,
     provenance: capabilityProvenance(stored.provenance),
-    status: stored.error === "run_inactivity_expired" ? "expired" : undefined,
+    status: stored.memo && stored.memo.phase !== "dispatched" && !failed ? "transcribing"
+      : stored.error === "run_inactivity_expired" ? "expired" : undefined,
     ...publicReceiptMetadata(readReceiptPresentation(stored.presentation)),
     ...(publicDecision(stored.decision) ? {decision: publicDecision(stored.decision)} : {}),
     inactivityCorrectionReceipt: stored.inactivityCorrectionReceipt,
@@ -1771,6 +1820,10 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       provenance: capabilityProvenance(run.provenance),
       runId: run.runId,
       clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
+      memo: run.memo && /^[A-Za-z0-9_-]{1,100}$/.test(run.memo.attachmentId || "") &&
+        ["transcribing", "ready", "dispatched"].includes(run.memo.phase) &&
+        /^[a-f0-9-]{36}$/.test(run.memo.ownerEpoch || "")
+        ? {attachmentId: run.memo.attachmentId, ownerEpoch: run.memo.ownerEpoch, phase: run.memo.phase} : undefined,
       requestHash: typeof run.requestHash === "string" && /^[a-f0-9]{64}$/.test(run.requestHash) ? run.requestHash : undefined,
       executionSource: ["gateway", "capability_first"].includes(String(run.executionSource || ""))
         ? run.executionSource
