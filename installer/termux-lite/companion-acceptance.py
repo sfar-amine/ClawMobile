@@ -34,6 +34,8 @@ READS = [
     ("/control/memory?limit=20", 3.0),
     ("/agent/config", 9.0),
     ("/laptop-access/computers", 6.0),
+    # P1 : état d'enrôlement de l'admission native (lecture d'un fichier local, aucune clé privée).
+    ("/owner-admission", 0.5),
     ("/security/surfaces", 2.0),
     # R8 user28 budgets; real recording volume is zero (captured producer forms are mock traces).
     ("/skills/candidates?limit=50", 1.5),
@@ -70,6 +72,9 @@ OWNER_GUARDS = [
     # Lot paiement Maxit 11/10 (P1-5): these routes changed budget (Payment Core quote 45 s,
     # local start = quote 45 s + execution 230 s, resume 65 s). Acceptance never sends an authorized
     # payment mutation: without the native owner header they must be refused before any effect.
+    # P1 : enrôlement et révocation de l'admission native refusés sans en-tête propriétaire (et sans biométrie/preuve signée).
+    ("POST", "/owner-admission/enrollment"),
+    ("DELETE", "/owner-admission/enrollment"),
     ("POST", "/payments/local-handoffs"),
     ("POST", "/payments/local-start"),
     ("POST", "/payments/" + "1" * 8 + "-1111-4111-8111-" + "1" * 12 + "/bank-return"),

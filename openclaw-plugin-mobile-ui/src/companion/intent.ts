@@ -8,12 +8,13 @@ import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
+import type { AdmissionTicket } from "./ownerTurnAdmission";
 
 export async function submitIntent(
   text: string,
   sessionId = "default",
   attachments: IntentAttachment[] = [],
-  options: { userText?: string; clientRunId?: string; learningOnly?: true; authority?:"owner" } = {},
+  options: { userText?: string; clientRunId?: string; learningOnly?: true; authority?:"owner"; admission?: AdmissionTicket } = {},
 ): Promise<IntentSubmitResponse> {
   const normalized = text.trim();
   const visibleUserText = (options.userText || normalized).trim();
@@ -106,7 +107,8 @@ export async function submitIntent(
   if (!clientRunId) {
     await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments });
   }
-  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority);
+  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority,
+    learningOnly ? undefined : options.admission, clientRunId);
 
   const message = describeOpenClawResult(accepted);
   return {
@@ -262,9 +264,12 @@ async function submitIntentInBackground(
   userText: string,
   attachments: IntentAttachment[],
   authority?:"owner",
+  admission?: AdmissionTicket,
+  clientRunId?: string,
 ) {
   try {
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority});
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId});
+    if (admission) console.log(`[companion] P1 turn ${runId}: transport=${openclaw.ownerTransport}`);
     await rememberSubmittedRun(text, {
       ...openclaw,
       runId,

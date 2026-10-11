@@ -119,6 +119,8 @@ jobs:
         run: node scripts/test-automation-detail.cjs
       - name: Test laptop owner pairing and biometric scope
         run: node scripts/test-laptop-access.cjs
+      - name: P1 admission native des tours owner (preuve Keystore, anti-rejeu, connexion admin dédiée, révocation)
+        run: node scripts/test-owner-turn-admission.cjs
       - name: Run read-only notification source contract
         run: node scripts/test-notification-sources.cjs
 
