@@ -5,3 +5,6 @@ Le lot E3 complet reste bloqué par la liaison canonique décision/exécution, l
 Voir le contrat 38-e3.md. Aucun push, aucune fusion, aucun déploiement par ce lot.
 
 Audit local de la préparation : accesseur caller levant une exception et preuve héritée risk/operatorTarget reproduits, puis refusés sans accesseur exécuté. Snapshot scalaire indépendant et champs request bornés ; 41 contrôles E3 et 27 P1 verts, build vert. Cette correction ne branche pas la garde et ne résout pas la liaison canonique d’exécution.
+
+### Suite sur la branche publiée
+Base runtime `1ef4fd2a` intégrée par merge, union CI conservée. Captures #129/#131 examinées : factory P1 non déployée, identité vocale non attestée ; le blocage est désormais documenté par une capture réelle. Build et 68 contrôles ciblés réussis. Helper toujours inactif, aucun parcours de paiement modifié.
