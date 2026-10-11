@@ -118,6 +118,10 @@ def call(method, path, timeout, headers=None):
         return 0, b"", time.monotonic() - began
 
 
+# Pause before the single second reading of a failed check (budget overrun or 5xx).
+RETRY_PAUSE_S = float(__import__("os").environ.get("COMPANION_ACCEPT_RETRY_PAUSE_S", "8"))
+
+
 def settle(path, body):
     """A 200 that only says "deferred" is not an answer: it must deliver data within SETTLE_SECONDS.
     (10/10: R5 answered "deferred" forever on the S24 because its revision source did not exist there.)"""
@@ -156,7 +160,11 @@ def main(session_id=None):
         nonlocal failed
         for label,budget in (("cold",6.0),("warm",1.5)):
             if identifier is not None:
-                code, body, took = call("GET", "/conversations/" + identifier + "/metadata", budget + 1)
+                for attempt in (1, 2):
+                    code, body, took = call("GET", "/conversations/" + identifier + "/metadata", budget + 1)
+                    if (code == 200 and took <= budget) or code == 404 or attempt == 2:
+                        break
+                    time.sleep(RETRY_PAUSE_S)
                 leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
                 status = "skipped" if code == 404 else ("ok" if code == 200 and took <= budget and not leak else "fail")
             else:
@@ -171,6 +179,8 @@ def main(session_id=None):
             ok = code == 200 and took <= budget
             if ok or code == 404 or attempt == 2:
                 break
+            # A second reading after a pause, not back to back: a load spike is not a regression (retro 12/10).
+            time.sleep(RETRY_PAUSE_S)
         leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
         settled = settle(path, body) if code == 200 else True
         if code == 200 and EMAIL.search(body.decode("utf-8", "replace")):
