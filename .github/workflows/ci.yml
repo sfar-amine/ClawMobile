@@ -70,6 +70,9 @@ jobs:
       - name: HS5 run progress steps from existing receipts
         run: node scripts/test-run-progress.cjs
 
+      - name: HS3 payment handoff run reflects its payment request (S24 capture core 176)
+        run: node scripts/test-run-payment-presentation.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
@@ -262,6 +265,10 @@ jobs:
         run: node scripts/test-notification-structured.cjs
       - name: Run derived catalogue fail-closed projection and real HTTP cache contract
         run: node scripts/test-catalog.cjs
+      - name: Catalogue exampleFr recopié de HS1 (phrase française à dire, sources S24)
+        run: node scripts/test-catalog-example-fr.cjs
+      - name: Catalogue bills status from bridge receipts and confirmed payments (50 000 receipts, warm 300 ms)
+        run: node scripts/test-catalog-bill-status.cjs
       - name: G4 deployment receipts and route budget
         run: node scripts/test-deployment-receipts.cjs
       - name: C5 canonical voice owner transport fixture
