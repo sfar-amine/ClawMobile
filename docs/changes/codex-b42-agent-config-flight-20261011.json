@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "codex-b42-agent-config-flight-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Partager les lectures sessions.list et sessions.usage simultanées de /agent/config.",
+  "reason": "Backlog42 lot6 : alléger la route proche de son budget, sans changer fraîcheur ni validation CAS.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-config-flight.cjs",
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-b42-agent-config-flight-20261011.json",
+    "docs/changes/codex-b42-agent-config-flight-20261011.md"
+  ],
+  "tests": [
+    {
+      "name": "agent-config-flight",
+      "status": "pending",
+      "evidence": "Tests de concurrence sur captures S24 nettoyées, échec injecté synthétique ; validation locale complète à effectuer."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-b42-agent-config-flight-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Routes et capabilities existantes conservées ; qualification canonique checkOnly avant effet."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Coalescence dans les propriétaires existants ; aucun cache, store, timer ou service ajouté."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Lecture et validation de mutation inchangées ; aucune exposition de paramètres runtime.",
+    "evidence": [
+      "openclaw-plugin-mobile-ui/scripts/test-agent-config-flight.cjs"
+    ]
+  },
+  "rollback": "Revert de cette PR ; aucun déploiement par Codex.",
+  "limitations": [
+    "Aucune mesure S24 post-correctif revendiquée.",
+    "Le débit concurrent sera qualifié sur S24 par Claude avant activation."
+  ]
+}

@@ -127,6 +127,9 @@ jobs:
 
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
+      - name: Agent config concurrent owner reads
+        working-directory: openclaw-plugin-mobile-ui
+        run: node scripts/test-agent-config-flight.cjs
 
       - name: Preserve specialized rules in bounded voice bootstrap
         run: node scripts/test-voice-operating-rules.cjs

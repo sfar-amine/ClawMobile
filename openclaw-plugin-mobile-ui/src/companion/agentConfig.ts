@@ -51,18 +51,30 @@ function modelList(value:any,config:any,auth:any,defaults:any=null){
  * while four other CLI reads ran in parallel. A failed read keeps the last observed defaults up to [DEFAULTS_KEEP_MS].
  */
 const DEFAULTS_SERVE_MS=300000,DEFAULTS_KEEP_MS=1800000;
+let sessionDefaultsFlight:Promise<any>|null=null;
 async function sessionDefaults(){
  const cached=peekSessionDefaults(DEFAULTS_SERVE_MS);if(cached)return cached;
- try{const value=await callOpenClawGateway('sessions.list',{limit:1},{timeoutMs:10000,hardTimeoutMs:10000});observeSessionDefaults(value?.defaults);}catch{/* last observed defaults below */}
- return peekSessionDefaults(DEFAULTS_KEEP_MS);
+ if(sessionDefaultsFlight)return sessionDefaultsFlight;
+ const read=(async()=>{
+  try{const value=await callOpenClawGateway('sessions.list',{limit:1},{timeoutMs:10000,hardTimeoutMs:10000});observeSessionDefaults(value?.defaults);}catch{/* last observed defaults below */}
+  return peekSessionDefaults(DEFAULTS_KEEP_MS);
+ })();
+ sessionDefaultsFlight=read;
+ try{return await read;}finally{if(sessionDefaultsFlight===read)sessionDefaultsFlight=null;}
 }
 /** `sessions.usage` only feeds the informative usage line: bounded like the other owner reads and kept 60 s. */
 const SESSIONS_USAGE_MS=60000;
 let sessionsUsage:{value:any,at:number}|null=null;
+let sessionsUsageFlight:Promise<any>|null=null;
 async function readSessionsUsage(){
  if(sessionsUsage&&Date.now()-sessionsUsage.at<SESSIONS_USAGE_MS)return sessionsUsage.value;
- try{const value=await callOpenClawGateway('sessions.usage',{limit:100},{timeoutMs:5500,hardTimeoutMs:5500});sessionsUsage={value:value?.totals&&typeof value.totals==='object'?{totals:{...value.totals}}:null,at:Date.now()};return sessionsUsage.value;}
- catch{return null;}
+ if(sessionsUsageFlight)return sessionsUsageFlight;
+ const read=(async()=>{
+  try{const value=await callOpenClawGateway('sessions.usage',{limit:100},{timeoutMs:5500,hardTimeoutMs:5500});sessionsUsage={value:value?.totals&&typeof value.totals==='object'?{totals:{...value.totals}}:null,at:Date.now()};return sessionsUsage.value;}
+  catch{return null;}
+ })();
+ sessionsUsageFlight=read;
+ try{return await read;}finally{if(sessionsUsageFlight===read)sessionsUsageFlight=null;}
 }
 function validProvider(auth:any,provider:string,profile?:string){
  if(auth?.unavailable||!Array.isArray(auth?.providers))return false;
