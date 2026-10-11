@@ -1,0 +1,67 @@
+{
+ "_capture": {
+  "route": "GET /v1/updates",
+  "status": 200,
+  "latencyMs": 348,
+  "capturedAt": "2026-10-10T19:39:22+00:00",
+  "companion": "9cdd84f",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "réponse AVANT correction : Companion « 0.1.0 » sans commit"
+ },
+ "response": {
+  "success": true,
+  "state": "partial",
+  "receipt": null,
+  "schemaVersion": 1,
+  "current": {
+   "id": "20261010T120821-d3beb769",
+   "createdAt": "2026-10-10T11:08:21.455383+00:00",
+   "sourceCommit": "066a3409cf7be97a65c7d0ed95eca0f491e2c8fa",
+   "verified": true
+  },
+  "lastKnownGood": {
+   "id": "20261010T120821-d3beb769",
+   "createdAt": "2026-10-10T11:08:21.455383+00:00",
+   "sourceCommit": "066a3409cf7be97a65c7d0ed95eca0f491e2c8fa",
+   "verified": true
+  },
+  "available": [],
+  "updateAvailable": false,
+  "updateReason": null,
+  "versionSource": "tier0_manifest_verified",
+  "activationQualified": false,
+  "items": [
+   {
+    "id": "app",
+    "label": "Samantha Android",
+    "version": null,
+    "source": "android",
+    "reason": "app_version_owned_by_android"
+   },
+   {
+    "id": "companion",
+    "label": "Companion",
+    "version": "0.1.0",
+    "source": "installed_package",
+    "reason": null
+   },
+   {
+    "id": "playbooks",
+    "label": "Playbooks",
+    "version": "4412f4d28d054e963869706157a4bd7edda53e04",
+    "source": "pinned_runtime",
+    "reason": null
+   },
+   {
+    "id": "termux-lite",
+    "label": "Termux-lite",
+    "version": "066a3409cf7be97a65c7d0ed95eca0f491e2c8fa",
+    "source": "tier0_manifest_verified",
+    "reason": null
+   }
+  ],
+  "issues": [],
+  "actions": []
+ }
+}

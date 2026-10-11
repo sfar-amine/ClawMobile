@@ -1,0 +1,111 @@
+{
+ "_capture": {
+  "route": "GET /v1/runs?contract=2&view=conversations&limit=20",
+  "status": 200,
+  "latencyMs": 38,
+  "capturedAt": "2026-10-10T19:39:27+00:00",
+  "companion": "9cdd84f",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "textes masqués ; aperçus JSON réduits à leur structure (valeurs texte -> <vN>) ; suites de chiffres -> +21600000000"
+ },
+ "response": {
+  "schemaVersion": 2,
+  "resourceKey": "conversations",
+  "dataRevision": "ecbab3896d2ae6339ff5b200f7ac027f44fc2b609fc7c6a0aa226cf1d9e015ab",
+  "items": [
+   {
+    "sessionId": "decision-v2-live-5a66bfd3a1",
+    "title": "<texte 20 car.>",
+    "pinned": false,
+    "metadataSource": "gateway_sessions_list",
+    "lastRunId": "run_1791648877631_9bc4ab68",
+    "titlePreview": "<texte 22 car.>",
+    "lastResultPreview": "<texte 140 car.>",
+    "lastRunState": "done",
+    "lastActivityAt": 1791648951945,
+    "modality": "text",
+    "transcriptState": "",
+    "availableTurnCount": 5,
+    "previewTruncated": true
+   },
+   {
+    "sessionId": "samantha-4f8f128c-6224-413d-8ae7-259593c3380b",
+    "title": null,
+    "pinned": null,
+    "metadataSource": null,
+    "lastRunId": "run_1791621662404_bdd2548c",
+    "titlePreview": "<texte 16 car.>",
+    "lastResultPreview": "{\"ok\":true,\"provider\":\"<v6>\",\"workflow\":\"<v7>\",\"state\":null,\"source\":\"<v21>\",\"transport\":\"<v11>\",\"ui_used\":false,",
+    "lastRunState": "done",
+    "lastActivityAt": 1791621668937,
+    "modality": "text",
+    "transcriptState": "",
+    "availableTurnCount": 1,
+    "previewTruncated": true
+   },
+   {
+    "sessionId": "samantha-41360bbf-d9a8-4d19-82e5-68d07a669472",
+    "title": null,
+    "pinned": null,
+    "metadataSource": null,
+    "lastRunId": "voice-7f930e3d-e5a5-4155-bf68-af502ddb1c11",
+    "titlePreview": "<texte 3 car.>",
+    "lastResultPreview": "<texte 137 car.>",
+    "lastRunState": "unknown",
+    "lastActivityAt": 1791573787104,
+    "modality": "voice",
+    "transcriptState": "interrupted",
+    "availableTurnCount": 1,
+    "previewTruncated": false
+   },
+   {
+    "sessionId": "decisionv2-live-read-+21600000000",
+    "title": null,
+    "pinned": null,
+    "metadataSource": null,
+    "lastRunId": "run_1791497769857_1b41ff5d",
+    "titlePreview": "<texte 31 car.>",
+    "lastResultPreview": "{\"ok\":true,\"state\":\"<v9>\",\"operation\":\"<v7>\",\"level_percent\":38,\"charging\":false,\"plugged\":false}",
+    "lastRunState": "done",
+    "lastActivityAt": 1791497771283,
+    "modality": "text",
+    "transcriptState": "",
+    "availableTurnCount": 1,
+    "previewTruncated": false
+   },
+   {
+    "sessionId": "samantha-intent-clarify-live-+21600000000",
+    "title": "<texte 20 car.>",
+    "pinned": false,
+    "metadataSource": "gateway_sessions_list",
+    "lastRunId": "run_1791491016718_92a47ddc",
+    "titlePreview": "<texte 16 car.>",
+    "lastResultPreview": "<texte 44 car.>",
+    "lastRunState": "done",
+    "lastActivityAt": 1791637060290,
+    "modality": "text",
+    "transcriptState": "",
+    "availableTurnCount": 1,
+    "previewTruncated": false
+   }
+  ],
+  "nextCursor": null,
+  "hasMore": false,
+  "_trimmed": {
+   "itemsKept": 5,
+   "itemsCaptured": 10
+  },
+  "coverage": {
+   "source": "companion_retained_registry",
+   "fullHistory": false,
+   "retainedRunCount": 16,
+   "availableConversations": 10,
+   "matchingConversations": 10,
+   "metadataState": "refreshing",
+   "persistedRunLimit": 500,
+   "persistedRunBytesLimit": 8388608
+  },
+  "sort": "latest_accepted_desc_session_id_asc"
+ }
+}

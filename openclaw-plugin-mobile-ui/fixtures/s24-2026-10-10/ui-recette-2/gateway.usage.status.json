@@ -1,0 +1,47 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-10T20:49:48Z",
+  "host": "Samsung S24 / Termux",
+  "companion": "f95be8d",
+  "gateway": "OpenClaw 2026.9.6",
+  "route": "usage.status",
+  "status": 200,
+  "seconds": 3.52,
+  "readOnly": true,
+  "method": "claw_exec: openclaw gateway call usage.status --json --timeout 10000 --params {}",
+  "sanitized": "amounts replaced by fictitious values; account handles, revision and private session ids replaced; account e-mail fields removed",
+  "note": "alone: 3.5 s; Copilot windows carry no resetAt; accountEmail removed"
+ },
+ "response": {
+  "updatedAt": 1791665388827,
+  "providers": [
+   {
+    "provider": "github-copilot",
+    "displayName": "Copilot",
+    "plan": "individual",
+    "windows": [
+     {
+      "label": "Premium",
+      "usedPercent": 100
+     },
+     {
+      "label": "Chat",
+      "usedPercent": 0.7000000000000028
+     }
+    ]
+   },
+   {
+    "provider": "openai",
+    "displayName": "OpenAI",
+    "plan": "free",
+    "windows": [
+     {
+      "label": "720h",
+      "usedPercent": 0,
+      "resetAt": 1794219642000
+     }
+    ]
+   }
+  ]
+ }
+}

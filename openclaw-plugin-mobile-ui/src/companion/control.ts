@@ -1,3 +1,4 @@
+import {conditionalRead} from "./readEtag";
 import {completeUsageAttention} from './usageControl';
 import {allJobs,protectedJob} from "./automations";
 import { execFile, spawn } from "child_process";
@@ -9,6 +10,7 @@ import readline from "readline";
 import { randomUUID, createHash } from "crypto";
 import { performance } from "perf_hooks";
 import { completeHealthSection } from "./control-health";
+import {companionBuildVersion} from "./updatesControl";
 
 const sections = new Set(["snapshot", "activity", "requests", "missions", "automations", "intelligence", "health", "situations", "notifications", "diagnostic"]);
 let activeStreams = 0;
@@ -284,7 +286,7 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
           throw controlError("control_invalid_request_origin");
         if(value.sections?.diagnostic?.data?.components) {
           const component=value.sections.diagnostic.data.components.find((row:any)=>row.id==="companion");
-          if(component){component.version=require("../../package.json").version;component.endpoint="/v1";}
+          if(component){component.version=companionBuildVersion();component.endpoint="/v1";}
           value.sections.diagnostic.dataRevision=createHash("sha256").update(JSON.stringify(value.sections.diagnostic.data)).digest("hex");
         }
         const project=value.sections?.notifications?.data
@@ -322,7 +324,7 @@ export async function handleControl(req: IncomingMessage, res: ServerResponse, r
   const routeOnly=route.split("?")[0];
   if (!routeOnly.startsWith("/control/")) return false;
   const address=req.socket.remoteAddress||"";
-  if(!["127.0.0.1","::1","::ffff:127.0.0.1"].includes(address)||req.headers.origin||req.headers["sec-fetch-site"]){res.writeHead(403);res.end();return true;}
+  if(!["127.0.0.1","::1","::ffff:127.0.0.1"].includes(address)||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){res.writeHead(403);res.end();return true;}
   if(req.method!=="GET"){res.writeHead(405,{Allow:"GET"});res.end();return true;}
   const target=routeOnly.slice("/control/".length);
   if(target==="activity/stream"){streamControl(req,res);return true;}
@@ -356,7 +358,7 @@ export async function handleControl(req: IncomingMessage, res: ServerResponse, r
       }
       value=result;
     }
-    if(!res.destroyed){res.writeHead(200,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});res.end(JSON.stringify(value));}
+    if(!res.destroyed){const body=JSON.stringify(value);res.setHeader("Content-Type","application/json; charset=utf-8");res.setHeader("Cache-Control","no-store");if(!conditionalRead(req,res,200,value,body)){res.statusCode=200;res.end(body);}}
   }catch(error:any){
     if(!res.destroyed){const code=[400,404,429,499,504].includes(error?.statusCode)?error.statusCode:503;
       res.writeHead(code,{"Content-Type":"application/json","Cache-Control":"no-store"});res.end(JSON.stringify({error:code===400?"invalid_control_request":code===429?"control_read_busy":"control_unavailable"}));}
