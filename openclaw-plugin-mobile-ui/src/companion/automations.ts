@@ -1,3 +1,4 @@
+import {runModelFastPath} from "../modelFastPath";
 import {callOpenClawGateway} from "./openclawAgentClient";
 import {nativeError,nativeOperation,operationBody,existingNativeOperation} from "./nativeOperation";
 const idPattern=/^[A-Za-z0-9_.:-]{1,160}$/;
@@ -20,23 +21,65 @@ async function jobById(id:string){
  if(!job)throw nativeError("automation_not_found",404);
  return job;
 }
-export const AUTOMATION_PAYMENT_PATTERN=/financial|financi|finance|money|argent|payment|paiement|\bpay|paye|r[ée]gler|banqu|bank|bancair|biometr|3.?d.?secure|confirmation|clic.?to.?pay|topnet|maxit|termux[-_ ]notification|wallet|flouci|\botp\b|virement|transaction|carte|card|top.?up|recharge|d17|achat|achet|purchase|checkout|facture|invoice|\d+(?:[.,]\d+)?\s*(?:eur|usd|gbp|tnd|dt|dinars?|euros?|dollars?|€|\$)/iu;
-export function protectedPayment(value:any){
- const text=typeof value==="string"?value:JSON.stringify(value);
- return AUTOMATION_PAYMENT_PATTERN.test((text||"").replace(/[\n\r\t]|\\[nrt]/g," "));
+/** H6: only the canonical resolved decision is an authority signal. Text fields,
+ * labels, paths and provider names are never payment guards. */
+export type IntentProtection = "safe" | "protected" | "unavailable";
+export function resolvedIntentProtection(decision:any):IntentProtection {
+ const object=(value:any)=>!!value&&typeof value==="object"&&!Array.isArray(value);
+ if(!object(decision)||decision.version!==2||!["EXECUTE","CLARIFY","REASON","STOP"].includes(decision.type))return "unavailable";
+ if((decision.plan!==undefined&&!object(decision.plan))||
+    (decision.selected!==undefined&&decision.selected!==null&&!object(decision.selected)))return "unavailable";
+ const records=[decision,decision.plan,decision.selected].filter(object);
+ const risks=[decision.risk,...records.slice(1).flatMap(row=>row.risk===undefined?[]:[row.risk])];
+ if(risks.some(r=>!["read","write","transaction","external_send","sensitive","destructive","admin","payment","financial","finance","high","human"].includes(r)))return "unavailable";
+ let protectedBoundary=false;
+ const boundary=(value:any)=>{
+  if(value===undefined||value===null)return true;
+  if(typeof value!=="string")return false;
+  if(value.trim())protectedBoundary=true;
+  return true;
+ };
+ for(const row of records){
+  for(const key of ["confirmationRequired","confirmation_required"]){
+   if(row[key]!==undefined&&typeof row[key]!=="boolean")return "unavailable";
+   if(row[key]===true)protectedBoundary=true;
+  }
+  if(!boundary(row.humanBoundary)||!boundary(row.human_boundary))return "unavailable";
+  const contract=row.execution_contract;
+  if(contract!==undefined&&contract!==null){
+   if(!object(contract)||!boundary(contract.humanBoundary)||!boundary(contract.human_boundary))return "unavailable";
+   const handoff=contract.pre_model_handoff;
+   if(handoff!==undefined&&handoff!==null&&(!object(handoff)||!boundary(handoff.boundary)))return "unavailable";
+  }
+ }
+ return ["STOP","CLARIFY"].includes(decision.type)||risks.some(r=>!["read","write"].includes(r))||protectedBoundary?"protected":"safe";
 }
-export function protectedJob(job:any){
- // No scheduler action may bypass the existing financial/human boundary.
- return protectedPayment(job);
+export function protectedPayment(decision:any){return resolvedIntentProtection(decision)!=="safe";}
+
+export async function resolveIntentProtection(instruction:unknown,originId:string):Promise<IntentProtection>{
+ if(typeof instruction!=="string"||!instruction.trim()||instruction.length>12000)return "unavailable";
+ try{
+  const result=await runModelFastPath(instruction,{checkOnly:true,caller:"owner",surface:"claw_live",timeoutSeconds:1,checkBudgetMs:1000,originId});
+  if(!["miss","assist","eligible","clarification","known_error"].includes(result.status||""))return "unavailable";
+  return resolvedIntentProtection(result.decision);
+ }catch{return "unavailable";}
 }
+export async function jobIntentProtection(job:any):Promise<IntentProtection>{
+ const payload=job?.payload;
+ if(!payload||!["agentTurn","systemEvent"].includes(payload.kind))return "unavailable";
+ return resolveIntentProtection(payload.kind==="agentTurn"?payload.message:payload.text,"automation-owner-guard");
+}
+export async function protectedJob(job:any){return await jobIntentProtection(job)!=="safe";}
 export async function automationDetail(id:string){
  const job=await jobById(id);
+ const protection=await jobIntentProtection(job);
  const history=await callOpenClawGateway("cron.runs",{id,limit:10});
  if(!Array.isArray(history?.entries))throw nativeError("automation_history_unavailable",503);
  return {schemaVersion:1,id,what:safe(job.description)||safe(job.name)||"Description non communiquée",
   enabled:typeof job.enabled==="boolean"?job.enabled:null,nextRunAt:iso(job.state?.nextRunAtMs),
   runs:history.entries.slice(0,10).map((row:any)=>({at:iso(row.runAtMs??row.ts),status:status(row.status),note:safe(row.summary)||null})),
-  actions:protectedJob(job)?[]:["enable","disable","run","delete"]};
+  actionQualification:protection==="safe"?"qualified":protection==="protected"?"protected":"unavailable",
+  actions:protection!=="safe"?[]:["enable","disable","run","delete"]};
 }
 export async function changeAutomation(id:string,action:string,body:any){
  if(!idPattern.test(id)||!["enable","disable","run","delete"].includes(action))throw nativeError("invalid_automation_action");
@@ -45,7 +88,8 @@ export async function changeAutomation(id:string,action:string,body:any){
  if(existing)return existing;
  try{
   const job=await jobById(id);
-  if(protectedJob(job))return {success:false,state:"blocked",receipt:null,reason:"protected_automation"};
+  const protection=await jobIntentProtection(job);
+  if(protection!=="safe")return {success:false,state:"blocked",receipt:null,reason:protection==="protected"?"protected_automation":"automation_guard_unavailable"};
  }catch(e:any){return {success:false,state:e?.statusCode===404?"not_found":"failed",receipt:null,error:e?.statusCode===404?"automation_not_found":"scheduler_unavailable"};}
  return nativeOperation(operationId,"automation."+action,id,async()=>{
   if(action==="run"){

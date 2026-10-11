@@ -301,3 +301,5 @@ jobs:
 
       - name: H3 explicit canonical budget source and relocated report
         run: python3 scripts/test-budget-source.py
+      - name: H6 canonical resolved intention and free vocabulary boundary
+        run: node scripts/test-payment-pattern-boundary.cjs
