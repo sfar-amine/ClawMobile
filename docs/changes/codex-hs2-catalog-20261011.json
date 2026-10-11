@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "codex-hs2-catalog-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "HS2 : GET /v1/catalog, vue dérivée du registre (HS1) avec santé des routes, gardes du propriétaire de paiement et atteignabilité de la vue de surface app",
+  "reason": "HS1 Git presentation exists, but S24 catalogue capture and canonical Graph/health/gate/cache badge evidence are absent.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-hs2-catalog-20261011.json",
+    "docs/changes/codex-hs2-catalog-20261011.md",
+    "docs/work/samantha-runtime/contracts/hs2.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/scripts/test-catalog.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/catalog.ts",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11d/hs2-catalog-sources.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11d/hs1-catalog-from-s24-sources.fr.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11d/hs1-catalog-from-s24-sources.en.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11d/README.md"
+  ],
+  "tests": [
+    {
+      "name": "scripts/test-catalog.cjs",
+      "status": "passed",
+      "evidence": "Sources S24 réelles et projection HS1 calculée dessus : 47/80 actions disponibles, Topnet grisé faute de garde projetée, recharge Orange active (garde Maxit du propriétaire), vue absente ou capability hors vue grisées ; contrat HomeCatalog.kt ; HTTP froid ≈ 390 ms, chaud p95 ≈ 90 ms, périmé p95 ≈ 35 ms avec 360 ms de génération S24 injectés ; aucune lecture fournisseur ni Gateway ; 503 sans entrée inventée."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs2.md",
+    "docs/changes/codex-hs2-catalog-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Implements paired planned samantha.app.catalog capability in playbooks PR69; no duplicate registry."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing canonical reader, controlPaths and bounded volatile ControlReadPool; no new persistent store, scheduler, router or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP mutation or owner admission change."
+  },
+  "rollback": "Revert de la PR ; aucun état runtime.",
+  "limitations": [
+    "Badges non servis : aucune source de reçu qualifiée.",
+    "Garde Topnet non projetée par le propriétaire de paiement : « Payer Topnet » grisé (modification hors périmètre paiement).",
+    "Mesure physique S24 du p95 au déploiement."
+  ]
+}
