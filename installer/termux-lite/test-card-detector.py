@@ -60,11 +60,14 @@ class CardDetectorTests(unittest.TestCase):
             accepted=valid_number('4',16);extra=valid_number('5',16);source.write_text(accepted+'\n'+extra)
             relative='core/installer/termux-lite/test-workspace-secret-scan.py'
             rows=({'path':relative,'type':'public_fixture','hash':hashlib.sha256(source.read_bytes()).hexdigest(),'raison':'public test'}, {'path':relative,'type':'card','hash':hashlib.sha256(accepted.encode()).hexdigest()[:16],'raison':'synthetic checksum sample'})
+            rows=tuple(rows)+tuple(dict(row,path=row['path'].replace('core/installer/','core_installer/',1)) for row in rows)
             with patch.object(scan,'__file__',str(root/'installer/termux-lite/workspace-secret-scan.py')),patch.object(scan,'accepted_signature_rows',lambda:rows):
                 result=scan.scan_roots([('core',root)])
                 self.assertEqual(len(result['accepted']),1)
                 self.assertEqual(len(result['findings']),1)
                 self.assertEqual(result['stats']['files'],1)
+                installer=scan.scan_roots([('core_installer',root/'installer')])
+                self.assertEqual((len(installer['accepted']),len(installer['findings'])),(1,1))
                 self.assertNotIn(accepted,json.dumps(result));self.assertNotIn(extra,json.dumps(result))
                 limited=scan.scan_roots([('core',root)],max_findings=1)
                 self.assertEqual(len(limited['accepted'])+len(limited['findings']),1)
