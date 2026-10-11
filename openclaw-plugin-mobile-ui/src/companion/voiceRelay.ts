@@ -6,6 +6,8 @@ import path from "path";
 import { capabilityBridge } from "./capabilityBridge";
 import { handleMcpRelayRequest } from "./mcpBridge";
 import { reconnectDelay } from "./reconnectPolicy";
+import { SurfaceClarifications } from "../capabilityClarification";
+import { runModelFastPath } from "../modelFastPath";
 export { reconnectDelay } from "./reconnectPolicy";
 import {
   callOpenClawGateway,
@@ -28,7 +30,8 @@ type RelayState =
   | "unavailable";
 
 type PendingConversation = {
-  kind: "deterministic" | "agent";
+  kind: "deterministic" | "agent" | "capability";
+  clarificationId?: string;
   originalRequest: string;
   target?: string;
   agentSessionId?: string;
@@ -63,6 +66,9 @@ let lastPongAt = 0;
 let lastError = "";
 
 const recent = new Map<string, { hash: string; at: number; response: any }>();
+// 38 E3: canonical CLARIFY (decision v2) first, answered by resolve-clarification.
+let voiceClarifications = new SurfaceClarifications(runModelFastPath);
+const VOICE_SURFACE = "bixby_claw";
 const conversations = new Map<string, PendingConversation>();
 
 function expandHome(value: string) {
@@ -436,6 +442,42 @@ function clarificationResponse(
 }
 
 async function runVoiceRequest(requestId: string, request: string) {
+  const turn = await voiceClarifications.turn(request, { surface: VOICE_SURFACE, originId: requestId });
+  if (turn.state === "needs_clarification") {
+    const conversationId = newConversationId();
+    conversations.set(conversationId, {
+      kind: "capability", originalRequest: request, clarificationId: turn.clarificationId, at: Date.now(),
+    });
+    return clarificationResponse(conversationId, "capability", turn.question, { choices: turn.choices });
+  }
+  if (turn.state === "done" || turn.state === "failed") {
+    return { success: turn.state === "done", state: "done", source: "capability", text: spokenCapabilityText(turn) };
+  }
+  return runVoiceLegacy(requestId, turn.text);
+}
+
+function spokenCapabilityText(turn: { text: string; result?: unknown }) {
+  const rendered = turn.result && typeof turn.result === "object"
+    ? renderFastVoiceResult({ execution: { state: "completed", result: turn.result } }) : null;
+  return rendered || turn.text;
+}
+
+async function runVoiceCapabilityContinuation(requestId: string, conversationId: string, pending: PendingConversation, answer: string) {
+  const turn = await voiceClarifications.turn(answer, { surface: VOICE_SURFACE, id: pending.clarificationId, originId: requestId });
+  if (turn.state === "needs_clarification") {
+    pending.clarificationId = turn.clarificationId;
+    pending.at = Date.now();
+    return clarificationResponse(conversationId, "capability", turn.question, { choices: turn.choices });
+  }
+  conversations.delete(conversationId);
+  if (turn.state === "done" || turn.state === "failed") {
+    return { success: turn.state === "done", state: "done", source: "capability", text: spokenCapabilityText(turn) };
+  }
+  // Resolved (or unrelated) text from resolve-clarification; never "original + Précision utilisateur".
+  return runVoiceLegacy(requestId, turn.text);
+}
+
+async function runVoiceLegacy(requestId: string, request: string) {
   const deterministic = await resolveDeterministic(request);
   if (deterministic?.state === "needs_clarification") {
     const conversationId = newConversationId();
@@ -500,6 +542,10 @@ async function runVoiceContinuation(
   }
 
   pending.at = Date.now();
+
+  if (pending.kind === "capability") {
+    return runVoiceCapabilityContinuation(requestId, conversationId, pending, answer);
+  }
 
   if (pending.kind === "deterministic") {
     const scoped = pending.target
@@ -805,6 +851,13 @@ function connect() {
     abandonSocket(ws, lastError || "voice_relay_closed");
   });
 }
+
+/** Test seam: canonical voice turns with an injected fast-path runner (no relay socket). */
+export const voiceRelayTurnsForTest = {
+  useClarifications(value: SurfaceClarifications) { voiceClarifications = value; },
+  request: (requestId: string, request: string) => runVoiceRequest(requestId, request),
+  continuation: (requestId: string, conversationId: string, answer: string) => runVoiceContinuation(requestId, conversationId, answer),
+};
 
 export function startVoiceRelay() {
   try {

@@ -29,11 +29,11 @@ def ui_root() -> Path:
     raise SystemExit("capability_graph_unavailable")
 
 
-def call(args: list[str], timeout_s: int = 35, input_text: str | None = None) -> int:
+def _graph(args: list[str], timeout_s: int = 35, input_text: str | None = None) -> subprocess.CompletedProcess:
     root = ui_root()
     env = os.environ.copy()
     env["PYTHONPATH"] = str(root) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-    run = subprocess.run(
+    return subprocess.run(
         [sys.executable, "-m", "skill_intelligence.capability_graph", *args],
         cwd=root,
         env=env,
@@ -42,11 +42,99 @@ def call(args: list[str], timeout_s: int = 35, input_text: str | None = None) ->
         capture_output=True,
         input=input_text,
     )
+
+
+def call(args: list[str], timeout_s: int = 35, input_text: str | None = None) -> int:
+    run = _graph(args, timeout_s, input_text)
     if run.stdout:
         sys.stdout.write(run.stdout)
     if run.stderr:
         sys.stderr.write(run.stderr)
     return run.returncode
+
+
+# 38 E3: skill families whose targets are operators (manifest `family`, same notion as E1).
+OPERATOR_FAMILIES = frozenset({"telecom_selfcare", "utility_billing"})
+
+
+def _manifest_families(root: Path) -> dict[str, str]:
+    families: dict[str, str] = {}
+    for path in sorted((root / "skill_intelligence/manifests").glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict) and isinstance(data.get("id"), str):
+            families[data["id"]] = str(data.get("family") or "")
+    return families
+
+
+def agent_policy(resolution: dict, families: dict[str, str]) -> dict:
+    """E3 policy over the canonical decision; it never selects or re-routes anything.
+
+    The free agent may only execute a canonical EXECUTE decision whose risk is `read` and whose
+    target is not an operator. Everything else is `capability_first_required`: the original text
+    goes through the Companion fast path / owner confirmation instead.
+    """
+    decision = resolution.get("decision") if isinstance(resolution.get("decision"), dict) else {}
+    selected = resolution.get("selected") if isinstance(resolution.get("selected"), dict) else {}
+    clarification = decision.get("clarification") if isinstance(decision.get("clarification"), dict) else {}
+    choices = [c for c in (clarification.get("choices") or []) if isinstance(c, dict)]
+    risks = {str(decision.get("risk") or "read"), str(selected.get("risk") or "read")}
+    risks.update(str(c.get("risk") or "read") for c in choices)
+    targets = {str(x) for x in (decision.get("target"), selected.get("target")) if x}
+    operator = sorted(t for t in targets if families.get(t) in OPERATOR_FAMILIES)
+    decision_type = str(decision.get("type") or "")
+    risk = "read" if risks == {"read"} else sorted(r for r in risks if r != "read")[0]
+    allowed = bool(decision) and risk == "read" and not operator and not resolution.get("confirmation_required")
+    return {
+        "version": 1,
+        "allowed": allowed,
+        "reason": None if allowed else "capability_first_required",
+        "decision_type": decision_type or None,
+        "risk": risk,
+        "operator_targets": operator,
+    }
+
+
+def agent_execute(text: str, surface: str, caller: str, timeout_s: int) -> int:
+    """Resolve once, check the E3 policy, then execute exactly that decision in read-only mode."""
+    resolved = _graph(["resolve", text, "--surface", surface, "--caller", caller], timeout_s=20)
+    try:
+        resolution = json.loads(resolved.stdout or "{}")
+        if not isinstance(resolution, dict):
+            raise ValueError("resolution_object_required")
+    except ValueError:
+        sys.stdout.write(json.dumps({"execution": {"state": "error", "reason": "capability_resolve_failed"}}))
+        return 75
+    policy = agent_policy(resolution, _manifest_families(ui_root()))
+    decision = resolution.get("decision")
+    if not policy["allowed"]:
+        sys.stdout.write(json.dumps({
+            "capability_revision": resolution.get("capability_revision"),
+            "surface": surface, "caller": caller,
+            "capability": resolution.get("capability"),
+            "decision": decision,
+            "agent_policy": policy,
+            "execution": {"state": "blocked", "reason": "capability_first_required", "executed": False},
+        }, ensure_ascii=False))
+        return 0
+    executed = _graph(
+        ["execute-decision", text, "--decision-stdin", "--timeout", str(timeout_s), "--read-only"],
+        timeout_s=timeout_s + 5, input_text=json.dumps(decision, ensure_ascii=False),
+    )
+    try:
+        result = json.loads(executed.stdout or "{}")
+        if not isinstance(result, dict):
+            raise ValueError("result_object_required")
+    except ValueError:
+        sys.stdout.write(json.dumps({"execution": {"state": "error", "reason": "capability_execute_failed"}}))
+        return 75
+    result["agent_policy"] = policy
+    sys.stdout.write(json.dumps(result, ensure_ascii=False))
+    if executed.stderr:
+        sys.stderr.write(executed.stderr)
+    return executed.returncode
 
 
 def main() -> int:
@@ -67,6 +155,12 @@ def main() -> int:
     e.add_argument("--timeout", type=int, default=30)
     e.add_argument("--target")
     e.add_argument("--read-only", action="store_true")
+
+    ae = sub.add_parser("agent-execute")
+    ae.add_argument("text")
+    ae.add_argument("--surface", default="chatgpt")
+    ae.add_argument("--caller", default="other")
+    ae.add_argument("--timeout", type=int, default=30)
 
     ed = sub.add_parser("execute-decision")
     ed.add_argument("text")
@@ -105,6 +199,8 @@ def main() -> int:
         if args.read_only:
             forwarded.append("--read-only")
         return call(forwarded, timeout_s=args.timeout + 5)
+    if args.cmd == "agent-execute":
+        return agent_execute(args.text, args.surface, args.caller, max(2, min(args.timeout, 120)))
     if args.cmd == "execute-decision":
         try:
             raw = base64.b64decode(args.decision_b64.encode("ascii"), validate=True).decode("utf-8")
