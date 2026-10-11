@@ -1,0 +1,25 @@
+{
+  "source": "public npm openclaw@2026.9.6; same version confirmed on S24, not a live capture",
+  "file": "dist/cli-backend.types-B-oosdMB.d.ts",
+  "sourceSha256": "f8e936a76225d872f7c6ee8b846983d1f2c90e3c986ddef539f414410404adb8",
+  "lines": [
+    [
+      35677,
+      35698
+    ],
+    [
+      36610,
+      36621
+    ],
+    [
+      36622,
+      36644
+    ],
+    [
+      36645,
+      36666
+    ]
+  ],
+  "s24Capture": false,
+  "limitation": "Live hook requester/decision binding across surfaces unqualified"
+}
