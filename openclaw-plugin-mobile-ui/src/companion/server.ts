@@ -36,7 +36,7 @@ import { payments } from "./payments";
 import { confirmations } from "./confirmations";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
-import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
+import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
 import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
@@ -136,6 +136,15 @@ export function startCompanionServer() {
       console.warn("[claw-live-warm] startup prewarm failed: " + String(error?.message || error).slice(0, 160));
     });
   }, 1_000).unref();
+  // F6: one bounded pass after startup over receipts left by previous instances.
+  setTimeout(() => {
+    try {
+      const sweep = abandonStaleRemoteBridgeReceipts({ budgetMs: 3_000 });
+      console.log(`[remote-bridge] abandon sweep state=${sweep.state} scanned=${sweep.scanned} abandoned=${sweep.abandoned} uncertain=${sweep.effectUncertain}`);
+    } catch (error: any) {
+      console.warn("[remote-bridge] abandon sweep unavailable: " + String(error?.message || error).slice(0, 160));
+    }
+  }, Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_SWEEP_DELAY_MS || 30_000)).unref();
 
   return server;
 }
