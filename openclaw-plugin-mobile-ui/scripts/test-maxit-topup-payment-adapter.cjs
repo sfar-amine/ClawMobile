@@ -1,7 +1,7 @@
 const {test}=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("fs"),os=require("os"),path=require("path");
-const {createMaxitTopupLivePaymentAdapter}=require("../dist/companion/maxitTopupLivePaymentAdapter.js");
+const {createMaxitTopupLivePaymentAdapter,MAXIT_QUOTE_RUN_TIMEOUT_MS,MAXIT_START_RUN_TIMEOUT_MS,MAXIT_RESUME_RUN_TIMEOUT_MS}=require("../dist/companion/maxitTopupLivePaymentAdapter.js");
 
 const requestId="11111111-1111-4111-8111-111111111111";
 const bankReturnToken="B".repeat(43);
@@ -9,16 +9,17 @@ const reference="topup-"+"a".repeat(32)+"-"+"b".repeat(32)+"-5000";
 const quote={payee:"Orange Maxit ••••1234",reference,amountMinor:5000,currency:"TND",decimals:3};
 const continuation={provider:"maxit.topup",checkoutId:"456789",gatewayOrderId:"22222222-2222-4222-8222-222222222222"};
 
-function fixture({armed=true}={}){
+function fixture({armed=true,live,card}={}){
   const tmp=path.join(os.homedir(),".cache","claw-tests");fs.mkdirSync(tmp,{recursive:true});
   const root=fs.mkdtempSync(path.join(tmp,"maxit-topup-adapter-"));
   const state=path.join(root,"state"),ui=path.join(root,"ui");
   fs.mkdirSync(path.join(state,"clawmobile-companion"),{recursive:true});
   if(armed)fs.writeFileSync(path.join(state,"clawmobile-companion","maxit-topup-live-acceptance.enabled"),"maxit-topup-v1-live-acceptance\n");
   const calls=[];
-  const execJson=async(_file,args)=>{calls.push(["card",...args]);return {state:"ready",last4:"8503",cvc_stored:true};};
-  const liveRun=async(_script,payload,_timeout,onEvent)=>{
-    calls.push(["live",payload]);
+  const execJson=async(_file,args)=>{calls.push(["card",...args]);return card??{state:"ready",last4:"8503",cvc_stored:true};};
+  const liveRun=async(_script,payload,timeout,onEvent)=>{
+    calls.push(["live",payload,timeout]);
+    if(live)return live(payload,onEvent);
     if(payload.operation==="quote")return {state:"quote_ready",quote};
     if(payload.operation==="start"){
       assert.deepEqual(Object.keys(payload.request).sort(),["expected_amount_millimes","expected_last4","reference"]);
@@ -49,7 +50,8 @@ test("Maxit topup stays disabled without explicit live acceptance gate",async()=
   try{
     assert.equal(f.adapter.localOwnerValidated,false);
     const out=await f.adapter.executeLocal(quote,requestId,{bankReturnToken});
-    assert.deepEqual(out,{state:"effect_unknown",reasonCode:"payment_effect_unverified"});
+    // P1-3: nothing was sent anywhere, so the honest state is blocked (not effect_unknown).
+    assert.deepEqual(out,{state:"blocked",reasonCode:"payment_not_submitted",reasonDetail:"maxit_live_acceptance_not_armed"});
     assert.equal(f.calls.length,0);
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
@@ -81,5 +83,61 @@ test("Maxit bank return and timeout reconcile only observe same transaction",asy
     const ops=f.calls.filter(x=>x[0]==="live").map(x=>x[1].operation);
     assert.deepEqual(ops,["resume","status"]);
     assert.equal(f.calls.some(x=>JSON.stringify(x).includes("invoice_id")),false);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+// --- Lot paiement Maxit 11/10 (P1-3, P0-4, P0-8, P1-5) -----------------------------------------
+test("P1-3 not_submitted without submission becomes blocked payment_not_submitted with its precise code",async()=>{
+  const f=fixture({live:async(payload,onEvent)=>{
+    await onEvent?.({event:"execution_error",reason_code:"maxit_order_creation_failed",reason_detail:"maxit_order_creation_failed"});
+    return {state:"not_submitted",reason_code:"maxit_order_creation_failed",reason_detail:"maxit_order_creation_failed",submission_attempted:false};
+  }});
+  try{
+    const trace=[];
+    const out=await f.adapter.executeLocal(quote,requestId,{bankReturnToken,trace:e=>trace.push(e)});
+    assert.deepEqual(out,{state:"blocked",reasonCode:"payment_not_submitted",reasonDetail:"maxit_order_creation_failed"});
+    const error=trace.find(e=>e.stage==="execution_error");
+    assert.equal(error.reasonCode,"maxit_order_creation_failed");
+    assert.equal(error.reasonDetail,"maxit_order_creation_failed");
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test("P1-3 a submitted attempt is never downgraded to blocked",async()=>{
+  for(const result of [
+    {state:"not_submitted",reason_code:"x",submission_attempted:true},
+    {state:"effect_unknown",reason_code:"bank_ui_unavailable",reason_detail:"bank_ui_unavailable",submission_attempted:true}]){
+    const f=fixture({live:async()=>result});
+    try{
+      const out=await f.adapter.executeLocal(quote,requestId,{bankReturnToken});
+      assert.equal(out.state,"effect_unknown");
+    }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+  }
+});
+
+test("P1-3 card absent is blocked before any live run",async()=>{
+  const f=fixture({card:{state:"missing"}});
+  try{
+    const out=await f.adapter.executeLocal(quote,requestId,{bankReturnToken});
+    assert.deepEqual(out,{state:"blocked",reasonCode:"payment_not_submitted",reasonDetail:"payment_card_not_ready"});
+    assert.equal(f.calls.some(x=>x[0]==="live"),false);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test("P0-8 blocked quote surfaces the precise reason (never a contract error)",async()=>{
+  const f=fixture({live:async()=>({state:"blocked",reason_code:"maxit_mobile_not_ready"})});
+  try{
+    await assert.rejects(f.adapter.quote(reference),e=>e.message==="maxit_mobile_not_ready");
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test("P1-5 adapter runs use the nested named budgets",async()=>{
+  const f=fixture();
+  try{
+    await f.adapter.quote(reference);
+    await f.adapter.executeLocal(quote,requestId,{bankReturnToken});
+    await f.adapter.resume(quote,requestId,continuation);
+    const byOp=Object.fromEntries(f.calls.filter(x=>x[0]==="live").map(x=>[x[1].operation,x[2]]));
+    assert.deepEqual(byOp,{quote:MAXIT_QUOTE_RUN_TIMEOUT_MS,start:MAXIT_START_RUN_TIMEOUT_MS,resume:MAXIT_RESUME_RUN_TIMEOUT_MS});
+    assert.deepEqual([MAXIT_QUOTE_RUN_TIMEOUT_MS,MAXIT_START_RUN_TIMEOUT_MS,MAXIT_RESUME_RUN_TIMEOUT_MS],[43000,220000,60000]);
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });

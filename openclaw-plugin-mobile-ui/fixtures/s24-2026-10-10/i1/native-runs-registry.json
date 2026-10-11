@@ -1,0 +1,158 @@
+{
+  "_capture": {
+    "method": "readonly runs registry terminal subset",
+    "latencyMs": 19,
+    "sanitized": true,
+    "note": "Terminal non-payment subset, free texts redacted, paymentRequests and confirmations excluded."
+  },
+  "response": {
+    "version": 1,
+    "runs": [
+      {
+        "runId": "run_1791491016718_92a47ddc",
+        "clientRunId": "samantha-intent-clarify-ded69df4f166",
+        "sessionId": "samantha-intent-clarify-live-20261008",
+        "sessionKey": "agent:main:companion-chat-samantha-intent-clarify-live-20261008",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791491016718,
+        "updatedAt": 1791637060290,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791621662404_bdd2548c",
+        "clientRunId": "samantha-5d4a71f8-e20b-4586-9fe3-f88f071a060f",
+        "sessionId": "samantha-4f8f128c-6224-413d-8ae7-259593c3380b",
+        "sessionKey": "agent:main:companion-chat-samantha-4f8f128c-6224-413d-8ae7-259593c3380b",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791621662404,
+        "updatedAt": 1791621668937,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791498322642_4b11d540",
+        "clientRunId": "samantha-267522dc-35ad-4589-b55b-8ce53e2c1376",
+        "sessionId": "decision-v2-live-5a66bfd3a1",
+        "sessionKey": "agent:main:companion-chat-decision-v2-live-5a66bfd3a1",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791498322642,
+        "updatedAt": 1791500281888,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791498187668_5423bb45",
+        "clientRunId": "decision-v2-reply-05ff0db948",
+        "sessionId": "decision-v2-live-5a66bfd3a1",
+        "sessionKey": "agent:main:companion-chat-decision-v2-live-5a66bfd3a1",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791498187668,
+        "updatedAt": 1791498193434,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791498187282_7255ab16",
+        "clientRunId": "decision-v2-clarify-7c01c62eef",
+        "sessionId": "decision-v2-live-5a66bfd3a1",
+        "sessionKey": "agent:main:companion-chat-decision-v2-live-5a66bfd3a1",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791498187282,
+        "updatedAt": 1791498187696,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791498186326_e671a2ef",
+        "clientRunId": "decision-v2-known-95c3634bb1",
+        "sessionId": "decision-v2-live-5a66bfd3a1",
+        "sessionKey": "agent:main:companion-chat-decision-v2-live-5a66bfd3a1",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791498186326,
+        "updatedAt": 1791498186951,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791497871422_9220f83c",
+        "clientRunId": "decisionv2-clarify-child-21530978dd",
+        "sessionId": "decisionv2-live-clarify-20261008",
+        "sessionKey": "agent:main:companion-chat-decisionv2-live-clarify-20261008",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791497871422,
+        "updatedAt": 1791497877745,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791497772021_8cfb13da",
+        "clientRunId": "decisionv2-clarify-fdd1b1fd14",
+        "sessionId": "decisionv2-live-clarify-20261008",
+        "sessionKey": "agent:main:companion-chat-decisionv2-live-clarify-20261008",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791497772021,
+        "updatedAt": 1791497871458,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791497769857_1b41ff5d",
+        "clientRunId": "decisionv2-read-824b19c85a",
+        "sessionId": "decisionv2-live-read-20261008",
+        "sessionKey": "agent:main:companion-chat-decisionv2-live-read-20261008",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791497769857,
+        "updatedAt": 1791497771283,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791491410897_bf918143",
+        "clientRunId": "samantha-clarify-terminal-b620849598a0",
+        "sessionId": "samantha-clarify-terminal-20261008",
+        "sessionKey": "agent:main:companion-chat-samantha-clarify-terminal-20261008",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791491410897,
+        "updatedAt": 1791491410996,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791491119902_dceef30c",
+        "clientRunId": "samantha-clarify-final-4284cb4b0693",
+        "sessionId": "samantha-clarify-final-20261008",
+        "sessionKey": "agent:main:companion-chat-samantha-clarify-final-20261008",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791491119902,
+        "updatedAt": 1791491119931,
+        "state": "done",
+        "result": "<redacted>"
+      },
+      {
+        "runId": "run_1791488149308_932dc6f5",
+        "clientRunId": "samantha-live-closure-06efcf11b23f",
+        "sessionId": "samantha-live-closure-20261008",
+        "sessionKey": "agent:main:companion-chat-samantha-live-closure-20261008",
+        "text": "<redacted>",
+        "userText": "<redacted>",
+        "acceptedAt": 1791488149308,
+        "updatedAt": 1791488151672,
+        "state": "done",
+        "result": "<redacted>"
+      }
+    ],
+    "archivedSessionIds": []
+  }
+}
