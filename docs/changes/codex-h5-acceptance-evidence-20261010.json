@@ -4,7 +4,7 @@
   "origin": "chat",
   "kind": "maintenance",
   "merge_eligibility": "allowed",
-  "deployment_state": "not_applicable",
+  "deployment_state": "not_applied",
   "summary": "Vérifier la couverture et les budgets existants R6 R7 R12 sur captures HTTP et sur les 10 derniers reçus de déploiement du S24.",
   "reason": "Les routes et la garde owner existent déjà ; conserver leur preuve sans créer de route, budget copié ou mutateur.",
   "files": [
@@ -14,7 +14,9 @@
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/README.md",
     "docs/work/samantha-runtime/contracts/h5.md",
     "docs/changes/codex-h5-acceptance-evidence-20261010.md",
-    "docs/changes/codex-h5-acceptance-evidence-20261010.json"
+    "docs/changes/codex-h5-acceptance-evidence-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs"
   ],
   "tests": [
     {
@@ -26,6 +28,11 @@
       "name": "Existing R6 HTTP owner contract and build",
       "status": "passed",
       "evidence": "npm run build and test-agent-config.cjs passed; existing owner refusal, scoped patch, receipts, idempotence and bank refusal remain unchanged."
+    },
+    {
+      "name": "b42-lot3-current-base-targeted",
+      "status": "passed",
+      "evidence": "Base91060b54 merged normally; Node20 npm ci/build, H5 acceptance evidence7/7, R6 agent-config and shared F6 correction passed. F6 50020 receipts,17 abandoned,sweep479ms under unchanged10s, overflow4097 unknown. Log h5-lot3-targeted.log. Publication conditioned on complete workflow green at exact frozen SHA."
     }
   ],
   "documentation": [
@@ -58,8 +65,9 @@
   },
   "rollback": "Revert the H5 evidence test and its CI step.",
   "limitations": [
-    "Historical captured timings are not a new deployment receipt. Core PR70 HTTP replay remains pending merge and is not used as deployed base.",
     "/agent/config reached 85 % of its 9 s budget on deploy f95be8d (10/10): optimization task per AGENTS.md, budget unchanged; later receipts are 50-76 %.",
-    "H4 (core #102) changes the POST /agent/config response for a missing confirmation (403 confirmation_required) only after owner admission; the acceptance probe without owner header still expects 403."
+    "H4 (core #102) changes the POST /agent/config response for a missing confirmation (403 confirmation_required) only after owner admission; the acceptance probe without owner header still expects 403.",
+    "Historical captured timings remain historical receipts, not a new S24 deployment. Base91060b54 integrated normally; all CI commands preserved.",
+    "Shared F6 dc5cc696 correction preserves unknown liveness when /proc inventory exceeds unchanged4096 bound; PID view is a synthetic fixture with real child processes. Publication requires full workflow green at exact PR SHA."
   ]
 }
