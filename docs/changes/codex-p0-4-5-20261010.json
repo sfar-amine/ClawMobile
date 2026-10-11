@@ -6,7 +6,7 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Prepare conservative health resource policy and bounded existing owner maintenance",
-  "reason": "Programme34 issue64. S24 fixture82 confirms metrics/inventory but no threshold owner or exhaustive idle proof. Existing owner retention and measured log bounds tested; memory restart and plugin orphan cleanup remain blocked. Base d142a9f merged with CI union.",
+  "reason": "P0-4 branché par Claude (fichier 41) : seuils mesurés, preuve de repos sur sources confirmées, refroidissement 6 h, reçu health/gateway-memory-guard.json, redémarrage gracieux via /v1/runtime/restart. P0-5 inchangé (prunes non branchés).",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-p0-4-5-20261010.json",
@@ -22,7 +22,10 @@
     "installer/termux-lite/test-owner-retention.py",
     "installer/termux-lite/tier0-control.py",
     "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-retention.cjs",
-    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts"
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "installer/termux-lite/gateway-memory-guard.py",
+    "installer/termux-lite/test-gateway-memory-guard.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/p0-4-5/idle-sources.json"
   ],
   "tests": [
     {
@@ -34,6 +37,11 @@
       "name": "runtime-ci-union",
       "status": "passed",
       "evidence": "Full pre-R20 workflow commands passed CI_LOCAL_OK /tmp/p045-fixture-fresh-ci.log; base d142a9f integrated while tests ran, fresh build and all five newly added R20 commands separately passed. Six resource/seven retention/50060 receipt tests pass; union includes every d142a9f step. Gate remains intentionally blocked for missing runtime owner guarantees."
+    },
+    {
+      "name": "p0-4-gateway-memory-guard",
+      "status": "passed",
+      "evidence": "14 tests : seuils au-dessus de toutes les mesures réelles, repos sur capture réelle, refroidissement 6 h, reçu corrompu conservé, câblage health-manager."
     }
   ],
   "documentation": [
@@ -62,8 +70,8 @@
   },
   "rollback": "Revert owner code/writers and tests. Purged ordinary logs/releases after future Claude activation cannot be reconstructed without backup: review captured plan before applying. No memory thresholds or restart activation changed.",
   "limitations": [
-    "Draft: real metrics and inventory integrated, but threshold owner and complete atomic idle proof do not exist according to Claude81. No restart wiring until that ownership decision.",
     "No Codex S24 action. Native plugin cleanup confirmed but four ownerless orphan roots persist; no blind external deletion.",
-    "Mutation/unknown receipts remain protected; replay duration unspecified. Gateway stderr writer ownership not confirmed, no claim that its active rotation is wired."
+    "Mutation/unknown receipts remain protected; replay duration unspecified. Gateway stderr writer ownership not confirmed, no claim that its active rotation is wired.",
+    "Tours de canaux Gateway hors task_runs non visibles dans la preuve de repos ; première activation et recette par Claude via companion-deploy.sh."
   ]
 }
