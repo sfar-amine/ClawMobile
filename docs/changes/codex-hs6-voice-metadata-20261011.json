@@ -3,7 +3,7 @@
   "id": "codex-hs6-voice-metadata-20261011",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "pending",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Protection des OTP/PIN courts dans le lecteur HS3 partagé ; voix consolidée dans #150",
   "reason": "Supprimer les rendus et gestes doublons tout en conservant la protection des codes humains désignés.",
