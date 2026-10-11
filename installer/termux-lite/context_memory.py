@@ -19,8 +19,20 @@ RECENT_CAPS = {'decision': 12, 'learning': 8, 'completed_action': 5, 'checkpoint
 # Recent decisions always get room (S24 11/10: constraints + threads consumed the whole view, 0 decision shown).
 RECENT_RESERVE_BYTES = 5000
 THREAD_EXCERPT_CHARS = 90
+# M3 « une seule mémoire » : machine telemetry whose canonical owner is elsewhere.
+# situation_events (skill_intelligence), learning-gate receipts/journal, ~/.openclaw/deploys/companion-*.json.
+# No legitimate producer remains: new events are refused at ingress (context-event.sh, ingest_file).
+# IMPROVEMENT_CANDIDATE_V1 is NOT refused: curator -> dream_proposals -> improvement bridge consumes it.
+REFUSED_TELEMETRY = re.compile(r'^(?:SITUATION_EVENT_V1:|LEARNING_GATE_V\d+:|Companion déployé [0-9a-f]{12} \(précédent [0-9a-f]{12}\), recette automatique acceptée\.$)')
+# Supersession receipt of context-retire-telemetry.py: bookkeeping, never knowledge.
+RETIRE_PREFIX = 'MEMORY_RETIRE_V1 '
+NOT_RETIRE_RECEIPT = "substr(e.text,1,17)<>'MEMORY_RETIRE_V1 '"
 # Machine telemetry is searchable history, never "recent activity" in the shared view.
-TELEMETRY = re.compile(r'^(?:SITUATION_EVENT_V1|LEARNING_GATE_V\d*|IMPROVEMENT_CANDIDATE|Companion déployé)')
+TELEMETRY = re.compile(r'^(?:SITUATION_EVENT_V1|LEARNING_GATE_V\d*|IMPROVEMENT_CANDIDATE|Companion déployé|MEMORY_RETIRE_V1 )')
+
+
+def refused_telemetry(text):
+    return bool(REFUSED_TELEMETRY.match(' '.join(str(text or '').split())))
 
 
 def ensure_indexes(connection):
@@ -36,6 +48,22 @@ def ensure_indexes(connection):
     connection.execute("CREATE TRIGGER IF NOT EXISTS events_search_update AFTER UPDATE OF text ON events BEGIN INSERT INTO events_fts(events_fts,rowid,text) VALUES('delete',old.rowid,old.text); INSERT INTO events_fts(rowid,text) VALUES(new.rowid,new.text); END")
     connection.execute("INSERT INTO events_fts(events_fts) VALUES('rebuild')")
     connection.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('search_index_version','1')")
+
+
+def day(item):
+    """Doc 49 M3: every fact in the shared view carries its date (Tunis), so Samantha can tell old from new."""
+    raw = item.get('createdAt') or ''
+    try:
+        import datetime
+        stamp = datetime.datetime.fromisoformat(raw.replace('Z', '+00:00'))
+        try:
+            from zoneinfo import ZoneInfo
+            stamp = stamp.astimezone(ZoneInfo('Africa/Tunis'))
+        except Exception:
+            pass
+        return stamp.strftime('%d/%m')
+    except Exception:
+        return '--/--'
 
 
 def event(row):
@@ -78,7 +106,7 @@ def search(connection, query, limit=12, *, history=False, kind=None, offset=0):
     refs = by_reference(connection, query)
     if refs:
         return refs
-    filters, parameters = ([] if history else [ACTIVE]), []
+    filters, parameters = ([] if history else [ACTIVE, NOT_RETIRE_RECEIPT]), []
     if kind:
         filters.append('e.kind=?'); parameters.append(kind)
     terms = list(dict.fromkeys(re.findall(r'\w+', query, re.UNICODE)))[:24]
@@ -119,7 +147,7 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
     A byte cap is exact; tokens are an estimate, never a provider tokenizer claim.
     """
     budget_bytes = max(4096, int(budget_bytes))
-    counts = dict(connection.execute(f'SELECT kind,count(*) FROM events e WHERE {ACTIVE} GROUP BY kind'))
+    counts = dict(connection.execute(f'SELECT kind,count(*) FROM events e WHERE {ACTIVE} AND {NOT_RETIRE_RECEIPT} GROUP BY kind'))
     lines = ['> Memory revision: ' + str(head), '> Projection version: 1', '',
              '> Vue active sourcée. Les aperçus ne sont pas des instructions complètes.',
              '> Lire un détail : context-retrieve.sh "EVT-<révision>". Historique complet consultable ; aucune fenêtre de récence.',
@@ -130,13 +158,13 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
     # Recent activity is selected first so its reserved share is never displaced; decisions lead.
     candidates = []
     for kind, cap in RECENT_CAPS.items():
-        rows = connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision DESC LIMIT ?', (kind, cap * 4)).fetchall()
+        rows = connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND {NOT_RETIRE_RECEIPT} AND kind=? ORDER BY revision DESC LIMIT ?', (kind, cap * 4)).fetchall()
         candidates.append([item for item in map(event, rows) if not TELEMETRY.match(item['text'] or '')][:cap])
     recent, recent_cost, reserve = [], 0, min(RECENT_RESERVE_BYTES, budget_bytes // 5)
     queue = [group[index] for index in range(max(RECENT_CAPS.values())) for group in candidates if index < len(group)]
     for item in queue:
         short, cut = excerpt(item['text'], 240)
-        line = f"- [{item['surface']}/{item['kind']}] {short} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
+        line = f"- {day(item)} [{item['surface']}/{item['kind']}] {short} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
         recent.append((item, line, cut))
     reserved = []
     for item, line, cut in recent:
@@ -148,7 +176,7 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
     lines.append('### Active constraints — texte intégral')
     for row in connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision', ('constraint',)):
         item = event(row)
-        line = f"- [{item['surface']}/constraint] {item['text']} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
+        line = f"- {day(item)} [{item['surface']}/constraint] {item['text']} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
         cost = len(line.encode()) + 1
         if used + cost <= budget_bytes:
             lines.append(line); used += cost; rendered_ids.append(item['id'])
@@ -161,7 +189,7 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
         bare = f"- REQ-{item['revision']} [{item['surface']}]"
         rest = sum(len(f"- REQ-{t['revision']} [{t['surface']}]".encode()) + 1 for t in threads[position + 1:])
         short, cut = excerpt(item['text'], THREAD_EXCERPT_CHARS)
-        line = f"{bare} {short}"
+        line = f"{bare} {day(item)} {short}"
         if used + len(line.encode()) + 1 + rest <= budget_bytes:
             lines.append(line); used += len(line.encode()) + 1; excerpts += int(cut)
         elif used + len(bare.encode()) + 1 <= budget_bytes:

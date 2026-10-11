@@ -10,7 +10,7 @@ from pathlib import Path
 import sqlite3
 import uuid
 
-from context_memory import ACTIVE, COLUMNS, event, excerpt, normalized
+from context_memory import ACTIVE, COLUMNS, TELEMETRY, event, excerpt, normalized
 from context_digest import close_supersessions, bridge_digest
 from context_native_metrics import read_native_metrics
 
@@ -93,7 +93,9 @@ def main():
             # Extractive digest: evidence pointers, source type and full hashes
             # survive. It is never injected as a new fact or used as authority.
             # No lexical guess can close a thread, revoke a constraint or promote a route.
-            active_rows = [row for row in rows if not conn.execute("SELECT 1 FROM events WHERE supersedes=? LIMIT 1", (row["id"],)).fetchone()]
+            # M3: machine telemetry and retirement receipts never reach the native memory digest.
+            active_rows = [row for row in rows if not TELEMETRY.match(row["text"] or "")
+                           and not conn.execute("SELECT 1 FROM events WHERE supersedes=? LIMIT 1", (row["id"],)).fetchone()]
             for offset in range(0, len(active_rows), 24):
                 batch = active_rows[offset:offset + 24]
                 items = []

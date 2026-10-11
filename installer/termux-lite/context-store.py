@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import datetime,json,os,pathlib,sqlite3,sys,hashlib,re
-from context_memory import ensure_indexes, search, control_items
+from context_memory import ensure_indexes, search, control_items, refused_telemetry
 from context_import import preview as import_preview, selection as import_selection, canonical as import_canonical, PAYMENT as MEMORY_PAYMENT
 H=pathlib.Path.home()
 D=pathlib.Path(os.environ.get("SAMANTHA_CONTEXT_ROOT",H/".openclaw/context-sync"))
@@ -93,6 +93,9 @@ def ingest_file(c,path,require_active=None):
             rev=row[0]; inserted=False
         else:
             if require_active and c.execute('SELECT 1 FROM events WHERE supersedes=?',(require_active,)).fetchone():raise ValueError('memory_already_superseded')
+            # M3: machine telemetry belongs to its owner (deploy receipts, learning gate, situations).
+            # Replaying an already-accepted processed/ file (DB rebuild) stays possible.
+            if refused_telemetry(e['text']) and p.parent.resolve()!=(D/'processed').resolve():raise ValueError('machine_telemetry_refused')
             h=int(c.execute("SELECT value FROM memory_meta WHERE key='current_revision'").fetchone()[0]); rev=h+1
             now=datetime.datetime.now(datetime.timezone.utc).isoformat()
             c.execute('INSERT INTO events(id,surface,kind,text,created_at,ingested_at,supersedes,revision,session_id) VALUES(?,?,?,?,?,?,?,?,?)',(e['id'],e['surface'],e['kind'],' '.join(str(e['text']).split()),e['createdAt'],now,e.get('supersedes'),rev,session))

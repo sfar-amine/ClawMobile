@@ -101,6 +101,16 @@ class ScaleTests(unittest.TestCase):
         self.assertNotIn('LEARNING_GATE_V2', body); self.assertNotIn('Companion déployé', body)
         self.assertEqual(search(self.c, 'LEARNING_GATE_V2')[0]['revision'], 1)
 
+    def test_every_fact_line_carries_its_tunis_date(self):
+        # Doc 49 M3: dated facts. 2026-01-01T00:00Z is 01/01 01:00 in Tunis.
+        add(self.c, 1, 'constraint', 'Toujours dire Bonjour Amine')
+        add(self.c, 2, 'open_thread', 'Relancer la SEREPT')
+        add(self.c, 3, 'decision', 'Dreaming à 22:00')
+        body, _ = build_view(self.c, 3)
+        self.assertIn('- 01/01 [chat/constraint] Toujours dire Bonjour Amine', body)
+        self.assertIn('- 01/01 [chat/decision] Dreaming à 22:00', body)
+        self.assertIn('- REQ-2 [chat] 01/01 Relancer la SEREPT', body)
+
     def test_read_only_lookup_pagination_and_query_escaping(self):
         for i in range(1, 8): add(self.c, i, 'constraint', f'Consigne {i} ponctuation')
         with closing(sqlite3.connect(self.db.as_uri() + '?mode=ro', uri=True)) as reader:
@@ -132,6 +142,145 @@ class ScaleTests(unittest.TestCase):
         add(self.c, 3, 'learning', 'Fait durable identique', surface='voice')
         third = run(); self.assertEqual(third['eventsScanned'], 1)
         self.assertTrue(any(x['action'] == 'consolidate_duplicate' for x in third['proposals']))
+
+
+SITUATION = 'SITUATION_EVENT_V1: {"event":"EVT-ABC","id":"SIT-X","kind":"transition","state":"analyzing","title":"t"}'
+GATE = 'LEARNING_GATE_V1:{"source":"incident","closure_id":"c1","status":"recovered"}'
+DEPLOY = 'Companion déployé 0123456789ab (précédent ba9876543210), recette automatique acceptée.'
+IMPROVEMENT = 'IMPROVEMENT_CANDIDATE_V1:{"target":"x","intent":"y","type":"rule","current_state":{},"proposed_state":{}}'
+
+
+class TelemetryOutOfMemoryTests(unittest.TestCase):
+    """M3 « une seule mémoire » : machine telemetry stays with its canonical owner."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.root = Path(self.tmp.name) / 'context-sync'
+        self.root.mkdir(); (self.root / 'pending').mkdir()
+        self.saved = (store.D, store.DB); store.D, store.DB = self.root, self.root / 'memory.db'
+        self.c = store.connect(); store.migrate(self.c)
+        self.env = dict(os.environ, SAMANTHA_CONTEXT_ROOT=str(self.root), HOME=self.tmp.name)
+
+    def tearDown(self):
+        self.c.close(); store.D, store.DB = self.saved; self.tmp.cleanup()
+
+    def pending(self, text, kind='checkpoint', surface='work', folder='pending'):
+        eid = hashlib.sha256(text.encode()).hexdigest()
+        path = self.root / folder / (eid + '.json'); path.parent.mkdir(exist_ok=True)
+        path.write_text(json.dumps({'version': 2, 'id': eid, 'surface': surface, 'kind': kind, 'text': text,
+                                    'createdAt': '2026-10-11T00:00:00Z'}))
+        return path
+
+    def test_ingress_refuses_owned_telemetry_but_keeps_legitimate_text(self):
+        for text in (SITUATION, GATE, DEPLOY, '  ' + DEPLOY.replace(' ', '  ')):
+            with self.assertRaisesRegex(ValueError, 'machine_telemetry_refused'):
+                store.ingest_file(self.c, self.pending(text))
+        for text in (IMPROVEMENT, 'Companion déployé hier soir, tout va bien', 'SITUATION_SIGNAL_V1:{}'):
+            self.assertTrue(store.ingest_file(self.c, self.pending(text, 'learning'))['inserted'])
+        # A DB rebuild replays already-accepted processed/ files unchanged.
+        self.assertTrue(store.ingest_file(self.c, self.pending(DEPLOY, folder='processed'))['inserted'])
+        self.assertEqual(self.c.execute('SELECT count(*) FROM events').fetchone()[0], 4)
+
+    def test_context_event_refuses_before_any_pending_file(self):
+        for kind, text in (('checkpoint', SITUATION), ('learning', GATE), ('completed_action', DEPLOY)):
+            r = subprocess.run(['bash', str(HERE / 'context-event.sh'), 'work', kind, text], env=self.env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 66, r.stderr); self.assertIn('machine telemetry', r.stderr)
+        self.assertEqual(list((self.root / 'pending').iterdir()), [])
+        self.assertEqual(self.c.execute('SELECT count(*) FROM events').fetchone()[0], 0)
+
+    def test_producers_no_longer_write_telemetry(self):
+        code = [l for l in (HERE / 'companion-deploy.sh').read_text().splitlines() if not l.lstrip().startswith('#')]
+        self.assertEqual([l for l in code if 'context-event' in l or 'Companion déployé' in l], [])
+        runtime = Path(self.tmp.name) / 'runtime'; runtime.mkdir(); log = Path(self.tmp.name) / 'events.log'
+        (runtime / 'context-event.sh').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$EVENT_LOG"\n')
+        for text in (GATE, IMPROVEMENT):
+            gate = json.dumps({'receipt_id': 'r1', 'context_text': text})
+            (runtime / 'learning-gate.py').write_text('#!/usr/bin/env python3\nprint(' + repr(gate) + ')\n')
+            for name in ('context-event.sh', 'learning-gate.py'): (runtime / name).chmod(0o755)
+            env = dict(self.env, CLAW_RUNTIME_ROOT=str(runtime), EVENT_LOG=str(log), SAMANTHA_UI_PLAYBOOKS_ROOT=str(runtime / 'absent'))
+            r = subprocess.run(['bash', str(HERE / 'learning-gate-close.sh'), '--source', 'manual'], env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(json.loads(r.stdout)['context_text'], text)
+        written = log.read_text()
+        self.assertNotIn('LEARNING_GATE_V1', written); self.assertIn('IMPROVEMENT_CANDIDATE_V1:', written)
+
+    def seed(self):
+        ids = {}
+        for rev, kind, text in ((1, 'checkpoint', SITUATION), (2, 'learning', GATE), (3, 'completed_action', DEPLOY),
+                                (4, 'learning', IMPROVEMENT), (5, 'learning', IMPROVEMENT + ' '),
+                                (6, 'decision', 'Décision durable ORION'), (7, 'checkpoint', 'Point de reprise ORION')):
+            ids[rev] = add(self.c, rev, kind, text, surface='work')
+        self.c.execute("UPDATE memory_meta SET value='7' WHERE key='current_revision'")
+        self.c.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('curator_revision_v1','7')")
+        # rev 4 was bridged by the improvement bridge; rev 5 is still waiting: it must stay.
+        self.c.execute("INSERT INTO dream_proposals VALUES('p4','run','improvement_candidate',?,'{}','bridged','2026-10-08',NULL)", (json.dumps([ids[4]]),))
+        self.c.execute("INSERT INTO dream_proposals VALUES('p5','run','improvement_candidate',?,'{}','proposed','2026-10-08',NULL)", (json.dumps([ids[5]]),))
+        return ids
+
+    def retire(self, *args):
+        r = subprocess.run([sys.executable, str(HERE / 'context-retire-telemetry.py'), '--no-compact',
+                            '--backup-dir', str(Path(self.tmp.name) / 'backups'), *args], env=self.env, capture_output=True, text=True)
+        return r.returncode, json.loads(r.stdout) if r.stdout.strip() else r.stderr
+
+    def test_retirement_dry_run_counts_then_supersedes_through_the_store(self):
+        ids = self.seed(); before = list(self.c.execute('SELECT * FROM events ORDER BY revision'))
+        rc, dry = self.retire('--dry-run')
+        self.assertEqual(rc, 0); self.assertEqual(dry['writes'], 0)
+        self.assertEqual(dry['wouldRetire'], {'situation_event': 1, 'learning_gate': 1, 'companion_deploy': 1, 'improvement_candidate': 1, 'total': 4})
+        self.assertEqual(before, list(self.c.execute('SELECT * FROM events ORDER BY revision')))
+        self.assertFalse((Path(self.tmp.name) / 'backups').exists())
+        rc, out = self.retire('--apply')
+        self.assertEqual(rc, 0, out); self.assertEqual(out['inserted'], 4)
+        # Immutable: every original row is unchanged; only new supersession receipts were appended.
+        self.assertEqual(before, list(self.c.execute('SELECT * FROM events WHERE revision<=7 ORDER BY revision')))
+        superseded = {r[0] for r in self.c.execute('SELECT supersedes FROM events WHERE revision>7')}
+        self.assertEqual(superseded, {ids[1], ids[2], ids[3], ids[4]})
+        backup = Path(out['backup']); self.assertEqual(oct(backup.stat().st_mode & 0o777), '0o600')
+        with closing(sqlite3.connect(backup)) as b: self.assertEqual(b.execute('SELECT count(*) FROM events').fetchone()[0], 7)
+        body, meta = build_view(self.c, 11)
+        self.assertEqual(meta['active_counts'], {'learning': 1, 'decision': 1, 'checkpoint': 1})
+        self.assertNotIn('MEMORY_RETIRE_V1', body); self.assertIn('Point de reprise ORION', body)
+        self.assertEqual(search(self.c, 'situation_events'), [])
+        self.assertEqual(len(search(self.c, 'LEARNING_GATE_V1', history=True)), 1)
+        rc, again = self.retire('--apply'); self.assertEqual(again['state'], 'nothing_to_do')
+        self.assertEqual(self.retire('--dry-run')[1]['wouldRetire']['total'], 0)
+
+    def test_retirement_is_reversible_only_without_foreign_writes(self):
+        self.seed()
+        rc, out = self.retire('--apply'); manifest = out['manifest']
+        self.assertEqual(self.retire('--restore', manifest)[1]['state'], 'ready')
+        add(self.c, 99, 'decision', 'Écriture étrangère après le retrait')
+        rc, refused = self.retire('--restore', manifest, '--apply')
+        self.assertEqual((rc, refused['reason']), (1, 'memory_advanced_since_retirement'))
+        # Without the foreign write, the pre-run backup comes back and receipts leave processed/.
+        self.tearDown(); self.setUp(); self.seed(); before = list(self.c.execute('SELECT id FROM events ORDER BY revision'))
+        rc, out = self.retire('--apply')
+        rc, restored = self.retire('--restore', out['manifest'], '--apply')
+        self.assertEqual(restored['state'], 'restored', restored); self.assertEqual(restored['receiptFilesParked'], 4)
+        self.c.close(); self.c = store.connect()
+        self.assertEqual(before, list(self.c.execute('SELECT id FROM events ORDER BY revision')))
+        self.assertEqual(list((self.root / 'processed').glob('*.json')), [])
+
+    def test_real_s24_shapes_are_classified_exactly(self):
+        fixture = json.loads((HERE.parent.parent / 'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11-m3-telemetry/memory-telemetry-shapes.json').read_text())
+        for rev, row in enumerate(fixture['rows'], 1):
+            eid = add(self.c, rev, row['kind'], row['text'], surface=row['surface'])
+            if row.get('bridged'):
+                self.c.execute("INSERT INTO dream_proposals VALUES(?,?,?,?,?,?,?,NULL)", ('p%d' % rev, 'run', 'improvement_candidate', json.dumps([eid]), '{}', 'bridged', '2026-10-08'))
+        self.c.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('curator_revision_v1',?)", (str(len(fixture['rows'])),))
+        expected = {name: sum(r['class'] == name for r in fixture['rows']) for name in ('situation_event', 'learning_gate', 'companion_deploy', 'improvement_candidate')}
+        expected['total'] = sum(expected.values())
+        self.assertEqual(self.retire('--dry-run')[1]['wouldRetire'], expected)
+        s24 = fixture['s24Counts']
+        self.assertEqual(s24['total'], sum(s24[k] for k in ('situation_event', 'learning_gate', 'companion_deploy', 'improvement_candidate')))
+
+    def test_curator_digest_skips_telemetry_and_receipts(self):
+        self.seed(); self.c.execute("DELETE FROM memory_meta WHERE key='curator_revision_v1'")
+        rc, out = self.retire('--apply'); self.assertEqual(rc, 0, out)
+        subprocess.check_output([sys.executable, str(HERE / 'context-dream.py')], env=self.env, text=True)
+        cited = set()
+        for (ids,) in self.c.execute("SELECT source_ids FROM dream_proposals WHERE action='memory_digest'"): cited |= set(json.loads(ids))
+        texts = {r[0] for r in self.c.execute(f"SELECT text FROM events WHERE id IN ({','.join('?' * len(cited))})", tuple(cited))}
+        self.assertTrue(texts); self.assertFalse([t for t in texts if t.startswith(('MEMORY_RETIRE_V1', 'SITUATION_EVENT', 'LEARNING_GATE', 'Companion', 'IMPROVEMENT'))])
 
 
 if __name__ == '__main__':
