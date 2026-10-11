@@ -1,0 +1,20 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/skills/candidates?limit=50",
+  "status": 200,
+  "capturedAt": "2026-10-10T23:40:45Z",
+  "bytes": 110,
+  "companion": "curl loopback http://127.0.0.1:8765 avec l'en-tête de l'app (Connection: close), sans Origin/Referer ni en-tête propriétaire",
+  "sanitized": true,
+  "latencyMs": 212
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "items": [],
+  "skipped": 0,
+  "truncated": false
+ }
+}

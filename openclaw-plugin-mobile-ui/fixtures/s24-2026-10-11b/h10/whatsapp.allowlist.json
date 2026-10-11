@@ -1,0 +1,25 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/whatsapp/allowlist",
+  "status": 200,
+  "capturedAt": "2026-10-10T23:40:52Z",
+  "bytes": 2148,
+  "companion": "curl loopback http://127.0.0.1:8765 avec l'en-tête de l'app (Connection: close), sans Origin/Referer ni en-tête propriétaire",
+  "sanitized": "e164 remplacés par des numéros fictifs distincts +2160000000N (un par contact réel) ; name -> <name> ; scopeText -> <texte N car.> ; contactId (wa-<16 hex>) haché avec sel",
+  "latencyMs": 4282
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "items": [
+    {"contactId":"wa-11758b9f9ab3dc09","e164":"+21600000001","name":"<name>","owner":true,"scope":"custom","scopeText":null,"state":"active","expiresAt":null,"lastActivityAt":"2026-10-09T14:12:09Z","addedAt":null},
+    {"contactId":"wa-517adfcbe5778a07","e164":"+21600000002","name":"<name>","owner":false,"scope":"standard","scopeText":null,"state":"active","expiresAt":null,"lastActivityAt":null,"addedAt":null},
+    {"contactId":"wa-b2d140063ddb176d","e164":"+21600000003","name":"<name>","owner":false,"scope":"custom","scopeText":"<texte 290 car.>","state":"active","expiresAt":null,"lastActivityAt":"2026-10-01T15:07:40Z","addedAt":null},
+    {"contactId":"wa-908e5e23bcda2b9d","e164":"+21600000004","name":"<name>","owner":false,"scope":"standard","scopeText":null,"state":"active","expiresAt":null,"lastActivityAt":"2026-10-09T13:59:58Z","addedAt":null},
+    {"contactId":"wa-78e0f9e60f3b44d4","e164":"+21600000005","name":"<name>","owner":false,"scope":"custom","scopeText":"<texte 259 car.>","state":"active","expiresAt":null,"lastActivityAt":"2026-09-28T18:36:37Z","addedAt":null}
+  ],
+  "issues": []
+ }
+}
