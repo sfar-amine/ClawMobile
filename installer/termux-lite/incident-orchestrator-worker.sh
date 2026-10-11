@@ -111,15 +111,12 @@ PY_ADB_REUSE
         continue
       fi
     fi
-    case "$component" in
-      adb|gateway-secretref-exec|openclaw-agent-headless|remote_desktop) ;;
-      *)
+    if ! "$ROOT/incident-orchestrator.py" handled --direct "$component" >/dev/null 2>&1; then
         "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "no enabled managed repair handler" >/dev/null 2>&1 || true
         log "incident=$iid component=$component terminal=failed reason=no_managed_handler"
         sleep 5
         continue
-        ;;
-    esac
+    fi
     log "incident=$iid component=$component action=diagnose"
     if run_observed "$ROOT/autonomous-engineering-shadow.sh" "$component" 3 "$iid"; then
       # Re-read canonical state before applying any delayed model recommendation.

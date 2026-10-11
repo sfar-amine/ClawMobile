@@ -106,7 +106,8 @@ def live():
  x['device.adb.recovery_readiness']=item(rr_state,False,reason=rr_reason,evidence='trusted Wireless Debugging recovery path',freshness=rr_fresh)
  checks={
   'immune.root_guardian':("[s]amantha-root-guardian.sh",OC/'health/root-guardian.heartbeat',30),
-  'immune.health_manager':("[s]amantha-health-manager.sh",OC/'health/health-manager.heartbeat',45),
+  # Doc 51 I8: one repair cycle (grace 12 s + stop 20 s + grace 12 s + lock wait) outlives 45 s without being stuck.
+  'immune.health_manager':("[s]amantha-health-manager.sh",OC/'health/health-manager.heartbeat',120),
   'immune.incident_manager':("[i]ncident-manager.sh",OC/'health/incident-manager.heartbeat',30),
   'immune.incident_orchestrator':("[i]ncident-orchestrator-worker.sh",OC/'health/incident-orchestrator.heartbeat',20),
   'immune.remote_watchdog':("[r]emote-desktop-watchdog.sh",OC/'health/remote-watchdog.heartbeat',45),
