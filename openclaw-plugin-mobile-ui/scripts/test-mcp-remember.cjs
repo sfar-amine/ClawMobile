@@ -66,8 +66,10 @@ const remember = (clientId, actionKey, args, profile = "chat-owner", requestId) 
     // Installed writer on the S24 (read-only capture 11/10) is byte-identical to the one exercised here.
     const m2 = JSON.parse(fs.readFileSync(path.join(__dirname, "../fixtures/s24-2026-10-12/m2/context-writer.json"), "utf8"));
     assert.equal(m2._capture.sanitized, true);
-    const localWriter = require("node:crypto").createHash("sha256").update(fs.readFileSync(path.join(installer, "context-event.sh"))).digest("hex");
-    for (const writer of m2.writers) assert.ok(localWriter.startsWith(writer.sha256Prefix), writer.path);
+    // Interface parity with the installed writer (same surfaces, kinds and options), not byte identity:
+    // the writer legitimately evolves (M3 telemetry refusal), the contract claw_remember relies on must not.
+    const localUsage = fs.readFileSync(path.join(installer, "context-event.sh"), "utf8").match(/usage: \$0 [^"\n]*/)[0];
+    assert.equal(localUsage, m2.usage, "context-event.sh interface changed");
     assert.equal(m2.memoryDb.schema, c10.schema.events);
     assert.ok(!m2.memoryDb.eventsBySurface.codex, "codex never wrote before M2");
     const capturedKinds = new Set(c10.events.map((row) => row.kind));
