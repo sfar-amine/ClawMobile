@@ -1,0 +1,18 @@
+{
+  "date": "2026-09-28",
+  "private_values_omitted": true,
+  "fresh_process_campaigns": 3,
+  "session_persisted": false,
+  "latest": [
+    {"intent":"phone_number","status":"PASS","transport":"https_waaat","ui_used":false,"wall_ms":877,"latency_ms":655,"foreground_unchanged":true},
+    {"intent":"offer","status":"PASS","transport":"https_waaat","ui_used":false,"wall_ms":739,"latency_ms":537,"foreground_unchanged":true},
+    {"intent":"recharge","status":"PASS","transport":"https_waaat","ui_used":false,"wall_ms":733,"latency_ms":587,"foreground_unchanged":true},
+    {"intent":"data","status":"PASS","transport":"https_waaat","ui_used":false,"wall_ms":608,"latency_ms":458,"foreground_unchanged":true,"card_count":1,"units":["GO"]},
+    {"intent":"voice","status":"PASS","transport":"https_waaat","ui_used":false,"wall_ms":591,"latency_ms":453,"foreground_unchanged":true,"card_count":2,"units":["Minutes"]},
+    {"intent":"usage","status":"PASS","transport":"https_waaat","ui_used":false,"wall_ms":582,"latency_ms":437,"foreground_unchanged":true,"card_count":7,"units":["GO","Minutes","TND"]}
+  ],
+  "environment_proofs": [
+    {"case":"screen_off_data","status":"PASS","source":"orange.data.maxit.v1","ui_used":false,"latency_ms":1069},
+    {"case":"maxit_process_stopped_usage","status":"PASS","source":"orange.usage.maxit.v1","ui_used":false,"latency_ms":544,"card_count":7,"maxit_running_after":false}
+  ]
+}

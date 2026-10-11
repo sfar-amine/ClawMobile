@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "codex-o8-model-fixtures-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Model client regressions run on the real 10/10 09:41 Orange capture and current gemini_claw resolution",
+  "reason": "File37 O8: obsolete orange.silent_first.balance / telecom.service shapes replaced by the S24 capture fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json (core runtime 5de1c49), without weakening assertions.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-o8-model-fixtures-20261010.json",
+    "docs/work/samantha-runtime/contracts/o8.md",
+    "installer/termux-lite/test-model-efficiency.py",
+    "installer/termux-lite/test-gemini-request.py"
+  ],
+  "tests": [
+    {
+      "name": "o8-model-client-regressions-on-real-capture",
+      "status": "passed",
+      "evidence": "test-model-efficiency.py 22/22 (3 new: canonical guarded entry, capability_first eligibility of the captured decision and of both current resolutions, captured execution bypasses the model with 8 cards); test-gemini-request.py 20/20 (fast-path hit from captured selection, hint projection equal to the captured capability_hint output). Simulated clients; no provider call, no operator consultation."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/o8.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal maintenance only; no new app route or action exposed."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "CI registration and draft evidence contract only; no runtime code changed."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP contracts unchanged; planned canonical descriptions do not activate a second route.",
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "docs/work/samantha-runtime/contracts/o8.md"
+    ]
+  },
+  "rollback": "Revert this PR (tests, CI registration and documentation only); no runtime effect.",
+  "limitations": [
+    "The captured run predates O1/O7: it records neither execution.actual_route nor network_path; O8 asserts only what the capture proves.",
+    "Card values in the capture are format-preserving substitutes; titles, units, validity, kind and section are real."
+  ]
+}

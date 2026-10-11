@@ -1,4 +1,5 @@
 import { structuredNotification } from "./notificationText";
+import {capabilityProvenance,type CapabilityProvenance} from "./capabilityProvenance";
 import {conversationOwnerIndex,invalidateConversationOwner} from "./conversationOwnerIndex";
 import {stripConversationTransport} from "./conversationText";
 import {removeAttachments} from "./attachmentStorage";
@@ -15,6 +16,7 @@ import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSes
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment } from "./types";
 
 type StoredRun = {
+  provenance?: CapabilityProvenance;
   inactivityCorrectionReceipt?: InactivityReceipt;
   runId: string;
   clientRunId?: string;
@@ -217,12 +219,14 @@ export async function settleSubmittedRun(
   runId: string,
   state: "done" | "failed",
   result: string,
+  options: {provenance?: unknown} = {},
 ) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));
   if (!existing) return;
   const stored: StoredRun = {
     ...existing,
+    provenance: capabilityProvenance(options.provenance) || existing.provenance,
     state,
     inactivityCorrectionReceipt: state === "done" && (existing.error === "run_inactivity_expired" || existing.inactivityCorrectionReceipt?.to === "running") ? {
       version: 1, action: "correct_run_expiration", runId, from: "expired", to: "done",
@@ -696,6 +700,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
       : "OpenClaw is still working on this run.";
   return {
     success: !failed,
+    provenance: capabilityProvenance(stored.provenance),
     status: stored.error === "run_inactivity_expired" ? "expired" : undefined,
     inactivityCorrectionReceipt: stored.inactivityCorrectionReceipt,
     runId: stored.runId,
@@ -1695,6 +1700,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
+      provenance: capabilityProvenance(run.provenance),
       runId: run.runId,
       clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
       requestHash: typeof run.requestHash === "string" && /^[a-f0-9]{64}$/.test(run.requestHash) ? run.requestHash : undefined,
