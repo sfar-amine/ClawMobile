@@ -72,6 +72,12 @@ type TerminalShellSession = {
   updatedAt: number;
 };
 
+/** Une relecture refusée (source absente, active, déjà remplacée…) n'a rien soumis : 404/409 plutôt que 503. */
+export function replayRefusalStatusCode(result: { success?: boolean; submissionState?: string; message?: string }) {
+  if (result.success || result.submissionState !== "not_submitted" || !/^replay_[a-z_]+$/.test(String(result.message || ""))) return undefined;
+  return result.message === "replay_source_not_found" ? 404 : result.message === "replay_invalid" ? 400 : 409;
+}
+
 export function runSubmissionStatusCode(result: { success?: boolean; submissionState?: string }) {
   if (result.success) return 200;
   return result.submissionState === "not_submitted" ? 503 : 400;
@@ -858,6 +864,15 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     }catch(e:any){const status=[400,404,413].includes(e?.statusCode)?e.statusCode:503;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":status===413?"attachment_share_limit":"invalid_attachment_request"});return;}
     const instruction = String(body?.instruction || body?.text || "");
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
+    const authority=isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner" as const:undefined;
+    // Édition-relecture : objet fermé {sessionId, runId}, réservé au propriétaire natif.
+    let replayOf:{sessionId:string;runId:string}|undefined;
+    if(body?.replayOf!==undefined){
+      const r:any=body.replayOf;
+      if(!r||typeof r!=="object"||Array.isArray(r)||Object.keys(r).sort().join(",")!=="runId,sessionId"||typeof r.sessionId!=="string"||typeof r.runId!=="string"){writeJson(res,400,{success:false,accepted:false,submissionState:"not_submitted",message:"replay_invalid"});return;}
+      if(!authority){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required"});return;}
+      replayOf={sessionId:r.sessionId,runId:r.runId};
+    }
     const result = await submitIntent(
       instruction,
       String(body?.sessionId || "default"),
@@ -865,10 +880,11 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       {
         userText: displayText,
         clientRunId: body?.clientRunId,
-        authority:isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner":undefined,
+        authority,
+        ...(replayOf?{replayOf}:{}),
       },
     );
-    const statusCode = runSubmissionStatusCode(result);
+    const statusCode = replayRefusalStatusCode(result) ?? runSubmissionStatusCode(result);
     writeJson(res, statusCode, result);
     return;
   }
