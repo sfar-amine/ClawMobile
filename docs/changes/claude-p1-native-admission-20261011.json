@@ -3,9 +3,9 @@
   "id": "claude-p1-native-admission-20261011",
   "origin": "chat",
   "kind": "repair",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "P1 : admission native signée (clé Keystore enrôlée par biométrie) pour les tours owner de l'app, connexion Gateway admin dédiée par tour admis.",
+  "summary": "P1 reprise46 : admission courante pour effets/voix et émission Gateway public locale, sans rejeu owner ni repli ; preuves isolées réelles.",
   "reason": "Les tours app arrivent avec senderIsOwner:false ; l'ancienne admission owner reposait sur le loopback seul (reproductible par tout processus local). Contrat playbooks 43 v2, revue 6108649302.",
   "files": [
     "openclaw-plugin-mobile-ui/src/companion/ownerTurnAdmission.ts",
@@ -29,13 +29,24 @@
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/callgatewayfromcli-signature.json",
     "installer/termux-lite/companion-deploy.sh",
     "installer/termux-lite/test-companion-acceptance-owner-transport.py",
-    "installer/termux-lite/test-skill-learning-acceptance.py"
+    "installer/termux-lite/test-skill-learning-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/capabilityClarification.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-understanding.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/gateway-owner-revocation-cancel-clarify.json",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/owner-turn-public-sdk.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-isolated.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-clarify.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/README-p1-gateway.md",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/public-gateway-client-dispatch.json"
   ],
   "tests": [
     {
       "name": "P1 admission adverse",
       "status": "passed",
-      "evidence": "scripts/test-owner-turn-admission.cjs : 53 cas (44 initiaux + présentation non canonique, statut sans keyId, contrat de signature callGatewayFromCli figé sur fixture S24, ownerTransport persisté/listé, replayOf sans preuve 403 et avec preuve admin, CLARIFY confused deputy dans les deux sens, permissions du fichier d'enrôlement). Inscrit dans ci.yml."
+      "evidence": "scripts/test-owner-turn-admission.cjs : 73/73 ciblés locaux verts, dont bootstrap/handshake/expiration/scopes/cibles refusées et envoi unique ; log b46-p1-public-client-targeted-r4.log. Étape CI P1 existante conservée."
     },
     {
       "name": "Édition-relecture avec admission",
@@ -45,7 +56,17 @@
     {
       "name": "Recette alerte transport owner",
       "status": "passed",
-      "evidence": "installer/termux-lite/test-companion-acceptance-owner-transport.py (3 tests), inscrit dans ci.yml."
+      "evidence": "Python 3/3 verts, ajout du probe refusal /extensions/claw-live/capability à la recette existante sans mutation autorisée ; log b46-p1-acceptance-targeted.log. Étape CI existante."
+    },
+    {
+      "name": "P1 reprise voix et surfaces",
+      "status": "passed",
+      "evidence": "Ciblés EX après correctif learning84b8a0ed : build, voix HS3 21/21, E3 44 contrôles et édition-relecture verts ; log b46-p1-learning-final-targeted.log. Test différé : effet accepté conservé et learning capture0 après révocation. Aucun budget augmenté, aucun skip."
+    },
+    {
+      "name": "Gateway public isolé local",
+      "status": "passed",
+      "evidence": "Nouvel adapter GatewayClient : 6/6 assertions réelles sous Node26.11.1, sortie0 ; public-client-run-02/proof.json, fixture public-gateway-client-dispatch.json. HELLO révoqué avant agent => requestSent:false, zéro invocation. Intégration inscrite dans job p1-isolated-gateway, SDK public2026.9.6 SHA256 vérifié. Aucun décompte entier revendiqué ici."
     }
   ],
   "documentation": [
@@ -59,7 +80,7 @@
   },
   "architecture": {
     "changed": true,
-    "reason": "Frontière d'admission dans le Companion ; réutilise confirmations (biométrie), le fichier d'état Companion et callGatewayFromCli d'OpenClaw ; aucun store, routeur, scheduler ni démon."
+    "reason": "Admission native Companion ; confirmations et état Companion existants, GatewayClient/config/SecretRef/port publics OpenClaw, aucun nouveau store/service/routeur."
   },
   "mcp_owner_parity": {
     "tools": {
@@ -74,9 +95,9 @@
   },
   "rollback": "Revert de la PR : retour au non-owner partout et au contexte loopback ; fichier d'enrôlement ignoré.",
   "limitations": [
-    "Signature callGatewayFromCli et présence de owner-confirmation-public.pem confirmées en lecture seule sur le S24 (claw_exec p1adm-20261011-r03) ; aucun tour réel exécuté.",
-    "Recettes de tours réels owner/non-owner, révocation pendant un tour et annulation à jouer sur Gateway isolé avec jeton jetable.",
-    "Processus de l'UID Termux restent équivalents owner (jeton Gateway) ; fenêtre de rejeu ≤ 30 s après redémarrage neutralisée par la déduplication clientRunId.",
-    "Ordre : APK #183 avant ce Companion (précondition companion-deploy)."
+    "Le client public GatewayClient revalide le ticket après résolution de configuration/SecretRef et, après HELLO, immédiatement avant request synchrone. Les scopes effectivement accordés et la méthode agent sont vérifiés. Une seule connexion et un seul envoi, puis fermeture canonique. Remote/TLS/URL overrides et SecretRef irrésolu sont refusés, sans repli CLI d’un tour initialement admis. Après émission, le résultat est indéterminé jusqu’à réception : aucun second envoi ni repli. Après acceptation, l’effet peut se terminer malgré révocation ; reçu conservé. Aucune annulation app n’est livrée.",
+    "APK signé, installation et biométrie S24 réservés à Claude ; ce diagnostic local ne les qualifie pas.",
+    "Publication conditionnée à CI entière locale verte au SHA exact et revue Claude ; aucun déploiement Codex.",
+    "Les processus disposant du jeton Gateway restent équivalents owner ; aucun secret S24 utilisé par ce lot."
   ]
 }

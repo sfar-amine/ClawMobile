@@ -39,15 +39,15 @@ Depuis le correctif P1, les tours texte de l'app arrivent au modèle avec `sende
    - le nonce, vérifié **après** la signature : cache mémoire de 2 048 entrées, TTL de 65 s, refus si le cache est plein.
 
    Tout échec donne un tour non-owner. La réponse porte `ownerAdmission: {owner, reason?}`.
-4. **Ticket opaque.** L'admission produit un objet mémoire (WeakSet), lié au `clientRunId`, à la session, à l'époque d'enrôlement et à une durée de remise de 60 s. Il n'est ni sérialisable ni restaurable depuis un journal. `turnAdmission.isCurrent` est rejoué juste avant la remise au Gateway.
+4. **Ticket opaque.** L'admission produit un objet mémoire (WeakSet), lié au `clientRunId`, à la session, à l'époque d'enrôlement et à une durée de remise de 60 s. Il n'est ni sérialisable ni restaurable depuis un journal. Le client public GatewayClient revalide le ticket après résolution de configuration/SecretRef et, après HELLO, immédiatement avant request synchrone. Les scopes effectivement accordés et la méthode agent sont vérifiés. Une seule connexion et un seul envoi, puis fermeture canonique. Remote/TLS/URL overrides et SecretRef irrésolu sont refusés, sans repli CLI d’un tour initialement admis. Après émission, le résultat est indéterminé jusqu’à réception : aucun second envoi ni repli. Après acceptation, l’effet peut se terminer malgré révocation ; reçu conservé. Aucune annulation app n’est livrée.
 5. **Deux connexions.** Seul un ticket courant ouvre la connexion admin (`ownerTurnGateway.submitOwnerTurn`) :
-   - elle passe par `callGatewayFromCli` du plugin-sdk OpenClaw 2026.9.6 installé (bootstrap, SecretRef et handshake du propriétaire OpenClaw) ;
+   - elle passe par `GatewayClient` du plugin-sdk OpenClaw 2026.9.6, avec les propriétaires publics config/SecretRef/port et le handshake canonique ;
    - scopes `operator.admin` et `operator.write` ;
    - méthode `agent` uniquement, une connexion par tour, fermée après la réponse.
 
    Tous les autres tours gardent le CLI canonique en `operator.write` : non admis, skills, apprentissage, voix. Le champ `authority` (contexte canonique) ne choisit jamais la connexion. Le pool Control P0-1 (#68) n'est pas touché et garde `agent` et `chat.send` hors de son chemin.
 6. **Échecs.**
-   - SDK absent ou version différente **avant envoi** : le tour part en non-owner sur le CLI (`write_cli_owner_unavailable`).
+   - SDK absent/version différente/cible non prise en charge/credential non résolu **avant envoi** : le tour initialement admis est refusé, sans repli CLI.
    - Erreur **après envoi** : run `failed`, sans repli CLI ni rejeu.
    - Rejeu exact : refusé par le nonce, puis dédupliqué par `clientRunId` (aucun second tour).
 7. **Heuristique loopback retirée de `/v1/runs`.** Le drapeau de compatibilité `CLAWMOBILE_RUNS_LEGACY_LOOPBACK_CONTEXT=1` est **OFF par défaut**. Il ne rend que le contexte canonique (prompt) aux tours loopback non admis, jamais la connexion admin. Il ne sert qu'à la fenêtre de déploiement, avant l'enrôlement.
@@ -58,7 +58,7 @@ Depuis le correctif P1, les tours texte de l'app arrivent au modèle avec `sende
 - **Révocation par l'opérateur** : supprimer `owner-turn-admission.json` ; l'effet est immédiat, le fichier est relu à chaque vérification.
 - **Effet de la révocation** :
   - les tickets émis ne sont plus courants ;
-  - un tour admis mais pas encore remis part en non-owner ;
+  - un ticket devenu invalide pendant bootstrap/handshake est refusé avant émission ; aucun repli de ce tour initialement admis ;
   - un tour déjà remis au Gateway se termine avec le bit figé à l'acceptation, sans annulation forcée ;
   - les tours suivants sont non-owner.
 - `/reset` via `agent` exige admin : seul un tour admis l'atteint.
@@ -101,7 +101,7 @@ Le revert de la PR restaure le comportement précédent : non-owner partout, con
    - Un tour non admis ignore une clarification admise : il ne la reprend pas et ne l'annule pas.
    - Le propriétaire existant ne reprend que la clarification du dernier run de la session. Un tour tiers intercalé la masque donc (refus fermé).
 4. **Signature `callGatewayFromCli`.** Vérifiée en lecture seule sur le S24 (`claw_exec` p1adm-20261011-r03) :
-   - le Companion appelle `callGatewayFromCli(method, opts, params, extra)` ;
+   - la capture historique de l’ancienne façade décrit `callGatewayFromCli(method, opts, params, extra)` ; l’implémentation actuelle utilise GatewayClient public, qualifié séparément ;
    - `extra.scopes`, `extra.signal`, `extra.expectFinal` et `extra.timeoutMs` sont repris tels quels ;
    - `callGatewayCli` honore `opts.scopes` ;
    - empreintes identiques au paquet npm 2026.9.6.
@@ -135,3 +135,19 @@ Ensuite, Amine s'enrôle une fois. L'APK #183 installé à 14:00 envoie déjà l
 
   Le fast path ne peut donc pas payer sans biométrie. Les autres capabilities d'écriture du fast path relèvent de leur politique de confirmation du registre, non modifiée ici.
 - L'historique de session (contexte de conversation, amorce de relecture) peut contenir des tours non admis de la même session. Ce sont des données, pas des instructions, mais elles sont transmises sur la connexion admin d'un tour admis.
+
+## Reprise fichier 46 : preuve et frontière observée
+
+Le correctif `28108204` ferme une révocation pendant l’await d’import du SDK public. La matrice d’admission locale passe 54/54, avec bootstrap canonique et édition/relecture verts. Le test reste inscrit dans l’étape CI P1 existante.
+
+Un Gateway public 2026.9.6 local, avec profil/configuration/état/ports loopback et jeton jetables, a réellement exécuté un outil synthétique : owner=true pour le ticket natif local, false sans preuve, true pour un tour accepté avant révocation puis false au tour suivant. La garde hôte `assertInvocationCurrent` était appelée avant chaque effet ; elle laisse finir le tour accepté malgré la révocation Companion. Cette mesure ne constitue ni une recette Android/biométrie ni une capture S24. Annulation SDK admin et CLARIFY HTTP sont qualifiées localement dans la fixture `openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/`. Cette preuve antérieure portait la façade. La nouvelle preuve public-gateway-client-dispatch.json passe six assertions sur GatewayClient, y compris révocation au HELLO avant émission sans agent/outil. L’annulation app reste non livrée et aucune CI entière finale n’est revendiquée ici.
+
+## Deux entrées d’effet : ticket courant, jamais `caller` du corps
+
+Le correctif `6283dd76` ferme la valeur constante owner dans `/runs` : le résolveur reçoit `caller=owner` seulement pour un ticket opaque courant, sinon `other`. Une décision obtenue pour un owner devenu révoqué pendant la résolution n’est pas exécutée. Le ticket est revérifié après les réservations asynchrones, avant l’exécuteur canonique. Aucun changement d’exécution paiement, d’OTP ou de biométrie.
+
+`POST /v1/extensions/claw-live/capability` exige la même preuve P1 liée au corps brut exact, au `clientRunId` et au `sessionId`, avec nonce frais. Sans admission, refus 403 avant résolution/effet. Le chemin signé est le pathname original exact, même après résolution de l’alias interne. L’app utilise `clientRunId=voice-cap-<turnId>` et capture la session avant l’async ; aucun retry non signé. Le ticket mémoire n’est ni dans le corps, ni persistant. Il protège aussi l’exécution préparée dans `SurfaceClarifications`, puis le bridge final et l’admission warm/learning. La clarification est liée à `SurfaceClarifications.idFor("claw-live:" + sessionId)` ; une question précédente ne vaut jamais admission du tour suivant. `/claw-live/decision` reste une résolution seule.
+
+Les 64 cas natifs, les 21 cas voix HS3, les 44 contrôles E3 et l’édition/relecture ciblés passent. Les mutations native/voix sont vérifiées dans la recette existante par refus sans preuve ; aucune mutation autorisée n’est envoyée par cette recette. Les actions métier restent les capabilities du registre/Graph existants.
+
+Le complément `84b8a0ed` revérifie l’admission avant un nouvel effet de learning après `await execute`. Si elle n’est plus courante, le reçu de l’effet déjà accepté est conservé et le learning est omis (`skipped`, `owner_admission_expired`), avec zéro capture. La recette `197221f7` vérifie le refus capability voice sans signature.
