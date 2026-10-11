@@ -9,8 +9,9 @@ import json, re, sys, time, urllib.error, urllib.request
 BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
+    ("/catalog", 0.3), # HS2: warm reads from memory; one HS1 generation is ≈ 360 ms on the S24, so the cold first read uses the retry.
     ("/health", 2.0),
-    ("/control/health?contract=2", 1.5),
+    ("/control/health?contract=2", 2.0),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
     ("/files?scope=agent", 1.5),
     ("/files?scope=session", 1.5),
@@ -24,6 +25,7 @@ READS = [
     ("/security/surfaces", 1.5),
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
+    ("/runs?limit=40&summary=1", 1.0),  # F4 : écran Notifications (80 ms capturés), projection structurée
     ("/runs?contract=2&view=conversations&limit=20", 0.3),
     ("/control/deploys?limit=20", 0.5),
     ("/control/engineering?limit=20", 2.0),
@@ -60,9 +62,29 @@ OWNER_GUARDS = [
     ("POST", "/skills/clawmobile-capabilities/try"),
     ("POST", "/files"),
     ("POST", "/files/content"),
+    # Lot paiement Maxit 11/10 (P1-5): these routes changed budget (Payment Core quote 45 s,
+    # local start = quote 45 s + execution 230 s, resume 65 s). Acceptance never sends an authorized
+    # payment mutation: without the native owner header they must be refused before any effect.
+    ("POST", "/payments/local-handoffs"),
+    ("POST", "/payments/local-start"),
+    ("POST", "/payments/" + "1" * 8 + "-1111-4111-8111-" + "1" * 12 + "/bank-return"),
 ]
-OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0}  # admission/refusal budget, no effect without owner proof
+OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0, "/payments/local-handoffs": 2.0, "/payments/local-start": 2.0}  # admission/refusal budget, no effect without owner proof
 SETTLE_SECONDS = 15
+# O9 (fichier 37): a voice run whose transcript is final (completed/interrupted) is never state=unknown.
+VOICE_TERMINAL_ROUTE = "/runs?limit=50"
+
+
+def voice_terminal_unknown(body):
+    """Read-only invariant on the already fetched run list: ids of voice runs left unknown with a final transcript."""
+    try:
+        listed = json.loads(body or b"{}").get("runs")
+    except (ValueError, AttributeError):
+        return None
+    if not isinstance(listed, list):
+        return None
+    return [str(run.get("runId"))[:80] for run in listed if isinstance(run, dict) and run.get("modality") == "voice"
+            and run.get("transcriptState") in ("completed", "interrupted") and run.get("state") == "unknown"]
 # Secrets and account e-mails. 10/10 (recette UI): /agent/config published the OAuth profile e-mail.
 # Measured read-only on the S24 the same day: no other READS route returns an e-mail address.
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bAKIA[0-9A-Z]{16}\b|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY")
@@ -134,6 +156,12 @@ def main(session_id=None):
         status = "skipped" if code == 404 else ("ok" if ok and not leak and settled else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "settled": settled, "status": status})
+        if path == VOICE_TERMINAL_ROUTE and code == 200:
+            stale = voice_terminal_unknown(body)
+            # No run list to judge (route shape owned by its READS row): skipped, never a rollback by itself.
+            voice_status = "skipped" if stale is None else ("ok" if stale == [] else "fail")
+            failed |= voice_status == "fail"
+            results.append({"route": path, "check": "voice_runs_terminal_state", "unknown_terminal": len(stale) if stale is not None else None, "status": voice_status})
         if path == "/runs?contract=2&view=conversations&limit=20" and code == 200 and conversation_id is None:
             try:
                 items = json.loads(body).get("items")

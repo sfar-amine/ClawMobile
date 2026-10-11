@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "codex-o7-telecom-rendering-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Readable telecom cards (one per line: value, unit, validity, never summed, never raw JSON) and bounded provenance, tested on the real S24 capture",
+  "reason": "Wave37 operator rendering; never display raw result JSON or sum independent counters",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-o7-telecom-rendering-20261010.json",
+    "docs/changes/codex-o7-telecom-rendering-20261010.md",
+    "docs/work/samantha-runtime/contracts/o7-telecom-rendering.md",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-telecom-display.py",
+    "openclaw-plugin-mobile-ui/fixtures/o7-historical/maxit-direct-live-results.json",
+    "openclaw-plugin-mobile-ui/fixtures/o7-historical/provenance.json",
+    "openclaw-plugin-mobile-ui/scripts/test-capability-provenance.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityProvenance.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts"
+  ],
+  "tests": [
+    {
+      "name": "telecom display and transport",
+      "status": "passed",
+      "evidence": "test-telecom-display.py: 17 cases. Nominal case = real S24 capture fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json: 8 cards, 8 lines in capture order (title : value unit — validité restante : N jour(s), 4100 days kept), no per-unit sum, no raw field, no JSON prefix; an unreadable card is counted on a closing line, never silently dropped; captured fast-path run carries text and provenance {telecom.orange.consultation, orange.usage.maxit.v1}. Negative mutations: privacy, bounds, closed provenance, A8 actual_route priority, canonical context_import free-text boundary."
+    },
+    {
+      "name": "registry provenance and realistic retention",
+      "status": "passed",
+      "evidence": "test-capability-provenance.cjs: canonical projection persisted and read, 10000 seeded history rows, max500 and <8MiB retained, <400byte provenance per row, payment and confirmation sections unchanged; captured 09:41 run persisted with {capability, owner route orange.usage.maxit.v1}, no transport or card in the provenance."
+    },
+    {
+      "name": "build and existing regressions",
+      "status": "passed",
+      "evidence": "tsc, test-model-efficiency, test-gemini-request, test-model-fast-path, test-companion-runs and test-delete-run pass after merging runtime 352a8b97; CI union verified"
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/o7-telecom-rendering.md",
+    "docs/changes/codex-o7-telecom-rendering-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing canonical fast path and receipt projected, no new route or registry capability"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing run store, no new store/router/scheduler/daemon or runtime lookup"
+  },
+  "rollback": "Revert O7 PR; additive provenance optional",
+  "limitations": [
+    "Live recipe on the deployed fast path remains Claude after activation; the capture predates O1 and records no network_path, so none is asserted for it.",
+    "No deployment, state reconciliation or deterministic payment change. Network path field uses O1 closed enum, not network settings or full guard.",
+    "Route priority: execution.actual_route (A8), then the owner-reported result.route_id (S24 capture: orange.usage.maxit.v1), then selected.route (planned only)."
+  ]
+}

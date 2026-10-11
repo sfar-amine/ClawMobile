@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "id": "claude-hs5-run-progress-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "HS5 : progress.steps[] dérivé à la lecture des reçus existants sur GET /v1/runs/{id}",
+  "reason": "Fichier 39 HS5 : l'écran running affiche les étapes réelles (faites, en cours, en échec) sans simulation.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/runProgress.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-run-progress.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/hs5-runs-shapes.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/README.md",
+    "docs/work/samantha-runtime/contracts/hs5.md",
+    "docs/changes/claude-hs5-run-progress-20261011.md",
+    "docs/changes/claude-hs5-run-progress-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "scripts/test-run-progress.cjs",
+      "status": "passed",
+      "evidence": "Formes réelles des runs S24, présentation HS3 sur PaymentRecord réel, GET /v1/runs/{id} p95 ≈ 5 ms local (20 lectures), étapes non persistées, relecture processus neuf. Inscrit dans ci.yml."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs5.md",
+    "docs/changes/claude-hs5-run-progress-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Champ ajouté à une route existante ; aucune action ni route nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Calcul pur à la lecture ; aucun store, registre, routeur, scheduler ni démon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Aucune primitive owner touchée."
+  },
+  "rollback": "Revert de la PR ; aucun état runtime.",
+  "limitations": [
+    "Pas de lien runId sur les PaymentRecord : jalons de paiement visibles seulement via l'étape d'échec HS3.",
+    "Dépend de HS3 (core #127) pour la ligne « Compris » et l'étape d'échec tracée."
+  ]
+}
