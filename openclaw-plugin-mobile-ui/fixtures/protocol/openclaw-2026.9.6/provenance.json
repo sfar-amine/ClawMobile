@@ -1,0 +1,18 @@
+{
+  "source": "public npm package openclaw@2026.9.6, same version verified by Claude on S24",
+  "packageShasum": "fc64ad772b885b2c923e373acf27fcd4347e84f4",
+  "file": "dist/cli-backend.types-B-oosdMB.d.ts",
+  "lines": [
+    [
+      47328,
+      47335
+    ],
+    [
+      47348,
+      47356
+    ]
+  ],
+  "sourceSha256": "f8e936a76225d872f7c6ee8b846983d1f2c90e3c986ddef539f414410404adb8",
+  "s24Capture": false,
+  "limitation": "Tool factory turn owner/non-owner capture on S24 pending; real message owner bit verified in r17/inbound-schema.json."
+}
