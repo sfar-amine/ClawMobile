@@ -1,0 +1,56 @@
+{
+  "schema": "samantha.capture.lexicon.decisions.v1",
+  "provenance": {
+    "captured_at": "2026-10-11T12:36:25+01:00",
+    "runtime_core_sha": "3298d98d8a29458abda6617c37ca5e4b114f4be2",
+    "capability_revision": "90a0c68e6ea5838f",
+    "route": "POST http://127.0.0.1:8765/v1/extensions/claw-live/decision {\"request\": ...}",
+    "resolve_only_proof": "server.ts:817-823 au SHA deploye : capabilityBridge(..., {execute:false}) -> claw-capability.py resolve. Aucune execution, aucun paiement, aucune consultation Maxit.",
+    "related": "samantha-ui-playbooks PR #90 (lexique)"
+  },
+  "cases": [
+    {
+      "request": "recharge mon numéro Orange 5 dinars please",
+      "request_language": "melange fr + en (non expose par la route)",
+      "http": {"status": 200, "duration_s": 2.170, "helper_latency_ms": 300.36, "note": "premier appel de la serie"},
+      "decision": {"type": "EXECUTE", "reason": "capability_first", "capability": "payment.owner_native", "target": "maxit-tunisie", "intent": "telecom.orange.topup_own_number", "route": "orange.maxit.topup.own.v1", "risk": "transaction", "confidence": 0.99, "confirmationRequired": true, "humanBoundary": "owner_biometric", "requiredSlots": ["amountTnd"], "parameters": {"amountTnd": "5"}},
+      "executor": {"executor": "claw.skill_route", "entrypoint": "python3 -m payments.cli owner-handoff --input-stdin", "deterministic": true, "model_required": false, "latency_class": "fast"},
+      "presentation_language": null
+    },
+    {
+      "request": "my facture STEG chnowa fiha",
+      "request_language": "melange en + fr + tunisien (non expose par la route)",
+      "http": {"status": 200, "duration_s": 0.648, "helper_latency_ms": 66.85},
+      "decision": {"type": "CLARIFY", "reason": "intent_clarification_required", "capability": null, "target": "steg", "intent": null, "route": null, "risk": "transaction", "confidence": 0.936, "confirmationRequired": false, "humanBoundary": null},
+      "executor": {"executor": null, "model_required": null},
+      "clarification": {
+        "question": "Tu veux plutôt mes factures steg ou payer ta facture STEG ?",
+        "choices": [
+          {"label": "mes factures steg", "capability": "billing.utility.fast_path", "intent": "billing.invoices", "risk": "read", "score": 0.936},
+          {"label": "payer ta facture STEG", "capability": "payment.owner_native", "intent": "billing.pay", "risk": "transaction", "score": 0.613}
+        ]
+      },
+      "presentation_language": "fr (question de clarification ; melange « mes » / « ta »)"
+    },
+    {
+      "request": "9addech batterie",
+      "request_language": "tunisien + fr (non expose par la route)",
+      "http": {"status": 200, "duration_s": 0.652, "helper_latency_ms": 107.186},
+      "decision": {"type": "EXECUTE", "reason": "capability_first", "capability": "device.assistance", "target": null, "intent": null, "route": null, "risk": "read", "confidence": 0.187, "confirmationRequired": false, "humanBoundary": null},
+      "executor": {"executor": "claw.capability_runtime", "entrypoint": "python3 device/assistant.py", "deterministic": true, "model_required": false, "latency_class": "fast"},
+      "plan_residue": {"mode": "discovery", "target": "steg", "intent": "billing.unpaid", "confidence": 0.187},
+      "matches_top": [
+        {"id": "device.assistance", "status": "implemented", "risk": "read", "score": 0.94},
+        {"id": "android.termux_api.read", "status": "e2e_validated", "risk": "read", "score": 0.283},
+        {"id": "claw.situations", "status": "implemented", "risk": "read", "score": 0.109},
+        {"id": "billing.utility.fast_path", "status": "e2e_validated", "risk": "read", "score": 0.106}
+      ],
+      "presentation_language": null
+    }
+  ],
+  "observations": [
+    "La route decision n'expose aucun champ de langue (language, lang, locale, request_language, presentation_language) : les langues ci-dessus sont lues sur le texte, pas sur la reponse.",
+    "« 9addech batterie » choisit bien device.assistance (score 0,94), mais la decision porte la confiance du skill_plan (0,187) et ce plan vise steg / billing.unpaid : « 9addech » est lu comme une question de montant.",
+    "La question de clarification STEG melange « mes factures » et « ta facture »."
+  ]
+}
