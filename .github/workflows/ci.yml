@@ -6,6 +6,7 @@ on:
       - main
       - feature/termux-adb-lite
   pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
 
 jobs:
   mobile-ui-plugin:
@@ -189,6 +190,10 @@ jobs:
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
 
+      - name: PR template section regression tests
+        run: python3 -m unittest discover -s ../tests -p test_pr_template.py
+      - name: PR description follows repository template
+        run: python3 ../tools/check_pr_template.py
       - name: Run exact read projection ETags and existing owner budgets
         run: node scripts/test-read-etags.cjs
       - name: G5 deployed receipt date and HTTP budget
