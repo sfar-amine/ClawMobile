@@ -1,0 +1,98 @@
+{
+  "version": 2,
+  "id": "codex-c1-canonical-bootstrap-20261010",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Inject canonical compact context into existing owner app and Bixby agent turns",
+  "reason": "Issue58/program34 : relecture pré-fusion autorisée par Claude PR71 commentaire6102103806, baseline réelle8sessions et preuves CI ; qualification après déploiement par Claude reste distincte.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skills.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-canonical-agent-bootstrap.cjs",
+    "docs/work/samantha-runtime/contracts/c1.md",
+    "docs/changes/codex-c1-canonical-bootstrap-20261010.json",
+    "docs/changes/codex-c1-canonical-bootstrap-20261010.md",
+    "openclaw-plugin-mobile-ui/src/companion/skillLearning.ts",
+    "openclaw-plugin-mobile-ui/src/companion/skillControl.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-control.cjs"
+  ],
+  "tests": [
+    {
+      "name": "canonical-owner-agent-bootstrap",
+      "status": "passed",
+      "evidence": "Synthetic CLI actual agent parameters, explicit internal owner and HTTP Origin/Referer/Sec-Fetch isolation even with browser override, authenticated Bixby socket only, UTF8 per-block/64KiB prompt/120000-byte JSON bounds, complete specialized rules failclosed, missing-block/symlink tests. Real turn/model-token and S24 timing qualification absent. Native learning/trial services explicitly propagate internal authority from existing HTTP owner gates, never body; HTTP/context-builder tests, actual learning-service dependency spies and paired actual P2-b HTTP/service submit spy verify propagation/default-public."
+    },
+    {
+      "name": "existing-ci-union-and-live-regressions",
+      "status": "passed",
+      "evidence": "All 25 executable CI-union commands passed after merging runtime2c2c18f (unchanged dependencies; npm ci not repeated), plus targeted Live/relay/reconnect regressions. Mandatory specialized section retained with 5000-emoji prefix and UTF16 boundary tests. Synthetic baseline3227ms/after3230ms (<10%),12366bytes (~3092bytes/4 estimate), unicode local read p95~2.40ms. No physical timing or actual token count. Runtime1f239f3 (merged P2-b/G3) then integrated normally; build, canonical bootstrap and real P2-b source-fixture regressions pass, all CI steps preserved."
+    },
+    {
+      "name": "merged-r8-and-p2b-authority-regressions",
+      "status": "passed",
+      "evidence": "Build, canonical bootstrap incl HTTPlearn/try, R8producer120assertions, canonicalguard46assertions and P2-bsourcefixture/actualHTTPservice regressions exit0. Existing payment guards/proofs/prompts/actions unchanged; authority propagation only."
+    },
+    {
+      "name": "clean-build-r10-transport-compatibility",
+      "status": "passed",
+      "evidence": "Generated dist removed, clean build on merged runtime42300b0. C1 assertions require existing canonical R10 leading session marker and unchanged user body; actual CLI slash remains /status without marker. C1HTTP/private-authority, P2-b, R8 producer/guard, R10conversation-origin, Live and relay/reconnect regressions pass. No production R10 change."
+    },
+    {
+      "name": "real-app-bixby-baseline",
+      "status": "passed",
+      "evidence": "Fixture82 a9f08e5 metadata de8sessions réelles (4app/4Bixby), aucun contenu privé : projectContextChars=0/injectedWorkspaceFiles=0/currentTurn.runtimeContextChars=163. Bornes positives chars/inputTokens/runtimeMs vérifiées, ranges calculés, physicalAfter:null/comparisonQualified:false. Build+testcanonique complet passent sur baseb40b867."
+    },
+    {
+      "name": "current-ci-and-r20-union",
+      "status": "passed",
+      "evidence": "Toutes les étapes ci.yml de baseb40b867 passées localement CI_LOCAL_OK. Merge normal actueld142a9f puis build+C1 et5testsR20 delta passés; aucune étape CI perdue."
+    },
+    {
+      "name": "current-base-readonly-owner-audit",
+      "status": "passed",
+      "evidence": "Base9cdd84f normal merge, full CI step union verified, clean build+C1 boundary suite green. Public OpenClaw2026.9.6 AgentParamsSchema verifies optional extraSystemPrompt and lightweight; no concrete new injection/authority defect found. Synthetic local read p95~2.2ms at Gateway3.2s is not physical after evidence."
+    },
+    {
+      "name": "review-response-and-current-ci",
+      "status": "passed",
+      "evidence": "Basebfa210c intégrée par merge normal, 34 blocs run ci.yml exécutés localement sans échec (installation plugin non répétée, dépendances présentes; installation MCP faite avec cachetasktmp). Baseline réelle8sessions, physicalAfter:null/comparisonQualified:false conservés. Réponse Claude6102103806 (20:57:49Z) autorise gateallowed pré-fusion, mesure après par Claude, jamais CI physique inventée."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c1.md",
+    "docs/changes/codex-c1-canonical-bootstrap-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal bootstrap transport on existing owner paths; no new app action, setting, route, capability or admission."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing canonical files and reader, Gateway transport and relay authentication; no new store, registry, router, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP schema/tool change; owner agent bootstrap transport only."
+  },
+  "rollback": "Revert C1 commits, preserve payment and existing canonical owners; no runtime changes by Codex.",
+  "limitations": [
+    "Capture réelle avant intégrée ; présence réelle des blocs dans un tour et mesure après ±10% nécessitent déploiement et recette Claude.",
+    "Latence3.2s synthétique et estimation octets/4 restent séparées des comptes réels de jetons et runtimeMs des captures.",
+    "PR prête pour relecture/fusion Git suivant réponse Claude6102103806 du10/10 20:57:49Z ; qualification physique après déploiement reste à faire, aucun merge/déploiement Codex."
+  ]
+}
