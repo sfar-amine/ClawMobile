@@ -47,11 +47,27 @@ function usageFailure():UsageView{
  if(lastUsageOk&&Date.now()-lastUsageOk.at<USAGE_KEEP_MS)return {...structuredClone(lastUsageOk.view),issues:[...new Set([...lastUsageOk.view.issues,'usage_source_stale'])]};
  return {schemaVersion:1,updatedAt:null,providers:[],issues:['usage_source_unavailable']};
 }
-export async function readUsage():Promise<UsageView>{
- const current=peekUsage();if(current)return current;if(pending)return structuredClone(await pending);
- pending=(async()=>{try{const value=projectUsage(await callOpenClawGateway('usage.status',{}, {timeoutMs:5500,hardTimeoutMs:5500}));cache={view:value,at:Date.now()};if(value.providers.length)lastUsageOk={view:value,at:Date.now()};return value;}catch{const view=usageFailure();cache={view,at:Date.now(),ttl:USAGE_FAILURE_TTL_MS};return view;}})();
- try{return structuredClone(await pending);}finally{pending=null;}
+/**
+ * Each `usage.status` is one `openclaw gateway call` process: 1.6 to 4.4 s on the S24 (11/10, measured while the
+ * Gateway itself answers `health` in 32 ms), 5.28 s for a 6 s budget in the 11/10 06:46 deploy receipt. Once the
+ * minute is over, a successful view younger than [USAGE_KEEP_MS] is served at once and the single-flight read
+ * refreshes it behind the answer (stale-while-revalidate); `updatedAt` keeps its real age. `usage_source_stale`
+ * still means a failed read only (the app says so), never a refresh in progress.
+ */
+function refreshUsage():Promise<UsageView>{
+ pending??=(async()=>{try{const value=projectUsage(await callOpenClawGateway('usage.status',{}, {timeoutMs:5500,hardTimeoutMs:5500}));cache={view:value,at:Date.now()};if(value.providers.length)lastUsageOk={view:value,at:Date.now()};return value;}catch{const view=usageFailure();cache={view,at:Date.now(),ttl:USAGE_FAILURE_TTL_MS};return view;}})().finally(()=>{pending=null;});
+ return pending;
 }
+export async function readUsage():Promise<UsageView>{
+ const current=peekUsage();if(current)return current;
+ const read=refreshUsage();
+ if(lastUsageOk&&Date.now()-lastUsageOk.at<USAGE_KEEP_MS){
+  return cache?.ttl===USAGE_FAILURE_TTL_MS?usageFailure():structuredClone(lastUsageOk.view);
+ }
+ return structuredClone(await read);
+}
+/** Startup only: one read so the first screen (or the post-deploy acceptance) joins a read already under way. */
+export function prewarmUsage():void{if(!peekUsage())void refreshUsage();}
 const COST_TTL_MS=600000;
 const costMetrics=['input','output','cacheRead','cacheWrite','totalTokens','totalCost','inputCost','outputCost','cacheReadCost','cacheWriteCost','missingCostEntries'] as const;
 /** Global owner totals only. Stale files mean computing, never a zero-cost claim. */

@@ -1,4 +1,5 @@
 import { structuredNotification } from "./notificationText";
+import {capabilityProvenance,type CapabilityProvenance} from "./capabilityProvenance";
 import {conversationOwnerIndex,invalidateConversationOwner} from "./conversationOwnerIndex";
 import {stripConversationTransport} from "./conversationText";
 import {removeAttachments} from "./attachmentStorage";
@@ -15,6 +16,7 @@ import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSes
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment } from "./types";
 
 type StoredRun = {
+  provenance?: CapabilityProvenance;
   inactivityCorrectionReceipt?: InactivityReceipt;
   runId: string;
   clientRunId?: string;
@@ -230,12 +232,14 @@ export async function settleSubmittedRun(
   runId: string,
   state: "done" | "failed",
   result: string,
+  options: {provenance?: unknown} = {},
 ) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));
   if (!existing) return;
   const stored: StoredRun = {
     ...existing,
+    provenance: capabilityProvenance(options.provenance) || existing.provenance,
     state,
     inactivityCorrectionReceipt: state === "done" && (existing.error === "run_inactivity_expired" || existing.inactivityCorrectionReceipt?.to === "running") ? {
       version: 1, action: "correct_run_expiration", runId, from: "expired", to: "done",
@@ -419,30 +423,66 @@ function withNotification(status: CompanionRunStatus): CompanionRunStatus {
 }
 
 const LIST_LIVE_REFRESH_MAX=3;
-const LIST_LIVE_REFRESH_BUDGET_MS=2500;
+/**
+ * One budget for the whole live part of a list, counted from the request (11/10: `/runs?limit=50` took 3.82 s for
+ * 4 s on the S24 because the unbounded `sessions.list` CLI read, 1.6 to 4.3 s there since the SQLite migration
+ * removed sessions.json, came before a separate 2.5 s transcript budget). Reads that miss it keep running in
+ * single-flight behind the answer: the sessions index is reused [LIST_SESSIONS_TTL_MS] and a transcript that
+ * completes persists its result for the next poll. Each background read keeps the owner 5.5 s bound.
+ */
+const LIST_LIVE_REFRESH_BUDGET_MS=1500;
+const LIST_SESSIONS_TTL_MS=10000;
+const LIST_OWNER_READ_MS=5500;
+let listSessions:{at:number;value:any[]}|undefined;
+let listSessionsRead:Promise<any[]>|undefined;
+const listEnrichments=new Map<string,Promise<CompanionRunStatus>>();
+function readListSessions(visible:StoredRun[]):Promise<any[]>{
+  const cached=listSessions;
+  const complete=!!cached&&Date.now()-cached.at<LIST_SESSIONS_TTL_MS&&visible.every(run=>!requiresLiveRefresh(run)||findSessionForStoredRun(cached.value,run));
+  if(complete)return Promise.resolve(cached!.value);
+  if(!listSessionsRead){
+    listSessionsRead=readSessionsIndex(Date.now()+LIST_OWNER_READ_MS)
+      .then(value=>{listSessions={at:Date.now(),value};return value;})
+      .finally(()=>{listSessionsRead=undefined;});
+    // A background re-read may have no awaiting request: its failure is never an unhandled rejection.
+    listSessionsRead.catch(()=>undefined);
+  }
+  // A session missing from a young index is re-read, but the index already held still answers this request.
+  return cached?Promise.resolve(cached.value):listSessionsRead;
+}
+function beforeDeadline<T>(work:Promise<T>,deadline:number,fallback:T):Promise<T>{
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  const late=new Promise<T>(resolve=>{timer=setTimeout(()=>resolve(fallback),Math.max(0,deadline-Date.now()));timer.unref?.();});
+  return Promise.race([work.catch(()=>fallback),late]).finally(()=>clearTimeout(timer));
+}
+function enrichListedRun(fallback:CompanionRunStatus,session:any,stored:StoredRun):Promise<CompanionRunStatus>{
+  let read=listEnrichments.get(stored.runId);
+  if(!read){
+    read=enrichFromSessionFile(fallback,session,stored,true,Date.now()+LIST_OWNER_READ_MS).catch(()=>fallback)
+      .finally(()=>{listEnrichments.delete(stored.runId);});
+    listEnrichments.set(stored.runId,read);
+  }
+  return read;
+}
 
 export async function listRuns(options: { limit?: number } = {}): Promise<CompanionRunStatus[]> {
+  const deadline=Date.now()+LIST_LIVE_REFRESH_BUDGET_MS;
   const storedRuns = await readStoredRuns(false);
   const limit = Math.max(1, Math.min(options.limit ?? 100, 100));
   reconcileInactiveRuns();
   if(storedRuns.length){
     const visible=storedRuns.slice(0,limit);
-    const sessions=visible.some(requiresLiveRefresh)?await readSessionsIndex().catch(()=>[]):[];
+    const sessions=visible.some(requiresLiveRefresh)?await beforeDeadline(readListSessions(visible),deadline,[] as any[]):[];
     // Each transcript read is one `openclaw gateway call` process on the S24 (~2.4 s): a list refreshes at most
-    // LIST_LIVE_REFRESH_MAX runs (newest first) within one shared budget; the others keep the sessions-index view.
+    // LIST_LIVE_REFRESH_MAX runs (newest first), one read per run in flight, within the list budget.
     let refreshes=LIST_LIVE_REFRESH_MAX;
-    const deadline=Date.now()+LIST_LIVE_REFRESH_BUDGET_MS;
     return Promise.all(visible.map(async stored=>{
       if(!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
       const session=findSessionForStoredRun(sessions,stored);
       const fallback=session?statusFromSessionInfo(session,stored.runId,stored):statusFromStoredRun(stored);
-      if(refreshes<=0)return fallback;
+      if(refreshes<=0||!session)return fallback;
       refreshes--;
-      // Preserve the normal live-list refresh from the base; only expiration
-      // evidence moved out of the request path.
-      let timer:ReturnType<typeof setTimeout>|undefined;
-      const late=new Promise<CompanionRunStatus>(resolve=>{timer=setTimeout(()=>resolve(fallback),Math.max(0,deadline-Date.now()));timer.unref?.();});
-      return Promise.race([enrichFromSessionFile(fallback,session,stored,true).catch(()=>fallback),late]).finally(()=>clearTimeout(timer));
+      return beforeDeadline(enrichListedRun(fallback,session,stored),deadline,fallback);
     }));
   }
   // Legacy discovery only when no retained snapshot exists.
@@ -721,10 +761,18 @@ function statusFromSessionInfo(sessionInfo: any, preferredRunId?: string, stored
   };
 }
 
+/** O9: a voice turn whose transcript is final (completed or interrupted, see terminal()) is terminal.
+ * "interrupted" is a normal end of turn (barge-in or hang-up), not an error: state "done", status "interrupted".
+ * Only a partial transcript stays non-terminal. S24 capture: fixtures/s24-2026-10-11/o9-voice-unknown-runs.json. */
+export function voiceRunState(transcriptState: StoredRun["transcriptState"]): CompanionRunStatus["state"] {
+  return transcriptState === "completed" || transcriptState === "interrupted" ? "done" : "unknown";
+}
+
 function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   if (stored.modality === "voice") return {
     success: true, runId: stored.runId, clientRunId: stored.clientRunId, sessionId: stored.sessionId,
-    state: stored.transcriptState === "completed" ? "done" : "unknown",
+    state: voiceRunState(stored.transcriptState),
+    ...(stored.transcriptState === "interrupted" ? {status: "interrupted"} : {}),
     message: stored.transcriptState || "partial", userText: stored.userText || "",
     result: stored.result || "", submittedAt: stored.acceptedAt, updatedAt: stored.updatedAt,
     modality: "voice", transcriptState: stored.transcriptState, playback: stored.playback,
@@ -740,6 +788,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
       : "OpenClaw is still working on this run.";
   return {
     success: !failed,
+    provenance: capabilityProvenance(stored.provenance),
     status: stored.error === "run_inactivity_expired" ? "expired" : undefined,
     inactivityCorrectionReceipt: stored.inactivityCorrectionReceipt,
     runId: stored.runId,
@@ -1739,6 +1788,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
+      provenance: capabilityProvenance(run.provenance),
       runId: run.runId,
       clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
       requestHash: typeof run.requestHash === "string" && /^[a-f0-9]{64}$/.test(run.requestHash) ? run.requestHash : undefined,
@@ -1760,7 +1810,11 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       attachments: Array.isArray(run.attachments) ? run.attachments : undefined,
       acceptedAt: typeof run.acceptedAt === "number" ? run.acceptedAt : 0,
       updatedAt: typeof run.updatedAt === "number" ? run.updatedAt : undefined,
-      state: ["running", "done", "failed", "unknown"].includes(String(run.state || ""))
+      // O9 reconciliation on read: stored voice runs left "unknown" with a final transcript become terminal,
+      // and the next registry write persists it (no migration job, no second store).
+      state: run.modality === "voice" && ["completed", "interrupted"].includes(run.transcriptState)
+        ? voiceRunState(run.transcriptState)
+        : ["running", "done", "failed", "unknown"].includes(String(run.state || ""))
         ? run.state
         : undefined,
       error: typeof run.error === "string" ? run.error : undefined,
@@ -1820,7 +1874,7 @@ export async function saveVoiceTurn(sessionId: string, value: any) {
     }
     const run: StoredRun = {runId: value.runId, sessionId, text: value.input, userText: value.input,
       result: value.output, modality: "voice", transcriptState: value.state, transcriptRevision: value.revision,playback,
-      acceptedAt: old?.acceptedAt || Date.now(), updatedAt: Date.now(), state: value.state === "completed" ? "done" : "unknown"};
+      acceptedAt: old?.acceptedAt || Date.now(), updatedAt: Date.now(), state: voiceRunState(value.state)};
     await writeCompanionRunRegistry([run, ...registry.runs.filter(row => row.runId !== run.runId)], registry.archivedSessionIds);
     submittedRuns.set(run.runId,run);
     return statusFromStoredRun(run);
