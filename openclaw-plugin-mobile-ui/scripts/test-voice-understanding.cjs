@@ -346,3 +346,17 @@ test("Real S24 #176 dispatch trace wins even when the attempt boolean is absent 
     assert.equal(m.receiptProvesNoDebit({payment:{...row.payment,financialSubmissionAttempted:false}}),false);
   }
 });
+
+test("Public owner proof rows and unknown trace forms cannot produce non-debit claims",()=>{
+  const submitted={reasonCode:"payment_not_submitted",financialSubmissionAttempted:true};
+  assert.equal(m.receiptProvesNoDebit({...submitted,presentation:HS3.expired_not_submitted_fr}),false);
+  assert.equal(m.receiptProvesNoDebit({execution:submitted,presentation:HS3.expired_not_submitted_fr}),false);
+  for(const key of ["trace","timeline"]){
+    for(const value of [null,{},"unknown",[null],[{}],[{stage:7}],[{stage:""}],Array.from({length:161},()=>({stage:"payment_record_created"}))]){
+      assert.equal(m.receiptProvesNoDebit({payment:{reasonCode:"payment_not_submitted",[key]:value}}),false);
+    }
+    assert.equal(m.receiptProvesNoDebit({payment:{reasonCode:"payment_not_submitted",[key]:[]}}),true);
+    assert.equal(m.receiptProvesNoDebit({payment:{reasonCode:"payment_not_submitted",[key]:[{stage:"financial_dispatch_committed"}]}}),false);
+  }
+  for(const flag of [null,"false",1])assert.equal(m.receiptProvesNoDebit({payment:{reasonCode:"payment_not_submitted",financialSubmissionAttempted:flag}}),false);
+});

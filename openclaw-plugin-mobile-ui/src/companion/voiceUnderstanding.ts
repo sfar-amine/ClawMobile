@@ -1,6 +1,5 @@
 import crypto from "crypto";
 import { readReceiptPresentation, publicDecision } from "./receiptPresentation";
-import type { PaymentExecutionResult } from "./paymentTypes";
 
 /**
  * Lot 41 piste 2 (38 C1 à la voix). Pure, closed projection of a capability-owner receipt into
@@ -179,14 +178,21 @@ export function receiptProvesNoDebit(envelope: unknown): boolean {
   if (!obj(envelope)) return false;
   const p = presentationOf(envelope);
   const { execution, result } = resultOf(envelope);
-  const rows = [result, obj(result.payment) ? result.payment : null, obj(envelope.payment) ? envelope.payment : null,
+  const rows = [envelope, execution, result, obj(result.payment) ? result.payment : null, obj(envelope.payment) ? envelope.payment : null,
     obj(execution.payment) ? execution.payment : null].filter(obj) as Record<string, unknown>[];
   // Canonical S24 trace can establish a dispatch even when the public boolean is
   // absent. Its absence must never turn a contradictory not-submitted code into proof.
   const submitted = rows.some((row) => {
-    if (row.financialSubmissionAttempted === true) return true;
-    return [row.trace, row.timeline].some((events) => Array.isArray(events)
-      && (events.length > 160 || events.some((event) => obj(event) && event.stage === "financial_dispatch_committed")));
+    if (Object.prototype.hasOwnProperty.call(row, "financialSubmissionAttempted") && row.financialSubmissionAttempted !== false) return true;
+    return ["trace", "timeline"].some((key) => {
+      if (!Object.prototype.hasOwnProperty.call(row, key)) return false;
+      const events = row[key];
+      // Unknown shapes cannot establish an absence of submission. Iterate only
+      // the canonical event fields, with the same 160-row public trace boundary.
+      return !Array.isArray(events) || events.length > 160 || events.some((event) =>
+        !obj(event) || typeof event.stage !== "string" || !event.stage.trim()
+          || event.stage === "financial_dispatch_committed");
+    });
   });
   if (submitted) return false;
   if (p?.failure?.notDone?.code === "payment_not_submitted") return true;
