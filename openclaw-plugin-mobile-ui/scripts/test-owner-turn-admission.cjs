@@ -16,9 +16,18 @@ fs.writeFileSync(path.join(state,'owner-confirmation-public.pem'),biometric.publ
 // « ambigu » ouvre une CLARIFY ; une résolution renvoie un texte dérivé de la clarification (marqueur ATTACKER_DERIVED).
 const helper=path.join(root,'fast-path.py'),helperLog=path.join(root,'fast-path.log');
 fs.writeFileSync(helper,['import json,sys','m=sys.argv[-1]','mode="resolve" if "--resolve-clarification" in sys.argv else "check"',
- 'open('+JSON.stringify(helperLog)+',"a").write(json.dumps({"mode":mode,"message":m})+"\\n")',
+ 'caller=sys.argv[sys.argv.index("--caller")+1]',
+ 'open('+JSON.stringify(helperLog)+',"a").write(json.dumps({"mode":mode,"message":m,"caller":caller,"executing":"--execute-decision" in sys.argv})+"\\n")',
  'd=lambda k,i:{"version":2,"type":k,"decisionId":i,"requestId":i,"textHash":"x","capabilityRevision":"rev","contractHash":"hash"}',
- 'if mode=="resolve": print(json.dumps({"status":"miss","resolution":{"text":"ATTACKER_DERIVED "+m}}))',
+ 'if "p1-write" in m:',
+ ' if "revoke-resolution" in m and "--check" in sys.argv:',
+ '  import time,os',
+ '  for _ in range(300):',
+ '   if os.path.exists('+JSON.stringify(path.join(root,'resolution-release'))+'): break',
+ '   time.sleep(.01)',
+ ' status="eligible" if "--check" in sys.argv else "hit" if caller=="owner" else "known_error"',
+ ' print(json.dumps({"status":status,"text":"synthetic result; no real effect","decision":{**d("EXECUTE","synthetic-write"),"risk":"write","caller":caller,"capability":"synthetic.offline.write"}}))',
+ 'elif mode=="resolve": print(json.dumps({"status":"miss","resolution":{"text":"ATTACKER_DERIVED "+m}}))',
  'elif "ambigu" in m: print(json.dumps({"status":"clarification","text":"Tu veux consulter ou agir ?","model_bypassed":True,"decision":{**d("CLARIFY","c-"+m[-8:]),"clarification":{"question":"Tu veux consulter ou agir ?","choices":[{"intent":"read","label":"consulter"},{"intent":"act","label":"agir"}]}}}))',
  'else: print(json.dumps({"status":"miss","reason":"fixture"}))',''].join('\n'));process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
 // Connexion write (CLI canonique) factice.
@@ -260,6 +269,43 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    assert.equal(readLines(cliLog).filter(r=>r.id==='p1-sdk-race-run').length,1);
    const again=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(again),owner)).status,200);
    count('revocation_during_sdk_loading');}
+
+  // Synthetic write executor: never executes a real capability. It denies caller=other.
+  {let x=await submit({sign:false,text:'p1-write unsigned',sessionId:'write-unsigned'});
+   assert.equal(x.response.body.ownerAdmission.owner,false);assert.equal(x.response.body.state,'failed');
+   assert.ok(readLines(helperLog).filter(c=>c.message==='p1-write unsigned').every(c=>c.caller==='other'));count('execute_unsigned_never_owner');
+   const body=JSON.stringify({instruction:'p1-write invalid nonce',sessionId:'write-invalid',clientRunId:'p1-write-invalid-1'});
+   const invalid=proof({body,clientRunId:'p1-write-invalid-1',sessionId:'write-invalid',n:'bad'});
+   const refused=await request('POST','/v1/runs',body,invalid);assert.equal(refused.body.ownerAdmission.owner,false);assert.equal(refused.body.state,'failed');
+   assert.ok(readLines(helperLog).filter(c=>c.message==='p1-write invalid nonce').every(c=>c.caller==='other'));count('execute_invalid_nonce_never_owner');
+   x=await submit({text:'p1-write valid',sessionId:'write-valid'});assert.equal(x.response.body.ownerAdmission.owner,true);assert.equal(x.response.body.state,'done');
+   assert.equal(readLines(helperLog).filter(c=>c.message==='p1-write valid'&&c.executing&&c.caller==='owner').length,1);count('execute_admitted_owner');
+   const pending=submit({text:'p1-write revoke-resolution',sessionId:'write-revoked'});
+   for(let i=0;i<300&&!readLines(helperLog).some(c=>c.message==='p1-write revoke-resolution');i++)await new Promise(r=>setTimeout(r,10));
+   assert.ok(readLines(helperLog).some(c=>c.message==='p1-write revoke-resolution'));
+   turnAdmission.revoke();fs.writeFileSync(path.join(root,'resolution-release'),'release');
+   const expired=await pending;assert.equal(expired.response.body.accepted,false);
+   assert.equal(readLines(helperLog).filter(c=>c.message==='p1-write revoke-resolution'&&c.executing).length,0);count('execute_revoked_during_resolution_refused');
+   const again=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(again),owner)).status,200);
+  }
+
+  // Voice effects use the same one-use raw-body native proof, never a clarification as a grant.
+  {const pathName='/v1/extensions/claw-live/capability';
+   const cap=async(text,{sign=true,sessionId='voice-cap-fixture',clarificationId,headers}={})=>{const clientRunId='voice-cap-'+crypto.randomUUID(),body=JSON.stringify({request:text,sessionId,clientRunId,...(clarificationId?{clarificationId}:{})});return request('POST',pathName,body,{...(sign?proof({pathName,body,clientRunId,sessionId}):{}),...(headers||{})});};
+   const before=readLines(helperLog).length;let x=await cap('p1-write voice unsigned',{sign:false});assert.equal(x.status,403);assert.equal(readLines(helperLog).length,before);count('voice_capability_unsigned_before_resolution');
+   x=await cap('p1-write voice invalid',{headers:{'x-samantha-admission-nonce':'bad'}});assert.equal(x.status,403);assert.equal(readLines(helperLog).length,before);count('voice_capability_invalid_nonce_before_resolution');
+   x=await cap('p1-write voice valid');assert.equal(x.status,200);assert.equal(x.body.ownerAdmission.owner,true);assert.equal(x.body.state,'done');
+   assert.equal(readLines(helperLog).filter(c=>c.message==='p1-write voice valid'&&c.executing&&c.caller==='owner').length,1);count('voice_capability_admitted_prepared_execute');
+   const clar=await cap('ambigu voice-fixture');assert.equal(clar.status,200);assert.equal(clar.body.state,'needs_clarification');
+   const prior=readLines(helperLog).length;assert.equal((await cap('p1-write clarification no grant',{sign:false,clarificationId:clar.body.clarificationId})).status,403);assert.equal(readLines(helperLog).length,prior);count('voice_clarification_never_grants_admission');
+   assert.equal((await cap('p1-write other session',{sessionId:'voice-cap-other',clarificationId:clar.body.clarificationId})).status,400);assert.equal(readLines(helperLog).length,prior);count('voice_clarification_bound_session');
+   fs.rmSync(path.join(root,'resolution-release'),{force:true});
+   const pending=cap('p1-write capability-revoke-resolution',{sessionId:'voice-cap-revoked'});
+   for(let i=0;i<300&&!readLines(helperLog).some(c=>c.message==='p1-write capability-revoke-resolution');i++)await new Promise(r=>setTimeout(r,10));
+   assert.ok(readLines(helperLog).some(c=>c.message==='p1-write capability-revoke-resolution'));turnAdmission.revoke();fs.writeFileSync(path.join(root,'resolution-release'),'release');
+   assert.equal((await pending).status,403);assert.equal(readLines(helperLog).filter(c=>c.message==='p1-write capability-revoke-resolution'&&c.executing).length,0);count('voice_capability_revoked_during_resolution');
+   const again=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(again),owner)).status,200);
+  }
 
   // --- 7. Révocation : signée par la clé enrôlée ; ensuite non-owner. Un tour déjà remis au Gateway n'est pas touché.
   assert.equal((await request('DELETE','/v1/owner-admission/enrollment','{"operationId":"revoke-0001"}',owner)).status,403,'révocation non signée');

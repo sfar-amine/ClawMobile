@@ -61,7 +61,7 @@ type Owner = {
   executeVoiceCapability(meta: any, request: string, run: () => Promise<any>): Promise<any>;
 };
 type Execute = (request: string) => Promise<Record<string, any>>;
-type Deps = { capture?: RoundCaptureRunner; now?: () => number };
+type Deps = { capture?: RoundCaptureRunner; now?: () => number; assertCurrent?: () => void };
 
 /** Admission is a projection of the resolver's canonical decision, never a lexical pre-router.
  * Confirmed/payment routes still enter the existing executor and its human boundary.
@@ -121,7 +121,10 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
   const request = String(body?.request || "");
   const locale = voiceLocale(owner.sessionLocale());
   const state = owner.understanding;
-  const admit = (run: () => Promise<any>) => body?.voiceTurn ? owner.executeVoiceCapability(body.voiceTurn, request, run) : run();
+  const admit = (run: () => Promise<any>) => {
+    const current = () => { deps.assertCurrent?.(); return run(); };
+    return body?.voiceTurn ? owner.executeVoiceCapability(body.voiceTurn, request, current) : current();
+  };
 
   const target = state.gestureTarget(request);
   if (target) {
