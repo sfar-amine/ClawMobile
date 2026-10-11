@@ -48,7 +48,7 @@ import { runSkillFastPath as clawmobile_skill_run_fast_path } from "./trace_indu
 import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } from "./trace_induction/repair";
 import { clawmobile_batch_execute } from "./tools/batch";
 import { handleOwnerFastPath } from "./modelFastPath";
-import { clawmobile_capability } from "./capabilityTool";
+import { createCapabilityTool } from "./capabilityTool";
 import { createProviderFallbackCoordinator } from "./providerFallback";
 
 type JsonSchema = Record<string, any>;
@@ -207,28 +207,11 @@ function register(api: any) {
     return result;
   });
 
-  // ---- compact cross-surface capability tool ----
+  // The factory receives OpenClaw's trusted current-turn context. The first
+  // execute argument is a tool-call id, not an authorization context.
   api.registerTool(
-    toolDef(
-      "clawmobile_capability",
-      "Resolve the canonical Claw capability/executor graph and optionally execute the shortest reachable validated Claw route. Use this single compact tool instead of guessing whether GPT, Gemini, Bixby or Claw can handle a request.",
-      {
-        type: "object",
-        properties: {
-          request: { type: "string", minLength: 1, maxLength: 12000 },
-          execute: { type: "boolean" },
-          surface: {
-            type: "string",
-            enum: ["chatgpt", "gemini_claw", "gemini_live", "bixby", "whatsapp"],
-          },
-          caller: { type: "string", enum: ["owner", "trusted", "other"] },
-          timeoutSeconds: { type: "integer", minimum: 2, maximum: 120 },
-        },
-        required: ["request"],
-        additionalProperties: false,
-      },
-      async (args) => clawmobile_capability(args)
-    )
+    (ctx: any) => createCapabilityTool(ctx),
+    { name: "clawmobile_capability" },
   );
 
   // ---- composite mobile runtime tools ----

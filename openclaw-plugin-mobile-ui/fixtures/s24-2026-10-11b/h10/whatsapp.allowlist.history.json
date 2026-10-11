@@ -1,0 +1,19 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/whatsapp/allowlist/history?limit=50",
+  "status": 200,
+  "capturedAt": "2026-10-10T23:40:53Z",
+  "bytes": 94,
+  "companion": "curl loopback http://127.0.0.1:8765 avec l'en-tête de l'app (Connection: close), sans Origin/Referer ni en-tête propriétaire",
+  "sanitized": true,
+  "latencyMs": 209
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "items": [],
+  "nextBefore": null
+ }
+}

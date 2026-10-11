@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 MODULE = Path(__file__).with_name("android-network-mutation-guard.py")
 spec = importlib.util.spec_from_file_location("guard", MODULE)
@@ -16,6 +16,34 @@ spec.loader.exec_module(guard)
 
 def blank():
     return {k: {"exists": False, "value": None} for k in guard.KEYS}
+
+def on_auto_wifi():
+    return {k: {"exists": True, "value": "1"} for k in guard.AUTO_WIFI_KEYS}
+
+class FakeAndroidSettings:
+    """Simulated `settings global` + Wi-Fi radio. No real ADB, no real network toggle."""
+    def __init__(self, auto_wifi=None, wifi=True, wifi_samples=None):
+        self.globals = {} if auto_wifi is None else dict(auto_wifi)
+        self.wifi = wifi
+        self.wifi_samples = list(wifi_samples or [])
+        self.calls = []
+    def adb(self, *args, **kwargs):
+        self.calls.append(args)
+        class P: returncode=0; stdout=""; stderr=""
+        out = P()
+        if args[:4] == ("shell","settings","list","global"):
+            out.stdout = "".join(f"{k}={v}\n" for k, v in self.globals.items())
+        elif args[:4] == ("shell","settings","put","global"):
+            self.globals[args[4]] = args[5]
+        elif args[:4] == ("shell","settings","delete","global"):
+            self.globals.pop(args[4], None)
+        elif args[:3] == ("shell","svc","wifi"):
+            self.wifi = args[3] == "enable"
+        elif args[:4] == ("shell","cmd","wifi","status"):
+            if self.wifi_samples:
+                self.wifi = self.wifi_samples.pop(0)
+            out.stdout = "Wifi is enabled\n" if self.wifi else "Wifi is disabled\n"
+        return out
 
 class GuardTests(unittest.TestCase):
     def setUp(self):
@@ -173,11 +201,13 @@ class GuardTests(unittest.TestCase):
     def test_with_wifi_off_restores_even_after_child(self):
         guard.LEASES.mkdir(parents=True,exist_ok=True)
         lease=guard.LEASES/"wifi.json"
-        lease.write_text(json.dumps({"type":"wifi_off","created_at":1,"owner_pid":1,"purpose":"test","settings":blank(),"wifi_enabled":True}))
-        child=type("P",(),{"returncode":0})()
-        with patch.object(guard,"create_lease",return_value=lease), patch.object(guard,"set_wifi") as set_wifi, patch.object(guard,"restore_lease") as restore, patch.object(guard.subprocess,"run",return_value=child):
+        lease.write_text(json.dumps({"type":"wifi_off","created_at":1,"owner_pid":1,"purpose":"test","settings":blank(),"wifi_enabled":True,"auto_wifi":on_auto_wifi()}))
+        with patch.object(guard,"create_lease",return_value=lease), patch.object(guard,"set_wifi") as set_wifi, \
+             patch.object(guard,"disable_auto_wifi") as disable, patch.object(guard,"restore_lease") as restore, \
+             patch.object(guard,"run_while_wifi_stays_off",return_value=(0,False)):
             rc=guard.with_wifi_off("test",["echo","ok"])
         self.assertEqual(rc,0)
+        disable.assert_called_once_with(on_auto_wifi())
         set_wifi.assert_called_once_with(False)
         restore.assert_called_once()
         self.assertFalse(lease.exists())
@@ -200,6 +230,123 @@ class GuardTests(unittest.TestCase):
             rc=guard.check_and_reconcile(False)
         self.assertEqual(rc,0); restore.assert_called_once()
         self.assertFalse(lease.exists())
+
+class AutoWifiTests(unittest.TestCase):
+    """P0-7 (11/10): Auto Wi-Fi is snapshotted in the lease, forced to 0, restored exactly; a Wi-Fi return blocks."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.old = (guard.ROOT, guard.LEASES, guard.RECEIPT)
+        guard.ROOT = root / "network-mutation"
+        guard.LEASES = guard.ROOT / "leases"
+        guard.RECEIPT = root / "health" / "receipt.json"
+
+    def tearDown(self):
+        guard.ROOT, guard.LEASES, guard.RECEIPT = self.old
+        self.tmp.cleanup()
+
+    def run_guarded(self, fake, child_result=(0, False)):
+        with patch.object(guard, "adb", side_effect=fake.adb), patch.object(guard.time, "sleep"), \
+             patch.object(guard, "run_while_wifi_stays_off", return_value=child_result) as child, \
+             patch("sys.stdout", new_callable=io.StringIO) as out:
+            rc = guard.with_wifi_off("test", ["true"])
+        return rc, child, out.getvalue()
+
+    def test_lease_snapshots_auto_wifi_and_restores_exactly(self):
+        fake = FakeAndroidSettings({"auto_wifi": "1", "sem_auto_wifi_control_enabled": "1"}, wifi=True)
+        seen = {}
+        def during(_command):
+            seen["globals"] = dict(fake.globals); seen["wifi"] = fake.wifi
+            lease = next(guard.LEASES.glob("*.json"))
+            seen["lease"] = json.loads(lease.read_text())
+            return 0, False
+        with patch.object(guard, "adb", side_effect=fake.adb), patch.object(guard.time, "sleep"), \
+             patch.object(guard, "run_while_wifi_stays_off", side_effect=during):
+            self.assertEqual(guard.with_wifi_off("test", ["true"]), 0)
+        self.assertEqual(seen["lease"]["auto_wifi"], on_auto_wifi())
+        self.assertEqual(seen["globals"], {"auto_wifi": "0", "sem_auto_wifi_control_enabled": "0"})
+        self.assertFalse(seen["wifi"])
+        self.assertEqual(fake.globals, {"auto_wifi": "1", "sem_auto_wifi_control_enabled": "1"})
+        self.assertTrue(fake.wifi)
+        self.assertEqual(list(guard.LEASES.glob("*.json")), [])
+        receipt = json.loads(guard.RECEIPT.read_text())
+        self.assertEqual((receipt["state"], receipt["auto_wifi_restored"]), ("healthy", True))
+
+    def test_absent_auto_wifi_key_is_deleted_not_written(self):
+        fake = FakeAndroidSettings({"auto_wifi": "1"}, wifi=False)
+        rc, _, _ = self.run_guarded(fake)
+        self.assertEqual(rc, 0)
+        self.assertEqual(fake.globals, {"auto_wifi": "1"})
+        self.assertIn(("shell","settings","delete","global","sem_auto_wifi_control_enabled"), fake.calls)
+        self.assertFalse(any("null" in c for c in fake.calls))
+        self.assertFalse(fake.wifi)  # Wi-Fi was off before: it stays off
+
+    def test_restore_happens_on_child_failure_and_interrupt(self):
+        for effect in (RuntimeError("child_failed"), KeyboardInterrupt()):
+            fake = FakeAndroidSettings({"auto_wifi": "1", "sem_auto_wifi_control_enabled": "1"}, wifi=True)
+            with patch.object(guard, "adb", side_effect=fake.adb), patch.object(guard.time, "sleep"), \
+                 patch.object(guard, "run_while_wifi_stays_off", side_effect=effect):
+                with self.assertRaises(type(effect)):
+                    guard.with_wifi_off("test", ["true"])
+            self.assertEqual(fake.globals, {"auto_wifi": "1", "sem_auto_wifi_control_enabled": "1"})
+            self.assertTrue(fake.wifi)
+            self.assertEqual(list(guard.LEASES.glob("*.json")), [])
+
+    def test_wifi_reenabled_prints_blocked_and_still_restores(self):
+        fake = FakeAndroidSettings({"auto_wifi": "1", "sem_auto_wifi_control_enabled": "1"}, wifi=True)
+        rc, _, out = self.run_guarded(fake, child_result=(guard.WIFI_REENABLED_EXIT, True))
+        self.assertEqual(rc, guard.WIFI_REENABLED_EXIT)
+        self.assertEqual(json.loads(out.strip().splitlines()[-1]),
+                         {"schemaVersion": 1, "state": "blocked", "reasonCode": "wifi_reenabled"})
+        self.assertEqual(fake.globals, {"auto_wifi": "1", "sem_auto_wifi_control_enabled": "1"})
+        self.assertTrue(json.loads(guard.RECEIPT.read_text())["wifi_reenabled_during_operation"])
+
+    def test_watch_stops_child_when_wifi_returns(self):
+        child = MagicMock(); child.poll.side_effect = [None, None, None, -15, -15]
+        sleeps = []
+        with patch.object(guard.subprocess, "Popen", return_value=child), \
+             patch.object(guard, "wifi_enabled", side_effect=[False, True]):
+            code, back = guard.run_while_wifi_stays_off(["sleep", "10"], sleep=sleeps.append)
+        self.assertEqual((code, back), (guard.WIFI_REENABLED_EXIT, True))
+        child.terminate.assert_called_once()
+        self.assertEqual(sleeps, [guard.WIFI_WATCH_INTERVAL_S])
+        self.assertEqual(guard.WIFI_WATCH_INTERVAL_S, 0.5)
+
+    def test_watch_ignores_unreadable_sample_and_returns_child_code(self):
+        child = MagicMock(); child.poll.side_effect = [None, None, 0, 0]
+        with patch.object(guard.subprocess, "Popen", return_value=child), \
+             patch.object(guard, "wifi_enabled", side_effect=[RuntimeError("wifi_state_unknown"), False]):
+            self.assertEqual(guard.run_while_wifi_stays_off(["true"], sleep=lambda _s: None), (0, False))
+        child.terminate.assert_not_called()
+
+    def test_stale_lease_restores_auto_wifi(self):
+        fake = FakeAndroidSettings({"auto_wifi": "0", "sem_auto_wifi_control_enabled": "0"}, wifi=False)
+        row = {"type": "wifi_off", "settings": blank(), "wifi_enabled": True, "auto_wifi": on_auto_wifi()}
+        with patch.object(guard, "adb", side_effect=fake.adb), patch.object(guard.time, "sleep"):
+            guard.restore_lease(row)
+        self.assertEqual(fake.globals, {"auto_wifi": "1", "sem_auto_wifi_control_enabled": "1"})
+        self.assertTrue(fake.wifi)
+
+    def test_real_s24_capture_parses_auto_wifi_proxy_and_wifi_state(self):
+        fixtures = MODULE.parents[2] / "openclaw-plugin-mobile-ui" / "fixtures" / "s24-2026-10-10" / "android"
+        settings = (fixtures / "settings-global-network.txt").read_text()
+        status = (fixtures / "cmd-wifi-status.txt").read_text()
+        def fake_adb(*args, **kwargs):
+            class P: returncode=0; stderr=""
+            P.stdout = settings if args[:3] == ("shell","settings","list") else status
+            return P()
+        with patch.object(guard, "adb", side_effect=fake_adb):
+            self.assertEqual(guard.auto_wifi_state(), on_auto_wifi())
+            self.assertTrue(guard.wifi_enabled())
+            state = guard.settings_state()
+        self.assertEqual(state["http_proxy"], {"exists": True, "value": ":0"})
+        self.assertFalse(guard.proxy_active(state))
+
+    def test_legacy_lease_without_auto_wifi_touches_nothing(self):
+        fake = FakeAndroidSettings({"auto_wifi": "0"}, wifi=True)
+        with patch.object(guard, "adb", side_effect=fake.adb):
+            guard.restore_lease({"type": "wifi_off", "settings": blank(), "wifi_enabled": True})
+        self.assertEqual(fake.globals, {"auto_wifi": "0"})
 
 class FakeAdb:
     """Protocol fixture only. No subprocess, real ADB, proxy or UI is used."""

@@ -42,4 +42,8 @@ clawmobile_sync_workspace_seed "$REPO_ROOT"
 
 echo "[lite] Starting ClawMobile Companion server on ${CLAWMOBILE_COMPANION_HOST:-auto}:${CLAWMOBILE_COMPANION_PORT}"
 echo "[lite] OpenClaw gateway target is ${CLAWMOBILE_GATEWAY_HOST}:${CLAWMOBILE_GATEWAY_PORT}"
-exec node "$PLUGIN_DIR/dist/companion/server.js"
+# The existing Companion owner consumes its own output so a renamed open fd
+# cannot keep growing an archive forever. No extra daemon or periodic task.
+COMPANION_LOG_DIR="$HOME/.openclaw/health"
+mkdir -p "$COMPANION_LOG_DIR"
+node "$PLUGIN_DIR/dist/companion/server.js" 2>&1 | python3 "$SCRIPT_DIR/bounded-log.py" "$COMPANION_LOG_DIR/companion.stderr.log" --stream

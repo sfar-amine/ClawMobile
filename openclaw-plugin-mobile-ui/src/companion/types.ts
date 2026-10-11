@@ -117,6 +117,8 @@ export type CompanionRunStatus = {
   status?: string;
   message: string;
   result?: string;
+  /** F4: structured projection of `result` (summary list only); `result` stays the raw fallback. */
+  notification?: import("./notificationText").StructuredNotification | null;
   pendingApprovals?: unknown[];
   progress?: CompanionRunProgress;
   prompt?: string;
