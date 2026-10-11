@@ -368,6 +368,16 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
   const write=fixture.gateway_handshake_cases.find(c=>c.case==='valid_token_cli_write_only');assert.deepEqual(write.grantedScopes,['operator.write']);assert.equal(write.senderIsOwnerDerived,false);
   assert.equal(fixture.findings.companion_native_admission_authenticated,false);assert.equal(fixture.findings.owner_bit_scope.startsWith('connexion'),true);count('fixture_s24');
 
+  // S24 11/10 : $PREFIX/bin/openclaw est un script enveloppe ; la racine vient de <prefix>/lib/node_modules/openclaw.
+  {const prefix=path.join(root,'termux-prefix'),bin=path.join(prefix,'bin'),pkg=path.join(prefix,'lib','node_modules','openclaw');
+   fs.mkdirSync(bin,{recursive:true});fs.mkdirSync(pkg,{recursive:true});
+   fs.writeFileSync(path.join(pkg,'package.json'),JSON.stringify({name:'openclaw',version:'2026.9.6'}));
+   fs.writeFileSync(path.join(bin,'openclaw'),'#!/bin/sh\nexec node '+path.join(pkg,'openclaw.mjs')+' "$@"\n',{mode:0o755});
+   const found=await gatewayTransport.installedPackageRoot(path.join(bin,'openclaw'));
+   assert.equal(found.root,fs.realpathSync(pkg));assert.equal(found.version,'2026.9.6');
+   fs.rmSync(path.join(pkg,'package.json'));
+   await assert.rejects(()=>gatewayTransport.installedPackageRoot(path.join(bin,'openclaw')),e=>e.code==='owner_transport_unavailable'||/owner_transport_unavailable/.test(String(e.message)));
+   count('wrapper_binary_npm_global_root');}
   console.log(JSON.stringify({test:'P1 native owner admission',passed:Object.keys(counts).length,cases:counts}));
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));gateway.close();fs.rmSync(root,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -46,12 +46,29 @@ async function binaryPath(binary: string) {
   }
   throw unavailable("owner_transport_unavailable");
 }
+/**
+ * Racine du paquet `openclaw` à partir du binaire CLI. Sur le S24 (Termux), `$PREFIX/bin/openclaw` est un script
+ * enveloppe et non un lien : on retombe sur l'arborescence npm globale `<prefix>/lib/node_modules/openclaw`
+ * (11/10 : tous les tours owner non déterministes échouaient en owner_transport_unavailable).
+ */
+export async function installedPackageRoot(binary: string) {
+  const resolved = await binaryPath(binary);
+  try { return await packageRoot(resolved); }
+  catch (error) {
+    const global = path.join(path.dirname(path.dirname(resolved)), "lib", "node_modules", "openclaw", "package.json");
+    try {
+      const meta = JSON.parse(await fs.readFile(global, "utf8"));
+      if (meta?.name === "openclaw") return {root: path.dirname(global), version: meta.version};
+    } catch {}
+    throw error;
+  }
+}
 /** Paquet installé choisi par la résolution de modules ou par le binaire CLI existant (même découverte que P0-1). */
 export async function loadInstalledGatewaySdk(binary = process.env.CLAWMOBILE_OPENCLAW_BIN || "openclaw"): Promise<GatewaySdk> {
   let entry: string;
   try { entry = require.resolve("openclaw/plugin-sdk/gateway-runtime"); }
   catch {
-    const {root} = await packageRoot(await binaryPath(binary));
+    const {root} = await installedPackageRoot(binary);
     try { entry = createRequire(path.join(root, "package.json")).resolve("openclaw/plugin-sdk/gateway-runtime"); }
     catch { throw unavailable("owner_transport_unavailable"); }
   }
