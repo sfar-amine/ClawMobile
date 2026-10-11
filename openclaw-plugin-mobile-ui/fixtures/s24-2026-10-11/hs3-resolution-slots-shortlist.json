@@ -1,0 +1,375 @@
+{
+  "provenance": {
+    "captured_at": "2026-10-11T00:51:25+0100",
+    "device": "S24 (Termux, profil owner)",
+    "captured_by": "Claude via claw_exec (lecture seule)",
+    "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+    "core_runtime_head": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "core_runtime_branch": "runtime/samantha-companion-private",
+    "playbooks_workspace_head": "dd251b71c0d6ca2c26b7740c73cce72e560ac109",
+    "playbooks_pinned": "6d567aa3252ff398513bd7c7b22ed63da7a31ffe",
+    "pseudonymization": "HMAC-SHA256 avec sel aléatoire propre à cette capture (non conservé) ; cohérent entre tous les fichiers de ce dossier",
+    "amounts": "montants remplacés par des valeurs fictives de même format (même nombre de décimales, millimes cohérents)",
+    "sources": [
+      "python3 -m skill_intelligence.capability_graph resolve <texte> --surface claw_live --caller owner (CLAW_CAPABILITY_VIEW_DIR temporaire), sans execute",
+      "payments/request_handoff.py::_parameters() appelé localement (fonction pure)"
+    ]
+  },
+  "resolutions": {
+    "r3": {
+      "text": "Mets le volume à 40 %",
+      "surface": "claw_live",
+      "capability": "device.assistance",
+      "decision": {
+        "type": "EXECUTE",
+        "reason": "capability_first",
+        "target": null,
+        "intent": null,
+        "capability": "device.assistance",
+        "route": null,
+        "risk": "write",
+        "confidence": 0.444,
+        "confirmationRequired": false,
+        "humanBoundary": null,
+        "requiredSlots": []
+      },
+      "required_slots_contract": null,
+      "harness": {
+        "tool_policy": "required",
+        "confidence": 0.925,
+        "reason": "capability_match",
+        "allow_model_only": false,
+        "shortlist": [
+          {
+            "id": "device.assistance",
+            "score": 0.925,
+            "operation": "write",
+            "risk": "write"
+          },
+          {
+            "id": "device.modes_routines",
+            "score": 0.25,
+            "operation": "write",
+            "risk": "write"
+          },
+          {
+            "id": "identity.people_directory",
+            "score": 0.25,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "spotify.control",
+            "score": 0.25,
+            "operation": "mixed",
+            "risk": "write"
+          },
+          {
+            "id": "messaging.whatsapp.owner_context",
+            "score": 0.2,
+            "operation": "read",
+            "risk": "read"
+          }
+        ]
+      },
+      "latency_ms": 19.885
+    },
+    "r4": {
+      "text": "Déplace mon rendez-vous de demain à 15h",
+      "surface": "claw_live",
+      "capability": "agenda.google_whatsapp",
+      "decision": {
+        "type": "EXECUTE",
+        "reason": "capability_first",
+        "target": "agenda",
+        "intent": "agenda.event.update",
+        "capability": "agenda.google_whatsapp",
+        "route": "agenda.google.connector.update",
+        "risk": "write",
+        "confidence": 0.947,
+        "confirmationRequired": false,
+        "humanBoundary": "only_when_required",
+        "requiredSlots": []
+      },
+      "required_slots_contract": null,
+      "harness": {
+        "tool_policy": "required",
+        "confidence": 0.947,
+        "reason": "known_route",
+        "allow_model_only": false,
+        "shortlist": [
+          {
+            "id": "agenda.google_whatsapp",
+            "score": 0.947,
+            "operation": "mixed",
+            "risk": "write"
+          },
+          {
+            "id": "device.assistance",
+            "score": 0.308,
+            "operation": "write",
+            "risk": "write"
+          },
+          {
+            "id": "health.immune.verdict",
+            "score": 0.307,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "qa.test_campaign",
+            "score": 0.307,
+            "operation": "mixed",
+            "risk": "write"
+          },
+          {
+            "id": "runtime.inventory",
+            "score": 0.307,
+            "operation": "read",
+            "risk": "read"
+          }
+        ]
+      },
+      "latency_ms": 29.025
+    },
+    "r8": {
+      "text": "Recharge mon numéro Orange",
+      "surface": "claw_live",
+      "capability": "payment.owner_native",
+      "decision": {
+        "type": "EXECUTE",
+        "reason": "capability_first",
+        "target": "maxit-tunisie",
+        "intent": "telecom.orange.topup_own_number",
+        "capability": "payment.owner_native",
+        "route": "orange.maxit.topup.own.v1",
+        "risk": "transaction",
+        "confidence": 1.0,
+        "confirmationRequired": true,
+        "humanBoundary": "owner_biometric",
+        "requiredSlots": [
+          "amountTnd"
+        ]
+      },
+      "required_slots_contract": {
+        "amountTnd": {
+          "extractor": "tnd_amount",
+          "min": "0.001",
+          "max": "200",
+          "question": "Quel montant veux-tu alimenter sur ton compte Maxit ?"
+        }
+      },
+      "harness": {
+        "tool_policy": "required",
+        "confidence": 1.0,
+        "reason": "known_route",
+        "allow_model_only": false,
+        "shortlist": [
+          {
+            "id": "telecom.orange.consultation",
+            "score": 0.918,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "agenda.google_whatsapp",
+            "score": 0.307,
+            "operation": "mixed",
+            "risk": "write"
+          },
+          {
+            "id": "telecom.zain_bahrain.consultation",
+            "score": 0.307,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "identity.people_directory",
+            "score": 0.25,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "telecom.tunisie_telecom.consultation",
+            "score": 0.25,
+            "operation": "read",
+            "risk": "read"
+          }
+        ]
+      },
+      "latency_ms": 29.015
+    },
+    "r9": {
+      "text": "Ajoute un rendez-vous",
+      "surface": "claw_live",
+      "capability": "agenda.google_whatsapp",
+      "decision": {
+        "type": "EXECUTE",
+        "reason": "capability_first",
+        "target": "agenda",
+        "intent": "agenda.event.create",
+        "capability": "agenda.google_whatsapp",
+        "route": "agenda.google.connector",
+        "risk": "write",
+        "confidence": 0.911,
+        "confirmationRequired": false,
+        "humanBoundary": "only_when_required",
+        "requiredSlots": []
+      },
+      "required_slots_contract": null,
+      "harness": {
+        "tool_policy": "required",
+        "confidence": 0.942,
+        "reason": "known_route",
+        "allow_model_only": false,
+        "shortlist": [
+          {
+            "id": "agenda.google_whatsapp",
+            "score": 0.942,
+            "operation": "mixed",
+            "risk": "write"
+          },
+          {
+            "id": "qa.test_campaign",
+            "score": 0.25,
+            "operation": "mixed",
+            "risk": "write"
+          },
+          {
+            "id": "billing.utility.fast_path",
+            "score": 0.195,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "skill.intelligence",
+            "score": 0.17,
+            "operation": "mixed",
+            "risk": "read"
+          },
+          {
+            "id": "messaging.whatsapp.trusted_contact",
+            "score": 0.16,
+            "operation": "mixed",
+            "risk": "read"
+          }
+        ]
+      },
+      "latency_ms": 29.328
+    },
+    "r11": {
+      "text": "Recharge mon numéro Orange de 5 dinars",
+      "surface": "claw_live",
+      "capability": "payment.owner_native",
+      "decision": {
+        "type": "EXECUTE",
+        "reason": "capability_first",
+        "target": "maxit-tunisie",
+        "intent": "telecom.orange.topup_own_number",
+        "capability": "payment.owner_native",
+        "route": "orange.maxit.topup.own.v1",
+        "risk": "transaction",
+        "confidence": 0.955,
+        "confirmationRequired": true,
+        "humanBoundary": "owner_biometric",
+        "requiredSlots": [
+          "amountTnd"
+        ]
+      },
+      "required_slots_contract": {
+        "amountTnd": {
+          "extractor": "tnd_amount",
+          "min": "0.001",
+          "max": "200",
+          "question": "Quel montant veux-tu alimenter sur ton compte Maxit ?"
+        }
+      },
+      "harness": {
+        "tool_policy": "required",
+        "confidence": 0.955,
+        "reason": "known_route",
+        "allow_model_only": false,
+        "shortlist": [
+          {
+            "id": "telecom.orange.consultation",
+            "score": 0.913,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "identity.people_directory",
+            "score": 0.46,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "device.assistance",
+            "score": 0.333,
+            "operation": "write",
+            "risk": "write"
+          },
+          {
+            "id": "agenda.google_whatsapp",
+            "score": 0.307,
+            "operation": "mixed",
+            "risk": "write"
+          },
+          {
+            "id": "health.immune.verdict",
+            "score": 0.307,
+            "operation": "read",
+            "risk": "read"
+          }
+        ]
+      },
+      "latency_ms": 73.363
+    }
+  },
+  "validated_slots": {
+    "function": "payments/request_handoff.py::_parameters (pure)",
+    "contract": {
+      "amountTnd": {
+        "extractor": "tnd_amount",
+        "min": "0.001",
+        "max": "200",
+        "question": "Quel montant veux-tu alimenter sur ton compte Maxit ?"
+      }
+    },
+    "cases": [
+      {
+        "text": "Recharge mon numéro Orange de 5 dinars",
+        "capability": "payment.owner_native",
+        "intent": "telecom.orange.topup_own_number",
+        "requiredSlots": [
+          "amountTnd"
+        ],
+        "validated": {
+          "amountTnd": "5"
+        },
+        "needs_parameter": null
+      },
+      {
+        "text": "Recharge mon numéro Orange",
+        "capability": "payment.owner_native",
+        "intent": "telecom.orange.topup_own_number",
+        "requiredSlots": [
+          "amountTnd"
+        ],
+        "validated": null,
+        "needs_parameter": {
+          "schemaVersion": 1,
+          "state": "needs_parameter",
+          "parameter": "amountTnd",
+          "question": "Quel montant veux-tu alimenter sur ton compte Maxit ?",
+          "financialSubmissionAttempted": false
+        }
+      }
+    ],
+    "note": "montant 5 = valeur de test saisie pour la capture, pas une donnée réelle ; aucun paiement ni quote"
+  },
+  "notes": [
+    "La sortie resolve porte requiredSlots et le contrat d'extraction (pre_model_handoff.parameters) mais pas les valeurs : la validation des slots est faite par l'extracteur du propriétaire (payments/request_handoff.py) avant tout effet.",
+    "Constat : 'Projets Pulse ouverts' sélectionne applications.authentication.direct (0.919) à égalité avec pulse.backend_first (0.919).",
+    "Constat : pour 'Paye ma facture Topnet', la capability retenue est payment.owner_native mais la shortlist harness ne la contient pas."
+  ]
+}

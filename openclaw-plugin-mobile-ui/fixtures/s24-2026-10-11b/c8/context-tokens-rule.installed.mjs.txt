@@ -1,0 +1,156 @@
+// OpenClaw 2026.9.6 (eb377ac), extraits verbatim de dist/ installé sur le S24
+// --- dist/sessions-Dx_9_PGU.mjs lignes 143-150 (configContextTokens = lookupContextTokens(defaults.model) ?? 2e5)
+/** Lists sessions across selected stores with optional JSON output. */
+async function sessionsCommand(opts, runtime) {
+	const aggregateAgents = opts.allAgents === true;
+	const cfg = getRuntimeConfig();
+	const displayDefaults = resolveSessionDisplayDefaults(cfg);
+	const { lookupContextTokens, resolveModelContextTokenProjection } = await contextLookupRuntimeLoader.load();
+	const configContextTokens = lookupContextTokens(displayDefaults.model, { allowAsyncLoad: false }) ?? 2e5;
+	const targets = resolveCommandSessionStoreTargets({
+// --- dist/sessions-Dx_9_PGU.mjs lignes 215-295 (projection par ligne et sortie --json)
+		const modelRef = applyAcpModelOverlayIfNeeded(resolveSessionDisplayModelRef(cfg, row, classifyCliProvider, agentId), acpSessionKey, acpRuntime);
+		const agentRuntime = resolveModelAgentRuntimeMetadata({
+			cfg,
+			agentId,
+			sessionEntry: entry,
+			provider: modelRef.provider,
+			model: modelRef.model,
+			sessionKey: acpSessionKey,
+			acpRuntime,
+			acpBackend: acpMeta?.backend
+		});
+		const modelContext = !(typeof entry.contextTokens === "number" && entry.contextTokens > 0) && classifyCliProvider(agentRuntime.id) ? {
+			contextTokens: lookupContextTokens(modelRef.model, { allowAsyncLoad: false }),
+			authoredContextTokens: resolveAuthoredModelContextTokens({
+				cfg,
+				provider: modelRef.provider,
+				model: modelRef.model
+			})
+		} : resolveModelContextTokenProjection({
+			cfg,
+			provider: modelRef.provider,
+			model: modelRef.model,
+			allowAsyncLoad: false
+		});
+		const contextTokens = resolveProjectedSessionContextTokens({
+			entry,
+			provider: modelRef.provider,
+			model: modelRef.model,
+			agentHarnessId: agentRuntime.id,
+			resolvedContextTokens: modelContext.contextTokens,
+			authoredContextTokens: modelContext.authoredContextTokens
+		});
+		return Object.assign(row, {
+			agentId,
+			acpRuntime,
+			agentRuntime,
+			contextTokens,
+			displayModelRef: modelRef,
+			kind: classifySessionKind(row.key, entry),
+			runtimePolicySessionKey: resolveDisplayRuntimePolicySessionKey({
+				agentId,
+				cfg,
+				key: row.key,
+				entry
+			}),
+			runtimeLabel: opts.json ? "" : resolveSessionRuntimeLabel({
+				cfg,
+				entry,
+				agentRuntime,
+				modelProvider: modelRef.provider,
+				classifyCliProvider
+			})
+		});
+	});
+	const hasMore = rows.length < totalCount;
+	if (opts.json) {
+		const multi = targets.length > 1;
+		const aggregate = aggregateAgents || multi;
+		writeRuntimeJson(runtime, {
+			path: aggregate || !targets[0] ? null : resolveSessionStoreDisplayPath(targets[0]),
+			stores: aggregate ? targets.map((target) => ({
+				agentId: target.agentId,
+				path: resolveSessionStoreDisplayPath(target)
+			})) : void 0,
+			allAgents: aggregateAgents ? true : void 0,
+			count: rows.length,
+			totalCount,
+			limitApplied: limit ?? null,
+			hasMore,
+			activeMinutes: activeMinutes ?? null,
+			sessions: rows.map(({ displayModelRef: modelRef, runtimeLabel, ...row }) => {
+				return Object.assign(row, {
+					totalTokens: resolveSessionTotalTokens(row) ?? null,
+					totalTokensFresh: resolveFreshSessionTotalTokens(row) !== void 0,
+					contextTokens: row.contextTokens ?? configContextTokens ?? null,
+					modelProvider: modelRef.provider,
+					model: modelRef.model
+				});
+			})
+		});
+		return;
+// --- dist/context-token-provenance-CO52ZGCb.mjs (fichier entier, 53 lignes)
+import { o as normalizeLowercaseStringOrEmpty } from "./string-coerce-CIXf7egm.mjs";
+//#region src/config/sessions/context-token-provenance.ts
+function resolvePositiveContextTokens(value) {
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
+}
+function isExactProducerSelection(params) {
+	const entryProvider = normalizeLowercaseStringOrEmpty(params.entry?.modelProvider);
+	const entryModel = normalizeLowercaseStringOrEmpty(params.entry?.model);
+	const entryHarness = normalizeLowercaseStringOrEmpty(params.entry?.agentHarnessId);
+	const currentProvider = normalizeLowercaseStringOrEmpty(params.provider);
+	const currentModel = normalizeLowercaseStringOrEmpty(params.model);
+	const currentHarness = normalizeLowercaseStringOrEmpty(params.agentHarnessId);
+	return Boolean(entryProvider && entryModel && entryHarness && currentProvider && currentModel && currentHarness && entryProvider === currentProvider && entryModel === currentModel && entryHarness === currentHarness);
+}
+/** Returns a persisted effective resolution only for its exact producing selection. */
+function resolveMatchingPersistedResolution(params) {
+	if (params.entry?.contextTokensSource !== "resolved-v1") return;
+	return isExactProducerSelection(params) ? resolvePositiveContextTokens(params.entry?.contextTokens) : void 0;
+}
+/** Returns persisted telemetry only when it belongs to the current producing selection. */
+function resolveTrustedSessionContextTokens(params) {
+	const contextTokens = resolvePositiveContextTokens(params.entry?.contextTokens);
+	if (contextTokens === void 0) return;
+	if (params.entry?.modelSelectionLocked === true) {
+		const entryProvider = normalizeLowercaseStringOrEmpty(params.entry?.modelProvider);
+		const entryModel = normalizeLowercaseStringOrEmpty(params.entry?.model);
+		const currentProvider = normalizeLowercaseStringOrEmpty(params.provider);
+		const currentModel = normalizeLowercaseStringOrEmpty(params.model);
+		if (entryProvider && currentProvider && entryProvider !== currentProvider || entryModel && currentModel && entryModel !== currentModel) return;
+		return contextTokens;
+	}
+	if (params.entry?.contextTokensSource !== "runtime") return;
+	return isExactProducerSelection(params) ? contextTokens : void 0;
+}
+/** Projects the context window owned by the current session selection. */
+function resolveProjectedSessionContextTokens(params) {
+	const resolvedContextTokens = resolvePositiveContextTokens(params.resolvedContextTokens);
+	const authoredContextTokens = resolvePositiveContextTokens(params.authoredContextTokens);
+	const trustedContextTokens = resolveTrustedSessionContextTokens(params);
+	const persistedResolution = resolvedContextTokens === void 0 && authoredContextTokens === void 0 ? resolveMatchingPersistedResolution(params) : void 0;
+	const currentContextTokens = authoredContextTokens !== void 0 ? resolvedContextTokens === void 0 ? authoredContextTokens : Math.min(authoredContextTokens, resolvedContextTokens) : trustedContextTokens !== void 0 && resolvedContextTokens !== void 0 ? Math.min(trustedContextTokens, resolvedContextTokens) : trustedContextTokens ?? resolvedContextTokens ?? persistedResolution;
+	return params.entry?.modelSelectionLocked === true ? trustedContextTokens ?? currentContextTokens : currentContextTokens;
+}
+/** Only publish a last-run prompt budget for the current session selection and cap. */
+function resolveProjectedSessionContextBudgetStatus(params) {
+	const status = params.entry?.contextBudgetStatus;
+	const provider = normalizeLowercaseStringOrEmpty(params.provider);
+	const model = normalizeLowercaseStringOrEmpty(params.model);
+	if (!status || !provider || !model || resolvePositiveContextTokens(params.contextTokens) === void 0 || params.entry?.liveModelSwitchPending || normalizeLowercaseStringOrEmpty(status.provider) !== provider || normalizeLowercaseStringOrEmpty(status.model) !== model || !status.sessionId?.trim() || status.sessionId !== params.entry?.sessionId || status.contextTokenBudget !== params.contextTokens) return;
+	return status;
+}
+//#endregion
+export { resolveProjectedSessionContextTokens as n, resolveTrustedSessionContextTokens as r, resolveProjectedSessionContextBudgetStatus as t };
+// --- dist/types-ByCc34Vn.mjs lignes 111-119
+function resolveSessionTotalTokens(entry) {
+	return asNonNegativeFiniteNumber(entry?.totalTokens);
+}
+function resolveFreshSessionTotalTokens(entry) {
+	const total = resolveSessionTotalTokens(entry);
+	if (total === void 0) return;
+	if (entry?.totalTokensFresh !== true || entry.totalTokensVersion !== 1) return;
+	return total;
+}
