@@ -12,6 +12,7 @@ import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} fro
 import {withAttachmentReferences} from "./runs";
 import {readAgentConfig,changeAgentConfig} from "./agentConfig";
 import {engineeringRead} from "./engineeringRead";
+import {learningForget, learningList, learningNotThis} from "./learning";
 import {cancelControlRequest} from "./controlActions";
 import {diagnosticRead} from "./diagnostic";
 import {automationDetail,changeAutomation} from "./automations";
@@ -294,6 +295,27 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if([...parameters.keys()].some(key=>!['offset','limit','revision'].includes(key))||['offset','limit','revision'].some(key=>parameters.getAll(key).length>1)||!/^\d{1,3}$/.test(offset)||Number(offset)>500||!/^\d{1,3}$/.test(limit)||Number(limit)<1||Number(limit)>100||(revision&&!/^[a-f0-9]{64}$/.test(revision))){writeJson(res,400,{success:false,state:"refused",receipt:null,error:"invalid_pagination"});return;}
     try{const value=await engineeringRead(Number(offset),Number(limit),revision);res.setHeader("Cache-Control","no-store");writeJson(res,value.state==="conflict"?409:200,value);}
     catch{writeJson(res,503,{success:false,state:"unavailable",receipt:null,error:"engineering_unavailable"});}
+    return;
+  }
+
+  if(routePath==="/learning/associations"||routePath.startsWith("/learning/")){
+    // 38 A2 : owner natif uniquement ; mutations avec l'en-tête propriétaire. Jamais d'approve (D1).
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){
+      writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;
+    }
+    res.setHeader("Cache-Control","no-store");
+    try{
+      if(routePath==="/learning/associations"){
+        if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+        const value=await learningList(requestUrl.searchParams);writeJson(res,value.state==="unavailable"?503:200,value);return;
+      }
+      const forget=/^\/learning\/associations\/([a-f0-9]{64})\/forget$/.exec(routePath);
+      if(!forget&&routePath!=="/learning/not-this"){writeJson(res,404,{success:false,state:"not_found",receipt:null,error:"not_found"});return;}
+      if(method!=="POST"){res.setHeader("Allow","POST");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      const value=forget?await learningForget(forget[1],await readJsonBody(req,1024)):await learningNotThis(await readJsonBody(req,1024));
+      writeJson(res,value.state==="not_found"?404:200,value);
+    }catch(error:any){const status=error?.statusCode===400?400:503;writeJson(res,status,{success:false,state:status===400?"refused":"unavailable",receipt:null,error:status===400?"invalid_learning_request":"learning_owner_unavailable"});}
     return;
   }
 
@@ -610,6 +632,9 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/runs/:runId",
         "/v1/sessions/:sessionId/archive",
         "/v1/sessions/:sessionId",
+        "/v1/learning/associations",
+        "/v1/learning/associations/:associationId/forget",
+        "/v1/learning/not-this",
         "/v1/runtime/start",
         "/v1/runtime/stop",
         "/v1/runtime/restart",
