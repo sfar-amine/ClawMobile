@@ -193,6 +193,12 @@ jobs:
           python3 ../installer/termux-lite/test-context-native-fixtures.py
           python3 ../installer/termux-lite/test-context-scale.py
           python3 ../installer/termux-lite/test-context-import.py
+      - name: Test health manager resource restart policy
+        run: |
+          python3 ../installer/termux-lite/test-health-resource-policy.py
+          python3 ../installer/termux-lite/test-gateway-memory-guard.py
+          python3 ../installer/termux-lite/test-owner-retention.py
+          node scripts/test-remote-bridge-retention.cjs
       - name: MCP context scopes and admitted client provenance
         run: |
           node scripts/test-mcp-context-provenance.cjs
