@@ -2,7 +2,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
 (async()=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'automation-contract-'));
  const old=process.env.OPENCLAW_STATE_DIR;process.env.OPENCLAW_STATE_DIR=root;
- const gateway=require('../dist/companion/openclawAgentClient');let jobs=[{id:'one',name:'Daily health',description:'Check scheduler',enabled:true,state:{nextRunAtMs:1800000000000}},{id:'bank',name:'Bank confirmation',enabled:true}],effects=0,uncertain=false,listUnavailable=false;
+ require('../dist/modelFastPath').runModelFastPath=async(text,options)=>{assert.equal(options.checkOnly,true);return {status:'miss',decision:{version:2,type:'REASON',risk:text==='synthetic guarded action'?'transaction':'read'}}};
+ const gateway=require('../dist/companion/openclawAgentClient');let jobs=[{id:'one',payload:{kind:'agentTurn',message:'Read scheduler health'},name:'Daily health',description:'Check scheduler',enabled:true,state:{nextRunAtMs:1800000000000}},{id:'bank',payload:{kind:'agentTurn',message:'synthetic guarded action'},name:'Bank confirmation',enabled:true}],effects=0,uncertain=false,listUnavailable=false;
  gateway.callOpenClawGateway=async(method,params)=>{
   if(method==='cron.list'&&listUnavailable)throw Error('private scheduler error');
   if(method==='cron.list')return {jobs:structuredClone(jobs)};
@@ -22,7 +23,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
  try{
   const {automationNotificationProjection}=require('../dist/companion/control');
   const notification=automationNotificationProjection({items:[{id:'scheduled:one',kind:'scheduled',automationId:'one',enabled:jobs[0].enabled,togglable:false},{id:'incidents',kind:'incident',enabled:true,togglable:false}]},jobs);
-  assert.equal(notification.items[0].togglable,true);assert.equal(notification.items[1].togglable,false);
+  assert.equal(notification.items[0].togglable,false);assert.equal(notification.items[0].reason,'action_guard_not_qualified');assert.equal(notification.items[1].togglable,false);
   assert.equal(notification.activationRoute,'/v1/automations/{automationId}/enable|disable');
   const detail=await request('/v1/automations/one');assert.equal(detail.status,200);assert.equal(detail.body.runs.length,10);assert.equal(detail.body.what,'Check scheduler');assert.equal(detail.body.nextRunAt,new Date(1800000000000).toISOString());assert.ok(!JSON.stringify(detail).includes('never-return'));
   assert.equal((await request('/v1/automations/%')).status,400);assert.equal((await request('/v1/automations/missing')).status,404);
@@ -38,11 +39,11 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   listUnavailable=false;assert.equal((await api.changeAutomation('one','run',{operationId:'retry-preflight'})).state,'accepted');effects--;
   const afterRetry=await fs.readFile(ledger,'utf8');
   const missing=await request('/v1/automations/later/run','POST',{operationId:'retry-later'},owner);assert.equal(missing.body.state,'not_found');assert.equal(missing.body.error,'automation_not_found');assert.equal(await fs.readFile(ledger,'utf8'),afterRetry);
-  jobs.push({id:'later',name:'Reminder',enabled:true});assert.equal((await api.changeAutomation('later','run',{operationId:'retry-later'})).state,'accepted');effects--;
+  jobs.push({id:'later',name:'Reminder',enabled:true,payload:{kind:'agentTurn',message:'Read reminder'}});assert.equal((await api.changeAutomation('later','run',{operationId:'retry-later'})).state,'accepted');effects--;
   for(const word of ['topnet','maxit','clictopay','termux-notification','recharge-carte-mobile','topup-ooredoo','facture-d17']){
-   const protectedJob={id:word,name:word,enabled:true};jobs.push(protectedJob);
-   assert.equal(automationNotificationProjection({items:[{kind:'scheduled',automationId:word}]},jobs).items[0].reason,'protected_automation');
-   const snapshot=await fs.readFile(ledger,'utf8');assert.equal((await api.changeAutomation(word,'run',{operationId:'guard-'+word})).state,'blocked');assert.equal(await fs.readFile(ledger,'utf8'),snapshot);
+   const protectedJob={id:word,name:word,enabled:true,payload:{kind:'agentTurn',message:'Read '+word+' policy'}};jobs.push(protectedJob);
+   assert.equal(automationNotificationProjection({items:[{kind:'scheduled',automationId:word}]},jobs).items[0].reason,'action_guard_not_qualified');
+   assert.equal((await api.changeAutomation(word,'run',{operationId:'guard-'+word})).state,'accepted');effects--;
   }
   const blocked=await request('/v1/automations/bank/run','POST',{operationId:'bank-guard'},owner);assert.equal(blocked.status,409);assert.equal(blocked.body.state,'blocked');assert.equal(effects,1);
   const parallel=await Promise.all(Array.from({length:5},()=>api.changeAutomation('one','run',{operationId:'run-once'})));assert.equal(effects,2);assert.ok(parallel.some(x=>x.state==='accepted'));assert.ok(parallel.every(x=>['accepted','indeterminate'].includes(x.state)));
