@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Wire R22 owner automation history and asynchronous scheduler header through existing ControlReadPool",
-  "reason": "Real S24 fixtures PR82 retained; runtime9847255 already merged. The limit50 collector now replays Claude measured3343ms (PR79 comment6102102903), rather than the faster limit20 timing. Full current CI is pending this resumption.",
+  "reason": "Real S24 fixtures PR #82 retained; runtime 363a6b8e integrated by normal merge. The limit50 collector replays Claude measured 3343 ms (PR #79 comment 6102102903), while the sanitized limit20 response remains unchanged. Local tests do not qualify deployment.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
@@ -22,13 +22,13 @@
   "tests": [
     {
       "name": "automation-runs-real-http-and-pool",
-      "status": "pending",
-      "evidence": "Pool/HTTP timing aligned to actual limit50 CLI measurement3343ms; sanitized response remains existing PR82 limit20 fixture, not invented limit50 capture. Current-head validation pending."
+      "status": "passed",
+      "evidence": "npm ci, Node 20 build, test-automation-runs-preparation.cjs and test-automation-runs-http.cjs passed after runtime 363a6b8e merge. Injected limit50 latency 3343 ms; real PR #82 limit20 response unchanged, not an invented limit50 capture."
     },
     {
       "name": "complete-current-ci-workflow",
       "status": "pending",
-      "evidence": "Full current .github/workflows/ci.yml replay pending; previous CI results belong to earlier heads and are not asserted for this revision."
+      "evidence": "Full current .github/workflows/ci.yml replay follows this note commit; previous-head results are historical. Exact final SHA and N/N reported in PR #79."
     }
   ],
   "documentation": [
