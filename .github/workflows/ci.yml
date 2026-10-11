@@ -34,6 +34,8 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: Playbooks activation links ignored runtime dependencies
+        run: bash ../installer/termux-lite/test-activate-ui-playbooks.sh
       - name: K2 owner access-change receipts without real sends
         run: python3 ../installer/termux-lite/test-k2-owner-message.py
       - name: Test canonical context event surfaces
