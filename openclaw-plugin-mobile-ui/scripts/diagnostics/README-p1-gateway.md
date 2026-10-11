@@ -1,6 +1,6 @@
 # Diagnostic P1 du Gateway public isolé
 
-Ce diagnostic manuel complète la matrice `scripts/test-owner-turn-admission.cjs`, déjà exécutée par la CI Node 20. Le Gateway public OpenClaw 2026.9.6 exige Node 24 ou plus ; ce diagnostic utilise explicitement Node 26. Il ne constitue ni une capture S24 ni une recette Android/biométrie. Aucun résultat de ce diagnostic n'est ajouté au décompte des étapes CI.
+Cette intégration complète la matrice `scripts/test-owner-turn-admission.cjs`, déjà exécutée par la CI Node 20. Le Gateway public OpenClaw 2026.9.6 exige Node 24 ou plus ; cette intégration utilise explicitement Node 26.11.1. Le job `p1-isolated-gateway` de `.github/workflows/ci.yml` rejoue ces assertions avec le paquet public OpenClaw 2026.9.6 vérifié par SHA256 `1a7355691bc0e605222ba818f1f72c1787253c78dfeb0df6be2086ec73b71e63`, installé sans scripts de cycle de vie. Il ne constitue ni une capture S24 ni une recette Android/biométrie. Les étapes réelles de ce job entrent dans le décompte CI ; les six assertions internes ne sont pas six étapes supplémentaires.
 
 Après `npm run build`, exécuter avec le paquet public installé, le binaire public Node 26 et un dossier de sortie **nouveau** :
 
