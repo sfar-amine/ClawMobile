@@ -16,7 +16,9 @@ const row=(i=0)=>({jobId:'fixture-job',action:'finished',ts:10000+i,runAtMs:8000
  assert.equal(page.items[0].startedAt,'1970-01-01T00:00:08.000Z');assert.equal(page.items[1].startedAt,null);assert.equal(page.items[1].durationMs,null);assert.equal(page.items[1].status,'unknown');assert(!JSON.stringify(page).includes(secret));assert.equal(page.items[0].error,'Erreur d’exécution signalée');
  assert.equal(projectCronRuns({entries:Array.from({length:200},(_,i)=>row(i))},'fixture-job',50).items.length,50);
  for(const entries of [[{...row(),jobId:'other'}],[{...row(),action:'started'}],[{...row(),ts:1}],Array.from({length:201},()=>row())])assert.throws(()=>projectCronRuns({entries},'fixture-job',20),/automation_history_unavailable/);
- let calls=0;const captured=require('../fixtures/s24-2026-10-10/r22/cron.runs.context-sync.json');const latency=captured._capture.latencyMs;
+ // S24 limit:50 measured 3343/3326 ms by Claude (PR79 comment6102102903),
+ // independent of the synthetic projection rows used by this pool-boundary test.
+ let calls=0;const latency=3343;
  const reader=new AutomationRunsPreparation(async(query,signal)=>{calls++;assert.deepEqual(query,{id:'fixture-job',limit:50});assert.equal(signal.aborted,false);await new Promise(r=>setTimeout(r,latency));return {entries:[row()]};});
  const start=performance.now();const responses=await Promise.all(Array.from({length:20},()=>reader.read('fixture-job',new URLSearchParams())));assert.equal(calls,1);assert(performance.now()-start>=latency-100);assert.equal(reader.stats().active,0);responses[0].items[0].status='mutated';assert.equal((await reader.read('fixture-job',new URLSearchParams())).items[0].status,'ok');assert.equal(calls,1);
  // Inject only the cache monotonic clock; no thirty-second wait or fictional route latency claim.

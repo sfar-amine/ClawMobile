@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Wire R22 owner automation history and asynchronous scheduler header through existing ControlReadPool",
-  "reason": "Claude PR79 reply and merged real S24 fixture PR82 a9f08e5 confirm cron.status, cron.runs, task_runs and schema; app66 contract verified read-only. Base d142a9f merged preserving CI.",
+  "reason": "Real S24 fixtures PR82 retained; runtime9847255 already merged. The limit50 collector now replays Claude measured3343ms (PR79 comment6102102903), rather than the faster limit20 timing. Full current CI is pending this resumption.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
@@ -22,13 +22,13 @@
   "tests": [
     {
       "name": "automation-runs-real-http-and-pool",
-      "status": "passed",
-      "evidence": "Build exit0; pool and real fixture HTTP tests exit0: captured 1659ms cron.runs and2570ms cron.status, concurrent limits share job_id, 6s HTTP deadline, 30s TTL, unknown/empty/error, closed fields/browser guards, SQLite17 jobs/async header, 1000jobs/200entries/25cache keys."
+      "status": "pending",
+      "evidence": "Pool/HTTP timing aligned to actual limit50 CLI measurement3343ms; sanitized response remains existing PR82 limit20 fixture, not invented limit50 capture. Current-head validation pending."
     },
     {
       "name": "complete-current-ci-workflow",
-      "status": "passed",
-      "evidence": "Full ci.yml run after b40b867 merge: CI_LOCAL_OK exit0 (/tmp/r22-fresh-ci.log), all steps including R22 preserved. Base d142a9f then merged by union, rebuild and every newly introduced R20 CI test passed (file boundaries/Gateway/HTTP/limits/acceptance), R22 both tests passed again. No deployment."
+      "status": "pending",
+      "evidence": "Full current .github/workflows/ci.yml replay pending; previous CI results belong to earlier heads and are not asserted for this revision."
     }
   ],
   "documentation": [

@@ -3,6 +3,10 @@ const assert=require('node:assert/strict'),http=require('node:http'),path=requir
 const base='../fixtures/s24-2026-10-10/';
 const captured=name=>require(base+'r22/'+name+'.json');
 const status=captured('cron.status'),history=captured('cron.runs.context-sync'),empty=captured('cron.runs.empty'),unknown=captured('cron.runs.unknown-id');
+// Claude measured the actual limit:50 CLI on S24: 3343/3326 ms, PR79 comment6102102903.
+// Replay the slower measurement with the existing sanitized limit:20 response shape.
+// This is a measured-delay injection, not a fabricated limit:50 response capture.
+const limit50LatencyMs=3343;
 const jobs=JSON.parse(execFileSync('python3',['-c','import sqlite3,json,sys; c=sqlite3.connect("file:"+sys.argv[1]+"?mode=ro",uri=True); print(json.dumps([dict(json.loads(j),state=json.loads(s)) for j,s in c.execute("SELECT job_json,state_json FROM cron_jobs ORDER BY sort_order")]))',path.join(__dirname,base,'r5-bis/cron-state.sqlite')],{encoding:'utf8'}));
 const budget=JSON.parse(execFileSync('python3',['-c','import runpy,json,sys; print(json.dumps(dict(runpy.run_path(sys.argv[1])["READS"])))',path.join(__dirname,'../../installer/termux-lite/companion-acceptance.py')],{encoding:'utf8'}))['/automations/'+history._capture.params.id+'/runs?limit=20']*1000;
 const client=require('../dist/companion/openclawAgentClient'),counts={};let fail=false;
@@ -12,7 +16,7 @@ client.callOpenClawGateway=async(method,params,options)=>{
  if(method==='cron.list')return {jobs};
  const fixture=method==='cron.status'?status:params.id===empty._capture.params.id?empty:history;
  if(method==='cron.runs'){assert.equal(params.limit,50);if(params.id===unknown._capture.params.id)throw new Error(JSON.stringify(unknown.response));if(fail)throw new Error('private owner@example.invalid');}
- await new Promise(r=>setTimeout(r,fixture._capture.latencyMs));return structuredClone(fixture.response);
+ await new Promise(r=>setTimeout(r,method==='cron.runs'&&fixture===history?limit50LatencyMs:fixture._capture.latencyMs));return structuredClone(fixture.response);
 };
 (async()=>{
  const {route}=require('../dist/companion/server'),{completeAutomationScheduler,schedulerHeader}=require('../dist/companion/automationRunsPreparation');
@@ -21,7 +25,7 @@ client.callOpenClawGateway=async(method,params,options)=>{
  try{
   const query='/v1/automations/'+history._capture.params.id+'/runs';const began=performance.now();
   const results=await Promise.all(Array.from({length:20},(_,i)=>request(query+'?limit='+(i%2?20:5))));
-  assert.equal(counts['cron.runs'],1);assert(performance.now()-began>=history._capture.latencyMs-50);assert(performance.now()-began<budget);
+  assert.equal(counts['cron.runs'],1);assert(performance.now()-began>=limit50LatencyMs-50);assert(performance.now()-began<budget);
   assert.equal(results[0].value.items.length,5);assert.equal(results[1].value.items.length,20);
   const row=results[1].value.items[0],real=history.response.entries[0];assert.deepEqual(Object.keys(row),['startedAt','finishedAt','durationMs','status','error']);assert.equal(row.startedAt,new Date(real.runAtMs).toISOString());assert.equal(row.finishedAt,new Date(real.ts).toISOString());assert.equal(row.durationMs,real.durationMs);
   assert(!/summary|diagnostics|sessionId|jobName|owner@example|storePath|sqlitePath/.test(JSON.stringify(results)));
