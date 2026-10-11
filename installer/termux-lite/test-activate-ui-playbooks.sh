@@ -17,7 +17,8 @@ echo node_modules/ > .gitignore
 echo '{"type":"module","dependencies":{"tough-cookie":"^5"}}' > billing/direct-runtime/package.json
 git add -A && git commit -qm base
 mkdir -p billing/direct-runtime/node_modules/tough-cookie
-echo '{"name":"tough-cookie","version":"5.0.0"}' > billing/direct-runtime/node_modules/tough-cookie/package.json
+# Real tough-cookie/parse5 declare an "exports" map that hides package.json from require.resolve.
+echo '{"name":"tough-cookie","version":"5.0.0","exports":{".":"./index.js"}}' > billing/direct-runtime/node_modules/tough-cookie/package.json
 bash "$here/activate-ui-playbooks.sh" HEAD > "$tmp/out" 2>&1 || { cat "$tmp/out" >&2; exit 1; }
 sha=$(git rev-parse HEAD)
 grep -q "ACTIVATED $sha" "$tmp/out"
