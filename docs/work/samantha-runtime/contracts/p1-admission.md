@@ -39,15 +39,15 @@ Depuis le correctif P1, les tours texte de l'app arrivent au modèle avec `sende
    - le nonce, vérifié **après** la signature : cache mémoire de 2 048 entrées, TTL de 65 s, refus si le cache est plein.
 
    Tout échec donne un tour non-owner. La réponse porte `ownerAdmission: {owner, reason?}`.
-4. **Ticket opaque.** L'admission produit un objet mémoire (WeakSet), lié au `clientRunId`, à la session, à l'époque d'enrôlement et à une durée de remise de 60 s. Il n'est ni sérialisable ni restaurable depuis un journal. `turnAdmission.isCurrent` est rejoué après le chargement asynchrone du SDK, juste avant l’appel à sa façade publique. Ce point précède son bootstrap/handshake interne : il ne prouve pas une revérification immédiatement avant l’ACK Gateway.
+4. **Ticket opaque.** L'admission produit un objet mémoire (WeakSet), lié au `clientRunId`, à la session, à l'époque d'enrôlement et à une durée de remise de 60 s. Il n'est ni sérialisable ni restaurable depuis un journal. Le client public GatewayClient revalide le ticket après résolution de configuration/SecretRef et, après HELLO, immédiatement avant request synchrone. Les scopes effectivement accordés et la méthode agent sont vérifiés. Une seule connexion et un seul envoi, puis fermeture canonique. Remote/TLS/URL overrides et SecretRef irrésolu sont refusés, sans repli CLI d’un tour initialement admis. Après émission, le résultat est indéterminé jusqu’à réception : aucun second envoi ni repli. Après acceptation, l’effet peut se terminer malgré révocation ; reçu conservé. Aucune annulation app n’est livrée.
 5. **Deux connexions.** Seul un ticket courant ouvre la connexion admin (`ownerTurnGateway.submitOwnerTurn`) :
-   - elle passe par `callGatewayFromCli` du plugin-sdk OpenClaw 2026.9.6 installé (bootstrap, SecretRef et handshake du propriétaire OpenClaw) ;
+   - elle passe par `GatewayClient` du plugin-sdk OpenClaw 2026.9.6, avec les propriétaires publics config/SecretRef/port et le handshake canonique ;
    - scopes `operator.admin` et `operator.write` ;
    - méthode `agent` uniquement, une connexion par tour, fermée après la réponse.
 
    Tous les autres tours gardent le CLI canonique en `operator.write` : non admis, skills, apprentissage, voix. Le champ `authority` (contexte canonique) ne choisit jamais la connexion. Le pool Control P0-1 (#68) n'est pas touché et garde `agent` et `chat.send` hors de son chemin.
 6. **Échecs.**
-   - SDK absent ou version différente **avant envoi** : le tour part en non-owner sur le CLI (`write_cli_owner_unavailable`).
+   - SDK absent/version différente/cible non prise en charge/credential non résolu **avant envoi** : le tour initialement admis est refusé, sans repli CLI.
    - Erreur **après envoi** : run `failed`, sans repli CLI ni rejeu.
    - Rejeu exact : refusé par le nonce, puis dédupliqué par `clientRunId` (aucun second tour).
 7. **Heuristique loopback retirée de `/v1/runs`.** Le drapeau de compatibilité `CLAWMOBILE_RUNS_LEGACY_LOOPBACK_CONTEXT=1` est **OFF par défaut**. Il ne rend que le contexte canonique (prompt) aux tours loopback non admis, jamais la connexion admin. Il ne sert qu'à la fenêtre de déploiement, avant l'enrôlement.
@@ -58,7 +58,7 @@ Depuis le correctif P1, les tours texte de l'app arrivent au modèle avec `sende
 - **Révocation par l'opérateur** : supprimer `owner-turn-admission.json` ; l'effet est immédiat, le fichier est relu à chaque vérification.
 - **Effet de la révocation** :
   - les tickets émis ne sont plus courants ;
-  - un ticket devenu invalide avant la délégation au SDK part en non-owner ; la fenêtre interne bootstrap/handshake avant ACK reste une limite non qualifiée ;
+  - un ticket devenu invalide pendant bootstrap/handshake est refusé avant émission ; aucun repli de ce tour initialement admis ;
   - un tour déjà remis au Gateway se termine avec le bit figé à l'acceptation, sans annulation forcée ;
   - les tours suivants sont non-owner.
 - `/reset` via `agent` exige admin : seul un tour admis l'atteint.
@@ -101,7 +101,7 @@ Le revert de la PR restaure le comportement précédent : non-owner partout, con
    - Un tour non admis ignore une clarification admise : il ne la reprend pas et ne l'annule pas.
    - Le propriétaire existant ne reprend que la clarification du dernier run de la session. Un tour tiers intercalé la masque donc (refus fermé).
 4. **Signature `callGatewayFromCli`.** Vérifiée en lecture seule sur le S24 (`claw_exec` p1adm-20261011-r03) :
-   - le Companion appelle `callGatewayFromCli(method, opts, params, extra)` ;
+   - la capture historique de l’ancienne façade décrit `callGatewayFromCli(method, opts, params, extra)` ; l’implémentation actuelle utilise GatewayClient public, qualifié séparément ;
    - `extra.scopes`, `extra.signal`, `extra.expectFinal` et `extra.timeoutMs` sont repris tels quels ;
    - `callGatewayCli` honore `opts.scopes` ;
    - empreintes identiques au paquet npm 2026.9.6.
@@ -140,7 +140,7 @@ Ensuite, Amine s'enrôle une fois. L'APK #183 installé à 14:00 envoie déjà l
 
 Le correctif `28108204` ferme une révocation pendant l’await d’import du SDK public. La matrice d’admission locale passe 54/54, avec bootstrap canonique et édition/relecture verts. Le test reste inscrit dans l’étape CI P1 existante.
 
-Un Gateway public 2026.9.6 local, avec profil/configuration/état/ports loopback et jeton jetables, a réellement exécuté un outil synthétique : owner=true pour le ticket natif local, false sans preuve, true pour un tour accepté avant révocation puis false au tour suivant. La garde hôte `assertInvocationCurrent` était appelée avant chaque effet ; elle laisse finir le tour accepté malgré la révocation Companion. Cette mesure ne constitue ni une recette Android/biométrie ni une capture S24. Annulation SDK admin et CLARIFY HTTP sont qualifiées localement dans la fixture `openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/`. L’annulation app et la fenêtre avant ACK restent bloquantes ; aucune CI entière finale de reprise n’est revendiquée.
+Un Gateway public 2026.9.6 local, avec profil/configuration/état/ports loopback et jeton jetables, a réellement exécuté un outil synthétique : owner=true pour le ticket natif local, false sans preuve, true pour un tour accepté avant révocation puis false au tour suivant. La garde hôte `assertInvocationCurrent` était appelée avant chaque effet ; elle laisse finir le tour accepté malgré la révocation Companion. Cette mesure ne constitue ni une recette Android/biométrie ni une capture S24. Annulation SDK admin et CLARIFY HTTP sont qualifiées localement dans la fixture `openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/`. Cette preuve antérieure portait la façade. La nouvelle preuve public-gateway-client-dispatch.json passe six assertions sur GatewayClient, y compris révocation au HELLO avant émission sans agent/outil. L’annulation app reste non livrée et aucune CI entière finale n’est revendiquée ici.
 
 ## Deux entrées d’effet : ticket courant, jamais `caller` du corps
 

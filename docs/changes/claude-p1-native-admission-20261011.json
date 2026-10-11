@@ -3,9 +3,9 @@
   "id": "claude-p1-native-admission-20261011",
   "origin": "chat",
   "kind": "repair",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "P1 reprise46 : ticket courant pour résolution et effets déterministes/voix, preuve Gateway public isolé et limites SDK avant ACK explicites.",
+  "summary": "P1 reprise46 : admission courante pour effets/voix et émission Gateway public locale, sans rejeu owner ni repli ; preuves isolées réelles.",
   "reason": "Les tours app arrivent avec senderIsOwner:false ; l'ancienne admission owner reposait sur le loopback seul (reproductible par tout processus local). Contrat playbooks 43 v2, revue 6108649302.",
   "files": [
     "openclaw-plugin-mobile-ui/src/companion/ownerTurnAdmission.ts",
@@ -35,13 +35,18 @@
     "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
     "openclaw-plugin-mobile-ui/scripts/test-voice-understanding.cjs",
     "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/README.md",
-    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/gateway-owner-revocation-cancel-clarify.json"
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/gateway-owner-revocation-cancel-clarify.json",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/owner-turn-public-sdk.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-isolated.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-clarify.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/README-p1-gateway.md",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/public-gateway-client-dispatch.json"
   ],
   "tests": [
     {
       "name": "P1 admission adverse",
       "status": "passed",
-      "evidence": "scripts/test-owner-turn-admission.cjs : 64/64 cas ciblés locaux verts, dont import SDK révoqué, EXECUTE non admis/nonce invalide/révocation pendant résolution/proof valide, capability voice refusée avant résolution, clarification liée session sans grant. Étape CI P1 existante, aucune étape retirée. Log b46-p1-effects-targeted.log."
+      "evidence": "scripts/test-owner-turn-admission.cjs : 73/73 ciblés locaux verts, dont bootstrap/handshake/expiration/scopes/cibles refusées et envoi unique ; log b46-p1-public-client-targeted-r4.log. Étape CI P1 existante conservée."
     },
     {
       "name": "Édition-relecture avec admission",
@@ -61,7 +66,7 @@
     {
       "name": "Gateway public isolé local",
       "status": "passed",
-      "evidence": "Cinq vérifications réelles passent ; fixture local-isolated-p1-2026-10-11/gateway-owner-revocation-cancel-clarify.json avec checksums des scripts/preuve. Annulation SDK admin, pas recette app/S24. Avant ACK reste non qualifié."
+      "evidence": "Nouvel adapter GatewayClient : 6/6 assertions réelles sous Node26.11.1, sortie0 ; public-client-run-02/proof.json, fixture public-gateway-client-dispatch.json. HELLO révoqué avant agent => requestSent:false, zéro invocation. Intégration inscrite dans job p1-isolated-gateway, SDK public2026.9.6 SHA256 vérifié. Aucun décompte entier revendiqué ici."
     }
   ],
   "documentation": [
@@ -75,7 +80,7 @@
   },
   "architecture": {
     "changed": true,
-    "reason": "Frontière d'admission dans le Companion ; réutilise confirmations (biométrie), le fichier d'état Companion et callGatewayFromCli d'OpenClaw ; aucun store, routeur, scheduler ni démon."
+    "reason": "Admission native Companion ; confirmations et état Companion existants, GatewayClient/config/SecretRef/port publics OpenClaw, aucun nouveau store/service/routeur."
   },
   "mcp_owner_parity": {
     "tools": {
@@ -90,10 +95,9 @@
   },
   "rollback": "Revert de la PR : retour au non-owner partout et au contexte loopback ; fichier d'enrôlement ignoré.",
   "limitations": [
-    "App #186 fusionnée dans sa branche de base orbe ; APK signé, installation et biométrie S24 réservés à Claude.",
-    "La façade publique SDK 2026.9.6 ne transmet pas assertDispatchCurrent/onAccepted : la revérification ferme l'import asynchrone du Companion, sans prouver la révocation pendant bootstrap/handshake avant ACK.",
-    "Gateway public isolé : cinq vérifications owner/non-owner, révocation après ACK, annulation admin et CLARIFY passent. Le tour accepté garde owner et son effet malgré révocation Companion ; annulation admin ferme la garde avant effet. Une autre connexion write ne peut pas annuler ce run, aucune annulation app qualifiée.",
-    "Processus de l'UID Termux restent équivalents owner (jeton Gateway) ; fenêtre de rejeu ≤ 30 s après redémarrage neutralisée par déduplication clientRunId.",
-    "Publication conditionnée à CI entière locale verte au SHA exact et revue des limites de remise Gateway ; aucun déploiement Codex."
+    "Le client public GatewayClient revalide le ticket après résolution de configuration/SecretRef et, après HELLO, immédiatement avant request synchrone. Les scopes effectivement accordés et la méthode agent sont vérifiés. Une seule connexion et un seul envoi, puis fermeture canonique. Remote/TLS/URL overrides et SecretRef irrésolu sont refusés, sans repli CLI d’un tour initialement admis. Après émission, le résultat est indéterminé jusqu’à réception : aucun second envoi ni repli. Après acceptation, l’effet peut se terminer malgré révocation ; reçu conservé. Aucune annulation app n’est livrée.",
+    "APK signé, installation et biométrie S24 réservés à Claude ; ce diagnostic local ne les qualifie pas.",
+    "Publication conditionnée à CI entière locale verte au SHA exact et revue Claude ; aucun déploiement Codex.",
+    "Les processus disposant du jeton Gateway restent équivalents owner ; aucun secret S24 utilisé par ce lot."
   ]
 }
