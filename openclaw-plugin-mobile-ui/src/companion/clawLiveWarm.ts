@@ -64,6 +64,10 @@ export class ClawLiveWarmCore {
   private resumeHandle="";
   private resumeHandleAt=0;
   private historyLoaded=false;
+  /** Legacy (v1) turn left open by the owner: an unanswered tool call or an unfinished turn poisons the shared provider
+   *  session (S24 11/10: the next voice launch got an empty turnComplete for real speech). */
+  private legacyOpenTurn=false;
+  private legacyPendingTools=new Set<string>();
   private localClients=new Set<WebSocket>();
   private protocols=new Map<WebSocket,VoiceTurnProtocol>();
   private clientMeta=new Map<WebSocket,LocalMeta>();
@@ -163,9 +167,11 @@ export class ClawLiveWarmCore {
     this.trace("t01");
     this.localClients.add(ws);this.clientMeta.set(ws,meta);this.touch();
     ws.once("close",(code:number)=>{
-      const rewarm=meta.protocol===2&&code===1000&&this.providerReady&&!this.stopped;
+      const legacyStale=meta.protocol!==2&&(this.legacyOpenTurn||this.legacyPendingTools.size>0);
+      const rewarm=(meta.protocol===2||legacyStale)&&code===1000&&this.providerReady&&!this.stopped;
       this.localClients.delete(ws);this.protocols.get(ws)?.close();this.protocols.delete(ws);this.clientMeta.delete(ws);this.touch();
       if(meta.protocol===2)this.resetProvider("v2_owner_detached");
+      else if(legacyStale)this.resetProvider("legacy_owner_detached_mid_turn");
       if(this.telemetrySid)void this.telemetry.closeSession(this.telemetrySid);
       this.telemetrySid="";this.telemetryTurns.clear();
       // Fresh unbound generation: old Voice turns/history never survive detach.
@@ -294,6 +300,7 @@ export class ClawLiveWarmCore {
           for(const client of this.localClients)this.sendReady(client,historyRequired);
           resolve();return;
         }
+        this.trackLegacyProvider(m);
         this.broadcast(raw);
       });
       ws.on("close",()=>{
@@ -323,10 +330,20 @@ export class ClawLiveWarmCore {
       if(m?.warmControl?.historyLoaded===true){this.historyLoaded=true;return;}
       if(m?.warmControl?.touch===true)return;
       const protocol=this.protocols.get(_client);if(protocol){protocol.receive(m);return;}
+      this.trackLegacyClient(m);
     }catch{if(version2){_client.close(1008,"invalid_voice_message");return;}}
     if(this.providerReady&&this.provider?.readyState===WebSocket.OPEN)this.provider.send(raw);
   }
 
+  private trackLegacyClient(m:any){
+    if(m?.realtimeInput?.activityStart||m?.clientContent?.turnComplete===true)this.legacyOpenTurn=true;
+    for(const r of m?.toolResponse?.functionResponses||[])this.legacyPendingTools.delete(String(r?.id||""));
+  }
+  private trackLegacyProvider(m:any){
+    for(const c of m?.toolCall?.functionCalls||[])if(this.legacyPendingTools.size<64)this.legacyPendingTools.add(String(c?.id||""));
+    for(const id of m?.toolCallCancellation?.ids||[])this.legacyPendingTools.delete(String(id));
+    if(m?.serverContent?.turnComplete===true)this.legacyOpenTurn=false;
+  }
   private broadcast(raw:string){
     for(const c of this.localClients)if(c.readyState===WebSocket.OPEN) {
       const protocol=this.protocols.get(c);
@@ -361,7 +378,7 @@ export class ClawLiveWarmCore {
     for(const cancel of this.pendingConnects)cancel();
     this.pendingConnects.clear();this.connectPromise=null;
     if(this.reconnectTimer)clearTimeout(this.reconnectTimer);this.reconnectTimer=null;if(this.setupTimer)clearTimeout(this.setupTimer);this.setupTimer=null;
-    const p=this.provider;this.provider=null;this.providerReady=false;
+    const p=this.provider;this.provider=null;this.providerReady=false;this.legacyOpenTurn=false;this.legacyPendingTools.clear();
     if(!preserveResume){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;this.conversationId="";this.understanding.clear();}
     this.state="cold";this.stage=preserveResume&&this.hasValidResumeHandle()?"resumable_idle":"idle";this.resumedLast=false;this.reconnectAttempts=0;
     try{p?.close();}catch{}
