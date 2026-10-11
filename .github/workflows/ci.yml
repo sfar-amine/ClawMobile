@@ -35,6 +35,8 @@ jobs:
 
       - name: Test canonical context event surfaces
         run: python3 ../installer/termux-lite/test-context-surfaces.py
+      - name: Test canonical app and authenticated Bixby bootstrap
+        run: node scripts/test-canonical-agent-bootstrap.cjs
 
       - name: Run trace induction tests
         run: npm run test:trace-induction
@@ -164,6 +166,9 @@ jobs:
         run: |
           node scripts/test-ui-recette-server.cjs
           python3 scripts/test-acceptance-email-leak.py
+
+      - name: Run UI recette 2 server fixes on S24 captures (agent thinking defaults, providers after a failed refresh, usage kept)
+        run: node scripts/test-recette2-server.cjs
 
       - name: Run memory control and atomic export import contracts
         run: |
