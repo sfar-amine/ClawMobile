@@ -1,0 +1,82 @@
+{
+ "_capture": {
+  "window": {
+   "from": "2026-10-10T23:43:35Z",
+   "to": "2026-10-11T00:00:35Z",
+   "samples": 18,
+   "cadenceSeconds": 60
+  },
+  "mode": "collecte ponctuelle en lecture seule par Claude (aucun journal/timer/store créé) : ~/.openclaw/health/current.json, autonomous-engineering/maintenance-last.json, health/transaction-health.json, health/scheduler-health.json, mtime des *.heartbeat, et GET /v1/control/health?contract=2 au même instant",
+  "controlSamples": "control[] : seconde série (1/min, à partir de 23:49:44Z) avec data.healthy/total/status et composants non sains, ajoutée parce que samples[].control ne lisait pas ces clés",
+  "historyFound": "aucun historique de verdicts n'existe : current.json est réécrit à chaque cycle de health-manager ; health.log ne journalise que les services (whatsapp, adb...), pas les capabilities control_plane.maintenance / transactions.runtime",
+  "sanitized": "incident_id hachés ; signatures d'erreur hachées ; aucun texte d'erreur ni contenu",
+  "layout": "samples/control : columns puis une ligne par relevé ; heartbeats.maxAge_s = âge max des 6 fichiers *.heartbeat"
+ },
+ "samples": {
+   "columns": ["sample", "at", "verdict.generated_at", "verdict.healthy_ready", "verdict.degraded_stale_unverified", "verdict.overall", "cap.control_plane.maintenance.state", "cap.control_plane.maintenance.reason", "cap.transactions.runtime.state", "cap.transactions.runtime.reason", "otherNonHealthyCaps", "verdict.maintenance.state", "verdict.maintenance.semantic_state", "maintenance_last.checked_at", "maintenance_last.age_s", "maintenance_last.elapsed_ms", "transaction_health.checked_at", "transaction_health.age_s", "transaction_health.status", "scheduler_health.age_s", "heartbeats.maxAge_s", "control.dataRevision[:12]", "control.sourceCheckedAt", "control.freshness", "control.deliveryMode"],
+   "rows": [
+    [1,"2026-10-10T23:43:35Z",1791675784,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791675617.740723,197.9,104447,1791675710.95396,104.7,"degraded",197.7,12.3,"7ccb2fbfbc0c","2026-10-10T23:43:04+00:00","fresh","generated"],
+    [2,"2026-10-10T23:44:35Z",1791675862,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791675617.740723,257.9,104447,1791675710.95396,164.7,"degraded",257.7,13.4,"7b72c3520659","2026-10-10T23:44:22+00:00","fresh","generated"],
+    [3,"2026-10-10T23:45:35Z",1791675912,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791675617.740723,317.9,104447,1791675710.95396,224.7,"degraded",317.7,5.8,"cf4d5c010702","2026-10-10T23:45:12+00:00","fresh","generated"],
+    [4,"2026-10-10T23:46:35Z",1791675988,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791675617.740723,377.9,104447,1791675710.95396,284.7,"degraded",377.7,9.8,"8a29539ea5ad","2026-10-10T23:46:28+00:00","fresh","generated"],
+    [5,"2026-10-10T23:47:35Z",1791676039,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791675617.740723,437.9,104447,1791675710.95396,344.7,"degraded",437.7,62.3,"9fc8ab1c84c8","2026-10-10T23:47:19+00:00","fresh","generated"],
+    [6,"2026-10-10T23:48:35Z",1791676094,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791675617.740723,497.9,104447,1791675710.95396,404.7,"degraded",497.7,58.9,"0dbb1615313e","2026-10-10T23:48:14+00:00","fresh","generated"],
+    [7,"2026-10-10T23:49:35Z",1791676142,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791675617.740723,557.9,104447,1791675710.95396,464.7,"degraded",557.7,55.2,"bd702bb4d575","2026-10-10T23:49:02+00:00","fresh","generated"],
+    [8,"2026-10-10T23:50:35Z",1791676220,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791675617.740723,617.9,104447,1791675710.95396,524.7,"degraded",617.7,52.2,"aa48cc113e90","2026-10-10T23:50:20+00:00","fresh","generated"],
+    [9,"2026-10-10T23:51:35Z",1791676270,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791675617.740723,677.9,104447,1791675710.95396,584.7,"degraded",677.7,49.0,"1770f8375526","2026-10-10T23:51:10+00:00","fresh","generated"],
+    [10,"2026-10-10T23:52:35Z",1791676350,16,2,"degraded","stale","maintenance_receipt_stale","degraded","pending_archives=0 repeated_failures=3",[],"stale",null,1791675617.740723,737.9,104447,1791675710.95396,644.7,"degraded",737.7,46.1,"da1c1945962f","2026-10-10T23:52:30+00:00","fresh","generated"],
+    [11,"2026-10-10T23:53:35Z",1791676401,16,2,"degraded","stale","maintenance_receipt_stale","stale","pending_archives=0 repeated_failures=3",[],"stale",null,1791675617.740723,797.9,104447,1791675710.95396,704.7,"degraded",797.7,42.5,"5e659d43def2","2026-10-10T23:53:21+00:00","fresh","generated"],
+    [12,"2026-10-10T23:54:35Z",1791676451,16,2,"degraded","stale","maintenance_receipt_stale","stale","pending_archives=0 repeated_failures=3",[],"stale",null,1791675617.740723,857.9,104447,1791675710.95396,764.7,"degraded",857.7,38.9,"effb3e87a5ab","2026-10-10T23:54:11+00:00","fresh","generated"],
+    [13,"2026-10-10T23:55:35Z",1791676525,16,2,"degraded","stale","maintenance_receipt_stale","stale","pending_archives=0 repeated_failures=3",[],"stale",null,1791675617.740723,917.9,104447,1791675710.95396,824.7,"degraded",17.9,35.3,"20d0097424e4","2026-10-10T23:55:25+00:00","fresh","generated"],
+    [14,"2026-10-10T23:56:35Z",1791676574,16,2,"degraded","stale","maintenance_receipt_stale","stale","pending_archives=0 repeated_failures=3",[],"stale",null,1791675617.740723,977.9,104447,1791676594.805553,0.8,"degraded",77.9,32.1,"5b36e6634e80","2026-10-10T23:56:14+00:00","fresh","generated"],
+    [15,"2026-10-10T23:57:35Z",1791676647,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791676517.581058,138.1,82521,1791676594.805553,60.8,"degraded",137.9,28.9,"0e3007a96193","2026-10-10T23:57:27+00:00","fresh","generated"],
+    [16,"2026-10-10T23:58:35Z",1791676701,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791676517.581058,198.1,82521,1791676594.805553,120.8,"degraded",197.9,25.8,"f2008ba8108a","2026-10-10T23:58:21+00:00","fresh","generated"],
+    [17,"2026-10-10T23:59:35Z",1791676752,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791676517.581058,258.1,82521,1791676594.805553,180.8,"degraded",257.9,22.3,"acfb9fea09c6","2026-10-10T23:59:12+00:00","fresh","generated"],
+    [18,"2026-10-11T00:00:35Z",1791676828,16,2,"degraded","degraded","transaction_health","degraded","pending_archives=0 repeated_failures=3",[],"observed","degraded",1791676517.581058,318.1,82521,1791676594.805553,240.8,"degraded",317.9,19.0,"a29477ea101a","2026-10-11T00:00:28+00:00","fresh","generated"]
+   ]
+  },
+ "control": {
+   "columns": ["at", "dataRevision[:12]", "sourceCheckedAt", "freshness", "status", "healthy", "total", "nonHealthy[id,status,label.en]"],
+   "rows": [
+    ["2026-10-10T23:49:44Z","bd702bb4d575","2026-10-10T23:49:02+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-10T23:50:44Z","aa48cc113e90","2026-10-10T23:50:20+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-10T23:51:44Z","1770f8375526","2026-10-10T23:51:10+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-10T23:52:44Z","da1c1945962f","2026-10-10T23:52:30+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-10T23:53:44Z","5e659d43def2","2026-10-10T23:53:21+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-10T23:54:44Z","effb3e87a5ab","2026-10-10T23:54:11+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-10T23:55:44Z","20d0097424e4","2026-10-10T23:55:25+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-10T23:56:44Z","5b36e6634e80","2026-10-10T23:56:14+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-10T23:57:44Z","0e3007a96193","2026-10-10T23:57:27+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-10T23:58:44Z","f2008ba8108a","2026-10-10T23:58:21+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-10T23:59:44Z","acfb9fea09c6","2026-10-10T23:59:12+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]],
+    ["2026-10-11T00:00:44Z","a29477ea101a","2026-10-11T00:00:28+00:00","fresh","degraded",16,18,[["control_plane.maintenance","degraded","System maintenance"],["transactions.runtime","degraded","transactions.runtime"]]]
+   ]
+  },
+ "transactionFailuresAtEnd": {
+  "source": "~/.openclaw/health/transaction-health.json (propriétaire : skill_intelligence/transaction_health.py, exécuté par Samantha Engineering Maintenance toutes les 900 s)",
+  "status": "degraded",
+  "checked_at": 1791676594.805553,
+  "failures": [
+    {"channel":"cron","signature":"sig-a2c862fdd4","classification":"external_dependency","count":1,"minutesSinceLastSeen":8096.0,"countedByOwner_window3600s_countGe2":false,"countedByVerdictReason_countGe2_noWindow":false},
+    {"channel":"webchat","signature":"sig-9ea0378b81","classification":"indeterminate","count":8,"minutesSinceLastSeen":2955.4,"countedByOwner_window3600s_countGe2":false,"countedByVerdictReason_countGe2_noWindow":true},
+    {"channel":"whatsapp","signature":"sig-88ba707eb7","classification":"indeterminate","count":92,"minutesSinceLastSeen":4.4,"countedByOwner_window3600s_countGe2":true,"countedByVerdictReason_countGe2_noWindow":true},
+    {"channel":"whatsapp","signature":"sig-744eadaa9c","classification":"indeterminate","count":1,"minutesSinceLastSeen":49.4,"countedByOwner_window3600s_countGe2":false,"countedByVerdictReason_countGe2_noWindow":false},
+    {"channel":"whatsapp","signature":"sig-9ea0378b81","classification":"indeterminate","count":2,"minutesSinceLastSeen":2021.1,"countedByOwner_window3600s_countGe2":false,"countedByVerdictReason_countGe2_noWindow":true},
+    {"channel":"whatsapp","signature":"sig-7d3dc11010","classification":"local_runtime","count":0,"minutesSinceLastSeen":8030.9,"countedByOwner_window3600s_countGe2":false,"countedByVerdictReason_countGe2_noWindow":false}
+  ]
+ },
+ "maintenanceJob": {
+  "name": "Samantha Engineering Maintenance",
+  "schedule": {
+   "kind": "every",
+   "everyMs": 900000
+  },
+  "payload": "command python3 -m skill_intelligence.engineering_maintenance",
+  "receiptCheckedAtIsRunStart": true,
+  "verdictStaleAfterSeconds": 660
+ },
+ "healthLogWindow": {
+  "source": "~/.openclaw/health/health.log (heure locale +01:00), lignes de la fenêtre",
+  "lines": ["2026-10-11T00:40:52+01:00 component=health-manager service=whatsapp state=degraded failures=1 retry_in_s=15","2026-10-11T00:41:23+01:00 component=health-manager service=whatsapp state=healthy","2026-10-11T00:42:00+01:00 component=daily-audit service=daily-audit state=healthy action=scan_complete detail=events=18_new=1_open=0_provider=0"]
+ }
+}
