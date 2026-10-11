@@ -10,7 +10,7 @@ export type PaymentHttpTrace = {
   responseSnapshot?:string; responseSha256?:string; responseTruncated?:boolean; errorCode?:string;
 };
 export type PaymentNavigationTrace = {origin:string; path:string};
-export type PaymentTraceInput = {stage:string; outcome?:string; reasonCode?:string; invoiceState?:string; clientAt?:number; http?:PaymentHttpTrace; navigation?:PaymentNavigationTrace};
+export type PaymentTraceInput = {stage:string; outcome?:string; reasonCode?:string; reasonDetail?:string; invoiceState?:string; clientAt?:number; http?:PaymentHttpTrace; navigation?:PaymentNavigationTrace};
 export type PaymentTraceEvent = PaymentTraceInput & {seq:number; at:number};
 export type PaymentTraceSink = {trace?:(event:PaymentTraceInput)=>Promise<void>|void};
 export type PaymentExecutionContext = PaymentTraceSink & {bankReturnToken:string};
@@ -29,7 +29,9 @@ export type PaymentRecord = {
 };
 
 export type PaymentExecutionResult = {
-  state:"confirmed"|"failed"|"effect_unknown"|"requires_bank_action"; reasonCode:string; rejectionVerified?:true;
+  state:"confirmed"|"failed"|"effect_unknown"|"requires_bank_action"|"blocked"; reasonCode:string; rejectionVerified?:true;
+  /** Precise, fixed snake_case provider code kept in the trace when reasonCode is grouped. */
+  reasonDetail?:string;
   continuation?:PaymentContinuation;
   receipt?:{reference:string; transactionCorrelated:true; providerReconciled:true};
 };
