@@ -9,6 +9,10 @@ function test(name,run){run();passed++;console.log('PASS '+name);}
  for(const type of ['CLARIFY','STOP','DEFER'])test(type+' does not execute',()=>assert(!deterministicLiveDecision({...canonical,decision:{...canonical.decision,type}})));
  for(const selected of [{},{deterministic:true},{model_required:false},{deterministic:true,model_required:true}])test('incomplete/model selection fails closed',()=>assert(!deterministicLiveDecision({...canonical,decision:{...canonical.decision,selected}})));
  test('failed resolver never admits',()=>assert(!deterministicLiveDecision({...canonical,success:false})));
+ for(const success of [undefined,null,0,'true',1])test('indeterminate resolver success fails closed',()=>assert(!deterministicLiveDecision({...canonical,success})));
+ for(const decision of [null,[],0,'EXECUTE',Object.assign([],{...canonical.decision})])test('malformed decision fails closed',()=>assert(!deterministicLiveDecision({...canonical,decision})));
+ test('array envelope cannot claim resolver ownership',()=>assert(!deterministicLiveDecision(Object.assign([],{...canonical}))));
+ test('array selection cannot claim determinism',()=>assert(!deterministicLiveDecision({...canonical,decision:{...canonical.decision,selected:Object.assign([],{...canonical.decision.selected})}})));
  test('top-level selected cannot replace decision owner',()=>assert(!deterministicLiveDecision({success:true,selected:canonical.decision.selected,decision:{type:'EXECUTE'}})));
  test('human boundary survives deterministic admission',()=>{const result={...canonical,decision:{...canonical.decision,risk:'transaction',confirmationRequired:true,humanBoundary:'biometric'}};assert(deterministicLiveDecision(result));assert.equal(result.decision.confirmationRequired,true);});
  const owner={understanding:new VoiceUnderstandingState()};let calls=0;const result=await clawLiveDecision(owner,'Quel est mon solde ?',async()=>{calls++;return canonical});assert.equal(calls,1);assert.deepEqual(result.voiceFastPath,{version:1,execute:true});assert.deepEqual(result.decision,canonical.decision);passed++;

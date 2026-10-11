@@ -67,9 +67,12 @@ type Deps = { capture?: RoundCaptureRunner; now?: () => number };
  * Confirmed/payment routes still enter the existing executor and its human boundary.
  */
 export function deterministicLiveDecision(result: any): boolean {
+  if (!result || typeof result !== "object" || Array.isArray(result) || result.success !== true) return false;
   const decision = result?.decision;
   const selected = decision?.selected;
-  return result?.success !== false && decision?.version === 2 && decision?.type === "EXECUTE"
+  if (!decision || typeof decision !== "object" || Array.isArray(decision)
+    || !selected || typeof selected !== "object" || Array.isArray(selected)) return false;
+  return decision?.version === 2 && decision?.type === "EXECUTE"
     && typeof decision?.capability === "string" && decision.capability.length > 0
     && selected?.deterministic === true && selected?.model_required === false;
 }
