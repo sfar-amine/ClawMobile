@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "id": "claude-o9-voice-terminal-state-20261011",
+  "origin": "chat",
+  "kind": "fix",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Voice runs with a final transcript (completed or interrupted) are terminal, never state=unknown",
+  "reason": "File37 O9: the S24 capture fixtures/s24-2026-10-11/o9-voice-unknown-runs.json shows 3 voice runs with transcriptState=interrupted left state=unknown because saveVoiceTurn only set done on completed.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/claude-o9-voice-terminal-state-20261011.json",
+    "docs/work/samantha-runtime/contracts/o9.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/test-companion-acceptance-voice.py",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-run-terminal-state.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts"
+  ],
+  "tests": [
+    {
+      "name": "o9-voice-terminal-state-on-capture",
+      "status": "passed",
+      "evidence": "test-voice-run-terminal-state.cjs: the 3 captured runs (same keys, lengths preserved) read as done/interrupted through listRuns and getRunStatus, the next owner write persists it, completed -> done, partial stays non-terminal, a final turn is not reopened."
+    },
+    {
+      "name": "o9-acceptance-line",
+      "status": "passed",
+      "evidence": "test-companion-acceptance-voice.py: 5 tests, the acceptance check voice_runs_terminal_state on GET /runs?limit=50 fails on the captured unknown runs and passes once reconciled; partial and text runs are not judged."
+    },
+    {
+      "name": "existing-regressions",
+      "status": "passed",
+      "evidence": "tsc, test-companion-runs, test-voice-turn-protocol, test-delete-run, test-conversation-origin, test-conversation-pages, test-payment-api, test-notification-structured pass."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/o9.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "No new route or action; existing POST /sessions/{id}/voice-turns and GET /runs keep their contract, only the terminal state of a final voice transcript changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reconciliation inside the existing owner saveVoiceTurn and the existing runs.json read path; no store, job, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP contracts unchanged.",
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "docs/work/samantha-runtime/contracts/o9.md"
+    ]
+  },
+  "rollback": "Revert this PR; stored runs keep their transcriptState, a reverted build shows them unknown again without data loss.",
+  "limitations": [
+    "Live recipe after deployment by Claude: GET /runs?limit=50 on the S24 shows no voice run unknown with a final transcript (acceptance line), and the three captured runs read done/interrupted.",
+    "test-conversation-continuity.cjs already fails on the runtime base (not in CI); unrelated to O9."
+  ]
+}
