@@ -24,16 +24,37 @@ export function validateAttachment(body:Buffer,mime:string){
  !body.includes(0)&&Buffer.from(body.toString('utf8'),'utf8').equals(body)&&!/[\x01-\x08\x0b\x0c\x0e-\x1f]/.test(body.toString('utf8'))&&!/^\s*(?:<!doctype\s+html|<html|<svg|<script|<\?xml)/i.test(body.toString('utf8'));
  if(!matches)throw error('attachment_type_mismatch');
 }
-/** Container check only; AAC decoding must be qualified with the real S24 memo. */
+/** Bounded ISO-BMFF structure proof: an audio handler inside moov/trak/mdia.
+ * A brand or the string "soun" in media payload is never track evidence. */
 export function isM4aContainer(body:Buffer){
  if(body.length<24||body.toString('ascii',4,8)!=='ftyp')return false;
  const size=body.readUInt32BE(0);if(size<16||size>body.length||size>1024||(size-16)%4!==0)return false;
  const brands=[body.toString('ascii',8,12)];for(let i=16;i<size;i+=4)brands.push(body.toString('ascii',i,i+4));
- return brands.includes('M4A ');
+ if(!brands.some(brand=>['M4A ','mp42','isom'].includes(brand)))return false;
+ let boxes=0,audio=false;
+ function scan(start:number,end:number,depth:number,ancestors:string[]):boolean{
+  for(let at=start;at<end;){
+   if(++boxes>1024||end-at<8)return false;
+   let length=body.readUInt32BE(at),header=8;
+   if(length===1){if(end-at<16)return false;const n=body.readBigUInt64BE(at+8);if(n>BigInt(end-at))return false;length=Number(n);header=16;}
+   if(length===0)length=end-at;
+   if(length<header||length>end-at)return false;
+   const kind=body.toString('ascii',at+4,at+8),content=at+header,next=at+length;
+   if(kind==='hdlr'&&ancestors.join('/')==='moov/trak/mdia'){
+    if(next-content<24)return false;
+    if(body.toString('ascii',content+8,content+12)==='soun')audio=true;
+   }
+   if(['moov','trak','mdia'].includes(kind)){
+    if(depth>=4||!scan(content,next,depth+1,[...ancestors,kind]))return false;
+   }
+   at=next;
+  }return true;
+ }
+ return scan(0,body.length,0,[])&&audio;
 }
 export function attachmentContent(id:string){const dir=directory();attachmentId(id);for(const [mime,ext] of Object.entries(formats)){
  if(mime==='audio/mp4'&&!MEMO_STT_QUALIFICATION.success)continue;
- const file=path.join(dir,id+'.'+ext);try{const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);const info=fs.fstatSync(fd);if(!info.isFile()||info.size>MAX_ATTACHMENT_BYTES){fs.closeSync(fd);throw error('attachment_storage_unavailable',503);}return {fd,mime,size:info.size,file};}catch(e:any){if(e.code!=='ENOENT')throw e;}
+ const file=path.join(dir,id+'.'+ext);try{const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);const info=fs.fstatSync(fd);if(!info.isFile()||info.size>MAX_ATTACHMENT_BYTES){fs.closeSync(fd);throw error('attachment_storage_unavailable',503);}return {fd,mime,size:info.size,file,createdAt:info.mtimeMs,expiresAt:info.mtimeMs+RETENTION_MS};}catch(e:any){if(e.code!=='ENOENT')throw e;}
  }throw error('attachment_not_found',404);}
 export function purgeAttachments(protectedPaths:Set<string>,now=Date.now()){
  const dir=directory();let names:string[];try{names=fs.readdirSync(dir);}catch(e:any){if(e.code==='ENOENT')return 0;throw e;}

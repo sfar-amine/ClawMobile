@@ -5,47 +5,59 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "HS8 : adaptateur SDK canonique Gemini → OpenAI et pièces jointes M4A sous garde de qualification S24",
-  "reason": "Préparation SDK intégrable sous admission produit fermée : capture Claude #170 intégrée, résolution publique corrigée et ciblés verts. Publication prête conditionnée à la suite entière verte sur la tête exacte attestée dans la PR ; compatibilité STT live, import installé et budgets/journaux restent des qualifications d’activation Claude/Amine.",
+  "summary": "HS8 : Gemini 3.5 flash-lite, audio qualifié par piste et retry différé dans le propriétaire RUNS, sous garde fermé",
+  "reason": "Passation46 : Gemini seul, repli différé sans OpenAI. Sources Claude185/174 intégrées byte-identiques ; continuation sous réadmission native P1 fraîche, aucun effet depuis GET. Préparation intégrable après revue et suite entière verte sur SHA exact, qualification produit encore fermée.",
   "files": [
     ".github/workflows/ci.yml",
+    "docs/changes/codex-hs8-memo-pipeline-20261011.json",
+    "docs/changes/codex-hs8-memo-pipeline-20261011.md",
     "docs/changes/codex-hs8-sdk-boundary-v2-20261011.json",
     "docs/changes/codex-hs8-sdk-boundary-v2-20261011.md",
+    "docs/work/samantha-runtime/contracts/hs8-pipeline.md",
     "docs/work/samantha-runtime/contracts/hs8.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/bonjour-samantha.m4a",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/media-config-projection.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/memo-audio.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/sdk-resolution.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/stt-runs.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/android-memo.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/chatgpt-subscription-audio-probe.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/deferred-retry-owner.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/gemini-free-profile.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-v2/sdk-installed-resolution.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8/media-config-and-sdk-resolution.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8/sdk-exports.json",
+    "openclaw-plugin-mobile-ui/scripts/lib/memo-admission-fixture.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-deferred-retry.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-intent-pipeline.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-sdk-resolution.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-memo-stt-boundary.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-stt-owner.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
+    "openclaw-plugin-mobile-ui/src/companion/catalog.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
     "openclaw-plugin-mobile-ui/src/companion/memoSttBoundary.ts",
     "openclaw-plugin-mobile-ui/src/companion/memoSttOwner.ts",
-    "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
-    "openclaw-plugin-mobile-ui/scripts/test-memo-stt-owner.cjs",
-    "openclaw-plugin-mobile-ui/scripts/test-memo-sdk-resolution.cjs",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8/media-config-and-sdk-resolution.json"
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts"
   ],
   "tests": [
     {
-      "name": "HS8 build + boundary",
+      "name": "HS8 fichier46 ciblés owner et pipeline",
       "status": "passed",
-      "evidence": "npm run build et node scripts/test-memo-stt-boundary.cjs, exit 0. Export installé confirmé ; tests de projection contractuels générés, aucune transcription réelle."
+      "evidence": "Node20, npm run build + huit suites boundary/owner/SDK resolution/memo pipeline/deferred retry/delete-run/edit-replay/catalog, exit0 sous verrou EX. Journal /workspace/artifacts/b42/hs8-46-targeted-r3.log ; 12 GET concurrents, trois essais, reprise après redémarrage, source expiration30d, partage, annulation et révocation. Aucun fournisseur live ; tickets P1 seam opaque hors ligne."
     },
     {
-      "name": "HS8 owner adapter contract",
+      "name": "HS8 HTTP audio metadata-only et reprise",
       "status": "passed",
-      "evidence": "npm run build ; node scripts/test-memo-stt-boundary.cjs ; node scripts/test-memo-stt-owner.cjs : exit 0 sous Node 20. Régression de config canonique, compte configuré épinglé, exclusion CLI/autres fournisseurs, refus texte long sans troncature, erreurs génériques et audio non activé. Contrats synthétiques, aucun appel fournisseur."
+      "evidence": "Node20 build + attachment HTTP + memo pipeline + deferred retry + edit-replay exit0 sous EX ; /workspace/artifacts/b42/hs8-46-targeted-r4.log. Dates propriétaire ajoutées aux seules pièces audio, hash historique autres fichiers préservé."
     },
     {
-      "name": "HS8 public installed SDK resolution",
-      "status": "passed",
-      "evidence": "Node20 : npm ci et npm run build exit0 ; cinq suites finales exit0 : test-memo-stt-boundary.cjs, test-memo-stt-owner.cjs, test-memo-sdk-resolution.cjs, test-memo-intent-pipeline.cjs, test-attachment-http.cjs. Verrou EX ci-stage.lock respecté. Local/global ESM, package/export/version, timeout npm3s/output4K, gate false sans npm/import/I/O. Logs /workspace/artifacts/b42/hs8-sdk-global-targeted.log (première passe interrompue par mauvais nom script) et hs8-sdk-global-targeted-final.log (tout vert). Paquets synthétiques, zéro fournisseur/S24."
-    },
-    {
-      "name": "HS8 local partial package fail-closed review regression",
-      "status": "passed",
-      "evidence": "Revue M1 : premier export déclaré mais fichier absent ne doit pas déclencher fallbackglobal si paquetlocalprésent. Corrigé via chemins Node require.resolve.paths ; build +cinq suites Node20 exit0 sousEX, dont premier fichier absent/configvalide, tousfichiersabsents et exportsvides, zéro globaldiscovery. Log /workspace/artifacts/b42/hs8-sdk-global-partial-fix-targeted.log. Première full670 stoppée après revue et conservée. Suite entière27b4f083 ensuite verte68/68 ; preuve historique distincte de la tête finale documentée."
-    },
-    {
-      "name": "HS8 workflow complet source corrigée",
-      "status": "passed",
-      "evidence": "68/68 étapes vertes Node20, SHA27b4f08379c2f840569f378a53df8e90776ac76a, reçu /workspace/artifacts/b42/hs8-sdk-global-release-ci/results.json. Cette preuve complète source précède uniquement la correction documentaire ; la publication finale exige le reçu de sa tête exacte. Aucun fournisseur live ni activation."
+      "name": "HS8 suite CI entière SHA final",
+      "status": "pending",
+      "evidence": "Revue et gel du delta46 avant suite entière locale ; reçu N/N et SHA exact à publier dans PR138. Ancien68/68 SHA27b4f083 est historique et ne valide pas cette tête."
     }
   ],
   "documentation": [
@@ -55,11 +67,11 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Facade or offline tooling; canonical owners retained."
+    "reason": "Catalogue mémo existant conservé false ; aucune route/action/ID ajouté."
   },
   "architecture": {
     "changed": false,
-    "reason": "No new canonical persistence, scheduler or daemon."
+    "reason": "Retry réconcilié à la lecture sous verrou du registre RUNS existant ; stockage/rétention attachments et admission P1 propriétaires réutilisés, sans scheduler ni grant durable."
   },
   "mcp_owner_parity": {
     "tools": {
@@ -72,13 +84,17 @@
     },
     "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
   },
-  "rollback": "Retirer la préparation et son test CI ; aucune donnée runtime à restaurer.",
+  "rollback": "Retirer cette préparation avec catalogue micro et admission audio fermés ; aucune configuration globale ni donnée S24 modifiée par Codex.",
   "limitations": [
-    "Adaptateur SDK implémenté sous garde existant refusé : aucune route ni catalogue activé.",
-    "Aucun appel fournisseur, aucune fusion ni activation par Codex.",
-    "Capture #170 : configuration média actuelle vide ; proposition de modèles SDK distincte des faits S24 et à appliquer par Claude.",
-    "Résolution publique globale à vérifier dans Companion installé avant activation.",
-    "Capture #170 atteste la disponibilité auth en booléens/états ; compatibilité STT du compte, import SDK dans Companion installé et recette audio restent à qualifier avant activation.",
-    "Publication prête conditionnée au workflow entier vert sur la tête exacte, avec reçu et décompte dans la PR."
+    "MEMO_STT_QUALIFICATION reste refusé : aucun upload audio, micro catalogue ou transcription produit activé.",
+    "Captures185/174 : import SDK et Gemini3.5flashlite synthétique attestés ; aucun vrai mémo Android ou codec AAC décodable qualifié par ce delta.",
+    "Clé Google provider concurrente et permission Termux : décisions Amine, aucune modification implicite.",
+    "Admission P1 PR182 nécessaire et revalidée ; absence du propriétaire installé ferme la soumission. Seam des tests ne constitue pas recette cryptographique.",
+    "Politique trois essais après2/10min proposée dans185, implémentée et testée hors ligne ; pas une mesure de fiabilité runtime.",
+    "Plafond60s par entrée n’est pas un délai global SDK ; budget cumulé et arrêt fournisseur restent à qualifier.",
+    "SDK relit un pathname ; fd ouvert ne prouve pas absence de substitution concurrente. TTL30d issu du mtime propriétaire, suppression/protection partagée testées hors ligne.",
+    "Après réponsePOST perdue et audio supprimé, rapprochement GETparclient existant côté app ; pas de réupload ou nouveau run.",
+    "Aucun appel fournisseur live, fusion PR, force-push, activation ni déploiement par Codex.",
+    "Publication prête conditionnée à la suite entière verte sur SHA exact ; recette S24 et journaux privés requis avant activation."
   ]
 }

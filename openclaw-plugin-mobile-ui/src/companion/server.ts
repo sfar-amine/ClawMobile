@@ -34,7 +34,7 @@ import { android_health } from "../tools/android";
 import { clearAgentConversationMessages, listAgentConversationMessages, listAgentConversations, markAgentMessageRead } from "./agentMessages";
 import { getGatewayStatus, getRuntimeLog, restartRuntime, startRuntime, stopRuntime } from "./openclawGatewayClient";
 import {readConversationMetadata,changeConversationMetadata} from "./conversationMetadata";
-import { submitIntent } from "./intent";
+import { verifyMemoOwnerRequest, submitIntent } from "./intent";
 import {securitySurfaces} from "./securitySurfaces";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
@@ -884,13 +884,19 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   }
 
   if (method === "POST" && routePath === "/runs") {
-    const body = await readJsonBody<RunCreateRequest>(req);
+    const rawRunBody = await readRawBody(req, MAX_BODY_BYTES);
+    let body: RunCreateRequest;
+    try { body = rawRunBody.toString("utf8").trim() ? JSON.parse(rawRunBody.toString("utf8")) : {}; }
+    catch { throw new HttpError(400, "Request body must be valid JSON."); }
     try{if(body?.attachments){
      if(!Array.isArray(body.attachments)||body.attachments.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
-     body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':file.mime.startsWith('audio/')?'audio':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
+     body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':file.mime.startsWith('audio/')?'audio':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,...(file.mime==="audio/mp4"?{createdAt:file.createdAt,expiresAt:file.expiresAt}:{}),displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
      if(body.attachments.reduce((sum:number,x:any)=>sum+x.sizeBytes,0)>25*1024*1024)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
     }
     }catch(e:any){const status=[400,404,413].includes(e?.statusCode)?e.statusCode:503;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":status===413?"attachment_share_limit":"invalid_attachment_request"});return;}
+    const memoAdmission = body?.attachments?.some(a => a.mimeType === "audio/mp4") && isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"]
+      ? verifyMemoOwnerRequest({method, path:requestUrl.pathname+requestUrl.search, headers:req.headers, rawBody:rawRunBody,
+          clientRunId:body?.clientRunId, sessionId:body?.sessionId}) : undefined;
     const instruction = String(body?.instruction || body?.text || "");
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
     const authority=isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner" as const:undefined;
@@ -910,6 +916,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         userText: displayText,
         clientRunId: body?.clientRunId,
         authority,
+        admission: memoAdmission,
         ...(replayOf?{replayOf}:{}),
       },
     );

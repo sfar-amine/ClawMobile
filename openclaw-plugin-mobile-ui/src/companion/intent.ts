@@ -5,13 +5,25 @@ import {transcribeMemoAttachment} from "./memoSttOwner";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { appendReplayContext, appendVoiceConversationContext, findPendingClarificationRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch } from "./runs";
+import { appendReplayContext, appendVoiceConversationContext, findPendingClarificationRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch, deferMemoTranscription } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
 
-type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; replayOf?: {sessionId: string; runId: string}};
+type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; admission?: unknown; replayOf?: {sessionId: string; runId: string}};
+
+/** P1 owns admission. An absent installation is closed, never legacy owner.
+ * This adapter issues/stores no credential and GET status never calls verifyRequest. */
+export function verifyMemoOwnerRequest(params: any): unknown {
+  try { const result = require("./ownerTurnAdmission").turnAdmission.verifyRequest(params);
+    return result.admitted === true ? result.ticket : undefined;
+  } catch { return undefined; }
+}
+function currentMemoOwner(admission: unknown, clientRunId: string | undefined, sessionId: string): boolean {
+  try { return require("./ownerTurnAdmission").turnAdmission.isCurrent(admission, {clientRunId, sessionId}) === true; }
+  catch { return false; }
+}
 
 /** The HTTP owner passes only ordinary submission fields. Continuation never comes from request data. */
 export async function submitIntent(text: string, sessionId = "default", attachments: IntentAttachment[] = [],
@@ -27,7 +39,7 @@ async function submitMemoIntent(text: string, sessionId: string, attachments: In
   const session = normalizeCompanionSessionId(sessionId);
   if (!MEMO_STT_QUALIFICATION.success) return notSubmitted(session, options.clientRunId, "Le mémo vocal n’est pas encore disponible.");
   const audio = attachments[0];
-  if (options.authority !== "owner" || options.learningOnly || text.trim() || attachments.length !== 1 ||
+  if (options.authority !== "owner" || !currentMemoOwner(options.admission, options.clientRunId, session) || options.learningOnly || options.replayOf || text.trim() || attachments.length !== 1 ||
       audio?.mimeType !== "audio/mp4" || !/^[A-Za-z0-9_-]{1,100}$/.test(audio.serverId || audio.id || "")) {
     return notSubmitted(session, options.clientRunId, "Le mémo vocal ne peut pas être envoyé.");
   }
@@ -39,25 +51,35 @@ async function submitMemoIntent(text: string, sessionId: string, attachments: In
   });
   if (reservation.created) {
     // One durable reservation is the worker claim. A duplicate/restart never invokes STT again.
-    void continueMemoIntent(reservation.status.runId, session, clientRunId, attachmentId, options.authority);
+    void continueMemoIntent(reservation.status.runId, session, clientRunId, attachmentId, options.admission);
+  }
+  if (!reservation.created && reservation.status.memoTranscription?.phase === "ready") {
+    return submitTextIntent(reservation.status.userText || "", session, [],
+      {userText: reservation.status.userText, clientRunId, authority: "owner", admission: options.admission}, reservation.status.runId);
   }
   return {...responseFromExisting(reservation.status, reservation.status.userText || "Mémo vocal"), duplicate: !reservation.created};
 }
 
+export const resumeMemoIntent = (runId: string, sessionId: string, clientRunId: string, attachmentId: string) =>
+  continueMemoIntent(runId, sessionId, clientRunId, attachmentId, undefined);
+
 async function continueMemoIntent(runId: string, sessionId: string, clientRunId: string, attachmentId: string,
-  authority: "owner"): Promise<void> {
+  admission?: unknown): Promise<void> {
   try {
     const transcript = await transcribeMemoAttachment(attachmentId);
     if (!transcript.success) {
-      await markSubmittedRunFailed(runId, "Transcription du mémo indisponible.");
+      await deferMemoTranscription(runId);
       return;
     }
     if (!await claimMemoTranscript(runId, attachmentId, transcript.text)) return;
-    const result = await submitTextIntent(transcript.text, sessionId, [], {userText: transcript.text, clientRunId, authority}, runId);
-    if (!result.accepted) await markSubmittedRunFailed(runId, "Le mémo n'a pas pu être pris en charge.");
+    // A deferred GET retry has no ticket. Preserve ready state for a fresh signed POST.
+    if (!currentMemoOwner(admission, clientRunId, sessionId)) return;
+    const result = await submitTextIntent(transcript.text, sessionId, [], {userText: transcript.text, clientRunId, authority: "owner", admission}, runId);
+    if (!result.accepted && currentMemoOwner(admission, clientRunId, sessionId))
+      await markSubmittedRunFailed(runId, "Le mémo n'a pas pu être pris en charge.");
   } catch {
     // Never expose provider errors, paths, config or raw details; never retry an uncertain effect.
-    await markSubmittedRunFailed(runId, "Transcription du mémo indisponible.");
+    await deferMemoTranscription(runId);
   }
 }
 
@@ -68,6 +90,8 @@ async function submitTextIntent(
   options: SubmissionOptions = {},
   reservedMemoRunId?: string,
 ): Promise<IntentSubmitResponse> {
+  if (reservedMemoRunId && !currentMemoOwner(options.admission, options.clientRunId, sessionId))
+    return notSubmitted(sessionId, options.clientRunId, "Une nouvelle validation du propriétaire est nécessaire.");
   const normalized = reservedMemoRunId ? text : text.trim();
   const visibleUserText = reservedMemoRunId ? text : (options.userText || normalized).trim();
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
@@ -132,7 +156,7 @@ async function submitTextIntent(
   if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
     return executeCapabilityFirst(
       routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
-      parentClarificationRunId, replayOf, reservedMemoRunId,
+      parentClarificationRunId, replayOf, reservedMemoRunId, options.admission,
     );
   }
   if (fastPathCheck.status === "error") {
@@ -159,7 +183,7 @@ async function submitTextIntent(
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
   if (reservedMemoRunId) {
-    if (!await claimMemoDispatch(runId, normalized, "gateway")) return notSubmitted(normalizedSessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
+    if (!await claimMemoDispatch(runId, normalized, "gateway", undefined, undefined, () => currentMemoOwner(options.admission, clientRunId, normalizedSessionId))) return notSubmitted(normalizedSessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
   } else if (clientRunId) {
     const reservation = await reserveSubmittedRun(
       submittedPrompt,
@@ -176,7 +200,7 @@ async function submitTextIntent(
   if (!clientRunId) {
     await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision });
   }
-  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority);
+  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority, reservedMemoRunId ? options.admission : undefined, clientRunId);
 
   const message = describeOpenClawResult(accepted);
   return {
@@ -209,11 +233,12 @@ async function executeCapabilityFirst(
   parentClarificationRunId?: string,
   replayOf?: {sessionId: string; runId: string},
   reservedMemoRunId?: string,
+  admission?: unknown,
 ): Promise<IntentSubmitResponse> {
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
   if (reservedMemoRunId) {
-    if (!await claimMemoDispatch(runId, userText, "capability_first", check.decision, parentClarificationRunId)) return notSubmitted(sessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
+    if (!await claimMemoDispatch(runId, userText, "capability_first", check.decision, parentClarificationRunId, () => currentMemoOwner(admission, clientRunId, sessionId))) return notSubmitted(sessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
   } else if (clientRunId) {
     const reservation = await reserveSubmittedRun(text, sessionId, clientRunId, {
       userText, attachments, requestText: text, executionSource: "capability_first",
@@ -231,6 +256,10 @@ async function executeCapabilityFirst(
     await markClarificationRun(parentClarificationRunId, "resolved");
   }
 
+  if (reservedMemoRunId && !currentMemoOwner(admission, clientRunId, sessionId)) {
+    await markSubmittedRunFailed(runId, "Validation du propriétaire expirée.");
+    return notSubmitted(sessionId, clientRunId, "Une nouvelle validation du propriétaire est nécessaire.");
+  }
   let presentation = readReceiptPresentation(check);
   let provenance: FastPathResult["provenance"];
   let state: "done" | "failed";
@@ -337,9 +366,14 @@ async function submitIntentInBackground(
   userText: string,
   attachments: IntentAttachment[],
   authority?:"owner",
+  admission?: unknown,
+  clientRunId?: string,
 ) {
   try {
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority});
+    if (admission !== undefined && !currentMemoOwner(admission, clientRunId, sessionId)) {
+      await markSubmittedRunFailed(runId, "Validation du propriétaire expirée."); return;
+    }
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId} as any);
     await rememberSubmittedRun(text, {
       ...openclaw,
       runId,
