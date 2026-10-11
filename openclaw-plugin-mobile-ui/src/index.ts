@@ -49,6 +49,7 @@ import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } 
 import { clawmobile_batch_execute } from "./tools/batch";
 import { handleOwnerFastPath } from "./modelFastPath";
 import { createCapabilityTool } from "./capabilityTool";
+import { agentCapabilityHook } from "./capabilityAgentGuard";
 import { createProviderFallbackCoordinator } from "./providerFallback";
 
 type JsonSchema = Record<string, any>;
@@ -187,9 +188,11 @@ function register(api: any) {
   api.on("model_call_ended", (event: any, ctx: any) =>
     providerFallback.modelCallEnded(event, ctx),
   );
-  api.on("before_tool_call", (event: any, ctx: any) =>
-    providerFallback.beforeToolCall(event, ctx),
-  );
+  api.on("before_tool_call", (event: any, ctx: any) => {
+    // Existing provider-fallback bookkeeping (toolCalled) is preserved; E3 then fixes caller from the host turn.
+    providerFallback.beforeToolCall(event, ctx);
+    return agentCapabilityHook(event, ctx);
+  });
   api.on("before_prompt_build", (event: any, ctx: any) =>
     providerFallback.beforePromptBuild(event, ctx),
   );
