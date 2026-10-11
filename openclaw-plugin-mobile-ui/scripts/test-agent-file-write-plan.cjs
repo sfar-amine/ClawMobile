@@ -2,7 +2,7 @@
 // Real sources: agents.files.get response shape and latency (fixtures/s24-2026-10-10/gateway/agents.files.get.json,
 // PR #48/#53), agents.files.set schema, handler and conflict error (fixtures/s24-2026-10-11b/e3, PR #131), payment-line
 // counts per file (agent-files-facts.json). The captured contents are masked, so the bytes written here are test text
-// with the same number of protected lines as the S24 (AGENTS.md 2, SOUL.md 1); the workspace is a temporary directory.
+// in a temporary workspace. Privacy test lines are synthetic; historical payment-line counts do not define a guard.
 const assert=require('node:assert/strict'),fs=require('node:fs'),fsp=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),http=require('node:http'),crypto=require('node:crypto');
 const fixtureGet=require('../fixtures/s24-2026-10-10/gateway/agents.files.get.json');
 const facts=require('../fixtures/s24-2026-10-11b/e3/agent-files-facts.json');
@@ -19,8 +19,8 @@ const sha=v=>crypto.createHash('sha256').update(v).digest('hex');
  const old=process.env.OPENCLAW_STATE_DIR;process.env.OPENCLAW_STATE_DIR=root;
  const companion=path.join(root,'clawmobile-companion');await fsp.mkdir(companion,{recursive:true});await fsp.writeFile(path.join(companion,'runs.json'),JSON.stringify({version:1,runs:[]}));
  const workspace=path.join(root,'workspace');await fsp.mkdir(workspace);
- // Two payment lines (same count as the S24 AGENTS.md); the read boundary masks them as [masqué].
- const agentsMd=['# AGENTS','Règle générale : répondre en français.','Ne jamais lancer un paiement sans biométrie.','Une ligne ordinaire.','Toute recharge passe par le parcours déterministe.','Fin.'].join('\n')+'\n';
+ // Payment vocabulary stays readable. Two synthetic privacy instructions exercise the existing secret boundary.
+ const agentsMd=['# AGENTS','Règle générale : répondre en français.','Ne jamais lancer un paiement sans biométrie.','Une ligne ordinaire.','Toute recharge passe par le parcours déterministe.','Ne jamais divulguer un token.','Ne jamais afficher un mot de passe.','Fin.'].join('\n')+'\n';
  const files={'AGENTS.md':agentsMd,'SOUL.md':'Samantha.\nAucun virement automatique.\n','IDENTITY.md':'Nom : Samantha\n','USER.md':'Amine.\n'};
  for(const [n,c] of Object.entries(files))await fsp.writeFile(path.join(workspace,n),c);
  let sets=0,gets=0,latency={},setFails=null,applyThenFail=false,racer=null;
@@ -56,20 +56,24 @@ const sha=v=>crypto.createHash('sha256').update(v).digest('hex');
   // Owner boundary and the existing read-only verbs stay as they were.
   ok((await request(url,'PUT',{operationId:'x',content:'a',baseHash:'0'.repeat(64)})).status===403);
   ok((await request(url,'POST',{},owner)).status===405);ok(sets===0&&gets===0);
-  // The read now exposes the owner revision (sha256 of the exact bytes) and masks the two payment lines.
+  // The read exposes the owner revision and masks only the two synthetic privacy lines.
   const view=await readMasked('AGENTS.md');ok(view.revision===sha(agentsMd)&&view.redacted===true,JSON.stringify(view));
   ok(view.text.split('\n').filter(l=>l==='[masqué]').length===2);
+  ok(view.text.includes('Ne jamais lancer un paiement sans biométrie.')&&view.text.includes('Toute recharge passe par le parcours déterministe.'),'payment words are ordinary content');
   // Names: only the four agent files; DREAMS.md (outside the Gateway allowlist), MEMORY.md, paths and secrets refused before any read.
   for(const name of ['DREAMS.md','MEMORY.md','BOOTSTRAP.md','../AGENTS.md','TOOLS.md','.env']){await reset();const r=await request('/v1/files/content?scope=agent&path='+encodeURIComponent(name),'PUT',{operationId:'n',content:'x',baseHash:sha(agentsMd)},owner);ok(r.status===404&&gets===0,name+JSON.stringify(r));}
   for(const q of ['scope=session&path=AGENTS.md','path=AGENTS.md','scope=agent&path=AGENTS.md&sessionId=x']){await reset();ok((await request('/v1/files/content?'+q,'PUT',{operationId:'q',content:'x',baseHash:sha(agentsMd)},owner)).status===400);}
   for(const body of [{operationId:'b',content:'x'},{operationId:'b',content:'x',baseHash:'z'},{operationId:'b',content:'x',baseHash:sha(agentsMd),rename:'SOUL.md'},{operationId:'b',content:'a\0b',baseHash:sha(agentsMd)},{operationId:'b',content:'x'.repeat(256*1024+1),baseHash:sha(agentsMd)}]){await reset();const r=await request(url,'PUT',body,owner);ok([400,413].includes(r.status)&&gets===0&&sets===0,JSON.stringify(r.body));}
   // CAS precheck: stale baseHash refused before any effect, with the current revision.
   await reset();const stale=await request(url,'PUT',{operationId:'stale',content:view.text,baseHash:'f'.repeat(64)},owner);ok(stale.status===409&&stale.body.error==='file_revision_changed'&&stale.body.currentRevision===sha(agentsMd)&&sets===0);
-  // Payment guard: masked lines can be neither removed nor added, and no new payment or secret line can be written.
+  // Privacy guard: masked secret lines remain intact; payment words never trigger this boundary.
   const edited=view.text.replace('Une ligne ordinaire.','Une ligne modifiée depuis l\'app.');
-  for(const [content,code] of [[edited.replace('[masqué]\n',''),'file_protected_lines_changed'],[edited+'[masqué]\n','file_protected_lines_changed'],[edited.replace('Fin.','Payer la facture STEG chaque mois.'),'file_content_protected'],[edited.replace('Fin.','mot de passe : x'),'file_content_protected'],[edited.replace('Fin.','note [masqué] ici'),'file_content_protected'],[edited.replace('[masqué]','Ne jamais lancer un paiement.'),'file_content_protected']]){
+  for(const [content,code] of [[edited.replace('[masqué]\n',''),'file_protected_lines_changed'],[edited+'[masqué]\n','file_protected_lines_changed'],[edited.replace('Fin.','mot de passe : x'),'file_content_protected'],[edited.replace('Fin.','note [masqué] ici'),'file_content_protected'],[edited.replace('[masqué]','Ne jamais lancer un paiement.'),'file_protected_lines_changed']]){
    await reset();const r=await request(url,'PUT',{operationId:'g'+n,content,baseHash:sha(agentsMd),confirmationId:'11111111-1111-4111-8111-111111111111'},owner);ok(r.status===422&&r.body.error===code&&sets===0,JSON.stringify([content.slice(-60),r.body]));
   }
+  await reset();const financialWords=edited.replace('Fin.','Pays, paysage : payer la facture STEG chaque mois.');
+  const vocabulary=await request(url,'PUT',{operationId:'free-vocabulary',content:financialWords,baseHash:sha(agentsMd)},owner);
+  ok(vocabulary.status===403&&vocabulary.body.state==='needs_confirmation'&&sets===0,'vocabulary is accepted; actual file write still needs confirmation');
   // Biometric challenge: agent.file_write, reference = name, payloadHash = sha256(content sent).
   await reset();latency={'agents.files.get':fixtureGet._capture.latencyMs,'agents.files.set':fixtureGet._capture.latencyMs};
   const challenge=await request(url,'PUT',{operationId:'edit-1',content:edited,baseHash:sha(agentsMd)},owner);
@@ -79,7 +83,7 @@ const sha=v=>crypto.createHash('sha256').update(v).digest('hex');
   const began=Date.now();const done=await request(url,'PUT',{operationId:'edit-1',content:edited,baseHash:sha(agentsMd),confirmationId},owner);const took=Date.now()-began;
   const written=await fsp.readFile(path.join(workspace,'AGENTS.md'),'utf8');
   ok(done.status===200&&done.body.state==='completed'&&done.body.receipt.action==='agent.file_write'&&done.body.artifact.revision===sha(written),JSON.stringify(done.body));
-  ok(written.includes('Ne jamais lancer un paiement sans biométrie.')&&written.includes('Toute recharge passe par le parcours déterministe.')&&written.includes('Une ligne modifiée depuis l\'app.')&&!written.includes('[masqué]'),'payment lines restored verbatim');
+  ok(written.includes('Ne jamais lancer un paiement sans biométrie.')&&written.includes('Toute recharge passe par le parcours déterministe.')&&written.includes('Une ligne modifiée depuis l\'app.')&&!written.includes('[masqué]'),'ordinary payment words remain readable and privacy instructions restored verbatim');
   ok(sets===1&&consumed===1);ok(took<20000,'PUT within 20 s at captured CLI latency: '+took+' ms');
   const backups=(await fsp.readdir(workspace)).filter(e=>e.startsWith('AGENTS.md.bak-samantha-'));ok(backups.length===1&&await fsp.readFile(path.join(workspace,backups[0]),'utf8')===agentsMd&&(fs.statSync(path.join(workspace,backups[0])).mode&0o777)===0o600);
   // Backups are hidden from the file reads and the next read shows the new revision (cache dropped).
@@ -100,7 +104,7 @@ const sha=v=>crypto.createHash('sha256').update(v).digest('hex');
   // Wrong confirmation binding: refused before backup and write.
   await reset();record.intent.action.payloadHash='0'.repeat(64);const wrong=await request(url,'PUT',{operationId:'wrong',content:edited,baseHash:sha(agentsMd),confirmationId},owner);
   ok(wrong.status===409&&wrong.body.artifact.reason==='confirmation_not_usable'&&sets===0&&(await fsp.readdir(workspace)).every(e=>!e.includes('.bak-samantha-')),JSON.stringify(wrong.body));
-  // SOUL.md keeps its single payment line; unchanged content needs no confirmation and writes nothing.
+  // SOUL.md payment vocabulary remains readable; unchanged content needs no confirmation and writes nothing.
   await reset();const soul=await readMasked('SOUL.md');const same=await request('/v1/files/content?scope=agent&path=SOUL.md','PUT',{operationId:'same',content:soul.text,baseHash:soul.revision},owner);ok(same.status===200&&same.body.state==='unchanged'&&sets===0,JSON.stringify(same.body));
   // Pure merge helper keeps CRLF files intact.
   ok(write.mergeProtectedLines('a\r\nmot de passe x\r\nb','a\r\n[masqué]\r\nc')==='a\r\nmot de passe x\r\nc');

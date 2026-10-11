@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "E3 / R20 lot 2 : PUT /v1/files/content?scope=agent&path=NOM via agents.files.set, biométrie agent.file_write, CAS expectedHash, lignes paiement/secrets conservées, 5 sauvegardes.",
-  "reason": "Schéma et handler agents.files.set relus sur le S24 (#131) : CAS natif entre écritures Gateway, aucune garde de contenu ni sauvegarde. Le Companion ajoute la garde des instructions de paiement (lignes masquées restituées telles quelles, aucune nouvelle) et la sauvegarde bornée à 5 par fichier, selon la convention <NOM>.bak-* du workspace, sans nouveau store.",
+  "reason": "Schéma et CAS agents.files.set confirmés sur le S24 (#131). Reprise H6 : suppression du filtrage des mots de paiement, garde des secrets/identifiants et restitution des lignes masquées préservées. Tests adaptés, validation locale en attente.",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/companion-acceptance.py",
@@ -24,13 +24,13 @@
   "tests": [
     {
       "name": "e3-agent-file-write-http",
-      "status": "passed",
-      "evidence": "test-agent-file-write-plan.cjs : 48 assertions ; formes réelles agents.files.get (#48/#53) et schéma/handler/conflit agents.files.set (#131) ; noms fermés (DREAMS.md, MEMORY.md refusés), CAS préalable et natif, garde paiement (suppression, ajout, nouvelle ligne refusés ; lignes restituées), needs_confirmation puis consommation, sauvegarde 0600 bornée à 5, reçu idempotent, relecture unique, refus sans écriture ; PUT en 6,9 s avec la latence CLI capturée (budget 20 s)."
+      "status": "pending",
+      "evidence": "Reprise et tests adaptés à H6 : exécution locale ciblée puis suite CI entière en attente. Les anciennes preuves ne couvrent pas le SHA de reprise."
     },
     {
       "name": "r20-read-regression",
-      "status": "passed",
-      "evidence": "test-file-gateway-read, test-files-http, test-file-read-boundary, test-file-gateway-limits, test-files-acceptance verts (champ revision ajouté à la lecture agent)."
+      "status": "pending",
+      "evidence": "Reprise et tests adaptés à H6 : exécution locale ciblée puis suite CI entière en attente. Les anciennes preuves ne couvrent pas le SHA de reprise."
     }
   ],
   "documentation": [

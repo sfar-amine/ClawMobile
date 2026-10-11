@@ -37,9 +37,9 @@ export function prepareAgentFileWrite(name:any,value:any):AgentFileWritePlan {
 }
 
 /**
- * Payment/secret instruction guard. The app edits the masked preview: each `[masqué]` line stands for one protected
+ * Privacy instruction guard. The app edits the masked preview: each `[masqué]` line stands for one protected
  * line of the current file, in order. Those lines are restored verbatim; they can be neither edited, removed,
- * reordered nor added. Any other protected line in the submission (new payment or secret instruction) is refused.
+ * reordered nor added. Any other protected line in the submission (new secret or identifier material) is refused.
  */
 export function mergeProtectedLines(current:string,submitted:string):string {
  const protectedLines=current.split(/\r?\n/).filter(protectedFileLine);
@@ -95,7 +95,7 @@ export async function pruneAgentFileBackups(workspace:string,name:string,keep=AG
 
 const conflict=(error:any)=>error?.details?.type==='agent_file_conflict'||/changed since it was read/.test(String(error?.message||''));
 /**
- * Order: input and name, owner read, CAS precheck, payment/secret guard, confirmation challenge, then one
+ * Order: input and name, owner read, CAS precheck, privacy guard, confirmation challenge, then one
  * durable native operation: confirmation consumed, backup, single agents.files.set with expectedHash, one re-read
  * if the answer is uncertain, never a replay.
  */
