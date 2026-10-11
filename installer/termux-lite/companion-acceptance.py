@@ -47,6 +47,7 @@ OWNER_GUARDS = [
     ("POST", "/attachments"),
     ("POST", "/security/surfaces"),
     ("POST", "/automations/acceptance-probe/run"),
+    ("PATCH", "/automations/acceptance-probe"),  # R23 / E1 : modification refusée sans en-tête propriétaire, avant toute lecture
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
     ("POST", "/conversations/x/metadata"),

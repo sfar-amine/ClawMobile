@@ -35,8 +35,10 @@ export async function automationDetail(id:string){
  if(!Array.isArray(history?.entries))throw nativeError("automation_history_unavailable",503);
  return {schemaVersion:1,id,what:safe(job.description)||safe(job.name)||"Description non communiquée",
   enabled:typeof job.enabled==="boolean"?job.enabled:null,nextRunAt:iso(job.state?.nextRunAtMs),
+  // R23: native cron configRevision (cron.list, S24 11/10), echoed as If-Match by PATCH /v1/automations/{id}.
+  revision:typeof job.configRevision==="string"&&/^sha256:[A-Za-z0-9_-]{43}$/.test(job.configRevision)?job.configRevision:null,
   runs:history.entries.slice(0,10).map((row:any)=>({at:iso(row.runAtMs??row.ts),status:status(row.status),note:safe(row.summary)||null})),
-  actions:protectedJob(job)?[]:["enable","disable","run","delete"]};
+  actions:protectedJob(job)?[]:["enable","disable","run","delete","edit"]};
 }
 export async function changeAutomation(id:string,action:string,body:any){
  if(!idPattern.test(id)||!["enable","disable","run","delete"].includes(action))throw nativeError("invalid_automation_action");

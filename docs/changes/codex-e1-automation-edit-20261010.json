@@ -3,14 +3,22 @@
   "id": "codex-e1-automation-edit-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "ready_for_review",
   "deployment_state": "not_applied",
-  "summary": "Préparer les validations R23 E1 sans route ni mutation Gateway.",
-  "reason": "CAS R5-bis, captures réelles cron.get/update et qualification du propriétaire manquent. Préparation pure ; aucune route active ni mutation Gateway.",
+  "summary": "R23 / E1 : PATCH /v1/automations/{id} via cron.update, CAS natif configRevision (If-Match), confirmation automation.edit, reçu et relecture unique.",
+  "reason": "Captures réelles #131 (cron.get/update, CAS natif CRON_JOB_CHANGED) et schéma installé relu sur le S24 (lecture seule) ; route complète avec gardes paiement, validation, CAS, confirmation et reçu. Le prédicat propriétaire protège aujourd'hui les 18 automatisations (clé structurelle payload) : refus conservé, correction propriétaire en PR séparée.",
   "files": [
     ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
     "openclaw-plugin-mobile-ui/src/companion/automationEditValidation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/automations.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/scripts/test-automation-edit-validation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-edit-http.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11-r34/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11-r34/e1/cron-update-schema.installed.mjs.txt",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11-r34/e1/cron-list-facts.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11-r34/SHA256SUMS",
     "docs/work/samantha-runtime/contracts/r23.md",
     "docs/changes/codex-e1-automation-edit-20261010.md",
     "docs/changes/codex-e1-automation-edit-20261010.json"
@@ -19,7 +27,17 @@
     {
       "name": "R23-pure-validation",
       "status": "passed",
-      "evidence": "Build TypeScript + 36 assertions validation pure; pas de qualification HTTP/Gateway."
+      "evidence": "36 assertions de validation pure."
+    },
+    {
+      "name": "R23-http-real-captures",
+      "status": "passed",
+      "evidence": "scripts/test-automation-edit-http.cjs : 45 assertions sur cron-lifecycle.json (#131) ; garde owner, refus paiement/validation avant lecture, 428 sans If-Match, CAS préalable et natif CRON_JOB_CHANGED, needs_confirmation puis consommation, reçu idempotent, relecture unique après effet incertain, indeterminate sans rejeu ; PATCH en 7,2 s avec les latences CLI capturées (budget 20 s)."
+    },
+    {
+      "name": "P2-a-automation-detail",
+      "status": "passed",
+      "evidence": "test-automation-detail.cjs inchangé et vert (champ revision ajouté)."
     }
   ],
   "documentation": [
@@ -27,9 +45,11 @@
     "docs/changes/codex-e1-automation-edit-20261010.md"
   ],
   "capabilities": {
-    "impact": "none",
-    "ids": [],
-    "reason": "Préparation pure des validateurs ; aucune route ou capability active. Capability planned dans le dépôt playbooks jumelle."
+    "impact": "planned",
+    "ids": [
+      "samantha.app.automation.edit"
+    ],
+    "reason": "Capability planned (confirmation) dans playbooks #45, avec dependencies.json ; route PATCH /v1/automations/{id}."
   },
   "architecture": {
     "changed": false,
@@ -44,23 +64,23 @@
       "claw_status": "verified_no_impact",
       "claw_artifact_read": "verified_no_impact"
     },
-    "reason": "Préparation pure, aucune route active ni changement des primitives MCP.",
+    "reason": "Route owner Companion seulement ; aucune primitive MCP modifiée.",
     "attached": {
       "schemas": "updated",
       "adapters": "verified_no_impact",
       "documentation": "updated",
       "tests": "updated",
-      "runtime": "verified_no_impact"
+      "runtime": "updated"
     },
     "evidence": [
-      "openclaw-plugin-mobile-ui/scripts/test-automation-edit-validation.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-automation-edit-http.cjs",
       "docs/work/samantha-runtime/contracts/r23.md"
     ]
   },
-  "rollback": "Revert de la préparation ; aucun effet S24.",
+  "rollback": "Revert de la PR (route PATCH, champ revision du détail, ligne de recette). Aucun état S24 à restaurer.",
   "limitations": [
-    "fixtures cron.get/update et fusion R5-bis préalables.",
-    "protectedJob actuel confond la clé payload avec pay ; correction propriétaire requise.",
-    "Aucune preuve CAS, reçu mutation ou budget PATCH complet ; aucun déploiement."
+    "Le prédicat protectedJob actuel protège les 18 automatisations du S24 (14 seulement par la clé structurelle payload) : E1 refuse en 409 tant que le propriétaire n'est pas corrigé (PR séparée, H6-bis).",
+    "Budget PATCH mesuré en CI avec les latences CLI capturées (3,6 + 3,5 s) ; mesure production après déploiement par Claude.",
+    "Aucune mutation S24 faite pour cette PR ; seules lectures : schéma installé et clés de cron.list."
   ]
 }

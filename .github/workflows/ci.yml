@@ -240,6 +240,8 @@ jobs:
       - name: H9 read-only UI smoke synthetic safety boundaries
         run: python3 ../installer/termux-lite/test-ui-smoke.py
 
-      - name: R23 automation edit validation (preparation)
+      - name: R23 automation edit (validation, real cron captures, CAS, confirmation, receipts)
         working-directory: openclaw-plugin-mobile-ui
-        run: node scripts/test-automation-edit-validation.cjs
+        run: |
+          node scripts/test-automation-edit-validation.cjs
+          node scripts/test-automation-edit-http.cjs
