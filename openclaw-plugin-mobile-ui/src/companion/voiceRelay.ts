@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import {compactOwnerAgentContext} from "./clawLive";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -8,6 +9,7 @@ import { reconnectDelay } from "./reconnectPolicy";
 export { reconnectDelay } from "./reconnectPolicy";
 import {
   callOpenClawGateway,
+  assertCanonicalAgentPayload,
   expectedCompanionSessionKey,
 } from "./openclawAgentClient";
 
@@ -384,16 +386,19 @@ async function runAgentTurn(
   message: string,
 ) {
   const sessionKey = expectedCompanionSessionKey(sessionId);
-  const raw = await callOpenClawGateway(
-    "agent",
-    {
+  const canonical=compactOwnerAgentContext({authority:"owner"});
+  const params = {
       sessionKey,
       label: "Bixby Voice",
       message,
       deliver: false,
       bootstrapContextMode: "lightweight",
+      ...(canonical?{extraSystemPrompt:canonical}:{}),
       idempotencyKey: requestId,
-    },
+  };
+  assertCanonicalAgentPayload(params);
+  const raw = await callOpenClawGateway(
+    "agent", params,
     { expectFinal: true, timeoutMs: 20_000 },
   );
   return classifyAgentTurn(raw);

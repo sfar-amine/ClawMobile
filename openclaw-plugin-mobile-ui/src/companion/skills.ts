@@ -279,7 +279,7 @@ export function previewWorkspaceSkill(id: string, request: SkillPreviewRequest =
   };
 }
 
-export async function runWorkspaceSkill(id: string, request: SkillRunRequest = {}) {
+export async function runWorkspaceSkill(id: string, request: SkillRunRequest = {}, options:{authority?:"owner"}={}) {
   const loaded = findWorkspaceSkill(id);
   const skill = loaded?.detail || null;
   if (!skill) return null;
@@ -307,7 +307,7 @@ export async function runWorkspaceSkill(id: string, request: SkillRunRequest = {
 
   const prompt = buildSkillAgentPrompt(skill, instruction, inputs);
   try {
-    const submitted = await submitToOpenClawAgent(prompt, runId, sessionId);
+    const submitted = await submitToOpenClawAgent(prompt, runId, sessionId, options);
     await rememberSubmittedRun(prompt, submitted);
     return {
       success: true,

@@ -33,6 +33,11 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: Test canonical context event surfaces
+        run: python3 ../installer/termux-lite/test-context-surfaces.py
+      - name: Test canonical app and authenticated Bixby bootstrap
+        run: node scripts/test-canonical-agent-bootstrap.cjs
+
       - name: Run trace induction tests
         run: npm run test:trace-induction
 
@@ -162,6 +167,9 @@ jobs:
           node scripts/test-ui-recette-server.cjs
           python3 scripts/test-acceptance-email-leak.py
 
+      - name: Run UI recette 2 server fixes on S24 captures (agent thinking defaults, providers after a failed refresh, usage kept)
+        run: node scripts/test-recette2-server.cjs
+
       - name: Run memory control and atomic export import contracts
         run: |
           node scripts/test-memory-control.cjs
@@ -176,3 +184,5 @@ jobs:
 
       - name: G4 deployment receipts and route budget
         run: node scripts/test-deployment-receipts.cjs
+      - name: C5 canonical voice owner transport fixture
+        run: python3 ../installer/termux-lite/test-context-voice-read.py
