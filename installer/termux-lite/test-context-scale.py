@@ -97,7 +97,7 @@ class ScaleTests(unittest.TestCase):
         add(self.c, 1, 'learning', 'Fait durable identique', surface='chat')
         add(self.c, 2, 'learning', 'Fait durable identique', surface='work')
         before = list(self.c.execute('SELECT * FROM events'))
-        env = dict(os.environ, SAMANTHA_CONTEXT_ROOT=str(self.root))
+        env = dict(os.environ, SAMANTHA_CONTEXT_ROOT=str(self.root), HOME=str(self.root))
         def run():
             return json.loads(subprocess.check_output([sys.executable, str(HERE / 'context-dream.py')], env=env, text=True))
         first = run(); second = run()

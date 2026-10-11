@@ -35,6 +35,10 @@ Conséquence pour R8 :
 | `gateway/sessions.files.list.json` | `sessions.files.list` | `{"sessionKey":"<sessions.list[1].key>"}` | 3105 ms |
 | `gateway/sessions.files.get.json` | `sessions.files.get` | `{"sessionKey":"…","path":"IDENTITY.md"}` | 2438 ms |
 | `gateway/skills.status.json` | `skills.status` | `{"agentId":"main"}` | 1859 ms (2438, 1755) — ajouté pour P2-b, 18:35 ; 7 lignes workspace complètes + 3 lignes d'exemple sur 65 ; descriptions en `<texte N car.>` |
+| `r20/sessions.list.main.json` | `sessions.list` | `{"search":"agent:main:main","limit":100}` | 3701 ms |
+| `r20/sessions.files.list.main.json` | `sessions.files.list` | `{"sessionKey":"agent:main:main"}` | 1680 ms |
+| `r20/sessions.files.list.main-search.json` | `sessions.files.list` | `{"sessionKey":"agent:main:main","path":"memory","search":"2026-10"}` | 2818 ms |
+| `r20/sessions.files.get.main.json` | `sessions.files.get` | `{"sessionKey":"agent:main:main","path":"IDENTITY.md"}` | 1563 ms |
 | `r17/inbound-schema.json` | sqlite `openclaw-agent.sqlite`, ouvert en `?mode=ro` | — | — |
 
 **Nettoyage.** Il a été fait sur le téléphone, avant publication :
@@ -57,6 +61,9 @@ Sont conservés : les noms de champs, les types, les valeurs d'énumération, le
 - `sessions.files.list` : paramètres `{sessionKey, agentId?, path?, search?}`. Il renvoie `files[]` (fichiers lus ou modifiés selon le transcript) et `browser.entries[]`. Le navigateur est plafonné à 250 entrées (`truncated:true` au-delà) et la recherche à 500. Il n'y a ni curseur ni pagination. `sessions.files.get` renvoie `previewKind` `text`, `image` (base64 pour png, jpeg, gif, webp, avif) ou `unsupported`. L'aperçu est limité à 256 Kio, au-delà l'appel renvoie l'erreur `session_file_too_large`.
 
 **R17.** L'horodatage canonique de réception d'un message WhatsApp entrant est `transcript_events.event_json → $.message.timestamp`, en epoch ms : c'est l'horodatage fourni par WhatsApp, à la seconde près. On le filtre avec `$.type='message'`, `$.message.role='user'` et `$.message.__openclaw.transport.channel='whatsapp'`. `transcript_events.created_at` est l'heure à laquelle la Gateway a enregistré le message. Voir `r17/inbound-schema.json` pour le schéma, la requête SQL, des lignes d'exemple et les réserves (`event_zstd`).
+
+## Session principale de `main` (R20, ajout du 10/10 par Claude)
+Les quatre fichiers `r20/*.main*.json` ont été capturés de la même façon pour R20 (#53), après vérification dans `dist/` que `sessions.list` accepte `search` et `agentId`. `sessions.list` filtré renvoie une seule ligne : `key:"agent:main:main"`, `isMain:true`, `agentId:"main"`. La clé et le `sessionId` sont conservés tels quels ; seule une sélection de champs de la ligne est publiée (pas de libellé, de participants ni de dernier message). La liste du workspace et le résultat de recherche sont publiés sans modification (noms de dossiers et de fichiers, tailles, dates). Le contenu de `IDENTITY.md` est remplacé par `<texte N car.>` et son `hash` mis à zéro. À noter : pour une recherche, le propriétaire renvoie `browser.path:""` même quand `path` est fourni.
 
 ---
 
@@ -86,3 +93,11 @@ Sont conservés : les noms de champs, les types, les valeurs d'énumération, le
 | R5-bis #78 / pb#38 | `r5-bis/cron-state.sqlite`, `r5-bis/measures.json` | schéma réel `cron_jobs` + `cron_run_receipts` (17 jobs, 59 reçus) | Schéma **STRICT, PK (store_key, job_id)**, `schedule_identity` JSON non nul sur les 17 lignes. Digest #38 : 35 ms à froid, 2,4 ms à chaud sur la vraie base ; digest de la fixture `44de239b…d342`. |
 | R22 #79 | `r22/cron.status.json`, `cron.runs.*.json` | `openclaw gateway call` | `cron.status` 2,6 s ; `cron.runs` 1,6–4,7 s ; page non vide (total 299), vide, id inconnu et id invalide (`INVALID_REQUEST`/`CRON_JOB_NOT_FOUND`), erreurs toutes tâches (total 135). Source : `state/openclaw.sqlite.task_runs` (`source_id = jobId`). |
 | P0-4/5 #81 | `p0-4-5/resources-inventory.json` | procfs + fichiers + SQLite | Gateway RSS 0,83–1,29 Go, swap 0,62–0,84 Go, pic 2,3 Go ; `/proc/loadavg` et PSI refusés (SELinux), charge lisible via `uptime`. 108 releases (102 Mo), `gateway.stderr.log` 36,6 Mo non borné, remote-bridge 6 459 reçus (15 `running` jusqu'à 245 h, 1 `indeterminate`), artefacts 320 Mo, plugin-captures 643 Mo dont 4 racines orphelines sans `owner.sqlite` (432 Mo) que la purge native ne touche pas. |
+
+## `android/` : réglages réseau Android réels (lot paiement Maxit, P0-7)
+
+**Provenance.** Capturé le 10/10/2026 sur le S24 par Claude, en lecture seule (`adb -s 127.0.0.1:5556 shell settings list global`, filtré sur les clés réseau utiles ; `cmd wifi status | head -1`). Aucune écriture.
+- `settings-global-network.txt` : les clés que le garde réseau lit (`auto_wifi`, `sem_auto_wifi_control_enabled` et les clés proxy), avec leurs valeurs réelles. Les deux clés Auto Wi-Fi sont dans `settings global` (absentes de `secure` et `system`, vérifié le même jour).
+- `cmd-wifi-status.txt` : première ligne réelle de `cmd wifi status` (`Wifi is enabled`, sans tiret).
+
+**Nettoyage.** Rien à masquer : aucune donnée personnelle ni secret dans ces lignes (la liste des réseaux connus `sem_auto_wifi_added_removed_list` est volontairement exclue).

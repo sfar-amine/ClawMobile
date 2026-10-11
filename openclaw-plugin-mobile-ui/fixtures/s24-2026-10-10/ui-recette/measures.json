@@ -1,0 +1,95 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-10T19:20-19:40+00:00",
+  "host": "Samsung S24 / Termux",
+  "companion": "9cdd84f",
+  "gateway": "OpenClaw 2026.9.6",
+  "readOnly": true,
+  "note": "mesures en lecture seule (curl loopback, openclaw gateway call, sqlite ?mode=ro) ; aucun redémarrage, aucune écriture"
+ },
+ "emailScan": {
+  "method": "regex [A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[a-z]{2,} sur le corps JSON de chaque route de lecture de companion-acceptance.py (+ /files/content, /runs, /control/memory, /skills/candidates)",
+  "routesWithEmail": [
+   "/agent/config (model : profil OAuth openai:<e-mail>)"
+  ],
+  "routesWithAccountProfileId": [
+   "/agent/config (fallbacks : google:<profil>)",
+   "/conversations/{id}/metadata (models : google:<profil>)"
+  ],
+  "routesWithoutEmail": [
+   "/health",
+   "/files?scope=agent",
+   "/files?scope=session",
+   "/files/content?scope=agent&path=AGENTS.md",
+   "/files/content?scope=session&path=IDENTITY.md",
+   "/usage",
+   "/usage?details=cost",
+   "/providers",
+   "/whatsapp/allowlist",
+   "/whatsapp/allowlist/history?limit=50",
+   "/security/surfaces",
+   "/notifications/sources",
+   "/runs?limit=50",
+   "/runs?contract=2&view=conversations&limit=20",
+   "/control/engineering?limit=20",
+   "/control/diagnostic/export",
+   "/updates",
+   "/control/memory?limit=20",
+   "/laptop-access/computers",
+   "/skills/candidates?limit=50",
+   "/voice/voices",
+   "/control/automations?contract=2",
+   "/skills/clawmobile-capabilities",
+   "/skills"
+  ]
+ },
+ "usageCost": {
+  "gatewayUsageCostMs": [
+   7651,
+   2970,
+   1815
+  ],
+  "sessionsUsageMs": [
+   1776,
+   1570
+  ],
+  "note": "durées CLI (démarrage Node compris). Gateway 2026.9.6 : usage.cost lance un rafraîchissement en arrière-plan (requestRefresh:true, refreshMode:background) et met son résultat en cache 30 s (USAGE_CACHE_TTL_MS=3e4) même s'il est incomplet ; capture 16:20:44Z cacheStatus refreshing/staleFiles 92 puis refreshedAt 16:20:48Z (4,2 s). Le Companion gardait l'état computing 10 min (COST_TTL_MS) : tant que des sessions s'écrivent (recette active), chaque relecture toutes les 10 min retombe sur un cache périmé."
+ },
+ "conversations": {
+  "listed": 10,
+  "metadata200": 2,
+  "metadata404": 8,
+  "gatewayCompanionSessions": {
+   "count": 31,
+   "hasMore": false,
+   "totalCount": 31
+  },
+  "missingInGateway": {
+   "sessionsListExactSearch": 0,
+   "sessionNodesRows": 0,
+   "sessionsJsonEntries": 0
+  },
+  "conclusion": "les 8 conversations en 404 n'existent plus côté Gateway (aucune ligne session_nodes pour agent:main:companion-chat-<id>, recherche exacte sessions.list vide) ; la clé attendue est bien celle de la liste : pas de défaut de correspondance d'identifiant"
+ },
+ "metadataCatalog": {
+  "stale": "19:31:21Z modelChangeAvailable:false, issues conversation_auth_profile_unknown + conversation_model_catalog_stale",
+  "fresh": "19:39:27Z (juste après GET /agent/config) modelChangeAvailable:true"
+ },
+ "latencyMs": {
+  "/agent/config": [
+   4790,
+   3739
+  ],
+  "/usage": 2709,
+  "/providers": 1,
+  "/updates": 348,
+  "/control/engineering?limit=20": 358,
+  "/control/automations?contract=2": 2547,
+  "/runs?contract=2&view=conversations&limit=20": 38,
+  "/conversations/{id}/metadata": [
+   50,
+   5,
+   2023
+  ]
+ }
+}
