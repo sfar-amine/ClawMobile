@@ -1,7 +1,9 @@
-# HS6 — Adaptateur voix optionnel, sans branchement runtime
+# HS6 — Protection partagée des codes humains
 
-Le [contrat HS6](../work/samantha-runtime/contracts/hs6.md) prépare le transport du sous-contrat HS3 reconnu vers la voix. Lecteur pur, champs fermés, effet inconnu, langue explicitement concordante. Aucun nouveau canal, fournisseur, store, routeur ou chemin de paiement.
+La présentation HS3 fusionnée est le propriétaire unique des champs publics. Le lecteur `readReceiptPresentation` refuse les textes portant un OTP, PIN ou code de vérification explicitement désigné avec une valeur courte, y compris chiffres Unicode. Une phrase de compréhension facultative contenant un code est omise. Le lecteur conserve les nombres usuels et instructions sans valeur. Aucun mot de paiement ne déclenche cette protection.
 
-Onze tests contractuels générés passent et sont inscrits à la CI ; compilation TypeScript réussie. Ils ne qualifient pas le S24. Aucun endpoint ni relais n'importe l'adaptateur : aucun budget de route ou ligne de recette active n'est prétendu ajouté. Le lot reste bloqué sur les quatre captures réelles, les formes HS4/HS5 et le lien langue du tour. Retour arrière sans migration : retirer le lecteur et son test.
+La PR #137 se limite à cette protection partagée et ses tests. Les plans V1, gestes V2 et rendus V3 du relais ont été retirés pour ne conserver qu'une implémentation : `voiceUnderstanding.ts` dans #150 consomme le lecteur HS3. #150 intègre cette branche par merge, avec runtime comme base explicite. Claude fusionne #137 avant #150. Aucun parcours de paiement, route, registre, état persistant ou appel fournisseur modifié.
 
-Contrelecture locale : un OTP à quatre chiffres désigné était accepté par le reader HS3 partagé. Exclusion voix sur tous les champs visibles ajoutée, avec régression OTP/PIN courts (y compris chiffres Unicode), textes non secrets préservés et mutation source/projection indépendante. Reader HS3 partagé et paiement inchangés.
+Fixtures contractuelles authored, distinctes des captures S24 existantes. Test `test-voice-receipt-metadata.cjs` inscrit dans toute la CI. Il couvre chaque champ public, confidentialité, immutabilité, nombres ordinaires et 1000 projections sous une seconde avec 50000 champs étrangers. Ce budget pur ne constitue pas une mesure audio S24.
+
+La recette voix FR/EN/derja, les phases de parole et les reçus audio sont portés par #150 et qualifiés par Claude avec Amine sur S24. Retour arrière : revert du durcissement partagé ; aucune donnée ni migration.

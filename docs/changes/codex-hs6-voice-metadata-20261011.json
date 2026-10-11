@@ -3,23 +3,23 @@
   "id": "codex-hs6-voice-metadata-20261011",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "pending",
   "deployment_state": "not_applied",
-  "summary": "Préparation pure du transport optionnel HS3 vers la voix, non branchée",
-  "reason": "Réaliser la préparation contractuelle disponible sans inventer captures, langue de session, progression ou succès métier.",
+  "summary": "Protection des OTP/PIN courts dans le lecteur HS3 partagé ; voix consolidée dans #150",
+  "reason": "Supprimer les rendus et gestes doublons tout en conservant la protection des codes humains désignés.",
   "files": [
     ".github/workflows/ci.yml",
-    "openclaw-plugin-mobile-ui/src/companion/voiceReceiptMetadata.ts",
     "openclaw-plugin-mobile-ui/scripts/test-voice-receipt-metadata.cjs",
     "docs/work/samantha-runtime/contracts/hs6.md",
     "docs/changes/codex-hs6-voice-metadata-20261011.md",
-    "docs/changes/codex-hs6-voice-metadata-20261011.json"
+    "docs/changes/codex-hs6-voice-metadata-20261011.json",
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts"
   ],
   "tests": [
     {
       "name": "HS6 adaptateur voix pur",
       "status": "passed",
-      "evidence": "Compilation TypeScript et onze tests contractuels générés, non qualifiants S24 ; régression OTP/PIN courts désignés, nombres non secrets préservés et projection détachée ; aucun branchement actif."
+      "evidence": "Tests contractuels authored du lecteur partagé, aucune fixture audio inventée."
     }
   ],
   "documentation": [
@@ -46,12 +46,8 @@
     },
     "reason": "Aucune primitive owner ni route active modifiée."
   },
-  "rollback": "Retirer adaptateur et test ; aucune donnée runtime ni paiement à restaurer.",
+  "rollback": "Revert du durcissement partagé, aucune donnée runtime.",
   "limitations": [
-    "Préparation non branchée, pas livraison complète HS6.",
-    "Captures réelles de quatre cas, sources HS4/HS5 et lien langue du tour manquants ; core #124.",
-    "Dépend HS3 local f25dbf042ffc6c470ccc1f2c4ba23faa4adab40e ; GitHub inaccessible, état distant non affirmé.",
-    "Pas de nouvelle route : aucun budget HTTP ni ligne acceptance fictifs.",
-    "Exclusion supplémentaire HS6 seulement : reader HS3 partagé inchangé, pas de détection universelle ni qualification de données runtime."
+    "La recette voix live appartient à #150 ; aucune qualification audio revendiquée."
   ]
 }
