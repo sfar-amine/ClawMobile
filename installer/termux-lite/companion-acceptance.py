@@ -26,6 +26,7 @@ READS = [
     ("/notifications/sources", 6.0),
     ("/runs?limit=50", 4.0),
     ("/runs?contract=2&view=conversations&limit=20", 0.3),
+    ("/control/deploys?limit=20", 0.5),
     ("/control/engineering?limit=20", 2.0),
     ("/control/diagnostic/export", 3.0),
     ("/updates", 4.0),
