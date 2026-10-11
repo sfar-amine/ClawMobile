@@ -1,0 +1,367 @@
+{
+ "captured_at": "2026-10-11T03:07:42+00:00",
+ "source": "~/.openclaw/clawmobile-companion/runs.json (S24, lecture seule, claw_exec m1-runs-facts-capture)",
+ "cleaning": "Texte, réponse, sessions, hash et identifiants retirés ; runId renumérotés ; décision réduite à version/type/risque/capability/plan(mode,target,intent) et présence d'une association apprise.",
+ "version": 1,
+ "runCount": 25,
+ "runs": [
+  {
+   "runId": "run-00",
+   "acceptedAt": 1791684297655,
+   "state": "done",
+   "executionSource": "gateway",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-01",
+   "acceptedAt": 1791684362710,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": {
+    "version": 2,
+    "type": "EXECUTE",
+    "risk": "read",
+    "capability": "device.assistance",
+    "confirmationRequired": false,
+    "plan": {
+     "mode": "discovery",
+     "target": "pulse",
+     "intent": "project.set_status"
+    },
+    "learnedAssociation": false
+   }
+  },
+  {
+   "runId": "run-02",
+   "acceptedAt": 1791680145705,
+   "state": "done",
+   "executionSource": "gateway",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-03",
+   "acceptedAt": 1791681644037,
+   "state": "done",
+   "executionSource": null,
+   "modality": "voice",
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-04",
+   "acceptedAt": 1791681630787,
+   "state": "done",
+   "executionSource": null,
+   "modality": "voice",
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-05",
+   "acceptedAt": 1791681616249,
+   "state": "done",
+   "executionSource": null,
+   "modality": "voice",
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-06",
+   "acceptedAt": 1791679289197,
+   "state": "done",
+   "executionSource": "gateway",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-07",
+   "acceptedAt": 1791679217688,
+   "state": "failed",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": {
+    "version": 2,
+    "type": "EXECUTE",
+    "risk": "write",
+    "capability": "qa.test_campaign",
+    "confirmationRequired": false,
+    "plan": {
+     "mode": "discovery",
+     "target": "utility-billing",
+     "intent": "billing.unpaid"
+    },
+    "learnedAssociation": false
+   }
+  },
+  {
+   "runId": "run-08",
+   "acceptedAt": 1791667138263,
+   "state": "done",
+   "executionSource": "gateway",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-09",
+   "acceptedAt": 1791648877631,
+   "state": "done",
+   "executionSource": "gateway",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-10",
+   "acceptedAt": 1791491016718,
+   "state": "done",
+   "executionSource": "gateway",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-11",
+   "acceptedAt": 1791621662404,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": {
+    "version": 2,
+    "type": "EXECUTE",
+    "risk": "read",
+    "capability": "telecom.orange.consultation",
+    "confirmationRequired": false,
+    "plan": {
+     "mode": "known",
+     "target": "maxit-tunisie",
+     "intent": "telecom.balance"
+    },
+    "learnedAssociation": false
+   }
+  },
+  {
+   "runId": "run-12",
+   "acceptedAt": 1791573775291,
+   "state": "unknown",
+   "executionSource": null,
+   "modality": "voice",
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-13",
+   "acceptedAt": 1791498322642,
+   "state": "done",
+   "executionSource": "gateway",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-14",
+   "acceptedAt": 1791498187668,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": "run-parent",
+   "clarificationState": null,
+   "decision": {
+    "version": 2,
+    "type": "EXECUTE",
+    "risk": "read",
+    "capability": "telecom.orange.consultation",
+    "confirmationRequired": false,
+    "plan": {
+     "mode": "known",
+     "target": "maxit-tunisie",
+     "intent": "telecom.orange.offer"
+    },
+    "learnedAssociation": false
+   }
+  },
+  {
+   "runId": "run-15",
+   "acceptedAt": 1791498187282,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": "resolved",
+   "decision": {
+    "version": 2,
+    "type": "CLARIFY",
+    "risk": "read",
+    "capability": null,
+    "confirmationRequired": false,
+    "plan": {
+     "mode": "needs_clarification",
+     "target": "maxit-tunisie",
+     "intent": null
+    },
+    "learnedAssociation": false
+   }
+  },
+  {
+   "runId": "run-16",
+   "acceptedAt": 1791498186326,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": {
+    "version": 2,
+    "type": "EXECUTE",
+    "risk": "read",
+    "capability": "device.assistance",
+    "confirmationRequired": false,
+    "plan": {
+     "mode": "discovery",
+     "target": "maxit-tunisie",
+     "intent": "telecom.recharge_balance"
+    },
+    "learnedAssociation": false
+   }
+  },
+  {
+   "runId": "run-17",
+   "acceptedAt": 1791497871422,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": "run-parent",
+   "clarificationState": null,
+   "decision": {
+    "version": 2,
+    "type": "EXECUTE",
+    "risk": "read",
+    "capability": "telecom.orange.consultation",
+    "confirmationRequired": false,
+    "plan": {
+     "mode": "known",
+     "target": "maxit-tunisie",
+     "intent": "telecom.orange.offer"
+    },
+    "learnedAssociation": false
+   }
+  },
+  {
+   "runId": "run-18",
+   "acceptedAt": 1791497772021,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": "resolved",
+   "decision": {
+    "version": 2,
+    "type": "CLARIFY",
+    "risk": "read",
+    "capability": null,
+    "confirmationRequired": false,
+    "plan": {
+     "mode": "needs_clarification",
+     "target": "maxit-tunisie",
+     "intent": null
+    },
+    "learnedAssociation": false
+   }
+  },
+  {
+   "runId": "run-19",
+   "acceptedAt": 1791497769857,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": {
+    "version": 2,
+    "type": "EXECUTE",
+    "risk": "read",
+    "capability": "device.assistance",
+    "confirmationRequired": false,
+    "plan": {
+     "mode": "discovery",
+     "target": "maxit-tunisie",
+     "intent": "telecom.recharge_balance"
+    },
+    "learnedAssociation": false
+   }
+  },
+  {
+   "runId": "run-20",
+   "acceptedAt": 1791496457738,
+   "state": "unknown",
+   "executionSource": null,
+   "modality": "voice",
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-21",
+   "acceptedAt": 1791496383876,
+   "state": "unknown",
+   "executionSource": null,
+   "modality": "voice",
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-22",
+   "acceptedAt": 1791491410897,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-23",
+   "acceptedAt": 1791491119902,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  },
+  {
+   "runId": "run-24",
+   "acceptedAt": 1791488149308,
+   "state": "done",
+   "executionSource": "capability_first",
+   "modality": null,
+   "parentClarificationRunId": null,
+   "clarificationState": null,
+   "decision": null
+  }
+ ]
+}
