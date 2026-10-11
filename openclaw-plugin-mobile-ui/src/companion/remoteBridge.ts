@@ -316,7 +316,13 @@ function liveBridgeScriptStarts(): number[] | null {
   if (liveScriptCache && liveScriptCache.until > now) return liveScriptCache.starts;
   let starts: number[] | null = [];
   try {
-    const pids = fs.readdirSync("/proc").filter((name) => /^\d+$/.test(name)).slice(0, MAX_PROC_ENTRIES);
+    const pids = fs.readdirSync("/proc").filter((name) => /^\d+$/.test(name));
+    // A truncated inventory cannot prove that a command is no longer alive.
+    // Keep the existing bound; unknown liveness must preserve the receipt.
+    if (pids.length > MAX_PROC_ENTRIES) {
+      liveScriptCache = { until: now + 5_000, starts: null };
+      return null;
+    }
     for (const pid of pids) {
       let cmdline = "";
       try { cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8"); } catch { continue; }
