@@ -1,0 +1,189 @@
+{
+ "_capture": {
+  "host": "Samsung S24 / Termux",
+  "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+  "runtimeCore": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+  "sanitized": true,
+  "method": "models.list",
+  "params": {},
+  "latencyMs": 2582,
+  "exit": "rc=0",
+  "capturedAt": "2026-10-11T10:47:33Z",
+  "note": "vue par défaut ; profil OAuth remplacé par owner@example.invalid"
+ },
+ "response": {
+  "models": [
+   {
+    "id": "gemini-3.5-flash-lite",
+    "name": "Gemini 3.5 Flash Lite",
+    "provider": "google",
+    "contextWindow": 1048576,
+    "reasoning": true,
+    "tags": [
+     "fallback#3"
+    ],
+    "thinkingLevels": [
+     {
+      "id": "off",
+      "label": "off"
+     },
+     {
+      "id": "minimal",
+      "label": "minimal"
+     },
+     {
+      "id": "low",
+      "label": "low"
+     },
+     {
+      "id": "medium",
+      "label": "medium"
+     },
+     {
+      "id": "adaptive",
+      "label": "adaptive"
+     },
+     {
+      "id": "high",
+      "label": "high"
+     }
+    ],
+    "thinkingDefault": "low",
+    "effectiveFastMode": true,
+    "available": true
+   },
+   {
+    "id": "gpt-5.6-sol",
+    "name": "GPT-5.6-Sol",
+    "provider": "openai",
+    "contextWindow": 372000,
+    "reasoning": true,
+    "tags": [
+     "default",
+     "configured"
+    ],
+    "agentRuntime": {
+     "id": "openclaw",
+     "cloudPlacementSupported": true,
+     "cloudPlacementExecutionMode": "worker-turn",
+     "devicePlacement": {
+      "requiredNodeCommands": [],
+      "consumesWorkerSlot": true
+     },
+     "devicePlacementSupported": true,
+     "source": "model"
+    },
+    "thinkingLevels": [
+     {
+      "id": "minimal",
+      "label": "minimal"
+     },
+     {
+      "id": "low",
+      "label": "low"
+     },
+     {
+      "id": "medium",
+      "label": "medium"
+     },
+     {
+      "id": "high",
+      "label": "high"
+     },
+     {
+      "id": "xhigh",
+      "label": "xhigh"
+     },
+     {
+      "id": "max",
+      "label": "max"
+     },
+     {
+      "id": "ultra",
+      "label": "ultra"
+     }
+    ],
+    "thinkingDefault": "low",
+    "effectiveFastMode": true,
+    "supportsFastMode": true,
+    "available": true
+   },
+   {
+    "id": "gpt-5.6-luna",
+    "name": "GPT-5.6-Luna",
+    "provider": "openai",
+    "contextWindow": 372000,
+    "reasoning": true,
+    "tags": [
+     "fallback#2",
+     "configured"
+    ],
+    "agentRuntime": {
+     "id": "openclaw",
+     "cloudPlacementSupported": true,
+     "cloudPlacementExecutionMode": "worker-turn",
+     "devicePlacement": {
+      "requiredNodeCommands": [],
+      "consumesWorkerSlot": true
+     },
+     "devicePlacementSupported": true,
+     "source": "model"
+    },
+    "thinkingLevels": [
+     {
+      "id": "minimal",
+      "label": "minimal"
+     },
+     {
+      "id": "low",
+      "label": "low"
+     },
+     {
+      "id": "medium",
+      "label": "medium"
+     },
+     {
+      "id": "high",
+      "label": "high"
+     },
+     {
+      "id": "xhigh",
+      "label": "xhigh"
+     },
+     {
+      "id": "max",
+      "label": "max"
+     },
+     {
+      "id": "ultra",
+      "label": "ultra"
+     }
+    ],
+    "thinkingDefault": "low",
+    "effectiveFastMode": true,
+    "supportsFastMode": true,
+    "available": true
+   }
+  ],
+  "providerOutcomes": [
+   {
+    "provider": "openai",
+    "profileId": "openai:owner@example.invalid",
+    "status": "ready"
+   },
+   {
+    "provider": "google",
+    "status": "ready"
+   },
+   {
+    "provider": "github-copilot",
+    "profileId": "github-copilot:github",
+    "status": "ready"
+   }
+  ]
+ },
+ "findings": [
+  "Terra absente : Luna porte fallback#2 et Gemini fallback#3, ce qui suppose un fallback#1 (Terra) non listé car hors main.modelPolicy.allow.",
+  "contextWindow Sol/Luna = 372000 ici contre 272000 dans /v1/providers (contextTokens) : deux sources différentes."
+ ]
+}
