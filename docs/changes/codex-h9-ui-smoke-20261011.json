@@ -6,20 +6,26 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Brouillon outil de recette UI readonly à tags stricts",
-  "reason": "Fichier36 H9 ; admission UI canonique/foreground, exposition des testTags et matrice de navigation complète non prouvées, aucun test live par Codex.",
+  "reason": "Fichier36 H9 ; admission UI terminée par Claude (fichier 41) : bail UI partagé existant, package installé confirmé, déverrouillage, écran actif, premier plan revérifié avant chaque tap. Exposition des testTags dans l'app toujours absente.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-h9-ui-smoke-20261011.json",
     "docs/changes/codex-h9-ui-smoke-20261011.md",
     "docs/work/samantha-runtime/contracts/h9.md",
+    "installer/termux-lite/test-ui-smoke.py",
     "installer/termux-lite/ui-smoke.py",
-    "installer/termux-lite/test-ui-smoke.py"
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/h9/admission-probes.json"
   ],
   "tests": [
     {
       "name": "h9-synthetic-ui-safety",
       "status": "passed",
       "evidence": "10 tests synthétiques in-memory : aucune preuve runtime prétendue ; CI ajoutée, aucune étape retirée."
+    },
+    {
+      "name": "h9-admission-real-probes",
+      "status": "passed",
+      "evidence": "20 tests : sondes S24 réelles (verrouillé, Dozing, NotificationShade refusés ; package 0.10.1-native-dev-opt), bail occupé, refus avant geste, aucun dump versionné."
     }
   ],
   "documentation": [
@@ -48,7 +54,7 @@
   },
   "rollback": "Revert H9, aucun runtime ni app modifiés.",
   "limitations": [
-    "Admission UI non qualifiée : --run refuse avant tout ADB. Exposition testTags non démontrée ; H9 Draft jusqu’à réponse Claude et première recette S24.",
+    "testTagsAsResourceId absent des sources app : recette réelle en screen_not_verified tant que l'app n'expose pas ses tags ; branchement H8 après première exécution par Claude.",
     "Trois écrans seulement préparés ; navigation Automatisations et jauge non prouvée."
   ]
 }
