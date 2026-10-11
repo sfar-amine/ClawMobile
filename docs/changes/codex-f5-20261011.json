@@ -15,9 +15,19 @@
   ],
   "tests": [
     {
-      "name": "health-verdict-and-hysteresis",
+      "name": "canonical-health-verdict",
+      "status": "passed",
+      "evidence": "13/13 tests passed on preparation 69eab17812440e8daaf94895e1bbe9d12322e91e, exclusive local stage lock; existing owner1200s/300s unchanged."
+    },
+    {
+      "name": "f5-health-hysteresis-s24-window",
+      "status": "passed",
+      "evidence": "4/4 F5 regressions passed on preparation 69eab17812440e8daaf94895e1bbe9d12322e91e; actual18-sample captured window, true degraded preserved, two observations before attention, immediate recovery/down and repeated-failure reference clock."
+    },
+    {
+      "name": "complete-final-head-ci",
       "status": "pending",
-      "evidence": "Final-head complete local CI pending. Four F5 regressions exercise the existing owner and actual S24 #131 window; historical prior-candidate counts do not qualify this head."
+      "evidence": "Full local workflow replay follows this frozen note, all71 runsteps including current base5631fe9d union; no previous-head result reused."
     }
   ],
   "documentation": [
