@@ -32,7 +32,11 @@ const budgets=Object.fromEntries(JSON.parse(cp.execFileSync('python3',['-c',"imp
   const config=await unchanged('/v1/agent/config');assert.equal(config.body.success,true);
   await unchanged('/v1/providers');const usage=await unchanged('/v1/usage');
   const beforeShared=JSON.stringify(counts);const simultaneous=await Promise.all(Array.from({length:10},()=>request('/v1/usage',{'If-None-Match':usage.headers.etag})));assert(simultaneous.every(x=>x.status===304&&x.raw===''));assert.equal(JSON.stringify(counts),beforeShared,'ETag adds no owner calls/cache');
-  changedUsage=true;now+=60001;const changed=await request('/v1/usage',{'If-None-Match':usage.headers.etag});strong(changed);assert.notEqual(changed.headers.etag,usage.headers.etag);
+  // Stale-while-revalidate (11/10 perf): the expired minute answers the held view at once (unchanged, 304), and the
+  // revalidated quotas carry a new strong ETag on the next read.
+  changedUsage=true;now+=60001;const held=await request('/v1/usage',{'If-None-Match':usage.headers.etag});assert.equal(held.status,304);assert.ok(held.ms<500,'held view answers without the CLI read');
+  await delay((methods['usage.status']._capture?.latencyMs||3200)+150);
+  const changed=await request('/v1/usage',{'If-None-Match':usage.headers.etag});strong(changed);assert.notEqual(changed.headers.etag,usage.headers.etag);
   // Real terminal registry subset, owner sessions.list remains behind the R11 cache.
   const runs=await unchanged('/v1/runs?contract=2&view=conversations&limit=20');const data=JSON.parse(await fs.readFile(registryPath));data.runs[0].result='Declared test variation: latest visible result';await fs.writeFile(registryPath,JSON.stringify(data));
   const changedRuns=await request('/v1/runs?contract=2&view=conversations&limit=20',{'If-None-Match':runs.headers.etag});strong(changedRuns);assert.notEqual(changedRuns.headers.etag,runs.headers.etag);
