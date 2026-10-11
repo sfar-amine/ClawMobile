@@ -1,3 +1,5 @@
+import {runProgressSteps} from "./runProgress";
+import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ReceiptPresentation} from "./receiptPresentation";
 import { structuredNotification } from "./notificationText";
 import {capabilityProvenance,type CapabilityProvenance} from "./capabilityProvenance";
 import {conversationOwnerIndex,invalidateConversationOwner} from "./conversationOwnerIndex";
@@ -16,6 +18,7 @@ import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSes
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment } from "./types";
 
 type StoredRun = {
+  presentation?: ReceiptPresentation;
   provenance?: CapabilityProvenance;
   inactivityCorrectionReceipt?: InactivityReceipt;
   runId: string;
@@ -40,7 +43,20 @@ type StoredRun = {
   transcriptState?: "partial" | "completed" | "interrupted";
   transcriptRevision?: number;
   playback?: VoicePlaybackMetadata;
+  notThis?: RunCorrection;
 };
+
+/** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */
+export type RunCorrection = {version: 1; operationId: string; at: number; neutralized: number;
+  counterExample: "recorded" | "not_stored" | "none"; roundSignal: "pending" | "not_captured" | "none"};
+const CORRECTION_OPERATION_RE = /^[A-Za-z0-9_.:-]{1,128}$/;
+function validRunCorrection(value: any): RunCorrection | undefined {
+  if (value?.version !== 1 || typeof value.operationId !== "string" || !CORRECTION_OPERATION_RE.test(value.operationId) ||
+      !Number.isFinite(value.at) || !Number.isSafeInteger(value.neutralized) || value.neutralized < 0 ||
+      !["recorded", "not_stored", "none"].includes(value.counterExample) || !["pending", "not_captured", "none"].includes(value.roundSignal)) return undefined;
+  return {version: 1, operationId: value.operationId, at: value.at, neutralized: value.neutralized,
+    counterExample: value.counterExample, roundSignal: value.roundSignal};
+}
 
 type CompanionRunRegistry = {
   paymentRequests: PaymentRecord[];
@@ -166,6 +182,7 @@ export async function reserveSubmittedRun(
       clientRunId: clientId,
       requestHash,
       executionSource: options.executionSource || "gateway",
+      presentation: options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined,
       decision: options.decision && typeof options.decision === "object" ? options.decision : undefined,
       clarificationState: String(options.decision?.type || "") === "CLARIFY" ? "pending" : undefined,
       clarificationExpiresAt: String(options.decision?.type || "") === "CLARIFY" ? now + 10 * 60 * 1000 : undefined,
@@ -190,12 +207,14 @@ export async function reserveSubmittedRun(
 export async function rememberSubmittedRun(
   text: string,
   result: OpenClawAgentSubmitResult,
-  options: { userText?: string; attachments?: IntentAttachment[]; decision?: Record<string, unknown>; parentClarificationRunId?: string } = {},
+  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string } = {},
 ) {
   const existing = submittedRuns.get(result.runId)
     || (await findStoredRun(result.runId).catch(() => null));
   const stored = {
     ...existing,
+    executionSource: options.executionSource || existing?.executionSource || "gateway",
+    presentation: existing?.presentation || (options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined),
     runId: result.runId,
     sessionId: result.sessionId,
     sessionKey: normalizedStoredSessionKey(result.sessionId, result.sessionKey),
@@ -219,7 +238,7 @@ export async function settleSubmittedRun(
   runId: string,
   state: "done" | "failed",
   result: string,
-  options: {provenance?: unknown} = {},
+  options: {provenance?: unknown; presentation?: unknown} = {},
 ) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));
@@ -228,6 +247,7 @@ export async function settleSubmittedRun(
     ...existing,
     provenance: capabilityProvenance(options.provenance) || existing.provenance,
     state,
+    presentation: readReceiptPresentation(options.presentation) || (existing.executionSource === "capability_first" ? fallbackReceiptPresentation(state === "failed") : existing.presentation),
     inactivityCorrectionReceipt: state === "done" && (existing.error === "run_inactivity_expired" || existing.inactivityCorrectionReceipt?.to === "running") ? {
       version: 1, action: "correct_run_expiration", runId, from: "expired", to: "done",
       at: Date.now(), evidenceAt: Date.now(),
@@ -523,6 +543,45 @@ export async function markClarificationRun(
   await saveStoredRun(stored);
 }
 
+/** 38 A2 : run lu pour « Ce n'est pas ça » (texte et décision v2 restent côté serveur, jamais renvoyés). */
+export async function readRunForCorrection(runId: string): Promise<{
+  runId: string; text: string; userText: string; decision?: Record<string, unknown>; notThis?: RunCorrection;
+} | null> {
+  const run = await findStoredRun(runId, false);
+  if (!run) return null;
+  return {runId: run.runId, text: run.text, userText: run.userText || run.text, decision: run.decision, notThis: run.notThis};
+}
+
+/** Pose la trace une seule fois ; une trace existante gagne (idempotence par run). */
+export async function markRunNotThis(runId: string, correction: RunCorrection): Promise<RunCorrection> {
+  const checked = validRunCorrection(correction);
+  if (!checked) throw Object.assign(new Error("invalid_run_correction"), {statusCode: 400});
+  const existing = await findStoredRun(runId, false);
+  if (!existing) throw Object.assign(new Error("run_not_found"), {statusCode: 404});
+  if (existing.notThis) return existing.notThis;
+  await saveStoredRun({...existing, notThis: checked, updatedAt: Date.now()});
+  return checked;
+}
+
+/** 38 M1 : projection minimale des reçus de runs existants (aucun texte). */
+export type ComprehensionRunFact = {acceptedAt: number; decisionType?: string; decisionRisk?: string;
+  learned: boolean; clarificationAnswer: boolean; notThisAt?: number; agent: boolean};
+export async function comprehensionRunFacts(): Promise<{facts: ComprehensionRunFact[]; retainedCap: number}> {
+  const facts = (await readStoredRuns(false)).map(run => {
+    const decision: any = run.decision;
+    return {
+      acceptedAt: run.acceptedAt,
+      decisionType: typeof decision?.type === "string" ? String(decision.type) : undefined,
+      decisionRisk: typeof decision?.risk === "string" ? String(decision.risk) : undefined,
+      learned: typeof decision?.plan?.learned_association === "string" || typeof decision?.learnedAssociation === "string",
+      clarificationAnswer: typeof run.parentClarificationRunId === "string",
+      notThisAt: run.notThis?.at,
+      agent: !decision && run.executionSource === "gateway",
+    };
+  });
+  return {facts, retainedCap: MAX_PERSISTED_RUNS};
+}
+
 export async function findSubmittedRunByClientRunId(
   clientRunId: string,
   expected?: { text: string; sessionId: string; userText?: string; attachments?: IntentAttachment[] },
@@ -551,10 +610,32 @@ export async function getRunStatusByClientRunId(clientRunId: string): Promise<Co
   if (!stored) return unknownRun(clientId, "Client run was not found.");
   // Admission truth is the local atomic registry. Reconciliation must not depend
   // on Gateway reachability after the Companion has durably accepted a run.
-  return statusFromStoredRun(stored);
+  return withRunSteps(statusFromStoredRun(stored), stored);
+}
+
+/** HS5: progress.steps[] derived on read from the stored run and its receipts; nothing persisted. */
+function withRunSteps(status: CompanionRunStatus, stored?: StoredRun | null): CompanionRunStatus {
+  if (!stored) return status;
+  const derived = runProgressSteps({
+    executionSource: stored.executionSource, state: status.state, error: stored.error,
+    acceptedAt: stored.acceptedAt, updatedAt: stored.updatedAt ?? status.updatedAt, modality: stored.modality,
+    decision: stored.decision, clarificationState: stored.clarificationState,
+    presentation: readReceiptPresentation(stored.presentation), events: status.progress?.events,
+  });
+  if (!derived) return status;
+  const base = status.progress || {text: "", events: []};
+  return {...status, progress: {...base, ...derived}};
 }
 
 export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
+  const normalizedRunId = runId.trim();
+  const stored = normalizedRunId
+    ? (await findStoredRun(normalizedRunId, false).catch(() => null)) || submittedRuns.get(normalizedRunId)
+    : undefined;
+  return withRunSteps(await getRunStatusUnstepped(runId, stored), stored);
+}
+
+async function getRunStatusUnstepped(runId: string, preloaded: StoredRun | null | undefined): Promise<CompanionRunStatus> {
   const normalizedRunId = runId.trim();
   if (!normalizedRunId) {
     return unknownRun("", "Run id is required.");
@@ -562,7 +643,7 @@ export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
   if ((await registryOrEmpty().catch(() => defaultCompanionRunRegistry())).runDeletions.some(receipt => receipt.runId === normalizedRunId))
     return unknownRun(normalizedRunId, "Run deleted from companion history.");
 
-  const stored = (await findStoredRun(normalizedRunId, false).catch(() => null)) || submittedRuns.get(normalizedRunId);
+  const stored = preloaded;
   reconcileInactiveRuns(normalizedRunId);
   if(stored&&!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
   // Recent Gateway runs keep their normal live session/transcript refresh.
@@ -738,6 +819,8 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     success: !failed,
     provenance: capabilityProvenance(stored.provenance),
     status: stored.error === "run_inactivity_expired" ? "expired" : undefined,
+    ...publicReceiptMetadata(readReceiptPresentation(stored.presentation)),
+    ...(publicDecision(stored.decision) ? {decision: publicDecision(stored.decision)} : {}),
     inactivityCorrectionReceipt: stored.inactivityCorrectionReceipt,
     runId: stored.runId,
     clientRunId: stored.clientRunId,
@@ -1736,6 +1819,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       .filter((run: any) => typeof run?.runId === "string")
     .map((run: any) => ({
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
+      presentation: readReceiptPresentation(run.presentation),
       provenance: capabilityProvenance(run.provenance),
       runId: run.runId,
       clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
@@ -1771,6 +1855,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       transcriptState: ["partial", "completed", "interrupted"].includes(run.transcriptState) ? run.transcriptState : undefined,
       transcriptRevision: Number.isSafeInteger(run.transcriptRevision) ? run.transcriptRevision : undefined,
       playback: run.playback ? validateVoicePlayback(run.playback) : undefined,
+      notThis: run.notThis ? validRunCorrection(run.notThis) : undefined,
     })),
   };
 }
