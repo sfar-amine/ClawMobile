@@ -53,7 +53,7 @@ export async function submitToOpenClawAgent(
   let ownerTransport: OpenClawAgentSubmitResult["ownerTransport"] = "write_cli";
   if (admitted) {
     try {
-      raw = await submitOwnerTurn(params, {expectFinal: waitedForFinal, timeoutMs});
+      raw = await submitOwnerTurn(params, {expectFinal: waitedForFinal, timeoutMs, admission: options.admission!, binding: {clientRunId: options.clientRunId, sessionId: normalizedSessionId}});
       ownerTransport = "admin_admitted";
     } catch (error: any) {
       // Avant envoi uniquement : le tour reste non-owner sur le CLI. Après envoi : jamais de rejeu.
