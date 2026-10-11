@@ -1,0 +1,35 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/usage",
+  "status": 200,
+  "capturedAt": "2026-10-10T23:41:37Z",
+  "bytes": 842,
+  "companion": "curl loopback http://127.0.0.1:8765 avec l'en-tête de l'app (Connection: close), sans Origin/Referer ni en-tête propriétaire",
+  "sanitized": true,
+  "attempts": 1,
+  "totalMs": 3862,
+  "lastLatencyMs": 3832,
+  "retryPolicy": "relance toutes les 500 ms tant que computation.deliveryMode=deferred (comme l'app, retryAfterMs=500)",
+  "firstCall": {
+   "status": 200,
+   "latencyMs": 5940,
+   "at": "2026-10-10T23:40:27Z",
+   "response": {
+    "schemaVersion": 1,
+    "updatedAt": null,
+    "providers": [],
+    "issues": ["usage_source_unavailable"]
+   }
+  }
+ },
+ "response": {
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-10T23:41:36.346Z",
+  "providers": [
+    {"id":"github-copilot","name":"Copilot","plan":"individual","windows":[{"label":"Premium","usedPercent":100,"remainingPercent":0,"resetsAt":null},{"label":"Chat","usedPercent":0.7000000000000028,"remainingPercent":99.3,"resetsAt":null}],"state":"exhausted"},
+    {"id":"openai","name":"OpenAI","plan":"prolite","windows":[{"label":"168h","usedPercent":57,"remainingPercent":43,"resetsAt":"2026-10-17T19:02:26.000Z"}],"state":"ok"}
+  ],
+  "issues": []
+ }
+}

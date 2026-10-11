@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "codex-g4-deploys-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Read canonical Companion and app deployment receipts without recipe content",
+  "reason": "File35 G4; owners and source formats verified on S24 before implementation.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "docs/changes/codex-g4-deploys-20261010.json",
+    "docs/work/samantha-runtime/contracts/g4-deploys.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/g4/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/g4/deploy-receipts.json",
+    "openclaw-plugin-mobile-ui/scripts/test-deployment-receipts.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/deploymentReceipts.ts"
+  ],
+  "tests": [
+    {
+      "name": "g4-deployment-receipts",
+      "status": "passed",
+      "evidence": "Actual S24 owner contains 15 Companion/7 app receipts; 8 cleaned samples captured. First metadata scan 41.76ms, published enriched scan 10.93ms. Cold 600 derived receipts <500ms, parent/leaf symlink refusal, single-flight/privacy/HTTP guards/no-write."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/g4-deploys.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Paired canonical planned entries in playbooks; no separate core registry."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Read canonical deployment owner files; no additional durable store, daemon or scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP contracts unchanged; planned canonical descriptions do not activate a second route.",
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "docs/work/samantha-runtime/contracts/g4-deploys.md"
+    ]
+  },
+  "rollback": "Revert paired G4 PRs; no deployment by Codex.",
+  "limitations": [
+    "S24 route qualification by Claude pending; local reader tested.",
+    "Incomplete scans yield partial; G5 date is null if coverage is not complete. App version unproven in captured details is null."
+  ]
+}
