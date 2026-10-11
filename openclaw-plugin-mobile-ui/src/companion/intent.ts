@@ -157,6 +157,7 @@ async function executeCapabilityFirst(
   }
 
   let presentation = readReceiptPresentation(check);
+  let provenance: FastPathResult["provenance"];
   let state: "done" | "failed";
   let message: string;
   if (check.status === "clarification") {
@@ -174,6 +175,7 @@ async function executeCapabilityFirst(
       preparedDecision: check.decision,
     });
     presentation = readReceiptPresentation(result);
+    provenance = result.provenance;
     if (result.status === "hit") {
       state = "done";
       message = String(result.text || "Claw completed the capability.");
@@ -187,7 +189,7 @@ async function executeCapabilityFirst(
   }
 
   presentation ||= fallbackReceiptPresentation(state === "failed");
-  await settleSubmittedRun(runId, state, message, presentation);
+  await settleSubmittedRun(runId, state, message, {provenance, presentation});
   return {
     success: true,
     accepted: true,

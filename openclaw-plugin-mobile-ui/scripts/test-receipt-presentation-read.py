@@ -50,4 +50,12 @@ class CaptureTests(unittest.TestCase):
   p['failure']['notDone']={'code':'nothing_debited','text':'Rien n’a été débité.'};p['failure']['stepId']='made_up'
   got=reader.read({'presentation':p})
   self.assertEqual(got['understood']['slots'],{});self.assertNotIn('notDone',got['failure']);self.assertNotIn('stepId',got['failure'])
+ def test_success_keeps_business_rendering_after_understood_line(self):
+  o7=json.loads((root/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json').read_text(encoding='utf-8'))
+  cards=fast._display_text(o7['client_received_result'])
+  meta=reader.read({'presentation':self.cases['topup_confirmation_fr']['presentation']})
+  text=fast._understood_prefix(meta,cards)
+  self.assertTrue(text.startswith('Compris : '));self.assertTrue(text.endswith(cards));self.assertIn(' : ',cards)
+  self.assertEqual(fast._understood_prefix({},cards),cards)
+
 if __name__=='__main__':unittest.main()
