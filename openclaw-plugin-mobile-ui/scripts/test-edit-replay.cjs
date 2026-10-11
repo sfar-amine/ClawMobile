@@ -111,6 +111,9 @@ const waitFor=async(check,ms=5000)=>{const end=Date.now()+ms;while(Date.now()<en
   assert.equal(page.status,200);
   assert.deepEqual(page.body.turns.map(t=>!!t.supersededBy),[false,true,true,true]);
   assert.deepEqual(page.body.turns.map(t=>t.replayEffect),['unknown','executed','none','unknown']);
+  // Copie pour les tests de l'app (android/samantha, test/resources/edit-replay) : EDIT_REPLAY_DUMP=<fichier>.
+  if(process.env.EDIT_REPLAY_DUMP)fs.writeFileSync(process.env.EDIT_REPLAY_DUMP,JSON.stringify({source:'scripts/test-edit-replay.cjs sur fixtures/s24-2026-10-10/i1 (registre S24 nettoyé)',page:page.body,
+    replayRun:(await get(port,'/v1/runs/'+newRunId)).body},null,1));
 
   // Reprise idempotente du même envoi, puis refus d'une seconde édition du message déjà remplacé.
   const retry=await post(port,{...base,replayOf:{sessionId:SOURCE,runId:edited.runId}});
