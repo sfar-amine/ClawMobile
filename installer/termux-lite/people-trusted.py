@@ -820,7 +820,7 @@ class Contacts:
         c=sqlite3.connect(f'file:{self.people.DB}?mode=ro',uri=True)
         row=c.execute("SELECT message_id FROM send_receipts WHERE target=? AND idempotency_key LIKE 'r17:%' AND state IN ('added','updated') AND json_valid(message_id) AND json_extract(message_id,'$.receipt.action') IN ('added','extended','shortened') ORDER BY updated_at DESC,rowid DESC LIMIT 1",(identity,)).fetchone();c.close()
         value=json.loads(row[0]).get('receipt',{}).get('durationDays') if row else None
-        return value if value in (1,3,5) and not isinstance(value,bool) else None
+        return value if value in (1,3,5,7) and not isinstance(value,bool) else None
     def noop(self, operation, identity, wanted, state):
         if not self.reserve(operation,identity,wanted): return self.read_operation(operation,wanted)
         return self.finish(operation,{'success':True,'state':state,'receipt':{'version':1,'operationId':operation,'action':'added' if state=='already_present' else 'removed','contactId':identity,'state':state,'at':utc(self.clock())}})
@@ -947,7 +947,7 @@ class Contacts:
                 if phase=='preflight': return {'success':True,'state':'already_present','receipt':None}
                 return self.noop(operation,identity,wanted,'already_present')
             if action=='add':
-                if duration not in (None,1,3,5) or isinstance(duration,bool): fail('invalid_duration')
+                if duration not in (None,1,3,5,7) or isinstance(duration,bool): fail('invalid_duration')
                 if number in owners and duration is not None: fail('owner_contact_protected',409)
                 self.confirmation(body,'add',identity,digest('|'.join([number,scope,text or '',str(duration) if duration else 'permanent'])),retry=retry)
                 wa['allowFrom'].append(number);metadata['addedAt']=utc(self.clock());metadata['expiresAt']=utc(self.clock()+duration*86400) if duration else None
@@ -971,7 +971,7 @@ class Contacts:
             if number not in wa['allowFrom']: wa['allowFrom'].append(number)
             metadata['state']='active';metadata['suspendedScope']=None
         elif action=='expiry':
-            if duration not in (None,1,3,5) or isinstance(duration,bool): fail('invalid_duration')
+            if duration not in (None,1,3,5,7) or isinstance(duration,bool): fail('invalid_duration')
             expires=utc(self.clock()+duration*86400) if duration else None
             if original['expiresAt'] is not None and (expires is None or stamp(expires)>stamp(original['expiresAt'])): self.confirmation(body,'extend',identity,digest('|'.join([number,str(duration) if duration else 'permanent'])),retry=retry)
             if original['expiresAt'] is None and expires is None: event='extended'
