@@ -221,6 +221,8 @@ jobs:
           node scripts/test-nightly-health-http.cjs
           python3 ../installer/termux-lite/test-companion-nightly-acceptance.py
           python3 ../installer/termux-lite/test-health-verdict.py
+      - name: F6 Remote Bridge stuck receipts become bounded abandoned without replay
+        run: node scripts/test-remote-bridge-abandoned.cjs
       - name: G4 deployment receipts and route budget
         run: node scripts/test-deployment-receipts.cjs
       - name: C5 canonical voice owner transport fixture
