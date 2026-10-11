@@ -51,6 +51,9 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
+      - name: Run edit-and-replay contract (édition d'un message envoyé, audit sans suppression)
+        run: node scripts/test-edit-replay.cjs
+
       - name: Run 38 A2 learning owner routes (guards, budget, not-this run marker)
         run: node scripts/test-learning-routes.cjs
 
