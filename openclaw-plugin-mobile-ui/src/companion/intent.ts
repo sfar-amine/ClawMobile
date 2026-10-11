@@ -1,3 +1,4 @@
+import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision} from "./receiptPresentation";
 import crypto from "crypto";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
@@ -148,13 +149,14 @@ async function executeCapabilityFirst(
     if (duplicate) return responseFromExisting(reservation.status, userText);
   } else {
     await rememberSubmittedRun(text, acceptedRun(runId, sessionId), {
-      userText, attachments, decision: check.decision, parentClarificationRunId,
+      userText, attachments, executionSource: "capability_first", decision: check.decision, parentClarificationRunId,
     });
   }
   if (parentClarificationRunId) {
     await markClarificationRun(parentClarificationRunId, "resolved");
   }
 
+  let presentation = readReceiptPresentation(check);
   let provenance: FastPathResult["provenance"];
   let state: "done" | "failed";
   let message: string;
@@ -172,6 +174,7 @@ async function executeCapabilityFirst(
       timeoutSeconds: 75,
       preparedDecision: check.decision,
     });
+    presentation = readReceiptPresentation(result);
     provenance = result.provenance;
     if (result.status === "hit") {
       state = "done";
@@ -185,13 +188,16 @@ async function executeCapabilityFirst(
     }
   }
 
-  await settleSubmittedRun(runId, state, message, {provenance});
+  presentation ||= fallbackReceiptPresentation(state === "failed");
+  await settleSubmittedRun(runId, state, message, {provenance, presentation});
   return {
     success: true,
     accepted: true,
     submissionState: "accepted",
     retrySafe: false,
     duplicate,
+    ...publicReceiptMetadata(presentation),
+    ...(publicDecision(check.decision) ? {decision: publicDecision(check.decision)} : {}),
     runId,
     clientRunId,
     sessionId,
@@ -235,6 +241,8 @@ function responseFromExisting(
     submissionState: "accepted",
     retrySafe: false,
     duplicate: true,
+    ...publicReceiptMetadata(readReceiptPresentation(status.presentation)),
+    ...(status.decision ? {decision: status.decision} : {}),
     runId: status.runId,
     clientRunId: status.clientRunId,
     sessionId: status.sessionId,
