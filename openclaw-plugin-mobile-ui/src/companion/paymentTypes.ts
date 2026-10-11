@@ -1,4 +1,7 @@
-export type PaymentQuote = {payee:string; reference:string; amountMinor:number; currency:string; decimals:number};
+/** feeMinor/totalMinor/feeLabel: provider fee added on top of amountMinor (Maxit, 11/10). All three or none;
+ *  totalMinor = amountMinor + feeMinor is the amount the owner confirms and the gateway must equal. */
+export type PaymentQuote = {payee:string; reference:string; amountMinor:number; currency:string; decimals:number;
+  feeMinor?:number; totalMinor?:number; feeLabel?:string};
 export type PaymentPayable = PaymentQuote & {adapterId:string};
 export type PaymentOrigin = {channel:"chatgpt"|"work"|"claw"|"samantha"; id:string};
 export type PaymentDraft = {requestKey:string; adapterId:string; reference:string; mode:"demo"|"live"; origin:PaymentOrigin};

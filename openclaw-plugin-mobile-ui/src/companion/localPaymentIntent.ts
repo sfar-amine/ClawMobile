@@ -17,7 +17,22 @@ function formatAmount(amountMinor:number, decimals:number):string {
   return String(whole)+","+String(frac).padStart(decimals,"0");
 }
 
+export const LOCAL_PAYMENT_INTENT_FEE_DOMAIN = "claw.payment.local-start.v2";
+
 export function localPaymentPayloadHash(adapterId:string, quote:PaymentQuote):string {
+  // With a provider fee the signed payload covers amount, fee, label and total debited (v2); otherwise v1 unchanged.
+  if(quote.feeMinor!==undefined) return hash([
+    LOCAL_PAYMENT_INTENT_FEE_DOMAIN,
+    adapterId,
+    quote.payee,
+    quote.reference,
+    String(quote.amountMinor),
+    String(quote.feeMinor),
+    String(quote.totalMinor),
+    String(quote.feeLabel),
+    quote.currency,
+    String(quote.decimals)
+  ].join("\n"));
   return hash([
     LOCAL_PAYMENT_INTENT_DOMAIN,
     adapterId,
@@ -36,6 +51,28 @@ export function buildLocalPaymentIntent(args:{
 }):OwnerIntent {
   const {adapterId, quote, origin}=args;
   const amount=formatAmount(quote.amountMinor, quote.decimals);
+  const action={
+    type:LOCAL_PAYMENT_ACTION_TYPE,
+    reference:adapterId+":"+quote.reference,
+    payloadHash:localPaymentPayloadHash(adapterId, quote)
+  };
+  if(quote.feeMinor!==undefined) {
+    if(!Number.isSafeInteger(quote.totalMinor)||quote.totalMinor!==quote.amountMinor+quote.feeMinor||typeof quote.feeLabel!=="string")
+      throw new Error("invalid_payment_quote");
+    const fee=formatAmount(quote.feeMinor, quote.decimals), total=formatAmount(quote.totalMinor!, quote.decimals);
+    // Biometric screen: the amount actually debited, then its exact breakdown (bound by the signed binding hash).
+    return {
+      audience:"confirmation",
+      action,
+      presentation:{
+        title:"Autoriser le paiement",
+        subtitle:"Total débité "+total+" "+quote.currency+" à "+quote.payee,
+        description:"Montant "+amount+" "+quote.currency+" · "+quote.feeLabel+" "+fee+" "+quote.currency+" · Total débité "+total+" "+quote.currency+
+          ". Référence "+quote.reference+". Le paiement sera créé et envoyé uniquement après cette biométrie."
+      },
+      origin
+    };
+  }
   return {
     audience:"confirmation",
     action:{
