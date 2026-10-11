@@ -951,6 +951,14 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
           clientRunId: body?.clientRunId, sessionId: body?.sessionId})
       : {admitted: false as const, reason: "no_proof" as const};
     if (admission.admitted === false && admission.reason !== "no_proof") console.log(`[companion] P1 admission refusée : ${admission.reason}`);
+    if ((body as any)?.voiceDelegation !== undefined) {
+      if ((body as any).voiceDelegation !== true || (body as any).agentId !== undefined || body?.replayOf !== undefined || body?.attachments !== undefined) {
+        writeJson(res,400,{success:false,accepted:false,submissionState:"not_submitted",message:"voice_delegation_invalid"});return;
+      }
+      if (!admission.admitted) {
+        writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required",ownerAdmission:publicAdmission(admission)});return;
+      }
+    }
     const legacyContext = !admission.admitted && legacyLoopbackOwnerContextEnabled() &&
       isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"];
     try{if(body?.attachments){
@@ -980,6 +988,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         clientRunId: body?.clientRunId,
         authority,
         admission: admission.admitted ? admission.ticket : undefined,
+        ...((body as any)?.voiceDelegation === true ? {voiceDelegation:true as const} : {}),
         ...(replayOf?{replayOf}:{}),
       },
     );

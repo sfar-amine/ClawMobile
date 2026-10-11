@@ -14,7 +14,7 @@ export async function submitIntent(
   text: string,
   sessionId = "default",
   attachments: IntentAttachment[] = [],
-  options: { userText?: string; clientRunId?: string; learningOnly?: true; authority?:"owner"; admission?: AdmissionTicket; replayOf?: {sessionId: string; runId: string} } = {},
+  options: { userText?: string; clientRunId?: string; learningOnly?: true; authority?:"owner"; admission?: AdmissionTicket; voiceDelegation?: true; replayOf?: {sessionId: string; runId: string} } = {},
 ): Promise<IntentSubmitResponse> {
   const normalized = text.trim();
   const visibleUserText = (options.userText || normalized).trim();
@@ -22,6 +22,8 @@ export async function submitIntent(
   const clientRunId = String(options.clientRunId || "").trim() || undefined;
   const learningOnly = options.learningOnly === true;
   const currentOwner = () => !learningOnly && turnAdmission.isCurrent(options.admission, {clientRunId, sessionId: normalizedSessionId});
+  if (options.voiceDelegation === true && (!currentOwner() || !clientRunId || learningOnly || options.replayOf || attachments.length))
+    return notSubmitted(normalizedSessionId, clientRunId, "owner_required");
   if (learningOnly && (normalizedSessionId !== "skill-learning" || attachments.length)) return notSubmitted(normalizedSessionId, clientRunId, "Invalid learning submission.");
   if (!normalized) {
     return notSubmitted(normalizedSessionId, clientRunId, "Intent text is required.");
@@ -92,6 +94,7 @@ export async function submitIntent(
   if (ownerAdmitted && !currentOwner()) return notSubmitted(normalizedSessionId, clientRunId, "owner_admission_expired");
 
   if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
+    if (options.voiceDelegation === true && !currentOwner()) return notSubmitted(normalizedSessionId, clientRunId, "owner_required");
     return executeCapabilityFirst(
       routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
       parentClarificationRunId, replayOf, ownerAdmitted, options.admission,
@@ -132,12 +135,12 @@ export async function submitIntent(
     if (duplicate) return responseFromExisting(reservation.status, visibleUserText);
   }
 
-  const accepted = acceptedRun(runId, normalizedSessionId);
+  const accepted = acceptedRun(runId, normalizedSessionId, options.voiceDelegation);
   if (!clientRunId) {
     await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted });
   }
   void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority,
-    learningOnly ? undefined : options.admission, clientRunId);
+    learningOnly ? undefined : options.admission, clientRunId, options.voiceDelegation);
 
   const message = describeOpenClawResult(accepted);
   return {
@@ -303,9 +306,10 @@ async function submitIntentInBackground(
   authority?:"owner",
   admission?: AdmissionTicket,
   clientRunId?: string,
+  voiceDelegation?: true,
 ) {
   try {
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId});
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId, voiceDelegation});
     if (admission) console.log(`[companion] P1 turn ${runId}: transport=${openclaw.ownerTransport}`);
     await rememberSubmittedRun(text, {
       ...openclaw,
@@ -347,11 +351,11 @@ function publicReplay(replay: PreparedReplay) {
     supersededRuns: replay.supersededRuns, effects: replay.effects};
 }
 
-function acceptedRun(runId: string, sessionId: string): OpenClawAgentSubmitResult {
+function acceptedRun(runId: string, sessionId: string, voiceDelegation?: true): OpenClawAgentSubmitResult {
   return {
     runId,
     sessionId,
-    sessionKey: expectedCompanionSessionKey(sessionId),
+    sessionKey: expectedCompanionSessionKey(sessionId, voiceDelegation ? "main" : undefined),
     status: "accepted",
     acceptedAt: Date.now(),
     waitedForFinal: false,

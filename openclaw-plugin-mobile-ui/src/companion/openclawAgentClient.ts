@@ -24,13 +24,13 @@ export async function submitToOpenClawAgent(
   text: string,
   runId: string,
   sessionId = "default",
-  options: {authority?:"owner"; admission?:AdmissionTicket; clientRunId?:string} = {},
+  options: {authority?:"owner"; admission?:AdmissionTicket; clientRunId?:string; voiceDelegation?:true} = {},
 ): Promise<OpenClawAgentSubmitResult> {
   const waitedForFinal = shouldWaitForFinal();
   const timeoutMs = configuredTimeoutMs(waitedForFinal);
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
   const sessionKey = companionSessionKey(normalizedSessionId);
-  const agentId = (process.env.CLAWMOBILE_AGENT_ID || "").trim();
+  const agentId = options.voiceDelegation === true ? "main" : (process.env.CLAWMOBILE_AGENT_ID || "").trim();
   const canonical=compactOwnerAgentContext(options);
   const params = {
     sessionKey,
@@ -49,11 +49,13 @@ export async function submitToOpenClawAgent(
   // `authority` (contexte canonique) ne choisit jamais la connexion.
   const admitted = options.admission !== undefined &&
     turnAdmission.isCurrent(options.admission, {clientRunId: options.clientRunId, sessionId: normalizedSessionId});
+  if (options.voiceDelegation === true && !admitted) throw new Error("voice_owner_admission_required");
   let raw: any;
   let ownerTransport: OpenClawAgentSubmitResult["ownerTransport"] = "write_cli";
   if (admitted) {
     raw = await submitOwnerTurn(params, {expectFinal: waitedForFinal, timeoutMs, admission: options.admission!, binding: {clientRunId: options.clientRunId, sessionId: normalizedSessionId}});
     ownerTransport = "admin_admitted";
+
   }
   if (ownerTransport !== "admin_admitted") {
     raw = await callOpenClawGateway("agent", params, {
@@ -232,8 +234,8 @@ function companionSessionKey(sessionId: string) {
   return `companion-chat-${normalizeCompanionSessionId(sessionId)}`;
 }
 
-export function expectedCompanionSessionKey(sessionId: string) {
-  const agentId = (process.env.CLAWMOBILE_AGENT_ID || "main").trim() || "main";
+export function expectedCompanionSessionKey(sessionId: string, fixedAgent?: "main") {
+  const agentId = fixedAgent || (process.env.CLAWMOBILE_AGENT_ID || "main").trim() || "main";
   return `agent:${agentId}:${companionSessionKey(sessionId)}`;
 }
 
