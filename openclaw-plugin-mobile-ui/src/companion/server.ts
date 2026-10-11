@@ -40,6 +40,7 @@ import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest }
 import { capabilityBridge } from "./capabilityBridge";
 import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
+import { clawLiveCapability, clawLiveDecision } from "./clawLiveUnderstanding";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
 import { archiveSession, deleteSession, deleteRun, getRunStatus, getRunStatusByClientRunId, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
@@ -760,12 +761,13 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/decision") {
     const body = await readJsonBody<any>(req);
-    const result = await capabilityBridge(String(body?.request || ""), {
+    // Lot 41 V2: a listed correction gesture after a voice turn needs no resolver call.
+    const result: any = await clawLiveDecision(clawLiveWarmCore, String(body?.request || ""), () => capabilityBridge(String(body?.request || ""), {
       execute: false,
       surface: "claw_live",
       caller: "owner",
       timeoutSeconds: 10,
-    });
+    }));
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
@@ -773,12 +775,11 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/capability") {
     const body = await readJsonBody<any>(req);
-    const execute = () => capabilityBridge(String(body?.request || ""), {
+    // Lot 41 V1/V2/V3: imposed « J'ai compris » / failure text on the verified receipt, realignment gesture.
+    const execute = (request: string) => capabilityBridge(request, {
       execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35,
     });
-    const result = body?.voiceTurn
-      ? await clawLiveWarmCore.executeVoiceCapability(body.voiceTurn,String(body?.request||""),execute)
-      : await execute();
+    const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute);
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;

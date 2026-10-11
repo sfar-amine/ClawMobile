@@ -9,6 +9,7 @@ import type { Duplex } from "stream";
 import WebSocket, { WebSocketServer } from "ws";
 import { createClawLiveToken, validatedClawLiveVoice, CLAW_LIVE_MODEL, type ClawLiveBootstrapOptions } from "./clawLive";
 import { reconnectDelay } from "./reconnectPolicy";
+import { VoiceUnderstandingState } from "./clawLiveUnderstanding";
 
 const PROVIDER_URL="wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
 const SOCKET_PATH="/v1/extensions/claw-live/socket";
@@ -83,6 +84,8 @@ export class ClawLiveWarmCore {
   private readonly telemetry:VoiceTelemetry;
   private telemetrySid="";
   private telemetryTurns=new Map<string,number>();
+  /** Lot 41 piste 2: ephemeral « Compris / Ce n'est pas ça » slot of the single voice owner. */
+  readonly understanding=new VoiceUnderstandingState(()=>this.now());
 
   constructor(deps:WarmDeps={}) {
     this.tokenFactory=deps.tokenFactory||((options)=>createClawLiveToken(fetch,undefined,options) as Promise<TokenBundle>);
@@ -331,6 +334,7 @@ export class ClawLiveWarmCore {
       else c.send(raw);
     }
   }
+  sessionLocale(){return this.locale;}
   executeVoiceCapability(meta:any,request:string,run:()=>Promise<any>):Promise<any> {
     const entry=[...this.protocols.values()].find(p=>p.sessionEpoch===meta?.sessionEpoch&&p.connectionEpoch===meta?.connectionEpoch);
     if(!entry)throw Object.assign(new Error("voice_session_not_owned"),{statusCode:409});
@@ -358,7 +362,7 @@ export class ClawLiveWarmCore {
     this.pendingConnects.clear();this.connectPromise=null;
     if(this.reconnectTimer)clearTimeout(this.reconnectTimer);this.reconnectTimer=null;if(this.setupTimer)clearTimeout(this.setupTimer);this.setupTimer=null;
     const p=this.provider;this.provider=null;this.providerReady=false;
-    if(!preserveResume){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;this.conversationId="";}
+    if(!preserveResume){this.resumeHandle="";this.resumeHandleAt=0;this.historyLoaded=false;this.conversationId="";this.understanding.clear();}
     this.state="cold";this.stage=preserveResume&&this.hasValidResumeHandle()?"resumable_idle":"idle";this.resumedLast=false;this.reconnectAttempts=0;
     try{p?.close();}catch{}
   }

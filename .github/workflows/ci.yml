@@ -56,6 +56,9 @@ jobs:
           node scripts/test-voice-relay.cjs
           node scripts/test-voice-relay-reconnect.cjs
 
+      - name: Lot 41 piste 2 — la voix dit ce qu'elle a compris (V1, V2, V3) sur fixtures S24
+        run: node scripts/test-voice-understanding.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py

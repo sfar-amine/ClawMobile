@@ -166,6 +166,7 @@ export function buildClawLiveSetup(
     "When calling clawmobile_capability, pass the user's request verbatim whenever possible; do not generalize or drop qualifiers.",
     "Treat the returned harness.tool_policy and execution receipt as authoritative. For tool_policy=required, do not claim a result, say you checked, or promise an action unless the returned execution receipt supports it.",
     "If execution is unavailable, failed, needs clarification or requires confirmation, report that state accurately instead of inventing successful execution.",
+    "When a clawmobile_capability result contains voice.verbatim, start your spoken answer with exactly that text, word for word, without rephrasing, translating or shortening it; it states what Claw understood and, on failure, the step and readable reason. Never speak an error code, and never say that nothing was charged unless voice.verbatim says so.",
   ].filter(Boolean).join("\n\n");
   const setup: any = {
     model: `models/${String(model).replace(/^models\//, "")}`,
