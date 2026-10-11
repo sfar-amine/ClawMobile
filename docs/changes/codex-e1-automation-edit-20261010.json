@@ -1,0 +1,85 @@
+{
+  "version": 2,
+  "id": "codex-e1-automation-edit-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "R23 / E1 : PATCH /v1/automations/{id} via cron.update, CAS natif configRevision (If-Match), confirmation automation.edit, reçu et relecture unique.",
+  "reason": "Sources S24 cron.update et CAS natif confirmées par #131. Reprise avec H6 intégré chez le propriétaire canonique : aucune garde lexicale, une résolution de l’instruction finale avant confirmation et effet ; tests adaptés, validation locale en attente.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/test-skill-learning-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/companion/automationEditValidation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/automations.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-edit-validation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-edit-http.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11-r34/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11-r34/e1/cron-update-schema.installed.mjs.txt",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11-r34/e1/cron-list-facts.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11-r34/SHA256SUMS",
+    "docs/work/samantha-runtime/contracts/r23.md",
+    "docs/changes/codex-e1-automation-edit-20261010.md",
+    "docs/changes/codex-e1-automation-edit-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "R23-pure-validation",
+      "status": "passed",
+      "evidence": "2026-10-11 after normal H6 merge 42dc3460: build + automation-edit-validation (41 assertions), automation-edit-http (46 assertions; real S24 cron-lifecycle capture; PATCH 7199 ms), automation-detail and H6 boundary passed. Missing public automation_guard_unavailable code was corrected in the closed server error list and targeted suite rerun. Entire ci.yml to execute on final documented commit; no S24 mutation/recipe claimed."
+    },
+    {
+      "name": "R23-http-real-captures",
+      "status": "passed",
+      "evidence": "2026-10-11 after normal H6 merge 42dc3460: build + automation-edit-validation (41 assertions), automation-edit-http (46 assertions; real S24 cron-lifecycle capture; PATCH 7199 ms), automation-detail and H6 boundary passed. Missing public automation_guard_unavailable code was corrected in the closed server error list and targeted suite rerun. Entire ci.yml to execute on final documented commit; no S24 mutation/recipe claimed."
+    },
+    {
+      "name": "P2-a-automation-detail",
+      "status": "passed",
+      "evidence": "2026-10-11 after normal H6 merge 42dc3460: build + automation-edit-validation (41 assertions), automation-edit-http (46 assertions; real S24 cron-lifecycle capture; PATCH 7199 ms), automation-detail and H6 boundary passed. Missing public automation_guard_unavailable code was corrected in the closed server error list and targeted suite rerun. Entire ci.yml to execute on final documented commit; no S24 mutation/recipe claimed."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r23.md",
+    "docs/changes/codex-e1-automation-edit-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Aucune capability dans ce dépôt : la capability planned jumelle (samantha.app.automation.edit, playbooks #45) décrit cette route owner."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Route owner Companion seulement ; aucune primitive MCP modifiée.",
+    "attached": {
+      "schemas": "updated",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "openclaw-plugin-mobile-ui/scripts/test-automation-edit-http.cjs",
+      "docs/work/samantha-runtime/contracts/r23.md"
+    ]
+  },
+  "rollback": "Revert de la PR (route PATCH, champ revision du détail, ligne de recette). Aucun état S24 à restaurer.",
+  "limitations": [
+    "Budget PATCH mesuré en CI avec les latences CLI capturées (3,6 + 3,5 s) ; mesure production après déploiement par Claude.",
+    "Aucune mutation S24 faite pour cette PR ; seules lectures : schéma installé et clés de cron.list.",
+    "Reprise fichier 42 : intégration du propriétaire H6 #104 nécessaire avant prêt à fusionner. Aucun mot blacklisté ; protection fondée sur intention résolue. Suite locale entière sur SHA final à publier après exécution, sans réutiliser les décomptes historiques."
+  ]
+}
