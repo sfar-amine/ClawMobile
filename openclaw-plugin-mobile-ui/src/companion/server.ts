@@ -1,4 +1,5 @@
 import {conditionalRead} from "./readEtag";
+import {readCatalogResponse,catalogETag} from './catalog';
 import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
@@ -489,6 +490,23 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       const code=error?.statusCode===413?400:[400,403,404,409,503].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,...(known?{reason}:code===503?{error:'allowlist_unavailable'}:{})});
     }
+    return;
+  }
+
+  if(routePath==='/catalog'){
+    res.setHeader('Cache-Control','private, no-cache');
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']){writeJson(res,403,{success:false,error:'native_loopback_required'});return;}
+    if(method!=='GET'){writeJson(res,405,{success:false,error:'method_not_allowed'});return;}
+    // The app sends ?locale=fr|en (HomeCatalog.kt); any other parameter is refused.
+    const params=[...requestUrl.searchParams.keys()];const queryLocale=requestUrl.searchParams.get('locale');
+    if(params.some(k=>k!=='locale')||params.length>1||(queryLocale!==null&&!['fr','en'].includes(queryLocale))){writeJson(res,400,{success:false,error:'unsupported_parameter'});return;}
+    const locale=(queryLocale as 'fr'|'en'|null)||(/^en(?:-|,|;|$)/i.test(String(req.headers['accept-language']||''))?'en':'fr');
+    res.setHeader('Vary','Accept-Language');res.setHeader('Content-Language',locale);
+    try{const value=await readCatalogResponse(locale);
+      const tag=catalogETag(value);res.setHeader('ETag',tag);
+      if(req.headers['if-none-match']===tag){res.writeHead(304);res.end();return;}
+      writeJson(res,200,value);
+    }catch{writeJson(res,503,{success:false,error:'catalog_source_unavailable'});}
     return;
   }
 
