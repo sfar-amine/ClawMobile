@@ -31,4 +31,18 @@ git commit -qam missing
 if bash "$here/activate-ui-playbooks.sh" HEAD > "$tmp/out2" 2>&1; then echo "missing dependency was activated" >&2; exit 1; fi
 grep -q "runtime_dependencies_unresolved billing/direct-runtime" "$tmp/out2"
 [ "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")" = "$HOME/.openclaw/runtime-ui-playbooks/$sha" ]
-echo '{"ok":true,"linked":true,"unresolvedRefused":true}'
+
+# Retention: after 8 more activations only current, previous and the 5 newest snapshots remain.
+echo '{"type":"module","dependencies":{"tough-cookie":"^5"}}' > billing/direct-runtime/package.json
+git commit -qam fixed
+for i in 1 2 3 4 5 6 7 8; do echo "$i" > "f$i"; git add "f$i"; git commit -qm "c$i"; bash "$here/activate-ui-playbooks.sh" HEAD >/dev/null 2>&1 || { echo "activation $i failed" >&2; exit 1; }; done
+count=$(ls -1d "$HOME/.openclaw/runtime-ui-playbooks"/*/ | grep -Ec '/[0-9a-f]{40}/$')
+[ "$count" -le 6 ] || { echo "retention kept $count snapshots" >&2; exit 1; }
+[ -d "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")" ] && [ -d "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/previous")" ]
+[ -z "$(git worktree list --porcelain | grep -c prunable | grep -v '^0$')" ]
+
+# Rollback relinks dependencies of a snapshot created before the link existed.
+prev=$(readlink "$HOME/.openclaw/runtime-ui-playbooks/previous"); rm -f "$prev/billing/direct-runtime/node_modules"
+bash "$here/activate-ui-playbooks.sh" --rollback >/dev/null
+[ -L "$prev/billing/direct-runtime/node_modules" ]
+echo '{"ok":true,"linked":true,"unresolvedRefused":true,"retention":true,"rollbackLinked":true}'
