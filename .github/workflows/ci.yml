@@ -251,3 +251,8 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-model-efficiency.py
           python3 ../installer/termux-lite/test-gemini-request.py
+
+      - name: Verify telecom display and bounded execution provenance (O7)
+        run: |
+          python3 ../installer/termux-lite/test-telecom-display.py
+          node scripts/test-capability-provenance.cjs

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -227,42 +228,128 @@ def capability_first_eligibility(value: dict[str, Any]) -> tuple[str, str]:
     return "eligible", "capability_first"
 
 
-def _display_text(value: Any) -> str:
+# Reuse the canonical memory import privacy boundary for free text only.
+# Do not apply its number/OTP heuristic to structured telecom amounts.
+_display_privacy_spec = importlib.util.spec_from_file_location(
+    "_claw_display_context_import", Path(__file__).with_name("context_import.py"))
+_display_privacy_owner = importlib.util.module_from_spec(_display_privacy_spec)
+_display_privacy_spec.loader.exec_module(_display_privacy_owner)
+_DISPLAY_SENSITIVE = _display_privacy_owner.SENSITIVE
+
+
+def _plain_display(value: Any, maximum: int = 120) -> str:
+    if not isinstance(value, str):
+        return ""
+    if _DISPLAY_SENSITIVE.search(value):
+        return ""
+    text = " ".join(value.split())[:maximum].strip()
+    if not text or text.startswith(("{", "[")) or re.search(r"https?://|\bBearer\b|\+\d{8,}|\b(?:ghp_|github_pat_|sk-|AKIA)[A-Za-z0-9_-]+", text, re.I):
+        return ""
+    return text
+
+
+def _telecom_cards(value: dict[str, Any]) -> str:
+    data = value.get("data") if isinstance(value.get("data"), dict) else value
+    cards = data.get("cards")
+    if not isinstance(cards, list):
+        return ""
+    lines = []
+    skipped = 0
+    for card in cards[:32]:
+        if not isinstance(card, dict):
+            skipped += 1
+            continue
+        label = _plain_display(card.get("label") or card.get("title"), 80)
+        amount = card.get("value")
+        unit = _plain_display(card.get("unit"), 20)
+        if unit not in {"TND", "DT", "GO", "MO", "KO", "GB", "MB", "KB", "Minutes", "MIN", "SMS", "USD", "EUR", "DZD", "MAD", "IQD", "JOD", "JD", "LYD", "%"}:
+            skipped += 1
+            continue
+        if not label or not unit or isinstance(amount, bool) or not re.fullmatch(r"-?\d{1,30}(?:[.,]\d{1,12})?", str(amount)):
+            skipped += 1
+            continue
+        # One card per line: exact value, unit, validity. Never summed (cards of one unit are distinct counters).
+        line = f"{label} : {amount} {unit}"
+        days = card.get("days_remaining")
+        # Real S24 capture (10/10 09:41): "Compte de recharge" carries 4100 days; bound at 100 years.
+        if type(days) is int and 0 <= days <= 36500:
+            line += f" — validité restante : {days} jour(s)"
+        lines.append(line)
+    if lines and skipped:
+        lines.append(f"{skipped} autre(s) carte(s) non affichable(s) en texte.")
+    return "\n".join(lines)
+
+
+def _execution_provenance(selected: dict[str, Any], execution: dict[str, Any]) -> dict[str, str] | None:
+    result = {}
+    payload = execution.get("result") if isinstance(execution.get("result"), dict) else {}
+    for key in ("capability", "route"):
+        value = selected.get(key)
+        if key == "route":
+            if "actual_route" in execution:
+                value = execution.get("actual_route")
+            elif isinstance(payload.get("route_id"), str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{0,159}", payload["route_id"]):
+                # Older receipts (S24 10/10 09:41) lack execution.actual_route; the owner result names the
+                # route it really executed (orange.usage.maxit.v1 while the plan was orange.summary.maxit.v1).
+                value = payload["route_id"]
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{0,159}", value):
+            return None
+        result[key] = value
+    guard = payload.get("network_guard") if isinstance(payload.get("network_guard"), dict) else {}
+    network_path = execution.get("network_path") or payload.get("network_path") or guard.get("path")
+    if network_path in ("wifi_off", "cellular_bind_wifi_on"):
+        result["network_path"] = network_path
+    return result
+
+
+def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None) -> str:
+    remaining = [128] if remaining is None else remaining
+    remaining[0] -= 1
+    if depth >= 4 or remaining[0] < 0:
+        return "Résultat disponible auprès de Claw ; détails non affichables en texte."
     if isinstance(value, dict):
+        cards = _telecom_cards(value)
+        if cards:
+            return cards
         if value.get("strategy") == "composed_read" and isinstance(value.get("results"), list):
             lines = []
-            for row in value["results"]:
+            for row in value["results"][:32]:
                 if not isinstance(row, dict):
                     continue
-                label = str(row.get("label") or row.get("target") or "Lecture")
+                label = _plain_display(row.get("label") or row.get("target"), 80) or "Lecture"
                 payload = row.get("result")
                 if row.get("state") == "completed" and isinstance(payload, dict) and payload.get("ok") is True:
-                    text = _display_text(payload)
+                    text = _display_text(payload, depth + 1, remaining)
                 elif row.get("state") == "indeterminate":
                     text = "Résultat à vérifier ; lecture non rejouée."
                 elif row.get("state") == "not_started":
                     text = "Lecture non exécutée."
                 else:
                     text = "Lecture indisponible."
-                lines.append(label + " : " + text)
+                line = label + " : " + text
+                if sum(len(item) + 1 for item in lines) + len(line) > 8000:
+                    break
+                lines.append(line)
+                if remaining[0] <= 0:
+                    break
             if lines:
                 return "\n".join(lines)
         for key in ("text", "message", "summary", "answer"):
             text = value.get(key)
-            if isinstance(text, str) and text.strip():
-                return text.strip()
+            if isinstance(text, str) and _plain_display(text, 4000):
+                return _plain_display(text, 4000)
         if value.get("state") == "needs_counter" and isinstance(value.get("choices"), list):
-            choices = [str(x) for x in value["choices"] if str(x).strip()]
+            choices = [_plain_display(x, 80) for x in value["choices"][:32] if _plain_display(x, 80)]
             if choices:
                 return "Précise : " + " / ".join(choices)
         if value.get("state") == "needs_parameter":
             question = value.get("question")
-            if isinstance(question, str) and question.strip():
-                return question.strip()
-        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            if isinstance(question, str) and _plain_display(question, 4000):
+                return _plain_display(question, 4000)
+        return "Résultat disponible auprès de Claw ; détails non affichables en texte."
     if isinstance(value, list):
-        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-    return str(value).strip()
+        return "Résultat disponible auprès de Claw ; détails non affichables en texte."
+    return _plain_display(value, 4000) or "Résultat disponible auprès de Claw."
 
 
 def _handoff_contract(resolution: dict[str, Any]) -> dict[str, Any] | None:
@@ -642,6 +729,7 @@ def try_fast_path(
                 "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
                 "route": selected.get("route"), "capability": selected.get("capability"),
                 "execution_state": state, "decision": executed.get("decision") or decision or None,
+                "provenance": _execution_provenance(selected, execution),
                 "model_bypassed": True,
             }
         if state in ASSISTED_EXECUTION_STATES:
@@ -658,6 +746,7 @@ def try_fast_path(
             "text": "Claw a identifié la capacité mais son exécution n'a pas atteint un état terminal vérifié.",
             "resolution": executed, "decision": executed.get("decision") or decision or None,
             "model_bypassed": True,
+            "provenance": _execution_provenance(selected, execution),
         }
         if composed and isinstance(payload, dict):
             error_result.update(text=_display_text(payload), result=payload, execution_state=state)
