@@ -7,3 +7,5 @@ Tests sur captures réelles config/catalogue/auth, latences injectées et budget
 Le test de recette UI vérifie aussi le challenge 403 complet et son hash, sans écriture Gateway avant biométrie. Toutes les étapes de tests du workflow CI sont rejouées localement, y compris les régressions paiement existantes.
 
 Reprise42 : base `8ae69384` ; build, défi exact H4, R6 et recette serveur verts. Log `h4-core-lot3-targeted.log`. Publication conditionnée par la CI entière verte au SHA exact. Android #158 et recette physique distincts.
+
+La suite entière initiale72/73 a révélé F6 : inventaire `/proc` tronqué pris pour absence de commande. Correctif partagé conserve la borne4096 et rend la preuve inconnue, avec fixture PID réels isolée explicitement synthétique et enfants persistants jusqu’au cleanup. Ciblé F6 vert (17 abandons,503ms, overflow4097 -> indeterminate sans scan partiel), budgets et assertions conservés. Archives `h4-core-lot3-final-ci` et `h4-core-f6-fixture-targeted.log` intactes.

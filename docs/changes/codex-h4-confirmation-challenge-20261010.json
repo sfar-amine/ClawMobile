@@ -5,7 +5,7 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Actionable owner confirmation challenge for agent fallback expansion",
+  "summary": "Actionable owner confirmation challenge for agent fallback expansion; shared F6 liveness remains unknown on an incomplete bounded process inventory.",
   "reason": "Fichier 34 H4 : remplacer le refus opaque par 403 confirmation_required, sans modifier la garde biométrique ou le propriétaire.",
   "files": [
     ".github/workflows/ci.yml",
@@ -16,7 +16,9 @@
     "openclaw-plugin-mobile-ui/scripts/test-ui-recette-server.cjs",
     "docs/work/samantha-runtime/contracts/h4.md",
     "docs/changes/codex-h4-confirmation-challenge-20261010.md",
-    "docs/changes/codex-h4-confirmation-challenge-20261010.json"
+    "docs/changes/codex-h4-confirmation-challenge-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs"
   ],
   "tests": [
     {
@@ -33,6 +35,11 @@
       "name": "b42-lot3-current-base-targeted",
       "status": "passed",
       "evidence": "Base 8ae69384 merged normally; H4/R23/H6 CI union preserved. Node20 npm ci/build, challenge exact (8 cases, 18 owner calls, HTTP 2373/2361 ms vs 9000 ms, 0 successful effects), agent-config and UI-recette-server passed. Log h4-core-lot3-targeted.log. Complete workflow publication requires green replay at frozen exact SHA."
+    },
+    {
+      "name": "b42-f6-proc-bound-correction",
+      "status": "passed",
+      "evidence": "Initial whole f530f2b7 archived72/73: F6 missed living command beyond first4096 processes. Persistent child fixture alone still failed18/17 (archive h4-core-f6-fixture-targeted.log). Source keeps4096 bound, returns unknown when inventory exceeds it; PID fixture view explicitly synthetic with real children/cmdline. Build and F6 targeted passed: 50020 receipts,17 abandoned,sweep503ms under unchanged10s; overflow4097 keeps indeterminate and performs0 partial proc scans. Log h4-core-f6-proc-bound-targeted.log."
     }
   ],
   "documentation": [
@@ -63,6 +70,7 @@
   "limitations": [
     "App adaptée et recette physique par Claude ; mesures CI injectées seulement.",
     "Aucune preuve positive config.patch nouvelle revendiquée ; dispatch de test refuse avant effet.",
-    "Local source qualification; app #158 unsigned/JVM separately, physical biometric recipe and signed APK remain Claude. Publication requires complete workflow green on exact PR SHA."
+    "Local source qualification; app #158 unsigned/JVM separately, physical biometric recipe and signed APK remain Claude. Publication requires complete workflow green on exact PR SHA.",
+    "Incomplete /proc liveness inventories preserve uncertainty rather than authorizing abandonment; no process-count bound or sweep budget increased. PID fixture isolation is synthetic, not an S24 capture. First failed whole and diagnosis artifacts preserved; publication requires full replay green at exact corrected SHA."
   ]
 }
