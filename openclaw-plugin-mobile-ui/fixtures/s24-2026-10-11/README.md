@@ -192,3 +192,11 @@ af32874795cfd429f7ff74fb8343c2b7ac585c40fb3e593ac9d1fd75296d0b8b  hs2-guards-and
 a2fd37ce265fd54ef4fb2f068ac43c4d2e122138df1faec4cffee2df3b873915  k1-update-candidates-source.json
 118317e7c8ad84637ed990bde90d51184d2a133ccd46e50bc7c4b11c46ea9125  o6-network-guard-timing.json
 ```
+
+### `h5-deploy-receipts-acceptance.json` (core #103, H5) — ajout du 11/10, 07:05 UTC
+
+**Source.** Les 10 derniers reçus `~/.openclaw/deploys/companion-*.json` écrits par `companion-deploy.sh` (cibles `c1ff5e7` → `fe5e5b1`, du 10/10 19:59 au 11/10 06:54 UTC), champ `acceptance.checks`. Lu par Claude via `claw_exec` en lecture seule (clé d'action `hlots-h5-receipts`), sans autre écriture.
+
+**Contenu.** Seules les lignes `/control/engineering?limit=20`, `/updates`, `/agent/config` et `POST /agent/config (no owner header)`, réduites à `route`, `code`, `seconds`, `budget`, `status`, plus l'état, la cible (12 caractères) et l'horodatage du reçu. Aucun corps de réponse, en-tête, identifiant ni secret.
+
+**Constat.** Toutes les lectures sont en 200 dans leur budget et la garde POST répond 403 sans en-tête propriétaire à chaque déploiement. `/agent/config` a dépassé 80 % de son budget de 9 s sur un reçu (`f95be8d`, 7,65 s, 85 %) et s'en est approché sur deux autres du 10/10 (7,01 s et 7,10 s, 78 et 79 %) ; les sept reçus suivants sont entre 4,52 s et 6,85 s (50 à 76 %).
