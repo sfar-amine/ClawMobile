@@ -13,7 +13,7 @@ async function main() {
     true,
     "plugin manifest must declare clawmobile_capability for strict tool allowlists",
   );
-  const tempBase = path.join(os.homedir(), ".openclaw", "tmp");
+  const tempBase = os.tmpdir();
   fs.mkdirSync(tempBase, { recursive: true });
   const root = fs.mkdtempSync(path.join(tempBase, "claw-capability-test-"));
   const helper = path.join(root, "helper.py");
@@ -25,7 +25,7 @@ async function main() {
 
   const result = await mod.clawmobile_capability(
     { request: "mon solde orange", execute: true, surface: "gemini_claw", caller: "owner" },
-    { helperPath: helper },
+    { helperPath: helper, turnContext: { senderIsOwner: true } },
   );
   assert.equal(result.status, "ok");
   assert.equal(result.surface, "gemini_claw");
@@ -36,6 +36,7 @@ async function main() {
   assert.equal(missing.status, "error");
   assert.equal(missing.reason, "request_required");
 
+  fs.rmSync(root, { recursive: true, force: true });
   console.log("capability-tool tests: PASS");
 }
 
