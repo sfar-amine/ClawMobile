@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import {opendirSync,readFileSync} from "fs";
 import {compactOwnerAgentContext} from "./clawLive";
 
 export type OpenClawAgentSubmitResult = {
@@ -132,24 +133,66 @@ function runOpenClaw(args: string[], hardTimeoutMs: number): Promise<any> {
   });
 }
 
+/** Fixed /proc metadata only; an unreadable/truncated census never proves exit. */
+async function strictGroupState(pid:number|undefined,grouped:boolean,until:number):Promise<"confirmed"|"alive"|"unknown">{
+  if(!pid)return "confirmed";
+  try{process.kill(grouped?-pid:pid,0);}catch(error:any){return error?.code==="ESRCH"?"confirmed":"unknown";}
+  if(!grouped)return "alive";
+  if(process.platform!=="linux"&&process.platform!=="android")return "unknown";
+  let directory:ReturnType<typeof opendirSync>|undefined;
+  try{
+    directory=opendirSync("/proc");let entries=0;
+    while(true){
+      if(Date.now()>=until||++entries>32768)return "unknown";
+      // Yield metadata chunks so close/signal effects are not starved by a large /proc.
+      if(entries%32===0)await new Promise<void>(resolve=>setImmediate(resolve));
+      if(Date.now()>=until)return "unknown";
+      const entry=directory.readSync();if(!entry)return "confirmed";
+      if(!/^[0-9]+$/.test(entry.name))continue;
+      let stat:string;
+      try{stat=readFileSync(`/proc/${entry.name}/stat`,"utf8");}
+      catch(error:any){if(error?.code==="ENOENT"||error?.code==="ESRCH")continue;return "unknown";}
+      if(stat.length>4096)return "unknown";
+      const end=stat.lastIndexOf(")");if(end<1)return "unknown";
+      const fields=stat.slice(end+2).trim().split(/\s+/);
+      if(fields.length<3||!/^\d+$/.test(fields[2]))return "unknown";
+      if(Number(fields[2])===pid&&!['Z','X'].includes(fields[0]))return "alive";
+    }
+  }catch{return "unknown";}finally{try{directory?.closeSync();}catch{}}
+}
+
 /** Opt-in bounded read collector; existing callers retain their default behavior. */
 function runStrictOpenClaw(args:string[],hardMs:number,bounds:{stdoutMaxBytes:number;stderrMaxBytes:number;killGraceMs:number}):Promise<any>{
   if(!Number.isFinite(hardMs)||hardMs<1||hardMs>30000||!Number.isSafeInteger(bounds.stdoutMaxBytes)||bounds.stdoutMaxBytes<256||bounds.stdoutMaxBytes>9*1024*1024||!Number.isSafeInteger(bounds.stderrMaxBytes)||bounds.stderrMaxBytes<256||bounds.stderrMaxBytes>128*1024||!Number.isSafeInteger(bounds.killGraceMs)||bounds.killGraceMs<1||bounds.killGraceMs>1000)return Promise.reject(new Error("gateway_read_limits_invalid"));
   return new Promise((resolve,reject)=>{
     const grouped=process.platform!=="win32";
     const child=spawn(process.env.CLAWMOBILE_OPENCLAW_BIN||"openclaw",args,{env:process.env,stdio:["ignore","pipe","pipe"],detached:grouped});
-    const output:Buffer[]=[],errors:Buffer[]=[];let outBytes=0,errBytes=0,failed=false,settled=false,closed=false,cleanupDone=false,killTimer:ReturnType<typeof setTimeout>|undefined;
+    const output:Buffer[]=[],errors:Buffer[]=[];let outBytes=0,errBytes=0,failed=false,settled=false,closed=false;
+    let cleanupState:"confirmed"|"alive"|"unknown"="unknown",killTimer:ReturnType<typeof setTimeout>|undefined,cleanupTimer:ReturnType<typeof setTimeout>|undefined;
     const kill=(signal:NodeJS.Signals)=>{try{if(grouped&&child.pid)process.kill(-child.pid,signal);else child.kill(signal);}catch{try{child.kill(signal);}catch{}}};
-    const fail=()=>{if(failed||settled)return;failed=true;output.length=0;errors.length=0;kill("SIGTERM");killTimer=setTimeout(()=>{kill("SIGKILL");cleanupDone=true;if(closed&&!settled){settled=true;reject(new Error("gateway_read_failed"));}},bounds.killGraceMs);};
+    const rejectFailure=()=>{if(settled)return;settled=true;clearTimeout(deadline);if(killTimer)clearTimeout(killTimer);if(cleanupTimer)clearTimeout(cleanupTimer);reject(Object.assign(new Error("gateway_read_failed"),{cleanupState:cleanupState==="confirmed"&&closed?"confirmed":"unknown"}));};
+    const fail=()=>{
+      if(failed||settled)return;failed=true;output.length=0;errors.length=0;kill("SIGTERM");
+      const until=Date.now()+bounds.killGraceMs;
+      // TERM and verification share the original grace; SIGKILL is not an ack.
+      const verify=async()=>{
+        if(settled)return;
+        const observed=await strictGroupState(child.pid,grouped,until);
+        if(settled)return;cleanupState=observed;
+        if(cleanupState==="confirmed"&&closed){rejectFailure();return;}
+        if(Date.now()>=until){kill("SIGKILL");rejectFailure();return;}
+        cleanupTimer=setTimeout(()=>{void verify();},Math.min(2,Math.max(1,until-Date.now())));
+      };
+      killTimer=setTimeout(()=>{kill("SIGKILL");void verify();},Math.floor(bounds.killGraceMs/2));
+    };
     const deadline=setTimeout(fail,hardMs);
     child.stdout.on("data",chunk=>{if(failed)return;outBytes+=chunk.length;if(outBytes>bounds.stdoutMaxBytes)fail();else output.push(Buffer.from(chunk));});
     child.stderr.on("data",chunk=>{if(failed)return;errBytes+=chunk.length;if(errBytes>bounds.stderrMaxBytes)fail();else errors.push(Buffer.from(chunk));});
-    child.once("error",()=>{if(settled)return;settled=true;clearTimeout(deadline);if(killTimer)clearTimeout(killTimer);reject(new Error("gateway_read_failed"));});
-    // Wait for physical close, including pipes, before releasing a pool slot.
+    child.once("error",()=>{if(settled)return;if(child.pid){fail();return;}closed=true;cleanupState="confirmed";rejectFailure();});
     child.once("close",code=>{
-      if(settled)return;closed=true;clearTimeout(deadline);if(failed){if(cleanupDone){settled=true;reject(new Error("gateway_read_failed"));}return;}settled=true;
-      if(code!==0){reject(new Error("gateway_read_failed"));return;}
-      try{resolve(parseJsonOutput(Buffer.concat(output).toString("utf8").trim()));}catch{reject(new Error("gateway_read_failed"));}
+      if(settled)return;closed=true;clearTimeout(deadline);if(failed){if(cleanupState==="confirmed")rejectFailure();return;}
+      if(code!==0){fail();return;}
+      try{const value=parseJsonOutput(Buffer.concat(output).toString("utf8").trim());settled=true;resolve(value);}catch{fail();}
     });
   });
 }

@@ -34,6 +34,8 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: K2 owner access-change receipts without real sends
+        run: python3 ../installer/termux-lite/test-k2-owner-message.py
       - name: Test canonical context event surfaces
         run: python3 ../installer/termux-lite/test-context-surfaces.py
       - name: Test canonical app and authenticated Bixby bootstrap
@@ -192,6 +194,7 @@ jobs:
           node scripts/test-file-gateway-read.cjs
           node scripts/test-files-http.cjs
           node scripts/test-file-gateway-limits.cjs
+          node scripts/test-strict-process-cleanup.cjs
           python3 scripts/test-files-acceptance.py
 
       - name: Run usage and shared provider read contracts

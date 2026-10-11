@@ -512,8 +512,9 @@ class _ExistingPeopleOwner:
     def __getattr__(self, name): return globals()[name]
 
 class Contacts:
-    def __init__(self, people, clock=time.time, state_dir=None):
+    def __init__(self, people, clock=time.time, state_dir=None, owner_sender=None):
         self.people, self.clock = people, clock
+        self.owner_sender = owner_sender or self.send_owner_message
         self.state_dir = Path(state_dir or os.environ.get('OPENCLAW_STATE_DIR', Path.home()/'.openclaw'))
     def local_config(self):
         try: value=self.people.local_config()
@@ -699,10 +700,16 @@ class Contacts:
         if not row: return None
         if wanted is not None and wanted!=row[0]: fail('operation_conflict',409)
         value=json.loads(row[2]) if row[2] else {'success':False,'state':'indeterminate','receipt':None}
+        intent=value.get('_ownerMessageIntent')
         value={k:v for k,v in value.items() if not k.startswith('_')}
+        if intent and value.get('receipt') and 'ownerMessage' not in value['receipt']:
+            # A crash before finalization cannot erase delivery intent. Observe
+            # it without replaying either the mutation or an unqualified send.
+            value['receipt']['ownerMessage']={'state':'awaiting_change','change':intent['change']}
+            if row[1]=='failed_before_effect':value['receipt']['ownerMessage']['state']='failed_before_effect'
         if row[1]=='failed_before_effect': value['retryable']=True
         return value
-    def reserve(self, operation, target, wanted, confirmation_id=None, event=None):
+    def reserve(self, operation, target, wanted, confirmation_id=None, event=None, owner_change=False):
         c=self.people.connect(); c.execute('BEGIN IMMEDIATE')
         row=c.execute('SELECT message_sha256,state,message_id FROM send_receipts WHERE idempotency_key=?',('r17:'+digest(operation),)).fetchone()
         if row:
@@ -719,12 +726,63 @@ class Contacts:
             if claim:c.rollback();c.close();fail('confirmation_mismatch',403)
         now=int(self.clock());pending={'success':False,'state':'indeterminate','receipt':{'version':1,'operationId':operation,'action':event or 'added','contactId':target,'state':'indeterminate','at':utc(self.clock())}}
         if confirmation_id:pending['_confirmationId']=confirmation_id
+        if owner_change:pending['_ownerMessageIntent']={'change':event,'operationId':operation,'contactId':target}
         c.execute("INSERT INTO send_receipts VALUES(?,?,?,'pending',?,?,?)",('r17:'+digest(operation),target,wanted,canonical(pending),now,now));c.commit();c.close();return True
-    def finish(self, operation, value):
+    def finish(self, operation, value, owner_change=False):
         c=self.people.connect();previous=c.execute('SELECT message_id FROM send_receipts WHERE idempotency_key=?',('r17:'+digest(operation),)).fetchone()
         stored=dict(value)
         if previous and previous[0]:stored.update({k:v for k,v in json.loads(previous[0]).items() if k.startswith('_')})
+        if owner_change and value['success']:
+            # The delivery receipt shares the mutation's existing operation row.
+            # Persist both together; no new store, queue or replay identity.
+            notice={'state':'pending','change':value['receipt']['action']}
+            stored['receipt']=dict(value['receipt'],ownerMessage=notice)
+            value['receipt']=stored['receipt']
+        if stored.get('_ownerMessageIntent') and 'ownerMessage' not in stored['receipt']:
+            notice={'state':'awaiting_change','change':stored['_ownerMessageIntent']['change']}
+            stored['receipt']=dict(value['receipt'],ownerMessage=notice)
+            value['receipt']=stored['receipt']
         c.execute('UPDATE send_receipts SET state=?,message_id=?,updated_at=? WHERE idempotency_key=?',(value['state'],canonical(stored),int(self.clock()),'r17:'+digest(operation)));c.commit();c.close();return value
+    def send_owner_message(self, message, key):
+        # Existing delivery owner validates Gateway acceptance. Never expose its
+        # stdout/stderr (message IDs, account metadata) through this receipt.
+        script=Path(__file__).with_name('whatsapp-owner-send.sh')
+        try:
+            result=subprocess.run(['bash',str(script),message,key],stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL,timeout=17)
+        except FileNotFoundError: return 'failed_before_effect'
+        except Exception: return 'indeterminate'
+        if result.returncode==0: return 'accepted'
+        if result.returncode in (64,66): return 'failed_before_effect'
+        return 'indeterminate'
+    def deliver_owner_change(self):
+        if not self.people.DB.exists(): return {'state':'idle'}
+        # A single atomic claim per existing 60s sweep. An uncertain send is
+        # persisted BEFORE transport and never automatically replayed.
+        c=self.people.connect();c.execute('BEGIN IMMEDIATE')
+        row=c.execute("SELECT idempotency_key,message_id FROM send_receipts WHERE idempotency_key LIKE 'r17:%' AND json_valid(message_id) AND json_extract(message_id,'$.receipt.ownerMessage.state') IN ('pending','failed_before_effect') ORDER BY created_at,idempotency_key LIMIT 1").fetchone()
+        if not row: c.rollback();c.close();return {'state':'idle'}
+        value=json.loads(row[1]);receipt=value['receipt'];notice=receipt['ownerMessage']
+        labels={'added':'accordé','extended':'prolongé','removed':'retiré','expired':'expiré'}
+        if notice.get('change') not in labels or receipt.get('action')!=notice['change']:
+            c.rollback();c.close();return {'state':'invalid_receipt'}
+        # Includes stable operation/contact/change identity; identical message
+        # texts for different changes do not collide at the delivery owner.
+        key='k2:'+digest(canonical([receipt['operationId'],receipt['contactId'],notice['change']]))
+        notice.update(state='indeterminate',attemptedAt=utc(self.clock()))
+        c.execute('UPDATE send_receipts SET message_id=? WHERE idempotency_key=?',(canonical(value),row[0]));c.commit();c.close()
+        try: state=self.owner_sender('Accès WhatsApp '+labels[notice['change']]+' (référence '+receipt['contactId']+').',key)
+        except Exception: state='indeterminate'
+        if state not in ('accepted','failed_before_effect','indeterminate'): state='indeterminate'
+        # Keep the mutation timestamp/state intact: notification must not reorder
+        # allowlist history or alter confirmation/expiry identities.
+        c=self.people.connect();c.execute('BEGIN IMMEDIATE')
+        current=c.execute('SELECT message_id FROM send_receipts WHERE idempotency_key=?',(row[0],)).fetchone()
+        if current:
+            stored=json.loads(current[0]);stored['receipt']['ownerMessage'].update(state=state)
+            c.execute('UPDATE send_receipts SET message_id=? WHERE idempotency_key=?',(canonical(stored),row[0]))
+        c.commit();c.close()
+        return {'state':state,'operationId':receipt['operationId'],'contactId':receipt['contactId'],'change':notice['change']}
     def history(self, identity=None, limit=50):
         if identity is not None and not CID.fullmatch(identity or ''): fail('invalid_contact_id')
         if not isinstance(limit,int) or isinstance(limit,bool) or not 1<=limit<=100: fail('invalid_request')
@@ -923,13 +981,16 @@ class Contacts:
             if isinstance(body.get('text'),str) and len(body['text'])>2000: fail('note_too_long')
             note=safe_text(body.get('text'),2000)
         if len((MARKER+'\n'+canonical(metadata)+'\n'+END+'\n').encode())>2048: fail('invalid_scope')
+        owner_change=(action=='add' or
+            (action=='expiry' and event=='extended' and original['expiresAt'] is not None and metadata['expiresAt']!=original['expiresAt']) or
+            action in ('remove','sweep'))
         if phase=='preflight': return {'success':True,'state':'validated','receipt':None}
         if phase=='prepare':
             self.prepare_claim(self.confirmation_claim)
-            if not self.reserve(operation,identity,wanted,body.get('confirmationId'),event): return self.read_operation(operation,wanted)
+            if not self.reserve(operation,identity,wanted,body.get('confirmationId'),event,owner_change): return self.read_operation(operation,wanted)
             self.release_failed(operation)
             return {'success':True,'state':'prepared','receipt':None,'confirmationClaim':self.confirmation_claim,'allowConsumedRetry':retry}
-        if not self.reserve(operation,identity,wanted,body.get('confirmationId'),event): return self.read_operation(operation,wanted)
+        if not self.reserve(operation,identity,wanted,body.get('confirmationId'),event,owner_change): return self.read_operation(operation,wanted)
         receipt={'version':1,'operationId':operation,'contactId':identity,'action':event,'at':utc(self.clock()),'state':state,'scope':metadata['scope'],'durationDays':duration if action in ('add','expiry') else self.duration_days(identity)}
         effect_possible=False;staged_content=None;previous_context=None
         try:
@@ -957,7 +1018,7 @@ class Contacts:
         success=state=='completed'
         if success: state={'add':'added','remove':'removed','sweep':'removed','suspend':'suspended','reactivate':'reactivated'}.get(action,'updated')
         receipt['state']=state
-        return self.finish(operation,{'success':success,'state':state,'receipt':receipt})
+        return self.finish(operation,{'success':success,'state':state,'receipt':receipt},owner_change=owner_change and success)
     def sweep(self):
         paths=sorted(self.people.CONTACTS.glob('wa_*.md')) if self.people.CONTACTS.exists() else []
         due=[]
@@ -982,7 +1043,10 @@ class Contacts:
             body={'contactId':contact_id(number),'operationId':prefix+str(attempt)};body['requestHash']=request_hash('sweep',body)
             results.append(self.mutate('sweep',body,sweep_target=(number,metadata),sweep_config=snapshot))
         success=len(results)==len(due) and all(row['success'] for row in results)
-        return {'success':success,'state':('partial' if pages>1 else 'completed') if success else 'expired_pending','receipt':None,'processed':len(results),'remaining':len(due)-sum(row['success'] for row in results),'scanComplete':pages==1,'scanPage':page,'scanPages':pages}
+        # Bound extra delivery work to the existing sweep's 20s cycle budget.
+        # Expiry mutation always has priority; backlog remains in canonical R17.
+        owner_message=self.deliver_owner_change() if time.monotonic()+17<deadline else {'state':'deferred'}
+        return {'success':success,'state':('partial' if pages>1 else 'completed') if success else 'expired_pending','receipt':None,'processed':len(results),'remaining':len(due)-sum(row['success'] for row in results),'scanComplete':pages==1,'scanPage':page,'scanPages':pages,'ownerMessage':owner_message}
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}
