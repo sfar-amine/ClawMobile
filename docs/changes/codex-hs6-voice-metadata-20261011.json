@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "codex-hs6-voice-metadata-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Protection des OTP/PIN courts dans le lecteur HS3 partagé ; voix consolidée dans #150",
+  "reason": "Conserver une protection commune des codes humains et retirer les rendus doublons. Readiness conditionnée à la CI entière verte au SHA final, preuve publiée dans la PR.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-receipt-metadata.cjs",
+    "docs/work/samantha-runtime/contracts/hs6.md",
+    "docs/changes/codex-hs6-voice-metadata-20261011.md",
+    "docs/changes/codex-hs6-voice-metadata-20261011.json",
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts"
+  ],
+  "tests": [
+    {
+      "name": "HS6 confidentialité du lecteur HS3 partagé",
+      "status": "passed",
+      "evidence": "Node 20 : npm run build, test-voice-receipt-metadata.cjs (11 cas) et test-receipt-presentation.cjs réussis. Les cas sont contractuels authored ; aucune qualification audio revendiquée."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs6.md",
+    "docs/changes/codex-hs6-voice-metadata-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Adaptateur pur non branché, aucune route ni action nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise le reader HS3 existant ; aucun canal, store, registre, scheduler ou routeur."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Aucune primitive owner ni route active modifiée."
+  },
+  "rollback": "Revert du durcissement partagé, aucune donnée runtime.",
+  "limitations": [
+    "La recette voix live appartient à #150 ; aucune qualification audio revendiquée."
+  ]
+}

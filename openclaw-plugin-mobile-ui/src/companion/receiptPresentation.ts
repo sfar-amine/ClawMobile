@@ -14,7 +14,8 @@ function closedSlots(raw:Record<string,unknown>):ReceiptSlots{const slots:Receip
  return slots;}
 const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const secret=/\bBearer\s+|\b(?:sk-|ghp_|github_pat_|AKIA|eyJ)[A-Za-z0-9_.-]+|refresh_token|access_token|-----BEGIN|@|[\x00-\x1f]/i;
-function text(v:unknown,max:number):v is string{return typeof v==='string'&&v.length>0&&v.length<=max&&!secret.test(v)&&(v.match(/\d/g)||[]).length<6&&!/^[\[{]/.test(v);}
+const shortConfirmationCode=/\b(?:otp|pin|(?:verification|security|authentication|one[- ]time) code|code (?:de |d['’])?(?:v[ée]rification|s[ée]curit[ée]|authentification|unique))\b[\p{L}\p{Zs}:=—-]{0,32}\p{Nd}[\p{Nd}\p{Zs}-]{1,16}\p{Nd}/iu;
+function text(v:unknown,max:number):v is string{return typeof v==='string'&&v.length>0&&v.length<=max&&!secret.test(v)&&!shortConfirmationCode.test(v)&&(v.match(/\d/g)||[]).length<6&&!/^[\[{]/.test(v);}
 function id(v:unknown):v is string{return typeof v==='string'&&/^[a-z][a-z0-9_.-]{0,159}$/.test(v)&&!secret.test(v);}
 export function readReceiptPresentation(raw:unknown):ReceiptPresentation|undefined{
  if(!obj(raw))return undefined;const p=obj(raw.presentation)?raw.presentation:raw;
