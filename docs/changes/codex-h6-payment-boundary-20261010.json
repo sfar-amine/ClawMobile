@@ -9,29 +9,37 @@
   "reason": "Décision d’Amine du 11/10, backlog42 H6 : intention résolue uniquement.",
   "files": [
     ".github/workflows/ci.yml",
-    "openclaw-plugin-mobile-ui/src/companion/automations.ts",
-    "openclaw-plugin-mobile-ui/scripts/test-payment-pattern-boundary.cjs",
-    "docs/work/samantha-runtime/contracts/h6.md",
     "docs/changes/codex-h6-payment-boundary-20261010.json",
     "docs/changes/codex-h6-payment-boundary-20261010.md",
+    "docs/work/samantha-runtime/contracts/h6.md",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-approvals.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-detail.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-file-read-boundary.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-notification-sources.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-payment-pattern-boundary.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-inactivity.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-control.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-skill-learning-guard.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/agentApprovals.ts",
+    "openclaw-plugin-mobile-ui/src/companion/automations.ts",
     "openclaw-plugin-mobile-ui/src/companion/control.ts",
     "openclaw-plugin-mobile-ui/src/companion/fileReadBoundary.ts",
     "openclaw-plugin-mobile-ui/src/companion/intent.ts",
     "openclaw-plugin-mobile-ui/src/companion/runInactivity.ts",
     "openclaw-plugin-mobile-ui/src/companion/skillControl.ts",
     "openclaw-plugin-mobile-ui/src/companion/skillLearning.ts",
-    "openclaw-plugin-mobile-ui/src/companion/skills.ts",
-    "openclaw-plugin-mobile-ui/scripts/test-automation-detail.cjs",
-    "openclaw-plugin-mobile-ui/scripts/test-file-read-boundary.cjs",
-    "openclaw-plugin-mobile-ui/scripts/test-run-inactivity.cjs",
-    "openclaw-plugin-mobile-ui/scripts/test-skill-control.cjs",
-    "openclaw-plugin-mobile-ui/scripts/test-skill-learning-guard.cjs"
+    "openclaw-plugin-mobile-ui/src/companion/skills.ts"
   ],
   "tests": [
     {
-      "name": "H6-resolved-intent-boundary",
-      "status": "pending",
-      "evidence": "Source préparée ; matrice synthétique checkOnly et suite CI locale entière à rejouer au SHA final."
+      "name": "H6-targeted-owner-and-privacy-contracts",
+      "status": "passed",
+      "evidence": "Build and test-payment-pattern-boundary, automation-detail, skill-control, skill-learning-guard (37 assertions), run-inactivity passed on 839f7306. File privacy regression exposed missing OTP filename category; fixed bounded OTP/CVV/CVC secret categories, rebuilt and test-file-read-boundary passed 2026-10-11. Full ci.yml still to execute on the final documented commit."
+    },
+    {
+      "name": "H6-approval-and-notification-regressions",
+      "status": "passed",
+      "evidence": "2026-10-11: initial whole CI on 8f37ad59 was 65/67 (kept under h6-intent-ci); obsolete notifications/approvals assumptions corrected. Rebuilt then notification-sources and agent-approvals passed. Authored canonical read + inert bank/invoice/amount approval allowed; transaction without financial words and missing decision refused before RPC/proof consumption, client risk rejected, non-inert exec/plugin unqualified, secret privacy preserved. Whole CI to rerun on final documented SHA."
     }
   ],
   "documentation": [
@@ -64,7 +72,7 @@
   },
   "rollback": "Revert H6, sans intervention Codex sur le S24.",
   "limitations": [
-    "Préparation anticipée uniquement : aucune validation locale complète revendiquée.",
+    "Targeted tests passed; whole local CI must still be run on the final SHA before ready comment.",
     "Les décisions de tests sont synthétiques ; recette S24 par Claude.",
     "Notification sans qualification vérifiée : action indisponible jusqu’au détail/action propriétaire.",
     "Anciens runs sans décision : absence de preuve, correction inactivity suspendue."
