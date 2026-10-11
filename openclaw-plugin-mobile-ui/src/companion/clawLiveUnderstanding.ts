@@ -61,7 +61,7 @@ type Owner = {
   executeVoiceCapability(meta: any, request: string, run: () => Promise<any>): Promise<any>;
 };
 type Execute = (request: string) => Promise<Record<string, any>>;
-type Deps = { capture?: RoundCaptureRunner; now?: () => number };
+type Deps = { capture?: RoundCaptureRunner; now?: () => number; assertCurrent?: () => void };
 
 /** Harness answer for a correction gesture: evidence required, no resolver or model call. */
 export function realignmentDecision() {
@@ -106,7 +106,10 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
   const request = String(body?.request || "");
   const locale = voiceLocale(owner.sessionLocale());
   const state = owner.understanding;
-  const admit = (run: () => Promise<any>) => body?.voiceTurn ? owner.executeVoiceCapability(body.voiceTurn, request, run) : run();
+  const admit = (run: () => Promise<any>) => {
+    const current = () => { deps.assertCurrent?.(); return run(); };
+    return body?.voiceTurn ? owner.executeVoiceCapability(body.voiceTurn, request, current) : current();
+  };
 
   const target = state.gestureTarget(request);
   if (target) {

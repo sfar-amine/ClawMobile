@@ -8,7 +8,7 @@ import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
-import type { AdmissionTicket } from "./ownerTurnAdmission";
+import { turnAdmission, type AdmissionTicket } from "./ownerTurnAdmission";
 
 export async function submitIntent(
   text: string,
@@ -21,6 +21,7 @@ export async function submitIntent(
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
   const clientRunId = String(options.clientRunId || "").trim() || undefined;
   const learningOnly = options.learningOnly === true;
+  const currentOwner = () => !learningOnly && turnAdmission.isCurrent(options.admission, {clientRunId, sessionId: normalizedSessionId});
   if (learningOnly && (normalizedSessionId !== "skill-learning" || attachments.length)) return notSubmitted(normalizedSessionId, clientRunId, "Invalid learning submission.");
   if (!normalized) {
     return notSubmitted(normalizedSessionId, clientRunId, "Intent text is required.");
@@ -42,7 +43,7 @@ export async function submitIntent(
   let replay: PreparedReplay | undefined;
   if (options.replayOf) {
     // P1 : la relecture exige l'admission native signée (jamais le loopback ni le drapeau legacy).
-    if (!clientRunId || !options.admission || attachments.length || learningOnly)
+    if (!clientRunId || !currentOwner() || attachments.length || learningOnly)
       return notSubmitted(normalizedSessionId, clientRunId, "replay_invalid");
     try { replay = await prepareReplay(options.replayOf.sessionId, options.replayOf.runId, normalizedSessionId); }
     catch (error: any) {
@@ -53,7 +54,8 @@ export async function submitIntent(
 
   // P1 : bit d'admission de ce tour, persisté sur le run. Une clarification ouverte par un tour non admis
   // n'est jamais reprise par un tour admis (aucun texte dérivé d'un tiers sur la connexion admin).
-  const ownerAdmitted = !learningOnly && options.admission !== undefined;
+  const ownerAdmitted = currentOwner();
+  const caller = ownerAdmitted ? "owner" as const : "other" as const;
   let routingText = normalized;
   let parentClarificationRunId: string | undefined;
   let fastPathCheck: FastPathResult = { status: "miss", reason: "attachments_require_model" };
@@ -67,7 +69,7 @@ export async function submitIntent(
     }
     if (pending) {
       const clarified = await runModelFastPath(normalized, {
-        surface: "claw_live", caller: "owner", originId: clientRunId || normalizedSessionId,
+        surface: "claw_live", caller, originId: clientRunId || normalizedSessionId,
         timeoutSeconds: 12, checkOnly: true,
         clarificationDecision: pending.decision, clarificationOriginalText: pending.text,
       });
@@ -81,16 +83,18 @@ export async function submitIntent(
     }
     if (!parentClarificationRunId) {
       fastPathCheck = await runModelFastPath(normalized, {
-        surface: "claw_live", caller: "owner", originId: clientRunId || normalizedSessionId,
+        surface: "claw_live", caller, originId: clientRunId || normalizedSessionId,
         timeoutSeconds: 12, checkOnly: true,
       });
     }
   }
 
+  if (ownerAdmitted && !currentOwner()) return notSubmitted(normalizedSessionId, clientRunId, "owner_admission_expired");
+
   if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
     return executeCapabilityFirst(
       routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
-      parentClarificationRunId, replayOf, ownerAdmitted,
+      parentClarificationRunId, replayOf, ownerAdmitted, options.admission,
     );
   }
   if (fastPathCheck.status === "error") {
@@ -166,6 +170,7 @@ async function executeCapabilityFirst(
   parentClarificationRunId?: string,
   replayOf?: {sessionId: string; runId: string},
   ownerAdmitted = false,
+  admission?: AdmissionTicket,
 ): Promise<IntentSubmitResponse> {
   let runId = `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
@@ -197,9 +202,13 @@ async function executeCapabilityFirst(
     state = "failed";
     message = String(check.text || "Claw identified this capability but did not authorize its execution.");
   } else {
+    if (ownerAdmitted && !turnAdmission.isCurrent(admission, {clientRunId, sessionId})) {
+      await markSubmittedRunFailed(runId, "owner_admission_expired");
+      return notSubmitted(sessionId, clientRunId, "owner_admission_expired");
+    }
     const result = await runModelFastPath(text, {
       surface: "claw_live",
-      caller: "owner",
+      caller: ownerAdmitted ? "owner" : "other",
       originId: clientRunId || runId,
       timeoutSeconds: 75,
       preparedDecision: check.decision,
