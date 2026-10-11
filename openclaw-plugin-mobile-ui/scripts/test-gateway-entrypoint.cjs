@@ -2,6 +2,15 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const Module=require('node:module');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'gateway-entrypoint-'));
+// Synthetic canonical bootstrap for the submit wrapper; this is not an S24 capture.
+const previousHome=os.homedir,previousBin=process.env.CLAWMOBILE_OPENCLAW_BIN;
+os.homedir=()=>root;
+const workspace=path.join(root,'.openclaw','workspace');
+fs.mkdirSync(path.join(workspace,'context'),{recursive:true});
+fs.writeFileSync(path.join(workspace,'SOUL.md'),'Synthetic identity fixture.\n');
+fs.writeFileSync(path.join(workspace,'USER.md'),'Synthetic owner context.\n');
+fs.writeFileSync(path.join(workspace,'context','OPERATING_RULES.md'),'## Règles spécialisées\nHuman approval remains required.\n');
+fs.writeFileSync(path.join(workspace,'context','HYBRID_CONTEXT.md'),'Synthetic bounded continuity.\n');
 const pkg=path.join(root,'node_modules/openclaw');fs.mkdirSync(pkg,{recursive:true});
 fs.writeFileSync(path.join(pkg,'package.json'),JSON.stringify({name:'openclaw',version:'2026.9.6',type:'module',exports:{'./plugin-sdk/gateway-runtime':'./gateway.mjs','./plugin-sdk/config-runtime':'./config.mjs','./plugin-sdk/gateway-config-runtime':'./ports.mjs','./plugin-sdk/secret-ref-runtime':'./secrets.mjs'}}));
 fs.writeFileSync(path.join(pkg,'config.mjs'),'export function loadConfig(){return {gateway:{mode:"local",auth:{mode:"none"}}};} export function coerceSecretRef(){return null;}');
@@ -95,4 +104,4 @@ const api=require('../dist/companion/openclawAgentClient');
  assert.equal(cronChild.status,0,cronChild.stderr);assert.equal(cronChild.stdout,'');
  console.log('Captured S24 owner timing: CLI models.list '+fixture._capture.latencyMs+'ms; handshake owner import/connect/health '+handshake._capture.latencyMs+'ms; operations differ, no production wiring comparison claimed.');
  console.log('P0-1 real callOpenClawGateway entrypoint: shared official SDK owner, hello gate, four RPCs, control RPC unchanged params/expectFinal, host turns CLI only, reduced control scopes, CAS refusal, no replay, shutdown; SDK boundary synthetic, S24 payload real.');
-})().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{api.closeOpenClawGateway();fs.rmSync(root,{recursive:true,force:true});delete globalThis.gatewayEntryFixture;});
+})().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{api.closeOpenClawGateway();os.homedir=previousHome;if(previousBin===undefined)delete process.env.CLAWMOBILE_OPENCLAW_BIN;else process.env.CLAWMOBILE_OPENCLAW_BIN=previousBin;fs.rmSync(root,{recursive:true,force:true});delete globalThis.gatewayEntryFixture;});
