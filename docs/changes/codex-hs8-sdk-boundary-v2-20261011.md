@@ -8,3 +8,7 @@ Contrat : `docs/work/samantha-runtime/contracts/hs8.md`. Base isolée `5de1c492f
 
 ## Reprise GitHub — 11/10
 Base runtime actuelle intégrée par merge. Build + `test-memo-stt-boundary.cjs` repassés. Les captures #129/#131 n'apportent ni qualification du compte réel fournisseur, ni fixture audio neutre. Aucun appel STT effectué. Le raccordement reste bloqué et aucun producteur ne peut annoncer `inputs.voiceMemo:true` sur cette seule preuve SDK. L'activation devra attester fournisseur et compte autorisés avant le premier appel, sans exposer d'identifiant de compte ni de secret dans Git, avec refus d'un fallback non qualifié. Aucun changement de configuration ou déploiement.
+
+Reprise 42 : décision Gemini → OpenAI reçue ; adaptateur du propriétaire SDK et format M4A préparés sous le garde de qualification existant. Configuration canonique réutilisée, aucun modèle/compte créé. Captures S24 audio/auth/budgets/journaux demandées à Claude ; aucun upload audio ni appel fournisseur activé.
+
+La préparation peut être intégrée sous le garde fermé ; les captures et la recette S24 restent obligatoires avant transcription produit ou activation du micro.

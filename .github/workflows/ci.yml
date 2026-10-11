@@ -49,7 +49,7 @@ jobs:
         run: node scripts/test-delete-run.cjs
 
       - name: HS8 SDK export proof and memo transcript boundary (inactive)
-        run: node scripts/test-memo-stt-boundary.cjs
+        run: node scripts/test-memo-stt-boundary.cjs && node scripts/test-memo-stt-owner.cjs
 
       - name: Run claw-live Control and owner view projections
         run: python3 ../installer/termux-lite/test-claw-live-control.py

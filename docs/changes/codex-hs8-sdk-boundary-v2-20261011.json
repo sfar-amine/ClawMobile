@@ -3,10 +3,10 @@
   "id": "codex-hs8-sdk-boundary-v2-20261011",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "HS8 : preuve des exports SDK installés et projection de transcription non branchée",
-  "reason": "Le fournisseur, la fixture audio, les délais globaux et les journaux ne sont pas encore qualifiés.",
+  "summary": "HS8 : adaptateur SDK canonique Gemini → OpenAI et pièces jointes M4A sous garde de qualification S24",
+  "reason": "Décision Amine 11/10 : profil Gemini gratuit existant et repli OpenAI autorisés. Préparation intégrable car garde runtime toujours fermé ; captures audio/auth/budgets/journaux bloquent uniquement activation et micro.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-hs8-sdk-boundary-v2-20261011.json",
@@ -14,13 +14,21 @@
     "docs/work/samantha-runtime/contracts/hs8.md",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8/sdk-exports.json",
     "openclaw-plugin-mobile-ui/scripts/test-memo-stt-boundary.cjs",
-    "openclaw-plugin-mobile-ui/src/companion/memoSttBoundary.ts"
+    "openclaw-plugin-mobile-ui/src/companion/memoSttBoundary.ts",
+    "openclaw-plugin-mobile-ui/src/companion/memoSttOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-stt-owner.cjs"
   ],
   "tests": [
     {
       "name": "HS8 build + boundary",
       "status": "passed",
       "evidence": "npm run build et node scripts/test-memo-stt-boundary.cjs, exit 0. Export installé confirmé ; tests de projection contractuels générés, aucune transcription réelle."
+    },
+    {
+      "name": "HS8 owner adapter contract",
+      "status": "passed",
+      "evidence": "npm run build ; node scripts/test-memo-stt-boundary.cjs ; node scripts/test-memo-stt-owner.cjs : exit 0 sous Node 20. Régression de config canonique, compte configuré épinglé, exclusion CLI/autres fournisseurs, refus texte long sans troncature, erreurs génériques et audio non activé. Contrats synthétiques, aucun appel fournisseur."
     }
   ],
   "documentation": [
@@ -49,8 +57,8 @@
   },
   "rollback": "Retirer la préparation et son test CI ; aucune donnée runtime à restaurer.",
   "limitations": [
-    "Préparation locale non branchée : aucune route ni catalogue activé.",
-    "Exports installés confirmés ; fournisseur, audio, deadline globale et confidentialité SDK non qualifiés.",
-    "Aucun appel fournisseur, merge, push ou déploiement."
+    "Adaptateur SDK implémenté sous garde existant refusé : aucune route ni catalogue activé.",
+    "Décision fournisseur levée ; qualification audio, auth disponible, budgets et confidentialité SDK S24 manquante.",
+    "Aucun appel fournisseur, aucune fusion ni activation par Codex."
   ]
 }
