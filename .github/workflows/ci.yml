@@ -256,3 +256,8 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-telecom-display.py
           node scripts/test-capability-provenance.cjs
+
+      - name: O9 voice runs terminal state on the captured S24 runs and acceptance line
+        run: |
+          node scripts/test-voice-run-terminal-state.cjs
+          python3 ../installer/termux-lite/test-companion-acceptance-voice.py
