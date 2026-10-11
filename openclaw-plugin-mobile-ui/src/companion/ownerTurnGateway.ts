@@ -1,14 +1,8 @@
-/**
- * P1 — connexion Gateway des seuls tours owner admis.
- *
- * Le Gateway installé (OpenClaw 2026.9.6) dérive `senderIsOwner` de `operator.admin` sur toute la
- * connexion. Un tour admis passe donc par une connexion à lui, ouverte par le propriétaire
- * OpenClaw (`callGatewayFromCli` de plugin-sdk/gateway-runtime : bootstrap, SecretRef, handshake),
- * avec les scopes admin/write, une seule requête `agent`, puis fermée. Cette connexion n'est
- * partagée ni avec les tours non admis (CLI `operator.write`) ni avec le pool Control P0-1.
- *
- * Ce module n'expose aucune méthode paramétrable : uniquement `agent`. Un échec avant envoi est
- * rapporté `requestSent:false` (l'appelant peut rester non-owner) ; après l'envoi, aucun rejeu.
+/** P1 : une connexion GatewayClient publique par tour, une méthode agent, aucun rejeu.
+ * Le sous-ensemble local token/password réutilise les propriétaires publics de config,
+ * SecretRef et port. Les cibles distantes/TLS/overrides sont refusées avant connexion.
+ * Une admission expirée pendant le bootstrap/handshake ne peut émettre agent.
+ * Après émission, un échec reste indéterminé : fermer la connexion ne promet pas annuler l'effet.
  */
 import fs from "fs/promises";
 import path from "path";
@@ -22,7 +16,14 @@ const SUPPORTED_OPENCLAW = "2026.9.6";
 const nativeImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<any>;
 const unavailable = (code: string) => Object.assign(new Error(code), {code, requestSent: false});
 
-type GatewaySdk = {callGatewayFromCli: (method: string, opts: any, params: any, extra: any) => Promise<any>};
+type GatewaySdk = {
+  GatewayClient: new (options: any) => any;
+  startGatewayClientWhenEventLoopReady: (client: any, options: any) => Promise<any>;
+  getRuntimeConfig: () => any;
+  resolveGatewayAuth: (options: any) => any;
+  resolveGatewayPort: (config: any, env?: any) => number;
+  resolveConfiguredSecretInputWithFallback: (options: any) => Promise<any>;
+};
 export type OwnerTurnSdkLoader = () => Promise<GatewaySdk>;
 
 async function packageRoot(start: string) {
@@ -56,9 +57,16 @@ export async function loadInstalledGatewaySdk(binary = process.env.CLAWMOBILE_OP
   }
   const {version} = await packageRoot(entry);
   if (version !== SUPPORTED_OPENCLAW) throw unavailable("owner_transport_version_unsupported");
-  const module = await nativeImport(pathToFileURL(entry).href);
-  if (typeof module?.callGatewayFromCli !== "function") throw unavailable("owner_transport_unavailable");
-  return {callGatewayFromCli: module.callGatewayFromCli};
+  const packageRequire = createRequire(path.join((await packageRoot(entry)).root, "package.json"));
+  const modules = await Promise.all(["gateway-runtime", "config-runtime", "gateway-config-runtime"].map(async (name) => {
+    try { return await nativeImport(pathToFileURL(packageRequire.resolve(`openclaw/plugin-sdk/${name}`)).href); }
+    catch { throw unavailable("owner_transport_unavailable"); }
+  }));
+  const sdk = {...modules[0], ...modules[1], ...modules[2]};
+  for (const name of ["GatewayClient", "startGatewayClientWhenEventLoopReady", "getRuntimeConfig", "resolveGatewayAuth", "resolveGatewayPort", "resolveConfiguredSecretInputWithFallback"])
+    if (typeof sdk[name] !== "function") throw unavailable("owner_transport_unavailable");
+  return sdk;
+
 }
 
 let loader: OwnerTurnSdkLoader = () => loadInstalledGatewaySdk();
@@ -77,20 +85,79 @@ export async function submitOwnerTurn(params: Record<string, any>, options: {exp
   catch (error: any) { loading = undefined; throw unavailable(typeof error?.code === "string" && /^owner_transport_[a-z_]+$/.test(error.code) ? error.code : "owner_transport_unavailable"); }
   // Loading the installed SDK may await disk/import. Revocation or expiry during it cannot open admin.
   if (!turnAdmission.isCurrent(options.admission, options.binding)) throw unavailable("owner_turn_admission_expired");
-  const abort = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const hard = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => { abort.abort(); reject(Object.assign(new Error("owner_turn_indeterminate"), {code: "owner_turn_indeterminate", requestSent: true})); }, timeoutMs + 5_000);
-  });
+  let config: any;
+  try { config = sdk.getRuntimeConfig(); } catch { throw unavailable("owner_transport_config_unavailable"); }
+  const gateway = config?.gateway;
+  if (!gateway || (gateway.mode !== undefined && gateway.mode !== "local") || gateway.tls?.enabled === true ||
+    (process.env.OPENCLAW_GATEWAY_URL || "").trim() || !["token", "password"].includes(gateway.auth?.mode))
+    throw unavailable("owner_transport_target_unsupported");
+  const mode = gateway.auth.mode;
+  let credential: any;
   try {
-    // Frontière d'envoi : toute erreur après ce point reste indéterminée, sans repli CLI ni rejeu.
-    return await Promise.race([
-      sdk.callGatewayFromCli(OWNER_TURN_METHOD, {json: true, timeout: String(timeoutMs), expectFinal: options.expectFinal === true},
-        params, {scopes: [...OWNER_TURN_SCOPES], progress: false, expectFinal: options.expectFinal === true, timeoutMs, signal: abort.signal}),
-      hard,
-    ]);
-  } catch (error: any) {
-    if (error?.code === "owner_turn_indeterminate") throw error;
-    throw Object.assign(new Error("owner_turn_failed"), {code: "owner_turn_failed", requestSent: true, gatewayCode: typeof error?.gatewayCode === "string" ? error.gatewayCode : undefined});
-  } finally { if (timer) clearTimeout(timer); }
+    const resolvedAuth = sdk.resolveGatewayAuth({authConfig: gateway.auth, env: process.env});
+    credential = await sdk.resolveConfiguredSecretInputWithFallback({config, path: `gateway.auth.${mode}`,
+      value: gateway.auth[mode], env: process.env, readFallback: () => resolvedAuth[mode]});
+  } catch { throw unavailable("owner_transport_auth_unavailable"); }
+  if (credential.unresolvedRefReason || typeof credential.value !== "string" || !credential.value.trim())
+    throw unavailable("owner_transport_auth_unavailable");
+  let port: number;
+  try { port = sdk.resolveGatewayPort(config, process.env); } catch { throw unavailable("owner_transport_target_unsupported"); }
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw unavailable("owner_transport_target_unsupported");
+  const assertCurrent = () => {
+    if (!turnAdmission.isCurrent(options.admission, options.binding)) throw unavailable("owner_turn_admission_expired");
+  };
+  assertCurrent();
+  const abort = new AbortController();
+  let client: any;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let dispatched = false;
+  let requestSent = false;
+  let done = false;
+  let resolveResult!: (value: any) => void;
+  let rejectResult!: (error: any) => void;
+  const result = new Promise<any>((resolve, reject) => {resolveResult = resolve; rejectResult = reject;});
+  // Readiness can fail before result is awaited. Register a handler without swallowing the caller's rejection.
+  void result.catch(() => {});
+  const fail = (error: any) => {
+    if (done) return;
+    done = true;
+    rejectResult(Object.assign(new Error(requestSent ? "owner_turn_indeterminate" : "owner_turn_failed"), {
+      code: requestSent ? "owner_turn_indeterminate" : (typeof error?.code === "string" && /^owner_(transport|turn)_[a-z_]+$/.test(error.code) ? error.code : "owner_turn_failed"), requestSent,
+    }));
+    client?.stop();
+  };
+  try {
+    client = new sdk.GatewayClient({url: `ws://127.0.0.1:${port}`, [mode]: credential.value,
+      clientName: "cli", mode: "cli", role: "operator", deviceIdentity: null, sharedStateMode: "read-only",
+      scopes: [...OWNER_TURN_SCOPES], minProtocol: 4, maxProtocol: 4,
+      hostDeps: {beforeConnect: assertCurrent},
+      onConnectError: fail, onReconnectPaused: () => fail(unavailable("owner_transport_unavailable")),
+      onClose: () => fail(unavailable("owner_transport_unavailable")),
+      onHelloOk: (hello: any) => {
+        if (done || dispatched) return;
+        try {
+          if (hello?.auth?.role !== "operator" || !OWNER_TURN_SCOPES.every(scope => hello.auth.scopes?.includes(scope)) ||
+            !hello.features?.methods?.includes(OWNER_TURN_METHOD)) throw unavailable("owner_transport_scopes_unavailable");
+          assertCurrent();
+          dispatched = true;
+          // The pinned public client sends synchronously: no await between this check and socket.send.
+          const pending = client.request(OWNER_TURN_METHOD, params, {expectFinal: options.expectFinal === true, timeoutMs,
+            signal: abort.signal, onSent: () => {requestSent = true;}});
+          Promise.resolve(pending).then(value => {if (!done) {done = true; resolveResult(value);}}, fail);
+        } catch (error) {fail(error);}
+      },
+    });
+    timer = setTimeout(() => {abort.abort(); fail(unavailable("owner_transport_timeout"));}, timeoutMs + 5_000);
+    const readiness = await sdk.startGatewayClientWhenEventLoopReady(client, {clientOptions: {}, signal: abort.signal, timeoutMs});
+    if (!readiness.ready) fail(unavailable("owner_transport_unavailable"));
+    return await result;
+  } catch (error) {
+    fail(error);
+    return await result;
+  } finally {
+    done = true;
+    if (timer) clearTimeout(timer);
+    abort.abort();
+    if (client) {try {await client.stopAndWait();} catch {client.stop();}}
+  }
 }
