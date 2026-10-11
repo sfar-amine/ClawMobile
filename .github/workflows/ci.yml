@@ -175,6 +175,9 @@ jobs:
       - name: Run usage and shared provider read contracts
         run: node scripts/test-usage-providers.cjs
 
+      - name: Run /usage and /runs?limit=50 latency budgets with S24 latencies (p95 <= 50 % of acceptance budget)
+        run: node scripts/test-usage-runs-latency.cjs
+
       - name: Run UI recette server fixes on S24 captures (account privacy, cost, composer, history, previews)
         run: |
           node scripts/test-ui-recette-server.cjs

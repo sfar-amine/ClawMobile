@@ -180,6 +180,14 @@ La route n'a pas été appelée, pour ne pas manipuler le jeton owner.
 - La borne fait environ 9,5 fois le maximum total observé. Elle reste très en dessous du bail de 900 s, sans renouvellement.
 - Le plafond O1 (enfant 120 s + nettoyage 1,5 s) reste lui aussi sous 900 s.
 
+## Latences `/v1/usage` et `/v1/runs?limit=50` (11/10, 06:53-07:28, tâche perf)
+
+`perf-usage-runs-latency.json` regroupe des mesures **en lecture seule** faites par Claude sur le S24 (clés `perf-usage-runs-*`, runtime `59227f0e`, OpenClaw `2026.9.6`). Il ne contient que des durées et les reçus de déploiement concernés : aucun corps de réponse, identifiant, texte ni secret. Contrairement aux autres fichiers de ce dossier, il a été rédigé ici à partir des sorties des commandes, pas copié depuis le téléphone ; il n'a donc pas d'empreinte S24.
+
+- Appels `openclaw gateway call` : `health` 2,27 s côté CLI pour 32 ms côté Gateway, `usage.status` 2,6 à 4,1 s, `sessions.list` 1,7 à 4,3 s, `chat.history` 1,9 à 2,8 s.
+- Banc `listRuns` : copie temporaire de `runs.json` sous `~/tmp/perf-bench` (supprimée ensuite), run Gateway le plus récent remis à `running`. Le registre et le Companion réels n'ont pas été modifiés.
+- `injectedLatencyMs` sert au test CI `scripts/test-usage-runs-latency.cjs`.
+
 ## Empreintes SHA-256 (identiques sur le S24 et ici)
 
 ```
