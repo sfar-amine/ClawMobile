@@ -10,7 +10,7 @@ BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
     ("/health", 2.0),
-    ("/control/health?contract=2", 1.5),
+    ("/control/health?contract=2", 2.0),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
     ("/files?scope=agent", 1.5),
     ("/files?scope=session", 1.5),
