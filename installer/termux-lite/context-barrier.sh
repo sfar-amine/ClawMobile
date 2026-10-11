@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 R="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-usage(){ echo "usage: $0 --after REVISION [--limit N] | --session SESSION_ID [--surface chat|work|voice|openclaw] [--limit N]" >&2; exit 64; }
+usage(){ echo "usage: $0 --after REVISION [--limit N] | --session SESSION_ID [--surface chat|work|voice|openclaw|claude|codex|app] [--limit N]" >&2; exit 64; }
 mode=""; value=""; surface="chat"; limit=500
 while [ "$#" -gt 0 ]; do
  case "$1" in
