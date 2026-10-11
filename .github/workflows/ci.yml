@@ -246,3 +246,8 @@ jobs:
         run: python3 ../installer/termux-lite/test-context-voice-read.py
       - name: H9 read-only UI smoke synthetic safety boundaries
         run: python3 ../installer/termux-lite/test-ui-smoke.py
+
+      - name: O8 baseline model efficiency and Gemini client regression
+        run: |
+          python3 ../installer/termux-lite/test-model-efficiency.py
+          python3 ../installer/termux-lite/test-gemini-request.py

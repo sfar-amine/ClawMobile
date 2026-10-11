@@ -23,27 +23,37 @@ fast = load("model_fast_path", "model-fast-path.py")
 cfg = load("model_efficiency_config", "model-efficiency-config.py")
 
 
+# O8: real S24 capture of the 10/10 09:41 "Mon solde Orange" capability_first run, plus the current
+# resolver output for the same intent (resolution only, no operator call, no model call).
+# Provenance: openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/README.md (core runtime 5de1c49).
+CAPTURE_PATH = HERE.parents[1] / "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/o7-o8-orange-20261010-0941.json"
+CAPTURE = json.loads(CAPTURE_PATH.read_text(encoding="utf-8"))
+CANONICAL_ORANGE_ENTRY = "python -m telecom.maxit_guarded_service balance --mode auto"
+
+
 def plan(**overrides):
+    envelope = CAPTURE["decision_envelope"]
     value = {
-        "mode": "known",
-        "confidence": 1.0,
-        "risk": "read",
-        "confirmation_required": False,
-        "fallback": None,
-        "target": "maxit-tunisie",
-        "intent": {"id": "telecom.balance"},
-        "route": {"id": "orange.silent_first.balance", "health": "healthy"},
+        "mode": envelope["plan"]["mode"],
+        "confidence": envelope["confidence"],
+        "risk": envelope["risk"],
+        "confirmation_required": envelope["confirmationRequired"],
+        "fallback": envelope["plan"]["fallback"],
+        "target": envelope["target"],
+        "intent": {"id": envelope["intent"]},
+        "route": {"id": envelope["route"], "health": envelope["plan"]["route_rank"][0]["runtime_state"]},
     }
     value.update(overrides)
     return value
 
 
 def route(**overrides):
+    selected = CAPTURE["decision_envelope"]["selected"]
     value = {
-        "id": "orange.silent_first.balance",
-        "status": "validated",
-        "layer": "script",
-        "entrypoint": "python -m telecom.service read orange balance",
+        "id": selected["route"],
+        "status": CAPTURE["decision_envelope"]["plan"]["route_rank"][0]["status"],
+        "layer": selected["route_layer"],
+        "entrypoint": selected["entrypoint"],
     }
     value.update(overrides)
     return value
@@ -78,6 +88,39 @@ class FastPathTests(unittest.TestCase):
 
     def test_required_deterministic_authorized_capability_is_eligible(self):
         self.assertEqual(fast.capability_first_eligibility(self.resolution()), ("eligible", "capability_first"))
+
+    def test_captured_orange_shapes_use_canonical_guarded_entry(self):
+        self.assertEqual(route()["entrypoint"], CANONICAL_ORANGE_ENTRY)
+        self.assertEqual(route()["id"], "orange.summary.maxit.v1")
+        self.assertEqual(plan()["target"], "maxit-tunisie")
+        self.assertEqual(plan()["intent"], {"id": "telecom.balance"})
+        self.assertEqual((plan()["risk"], plan()["confirmation_required"]), ("read", False))
+        for surface, value in CAPTURE["resolution_now"].items():
+            with self.subTest(surface=surface):
+                self.assertEqual(value["selected"]["entrypoint"], CANONICAL_ORANGE_ENTRY)
+                self.assertNotIn("telecom.service", json.dumps(value))
+
+    def test_captured_decision_and_current_resolutions_are_capability_first(self):
+        envelope = CAPTURE["decision_envelope"]
+        self.assertEqual(fast.capability_first_eligibility({"decision": envelope}), ("eligible", "capability_first"))
+        for surface, value in CAPTURE["resolution_now"].items():
+            with self.subTest(surface=surface):
+                self.assertEqual(value["harness"]["tool_policy"], "required")
+                self.assertEqual(fast.capability_first_eligibility(value), ("eligible", "capability_first"))
+
+    def test_captured_orange_execution_bypasses_model(self):
+        resolved = CAPTURE["resolution_now"]["claw_live"]
+        executed = {**resolved, "execution": {"state": "completed", "result": CAPTURE["client_received_result"]}}
+        with mock.patch.object(fast, "resolve_capability", return_value=resolved), \
+             mock.patch.object(fast, "execute_capability_decision", return_value=executed) as execute:
+            out = fast.try_fast_path(CAPTURE["companion_run"]["userText"])
+        self.assertEqual(out["status"], "hit")
+        self.assertTrue(out["model_bypassed"])
+        self.assertEqual((out["target"], out["intent"], out["route"]), ("maxit-tunisie", "telecom.balance", "orange.summary.maxit.v1"))
+        self.assertEqual(out["result"]["route_id"], "orange.usage.maxit.v1")
+        self.assertEqual(len(out["result"]["data"]["cards"]), 8)
+        execute.assert_called_once()
+        self.assertEqual(execute.call_args.args[1]["type"], "EXECUTE")
 
     def test_optional_conversation_is_model_miss(self):
         value=self.resolution(harness={"tool_policy":"optional","reason":"conversation_or_unknown"})
