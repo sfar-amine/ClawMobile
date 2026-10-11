@@ -1,0 +1,108 @@
+{
+ "_capture": {
+  "host": "Samsung S24 / Termux",
+  "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+  "runtimeCore": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+  "sanitized": true,
+  "method": "models.authStatus",
+  "params": {},
+  "latencyMs": 4635,
+  "exit": "rc=0",
+  "capturedAt": "2026-10-11T10:47:40Z",
+  "note": "profil OAuth remplacé par owner@example.invalid ; expiry réduite à son libellé ; providerCapabilities (26 entrées, catalogue statique) omis"
+ },
+ "response": {
+  "providers": [
+   {
+    "provider": "github-copilot",
+    "displayName": "Copilot",
+    "status": "static",
+    "profiles": [
+     {
+      "profileId": "github-copilot:github",
+      "type": "token",
+      "status": "static",
+      "source": "inherited"
+     }
+    ],
+    "usage": {
+     "plan": "individual",
+     "windows": [
+      {
+       "label": "Premium",
+       "usedPercent": 100
+      },
+      {
+       "label": "Chat",
+       "usedPercent": 0.7
+      }
+     ]
+    }
+   },
+   {
+    "provider": "google",
+    "displayName": "google",
+    "status": "static",
+    "profiles": [
+     {
+      "profileId": "google:claw-gemini-free",
+      "type": "api_key",
+      "status": "static",
+      "source": "inherited"
+     }
+    ],
+    "apiKey": {
+     "source": "config"
+    }
+   },
+   {
+    "provider": "openai",
+    "displayName": "openai",
+    "status": "ok",
+    "expiry": {
+     "label": "10d"
+    },
+    "profiles": [
+     {
+      "profileId": "openai:owner@example.invalid",
+      "type": "oauth",
+      "status": "ok",
+      "source": "inherited",
+      "expiry": {
+       "label": "10d"
+      }
+     }
+    ],
+    "profileOrder": [
+     "openai:owner@example.invalid"
+    ],
+    "profileOrderStored": true,
+    "usage": {
+     "plan": "prolite",
+     "windows": [
+      {
+       "label": "168h",
+       "usedPercent": 10
+      }
+     ],
+     "billing": [
+      {
+       "type": "balance",
+       "amount": 0,
+       "unit": "credits"
+      }
+     ]
+    }
+   }
+  ],
+  "providerCapabilitiesCount": 26
+ },
+ "copilot": {
+  "connected": true,
+  "authStatus": "static",
+  "catalogOutcome": "ready",
+  "modelsListed": 0,
+  "usedByAgents": false,
+  "note": "main.modelPolicy.allow contient github-copilot/*, mais aucun agent ne référence un modèle Copilot (primary/fallbacks) ; quota Premium à 100 %."
+ }
+}

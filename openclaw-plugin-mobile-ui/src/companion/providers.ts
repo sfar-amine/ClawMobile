@@ -21,11 +21,12 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null){
  };
  const main=config?.agents?.entries?.main?.model??config?.agents?.list?.find((row:any)=>row.id==='main')?.model??config?.agents?.defaults?.model;
  const entry=(id:string)=>config?.agents?.entries?.[id]?.model??config?.agents?.list?.find((row:any)=>row.id===id)?.model;
- const scalar=(value:any)=>chain(typeof value?.model==='string'?((typeof value.provider==='string'&&!value.model.includes('/'))?value.provider+'/'+value.model:value.model):null);
+ const scalar=(value:any)=>{const provider=publicId(value?.provider);const projected=chain(typeof value?.model==='string'?((provider&&!value.model.includes('/'))?provider+'/'+value.model:value.model):null);return {...projected,provider:provider??null,...(provider&&value?.model==null?{state:'provider_default'}:{})};};
+ const spokenProvider=publicId(config?.talk?.provider),spokenVoice=publicModelId(config?.talk?.providers?.[spokenProvider??'']?.voice);
  const roles=[
   {id:'conversation',...chain(main)},
   {id:'realtime_voice',...scalar(config?.talk?.realtime)},
-  {id:'spoken_voice',model:null,fallbacks:[],state:'unavailable'},
+  {id:'spoken_voice',...chain(spokenProvider&&spokenVoice?spokenProvider+'/'+spokenVoice:null)},
   {id:'conversation_summary',...chain(config?.agents?.defaults?.compaction?.model)},
   {id:'memory_search',...scalar(config?.memory?.search)},
   {id:'engineering_learning',...chain(entry('engineering-lite'))},
@@ -34,7 +35,7 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null){
   {id:'immune_system',model:null,fallbacks:[],state:'deterministic',verdictState:'unavailable'},
   {id:'copilot',model:null,fallbacks:[],state:snapshot?.auth?.providers?.some((row:any)=>row.provider==='github-copilot'&&['ok','static','expiring'].includes(row.status))?'connected_not_used':'unavailable'},
  ];
- return roles.map(role=>({...role,source:role.state==='deterministic'?'canonical_capability_contract':role.state==='configured'?'gateway_config':role.state==='connected_not_used'?'gateway_auth':'unavailable'}));
+ return roles.map(role=>({...role,source:role.state==='deterministic'?'canonical_capability_contract':['configured','provider_default'].includes(role.state)?'gateway_config':role.state==='connected_not_used'?'gateway_auth':'unavailable'}));
 }
 const authState=(status:any):'ready'|'needs_auth'|'unknown'=>['ok','static','expiring'].includes(status)?'ready':['missing','expired','invalid','unauthorized','needs_auth'].includes(status)?'needs_auth':'unknown';
 export function projectProviders(snapshot:ModelOwnerSnapshot|null,usage:UsageView|null,fresh=true){
