@@ -1,0 +1,47 @@
+{
+  "_capture": {
+    "method": "read-only latency measurements: openclaw gateway call (usage.status, models.authStatus, sessions.list, chat.history, health) and loopback GET /v1/usage, /v1/runs?limit=50",
+    "capturedAt": "2026-10-11T06:53/07:28 (Tunis)",
+    "host": "Samsung S24 / Termux",
+    "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+    "runtimeCore": "59227f0e1c8f1ce1643b37c61d279f2422e964d3",
+    "access": "Claw MCP claw_exec, profile chat-owner, action keys perf-usage-runs-*",
+    "sanitized": true,
+    "note": "Timings only: no response body, identifier, text or secret is kept. The runs bench used a temporary copy of runs.json under ~/tmp/perf-bench (deleted afterwards); the live registry and Companion were not modified."
+  },
+  "response": {
+    "receipts": {
+      "companion-20261011T064639": {"/usage": 5.28, "/runs?limit=50": null, "budget": {"/usage": 6.0}},
+      "companion-20261011T034317": {"/usage": 5.52, "/runs?limit=50": 3.82, "budget": {"/usage": 6.0, "/runs?limit=50": 4.0}}
+    },
+    "gatewayCliMs": {
+      "health": [2270],
+      "healthServerDurationMs": 32,
+      "usage.status": [2633, 4086],
+      "models.authStatus": [4382, 2204],
+      "sessions.list(search=companion-,limit=100)": [4259, 1652],
+      "chat.history(limit=200)": [2774, 1922, 2218]
+    },
+    "routeBeforeMs": {
+      "/usage cold (60 s TTL expired)": [3086, 4385, 3160, 4370, 4430],
+      "/usage warm": [6, 3, 5, 4, 4, 7, 3, 3],
+      "/runs?limit=50 (no run in progress)": [15, 13, 16, 14, 10, 10]
+    },
+    "benchReadUsageMs": {
+      "base": {"cold": 1940, "afterEachMinute": [1667, 4234, 4118, 3979]},
+      "new": {"cold": 4081, "afterEachMinute": [10, 18, 15, 12], "prewarmThenReadAt1500ms": 2582}
+    },
+    "benchListRunsLimit50Ms": {
+      "base": [6789, 6465, 10, 19, 4],
+      "new": [1504, 1502, 1501, 251, 6],
+      "scenario": "temporary registry copy, newest Gateway run reset to running; real sessions.list and chat.history CLI reads"
+    },
+    "injectedLatencyMs": {
+      "usage.status": 4430,
+      "sessions.list.cold": 4259,
+      "sessions.list.warm": 1652,
+      "chat.history": 2774
+    },
+    "acceptanceArrivalMs": 1500
+  }
+}
