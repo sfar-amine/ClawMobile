@@ -1,0 +1,20 @@
+{
+  "_capture": {
+    "method": "claw_exec read-only (ls, bash -n, sha256sum, sed) + sqlite memory.db (mode=ro, PRAGMA query_only=1)",
+    "capturedAt": "2026-10-11T23:05:31+00:00",
+    "actionKeys": ["m2-probe-path-c-20261011", "m2-probe-db-d-20261011"],
+    "sanitized": true,
+    "note": "No event text captured; counts only."
+  },
+  "writers": [
+    {"path": "~/.openclaw/releases/current/termux-lite/context-event.sh", "mode": "-rwx------", "bytes": 2815, "bashSyntax": "ok", "sha256Prefix": "f1b929b3b45a7cd7"},
+    {"path": "~/ClawMobile/installer/termux-lite/context-event.sh", "mode": "-rwx------", "bytes": 2815, "bashSyntax": "ok", "sha256Prefix": "f1b929b3b45a7cd7"}
+  ],
+  "usage": "usage: $0 <chat|work|voice|openclaw|claude|codex|app> <decision|learning|open_thread|completed_action|constraint|checkpoint> [--supersedes EVENT_ID] [--session COMPANION_SESSION_ID] <text>",
+  "memoryDb": {
+    "schema": "CREATE TABLE events(id TEXT PRIMARY KEY,surface TEXT,kind TEXT,text TEXT,created_at TEXT,ingested_at TEXT, supersedes TEXT, revision INTEGER, session_id TEXT)",
+    "eventsBySurface": {"chat": 1049, "claude": 12, "openclaw": 415, "work": 548},
+    "total": 2024,
+    "probeDurationMs": 142
+  }
+}

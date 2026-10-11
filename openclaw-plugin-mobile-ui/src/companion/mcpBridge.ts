@@ -5,6 +5,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge";
+import { REMEMBER_KINDS, validateRemember } from "./memoryControl";
 import {
   getRemoteBridgeRequest,
   submitAuthenticatedMcpRequest,
@@ -75,6 +76,18 @@ function projectReceipt(receipt: any) {
     return { ...base, state: receipt.state, error: receipt.error ? "claw_execution_failed" : undefined };
   }
   const value = receipt.result;
+  if (receipt.method === "context_remember") {
+    // Receipt only: the remembered text is never echoed back nor persisted in the receipt.
+    return {
+      ...base,
+      state: value?.state === "recorded" ? "recorded" : value?.state === "refused" ? "refused" : "failed",
+      event_id: value?.event_id,
+      surface: value?.surface,
+      kind: value?.kind,
+      supersedes: value?.supersedes,
+      reason: value?.reason,
+    };
+  }
   if (value?.artifact) {
     return { ...base, state: "result_available", artifact: safeValue(value.artifact), preview: String(value.preview || "").slice(0, 8000) };
   }
@@ -443,6 +456,38 @@ async function executeRawCommand(
   return projectReceipt(receipt);
 }
 
+async function rememberFact(
+  requestId: string,
+  clientId: string,
+  profile: string,
+  args: Record<string, unknown>,
+) {
+  if (profile !== "chat-owner") throw new Error("owner_profile_required");
+  const actionKey = requiredString(args.action_key, "action_key", 40, ACTION_ID_RE);
+  const stepKey = "execute";
+  const expectedRequestId = actionRequestId(clientId, actionKey, stepKey);
+  if (requestId !== expectedRequestId) throw new Error("action_request_id_mismatch");
+  const kind = String(args.kind || "");
+  if (!(REMEMBER_KINDS as readonly string[]).includes(kind)) throw new Error("invalid_kind");
+  // Surface comes from the admitted relay identity, never from tool arguments.
+  const params = validateRemember({
+    surface: contextSurface(clientId),
+    kind,
+    text: args.text,
+    supersedes: args.supersedes,
+  });
+  const receipt = await submitAuthenticatedMcpRequest({
+    requestId,
+    taskId: actionTaskId(clientId, actionKey),
+    stepId: stepKey,
+    sessionId: `external_mcp:${clientId}`,
+    _claw_access: accessMetadata(clientId, profile),
+    method: "context_remember",
+    params: { surface: params.surface, kind: params.kind, text: params.text, ...(params.supersedes ? { supersedes: params.supersedes } : {}) },
+  });
+  return projectReceipt(receipt);
+}
+
 async function statusFor(
   clientId: string,
   args: Record<string, unknown>,
@@ -525,6 +570,8 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
       return executeCapability(requestId, clientId, profile, args);
     case "claw_exec":
       return executeRawCommand(requestId, clientId, profile, args);
+    case "claw_remember":
+      return rememberFact(requestId, clientId, profile, args);
     case "claw_status":
       return statusFor(clientId, args);
     case "claw_artifact_read":
