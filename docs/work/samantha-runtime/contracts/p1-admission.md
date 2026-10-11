@@ -86,3 +86,52 @@ Les lignes `companion-acceptance.py` sont ajoutées : une lecture, plus les refu
 ## Retour arrière
 
 Le revert de la PR restaure le comportement précédent : non-owner partout, contexte via loopback. Le fichier d'enrôlement est ignoré par l'ancien code. Le déploiement reste fait par Claude via `companion-deploy.sh`.
+
+## Amendements après revue adverse (« déployable après corrections »)
+
+1. **Édition-relecture (#181).** La base a fusionné `replayOf`, qui était autorisé par l'autorité loopback. Cette autorité est retirée : `replayOf` exige `admission.admitted`. Sans preuve (loopback seul, en-tête constant ou drapeau legacy), la réponse est 403 `owner_required` et rien n'est préparé. `submitIntent` refuse aussi une relecture sans ticket. `test-edit-replay.cjs` envoie désormais une preuve valide et vérifie le 403 sans preuve.
+2. **Présentation canonique de l'enrôlement.** Le Companion ne reprend plus `intent.presentation` de la demande. Il construit `enrollmentPresentation(keyId)` :
+   - titre « Autoriser Samantha » ;
+   - sous-titre « Messages de l’app en ton nom » ;
+   - description « Clé <12 premiers caractères du keyId>… : tes messages écrits dans l’app pourront agir en ton nom. Révocable. »
+
+   Une confirmation approuvée avec un autre texte n'est pas consommable (403). L'activité de l'app impose aussi ce texte avant la biométrie.
+3. **CLARIFY (confused deputy).** Le bit `ownerAdmitted` est persisté sur chaque run.
+   - Un tour admis abandonne une clarification ouverte par un tour non admis et ne la résout jamais. Aucun texte dérivé d'un tiers ne part sur la connexion admin.
+   - Un tour non admis ignore une clarification admise : il ne la reprend pas et ne l'annule pas.
+   - Le propriétaire existant ne reprend que la clarification du dernier run de la session. Un tour tiers intercalé la masque donc (refus fermé).
+4. **Signature `callGatewayFromCli`.** Vérifiée en lecture seule sur le S24 (`claw_exec` p1adm-20261011-r03) :
+   - le Companion appelle `callGatewayFromCli(method, opts, params, extra)` ;
+   - `extra.scopes`, `extra.signal`, `extra.expectFinal` et `extra.timeoutMs` sont repris tels quels ;
+   - `callGatewayCli` honore `opts.scopes` ;
+   - empreintes identiques au paquet npm 2026.9.6.
+
+   Fixture : `fixtures/s24-2026-10-11/p1/callgatewayfromcli-signature.json`. Le test fige la forme d'appel. La recette émet une alerte `owner_transport_unavailable` (sans retour arrière) quand un run admis est parti sur le CLI write.
+5. **`ownerTransport` final** (`admin_admitted`, `write_cli` ou `write_cli_owner_unavailable`) et `ownerAdmitted` sont exposés sur le run (statut, liste) et persistés.
+6. **Réponses génériques.**
+   - `ownerAdmission.reason` vaut toujours `not_admitted`. La raison détaillée reste dans le journal du Companion et dans un anneau mémoire de 32 entrées, jamais en HTTP.
+   - `GET /v1/owner-admission` ne renvoie ni `keyId` ni date. L'app présente son `keyId` (en-tête `x-samantha-admission-key`) et n'apprend que `keyMatches`.
+   - La révocation non signée renvoie seulement 403.
+7. **Fenêtre au redémarrage.** Le cache de nonces est en mémoire. Après un redémarrage du Companion, une requête signée capturée pourrait être rejouée pendant au plus 30 s, la fenêtre d'horodatage. Le rejeu exact est neutralisé par la déduplication `clientRunId` du registre durable. Un rejeu ne crée pas de second tour, et le corps signé ne peut pas changer.
+8. **Permissions.**
+   - `owner-turn-admission.json` doit appartenir à l'UID du Companion et n'être modifiable ni par le groupe ni par les autres ; sinon refus fermé.
+   - Une lisibilité trop large est resserrée à 0600.
+   - Le dossier est resserré à 0700 s'il est modifiable par le groupe ou les autres.
+
+### Précondition de déploiement (ordre)
+
+L'APK #183, qui signe les tours et était déjà installé sur le S24 à 14:00, **doit précéder** le Companion #182. `companion-deploy.sh` refuse (`p1_app_admission_not_installed`) le premier déploiement qui introduit `ownerTurnAdmission.ts` sans l'une des deux confirmations suivantes :
+- le marqueur `~/.openclaw/deploys/p1-app-admission-installed`, posé par Claude après vérification de l'APK ;
+- `COMPANION_DEPLOY_P1_APP_READY=1`.
+
+Ensuite, Amine s'enrôle une fois. L'APK #183 installé à 14:00 envoie déjà le texte canonique en français. Seul l'affichage d'état de cette version (qui lisait `keyId`) est corrigé par le nouvel APK.
+
+### Résiduels documentés
+
+- `/v1/skills/:id/run` garde l'heuristique loopback pour le **contexte canonique** seulement, sans connexion admin.
+- Le fast path déterministe s'exécute avec `caller:"owner"` pour tout tour loopback (comportement existant). Vérification faite : tous les effets de paiement exigent une confirmation consommée, signée par la clé biométrique épinglée :
+  - `payments.confirm` vérifie la preuve owner ;
+  - `local-start`, `bank_2fa` et `resume` passent par `confirmations.consume` avec l'intention reconstruite côté serveur.
+
+  Le fast path ne peut donc pas payer sans biométrie. Les autres capabilities d'écriture du fast path relèvent de leur politique de confirmation du registre, non modifiée ici.
+- L'historique de session (contexte de conversation, amorce de relecture) peut contenir des tours non admis de la même session. Ce sont des données, pas des instructions, mais elles sont transmises sur la connexion admin d'un tour admis.

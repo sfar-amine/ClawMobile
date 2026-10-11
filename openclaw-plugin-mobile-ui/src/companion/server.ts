@@ -36,7 +36,7 @@ import { submitIntent } from "./intent";
 import {securitySurfaces} from "./securitySurfaces";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
-import { turnAdmission, legacyLoopbackOwnerContextEnabled } from "./ownerTurnAdmission";
+import { turnAdmission, legacyLoopbackOwnerContextEnabled, publicAdmission } from "./ownerTurnAdmission";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
@@ -72,6 +72,12 @@ type TerminalShellSession = {
   running: boolean;
   updatedAt: number;
 };
+
+/** Une relecture refusée (source absente, active, déjà remplacée…) n'a rien soumis : 404/409 plutôt que 503. */
+export function replayRefusalStatusCode(result: { success?: boolean; submissionState?: string; message?: string }) {
+  if (result.success || result.submissionState !== "not_submitted" || !/^replay_[a-z_]+$/.test(String(result.message || ""))) return undefined;
+  return result.message === "replay_source_not_found" ? 404 : result.message === "replay_invalid" ? 400 : 409;
+}
 
 export function runSubmissionStatusCode(result: { success?: boolean; submissionState?: string }) {
   if (result.success) return 200;
@@ -859,7 +865,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     res.setHeader("Cache-Control","no-store");
     if (requestUrl.search) {writeJson(res,400,{success:false,state:"refused",error:"unsupported_parameter"}); return;}
     try {
-      if (method === "GET" && routePath === "/owner-admission") {writeJson(res,200,turnAdmission.status()); return;}
+      if (method === "GET" && routePath === "/owner-admission") {writeJson(res,200,turnAdmission.status(req.headers["x-samantha-admission-key"])); return;}
       if (routePath !== "/owner-admission/enrollment" || req.headers["x-clawmobile-owner-flow"] !== "v1") {
         writeJson(res, routePath === "/owner-admission/enrollment" ? 403 : 405, {success:false,state:"refused",error:"native_owner_flow_required"}); return;
       }
@@ -873,7 +879,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         let body: any; try { body = JSON.parse(raw.toString("utf8") || "{}"); } catch { throw new HttpError(400,"invalid_revocation_request"); }
         const proof = turnAdmission.verifyRequest({method, path: requestUrl.pathname, headers: req.headers, rawBody: raw,
           clientRunId: body?.operationId, sessionId: "owner-admission"});
-        if (!proof.admitted) {writeJson(res,403,{success:false,state:"refused",error:"admission_proof_required",reason:proof.admitted===false?proof.reason:"no_proof"}); return;}
+        if (!proof.admitted) {writeJson(res,403,{success:false,state:"refused",error:"admission_proof_required"}); return;}
         writeJson(res,200,{success:true,...turnAdmission.revoke()}); return;
       }
       writeJson(res,405,{success:false,state:"refused",error:"method_not_allowed"}); return;
@@ -895,6 +901,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       ? turnAdmission.verifyRequest({method, path: requestUrl.pathname + requestUrl.search, headers: req.headers, rawBody: rawRunBody,
           clientRunId: body?.clientRunId, sessionId: body?.sessionId})
       : {admitted: false as const, reason: "no_proof" as const};
+    if (admission.admitted === false && admission.reason !== "no_proof") console.log(`[companion] P1 admission refusée : ${admission.reason}`);
     const legacyContext = !admission.admitted && legacyLoopbackOwnerContextEnabled() &&
       isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"];
     try{if(body?.attachments){
@@ -905,6 +912,16 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     }catch(e:any){const status=[400,404,413].includes(e?.statusCode)?e.statusCode:503;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":status===413?"attachment_share_limit":"invalid_attachment_request"});return;}
     const instruction = String(body?.instruction || body?.text || "");
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
+    // P1 : l'autorité owner vient uniquement de l'admission native signée (plus du loopback).
+    const authority = admission.admitted || legacyContext ? "owner" as const : undefined;
+    // Édition-relecture : objet fermé {sessionId, runId}, réservé au propriétaire natif ADMIS (preuve signée ; jamais le drapeau legacy).
+    let replayOf:{sessionId:string;runId:string}|undefined;
+    if(body?.replayOf!==undefined){
+      const r:any=body.replayOf;
+      if(!r||typeof r!=="object"||Array.isArray(r)||Object.keys(r).sort().join(",")!=="runId,sessionId"||typeof r.sessionId!=="string"||typeof r.runId!=="string"){writeJson(res,400,{success:false,accepted:false,submissionState:"not_submitted",message:"replay_invalid"});return;}
+      if(!admission.admitted){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required",ownerAdmission:publicAdmission(admission)});return;}
+      replayOf={sessionId:r.sessionId,runId:r.runId};
+    }
     const result = await submitIntent(
       instruction,
       String(body?.sessionId || "default"),
@@ -912,12 +929,13 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       {
         userText: displayText,
         clientRunId: body?.clientRunId,
-        authority: admission.admitted || legacyContext ? "owner" : undefined,
+        authority,
         admission: admission.admitted ? admission.ticket : undefined,
+        ...(replayOf?{replayOf}:{}),
       },
     );
-    const statusCode = runSubmissionStatusCode(result);
-    writeJson(res, statusCode, {...result, ownerAdmission: admission.admitted ? {owner: true} : {owner: false, reason: admission.admitted===false ? admission.reason : "no_proof"}});
+    const statusCode = replayRefusalStatusCode(result) ?? runSubmissionStatusCode(result);
+    writeJson(res, statusCode, {...result, ownerAdmission: publicAdmission(admission)});
     return;
   }
 

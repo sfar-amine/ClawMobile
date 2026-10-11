@@ -58,6 +58,26 @@ export type AdmissionRequest = {
 };
 type Enrollment = {version: 1; keyId: string; publicKey: string; enrolledAt: number; confirmationId: string; epoch: string};
 
+/**
+ * Présentation canonique de la confirmation d'enrôlement, construite ici à partir du keyId (jamais reprise
+ * telle quelle de la demande) : la biométrie a montré exactement ce texte, avec le préfixe de la clé.
+ * Identique au texte français de l'app (TurnAdmissionProtocol.enrollmentPresentation).
+ */
+export function enrollmentPresentation(keyId: string) {
+  return {title: "Autoriser Samantha", subtitle: "Messages de l’app en ton nom",
+    description: `Clé ${keyId.slice(0, 12)}… : tes messages écrits dans l’app pourront agir en ton nom. Révocable.`};
+}
+/** Raison publique : générique. La raison détaillée reste côté Companion (journal borné, sans secret). */
+export function publicAdmission(result: AdmissionResult) {
+  return result.admitted ? {owner: true} : {owner: false, reason: "not_admitted"};
+}
+const refusals: {at: number; reason: AdmissionRefusal}[] = [];
+/** Diagnostic local uniquement (tests, journal) ; jamais servi en HTTP. */
+export function recentAdmissionRefusals() { return refusals.map(x => ({...x})); }
+function noteRefusal(reason: AdmissionRefusal, at: number) {
+  refusals.push({at, reason}); if (refusals.length > 32) refusals.shift();
+}
+
 export const sha256Hex = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 
 /** Chaîne signée par l'app, champ par ligne ; aucun champ ne peut contenir de saut de ligne. */
@@ -107,6 +127,11 @@ export function createTurnAdmission(options: {
       if (error?.code === "ENOENT") return null;
       throw admissionError("enrollment_unreadable", 503);
     }
+    // Fichier de l'UID du Companion, jamais modifiable par le groupe ou les autres ; lisibilité resserrée à 0600.
+    if ((typeof process.getuid === "function" && stat.uid !== process.getuid()) || (stat.mode & 0o022) !== 0) {
+      cached = undefined; throw admissionError("enrollment_unreadable", 503);
+    }
+    if ((stat.mode & 0o077) !== 0) { try { fs.chmodSync(file(), 0o600); } catch { throw admissionError("enrollment_unreadable", 503); } }
     const stamp = [stat.ino, stat.size, stat.mtimeMs].join(":");
     if (cached?.stamp === stamp) return cached.value;
     try {
@@ -126,6 +151,11 @@ export function createTurnAdmission(options: {
   }
 
   function verifyRequest(request: AdmissionRequest): AdmissionResult {
+    const result = verifyRequestInner(request);
+    if (result.admitted === false) noteRefusal((result as {reason: AdmissionRefusal}).reason, now());
+    return result;
+  }
+  function verifyRequestInner(request: AdmissionRequest): AdmissionResult {
     const h = request.headers || {};
     const names = Object.values(ADMISSION_HEADERS);
     if (names.every(name => h[name] === undefined)) return {admitted: false, reason: "no_proof"};
@@ -168,11 +198,14 @@ export function createTurnAdmission(options: {
     try { const e = enrollment(); return !!e && e.keyId === t.keyId && e.epoch === t.epoch; } catch { return false; }
   }
 
-  function status() {
+  /** Sans keyId ni date : l'app présente son propre keyId et apprend seulement s'il est celui enrôlé. */
+  function status(candidateKeyId?: unknown) {
     let e: ReturnType<typeof enrollment> = null, readable = true;
     try { e = enrollment(); } catch { readable = false; }
-    return {schemaVersion: 1, capability: "owner.turn_admission", readable, enrolled: !!e, keyId: e?.keyId ?? null,
-      enrolledAt: e?.enrolledAt ?? null, windowMs: ADMISSION_WINDOW_MS, proof: "android_keystore_p256", biometricEnrollment: true};
+    const candidate = typeof candidateKeyId === "string" && hex64.test(candidateKeyId) ? candidateKeyId : undefined;
+    return {schemaVersion: 1, capability: "owner.turn_admission", readable, enrolled: !!e,
+      ...(candidate ? {keyMatches: !!e && e.keyId === candidate} : {}),
+      windowMs: ADMISSION_WINDOW_MS, proof: "android_keystore_p256", biometricEnrollment: true};
   }
 
   /** Enrôlement : preuve de possession de la nouvelle clé + confirmation biométrique consommée (usage unique). */
@@ -197,14 +230,16 @@ export function createTurnAdmission(options: {
     const intent = record?.intent;
     if (!intent || intent.origin?.channel !== ENROLL_ORIGIN.channel || intent.origin?.id !== ENROLL_ORIGIN.id)
       admissionError("confirmation_scope_mismatch", 403);
+    // Présentation canonique construite ici : une demande au texte trompeur n'est jamais consommable.
     const expected: OwnerIntent = {audience: "confirmation", action: {type: ENROLL_ACTION, reference: keyId, payloadHash: keyId},
-      presentation: intent.presentation, origin: {channel: "samantha", id: "turn-admission"}};
+      presentation: enrollmentPresentation(keyId), origin: {channel: "samantha", id: "turn-admission"}};
     try { await confirmations.consume(confirmationId, expected); } catch (error: any) {
       // Signature biométrique absente, autre clé, autre action, déjà consommée ou expirée : rien n'est enrôlé.
       admissionError(error?.statusCode === 403 ? "confirmation_scope_mismatch" : "confirmation_not_usable", error?.statusCode === 403 ? 403 : 409);
     }
     const value: Enrollment = {version: 1, keyId, publicKey: der.toString("base64"), enrolledAt: now(), confirmationId, epoch: randomBytes(16).toString("hex")};
     fs.mkdirSync(stateDir(), {recursive: true, mode: 0o700});
+    try { if ((fs.statSync(stateDir()).mode & 0o022) !== 0) fs.chmodSync(stateDir(), 0o700); } catch {}
     const temporary = file() + "." + randomBytes(6).toString("hex") + ".tmp";
     fs.writeFileSync(temporary, JSON.stringify(value), {mode: 0o600, flag: "wx"});
     fs.renameSync(temporary, file());

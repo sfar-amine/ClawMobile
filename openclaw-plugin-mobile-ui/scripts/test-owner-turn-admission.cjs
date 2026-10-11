@@ -13,7 +13,14 @@ fs.writeFileSync(path.join(state,'runs.json'),JSON.stringify({version:1,runs:[],
 const biometric=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});
 fs.writeFileSync(path.join(state,'owner-confirmation-public.pem'),biometric.publicKey.export({type:'spki',format:'pem'}));
 // Pré-routeur capability : toujours « miss », le tour part vers le Gateway.
-const helper=path.join(root,'fast-path.py');fs.writeFileSync(helper,'import json\nprint(json.dumps({"status":"miss","reason":"fixture"}))\n');process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
+// « ambigu » ouvre une CLARIFY ; une résolution renvoie un texte dérivé de la clarification (marqueur ATTACKER_DERIVED).
+const helper=path.join(root,'fast-path.py'),helperLog=path.join(root,'fast-path.log');
+fs.writeFileSync(helper,['import json,sys','m=sys.argv[-1]','mode="resolve" if "--resolve-clarification" in sys.argv else "check"',
+ 'open('+JSON.stringify(helperLog)+',"a").write(json.dumps({"mode":mode,"message":m})+"\\n")',
+ 'd=lambda k,i:{"version":2,"type":k,"decisionId":i,"requestId":i,"textHash":"x","capabilityRevision":"rev","contractHash":"hash"}',
+ 'if mode=="resolve": print(json.dumps({"status":"miss","resolution":{"text":"ATTACKER_DERIVED "+m}}))',
+ 'elif "ambigu" in m: print(json.dumps({"status":"clarification","text":"Tu veux consulter ou agir ?","model_bypassed":True,"decision":{**d("CLARIFY","c-"+m[-8:]),"clarification":{"question":"Tu veux consulter ou agir ?","choices":[{"intent":"read","label":"consulter"},{"intent":"act","label":"agir"}]}}}))',
+ 'else: print(json.dumps({"status":"miss","reason":"fixture"}))',''].join('\n'));process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
 // Connexion write (CLI canonique) factice.
 const cliLog=path.join(root,'cli.jsonl'),cli=path.join(root,'openclaw-cli.py');
 fs.writeFileSync(cli,'#!/usr/bin/env python3\nimport json,sys\np=json.loads(sys.argv[sys.argv.index("--params")+1])\nopen('+JSON.stringify(cliLog)+',"a").write(json.dumps({"transport":"cli_write","method":sys.argv[3] if sys.argv[3]!="--expect-final" else sys.argv[4],"sessionKey":p["sessionKey"],"id":p["idempotencyKey"],"extra":"extraSystemPrompt" in p})+"\\n")\nprint(json.dumps({"runId":p["idempotencyKey"],"status":"accepted"}))\n');
@@ -23,12 +30,14 @@ const gatewayTransport=require('../dist/companion/ownerTurnGateway');
 gatewayTransport.setOwnerTurnSdkLoader(async()=>{
  if(sdkMode==='missing')throw Object.assign(new Error('x'),{code:'owner_transport_unavailable'});
  return {callGatewayFromCli:async(method,opts,params,extra)=>{
-  sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,progress:extra.progress});
+  sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,progress:extra.progress,opts,extraKeys:Object.keys(extra).sort(),message:params.message,signal:extra.signal});
   if(sdkMode==='fail')throw Object.assign(new Error('boom'),{gatewayCode:'UNAVAILABLE'});
   return {runId:params.idempotencyKey,status:'accepted'};
  }};
 });
-const {turnAdmission,createTurnAdmission,admissionMessage,enrollmentMessage,ADMISSION_WINDOW_MS,NONCE_CAPACITY,sha256Hex}=require('../dist/companion/ownerTurnAdmission');
+const {turnAdmission,createTurnAdmission,admissionMessage,enrollmentMessage,enrollmentPresentation,recentAdmissionRefusals,ADMISSION_WINDOW_MS,NONCE_CAPACITY,sha256Hex}=require('../dist/companion/ownerTurnAdmission');
+const lastReason=()=>{const r=recentAdmissionRefusals();return r.length?r[r.length-1].reason:undefined;};
+const GENERIC={owner:false,reason:'not_admitted'};
 const {confirmations}=require('../dist/companion/confirmations');
 const {route}=require('../dist/companion/server');
 
@@ -49,8 +58,8 @@ const request=(method,url,body,headers={})=>new Promise((resolve,reject)=>{
  req.on('error',reject);req.end(data);
 });
 const owner={'x-clawmobile-owner-flow':'v1'};
-async function biometricApprove(type,reference,payloadHash,origin={channel:'samantha',id:'turn-admission'},signer=biometric){
- const prepared=await request('POST','/v1/confirmations',{requestKey:crypto.randomUUID(),action:{type,reference,payloadHash},presentation:{title:'Autoriser Samantha',subtitle:'Messages de l’app',description:'Les messages de l’app pourront agir en ton nom.'},origin},owner);
+async function biometricApprove(type,reference,payloadHash,origin={channel:'samantha',id:'turn-admission'},signer=biometric,presentation=enrollmentPresentation(reference)){
+ const prepared=await request('POST','/v1/confirmations',{requestKey:crypto.randomUUID(),action:{type,reference,payloadHash},presentation,origin},owner);
  assert.equal(prepared.status,200);const id=prepared.body.requestId;
  if(!signer)return id;
  const challenge=(await request('GET',`/v1/confirmations/${id}/challenge`,undefined,owner)).body;
@@ -74,10 +83,10 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
  const counts={};const count=k=>counts[k]=(counts[k]||0)+1;
  try{
   // --- 0. Avant tout enrôlement : loopback seul, en-tête constant, champs owner du corps => non-owner, connexion write.
-  let r=await submit({sign:false});assert.equal(r.response.status,200);assert.deepEqual(r.response.body.ownerAdmission,{owner:false,reason:'no_proof'});
+  let r=await submit({sign:false});assert.equal(r.response.status,200);assert.deepEqual(r.response.body.ownerAdmission,GENERIC);assert.equal(lastReason(),'no_proof');
   assert.equal((await settled(r.runId)).transport,'cli_write');count('loopback_only');
   r=await submit({sign:false,headers:{...owner,'x-forwarded-for':'127.0.0.1'},text:'caller owner authority owner'});assert.equal(r.response.body.ownerAdmission.owner,false);assert.equal((await settled(r.runId)).transport,'cli_write');assert.equal((await settled(r.runId)).extra,false);count('forged_headers');
-  r=await submit();assert.equal(r.response.body.ownerAdmission.reason,'not_enrolled');assert.equal((await settled(r.runId)).transport,'cli_write');count('not_enrolled');
+  r=await submit();assert.deepEqual(r.response.body.ownerAdmission,GENERIC);assert.equal(lastReason(),'not_enrolled');assert.equal((await settled(r.runId)).transport,'cli_write');count('not_enrolled');
 
   // --- 1. Enrôlement : la biométrie (clé owner-confirmation) est obligatoire, liée à CETTE clé, à usage unique.
   assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(crypto.randomUUID()))).status,403,'sans en-tête natif');
@@ -95,19 +104,34 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
   assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(otherAction),owner)).status,403);count('enroll_cross_action');
   const otherOrigin=await biometricApprove('owner.turn_admission.enroll',KEY,KEY,{channel:'claw',id:'turn-admission'});
   assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(otherOrigin),owner)).status,403);count('enroll_cross_origin');
+  // Présentation trompeuse (texte choisi par un tiers) : non consommable même approuvée par la biométrie.
+  const misleading=await biometricApprove('owner.turn_admission.enroll',KEY,KEY,undefined,biometric,{title:'Test du micro',subtitle:'Samantha',description:'Vérification sans effet.'});
+  r=await request('POST','/v1/owner-admission/enrollment',enrollBody(misleading),owner);assert.equal(r.status,403);assert.equal(r.body.error,'confirmation_scope_mismatch');count('enroll_non_canonical_presentation');
   assert.equal(turnAdmission.status().enrolled,false);
   r=await request('POST','/v1/owner-admission/enrollment',enrollBody(forOther),owner);assert.equal(r.status,200);assert.equal(r.body.state,'enrolled');assert.equal(r.body.keyId,KEY);
   assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(forOther),owner)).status,409,'confirmation consommée');count('enroll_replay');
-  const st=await request('GET','/v1/owner-admission');assert.equal(st.status,200);assert.equal(st.body.enrolled,true);assert.equal(st.body.keyId,KEY);assert.ok(!JSON.stringify(st.body).includes('BEGIN'));
+  const st=await request('GET','/v1/owner-admission');assert.equal(st.status,200);assert.equal(st.body.enrolled,true);assert.ok(!('keyId' in st.body)&&!('enrolledAt' in st.body)&&!JSON.stringify(st.body).includes(KEY.slice(0,12)),'aucun keyId sans le présenter');
+  assert.equal((await request('GET','/v1/owner-admission',undefined,{'x-samantha-admission-key':KEY})).body.keyMatches,true);
+  assert.equal((await request('GET','/v1/owner-admission',undefined,{'x-samantha-admission-key':keyIdOf(rogue)})).body.keyMatches,false);count('status_without_key_id');
   assert.equal((fs.statSync(path.join(state,'owner-turn-admission.json')).mode&0o777),0o600);
 
   // --- 2. Preuve valide => owner, sur la connexion admin uniquement (scopes admin/write, méthode agent seule).
   r=await submit();assert.equal(r.response.status,200);assert.deepEqual(r.response.body.ownerAdmission,{owner:true});
   let hit=await settled(r.runId);assert.equal(hit.transport,'admin');assert.equal(hit.method,'agent');assert.deepEqual(hit.scopes,['operator.admin','operator.write']);assert.equal(hit.progress,false);
   assert.equal(readLines(cliLog).filter(x=>x.id===r.runId).length,0);count('valid_owner_admin_only');
+  // Forme d'appel figée contre la signature installée (fixture S24 claw_exec r03 : callGatewayFromCli(method, opts, params, extra)).
+  {const sig=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/p1/callgatewayfromcli-signature.json'),'utf8'));
+   assert.match(sig.signature,/^callGatewayFromCli\(method, opts, params, extra\)/);
+   for(const line of ['scopes: extra?.scopes,','signal: extra?.signal,','expectFinal: extra?.expectFinal ?? Boolean(opts.expectFinal),','clientName: extra?.clientName ?? GATEWAY_CLIENT_NAMES.CLI,'])assert.ok(sig.runtime_excerpt.includes(line),line);
+   assert.ok(sig.call_excerpt.includes('if (Array.isArray(opts.scopes)) return await callGatewayWithScopes(opts, opts.scopes);'));
+   assert.deepEqual(hit.extraKeys,['expectFinal','progress','scopes','signal','timeoutMs']);assert.ok(hit.signal instanceof AbortSignal);
+   assert.deepEqual(hit.opts,{json:true,timeout:'15000',expectFinal:false});count('sdk_signature_contract');}
+  {let run;for(let i=0;i<50&&!(run=(await request('GET','/v1/runs/'+r.runId)).body).ownerTransport;i++)await new Promise(x=>setTimeout(x,20));
+   assert.equal(run.ownerTransport,'admin_admitted');assert.equal(run.ownerAdmitted,true);
+   const listed=(await request('GET','/v1/runs?limit=50')).body.runs.find(x=>x.runId===r.runId);assert.equal(listed.ownerTransport,'admin_admitted');count('run_owner_transport');}
 
   // --- 3. Refus adverses : chacun => non-owner, connexion write, jamais l'admin.
-  const adverse=async(name,options,reason)=>{const before=sdkCalls.length;const x=await submit(options);if(x.response.status===403&&!x.response.body.ownerAdmission){assert.equal(x.runId,undefined);assert.equal(sdkCalls.length,before,name);count(name);return;}assert.equal(x.response.body.ownerAdmission.owner,false,name);if(reason)assert.equal(x.response.body.ownerAdmission.reason,reason,name);
+  const adverse=async(name,options,reason)=>{const before=sdkCalls.length;const x=await submit(options);if(x.response.status===403&&!x.response.body.ownerAdmission){assert.equal(x.runId,undefined);assert.equal(sdkCalls.length,before,name);count(name);return;}assert.equal(x.response.body.ownerAdmission.owner,false,name);assert.deepEqual(x.response.body.ownerAdmission,GENERIC,name);if(reason)assert.equal(lastReason(),reason,name);
    if(x.runId){assert.equal((await settled(x.runId)).transport,'cli_write',name);}assert.equal(sdkCalls.length,before,name);count(name);};
   await adverse('no_proof',{sign:false},'no_proof');
   await adverse('bad_signature',{mutate:({headers})=>({headers:{...headers,'x-samantha-admission-signature':crypto.sign('sha256',Buffer.from('autre'),admissionKey.privateKey).toString('base64')}})},'bad_signature');
@@ -127,12 +151,12 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
   // Rejeu exact du même tour : nonce refusé, et le clientRunId déjà connu ne crée pas de second tour.
   {const body=JSON.stringify({instruction:'Rejoue',displayText:'Rejoue',sessionId:'p1-session',clientRunId:'p1-replay-0001'});const h=proof({body,clientRunId:'p1-replay-0001',sessionId:'p1-session'});
    const a=await request('POST','/v1/runs',body,h);assert.equal(a.body.ownerAdmission.owner,true);await settled(a.body.runId);
-   const b=await request('POST','/v1/runs',body,h);assert.deepEqual(b.body.ownerAdmission,{owner:false,reason:'replayed_nonce'});assert.equal(b.body.runId,a.body.runId);assert.equal(b.body.duplicate??true,true);
+   const b=await request('POST','/v1/runs',body,h);assert.deepEqual(b.body.ownerAdmission,GENERIC);assert.equal(lastReason(),'replayed_nonce');assert.equal(b.body.runId,a.body.runId);assert.equal(b.body.duplicate??true,true);
    assert.equal([...sdkCalls,...readLines(cliLog)].filter(x=>x.id===a.body.runId).length,1);count('replayed_nonce');}
   // Nonce identique sur un autre tour signé : refusé aussi.
   {const n=nonce();const b1=JSON.stringify({instruction:'A',sessionId:'s',clientRunId:'p1-nonce-aaaa'}),b2=JSON.stringify({instruction:'B',sessionId:'s',clientRunId:'p1-nonce-bbbb'});
    assert.equal((await request('POST','/v1/runs',b1,proof({body:b1,clientRunId:'p1-nonce-aaaa',sessionId:'s',n}))).body.ownerAdmission.owner,true);
-   assert.equal((await request('POST','/v1/runs',b2,proof({body:b2,clientRunId:'p1-nonce-bbbb',sessionId:'s',n}))).body.ownerAdmission.reason,'replayed_nonce');count('nonce_reuse_other_turn');}
+   assert.deepEqual((await request('POST','/v1/runs',b2,proof({body:b2,clientRunId:'p1-nonce-bbbb',sessionId:'s',n}))).body.ownerAdmission,GENERIC);assert.equal(lastReason(),'replayed_nonce');count('nonce_reuse_other_turn');}
 
   // --- 4. Unitaires : cache borné, fermé quand plein ; requêtes non signées ne le remplissent pas ; ticket opaque.
   {let clock=1_800_000_000_000;const dir=path.join(root,'unit');fs.mkdirSync(dir);fs.copyFileSync(path.join(state,'owner-turn-admission.json'),path.join(dir,'owner-turn-admission.json'));
@@ -148,22 +172,55 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    assert.equal(unit.isCurrent(fresh.ticket,{clientRunId:'unit-run-other',sessionId:'u'}),false);assert.equal(unit.isCurrent(fresh.ticket,{clientRunId:'unit-run-100000',sessionId:'v'}),false);
    clock+=61_000;assert.equal(unit.isCurrent(fresh.ticket,{clientRunId:'unit-run-100000',sessionId:'u'}),false,'ticket expiré');count('ticket_binding');
    const dup={...req(5)};dup.headers['x-samantha-admission-nonce']=[dup.headers['x-samantha-admission-nonce'],nonce()];assert.equal(unit.verifyRequest(dup).reason,'malformed_proof');count('duplicated_header');
-   fs.writeFileSync(path.join(dir,'owner-turn-admission.json'),'{"version":1,"keyId":"'+'a'.repeat(64)+'"}');assert.equal(unit.verifyRequest(req(7)).reason,'enrollment_unreadable');count('corrupt_enrollment_fail_closed');}
+   fs.writeFileSync(path.join(dir,'owner-turn-admission.json'),'{"version":1,"keyId":"'+'a'.repeat(64)+'"}');assert.equal(unit.verifyRequest(req(7)).reason,'enrollment_unreadable');count('corrupt_enrollment_fail_closed');
+   fs.copyFileSync(path.join(state,'owner-turn-admission.json'),path.join(dir,'owner-turn-admission.json'));fs.chmodSync(path.join(dir,'owner-turn-admission.json'),0o666);
+   assert.equal(unit.verifyRequest(req(8)).reason,'enrollment_unreadable','fichier modifiable par autrui');
+   fs.chmodSync(path.join(dir,'owner-turn-admission.json'),0o644);assert.equal(unit.verifyRequest(req(9)).admitted,true);
+   assert.equal(fs.statSync(path.join(dir,'owner-turn-admission.json')).mode&0o777,0o600,'resserré à 0600');count('enrollment_permissions');}
 
   // --- 5. Transport admin indisponible AVANT envoi : le tour reste non-owner (CLI) ; échec APRÈS envoi : aucun rejeu.
   gatewayTransport.setOwnerTurnSdkLoader(async()=>{throw Object.assign(new Error('x'),{code:'owner_transport_unavailable'})});
-  r=await submit();assert.equal(r.response.body.ownerAdmission.owner,true);assert.equal((await settled(r.runId)).transport,'cli_write');count('admin_unavailable_downgrades');
+  r=await submit();assert.equal(r.response.body.ownerAdmission.owner,true);assert.equal((await settled(r.runId)).transport,'cli_write');
+  {let run;for(let i=0;i<50&&!(run=(await request('GET','/v1/runs/'+r.runId)).body).ownerTransport;i++)await new Promise(x=>setTimeout(x,20));assert.equal(run.ownerTransport,'write_cli_owner_unavailable');}count('admin_unavailable_downgrades');
   gatewayTransport.setOwnerTurnSdkLoader(async()=>({callGatewayFromCli:async(method,o,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,id:params.idempotencyKey});throw new Error('after dispatch');}}));
   r=await submit();await settled(r.runId);await new Promise(x=>setTimeout(x,200));
   assert.equal(readLines(cliLog).filter(x=>x.id===r.runId).length,0,'pas de repli après envoi');
   const failed=(await request('GET','/v1/runs/'+r.runId)).body;assert.equal(failed.state,'failed');count('no_replay_after_dispatch');
-  gatewayTransport.setOwnerTurnSdkLoader(async()=>({callGatewayFromCli:async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey});await new Promise(x=>setTimeout(x,30));return {runId:params.idempotencyKey,status:'accepted'};}}));
+  gatewayTransport.setOwnerTurnSdkLoader(async()=>({callGatewayFromCli:async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,message:params.message});await new Promise(x=>setTimeout(x,30));return {runId:params.idempotencyKey,status:'accepted'};}}));
 
   // --- 6. Concurrence : tours admis et non admis simultanés, sans croisement de connexion.
   {const jobs=[];for(let i=0;i<8;i++){jobs.push(submit({sessionId:'own-'+i}).then(x=>({x,owner:true})));jobs.push(submit({sessionId:'pub-'+i,sign:false}).then(x=>({x,owner:false})));}
    const done=await Promise.all(jobs);
    for(const {x,owner:o} of done){const t=await settled(x.runId);assert.equal(x.response.body.ownerAdmission.owner,o);assert.equal(t.transport,o?'admin':'cli_write');assert.ok(t.sessionKey.includes(o?'own-':'pub-'));}
    count('concurrent_isolation');}
+
+  // --- 6b. Édition-relecture (#181) : replayOf réservé à l'admission signée.
+  {const src=await submit({sessionId:'replay-src'});await settled(src.runId);await new Promise(x=>setTimeout(x,100));await require('../dist/companion/runs').settleSubmittedRun(src.runId,'done','fait');
+   const body=JSON.stringify({instruction:'Édité',displayText:'Édité',sessionId:'replay-dst-1',clientRunId:'p1-replay-noproof',replayOf:{sessionId:'replay-src',runId:src.runId}});
+   let x=await request('POST','/v1/runs',body,{});assert.equal(x.status,403);assert.equal(x.body.message,'owner_required');
+   x=await request('POST','/v1/runs',body,{...owner,'x-clawmobile-owner-flow':'v1'});assert.equal(x.status,403,'en-tête constant');
+   process.env.CLAWMOBILE_RUNS_LEGACY_LOOPBACK_CONTEXT='1';x=await request('POST','/v1/runs',body,{});assert.equal(x.status,403,'drapeau legacy');delete process.env.CLAWMOBILE_RUNS_LEGACY_LOOPBACK_CONTEXT;
+   const signed=JSON.stringify({instruction:'Édité',displayText:'Édité',sessionId:'replay-dst-2',clientRunId:'p1-replay-proof',replayOf:{sessionId:'replay-src',runId:src.runId}});
+   x=await request('POST','/v1/runs',signed,proof({body:signed,clientRunId:'p1-replay-proof',sessionId:'replay-dst-2'}));assert.equal(x.status,200);assert.deepEqual(x.body.ownerAdmission,{owner:true});
+   assert.equal((await settled(x.body.runId)).transport,'admin');count('replay_without_proof_403');count('replay_with_proof_admin');}
+  // --- 6c. CLARIFY : un tour admis ne reprend jamais une clarification ouverte par un tour non admis (confused deputy).
+  {const helperCalls=()=>readLines(helperLog);
+   const rogue1=await submit({sessionId:'clarify-1',sign:false,text:'ambigu rogue-01'});assert.equal(rogue1.response.body.state,'done');
+   const before=helperCalls().length;
+   const own=await submit({sessionId:'clarify-1',text:'oui agis'});assert.deepEqual(own.response.body.ownerAdmission,{owner:true});
+   const t=await settled(own.runId);assert.equal(t.transport,'admin');assert.ok(!t.message.includes('ATTACKER_DERIVED')&&t.message.endsWith('oui agis'));
+   assert.ok(!helperCalls().slice(before).some(c=>c.mode==='resolve'),'aucune résolution de la clarification tierce');
+   assert.equal((await request('GET','/v1/runs/'+rogue1.runId)).body.ownerAdmitted,undefined);
+   const parent=JSON.parse(fs.readFileSync(path.join(state,'runs.json'))).runs.find(x=>x.runId===rogue1.runId);assert.equal(parent.clarificationState,'abandoned');
+   assert.equal((await request('GET','/v1/runs/'+own.runId)).body.ownerAdmitted,true);count('clarify_admitted_ignores_unadmitted');
+   // Inverse : une clarification ouverte par Amine n'est ni reprise ni annulée par un tour non admis.
+   const own2=await submit({sessionId:'clarify-2',text:'ambigu owner-02'});assert.equal(own2.response.body.state,'done');
+   const b2=helperCalls().length;const rogue2=await submit({sessionId:'clarify-2',sign:false,text:'agir'});
+   assert.ok(!helperCalls().slice(b2).some(c=>c.mode==='resolve'));assert.equal((await settled(rogue2.runId)).transport,'cli_write');
+   assert.equal(JSON.parse(fs.readFileSync(path.join(state,'runs.json'))).runs.find(x=>x.runId===own2.runId).clarificationState,'pending');
+   // Propriétaire existant : seule la clarification du dernier run de la session est reprise ; le tour tiers la masque (refus fermé, aucun texte tiers).
+   const b3=helperCalls().length;const own3=await submit({sessionId:'clarify-2',text:'agir'});assert.ok(!helperCalls().slice(b3).some(c=>c.mode==='resolve'));
+   await settled(own3.runId);count('clarify_unadmitted_cannot_touch_admitted');}
 
   // --- 7. Révocation : signée par la clé enrôlée ; ensuite non-owner. Un tour déjà remis au Gateway n'est pas touché.
   assert.equal((await request('DELETE','/v1/owner-admission/enrollment','{"operationId":"revoke-0001"}',owner)).status,403,'révocation non signée');
@@ -176,14 +233,14 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    assert.equal(turnAdmission.isCurrent(admitted.ticket,{clientRunId:'p1-race-0001',sessionId:'race'}),false);
    const client=require('../dist/companion/openclawAgentClient');const res=await client.submitToOpenClawAgent('tour','p1-race-run','race',{authority:'owner',admission:admitted.ticket,clientRunId:'p1-race-0001'});
    assert.equal(res.ownerTransport,'write_cli');count('revocation_before_dispatch');}
-  r=await submit();assert.equal(r.response.body.ownerAdmission.reason,'not_enrolled');assert.equal((await settled(r.runId)).transport,'cli_write');count('after_revocation_non_owner');
+  r=await submit();assert.equal(lastReason(),'not_enrolled');assert.equal((await settled(r.runId)).transport,'cli_write');count('after_revocation_non_owner');
   // Ré-enrôlement : nouvelle époque ; un ancien ticket ne redevient jamais courant.
   {const again=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);assert.equal((await request('POST','/v1/owner-admission/enrollment',enrollBody(again),owner)).status,200);
    const body=Buffer.from('{}');const t=turnAdmission.verifyRequest({method:'POST',path:'/v1/runs',headers:proof({body:'{}',clientRunId:'p1-epoch-0001',sessionId:'e'}),rawBody:body,clientRunId:'p1-epoch-0001',sessionId:'e'});assert.equal(t.admitted,true);
    const again2=await biometricApprove('owner.turn_admission.enroll',KEY,KEY);await request('POST','/v1/owner-admission/enrollment',enrollBody(again2),owner);
    assert.equal(turnAdmission.isCurrent(t.ticket,{clientRunId:'p1-epoch-0001',sessionId:'e'}),false);count('reenroll_new_epoch');}
   // Révocation opérateur : suppression du fichier, effet immédiat.
-  fs.unlinkSync(path.join(state,'owner-turn-admission.json'));r=await submit();assert.equal(r.response.body.ownerAdmission.reason,'not_enrolled');count('operator_revocation_file');
+  fs.unlinkSync(path.join(state,'owner-turn-admission.json'));r=await submit();assert.equal(lastReason(),'not_enrolled');count('operator_revocation_file');
 
   // --- 8. Compatibilité : drapeau OFF par défaut ; ON ne rend que le contexte canonique, jamais l'admin.
   process.env.CLAWMOBILE_RUNS_LEGACY_LOOPBACK_CONTEXT='1';

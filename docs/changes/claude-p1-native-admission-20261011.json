@@ -22,13 +22,30 @@
     ".github/workflows/ci.yml",
     "docs/work/samantha-runtime/contracts/p1-admission.md",
     "docs/changes/claude-p1-native-admission-20261011.json",
-    "docs/changes/claude-p1-native-admission-20261011.md"
+    "docs/changes/claude-p1-native-admission-20261011.md",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-edit-replay.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/callgatewayfromcli-signature.json",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-companion-acceptance-owner-transport.py",
+    "installer/termux-lite/test-skill-learning-acceptance.py"
   ],
   "tests": [
     {
       "name": "P1 admission adverse",
       "status": "passed",
-      "evidence": "scripts/test-owner-turn-admission.cjs : 44 cas (sans preuve, signature fausse, clé étrangère, nonce rejoué, horodatage passé/futur, corps modifié, autre run/session/chemin/méthode, en-têtes forgés, loopback seul, enrôlement sans biométrie/biométrie forgée/clé tierce/sans possession/autre action/autre origine/rejeu, cache borné fermé, ticket opaque, révocation avant remise, ré-enrôlement, drapeau legacy jamais admin, concurrence 16 tours sans croisement, aucun rejeu après envoi). Inscrit dans ci.yml."
+      "evidence": "scripts/test-owner-turn-admission.cjs : 53 cas (44 initiaux + présentation non canonique, statut sans keyId, contrat de signature callGatewayFromCli figé sur fixture S24, ownerTransport persisté/listé, replayOf sans preuve 403 et avec preuve admin, CLARIFY confused deputy dans les deux sens, permissions du fichier d'enrôlement). Inscrit dans ci.yml."
+    },
+    {
+      "name": "Édition-relecture avec admission",
+      "status": "passed",
+      "evidence": "scripts/test-edit-replay.cjs adapté : preuve signée, replayOf sans preuve (loopback, en-tête constant) => 403 owner_required."
+    },
+    {
+      "name": "Recette alerte transport owner",
+      "status": "passed",
+      "evidence": "installer/termux-lite/test-companion-acceptance-owner-transport.py (3 tests), inscrit dans ci.yml."
     }
   ],
   "documentation": [
@@ -57,8 +74,9 @@
   },
   "rollback": "Revert de la PR : retour au non-owner partout et au contexte loopback ; fichier d'enrôlement ignoré.",
   "limitations": [
-    "Inspection S24 (présence de owner-confirmation-public.pem, export callGatewayFromCli installé) non faite : appareil injoignable (device_timeout) ; vérifiée sur le paquet npm openclaw@2026.9.6.",
+    "Signature callGatewayFromCli et présence de owner-confirmation-public.pem confirmées en lecture seule sur le S24 (claw_exec p1adm-20261011-r03) ; aucun tour réel exécuté.",
     "Recettes de tours réels owner/non-owner, révocation pendant un tour et annulation à jouer sur Gateway isolé avec jeton jetable.",
-    "Processus de l'UID Termux restent équivalents owner (jeton Gateway)."
+    "Processus de l'UID Termux restent équivalents owner (jeton Gateway) ; fenêtre de rejeu ≤ 30 s après redémarrage neutralisée par la déduplication clientRunId.",
+    "Ordre : APK #183 avant ce Companion (précondition companion-deploy)."
   ]
 }

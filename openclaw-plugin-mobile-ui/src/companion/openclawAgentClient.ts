@@ -12,7 +12,7 @@ export type OpenClawAgentSubmitResult = {
   waitedForFinal: boolean;
   raw: any;
   /** P1 : connexion effectivement utilisée pour ce tour. */
-  ownerTransport?: "admin_admitted" | "write_cli" | "write_cli_owner_unavailable";
+  ownerTransport?: import("./runs").OwnerTransport;
 };
 
 const DEFAULT_SUBMIT_TIMEOUT_MS = 15_000;

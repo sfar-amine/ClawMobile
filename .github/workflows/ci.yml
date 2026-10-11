@@ -51,6 +51,9 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
+      - name: Run edit-and-replay contract (édition d'un message envoyé, audit sans suppression)
+        run: node scripts/test-edit-replay.cjs
+
       - name: Run 38 A2 learning owner routes (guards, budget, not-this run marker)
         run: node scripts/test-learning-routes.cjs
 
@@ -69,6 +72,9 @@ jobs:
 
       - name: HS5 run progress steps from existing receipts
         run: node scripts/test-run-progress.cjs
+
+      - name: HS3 payment handoff run reflects its payment request (S24 capture core 176)
+        run: node scripts/test-run-payment-presentation.cjs
 
       - name: Run composed read and model fast path contracts
         run: |
@@ -121,6 +127,8 @@ jobs:
         run: node scripts/test-laptop-access.cjs
       - name: P1 admission native des tours owner (preuve Keystore, anti-rejeu, connexion admin dédiée, révocation)
         run: node scripts/test-owner-turn-admission.cjs
+      - name: P1 recette — alerte transport owner indisponible et gardes d'admission
+        run: python3 ../installer/termux-lite/test-companion-acceptance-owner-transport.py
       - name: Run read-only notification source contract
         run: node scripts/test-notification-sources.cjs
 
@@ -263,6 +271,8 @@ jobs:
         run: node scripts/test-catalog.cjs
       - name: Catalogue exampleFr recopié de HS1 (phrase française à dire, sources S24)
         run: node scripts/test-catalog-example-fr.cjs
+      - name: Catalogue bills status from bridge receipts and confirmed payments (50 000 receipts, warm 300 ms)
+        run: node scripts/test-catalog-bill-status.cjs
       - name: G4 deployment receipts and route budget
         run: node scripts/test-deployment-receipts.cjs
       - name: C5 canonical voice owner transport fixture

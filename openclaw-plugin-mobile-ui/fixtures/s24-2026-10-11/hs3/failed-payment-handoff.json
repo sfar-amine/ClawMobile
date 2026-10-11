@@ -1,0 +1,816 @@
+{
+ "_capture": {
+  "host": "Samsung S24 / Termux",
+  "access": "connecteur MCP Claw, claw_exec, profil chat-owner, clés cap1011-*",
+  "runtimeCore": "3298d98d8a29458abda6617c37ca5e4b114f4be2 (~/ClawMobile, runtime/samantha-companion-private, arbre propre)",
+  "playbooksPinned": "9c4576a058c3c252078bac3ae802c28631447e17 (~/.openclaw/runtime-ui-playbooks/current)",
+  "sanitized": true,
+  "capturedAt": "2026-10-11T11:47Z",
+  "request": "Codex, fichier 42 point 8 (reliquat HS3)",
+  "mode": "lecture seule de ~/.openclaw/clawmobile-companion/runs.json existant ; rien n'a été déclenché ; textes réduits à leur longueur, identifiants pseudonymisés h_ (HMAC, sel jetable), horodatages et montants masqués ; quote, draft, nonce, fingerprint, keyId, proof exclus",
+  "notes": [
+   "decision.type apparaît comme <texte:7 car.> car la valeur est en majuscules (EXECUTE) et le filtre ne garde que les codes en minuscules.",
+   "Chaînes reconstituées : paymentRequests.ownerConfirmationId → ownerConfirmations.id ; ownerConfirmations.intent.origin.id → runs[].decision.requestId."
+  ]
+ },
+ "source": "~/.openclaw/clawmobile-companion/runs.json",
+ "counts": {
+  "runs": 37,
+  "runsByState": {
+   "failed": 3,
+   "done": 34
+  },
+  "paymentRequestsByState": {
+   "cancelled": 11,
+   "failed": 4,
+   "blocked": 3,
+   "demo_confirmed": 1,
+   "expired": 2,
+   "confirmed": 1,
+   "effect_unknown": 2
+  },
+  "paymentRequestsByReason": {
+   "cancelled|owner_cancelled": 3,
+   "failed|session_expired": 2,
+   "failed|payment_rejected_reason_unavailable": 2,
+   "blocked|browser_context_unavailable": 1,
+   "cancelled|payment_cancelled": 8,
+   "demo_confirmed|demo_only_no_payment": 1,
+   "expired|owner_confirmation_expired": 2,
+   "confirmed|gateway_and_provider_confirmed": 1,
+   "effect_unknown|payment_effect_unverified": 2,
+   "blocked|payment_not_submitted": 2
+  },
+  "ownerConfirmationsByState": {
+   "approved": 6,
+   "consumed": 18,
+   "cancelled": 4,
+   "expired": 7,
+   "awaiting_owner": 9
+  }
+ },
+ "paymentRunsByStatePresentation": {
+  "done|info|understood.capability=None": 5
+ },
+ "failedPaymentChains": [
+  {
+   "payment": {
+    "version": 1,
+    "id": "h_4ad279990dd6",
+    "quoteHash": "h_c6d585dbdb53",
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "updatedAt": "<horodatage>",
+    "state": "blocked",
+    "reasonCode": "payment_not_submitted",
+    "preparationMs": 26,
+    "acceptedAt": "<horodatage>",
+    "executionStartedAt": "<horodatage>",
+    "executorAttempts": 1,
+    "bankResumeAttempts": 0,
+    "executionBootId": "h_f7064c5377bd",
+    "authorizationSource": "local_owner_confirmation",
+    "ownerConfirmationId": "h_ccff4f4405ae",
+    "trace": [
+     {
+      "seq": 1,
+      "at": "<horodatage>",
+      "stage": "owner_confirmation_consumed"
+     },
+     {
+      "seq": 2,
+      "at": "<horodatage>",
+      "stage": "payment_record_created"
+     },
+     {
+      "seq": 3,
+      "at": "<horodatage>",
+      "stage": "financial_dispatch_committed"
+     },
+     {
+      "stage": "execution_error",
+      "reasonCode": "maxit_order_missing_order_id",
+      "reasonDetail": "<texte:28 car.>",
+      "seq": 4,
+      "at": "<horodatage>"
+     },
+     {
+      "stage": "state_transition",
+      "outcome": "blocked",
+      "reasonCode": "payment_not_submitted",
+      "reasonDetail": "<texte:28 car.>",
+      "seq": 5,
+      "at": "<horodatage>"
+     }
+    ],
+    "endedAt": "<horodatage>",
+    "quotePresent": true,
+    "receiptPresent": false
+   },
+   "confirmation": {
+    "version": 1,
+    "id": "h_ccff4f4405ae",
+    "requestKey": "h_d7372c9c5880",
+    "intent": {
+     "audience": "<texte:12 car.>",
+     "action": {
+      "type": "payment.local_start",
+      "reference": "<texte:88 car.>",
+      "payloadHash": "h_13bd616ac42d"
+     },
+     "presentation": {
+      "title": "<texte:21 car.>",
+      "subtitle": "<texte:33 car.>",
+      "description": "<texte:153 car.>"
+     },
+     "origin": {
+      "channel": "claw",
+      "id": "h_b5e4b20c2200"
+     }
+    },
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "state": "consumed",
+    "steps": [
+     {
+      "stage": "handoff_prepared",
+      "at": "<horodatage>",
+      "outcome": "awaiting_owner"
+     },
+     {
+      "stage": "payment_dispatch",
+      "at": "<horodatage>",
+      "outcome": "payment_record_created"
+     }
+    ],
+    "decidedAt": "<horodatage>",
+    "consumedAt": "<horodatage>",
+    "proofPresent": true
+   },
+   "confirmationAction": "payment.local_start",
+   "run": {
+    "state": "done",
+    "executionSource": "capability_first",
+    "error": null,
+    "resultType": "str",
+    "decision": {
+     "version": 2,
+     "type": "<texte:7 car.>",
+     "reason": "capability_first",
+     "surface": "claw_live",
+     "capability": "payment.owner_native",
+     "intent": "telecom.orange.topup_own_number",
+     "route": "orange.maxit.topup.own.v1",
+     "risk": "transaction",
+     "confirmationRequired": true,
+     "requiredSlots": [
+      "<texte:9 car.>"
+     ]
+    },
+    "presentation": {
+     "version": 1,
+     "locale": "fr",
+     "status": "info",
+     "label": "<texte:7 car.>",
+     "title": "<texte:19 car.>",
+     "rows": [],
+     "spoken": "<texte:43 car.>",
+     "primary": {
+      "label": "<texte:8 car.>",
+      "action": "done"
+     },
+     "effect": {
+      "debited": "unknown",
+      "source": "receipt"
+     },
+     "meta": {
+      "capability": null
+     },
+     "understood": {
+      "capability": null,
+      "label": "<texte:7 car.>",
+      "slots": {}
+     },
+     "alternatives": []
+    }
+   },
+   "runLinked": true
+  },
+  {
+   "payment": {
+    "version": 1,
+    "id": "h_d961e2d3c246",
+    "quoteHash": "h_509eff5f6600",
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "updatedAt": "<horodatage>",
+    "state": "blocked",
+    "reasonCode": "payment_not_submitted",
+    "preparationMs": 19,
+    "acceptedAt": "<horodatage>",
+    "executionStartedAt": "<horodatage>",
+    "executorAttempts": 1,
+    "bankResumeAttempts": 0,
+    "executionBootId": "h_f7064c5377bd",
+    "authorizationSource": "local_owner_confirmation",
+    "ownerConfirmationId": "h_5cf3c657f042",
+    "trace": [
+     {
+      "seq": 1,
+      "at": "<horodatage>",
+      "stage": "owner_confirmation_consumed"
+     },
+     {
+      "seq": 2,
+      "at": "<horodatage>",
+      "stage": "payment_record_created"
+     },
+     {
+      "seq": 3,
+      "at": "<horodatage>",
+      "stage": "financial_dispatch_committed"
+     },
+     {
+      "stage": "execution_error",
+      "reasonCode": "maxit_topup_command_changed",
+      "reasonDetail": "<texte:27 car.>",
+      "seq": 4,
+      "at": "<horodatage>"
+     },
+     {
+      "stage": "state_transition",
+      "outcome": "blocked",
+      "reasonCode": "payment_not_submitted",
+      "reasonDetail": "<texte:27 car.>",
+      "seq": 5,
+      "at": "<horodatage>"
+     }
+    ],
+    "endedAt": "<horodatage>",
+    "quotePresent": true,
+    "receiptPresent": false
+   },
+   "confirmation": {
+    "version": 1,
+    "id": "h_5cf3c657f042",
+    "requestKey": "h_9570c5144883",
+    "intent": {
+     "audience": "<texte:12 car.>",
+     "action": {
+      "type": "payment.local_start",
+      "reference": "<texte:88 car.>",
+      "payloadHash": "h_f956bc6cce2f"
+     },
+     "presentation": {
+      "title": "<texte:21 car.>",
+      "subtitle": "<texte:33 car.>",
+      "description": "<texte:153 car.>"
+     },
+     "origin": {
+      "channel": "claw",
+      "id": "h_f9c22f9d38aa"
+     }
+    },
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "state": "consumed",
+    "steps": [
+     {
+      "stage": "handoff_prepared",
+      "at": "<horodatage>",
+      "outcome": "awaiting_owner"
+     },
+     {
+      "stage": "payment_dispatch",
+      "at": "<horodatage>",
+      "outcome": "payment_record_created"
+     }
+    ],
+    "decidedAt": "<horodatage>",
+    "consumedAt": "<horodatage>",
+    "proofPresent": true
+   },
+   "confirmationAction": "payment.local_start",
+   "run": {
+    "state": "done",
+    "executionSource": "capability_first",
+    "error": null,
+    "resultType": "str",
+    "decision": {
+     "version": 2,
+     "type": "<texte:7 car.>",
+     "reason": "capability_first",
+     "surface": "claw_live",
+     "capability": "payment.owner_native",
+     "intent": "telecom.orange.topup_own_number",
+     "route": "orange.maxit.topup.own.v1",
+     "risk": "transaction",
+     "confirmationRequired": true,
+     "requiredSlots": [
+      "<texte:9 car.>"
+     ]
+    },
+    "presentation": {
+     "version": 1,
+     "locale": "fr",
+     "status": "info",
+     "label": "<texte:7 car.>",
+     "title": "<texte:19 car.>",
+     "rows": [],
+     "spoken": "<texte:43 car.>",
+     "primary": {
+      "label": "<texte:8 car.>",
+      "action": "done"
+     },
+     "effect": {
+      "debited": "unknown",
+      "source": "receipt"
+     },
+     "meta": {
+      "capability": null
+     },
+     "understood": {
+      "capability": null,
+      "label": "<texte:7 car.>",
+      "slots": {}
+     },
+     "alternatives": []
+    }
+   },
+   "runLinked": true
+  },
+  {
+   "payment": {
+    "version": 1,
+    "id": "h_7d1fc242e07c",
+    "quoteHash": "h_f9b756131d0f",
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "updatedAt": "<horodatage>",
+    "state": "effect_unknown",
+    "reasonCode": "payment_effect_unverified",
+    "preparationMs": 36,
+    "acceptedAt": "<horodatage>",
+    "executionStartedAt": "<horodatage>",
+    "executorAttempts": 1,
+    "bankResumeAttempts": 0,
+    "executionBootId": "h_773aebf5115b",
+    "authorizationSource": "local_owner_confirmation",
+    "ownerConfirmationId": "h_584cde1e46a6",
+    "trace": [
+     {
+      "seq": 1,
+      "at": "<horodatage>",
+      "stage": "owner_confirmation_consumed"
+     },
+     {
+      "seq": 2,
+      "at": "<horodatage>",
+      "stage": "payment_record_created"
+     },
+     {
+      "seq": 3,
+      "at": "<horodatage>",
+      "stage": "financial_dispatch_committed"
+     },
+     {
+      "stage": "execution_error",
+      "reasonCode": "maxit_order_contract_unverified",
+      "seq": 4,
+      "at": "<horodatage>"
+     },
+     {
+      "stage": "state_transition",
+      "outcome": "effect_unknown",
+      "reasonCode": "payment_effect_unverified",
+      "seq": 5,
+      "at": "<horodatage>"
+     },
+     {
+      "stage": "bank_ui_lifecycle",
+      "outcome": "preparing_loading_visible",
+      "clientAt": "<horodatage>",
+      "seq": 6,
+      "at": "<horodatage>"
+     }
+    ],
+    "endedAt": "<horodatage>",
+    "quotePresent": true,
+    "receiptPresent": false
+   },
+   "confirmation": {
+    "version": 1,
+    "id": "h_584cde1e46a6",
+    "requestKey": "h_1c788dfc2679",
+    "intent": {
+     "audience": "<texte:12 car.>",
+     "action": {
+      "type": "payment.local_start",
+      "reference": "<texte:88 car.>",
+      "payloadHash": "h_c085f8045727"
+     },
+     "presentation": {
+      "title": "<texte:21 car.>",
+      "subtitle": "<texte:33 car.>",
+      "description": "<texte:153 car.>"
+     },
+     "origin": {
+      "channel": "chatgpt",
+      "id": "h_9e777291a540"
+     }
+    },
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "state": "consumed",
+    "decidedAt": "<horodatage>",
+    "consumedAt": "<horodatage>",
+    "proofPresent": true
+   },
+   "confirmationAction": "payment.local_start",
+   "run": null,
+   "runLinked": false
+  },
+  {
+   "payment": {
+    "version": 1,
+    "id": "h_8ec4e1d25861",
+    "quoteHash": "h_48c1d83efde2",
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "updatedAt": "<horodatage>",
+    "state": "effect_unknown",
+    "reasonCode": "payment_effect_unverified",
+    "preparationMs": 29,
+    "acceptedAt": "<horodatage>",
+    "executionStartedAt": "<horodatage>",
+    "executorAttempts": 1,
+    "bankResumeAttempts": 0,
+    "executionBootId": "h_f0f81a3e92a5",
+    "authorizationSource": "local_owner_confirmation",
+    "ownerConfirmationId": "h_ef3b3eab0003",
+    "trace": [
+     {
+      "seq": 1,
+      "at": "<horodatage>",
+      "stage": "owner_confirmation_consumed"
+     },
+     {
+      "seq": 2,
+      "at": "<horodatage>",
+      "stage": "payment_record_created"
+     },
+     {
+      "seq": 3,
+      "at": "<horodatage>",
+      "stage": "financial_dispatch_committed"
+     },
+     {
+      "stage": "execution_error",
+      "reasonCode": "maxit_order_contract_unverified",
+      "seq": 4,
+      "at": "<horodatage>"
+     },
+     {
+      "stage": "state_transition",
+      "outcome": "effect_unknown",
+      "reasonCode": "payment_effect_unverified",
+      "seq": 5,
+      "at": "<horodatage>"
+     },
+     {
+      "stage": "bank_ui_lifecycle",
+      "outcome": "preparing_loading_visible",
+      "clientAt": "<horodatage>",
+      "seq": 6,
+      "at": "<horodatage>"
+     }
+    ],
+    "endedAt": "<horodatage>",
+    "quotePresent": true,
+    "receiptPresent": false
+   },
+   "confirmation": {
+    "version": 1,
+    "id": "h_ef3b3eab0003",
+    "requestKey": "h_92176f41925f",
+    "intent": {
+     "audience": "<texte:12 car.>",
+     "action": {
+      "type": "payment.local_start",
+      "reference": "<texte:88 car.>",
+      "payloadHash": "h_ff0e58c43bcd"
+     },
+     "presentation": {
+      "title": "<texte:21 car.>",
+      "subtitle": "<texte:33 car.>",
+      "description": "<texte:153 car.>"
+     },
+     "origin": {
+      "channel": "chatgpt",
+      "id": "h_aba0334f4461"
+     }
+    },
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "state": "consumed",
+    "decidedAt": "<horodatage>",
+    "consumedAt": "<horodatage>",
+    "proofPresent": true
+   },
+   "confirmationAction": "payment.local_start",
+   "run": null,
+   "runLinked": false
+  },
+  {
+   "payment": {
+    "version": 1,
+    "id": "h_746fe857d817",
+    "quoteHash": "h_9f1d5fc546a4",
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "updatedAt": "<horodatage>",
+    "state": "expired",
+    "reasonCode": "owner_confirmation_expired",
+    "preparationMs": 18,
+    "executorAttempts": 0,
+    "bankResumeAttempts": 0,
+    "authorizationSource": "payment_owner_native",
+    "endedAt": "<horodatage>",
+    "quotePresent": true,
+    "receiptPresent": false
+   },
+   "confirmation": null,
+   "confirmationAction": null,
+   "run": null,
+   "runLinked": false
+  },
+  {
+   "payment": {
+    "version": 1,
+    "id": "h_82d6394b908c",
+    "quoteHash": "h_300c5fe3fcd8",
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "updatedAt": "<horodatage>",
+    "state": "failed",
+    "reasonCode": "payment_rejected_reason_unavailable",
+    "preparationMs": 18,
+    "acceptedAt": "<horodatage>",
+    "executionStartedAt": "<horodatage>",
+    "executorAttempts": 1,
+    "bankResumeAttempts": 0,
+    "executionBootId": "h_08131ea1c53d",
+    "authorizationSource": "local_owner_confirmation",
+    "ownerConfirmationId": "h_56831bdf8af4",
+    "trace": [
+     {
+      "seq": 1,
+      "at": "<horodatage>",
+      "stage": "owner_confirmation_consumed"
+     },
+     {
+      "seq": 2,
+      "at": "<horodatage>",
+      "stage": "payment_record_created"
+     },
+     {
+      "seq": 3,
+      "at": "<horodatage>",
+      "stage": "financial_dispatch_committed"
+     },
+     {
+      "stage": "provider_session_started",
+      "seq": 4,
+      "at": "<horodatage>"
+     },
+     {
+      "stage": "provider_session_authenticated",
+      "seq": 5,
+      "at": "<horodatage>"
+     },
+     {
+      "stage": "invoice_revalidated",
+      "invoiceState": "<texte:6 car.>",
+      "seq": 6,
+      "at": "<horodatage>"
+     },
+     {
+      "stage": "checkout_prepared",
+      "seq": 7,
+      "at": "<horodatage>"
+     },
+     {
+      "stage": "gateway_submission_started",
+      "seq": 8,
+      "at": "<horodatage>"
+     }
+    ],
+    "endedAt": "<horodatage>",
+    "quotePresent": true,
+    "receiptPresent": false
+   },
+   "confirmation": {
+    "version": 1,
+    "id": "h_56831bdf8af4",
+    "requestKey": "h_d88c4cdd5169",
+    "intent": {
+     "audience": "<texte:12 car.>",
+     "action": {
+      "type": "payment.local_start",
+      "reference": "<texte:18 car.>",
+      "payloadHash": "h_b66af310f7a1"
+     },
+     "presentation": {
+      "title": "<texte:21 car.>",
+      "subtitle": "<texte:19 car.>",
+      "description": "<texte:86 car.>"
+     },
+     "origin": {
+      "channel": "chatgpt",
+      "id": "h_2ec8d8050862"
+     }
+    },
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "state": "consumed",
+    "decidedAt": "<horodatage>",
+    "consumedAt": "<horodatage>",
+    "proofPresent": true
+   },
+   "confirmationAction": "payment.local_start",
+   "run": null,
+   "runLinked": false
+  },
+  {
+   "payment": {
+    "version": 1,
+    "id": "h_6b63dcd46e09",
+    "quoteHash": "h_44429e240e1e",
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "updatedAt": "<horodatage>",
+    "state": "failed",
+    "reasonCode": "payment_rejected_reason_unavailable",
+    "preparationMs": 4,
+    "acceptedAt": "<horodatage>",
+    "executionStartedAt": "<horodatage>",
+    "executorAttempts": 1,
+    "bankResumeAttempts": 0,
+    "executionBootId": "h_0ac15503920f",
+    "authorizationSource": "local_owner_confirmation",
+    "ownerConfirmationId": "h_7b1ddadd7780",
+    "endedAt": "<horodatage>",
+    "quotePresent": true,
+    "receiptPresent": false
+   },
+   "confirmation": {
+    "version": 1,
+    "id": "h_7b1ddadd7780",
+    "requestKey": "h_7bd5b22129bc",
+    "intent": {
+     "audience": "<texte:12 car.>",
+     "action": {
+      "type": "payment.local_start",
+      "reference": "<texte:18 car.>",
+      "payloadHash": "h_2db8ec5b5a01"
+     },
+     "presentation": {
+      "title": "<texte:21 car.>",
+      "subtitle": "<texte:19 car.>",
+      "description": "<texte:86 car.>"
+     },
+     "origin": {
+      "channel": "chatgpt",
+      "id": "h_a13289106956"
+     }
+    },
+    "createdAt": "<horodatage>",
+    "expiresAt": "<horodatage>",
+    "state": "consumed",
+    "decidedAt": "<horodatage>",
+    "consumedAt": "<horodatage>",
+    "proofPresent": true
+   },
+   "confirmationAction": "payment.local_start",
+   "run": null,
+   "runLinked": false
+  }
+ ],
+ "failedRuns": [
+  {
+   "state": "failed",
+   "executionSource": "capability_first",
+   "error": "<texte:89 car.>",
+   "resultType": "NoneType",
+   "decision": {
+    "version": 2,
+    "type": "<texte:7 car.>",
+    "reason": "capability_first",
+    "surface": "claw_live",
+    "capability": "billing.utility.fast_path",
+    "intent": "billing.unpaid",
+    "route": "utility-billing.unpaid.direct.v2",
+    "risk": "read",
+    "confirmationRequired": false,
+    "requiredSlots": []
+   },
+   "presentation": {
+    "version": 1,
+    "locale": "fr",
+    "status": "error",
+    "label": "<texte:7 car.>",
+    "title": "<texte:19 car.>",
+    "rows": [],
+    "spoken": "<texte:74 car.>",
+    "primary": {
+     "label": "<texte:8 car.>",
+     "action": "done"
+    },
+    "effect": {
+     "debited": "unknown",
+     "source": "receipt"
+    },
+    "meta": {
+     "capability": null
+    },
+    "understood": {
+     "capability": null,
+     "label": "<texte:7 car.>",
+     "slots": {}
+    },
+    "alternatives": [],
+    "failure": {
+     "step": "<texte:17 car.>",
+     "reason": "<texte:39 car.>"
+    }
+   }
+  },
+  {
+   "state": "failed",
+   "executionSource": "capability_first",
+   "error": "<texte:89 car.>",
+   "resultType": "NoneType",
+   "decision": {
+    "version": 2,
+    "type": "<texte:7 car.>",
+    "reason": "capability_first",
+    "surface": "claw_live",
+    "capability": "runtime.inventory",
+    "intent": null,
+    "route": null,
+    "risk": "read",
+    "confirmationRequired": false,
+    "requiredSlots": []
+   },
+   "presentation": {
+    "version": 1,
+    "locale": "fr",
+    "status": "error",
+    "label": "<texte:7 car.>",
+    "title": "<texte:19 car.>",
+    "rows": [],
+    "spoken": "<texte:74 car.>",
+    "primary": {
+     "label": "<texte:8 car.>",
+     "action": "done"
+    },
+    "effect": {
+     "debited": "unknown",
+     "source": "receipt"
+    },
+    "meta": {
+     "capability": null
+    },
+    "understood": {
+     "capability": null,
+     "label": "<texte:7 car.>",
+     "slots": {}
+    },
+    "alternatives": [],
+    "failure": {
+     "step": "<texte:17 car.>",
+     "reason": "<texte:39 car.>"
+    }
+   }
+  },
+  {
+   "state": "failed",
+   "executionSource": "capability_first",
+   "error": "<texte:89 car.>",
+   "resultType": "NoneType",
+   "decision": {
+    "version": 2,
+    "type": "<texte:7 car.>",
+    "reason": "capability_first",
+    "surface": "claw_live",
+    "capability": "qa.test_campaign",
+    "intent": null,
+    "route": null,
+    "risk": "write",
+    "confirmationRequired": false,
+    "requiredSlots": []
+   },
+   "presentation": null
+  }
+ ]
+}
