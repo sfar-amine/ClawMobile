@@ -37,6 +37,8 @@ export type RunCreateRequest = {
   userText?: string;
   sessionId?: string;
   attachments?: IntentAttachment[];
+  /** Édition d'un message envoyé : rejoue depuis ce run dans une nouvelle conversation (voir runs.ts prepareReplay). */
+  replayOf?: { sessionId?: string; runId?: string };
   source?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 };
@@ -104,6 +106,8 @@ export type IntentSubmitResponse = {
   userText?: string;
   canvas: CanvasSchema;
   attachments?: IntentAttachment[];
+  /** Édition-relecture acceptée : ancienne conversation, tours remplacés (marqués, non supprimés) et effets connus. */
+  replay?: { sourceSessionId: string; runId: string; seededTurns: number; supersededRuns: number; effects: { executed: number; unknown: number } };
   gatewayRun?: unknown;
 };
 
@@ -120,6 +124,11 @@ export type CompanionRunStatus = {
   clientRunId?: string;
   transcriptState?: "partial" | "completed" | "interrupted";
   playback?: import("./voicePlaybackMetadata").VoicePlaybackMetadata;
+  /** Édition-relecture : ce run rejoue un message modifié de `replayOf` ; `supersededBy` marque l'ancienne branche (audit, jamais supprimée). */
+  replayOf?: ReplayLink;
+  supersededBy?: ReplayLink;
+  /** Ce que l'on sait de l'effet de ce tour : `none` (lecture ou question), `executed` (action exécutée), `unknown` (agent ou échec). */
+  replayEffect?: "none" | "executed" | "unknown";
   success: boolean;
   runId: string;
   sessionId?: string;
@@ -144,6 +153,8 @@ export type CompanionRunStatus = {
   canvas?: CanvasSchema;
   raw?: unknown;
 };
+
+export type ReplayLink = { version: 1; sessionId: string; runId: string; at: number };
 
 export type CompanionRunTokenUsage = {
   inputTokens?: number;

@@ -5,13 +5,13 @@ import {transcribeMemoAttachment} from "./memoSttOwner";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { appendVoiceConversationContext, findPendingClarificationRun, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch } from "./runs";
+import { appendReplayContext, appendVoiceConversationContext, findPendingClarificationRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
 
-type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"};
+type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; replayOf?: {sessionId: string; runId: string}};
 
 /** The HTTP owner passes only ordinary submission fields. Continuation never comes from request data. */
 export async function submitIntent(text: string, sessionId = "default", attachments: IntentAttachment[] = [],
@@ -84,9 +84,23 @@ async function submitTextIntent(
       sessionId: normalizedSessionId,
       userText: visibleUserText,
       attachments,
+      replayOf: options.replayOf,
     });
     if (existing) return responseFromExisting(existing, visibleUserText);
   }
+
+  // Édition d'un message : le texte modifié passe ensuite par le résolveur comme un nouveau message (aucune
+  // confirmation ni action de l'ancienne branche n'est reprise) ; seul le contexte historique est amorcé.
+  let replay: PreparedReplay | undefined;
+  if (options.replayOf) {
+    if (!clientRunId || options.authority !== "owner" || attachments.length || learningOnly)
+      return notSubmitted(normalizedSessionId, clientRunId, "replay_invalid");
+    try { replay = await prepareReplay(options.replayOf.sessionId, options.replayOf.runId, normalizedSessionId); }
+    catch (error: any) {
+      return notSubmitted(normalizedSessionId, clientRunId, /^replay_[a-z_]+$/.test(String(error?.message)) ? error.message : "replay_unavailable");
+    }
+  }
+  const replayOf = replay ? {sessionId: replay.sourceSessionId, runId: replay.runId} : undefined;
 
   let routingText = normalized;
   let parentClarificationRunId: string | undefined;
@@ -118,7 +132,7 @@ async function submitTextIntent(
   if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
     return executeCapabilityFirst(
       routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
-      parentClarificationRunId, reservedMemoRunId,
+      parentClarificationRunId, replayOf, reservedMemoRunId,
     );
   }
   if (fastPathCheck.status === "error") {
@@ -139,7 +153,8 @@ async function submitTextIntent(
 
   const promptWithAttachments = appendAttachmentContext(parentClarificationRunId ? routingText : normalized, attachments);
   const routed = learningOnly ? null : buildAutoSkillContextForIntent(promptWithAttachments);
-  const submittedPrompt = learningOnly ? promptWithAttachments : await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
+  const contextualPrompt = learningOnly ? promptWithAttachments : await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
+  const submittedPrompt = replay ? appendReplayContext(contextualPrompt, replay.seed) : contextualPrompt;
 
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
@@ -150,7 +165,7 @@ async function submitTextIntent(
       submittedPrompt,
       normalizedSessionId,
       clientRunId,
-      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway" },
+      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", decision: fastPathCheck.decision, replayOf },
     );
     runId = reservation.status.runId;
     duplicate = !reservation.created;
@@ -159,7 +174,7 @@ async function submitTextIntent(
 
   const accepted = acceptedRun(runId, normalizedSessionId);
   if (!clientRunId) {
-    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments });
+    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision });
   }
   void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority);
 
@@ -179,6 +194,7 @@ async function submitTextIntent(
     userText: visibleUserText,
     canvas: intentCanvas(visibleUserText, message),
     attachments,
+    ...(replay ? {replay: publicReplay(replay)} : {}),
     gatewayRun: includeRawIntent() ? { ...accepted, skillRouting: routed?.routed } : undefined,
   };
 }
@@ -191,6 +207,7 @@ async function executeCapabilityFirst(
   clientRunId: string | undefined,
   check: FastPathResult,
   parentClarificationRunId?: string,
+  replayOf?: {sessionId: string; runId: string},
   reservedMemoRunId?: string,
 ): Promise<IntentSubmitResponse> {
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
@@ -200,7 +217,7 @@ async function executeCapabilityFirst(
   } else if (clientRunId) {
     const reservation = await reserveSubmittedRun(text, sessionId, clientRunId, {
       userText, attachments, requestText: text, executionSource: "capability_first",
-      decision: check.decision, parentClarificationRunId,
+      decision: check.decision, parentClarificationRunId, replayOf,
     });
     runId = reservation.status.runId;
     duplicate = !reservation.created;
@@ -356,6 +373,11 @@ export function appendAttachmentContext(text: string, attachments: IntentAttachm
     ...attachmentLines,
     "Use these file paths as supporting evidence when the task depends on the shared file.",
   ].join("\n");
+}
+
+function publicReplay(replay: PreparedReplay) {
+  return {sourceSessionId: replay.sourceSessionId, runId: replay.runId, seededTurns: replay.seededTurns,
+    supersededRuns: replay.supersededRuns, effects: replay.effects};
 }
 
 function acceptedRun(runId: string, sessionId: string): OpenClawAgentSubmitResult {
