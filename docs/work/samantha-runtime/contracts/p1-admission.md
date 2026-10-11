@@ -39,7 +39,7 @@ Depuis le correctif P1, les tours texte de l'app arrivent au modèle avec `sende
    - le nonce, vérifié **après** la signature : cache mémoire de 2 048 entrées, TTL de 65 s, refus si le cache est plein.
 
    Tout échec donne un tour non-owner. La réponse porte `ownerAdmission: {owner, reason?}`.
-4. **Ticket opaque.** L'admission produit un objet mémoire (WeakSet), lié au `clientRunId`, à la session, à l'époque d'enrôlement et à une durée de remise de 60 s. Il n'est ni sérialisable ni restaurable depuis un journal. `turnAdmission.isCurrent` est rejoué juste avant la remise au Gateway.
+4. **Ticket opaque.** L'admission produit un objet mémoire (WeakSet), lié au `clientRunId`, à la session, à l'époque d'enrôlement et à une durée de remise de 60 s. Il n'est ni sérialisable ni restaurable depuis un journal. `turnAdmission.isCurrent` est rejoué après le chargement asynchrone du SDK, juste avant l’appel à sa façade publique. Ce point précède son bootstrap/handshake interne : il ne prouve pas une revérification immédiatement avant l’ACK Gateway.
 5. **Deux connexions.** Seul un ticket courant ouvre la connexion admin (`ownerTurnGateway.submitOwnerTurn`) :
    - elle passe par `callGatewayFromCli` du plugin-sdk OpenClaw 2026.9.6 installé (bootstrap, SecretRef et handshake du propriétaire OpenClaw) ;
    - scopes `operator.admin` et `operator.write` ;
@@ -58,7 +58,7 @@ Depuis le correctif P1, les tours texte de l'app arrivent au modèle avec `sende
 - **Révocation par l'opérateur** : supprimer `owner-turn-admission.json` ; l'effet est immédiat, le fichier est relu à chaque vérification.
 - **Effet de la révocation** :
   - les tickets émis ne sont plus courants ;
-  - un tour admis mais pas encore remis part en non-owner ;
+  - un ticket devenu invalide avant la délégation au SDK part en non-owner ; la fenêtre interne bootstrap/handshake avant ACK reste une limite non qualifiée ;
   - un tour déjà remis au Gateway se termine avec le bit figé à l'acceptation, sans annulation forcée ;
   - les tours suivants sont non-owner.
 - `/reset` via `agent` exige admin : seul un tour admis l'atteint.
@@ -135,3 +135,19 @@ Ensuite, Amine s'enrôle une fois. L'APK #183 installé à 14:00 envoie déjà l
 
   Le fast path ne peut donc pas payer sans biométrie. Les autres capabilities d'écriture du fast path relèvent de leur politique de confirmation du registre, non modifiée ici.
 - L'historique de session (contexte de conversation, amorce de relecture) peut contenir des tours non admis de la même session. Ce sont des données, pas des instructions, mais elles sont transmises sur la connexion admin d'un tour admis.
+
+## Reprise fichier 46 : preuve et frontière observée
+
+Le correctif `28108204` ferme une révocation pendant l’await d’import du SDK public. La matrice d’admission locale passe 54/54, avec bootstrap canonique et édition/relecture verts. Le test reste inscrit dans l’étape CI P1 existante.
+
+Un Gateway public 2026.9.6 local, avec profil/configuration/état/ports loopback et jeton jetables, a réellement exécuté un outil synthétique : owner=true pour le ticket natif local, false sans preuve, true pour un tour accepté avant révocation puis false au tour suivant. La garde hôte `assertInvocationCurrent` était appelée avant chaque effet ; elle laisse finir le tour accepté malgré la révocation Companion. Cette mesure ne constitue ni une recette Android/biométrie ni une capture S24. Annulation SDK admin et CLARIFY HTTP sont qualifiées localement dans la fixture `openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/`. L’annulation app et la fenêtre avant ACK restent bloquantes ; aucune CI entière finale de reprise n’est revendiquée.
+
+## Deux entrées d’effet : ticket courant, jamais `caller` du corps
+
+Le correctif `6283dd76` ferme la valeur constante owner dans `/runs` : le résolveur reçoit `caller=owner` seulement pour un ticket opaque courant, sinon `other`. Une décision obtenue pour un owner devenu révoqué pendant la résolution n’est pas exécutée. Le ticket est revérifié après les réservations asynchrones, avant l’exécuteur canonique. Aucun changement d’exécution paiement, d’OTP ou de biométrie.
+
+`POST /v1/extensions/claw-live/capability` exige la même preuve P1 liée au corps brut exact, au `clientRunId` et au `sessionId`, avec nonce frais. Sans admission, refus 403 avant résolution/effet. Le chemin signé est le pathname original exact, même après résolution de l’alias interne. L’app utilise `clientRunId=voice-cap-<turnId>` et capture la session avant l’async ; aucun retry non signé. Le ticket mémoire n’est ni dans le corps, ni persistant. Il protège aussi l’exécution préparée dans `SurfaceClarifications`, puis le bridge final et l’admission warm/learning. La clarification est liée à `SurfaceClarifications.idFor("claw-live:" + sessionId)` ; une question précédente ne vaut jamais admission du tour suivant. `/claw-live/decision` reste une résolution seule.
+
+Les 64 cas natifs, les 21 cas voix HS3, les 44 contrôles E3 et l’édition/relecture ciblés passent. Les mutations native/voix sont vérifiées dans la recette existante par refus sans preuve ; aucune mutation autorisée n’est envoyée par cette recette. Les actions métier restent les capabilities du registre/Graph existants.
+
+Le complément `84b8a0ed` revérifie l’admission avant un nouvel effet de learning après `await execute`. Si elle n’est plus courante, le reçu de l’effet déjà accepté est conservé et le learning est omis (`skipped`, `owner_admission_expired`), avec zéro capture. La recette `197221f7` vérifie le refus capability voice sans signature.
