@@ -25,6 +25,11 @@
       "name": "current-base-inactivity-regression",
       "status": "passed",
       "evidence": "TypeScript build and test-run-inactivity.cjs passed after normal merge bfa210c; four required regressions and explicit settlement still pass."
+    },
+    {
+      "name": "b42-lot3-current-base-targeted",
+      "status": "passed",
+      "evidence": "Base5631fe9d merged normally. Node20 npm ci/build, test-run-inactivity.cjs (R2-v2 required+single-flight+deadline+SQLite+concurrent mutations), test-conversation-backfill-races.cjs and test-companion-runs.cjs passed. Log /workspace/artifacts/b42/h2-lot3-targeted.log. Entire workflow publication requires green replay on exact frozen SHA."
     }
   ],
   "documentation": [
@@ -59,6 +64,6 @@
   "limitations": [
     "Aucun déploiement ni qualification S24 dans H2.",
     "Latences owner injectées ; transport CLI SQLite réel, timeout physique non simulé comme une capture.",
-    "Current base bfa210cd4361f2a3273ec76032ef6d23599015fd merged normally; canonical operator rule preserved. Publication pending root, no merge/deployment by Codex."
+    "Base5631fe9d integrated normally; all CI commands preserved. CI replay is a local qualification, not S24 deployment or receipt. Publication requires the full workflow green on the exact SHA recorded in the PR."
   ]
 }
