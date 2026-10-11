@@ -1,0 +1,78 @@
+{
+ "_capture": {
+  "method": "sessions.list",
+  "params": {
+   "limit": 1
+  },
+  "latencyMs": 2277,
+  "exit": "rc=0",
+  "capturedAt": "2026-10-10T19:38:19+00:00",
+  "via": "timeout 60 nice openclaw gateway call <method> --params <json> --json",
+  "gateway": "OpenClaw 2026.9.6",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "defaults intégral ; lignes omises"
+ },
+ "response": {
+  "defaults": {
+   "modelProvider": "openai",
+   "model": "gpt-5.6-sol",
+   "contextTokens": 272000,
+   "agentRuntime": {
+    "id": "codex",
+    "cloudPlacementSupported": false,
+    "devicePlacementSupported": false,
+    "source": "implicit"
+   },
+   "thinkingLevels": [
+    {
+     "id": "off",
+     "label": "off"
+    },
+    {
+     "id": "minimal",
+     "label": "minimal"
+    },
+    {
+     "id": "low",
+     "label": "low"
+    },
+    {
+     "id": "medium",
+     "label": "medium"
+    },
+    {
+     "id": "high",
+     "label": "high"
+    },
+    {
+     "id": "xhigh",
+     "label": "xhigh"
+    },
+    {
+     "id": "max",
+     "label": "max"
+    },
+    {
+     "id": "ultra",
+     "label": "ultra"
+    }
+   ],
+   "thinkingOptions": [
+    "off",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultra"
+   ],
+   "thinkingDefault": "low",
+   "modelSelectionTarget": "session"
+  },
+  "count": 1,
+  "totalCount": 934,
+  "hasMore": true
+ }
+}

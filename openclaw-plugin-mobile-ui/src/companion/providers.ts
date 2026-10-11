@@ -1,5 +1,5 @@
 import {peekModelOwner,readModelOwnerCached,ModelOwnerSnapshot} from './modelOwner';
-import {peekUsage,publicId,publicModelId,publicText,readUsage,UsageView} from './usage';
+import {isoTimestamp,peekUsage,publicId,publicModelId,publicText,readUsage,UsageView} from './usage';
 const modelReference=(v:any)=>publicModelId(typeof v==='string'?v.split('@')[0]:v);
 const configured=(snapshot:ModelOwnerSnapshot|null)=>{
  const config=snapshot?.config;const agent=config?.agents?.entries?.main||(Array.isArray(config?.agents?.list)?config.agents.list.find((row:any)=>row.id==='main'):undefined)||config?.agents?.defaults;
@@ -29,7 +29,7 @@ export function projectProviders(snapshot:ModelOwnerSnapshot|null,usage:UsageVie
   });
   return {id,name:publicText(meter?.name)||id,auth:authentication,quota,state,models};
  });
- return {schemaVersion:1,updatedAt:snapshot?.updatedAt??usage?.updatedAt??null,summary:{ready:providers.filter(p=>p.state==='ready').length,needsAttention:providers.filter(p=>['needs_auth','exhausted'].includes(p.state)).length,unknown:providers.filter(p=>p.state==='unknown').length,configuredModels:providers.reduce((n,p)=>n+p.models.length,0)},providers};
+ return {schemaVersion:1,updatedAt:isoTimestamp(snapshot?.updatedAt)??usage?.updatedAt??null,summary:{ready:providers.filter(p=>p.state==='ready').length,needsAttention:providers.filter(p=>['needs_auth','exhausted'].includes(p.state)).length,unknown:providers.filter(p=>p.state==='unknown').length,configuredModels:providers.reduce((n,p)=>n+p.models.length,0)},providers};
 }
 const SERVE_MS=300000;
 export async function readProviders(refresh=false){
@@ -40,10 +40,13 @@ export async function readProviders(refresh=false){
   // A successful snapshot stays authoritative for five minutes while that
   // refresh runs; a failed or older owner read degrades to unknown.
   void readModelOwnerCached().catch(()=>{});
-  return projectProviders(cached,await readUsage(),!cached.stale&&Date.now()-cached.updatedAt<SERVE_MS);
+  // 10/10 20:45 (S24): one failed background refresh (CLI budget lost under parallel reads) marked the
+  // snapshot stale and every provider became unknown (0/0/4) until a later refresh succeeded. Only the
+  // snapshot's own age voids it; `stale` is the last attempt, not this successful read.
+  return projectProviders(cached,await readUsage(),Date.now()-cached.updatedAt<SERVE_MS);
  }
  const [owner,usage]=await Promise.all([readModelOwnerCached({refresh}),readUsage()]);
- return projectProviders(owner.snapshot,usage,owner.state==='fresh');
+ return projectProviders(owner.snapshot,usage,!!owner.snapshot&&Date.now()-owner.snapshot.updatedAt<SERVE_MS);
 }
 export function peekProviders(){const snapshot=peekModelOwner();return projectProviders(snapshot,peekUsage(),!!snapshot&&!snapshot.stale&&Date.now()-snapshot.updatedAt<60000);}
 export function peekActiveModel(){const snapshot=peekModelOwner();return snapshot&&!snapshot.stale&&Date.now()-snapshot.updatedAt<60000?configured(snapshot).primary:null;}

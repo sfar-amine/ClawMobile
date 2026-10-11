@@ -1,0 +1,53 @@
+{
+ "_capture": {
+  "route": "GET /v1/usage",
+  "status": 200,
+  "latencyMs": 2709,
+  "capturedAt": "2026-10-10T19:39:21+00:00",
+  "companion": "9cdd84f",
+  "host": "Samsung S24 / Termux",
+  "sanitized": true,
+  "note": "réponse AVANT correction : updatedAt/resetsAt en millisecondes epoch ; noms de fournisseurs masqués"
+ },
+ "response": {
+  "schemaVersion": 1,
+  "updatedAt": 1791661161160,
+  "providers": [
+   {
+    "id": "github-copilot",
+    "name": "<texte 7 car.>",
+    "plan": "individual",
+    "windows": [
+     {
+      "label": "Premium",
+      "usedPercent": 100,
+      "remainingPercent": 0,
+      "resetsAt": null
+     },
+     {
+      "label": "Chat",
+      "usedPercent": 0.7000000000000028,
+      "remainingPercent": 99.3,
+      "resetsAt": null
+     }
+    ],
+    "state": "exhausted"
+   },
+   {
+    "id": "openai",
+    "name": "<texte 6 car.>",
+    "plan": "free",
+    "windows": [
+     {
+      "label": "720h",
+      "usedPercent": 0,
+      "remainingPercent": 100,
+      "resetsAt": 1794219642000
+     }
+    ],
+    "state": "ok"
+   }
+  ],
+  "issues": []
+ }
+}
