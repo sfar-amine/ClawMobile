@@ -53,11 +53,11 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Contrat seul, aucune capability ou route nouvelle ; prolongation par R17 existant."
+    "reason": "Aucune nouvelle capability ni route ; mutations R17 existantes, notification propriétaire coopérative dans le sweep canonique."
   },
   "architecture": {
     "changed": false,
-    "reason": "Aucune implémentation : propriétaires existants seulement proposés, aucun nouveau store, scheduler ou daemon."
+    "reason": "R17/send_receipts et primitive WhatsApp propriétaire réutilisés ; aucun nouveau store, queue, scheduler, daemon ni moteur de retry."
   },
   "mcp_owner_parity": {
     "tools": {
@@ -68,9 +68,9 @@
       "claw_status": "verified_no_impact",
       "claw_artifact_read": "verified_no_impact"
     },
-    "reason": "Proposition documentaire sans changement d'outil ou d'effet MCP."
+    "reason": "Six primitives MCP et admission R17 existantes inchangées ; reçu ownerMessage additif dans la lecture canonique d’opération, aucune entrée parallèle."
   },
-  "rollback": "Retirer les trois fichiers documentaires de la proposition K2 ; aucun état S24 ni configuration à restaurer.",
+  "rollback": "Revert de l’implémentation K2 ; préserver la liste R17, les reçus historiques, les intentions/livraisons déjà observées et la primitive WhatsApp propriétaire.",
   "limitations": [
     "Durées 1/3/5 non tranchées : conserver les choix actuels R17 et sa biométrie.",
     "Accepté signifie validation Gateway, jamais livré sans preuve. Timeout/crash transport conserve indéterminé sans renvoi automatique.",
