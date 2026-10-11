@@ -299,6 +299,9 @@ jobs:
       - name: O10 voice admits the low-risk owner decision record, never payment or confirmed paths
         run: node scripts/test-voice-low-risk-admission.cjs
 
+      - name: E3 agent file write (biometric, CAS, privacy lines kept, free vocabulary, five backups)
+        run: node scripts/test-agent-file-write-plan.cjs
+
       - name: R23 automation edit (validation, real cron captures, CAS, confirmation, receipts)
         working-directory: openclaw-plugin-mobile-ui
         run: |

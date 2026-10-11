@@ -8,6 +8,7 @@ const secretName=/(?:^|[._-])(?:otp|cvv|cvc)(?:$|[._-])|credential|token|secret|
 const pathSecret=/\b(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,})|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|https?:\/\/|@|-----BEGIN/i;
 const sensitiveText=/\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,})|token|password|mot de passe|secret|credential|authorization|bearer|\bcvv\b|\bcvc\b|api[_ -]?key|iban|(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)|(?<!\d)\d{6}(?!\d)|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|https?:\/\/|@|-----BEGIN .*PRIVATE KEY-----/i;
 
+export const MASKED_LINE="[masqué]";
 /** Privacy only; financial vocabulary is ordinary file content, never an action intent. */
 export function protectedFileLine(line:string):boolean{return sensitiveText.test(line);}
 
