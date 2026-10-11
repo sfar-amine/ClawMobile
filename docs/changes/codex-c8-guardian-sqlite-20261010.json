@@ -3,10 +3,10 @@
   "id": "codex-c8-guardian-sqlite-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Context Guardian observes the existing SQLite logical-session owner without Node CLI.",
-  "reason": "Historic main-only scope, cron/direct kind and absent-window fallback corrected; present SQLite windows differ from the measured CLI projection, so exact parity remains blocked.",
+  "reason": "Historic main-only scope and cron/direct kind kept; contextTokens now follows the installed CLI rule (trusted stored window, else 200000), proven line by line against the historical command on 87 real main rows (#131): identical contextTokens/totalTokens/kind and 3 soft / 3 hard.",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/context-guardian.sh",
@@ -20,7 +20,7 @@
     {
       "name": "Context Guardian SQLite read-only owner contracts",
       "status": "passed",
-      "evidence": "Eleven SQLite/shell tests pass with real STRICT schema and five main metadata rows from PR82. Generated84 main out of937 total proves other agents are ignored; no time window; cron/direct classification; missing-window fallback200000 with present windows preserved; deadline1s; WAL RO,200001-row bound, atomic0600 and prior-health preservation. Normal base merge bfa210cd4361f2a3273ec76032ef6d23599015fd retains union CI."
+      "evidence": "13 SQLite/shell tests: real STRICT schema and PR82 rows; parity with `openclaw sessions --json --limit all` on the 87 joined real main rows of s24-2026-10-11b/c8 (contextTokens, totalTokens, kind, 3 soft / 3 hard); trusted-window rule cases; main-only scope over 937 rows; WAL RO, 200001-row bound, atomic 0600, prior-health preservation."
     }
   ],
   "documentation": [
@@ -49,10 +49,9 @@
   },
   "rollback": "Revert the Guardian reader delta; no runtime deployment performed.",
   "limitations": [
-    "Line-by-line historic CLI fixture is pending. SQLite main samples contain contextTokens272000/128000 while Claude measured CLI200000 on84/84 rows; effective installed window/token resolution remains unproved.",
-    "Scope is main only,84 sessions with no active window; other agent stores are deliberately ignored, matching the confirmed historical command.",
-    "CLI before9659ms measured by Claude; local eleven-test runtime below1s is not a physical Guardian after benchmark or proof of3 soft/3 hard parity.",
-    "Bound10000 sessions refuses overflow; SQLite WAL SHM reader coordination may change while logical DB/WAL data stays unchanged.",
-    "Public OpenClaw2026.9.6 SDK exposes no six CLI projection/store-selection helpers; no internal hashed import or parallel Python configuration truth introduced."
+    "Physical Guardian after-measurement remains Claude's recette (before: CLI 9659 ms on 10/10, 2912 ms on 11/10).",
+    "The port assumes the catalog lookups resolve nothing, as observed on OpenClaw 2026.9.6 (87/87 rows at 200000); after an OpenClaw upgrade the CLI/SQLite join must be redone.",
+    "Scope is main only, no active window; other agent stores are deliberately ignored, matching the historical command.",
+    "Bound 10000 sessions refuses overflow; SQLite WAL SHM reader coordination may change while logical DB/WAL data stays unchanged."
   ]
 }

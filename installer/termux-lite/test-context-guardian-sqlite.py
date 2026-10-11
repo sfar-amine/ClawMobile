@@ -73,7 +73,9 @@ class GuardianSqlite(unittest.TestCase):
             entry = captured['entry_json_projection']; projected = rows[captured['session_key']]
             # Exactly the historical Guardian's arithmetic on recorded metadata.
             # This does not pretend that raw entries include CLI model/context/kind derivations.
-            total = entry.get('totalTokens') or 0; context = entry.get('contextTokens',guardian.DEFAULT_CONTEXT_TOKENS)
+            # Installed CLI rule (s24-2026-10-11b/c8): a stored window counts only when trusted for its producer.
+            trusted = entry.get('modelSelectionLocked') is True or entry.get('contextTokensSource') in ('runtime','resolved-v1') and all(entry.get(f) for f in ('modelProvider','model','agentHarnessId'))
+            total = entry.get('totalTokens') or 0; context = entry['contextTokens'] if trusted and entry.get('contextTokens') else guardian.DEFAULT_CONTEXT_TOKENS
             expected = {'key':captured['session_key'],'sessionId':entry.get('sessionId'),
                         'updatedAt':entry.get('updatedAt'),'totalTokens':total,'contextTokens':context,
                         'ratio':total/context if context else None,'kind':'cron' if ':cron:' in captured['session_key'] else 'direct','status':entry.get('status')}
@@ -83,6 +85,44 @@ class GuardianSqlite(unittest.TestCase):
             self.assertNotIn('model',projected)
         self.assertEqual({r['compactionCount'] for r in rows.values()}, {None,0,6})
         self.assertTrue(any(r['ratio'] and r['ratio'] >= .6 for r in rows.values()))
+
+    def test_parity_with_historical_cli_on_87_real_main_rows(self):
+        # s24-2026-10-11b/c8 (#131): session_nodes.entry_json and `openclaw sessions --json --limit all`
+        # joined line by line at the same instant. The reader must give the CLI's fields used by the Guardian.
+        capture = json.loads((ROOT.parents[1] / 'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11b/c8/sessions-cli-vs-sqlite.main.json').read_text())
+        cols = capture['columns']; rows = [dict(zip(cols, r)) for r in capture['rows']]
+        self.assertEqual(len(rows), capture['_capture']['cli']['header']['count'])
+        entries = []
+        for i, row in enumerate(rows):
+            entry = {k[7:]: v for k, v in row.items() if k.startswith('sqlite.') and v != '_absent'}
+            entry.update({'sessionId': f'fixture-{i}', 'updatedAt': 1790000000000 + i})
+            # Pseudonymised keys collapse distinct peers to `<peer>`: give each row a unique key of the same kind.
+            row['key'] = row['key'].replace('<peer>', f'peer{i}') + ('' if row['key'].count('<peer>') else f':row{i}')
+            entries.append((row['key'], json.dumps(entry)))
+        self.database(rows=entries)
+        projected = {r['key']: r for r in self.read()['sessions']}
+        self.assertEqual(len(projected), 87)
+        for row in rows:
+            mine = projected[row['key']]
+            self.assertEqual(mine['contextTokens'], row['cli.contextTokens'], row['key'])
+            self.assertEqual(mine['totalTokens'], row['cli.totalTokens'] or 0, row['key'])
+            self.assertEqual(mine['kind'], row['kind'], row['key'])
+        # Stored windows 272000/1048576/128000 (resolved or no source) are not trusted by the CLI: 200000 for 87/87.
+        self.assertEqual({r['contextTokens'] for r in projected.values()}, {200000})
+        self.assertGreater(sum(1 for r in rows if r['sqlite.contextTokens'] == 272000), 40)
+        soft = sum(1 for r in projected.values() if r['ratio'] is not None and r['ratio'] >= .6)
+        hard = sum(1 for r in projected.values() if r['ratio'] is not None and r['ratio'] >= .8)
+        self.assertEqual((soft, hard), (3, 3))  # the Guardian log of 10/10: soft_ge_60=3 hard_ge_80=3
+
+    def test_trusted_windows_follow_installed_rule(self):
+        self.database(rows=(
+            ('agent:main:locked', json.dumps({'sessionId':'a','contextTokens':128000,'modelSelectionLocked':True,'totalTokens':64000})),
+            ('agent:main:runtime', json.dumps({'sessionId':'b','contextTokens':272000,'contextTokensSource':'runtime','model':'m','modelProvider':'p','agentHarnessId':'h','totalTokens':1})),
+            ('agent:main:runtime-partial', json.dumps({'sessionId':'c','contextTokens':272000,'contextTokensSource':'runtime','model':'m','totalTokens':1})),
+            ('agent:main:resolved', json.dumps({'sessionId':'d','contextTokens':272000,'contextTokensSource':'resolved','model':'m','modelProvider':'p','agentHarnessId':'h','totalTokens':1})),
+        ))
+        rows = {r['key']: r['contextTokens'] for r in self.read()['sessions']}
+        self.assertEqual(rows, {'agent:main:locked':128000,'agent:main:runtime':272000,'agent:main:runtime-partial':200000,'agent:main:resolved':200000})
 
     def test_real_main84_scope_ignores_853_other_agent_rows(self):
         # These replicas exercise real volume/schema, not a fictitious capture of 937 entries.
@@ -95,7 +135,7 @@ class GuardianSqlite(unittest.TestCase):
         self.assertTrue(all(r['key'].startswith('agent:main:') for r in rows))
 
     def test_multiple_agents_metadata_pressure_and_no_source_writes(self):
-        entry = {'sessionId':'uuid_with_underscore','updatedAt':456,'totalTokens':80,'contextTokens':100,
+        entry = {'sessionId':'uuid_with_underscore','updatedAt':456,'totalTokens':80,'contextTokens':100,'modelSelectionLocked':True,
                  'compactionCount':2,'kind':'direct','status':'running','messages':'fixture-private-transcript',
                  'access_token':'fixture-private-token','other':'fixture-private-context'}
         db = self.database(rows=[('agent:main:main',json.dumps(entry))])
@@ -114,7 +154,7 @@ class GuardianSqlite(unittest.TestCase):
         self.database(rows=[
           ('agent:main:cron:fixture',json.dumps({'sessionId':'cron','updatedAt':1,'totalTokens':160000,'kind':'wrong'})),
           ('agent:main:job:fixture',json.dumps({'sessionId':'job','updatedAt':0,'totalTokens':5})),
-          ('agent:main:old',json.dumps({'sessionId':'old','updatedAt':1,'totalTokens':80,'contextTokens':100})),
+          ('agent:main:old',json.dumps({'sessionId':'old','updatedAt':1,'totalTokens':80,'contextTokens':100,'modelSelectionLocked':True})),
         ])
         # Even corrupted irrelevant stores are outside the historical scope.
         self.database('engineering-lite',rows=[('invalid-other','{')])
@@ -162,7 +202,7 @@ class GuardianSqlite(unittest.TestCase):
         self.assertNotIn('session_key',result.stderr)
 
     def test_real_script_writes_same_owner_artifact_with_pressure_counts(self):
-        self.database(rows=[('agent:main:main',json.dumps({'sessionId':'id','totalTokens':80,'contextTokens':100}))])
+        self.database(rows=[('agent:main:main',json.dumps({'sessionId':'id','totalTokens':80,'contextTokens':100,'modelSelectionLocked':True}))])
         env={**os.environ,'HOME':str(self.home),'CLAW_RUNTIME_ROOT':str(ROOT)}
         result=subprocess.run(['bash',str(ROOT/'context-guardian.sh')],env=env,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0)
@@ -192,7 +232,7 @@ class GuardianSqlite(unittest.TestCase):
         with self.assertRaises(guardian.Unavailable): self.read()
 
     def test_deadline_and_nonfinite_numbers_are_bounded(self):
-        db=self.database(rows=[('agent:main:main',json.dumps({'sessionId':'id','totalTokens':1e308,'contextTokens':1e-308}))])
+        db=self.database(rows=[('agent:main:main',json.dumps({'sessionId':'id','totalTokens':1e308,'contextTokens':1e-308,'modelSelectionLocked':True}))])
         self.assertIsNone(self.read()['sessions'][0]['ratio'])
         old=guardian.READ_SECONDS
         try:

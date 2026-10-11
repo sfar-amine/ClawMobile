@@ -34,6 +34,34 @@ def numeric(value, default=0):
         return default
 
 
+def positive(value):
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0 else None
+
+
+def _text(value):
+    return value.strip().lower() if isinstance(value, str) else ""
+
+
+def projected_context_tokens(entry):
+    """Port of the installed `openclaw sessions --json` rule (OpenClaw 2026.9.6, fixture s24-2026-10-11b/c8).
+
+    resolveProjectedSessionContextTokens keeps the stored window only when it is trusted for its producing
+    selection: modelSelectionLocked, or contextTokensSource "runtime" / "resolved-v1" with provider, model and
+    harness all present. The model catalog lookups (allowAsyncLoad:false) resolve nothing on the S24, so any other
+    row falls back to configContextTokens = lookupContextTokens(defaults.model) ?? 200000 (87/87 rows on 11/10).
+    The Guardian reads its own stored row, so the current selection is the row's own provider/model/harness.
+    """
+    stored = positive(entry.get("contextTokens"))
+    if stored is None:
+        return DEFAULT_CONTEXT_TOKENS
+    if entry.get("modelSelectionLocked") is True:
+        return stored
+    exact = all(_text(entry.get(field)) for field in ("modelProvider", "model", "agentHarnessId"))
+    if entry.get("contextTokensSource") in ("runtime", "resolved-v1") and exact:
+        return stored
+    return DEFAULT_CONTEXT_TOKENS
+
+
 def read_health(agents_root, *, now_ms=None):
     deadline = time.monotonic() + READ_SECONDS
     root = Path(agents_root)
@@ -82,7 +110,7 @@ def read_health(agents_root, *, now_ms=None):
                     if sid is not None and (not isinstance(sid, str) or not IDENTITY.fullmatch(sid)):
                         raise Unavailable("session_entry_invalid")
                     total = numeric(entry.get("totalTokens"))
-                    context = numeric(entry.get("contextTokens"), DEFAULT_CONTEXT_TOKENS)
+                    context = projected_context_tokens(entry)
                     ratio = total / context if context else None
                     if ratio is not None and not math.isfinite(ratio):
                         ratio = None
