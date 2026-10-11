@@ -173,6 +173,14 @@ def maintenance_view():
  except (OSError,ValueError,TypeError):
   return {'state':'unverified','reason':'maintenance_receipt_unreadable'}
 
+def nightly_view():
+ try:
+  spec=importlib.util.spec_from_file_location('companion_nightly',Path(__file__).with_name('companion-nightly-acceptance.py'))
+  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+  return module.health_view(OC/'deploys',NOW)
+ except (OSError,ValueError,TypeError):
+  return {'state':'unverified','reason':'nightly_acceptance_unavailable','checked_at':None,'freshness_s':None}
+
 def build():
  caps=live(); maintenance=maintenance_view(); active,failed,human=incidents(caps); cont=continuations(); warnings=[]
  mstate=maintenance.get('state')
@@ -182,6 +190,9 @@ def build():
  ) or 'semantic maintenance requires attention'
  caps['control_plane.maintenance']=item(cstate,True,reason=reason,evidence=str(OC/'autonomous-engineering/maintenance-last.json'),
                                         freshness=(NOW-maintenance.get('checked_at')) if isinstance(maintenance.get('checked_at'),(int,float)) else None)
+ nightly=nightly_view()
+ caps['control_plane.nightly_acceptance']=item(nightly['state'],False,reason=nightly['reason'],evidence='nightly acceptance receipt',freshness=nightly.get('freshness_s'))
+ caps['control_plane.nightly_acceptance']['checked_at']=nightly.get('checked_at')
  live_components={k.split('.',1)[-1]:v for k,v in caps.items()}
  for i in active:
   ck=i['component']

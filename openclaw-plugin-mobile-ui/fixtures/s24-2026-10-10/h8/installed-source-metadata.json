@@ -1,0 +1,28 @@
+{
+  "capture": {
+    "source": "read-only installed S24 source metadata",
+    "actionKey": "codex-h8-source-metadata-20261011",
+    "stepKey": "readonly-source-hashes"
+  },
+  "files": {
+    "companion-deploy.sh": {
+      "present": true,
+      "sha256": "8a39ef42f6cb7dccabc4759aa5bc8399b4ab6c814abff32c3d06926352c08830"
+    },
+    "companion-acceptance.py": {
+      "present": true,
+      "sha256": "1f1b526e8e4ff9aa7d966fef2c664811e955d398a1fb6ec09b0c09cd0844e9ed"
+    },
+    "incident-notify.sh": {
+      "present": true,
+      "sha256": "ac318e812382c4ce9dbbdd23f597fc25d6e1a87bff5d0bb809b9511ae71b0e82"
+    },
+    "health-verdict.py": {
+      "present": true,
+      "sha256": "0157cc8f9c4a9b1928258501a16b867f3c3190d9f55cf0cc858cce909908b732"
+    },
+    "deployment_lock": {
+      "present": true
+    }
+  }
+}

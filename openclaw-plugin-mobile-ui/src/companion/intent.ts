@@ -13,7 +13,7 @@ export async function submitIntent(
   text: string,
   sessionId = "default",
   attachments: IntentAttachment[] = [],
-  options: { userText?: string; clientRunId?: string; learningOnly?: true } = {},
+  options: { userText?: string; clientRunId?: string; learningOnly?: true; authority?:"owner" } = {},
 ): Promise<IntentSubmitResponse> {
   const normalized = text.trim();
   const visibleUserText = (options.userText || normalized).trim();
@@ -106,7 +106,7 @@ export async function submitIntent(
   if (!clientRunId) {
     await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments });
   }
-  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments);
+  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority);
 
   const message = describeOpenClawResult(accepted);
   return {
@@ -257,9 +257,10 @@ async function submitIntentInBackground(
   sessionId: string,
   userText: string,
   attachments: IntentAttachment[],
+  authority?:"owner",
 ) {
   try {
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId);
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority});
     await rememberSubmittedRun(text, {
       ...openclaw,
       runId,
