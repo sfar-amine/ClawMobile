@@ -3,13 +3,14 @@
   "id": "codex-e1-automation-edit-20261010",
   "origin": "chat",
   "kind": "maintenance",
-  "merge_eligibility": "ready_for_review",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "R23 / E1 : PATCH /v1/automations/{id} via cron.update, CAS natif configRevision (If-Match), confirmation automation.edit, reçu et relecture unique.",
   "reason": "Captures réelles #131 (cron.get/update, CAS natif CRON_JOB_CHANGED) et schéma installé relu sur le S24 (lecture seule) ; route complète avec gardes paiement, validation, CAS, confirmation et reçu. Le prédicat propriétaire protège aujourd'hui les 18 automatisations (clé structurelle payload) : refus conservé, correction propriétaire en PR séparée.",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/test-skill-learning-acceptance.py",
     "openclaw-plugin-mobile-ui/src/companion/automationEditValidation.ts",
     "openclaw-plugin-mobile-ui/src/companion/automations.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
@@ -45,11 +46,9 @@
     "docs/changes/codex-e1-automation-edit-20261010.md"
   ],
   "capabilities": {
-    "impact": "planned",
-    "ids": [
-      "samantha.app.automation.edit"
-    ],
-    "reason": "Capability planned (confirmation) dans playbooks #45, avec dependencies.json ; route PATCH /v1/automations/{id}."
+    "impact": "none",
+    "ids": [],
+    "reason": "Aucune capability dans ce dépôt : la capability planned jumelle (samantha.app.automation.edit, playbooks #45) décrit cette route owner."
   },
   "architecture": {
     "changed": false,
