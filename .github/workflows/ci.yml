@@ -196,6 +196,7 @@ jobs:
       - name: Test health manager resource restart policy
         run: |
           python3 ../installer/termux-lite/test-health-resource-policy.py
+          python3 ../installer/termux-lite/test-gateway-memory-guard.py
           python3 ../installer/termux-lite/test-owner-retention.py
           node scripts/test-remote-bridge-retention.cjs
       - name: MCP context scopes and admitted client provenance

@@ -77,6 +77,23 @@ check_whatsapp(){
  fi
  fail whatsapp
 }
+# P0-4: Gateway memory guard (measured thresholds, sustained 10 min, idle proof, 6 h cooldown,
+# receipt health/gateway-memory-guard.json). Graceful restart through the existing Companion route.
+check_gateway_memory(){
+ due gateway_memory || return
+ put gateway_memory next $(( $(now)+60 ))
+ out=$(timeout 15 python3 "$ROOT/gateway-memory-guard.py" 9>&- 2>/dev/null) || { log "service=gateway_memory state=guard_failed"; return; }
+ case "$out" in
+  *'"action": "restart_requested"'*)
+   log "service=gateway_memory state=restart_requested owner=companion detail=$out"
+   ( timeout --kill-after=5 240 curl -fsS --max-time 230 \
+       -X POST -H 'Content-Type: application/json' -d '{}' \
+       http://127.0.0.1:8765/v1/runtime/restart 2>&1 \
+     | python3 "$ROOT/bounded-log.py" "$D/gateway-memory-restart.log" --stream ) 9>&- </dev/null >/dev/null 2>&1 &
+   ;;
+  *'"pressure": ["'*) log "service=gateway_memory state=pressure detail=$out";;
+ esac
+}
 check_smtp(){ due smtp || return; if timeout 25 "$ROOT/incident-email.sh" --probe 9>&- >/dev/null 2>&1; then healthy smtp; put smtp next $(( $(now)+300 )); else fail smtp; fi; }
 check_network_safety(){ due network_safety || return; if "$ROOT/android-network-mutation-guard.py" check 9>&- >/dev/null 2>&1; then healthy network_safety; else fail network_safety; fi; }
 check_android_phantom_headroom(){
@@ -180,6 +197,8 @@ while :; do
  "$ROOT/health-verdict.py" --write 9>&- >/dev/null 2>&1 || true
  check_allowlist_expiry
  check_gateway
+ check_allowlist_expiry
+ check_gateway_memory
  check_allowlist_expiry
  check_whatsapp
  check_allowlist_expiry
