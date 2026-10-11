@@ -38,6 +38,14 @@ WIFI_WATCH_INTERVAL_S = 0.5
 CHILD_STOP_GRACE_S = 2.0
 WIFI_REENABLED_EXIT = 3
 MAX_LEASE_AGE = int(os.environ.get("NETWORK_MUTATION_MAX_LEASE_AGE", "900"))
+# O6 (fichier 37, décision du 11/10/2026) : borne totale d'une consultation gardée, de l'appel au reçu
+# (verrou + préparation Wi-Fi + DNS + service + arrêt de l'enfant + restauration). Mesures S24
+# (fixtures/s24-2026-10-11/o6-network-guard-timing.json) : entrée totale p50 5,6 s, p95 6,2 s, max 6,3 s.
+# 60 s << MAX_LEASE_AGE (900 s) : le bail reste vivant sans renouvellement jusqu'à la restauration.
+CONSULTATION_TOTAL_S = 60.0
+# Tenu hors de l'enfant pour restaurer dans la borne : arrêt du groupe (TERM 0,5 s + KILL 1 s),
+# réglages et Wi-Fi (set_wifi 8 s) et vérification adb (6 s).
+CONSULTATION_RESTORE_RESERVE_S = 16.0
 TERMUX_PACKAGES = ("com.termux", "com.termux.api", "com.termux.boot")
 
 def adb(*args: str, timeout: int = 6, check: bool = False, serial: str | None = None) -> subprocess.CompletedProcess:
@@ -820,7 +828,7 @@ def stop_consultation_group(child: subprocess.Popen) -> bool:
     return False
 
 
-def collect_consultation_child(command: list[str], env: dict, timeout_s: float = 120) -> subprocess.CompletedProcess:
+def collect_consultation_child(command: list[str], env: dict, timeout_s: float = CONSULTATION_TOTAL_S - CONSULTATION_RESTORE_RESERVE_S) -> subprocess.CompletedProcess:
     """Bound BOTH output streams while reading, and kill all group members before return."""
     # Selector construction precedes launch: descriptor exhaustion cannot strand a child.
     selector = selectors.DefaultSelector()
@@ -869,7 +877,13 @@ def collect_consultation_child(command: list[str], env: dict, timeout_s: float =
             for sig, handler in handlers.items():
                 signal.signal(sig, handler)
     if failure or not cleanup_verified:
-        raise ConsultationChildFailure("child_execution_failed" if cleanup_verified else "child_cleanup_unverified", cleanup_verified)
+        if not cleanup_verified:
+            reason = "child_cleanup_unverified"
+        elif failure == "TimeoutExpired":
+            reason = "consultation_total_bound_exceeded"
+        else:
+            reason = "child_execution_failed"
+        raise ConsultationChildFailure(reason, cleanup_verified)
     try:
         text = stdout.decode("utf-8")
     except UnicodeError:
@@ -935,11 +949,19 @@ def prepare_consultation_cellular(lease_id: str) -> bool:
         return False
 
 
+def consultation_child_budget(deadline: float, now: float | None = None) -> float:
+    """Time left to the child once the restoration reserve is kept; never zero, never past the total bound."""
+    now = time.monotonic() if now is None else now
+    return max(1.0, min(CONSULTATION_TOTAL_S - CONSULTATION_RESTORE_RESERVE_S, deadline - CONSULTATION_RESTORE_RESERVE_S - now))
+
+
 def with_consultation_receipt(command: list[str]) -> int:
     # Serialize snapshot -> mutation -> child cleanup -> exact restore using the existing owner lock.
+    # The total bound starts before the lock wait: a busy guard consumes the same 60 s.
+    deadline = time.monotonic() + CONSULTATION_TOTAL_S
     try:
         with mutation_lock():
-            return _with_consultation_receipt_locked(command)
+            return _with_consultation_receipt_locked(command, deadline)
     except RuntimeError as exc:
         if str(exc) != "network_mutation_guard_busy":
             raise
@@ -947,8 +969,9 @@ def with_consultation_receipt(command: list[str]) -> int:
         return 4
 
 
-def _with_consultation_receipt_locked(command: list[str]) -> int:
+def _with_consultation_receipt_locked(command: list[str], deadline: float | None = None) -> int:
     """Consultation-only additive API; generic/payment with-wifi-off is unchanged."""
+    deadline = time.monotonic() + CONSULTATION_TOTAL_S if deadline is None else deadline
     if len(command) < 4 or command[:3] != [sys.executable, "-m", "telecom.maxit_guarded_service"]:
         raise ValueError("invalid_consultation_command")
     identity = process_identity(os.getpid())
@@ -974,7 +997,7 @@ def _with_consultation_receipt_locked(command: list[str]) -> int:
         env = os.environ.copy()
         env["SAMANTHA_MAXIT_LEASE_ID"] = lease.stem
         child_cleanup_verified = False
-        child = collect_consultation_child(command, env)
+        child = collect_consultation_child(command, env, timeout_s=consultation_child_budget(deadline))
         child_cleanup_verified = True
         value = json.loads(child.stdout or "")
         if not isinstance(value, dict):

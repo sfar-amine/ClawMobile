@@ -16,7 +16,8 @@
     "installer/termux-lite/test-consultation-network-receipt.py",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/o1/network-guard-source.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/o1/README.md",
-    "installer/termux-lite/test-consultation-process-safety.py"
+    "installer/termux-lite/test-consultation-process-safety.py",
+    "installer/termux-lite/test-consultation-total-bound.py"
   ],
   "tests": [
     {
@@ -28,6 +29,11 @@
       "name": "o1-process-counter-review-regressions",
       "status": "passed",
       "evidence": "11 owner/receipt tests plus 8 real-process lifecycle tests; forged ordinary Python parent refused, canonical guard admitted, simultaneous snapshots serialized, descendant stopped on timeout and after nominal closed streams, stderr output cap enforced during collection, selector-before-launch and interrupted cleanup fail closed. Fake adb is filesystem-only."
+    },
+    {
+      "name": "o6-total-bound-in-guard",
+      "status": "passed",
+      "evidence": "test-consultation-total-bound.py: 6 tests; bound equals the S24 timing proposal, under the 900 s lease; child budget 44 s covers DNS 8 s + service 30 s and 5x the observed total max; lock/preparation time shrinks it; a timeout names consultation_total_bound_exceeded and still certifies the exact restoration; with_wifi_off untouched."
     }
   ],
   "documentation": [
@@ -62,8 +68,8 @@
     "Source capture confirms owner schema only, not a live restored receipt. Claude must qualify canonical consultation after admission and guard activation.",
     "No Wi-Fi mutation or operator consultation executed by Codex; no payment files modified.",
     "O2 must call owner prepare before fallback; Wi-Fi-on path is never inferred from child transport text.",
-    "No global fast-path budget proof; O6 owns alignment.",
     "Core owner PR must precede playbooks; new tests union into H1 manifests if merged meanwhile.",
-    "Current source confirms original guard owner; new lifecycle tests are local fake-device processes, not live Android evidence. Descriptor observation is coherence with canonical lock-held code, not independent kernel owner attestation."
+    "Current source confirms original guard owner; new lifecycle tests are local fake-device processes, not live Android evidence. Descriptor observation is coherence with canonical lock-held code, not independent kernel owner attestation.",
+    "Total bound 60 s (O6 decision of 11/10 on S24 measurements): child gets the remaining time minus a 16 s restoration reserve; Graph and fast path waits are aligned by O6 (playbooks #57 and its core twin)."
   ]
 }
