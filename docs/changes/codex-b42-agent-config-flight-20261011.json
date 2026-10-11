@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Partager les lectures sessions.list et sessions.usage simultanées de /agent/config.",
-  "reason": "Backlog42 lot6 : capture S24 #170 du 11/10, 12/12 requêtes concurrentes en 503 avant correction ; coalescer les lectures sans changer fraîcheur ni validation CAS.",
+  "reason": "Backlog42 lot6 : capture S24 #170 du 11/10, 12/12 requêtes concurrentes en 503 avant correction ; coalescer les lectures sans changer fraîcheur ni validation CAS. Complément PR173 au SHA3bd2e742 : 18/18 appels hors9s avant#167, sans résultat après correction.",
   "files": [
     "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
     "openclaw-plugin-mobile-ui/scripts/test-agent-config-flight.cjs",
@@ -14,7 +14,8 @@
     "docs/changes/codex-b42-agent-config-flight-20261011.json",
     "docs/changes/codex-b42-agent-config-flight-20261011.md",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/agent-config/agent-config-budget-before.json",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/agent-config/README.md"
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/agent-config/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/agent-config/agent-config-budget-pr173-before.json"
   ],
   "tests": [
     {
@@ -52,6 +53,7 @@
   "rollback": "Revert de cette PR ; aucun déploiement par Codex.",
   "limitations": [
     "Aucune mesure S24 post-correctif revendiquée.",
-    "Le débit concurrent sera qualifié sur S24 par Claude avant activation."
+    "Le débit concurrent sera qualifié sur S24 par Claude avant activation.",
+    "PR173 avant#167 seulement : authStatus9,809s et charge13,08 ; mesure après déploiement requise avant conclusion de performance."
   ]
 }
