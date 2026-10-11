@@ -30,6 +30,7 @@ def migrate(c):
             proposal_id TEXT PRIMARY KEY,run_id TEXT NOT NULL,action TEXT NOT NULL,
             source_ids TEXT NOT NULL,payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'proposed',
             created_at TEXT NOT NULL,applied_at TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_dream_action_status_date ON dream_proposals(action,status,created_at)")
         missing=c.execute("SELECT rowid FROM events WHERE revision IS NULL ORDER BY created_at,rowid").fetchall()
         head=c.execute("SELECT COALESCE(MAX(revision),0) FROM events").fetchone()[0]
         for (rowid,) in missing:
