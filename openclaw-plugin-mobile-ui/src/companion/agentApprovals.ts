@@ -13,8 +13,7 @@ import {protectedRun} from './runInactivity';
 const failure=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
 const identifier=/^[A-Za-z0-9_.:-]{1,100}$/;
 const operationIdentifier=/^[A-Za-z0-9_.:-]{1,128}$/;
-const financial=/(?:payment[._]|banqu|bank|carte|card|otp|3[- ]?d[ -]?secure|virement|transfer|transaction|achat|checkout|facture|wallet|topnet|maxit|flouci|\bd17\b|clictopay|termux-notification|\b\d+(?:[.,]\d+)?\s*(?:tnd|eur|usd|dt|€|\$))/i;
-const secret=/(?:bearer\s|authorization|api[_-]?key|token[=: ]|password|secret[=: ]|-----BEGIN|\+?\d{8,})/i;
+const secret=/(?:\b(?:otp|cvv|cvc)\b|bearer\s|authorization|api[_-]?key|token[=: ]|password|secret[=: ]|-----BEGIN|\+?\d{8,})/i;
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
 type Kind='exec'|'plugin';
 type Pending={id:string;kind:Kind;expiresAt:number;sessionKey?:string;runId?:string;toolCallId?:string;allowed:string[];reason:string|null;decided?:string};
@@ -63,7 +62,7 @@ export function decodePendingApprovals(value:any,kind:Kind):Pending[]{
   const text=JSON.stringify(Object.fromEntries(Object.entries(request).filter(([key])=>requestKeys.includes(key)&&!['agentId','nodeId','host','sessionKey','sessionId','runId','toolCallId','allowedDecisions','turnSourceChannel','turnSourceAccountId'].includes(key))));
   // Missing readable action proof and sensitive metadata never authorize an effect.
   const readable=kind==='exec'?[request.command,request.commandText,request.commandArgv].some(x=>typeof x==='string'&&x.length>0||Array.isArray(x)&&x.length>0):typeof(request.toolName??request.tool)==='string';
-  const reason=financial.test(text)?'approval_payment_excluded':secret.test(text)?'approval_sensitive_details':!readable?'approval_details_unqualified':row.status==='expired'?'approval_expired':row.decision||row.resolvedAtMs||row.status&&row.status!=='pending'?'approval_already_decided':kind==='exec'&&!inertCommand(request)?'approval_payment_scope_unqualified':kind==='plugin'?'approval_plugin_payment_scope_unqualified':null;
+  const reason=secret.test(text)?'approval_sensitive_details':!readable?'approval_details_unqualified':row.status==='expired'?'approval_expired':row.decision||row.resolvedAtMs||row.status&&row.status!=='pending'?'approval_already_decided':kind==='exec'&&!inertCommand(request)?'approval_payment_scope_unqualified':kind==='plugin'?'approval_plugin_payment_scope_unqualified':null;
   return {id:row.id,kind,expiresAt,sessionKey:request.sessionKey||undefined,runId:request.runId||undefined,toolCallId:request.toolCallId||undefined,allowed:allowed||['allow-once','deny'],reason,decided:row.decision||undefined};
  });
 }
@@ -77,7 +76,6 @@ async function registry(){
 }
 function paymentRun(run:any,store:any){
  if(protectedRun(run,[],[]))return true;
- if(financial.test(JSON.stringify({text:run.text,userText:run.userText,decision:run.decision})))return true;
  const ids=[run.runId,run.clientRunId,run.sessionId];
  return store.paymentRequests.some((x:any)=>!['confirmed','demo_confirmed','failed','cancelled','expired','blocked'].includes(x?.state)||ids.includes(x?.draft?.origin?.id)||ids.includes(x?.runId))||store.ownerConfirmations.some((x:any)=>x?.intent?.action?.type?.startsWith('payment.')&&(!['consumed','cancelled','expired'].includes(x.state)||ids.includes(x?.intent?.origin?.id)));
 }
@@ -178,7 +176,6 @@ async function decideOnce(runId:string,body:any){
   let raw:any;try{raw=await rpc('exec.approval.get',{id:approval.id});}catch{return {success:false,state:'failed',receipt:null,error:'approval_owner_unavailable'};}
   if(!closed(raw,['id','commandText','commandPreview','allowedDecisions','host','nodeId','agentId','expiresAtMs'])||raw.id!==approval.id||raw.expiresAtMs!==approval.expiresAt||!Array.isArray(raw.allowedDecisions)||!raw.allowedDecisions.includes(decision))return {success:false,state:'refused',receipt:null,reason:'approval_details_unqualified'};
   const details=JSON.stringify({commandText:raw.commandText,commandPreview:raw.commandPreview});
-  if(financial.test(details))return {success:false,state:'refused',receipt:null,reason:'approval_payment_excluded'};
   if(secret.test(details))return {success:false,state:'refused',receipt:null,reason:'approval_sensitive_details'};
   if(!inertCommand({commandText:raw.commandText}))return {success:false,state:'refused',receipt:null,reason:'approval_payment_scope_unqualified'};
  }

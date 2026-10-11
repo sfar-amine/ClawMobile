@@ -121,7 +121,7 @@ export async function submitIntent(
       submittedPrompt,
       normalizedSessionId,
       clientRunId,
-      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", replayOf, ownerAdmitted },
+      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", decision: fastPathCheck.decision, replayOf, ownerAdmitted },
     );
     runId = reservation.status.runId;
     duplicate = !reservation.created;
@@ -130,7 +130,7 @@ export async function submitIntent(
 
   const accepted = acceptedRun(runId, normalizedSessionId);
   if (!clientRunId) {
-    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, ownerAdmitted });
+    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted });
   }
   void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority,
     learningOnly ? undefined : options.admission, clientRunId);

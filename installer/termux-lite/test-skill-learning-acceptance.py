@@ -13,7 +13,7 @@ class R8AcceptanceTests(unittest.TestCase):
         seen = []
         def call(method, path, timeout, headers=None):
             seen.append((method, path))
-            if method != 'GET': return 403, b'{}', 0.01  # POST et DELETE (P1) sans en-tête propriétaire
+            if method != 'GET': return 403, b'{}', 0.01  # every owner mutation guard (POST, PATCH, PUT, DELETE P1)
             if path == '/runs?contract=2&view=conversations&limit=20':  # R11 list (no retained conversation: metadata skipped)
                 return 200, b'{"items": []}', 0.01
             if path == '/skills/candidates?limit=50':
