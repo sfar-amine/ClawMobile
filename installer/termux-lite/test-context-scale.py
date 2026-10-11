@@ -75,6 +75,32 @@ class ScaleTests(unittest.TestCase):
         self.assertTrue(meta['coverage_complete']); self.assertEqual(meta['active_counts']['open_thread'], 80)
         for i in range(1, 81): self.assertIn(f'REQ-{i} ', body)
 
+    def test_recent_decisions_survive_a_view_saturated_by_constraints_and_threads(self):
+        # S24 11/10: 24 constraints (11.9 KB) + 47 threads left 0 byte for decisions; « Bonjour Amine » never surfaced.
+        rev = 0
+        for i in range(24):
+            rev += 1; add(self.c, rev, 'constraint', f'Contrainte {i} : ' + 'ne jamais agir sans preuve explicite. ' * 12)
+        for i in range(47):
+            rev += 1; add(self.c, rev, 'open_thread', f'Fil {i} : ' + 'travail en cours avec beaucoup de détails. ' * 20)
+        for i in range(40):
+            rev += 1; add(self.c, rev, 'checkpoint', f'SITUATION_EVENT_V1 {{"n": {i}}}')
+        rev += 1; add(self.c, rev, 'decision', 'Salutation : « Bonjour Amine », jamais « Ahla ».')
+        body, meta = build_view(self.c, rev, foundation_bytes=1500)
+        self.assertIn('« Bonjour Amine », jamais « Ahla »', body)
+        self.assertNotIn('SITUATION_EVENT_V1', body)
+        self.assertTrue(meta['coverage_complete'])
+        for i in range(25, 72): self.assertIn(f'REQ-{i} ', body + ' ')
+        self.assertLessEqual(len(body.encode()) + 1500, 24576 + 600)
+
+    def test_telemetry_never_fills_recent_activity(self):
+        add(self.c, 1, 'learning', 'LEARNING_GATE_V2 bruit machine')
+        add(self.c, 2, 'checkpoint', 'Companion déployé abc123')
+        add(self.c, 3, 'completed_action', 'Factures corrigées et vérifiées')
+        body, _ = build_view(self.c, 3)
+        self.assertIn('Factures corrigées', body)
+        self.assertNotIn('LEARNING_GATE_V2', body); self.assertNotIn('Companion déployé', body)
+        self.assertEqual(search(self.c, 'LEARNING_GATE_V2')[0]['revision'], 1)
+
     def test_read_only_lookup_pagination_and_query_escaping(self):
         for i in range(1, 8): add(self.c, i, 'constraint', f'Consigne {i} ponctuation')
         with closing(sqlite3.connect(self.db.as_uri() + '?mode=ro', uri=True)) as reader:

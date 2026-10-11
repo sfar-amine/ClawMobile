@@ -16,6 +16,11 @@ COLUMNS = 'e.id,e.revision,e.surface,e.kind,e.text,e.created_at,e.supersedes'
 ACTIVE = "NOT EXISTS (SELECT 1 FROM events n WHERE n.supersedes=e.id)"
 VIEW_BUDGET_BYTES = 24576
 RECENT_CAPS = {'decision': 12, 'learning': 8, 'completed_action': 5, 'checkpoint': 3}
+# Recent decisions always get room (S24 11/10: constraints + threads consumed the whole view, 0 decision shown).
+RECENT_RESERVE_BYTES = 5000
+THREAD_EXCERPT_CHARS = 90
+# Machine telemetry is searchable history, never "recent activity" in the shared view.
+TELEMETRY = re.compile(r'^(?:SITUATION_EVENT_V1|LEARNING_GATE_V\d*|IMPROVEMENT_CANDIDATE|Companion déployé)')
 
 
 def ensure_indexes(connection):
@@ -122,6 +127,23 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
     used = foundation_bytes + len('\n'.join(lines).encode()) + 600
     rendered_ids, critical_overflow, thread_overflow = [], [], []
     excerpts = 0
+    # Recent activity is selected first so its reserved share is never displaced; decisions lead.
+    candidates = []
+    for kind, cap in RECENT_CAPS.items():
+        rows = connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision DESC LIMIT ?', (kind, cap * 4)).fetchall()
+        candidates.append([item for item in map(event, rows) if not TELEMETRY.match(item['text'] or '')][:cap])
+    recent, recent_cost, reserve = [], 0, min(RECENT_RESERVE_BYTES, budget_bytes // 5)
+    queue = [group[index] for index in range(max(RECENT_CAPS.values())) for group in candidates if index < len(group)]
+    for item in queue:
+        short, cut = excerpt(item['text'], 240)
+        line = f"- [{item['surface']}/{item['kind']}] {short} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
+        recent.append((item, line, cut))
+    reserved = []
+    for item, line, cut in recent:
+        cost = len(line.encode()) + 1
+        if recent_cost + cost > reserve: break
+        reserved.append((item, line, cut)); recent_cost += cost
+    used += recent_cost
     # Complete constraints first: do not lose negations, scope or authorization.
     lines.append('### Active constraints — texte intégral')
     for row in connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision', ('constraint',)):
@@ -133,29 +155,27 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
         else:
             critical_overflow.append(item['revision'])
     lines += ['', '### Open threads — index de tous les sujets encore actifs']
-    for row in connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision', ('open_thread',)):
-        item = event(row); short, cut = excerpt(item['text'], 140)
-        line = f"- REQ-{item['revision']} [{item['surface']}] {short}"
+    threads = [event(row) for row in connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision', ('open_thread',))]
+    # Every thread keeps at least its reference; excerpts only while they fit for all remaining threads.
+    for position, item in enumerate(threads):
+        bare = f"- REQ-{item['revision']} [{item['surface']}]"
+        rest = sum(len(f"- REQ-{t['revision']} [{t['surface']}]".encode()) + 1 for t in threads[position + 1:])
+        short, cut = excerpt(item['text'], THREAD_EXCERPT_CHARS)
+        line = f"{bare} {short}"
+        if used + len(line.encode()) + 1 + rest <= budget_bytes:
+            lines.append(line); used += len(line.encode()) + 1; excerpts += int(cut)
+        elif used + len(bare.encode()) + 1 <= budget_bytes:
+            lines.append(bare); used += len(bare.encode()) + 1
+        else:
+            thread_overflow.append(item['revision']); continue
+        rendered_ids.append(item['id'])
+    lines += ['', '### Activité et décisions récentes — détails sur demande']
+    for item, line, cut in reserved:
+        lines.append(line); rendered_ids.append(item['id']); excerpts += int(cut)
+    for item, line, cut in recent[len(reserved):]:
         cost = len(line.encode()) + 1
         if used + cost <= budget_bytes:
             lines.append(line); used += cost; rendered_ids.append(item['id']); excerpts += int(cut)
-        else:
-            thread_overflow.append(item['revision'])
-    # Fair sharing of the remaining budget; never displace mandatory coverage.
-    candidates = []
-    for kind, cap in RECENT_CAPS.items():
-        rows = connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision DESC LIMIT ?', (kind, cap)).fetchall()
-        candidates.append([event(row) for row in rows])
-    lines += ['', '### Activité et décisions récentes — détails sur demande']
-    for index in range(max(RECENT_CAPS.values())):
-        for group in candidates:
-            if index >= len(group):
-                continue
-            item = group[index]; short, cut = excerpt(item['text'], 240)
-            line = f"- [{item['surface']}/{item['kind']}] {short} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
-            cost = len(line.encode()) + 1
-            if used + cost <= budget_bytes:
-                lines.append(line); used += cost; rendered_ids.append(item['id']); excerpts += int(cut)
     blocked = bool(critical_overflow or thread_overflow or foundation_bytes > budget_bytes)
     lines += ['', '> Coverage: ' + ('BLOCKED — budget insuffisant ; récupérer les éléments manquants ou augmenter le budget avant démarrage.' if blocked else 'constraints_complete; open_thread_index_complete')]
     body = '\n'.join(lines)
