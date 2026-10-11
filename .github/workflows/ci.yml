@@ -56,6 +56,14 @@ jobs:
           node scripts/test-voice-relay.cjs
           node scripts/test-voice-relay-reconnect.cjs
 
+      - name: HS3 closed presentation and existing run transport
+        run: |
+          python3 scripts/test-receipt-presentation-read.py
+          node scripts/test-receipt-presentation.cjs
+
+      - name: HS5 run progress steps from existing receipts
+        run: node scripts/test-run-progress.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
@@ -245,6 +253,8 @@ jobs:
         run: node scripts/test-remote-bridge-abandoned.cjs
       - name: F4 structured notifications on the captured runs summary
         run: node scripts/test-notification-structured.cjs
+      - name: Run derived catalogue fail-closed projection and real HTTP cache contract
+        run: node scripts/test-catalog.cjs
       - name: G4 deployment receipts and route budget
         run: node scripts/test-deployment-receipts.cjs
       - name: C5 canonical voice owner transport fixture
