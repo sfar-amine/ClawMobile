@@ -230,3 +230,5 @@ jobs:
         run: node scripts/test-deployment-receipts.cjs
       - name: C5 canonical voice owner transport fixture
         run: python3 ../installer/termux-lite/test-context-voice-read.py
+      - name: H9 read-only UI smoke synthetic safety boundaries
+        run: python3 ../installer/termux-lite/test-ui-smoke.py
