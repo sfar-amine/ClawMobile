@@ -141,3 +141,21 @@ test("P1-5 adapter runs use the nested named budgets",async()=>{
     assert.deepEqual([MAXIT_QUOTE_RUN_TIMEOUT_MS,MAXIT_START_RUN_TIMEOUT_MS,MAXIT_RESUME_RUN_TIMEOUT_MS],[43000,220000,60000]);
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
+
+test("Webview contract 11/10: an empty Maxit transaction id keeps the bank continuation, a malformed one does not",async()=>{
+  const web={provider:"maxit.topup",checkoutId:"",gatewayOrderId:"22222222-2222-4222-8222-222222222222"};
+  const make=checkoutId=>fixture({live:async payload=>payload.operation==="start"
+    ?{state:"requires_bank_action",reason_code:"bank_verification_required",continuation:{...web,checkoutId}}
+    :{state:"confirmed",reason_code:"gateway_return_and_provider_settled",gateway_return_correlated:true,fresh_provider_read:true}});
+  const ok=make("");
+  try{
+    const started=await ok.adapter.executeLocal(quote,requestId,{bankReturnToken});
+    assert.equal(started.state,"requires_bank_action");
+    assert.deepEqual(started.continuation,web);
+  }finally{fs.rmSync(ok.root,{recursive:true,force:true});}
+  const bad=make("abc");
+  try{
+    const started=await bad.adapter.executeLocal(quote,requestId,{bankReturnToken});
+    assert.equal(started.state,"effect_unknown");
+  }finally{fs.rmSync(bad.root,{recursive:true,force:true});}
+});
