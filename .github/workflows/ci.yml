@@ -291,3 +291,6 @@ jobs:
 
       - name: E3 agent file write (biometric, CAS, payment lines kept, five backups)
         run: node scripts/test-agent-file-write-plan.cjs
+
+      - name: H6 canonical resolved intention and free vocabulary boundary
+        run: node scripts/test-payment-pattern-boundary.cjs
