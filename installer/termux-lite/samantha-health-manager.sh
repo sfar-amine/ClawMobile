@@ -196,6 +196,8 @@ while :; do
  check_allowlist_expiry
  "$ROOT/health-verdict.py" --write 9>&- >/dev/null 2>&1 || true
  check_allowlist_expiry
+ # F7: existing maintenance cycle; Companion-owned O_APPEND log stays on its inode.
+ timeout --kill-after=1 2 python3 "$ROOT/gateway-log-retention.py" 9>&- >/dev/null 2>&1 || true
  check_gateway
  check_allowlist_expiry
  check_gateway_memory

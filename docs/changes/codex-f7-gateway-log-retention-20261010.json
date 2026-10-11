@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "codex-f7-gateway-log-retention-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Periodic copy-truncate retention for Companion-owned Gateway append log",
+  "reason": "File35 F7 and file37 cleanup completion; retain the active inode and bound future logs without repeating cleanup.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "docs/changes/codex-f7-gateway-log-retention-20261010.json",
+    "docs/work/samantha-runtime/contracts/f7.md",
+    "installer/termux-lite/gateway-log-retention.py",
+    "installer/termux-lite/test-gateway-log-retention.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/f7/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/f7/gateway-owner-observation.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/f7/resources-inventory.json"
+  ],
+  "tests": [
+    {
+      "name": "f7-gateway-log-retention",
+      "status": "passed",
+      "evidence": "python3 installer/termux-lite/test-gateway-log-retention.py : 11/11 tests verts en0.096s sur runtime363a6b8e avec reprise F7. Capture historique Claude commentairePR81, lot remplacé par PR149 fusionnée ; volume neutre36.6MB, fd O_APPEND/inode préservés, 3archives4MiB0600, parents/liens contrôlés et rotation<2s. Suite entière locale finale encore à rejouer après ce commit de preuve."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/f7.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal maintenance only; no new app route or action exposed."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse existing Companion log owner and health-manager maintenance cycle, no scheduler/store/daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP contracts unchanged; planned canonical descriptions do not activate a second route.",
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "docs/work/samantha-runtime/contracts/f7.md",
+      "installer/termux-lite/test-gateway-log-retention.py"
+    ]
+  },
+  "rollback": "Revert stops future rotations. Rotated logs cannot be reconstructed; Claude alone deploys.",
+  "limitations": [
+    "Periodic4MiB threshold, transient excess between cycles and during health-manager downtime; no instantaneous cap claimed.",
+    "Copy-truncate may discard a small interval of concurrently appended diagnostic bytes; proof journals untouched.",
+    "Local tests only; first real rotation and deployment remain with Claude."
+  ]
+}
