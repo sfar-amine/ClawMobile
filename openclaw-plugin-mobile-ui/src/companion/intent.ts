@@ -25,11 +25,11 @@ export async function submitIntent(text: string, sessionId = "default", attachme
 async function submitMemoIntent(text: string, sessionId: string, attachments: IntentAttachment[],
   options: SubmissionOptions): Promise<IntentSubmitResponse> {
   const session = normalizeCompanionSessionId(sessionId);
-  if (!MEMO_STT_QUALIFICATION.success) return notSubmitted(session, options.clientRunId, "memo_stt_not_qualified");
+  if (!MEMO_STT_QUALIFICATION.success) return notSubmitted(session, options.clientRunId, "Le mémo vocal n’est pas encore disponible.");
   const audio = attachments[0];
   if (options.authority !== "owner" || options.learningOnly || text.trim() || attachments.length !== 1 ||
       audio?.mimeType !== "audio/mp4" || !/^[A-Za-z0-9_-]{1,100}$/.test(audio.serverId || audio.id || "")) {
-    return notSubmitted(session, options.clientRunId, "invalid_memo_request");
+    return notSubmitted(session, options.clientRunId, "Le mémo vocal ne peut pas être envoyé.");
   }
   const attachmentId = audio.serverId || audio.id;
   const identity = "memo:" + attachmentId;
