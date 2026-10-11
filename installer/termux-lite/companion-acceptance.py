@@ -77,6 +77,7 @@ OWNER_GUARDS = [
     # P1 : enrôlement et révocation de l'admission native refusés sans en-tête propriétaire (et sans biométrie/preuve signée).
     ("POST", "/owner-admission/enrollment"),
     ("DELETE", "/owner-admission/enrollment"),
+    ("POST", "/extensions/claw-live/capability"),  # P1: no signed admission, no voice effect
     ("POST", "/payments/local-handoffs"),
     ("POST", "/payments/local-start"),
     ("POST", "/payments/" + "1" * 8 + "-1111-4111-8111-" + "1" * 12 + "/bank-return"),
