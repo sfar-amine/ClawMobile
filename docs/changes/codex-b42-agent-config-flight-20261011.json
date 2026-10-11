@@ -6,13 +6,15 @@
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
   "summary": "Partager les lectures sessions.list et sessions.usage simultanées de /agent/config.",
-  "reason": "Backlog42 lot6 : alléger la route proche de son budget, sans changer fraîcheur ni validation CAS.",
+  "reason": "Backlog42 lot6 : capture S24 #170 du 11/10, 12/12 requêtes concurrentes en 503 avant correction ; coalescer les lectures sans changer fraîcheur ni validation CAS.",
   "files": [
     "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
     "openclaw-plugin-mobile-ui/scripts/test-agent-config-flight.cjs",
     ".github/workflows/ci.yml",
     "docs/changes/codex-b42-agent-config-flight-20261011.json",
-    "docs/changes/codex-b42-agent-config-flight-20261011.md"
+    "docs/changes/codex-b42-agent-config-flight-20261011.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/agent-config/agent-config-budget-before.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/agent-config/README.md"
   ],
   "tests": [
     {

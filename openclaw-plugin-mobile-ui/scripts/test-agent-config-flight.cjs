@@ -1,6 +1,13 @@
 const assert=require('node:assert/strict');
 const fixture=name=>structuredClone(require('../fixtures/s24-2026-10-10/ui-recette/'+name).response);
 (async()=>{
+ const before=require('../fixtures/s24-2026-10-11/agent-config/agent-config-budget-before.json');
+ assert.equal(before._capture.budgetMs,9000);
+ assert.equal(before.concurrent12.results.status503,12);
+ assert.equal(before.concurrent12.results.status200,0);
+ assert.ok(before.concurrent12.totalMs.min>before._capture.budgetMs);
+ assert.ok(before.sequential.some(row=>row.status===200&&row.totalMs>before._capture.budgetMs));
+
  const gateway=require('../dist/companion/openclawAgentClient');
  const counts={};let release;let barrier=new Promise(r=>release=r),failOptional=false;
  gateway.callOpenClawGateway=async(method,params,options)=>{
