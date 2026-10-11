@@ -43,6 +43,11 @@
       "name": "k2-file46-implementation-documentation",
       "status": "passed",
       "evidence": "Existing validate_docs.py:0 errors; git diff --check green after file46 authorization report and actual K2 implementation contract. No current full workflow claimed; all functional sends isolated."
+    },
+    {
+      "name": "R20 shared strict cleanup port to K2",
+      "status": "passed",
+      "evidence": "Shared commit a947eefa ported normally as b8ee4532. EX lock: npm run build and four unchanged/added R20 scripts all passed; strict cleanup reports 9/9 real groups stopped, unknown retained for inaccessible/capped census. Log /workspace/artifacts/b42/k2-file46/r20-port-targeted.log. Earlier full SHA 8a20c15c archived 77/78 with sole R20 descendant-stop failure. New entire workflow pending final frozen SHA; no real WhatsApp send or S24 qualification."
     }
   ],
   "documentation": [
