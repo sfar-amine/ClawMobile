@@ -33,6 +33,11 @@
       "name": "Shared F6/R20 process cleanup corrections",
       "status": "passed",
       "evidence": "EX lock, Node20 npm ci/build + five script gates passed: remote-bridge-abandoned, strict-process-cleanup (9/9 physical groups), file-gateway-limits, file-read-boundary, file-gateway-read. J1 54/54 rerun passed. Log /workspace/artifacts/b42/j1-detector/shared-corrections-targeted-r2.log. First attempt stopped before tests because node_modules was absent; archived. Whole exact-head CI remains pending."
+    },
+    {
+      "name": "Fresh runtime191 workflow union",
+      "status": "passed",
+      "evidence": "Normal merge of runtime f5d8a6d7, AGENTS reread. All base commands preserved:77 run steps, with J1 detector/partition and strict-cleanup commands added inside existing steps. Claude191 quote fixture/test inherited unchanged, no payment owner delta. Local previous54/54 plus shared5/5 script evidence preserved, entire new-head CI pending."
     }
   ],
   "documentation": [
