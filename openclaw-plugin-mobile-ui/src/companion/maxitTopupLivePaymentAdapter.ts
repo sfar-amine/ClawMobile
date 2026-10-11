@@ -199,6 +199,7 @@ export function createMaxitTopupLivePaymentAdapter(options:MaxitTopupLivePayment
     unavailableReason:armed?"maxit_live_acceptance_pending":"maxit_live_acceptance_not_armed",
     bankNavigationOrigins:[
       "https://3ds2.clictopay.com",
+      "https://3dsnew.clictopay.com",
       "https://ipay.clictopay.com",
       "https://krakend-bff.maxit.orange.tn"
     ],
