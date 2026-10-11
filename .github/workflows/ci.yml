@@ -239,3 +239,5 @@ jobs:
         run: python3 ../installer/termux-lite/test-context-voice-read.py
       - name: H9 read-only UI smoke synthetic safety boundaries
         run: python3 ../installer/termux-lite/test-ui-smoke.py
+      - name: O10 voice admits the low-risk owner decision record, never payment or confirmed paths
+        run: node scripts/test-voice-low-risk-admission.cjs
