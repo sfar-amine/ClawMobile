@@ -192,18 +192,27 @@ def iter_segments(fd, allowance, deadline):
 
 
 def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=1024*1024, max_entries=20000, max_findings=1000, seconds=10):
-    result = {'schemaVersion': 1, 'state': 'ok', 'findings': [], 'warnings': [], 'accepted': [], 'stats': {'files': 0, 'bytes': 0, 'entries': 0, 'skipped': 0, 'binary': 0}}
-    deadline = time.monotonic() + seconds
+    roots = list(roots)
+    if len(roots) > 8 or len({label for label, _ in roots}) != len(roots):
+        raise ValueError('invalid_root_count')
+    result = {'schemaVersion': 1, 'state': 'ok', 'findings': [], 'warnings': [], 'accepted': [], 'roots': [], 'stats': {'files': 0, 'bytes': 0, 'entries': 0, 'skipped': 0, 'binary': 0}}
+    global_deadline = time.monotonic() + seconds
+    deadline = global_deadline
+    ceilings = dict(files=max_files, bytes=max_bytes, entries=max_entries, rows=max_findings)
+    root_partial = False
     stats = result['stats']
     accepted_rows = accepted_signature_rows()
     accepted_cards = {(row['path'], row['hash']): row['raison'] for row in accepted_rows if row['type'] == 'card'}
     public_evidence = {row['path']: row['hash'] for row in accepted_rows if row['type'] == 'public_fixture'}
     public_files = {}
-    def partial(): result['state'] = 'partial'
+    def partial():
+        nonlocal root_partial
+        root_partial = True
+        result['state'] = 'partial'
     def exhausted():
-        return (time.monotonic() >= deadline or stats['files'] >= max_files or stats['bytes'] >= max_bytes or stats['entries'] >= max_entries or len(result['findings']) + len(result['warnings']) + len(result['accepted']) >= max_findings)
+        return (time.monotonic() >= deadline or stats['files'] >= ceilings['files'] or stats['bytes'] >= ceilings['bytes'] or stats['entries'] >= ceilings['entries'] or len(result['findings']) + len(result['warnings']) + len(result['accepted']) >= ceilings['rows'])
     def append(kind, value, path, line, warning=False):
-        if len(result['findings']) + len(result['warnings']) + len(result['accepted']) >= max_findings:
+        if len(result['findings']) + len(result['warnings']) + len(result['accepted']) >= ceilings['rows']:
             partial(); return
         digest = hashlib.sha256(value.encode()).hexdigest()[:16]
         row = {'path': path, 'line': line, 'type': kind, 'hash': digest}
@@ -240,7 +249,7 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                             if not stat.S_ISREG(current.st_mode) or current.st_nlink != 1: partial(); continue
                             if relative in public_files:
                                 # Verify the entire file before any accepted signature can apply.
-                                if current.st_size > min(file_bytes, max_bytes-stats['bytes']):
+                                if current.st_size > min(file_bytes, ceilings['bytes']-stats['bytes']):
                                     partial(); continue
                                 digest = hashlib.sha256()
                                 remaining = current.st_size
@@ -259,7 +268,7 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                                         and digest.hexdigest() == public_files[relative]):
                                     attested_files.add(relative)
                                 os.lseek(child, 0, os.SEEK_SET)
-                            allowance = min(file_bytes, max_bytes-stats['bytes'])
+                            allowance = min(file_bytes, ceilings['bytes']-stats['bytes'])
                             stats['files'] += 1
                             segments = iter_segments(child, allowance, deadline)
                             outcome, read = None, 0
@@ -267,7 +276,7 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                                 try: number, line, offset, accept_before = next(segments)
                                 except StopIteration as done:
                                     outcome, read = done.value; break
-                                if len(result['findings']) + len(result['warnings']) + len(result['accepted']) >= max_findings:
+                                if len(result['findings']) + len(result['warnings']) + len(result['accepted']) >= ceilings['rows']:
                                     outcome, read = 'findings', allowance; break
                                 for kind, pattern in [('token', TOKEN), ('private_key', PRIVATE), ('jwt', JWT), ('otp', OTP), ('card', CARD), ('email', EMAIL)]:
                                     for match in pattern.finditer(line):
@@ -287,30 +296,56 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                         finally: os.close(child)
                     else: stats['skipped'] += 1
                 except OSError: partial()
-    for label, path in roots:
+    # Each root receives a share of the remaining budget inside the same job.
+    # Unused shares flow forward; no persistent cursor, worker or multiplied cap.
+    for index, (label, path) in enumerate(roots):
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,40}', label): raise ValueError('invalid_root_label')
-        if exhausted(): partial(); break
-        try: fd = open_root(path)
-        except OSError: partial(); continue
-        repository = Path(__file__).resolve().parents[2]
-        public_anchors = {'core': repository, 'core_installer': repository / 'installer', 'core_plugin': repository / 'openclaw-plugin-mobile-ui'}
-        public_files = public_evidence if label in public_anchors and Path(path).absolute() == public_anchors[label] else {}
-        attested_files.clear()
-        try: visit(fd, safe_name(label))
-        finally: os.close(fd)
+        started = time.monotonic()
+        remaining_roots = len(roots) - index
+        before = dict(stats)
+        row_count = len(result['findings']) + len(result['warnings']) + len(result['accepted'])
+        root_partial = False
+        budget = max(0, global_deadline - started) / remaining_roots
+        deadline = min(global_deadline, started + budget)
+        for key, maximum in [('files', max_files), ('bytes', max_bytes), ('entries', max_entries)]:
+            ceilings[key] = stats[key] + max(0, maximum - stats[key]) // remaining_roots
+        ceilings['rows'] = row_count + max(0, max_findings - row_count) // remaining_roots
+        if exhausted() or any(part in EXCLUDED or PRIVATE_NAME.search(part) for part in Path(path).parts):
+            partial()
+        else:
+            try: fd = open_root(path)
+            except OSError: partial()
+            else:
+                repository = Path(__file__).resolve().parents[2]
+                public_anchors = {'core': repository, 'core_installer': repository / 'installer', 'core_plugin': repository / 'openclaw-plugin-mobile-ui'}
+                public_files = public_evidence if label in public_anchors and Path(path).absolute() == public_anchors[label] else {}
+                attested_files.clear()
+                try: visit(fd, safe_name(label))
+                finally: os.close(fd)
+        result['roots'].append({
+            'label': safe_name(label), 'state': 'partial' if root_partial else 'ok',
+            'budgetMs': int(budget * 1000),
+            'durationMs': int(max(0, time.monotonic() - started) * 1000),
+            'stats': {key: stats[key] - before[key] for key in before},
+        })
     return result
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', action='append', required=True, metavar='LABEL=ABSOLUTE_PATH')
+    for name, maximum in [('files', 10000), ('bytes', 64*1024*1024), ('entries', 20000), ('findings', 1000)]:
+        parser.add_argument('--max-' + name, type=int, default=maximum)
+    parser.add_argument('--seconds', type=float, default=10)
     args = parser.parse_args()
+    if not 0 <= args.seconds <= 10 or any(not 0 <= getattr(args, 'max_' + name) <= maximum for name, maximum in [('files',10000),('bytes',64*1024*1024),('entries',20000),('findings',1000)]):
+        parser.error('invalid scanner budget')
     roots = []
     for row in args.root:
         label, sep, path = row.partition('=')
         if not sep or not Path(path).is_absolute(): parser.error('root requires LABEL=ABSOLUTE_PATH')
         roots.append((label, path))
-    try: result = scan_roots(roots)
+    try: result = scan_roots(roots, max_files=args.max_files, max_bytes=args.max_bytes, max_entries=args.max_entries, max_findings=args.max_findings, seconds=args.seconds)
     except ValueError: parser.error('invalid root label')
     print(json.dumps(result, ensure_ascii=True, separators=(',', ':')))
     return 1 if result['findings'] else 2 if result['state'] == 'partial' else 0

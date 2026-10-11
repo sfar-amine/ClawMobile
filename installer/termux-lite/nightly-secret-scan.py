@@ -6,10 +6,14 @@ from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import sys
+import time
 
 MAX_ROWS=1000
 MAX_PATH=8192
 SCAN_TIMEOUT=12
+# Existing runner cleanup can take 2 s wait + 2 s descendant termination.
+SCAN_CLEANUP_MARGIN=4
+SCAN_JOB_TIMEOUT=8*(SCAN_TIMEOUT+SCAN_CLEANUP_MARGIN)
 TYPES={'token','private_key','jwt','otp','card','email'}
 
 def scanner_owner(root):
@@ -22,6 +26,7 @@ def explicit_roots(rows):
  if len(rows)>8:raise ValueError('secret_roots_limit')
  for label,path in rows:
   if not isinstance(label,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,40}',label) or not isinstance(path,(str,Path)) or not Path(path).is_absolute() or '\0' in str(path):raise ValueError('invalid_secret_root')
+  if any(existing==label for existing,_ in roots):raise ValueError('duplicate_secret_root')
   roots.append((label,str(path)))
  return roots
 
@@ -49,6 +54,33 @@ def closed_scan(raw,owner):
   value=stats.get(key)
   if not isinstance(value,int) or isinstance(value,bool) or not 0<=value<=limit:raise ValueError('invalid_secret_scan_stats')
   out['stats'][key]=value
+ # Old receipts have no root diagnostics; the optional new projection is closed.
+ roots=raw.get('roots')
+ if roots is not None:
+  if not isinstance(roots,list) or len(roots)>8:raise ValueError('invalid_secret_scan_roots')
+  projected=[];labels=set();totals={key:0 for key in out['stats']}
+  for row in roots:
+   if not isinstance(row,dict) or set(row)!={'label','state','budgetMs','durationMs','stats'}:raise ValueError('invalid_secret_scan_root')
+   label=row['label']
+   if not isinstance(label,str) or not label or len(label)>96 or '/' in label or any(ord(c)<32 for c in label):raise ValueError('invalid_secret_scan_root_label')
+   safe=owner.safe_name(label)
+   if safe in labels or row['state'] not in ('ok','partial'):raise ValueError('invalid_secret_scan_root_state')
+   labels.add(safe)
+   for key,maximum in [('budgetMs',10000),('durationMs',SCAN_JOB_TIMEOUT*1000)]:
+    if type(row[key]) is not int or not 0<=row[key]<=maximum:raise ValueError('invalid_secret_scan_root_time')
+   if row['stats'] is None:
+    if row['state']!='partial':raise ValueError('invalid_secret_scan_root_stats')
+    projected.append({'label':safe,'state':'partial','budgetMs':row['budgetMs'],'durationMs':row['durationMs'],'stats':None})
+    continue
+   if not isinstance(row['stats'],dict):raise ValueError('invalid_secret_scan_root_stats')
+   stats={}
+   for key,maximum in [('files',10000),('bytes',64*1024*1024),('entries',20000),('skipped',20000)]:
+    value=row['stats'].get(key)
+    if type(value) is not int or not 0<=value<=maximum:raise ValueError('invalid_secret_scan_root_stats')
+    stats[key]=value;totals[key]+=value
+   projected.append({'label':safe,'state':row['state'],'budgetMs':row['budgetMs'],'durationMs':row['durationMs'],'stats':stats})
+  if totals!=out['stats'] or (out['state']=='ok' and any(row['state']!='ok' for row in projected)):raise ValueError('invalid_secret_scan_root_totals')
+  out['roots']=projected
  return out
 
 def signatures(rows):
@@ -58,20 +90,48 @@ def execute_scan(root,roots,history,runner):
  if not roots:return {'state':'not_configured'},False
  roots=explicit_roots(roots)
  if not (root/'workspace-secret-scan.py').is_file():return {'state':'unavailable','reason':'secret_scan_not_installed'},True
- try:
-  owner=scanner_owner(root)
-  command=[sys.executable,str(root/'workspace-secret-scan.py')]
-  for label,path in roots:command.extend(['--root',label+'='+path])
-  code,raw=runner(command,SCAN_TIMEOUT)
-  out=closed_scan(raw,owner)
-  expected=1 if out['findings'] else 2 if out['state']=='partial' else 0
-  if code!=expected:raise ValueError('secret_scan_exit_mismatch')
-  known=set()
-  for receipt in history:
-   try:previous=closed_scan(receipt.get('secretScan'),owner)
-   except (ValueError,AttributeError):continue
-   known.update(signatures(previous['findings']))
-  out['newFindingCount']=len(signatures(out['findings'])-known)
-  return out,out['newFindingCount']>0 or out['state']=='partial'
- except (OSError,ValueError,TimeoutError,subprocess.SubprocessError):
-  return {'state':'unavailable','reason':'secret_scan_unavailable'},True
+ try:owner=scanner_owner(root)
+ except (OSError,ValueError,ImportError):return {'state':'unavailable','reason':'secret_scan_unavailable'},True
+ out={'schemaVersion':1,'state':'ok','findings':[],'warnings':[],'accepted':[],
+      'stats':{'files':0,'bytes':0,'entries':0,'skipped':0},'roots':[]}
+ deadline=time.monotonic()+SCAN_JOB_TIMEOUT
+ limits={'files':10000,'bytes':64*1024*1024,'entries':20000,'findings':MAX_ROWS}
+ consumed={key:0 for key in limits}
+ for index,(label,path) in enumerate(roots):
+  started=time.monotonic();remaining_roots=len(roots)-index
+  shares={key:max(0,maximum-consumed[key])//remaining_roots for key,maximum in limits.items()}
+  timeout=min(SCAN_TIMEOUT,max(0,deadline-started-SCAN_CLEANUP_MARGIN))
+  seconds=min(10,max(0,timeout-2))
+  diagnostic={'label':owner.safe_name(label),'state':'partial','budgetMs':int(seconds*1000),'durationMs':0,
+              'stats':None}
+  try:
+   if not seconds or not all(shares.values()):raise TimeoutError('secret_scan_budget_exhausted')
+   command=[sys.executable,str(root/'workspace-secret-scan.py'),'--root',label+'='+path,'--seconds',str(seconds)]
+   for key,maximum in shares.items():command.extend(['--max-'+key,str(maximum)])
+   code,raw=runner(command,timeout)
+   projection=closed_scan(raw,owner)
+   expected=1 if projection['findings'] else 2 if projection['state']=='partial' else 0
+   if code!=expected:raise ValueError('secret_scan_exit_mismatch')
+   if any(projection['stats'][key]>shares[key] for key in ('files','bytes','entries')) or sum(len(projection[key]) for key in ('findings','warnings','accepted'))>shares['findings']:raise ValueError('secret_scan_partition_limit')
+   prefix=owner.safe_name(label)+'/'
+   if any(not row['path'].startswith(prefix) for key in ('findings','warnings','accepted') for row in projection[key]):raise ValueError('secret_scan_partition_path')
+   diagnostic['state']=projection['state'];diagnostic['stats']=projection['stats']
+   for key in ('findings','warnings','accepted'):out[key].extend(projection[key])
+   for key in out['stats']:out['stats'][key]+=projection['stats'][key]
+   for key in consumed:consumed[key]+=sum(len(projection[k]) for k in ('findings','warnings','accepted')) if key=='findings' else projection['stats'][key]
+  except (OSError,ValueError,TimeoutError,subprocess.SubprocessError):
+   # A failed root is explicitly partial; it cannot erase earlier findings or
+   # prevent subsequent roots from being visited within the same bounded job.
+   # No trustworthy counters returned: reserve the entire granted share.
+   # Failed scans therefore cannot multiply the global read/row budget.
+   for key in consumed:consumed[key]+=shares[key]
+  diagnostic['durationMs']=int(max(0,time.monotonic()-started)*1000)
+  if diagnostic['state']=='partial':out['state']='partial'
+  out['roots'].append(diagnostic)
+ known=set()
+ for receipt in history:
+  try:previous=closed_scan(receipt.get('secretScan'),owner)
+  except (ValueError,AttributeError):continue
+  known.update(signatures(previous['findings']))
+ out['newFindingCount']=len(signatures(out['findings'])-known)
+ return out,out['newFindingCount']>0 or out['state']=='partial'

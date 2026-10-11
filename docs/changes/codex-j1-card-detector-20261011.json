@@ -5,8 +5,8 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Reject timestamp and identifier card false positives with exact attested public fixture signatures.",
-  "reason": "Backlog 42 lot 6 following merged #161; reuse existing bounded scanner and nightly receipt without changing the budget.",
+  "summary": "Reject timestamp/card false positives and partition the existing nightly scan by root with closed bounded diagnostics.",
+  "reason": "Backlog 46 carrying decision 45: eight sequential roots, ten seconds each, existing H8 owner with explicit bounded job envelope and unchanged user-route budgets.",
   "files": [
     "installer/termux-lite/workspace-secret-scan.py",
     "installer/termux-lite/workspace-secret-scan-fixtures.json",
@@ -18,13 +18,16 @@
     "docs/changes/codex-j1-card-detector-20261011.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/j1/secret-scan-before.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/j1/secret-scan-before-after-164.json",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/README-j1-hs2-hs3.md"
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/README-j1-hs2-hs3.md",
+    "installer/termux-lite/test-nightly-secret-scan.py",
+    "installer/termux-lite/test-secret-scan-root-partition.py",
+    "docs/work/samantha-runtime/contracts/j1.md"
   ],
   "tests": [
     {
-      "name": "full-final-head-ci",
-      "status": "pending",
-      "evidence": "Preparation only while R5 CI is exclusive; new dynamic card boundary and receipt regressions registered in existing J1 CI step."
+      "name": "J1 bounded root partitions and inherited owners",
+      "status": "passed",
+      "evidence": "EX stage lock: test-secret-scan-root-partition.py 12/12; test-nightly-secret-scan.py 7/7; test-card-detector.py 7/7; test-workspace-secret-scan.py 16/16; test-companion-nightly-acceptance.py 12/12. Total 54/54 on prepared code; complete frozen-head CI still pending."
     }
   ],
   "documentation": [
@@ -53,9 +56,10 @@
   },
   "rollback": "Revert this lot; no migration or new persistent owner.",
   "limitations": [
-    "Local full final-head CI and S24 qualification pending; no ready claim.",
+    "Complete frozen-head local CI (77 run stages on runtime 7c5cddc5) and final S24 nightly receipt remain pending; no ready claim.",
     "PR176 f036943 measured old code 1d66b82c: 351 to 14 cards over eight complete separate scans. Combined scan remains partial at unchanged budget; current-head reduction is unmeasured.",
     "Five exact public core blobs at 3298d98d audited as negative masking/refusal fixtures, no private exclusion changed. Playbooks signatures remain active pending canonical pin and public source attestation.",
-    "X6 root partition remains preparation only: preserve existing total nightly timeout and global collection limits, no new scheduler or budget increase."
+    "Nightly scan envelope changes from combined 12 s to at most 128 s: 8 x (10 s scan + 2 s subprocess margin + 4 s existing cleanup). Global volumes unchanged; final per-root S24 qualification pending.",
+    "Fresh runtime 7c5cddc5 changed test-file-read-boundary.cjs; old whole-file attestation intentionally stops applying. Four other public blobs remain byte-identical; no new acceptance or live count claimed."
   ]
 }
