@@ -61,7 +61,10 @@ export function runProgressSteps(run: RunProgressSource): RunProgressSteps | und
       steps.push({id: "clarify", label: t.clarify, state: s, at: s === "running" ? undefined : ended});
       if (s === "failed") failedStep = t.clarify;
     } else {
-      const s = terminalState(run.state);
+      // HS3: a payment handoff ends with its payment request, not with the run that prepared it.
+      const pay = p?.payment?.state;
+      const s: RunStepState = pay && p?.status === "error" ? "failed"
+        : pay && ["awaiting_owner", "executing", "requires_bank_action"].includes(pay) ? "running" : terminalState(run.state);
       steps.push({id: "execute", label: t.execute, state: s, at: s === "done" || s === "failed" ? ended : undefined});
       if (s === "failed") failedStep = p?.failure?.step || t.execute;
     }

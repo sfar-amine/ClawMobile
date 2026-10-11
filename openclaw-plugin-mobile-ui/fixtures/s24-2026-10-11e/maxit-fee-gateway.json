@@ -1,0 +1,12 @@
+{
+  "source": "S24 11/10/2026, sondes autorisées par Amine (lot paiement frais Maxit) : écrans Maxit via garde Wi-Fi coupé + DNS mobile, sessions ClicToPay getSessionStatus.do d'ordres non payés. Valeurs monétaires et clés seulement ; aucun numéro, jeton, cookie, mdOrder ni donnée carte.",
+  "maxitRecapBeforeOrder": [
+    {"amountTnd": "5", "recapMontant": "5 DT", "recapTotal": "5", "topUpAmount": "5.0", "transactionAmount": "5.0", "receiverAmount": "5.0", "taxAmount": "0.0", "withTaxForcedTrueChangesNothing": true},
+    {"amountTnd": "10", "recapMontant": "10 DT", "recapTotal": "10", "topUpAmount": "10.0", "transactionAmount": "10.0", "receiverAmount": "10.0", "taxAmount": "0.0", "withTaxForcedTrueChangesNothing": true}
+  ],
+  "clicToPaySessions": [
+    {"amountMinor": 5000, "sessionAmount": "5.700 TND", "totalAmountFormatted": "5.700", "feeEnabled": false, "capturedAt": "2026-10-11T12:49+01:00 (essai réel bloqué gateway_amount_mismatch)"},
+    {"amountMinor": 10000, "sessionAmount": "11.400 TND", "totalAmountFormatted": "11.400", "feeEnabled": false, "feeCalculationAllowed": false, "capturedAt": "2026-10-11T13:00+01:00 (ordre non payé)"}
+  ],
+  "rule": "maxit_card_fee_14pct_v1 : frais = 14 % du montant (propriétaire : samantha-ui-playbooks telecom/maxit_topup_payment.py)"
+}
