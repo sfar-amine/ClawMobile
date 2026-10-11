@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "id": "codex-hs6-voice-metadata-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Préparation pure du transport optionnel HS3 vers la voix, non branchée",
+  "reason": "Réaliser la préparation contractuelle disponible sans inventer captures, langue de session, progression ou succès métier.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/voiceReceiptMetadata.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-receipt-metadata.cjs",
+    "docs/work/samantha-runtime/contracts/hs6.md",
+    "docs/changes/codex-hs6-voice-metadata-20261011.md",
+    "docs/changes/codex-hs6-voice-metadata-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "HS6 adaptateur voix pur",
+      "status": "passed",
+      "evidence": "Compilation TypeScript et onze tests contractuels générés, non qualifiants S24 ; régression OTP/PIN courts désignés, nombres non secrets préservés et projection détachée ; aucun branchement actif."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs6.md",
+    "docs/changes/codex-hs6-voice-metadata-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Adaptateur pur non branché, aucune route ni action nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise le reader HS3 existant ; aucun canal, store, registre, scheduler ou routeur."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Aucune primitive owner ni route active modifiée."
+  },
+  "rollback": "Retirer adaptateur et test ; aucune donnée runtime ni paiement à restaurer.",
+  "limitations": [
+    "Préparation non branchée, pas livraison complète HS6.",
+    "Captures réelles de quatre cas, sources HS4/HS5 et lien langue du tour manquants ; core #124.",
+    "Dépend HS3 local f25dbf042ffc6c470ccc1f2c4ba23faa4adab40e ; GitHub inaccessible, état distant non affirmé.",
+    "Pas de nouvelle route : aucun budget HTTP ni ligne acceptance fictifs.",
+    "Exclusion supplémentaire HS6 seulement : reader HS3 partagé inchangé, pas de détection universelle ni qualification de données runtime."
+  ]
+}
