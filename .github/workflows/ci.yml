@@ -239,3 +239,7 @@ jobs:
         run: python3 ../installer/termux-lite/test-context-voice-read.py
       - name: H9 read-only UI smoke synthetic safety boundaries
         run: python3 ../installer/termux-lite/test-ui-smoke.py
+      - name: O6 fast path waits for the guarded operator entry (60 s bound)
+        run: |
+          python3 ../installer/termux-lite/test-guarded-operator-wait.py
+          node scripts/test-guarded-entry-wait.cjs

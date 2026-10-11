@@ -114,6 +114,14 @@ function originId(event: InboundEvent, ctx: InboundContext): string {
   ).slice(0, 120);
 }
 
+/** O6 (fichier 37) : a guarded operator read holds Wi-Fi off for at most 60 s; the helper waits up to 70 s for it.
+ * An executing call is never killed before that wait (+ 15 s for resolution and process start). Other routes stay
+ * bounded by the helper's own budget; a check-only call keeps its short budget. */
+export const GUARDED_ENTRY_WAIT_S = 70;
+export function fastPathProcessTimeoutMs(timeoutSeconds: number, checkOnly: boolean): number {
+  return checkOnly ? (timeoutSeconds + 8) * 1000 : (Math.max(timeoutSeconds, GUARDED_ENTRY_WAIT_S) + 15) * 1000;
+}
+
 export async function runModelFastPath(
   message: string,
   options: RunnerOptions = {},
@@ -137,11 +145,12 @@ export async function runModelFastPath(
         "--timeout", String(Math.max(2, Math.min(options.timeoutSeconds || 30, 120))),
         message,
       ];
+      const timeoutSeconds = Math.max(2, Math.min(options.timeoutSeconds || 30, 120));
       const raw: any = await execFileAsync(
         "python3",
         [helper, ...argv],
         {
-          timeout: Math.min((Math.max(2, Math.min(options.timeoutSeconds || 30, 120)) + 8) * 1000,remaining ?? Infinity),
+          timeout: Math.min(fastPathProcessTimeoutMs(timeoutSeconds, !!options.checkOnly),remaining ?? Infinity),
           ...(remaining!==undefined?{killSignal:"SIGKILL" as const}:{}),
           maxBuffer: 2 * 1024 * 1024,
           env: {
