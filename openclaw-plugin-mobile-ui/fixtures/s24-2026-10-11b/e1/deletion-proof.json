@@ -1,0 +1,20 @@
+{
+ "_capture": {
+  "source": "~/.openclaw/state/openclaw.sqlite ouvert en ?mode=ro",
+  "method": "comptages après cron.remove ; empreintes sha256[:16] de job_json des 17 autres jobs relevées avant cron.add et après cron.remove"
+ },
+ "result": {
+  "capturedAt": "2026-10-10T23:33:02.004600Z",
+  "cron_jobs_rows_matching_id": 0,
+  "cron_jobs_rows_matching_name_prefix": 0,
+  "cron_jobs_count_before": 17,
+  "cron_jobs_count_after": 17,
+  "definitions_unchanged": true,
+  "changed": [],
+  "other_tables_referencing_id": {
+   "cron_jobs.job_id": 0,
+   "cron_run_receipts.job_id": 0,
+   "cron_job_scratch.job_id": 0
+  }
+ }
+}
