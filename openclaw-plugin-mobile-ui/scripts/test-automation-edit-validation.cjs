@@ -1,3 +1,4 @@
+(async()=>{
 const assert=require('assert/strict');
 const {validateAutomationEdit:v,automationEditBinding:b,assertAutomationEditable:guard}=require('../dist/companion/automationEditValidation');
 let count=0;const test=(fn)=>{fn();count++;};const error=(fn,code)=>assert.throws(fn,e=>e.message===code);
@@ -8,7 +9,8 @@ for(const expr of ['*/5 * * * *','0 23 31 12 7'])test(()=>assert.equal(v({schedu
 for(const expr of ['60 * * * *','0 24 * * *','0 0 * *','@daily','0 0 32 * *','*/0 * * * *'])test(()=>error(()=>v({schedule:{kind:'cron',expr}},now),'invalid_automation_edit'));
 test(()=>assert.equal(v({schedule:{kind:'at',at:'2026-10-11T00:00:00Z'}},now).schedule.at,'2026-10-11T00:00:00.000Z'));
 for(const at of ['2026-10-10T00:00:00Z','2026-02-30T00:00:00Z','garbage'])test(()=>error(()=>v({schedule:{kind:'at',at}},now),'invalid_automation_edit'));
-for(const message of ['payer une facture','top-up orange','régler 50 TND'])test(()=>error(()=>v({message}),'automation_payment_excluded'));
+for(const message of ['payer une facture','top-up orange','régler 50 TND','pays et paysage'])test(()=>assert.equal(v({message}).message,message));
+for(const name of ['paiement','recharge','pays'])test(()=>assert.equal(v({name}).name,name));
 for(const message of ['mon code est 482913','owner@example.invalid','token=example'])test(()=>error(()=>v({message}),'automation_sensitive_input'));
 test(()=>assert.equal(v({message:'x'.repeat(4000)}).message.length,4000));test(()=>error(()=>v({message:'x'.repeat(4001)}),'invalid_automation_edit'));
 test(()=>assert.deepEqual(v({enabled:false}),{enabled:false}));
@@ -17,5 +19,11 @@ const job={id:'test',payload:{kind:'agentTurn',message:'hello'}};
 test(()=>assert.equal(b(job,v({message:'hello'})).requiresConfirmation,true));test(()=>assert.equal(b(job,v({enabled:false})).requiresConfirmation,false));
 test(()=>assert.equal(b({id:'event',payload:{kind:'systemEvent',text:'hello'}},v({schedule:{kind:'every',everyMs:60000}})).requiresConfirmation,false));
 test(()=>assert.equal(b(job,v({enabled:false,name:'hello'})).payloadHash,b(job,v({name:'hello',enabled:false})).payloadHash));
-test(()=>error(()=>guard({id:'protected',payload:{message:'payer facture'}}),'automation_protected'));
+const fast=require('../dist/modelFastPath');
+fast.runModelFastPath=async(text,options)=>{assert.equal(options.checkOnly,true);return {status:'eligible',decision:{version:2,type:'EXECUTE',risk:'transaction'}};};
+await assert.rejects(guard({id:'protected',payload:{kind:'agentTurn',message:'instruction de test'}}),e=>e.message==='automation_protected');count++;
+fast.runModelFastPath=async()=>({status:'miss'});
+await assert.rejects(guard({payload:{kind:'agentTurn',message:'instruction de test'}}),e=>e.message==='automation_guard_unavailable');count++;
 console.log(JSON.stringify({state:'passed',tests:count,qualification:'pure validation only; no Gateway mutation or CAS proof'}));
+
+})().catch(error=>{console.error(error);process.exitCode=1;});

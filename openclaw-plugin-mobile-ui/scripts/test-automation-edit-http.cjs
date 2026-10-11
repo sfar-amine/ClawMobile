@@ -10,8 +10,12 @@ const step=label=>capture.steps.find(s=>s.label===label);
  const ledger=path.join(directory,'runs.json');await fs.writeFile(ledger,JSON.stringify({version:1,runs:[]}));
  const gateway=require('../dist/companion/openclawAgentClient');
  const created=step('02-cron.get').response,updated=step('03-cron.update').response,stale=step('05-cron.update-stale').response;
- let jobs,updates=0,lists=0,latency={},updateFails=null,applyThenFail=false;
- const reset=()=>{jobs=[structuredClone(created)];updates=0;lists=0;latency={};updateFails=null;applyThenFail=false;};reset();
+ let jobs,updates=0,lists=0,latency={},updateFails=null,applyThenFail=false,intentState='safe',resolved=[];
+ const fast=require('../dist/modelFastPath');
+ const originalFast=fast.runModelFastPath;
+ // Inject only the Graph transport decision; exercise the real async H6 owner, no lexical predicate.
+ fast.runModelFastPath=async(text,options)=>{assert.equal(options.checkOnly,true);resolved.push(text);return intentState==='unavailable'?{status:'miss'}:{status:'eligible',decision:{version:2,type:'EXECUTE',risk:intentState==='protected'?'transaction':'read'}};};
+ const reset=()=>{jobs=[structuredClone(created)];updates=0;lists=0;latency={};updateFails=null;applyThenFail=false;intentState='safe';resolved=[];};reset();
  const wait=ms=>ms?new Promise(r=>setTimeout(r,ms)):null;
  gateway.callOpenClawGateway=async(method,params)=>{
   await wait(latency[method]);
@@ -51,18 +55,19 @@ const step=label=>capture.steps.find(s=>s.label===label);
  try{
   // 1. Owner boundary before anything: no header, browser origin.
   reset();ok((await request(url,'PATCH',{operationId:'x',name:'n'})).status===403,'owner header required');ok(lists===0&&updates===0);
-  // 2. Real predicate on the real captured job: the structural key `payload` matches \bpay, so the job is protected (409).
-  //    Kept on purpose (Claude, 10/10: never weaken; owner fix in a separate PR). Nothing is read twice, nothing written.
-  const real=await request(url,'PATCH',{operationId:'real-guard',name:'Renommage neutre'},ifMatch(created.configRevision));
-  ok(real.status===409&&real.body.error==='automation_protected',JSON.stringify(real));ok(updates===0);
-  // 3. Payment and validation refusals precede any owner read.
-  for(const [body,code,status] of [[{name:'payer la facture'},'automation_payment_excluded',422],[{message:'recharge 10 TND'},'automation_payment_excluded',422],[{message:'mon code 482913'},'automation_sensitive_input',422],[{schedule:{kind:'every',everyMs:59999}},'invalid_automation_edit',400],[{schedule:{kind:'cron',expr:'@daily'}},'invalid_automation_edit',400],[{schedule:{kind:'at',at:'2020-01-01T00:00:00Z'}},'invalid_automation_edit',400],[{message:'x'.repeat(4001)},'invalid_automation_edit',400],[{payload:{kind:'agentTurn'}},'invalid_automation_edit',400]]){
+  // 2. The captured payload shape is admitted from the resolved read intention, not its JSON keys or name.
+  reset();const real=await request(url,'PATCH',{operationId:'real-guard',name:'Pays, paysage, paiement et recharge'},ifMatch(created.configRevision));
+  ok(real.status===200&&real.body.state==='completed',JSON.stringify(real));ok(updates===1&&resolved.length===1);ok(resolved[0]===created.payload.message,'only the canonical payload is resolved');
+  // A resolved financial intent is refused independently of the words used by its name or instruction.
+  reset();intentState='protected';const protectedResult=await request(url,'PATCH',{operationId:'protected-final',message:'Instruction neutre de test'},ifMatch(created.configRevision));
+  ok(protectedResult.status===409&&protectedResult.body.error==='automation_protected',JSON.stringify(protectedResult));ok(updates===0&&resolved.length===1&&resolved[0]==='Instruction neutre de test');
+  reset();intentState='unavailable';const unqualified=await request(url,'PATCH',{operationId:'unavailable-final',enabled:true},ifMatch(created.configRevision));
+  ok(unqualified.status===503&&unqualified.body.error==='automation_guard_unavailable',JSON.stringify(unqualified));ok(updates===0);
+  // 3. Sensitive input and structural validation precede any owner read; payment vocabulary is not validation.
+  for(const [body,code,status] of [[{message:'mon code 482913'},'automation_sensitive_input',422],[{schedule:{kind:'every',everyMs:59999}},'invalid_automation_edit',400],[{schedule:{kind:'cron',expr:'@daily'}},'invalid_automation_edit',400],[{schedule:{kind:'at',at:'2020-01-01T00:00:00Z'}},'invalid_automation_edit',400],[{message:'x'.repeat(4001)},'invalid_automation_edit',400],[{payload:{kind:'agentTurn'}},'invalid_automation_edit',400]]){
    reset();const r=await request(url,'PATCH',{operationId:'v-'+count,...body},ifMatch(created.configRevision));ok(r.status===status&&r.body.error===code,JSON.stringify([body,r]));ok(lists===0&&updates===0,'refused before owner read');
   }
   reset();const noRev=await request(url,'PATCH',{operationId:'norev',name:'Neutre'},owner);ok(noRev.status===428&&noRev.body.error==='automation_revision_required');ok(lists===0);
-  // The remaining cases exercise the edit itself with a content-only predicate (the expected owner fix): the captured
-  // job shape is unchanged, only the structural false positive is neutralised in this test.
-  automations.protectedJob=job=>automations.protectedPayment([job.name,job.description,job.payload?.message,job.payload?.argv]);
   // 4. Detail exposes the native revision used as If-Match.
   reset();const detail=await request(url,'GET');ok(detail.status===200&&detail.body.revision===created.configRevision&&Array.isArray(detail.body.actions),JSON.stringify(detail));
   // 5. CAS precheck: a stale If-Match is refused before effect with the current revision.
@@ -116,7 +121,7 @@ const step=label=>capture.steps.find(s=>s.label===label);
   ok(JSON.stringify(edit.gatewayPatch(created,{schedule:{kind:'every',everyMs:60000}}))==='{"schedule":{"kind":"every","everyMs":60000}}');
   ok(JSON.stringify(edit.gatewayPatch(created,{message:'Bonjour'}))==='{"payload":{"kind":"agentTurn","message":"Bonjour"}}');
   ok(JSON.stringify(edit.gatewayPatch(created,{schedule:{kind:'cron',expr:'30 5 2 1 *'}}))===JSON.stringify({schedule:step('03-cron.update').params.patch.schedule}));
-  automations.protectedJob=realProtected;
+  fast.runModelFastPath=originalFast;
   console.log(JSON.stringify({state:'passed',assertions:count,fixture:'s24-2026-10-11b/e1/cron-lifecycle.json',patchMs:took}));
- }finally{server.closeAllConnections?.();await new Promise(r=>server.close(r));if(old===undefined)delete process.env.OPENCLAW_STATE_DIR;else process.env.OPENCLAW_STATE_DIR=old;await fs.rm(root,{recursive:true,force:true});}
+ }finally{fast.runModelFastPath=originalFast;server.closeAllConnections?.();await new Promise(r=>server.close(r));if(old===undefined)delete process.env.OPENCLAW_STATE_DIR;else process.env.OPENCLAW_STATE_DIR=old;await fs.rm(root,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

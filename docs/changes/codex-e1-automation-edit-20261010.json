@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "R23 / E1 : PATCH /v1/automations/{id} via cron.update, CAS natif configRevision (If-Match), confirmation automation.edit, reçu et relecture unique.",
-  "reason": "Captures réelles #131 (cron.get/update, CAS natif CRON_JOB_CHANGED) et schéma installé relu sur le S24 (lecture seule) ; route complète avec gardes paiement, validation, CAS, confirmation et reçu. Le prédicat propriétaire protège aujourd'hui les 18 automatisations (clé structurelle payload) : refus conservé, correction propriétaire en PR séparée.",
+  "reason": "Sources S24 cron.update et CAS natif confirmées par #131. Reprise avec H6 intégré chez le propriétaire canonique : aucune garde lexicale, une résolution de l’instruction finale avant confirmation et effet ; tests adaptés, validation locale en attente.",
   "files": [
     ".github/workflows/ci.yml",
     "installer/termux-lite/companion-acceptance.py",
@@ -27,18 +27,18 @@
   "tests": [
     {
       "name": "R23-pure-validation",
-      "status": "passed",
-      "evidence": "36 assertions de validation pure."
+      "status": "pending",
+      "evidence": "Reprise et tests adaptés à H6 : exécution locale ciblée puis suite CI entière en attente. Les anciennes preuves ne couvrent pas le SHA de reprise."
     },
     {
       "name": "R23-http-real-captures",
-      "status": "passed",
-      "evidence": "scripts/test-automation-edit-http.cjs : 45 assertions sur cron-lifecycle.json (#131) ; garde owner, refus paiement/validation avant lecture, 428 sans If-Match, CAS préalable et natif CRON_JOB_CHANGED, needs_confirmation puis consommation, reçu idempotent, relecture unique après effet incertain, indeterminate sans rejeu ; PATCH en 7,2 s avec les latences CLI capturées (budget 20 s)."
+      "status": "pending",
+      "evidence": "Reprise et tests adaptés à H6 : exécution locale ciblée puis suite CI entière en attente. Les anciennes preuves ne couvrent pas le SHA de reprise."
     },
     {
       "name": "P2-a-automation-detail",
-      "status": "passed",
-      "evidence": "test-automation-detail.cjs inchangé et vert (champ revision ajouté)."
+      "status": "pending",
+      "evidence": "Reprise et tests adaptés à H6 : exécution locale ciblée puis suite CI entière en attente. Les anciennes preuves ne couvrent pas le SHA de reprise."
     }
   ],
   "documentation": [

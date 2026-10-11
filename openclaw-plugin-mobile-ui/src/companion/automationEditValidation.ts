@@ -1,5 +1,5 @@
 import {createHash} from "crypto";
-import {protectedPayment,protectedJob,allJobs} from "./automations";
+import {jobIntentProtection,allJobs} from "./automations";
 import {nativeError,nativeOperation,existingNativeOperation} from "./nativeOperation";
 import {callOpenClawGateway} from "./openclawAgentClient";
 import {confirmations} from "./confirmations";
@@ -45,8 +45,6 @@ function schedule(value:any,now:number):EditSchedule{
 }
 export function validateAutomationEdit(value:any,now=Date.now()):AutomationEditPatch{
  if(!object(value)||Object.keys(value).length===0||Object.keys(value).some(k=>!["name","schedule","message","enabled"].includes(k)))return fail();
- // Payment refusal precedes normalization, owner reads, and confirmation consumption.
- for(const k of ["name","message"])if(own(value,k)&&protectedPayment(value[k]))throw nativeError("automation_payment_excluded",422);
  const patch:AutomationEditPatch={};
  if(own(value,"name"))patch.name=plain(value.name,160);
  if(own(value,"schedule"))patch.schedule=schedule(value.schedule,now);
@@ -54,8 +52,10 @@ export function validateAutomationEdit(value:any,now=Date.now()):AutomationEditP
  if(own(value,"enabled")){if(typeof value.enabled!=="boolean")return fail();patch.enabled=value.enabled;}
  return patch;
 }
-export function assertAutomationEditable(job:any){
- if(protectedJob(job))throw nativeError("automation_protected",409);
+export async function assertAutomationEditable(job:any){
+ const protection=await jobIntentProtection(job);
+ if(protection==="unavailable")throw nativeError("automation_guard_unavailable",503);
+ if(protection!=="safe")throw nativeError("automation_protected",409);
 }
 /** Canonical JSON: sorted keys at every level, so the payload hash never depends on client key order. */
 export function canonicalJson(value:any):string{
@@ -105,7 +105,7 @@ async function jobById(id:string){
  return job;
 }
 /**
- * PATCH /v1/automations/{id}. Order: payment and input validation, owner read, protection, CAS precheck,
+ * PATCH /v1/automations/{id}. Order: input validation, owner read, final payload intention, CAS precheck,
  * confirmation challenge, then one durable native operation (receipt, single cron.update, one re-read).
  */
 export async function editAutomation(id:string,body:any,ifMatch:string|undefined,now=Date.now()):Promise<EditResult>{
@@ -121,8 +121,9 @@ export async function editAutomation(id:string,body:any,ifMatch:string|undefined
  let job:any;
  try{job=await jobById(id);}
  catch(e:any){if(e?.statusCode===404)throw e;throw nativeError("scheduler_unavailable",503);}
- assertAutomationEditable(job);
  if(own(patch,"message")&&job.payload?.kind!=="agentTurn")throw nativeError("automation_message_unsupported",422);
+ // Resolve the exact future instruction once through H6. Labels and JSON keys are never intent signals.
+ await assertAutomationEditable(own(patch,"message")?{...job,payload:{...job.payload,message:patch.message}}:job);
  if(job.configRevision!==ifMatch)return refusal("automation_revision_conflict",{currentRevision:AUTOMATION_REVISION.test(job.configRevision)?job.configRevision:null});
  const binding=automationEditBinding(job,patch);
  if(binding.requiresConfirmation&&!confirmationId)
