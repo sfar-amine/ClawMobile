@@ -194,7 +194,11 @@ export function receiptProvesNoDebit(envelope: unknown): boolean {
           || event.stage === "financial_dispatch_committed");
     });
   });
-  if (submitted) return false;
+  if (submitted || p?.payment?.stepId === "financial_dispatch_committed" || p?.failure?.stepId === "financial_dispatch_committed") return false;
+  // The new read-time payment projection does not carry the owner's full trace.
+  // Its notDone code alone cannot prove a debit did not occur. Require an explicit
+  // coherent public non-submission proof; never reach into private owner state.
+  if (p?.payment && !rows.some((row) => row.financialSubmissionAttempted === false && row.reasonCode === "payment_not_submitted")) return false;
   if (p?.failure?.notDone?.code === "payment_not_submitted") return true;
   return rows.some((row) => row.reasonCode === "payment_not_submitted");
 }

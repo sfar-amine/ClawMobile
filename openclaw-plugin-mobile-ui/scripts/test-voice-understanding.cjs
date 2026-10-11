@@ -360,3 +360,21 @@ test("Public owner proof rows and unknown trace forms cannot produce non-debit c
   }
   for(const flag of [null,"false",1])assert.equal(m.receiptProvesNoDebit({payment:{reasonCode:"payment_not_submitted",financialSubmissionAttempted:flag}}),false);
 });
+
+
+test("Real #176 owner #180 projection cannot claim non-debit after dropping its dispatch trace",()=>{
+  const {projectRunPayment}=require("../dist/companion/runPaymentPresentation");
+  const capture=fx("hs3/failed-payment-handoff.json");
+  for(const chain of capture.failedPaymentChains.filter((row)=>row.runLinked)){
+    // Source README attests this join; no masked decision enum is decoded.
+    const run={runId:"hs3-voice-owner",decision:{...chain.run.decision,requestId:chain.confirmation.intent.origin.id},presentation:chain.run.presentation};
+    const presentation=projectRunPayment(run,[chain.payment],[chain.confirmation]);
+    assert.equal(presentation.status,"error");
+    assert.equal(presentation.payment.state,"blocked");
+    assert.equal(presentation.failure.notDone.code,"payment_not_submitted");
+    assert.equal(m.receiptProvesNoDebit({presentation}),false);
+    assert.equal(m.planVoiceSpeech({presentation}).noDebit,undefined);
+    // Passing the actual public raw proof remains contradictory and cannot help.
+    assert.equal(m.receiptProvesNoDebit({presentation,payment:chain.payment}),false);
+  }
+});
