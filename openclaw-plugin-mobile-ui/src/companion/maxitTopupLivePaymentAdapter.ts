@@ -143,15 +143,22 @@ export function createMaxitTopupLivePaymentAdapter(options:MaxitTopupLivePayment
     if(result?.state==="blocked")throw new Error(reasonDetailOf(result.reason_code)??"maxit_quote_contract_unverified");
     const q=result?.quote;
     if(result?.state!=="quote_ready"||!q||typeof q.payee!=="string"||!/^Orange Maxit ••••[0-9]{4}$/.test(q.payee)||
-       q.reference!==reference||q.currency!=="TND"||q.decimals!==3||!Number.isSafeInteger(q.amountMinor)||q.amountMinor<=0)
+       q.reference!==reference||q.currency!=="TND"||q.decimals!==3||!Number.isSafeInteger(q.amountMinor)||q.amountMinor<=0||
+       // Maxit fee (11/10): the quote must declare the exact breakdown; the total is what the owner confirms.
+       q.feeLabel!=="Frais Maxit"||!Number.isSafeInteger(q.feeMinor)||q.feeMinor<0||!Number.isSafeInteger(q.totalMinor)||
+       q.totalMinor!==q.amountMinor+q.feeMinor)
       throw new Error("maxit_quote_contract_unverified");
-    return q;
+    return {payee:q.payee,reference:q.reference,amountMinor:q.amountMinor,currency:q.currency,decimals:q.decimals,
+      feeMinor:q.feeMinor,totalMinor:q.totalMinor,feeLabel:q.feeLabel};
   }
 
   async function executeLocal(quoteValue:PaymentQuote,requestId:string,context?:PaymentExecutionContext):Promise<PaymentExecutionResult>{
     // Gate or card absent: nothing has been sent anywhere, so the record is blocked (P1-3).
     if(!armed||!gateReady())return notSubmitted("maxit_live_acceptance_not_armed");
     if(!context||typeof context.bankReturnToken!=="string")return notSubmitted("payment_context_unavailable");
+    // Only a confirmed total (amount + Maxit fee) may reach the runner, which requires the gateway to equal it.
+    if(!Number.isSafeInteger(quoteValue.feeMinor)||!Number.isSafeInteger(quoteValue.totalMinor)||
+       quoteValue.totalMinor!==quoteValue.amountMinor+quoteValue.feeMinor!)return notSubmitted("maxit_quote_contract_unverified");
     let card:any;
     try{card=await execJson(process.execPath,[cardCli,"status"],15000);}catch{return notSubmitted("payment_card_status_unavailable");}
     if(card?.state!=="ready"||typeof card.last4!=="string"||!/^[0-9]{4}$/.test(card.last4)||card.cvc_stored!==true)
@@ -159,7 +166,8 @@ export function createMaxitTopupLivePaymentAdapter(options:MaxitTopupLivePayment
     try{
       const result=await liveRun(liveCli,{
         operation:"start",
-        request:{reference:quoteValue.reference,expected_amount_millimes:quoteValue.amountMinor,expected_last4:card.last4},
+        request:{reference:quoteValue.reference,expected_amount_millimes:quoteValue.amountMinor,
+          expected_total_millimes:quoteValue.totalMinor,expected_last4:card.last4},
         context:{paymentRequestId:requestId,bankReturnToken:context.bankReturnToken}
       },MAXIT_START_RUN_TIMEOUT_MS,event=>forwardTrace(context,event));
       return mapResult(result,requestId);
