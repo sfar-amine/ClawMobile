@@ -3,7 +3,7 @@ import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
 import {filesList,filesContent} from "./fileReads";
-import {readUsage,readUsageDetails} from './usage';
+import {prewarmUsage,readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
 import {capabilityDetail} from "./capabilityControl";
@@ -121,6 +121,9 @@ export function startCompanionServer() {
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 
+  // One usage.status read at startup (1.6-4.4 s CLI on the S24): the first /usage, often the post-deploy
+  // acceptance, joins it instead of paying the whole cold read inside its 6 s budget.
+  prewarmUsage();
   startTerminalShellSession();
   startWhatsAppListenerWatchdog();
   startVoiceRecoveryWatchdog();
