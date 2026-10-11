@@ -2,7 +2,7 @@
   "version": 2,
   "id": "claude-o6-guarded-entry-wait-20261011",
   "origin": "chat",
-  "kind": "fix",
+  "kind": "repair",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Fast path waits for the 60 s guarded operator entry instead of abandoning it at 30-38 s",
