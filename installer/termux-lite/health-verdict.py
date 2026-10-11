@@ -84,18 +84,24 @@ def adb_recovery_readiness(path):
   return state,row.get('reason') or 'readiness_probe',fresh
  except (OSError,ValueError,TypeError):
   return 'unverified','readiness_receipt_absent_or_invalid',None
+def network_safety_items(ns):
+ x={}
+ try:
+  nd=json.loads(ns.read_text()); na=NOW-float(nd.get('checked_at',0)); nstate=nd.get('state','unverified')
+  x['device.network_safety']=item('healthy' if nstate=='healthy' and na<=90 else ('stale' if nstate=='healthy' else nstate),True,reason=nd.get('reason','network mutation safety receipt'),evidence=str(ns),freshness=na)
+  # Avertissement non critique : Wi-Fi coupé sans bail (jamais réactivé automatiquement, choix possible d'Amine).
+  if 'wifi_disabled_without_lease' in (nd.get('warnings') or []):
+   x['device.network_safety.wifi_unmanaged']=item('degraded',False,reason='wifi_disabled_without_lease',evidence=str(ns),freshness=na)
+ except (OSError,ValueError,TypeError,AttributeError):
+  x['device.network_safety']=item('unverified',True,reason='network mutation safety receipt absent or invalid',evidence=str(ns))
+ return x
 def live():
  x={}
  expected=(OC/'watchdogs/adb-expected-serial').read_text().strip() if (OC/'watchdogs/adb-expected-serial').exists() else ''
  state=run('timeout 3 adb -s 127.0.0.1:5556 get-state')
  serial=run('timeout 3 adb -s 127.0.0.1:5556 shell getprop ro.serialno')
  x['device.adb']=item('healthy' if state=='device' and (not expected or serial==expected) else 'degraded',True,'canonical endpoint verified' if state=='device' else 'canonical endpoint unavailable','127.0.0.1:5556')
- ns=OC/'health/network-mutation-safety.json'
- try:
-  nd=json.loads(ns.read_text()); na=NOW-float(nd.get('checked_at',0)); nstate=nd.get('state','unverified')
-  x['device.network_safety']=item('healthy' if nstate=='healthy' and na<=90 else ('stale' if nstate=='healthy' else nstate),True,reason=nd.get('reason','network mutation safety receipt'),evidence=str(ns),freshness=na)
- except (OSError,ValueError,TypeError):
-  x['device.network_safety']=item('unverified',True,reason='network mutation safety receipt absent or invalid',evidence=str(ns))
+ x.update(network_safety_items(OC/'health/network-mutation-safety.json'))
  rr_state,rr_reason,rr_fresh=adb_recovery_readiness(OC/'health/adb-recovery-readiness.json')
  x['device.adb.recovery_readiness']=item(rr_state,False,reason=rr_reason,evidence='trusted Wireless Debugging recovery path',freshness=rr_fresh)
  checks={
