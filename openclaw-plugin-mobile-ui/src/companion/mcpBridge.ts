@@ -353,7 +353,8 @@ async function executeCapability(
       "--method", method,
       "--params-hash", bridgeParamsHash(method, params),
       "--capability", capability,
-      "--risk", selectedRisk,
+      // The Bridge fences every owner execution whose decision is not `read`: arm the fence on the same rule.
+      "--risk", String(preparedDecision?.risk || "").trim() === "read" ? "read" : "write",
       "--owner-id", `mcp-${clientId}`,
     ]);
     continuumState = prepared;
