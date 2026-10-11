@@ -27,18 +27,22 @@ def explicit_roots(rows):
 
 def closed_scan(raw,owner):
  if not isinstance(raw,dict) or type(raw.get('schemaVersion')) is not int or raw.get('schemaVersion')!=1 or raw.get('state') not in ('ok','partial'):raise ValueError('invalid_secret_scan')
- out={'schemaVersion':1,'state':raw['state'],'findings':[],'warnings':[],'stats':{}}
- rows=raw.get('findings');warnings=raw.get('warnings')
- if not isinstance(rows,list) or not isinstance(warnings,list) or len(rows)+len(warnings)>MAX_ROWS:raise ValueError('invalid_secret_scan_rows')
- for key,items in [('findings',rows),('warnings',warnings)]:
+ out={'schemaVersion':1,'state':raw['state'],'findings':[],'warnings':[],'accepted':[],'stats':{}}
+ rows=raw.get('findings');warnings=raw.get('warnings');accepted=raw.get('accepted',[])
+ policy={(row['path'],row['hash']):row['raison'] for row in owner.accepted_signature_rows() if row['type']=='card'}
+ if not isinstance(rows,list) or not isinstance(warnings,list) or not isinstance(accepted,list) or len(rows)+len(warnings)+len(accepted)>MAX_ROWS:raise ValueError('invalid_secret_scan_rows')
+ for key,items in [('findings',rows),('warnings',warnings),('accepted',accepted)]:
   for row in items:
    if not isinstance(row,dict) or row.get('type') not in TYPES or (row['type']=='email')!=(key=='warnings'):raise ValueError('invalid_secret_scan_type')
    path=row.get('path');line=row.get('line');digest=row.get('hash')
    if not isinstance(path,str) or not path or len(path)>MAX_PATH or PurePosixPath(path).is_absolute() or any(part in ('.','..') for part in path.split('/')) or any(ord(c)<32 for c in path):raise ValueError('invalid_secret_scan_path')
    if not isinstance(line,int) or isinstance(line,bool) or not 1<=line<=1048576 or not isinstance(digest,str) or not re.fullmatch('[0-9a-f]{16}',digest):raise ValueError('invalid_secret_scan_metadata')
+   if key=='accepted' and (row['type']!='card' or (path,digest) not in policy):raise ValueError('invalid_secret_scan_acceptance')
    # Defend the receipt boundary too: a replaced scanner cannot echo a value in a path.
    safe='/'.join(owner.safe_name(part) for part in path.split('/'))
-   out[key].append({'path':safe,'line':line,'type':row['type'],'hash':digest})
+   projection={'path':safe,'line':line,'type':row['type'],'hash':digest}
+   if key=='accepted':projection['raison']=policy[(path,digest)]
+   out[key].append(projection)
  stats=raw.get('stats')
  if not isinstance(stats,dict):raise ValueError('invalid_secret_scan_stats')
  for key,limit in [('files',10000),('bytes',64*1024*1024),('entries',20000),('skipped',20000)]:

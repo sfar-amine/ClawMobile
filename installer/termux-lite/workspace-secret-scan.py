@@ -19,7 +19,7 @@ TOKEN = _owner.LEAK
 PRIVATE = re.compile(r'-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----')
 JWT = re.compile(r'\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}')
 OTP = re.compile(r'(?i)\b(?:otp|one[- ]time (?:code|password)|code (?:de verification|de validation))\s*[:=]?\s*(\d{4,8})\b')
-CARD = re.compile(r'(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)')
+CARD = re.compile(r'(?<![\w.\-])(?:[0-9][ -]?){12,18}[0-9](?![\w.\-])')
 # Bounded local part/domain (RFC 5321 limits): an unbounded `+` is quadratic on a long minified line.
 EMAIL = re.compile(r'\b[A-Za-z0-9.!#$%&\x27*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}\b')
 EXCLUDED = {'.git', 'node_modules', 'context', 'context-backup', 'contacts', 'credentials', 'payments'}
@@ -48,6 +48,50 @@ def luhn(value):
     if len(digits) < 13 or len(digits) > 19 or len(set(digits)) == 1:
         return False
     return sum((n * 2 - 9 if n > 4 else n * 2) if i % 2 == len(digits) % 2 else n for i, n in enumerate(digits)) % 10 == 0
+
+
+def card_candidate(value):
+    """Luhn alone admits clock identifiers; apply the explicit numeric context policy."""
+    digits = ''.join(c for c in value if c.isdigit())
+    if len(digits) in (13, 16, 19) and digits[:2] in ('16', '17', '18'):
+        return False
+    if re.fullmatch(r'[0-9]{8}-[0-9]{6}', value):
+        return False
+    return luhn(value)
+
+
+# Only committed public source paths can relax a private-looking basename.
+PUBLIC_FIXTURE_PATHS = frozenset({'core/installer/termux-lite/test-workspace-secret-scan.py'})
+
+
+def accepted_signature_rows():
+    # Immutable repository evidence only; no runtime configuration or persistent store.
+    path = Path(__file__).with_name('workspace-secret-scan-fixtures.json')
+    try:
+        if path.stat().st_size > 128 * 1024:
+            return ()
+        rows = json.loads(path.read_text())
+        if not isinstance(rows, list) or len(rows) > 1000:
+            return ()
+        valid = []
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != {'path', 'type', 'hash', 'raison'}:
+                return ()
+            parts = row['path'].split('/') if isinstance(row['path'], str) else []
+            if (not parts or any(part in ('', '.', '..') for part in parts)
+                    or any(part in EXCLUDED for part in parts)
+                    or row['type'] not in ('public_fixture', 'card')
+                    or not isinstance(row['hash'], str)
+                    or not re.fullmatch(r'[a-f0-9]{64}' if row['type'] == 'public_fixture' else r'[a-f0-9]{16}', row['hash'])
+                    or not isinstance(row['raison'], str) or not 1 <= len(row['raison']) <= 240):
+                return ()
+            # No blanket test-file exemption: only a hash-attested committed public file.
+            if row['path'] not in PUBLIC_FIXTURE_PATHS:
+                return ()
+            valid.append(row)
+        return tuple(valid)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return ()
 
 
 def is_binary_name(name):
@@ -128,16 +172,28 @@ def iter_segments(fd, allowance, deadline):
 
 
 def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=1024*1024, max_entries=20000, max_findings=1000, seconds=10):
-    result = {'schemaVersion': 1, 'state': 'ok', 'findings': [], 'warnings': [], 'stats': {'files': 0, 'bytes': 0, 'entries': 0, 'skipped': 0, 'binary': 0}}
+    result = {'schemaVersion': 1, 'state': 'ok', 'findings': [], 'warnings': [], 'accepted': [], 'stats': {'files': 0, 'bytes': 0, 'entries': 0, 'skipped': 0, 'binary': 0}}
     deadline = time.monotonic() + seconds
     stats = result['stats']
+    accepted_rows = accepted_signature_rows()
+    accepted_cards = {(row['path'], row['hash']): row['raison'] for row in accepted_rows if row['type'] == 'card'}
+    public_evidence = {row['path']: row['hash'] for row in accepted_rows if row['type'] == 'public_fixture'}
+    public_files = {}
     def partial(): result['state'] = 'partial'
     def exhausted():
-        return (time.monotonic() >= deadline or stats['files'] >= max_files or stats['bytes'] >= max_bytes or stats['entries'] >= max_entries or len(result['findings']) + len(result['warnings']) >= max_findings)
+        return (time.monotonic() >= deadline or stats['files'] >= max_files or stats['bytes'] >= max_bytes or stats['entries'] >= max_entries or len(result['findings']) + len(result['warnings']) + len(result['accepted']) >= max_findings)
     def append(kind, value, path, line, warning=False):
-        if len(result['findings']) + len(result['warnings']) >= max_findings:
+        if len(result['findings']) + len(result['warnings']) + len(result['accepted']) >= max_findings:
             partial(); return
-        result['warnings' if warning else 'findings'].append({'path': path, 'line': line, 'type': kind, 'hash': hashlib.sha256(value.encode()).hexdigest()[:16]})
+        digest = hashlib.sha256(value.encode()).hexdigest()[:16]
+        row = {'path': path, 'line': line, 'type': kind, 'hash': digest}
+        reason = accepted_cards.get((path, digest)) if kind == 'card' and path in attested_files else None
+        if reason:
+            row['raison'] = reason
+            result['accepted'].append(row)
+        else:
+            result['warnings' if warning else 'findings'].append(row)
+    attested_files = set()
     def visit(fd, prefix, depth=0):
         if depth > 24: partial(); return
         # scandir streams entries; it never materializes a large directory.
@@ -146,12 +202,17 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                 if exhausted(): partial(); break
                 stats['entries'] += 1
                 name = entry.name
-                if name in EXCLUDED or PRIVATE_NAME.search(name) or any(ord(c) < 32 for c in name):
+                if name in EXCLUDED or any(ord(c) < 32 for c in name):
                     stats['skipped'] += 1; continue
                 relative = prefix + '/' + safe_name(name)
+                private_name = bool(PRIVATE_NAME.search(name))
+                if private_name and relative not in public_files:
+                    stats['skipped'] += 1; continue
                 try:
                     info = entry.stat(follow_symlinks=False)
                     if stat.S_ISDIR(info.st_mode):
+                        if private_name:
+                            stats['skipped'] += 1; continue
                         child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
                         try: visit(child, relative, depth+1)
                         finally: os.close(child)
@@ -162,6 +223,24 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                         try:
                             current = os.fstat(child)
                             if not stat.S_ISREG(current.st_mode) or current.st_nlink != 1: partial(); continue
+                            if relative in public_files:
+                                # Verify the entire file before any accepted signature can apply.
+                                if current.st_size > min(file_bytes, max_bytes-stats['bytes']):
+                                    partial(); continue
+                                digest = hashlib.sha256()
+                                while True:
+                                    if time.monotonic() >= deadline:
+                                        partial(); break
+                                    block = os.read(child, BLOCK)
+                                    stats['bytes'] += len(block)
+                                    if not block:
+                                        if digest.hexdigest() == public_files[relative]:
+                                            attested_files.add(relative)
+                                        break
+                                    digest.update(block)
+                                os.lseek(child, 0, os.SEEK_SET)
+                            if private_name and relative not in attested_files:
+                                stats['skipped'] += 1; continue
                             allowance = min(file_bytes, max_bytes-stats['bytes'])
                             stats['files'] += 1
                             segments = iter_segments(child, allowance, deadline)
@@ -170,7 +249,7 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                                 try: number, line, offset, accept_before = next(segments)
                                 except StopIteration as done:
                                     outcome, read = done.value; break
-                                if len(result['findings']) + len(result['warnings']) >= max_findings:
+                                if len(result['findings']) + len(result['warnings']) + len(result['accepted']) >= max_findings:
                                     outcome, read = 'findings', allowance; break
                                 for kind, pattern in [('token', TOKEN), ('private_key', PRIVATE), ('jwt', JWT), ('otp', OTP), ('card', CARD), ('email', EMAIL)]:
                                     for match in pattern.finditer(line):
@@ -181,7 +260,7 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
                                         # API field names alone are not secret values in source code.
                                         if kind == 'token' and value.lower() in {'access_token', 'refresh_token'}:
                                             continue
-                                        if kind != 'card' or luhn(value): append(kind, value, relative, number, kind == 'email')
+                                        if kind != 'card' or card_candidate(value): append(kind, value, relative, number, kind == 'email')
                             stats['bytes'] += read
                             if outcome == 'binary':
                                 stats['skipped'] += 1; stats['binary'] += 1
@@ -195,6 +274,8 @@ def scan_roots(roots, *, max_files=10000, max_bytes=64*1024*1024, file_bytes=102
         if exhausted(): partial(); break
         try: fd = open_root(path)
         except OSError: partial(); continue
+        public_files = public_evidence if label == 'core' and Path(path).absolute() == Path(__file__).resolve().parents[2] else {}
+        attested_files.clear()
         try: visit(fd, safe_name(label))
         finally: os.close(fd)
     return result

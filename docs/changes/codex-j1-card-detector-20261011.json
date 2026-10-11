@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "id": "codex-j1-card-detector-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Reject timestamp and identifier card false positives with exact attested public fixture signatures.",
+  "reason": "Backlog 42 lot 6 following merged #161; reuse existing bounded scanner and nightly receipt without changing the budget.",
+  "files": [
+    "installer/termux-lite/workspace-secret-scan.py",
+    "installer/termux-lite/workspace-secret-scan-fixtures.json",
+    "installer/termux-lite/nightly-secret-scan.py",
+    "installer/termux-lite/test-card-detector.py",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/j1-card-detector.md",
+    "docs/changes/codex-j1-card-detector-20261011.md",
+    "docs/changes/codex-j1-card-detector-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "full-final-head-ci",
+      "status": "pending",
+      "evidence": "Preparation only while R5 CI is exclusive; new dynamic card boundary and receipt regressions registered in existing J1 CI step."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/j1-card-detector.md",
+    "docs/changes/codex-j1-card-detector-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this lot; no migration or new persistent owner.",
+  "limitations": [
+    "Claude must provide cleaned S24 before/after finding metadata to establish the actual reduction; no improvement count claimed.",
+    "Local full final-head CI pending. Activation and budget decision remain with Claude and Amine."
+  ]
+}
