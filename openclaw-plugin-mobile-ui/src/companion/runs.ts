@@ -1,4 +1,4 @@
-import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,type ReceiptPresentation} from "./receiptPresentation";
+import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ReceiptPresentation} from "./receiptPresentation";
 import {conversationOwnerIndex,invalidateConversationOwner} from "./conversationOwnerIndex";
 import {stripConversationTransport} from "./conversationText";
 import {removeAttachments} from "./attachmentStorage";
@@ -691,6 +691,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     success: !failed,
     status: stored.error === "run_inactivity_expired" ? "expired" : undefined,
     ...publicReceiptMetadata(readReceiptPresentation(stored.presentation)),
+    ...(publicDecision(stored.decision) ? {decision: publicDecision(stored.decision)} : {}),
     inactivityCorrectionReceipt: stored.inactivityCorrectionReceipt,
     runId: stored.runId,
     clientRunId: stored.clientRunId,

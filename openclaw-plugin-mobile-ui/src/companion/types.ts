@@ -85,6 +85,7 @@ export type TerminalSessionResponse = {
 };
 
 export type IntentSubmitResponse = {
+  decision?: import("./receiptPresentation").PublicDecision;
   presentation?: import("./receiptPresentation").ReceiptPresentation;
   understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
   alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];
@@ -107,6 +108,8 @@ export type IntentSubmitResponse = {
 };
 
 export type CompanionRunStatus = {
+  /** Closed projection of the stored decision (receiptPresentation.publicDecision). */
+  decision?: import("./receiptPresentation").PublicDecision;
   presentation?: import("./receiptPresentation").ReceiptPresentation;
   understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
   alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];

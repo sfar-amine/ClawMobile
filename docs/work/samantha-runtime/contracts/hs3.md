@@ -15,6 +15,10 @@ Ce lot transporte la présentation produite par le Capability Graph (playbooks #
 - `failure` : `step` et `reason` obligatoires ; `stepId` seulement dans la liste fermée des étapes (Graph et jalons `PaymentRecord`) ; `notDone` = `{code:"unknown"}` ou `{code:"payment_not_submitted"|"not_started", text}`. Un `notDone` inconnu (par exemple « rien n'a été débité ») est retiré.
 - `alternatives` : ≤ 3 capabilities uniques, différentes de la sélection, dans l'ordre reçu.
 
+## Décision publique
+
+`GET /v1/runs/{id}`, la liste des runs et la réponse de soumission portent aussi `decision`, projection fermée de la décision v2 stockée, sans recalcul : `type`, `capability`, `intent`, `target`, `risk`, `confirmationRequired` et `parameters` validés (`amountTnd` au format de l'extracteur, `beneficiary` seulement masqué). Plan, exécuteur, hash et autres champs bruts ne sont jamais exposés. L'app s'en sert pour « Compris : … » et « Ce n'est pas ça » quand une recharge avec montant est résolue en `risk == "read"` (core #143).
+
 ## Preuves
 
 - `openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/hs3-payment-terminal-records.json` : `PaymentRecord` terminaux réels du S24, lus en lecture seule dans `runs.json` (`paymentRequests`), réduits aux champs publics de `paymentView()`.

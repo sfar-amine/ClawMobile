@@ -27,3 +27,14 @@ export function readReceiptPresentation(raw:unknown):ReceiptPresentation|undefin
 }
 export function fallbackReceiptPresentation(failed=false):ReceiptPresentation{return {version:1,locale:'fr',status:failed?'error':'info',label:'Demande',title:'Résultat à vérifier',rows:[],spoken:failed?'La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.':'Le résultat de la demande reste à vérifier.',primary:{label:'Terminer',action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:null},understood:{capability:null,label:'Demande',slots:{}},alternatives:[],...(failed?{failure:{step:'Étape non établie',reason:'La cause n’est pas établie par le reçu.'}}:{})};}
 export function publicReceiptMetadata(p:ReceiptPresentation|undefined){return p?{presentation:p,understood:p.understood,alternatives:p.alternatives,...(p.failure?{failure:p.failure}:{})}:{};}
+/** Closed public projection of the stored v2 decision (no recalculation, no raw payload):
+ * type, capability, intent, target, risk, confirmationRequired and owner-validated parameters. */
+export type PublicDecision={type:'EXECUTE'|'CLARIFY'|'REASON'|'STOP';capability:string|null;intent:string|null;target:string|null;risk:'read'|'write'|'transaction'|'destructive'|'sensitive'|'external_send'|'admin';confirmationRequired:boolean;parameters:{amountTnd?:string;beneficiary?:string}};
+const DECISION_TYPES=new Set(['EXECUTE','CLARIFY','REASON','STOP']),RISKS=new Set(['read','write','transaction','destructive','sensitive','external_send','admin']);
+export function publicDecision(raw:unknown):PublicDecision|undefined{
+ if(!obj(raw)||typeof raw.type!=='string'||!DECISION_TYPES.has(raw.type))return undefined;
+ const risk=typeof raw.risk==='string'&&RISKS.has(raw.risk)?raw.risk:undefined;if(!risk)return undefined;
+ const opt=(v:unknown)=>id(v)?v:null;const parameters:PublicDecision['parameters']={};
+ if(obj(raw.parameters)){const s=closedSlots({amountTnd:raw.parameters.amountTnd,beneficiary:raw.parameters.beneficiary});if(s.amountTnd)parameters.amountTnd=s.amountTnd;if(s.beneficiary&&s.beneficiary!=='owner')parameters.beneficiary=s.beneficiary;}
+ return {type:raw.type as PublicDecision['type'],capability:opt(raw.capability),intent:opt(raw.intent),target:opt(raw.target),risk:risk as PublicDecision['risk'],confirmationRequired:raw.confirmationRequired===true,parameters};
+}
