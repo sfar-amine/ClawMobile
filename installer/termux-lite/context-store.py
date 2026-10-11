@@ -68,7 +68,7 @@ def ingest_file(c,path,require_active=None):
         else: raise FileNotFoundError(path)
     e=json.loads(p.read_text())
     if not all(e.get(k) for k in ('id','surface','kind','text','createdAt')): raise ValueError('missing required field')
-    if e['surface'] not in ('chat','work','voice','openclaw'): raise ValueError('bad surface')
+    if e['surface'] not in ('chat','work','voice','openclaw','claude','codex','app'): raise ValueError('bad surface')
     if e['kind'] not in ('decision','learning','open_thread','completed_action','constraint','checkpoint'): raise ValueError('bad kind')
     session=e.get('sessionId')
     if session is not None and (e['kind']!='open_thread' or not isinstance(session,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',session)):

@@ -33,6 +33,8 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: Test canonical context event surfaces
+        run: python3 ../installer/termux-lite/test-context-surfaces.py
       - name: Test canonical app and authenticated Bixby bootstrap
         run: node scripts/test-canonical-agent-bootstrap.cjs
 
@@ -179,3 +181,6 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
+      - name: C5 canonical voice owner transport fixture
+        run: python3 ../installer/termux-lite/test-context-voice-read.py
