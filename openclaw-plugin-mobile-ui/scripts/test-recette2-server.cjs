@@ -73,12 +73,19 @@ const read=(dir,name)=>JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtur
   assert.ok(afterFailure.seconds<1.5);
   now+=240000;const expired=await get('/v1/providers');assert.equal(expired.body.summary.ready,0,'older than 5 min: unknown, never a stale « ready »');
   assert.ok(expired.body.providers.every(p=>p.state==='unknown'));
-  ownerFail=false;await owner.refreshModelOwner();
+  // /providers no longer waits on usage.status (held quotas): let the failed background owner read settle first.
+  await new Promise(r=>setTimeout(r,latency['config.get']+100));ownerFail=false;await owner.refreshModelOwner();
 
   // 6. /usage: a failed usage.status keeps the last real quotas (Copilot stays exhausted), flagged usage_source_stale, retried after 15 s.
   now+=61000;const okUsage=await get('/v1/usage');assert.equal(okUsage.body.providers.find(p=>p.id==='github-copilot').state,'exhausted');
   assert.equal(okUsage.body.providers.find(p=>p.id==='github-copilot').windows[0].resetsAt,null,'the Gateway gives no Copilot reset date');
-  usageFail=true;now+=61000;const failed=await get('/v1/usage');
+  // 11/10 perf: once the minute is over, the last real quotas answer at once while the single-flight read
+  // revalidates them (stale-while-revalidate); usage_source_stale only appears once that read has failed.
+  const settleUsage=()=>new Promise(r=>setTimeout(r,latency['usage.status']+150));await settleUsage();
+  usageFail=true;now+=61000;const heldStarted=performance.now(),held=await get('/v1/usage');
+  assert.ok(performance.now()-heldStarted<500,'expired minute: the held view answers without waiting for the CLI read');
+  assert.equal(held.body.providers.find(p=>p.id==='github-copilot').state,'exhausted');assert.ok(!held.body.issues.includes('usage_source_stale'),'a refresh in progress is not a failed read');
+  await settleUsage();const failed=await get('/v1/usage');
   assert.equal(failed.body.providers.find(p=>p.id==='github-copilot').state,'exhausted');assert.ok(failed.body.issues.includes('usage_source_stale'));
   const providersWhileFailing=await get('/v1/providers');assert.equal(providersWhileFailing.body.providers.find(p=>p.id==='github-copilot').state,'exhausted');
   const calls=counts['usage.status'];now+=10000;await get('/v1/usage');assert.equal(counts['usage.status'],calls,'failure kept 15 s');
