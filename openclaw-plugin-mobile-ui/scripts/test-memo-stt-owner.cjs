@@ -37,14 +37,24 @@ function container(brand,handler='soun'){
  for(const auth of [async()=>{throw Error('synthetic auth failure');},async()=>({profileId:'synthetic-other',mode:'api-key'}),async()=>({profileId:profile,mode:'oauth'})])assert.deepEqual(await runMemoAudioOwner({...owner,resolveApiKeyForProvider:auth},'synthetic.m4a'),memoSttOwnerFailure());
  const entryHeader=h=>({...config,tools:{media:{...config.tools.media,models:config.tools.media.models.map(x=>({...x,headers:{[h]:undefined}}))}}});
  for(const value of [
-  {...config,models:{providers:{google:{apiKey:undefined}}}},
-  {...config,models:{providers:{' GOOGLE ':{apiKey:{source:'store'}}}}},
   {...config,models:{providers:{' GOOGLE ':{headers:{'X-Goog-Api-Key':undefined}}}}},
   {...config,tools:{media:{...config.tools.media,audio:{headers:{Authorization:undefined}}}}},
   entryHeader('AUTHORIZATION'),entryHeader('X-Api-Key'),
  ])assert.deepEqual(await runMemoAudioOwner({...owner,loadConfig:()=>value},'synthetic.m4a'),memoSttOwnerFailure());
  process.env.GEMINI_API_KEY_SYNTHETIC='';try{assert.deepEqual(await runMemoAudioOwner(owner,'synthetic.m4a'),memoSttOwnerFailure());}finally{delete process.env.GEMINI_API_KEY_SYNTHETIC;}
  assert.equal(calls,1,'no OpenAI/other account fallback after auth/config failures');
+ const competingProvider={baseUrl:'https://synthetic.invalid',headers:{'X-Transport-Tag':'offline'}};
+ Object.defineProperty(competingProvider,'apiKey',{enumerable:true,get(){throw Error('credential value must not be read');}});
+ const competing={...config,models:{providers:{' GOOGLE ':competingProvider,synthetic:{untouched:true}}}};
+ const projection=memoAudioConfig(competing);assert.equal(Object.hasOwn(projection.models.providers[' GOOGLE '],'apiKey'),false);
+ assert.equal(Object.hasOwn(competingProvider,'apiKey'),true);assert.equal(projection.models.providers[' GOOGLE '].baseUrl,competingProvider.baseUrl);
+ assert.deepEqual(projection.models.providers[' GOOGLE '].headers,competingProvider.headers);assert.equal(projection.models.providers.synthetic,competing.models.providers.synthetic);
+ const exclusive={...owner,loadConfig:()=>competing,
+  resolveApiKeyForProvider:async params=>{assert.equal(params.lockedProfile,true);assert.equal(params.profileId,profile);assert.equal(Object.hasOwn(params.cfg.models.providers[' GOOGLE '],'apiKey'),false);return{profileId:profile,mode:'api-key'};},
+  runMediaUnderstandingFile:async params=>{assert.equal(Object.hasOwn(params.cfg.models.providers[' GOOGLE '],'apiKey'),false);assert.equal(params.cfg.tools.media.models[0].profile,profile);return{text:'Gemini free only'};}};
+ assert.equal((await runMemoAudioOwner(exclusive,'synthetic.m4a')).success,true);
+ for(const auth of [async()=>{throw Error('free unavailable');},async()=>({profileId:'synthetic-other',mode:'api-key'})])assert.deepEqual(await runMemoAudioOwner({...exclusive,resolveApiKeyForProvider:auth,runMediaUnderstandingFile:()=>{throw Error('no competing account may execute');}},'synthetic.m4a'),memoSttOwnerFailure());
+
  assert.equal((await runMemoAudioOwner({...owner,loadConfig:()=>entryHeader('X-Transport-Tag')},'synthetic.m4a')).success,true);
  assert.deepEqual(await runMemoAudioOwner({...owner,runMediaUnderstandingFile:async()=>({text:'x'.repeat(12001)})},'synthetic.m4a'),memoSttOwnerFailure());
  assert.deepEqual(await runMemoAudioOwner({...owner,runMediaUnderstandingFile:async()=>{throw Error('synthetic private error');}},'synthetic.m4a'),memoSttOwnerFailure());

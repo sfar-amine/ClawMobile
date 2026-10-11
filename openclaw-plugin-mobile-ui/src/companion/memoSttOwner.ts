@@ -120,7 +120,16 @@ export function memoAudioConfig(value: any): any {
     maxChars: undefined,
     timeoutSeconds: Math.min(60, positive(entry.timeoutSeconds, 60), positive(audio?.timeoutSeconds, 60)),
   }));
-  return { ...value, tools: { ...value.tools, media: { ...media, models,
+  // Amine selected only the existing free profile. Exclude a provider-level
+  // override in this request projection without reading its credential value;
+  // never modify the loaded/global config or the canonical auth store.
+  const providers = value.models?.providers;
+  const requestProviders = providers && typeof providers === "object" ? Object.fromEntries(
+    Object.keys(providers).map(name => [name, name.trim().toLowerCase() === "google" && providers[name] && typeof providers[name] === "object"
+      ? Object.fromEntries(Object.keys(providers[name]).filter(key => key !== "apiKey").map(key => [key, providers[name][key]]))
+      : providers[name]])
+  ) : providers;
+  return { ...value, ...(value.models ? {models: {...value.models, providers: requestProviders}} : {}), tools: { ...value.tools, media: { ...media, models,
     audio: { ...audio, enabled: true, maxChars: undefined, preferredModel: "google/" + models[0].model },
   } } };
 }
@@ -156,9 +165,7 @@ export async function runMemoAudioOwner(owner: MemoMediaOwner, filePath: string)
         alternateAuthHeaders(google.headers) || alternateAuthHeaders(configuredProvider(cfg, "google")?.headers)) {
       return memoSttOwnerFailure();
     }
-    const primaryBlocked = Object.prototype.hasOwnProperty.call(configuredProvider(cfg, "google") || {}, "apiKey") ||
-      alternateAuthHeaders(google.headers) || alternateAuthHeaders(configuredProvider(cfg, "google")?.headers) ||
-      Object.keys(process.env).some(name =>
+    const primaryBlocked = Object.keys(process.env).some(name =>
         /^(?:OPENCLAW_LIVE_GEMINI_KEY|GOOGLE_API_KEY|GEMINI_API_KEYS?|GEMINI_API_KEY_.+)$/.test(name));
     // Public canonical auth preflight, locked to the existing free profile.
     // Read metadata only; never copy/log the returned credential. If primary

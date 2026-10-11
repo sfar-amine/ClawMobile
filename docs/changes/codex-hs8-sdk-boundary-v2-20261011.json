@@ -6,7 +6,7 @@
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "HS8 : Gemini 3.5 flash-lite, audio qualifié par piste et retry différé dans le propriétaire RUNS, sous garde fermé",
-  "reason": "Passation46 : Gemini seul, repli différé sans OpenAI. Sources Claude185/174 intégrées byte-identiques ; continuation sous réadmission native P1 fraîche, aucun effet depuis GET. Préparation intégrable après revue et suite entière verte sur SHA exact, qualification produit encore fermée.",
+  "reason": "Passation46 et décision explicite Amine : Gemini gratuit exclusivement, aucun OpenAI ni clé concurrente sélectionnée. Projection éphémère sans lecture/modification des clés globales ; captures185/174 byte-identiques, retry RUNS et continuation P1 réelle intégrés. Publication après suite entière SHA exact ; activation produit encore refusée.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/claude-p1-native-admission-20261011.json",
@@ -49,6 +49,7 @@
     "openclaw-plugin-mobile-ui/scripts/test-memo-stt-boundary.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-memo-stt-owner.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs",
     "openclaw-plugin-mobile-ui/src/companion/attachmentStorage.ts",
     "openclaw-plugin-mobile-ui/src/companion/catalog.ts",
     "openclaw-plugin-mobile-ui/src/companion/intent.ts",
@@ -57,6 +58,7 @@
     "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
     "openclaw-plugin-mobile-ui/src/companion/ownerTurnAdmission.ts",
     "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/src/companion/types.ts"
@@ -76,6 +78,11 @@
       "name": "HS8 composition HTTP P1 réelle et matrice propriétaire",
       "status": "passed",
       "evidence": "Node20 build + test-memo-p1-http.cjs + pipeline/retry + test-owner-turn-admission.cjs (54/54) + edit-replay exit0 sous EX ; /workspace/artifacts/b42/hs8-46-p1-real-targeted.log. P1 stable28108204 intégré par merge ; signature P256 réelle, nonce vérifié une seule fois, replay/refus/révocation, GET STT seul, POST frais même run et cleanup. Enrôlement contrôlé isolé, aucun fournisseur live ni qualification Android."
+    },
+    {
+      "name": "HS8 profil gratuit exclusif et F6 portable",
+      "status": "passed",
+      "evidence": "Node20 npm run build + memo-stt-owner + HTTP P1 réel + deferred-retry + remote-bridge-abandoned exit0 sous EX, /workspace/artifacts/b42/hs8-46-free-exclusive-targeted.log. apiKey getter qui jette jamais lu, champ omis aux préflight/média et config globale intacte ; gratuit indisponible/mismatch sans autre compte. Correctif portable dc5cc696 importé en e95c110c : overflow/proc indeterminate, 17 abandons, sweep463ms sous borne inchangée."
     },
     {
       "name": "HS8 suite CI entière SHA final",
@@ -111,7 +118,7 @@
   "limitations": [
     "MEMO_STT_QUALIFICATION reste refusé : aucun upload audio, micro catalogue ou transcription produit activé.",
     "Captures185/174 : import SDK et Gemini3.5flashlite synthétique attestés ; aucun vrai mémo Android ou codec AAC décodable qualifié par ce delta.",
-    "Clé Google provider concurrente et permission Termux : décisions Amine, aucune modification implicite.",
+    "Amine choisit le gratuit exclusivement : clé provider concurrente omise par requête sans lecture de sa valeur, configuration globale intacte. Permission Termux encore à décider ; chemin SDK effectif à vérifier par Claude.",
     "Admission P1 PR182 nécessaire et revalidée ; absence du propriétaire installé ferme la soumission. Composition HTTP cryptographique réelle et matrice P1 hors ligne vérifiées ; cela ne constitue pas recette runtime.",
     "Politique trois essais après2/10min proposée dans185, implémentée et testée hors ligne ; pas une mesure de fiabilité runtime.",
     "Plafond60s par entrée n’est pas un délai global SDK ; budget cumulé et arrêt fournisseur restent à qualifier.",
