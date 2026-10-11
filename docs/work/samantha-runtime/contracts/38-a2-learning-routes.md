@@ -1,7 +1,7 @@
 # 38 A2 — routes Companion d'apprentissage
 
 Contrat complet (forme JSON, vues app HA6, effets) : `samantha-ui-playbooks`
-`docs/work/samantha-runtime/contracts/38-a2-learning-routes.md` (PR playbooks A2, empilée sur A1 #76).
+`docs/work/samantha-runtime/contracts/38-a2-learning-routes.md` (PR playbooks A2 #78, alignée sur A1 #76 fusionnée).
 
 | Route | Capability | Budget | Garde |
 |---|---|---|---|
@@ -20,7 +20,8 @@ tables `improvement_candidates` / `improvement_history`, 0 association). Le prop
 (inode, taille, mtime) du store et de son WAL ; rejeu `forget` par `operationId` (64 entrées au plus).
 
 `not-this` lit le run dans le registre existant `runs.json` (texte, décision v2), transmet texte et décision au
-propriétaire (neutralisation du gabarit, contre-exemple, signal Round Learning `user_correction`), puis pose sur le run
+propriétaire (neutralisation du binding résolu du gabarit, contre-exemple, signal Round Learning
+`user_correction`), puis pose sur le run
 une trace bornée `notThis {version, operationId, at, neutralized, counterExample, roundSignal}` — sans texte ni montant.
 Un second appel répond `already_recorded` sans rappeler le propriétaire. La réponse ne contient ni texte, ni gabarit,
 ni décision. Le parcours de paiement n'est pas touché.
