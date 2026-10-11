@@ -1,0 +1,55 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/files?scope=session",
+  "status": 200,
+  "capturedAt": "2026-10-10T23:41:25Z",
+  "bytes": 2738,
+  "companion": "curl loopback http://127.0.0.1:8765 avec l'en-tête de l'app (Connection: close), sans Origin/Referer ni en-tête propriétaire",
+  "sanitized": true,
+  "attempts": 11,
+  "totalMs": 8071,
+  "lastLatencyMs": 72,
+  "retryPolicy": "relance toutes les 500 ms tant que computation.deliveryMode=deferred (comme l'app, retryAfterMs=500)",
+  "firstCall": {
+   "status": 200,
+   "latencyMs": 187,
+   "at": "2026-10-10T23:40:20Z",
+   "response": {
+    "success": false,
+    "state": "warming",
+    "receipt": null,
+    "ready": false,
+    "retryAfterMs": 500,
+    "computation": {"deliveryMode":"deferred"}
+   }
+  }
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "ready": true,
+  "installedSchemaQualified": false,
+  "items": [
+    {"name":"artifacts","path":"artifacts","kind":"dir","size":null,"modifiedAt":"2026-09-28T18:27:44.486Z","previewable":false},
+    {"name":"logs","path":"logs","kind":"dir","size":null,"modifiedAt":"2026-10-10T16:08:19.369Z","previewable":false},
+    {"name":"media","path":"media","kind":"dir","size":null,"modifiedAt":"2026-09-24T22:08:41.228Z","previewable":false},
+    {"name":"memory","path":"memory","kind":"dir","size":null,"modifiedAt":"2026-10-02T12:52:46.766Z","previewable":false},
+    {"name":"screenshots","path":"screenshots","kind":"dir","size":null,"modifiedAt":"2026-10-08T21:26:33.334Z","previewable":false},
+    {"name":"skills","path":"skills","kind":"dir","size":null,"modifiedAt":"2026-09-23T17:59:11.134Z","previewable":false},
+    {"name":"ui-dumps","path":"ui-dumps","kind":"dir","size":null,"modifiedAt":"2026-10-06T10:19:07.667Z","previewable":false},
+    {"name":"ui-playbooks","path":"ui-playbooks","kind":"dir","size":null,"modifiedAt":"2026-10-10T21:12:26.925Z","previewable":false},
+    {"name":"work","path":"work","kind":"dir","size":null,"modifiedAt":"2026-10-10T16:54:49.341Z","previewable":false},
+    {"name":"AGENTS.md","path":"AGENTS.md","kind":"file","size":6440,"modifiedAt":"2026-10-10T18:53:13.893Z","previewable":true},
+    {"name":"DREAMS.md","path":"DREAMS.md","kind":"file","size":22979,"modifiedAt":"2026-10-10T21:00:33.865Z","previewable":true},
+    {"name":"IDENTITY.md","path":"IDENTITY.md","kind":"file","size":456,"modifiedAt":"2026-09-29T18:38:54.202Z","previewable":true},
+    {"name":"SOUL.md","path":"SOUL.md","kind":"file","size":4460,"modifiedAt":"2026-09-25T21:10:16.881Z","previewable":true},
+    {"name":"USER.md","path":"USER.md","kind":"file","size":955,"modifiedAt":"2026-09-24T16:12:51.763Z","previewable":true}
+  ],
+  "truncated": false,
+  "ownerTruncated": false,
+  "search": null,
+  "cursor": null
+ }
+}
