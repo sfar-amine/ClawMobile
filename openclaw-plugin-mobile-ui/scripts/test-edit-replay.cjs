@@ -42,8 +42,16 @@ fs.writeFileSync(helper,[
 process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;process.env.EDIT_REPLAY_FAST_PATH_LOG=helperLog;
 
 const api=require('../dist/companion/runs');const {route}=require('../dist/companion/server');
-const post=(port,body,headers={})=>new Promise((resolve,reject)=>{const encoded=JSON.stringify(body);
- const req=http.request({host:'127.0.0.1',port,path:'/v1/runs',method:'POST',headers:{'content-type':'application/json','content-length':Buffer.byteLength(encoded),...headers}},res=>{let t='';res.on('data',v=>t+=v);res.on('end',()=>{try{resolve({status:res.statusCode,body:JSON.parse(t)})}catch(e){reject(e)}});});req.on('error',reject);req.end(encoded);});
+// P1 (#182) : relecture réservée à l'admission native signée. Clé d'admission enrôlée (fichier posé comme par l'enrôlement biométrique).
+const crypto=require('node:crypto');const admission=require('../dist/companion/ownerTurnAdmission');
+const admissionKey=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});const spki=admissionKey.publicKey.export({type:'spki',format:'der'});const KEY=admission.sha256Hex(spki);
+fs.writeFileSync(path.join(root,'clawmobile-companion/owner-turn-admission.json'),JSON.stringify({version:1,keyId:KEY,publicKey:spki.toString('base64'),enrolledAt:Date.now(),confirmationId:crypto.randomUUID(),epoch:crypto.randomBytes(16).toString('hex')}),{mode:0o600});
+require('../dist/companion/ownerTurnGateway').setOwnerTurnSdkLoader(async()=>({callGatewayFromCli:async(method,opts,params,extra)=>{fs.appendFileSync(capture,JSON.stringify({method,params,admin:true,scopes:extra.scopes})+'\n');return {runId:params.idempotencyKey,status:'accepted'};}}));
+const sign=(encoded,body)=>{if(typeof body.clientRunId!=='string'||!/^[A-Za-z0-9._:-]{8,160}$/.test(body.clientRunId))return {};const ts=String(Date.now()),nonce=crypto.randomBytes(16).toString('hex');
+ const m=admission.admissionMessage({method:'POST',path:'/v1/runs',bodyHash:admission.sha256Hex(Buffer.from(encoded)),clientRunId:body.clientRunId,sessionId:admission.admissionSessionId(body.sessionId),timestamp:ts,nonce,keyId:KEY});
+ return {'x-samantha-admission':'v1','x-samantha-admission-key':KEY,'x-samantha-admission-ts':ts,'x-samantha-admission-nonce':nonce,'x-samantha-admission-signature':crypto.sign('sha256',Buffer.from(m),admissionKey.privateKey).toString('base64')};};
+const post=(port,body,headers={},unsigned=false)=>new Promise((resolve,reject)=>{const encoded=JSON.stringify(body);
+ const req=http.request({host:'127.0.0.1',port,path:'/v1/runs',method:'POST',headers:{'content-type':'application/json','content-length':Buffer.byteLength(encoded),...(unsigned?{}:sign(encoded,body)),...headers}},res=>{let t='';res.on('data',v=>t+=v);res.on('end',()=>{try{resolve({status:res.statusCode,body:JSON.parse(t)})}catch(e){reject(e)}});});req.on('error',reject);req.end(encoded);});
 const get=(port,url)=>new Promise((resolve,reject)=>http.get({host:'127.0.0.1',port,path:url},res=>{let t='';res.on('data',v=>t+=v);res.on('end',()=>resolve({status:res.statusCode,body:JSON.parse(t)}));}).on('error',reject));
 const registry=()=>JSON.parse(fs.readFileSync(registryFile,'utf8'));
 const lines=f=>fs.existsSync(f)?fs.readFileSync(f,'utf8').trim().split('\n').filter(Boolean).map(l=>JSON.parse(l)):[];
@@ -80,7 +88,11 @@ const waitFor=async(check,ms=5000)=>{const end=Date.now()+ms;while(Date.now()<en
   const missing=await post(port,{...base,replayOf:{sessionId:SOURCE,runId:'run_missing'}});assert.equal(missing.status,404);assert.equal(missing.body.message,'replay_source_not_found');assert.equal(missing.body.accepted,false);
   assert.equal((await post(port,{...base,sessionId:SOURCE,replayOf:{sessionId:SOURCE,runId:edited.runId}})).body.message,'replay_target_not_new');
   assert.equal((await post(port,{...base,sessionId:'decisionv2-live-read-20261008',replayOf:{sessionId:SOURCE,runId:edited.runId}})).body.message,'replay_target_not_empty');
-  assert.equal((await post(port,{...base,clientRunId:undefined,replayOf:{sessionId:SOURCE,runId:edited.runId}})).body.message,'replay_invalid');
+  // Sans clientRunId, aucune preuve d'admission n'est possible : refus owner_required (P1), avant toute préparation.
+  assert.equal((await post(port,{...base,clientRunId:undefined,replayOf:{sessionId:SOURCE,runId:edited.runId}})).status,403);
+  // P1 : replayOf sans preuve signée (loopback seul, en-tête constant) => 403, rien n'est préparé ni soumis.
+  for(const headers of [{},{'x-clawmobile-owner-flow':'v1'}]){const noProof=await post(port,{...base,replayOf:{sessionId:SOURCE,runId:edited.runId}},headers,true);
+   assert.equal(noProof.status,403);assert.equal(noProof.body.message,'owner_required');assert.equal(noProof.body.accepted,false);}
   assert.equal(lines(capture).length,0,'aucun appel agent pour une relecture refusée');
 
   // Relecture acceptée : le résolveur ne voit que le texte modifié, l'agent reçoit l'amorce historique.

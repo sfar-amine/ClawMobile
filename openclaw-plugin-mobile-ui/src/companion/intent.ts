@@ -10,16 +10,10 @@ import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
+import type { AdmissionTicket } from "./ownerTurnAdmission";
 
-type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; admission?: unknown; replayOf?: {sessionId: string; runId: string}};
+type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; admission?: AdmissionTicket; replayOf?: {sessionId: string; runId: string}};
 
-/** P1 owns admission. An absent installation is closed, never legacy owner.
- * This adapter issues/stores no credential and GET status never calls verifyRequest. */
-export function verifyMemoOwnerRequest(params: any): unknown {
-  try { const result = require("./ownerTurnAdmission").turnAdmission.verifyRequest(params);
-    return result.admitted === true ? result.ticket : undefined;
-  } catch { return undefined; }
-}
 function currentMemoOwner(admission: unknown, clientRunId: string | undefined, sessionId: string): boolean {
   try { return require("./ownerTurnAdmission").turnAdmission.isCurrent(admission, {clientRunId, sessionId}) === true; }
   catch { return false; }
@@ -47,7 +41,7 @@ async function submitMemoIntent(text: string, sessionId: string, attachments: In
   const identity = "memo:" + attachmentId;
   const clientRunId = options.clientRunId || "memo_" + crypto.createHash("sha256").update(JSON.stringify([session, attachmentId])).digest("hex");
   const reservation = await reserveSubmittedRun(identity, session, clientRunId, {
-    userText: "Mémo vocal", attachments, requestText: identity, executionSource: "capability_first", memoAttachmentId: attachmentId,
+    userText: "Mémo vocal", attachments, requestText: identity, executionSource: "capability_first", memoAttachmentId: attachmentId, ownerAdmitted: true,
   });
   if (reservation.created) {
     // One durable reservation is the worker claim. A duplicate/restart never invokes STT again.
@@ -64,7 +58,7 @@ export const resumeMemoIntent = (runId: string, sessionId: string, clientRunId: 
   continueMemoIntent(runId, sessionId, clientRunId, attachmentId, undefined);
 
 async function continueMemoIntent(runId: string, sessionId: string, clientRunId: string, attachmentId: string,
-  admission?: unknown): Promise<void> {
+  admission?: AdmissionTicket): Promise<void> {
   try {
     const transcript = await transcribeMemoAttachment(attachmentId);
     if (!transcript.success) {
@@ -117,7 +111,8 @@ async function submitTextIntent(
   // confirmation ni action de l'ancienne branche n'est reprise) ; seul le contexte historique est amorcé.
   let replay: PreparedReplay | undefined;
   if (options.replayOf) {
-    if (!clientRunId || options.authority !== "owner" || attachments.length || learningOnly)
+    // P1 : la relecture exige l'admission native signée (jamais le loopback ni le drapeau legacy).
+    if (!clientRunId || !options.admission || attachments.length || learningOnly)
       return notSubmitted(normalizedSessionId, clientRunId, "replay_invalid");
     try { replay = await prepareReplay(options.replayOf.sessionId, options.replayOf.runId, normalizedSessionId); }
     catch (error: any) {
@@ -126,11 +121,20 @@ async function submitTextIntent(
   }
   const replayOf = replay ? {sessionId: replay.sourceSessionId, runId: replay.runId} : undefined;
 
+  // P1 : bit d'admission de ce tour, persisté sur le run. Une clarification ouverte par un tour non admis
+  // n'est jamais reprise par un tour admis (aucun texte dérivé d'un tiers sur la connexion admin).
+  const ownerAdmitted = !learningOnly && options.admission !== undefined;
   let routingText = normalized;
   let parentClarificationRunId: string | undefined;
   let fastPathCheck: FastPathResult = { status: "miss", reason: "attachments_require_model" };
   if (attachments.length === 0 && !learningOnly) {
-    const pending = await findPendingClarificationRun(normalizedSessionId);
+    let pending = await findPendingClarificationRun(normalizedSessionId);
+    if (pending && pending.ownerAdmitted !== ownerAdmitted) {
+      // Admis face à une clarification non admise : abandonnée. Non admis face à une clarification admise : ignorée
+      // (un tiers ne peut ni la reprendre ni l'annuler).
+      if (ownerAdmitted) await markClarificationRun(pending.runId, "abandoned");
+      pending = null;
+    }
     if (pending) {
       const clarified = await runModelFastPath(normalized, {
         surface: "claw_live", caller: "owner", originId: clientRunId || normalizedSessionId,
@@ -156,7 +160,7 @@ async function submitTextIntent(
   if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
     return executeCapabilityFirst(
       routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
-      parentClarificationRunId, replayOf, reservedMemoRunId, options.admission,
+      parentClarificationRunId, replayOf, reservedMemoRunId, options.admission, ownerAdmitted,
     );
   }
   if (fastPathCheck.status === "error") {
@@ -183,13 +187,13 @@ async function submitTextIntent(
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
   if (reservedMemoRunId) {
-    if (!await claimMemoDispatch(runId, normalized, "gateway", undefined, undefined, () => currentMemoOwner(options.admission, clientRunId, normalizedSessionId))) return notSubmitted(normalizedSessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
+    if (!await claimMemoDispatch(runId, normalized, "gateway", undefined, undefined, () => currentMemoOwner(options.admission, clientRunId, normalizedSessionId), ownerAdmitted)) return notSubmitted(normalizedSessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
   } else if (clientRunId) {
     const reservation = await reserveSubmittedRun(
       submittedPrompt,
       normalizedSessionId,
       clientRunId,
-      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", decision: fastPathCheck.decision, replayOf },
+      { userText: visibleUserText, attachments, requestText: normalized, executionSource: "gateway", decision: fastPathCheck.decision, replayOf, ownerAdmitted },
     );
     runId = reservation.status.runId;
     duplicate = !reservation.created;
@@ -198,9 +202,9 @@ async function submitTextIntent(
 
   const accepted = acceptedRun(runId, normalizedSessionId);
   if (!clientRunId) {
-    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision });
+    await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted });
   }
-  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority, reservedMemoRunId ? options.admission : undefined, clientRunId);
+  void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority, learningOnly ? undefined : options.admission, clientRunId);
 
   const message = describeOpenClawResult(accepted);
   return {
@@ -233,23 +237,24 @@ async function executeCapabilityFirst(
   parentClarificationRunId?: string,
   replayOf?: {sessionId: string; runId: string},
   reservedMemoRunId?: string,
-  admission?: unknown,
+  admission?: AdmissionTicket,
+  ownerAdmitted = false,
 ): Promise<IntentSubmitResponse> {
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
   if (reservedMemoRunId) {
-    if (!await claimMemoDispatch(runId, userText, "capability_first", check.decision, parentClarificationRunId, () => currentMemoOwner(admission, clientRunId, sessionId))) return notSubmitted(sessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
+    if (!await claimMemoDispatch(runId, userText, "capability_first", check.decision, parentClarificationRunId, () => currentMemoOwner(admission, clientRunId, sessionId), ownerAdmitted)) return notSubmitted(sessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
   } else if (clientRunId) {
     const reservation = await reserveSubmittedRun(text, sessionId, clientRunId, {
       userText, attachments, requestText: text, executionSource: "capability_first",
-      decision: check.decision, parentClarificationRunId, replayOf,
+      decision: check.decision, parentClarificationRunId, replayOf, ownerAdmitted,
     });
     runId = reservation.status.runId;
     duplicate = !reservation.created;
     if (duplicate) return responseFromExisting(reservation.status, userText);
   } else {
     await rememberSubmittedRun(text, acceptedRun(runId, sessionId), {
-      userText, attachments, executionSource: "capability_first", decision: check.decision, parentClarificationRunId,
+      userText, attachments, executionSource: "capability_first", decision: check.decision, parentClarificationRunId, ownerAdmitted,
     });
   }
   if (parentClarificationRunId) {
@@ -366,19 +371,19 @@ async function submitIntentInBackground(
   userText: string,
   attachments: IntentAttachment[],
   authority?:"owner",
-  admission?: unknown,
+  admission?: AdmissionTicket,
   clientRunId?: string,
 ) {
   try {
     if (admission !== undefined && !currentMemoOwner(admission, clientRunId, sessionId)) {
       await markSubmittedRunFailed(runId, "Validation du propriétaire expirée."); return;
     }
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId} as any);
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId});
     await rememberSubmittedRun(text, {
       ...openclaw,
       runId,
       sessionId,
-    }, { userText, attachments });
+    }, { userText, attachments, ownerAdmitted: admission !== undefined });
   } catch (error: any) {
     await markSubmittedRunFailed(
       runId,

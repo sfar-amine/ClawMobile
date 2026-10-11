@@ -52,7 +52,13 @@ type StoredRun = {
   /** Édition-relecture : lien vers le message modifié d'origine, et marque d'audit sur l'ancienne branche. */
   replayOf?: ReplayLink;
   supersededBy?: ReplayLink;
+  /** P1 : tour admis par preuve native signée, persisté (jamais déduit du texte ni du loopback). */
+  ownerAdmitted?: true;
+  /** P1 : connexion finalement utilisée pour ce tour (l'admission peut expirer avant la remise). */
+  ownerTransport?: OwnerTransport;
 };
+export type OwnerTransport = "admin_admitted" | "write_cli" | "write_cli_owner_unavailable";
+const OWNER_TRANSPORTS = new Set<string>(["admin_admitted", "write_cli", "write_cli_owner_unavailable"]);
 
 /** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */
 export type RunCorrection = {version: 1; operationId: string; at: number; neutralized: number;
@@ -176,6 +182,7 @@ export async function reserveSubmittedRun(
     parentClarificationRunId?: string;
     memoAttachmentId?: string;
     replayOf?: {sessionId: string; runId: string};
+    ownerAdmitted?: boolean;
   } = {},
 ): Promise<{ created: boolean; status: CompanionRunStatus }> {
   const clientId = requireClientRunId(clientRunId);
@@ -228,6 +235,7 @@ export async function reserveSubmittedRun(
       updatedAt: now,
       state: "running",
       ...(replayOf ? {replayOf: {version: 1 as const, ...replayOf, at: now}} : {}),
+      ...(options.ownerAdmitted === true ? {ownerAdmitted: true as const} : {}),
     };
     // Audit : le message modifié et les tours suivants de l'ancienne branche sont marqués, jamais supprimés.
     const link: ReplayLink | undefined = source ? {version: 1, sessionId: normalizedSessionId, runId: newRunId, at: now} : undefined;
@@ -317,14 +325,14 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
 }
 
 export async function claimMemoDispatch(runId: string, text: string, executionSource: "gateway" | "capability_first",
-  decision?: Record<string, unknown>, parentClarificationRunId?: string, authorized?: () => boolean): Promise<boolean> {
+  decision?: Record<string, unknown>, parentClarificationRunId?: string, authorized?: () => boolean, ownerAdmitted = false): Promise<boolean> {
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
     const row = registry.runs.find(run => run.runId === runId);
     if (authorized?.() !== true || !row || row.state !== "running" || row.memo?.phase !== "ready" || row.text !== text ||
         registry.runDeletions.some(r => r.runId === runId)) return false;
     const now = Date.now();
-    const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId,
+    const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId, ownerAdmitted,
       memo: {...row.memo, phase: "dispatched", ownerEpoch: MEMO_OWNER_EPOCH}, updatedAt: now,
       clarificationState: decision?.type === "CLARIFY" ? "pending" : undefined,
       clarificationExpiresAt: decision?.type === "CLARIFY" ? now + 10 * 60 * 1000 : undefined};
@@ -341,7 +349,7 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
 export async function rememberSubmittedRun(
   text: string,
   result: OpenClawAgentSubmitResult,
-  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string } = {},
+  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; ownerAdmitted?: boolean } = {},
 ) {
   const existing = submittedRuns.get(result.runId)
     || (await findStoredRun(result.runId).catch(() => null));
@@ -363,6 +371,8 @@ export async function rememberSubmittedRun(
     updatedAt: Date.now(),
     state: "running" as const,
     error: undefined,
+    ...(options.ownerAdmitted === true || existing?.ownerAdmitted ? {ownerAdmitted: true as const} : {}),
+    ...(result.ownerTransport || existing?.ownerTransport ? {ownerTransport: result.ownerTransport || existing?.ownerTransport} : {}),
   };
   submittedRuns.set(result.runId, stored);
   await saveStoredRun(stored).catch(() => undefined);
@@ -626,14 +636,15 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
     // Each transcript read is one `openclaw gateway call` process on the S24 (~2.4 s): a list refreshes at most
     // LIST_LIVE_REFRESH_MAX runs (newest first), one read per run in flight, within the list budget.
     let refreshes=LIST_LIVE_REFRESH_MAX;
-    return Promise.all(visible.map(async stored=>{
+    return Promise.all(visible.map(async stored=>withOwnerFields(await listedRun(stored),stored)));
+    async function listedRun(stored:StoredRun):Promise<CompanionRunStatus>{
       if(!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
       const session=findSessionForStoredRun(sessions,stored);
       const fallback=session?statusFromSessionInfo(session,stored.runId,stored):statusFromStoredRun(stored);
       if(refreshes<=0||!session)return fallback;
       refreshes--;
       return beforeDeadline(enrichListedRun(fallback,session,stored),deadline,fallback);
-    }));
+    }
   }
   // Legacy discovery only when no retained snapshot exists.
   const sessions=await readSessionsIndex().catch(()=>[]);
@@ -652,7 +663,7 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
 }
 
 export async function findPendingClarificationRun(sessionId: string): Promise<{
-  runId: string; text: string; userText: string; decision: Record<string, unknown>; expiresAt: number;
+  runId: string; text: string; userText: string; decision: Record<string, unknown>; expiresAt: number; ownerAdmitted: boolean;
 } | null> {
   const normalizedSessionId = normalizeCompanionSessionId(sessionId || "default");
   const runs = await readStoredRuns();
@@ -671,6 +682,7 @@ export async function findPendingClarificationRun(sessionId: string): Promise<{
     userText: latest.userText || latest.text,
     decision: latest.decision,
     expiresAt,
+    ownerAdmitted: latest.ownerAdmitted === true,
   };
 }
 
@@ -759,8 +771,15 @@ export async function getRunStatusByClientRunId(clientRunId: string): Promise<Co
 }
 
 /** HS5: progress.steps[] derived on read from the stored run and its receipts; nothing persisted. */
+/** P1 : bit d'admission et connexion finale, quelle que soit la source du statut (registre ou session live). */
+function withOwnerFields(status: CompanionRunStatus, stored?: StoredRun | null): CompanionRunStatus {
+  if (!stored || (!stored.ownerAdmitted && !stored.ownerTransport)) return status;
+  return {...status, ...(stored.ownerAdmitted ? {ownerAdmitted: true} : {}), ...(stored.ownerTransport ? {ownerTransport: stored.ownerTransport} : {})};
+}
+
 function withRunSteps(status: CompanionRunStatus, stored?: StoredRun | null): CompanionRunStatus {
   if (!stored) return status;
+  status = withOwnerFields(status, stored);
   const derived = runProgressSteps({
     executionSource: stored.executionSource, state: status.state, error: stored.error,
     acceptedAt: stored.acceptedAt, updatedAt: stored.updatedAt ?? status.updatedAt, modality: stored.modality,
@@ -982,6 +1001,8 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     runId: stored.runId,
     clientRunId: stored.clientRunId,
     sessionId: stored.sessionId,
+    ...(stored.ownerAdmitted ? {ownerAdmitted: true} : {}),
+    ...(stored.ownerTransport ? {ownerTransport: stored.ownerTransport} : {}),
     state: failed ? "failed" : stored.state === "done" ? "done" : "running",
     message,
     progress: {
@@ -2034,6 +2055,8 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       notThis: run.notThis ? validRunCorrection(run.notThis) : undefined,
       replayOf: validReplayLink(run.replayOf),
       supersededBy: validReplayLink(run.supersededBy),
+      ownerAdmitted: run.ownerAdmitted === true ? true as const : undefined,
+      ownerTransport: OWNER_TRANSPORTS.has(String(run.ownerTransport || "")) ? run.ownerTransport : undefined,
     }));
   // HS3: a run that handed off to a payment request shows that request's state (read-time projection only).
   for (const run of parsedRuns) {
