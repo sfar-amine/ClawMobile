@@ -1,4 +1,4 @@
-// Authored contractual cases, not captures or qualification of the S24 voice transport.
+// Authored HS3 contract cases plus real S24 decisions/envelopes; no audio qualification.
 const assert=require('node:assert/strict');
 const {performance}=require('node:perf_hooks');
 const {readVoiceReceiptMetadata:read}=require('../dist/companion/voiceReceiptMetadata');
@@ -60,3 +60,46 @@ test('constant-size projection ignores unrelated volume without owner calls',()=
  for(let i=0;i<1000;i++)assert.ok(read(raw,'fr'));assert.ok(performance.now()-start<1000);
 });
 console.log(JSON.stringify({suite:'hs6-voice-metadata-preparation',tests,contractualCases:true,realS24Qualification:false,activeTransport:false}));
+
+const {planVoiceReceiptSpeech:plan,isVoiceRealignmentRequest:realign,VOICE_REALIGNMENT_PHRASES_V1:phrases}=require('../dist/companion/voiceReceiptMetadata');
+const captures=require('../fixtures/s24-2026-10-11/hs3-resolution-slots-shortlist.json');
+test('real S24 decisions select preview independently of model prose',()=>{
+ const r=captures.resolutions;
+ assert.ok(plan(receipt(),'fr',r.r8.decision).before);
+ assert.equal(plan(receipt(),'fr',r.r4.decision).before,undefined);
+ for(const confidence of [0,0.79,undefined,NaN])assert.ok(plan(receipt(),'fr',{risk:'read',confidence}).before);
+ assert.equal(plan(receipt(),'fr',{risk:'read',confidence:0.8}).before,undefined);
+ assert.ok(plan(receipt(),'fr',{type:'CLARIFY',confidence:1}).before);
+ assert.equal(plan(receipt(),'fr',{risk:'read',confidence:1,understood:'model invention'}).before,undefined);
+});
+test('spoken failure contains step and reason, never inferred financial reassurance',()=>{
+ const raw=receipt(true);raw.presentation.spoken="Rien n’a été débité.";
+ const out=plan(raw,'fr',{risk:'transaction'});
+ assert.equal(out.before,'J’ai compris : Demande');
+ assert.equal(out.after,'Étape : Étape non établie. La cause n’est pas établie par le reçu.');
+ assert.ok(!out.after.includes('débité'));
+ assert.equal(plan(receipt(true,'en'),'en',{}).after,'Step: Unproven step. The receipt does not establish the cause.');
+});
+test('real terminal envelopes do not masquerade as qualified voice presentations',()=>{
+ const raw=require('../fixtures/s24-2026-10-11/hs3-terminal-receipts.json');
+ for(const item of Object.values(raw.families))assert.equal(plan(item.receipt?.envelope,'fr',{}),undefined);
+});
+test('authored FR EN derja correction gestures expire at two minutes',()=>{
+ for(const text of Object.values(phrases).flat()){
+  assert.ok(realign(text,1000,121000));assert.ok(!realign(text,1000,121001));
+ }
+ assert.ok(realign(' Non, c’est pas ça ! ',1000,1001));
+ assert.ok(realign('Non c’est pas ça!',1000,1001));
+ for(const text of ['non','no','recharge non c’est pas ça','non c’est pas ça puis paie',null])assert.equal(realign(text,1000,1001),false);
+ assert.equal(realign("non c'est pas ça",1000,999),false);
+});
+
+
+const {renderFastVoiceResult}=require('../dist/companion/voiceRelay');
+test('relay speaks canonical terminal failure without reading model prose',()=>{
+ const raw=receipt(true);raw.result='Model says successful payment';
+ assert.equal(renderFastVoiceResult(raw),plan(raw,'fr',{}).after);
+ assert.equal(renderFastVoiceResult({result:raw}),null);
+});
+
+console.log(JSON.stringify({suite:'hs6-voice-speech-plan',tests,fixtures:'S24 core #129 resolutions/terminal envelopes',relayTerminalConnected:true,realS24AudioQualification:false}));

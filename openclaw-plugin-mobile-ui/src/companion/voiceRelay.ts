@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { planVoiceReceiptSpeech, readVoiceReceiptMetadata } from "./voiceReceiptMetadata";
 import {compactOwnerAgentContext} from "./clawLive";
 import fs from "fs";
 import os from "os";
@@ -181,6 +182,11 @@ export function extractFastClarification(value: any) {
 }
 
 export function renderFastVoiceResult(value: any): string | null {
+  // Only this direct capability-owner envelope may supply receipt metadata.
+  // Preserve the canonical presentation language; this does not identify the
+  // language spoken in the turn or authorize a new execution.
+  const speech = planVoiceReceiptSpeech(value, value?.presentation?.locale, value?.decision);
+  if (speech) return speech.after;
   const execution = value?.execution;
   const result = execution?.result;
   if (
@@ -373,6 +379,7 @@ async function resolveDeterministic(request: string, targetHint?: string) {
   if (!text) return null;
   return {
     state: "done" as const,
+    failed: readVoiceReceiptMetadata(executed, executed?.presentation?.locale)?.presentation.status === "error",
     text,
     capability: executed?.capability || null,
     route: executed?.selected?.route || executed?.execution?.route || null,
@@ -444,8 +451,8 @@ async function runVoiceRequest(requestId: string, request: string) {
   }
   if (deterministic?.state === "done") {
     return {
-      success: true,
-      state: "done",
+      success: !deterministic.failed,
+      state: deterministic.failed ? "failed" : "done",
       source: "deterministic",
       text: deterministic.text,
       capability: deterministic.capability,
@@ -509,8 +516,8 @@ async function runVoiceContinuation(
     if (scoped?.state === "done") {
       conversations.delete(conversationId);
       return {
-        success: true,
-        state: "done",
+        success: !scoped.failed,
+        state: scoped.failed ? "failed" : "done",
         source: "deterministic",
         text: scoped.text,
         capability: scoped.capability,
@@ -538,8 +545,8 @@ async function runVoiceContinuation(
     if (deterministic?.state === "done") {
       conversations.delete(conversationId);
       return {
-        success: true,
-        state: "done",
+        success: !deterministic.failed,
+        state: deterministic.failed ? "failed" : "done",
         source: "deterministic",
         text: deterministic.text,
         capability: deterministic.capability,
