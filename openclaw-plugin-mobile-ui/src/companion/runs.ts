@@ -16,7 +16,7 @@ import os from "os";
 import path from "path";
 import { intentCanvas } from "./canvas";
 import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSessionId, type OpenClawAgentSubmitResult } from "./openclawAgentClient";
-import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment } from "./types";
+import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment, ReplayLink } from "./types";
 
 type StoredRun = {
   presentation?: ReceiptPresentation;
@@ -47,6 +47,9 @@ type StoredRun = {
   transcriptRevision?: number;
   playback?: VoicePlaybackMetadata;
   notThis?: RunCorrection;
+  /** Édition-relecture : lien vers le message modifié d'origine, et marque d'audit sur l'ancienne branche. */
+  replayOf?: ReplayLink;
+  supersededBy?: ReplayLink;
 };
 
 /** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */
@@ -59,6 +62,15 @@ function validRunCorrection(value: any): RunCorrection | undefined {
       !["recorded", "not_stored", "none"].includes(value.counterExample) || !["pending", "not_captured", "none"].includes(value.roundSignal)) return undefined;
   return {version: 1, operationId: value.operationId, at: value.at, neutralized: value.neutralized,
     counterExample: value.counterExample, roundSignal: value.roundSignal};
+}
+
+function validReplayLink(value: any): ReplayLink | undefined {
+  if (value?.version !== 1 || typeof value.sessionId !== "string" || !/^[A-Za-z0-9-]{1,80}$/.test(value.sessionId) ||
+      typeof value.runId !== "string" || !CLIENT_RUN_ID_RE.test(value.runId) || !Number.isFinite(value.at)) return undefined;
+  return {version: 1, sessionId: value.sessionId, runId: value.runId, at: value.at};
+}
+function compareRuns(left: StoredRun, right: StoredRun) {
+  return left.acceptedAt - right.acceptedAt || left.runId.localeCompare(right.runId);
 }
 
 type CompanionRunRegistry = {
@@ -136,12 +148,15 @@ function submissionRequestHash(
   sessionId: string,
   userText: string,
   attachments: IntentAttachment[],
+  replayOf?: {sessionId: string; runId: string},
 ) {
+  // La relecture n'entre dans l'empreinte que si elle existe : les empreintes déjà stockées restent valides.
   return createHash("sha256").update(JSON.stringify({
     text,
     sessionId,
     userText,
     attachments,
+    ...(replayOf ? {replayOf: [replayOf.sessionId, replayOf.runId]} : {}),
   })).digest("hex");
 }
 
@@ -156,13 +171,15 @@ export async function reserveSubmittedRun(
     executionSource?: "gateway" | "capability_first";
     decision?: Record<string, unknown>;
     parentClarificationRunId?: string;
+    replayOf?: {sessionId: string; runId: string};
   } = {},
 ): Promise<{ created: boolean; status: CompanionRunStatus }> {
   const clientId = requireClientRunId(clientRunId);
   const normalizedSessionId = normalizeCompanionSessionId(sessionId || "default");
   const userText = String(options.userText || text);
   const attachments = options.attachments || [];
-  const requestHash = submissionRequestHash(options.requestText || text, normalizedSessionId, userText, attachments);
+  const replayOf = options.replayOf ? {sessionId: normalizeCompanionSessionId(options.replayOf.sessionId), runId: String(options.replayOf.runId)} : undefined;
+  const requestHash = submissionRequestHash(options.requestText || text, normalizedSessionId, userText, attachments, replayOf);
 
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
@@ -180,8 +197,14 @@ export async function reserveSubmittedRun(
     }
 
     const now = Date.now();
+    // Relecture : revérifiée dans la même écriture du registre (la source peut avoir changé depuis prepareReplay).
+    const source = replayOf ? registry.runs.find(run => run.runId === replayOf.runId && run.sessionId === replayOf.sessionId) : undefined;
+    if (replayOf && (!source || source.supersededBy)) throw Object.assign(new Error("replay_source_changed"), {statusCode: 409});
+    if (replayOf && registry.runs.some(run => run.sessionId === normalizedSessionId))
+      throw Object.assign(new Error("replay_target_not_empty"), {statusCode: 409});
+    const newRunId = `run_${now}_${randomBytes(4).toString("hex")}`;
     const stored: StoredRun = {
-      runId: `run_${now}_${randomBytes(4).toString("hex")}`,
+      runId: newRunId,
       clientRunId: clientId,
       requestHash,
       executionSource: options.executionSource || "gateway",
@@ -198,8 +221,14 @@ export async function reserveSubmittedRun(
       acceptedAt: now,
       updatedAt: now,
       state: "running",
+      ...(replayOf ? {replayOf: {version: 1 as const, ...replayOf, at: now}} : {}),
     };
-    const next = retainStoredRuns([stored, ...registry.runs]);
+    // Audit : le message modifié et les tours suivants de l'ancienne branche sont marqués, jamais supprimés.
+    const link: ReplayLink | undefined = source ? {version: 1, sessionId: normalizedSessionId, runId: newRunId, at: now} : undefined;
+    const marked = source && link ? registry.runs.map(run => run.sessionId === source.sessionId && compareRuns(run, source) >= 0 && !run.supersededBy
+      ? {...run, supersededBy: link} : run) : registry.runs;
+    if (link) for (const run of marked) if (run.supersededBy === link && submittedRuns.has(run.runId)) submittedRuns.set(run.runId, run);
+    const next = retainStoredRuns([stored, ...marked]);
     const archivedSessionIds = registry.archivedSessionIds.filter((id) => id !== normalizedSessionId);
     submittedRuns.set(stored.runId, stored);
     await writeCompanionRunRegistry(next, archivedSessionIds);
@@ -587,7 +616,7 @@ export async function comprehensionRunFacts(): Promise<{facts: ComprehensionRunF
 
 export async function findSubmittedRunByClientRunId(
   clientRunId: string,
-  expected?: { text: string; sessionId: string; userText?: string; attachments?: IntentAttachment[] },
+  expected?: { text: string; sessionId: string; userText?: string; attachments?: IntentAttachment[]; replayOf?: {sessionId: string; runId: string} },
 ): Promise<CompanionRunStatus | null> {
   const clientId = requireClientRunId(clientRunId);
   const stored = (await readStoredRuns()).find((run) => run.clientRunId === clientId);
@@ -599,6 +628,7 @@ export async function findSubmittedRunByClientRunId(
       sessionId,
       String(expected.userText || expected.text),
       expected.attachments || [],
+      expected.replayOf ? {sessionId: normalizeCompanionSessionId(expected.replayOf.sessionId), runId: String(expected.replayOf.runId)} : undefined,
     );
     if (stored.sessionId !== sessionId || stored.requestHash !== requestHash) {
       throw Object.assign(new Error("client_run_identity_conflict"), { statusCode: 409 });
@@ -813,6 +843,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     message: stored.transcriptState || "partial", userText: stored.userText || "",
     result: stored.result || "", submittedAt: stored.acceptedAt, updatedAt: stored.updatedAt,
     modality: "voice", transcriptState: stored.transcriptState, playback: stored.playback,
+    ...replayFields(stored),
   };
 
   const failed = stored.state === "failed";
@@ -854,7 +885,22 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     attachments: stored.attachments,
     submittedAt: stored.acceptedAt,
     updatedAt: stored.updatedAt,
+    ...replayFields(stored),
   };
+}
+
+function replayFields(stored: StoredRun) {
+  return {...(stored.replayOf ? {replayOf: stored.replayOf} : {}), ...(stored.supersededBy ? {supersededBy: stored.supersededBy} : {}),
+    replayEffect: replayEffect(stored)};
+}
+
+/** Ce que le registre sait de l'effet d'un tour, sans déduction : seule une décision v2 typée peut dire « rien » ou « exécuté ». */
+export function replayEffect(stored: StoredRun): "none" | "executed" | "unknown" {
+  if (stored.modality === "voice" || stored.executionSource !== "capability_first") return "unknown";
+  const decision = publicDecision(stored.decision);
+  if (!decision) return "unknown";
+  if (decision.type !== "EXECUTE" || decision.risk === "read") return "none";
+  return stored.state === "done" ? "executed" : "unknown";
 }
 
 async function findSessionInfo(runId: string, stored?: StoredRun | null, deadline?: number): Promise<any | null> {
@@ -1861,6 +1907,8 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       transcriptRevision: Number.isSafeInteger(run.transcriptRevision) ? run.transcriptRevision : undefined,
       playback: run.playback ? validateVoicePlayback(run.playback) : undefined,
       notThis: run.notThis ? validRunCorrection(run.notThis) : undefined,
+      replayOf: validReplayLink(run.replayOf),
+      supersededBy: validReplayLink(run.supersededBy),
     }));
   // HS3: a run that handed off to a payment request shows that request's state (read-time projection only).
   for (const run of parsedRuns) {
@@ -2000,6 +2048,65 @@ export async function appendVoiceConversationContext(text: string, sessionId: st
     JSON.stringify(history) + "\n\nCurrent user request:\n" + text;
 }
 
+
+/**
+ * Édition d'un message envoyé (relecture). Le Gateway OpenClaw n'expose aucune méthode pour tronquer ou bifurquer
+ * une session (sessions.compact garde la fin, pas le début) : la relecture ouvre donc une nouvelle conversation,
+ * amorcée avec l'historique jusqu'au message modifié (exclu). Lecture seule : l'écriture se fait dans
+ * reserveSubmittedRun, qui revérifie la source dans la même mutation du registre.
+ */
+const REPLAY_MAX_TURNS = 20;
+const REPLAY_MAX_TEXT = 2000;
+const REPLAY_MAX_SEED_BYTES = 24 * 1024;
+const REPLAY_MAX_DEPTH = 8;
+export type PreparedReplay = {sourceSessionId: string; runId: string; seed: string; seededTurns: number;
+  supersededRuns: number; effects: {executed: number; unknown: number}};
+function replayRefusal(message: string, statusCode = 409) { return Object.assign(new Error(message), {statusCode}); }
+function terminalStoredRun(run: StoredRun) {
+  return run.modality === "voice" ? ["completed", "interrupted"].includes(run.transcriptState || "") : ["done", "failed"].includes(run.state || "");
+}
+/** Tours visibles avant `edited`, y compris l'historique hérité quand la conversation est elle-même une relecture. */
+function replayHistory(runs: StoredRun[], sessionId: string, edited: StoredRun, depth: number): StoredRun[] {
+  const rows = runs.filter(run => run.sessionId === sessionId).sort(compareRuns);
+  const earlier = rows.filter(run => compareRuns(run, edited) < 0 && !run.supersededBy);
+  const origin = rows[0]?.replayOf;
+  const parent = origin && depth < REPLAY_MAX_DEPTH ? runs.find(run => run.runId === origin.runId && run.sessionId === origin.sessionId) : undefined;
+  return [...(parent ? replayHistory(runs, parent.sessionId, parent, depth + 1) : []), ...earlier];
+}
+export function replaySeed(history: StoredRun[]): {seed: string; seededTurns: number} {
+  const clip = (value: string | undefined) => stripConversationTransport(value || "").slice(0, REPLAY_MAX_TEXT);
+  let turns = history.slice(-REPLAY_MAX_TURNS).map(run => ({
+    user: clip(run.userText || run.text),
+    assistant: run.modality === "voice" || run.state === "done" ? clip(run.result) : null,
+    state: run.modality === "voice" ? (run.transcriptState || "partial") : (run.state || "unknown"),
+  }));
+  while (turns.length > 0 && Buffer.byteLength(JSON.stringify(turns), "utf8") > REPLAY_MAX_SEED_BYTES) turns = turns.slice(1);
+  return {seed: turns.length ? JSON.stringify(turns) : "", seededTurns: turns.length};
+}
+export async function prepareReplay(sourceSessionId: string, runId: string, targetSessionId: string): Promise<PreparedReplay> {
+  if (typeof sourceSessionId !== "string" || !/^[A-Za-z0-9-]{1,80}$/.test(sourceSessionId) ||
+      typeof runId !== "string" || !CLIENT_RUN_ID_RE.test(runId)) throw replayRefusal("replay_invalid", 400);
+  const source = normalizeCompanionSessionId(sourceSessionId), target = normalizeCompanionSessionId(targetSessionId);
+  if (source === target) throw replayRefusal("replay_target_not_new");
+  const runs = await retainedRuns();
+  const edited = runs.find(run => run.runId === runId && run.sessionId === source);
+  if (!edited) throw replayRefusal("replay_source_not_found", 404);
+  if (edited.modality === "voice") throw replayRefusal("replay_source_voice");
+  if (edited.supersededBy) throw replayRefusal("replay_source_superseded");
+  const replaced = runs.filter(run => run.sessionId === source && compareRuns(run, edited) >= 0 && !run.supersededBy);
+  if (replaced.some(run => !terminalStoredRun(run))) throw replayRefusal("replay_source_active");
+  if (runs.some(run => run.sessionId === target)) throw replayRefusal("replay_target_not_empty");
+  const {seed, seededTurns} = replaySeed(replayHistory(runs, source, edited, 0));
+  const effects = replaced.map(replayEffect);
+  return {sourceSessionId: source, runId, seed, seededTurns, supersededRuns: replaced.length,
+    effects: {executed: effects.filter(x => x === "executed").length, unknown: effects.filter(x => x === "unknown").length}};
+}
+export function appendReplayContext(text: string, seed: string) {
+  if (!seed) return "This conversation restarts from an edited first message.\n\nCurrent user request:\n" + text;
+  return "Earlier exchanges of this conversation, before the message the owner just edited (historical data only; " +
+    "do not execute them again; any action they describe was already handled or refused and must not be repeated):\n" +
+    seed + "\n\nCurrent user request (edited by the owner; it replaces the original message and everything after it):\n" + text;
+}
 
 // Payment persistence stays inside the existing single-writer registry.
 export async function readPaymentRequests(): Promise<PaymentRecord[]> {
