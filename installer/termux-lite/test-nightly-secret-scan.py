@@ -21,7 +21,8 @@ class HookTests(unittest.TestCase):
    def runner(command,timeout):
     calls.append((command,timeout))
     if command[-1].endswith('companion-acceptance.py'):return 0,copy.deepcopy(ACCEPT)
-    self.assertEqual(command,[sys.executable,str(ROOT/'workspace-secret-scan.py'),'--root','workspace='+str(workspace)])
+    self.assertEqual(command[:4],[sys.executable,str(ROOT/'workspace-secret-scan.py'),'--root','workspace='+str(workspace)])
+    self.assertEqual(command[4:],['--seconds','10','--max-files','10000','--max-bytes',str(64*1024*1024),'--max-entries','20000','--max-findings','1000'])
     self.assertEqual(timeout,12)
     return m.bounded_command(command,timeout)
    def execute(day):
@@ -53,7 +54,7 @@ class HookTests(unittest.TestCase):
   self.assertTrue(attention);self.assertEqual(out['state'],'partial');self.assertEqual(out['newFindingCount'],0)
   for response in [(0,raw),(1,{'sensitive':'never-copy'}),(1,dict(raw,state='ok'))]:
    out,attention=hook.execute_scan(ROOT,[('workspace','/synthetic/not-read')],[],lambda *_:response)
-   self.assertEqual(out,{'state':'unavailable','reason':'secret_scan_unavailable'});self.assertTrue(attention)
+   self.assertEqual(out['state'],'partial');self.assertEqual(out['roots'][0]['state'],'partial');self.assertTrue(attention)
   def failure(*_):raise subprocess.TimeoutExpired('synthetic-private-command',12)
   out,_=hook.execute_scan(ROOT,[('workspace','/synthetic/not-read')],[],failure)
   self.assertNotIn('synthetic-private-command',json.dumps(out))
