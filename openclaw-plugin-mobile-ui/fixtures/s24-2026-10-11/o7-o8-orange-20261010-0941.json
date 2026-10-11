@@ -1,0 +1,452 @@
+{
+  "provenance": {
+    "captured_at": "2026-10-11T00:46:45+0100",
+    "device": "S24 (Termux, profil owner)",
+    "captured_by": "Claude via claw_exec (lecture seule)",
+    "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+    "core_runtime_head": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "core_runtime_branch": "runtime/samantha-companion-private",
+    "playbooks_workspace_head": "dd251b71c0d6ca2c26b7740c73cce72e560ac109",
+    "playbooks_pinned": "6d567aa3252ff398513bd7c7b22ed63da7a31ffe",
+    "pseudonymization": "HMAC-SHA256 avec sel aléatoire propre à cette capture (non conservé) ; cohérent entre tous les fichiers de ce dossier",
+    "amounts": "montants remplacés par des valeurs fictives de même format (même nombre de décimales, millimes cohérents)",
+    "sources": [
+      "~/.openclaw/clawmobile-companion/runs.json (run Companion capability_first)",
+      "~/.openclaw/telecom/runs.jsonl",
+      "~/.openclaw/skill-intelligence/route-metrics.jsonl",
+      "python3 -m skill_intelligence.capability_graph resolve (résolution seule)",
+      "installer/termux-lite/gemini-request.py capability_hint() + build_prompt() appelés localement, sans provider_call"
+    ],
+    "observed_at_local": "2026-10-10T09:41:08+01:00",
+    "consultation": "aucune nouvelle consultation Orange ; reçu existant relu"
+  },
+  "companion_run": {
+    "runId": "run_512d33816860",
+    "clientRunId": "crun_1f78b3b16d57",
+    "sessionId": "sess_3dc1917dfbc6",
+    "executionSource": "capability_first",
+    "state": "done",
+    "userText": "Mon solde Orange",
+    "acceptedAt": 1791621662404,
+    "updatedAt": 1791621668937,
+    "e2e_ms": 6533,
+    "fields_present": [
+      "acceptedAt",
+      "clientRunId",
+      "decision",
+      "executionSource",
+      "requestHash",
+      "result",
+      "runId",
+      "sessionId",
+      "sessionKey",
+      "state",
+      "text",
+      "updatedAt",
+      "userText"
+    ]
+  },
+  "decision_envelope": {
+    "version": 2,
+    "type": "EXECUTE",
+    "reason": "capability_first",
+    "surface": "claw_live",
+    "caller": "owner",
+    "target": "maxit-tunisie",
+    "intent": "telecom.balance",
+    "capability": "telecom.orange.consultation",
+    "route": "orange.summary.maxit.v1",
+    "risk": "read",
+    "confidence": 1,
+    "confirmationRequired": false,
+    "humanBoundary": "only_when_required",
+    "requiredSlots": [],
+    "capabilityRevision": "c452843138736c3e",
+    "contractHash": "h_0d01eeb24a70",
+    "selected": {
+      "executor": "claw.skill_route",
+      "route": "orange.summary.maxit.v1",
+      "route_layer": "script",
+      "entrypoint": "python -m telecom.maxit_guarded_service balance --mode auto",
+      "deterministic": true,
+      "model_required": false,
+      "risk": "read"
+    },
+    "plan": {
+      "mode": "known",
+      "route": "orange.summary.maxit.v1",
+      "canonical_route": "orange.summary.maxit.v1",
+      "fallback": false,
+      "route_rank": [
+        {
+          "rank": 1,
+          "route": "orange.summary.maxit.v1",
+          "status": "stable",
+          "semantic_coverage": "partial",
+          "coverage_fields": [
+            "recharge",
+            "forfait",
+            "forfait_bonus",
+            "data",
+            "voice",
+            "usage"
+          ],
+          "success_rate": null,
+          "p95_latency_ms": null,
+          "median_latency_ms": null,
+          "layer": "script",
+          "verified_count": 3,
+          "runtime_state": "healthy"
+        },
+        {
+          "rank": 2,
+          "route": "orange.balances.ussd.v1",
+          "status": "validated",
+          "semantic_coverage": "complete",
+          "coverage_fields": [
+            "recharge",
+            "forfait",
+            "report",
+            "credit_transfert",
+            "sms_forfait"
+          ],
+          "success_rate": null,
+          "p95_latency_ms": null,
+          "median_latency_ms": null,
+          "layer": "script",
+          "verified_count": 1,
+          "runtime_state": "healthy"
+        }
+      ]
+    }
+  },
+  "client_received_result": {
+    "ok": true,
+    "provider": "orange",
+    "workflow": "balance",
+    "state": null,
+    "source": "orange.usage.maxit.v1",
+    "transport": "https_waaat",
+    "ui_used": false,
+    "observed_at": 1791621668.339544,
+    "blocked_by": null,
+    "latency_ms": 709,
+    "route_id": "orange.usage.maxit.v1",
+    "coverage": "maxit_line_view_all",
+    "run_id": "run_4b84ac2e485d",
+    "data": {
+      "cards": [
+        {
+          "title": "Bonus internet mobile",
+          "value": "9.49",
+          "value_format": "99.99",
+          "unit": "GO",
+          "days_remaining": 21,
+          "kind": "DATA",
+          "section": "org2"
+        },
+        {
+          "title": "Forfait du mois en cours",
+          "value": "13",
+          "value_format": "99",
+          "unit": "TND",
+          "days_remaining": 51,
+          "kind": "VOICE",
+          "section": "org3"
+        },
+        {
+          "title": "Compte de recharge",
+          "value": "34.084",
+          "value_format": "99.999",
+          "unit": "TND",
+          "days_remaining": 4100,
+          "kind": "VOICE",
+          "section": "org3"
+        },
+        {
+          "title": "Report du forfait",
+          "value": "22.473",
+          "value_format": "99.999",
+          "unit": "TND",
+          "days_remaining": 51,
+          "kind": "OTHER",
+          "section": "org5"
+        },
+        {
+          "title": "Option sur forfait Internet Mobile",
+          "value": "21.74",
+          "value_format": "99.99",
+          "unit": "GO",
+          "days_remaining": 21,
+          "kind": "OTHER",
+          "section": "org5"
+        },
+        {
+          "title": "Navigui 500Go (365j)",
+          "value": "68.42",
+          "value_format": "999.99",
+          "unit": "GO",
+          "days_remaining": 313,
+          "kind": "OTHER",
+          "section": "org5"
+        },
+        {
+          "title": "Option sur forfait appels vers le National 100h",
+          "value": "88",
+          "value_format": "9999",
+          "unit": "Minutes",
+          "days_remaining": 21,
+          "kind": "OTHER",
+          "section": "org5"
+        },
+        {
+          "title": "Forfait Together",
+          "value": "47",
+          "value_format": "9999",
+          "unit": "Minutes",
+          "days_remaining": 21,
+          "kind": "OTHER",
+          "section": "org5"
+        }
+      ]
+    }
+  },
+  "result_note": "Champ result du run Companion (chaîne JSON) décodé ; data.cards contient les 8 cartes ; valeurs fictives de même format (value_format = forme réelle). Titres, unités, validités, kind et section réels.",
+  "provenance_fields": {
+    "route_planned": "orange.summary.maxit.v1",
+    "route_executed_by_owner": "orange.usage.maxit.v1",
+    "source": "orange.usage.maxit.v1",
+    "transport": "https_waaat",
+    "execution_actual_route_field_present": false,
+    "network_path_recorded": false,
+    "network_path_note": "Entrée canonique gardée python -m telecom.maxit_guarded_service (with-wifi-off) ; le run et le résultat n'enregistrent ni execution.actual_route ni chemin réseau O1."
+  },
+  "telecom_run_row": {
+    "run_id": "run_4b84ac2e485d",
+    "provider": "orange",
+    "workflow": "balance",
+    "ok": true,
+    "state": null,
+    "source": "orange.usage.maxit.v1",
+    "transport": "https_waaat",
+    "latency_ms": 709,
+    "recorded_at": 1791621668.3402314
+  },
+  "route_metrics_row": {
+    "ts": 1791621668,
+    "target": "maxit-tunisie",
+    "intent": "telecom.balance",
+    "route": "orange.usage.maxit.v1",
+    "success": true,
+    "latency_ms": 5839.768,
+    "verified": false,
+    "failure_class": null,
+    "semantic_complete": true
+  },
+  "resolution_now": {
+    "gemini_claw": {
+      "surface": "gemini_claw",
+      "caller": "owner",
+      "capability": "telecom.orange.consultation",
+      "capability_revision": "1391140c3d8736c3",
+      "decision": {
+        "version": 2,
+        "type": "EXECUTE",
+        "reason": "capability_first",
+        "surface": "gemini_claw",
+        "caller": "owner",
+        "target": "maxit-tunisie",
+        "intent": "telecom.balance",
+        "capability": "telecom.orange.consultation",
+        "route": "orange.summary.maxit.v1",
+        "risk": "read",
+        "confidence": 1.0,
+        "confirmationRequired": false,
+        "humanBoundary": "only_when_required",
+        "requiredSlots": [],
+        "contractHash": "h_5d05e2d46e4b",
+        "capabilityRevision": "1391140c3d8736c3"
+      },
+      "selected": {
+        "executor": "claw.skill_route",
+        "kind": "claw",
+        "state": "ready",
+        "surface": "gemini_claw",
+        "capability": "telecom.orange.consultation",
+        "target": "maxit-tunisie",
+        "intent": "telecom.balance",
+        "route": "orange.summary.maxit.v1",
+        "route_layer": "script",
+        "entrypoint": "python -m telecom.maxit_guarded_service balance --mode auto",
+        "deterministic": true,
+        "model_required": false,
+        "latency_class": "fast",
+        "risk": "read",
+        "confirmation_required": false,
+        "authorized": true
+      },
+      "harness": {
+        "version": 1,
+        "tool_policy": "required",
+        "evidence_required": true,
+        "allow_model_only": false,
+        "confidence": 1.0,
+        "reason": "known_route",
+        "shortlist": [
+          {
+            "id": "telecom.orange.consultation",
+            "score": 1.0,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "telecom.zain_bahrain.consultation",
+            "score": 0.667,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "telecom.tunisie_telecom.consultation",
+            "score": 0.571,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "agenda.google_whatsapp",
+            "score": 0.333,
+            "operation": "mixed",
+            "risk": "write"
+          },
+          {
+            "id": "device.assistance",
+            "score": 0.26,
+            "operation": "write",
+            "risk": "write"
+          }
+        ]
+      },
+      "latency_ms": 95.536
+    },
+    "claw_live": {
+      "surface": "claw_live",
+      "caller": "owner",
+      "capability": "telecom.orange.consultation",
+      "capability_revision": "1391140c3d8736c3",
+      "decision": {
+        "version": 2,
+        "type": "EXECUTE",
+        "reason": "capability_first",
+        "surface": "claw_live",
+        "caller": "owner",
+        "target": "maxit-tunisie",
+        "intent": "telecom.balance",
+        "capability": "telecom.orange.consultation",
+        "route": "orange.summary.maxit.v1",
+        "risk": "read",
+        "confidence": 1.0,
+        "confirmationRequired": false,
+        "humanBoundary": "only_when_required",
+        "requiredSlots": [],
+        "contractHash": "h_0d01eeb24a70",
+        "capabilityRevision": "1391140c3d8736c3"
+      },
+      "selected": {
+        "executor": "claw.skill_route",
+        "kind": "claw",
+        "state": "ready",
+        "surface": "claw_live",
+        "capability": "telecom.orange.consultation",
+        "target": "maxit-tunisie",
+        "intent": "telecom.balance",
+        "route": "orange.summary.maxit.v1",
+        "route_layer": "script",
+        "entrypoint": "python -m telecom.maxit_guarded_service balance --mode auto",
+        "deterministic": true,
+        "model_required": false,
+        "latency_class": "fast",
+        "risk": "read",
+        "confirmation_required": false,
+        "authorized": true
+      },
+      "harness": {
+        "version": 1,
+        "tool_policy": "required",
+        "evidence_required": true,
+        "allow_model_only": false,
+        "confidence": 1.0,
+        "reason": "known_route",
+        "shortlist": [
+          {
+            "id": "telecom.orange.consultation",
+            "score": 1.0,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "telecom.zain_bahrain.consultation",
+            "score": 0.667,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "telecom.tunisie_telecom.consultation",
+            "score": 0.571,
+            "operation": "read",
+            "risk": "read"
+          },
+          {
+            "id": "agenda.google_whatsapp",
+            "score": 0.333,
+            "operation": "mixed",
+            "risk": "write"
+          },
+          {
+            "id": "device.assistance",
+            "score": 0.26,
+            "operation": "write",
+            "risk": "write"
+          }
+        ]
+      },
+      "latency_ms": 51.011
+    }
+  },
+  "gemini_claw_hint_now": {
+    "surface": "gemini_claw",
+    "text": "Mon solde Orange",
+    "caller": "owner",
+    "function": "gemini-request.py::capability_hint",
+    "latency_ms": 321,
+    "hint": {
+      "capability_revision": "1391140c3d8736c3",
+      "capability": "telecom.orange.consultation",
+      "selected": {
+        "executor": "claw.skill_route",
+        "route": "orange.summary.maxit.v1",
+        "state": "ready",
+        "risk": "read",
+        "deterministic": true
+      },
+      "matches": [
+        {
+          "id": "telecom.orange.consultation",
+          "name": "Orange Tunisia deterministic read workflows",
+          "score": 1.0
+        },
+        {
+          "id": "telecom.zain_bahrain.consultation",
+          "name": "Zain Bahrain structured read consultations",
+          "score": 0.667
+        },
+        {
+          "id": "telecom.tunisie_telecom.consultation",
+          "name": "Tunisie Telecom silent native consultations",
+          "score": 0.571
+        }
+      ]
+    },
+    "prompt_contains_CAPABILITY_HINT": true,
+    "prompt_hint_prefix": "CAPABILITY_HINT={\"capability_revision\":\"",
+    "provider_call": false
+  }
+}

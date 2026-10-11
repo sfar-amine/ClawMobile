@@ -93,3 +93,11 @@ Les quatre fichiers `r20/*.main*.json` ont été capturés de la même façon po
 | R5-bis #78 / pb#38 | `r5-bis/cron-state.sqlite`, `r5-bis/measures.json` | schéma réel `cron_jobs` + `cron_run_receipts` (17 jobs, 59 reçus) | Schéma **STRICT, PK (store_key, job_id)**, `schedule_identity` JSON non nul sur les 17 lignes. Digest #38 : 35 ms à froid, 2,4 ms à chaud sur la vraie base ; digest de la fixture `44de239b…d342`. |
 | R22 #79 | `r22/cron.status.json`, `cron.runs.*.json` | `openclaw gateway call` | `cron.status` 2,6 s ; `cron.runs` 1,6–4,7 s ; page non vide (total 299), vide, id inconnu et id invalide (`INVALID_REQUEST`/`CRON_JOB_NOT_FOUND`), erreurs toutes tâches (total 135). Source : `state/openclaw.sqlite.task_runs` (`source_id = jobId`). |
 | P0-4/5 #81 | `p0-4-5/resources-inventory.json` | procfs + fichiers + SQLite | Gateway RSS 0,83–1,29 Go, swap 0,62–0,84 Go, pic 2,3 Go ; `/proc/loadavg` et PSI refusés (SELinux), charge lisible via `uptime`. 108 releases (102 Mo), `gateway.stderr.log` 36,6 Mo non borné, remote-bridge 6 459 reçus (15 `running` jusqu'à 245 h, 1 `indeterminate`), artefacts 320 Mo, plugin-captures 643 Mo dont 4 racines orphelines sans `owner.sqlite` (432 Mo) que la purge native ne touche pas. |
+
+## `android/` : réglages réseau Android réels (lot paiement Maxit, P0-7)
+
+**Provenance.** Capturé le 10/10/2026 sur le S24 par Claude, en lecture seule (`adb -s 127.0.0.1:5556 shell settings list global`, filtré sur les clés réseau utiles ; `cmd wifi status | head -1`). Aucune écriture.
+- `settings-global-network.txt` : les clés que le garde réseau lit (`auto_wifi`, `sem_auto_wifi_control_enabled` et les clés proxy), avec leurs valeurs réelles. Les deux clés Auto Wi-Fi sont dans `settings global` (absentes de `secure` et `system`, vérifié le même jour).
+- `cmd-wifi-status.txt` : première ligne réelle de `cmd wifi status` (`Wifi is enabled`, sans tiret).
+
+**Nettoyage.** Rien à masquer : aucune donnée personnelle ni secret dans ces lignes (la liste des réseaux connus `sem_auto_wifi_added_removed_list` est volontairement exclue).

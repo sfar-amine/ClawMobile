@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "id": "claude-o6-guarded-entry-wait-20261011",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Fast path waits for the 60 s guarded operator entry instead of abandoning it at 30-38 s",
+  "reason": "File37 O6: the fast path must not give up while the network guard holds Wi-Fi off. Guard bound 60 s (decision of 11/10 on fixtures/s24-2026-10-11/o6-network-guard-timing.json); helper waits 70 s, Node and gemini processes allow it.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/claude-o6-guarded-entry-wait-20261011.json",
+    "docs/work/samantha-runtime/contracts/o6-core.md",
+    "installer/termux-lite/gemini-request.py",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-guarded-operator-wait.py",
+    "openclaw-plugin-mobile-ui/scripts/test-guarded-entry-wait.cjs",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts"
+  ],
+  "tests": [
+    {
+      "name": "o6-guarded-wait-python",
+      "status": "passed",
+      "evidence": "test-guarded-operator-wait.py: 5 tests on the captured 10/10 09:41 resolution; guarded entry raises only the read execution wait to 70 s, ordinary routes keep 30 s, the confirmed handoff budget is untouched, gemini process timeout 90 s."
+    },
+    {
+      "name": "o6-guarded-wait-node",
+      "status": "passed",
+      "evidence": "test-guarded-entry-wait.cjs: executing calls are killed only after 85 s (30 s owner inbound) or the caller budget + 15 s; check-only calls keep timeout + 8 s."
+    },
+    {
+      "name": "existing-regressions",
+      "status": "passed",
+      "evidence": "tsc, test-model-fast-path.cjs, test-model-efficiency.py, test-gemini-request.py pass."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/o6-core.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "No route or action change; existing telecom.orange.consultation keeps its entry, only the wait is aligned (documented in the registry by playbooks #57)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Timeout alignment in the existing fast path; no store, router, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP contracts unchanged.",
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "docs/work/samantha-runtime/contracts/o6-core.md"
+    ]
+  },
+  "rollback": "Revert this PR; the fast path returns to its 30 s / 38 s waits.",
+  "limitations": [
+    "The 60 s bound itself lives in the guard (core #112, O1); before #112 is deployed the guard child has no bound and this wait is only an upper limit of the caller.",
+    "Live recipe by Claude with O1/O3: a guarded consultation finishes inside the bound with network_guard.restored true."
+  ]
+}

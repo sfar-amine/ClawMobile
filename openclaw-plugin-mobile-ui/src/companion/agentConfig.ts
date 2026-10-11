@@ -5,6 +5,7 @@ import {callOpenClawGateway} from "./openclawAgentClient";
 import {readPaymentRequests,readOwnerConfirmations} from "./runs";
 import {findSubmittedRunByClientRunId,reserveSubmittedRun,settleSubmittedRun} from "./runs";
 import {accountView,knownProfiles,publicModelRef,resolveModelRef} from "./accountIdentity";
+import {invalidateSessionDefaults,observeSessionDefaults,peekSessionDefaults} from "./conversationOwnerIndex";
 const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
 export const thinkingLevels=["off","minimal","low","medium","high","xhigh","adaptive","max","ultra"];
 const identifier=/^[A-Za-z0-9._:/+@-]{1,200}$/;
@@ -43,9 +44,25 @@ function modelList(value:any,config:any,auth:any,defaults:any=null){
   return identifier.test(row?.id||'')&&identifier.test(row?.provider||'')&&allow.includes(ref.split('@')[0])&&plugin?.enabled!==false&&row?.available===true&&validProvider(auth,row.provider)?[{id:row.id,provider:row.provider,reasoning:row.reasoning===true||thinking.source==='session_defaults'&&thinking.levels.some((x:string)=>x!=='off'),thinkingLevels:thinking.levels,thinkingDefault:thinking.default,thinkingSource:thinking.source}]:[];
  });
 }
-/** sessions.list `defaults` (one bounded page read), shared with the R18 composer catalog. */
+/**
+ * sessions.list `defaults`, the R18 composer source. The conversation owner index already reads sessions.list
+ * (every page carries `defaults`): a projection younger than [DEFAULTS_SERVE_MS] is reused without I/O. Otherwise one
+ * bounded read with the owner budget (10 s, like readModelOwnerFresh): on the S24 the former 5.5 s budget expired
+ * while four other CLI reads ran in parallel. A failed read keeps the last observed defaults up to [DEFAULTS_KEEP_MS].
+ */
+const DEFAULTS_SERVE_MS=300000,DEFAULTS_KEEP_MS=1800000;
 async function sessionDefaults(){
- try{const value=await callOpenClawGateway('sessions.list',{limit:1},{timeoutMs:5500,hardTimeoutMs:5500});return value?.defaults&&typeof value.defaults==='object'?value.defaults:null;}catch{return null;}
+ const cached=peekSessionDefaults(DEFAULTS_SERVE_MS);if(cached)return cached;
+ try{const value=await callOpenClawGateway('sessions.list',{limit:1},{timeoutMs:10000,hardTimeoutMs:10000});observeSessionDefaults(value?.defaults);}catch{/* last observed defaults below */}
+ return peekSessionDefaults(DEFAULTS_KEEP_MS);
+}
+/** `sessions.usage` only feeds the informative usage line: bounded like the other owner reads and kept 60 s. */
+const SESSIONS_USAGE_MS=60000;
+let sessionsUsage:{value:any,at:number}|null=null;
+async function readSessionsUsage(){
+ if(sessionsUsage&&Date.now()-sessionsUsage.at<SESSIONS_USAGE_MS)return sessionsUsage.value;
+ try{const value=await callOpenClawGateway('sessions.usage',{limit:100},{timeoutMs:5500,hardTimeoutMs:5500});sessionsUsage={value:value?.totals&&typeof value.totals==='object'?{totals:{...value.totals}}:null,at:Date.now()};return sessionsUsage.value;}
+ catch{return null;}
 }
 function validProvider(auth:any,provider:string,profile?:string){
  if(auth?.unavailable||!Array.isArray(auth?.providers))return false;
@@ -54,7 +71,7 @@ function validProvider(auth:any,provider:string,profile?:string){
 }
 const count=(value:any)=>typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null;
 export async function readAgentConfig(){
- const [{raw,catalog,auth},usage,defaults]=await Promise.all([readModelOwnerFresh(),callOpenClawGateway('sessions.usage',{limit:100}).catch(()=>null),sessionDefaults()]);
+ const [{raw,catalog,auth},usage,defaults]=await Promise.all([readModelOwnerFresh(),readSessionsUsage(),sessionDefaults()]);
  const config=configObject(raw),id=modelId(config);
  const chosen=selection(config).value;
  const model=chosen.model??config.agents?.defaults?.model;
@@ -142,7 +159,7 @@ async function changeAgentConfigOnce(body:any){
     for(let attempt=0;attempt<3;attempt++){try{verified=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:2000});break;}catch{if(attempt<2)await new Promise(resolve=>setTimeout(resolve,200));}}
 
    const effective=configObject(verified),effectiveModel=selection(effective).value.model??effective.agents?.defaults?.model;
-   if(modelId(effective)===id&&level(effective)===body.thinking&&(!fallbacks||JSON.stringify(effectiveModel?.fallbacks)===JSON.stringify(fallbacks))){state='completed';artifact={configurationRevision:verified.hash,agentId:'main'};}
+   if(modelId(effective)===id&&level(effective)===body.thinking&&(!fallbacks||JSON.stringify(effectiveModel?.fallbacks)===JSON.stringify(fallbacks))){state='completed';invalidateSessionDefaults();artifact={configurationRevision:verified.hash,agentId:'main'};}
    }
   }
  }catch{/* No proof: never repeat a possible configuration effect. */}

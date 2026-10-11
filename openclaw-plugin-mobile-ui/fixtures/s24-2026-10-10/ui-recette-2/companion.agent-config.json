@@ -1,0 +1,119 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-10T20:47:41Z",
+  "host": "Samsung S24 / Termux",
+  "companion": "f95be8d",
+  "gateway": "OpenClaw 2026.9.6",
+  "route": "/agent/config",
+  "status": 200,
+  "seconds": 6.14,
+  "readOnly": true,
+  "method": "claw_exec: curl -H 'Connection: close' http://127.0.0.1:8765/v1/agent/config",
+  "sanitized": "amounts replaced by fictitious values; account handles, revision and private session ids replaced; account e-mail fields removed",
+  "note": "defect: gpt-5.6-sol reduced to off (sessions.list defaults lost under 5 parallel CLI reads); sessions.list {limit:1} alone answered in 2.2 s with 8 levels"
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "receipt": null,
+  "schemaVersion": 1,
+  "revision": "hmac-sha256:v1:QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ",
+  "agentId": "main",
+  "model": "openai/gpt-5.6-sol@acct-0000000000a1",
+  "provider": "openai",
+  "fallbacks": [
+   "openai/gpt-5.6-luna",
+   "google/gemini-3.5-flash-lite@acct-0000000000a2"
+  ],
+  "accounts": [
+   {
+    "id": "acct-0000000000a1",
+    "provider": "openai",
+    "label": "openai · compte connecté"
+   },
+   {
+    "id": "acct-0000000000a2",
+    "provider": "google",
+    "label": "google · compte connecté"
+   }
+  ],
+  "tools": {
+   "global": {
+    "profile": "full",
+    "allow": null,
+    "deny": null
+   },
+   "agent": {
+    "profile": null,
+    "allow": null,
+    "deny": null
+   },
+   "effective": null,
+   "reason": "effective_tool_catalog_unavailable"
+  },
+  "thinking": "low",
+  "thinkingLevels": [
+   "off",
+   "minimal",
+   "low",
+   "medium",
+   "high",
+   "xhigh",
+   "adaptive",
+   "max",
+   "ultra"
+  ],
+  "models": [
+   {
+    "id": "gemini-3.5-flash-lite",
+    "provider": "google",
+    "reasoning": true,
+    "thinkingLevels": [
+     "off",
+     "minimal",
+     "low",
+     "medium",
+     "adaptive",
+     "high"
+    ],
+    "thinkingDefault": "low",
+    "thinkingSource": "model_catalog"
+   },
+   {
+    "id": "gpt-5.6-luna",
+    "provider": "openai",
+    "reasoning": true,
+    "thinkingLevels": [
+     "low",
+     "medium",
+     "high",
+     "xhigh",
+     "max"
+    ],
+    "thinkingDefault": "low",
+    "thinkingSource": "model_catalog"
+   },
+   {
+    "id": "gpt-5.6-sol",
+    "provider": "openai",
+    "reasoning": false,
+    "thinkingLevels": [
+     "off"
+    ],
+    "thinkingDefault": null,
+    "thinkingSource": "unavailable"
+   }
+  ],
+  "writeAvailable": true,
+  "issues": [
+   "session_thinking_defaults_unavailable"
+  ],
+  "usage": {
+   "scope": "sessions_usage_limit_100",
+   "inputTokens": null,
+   "outputTokens": null,
+   "totalTokens": 51057412,
+   "costUsd": 1.25
+  }
+ }
+}
