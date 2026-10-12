@@ -24,6 +24,11 @@ class GenericDisplayTests(unittest.TestCase):
         self.assertEqual("Project count : 0\nProjects : aucun",
                          m._display_text({"ok": True, "query": "zain", "project_count": 0, "projects": [], "request_count": 5}))
 
+    def test_one_result_shows_its_whole_record(self):
+        text = m._display_text({"ok": True, "project_count": 1, "projects": [{"project_id": "20495", "label": "ZAIN BAHRAIN - PHASE 5",
+                                "status": "En attente du BC", "progress": "9%", "sold": "417"}]})
+        self.assertEqual("Project count : 1\nProject id : 20495\nLabel : ZAIN BAHRAIN - PHASE 5\nStatus : En attente du BC\nProgress : 9%\nSold : 417", text)
+
     def test_sensitive_or_failed_results_keep_the_safe_fallback(self):
         self.assertEqual(FALLBACK, m._display_text({"ok": True, "token": "Bearer abcdefghijklmnop", "phone": "+21612345678"}))
         self.assertEqual(FALLBACK, m._display_text({"ok": False, "reason": "x"}))

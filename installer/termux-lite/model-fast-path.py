@@ -425,6 +425,11 @@ def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
                      if not isinstance(v, (dict, list)) and _generic_value(v) and str(k) not in _GENERIC_HIDDEN]
             if parts:
                 lines.append(f"{label(key)} : " + " ; ".join(parts))
+        elif isinstance(item, list) and len(item) == 1 and isinstance(item[0], dict):
+            # One result (« état du projet 20495 ») : its whole record, one field per line.
+            for k, v in list(item[0].items())[:limit]:
+                if str(k) not in _GENERIC_HIDDEN and not isinstance(v, (dict, list)) and _generic_value(v):
+                    lines.append(f"{str(k).replace('_', ' ').capitalize()} : {_generic_value(v)}")
         elif isinstance(item, list):
             rows = []
             for row in item[:5]:
