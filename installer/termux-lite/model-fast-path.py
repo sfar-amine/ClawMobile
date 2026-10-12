@@ -344,12 +344,13 @@ def _execution_provenance(selected: dict[str, Any], execution: dict[str, Any]) -
     return result
 
 
-def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None) -> str:
+def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None, card: bool = True) -> str:
     remaining = [128] if remaining is None else remaining
     remaining[0] -= 1
     if depth >= 4 or remaining[0] < 0:
         return "Résultat disponible auprès de Claw ; détails non affichables en texte."
-    if depth == 0:
+    # A successful read shows its own result, never the opaque receipt card (« Résultat à vérifier », R18).
+    if depth == 0 and card:
         presented = _presentation_display(value)
         if presented:
             return presented
@@ -405,6 +406,35 @@ _GENERIC_HIDDEN = {"ok", "route", "route_id", "query", "request_count", "latency
                    "source", "version", "fallback_from", "route_selection_reason", "reason_code"}
 
 
+# Amine 12/10 : noms de champs lisibles en français. Dictionnaire borné et générique (clé normalisée
+# → libellé) ; un champ inconnu garde le rendu historique (« project_id » → « Project id »).
+_FIELD_LABELS = {
+    "project_id": "N° de projet", "project_label": "Projet", "offer_id": "N° d'offre", "label": "Libellé",
+    "created_at": "Créé le", "updated_at": "Mis à jour le", "nature": "Nature", "type": "Type",
+    "project_manager": "Chef de projet", "progress_to_date": "Avancement", "progress": "Avancement",
+    "cumulative_progress": "Avancement cumulé", "status": "Statut", "priority": "Priorité",
+    "sold": "Vendu (JH)", "raf": "Reste à faire (JH)", "att": "Atterrissage (JH)", "drift": "Dérive",
+    "consumption_current_week": "Consommation de la semaine (JH)",
+    "consumption_current_month": "Consommation du mois (JH)",
+    "consumption_current_year": "Consommation de l'année (JH)",
+    "consumption_total": "Consommation totale (JH)", "consumed_jh": "Consommé (JH)", "total_jh": "Total (JH)",
+    "forecast_jh": "Prévision (JH)", "charges": "Charges", "period": "Période", "month": "Mois", "year": "Année",
+    "monthly": "Par mois", "start_date": "Début", "end_date": "Fin", "balance": "Solde",
+    "solde_a_date_jours": "Solde à date (jours)", "ytd_jours": "Cumul de l'année (jours)",
+    "requests": "Demandes", "projects": "Projets", "offers": "Offres", "tables": "Tableaux", "summary": "Synthèse",
+    "project_count": "Projets", "offer_count": "Offres", "leave_count": "Congés", "team_count": "Équipe",
+    "row_count": "Lignes", "data": "Données",
+}
+
+
+def _field_label(key: Any, capitalize: bool = True) -> str:
+    known = _FIELD_LABELS.get(str(key).strip().lower())
+    if known:
+        return known
+    text = str(key).replace("_", " ").strip()
+    return text.capitalize() if capitalize else text
+
+
 def _generic_value(value: Any, depth: int = 0) -> str:
     if isinstance(value, bool):
         return "oui" if value else "non"
@@ -416,7 +446,7 @@ def _generic_value(value: Any, depth: int = 0) -> str:
             return " ".join(x for x in (_generic_value(value.get("value"), depth + 1), _plain_display(value.get("unit") or value.get("currency"), 20)) if x)
         if "displayed" in value:
             return _generic_value(value.get("displayed"), depth + 1)
-        parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v, depth + 1)}" for k, v in list(value.items())[:8]
+        parts = [f"{_field_label(k, False)} : {_generic_value(v, depth + 1)}" for k, v in list(value.items())[:8]
                  if str(k) not in _GENERIC_HIDDEN and _generic_value(v, depth + 1)]
         return " ; ".join(parts)
     if isinstance(value, str) and value.startswith("[") and not value.startswith(("[{", '["', "[[")):
@@ -430,12 +460,16 @@ def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
     if value.get("ok") is False:
         return ""
     lines: list[str] = []
-    label = lambda key: str(key).replace("_", " ").strip().capitalize()
+    label = _field_label
+    # « project_count : 1 » repeats the size of its sibling list (« projects »), already shown by that list.
+    sizes = {len(v) for v in value.values() if isinstance(v, list)}
     for key, item in value.items():
         if len(lines) >= limit or str(key) in _GENERIC_HIDDEN or str(key).endswith("_ms"):
             continue
+        if str(key).endswith("_count") and type(item) is int and item in sizes:
+            continue
         if isinstance(item, dict):
-            parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v)}" for k, v in list(item.items())[:12]
+            parts = [f"{_field_label(k, False)} : {_generic_value(v)}" for k, v in list(item.items())[:12]
                      if not isinstance(v, list) and _generic_value(v) and str(k) not in _GENERIC_HIDDEN]
             if parts:
                 lines.append(f"{label(key)} : " + " ; ".join(parts))
@@ -456,7 +490,7 @@ def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
             # One result (« état du projet 20495 ») : its whole record, one field per line.
             for k, v in list(item[0].items())[:limit]:
                 if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list) and _generic_value(v):
-                    lines.append(f"{str(k).replace('_', ' ').capitalize()} : {_generic_value(v)}")
+                    lines.append(f"{label(k)} : {_generic_value(v)}")
         elif isinstance(item, list):
             rows = []
             for row in item[:5]:
@@ -869,7 +903,7 @@ def try_fast_path(
             payload = execution.get("result")
             return {
                 # Business rendering of the owner result (O7 cards…), preceded by the HS3 « Compris » line.
-                "status": "hit", "source": "capability", "text": _understood_prefix(metadata, _display_text(payload)),
+                "status": "hit", "source": "capability", "text": _understood_prefix(metadata, _display_text(payload, card=False)),
                 **metadata,
                 "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
                 "route": selected.get("route"), "capability": selected.get("capability"),

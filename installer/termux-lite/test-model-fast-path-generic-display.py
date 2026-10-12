@@ -14,40 +14,45 @@ class GenericDisplayTests(unittest.TestCase):
         text = m._display_text({"ok": True, "balance": {"solde_a_date_jours": 16.427, "ytd_jours": 21},
                                 "requests": [{"id": 15150, "type": "Congé Annuel", "start": "15/10/2026 09:00"}] * 7,
                                 "latency_ms": {"total": 1485}})
-        self.assertIn("Balance : solde a date jours : 16.427 ; ytd jours : 21", text)
-        self.assertIn("Requests : 7\n- 15150 · Congé Annuel · 15/10/2026 09:00", text)
+        self.assertIn("Solde : Solde à date (jours) : 16.427 ; Cumul de l'année (jours) : 21", text)
+        self.assertIn("Demandes : 7\n- 15150 · Congé Annuel · 15/10/2026 09:00", text)
         self.assertTrue(text.endswith("- …")); self.assertNotIn("latency", text.lower())
 
     def test_forecast_and_empty_search(self):
-        self.assertEqual("Offer id : 20447\nCharges : 2026-11 : 50\nTotal jh : 665",
+        self.assertEqual("N° d'offre : 20447\nCharges : 2026-11 : 50\nTotal (JH) : 665",
                          m._display_text({"ok": True, "offer_id": "20447", "charges": {"2026-11": "50"}, "total_jh": 665, "route": "x"}))
-        self.assertEqual("Project count : 0\nProjects : aucun",
+        self.assertEqual("Projets : aucun",
                          m._display_text({"ok": True, "query": "zain", "project_count": 0, "projects": [], "request_count": 5}))
 
     def test_one_result_shows_its_whole_record(self):
         text = m._display_text({"ok": True, "project_count": 1, "projects": [{"project_id": "20495", "label": "ZAIN BAHRAIN - PHASE 5",
                                 "status": "En attente du BC", "progress": "9%", "sold": "417"}]})
-        self.assertEqual("Project count : 1\nProject id : 20495\nLabel : ZAIN BAHRAIN - PHASE 5\nStatus : En attente du BC\nProgress : 9%\nSold : 417", text)
+        self.assertEqual("N° de projet : 20495\nLibellé : ZAIN BAHRAIN - PHASE 5\nStatut : En attente du BC\nAvancement : 9%\nVendu (JH) : 417", text)
 
     def test_tables_render_as_rows(self):
         text = m._display_text({"ok": True, "intent": "pulse.cra.status", "path": "/x", "filters": {},
                                 "tables": [{"headers": ["Collaborateur", "Mois", "Statut"], "rows": [["Amal", "10/2026", "Validé"], ["Sami", "10/2026", "À saisir"]]}]})
-        self.assertEqual("Tables : 2 ligne(s)\n- Collaborateur : Amal · Mois : 10/2026 · Statut : Validé\n- Collaborateur : Sami · Mois : 10/2026 · Statut : À saisir", text)
+        self.assertEqual("Tableaux : 2 ligne(s)\n- Collaborateur : Amal · Mois : 10/2026 · Statut : Validé\n- Collaborateur : Sami · Mois : 10/2026 · Statut : À saisir", text)
 
     def test_nested_values_and_bracketed_labels(self):
         text = m._display_text({"ok": True, "provider": "zain-bahrain", "workflow": "balance", "ui_used": True, "observed_at": 1.7e9,
                                 "data": {"balance": {"value": "0.000", "unit": "BD"}}})
-        self.assertEqual("Data : balance : 0.000 BD", text)
-        self.assertEqual("Offer id : 20447\nOffer : [Offre] : SOTELMA · En cours",
+        self.assertEqual("Données : Solde : 0.000 BD", text)
+        self.assertEqual("N° d'offre : 20447\nOffer : [Offre] : SOTELMA · En cours",
                          m._display_text({"ok": True, "offer_id": "20447", "offer": "[Offre] : SOTELMA · En cours"}))
         month = {"period": "2026-01", "consumed_jh": {"displayed": "0"}, "progress": {"displayed": "0%"}}
-        self.assertEqual("Period : 2026-01\nConsumed jh : 0\nProgress : 0%", m._display_text({"ok": True, "monthly": [month]}))
-        self.assertEqual("Monthly : 2\n- 2026-01 · 0 · 0%\n- 2026-01 · 0 · 0%", m._display_text({"ok": True, "monthly": [month, month]}))
+        self.assertEqual("Période : 2026-01\nConsommé (JH) : 0\nAvancement : 0%", m._display_text({"ok": True, "monthly": [month]}))
+        self.assertEqual("Par mois : 2\n- 2026-01 · 0 · 0%\n- 2026-01 · 0 · 0%", m._display_text({"ok": True, "monthly": [month, month]}))
         self.assertEqual("Résultat disponible auprès de Claw ; détails non affichables en texte.", m._display_text({"ok": True, "raw": '[{"a":1}]'}))
 
     def test_sensitive_or_failed_results_keep_the_safe_fallback(self):
         self.assertEqual(FALLBACK, m._display_text({"ok": True, "token": "Bearer abcdefghijklmnop", "phone": "+21612345678"}))
         self.assertEqual(FALLBACK, m._display_text({"ok": False, "reason": "x"}))
+
+    def test_unknown_field_keeps_the_historical_label(self):
+        self.assertEqual("Custom field : 3\nPréavis : oui", m._display_text({"ok": True, "custom_field": 3, "Préavis": True}))
+        # A counter that does not match a displayed list stays visible.
+        self.assertEqual("Projets : 4\nOffres : 1\n- 1 · A", m._display_text({"ok": True, "project_count": 4, "offers": [{"id": 1, "label": "A"}]}))
 
     def test_declared_text_still_wins(self):
         self.assertEqual("Solde : 16 j", m._display_text({"ok": True, "text": "Solde : 16 j", "balance": {"a": 1}}))
@@ -98,6 +103,70 @@ class ChoiceTests(unittest.TestCase):
                 self.assertTrue(out["model_bypassed"])
         finally:
             m.resolve_capability, m.execute_capability_decision = old
+
+
+CARD = {"version": 1, "locale": "fr", "status": "info", "label": "état du projet", "title": "Résultat à vérifier",
+        "spoken": "Le résultat de la demande reste à vérifier.", "rows": [], "primary": {"label": "Terminer", "action": "done"},
+        "effect": {"debited": "unknown", "source": "receipt"}, "meta": {"capability": "pulse.backend_first"},
+        "understood": {"capability": "pulse.backend_first", "label": "état du projet", "slots": {}, "text": "Compris : état du projet"},
+        "alternatives": []}
+# S24 12/10, « état projet zain phase 5 » : record of billing/direct-runtime/pulse-projects.mjs --one (values as received).
+ZAIN_PHASE_5 = {"project_id": "20495", "label": "ZAIN BAHRAIN - PHASE 5", "created_at": "30/09/2026 14:17", "nature": "Services",
+                "type": "Forfait", "project_manager": "Amine SFAR", "progress_to_date": "13%", "status": "En attente du BC",
+                "priority": "P1", "sold": "417", "consumption_current_week": "0", "consumption_current_month": "15.06",
+                "consumption_current_year": "52.19", "consumption_total": "52.19", "raf": "362", "att": "414.19", "drift": "-0.67%"}
+
+
+class ReadableResultCardTests(unittest.TestCase):
+    """S24 12/10 : la fiche Pulse s'affichait « Compris : Pulse backend-first runtime », « Sold », « Raf », « Project count : 1 »."""
+    def run_hit(self, payload, card=CARD):
+        resolution = {"decision": {"type": "EXECUTE"}, "harness": {"tool_policy": "required"},
+                      "selected": {"state": "ready", "authorized": True, "deterministic": True}}
+        old = (m.resolve_capability, m.execute_capability_decision)
+        m.resolve_capability = lambda *a, **k: resolution
+        m.execute_capability_decision = lambda *a, **k: {"decision": {"type": "EXECUTE", "target": "pulse", "intent": "project.snapshot"},
+                                                         "execution": {"state": "completed", "result": payload}, "presentation": card}
+        try:
+            return m.try_fast_path("état projet zain phase 5")
+        finally:
+            m.resolve_capability, m.execute_capability_decision = old
+
+    def test_real_zain_phase_5_reads_in_french(self):
+        out = self.run_hit({"ok": True, "route": "/Affaires/ListeAffaires", "query": "zain phase 5", "project_count": 1,
+                            "projects": [ZAIN_PHASE_5], "request_count": 3, "latency_ms": 2140})
+        self.assertEqual("hit", out["status"])
+        self.assertEqual(
+            "Compris : état du projet\n"
+            "N° de projet : 20495\n"
+            "Libellé : ZAIN BAHRAIN - PHASE 5\n"
+            "Créé le : 30/09/2026 14:17\n"
+            "Nature : Services\n"
+            "Type : Forfait\n"
+            "Chef de projet : Amine SFAR\n"
+            "Avancement : 13%\n"
+            "Statut : En attente du BC\n"
+            "Priorité : P1\n"
+            "Vendu (JH) : 417\n"
+            "Consommation de la semaine (JH) : 0\n"
+            "Consommation du mois (JH) : 15.06\n"
+            "Consommation de l'année (JH) : 52.19\n"
+            "Consommation totale (JH) : 52.19\n"
+            "Reste à faire (JH) : 362\n"
+            "Atterrissage (JH) : 414.19\n"
+            "Dérive : -0.67%", out["text"])
+        self.assertNotIn("Résultat à vérifier", out["text"])
+
+    def test_successful_read_never_shows_the_opaque_card_title(self):
+        # Even when the owner result itself carries a receipt card, a successful read renders the result.
+        out = self.run_hit({"ok": True, "presentation": CARD, "project_count": 1, "projects": [{"project_id": "20495", "sold": "417"}]})
+        self.assertEqual("Compris : état du projet\nN° de projet : 20495\nVendu (JH) : 417", out["text"])
+        # A receipt without a readable « Compris » line (no understood.text) shows only the result.
+        bare = dict(CARD, understood={"capability": "pulse.backend_first", "label": "Pulse backend-first runtime", "slots": {}})
+        self.assertEqual("N° de projet : 20495", self.run_hit({"ok": True, "projects": [{"project_id": "20495"}]}, bare)["text"])
+
+    def test_amounts_still_pass_the_privacy_filter(self):
+        # Exactly six digits stay masked as before; a value formatted with spaces is shown.
+        self.assertEqual("Vendu (JH) : 1 234 567", m._display_text({"ok": True, "sold": "1 234 567", "raf": "123456"}))
 
 
 class BridgeParityTests(unittest.TestCase):
