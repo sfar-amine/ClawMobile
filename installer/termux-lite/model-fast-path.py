@@ -398,7 +398,7 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
 
 
 # Executor bookkeeping, never shown (Amine 12/10 : affichage générique de tout résultat déterministe).
-_GENERIC_HIDDEN = {"ok", "route", "route_id", "query", "request_count", "latency_ms", "duration_ms", "state",
+_GENERIC_HIDDEN = {"ok", "route", "route_id", "query", "request_count", "latency_ms", "duration_ms", "state", "intent", "path", "filters",
                    "source", "version", "fallback_from", "route_selection_reason", "reason_code"}
 
 
@@ -425,6 +425,19 @@ def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
                      if not isinstance(v, (dict, list)) and _generic_value(v) and str(k) not in _GENERIC_HIDDEN]
             if parts:
                 lines.append(f"{label(key)} : " + " ; ".join(parts))
+        elif isinstance(item, list) and item and all(isinstance(t, dict) and isinstance(t.get("headers"), list) and isinstance(t.get("rows"), list) for t in item):
+            # Tables (CRA, évaluations…) : each row as « en-tête : valeur » cells, bounded.
+            for table in item[:3]:
+                headers = [_plain_display(h, 40) or "" for h in table["headers"]]
+                rows = [r for r in table["rows"] if isinstance(r, list)]
+                lines.append(f"{label(key)} : {len(rows)} ligne(s)")
+                for row in rows[:8]:
+                    cells = [(f"{headers[i]} : " if i < len(headers) and headers[i] else "") + _generic_value(v)
+                             for i, v in enumerate(row[:6]) if _generic_value(v)]
+                    if cells:
+                        lines.append("- " + " · ".join(cells))
+                if len(rows) > 8:
+                    lines.append("- …")
         elif isinstance(item, list) and len(item) == 1 and isinstance(item[0], dict):
             # One result (« état du projet 20495 ») : its whole record, one field per line.
             for k, v in list(item[0].items())[:limit]:

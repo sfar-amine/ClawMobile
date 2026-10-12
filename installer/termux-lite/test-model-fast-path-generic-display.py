@@ -29,6 +29,11 @@ class GenericDisplayTests(unittest.TestCase):
                                 "status": "En attente du BC", "progress": "9%", "sold": "417"}]})
         self.assertEqual("Project count : 1\nProject id : 20495\nLabel : ZAIN BAHRAIN - PHASE 5\nStatus : En attente du BC\nProgress : 9%\nSold : 417", text)
 
+    def test_tables_render_as_rows(self):
+        text = m._display_text({"ok": True, "intent": "pulse.cra.status", "path": "/x", "filters": {},
+                                "tables": [{"headers": ["Collaborateur", "Mois", "Statut"], "rows": [["Amal", "10/2026", "Validé"], ["Sami", "10/2026", "À saisir"]]}]})
+        self.assertEqual("Tables : 2 ligne(s)\n- Collaborateur : Amal · Mois : 10/2026 · Statut : Validé\n- Collaborateur : Sami · Mois : 10/2026 · Statut : À saisir", text)
+
     def test_sensitive_or_failed_results_keep_the_safe_fallback(self):
         self.assertEqual(FALLBACK, m._display_text({"ok": True, "token": "Bearer abcdefghijklmnop", "phone": "+21612345678"}))
         self.assertEqual(FALLBACK, m._display_text({"ok": False, "reason": "x"}))
