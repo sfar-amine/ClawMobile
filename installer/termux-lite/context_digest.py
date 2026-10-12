@@ -77,7 +77,12 @@ def _write(fd,name,body):
         try: os.stat(name,dir_fd=fd,follow_symlinks=False)
         except FileNotFoundError: pass
         else: raise ValueError('native_memory_file_collision')
-        os.link(temporary,name,src_dir_fd=fd,dst_dir_fd=fd,follow_symlinks=False);os.fsync(fd)
+        if hasattr(os,'link'): os.link(temporary,name,src_dir_fd=fd,dst_dir_fd=fd,follow_symlinks=False)
+        else:
+            # Android/Termux Python has no os.link (S24 12/10). The fully written, fsynced temporary is
+            # renamed in the same directory; the stat above and the curator lock refuse a collision.
+            os.rename(temporary,name,src_dir_fd=fd,dst_dir_fd=fd)
+        os.fsync(fd)
     finally:
         try: os.unlink(temporary,dir_fd=fd)
         except FileNotFoundError: pass

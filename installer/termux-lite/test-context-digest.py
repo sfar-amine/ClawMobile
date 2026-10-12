@@ -30,6 +30,18 @@ class DigestTests(unittest.TestCase):
    fd=context_digest._directory(self.root/'workspace/memory/cross-surface');os.close(fd)
    self.assertTrue((self.root/'workspace/memory/cross-surface').is_dir())
    with self.assertRaises(PermissionError):context_digest._directory(Path(tempfile.gettempdir())/'outside-home-x')
+ def test_android_without_os_link_writes_the_daily_note(self):
+  # S24 12/10: Termux Python has no os.link; the fsynced temporary is renamed instead.
+  import context_digest
+  self.create()
+  saved=context_digest.os.link
+  try:
+   del context_digest.os.link
+   result=bridge_digest(self.conn,self.workspace,NOW)
+  finally:
+   context_digest.os.link=saved
+  self.assertEqual(result['state'],'bridged');self.assertIn(b'non normatifs',self.note())
+  self.assertEqual([p.name for p in (self.workspace/'memory/cross-surface').iterdir()],['2026-10-10.md'])
  def test_108_existing_supersessions_closed_once_without_event_change(self):
   for n in range(1,109):
    old=self.event(n);new=self.event(n+108,supersedes=old);self.proposal(n,[old,new],'confirm_supersession',{'replacement':new,'superseded':old})
