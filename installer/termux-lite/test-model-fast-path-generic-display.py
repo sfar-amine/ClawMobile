@@ -34,6 +34,17 @@ class GenericDisplayTests(unittest.TestCase):
                                 "tables": [{"headers": ["Collaborateur", "Mois", "Statut"], "rows": [["Amal", "10/2026", "Validé"], ["Sami", "10/2026", "À saisir"]]}]})
         self.assertEqual("Tables : 2 ligne(s)\n- Collaborateur : Amal · Mois : 10/2026 · Statut : Validé\n- Collaborateur : Sami · Mois : 10/2026 · Statut : À saisir", text)
 
+    def test_nested_values_and_bracketed_labels(self):
+        text = m._display_text({"ok": True, "provider": "zain-bahrain", "workflow": "balance", "ui_used": True, "observed_at": 1.7e9,
+                                "data": {"balance": {"value": "0.000", "unit": "BD"}}})
+        self.assertEqual("Data : balance : 0.000 BD", text)
+        self.assertEqual("Offer id : 20447\nOffer : [Offre] : SOTELMA · En cours",
+                         m._display_text({"ok": True, "offer_id": "20447", "offer": "[Offre] : SOTELMA · En cours"}))
+        month = {"period": "2026-01", "consumed_jh": {"displayed": "0"}, "progress": {"displayed": "0%"}}
+        self.assertEqual("Period : 2026-01\nConsumed jh : 0\nProgress : 0%", m._display_text({"ok": True, "monthly": [month]}))
+        self.assertEqual("Monthly : 2\n- 2026-01 · 0 · 0%\n- 2026-01 · 0 · 0%", m._display_text({"ok": True, "monthly": [month, month]}))
+        self.assertEqual("Résultat disponible auprès de Claw ; détails non affichables en texte.", m._display_text({"ok": True, "raw": '[{"a":1}]'}))
+
     def test_sensitive_or_failed_results_keep_the_safe_fallback(self):
         self.assertEqual(FALLBACK, m._display_text({"ok": True, "token": "Bearer abcdefghijklmnop", "phone": "+21612345678"}))
         self.assertEqual(FALLBACK, m._display_text({"ok": False, "reason": "x"}))
