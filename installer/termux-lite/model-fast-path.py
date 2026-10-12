@@ -614,8 +614,23 @@ def _stable_identity(prefix: str, *parts: str) -> str:
     return f"{prefix}:{digest}"
 
 
+def _js_json(value: Any) -> Any:
+    """The value as JavaScript's JSON.parse would give it back: 1.0 → 1. The Remote Bridge re-hashes params with
+    JSON.stringify; a decision carrying confidence 1.0 hashed « 1.0 » here and « 1 » there, and every durable
+    capability-first action was refused (continuum_transport_binding_mismatch, recette du 12/10)."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {str(k): _js_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_js_json(v) for v in value]
+    return value
+
+
 def _bridge_params_hash(method: str, params: dict[str, Any]) -> str:
-    raw = json.dumps({"method": method, "params": params}, ensure_ascii=False, separators=(",", ":"))
+    raw = json.dumps({"method": method, "params": _js_json(params)}, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -675,6 +690,7 @@ def _durable_capability_execute(
     params = {"request": message, "targetHint": "", "surface": surface, "caller": caller}
     if isinstance(decision, dict):
         params["decision"] = decision
+    params = _js_json(params)
     owner_id = "capfirst-" + hashlib.sha256(origin_id.encode()).hexdigest()[:24]
     prepared = _continuum_call(ui_root, [
         "prepare", "--task-id", task_id, "--step-id", step_id,
