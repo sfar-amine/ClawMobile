@@ -109,6 +109,19 @@ class AllowlistTests(unittest.TestCase):
         with self.assertRaises(m.Refused) as e:self.service.call('rooms',self.body('rooms',operationId='rooms-owner',contactId=m.contact_id(OWNER),rooms=['projet']))
         self.assertEqual(e.exception.code,'owner_contact_protected')
         self.assertFalse(any(method=='config.patch' for method,_ in self.calls[calls:]))
+    def test_pulse_room_picks_its_agent_alone_or_with_projet(self):
+        self.add();self.with_rooms_config()
+        self.cfg['agents']['entries'].update({'contacts-pulse':{},'contacts-projet-pulse':{}});self.save()
+        peer=lambda:[b['agentId'] for b in self.cfg['bindings'] if b['match'].get('peer',{}).get('id')==NEW]
+        out=self.rooms(['pulse'],'rooms-pulse');self.assertEqual(out['receipt']['rooms'],['conversation','pulse']);self.assertEqual(peer(),['contacts-pulse'])
+        both=self.rooms(['pulse','projet'],'rooms-both');self.assertEqual(both['receipt']['rooms'],['conversation','projet','pulse']);self.assertEqual(peer(),['contacts-projet-pulse'])
+        self.rooms(['projet'],'rooms-back-to-projet',confirm=False);self.assertEqual(peer(),[m.PROJECT_AGENT])
+        self.rooms(['conversation'],'rooms-none',confirm=False);self.assertEqual(peer(),[])
+    def test_pulse_room_requires_its_provisioned_agent(self):
+        self.add();self.with_rooms_config()
+        with self.assertRaises(m.Refused) as e:self.rooms(['pulse'],'rooms-pulse-unprovisioned')
+        self.assertEqual(e.exception.code,'pulse_room_unavailable')
+        self.assertNotIn(NEW,[b['match'].get('peer',{}).get('id') for b in self.cfg['bindings']])
     def test_project_room_requires_its_provisioned_agent(self):
         self.add();self.with_rooms_config();del self.cfg['agents']['entries'][m.PROJECT_AGENT];self.save()
         with self.assertRaises(m.Refused) as e:self.rooms(['projet'],'rooms-unprovisioned')

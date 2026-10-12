@@ -48,6 +48,7 @@ import { runSkillFastPath as clawmobile_skill_run_fast_path } from "./trace_indu
 import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } from "./trace_induction/repair";
 import { clawmobile_batch_execute } from "./tools/batch";
 import { handleOwnerFastPath } from "./modelFastPath";
+import { handlePulseRoomFastPath } from "./pulseRoomFastPath";
 import { createCapabilityTool } from "./capabilityTool";
 import { agentCapabilityHook } from "./capabilityAgentGuard";
 import { createProviderFallbackCoordinator } from "./providerFallback";
@@ -206,8 +207,12 @@ function register(api: any) {
     const result = await handleOwnerFastPath(event, ctx);
     if (result.handled) {
       api.logger?.debug?.("[capability-first] owner capability handled before model");
+      return result;
     }
-    return result;
+    // Pièce Pulse (fichier 52 §5): only a contact routed to a Pulse room agent, closed to the Pulse family.
+    const room = await handlePulseRoomFastPath(event, ctx);
+    if (room.handled) api.logger?.debug?.("[capability-first] pulse room handled before model");
+    return room.handled ? room : result;
   });
 
   // The factory receives OpenClaw's trusted current-turn context. The first
