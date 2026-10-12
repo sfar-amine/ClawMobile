@@ -391,10 +391,55 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
             question = value.get("question")
             if isinstance(question, str) and _plain_display(question, 4000):
                 return _plain_display(question, 4000)
-        return "Résultat disponible auprès de Claw ; détails non affichables en texte."
+        return _generic_display(value) or "Résultat disponible auprès de Claw ; détails non affichables en texte."
     if isinstance(value, list):
-        return "Résultat disponible auprès de Claw ; détails non affichables en texte."
+        return _generic_display({"résultats": value}) or "Résultat disponible auprès de Claw ; détails non affichables en texte."
     return _plain_display(value, 4000) or "Résultat disponible auprès de Claw."
+
+
+# Executor bookkeeping, never shown (Amine 12/10 : affichage générique de tout résultat déterministe).
+_GENERIC_HIDDEN = {"ok", "route", "route_id", "query", "request_count", "latency_ms", "duration_ms", "state",
+                   "source", "version", "fallback_from", "route_selection_reason", "reason_code"}
+
+
+def _generic_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "oui" if value else "non"
+    if isinstance(value, (int, float)):
+        return f"{value:g}" if isinstance(value, float) else str(value)
+    return _plain_display(value, 160)
+
+
+def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
+    """Readable lines for any executor result: scalar fields, one level of nested scalars, list sizes with
+    their first rows. Bookkeeping keys and anything sensitive (_plain_display) are left out; bounded."""
+    if value.get("ok") is False:
+        return ""
+    lines: list[str] = []
+    label = lambda key: str(key).replace("_", " ").strip().capitalize()
+    for key, item in value.items():
+        if len(lines) >= limit or str(key) in _GENERIC_HIDDEN or str(key).endswith("_ms"):
+            continue
+        if isinstance(item, dict):
+            parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v)}" for k, v in list(item.items())[:12]
+                     if not isinstance(v, (dict, list)) and _generic_value(v) and str(k) not in _GENERIC_HIDDEN]
+            if parts:
+                lines.append(f"{label(key)} : " + " ; ".join(parts))
+        elif isinstance(item, list):
+            rows = []
+            for row in item[:5]:
+                if isinstance(row, dict):
+                    cells = [_generic_value(v) for k, v in row.items() if str(k) not in _GENERIC_HIDDEN and not isinstance(v, (dict, list))]
+                    cells = [c for c in cells if c][:4]
+                    if cells:
+                        rows.append(" · ".join(cells))
+                elif _generic_value(row):
+                    rows.append(_generic_value(row))
+            head = f"{label(key)} : {len(item)}" if item else f"{label(key)} : aucun"
+            lines.append(head + ("" if not rows else "\n" + "\n".join("- " + r for r in rows) + ("\n- …" if len(item) > 5 else "")))
+        elif _generic_value(item):
+            lines.append(f"{label(key)} : {_generic_value(item)}")
+    return "\n".join(lines)[:4000]
 
 
 def _handoff_contract(resolution: dict[str, Any]) -> dict[str, Any] | None:
