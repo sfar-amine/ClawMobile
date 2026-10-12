@@ -911,6 +911,11 @@ def try_fast_path(
             error_result.update(text=_display_text(payload), result=payload, execution_state=state)
         if metadata:
             error_result["text"] = _display_text(executed)
+        # Amine 12/10 : a service closed (declared hours) or not answering says so in one fixed sentence from the
+        # Graph, never a generic error and never the model. Last: the receipt card must not cover it (S24, 19:52).
+        message = _plain_display(execution.get("message"), 400) if isinstance(execution.get("message"), str) else ""
+        if message:
+            error_result.update(text=message, execution_state=state)
         return error_result
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}
