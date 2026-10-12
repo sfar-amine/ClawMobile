@@ -55,7 +55,40 @@ OWNERS = {
     'learning_gate': 'learning-gate.receipts',
     'companion_deploy': 'deploys.companion_receipts',
     'improvement_candidate': 'skill_intelligence.improvement_candidates',
+    'review': 'memory-review',
 }
+# Same fail-closed filter as context-event.sh: a reviewed replacement never carries a secret.
+SECRET = re.compile(r'(password|passwd|otp|one[- ]?time|cvv|cvc|authorization:\s*bearer|bearer\s+[A-Za-z0-9._-]+|api[_ -]?key|cookie:|-----BEGIN .*PRIVATE KEY-----|(^|[^0-9])([0-9][ -]?){13,19}([^0-9]|$))', re.I)
+KINDS = ('decision', 'learning', 'open_thread', 'completed_action', 'constraint')
+
+
+def plan_targets(conn, path):
+    """Amine 12/10 : relire, ordonner, nettoyer la mémoire partagée. A reviewed plan, applied through the same
+    canonical supersession: retire (fil clos, fait périmé, doublon) or replace (fait consolidé et à jour)."""
+    plan = json.loads(Path(path).read_text())
+    rows = plan.get('items') if isinstance(plan, dict) else None
+    if not isinstance(rows, list) or not rows or len(rows) > 2000:
+        raise SystemExit('invalid_plan')
+    found, seen = [], set()
+    for row in rows:
+        target, action, reason = row.get('target'), row.get('action'), str(row.get('reason') or '').strip()
+        if not isinstance(target, str) or target in seen or action not in ('retire', 'replace') or not 3 <= len(reason) <= 300:
+            raise SystemExit('invalid_plan_item')
+        seen.add(target)
+        hit = conn.execute(f'SELECT e.id,e.revision,e.kind FROM events e WHERE e.id=? AND {ACTIVE}', (target,)).fetchone()
+        if not hit:
+            continue  # already superseded or unknown: nothing to do, never an error on rerun
+        item = {'id': hit[0], 'revision': hit[1], 'class': 'review', 'action': action, 'reason': reason, 'kind': hit[2]}
+        if action == 'replace':
+            text = ' '.join(str(row.get('text') or '').split())
+            kind = row.get('kind') or hit[2]
+            if not 3 <= len(text) <= 1000 or SECRET.search(text) or refused_telemetry(text) or kind not in KINDS:
+                raise SystemExit('invalid_replacement')
+            item.update(text=text, kind=kind)
+        found.append(item)
+    return sorted(found, key=lambda x: x['revision'])
+
+
 DEFAULT_OPERATION = 'm3-telemetry-retire-20261012'
 OPERATION_RE = re.compile(r'[-A-Za-z0-9_.:]{1,128}')
 
@@ -99,18 +132,21 @@ def targets(conn, classes):
 
 
 def counts(items):
-    out = {name: 0 for name in OWNERS}
+    out = {name: 0 for name in OWNERS if name != 'review'}
     for item in items:
-        out[item['class']] += 1
+        out[item['class']] = out.get(item['class'], 0) + 1
     out['total'] = len(items)
     return out
 
 
 def receipt(operation, item):
     identity = hashlib.sha256(('memory-retire\0' + operation + '\0' + item['id']).encode()).hexdigest()
-    text = RETIRE_PREFIX + json.dumps({'version': 1, 'operationId': operation, 'target': item['id'],
-                                       'class': item['class'], 'owner': OWNERS[item['class']]},
-                                      sort_keys=True, separators=(',', ':'))
+    if item.get('action') == 'replace':
+        return identity, item['text']
+    fields = {'version': 1, 'operationId': operation, 'target': item['id'], 'class': item['class'], 'owner': OWNERS[item['class']]}
+    if item.get('reason'):
+        fields['reason'] = item['reason']
+    text = RETIRE_PREFIX + json.dumps(fields, sort_keys=True, separators=(',', ':'))
     return identity, text
 
 
@@ -157,11 +193,11 @@ def compact(skip):
 
 
 def retire(args):
-    classes = set(args.classes.split(',')) if args.classes else set(OWNERS)
+    classes = set(args.classes.split(',')) if args.classes else set(OWNERS) - {'review'}
     if not classes <= set(OWNERS):
         raise SystemExit('unknown_class')
     with closing(store.control_read()) as reader:
-        items = targets(reader, classes)
+        items = plan_targets(reader, args.plan) if args.plan else targets(reader, classes)
         head = reader.execute('SELECT COALESCE(MAX(revision),0) FROM events').fetchone()[0]
         total = reader.execute('SELECT count(*) FROM events').fetchone()[0]
         if not args.apply:
@@ -186,7 +222,7 @@ def retire(args):
         for item in items:
             identity, text = receipt(args.operation_id, item)
             file = pending / (identity + '.json')
-            payload = {'version': 2, 'id': identity, 'surface': 'openclaw', 'kind': 'checkpoint', 'text': text,
+            payload = {'version': 2, 'id': identity, 'surface': 'openclaw', 'kind': item['kind'] if item.get('action') == 'replace' else 'checkpoint', 'text': text,
                        'supersedes': item['id'], 'createdAt': datetime.datetime.now(datetime.timezone.utc).isoformat()}
             try:
                 fd = os.open(file, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -252,6 +288,7 @@ def main(argv=None):
     parser.add_argument('--restore', metavar='MANIFEST', help='reverse a run from its manifest (dry-run unless --apply)')
     parser.add_argument('--operation-id', default=DEFAULT_OPERATION)
     parser.add_argument('--classes', default='', help='comma list among: ' + ','.join(OWNERS))
+    parser.add_argument('--plan', metavar='FILE', help='reviewed plan {items:[{target,action:retire|replace,reason,text?,kind?}]}')
     parser.add_argument('--backup-dir', default=str(store.D.parent / 'context-backup' / 'm3-telemetry'))
     parser.add_argument('--no-compact', action='store_true')
     args = parser.parse_args(argv)
