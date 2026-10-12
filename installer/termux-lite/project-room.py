@@ -92,6 +92,26 @@ def build():
     return {'copied': copied, 'droppedSecretLike': dropped, 'target': str(TARGET)}
 
 
+def sync_rules(target, files, check=False):
+    """Room rules follow the deployed commit without rebuilding the snapshot (runtime-sync.sh, 12/10).
+
+    check: report the stale files only. A missing room is not drift (nothing to keep aligned)."""
+    target = Path(target)
+    if not target.is_dir():
+        return {'state': 'absent'}
+    stale = sorted(n for n, text in files.items() if not (target / n).is_file() or (target / n).read_text(encoding='utf-8') != text)
+    if check or not stale:
+        return {'state': 'drift' if stale else 'unchanged', 'files': stale}
+    for name in stale:
+        tmp = target / ('.' + name + '.next')
+        tmp.write_text(files[name], encoding='utf-8'); os.chmod(tmp, 0o600); os.replace(tmp, target / name)
+    return {'state': 'written', 'files': stale}
+
+
+def rules(check=False):
+    return sync_rules(TARGET, {'AGENTS.md': AGENTS, 'USER.md': USER}, check)
+
+
 def openclaw(*args, stdin=None):
     return subprocess.run([OPENCLAW, *args], input=stdin, capture_output=True, text=True, timeout=120)
 
@@ -118,6 +138,9 @@ def provision():
 
 
 if __name__ == '__main__':
+    if sys.argv[1:2] == ['rules'] and sys.argv[2:] in ([], ['--check']):
+        out = rules(check=sys.argv[2:] == ['--check'])
+        print(json.dumps(out, ensure_ascii=False)); sys.exit(1 if out['state'] == 'drift' else 0)
     if len(sys.argv) != 2 or sys.argv[1] not in ('build', 'provision'):
-        raise SystemExit('usage: project-room.py build|provision')
+        raise SystemExit('usage: project-room.py build|provision|rules [--check]')
     print(json.dumps(build() if sys.argv[1] == 'build' else provision(), ensure_ascii=False))
