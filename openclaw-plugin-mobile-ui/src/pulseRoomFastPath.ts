@@ -74,6 +74,30 @@ async function executeAllowed(runner: Runner, message: string, decision: Record<
   return { handled: true as const, reply: { text: "Pulse n'a pas pu terminer la demande. Réessaie dans un instant." } };
 }
 
+type BeforeDispatchEvent = { messageId?: string; content?: string; body?: string; channel?: string; sessionKey?: string; isGroup?: boolean };
+type BeforeDispatchContext = { messageId?: string; channelId?: string; sessionKey?: string };
+
+/**
+ * S24 12/10: the Gateway fires `inbound_claim` only for plugin-owned conversation bindings, so an ordinary
+ * WhatsApp DM never reached the room and Sadok was answered by the model. `before_dispatch` runs for every
+ * inbound message before the agent; the room key it carries is the routed agent session (owner never matches).
+ */
+export async function handlePulseRoomBeforeDispatch(
+  event: BeforeDispatchEvent,
+  ctx: BeforeDispatchContext,
+  runner: Runner = runModelFastPath,
+  now: () => number = Date.now,
+): Promise<{ handled: boolean; text?: string }> {
+  const sessionKey = String(ctx?.sessionKey ?? event?.sessionKey ?? "");
+  const out = await handlePulseRoomFastPath(
+    { content: event?.content, bodyForAgent: event?.body, isGroup: event?.isGroup === true, sessionKey },
+    { sessionKey, channel: String(event?.channel ?? ctx?.channelId ?? ""), runId: event?.messageId ?? ctx?.messageId },
+    runner,
+    now,
+  );
+  return out.handled ? { handled: true, text: out.reply?.text } : { handled: false };
+}
+
 export async function handlePulseRoomFastPath(
   event: InboundEvent,
   ctx: InboundContext,
