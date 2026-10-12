@@ -73,6 +73,25 @@ class ChoiceTests(unittest.TestCase):
         self.assertEqual(clarify, out["decision"])
         self.assertEqual("J'ai trouvé 2 projets : lequel ?\n- 20495 · ZAIN BAHRAIN - PHASE 5\n- 18589 · ZAIN BAHRAIN - Wave 1", out["text"])
 
+    def test_closed_or_unanswering_service_says_so_never_an_error(self):
+        """Amine 12/10 : Pulse est fermé de 19:00 à 9:00 et le week-end ; une demande dit ce qu'il en est."""
+        resolution = {"decision": {"type": "EXECUTE"}, "harness": {"tool_policy": "required"},
+                      "selected": {"state": "ready", "authorized": True, "deterministic": True}}
+        old = (m.resolve_capability, m.execute_capability_decision)
+        m.resolve_capability = lambda *a, **k: resolution
+        try:
+            for state, message in (
+                ("service_closed", "Pulse est fermé en ce moment (ouvert du lundi au vendredi de 9:00 à 19:00, heure de Tunis). Réessaie demain à partir de 9:00."),
+                ("service_unavailable", "Pulse ne répond pas pour le moment. Réessaie dans quelques minutes."),
+                ("failed", "Pulse ne répond pas pour le moment. Réessaie dans quelques minutes."),
+            ):
+                m.execute_capability_decision = lambda *a, **k: {"decision": {"type": "EXECUTE"}, "execution": {"state": state, "message": message}}
+                out = m.try_fast_path("état projet zain phase 5")
+                self.assertEqual(("known_error", message), (out["status"], out["text"]), state)
+                self.assertTrue(out["model_bypassed"])
+        finally:
+            m.resolve_capability, m.execute_capability_decision = old
+
 
 class BridgeParityTests(unittest.TestCase):
     """Recette du 12/10 : les paramètres durables doivent hacher comme JSON.stringify côté Remote Bridge."""

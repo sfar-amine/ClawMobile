@@ -909,6 +909,11 @@ def try_fast_path(
         }
         if composed and isinstance(payload, dict):
             error_result.update(text=_display_text(payload), result=payload, execution_state=state)
+        # Amine 12/10 : a service closed (declared hours) or not answering says so in one fixed sentence from the
+        # Graph, never a generic error and never the model.
+        message = _plain_display(execution.get("message"), 400) if isinstance(execution.get("message"), str) else ""
+        if message:
+            error_result.update(text=message, execution_state=state)
         if metadata:
             error_result["text"] = _display_text(executed)
         return error_result
