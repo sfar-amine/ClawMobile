@@ -32,5 +32,25 @@ class GenericDisplayTests(unittest.TestCase):
         self.assertEqual("Solde : 16 j", m._display_text({"ok": True, "text": "Solde : 16 j", "balance": {"a": 1}}))
 
 
+
+class ChoiceTests(unittest.TestCase):
+    """Amine 12/10 : plusieurs correspondances → une question avec la liste, rien n'est exécuté."""
+    def test_executor_choice_becomes_a_held_clarification(self):
+        clarify = {"type": "CLARIFY", "target": "pulse"}
+        resolution = {"decision": {"type": "EXECUTE"}, "harness": {"tool_policy": "required"},
+                      "selected": {"state": "ready", "authorized": True, "deterministic": True}}
+        executed = {"decision": clarify, "execution": {"state": "needs_clarification", "question": "J'ai trouvé 2 projets : lequel ?",
+                    "choices": [{"label": "20495 · ZAIN BAHRAIN - PHASE 5", "value": "20495"}, {"label": "18589 · ZAIN BAHRAIN - Wave 1", "value": "18589"}]}}
+        old = (m.resolve_capability, m.execute_capability_decision)
+        m.resolve_capability = lambda *a, **k: resolution
+        m.execute_capability_decision = lambda *a, **k: executed
+        try:
+            out = m.try_fast_path("etat projet zain")
+        finally:
+            m.resolve_capability, m.execute_capability_decision = old
+        self.assertEqual(("clarification", "choice_required"), (out["status"], out["reason"]))
+        self.assertEqual(clarify, out["decision"])
+        self.assertEqual("J'ai trouvé 2 projets : lequel ?\n- 20495 · ZAIN BAHRAIN - PHASE 5\n- 18589 · ZAIN BAHRAIN - Wave 1", out["text"])
+
 if __name__ == '__main__':
     unittest.main()

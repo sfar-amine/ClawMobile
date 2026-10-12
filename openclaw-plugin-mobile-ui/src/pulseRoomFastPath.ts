@@ -63,9 +63,14 @@ function reply(result: FastPathResult, fallback: string) {
   return { handled: true as const, reply: { text: String(result.text || fallback).trim() || fallback } };
 }
 
-async function executeAllowed(runner: Runner, message: string, decision: Record<string, unknown>, common: RunnerOptions) {
+async function executeAllowed(runner: Runner, message: string, decision: Record<string, unknown>, common: RunnerOptions, conversation: string, now: () => number) {
   const done = await runner(message, { ...common, checkOnly: false, timeoutSeconds: 75, preparedDecision: decision });
   if (done.status === "hit" || done.status === "known_error") return reply(done, "Pulse n'a pas pu terminer la demande.");
+  // Several matches (Amine 12/10): ask which one; the answer is resolved and checked again before running.
+  if (done.status === "clarification" && done.decision && pulseRoomVerdict(done.decision) === "allowed") {
+    clarifications.set(conversation, { original: message, decision: done.decision as Record<string, unknown>, at: now() });
+    return reply(done, "Lequel veux-tu ?");
+  }
   return { handled: true as const, reply: { text: "Pulse n'a pas pu terminer la demande. Réessaie dans un instant." } };
 }
 
@@ -107,7 +112,7 @@ export async function handlePulseRoomFastPath(
     if (result.status === "known_error") return reply(result, "Pulse n'a pas pu traiter la demande.");
     if (result.status === "eligible") {
       const text = String((result.resolution as any)?.text || "").trim();
-      return executeAllowed(runner, pending && text ? text : message, decision, common);
+      return executeAllowed(runner, pending && text ? text : message, decision, common, conversation, now);
     }
     // A Pulse request the router cannot settle deterministically: ask for the missing name instead of guessing.
     return { handled: true, reply: { text: "Je n'ai pas compris la demande Pulse. Donne le numéro ou le nom du projet ou de l'offre, et ce que tu veux faire." } };

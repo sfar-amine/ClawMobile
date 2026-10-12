@@ -92,6 +92,18 @@ async function main() {
   assert.deepEqual(await mod.handlePulseRoomFastPath(ev("mon solde orange", { sessionKey: otherKey }), ctx({ sessionKey: otherKey }), r), { handled: true, reply: { text: mod.PULSE_ROOM_REFUSAL } });
   assert.equal(r.calls.length, 2);
 
+  // Several projects match: the room asks which one, then runs the answer's decision (checked again).
+  const choose = { ...decision("pulse.project.search", "project.snapshot"), type: "CLARIFY" };
+  const exact = decision("pulse.project.search", "project.snapshot");
+  const third = "+21610000005"; const thirdKey = `agent:contacts-pulse:whatsapp:direct:${third}`;
+  r = runner((m, o, n) => n === 1 ? { status: "eligible", decision: read }
+    : n === 2 ? { status: "clarification", text: "J'ai trouvé 2 projets : lequel ?\n- 20495 · ZAIN BAHRAIN - PHASE 5\n- 18589 · ZAIN BAHRAIN - Wave 1", decision: choose }
+    : n === 3 ? (assert.equal(o.clarificationDecision, choose), { status: "eligible", decision: exact, resolution: { text: "etat projet zain 20495" } })
+    : (assert.equal(o.preparedDecision, exact), { status: "hit", text: "ZAIN BAHRAIN - PHASE 5 : en attente du BC." }));
+  assert.match((await mod.handlePulseRoomFastPath(ev("etat projet zain", { sessionKey: thirdKey }), ctx({ sessionKey: thirdKey }), r)).reply.text, /lequel/);
+  assert.deepEqual(await mod.handlePulseRoomFastPath(ev("20495", { sessionKey: thirdKey }), ctx({ sessionKey: thirdKey }), r), { handled: true, reply: { text: "ZAIN BAHRAIN - PHASE 5 : en attente du BC." } });
+  assert.equal(r.calls.length, 4);
+
   // Helper failure: a clear message, never a model guess.
   r = runner(() => ({ status: "error", reason: "helper_failed" }));
   assert.match((await mod.handlePulseRoomFastPath(ev("état de l'offre 20447"), ctx(), r)).reply.text, /indisponible/);
