@@ -8,10 +8,10 @@ import type {IncomingMessage} from "http";
 
 const contactPattern=/^wa-[a-f0-9]{16}$/;
 const operationPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
-export const allowlistReasons:ReadonlySet<string>=new Set(["owner_contact_protected","country_code_required","invalid_e164","confirmation_required","confirmation_mismatch","confirmation_expired","invalid_scope","invalid_duration","note_too_long","unknown_contact","operation_conflict","invalid_rooms","room_not_available","project_room_unavailable"]);
+export const allowlistReasons:ReadonlySet<string>=new Set(["owner_contact_protected","country_code_required","invalid_e164","confirmation_required","confirmation_mismatch","confirmation_expired","invalid_scope","invalid_duration","note_too_long","unknown_contact","operation_conflict","invalid_rooms","room_not_available","project_room_unavailable","pulse_room_unavailable"]);
 /** Access rooms (people-trusted.py ROOMS): same normalization so both sides hash the same confirmation payload. */
-export const ROOMS=["conversation","projet","agenda","taches","lignes","memoire","actions","messages","maison"] as const;
-const ENFORCED_ROOMS=new Set(["conversation","projet","maison"]);
+export const ROOMS=["conversation","projet","pulse","agenda","taches","lignes","memoire","actions","messages","maison"] as const;
+const ENFORCED_ROOMS=new Set(["conversation","projet","pulse","maison"]);
 export function normalizeRooms(value:any):string[]{
  if(!Array.isArray(value)||!value.length||value.length>ROOMS.length||value.some(r=>!(ROOMS as readonly string[]).includes(r)))fail("invalid_rooms");
  const rooms=value.includes("maison")?["maison"]:ROOMS.filter(r=>r==="conversation"||value.includes(r));

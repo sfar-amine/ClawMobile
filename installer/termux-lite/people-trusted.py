@@ -492,10 +492,12 @@ EVENTS = {'add':'added', 'remove':'removed', 'scope':'scope_changed', 'suspend':
           'rooms':'rooms_changed'}
 # Access "rooms" (decision d'Amine 11/10). Enforced by agent routing, never by prompt: plain conversation is the
 # wildcard `contacts` agent, `projet` a read-only project snapshot agent, `maison` the owner's main agent.
-ROOMS = ('conversation', 'projet', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'maison')
+ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'maison')
 # The other rooms need per-contact capability filtering in the harness first: refused, never granted by prompt.
-ENFORCED_ROOMS = {'conversation', 'projet', 'maison'}
+ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'maison'}
 PROJECT_AGENT = 'contacts-projet'
+# Pièce Pulse (fichier 52 §5): the agent only names the room; the plugin's pulse-room ingress executes Pulse alone.
+PULSE_AGENTS = {'pulse': 'contacts-pulse', 'projet+pulse': 'contacts-projet-pulse'}
 ROOM_TAG = 'r17-rooms:'
 # M4 (décision d'Amine 12/10): contact material stays in the private context repo and is
 # forgotten 30 days after access ended (expiry or removal). Bounded per 60s sweep pass.
@@ -512,14 +514,19 @@ def normalize_rooms(value):
     return rooms
 
 def room_agent(rooms):
-    return 'main' if 'maison' in (rooms or ()) else PROJECT_AGENT if 'projet' in (rooms or ()) else None
+    rooms=rooms or ()
+    if 'maison' in rooms: return 'main'
+    if 'pulse' in rooms: return PULSE_AGENTS['projet+pulse' if 'projet' in rooms else 'pulse']
+    return PROJECT_AGENT if 'projet' in rooms else None
 
 def route_rooms(cfg, number, rooms, identity):
     """One concrete-peer binding per contact with rooms; plain conversation needs none (wildcard → contacts)."""
     bindings=[b for b in (cfg.get('bindings') or []) if not (isinstance(b,dict) and b.get('comment')==ROOM_TAG+identity)]
     agent=room_agent(rooms)
     if agent:
-        if agent==PROJECT_AGENT and PROJECT_AGENT not in ((cfg.get('agents') or {}).get('entries') or {}): fail('project_room_unavailable',503)
+        entries=(cfg.get('agents') or {}).get('entries') or {}
+        if agent==PROJECT_AGENT and PROJECT_AGENT not in entries: fail('project_room_unavailable',503)
+        if agent in PULSE_AGENTS.values() and agent not in entries: fail('pulse_room_unavailable',503)
         entry={'agentId':agent,'comment':ROOM_TAG+identity,'match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':number}}}
         # Listed before the wildcard DM binding: within one tier the first binding in config order wins.
         at=next((i for i,b in enumerate(bindings) if ((b.get('match') or {}).get('peer') or {}).get('id')=='*'),len(bindings))

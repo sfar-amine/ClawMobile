@@ -36,6 +36,8 @@ jobs:
 
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
+      - name: Pulse room agents (fichier 52 §5)
+        run: python3 ../installer/termux-lite/test-pulse-room.py
       - name: Health manager never repairs the Companion during a deploy
         run: python3 ../installer/termux-lite/test-health-deploy-lock.py
 
@@ -104,6 +106,7 @@ jobs:
         run: |
           python3 scripts/test-composed-read-result.py
           node scripts/test-model-fast-path.cjs
+          node scripts/test-pulse-room-fast-path.cjs
 
       - name: Qualify Companion M1 contracts and telemetry offline
         run: |
