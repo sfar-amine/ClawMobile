@@ -1,6 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Safe Companion deploy on the S24: preflight (one heavy job at a time, memory headroom), backup, build,
-# restart, acceptance (companion-acceptance.py), automatic rollback on regression, receipt.
+# restart, acceptance (companion-acceptance.py), runtime copies brought to the same commit (runtime-sync.sh:
+# Gateway plugin, Tier0 release, deploy tools), automatic rollback on regression, receipt.
 # Runs detached: restarting the Companion drops the Claw link, so the caller polls the receipt file.
 #   companion-deploy.sh <commit>        deploy that commit of samantha-private/runtime/samantha-companion-private
 #   COMPANION_DEPLOY_WAIT_CALM_S=1200   wait up to that long for a calm phone instead of refusing at once
@@ -27,9 +28,11 @@ stamp="$(date +%Y%m%dT%H%M%S)"; receipt="$STATE/companion-$stamp.json"; log="$ST
 write(){ python3 - "$receipt" "$@" <<'PY'
 import json,sys,datetime
 path,state,target,previous,detail=sys.argv[1:6]
-try: acc=json.loads(sys.argv[6]) if len(sys.argv)>6 and sys.argv[6] else None
-except ValueError: acc=None
-json.dump({"version":1,"state":state,"target":target,"previous":previous,"detail":detail,"acceptance":acc,
+def arg(i):
+    try: return json.loads(sys.argv[i]) if len(sys.argv)>i and sys.argv[i] else None
+    except ValueError: return None
+acc,runtime=arg(6),arg(7)
+json.dump({"version":1,"state":state,"target":target,"previous":previous,"detail":detail,"acceptance":acc,"runtime":runtime,
            "at":datetime.datetime.now(datetime.timezone.utc).isoformat()},open(path,"w"),ensure_ascii=False)
 PY
   # Only ordinary logs are bounded. Canonical JSON receipts are never removed.
@@ -89,11 +92,16 @@ backup="$BACKUPS/companion-${previous:0:7}-$stamp"; mkdir -p "$backup" && cp -a 
 # Bounded backups: keep the newest KEEP_BACKUPS Companion dist copies.
 ls -dt "$BACKUPS"/companion-* 2>/dev/null | tail -n +$((KEEP_BACKUPS+1)) | xargs -r rm -rf
 
+# Every runtime copy follows the checkout (S24 12/10: the WhatsApp Gateway ran an 11/10 plugin for a day).
+# A checkout older than runtime-sync.sh has nothing to bring along.
+sync_runtime(){ [ -x "$ROOT/runtime-sync.sh" ] || { echo '{"ok":true,"skipped":"runtime_sync_absent"}'; return 0; }
+  "$ROOT/runtime-sync.sh" "$1" 2>>"$log"; }
+
 rollback(){
   reason="$1"; acc="${2:-}"
   git reset -q --hard "$previous" >>"$log" 2>&1 && rm -rf "$PLUGIN/dist" && cp -a "$backup/dist" "$PLUGIN/dist"
-  if restart && after=$(accept 2>>"$log"); then write rolled_back "$full" "$previous" "$reason" "$acc"
-  else write rollback_failed "$full" "$previous" "$reason" "$acc"; "$ROOT/incident-notify.sh" human_required "Samantha — déploiement Companion ${full:0:7} annulé mais le retour arrière n'est pas sain." >/dev/null 2>&1 || true; fi
+  if restart && after=$(accept 2>>"$log") && runtime=$(sync_runtime "$previous"); then write rolled_back "$full" "$previous" "$reason" "$acc" "$runtime"
+  else write rollback_failed "$full" "$previous" "$reason" "$acc" "${runtime:-}"; "$ROOT/incident-notify.sh" human_required "Samantha — déploiement Companion ${full:0:7} annulé mais le retour arrière n'est pas sain." >/dev/null 2>&1 || true; fi
   exit 6
 }
 
@@ -104,7 +112,8 @@ git merge -q --ff-only "$full" >>"$log" 2>&1 || { write refused "$full" "$previo
 restart || rollback health_failed
 acc=$(accept 2>>"$log"); rc=$?
 [ "$rc" -eq 0 ] || rollback acceptance_failed "$acc"
-write deployed "$full" "$previous" "ok" "$acc"
+runtime=$(sync_runtime "$full") || rollback runtime_sync_failed "$acc"
+write deployed "$full" "$previous" "ok" "$acc" "$runtime"
 # M3 « une seule mémoire » : the receipt above (~/.openclaw/deploys/companion-*.json, served by
 # deploymentReceipts.ts) is the canonical deploy record; no "Companion déployé" copy in memory.db.
 echo "$receipt"

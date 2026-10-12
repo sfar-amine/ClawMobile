@@ -45,7 +45,8 @@ Le S24 reste la source de vérité opérationnelle (`claw_context`). Une copie G
   - le préflight (refus si un job lourd tourne, si la mémoire est sous 1 200 Mo ou si la charge dépasse 7) ;
   - l'avance rapide uniquement ;
   - la recette automatique ;
-  - le **retour arrière automatique** si besoin ;
+  - **toutes les copies exécutées amenées au même commit** (`runtime-sync.sh`) : le plugin de la passerelle WhatsApp (`~/.openclaw/extensions`, puis redémarrage propre de la passerelle), la release Tier0 qui lui sert `model-fast-path.py` (`~/.openclaw/releases/current`, bornée à 10), et les outils de déploiement (`~/.openclaw/tools`). Une copie différente fait échouer le déploiement. Incident du 12/10 : la passerelle exécutait encore le plugin du 11/10, et la pièce Pulse répondait par le modèle ;
+  - le **retour arrière automatique** si besoin (il ramène aussi ces copies) ;
   - l'écriture du reçu dans `~/.openclaw/deploys/`.
 - Playbooks : `activate-ui-playbooks.sh <sha>`.
 - L'app Android est compilée par GitHub Actions et installée par `android/samantha/tools/install-from-ci.sh`, qui vérifie le checksum et la clé du S24. **Pas de Gradle sur le téléphone.**
