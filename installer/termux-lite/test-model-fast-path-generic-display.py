@@ -85,7 +85,14 @@ class ChoiceTests(unittest.TestCase):
                 ("service_unavailable", "Pulse ne répond pas pour le moment. Réessaie dans quelques minutes."),
                 ("failed", "Pulse ne répond pas pour le moment. Réessaie dans quelques minutes."),
             ):
-                m.execute_capability_decision = lambda *a, **k: {"decision": {"type": "EXECUTE"}, "execution": {"state": state, "message": message}}
+                # As on the S24 at 19:52: the Graph receipt also carries a presentation card (« Résultat à vérifier »).
+                m.execute_capability_decision = lambda *a, **k: {"decision": {"type": "EXECUTE"}, "execution": {"state": state, "message": message},
+                    "presentation": {"version": 1, "locale": "fr", "status": "info", "label": "Pulse backend-first runtime", "title": "Résultat à vérifier",
+                                     "spoken": "Le résultat de la demande reste à vérifier.", "rows": [], "primary": {"label": "Terminer", "action": "done"},
+                                     "effect": {"debited": "unknown", "source": "receipt"}, "meta": {"capability": "pulse.backend_first"},
+                                     "understood": {"capability": "pulse.backend_first", "label": "Pulse backend-first runtime", "slots": {},
+                                                    "text": "Compris : Pulse backend-first runtime"},
+                                     "alternatives": [{"capability": "telecom.zain_bahrain.consultation", "label": "Zain Bahrain structured read consultations"}]}}
                 out = m.try_fast_path("état projet zain phase 5")
                 self.assertEqual(("known_error", message), (out["status"], out["text"]), state)
                 self.assertTrue(out["model_bypassed"])
