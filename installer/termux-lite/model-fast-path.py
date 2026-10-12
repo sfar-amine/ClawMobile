@@ -278,13 +278,14 @@ _display_privacy_spec.loader.exec_module(_display_privacy_owner)
 _DISPLAY_SENSITIVE = _display_privacy_owner.SENSITIVE
 
 
-def _plain_display(value: Any, maximum: int = 120) -> str:
+def _plain_display(value: Any, maximum: int = 120, bracket_text: bool = False) -> str:
     if not isinstance(value, str):
         return ""
     if _DISPLAY_SENSITIVE.search(value):
         return ""
     text = " ".join(value.split())[:maximum].strip()
-    if not text or text.startswith(("{", "[")) or re.search(r"https?://|\bBearer\b|\+\d{8,}|\b(?:ghp_|github_pat_|sk-|AKIA)[A-Za-z0-9_-]+", text, re.I):
+    json_like = text.startswith(("{", "[{", '["', "[[")) if bracket_text else text.startswith(("{", "["))
+    if not text or json_like or re.search(r"https?://|\bBearer\b|\+\d{8,}|\b(?:ghp_|github_pat_|sk-|AKIA)[A-Za-z0-9_-]+", text, re.I):
         return ""
     return text
 
@@ -399,14 +400,27 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
 
 # Executor bookkeeping, never shown (Amine 12/10 : affichage générique de tout résultat déterministe).
 _GENERIC_HIDDEN = {"ok", "route", "route_id", "query", "request_count", "latency_ms", "duration_ms", "state", "intent", "path", "filters",
+                   "provider", "workflow", "ui_used", "observed_at", "run_id", "schema_version", "business_rule", "coverage_complete",
+                   "live", "providers_requested", "providers_checked", "capability", "operation", "verified",
                    "source", "version", "fallback_from", "route_selection_reason", "reason_code"}
 
 
-def _generic_value(value: Any) -> str:
+def _generic_value(value: Any, depth: int = 0) -> str:
     if isinstance(value, bool):
         return "oui" if value else "non"
     if isinstance(value, (int, float)):
         return f"{value:g}" if isinstance(value, float) else str(value)
+    if isinstance(value, dict) and depth < 2:
+        # « {value: 0.000, unit: BD} » → « 0.000 BD » ; « {displayed: 0%, …} » → « 0% » ; else « k v ; … ».
+        if "value" in value and set(value) <= {"value", "unit", "currency"}:
+            return " ".join(x for x in (_generic_value(value.get("value"), depth + 1), _plain_display(value.get("unit") or value.get("currency"), 20)) if x)
+        if "displayed" in value:
+            return _generic_value(value.get("displayed"), depth + 1)
+        parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v, depth + 1)}" for k, v in list(value.items())[:8]
+                 if str(k) not in _GENERIC_HIDDEN and _generic_value(v, depth + 1)]
+        return " ; ".join(parts)
+    if isinstance(value, str) and value.startswith("[") and not value.startswith(("[{", '["', "[[")):
+        return _plain_display(value, 160, bracket_text=True)  # « [Offre] : … » is text, not JSON
     return _plain_display(value, 160)
 
 
@@ -422,7 +436,7 @@ def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
             continue
         if isinstance(item, dict):
             parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v)}" for k, v in list(item.items())[:12]
-                     if not isinstance(v, (dict, list)) and _generic_value(v) and str(k) not in _GENERIC_HIDDEN]
+                     if not isinstance(v, list) and _generic_value(v) and str(k) not in _GENERIC_HIDDEN]
             if parts:
                 lines.append(f"{label(key)} : " + " ; ".join(parts))
         elif isinstance(item, list) and item and all(isinstance(t, dict) and isinstance(t.get("headers"), list) and isinstance(t.get("rows"), list) for t in item):
@@ -441,13 +455,13 @@ def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
         elif isinstance(item, list) and len(item) == 1 and isinstance(item[0], dict):
             # One result (« état du projet 20495 ») : its whole record, one field per line.
             for k, v in list(item[0].items())[:limit]:
-                if str(k) not in _GENERIC_HIDDEN and not isinstance(v, (dict, list)) and _generic_value(v):
+                if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list) and _generic_value(v):
                     lines.append(f"{str(k).replace('_', ' ').capitalize()} : {_generic_value(v)}")
         elif isinstance(item, list):
             rows = []
             for row in item[:5]:
                 if isinstance(row, dict):
-                    cells = [_generic_value(v) for k, v in row.items() if str(k) not in _GENERIC_HIDDEN and not isinstance(v, (dict, list))]
+                    cells = [_generic_value(v) for k, v in row.items() if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list)]
                     cells = [c for c in cells if c][:4]
                     if cells:
                         rows.append(" · ".join(cells))
