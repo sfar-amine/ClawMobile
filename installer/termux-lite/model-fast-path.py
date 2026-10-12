@@ -829,6 +829,16 @@ def try_fast_path(
                 "provenance": _execution_provenance(selected, execution),
                 "model_bypassed": True,
             }
+        if state == "needs_clarification" and isinstance(executed.get("decision"), dict) and executed["decision"].get("type") == "CLARIFY":
+            # Amine 12/10 : several matches → one question listing them; nothing was executed.
+            choices = [c for c in (execution.get("choices") or []) if isinstance(c, dict) and _plain_display(c.get("label"), 120)]
+            question = _plain_display(execution.get("question"), 300) or "Lequel veux-tu ?"
+            return {
+                "status": "clarification", "reason": "choice_required",
+                "text": question + "".join("\n- " + _plain_display(c.get("label"), 120) for c in choices),
+                "clarification": {"question": question, "choices": choices},
+                "decision": executed["decision"], "model_bypassed": True,
+            }
         if state in ASSISTED_EXECUTION_STATES:
             return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None, **metadata}
         if state == "confirmation_required":
