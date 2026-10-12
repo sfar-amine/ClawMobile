@@ -66,9 +66,21 @@ async function main() {
   r = runner(() => ({ status: "known_error", text: "Paiement refusé", decision: decision("orange.recharge", "telecom.recharge") }));
   assert.deepEqual(await mod.handlePulseRoomFastPath(ev("recharge 5 dt"), ctx(), r), { handled: true, reply: { text: mod.PULSE_ROOM_REFUSAL } });
 
-  // Plain conversation stays with the room agent (no tools): not handled here.
+  // Amine 12/10 « il ne faut plus inventer » : the Pulse-only room never reaches the model, even for small talk or media.
   r = runner(() => ({ status: "miss", reason: "model_allowed" }));
-  assert.deepEqual(await mod.handlePulseRoomFastPath(ev("bonjour"), ctx(), r), { handled: false });
+  assert.deepEqual(await mod.handlePulseRoomFastPath(ev("bonjour"), ctx(), r), { handled: true, reply: { text: mod.PULSE_ROOM_HELP } });
+  assert.equal((await mod.handlePulseRoomFastPath(ev("", { media: [{}] }), ctx(), r)).handled, true);
+  // Joint room (Projet Samantha + Pulse): only questions about the Samantha project may reach the model; client work never.
+  const jointKey = KEY.replace("contacts-pulse", "contacts-projet-pulse");
+  const joint = ctx({ agentId: "contacts-projet-pulse", sessionKey: jointKey });
+  for (const [text, model] of [["bonjour", true], ["explique le code du Companion", true], ["où en est l'app Android de Samantha ?", true],
+    ["état projet zain phase 5", false], ["comment avance le projet Zain ?", false], ["la conso de l'offre 20447", false],
+    ["qui est en congé ?", false], ["Ça donne quoi le forecast", false]]) {
+    r = runner(() => ({ status: "miss", reason: "model_allowed" }));
+    const out = await mod.handlePulseRoomFastPath(ev(text, { sessionKey: jointKey }), joint, r);
+    assert.deepEqual(out, model ? { handled: false } : { handled: true, reply: { text: mod.PULSE_ROOM_HELP } }, text);
+  }
+  assert.equal(mod.pulseRoomMayUseModel("contacts-pulse", "bonjour"), false);
   // Not a room session: the runner is never called.
   r = runner(() => { throw new Error("must not run"); });
   assert.deepEqual(await mod.handlePulseRoomFastPath(ev("état du projet 20495"), ctx({ agentId: "contacts", sessionKey: `agent:contacts:whatsapp:direct:${NUMBER}` }), r), { handled: false });
@@ -112,6 +124,10 @@ async function main() {
     { messageId: "3EB0X", content: "état projet zain phase 5", body: "état projet zain phase 5", channel: "whatsapp", sessionKey: fourthKey, isGroup: false },
     { messageId: "3EB0X", channelId: "whatsapp", sessionKey: fourthKey }, r), { handled: true, text: "ZAIN BAHRAIN - PHASE 5 : en attente du BC." });
   assert.equal(r.calls[1].originId.endsWith(":3EB0X"), true);
+  assert.equal(r.calls[0].message, "état projet zain phase 5");
+  // The envelope in body (« [WhatsApp …] … : ») never replaces the sender's text.
+  r = runner((m, o) => (assert.equal(m, "état projet zain"), o.checkOnly ? { status: "eligible", decision: read } : { status: "hit", text: "ok" }));
+  await mod.handlePulseRoomBeforeDispatch({ content: "état projet zain", body: "[WhatsApp +21610000006 +2s Mon 2026-10-12 17:01:22 UTC] +21610000006: état projet zain", channel: "whatsapp", sessionKey: fourthKey }, { sessionKey: fourthKey }, r);
   r = runner(() => { throw new Error("must not run"); });
   for (const key of [`agent:main:whatsapp:direct:${fourth}`, `agent:contacts:whatsapp:direct:${fourth}`]) {
     assert.deepEqual(await mod.handlePulseRoomBeforeDispatch({ content: "état projet zain", channel: "whatsapp", sessionKey: key }, { channelId: "whatsapp", sessionKey: key }, r), { handled: false });

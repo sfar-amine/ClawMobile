@@ -17,6 +17,23 @@ const MAX_MESSAGE_CHARS = 4000;
 const SESSION = /^agent:(contacts-pulse|contacts-projet-pulse):whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
 export const PULSE_ROOM_REFUSAL = "Ici je ne traite que Pulse : projets, offres, congés de l'équipe et solde de congés. Pour le reste, vois directement avec Amine.";
 const LEAVE_REQUEST_REFUSAL = "Une demande de congé se fait uniquement par Amine.";
+export const PULSE_ROOM_HELP = "Je n'ai pas compris la demande Pulse et je ne réponds qu'avec les données de Pulse. Donne le numéro ou le nom du projet ou de l'offre, et ce que tu veux : état, équipe, consommation, forecast, congés de l'équipe.";
+const TEXT_ONLY = "Ici je ne lis que les messages écrits. Écris ta demande Pulse (projet, offre, congés de l'équipe).";
+
+/**
+ * Amine 12/10 (« il ne faut plus inventer, c'est capital ») : the model never answers about client work. In the
+ * Pulse-only room it never runs at all; in the joint room (Projet Samantha + Pulse) it keeps only questions about
+ * the Samantha project itself. Accents folded; words, not a classifier.
+ */
+const PULSE_WORDS = /\b(projets?|offres?|conges?|forecasts?|phases?|equipes?|cra|consommation|conso|evaluations?|bc|jh|clients?|affaires?|staffing|planning|budgets?|ca|rentabilite|avancement|raf|solde)\b|\b\d{5}\b/;
+const SAMANTHA_WORDS = /\b(samantha|claw|companion|code|app|application|android|playbooks?|capabilit\w*|capacites?|fichiers?|documentation|doc|installeur|route|routes)\b/;
+const fold = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+export function pulseRoomMayUseModel(agent: string, message: string): boolean {
+  if (agent !== "contacts-projet-pulse") return false;
+  const text = fold(message);
+  return SAMANTHA_WORDS.test(text) || !PULSE_WORDS.test(text);
+}
 
 type InboundEvent = {
   id?: string; runId?: string; content?: string; bodyForAgent?: string; isGroup?: boolean; senderIsOwner?: boolean;
@@ -24,6 +41,10 @@ type InboundEvent = {
 };
 type InboundContext = { runId?: string; agentId?: string; sessionKey?: string; channel?: string; messageProvider?: string };
 type Runner = (message: string, options?: RunnerOptions) => Promise<FastPathResult>;
+
+function roomAgent(event: InboundEvent, ctx: InboundContext): string {
+  return SESSION.exec(String(ctx.sessionKey ?? event.sessionKey ?? ""))?.[1] ?? "";
+}
 
 /** The room's contact from the host session key, or null when this turn is not a Pulse room DM. */
 export function pulseRoomContact(event: InboundEvent, ctx: InboundContext): string | null {
@@ -90,7 +111,8 @@ export async function handlePulseRoomBeforeDispatch(
 ): Promise<{ handled: boolean; text?: string }> {
   const sessionKey = String(ctx?.sessionKey ?? event?.sessionKey ?? "");
   const out = await handlePulseRoomFastPath(
-    { content: event?.content, bodyForAgent: event?.body, isGroup: event?.isGroup === true, sessionKey },
+    // content is the sender's text; body may carry the channel envelope (« [WhatsApp …] … : »), used only as a fallback.
+    { content: event?.content || event?.body, isGroup: event?.isGroup === true, sessionKey },
     { sessionKey, channel: String(event?.channel ?? ctx?.channelId ?? ""), runId: event?.messageId ?? ctx?.messageId },
     runner,
     now,
@@ -106,9 +128,12 @@ export async function handlePulseRoomFastPath(
 ): Promise<{ handled: boolean; reply?: { text: string } }> {
   const contactId = pulseRoomContact(event, ctx);
   if (!contactId) return { handled: false };
-  if ((event.media?.length ?? 0) > 0 || (event.originalMedia?.length ?? 0) > 0) return { handled: false };
+  const agent = roomAgent(event, ctx);
+  const modelOr = (text: string) => (agent === "contacts-projet-pulse" ? { handled: false } : { handled: true as const, reply: { text } });
+  if ((event.media?.length ?? 0) > 0 || (event.originalMedia?.length ?? 0) > 0) return modelOr(TEXT_ONLY);
   const message = (event.bodyForAgent ?? event.content ?? "").trim();
-  if (!message || message.length > MAX_MESSAGE_CHARS) return { handled: false };
+  if (!message || message.length > MAX_MESSAGE_CHARS) return modelOr(TEXT_ONLY);
+  const fallback = () => (pulseRoomMayUseModel(agent, message) ? { handled: false } : { handled: true as const, reply: { text: PULSE_ROOM_HELP } });
   const run = String(ctx.runId || event.runId || event.id || now()).slice(0, 60);
   // The requester stays visible in every resolution/execution receipt: room, contact, host run.
   const common: RunnerOptions = { surface: "whatsapp", caller: "owner", originId: `pulse-room:${contactId}:${run}`, timeoutSeconds: 30 };
@@ -124,9 +149,9 @@ export async function handlePulseRoomFastPath(
     }
     result ??= await runner(message, { ...common, checkOnly: true });
     const decision = (result.decision && typeof result.decision === "object" ? result.decision : null) as Record<string, unknown> | null;
-    if (result.status === "miss") return { handled: false };
+    if (result.status === "miss") return fallback();
     if (result.status === "error") return { handled: true, reply: { text: "Pulse est indisponible pour le moment. Réessaie dans un instant." } };
-    if (!decision) return result.status === "assist" ? { handled: false } : refusal("outside");
+    if (!decision) return result.status === "assist" ? fallback() : refusal("outside");
     const verdict = pulseRoomVerdict(decision);
     if (verdict !== "allowed") return refusal(verdict);
     if (result.status === "clarification") {
@@ -139,7 +164,7 @@ export async function handlePulseRoomFastPath(
       return executeAllowed(runner, pending && text ? text : message, decision, common, conversation, now);
     }
     // A Pulse request the router cannot settle deterministically: ask for the missing name instead of guessing.
-    return { handled: true, reply: { text: "Je n'ai pas compris la demande Pulse. Donne le numéro ou le nom du projet ou de l'offre, et ce que tu veux faire." } };
+    return { handled: true, reply: { text: PULSE_ROOM_HELP } };
   } catch {
     return { handled: true, reply: { text: "Pulse est indisponible pour le moment. Réessaie dans un instant." } };
   }
