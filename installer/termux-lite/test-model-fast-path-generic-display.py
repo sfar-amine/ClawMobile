@@ -73,5 +73,19 @@ class ChoiceTests(unittest.TestCase):
         self.assertEqual(clarify, out["decision"])
         self.assertEqual("J'ai trouvé 2 projets : lequel ?\n- 20495 · ZAIN BAHRAIN - PHASE 5\n- 18589 · ZAIN BAHRAIN - Wave 1", out["text"])
 
+
+class BridgeParityTests(unittest.TestCase):
+    """Recette du 12/10 : les paramètres durables doivent hacher comme JSON.stringify côté Remote Bridge."""
+    def test_integral_floats_are_encoded_like_javascript(self):
+        import json, shutil, subprocess
+        params = {"request": "état du téléphone", "caller": "owner", "decision": {"confidence": 1.0, "score": 0.99, "x": [1.0, 2.5], "ok": True, "none": None}}
+        self.assertEqual({"confidence": 1, "score": 0.99, "x": [1, 2.5], "ok": True, "none": None}, m._js_json(params)["decision"])
+        if not shutil.which("node"):
+            self.skipTest("node absent")
+        wire = json.dumps(m._js_json(params), ensure_ascii=False, separators=(",", ":"))
+        js = subprocess.run(["node", "-e", "const c=require('crypto');process.stdout.write(c.createHash('sha256').update(JSON.stringify({method:'capability_execute_owner',params:JSON.parse(process.argv[1])})).digest('hex'))", wire],
+                            capture_output=True, text=True, check=True).stdout
+        self.assertEqual(js, m._bridge_params_hash("capability_execute_owner", params))
+
 if __name__ == '__main__':
     unittest.main()
