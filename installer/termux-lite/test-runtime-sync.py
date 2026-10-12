@@ -20,9 +20,12 @@ OPENCLAW_STUB = f'#!/bin/sh\necho "$@" >> "$HOME/openclaw.log"\n[ "$1 $2" = "plu
 
 class Companion(http.server.BaseHTTPRequestHandler):
     calls = []
+    order_log = None
     def log_message(self, *a): pass
     def answer(self):
         Companion.calls.append((self.command, self.path))
+        if self.path == "/v1/runtime/restart" and Companion.order_log:
+            with open(Companion.order_log, "a") as f: f.write("gateway-restart\n")
         self.send_response(200); self.end_headers(); self.wfile.write(b"{}")
     do_GET = do_POST = answer
 
@@ -53,6 +56,7 @@ class RuntimeSync(unittest.TestCase):
         git("init", "-q"); git("add", "-A")
         git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "fixture"); self.commit = git("rev-parse", "HEAD")
         self.home = self.tmp / "home"; oc = self.home / ".openclaw"
+        Companion.order_log = str(self.home / "tier0.log")
         self.ext = oc / "extensions" / PLUGIN_ID; (self.ext / "dist").mkdir(parents=True); (self.ext / "node_modules/dep").mkdir(parents=True)
         shutil.copy2(plugin / "package.json", self.ext); shutil.copy2(plugin / "openclaw.plugin.json", self.ext)
         (self.ext / "dist/index.js").write_text("// 11/10 copy\n"); (self.ext / "node_modules/dep/x.js").write_text("dep")
@@ -97,7 +101,8 @@ class RuntimeSync(unittest.TestCase):
         self.assertEqual("dep", (self.ext / "node_modules/dep/x.js").read_text())  # the Gateway's installed deps stay
         manifest = json.loads((self.home / ".openclaw/releases/current/manifest.json").read_text())
         self.assertEqual(self.commit, manifest["source_commit"])
-        self.assertEqual(["--apply", "prune --keep 10 --apply"], self.tier0_log())
+        # S24 12/10: the Gateway restarts before the Tier0 promotion, never inside its soak window.
+        self.assertEqual(["gateway-restart", "--apply", "prune --keep 10 --apply"], self.tier0_log())
         self.assertEqual((self.root / "companion-deploy.sh").read_text(), (self.home / ".openclaw/tools/companion-deploy.sh").read_text())
         self.assertEqual(("POST", "/v1/runtime/restart"), Companion.calls[0])
         self.assertIn(("GET", "/v1/control/health?contract=2"), Companion.calls)

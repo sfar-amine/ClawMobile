@@ -68,31 +68,9 @@ if ! same_plugin; then
   plugin=synced
 fi
 
-# 2. Tier0 release (serves model-fast-path.py to the Gateway). Same commit already current: nothing to do.
-if [ "$(release_commit)" != "$commit" ]; then
-  python3 "$SRC/install-tier0-control.py" --apply >&2 || fail release_failed
-  [ "$(release_commit)" = "$commit" ] || fail release_commit_differs
-  python3 "$HOME/.openclaw/tier0/bin/tier0-control.py" prune --keep "$KEEP_RELEASES" --apply >&2 || true
-  release=promoted
-fi
-
-# 3. Deploy tools: the next deploy runs the reviewed script, not a stale copy.
-for name in $(stale_tools); do
-  cp "$SRC/$name" "$TOOLS/.$name.next" && chmod 700 "$TOOLS/.$name.next" && mv -f "$TOOLS/.$name.next" "$TOOLS/$name" || fail tools_copy_failed
-  tools=synced
-done
-
-# 4. Agent rules (no-invention rule, 12/10): rooms and plain contacts follow the commit, read at the next turn.
-for script in project-room.py pulse-room.py; do
-  out=$(python3 "$SRC/$script" rules 2>/dev/null) || fail "rules_failed:$script"
-  case "$out" in *'"written"'*) rules=synced;; esac
-done
-if contacts_stale; then
-  cp "$SRC/contacts-agent.md" "$CONTACTS/.AGENTS.md.next" && chmod 600 "$CONTACTS/.AGENTS.md.next" && mv -f "$CONTACTS/.AGENTS.md.next" "$CONTACTS/AGENTS.md" || fail rules_failed:contacts
-  rules=synced
-fi
-
-# 5. The Gateway loads its plugin at start only: restart it gracefully when the plugin changed, then wait for it.
+# 2. The Gateway loads its plugin at start only: restart it gracefully when the plugin changed, then wait for it.
+# Before the Tier0 promotion: a restart inside the soak window reads as a health regression (S24 12/10, 17:31 —
+# release 5631a6aa rolled back to the 11/10 release after one bad sample).
 if [ "$plugin" = synced ]; then
   curl -fsS -m 240 -X POST "$COMPANION/v1/runtime/restart" >/dev/null 2>&1 || fail gateway_restart_failed
   ready=0
@@ -102,6 +80,30 @@ if [ "$plugin" = synced ]; then
   done
   [ "$ready" = 1 ] || fail gateway_not_ready
   gateway=restarted
+fi
+
+# 3. Tier0 release (serves model-fast-path.py to the Gateway). Same commit already current: nothing to do.
+if [ "$(release_commit)" != "$commit" ]; then
+  python3 "$SRC/install-tier0-control.py" --apply >&2 || fail release_failed
+  [ "$(release_commit)" = "$commit" ] || fail release_commit_differs
+  python3 "$HOME/.openclaw/tier0/bin/tier0-control.py" prune --keep "$KEEP_RELEASES" --apply >&2 || true
+  release=promoted
+fi
+
+# 4. Deploy tools: the next deploy runs the reviewed script, not a stale copy.
+for name in $(stale_tools); do
+  cp "$SRC/$name" "$TOOLS/.$name.next" && chmod 700 "$TOOLS/.$name.next" && mv -f "$TOOLS/.$name.next" "$TOOLS/$name" || fail tools_copy_failed
+  tools=synced
+done
+
+# 5. Agent rules (no-invention rule, 12/10): rooms and plain contacts follow the commit, read at the next turn.
+for script in project-room.py pulse-room.py; do
+  out=$(python3 "$SRC/$script" rules 2>/dev/null) || fail "rules_failed:$script"
+  case "$out" in *'"written"'*) rules=synced;; esac
+done
+if contacts_stale; then
+  cp "$SRC/contacts-agent.md" "$CONTACTS/.AGENTS.md.next" && chmod 600 "$CONTACTS/.AGENTS.md.next" && mv -f "$CONTACTS/.AGENTS.md.next" "$CONTACTS/AGENTS.md" || fail rules_failed:contacts
+  rules=synced
 fi
 
 same_plugin || fail plugin_copy_differs
