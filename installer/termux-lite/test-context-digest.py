@@ -19,6 +19,17 @@ class DigestTests(unittest.TestCase):
   for n in range(0,len(ids),24):self.proposal(n,ids[n:n+24])
   return ids
  def note(self):return (self.workspace/'memory/cross-surface/2026-10-10.md').read_bytes()
+ def test_android_denied_root_walks_from_home(self):
+  # S24 12/10: os.open('/') -> PermissionError on Android; HOME anchors the descriptor walk.
+  import context_digest
+  real=os.open
+  def guarded(path,*a,**k):
+   if path=='/':raise PermissionError(13,'Permission denied','/')
+   return real(path,*a,**k)
+  with patch.dict(os.environ,{'HOME':str(self.root)}),patch('context_digest.os.open',side_effect=guarded):
+   fd=context_digest._directory(self.root/'workspace/memory/cross-surface');os.close(fd)
+   self.assertTrue((self.root/'workspace/memory/cross-surface').is_dir())
+   with self.assertRaises(PermissionError):context_digest._directory(Path(tempfile.gettempdir())/'outside-home-x')
  def test_108_existing_supersessions_closed_once_without_event_change(self):
   for n in range(1,109):
    old=self.event(n);new=self.event(n+108,supersedes=old);self.proposal(n,[old,new],'confirm_supersession',{'replacement':new,'superseded':old})
