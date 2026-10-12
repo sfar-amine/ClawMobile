@@ -47,8 +47,8 @@ import { getSkillStatus as clawmobile_skill_status } from "./trace_induction/sta
 import { runSkillFastPath as clawmobile_skill_run_fast_path } from "./trace_induction/fastpath";
 import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } from "./trace_induction/repair";
 import { clawmobile_batch_execute } from "./tools/batch";
-import { handleOwnerFastPath } from "./modelFastPath";
-import { handlePulseRoomFastPath } from "./pulseRoomFastPath";
+import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath";
+import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
 import { createCapabilityTool } from "./capabilityTool";
 import { agentCapabilityHook } from "./capabilityAgentGuard";
 import { createProviderFallbackCoordinator } from "./providerFallback";
@@ -209,10 +209,21 @@ function register(api: any) {
       api.logger?.debug?.("[capability-first] owner capability handled before model");
       return result;
     }
-    // Pièce Pulse (fichier 52 §5): only a contact routed to a Pulse room agent, closed to the Pulse family.
-    const room = await handlePulseRoomFastPath(event, ctx);
+    return result;
+  });
+
+  // Pièce Pulse (fichier 52 §5): only a contact routed to a Pulse room agent, closed to the Pulse family.
+  // before_dispatch, not inbound_claim: the Gateway runs inbound_claim only for plugin-bound conversations (S24 12/10).
+  api.on("before_dispatch", async (event: any, ctx: any) => {
+    // Owner WhatsApp turns: same capability-first path as the app (inbound_claim never fires for them).
+    const owner = await handleOwnerBeforeDispatch(event, ctx);
+    if (owner.handled) {
+      api.logger?.debug?.("[capability-first] owner capability handled before model");
+      return owner;
+    }
+    const room = await handlePulseRoomBeforeDispatch(event, ctx);
     if (room.handled) api.logger?.debug?.("[capability-first] pulse room handled before model");
-    return room.handled ? room : result;
+    return room.handled ? room : undefined;
   });
 
   // The factory receives OpenClaw's trusted current-turn context. The first

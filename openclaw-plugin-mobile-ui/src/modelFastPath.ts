@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -203,6 +204,47 @@ export function inboundClarifications(runner: (message: string, options?: Runner
 
 function conversationKey(event: InboundEvent, ctx: InboundContext): string {
   return String(ctx.sessionKey || event.sessionKey || ctx.channel || "inbound").slice(0, 240);
+}
+
+const OWNER_WHATSAPP_SESSION = /^agent:main:whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
+
+/** Owner WhatsApp numbers from the Gateway's canonical config (commands.ownerAllowFrom « whatsapp:+… »). */
+export function ownerWhatsAppNumbers(configPath = path.join(process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), ".openclaw"), "openclaw.json")): Set<string> {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const values: unknown[] = config?.commands?.ownerAllowFrom ?? [];
+    return new Set(values.filter((v): v is string => typeof v === "string" && /^whatsapp:\+[1-9][0-9]{7,14}$/.test(v)).map((v) => v.slice(9)));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * S24 12/10: the Gateway runs inbound_claim only for plugin-bound conversations, so the owner's WhatsApp turns
+ * never reached the capability-first path (Amine: « même pour moi il ne faut pas passer par le modèle »).
+ * before_dispatch runs for every inbound message but carries no senderIsOwner: the owner is proved by the routed
+ * main session key AND the number listed in commands.ownerAllowFrom. WhatsApp only: app turns already run the
+ * fast path in the Companion and must never execute twice.
+ */
+export async function handleOwnerBeforeDispatch(
+  event: { messageId?: string; content?: string; body?: string; channel?: string; sessionKey?: string; isGroup?: boolean },
+  ctx: { messageId?: string; channelId?: string; sessionKey?: string },
+  runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
+  owners: () => Set<string> = ownerWhatsAppNumbers,
+): Promise<{ handled: boolean; text?: string }> {
+  const sessionKey = String(ctx?.sessionKey ?? event?.sessionKey ?? "");
+  const channel = String(event?.channel ?? ctx?.channelId ?? "").toLowerCase();
+  const match = OWNER_WHATSAPP_SESSION.exec(sessionKey);
+  if (channel !== "whatsapp" || !match || event?.isGroup === true) return { handled: false };
+  const number = match[1].startsWith("+") ? match[1] : "+" + match[1];
+  if (!owners().has(number)) return { handled: false };
+  const out = await handleOwnerFastPath(
+    // content is the sender's text; body may carry the channel envelope.
+    { content: event?.content || event?.body, senderIsOwner: true, isGroup: false, sessionKey },
+    { agentId: "main", sessionKey, channel: "whatsapp", runId: event?.messageId ?? ctx?.messageId },
+    runner,
+  );
+  return out.handled ? { handled: true, text: out.reply?.text } : { handled: false };
 }
 
 export async function handleOwnerFastPath(
