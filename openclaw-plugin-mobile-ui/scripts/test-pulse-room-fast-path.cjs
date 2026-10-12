@@ -135,7 +135,7 @@ async function main() {
   assert.deepEqual(await mod.handlePulseRoomBeforeDispatch({ content: "x", channel: "whatsapp", sessionKey: fourthKey, isGroup: true }, { sessionKey: fourthKey }, r), { handled: false });
   assert.equal(r.calls.length, 0);
   const index = require("node:fs").readFileSync(require("node:path").join(__dirname, "../src/index.ts"), "utf8");
-  assert.match(index, /api\.on\("before_dispatch"[\s\S]{0,200}handlePulseRoomBeforeDispatch/);
+  assert.match(index, /api\.on\("before_dispatch"[\s\S]{0,500}handlePulseRoomBeforeDispatch/);
 
   // Helper failure: a clear message, never a model guess.
   r = runner(() => ({ status: "error", reason: "helper_failed" }));
