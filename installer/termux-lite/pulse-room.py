@@ -83,7 +83,14 @@ def provision():
     return {'agents': sorted(missing), 'workspace': str(WORKSPACE)}
 
 
+def rules(check=False):
+    return room.sync_rules(WORKSPACE, {'AGENTS.md': AGENTS, 'USER.md': USER}, check)
+
+
 if __name__ == '__main__':
+    if sys.argv[1:2] == ['rules'] and sys.argv[2:] in ([], ['--check']):
+        out = rules(check=sys.argv[2:] == ['--check'])
+        print(json.dumps(out, ensure_ascii=False)); sys.exit(1 if out['state'] == 'drift' else 0)
     if sys.argv[1:] != ['provision']:
-        raise SystemExit('usage: pulse-room.py provision')
+        raise SystemExit('usage: pulse-room.py provision|rules [--check]')
     print(json.dumps(provision(), ensure_ascii=False))

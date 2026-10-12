@@ -36,8 +36,13 @@ sha=$(git -C "$W" rev-parse --verify "$1^{commit}")
 [ -d "$D/$sha" ] || git -C "$W" worktree add -q --detach "$D/$sha" "$sha"
 link_deps "$D/$sha" || exit 3
 (cd "$D/$sha" && PYTHONPATH=. python3 -B -m unittest -q tests.test_capability_decision_contract tests.test_composed_reads)
+# Global rules follow the activated playbooks (S24 12/10: the no-invention rule had to be installed by hand).
+rules_rc=0
+if [ -f "$D/$sha/tools/install_interaction_rules.py" ]; then
+  python3 "$D/$sha/tools/install_interaction_rules.py" --apply >/dev/null 2>&1 || { echo "interaction_rules_install_failed" >&2; rules_rc=4; }
+fi
 cur=$(readlink "$D/current" 2>/dev/null || true)
-if [ "$cur" = "$D/$sha" ]; then echo "ALREADY_ACTIVE $sha"; exit 0; fi
+if [ "$cur" = "$D/$sha" ]; then echo "ALREADY_ACTIVE $sha"; exit "$rules_rc"; fi
 [ -n "$cur" ] && swap previous "$cur"
 swap current "$D/$sha"
 echo "ACTIVATED $sha previous=$(basename "${cur:-none}")"
@@ -51,3 +56,4 @@ ls -1dt "$D"/*/ 2>/dev/null | sed 's|/$||' | tail -n +$((KEEP+1)) | while IFS= r
   git -C "$W" worktree remove --force "$old" 2>/dev/null || rm -rf -- "$old"
 done
 git -C "$W" worktree prune 2>/dev/null || true
+exit "$rules_rc"

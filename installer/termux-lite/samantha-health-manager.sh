@@ -174,6 +174,8 @@ check_slack_bridge(){
 # R17 runs cooperatively inside this owner, never in an extra daemon.
 # last_sweep extends the existing per-service health state (same sf/get/put).
 ALLOWLIST_LAST_CHECK=$(get whatsapp_allowlist last_sweep 0)
+# 12/10 « zéro désynchronisation » : every 30 min, prove each runtime copy and rule still matches the deployed commit.
+check_runtime_drift(){ [ "$(now)" -ge "$(get runtime_drift next 0)" ] || return; put runtime_drift next $(( $(now)+1800 )); deploy_in_progress && return; out=$(timeout 90 "$ROOT/runtime-sync.sh" --check 9>&- 2>/dev/null); rc=$?; if [ "$rc" -eq 0 ]; then [ "$(get runtime_drift status aligned)" = aligned ] || log "service=runtime_drift state=aligned"; put runtime_drift status aligned; put runtime_drift sig none; return; fi; detail=$(printf '%s' "$out" | tr -d '\n' | cut -c1-300); sig=$(printf '%s' "$detail" | sha256sum | cut -c1-16); put runtime_drift status drift; log "service=runtime_drift state=drift rc=$rc detail=$detail"; [ "$(get runtime_drift sig none)" = "$sig" ] && return; put runtime_drift sig "$sig"; "$ROOT/incident-notify.sh" human_required "Samantha — une copie du runtime n'est plus alignée sur le commit déployé : $detail" "Relancer companion-deploy.sh sur le commit déployé (runtime-sync.sh remet chaque copie au même commit)." || true; }
 check_allowlist_expiry(){
  local tick elapsed result processed forgotten remaining
  tick=$(now);elapsed=$((tick-ALLOWLIST_LAST_CHECK))
@@ -228,5 +230,6 @@ while :; do
  check_http companion http://127.0.0.1:8765/ 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 12 20
  check_allowlist_expiry
  check_slack_bridge
+ check_runtime_drift
  sleep 15 9>&-
 done

@@ -47,8 +47,9 @@ Le S24 reste la source de vérité opérationnelle (`claw_context`). Une copie G
   - la recette automatique ;
   - **toutes les copies exécutées amenées au même commit** (`runtime-sync.sh`) : le plugin de la passerelle WhatsApp (`~/.openclaw/extensions`, puis redémarrage propre de la passerelle), la release Tier0 qui lui sert `model-fast-path.py` (`~/.openclaw/releases/current`, bornée à 10), et les outils de déploiement (`~/.openclaw/tools`). Une copie différente fait échouer le déploiement. Incident du 12/10 : la passerelle exécutait encore le plugin du 11/10, et la pièce Pulse répondait par le modèle ;
   - le **retour arrière automatique** si besoin (il ramène aussi ces copies) ;
+  - les consignes des agents (pièces Projet et Pulse, contacts `contacts-agent.md`) suivent le même commit. Toutes les 30 min, le gestionnaire de santé lance `runtime-sync.sh --check`. Ce contrôle prouve que chaque copie, chaque consigne, les règles des playbooks et le contrat `before_dispatch` d'OpenClaw sont toujours alignés, et il alerte sinon ;
   - l'écriture du reçu dans `~/.openclaw/deploys/`.
-- Playbooks : `activate-ui-playbooks.sh <sha>`.
+- Playbooks : `activate-ui-playbooks.sh <sha>`, qui réinstalle aussi les règles globales (`install_interaction_rules.py --apply`).
 - L'app Android est compilée par GitHub Actions et installée par `android/samantha/tools/install-from-ci.sh`, qui vérifie le checksum et la clé du S24. **Pas de Gradle sur le téléphone.**
 - **Un seul job lourd à la fois** sur le S24.
 - Toute route à plus de 80 % de son budget dans un reçu devient une tâche d'optimisation.

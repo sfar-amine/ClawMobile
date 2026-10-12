@@ -41,7 +41,7 @@ class RuntimeSync(unittest.TestCase):
         Companion.calls.clear()
         self.tmp = pathlib.Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.tmp)
         repo = self.tmp / "repo"; self.root = repo / "installer/termux-lite"; self.root.mkdir(parents=True)
-        for name in ("runtime-sync.sh", "lib.sh", "companion-deploy.sh", "companion-acceptance.py"):
+        for name in ("runtime-sync.sh", "lib.sh", "companion-deploy.sh", "companion-acceptance.py", "project-room.py", "pulse-room.py", "contacts-agent.md"):
             shutil.copy2(HERE / name, self.root / name)
         (self.root / "install-tier0-control.py").write_text(TIER0_STUB)
         plugin = repo / PLUGIN_ID; (plugin / "dist").mkdir(parents=True)
@@ -59,13 +59,26 @@ class RuntimeSync(unittest.TestCase):
         (oc / "tools").mkdir(); (oc / "tools/companion-deploy.sh").write_text("# stale deploy copy\n")
         (oc / "tier0/bin").mkdir(parents=True); (oc / "tier0/bin/tier0-control.py").write_text(PRUNE_STUB)
         cur = oc / "releases/current"; cur.mkdir(parents=True); (cur / "manifest.json").write_text('{"source_commit":"f3a19105"}')
+        # Rooms and plain contacts hold stale rules (no no-invention rule), as on the S24 before 12/10.
+        self.rooms = {"project": self.tmp / "workspace-projet", "pulse": oc / "workspace-pulse"}
+        for room in self.rooms.values():
+            room.mkdir(); (room / "AGENTS.md").write_text("# old rules\n"); (room / "USER.md").write_text("# old\n")
+        (oc / "workspace-contacts").mkdir(); (oc / "workspace-contacts/AGENTS.md").write_text("# old contacts rules\n")
+        # Playbooks rules installer (dry run prints planned/unchanged) and the Gateway's dispatch contract.
+        self.rules_state = self.tmp / "rules-state"; self.rules_state.write_text("unchanged")
+        pb = oc / "runtime-ui-playbooks/current/tools"; pb.mkdir(parents=True)
+        (pb / "install_interaction_rules.py").write_text(f'import json;print(json.dumps([{{"file":"context/OPERATING_RULES.md","state":open({str(self.rules_state)!r}).read()}}]))\n')
+        self.dist = self.tmp / "openclaw-dist"; self.dist.mkdir()
+        (self.dist / "dispatch-from-config-X.mjs").write_text("hookRunner.runBeforeDispatch(event)")
         bin_ = self.tmp / "bin"; bin_.mkdir(); (bin_ / "openclaw").write_text(OPENCLAW_STUB); (bin_ / "openclaw").chmod(0o755)
-        self.env = dict(os.environ, HOME=str(self.home), PATH=f"{bin_}:{os.environ['PATH']}", RUNTIME_SYNC_POLL_S="0",
+        self.env = dict(os.environ, HOME=str(self.home), PATH=f"{bin_}:{os.environ['PATH']}", RUNTIME_SYNC_POLL_S="0", RUNTIME_SYNC_OPENCLAW_DIST=str(self.dist),
+                        CLAW_PROJECT_ROOM_DIR=str(self.rooms["project"]), CLAW_PULSE_ROOM_DIR=str(self.rooms["pulse"]),
                         RUNTIME_SYNC_COMPANION_URL=f"http://127.0.0.1:{self.server.server_address[1]}")
         self.env.pop("OPENCLAW_STATE_DIR", None)
 
-    def sync(self, commit=None, **env):
-        out = subprocess.run(["bash", str(self.root / "runtime-sync.sh"), commit or self.commit], env={**self.env, **env},
+    def sync(self, commit=None, check=False, **env):
+        args = ["--check"] if check else []
+        out = subprocess.run(["bash", str(self.root / "runtime-sync.sh"), *args, commit or self.commit], env={**self.env, **env},
                              capture_output=True, text=True, timeout=60)
         return out.returncode, json.loads(out.stdout.strip().splitlines()[-1]), out.stderr
 
@@ -76,7 +89,10 @@ class RuntimeSync(unittest.TestCase):
     def test_stale_gateway_plugin_and_release_are_brought_to_the_commit(self):
         rc, out, err = self.sync()
         self.assertEqual(0, rc, err)
-        self.assertEqual({"ok": True, "commit": self.commit, "plugin": "synced", "release": "promoted", "gateway": "restarted", "tools": "synced"}, out)
+        self.assertEqual({"ok": True, "commit": self.commit, "plugin": "synced", "release": "promoted", "gateway": "restarted", "tools": "synced", "rules": "synced"}, out)
+        self.assertIn("inventes jamais", (self.rooms["project"] / "AGENTS.md").read_text())
+        self.assertIn("inventes jamais", (self.rooms["pulse"] / "AGENTS.md").read_text())
+        self.assertEqual((self.root / "contacts-agent.md").read_text(), (self.home / ".openclaw/workspace-contacts/AGENTS.md").read_text())
         self.assertEqual("// room\n", (self.ext / "dist/pulseRoomFastPath.js").read_text())
         self.assertEqual("dep", (self.ext / "node_modules/dep/x.js").read_text())  # the Gateway's installed deps stay
         manifest = json.loads((self.home / ".openclaw/releases/current/manifest.json").read_text())
@@ -90,7 +106,7 @@ class RuntimeSync(unittest.TestCase):
         self.sync(); Companion.calls.clear(); before = self.tier0_log()
         rc, out, err = self.sync()
         self.assertEqual(0, rc, err)
-        self.assertEqual({"ok": True, "commit": self.commit, "plugin": "unchanged", "release": "unchanged", "gateway": "unchanged", "tools": "unchanged"}, out)
+        self.assertEqual({"ok": True, "commit": self.commit, "plugin": "unchanged", "release": "unchanged", "gateway": "unchanged", "tools": "unchanged", "rules": "unchanged"}, out)
         self.assertEqual([], Companion.calls); self.assertEqual(before, self.tier0_log())
 
     def test_a_release_left_on_another_commit_fails_the_sync(self):
@@ -101,6 +117,34 @@ class RuntimeSync(unittest.TestCase):
         rc, out, _ = self.sync(commit="0" * 40)
         self.assertEqual(3, rc); self.assertEqual("checkout_not_at_commit", out["reason"])
         self.assertEqual("// 11/10 copy\n", (self.ext / "dist/index.js").read_text()); self.assertEqual([], self.tier0_log())
+
+    def test_check_reports_every_drift_and_changes_nothing(self):
+        rc, out, _ = self.sync(check=True)
+        self.assertEqual(1, rc)
+        self.assertEqual({"gateway_plugin", "tier0_release", "tool:companion-deploy.sh", "rules:project_room", "rules:pulse_room", "rules:contacts"}, set(out["drift"]))
+        self.assertEqual("// 11/10 copy\n", (self.ext / "dist/index.js").read_text()); self.assertEqual([], self.tier0_log())
+        self.sync()
+        rc, out, err = self.sync(check=True)
+        self.assertEqual((0, {"ok": True, "commit": self.commit, "drift": []}), (rc, out), err)
+        # Drift that appears after a deploy: a hand edit, a playbooks rule left uninstalled, an OpenClaw upgrade.
+        (self.home / ".openclaw/workspace-contacts/AGENTS.md").write_text("# edited by hand\n")
+        self.rules_state.write_text("planned")
+        (self.dist / "dispatch-from-config-X.mjs").write_text("// before_dispatch no longer dispatched")
+        rc, out, _ = self.sync(check=True)
+        self.assertEqual(1, rc); self.assertEqual(["rules:contacts", "rules:operating", "openclaw:before_dispatch_missing"], out["drift"])
+
+    def test_a_gateway_without_before_dispatch_fails_the_deploy_sync(self):
+        (self.dist / "dispatch-from-config-X.mjs").write_text("// gone")
+        rc, out, _ = self.sync()
+        self.assertEqual(1, rc); self.assertEqual("openclaw_before_dispatch_missing", out["reason"])
+
+    def test_health_manager_and_playbooks_activation_keep_it_aligned(self):
+        health = (HERE / "samantha-health-manager.sh").read_text()
+        self.assertIn('"$ROOT/runtime-sync.sh" --check', health)
+        self.assertIn(" check_runtime_drift\n sleep 15", health)
+        activate = (HERE / "activate-ui-playbooks.sh").read_text()
+        self.assertIn('tools/install_interaction_rules.py" --apply', activate)
+        self.assertLess(activate.index("install_interaction_rules.py"), activate.index("ALREADY_ACTIVE"))
 
     def test_deploy_and_rollback_both_bring_the_runtime_copies(self):
         text = (HERE / "companion-deploy.sh").read_text()
