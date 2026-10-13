@@ -45,7 +45,7 @@ Le propriétaire `adb_forward` existant accepte aussi un endpoint Unix Termux st
 en mode `0700`. Tout autre nom, destination, parent ou pathname préexistant inattendu
 est refusé avant l'appel ADB.
 
-Le reçu expose l'endpoint sous la forme
+Le reçu expose `endpoint_type: "unix"` et `socket_path`, ainsi que l'endpoint structuré
 `{"type":"unix","socket_path":"…"}`. L'état prêt exige à la fois l'observation exacte
 du forward par `adb forward --list` et celle du socket Unix. Le bail mémorise l'identité
 du socket créé. À la fermeture, le garde retire uniquement le forward exact puis ne
