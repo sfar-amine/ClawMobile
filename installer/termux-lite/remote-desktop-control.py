@@ -205,7 +205,7 @@ class Controller:
     def notify(self, mode):
         # Retain existing notification entrypoints; delivery stays owned by them.
         if mode == 'recovered':
-            cmd=[str(self.root/'incident-close.sh'),'Remote Desktop Commander','Samantha — RDC est de nouveau operationnel; connexion et MCP verifies.']
+            cmd=[str(self.root/'incident-close.sh'),'remote_desktop','Samantha — RDC est de nouveau operationnel; connexion et MCP verifies.']
         else:
             message='Samantha — RDC retabli automatiquement; connexion et MCP verifies.' if mode=='repaired' else 'Samantha — RDC indisponible apres reprises bornees; incident transmis au diagnostic gere.'
             cmd=[str(self.root/'incident-notify.sh'),'remote_desktop',message]
