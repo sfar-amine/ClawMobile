@@ -9,6 +9,7 @@ import re
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,8 @@ CHILD_STOP_GRACE_S = 2.0
 WIFI_REENABLED_EXIT = 3
 MAX_LEASE_AGE = int(os.environ.get("NETWORK_MUTATION_MAX_LEASE_AGE", "900"))
 TERMUX_PACKAGES = ("com.termux", "com.termux.api", "com.termux.boot")
+CELLULAR_FORWARD_REMOTE = "localabstract:ai.samantha.cellular"
+CELLULAR_SOCKET_RE = re.compile(r"samantha-cellular-[a-f0-9]{32}\.sock")
 HEALTH_LOG = HOME / ".openclaw" / "health" / "health.log"
 BOUNDED_LOG = Path(__file__).resolve().with_name("bounded-log.py")
 # Incident S24 11/10 16:00 : Wi-Fi coupé 40 min, aucun garde vivant, aucun bail. La restauration
@@ -448,15 +451,57 @@ def forward_server_identity() -> dict:
     return {"binary": str(Path(binary).resolve()) if binary else None, **{key: os.environ.get(key) for key in (
         "ADB_SERVER_SOCKET", "ANDROID_ADB_SERVER_ADDRESS", "ANDROID_ADB_SERVER_PORT")}}
 
+def _cellular_socket_path(local: str) -> Path | None:
+    if not isinstance(local, str) or not local.startswith("localfilesystem:"):
+        return None
+    raw = local.split(":", 1)[1]
+    prefix = os.environ.get("PREFIX")
+    if not prefix:
+        raise ValueError("missing_termux_prefix")
+    prefix_path = Path(prefix)
+    path = Path(raw)
+    parent = prefix_path / "tmp"
+    if (not prefix_path.is_absolute() or not path.is_absolute() or path.parent != parent
+            or not CELLULAR_SOCKET_RE.fullmatch(path.name)):
+        raise ValueError("invalid_forward_local")
+    try:
+        parent_lstat = parent.lstat()
+        resolved_parent = parent.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError("insecure_forward_parent") from exc
+    if (not stat.S_ISDIR(parent_lstat.st_mode) or resolved_parent != parent
+            or parent_lstat.st_uid != os.geteuid() or stat.S_IMODE(parent_lstat.st_mode) != 0o700):
+        raise ValueError("insecure_forward_parent")
+    return path
+
+def _socket_identity(path: Path) -> dict | None:
+    """Return a stable identity for an owned pathname; never follow links."""
+    try:
+        row = path.lstat()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise RuntimeError("forward_socket_observation_unavailable") from exc
+    if not stat.S_ISSOCK(row.st_mode) or row.st_uid != os.geteuid():
+        raise RuntimeError("unexpected_forward_socket_path")
+    return {"device": row.st_dev, "inode": row.st_ino, "uid": row.st_uid,
+            "file_type": stat.S_IFMT(row.st_mode)}
+
 def validate_forward_resource(serial: str, local: str, remote: str) -> None:
     if not isinstance(serial, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:\[\]-]{0,199}", serial):
         raise ValueError("invalid_forward_serial")
     match = re.fullmatch(r"tcp:(0|[1-9]\d{0,4})", local) if isinstance(local, str) else None
-    if not match or not 0 <= int(match[1]) <= 65535:
+    socket_path = _cellular_socket_path(local)
+    if match:
+        if not 0 <= int(match[1]) <= 65535:
+            raise ValueError("invalid_forward_local")
+    elif socket_path is None:
         raise ValueError("invalid_forward_local")
     tcp = re.fullmatch(r"tcp:([1-9]\d{0,4})", remote) if isinstance(remote, str) else None
     unix = re.fullmatch(r"localabstract:[A-Za-z0-9_.:-]{1,200}", remote) if isinstance(remote, str) else None
-    if not unix and not (tcp and 1 <= int(tcp[1]) <= 65535):
+    if socket_path is not None and remote != CELLULAR_FORWARD_REMOTE:
+        raise ValueError("unsupported_forward_remote")
+    if socket_path is None and not unix and not (tcp and 1 <= int(tcp[1]) <= 65535):
         raise ValueError("unsupported_forward_remote")
 
 def forward_state(serial: str) -> list[dict]:
@@ -502,8 +547,16 @@ def _forward_result(row: dict, observed: list[dict] | None = None) -> dict:
     if observed is None:
         observed = row.get("observed_after")
     matches = observed == [resource]
+    socket_path = _cellular_socket_path(resource["local"])
+    socket_matches = True
+    if socket_path is not None:
+        try:
+            identity = _socket_identity(socket_path)
+            socket_matches = identity is not None and row.get("socket_identity") == identity
+        except RuntimeError:
+            socket_matches = False
     owner_state = forward_owner_state(row)
-    ready = (row["state"] in {"ACTIVE", "REUSED"} and matches and owner_state == "ALIVE"
+    ready = (row["state"] in {"ACTIVE", "REUSED"} and matches and socket_matches and owner_state == "ALIVE"
              and not _forward_expired(row) and row.get("ownership_lost") is not True)
     return {"lease_id": row["lease_id"], "lease_path": str(forward_lease_path(row["lease_id"])),
             "type": "adb_forward", "state": row["state"], "reason": row.get("reason"), **resource,
@@ -512,9 +565,22 @@ def _forward_result(row: dict, observed: list[dict] | None = None) -> dict:
             "mutation_dispatched": row.get("mutation_dispatched", False),
             "ownership_lost": row.get("ownership_lost", False), "restored_exact": row.get("restored_exact"),
             "cleanup_verified": row.get("cleanup_verified", False),
-            "observed_matches": matches, "owner_alive": owner_state == "ALIVE", "owner_state": owner_state,
+            "observed_matches": matches and socket_matches, "owner_alive": owner_state == "ALIVE", "owner_state": owner_state,
             "ttl_seconds": MAX_LEASE_AGE, "last_renewed_at": row.get("last_renewed_at"),
-            "endpoint": "http://127.0.0.1:" + resource["local"].split(":", 1)[1] if ready else None}
+            "endpoint": ({"type": "unix", "socket_path": str(socket_path)} if socket_path is not None
+                         else "http://127.0.0.1:" + resource["local"].split(":", 1)[1]) if ready else None}
+
+def _forward_matches(row: dict, observed: list[dict]) -> bool:
+    if observed != [row["resource"]]:
+        return False
+    path = _cellular_socket_path(row["resource"]["local"])
+    if path is None:
+        return True
+    try:
+        identity = _socket_identity(path)
+    except RuntimeError:
+        return False
+    return identity is not None and row.get("socket_identity") == identity
 
 def _forward_observe(row: dict) -> list[dict]:
     if row.get("adb_server") != forward_server_identity():
@@ -529,7 +595,7 @@ def _forward_inspect(path: Path, row: dict) -> dict:
         return {**_forward_result(row, []), "ready": False, "verified": False, "reason": "forward_observation_unavailable"}
     if (row["state"] not in {"CLOSED", "BLOCKED", "PRESERVED"}
             and (row.get("ownership_proven") is True or row.get("reused") is True)
-            and after != [row["resource"]]):
+            and not _forward_matches(row, after)):
         _forward_save(path, row, "VERIFY_REQUIRED", "forward_mapping_changed", observed_after=after,
                       ownership_lost=row.get("ownership_proven") is True)
     return _forward_result(row, after)
@@ -573,6 +639,7 @@ def acquire_adb_forward(serial: str, local: str = "tcp:0", remote: str = "locala
                 reservation.bind(("127.0.0.1", 0))
                 local = "tcp:" + str(reservation.getsockname()[1])
         resource = {"serial": serial, "local": local, "remote": remote}
+        socket_path = _cellular_socket_path(local)
         before = _forward_at(rows, local)
         row = {"schema_version": 2, "type": "adb_forward", "lease_id": lease_id,
                "created_at": time.time(), "last_renewed_at": time.time(), "owner_pid": owner_pid,
@@ -582,7 +649,20 @@ def acquire_adb_forward(serial: str, local: str = "tcp:0", remote: str = "locala
                "reused": False, "renewals": 0}
         try:
             _forward_save(path, row, "PREPARED", "exact_snapshot_durable_before_mutation")
-            if ambiguous:
+            if socket_path is not None and os.path.lexists(socket_path) and before != [resource]:
+                _forward_save(path, row, "BLOCKED", "unexpected_forward_socket_path", observed_after=before,
+                              cleanup_verified=True, restored_exact=True)
+            elif socket_path is not None and before == [resource]:
+                try:
+                    row["socket_identity"] = _socket_identity(socket_path)
+                except RuntimeError:
+                    row["socket_identity"] = None
+                if row["socket_identity"] is None:
+                    _forward_save(path, row, "BLOCKED", "preexisting_forward_socket_unverified", observed_after=before,
+                                  cleanup_verified=True, restored_exact=True)
+                else:
+                    _forward_save(path, row, "REUSED", "preexisting_forward_not_owned", reused=True, observed_after=before)
+            elif ambiguous:
                 _forward_save(path, row, "BLOCKED", "multiple_preexisting_forwards", observed_after=before,
                               cleanup_verified=True, restored_exact=True)
             elif before:
@@ -611,7 +691,12 @@ def acquire_adb_forward(serial: str, local: str = "tcp:0", remote: str = "locala
                 except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
                     _forward_save(path, row, "VERIFY_REQUIRED", "forward_post_observation_unavailable", observation_error=type(exc).__name__)
                 else:
-                    if row.get("ownership_proven") is True and after == [resource]:
+                    if socket_path is not None:
+                        try:
+                            row["socket_identity"] = _socket_identity(socket_path)
+                        except RuntimeError:
+                            row["socket_identity"] = None
+                    if row.get("ownership_proven") is True and _forward_matches(row, after):
                         _forward_save(path, row, "ACTIVE", "owned_forward_verified", observed_after=after)
                     else:
                         _forward_save(path, row, "VERIFY_REQUIRED", "forward_creation_requires_verification", observed_after=after,
@@ -641,13 +726,34 @@ def renew_adb_forward(lease_id: str, owner_pid: int | None = None) -> dict:
             after = _forward_observe(row)
         except (OSError, RuntimeError, subprocess.SubprocessError):
             return {**_forward_result(row, []), "ready": False, "verified": False, "reason": "forward_observation_unavailable"}
-        if after != [row["resource"]]:
+        if not _forward_matches(row, after):
             _forward_save(path, row, "VERIFY_REQUIRED", "forward_changed_before_renewal", observed_after=after,
                           ownership_lost=row.get("ownership_proven") is True)
         else:
             row.update(last_renewed_at=time.time(), renewals=row.get("renewals", 0) + 1, observed_after=after)
             write_json(path, row)
         return _forward_result(row, after)
+
+def _cleanup_owned_socket_path(row: dict) -> bool:
+    """Remove only the exact Unix socket inode created for this owned forward."""
+    path = _cellular_socket_path(row["resource"]["local"])
+    if path is None:
+        return True
+    try:
+        current = _socket_identity(path)
+    except RuntimeError:
+        return False
+    if current is None:
+        return True
+    if row.get("socket_identity") != current:
+        return False
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return not os.path.lexists(path)
 
 def _release_adb_forward(path: Path, row: dict) -> dict:
     """Under mutation_lock; unknown ownership never authorizes --remove."""
@@ -659,12 +765,16 @@ def _release_adb_forward(path: Path, row: dict) -> dict:
         _forward_save(path, row, "VERIFY_REQUIRED", "forward_cleanup_observation_unavailable", observation_error=type(exc).__name__)
         return _forward_result(row, [])
     if row.get("reused") is True:
-        same = current == row["before"]
+        same = current == row["before"] and _forward_matches(row, current)
         _forward_save(path, row, "CLOSED" if same else "PRESERVED", "preexisting_forward_preserved" if same else "preexisting_forward_changed_externally",
                       observed_after=current, cleanup_verified=same, restored_exact=same)
     elif not current:
-        _forward_save(path, row, "CLOSED", "forward_absence_observed", observed_after=[], cleanup_verified=True, restored_exact=row["before"] == [])
-    elif current != [row["resource"]] or row.get("ownership_lost") is True or row["state"] == "PRESERVED":
+        cleaned = _cleanup_owned_socket_path(row)
+        _forward_save(path, row, "CLOSED" if cleaned else "PRESERVED",
+                      "forward_absence_observed" if cleaned else "forward_socket_changed_externally",
+                      observed_after=[], cleanup_verified=cleaned, restored_exact=cleaned and row["before"] == [],
+                      ownership_lost=not cleaned)
+    elif not _forward_matches(row, current) or row.get("ownership_lost") is True or row["state"] == "PRESERVED":
         _forward_save(path, row, "PRESERVED", "repointed_or_foreign_forward_preserved", observed_after=current,
                       cleanup_verified=False, restored_exact=False, ownership_lost=True)
     elif row.get("ownership_proven") is not True or row.get("before") != []:
@@ -687,7 +797,11 @@ def _release_adb_forward(path: Path, row: dict) -> dict:
             _forward_save(path, row, "VERIFY_REQUIRED", "forward_cleanup_post_observation_unavailable", observation_error=type(exc).__name__)
         else:
             if not after:
-                _forward_save(path, row, "CLOSED", "owned_forward_removal_verified", observed_after=after, cleanup_verified=True, restored_exact=True)
+                cleaned = _cleanup_owned_socket_path(row)
+                _forward_save(path, row, "CLOSED" if cleaned else "PRESERVED",
+                              "owned_forward_removal_verified" if cleaned else "forward_socket_cleanup_not_verified",
+                              observed_after=after, cleanup_verified=cleaned, restored_exact=cleaned,
+                              ownership_lost=not cleaned)
             elif after != [row["resource"]]:
                 _forward_save(path, row, "PRESERVED", "forward_changed_during_cleanup_preserved", observed_after=after,
                               cleanup_verified=False, restored_exact=False, ownership_lost=True)
