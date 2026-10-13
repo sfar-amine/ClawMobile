@@ -1,0 +1,36 @@
+{
+  "provenance": "S24 via RDC, read-only Get messages, 2026-10-13",
+  "contract_version": "0.1",
+  "device_id": "d073d5225b23",
+  "status": "observed",
+  "transport": "lifx_lan_udp",
+  "observed_at": "2026-10-13T17:39:58.540Z",
+  "state": {
+    "availability": "online",
+    "freshness": "fresh",
+    "power": "on",
+    "label": "Lif8x",
+    "brightness_percent": 49.42092011902037,
+    "color": {
+      "hue_deg": 0,
+      "saturation_percent": 0,
+      "kelvin": 3005
+    },
+    "raw_hsbk": {
+      "hue": 0,
+      "saturation": 0,
+      "brightness": 32388,
+      "kelvin": 3005
+    }
+  },
+  "error": null,
+  "diagnostics": {
+    "product_id": 27,
+    "firmware": "2.90",
+    "signal_raw": 0.0000015848925158934435,
+    "rssi_dbm": -58,
+    "uptime_seconds": 3297.903137,
+    "internal_logs_available": false
+  },
+  "elapsed_ms": 878
+}

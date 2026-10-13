@@ -1,3 +1,4 @@
+import {discoverLifx,readLifx,setLifx} from "./lifxLocal";
 import {conditionalRead} from "./readEtag";
 import {readCatalogResponse,catalogETag} from './catalog';
 import {readDeploymentReceipts} from "./deploymentReceipts";
@@ -253,6 +254,26 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       message: "This endpoint is restricted to local companion app requests.",
     });
     return;
+  }
+
+  if(routePath==="/lighting/discover"||/^\/lighting\/[0-9a-f]{12}\/(state|diagnostics)$/.test(routePath)){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){writeJson(res,403,{success:false,error:"native_loopback_owner_required"});return;}
+    res.setHeader("Cache-Control","no-store");
+    if(requestUrl.search){writeJson(res,400,{success:false,error:"INVALID_ARGUMENT"});return;}
+    if(routePath==="/lighting/discover"){
+      if(method!=="GET"){writeJson(res,405,{error:"method_not_allowed"});return;}
+      try{writeJson(res,200,{status:"observed",devices:(await discoverLifx()).map(e=>({device_id:e.id})),transport:"lifx_lan_udp"});}
+      catch(error:any){writeJson(res,200,{status:"failed",devices:[],transport:"lifx_lan_udp",error:{code:error?.message||"LOCAL_NETWORK_UNAVAILABLE"}});}
+      return;
+    }
+    const parts=routePath.split("/");
+    if(method==="GET"){writeJson(res,200,await readLifx(parts[2],parts[3]==="diagnostics"));return;}
+    if(method==="POST"&&parts[3]==="state"){
+      const body:any=await readJsonBody(req,2048);
+      if(!body||body.device_id!==parts[2]){writeJson(res,400,{error:"INVALID_DEVICE_ID"});return;}
+      const result=await setLifx(body);writeJson(res,200,result);return;
+    }
+    writeJson(res,405,{error:"method_not_allowed"});return;
   }
 
   if(routePath==="/control/deploys"){

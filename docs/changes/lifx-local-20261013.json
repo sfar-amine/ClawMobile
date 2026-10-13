@@ -1,0 +1,102 @@
+{
+  "version": 2,
+  "id": "lifx-local-20261013",
+  "origin": "work",
+  "kind": "capability",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "LIFX exclusivement local, runtime",
+  "reason": "Go Amine après validation maquette et parcours voix/texte avec clarification.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "CAPABILITIES.md",
+    "docs/08-decisions/ADR-20261013-lifx-local.md",
+    "docs/changes/lifx-local-20261013.json",
+    "docs/changes/lifx-local-20261013.md",
+    "docs/work/samantha-convergence/53_LIFX_Local.md",
+    "docs/work/samantha-convergence/README.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/fixtures/lifx-a19-s24-20261013.json",
+    "openclaw-plugin-mobile-ui/package.json",
+    "openclaw-plugin-mobile-ui/scripts/test-lifx-local.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-lifx-route.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/lifxLocal.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+  ],
+  "tests": [
+    {
+      "name": "transport-owner-admission",
+      "status": "passed",
+      "evidence": {
+        "commands": [
+          "npm run build",
+          "node scripts/test-lifx-local.cjs",
+          "node scripts/test-lifx-route.cjs",
+          "node scripts/test-capability-bridge.cjs",
+          "node scripts/test-capability-admission.cjs"
+        ],
+        "admission_checks": 27,
+        "fixture": "openclaw-plugin-mobile-ui/fixtures/lifx-a19-s24-20261013.json",
+        "read_only_live_ms": 878
+      }
+    }
+  ],
+  "documentation": [
+    "docs/changes/lifx-local-20261013.md",
+    "docs/work/samantha-convergence/53_LIFX_Local.md",
+    "CAPABILITIES.md",
+    "docs/08-decisions/ADR-20261013-lifx-local.md"
+  ],
+  "capabilities": {
+    "impact": "new",
+    "ids": [
+      "samantha.app.lighting.on",
+      "samantha.app.lighting.off",
+      "samantha.app.lighting.brightness",
+      "samantha.app.lighting.white",
+      "samantha.app.lighting.color",
+      "samantha.app.lighting.set",
+      "samantha.app.lighting.read",
+      "samantha.app.lighting.diagnostics",
+      "samantha.app.lighting.discover"
+    ],
+    "reason": "Capabilities owner-only ; activation runtime et recette live encore requises."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Adaptateur UDP dans les propriétaires existants.",
+    "documents": [
+      "docs/08-decisions/ADR-20261013-lifx-local.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "updated",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "updated",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      {
+        "source": "tests/test_lighting_local.py",
+        "scope": "Sélection identique chatgpt/owner et external_mcp/owner ; parité runtime après activation seulement."
+      }
+    ]
+  },
+  "rollback": "Revert puis déploiement des versions antérieures par les scripts existants. Aucun firmware ou Wi-Fi modifié.",
+  "limitations": [
+    "Aucune mutation réelle testée.",
+    "Aucun déploiement ni installation Android.",
+    "Compilation Android et suite JVM CI nécessaires.",
+    "Branches sources uniquement ; revue et activation coordonnées requises."
+  ]
+}

@@ -9,6 +9,9 @@ import json, re, sys, time, urllib.error, urllib.request
 BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
+    ("/lighting/discover", 3.0),
+    ("/lighting/d073d5225b23/state", 3.0),
+    ("/lighting/d073d5225b23/diagnostics", 3.0),
     ("/catalog", 0.3), # HS2: warm reads from memory; one HS1 generation is ≈ 360 ms on the S24, so the cold first read uses the retry.
     ("/health", 2.0),
     ("/control/health?contract=2", 2.0),
@@ -49,6 +52,7 @@ READS = [
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
+    ("POST", "/lighting/d073d5225b23/state"),
     ("POST", "/attachments"),
     ("POST", "/security/surfaces"),
     ("POST", "/automations/acceptance-probe/run"),
