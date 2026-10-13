@@ -30,5 +30,5 @@ assert.match(responseLanguageInstruction('fr'),/langue vient de la demande/);
   assert.equal(tn.decision.responseLanguage,'tn');assert.ok(!Object.hasOwn(tn,'voice'),'French uiLocale speech must not override derja');
   const en=await clawLiveCapability(owner,{request:'my battery level'},async()=>({...base,decision:{...base,responseLanguage:'en'},presentation:{...presentation,locale:'en',spoken:'English answer.'}}));
   assert.equal(en.voice.locale,'en');assert.match(en.voice.verbatim,/^I understood:/);assert.ok(!en.voice.verbatim.includes('Compris'));
-  console.log('request-language transport: 17/17');
+  console.log('request-language transport: 19/19');
 })().catch(error=>{console.error(error);process.exitCode=1});
