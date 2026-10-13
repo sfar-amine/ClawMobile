@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "codex-n1-factual-errors-20261011",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "N1 : cause factuelle et titre issu du premier vrai texte conservé.",
+  "reason": "Les codes connus étaient masqués et un échec de transport était décrit abusivement comme un changement d’état.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-n1-factual-failure.cjs",
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-n1-factual-errors-20261011.md",
+    "docs/changes/codex-n1-factual-errors-20261011.json",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-pages.cjs"
+  ],
+  "tests": [
+    {
+      "name": "N1 cause factuelle et frontière de transport",
+      "status": "pending",
+      "evidence": "Test inscrit dans la CI HS3 ; exécution locale attend le créneau autorisé."
+    },
+    {
+      "name": "N1 titre authentique et pages conservées",
+      "status": "pending",
+      "evidence": "Tests pages existants + vecteurs de titre synthétiques N1, sans filtre lexical ; créneau local attendu."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-n1-factual-errors-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Lecture et projection de codes du transport canonique existant ; registre Orange possédé par le lot N1 playbooks."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même lecteur HS3, même propriétaire runs, aucun nouveau store/route/router/retry."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Aucun contrat MCP modifié ; seule présentation Companion."
+  },
+  "rollback": "Revert N1 core, aucune migration.",
+  "limitations": [
+    "Ciblés et entière locale non exécutés à ce stade ; brouillon non prêt.",
+    "Trajet Browse Lines et erreur associée réels non capturés ; recette live à Claude, sans appel opérateur par Codex.",
+    "Aucune assurance de non-débit ni issue métier déduite d’une erreur de transport."
+  ]
+}
