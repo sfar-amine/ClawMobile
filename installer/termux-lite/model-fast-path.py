@@ -405,6 +405,14 @@ _GENERIC_HIDDEN = {"ok", "route", "route_id", "query", "request_count", "latency
                    "source", "version", "fallback_from", "route_selection_reason", "reason_code"}
 
 
+def _public_reason_class(value: Any) -> str | None:
+    """Copy only the runner's bounded machine class; never promote free-form details."""
+    if not isinstance(value, dict):
+        return None
+    candidate = value.get("reason_class")
+    return candidate if isinstance(candidate, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,95}", candidate) else None
+
+
 def _generic_value(value: Any, depth: int = 0) -> str:
     if isinstance(value, bool):
         return "oui" if value else "non"
@@ -867,6 +875,7 @@ def try_fast_path(
         metadata = _presentation_metadata(executed)
         if state in SAFE_EXECUTION_STATES:
             payload = execution.get("result")
+            reason_class = _public_reason_class(payload)
             return {
                 # Business rendering of the owner result (O7 cards…), preceded by the HS3 « Compris » line.
                 "status": "hit", "source": "capability", "text": _understood_prefix(metadata, _display_text(payload)),
@@ -875,6 +884,7 @@ def try_fast_path(
                 "route": selected.get("route"), "capability": selected.get("capability"),
                 "execution_state": state, "decision": executed.get("decision") or decision or None,
                 "provenance": _execution_provenance(selected, execution),
+                **({"reason_class": reason_class} if reason_class else {}),
                 "model_bypassed": True,
             }
         if state == "needs_clarification" and isinstance(executed.get("decision"), dict) and executed["decision"].get("type") == "CLARIFY":
@@ -898,6 +908,7 @@ def try_fast_path(
             # when the handoff opened; a failed handoff keeps the generic error fallback.
             return handed | metadata if handed.get("status") == "hit" else handed
         payload = execution.get("result")
+        reason_class = _public_reason_class(payload)
         composed = (selected.get("execution_contract") or {}).get("strategy") == "composed_read"
         error_result = {
             "status": "known_error", "reason": state or "known_execution_failed",
@@ -906,6 +917,7 @@ def try_fast_path(
             "resolution": executed, "decision": executed.get("decision") or decision or None,
             "model_bypassed": True,
             "provenance": _execution_provenance(selected, execution),
+            **({"reason_class": reason_class} if reason_class else {}),
         }
         if composed and isinstance(payload, dict):
             error_result.update(text=_display_text(payload), result=payload, execution_state=state)

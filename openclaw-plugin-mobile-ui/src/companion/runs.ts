@@ -56,9 +56,15 @@ type StoredRun = {
   ownerAdmitted?: true;
   /** P1 : connexion finalement utilisée pour ce tour (l'admission peut expirer avant la remise). */
   ownerTransport?: OwnerTransport;
+  /** Sanitized deterministic-runner failure class; no provider detail or free text. */
+  reasonClass?: string;
 };
 export type OwnerTransport = "admin_admitted" | "write_cli" | "write_cli_owner_unavailable";
 const OWNER_TRANSPORTS = new Set<string>(["admin_admitted", "write_cli", "write_cli_owner_unavailable"]);
+const REASON_CLASS_RE = /^[a-z][a-z0-9_]{0,95}$/;
+export function publicReasonClass(value: unknown): string | undefined {
+  return typeof value === "string" && REASON_CLASS_RE.test(value) ? value : undefined;
+}
 
 /** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */
 export type RunCorrection = {version: 1; operationId: string; at: number; neutralized: number;
@@ -382,7 +388,7 @@ export async function settleSubmittedRun(
   runId: string,
   state: "done" | "failed",
   result: string,
-  options: {provenance?: unknown; presentation?: unknown} = {},
+  options: {provenance?: unknown; presentation?: unknown; reasonClass?: unknown} = {},
 ) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));
@@ -390,6 +396,7 @@ export async function settleSubmittedRun(
   const stored: StoredRun = {
     ...existing,
     provenance: capabilityProvenance(options.provenance) || existing.provenance,
+    reasonClass: publicReasonClass(options.reasonClass) || existing.reasonClass,
     state,
     presentation: readReceiptPresentation(options.presentation) || (existing.executionSource === "capability_first" ? fallbackReceiptPresentation(state === "failed") : existing.presentation),
     inactivityCorrectionReceipt: state === "done" && (existing.error === "run_inactivity_expired" || existing.inactivityCorrectionReceipt?.to === "running") ? {
@@ -1003,6 +1010,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     sessionId: stored.sessionId,
     ...(stored.ownerAdmitted ? {ownerAdmitted: true} : {}),
     ...(stored.ownerTransport ? {ownerTransport: stored.ownerTransport} : {}),
+    ...(stored.reasonClass ? {reasonClass: stored.reasonClass} : {}),
     state: failed ? "failed" : stored.state === "done" ? "done" : "running",
     message,
     progress: {
@@ -2057,6 +2065,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       supersededBy: validReplayLink(run.supersededBy),
       ownerAdmitted: run.ownerAdmitted === true ? true as const : undefined,
       ownerTransport: OWNER_TRANSPORTS.has(String(run.ownerTransport || "")) ? run.ownerTransport : undefined,
+      reasonClass: publicReasonClass(run.reasonClass),
     }));
   // HS3: a run that handed off to a payment request shows that request's state (read-time projection only).
   for (const run of parsedRuns) {

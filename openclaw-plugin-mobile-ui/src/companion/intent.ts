@@ -5,7 +5,7 @@ import {transcribeMemoAttachment} from "./memoSttOwner";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { appendReplayContext, appendVoiceConversationContext, findPendingClarificationRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch, deferMemoTranscription } from "./runs";
+import { appendReplayContext, appendVoiceConversationContext, findPendingClarificationRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch, deferMemoTranscription, publicReasonClass } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
@@ -272,6 +272,7 @@ async function executeCapabilityFirst(
     return notSubmitted(sessionId, clientRunId, "Une nouvelle validation du propriétaire est nécessaire.");
   }
   let presentation = readReceiptPresentation(check);
+  let runnerOutcome:FastPathResult=check;
   let provenance: FastPathResult["provenance"];
   let state: "done" | "failed";
   let message: string;
@@ -293,6 +294,7 @@ async function executeCapabilityFirst(
       timeoutSeconds: 75,
       preparedDecision: check.decision,
     });
+    runnerOutcome=result;
     presentation = readReceiptPresentation(result);
     provenance = result.provenance;
     if (result.status === "hit") {
@@ -309,7 +311,8 @@ async function executeCapabilityFirst(
   }
 
   presentation ||= fallbackReceiptPresentation(state === "failed");
-  await settleSubmittedRun(runId, state, message, {provenance, presentation});
+  const reasonClass=publicReasonClass(runnerOutcome.reasonClass ?? runnerOutcome.reason_class);
+  await settleSubmittedRun(runId, state, message, {provenance, presentation, reasonClass});
   return {
     success: true,
     accepted: true,
@@ -327,6 +330,7 @@ async function executeCapabilityFirst(
     userText,
     canvas: intentCanvas(userText, message),
     attachments,
+    ...(reasonClass ? {reasonClass} : {}),
   };
 }
 
@@ -372,6 +376,7 @@ function responseFromExisting(
     userText,
     canvas: intentCanvas(userText, message),
     attachments: status.attachments,
+    ...(status.reasonClass ? {reasonClass: status.reasonClass} : {}),
   };
 }
 
