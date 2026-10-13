@@ -292,11 +292,19 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
       .map((row:any)=>[row.key,row.sha256]));
     const globalBaseline=raw?.global?.baseline_after_verified_read||{};
     const state=JSON.stringify({knownContracts,globalBaseline});
-    await execFileAsync('python3',[owner,'cursor-ack',session,surface,String(revision),state],{
-      cwd:path.dirname(owner),timeout:4000,maxBuffer:128*1024,env:{...process.env},
-    });
-    raw.cursor_advanced=true;
-    if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=true;
+    try{
+      await execFileAsync('python3',[owner,'cursor-ack',session,surface,String(revision),state],{
+        cwd:path.dirname(owner),timeout:4000,maxBuffer:128*1024,env:{...process.env},
+      });
+      raw.cursor_advanced=true;
+      if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=true;
+    }catch{
+      // Context is already complete. Cursor optimization must fail open without
+      // leaking helper stderr or claiming an acknowledgement that did not occur.
+      raw.cursor_advanced=false;
+      raw.cursor_error='cursor_ack_unavailable';
+      if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=false;
+    }
   }
   return {
     state: "context",
