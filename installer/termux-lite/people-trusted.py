@@ -506,6 +506,7 @@ FORGET_BATCH = 20
 INBOX_LIMIT = 1024*1024
 INBOX_ENTRY = re.compile(r'^- ', re.M)
 INBOX_SENDER = re.compile(r'^\s+- Sender:.*?(\+?[0-9][0-9 ]{6,}[0-9])', re.M)
+CONTACT_TOOL_OP = re.compile(r'[A-Za-z0-9_.:-]{1,128}\Z')
 
 def normalize_rooms(value):
     if not isinstance(value,list) or not value or len(value)>len(ROOMS) or any(r not in ROOMS for r in value): fail('invalid_rooms')
@@ -807,6 +808,61 @@ class Contacts:
         if result.returncode==0: return 'accepted'
         if result.returncode in (64,66): return 'failed_before_effect'
         return 'indeterminate'
+    def contact_tool_receipt(self, action, body):
+        """Two narrow contact tools, persisted in the existing R17 receipt store.
+
+        The caller identity is supplied by the trusted OpenClaw turn context, never
+        by model arguments. A reserved/uncertain operation is not replayed: this is
+        the same at-most-once rule as outbound WhatsApp delivery.
+        """
+        if not isinstance(body,dict) or set(body)!={'operationId','e164','text'}: fail('invalid_request')
+        operation=body.get('operationId');number=body.get('e164');text=body.get('text')
+        if not isinstance(operation,str) or not CONTACT_TOOL_OP.fullmatch(operation): fail('invalid_request')
+        if not isinstance(number,str) or not E164.fullmatch(number): fail('invalid_request')
+        safe_text(text,2000,False)
+        identity=contact_id(number);config=self.local_config();owners=self.owners(config)
+        allow,_=self.people.whatsapp_state(config)
+        if number in owners or number not in allow: fail('contact_tool_not_allowed',403)
+        row=self.find(identity)
+        if row.get('e164')!=number: fail('contact_tool_not_allowed',403)
+        key='contact-tool:'+digest(operation);wanted=digest(canonical({'action':action,'contactId':identity,'text':text}))
+        c=self.people.connect();c.execute('BEGIN IMMEDIATE')
+        old=c.execute('SELECT target,message_sha256,state,message_id FROM send_receipts WHERE idempotency_key=?',(key,)).fetchone()
+        if old:
+            c.commit();c.close()
+            if old['target']!=identity or old['message_sha256']!=wanted: fail('operation_conflict',409)
+            try:return json.loads(old['message_id'])
+            except (TypeError,ValueError): fail('contact_tool_indeterminate',503)
+        now=int(self.clock());pending={'success':False,'state':'indeterminate','receipt':None}
+        c.execute('INSERT INTO send_receipts VALUES(?,?,?,\'pending\',?,?,?)',(key,identity,wanted,canonical(pending),now,now));c.commit();c.close()
+        try:
+            if action=='noter_contact':
+                metadata=self.metadata(number)
+                if metadata is None: fail('contact_state_invalid',503)
+                self.write_context(number,metadata,note=text)
+                delivery=None
+            elif action=='transmettre_a_amine':
+                inbox=Path(os.environ.get('SAMANTHA_AMINE_INBOX',self.people.WORKSPACE/'memory'/'amine-inbox.md'))
+                try: real=inbox.resolve(strict=True)
+                except (OSError,RuntimeError): fail('contact_inbox_unavailable',503)
+                if not real.is_file() or real.is_symlink() or real.stat().st_size>INBOX_LIMIT: fail('contact_inbox_unavailable',503)
+                entry=(f"\n- {utc(self.clock())} — Message transmis\n"
+                       f"  - Sender: {identity}\n  - Message: {json.dumps(text,ensure_ascii=False)}\n")
+                if real.stat().st_size+len(entry.encode())>INBOX_LIMIT: fail('contact_inbox_full',503)
+                fd=os.open(real,os.O_WRONLY|os.O_APPEND|os.O_NOFOLLOW)
+                try:
+                    with os.fdopen(fd,'a',encoding='utf-8') as file:file.write(entry);file.flush();os.fsync(file.fileno())
+                except Exception: raise
+                delivery=self.owner_sender('Nouveau message transmis par '+identity+'.','contact-tool-k2:'+digest(operation))
+                if delivery not in ('accepted','failed_before_effect','indeterminate'): delivery='indeterminate'
+            else: fail('invalid_action')
+            receipt={'version':1,'operationId':operation,'action':action,'contactId':identity,'state':'completed','at':utc(self.clock())}
+            if delivery is not None:receipt['ownerMessage']={'state':delivery}
+            result={'success':True,'state':'completed','receipt':receipt}
+        except Refused: raise
+        except Exception: fail('contact_tool_indeterminate',503)
+        c=self.people.connect();c.execute('UPDATE send_receipts SET state=?,message_id=?,updated_at=? WHERE idempotency_key=?',('completed',canonical(result),int(self.clock()),key));c.commit();c.close()
+        return result
     def deliver_owner_change(self):
         if not self.people.DB.exists(): return {'state':'idle'}
         # A single atomic claim per existing 60s sweep. An uncertain send is
@@ -1208,7 +1264,7 @@ class Contacts:
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}
-        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms'}}
+        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'preflight':{'action','body'},'prepare':{'action','body'},'contact-tool':{'action','operationId','e164','text'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms'}}
         if action not in allowed or set(body)-allowed[action]: fail('invalid_request')
         if action=='list': return {'success':True,'state':'partial' if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else 'ok','receipt':None,'items':self.rows(),'issues':['contact_scan_partial'] if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else []}
         if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId')),'historyCount':self.history_count(body.get('contactId'))}
@@ -1221,6 +1277,10 @@ class Contacts:
             changed=next((r['at'] for r in history if r['action']=='note_updated'),None)
             value=self.note(row['e164'])
             return {'success':True,'state':'partial' if len(value)>2000 else 'ok','receipt':None,'text':value[:2000],'truncated':len(value)>2000,'updatedAt':changed}
+        if action=='contact-tool':
+            target=body.pop('action',None)
+            if target not in ('transmettre_a_amine','noter_contact'): fail('invalid_action')
+            return self.contact_tool_receipt(target,body)
         if action in ('preflight','prepare'):
             target=body.get('action');request=body.get('body')
             if target not in EVENTS or target=='sweep' or not isinstance(request,dict): fail('invalid_request')

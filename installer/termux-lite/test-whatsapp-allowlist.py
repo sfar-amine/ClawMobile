@@ -8,6 +8,7 @@ import time
 import uuid
 import unittest
 from unittest.mock import patch
+import os
 
 MODULE=Path(__file__).with_name('people-trusted.py')
 spec=importlib.util.spec_from_file_location('r17_people',MODULE);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -146,6 +147,22 @@ class AllowlistTests(unittest.TestCase):
         remove=self.body('remove',contactId=identity);self.confirmed(remove,'remove');self.assertEqual(self.service.call('remove',remove)['state'],'removed')
         self.assertIn('Private note',self.service.context(NEW));self.assertNotIn(m.MARKER,self.service.context(NEW))
         again=self.body('remove',operationId='second-remove',contactId=identity);self.assertEqual(self.service.call('remove',again)['state'],'already_absent')
+    def test_narrow_contact_tools_bind_current_contact_and_are_idempotent(self):
+        self.add();inbox=self.root/'amine-inbox.md';inbox.write_text('# Inbox\n')
+        old=os.environ.get('SAMANTHA_AMINE_INBOX');os.environ['SAMANTHA_AMINE_INBOX']=str(inbox)
+        try:
+            transmit={'action':'transmettre_a_amine','operationId':'turn-1','e164':NEW,'text':'Rappelle-moi demain.'}
+            first=self.service.call('contact-tool',dict(transmit));second=self.service.call('contact-tool',dict(transmit))
+            self.assertEqual(first,second);self.assertEqual(inbox.read_text().count('Rappelle-moi demain.'),1)
+            self.assertEqual(first['receipt']['ownerMessage']['state'],'accepted')
+            note={'action':'noter_contact','operationId':'turn-2','e164':NEW,'text':'Préfère les réponses brèves.'}
+            self.assertTrue(self.service.call('contact-tool',dict(note))['success'])
+            self.assertEqual(self.service.note(NEW),'Préfère les réponses brèves.')
+            with self.assertRaises(m.Refused) as error:self.service.call('contact-tool',{**note,'operationId':'turn-3','e164':OWNER})
+            self.assertEqual(error.exception.code,'contact_tool_not_allowed')
+        finally:
+            if old is None:os.environ.pop('SAMANTHA_AMINE_INBOX',None)
+            else:os.environ['SAMANTHA_AMINE_INBOX']=old
     def test_uncertain_patch_no_fallback_or_retry(self):
         def gateway(method,params=None,timeout_ms=7000):
             if method=='config.patch':raise RuntimeError('sensitive owner output')

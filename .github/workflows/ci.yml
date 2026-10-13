@@ -202,6 +202,7 @@ jobs:
           node scripts/test-whatsapp-allowlist.cjs
           node scripts/test-whatsapp-allowlist-paired.cjs
           node scripts/test-whatsapp-rooms-paired.cjs
+          node scripts/test-whatsapp-contact-tools.cjs
 
       - name: Run skill detail and owner controls contract
         run: node scripts/test-skill-control.cjs

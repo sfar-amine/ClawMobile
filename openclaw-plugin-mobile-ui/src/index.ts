@@ -52,6 +52,8 @@ import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
 import { createCapabilityTool } from "./capabilityTool";
 import { agentCapabilityHook } from "./capabilityAgentGuard";
 import { createProviderFallbackCoordinator } from "./providerFallback";
+import { createContactTool } from "./contactTools";
+import { handleWhatsAppAccessBeforeDispatch } from "./whatsappAccessFastPath";
 
 type JsonSchema = Record<string, any>;
 
@@ -215,6 +217,8 @@ function register(api: any) {
   // Pièce Pulse (fichier 52 §5): only a contact routed to a Pulse room agent, closed to the Pulse family.
   // before_dispatch, not inbound_claim: the Gateway runs inbound_claim only for plugin-bound conversations (S24 12/10).
   api.on("before_dispatch", async (event: any, ctx: any) => {
+    const access = await handleWhatsAppAccessBeforeDispatch(event, ctx);
+    if (access.handled) return access;
     // Owner WhatsApp turns: same capability-first path as the app (inbound_claim never fires for them).
     const owner = await handleOwnerBeforeDispatch(event, ctx);
     if (owner.handled) {
@@ -232,6 +236,8 @@ function register(api: any) {
     (ctx: any) => createCapabilityTool(ctx),
     { name: "clawmobile_capability" },
   );
+  api.registerTool((ctx: any) => createContactTool("transmettre_a_amine", ctx), { name: "transmettre_a_amine" });
+  api.registerTool((ctx: any) => createContactTool("noter_contact", ctx), { name: "noter_contact" });
 
   // ---- composite mobile runtime tools ----
   api.registerTool(
