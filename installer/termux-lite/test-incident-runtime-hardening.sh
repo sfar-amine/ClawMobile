@@ -40,7 +40,7 @@ grep -q 'adb-expected-serial' "$R/adb-recovery-watchdog.sh"
 grep -q 'adb-discover-endpoint.py' "$R/adb-recovery-watchdog.sh"
 grep -q 'adb-recovery-readiness.py' "$R/adb-recovery-watchdog.sh"
 grep -q 'device.adb.recovery_readiness' "$R/health-verdict.py"
-"$R/test-whatsapp-owner-send.sh"
+bash "$R/test-whatsapp-owner-send.sh"
 echo 'incident runtime hardening: OK'
 
 # Managed repair recovery must address the orchestrator API by component+scope, never incident id.
