@@ -1,0 +1,111 @@
+{
+  "version": 2,
+  "id": "claude-p1-native-admission-20261011",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "P1 reprise46 : admission courante pour effets/voix et émission Gateway public locale, sans rejeu owner ni repli ; preuves isolées réelles.",
+  "reason": "Les tours app arrivent avec senderIsOwner:false ; l'ancienne admission owner reposait sur le loopback seul (reproductible par tout processus local). Contrat playbooks 43 v2, revue 6108649302.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnAdmission.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-canonical-agent-bootstrap.cjs",
+    "openclaw-plugin-mobile-ui/scripts/runtime-contract-cases.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/p1-owner-transport-admission.json",
+    "installer/termux-lite/companion-acceptance.py",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/p1-admission.md",
+    "docs/changes/claude-p1-native-admission-20261011.json",
+    "docs/changes/claude-p1-native-admission-20261011.md",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-edit-replay.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/p1/callgatewayfromcli-signature.json",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-companion-acceptance-owner-transport.py",
+    "installer/termux-lite/test-skill-learning-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/capabilityClarification.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-understanding.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/gateway-owner-revocation-cancel-clarify.json",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/owner-turn-public-sdk.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-isolated.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/p1-gateway-clarify.cjs",
+    "openclaw-plugin-mobile-ui/scripts/diagnostics/README-p1-gateway.md",
+    "openclaw-plugin-mobile-ui/fixtures/local-isolated-p1-2026-10-11/public-gateway-client-dispatch.json",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs"
+  ],
+  "tests": [
+    {
+      "name": "P1 admission adverse",
+      "status": "passed",
+      "evidence": "scripts/test-owner-turn-admission.cjs : 73/73 ciblés locaux verts, dont bootstrap/handshake/expiration/scopes/cibles refusées et envoi unique ; log b46-p1-public-client-targeted-r4.log. Étape CI P1 existante conservée."
+    },
+    {
+      "name": "Édition-relecture avec admission",
+      "status": "passed",
+      "evidence": "scripts/test-edit-replay.cjs adapté : preuve signée, replayOf sans preuve (loopback, en-tête constant) => 403 owner_required."
+    },
+    {
+      "name": "Recette alerte transport owner",
+      "status": "passed",
+      "evidence": "Python 3/3 verts, ajout du probe refusal /extensions/claw-live/capability à la recette existante sans mutation autorisée ; log b46-p1-acceptance-targeted.log. Étape CI existante."
+    },
+    {
+      "name": "P1 reprise voix et surfaces",
+      "status": "passed",
+      "evidence": "Ciblés EX après correctif learning84b8a0ed : build, voix HS3 21/21, E3 44 contrôles et édition-relecture verts ; log b46-p1-learning-final-targeted.log. Test différé : effet accepté conservé et learning capture0 après révocation. Aucun budget augmenté, aucun skip."
+    },
+    {
+      "name": "Gateway public isolé local",
+      "status": "passed",
+      "evidence": "Nouvel adapter GatewayClient : 6/6 assertions réelles sous Node26.11.1, sortie0 ; public-client-run-02/proof.json, fixture public-gateway-client-dispatch.json. HELLO révoqué avant agent => requestSent:false, zéro invocation. Intégration inscrite dans job p1-isolated-gateway, SDK public2026.9.6 SHA256 vérifié. Aucun décompte entier revendiqué ici."
+    },
+    {
+      "name": "F6 inventaire proc borné",
+      "status": "passed",
+      "evidence": "Build puis test-remote-bridge-abandoned.cjs sous verrou EX : sortie0, 17 abandons, sweep442ms et procOverflowUnknown:true ; log b46-p1-f6-overflow-targeted.log. Étape F6 existante conservée. Le passage complet 40965914 est archivé 82/83, seul F6 rouge ; le correctif dc5 est porté avant une nouvelle entière au nouveau SHA."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p1-admission.md",
+    "docs/changes/claude-p1-native-admission-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Routes natives de sécurité (NO_CAPABILITY) : état, enrôlement biométrique et révocation de l'admission ; jamais exposées à l'agent ni à la voix."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Admission native Companion ; confirmations et état Companion existants, GatewayClient/config/SecretRef/port publics OpenClaw, aucun nouveau store/service/routeur."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "L’admission change les entrées app POST/runs et capability voix ; les outils MCP gardent leurs propriétaires existants et ne passent pas par ces preuves natives."
+  },
+  "rollback": "Revert de la PR : retour au non-owner partout et au contexte loopback ; fichier d'enrôlement ignoré.",
+  "limitations": [
+    "Le client public GatewayClient revalide le ticket après résolution de configuration/SecretRef et, après HELLO, immédiatement avant request synchrone. Les scopes effectivement accordés et la méthode agent sont vérifiés. Une seule connexion et un seul envoi, puis fermeture canonique. Remote/TLS/URL overrides et SecretRef irrésolu sont refusés, sans repli CLI d’un tour initialement admis. Après émission, le résultat est indéterminé jusqu’à réception : aucun second envoi ni repli. Après acceptation, l’effet peut se terminer malgré révocation ; reçu conservé. Aucune annulation app n’est livrée.",
+    "APK signé, installation et biométrie S24 réservés à Claude ; ce diagnostic local ne les qualifie pas.",
+    "Publication conditionnée à CI entière locale verte au SHA exact et revue Claude ; aucun déploiement Codex.",
+    "Les processus disposant du jeton Gateway restent équivalents owner ; aucun secret S24 utilisé par ce lot.",
+    "F6 : un inventaire /proc supérieur à 4096 conserve une présence indéterminée et le reçu existant. Cette correction ne qualifie pas exhaustivement les cmdline illisibles ni la fraîcheur du cache de 5 secondes."
+  ]
+}

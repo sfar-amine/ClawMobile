@@ -162,6 +162,36 @@ async function main() {
   ]);
   fs.rmSync(helperRoot, { recursive: true, force: true });
 
+  // S24 12/10: inbound_claim never fires for an ordinary WhatsApp DM; the owner's turns go through before_dispatch,
+  // proved by the routed main session AND commands.ownerAllowFrom. WhatsApp only (app turns run in the Companion).
+  const cfgDir = fs.mkdtempSync(path.join(os.tmpdir(), "owner-cfg-"));
+  const cfgPath = path.join(cfgDir, "openclaw.json");
+  fs.writeFileSync(cfgPath, JSON.stringify({ commands: { ownerAllowFrom: ["whatsapp:+21610000001", "slack:U1", "+21699"] } }));
+  assert.deepEqual([...mod.ownerWhatsAppNumbers(cfgPath)], ["+21610000001"]);
+  assert.deepEqual([...mod.ownerWhatsAppNumbers(path.join(cfgDir, "missing.json"))], []);
+  const owners = () => mod.ownerWhatsAppNumbers(cfgPath);
+  const ownerKey = "agent:main:whatsapp:direct:+21610000001";
+  const seen = [];
+  const ownerHit = async (message, options) => { seen.push({ message, ...options }); return { status: "hit", text: "Solde Orange : 12,500 DT" }; };
+  assert.deepEqual(await mod.handleOwnerBeforeDispatch(
+    { messageId: "3EB0OWN", content: "mon solde orange", body: "[WhatsApp +21610000001 +1s] +21610000001: mon solde orange", channel: "whatsapp", sessionKey: ownerKey },
+    { channelId: "whatsapp", sessionKey: ownerKey }, ownerHit, owners), { handled: true, text: "Solde Orange : 12,500 DT" });
+  assert.equal(seen[0].message, "mon solde orange"); assert.equal(seen[0].caller, "owner"); assert.equal(seen[0].surface, "whatsapp");
+  assert.equal(seen[0].originId, "3EB0OWN");
+  const never = async () => { throw new Error("must not run"); };
+  for (const [event, label] of [
+    [{ content: "mon solde orange", channel: "whatsapp", sessionKey: "agent:main:whatsapp:direct:+21610000009" }, "main session, number not an owner"],
+    [{ content: "mon solde orange", channel: "whatsapp", sessionKey: "agent:contacts:whatsapp:direct:+21610000001" }, "contacts agent"],
+    [{ content: "mon solde orange", channel: "whatsapp", sessionKey: ownerKey, isGroup: true }, "group"],
+    [{ content: "mon solde orange", channel: "openclaw", sessionKey: "agent:main:companion-chat-abc" }, "app turn (Companion already ran it)"],
+  ]) assert.deepEqual(await mod.handleOwnerBeforeDispatch(event, { sessionKey: event.sessionKey }, never, owners), { handled: false }, label);
+  // A miss stays with the agent (unchanged owner behaviour).
+  assert.deepEqual(await mod.handleOwnerBeforeDispatch({ content: "écris un poème", channel: "whatsapp", sessionKey: ownerKey }, { sessionKey: ownerKey },
+    async () => ({ status: "miss", reason: "model_allowed" }), owners), { handled: false });
+  const indexSource = fs.readFileSync(path.join(__dirname, "../src/index.ts"), "utf8");
+  assert.match(indexSource, /api\.on\("before_dispatch"[\s\S]{0,300}handleOwnerBeforeDispatch/);
+  fs.rmSync(cfgDir, { recursive: true, force: true });
+
   console.log("capability-first plugin tests: PASS");
 }
 

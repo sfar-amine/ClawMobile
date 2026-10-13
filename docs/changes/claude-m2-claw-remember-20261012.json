@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "id": "claude-m2-claw-remember-20261012",
+  "origin": "claude",
+  "kind": "feature",
+  "merge_eligibility": "review_required",
+  "deployment_state": "not_applied",
+  "summary": "M2 claw_remember: owner MCP « retiens ça » capture into the S24 shared memory through the canonical context-event.sh writer",
+  "reason": "Doc 49 P0-M2: MCP surfaces (Claude, ChatGPT, Codex) never write durable facts; memory.db only holds chat, work and openclaw events.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "cloud/voice-relay/src/index.mjs",
+    "cloud/voice-relay/src/mcp.mjs",
+    "cloud/voice-relay/test-mcp.mjs",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/memoryControl.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-remember.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-12/m2/context-writer.json",
+    "docs/remote-bridge.md",
+    "docs/changes/claude-m2-claw-remember-20261012.json"
+  ],
+  "tests": [
+    {
+      "name": "m2-remember",
+      "status": "passed",
+      "evidence": "scripts/test-mcp-remember.cjs (in CI): real context-event.sh/context-store.py in an isolated root, c10 S24 memory.db schema, identity surfaces, receipt replay without re-dispatch, conflict, claw_status, supersession, secret refusal, transcript/kind/owner guards, bridge owner gate, 200 000 events under 5 s."
+    },
+    {
+      "name": "relay-mcp-catalog",
+      "status": "passed",
+      "evidence": "cloud/voice-relay/test-mcp.mjs: owner catalog lists claw_remember with closed kinds and no surface argument, shadow catalog unchanged, stable request id, pending running state on device_timeout."
+    }
+  ],
+  "fixtures": [
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-12/m2/context-writer.json (new read-only S24 capture: installed context-event.sh hash identical to repo, memory.db events schema, counts by surface)",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/c10/memory-events-200.json (existing sanitized S24 capture: events schema and kinds)",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/c5/voice-producers.json (existing: installed producers)"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY: MCP owner primitive feeding the existing memory.cross_surface owner; no Companion HTTP route, no app or voice action."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuses context-event.sh/memory.db and Remote Bridge receipts; no new store, registry, router, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_remember": "added",
+      "claw_status": "updated",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "claw_remember added for chat-owner only; claw_status reads its receipt with the same keys."
+  },
+  "rollback": "Revert the commit and redeploy Companion and relay; events already written stay in memory.db as ordinary context events (forget via memory control).",
+  "limitations": [
+    "No deployment and no live claw_remember qualification on the S24 in this lot (S24 reads were strictly read-only).",
+    "Companion and relay must be deployed together; the relay alone would expose a tool the device rejects as unsupported_mcp_tool.",
+    "End-of-turn capture proposals for Companion/voice and SOUL/USER edit events (rest of M2) are not in this lot."
+  ]
+}

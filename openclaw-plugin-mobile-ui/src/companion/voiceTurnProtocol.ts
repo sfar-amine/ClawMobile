@@ -34,8 +34,8 @@ export class VoiceTurnProtocol {
       if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("invalid_message");
       if(value.warmInput?.audio) {this.audio(value.warmInput.audio);return;}
       const control=value.warmControl;
-      if(control?.turnStart||control?.turnEnd||control?.transcriptFinal||control?.interrupt) {
-        const names=["turnStart","turnEnd","transcriptFinal","interrupt"].filter(k=>control[k]);
+      if(control?.turnStart||control?.turnEnd||control?.transcriptFinal||control?.interrupt||control?.speakFirst) {
+        const names=["turnStart","turnEnd","transcriptFinal","interrupt","speakFirst"].filter(k=>control[k]);
         if(names.length!==1)throw new Error("one_control_required");
         const kind=names[0],body=control[kind];const op=this.requireId(body.operationId);
         if(body.sessionEpoch!==this.sessionEpoch)throw new Error("stale_session");
@@ -46,6 +46,7 @@ export class VoiceTurnProtocol {
         if(kind==="turnStart")state=this.start(body);
         else if(kind==="turnEnd")this.end(body);
         else if(kind==="transcriptFinal")this.transcriptFinal(body);
+        else if(kind==="speakFirst")this.speakFirst(body);
         else this.interrupt(body);
         const reply={warmAck:{version:2,operationId:op,state,connectionEpoch:this.connectionEpoch,sessionEpoch:this.sessionEpoch}};
         this.operations.set(op,{hash,reply});this.emit(reply);return;
@@ -56,6 +57,16 @@ export class VoiceTurnProtocol {
       if(value.clientContent?.turnComplete===false && this.turns.size===0) {this.forward(value);return;}
       throw new Error("unsupported_v2_message");
     } catch(e:any) {this.ambiguous=true;this.error(String(e?.message||"protocol_error"));}
+  }
+  private speakFirst(body:any) {
+    const id=this.requireId(body.turnId);
+    if(this.turns.size||this.asrOwner||this.outputOwner||this.closed)throw new Error("greeting_not_admissible");
+    const t:Turn={id,end:0,inputEnded:true,asrFinished:true,outputEnded:false,interrupted:false,
+      generation:"out-"+id,audio:new Map(),input:"",greeting:true};
+    this.turns.set(id,t);this.outputOwner=id;
+    this.event({greetingAdmitted:{}},id,t.generation);
+    this.forward({clientContent:{turns:[{role:"user",parts:[{text:
+      "[session_start] The owner just opened a voice conversation. Speak first: greet them in one short, warm sentence, in French unless the conversation history shows another language, then stop and listen. Do not call any tool."}]}],turnComplete:true}});
   }
   private start(body:any):string {
     const id=this.requireId(body.turnId);const first=body.firstSample;
@@ -157,6 +168,7 @@ export class VoiceTurnProtocol {
     const id=this.outputOwner,t=id?this.turns.get(id):null;
     if(value.toolCall?.functionCalls) {
       if(!t) {this.error("unowned_tool_call");return;}
+      if(t.greeting) {this.error("greeting_tool_not_admissible");return;}
       const calls=value.toolCall.functionCalls;
       if(!Array.isArray(calls)||calls.length>16) {this.error("tool_call_budget");return;}
       for(const call of calls) {if(typeof call.id!=="string"||this.toolOwners.size>=128){this.error("tool_call_budget");return;}this.toolOwners.set(call.id,t.id);}
@@ -197,7 +209,7 @@ export class VoiceTurnProtocol {
       if(existing.request!==request)throw new Error("voice_execution_identity_conflict");
       return existing.promise;
     }
-    if(this.closed||this.ambiguous||!t||!t.asrFinished||!t.inputEnded||t.interrupted||normalized(t.input)!==normalized(request))
+    if(this.closed||this.ambiguous||!t||t.greeting||!t.asrFinished||!t.inputEnded||t.interrupted||normalized(t.input)!==normalized(request))
       throw new Error("voice_execution_not_admissible");
     const entry:{request:string;promise:Promise<any>;result?:any}={request,promise:Promise.resolve(null)};
     this.executions.set(turnId,entry);
@@ -228,7 +240,7 @@ export class VoiceTurnProtocol {
 }
 
 type Start={id:string;first:number;activityStarted:boolean};
-type Turn={spoken?:string;verbatimChecked?:boolean;firstAudio?:boolean;interruptionObserved?:boolean;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
+type Turn={greeting?:boolean;spoken?:string;verbatimChecked?:boolean;firstAudio?:boolean;interruptionObserved?:boolean;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
 const ID=/^[A-Za-z0-9._:-]{1,160}$/;
 const BASE64=/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 function digest(value:string|Buffer){return createHash("sha256").update(value).digest("hex");}

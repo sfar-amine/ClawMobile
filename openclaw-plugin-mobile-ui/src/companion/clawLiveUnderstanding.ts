@@ -61,7 +61,21 @@ type Owner = {
   executeVoiceCapability(meta: any, request: string, run: () => Promise<any>): Promise<any>;
 };
 type Execute = (request: string) => Promise<Record<string, any>>;
-type Deps = { capture?: RoundCaptureRunner; now?: () => number };
+type Deps = { capture?: RoundCaptureRunner; now?: () => number; assertCurrent?: () => void };
+
+/** Admission is a projection of the resolver's canonical decision, never a lexical pre-router.
+ * Confirmed/payment routes still enter the existing executor and its human boundary.
+ */
+export function deterministicLiveDecision(result: any): boolean {
+  if (!result || typeof result !== "object" || Array.isArray(result) || result.success !== true) return false;
+  const decision = result?.decision;
+  const selected = decision?.selected;
+  if (!decision || typeof decision !== "object" || Array.isArray(decision)
+    || !selected || typeof selected !== "object" || Array.isArray(selected)) return false;
+  return decision?.version === 2 && decision?.type === "EXECUTE"
+    && typeof decision?.capability === "string" && decision.capability.length > 0
+    && selected?.deterministic === true && selected?.model_required === false;
+}
 
 /** Harness answer for a correction gesture: evidence required, no resolver or model call. */
 export function realignmentDecision() {
@@ -96,7 +110,8 @@ export async function clawLiveDecision(owner: Owner, request: string, resolve: (
   owner.understanding.noteTurn(request);
   // « La première » after a realignment must reach the capability route, not a free model answer.
   if (realignmentChoice(request, owner.understanding.pendingAnswer())) return { ...realignmentDecision(), state: "voice_realignment_choice" };
-  return resolve();
+  const result = await resolve();
+  return {...result, voiceFastPath: {version: 1, execute: deterministicLiveDecision(result)}};
 }
 
 /** /claw-live/capability: V1/V3 imposed text on every receipt, V2 realignment + Round Learning. */
@@ -106,7 +121,10 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
   const request = String(body?.request || "");
   const locale = voiceLocale(owner.sessionLocale());
   const state = owner.understanding;
-  const admit = (run: () => Promise<any>) => body?.voiceTurn ? owner.executeVoiceCapability(body.voiceTurn, request, run) : run();
+  const admit = (run: () => Promise<any>) => {
+    const current = () => { deps.assertCurrent?.(); return run(); };
+    return body?.voiceTurn ? owner.executeVoiceCapability(body.voiceTurn, request, current) : current();
+  };
 
   const target = state.gestureTarget(request);
   if (target) {
@@ -118,6 +136,7 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
     });
   }
 
+  const stillCurrent = () => { try { deps.assertCurrent?.(); return true; } catch { return false; } };
   const pending = state.pendingAnswer();
   const choice = realignmentChoice(request, pending);
   return admit(async () => {
@@ -126,9 +145,9 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
     if (pending) {
       const corrected = readVoiceUnderstood(result, locale);
       const payload = realignmentRoundPayload(pending, "resolved", { capability: corrected?.capability || null, route: corrected?.route || null });
-      if (payload) learning = await capture(payload);
+      if (payload) learning = stillCurrent() ? await capture(payload) : {state:"skipped",reason:"owner_admission_expired"};
     }
-    state.remember(voiceTurnContext(result, request, { locale, now: now(), scope: String(body?.voiceTurn?.sessionEpoch || "") }), request);
+    if (stillCurrent()) state.remember(voiceTurnContext(result, request, { locale, now: now(), scope: String(body?.voiceTurn?.sessionEpoch || "") }), request);
     return { ...result, ...voiceReceiptProjection(result, locale), ...(learning ? { realignment_learning: learning } : {}), ...(choice ? { realignment_choice: choice.capability } : {}) };
   });
 }
