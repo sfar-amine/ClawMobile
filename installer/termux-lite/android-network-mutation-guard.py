@@ -586,9 +586,10 @@ def _forward_matches(row: dict, observed: list[dict]) -> bool:
 def _recover_localfilesystem_ownership(path: Path, row: dict, observed: list[dict]) -> bool:
     """Prove the unique Unix effect after a lost ADB reply; TCP stays fail-closed."""
     socket_path = _cellular_socket_path(row["resource"]["local"])
+    unknown_result = row.get("state") == "CREATE_REQUESTED" or bool(row.get("command_error"))
     if (socket_path is None or row.get("ownership_proven") is True or row.get("before") != []
             or row.get("mutation_dispatched") is not True or observed != [row["resource"]]
-            or row.get("ownership_lost") is True):
+            or row.get("ownership_lost") is True or not unknown_result):
         return False
     try:
         identity = _socket_identity(socket_path)
@@ -676,11 +677,8 @@ def acquire_adb_forward(serial: str, local: str = "tcp:0", remote: str = "locala
                     row["socket_identity"] = _socket_identity(socket_path)
                 except RuntimeError:
                     row["socket_identity"] = None
-                if row["socket_identity"] is None:
-                    _forward_save(path, row, "BLOCKED", "preexisting_forward_socket_unverified", observed_after=before,
-                                  cleanup_verified=True, restored_exact=True)
-                else:
-                    _forward_save(path, row, "REUSED", "preexisting_forward_not_owned", reused=True, observed_after=before)
+                _forward_save(path, row, "BLOCKED", "preexisting_localfilesystem_forward_preserved",
+                              observed_after=before, cleanup_verified=True, restored_exact=True)
             elif ambiguous:
                 _forward_save(path, row, "BLOCKED", "multiple_preexisting_forwards", observed_after=before,
                               cleanup_verified=True, restored_exact=True)
@@ -715,7 +713,8 @@ def acquire_adb_forward(serial: str, local: str = "tcp:0", remote: str = "locala
                             row["socket_identity"] = _socket_identity(socket_path)
                         except RuntimeError:
                             row["socket_identity"] = None
-                        if (row.get("ownership_proven") is not True and row.get("before") == []
+                        unknown_result = row.get("state") == "CREATE_REQUESTED" or bool(row.get("command_error"))
+                        if (row.get("ownership_proven") is not True and unknown_result and row.get("before") == []
                                 and row.get("mutation_dispatched") is True and after == [resource]
                                 and row["socket_identity"] is not None):
                             row["ownership_proven"] = True

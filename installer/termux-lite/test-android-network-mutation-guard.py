@@ -807,6 +807,8 @@ class FakeAdb:
                 raise subprocess.TimeoutExpired("fixture-adb", 1)
             if self.create_behavior == "crash":
                 raise KeyboardInterrupt("fixture crash after effect before acknowledgment")
+            if self.create_behavior == "nonzero_effect":
+                return subprocess.CompletedProcess(args, 1, "", "fixture explicit failure after effect")
             if self.fail_after_create:
                 self.fail_lists = True
             return subprocess.CompletedProcess(args, 0, "", "")
@@ -1248,6 +1250,31 @@ class LocalFilesystemForwardTests(unittest.TestCase):
         self.assertTrue(closed["cleanup_verified"])
         self.assertEqual(self.fake.rows, [])
         self.assertFalse(os.path.lexists(self.local_path))
+
+    def test_explicit_create_failure_never_adopts_observed_effect(self):
+        self.fake.create_behavior = "nonzero_effect"
+        acquired = self.acquire()
+        self.assertEqual(acquired["state"], "VERIFY_REQUIRED")
+        self.assertFalse(acquired["ready"] or acquired["created"])
+        released = guard.release_adb_forward(self.LEASE, self.OWNER)
+        self.assertEqual(released["state"], "VERIFY_REQUIRED")
+        self.assertEqual(len(self.fake.mutations()), 1)
+        self.assertTrue(self.local_path.exists())
+
+    def test_preexisting_exact_localfilesystem_mapping_is_never_reused(self):
+        existing = {"serial": self.SERIAL, "local": "localfilesystem:" + str(self.local_path),
+                    "remote": self.REMOTE}
+        unix = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        unix.bind(str(self.local_path)); unix.close()
+        self.fake.rows = [existing]
+        acquired = self.acquire()
+        self.assertEqual((acquired["state"], acquired["reason"]),
+                         ("BLOCKED", "preexisting_localfilesystem_forward_preserved"))
+        self.assertFalse(acquired["ready"] or acquired["created"] or acquired["reused"])
+        guard.release_adb_forward(self.LEASE, self.OWNER)
+        self.assertEqual(self.fake.rows, [existing])
+        self.assertTrue(self.local_path.exists())
+        self.assertEqual(self.fake.mutations(), [])
 
     def test_crash_after_effect_is_reconciled_from_durable_unique_lease(self):
         self.fake.create_behavior = "crash"

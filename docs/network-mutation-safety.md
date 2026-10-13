@@ -55,7 +55,9 @@ préservé et place le bail en vérification. Si la réponse de création ADB es
 l'effet, le garde ne récupère la propriété que pour ce type `localfilesystem`, lorsque
 le snapshot antérieur était vide et que le mapping, le socket, son identité et le suffixe
 unique concordent avec le bail durable `CREATE_REQUESTED`. Le réconciliateur peut alors
-retirer cet effet après un crash. Le contrat TCP existant reste inchangé et conserve son
+retirer cet effet après un crash. Un résultat ADB explicitement non nul ne peut jamais
+être promu depuis la seule observation, et un mapping `localfilesystem` préexistant est
+refusé puis préservé plutôt que réutilisé. Le contrat TCP existant reste inchangé et conserve son
 refus de déduire la propriété d'une réponse perdue.
 
 ## Wi‑Fi coupé : auto-réparation (incident S24 du 11/10, 16:00)
