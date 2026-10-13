@@ -70,8 +70,7 @@ def _history_path():
 
 def _same_event(row,e,revision):
     return bool(row and row[0]==revision and row[1]==e['surface'] and row[2]==e['kind']
-                and row[3]==' '.join(str(e['text']).split()) and row[4]==e['createdAt']
-                and row[5]==e.get('supersedes'))
+                and row[3]==' '.join(str(e['text']).split()) and row[5]==e.get('supersedes'))
 
 def _history_has(e,revision):
     for path in sorted((D/'history').glob('*.jsonl')):
@@ -84,7 +83,7 @@ def _history_has(e,revision):
                         normalized={**item,'text':' '.join(str(item.get('text','')).split())}
                         return (normalized.get('revision')==revision and normalized.get('surface')==e['surface']
                                 and normalized.get('kind')==e['kind'] and normalized.get('text')==' '.join(str(e['text']).split())
-                                and normalized.get('createdAt')==e['createdAt'] and normalized.get('supersedes')==e.get('supersedes'))
+                                and normalized.get('supersedes')==e.get('supersedes'))
         except (OSError,ValueError,json.JSONDecodeError): return False
     return False
 
@@ -120,7 +119,7 @@ def ingest_event(c,e,replay_history=False,accepted_legacy=False,require_active=N
         row=c.execute('SELECT revision,session_id,surface,kind,text,created_at,supersedes FROM events WHERE id=?',(e['id'],)).fetchone()
         if row:
             if row[1]!=session: raise ValueError('event_session_conflict')
-            if (row[2],row[3],row[4],row[5],row[6])!=(e['surface'],e['kind'],' '.join(str(e['text']).split()),e['createdAt'],e.get('supersedes')):
+            if (row[2],row[3],row[4],row[6])!=(e['surface'],e['kind'],' '.join(str(e['text']).split()),e.get('supersedes')):
                 raise ValueError('event_identity_conflict')
             rev=row[0]; inserted=False
         else:
