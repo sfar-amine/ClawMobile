@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Amine 12/10 : tout résultat déterministe s'affiche en texte lisible, sans champ technique ni donnée sensible."""
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -38,7 +39,7 @@ class GenericDisplayTests(unittest.TestCase):
         text = m._display_text({"ok": True, "provider": "zain-bahrain", "workflow": "balance", "ui_used": True, "observed_at": 1.7e9,
                                 "data": {"balance": {"value": "0.000", "unit": "BD"}}})
         self.assertEqual("Données : Solde : 0.000 BD", text)
-        self.assertEqual("N° d'offre : 20447\nOffer : [Offre] : SOTELMA · En cours",
+        self.assertEqual("N° d'offre : 20447\nOffre : [Offre] : SOTELMA · En cours",
                          m._display_text({"ok": True, "offer_id": "20447", "offer": "[Offre] : SOTELMA · En cours"}))
         month = {"period": "2026-01", "consumed_jh": {"displayed": "0"}, "progress": {"displayed": "0%"}}
         self.assertEqual("Période : 2026-01\nConsommé (JH) : 0\nAvancement : 0%", m._display_text({"ok": True, "monthly": [month]}))
@@ -105,16 +106,15 @@ class ChoiceTests(unittest.TestCase):
             m.resolve_capability, m.execute_capability_decision = old
 
 
-CARD = {"version": 1, "locale": "fr", "status": "info", "label": "état du projet", "title": "Résultat à vérifier",
+CARD = {"version": 1, "locale": "fr", "status": "info", "label": "Pulse backend-first runtime", "title": "Résultat à vérifier",
         "spoken": "Le résultat de la demande reste à vérifier.", "rows": [], "primary": {"label": "Terminer", "action": "done"},
         "effect": {"debited": "unknown", "source": "receipt"}, "meta": {"capability": "pulse.backend_first"},
-        "understood": {"capability": "pulse.backend_first", "label": "état du projet", "slots": {}, "text": "Compris : état du projet"},
+        "understood": {"capability": "pulse.backend_first", "label": "Pulse backend-first runtime", "slots": {},
+                       "text": "Compris : Pulse backend-first runtime"},
         "alternatives": []}
-# S24 12/10, « état projet zain phase 5 » : record of billing/direct-runtime/pulse-projects.mjs --one (values as received).
-ZAIN_PHASE_5 = {"project_id": "20495", "label": "ZAIN BAHRAIN - PHASE 5", "created_at": "30/09/2026 14:17", "nature": "Services",
-                "type": "Forfait", "project_manager": "Amine SFAR", "progress_to_date": "13%", "status": "En attente du BC",
-                "priority": "P1", "sold": "417", "consumption_current_week": "0", "consumption_current_month": "15.06",
-                "consumption_current_year": "52.19", "consumption_total": "52.19", "raf": "362", "att": "414.19", "drift": "-0.67%"}
+FIXTURE = json.loads((Path(__file__).parents[2] / "openclaw-plugin-mobile-ui" / "fixtures" /
+                      "s24-2026-10-12" / "pulse-project-zain-phase5.json").read_text())
+ZAIN_PHASE_5 = FIXTURE["result"]["projects"][0]
 
 
 class ReadableResultCardTests(unittest.TestCase):
@@ -132,11 +132,9 @@ class ReadableResultCardTests(unittest.TestCase):
             m.resolve_capability, m.execute_capability_decision = old
 
     def test_real_zain_phase_5_reads_in_french(self):
-        out = self.run_hit({"ok": True, "route": "/Affaires/ListeAffaires", "query": "zain phase 5", "project_count": 1,
-                            "projects": [ZAIN_PHASE_5], "request_count": 3, "latency_ms": 2140})
+        out = self.run_hit(FIXTURE["result"])
         self.assertEqual("hit", out["status"])
         self.assertEqual(
-            "Compris : état du projet\n"
             "N° de projet : 20495\n"
             "Libellé : ZAIN BAHRAIN - PHASE 5\n"
             "Créé le : 30/09/2026 14:17\n"
@@ -159,10 +157,14 @@ class ReadableResultCardTests(unittest.TestCase):
     def test_successful_read_never_shows_the_opaque_card_title(self):
         # Even when the owner result itself carries a receipt card, a successful read renders the result.
         out = self.run_hit({"ok": True, "presentation": CARD, "project_count": 1, "projects": [{"project_id": "20495", "sold": "417"}]})
-        self.assertEqual("Compris : état du projet\nN° de projet : 20495\nVendu (JH) : 417", out["text"])
+        self.assertEqual("N° de projet : 20495\nVendu (JH) : 417", out["text"])
         # A receipt without a readable « Compris » line (no understood.text) shows only the result.
         bare = dict(CARD, understood={"capability": "pulse.backend_first", "label": "Pulse backend-first runtime", "slots": {}})
         self.assertEqual("N° de projet : 20495", self.run_hit({"ok": True, "projects": [{"project_id": "20495"}]}, bare)["text"])
+        friendly = dict(CARD, understood={"capability": "pulse.backend_first", "label": "état du projet", "slots": {},
+                                          "text": "Compris : état du projet"})
+        self.assertEqual("Compris : état du projet\nN° de projet : 20495",
+                         self.run_hit({"ok": True, "projects": [{"project_id": "20495"}]}, friendly)["text"])
 
     def test_amounts_still_pass_the_privacy_filter(self):
         # Exactly six digits stay masked as before; a value formatted with spaces is shown.

@@ -261,6 +261,10 @@ def _presentation_metadata(value):
 def _understood_prefix(metadata, text):
     understood = (metadata.get("presentation") or {}).get("understood") if metadata else None
     line = understood.get("text") if isinstance(understood, dict) and understood.get("capability") else None
+    # The Graph's internal fallback label is not a statement understood by a person.  It was observed
+    # verbatim on the S24 Pulse read receipt on 12/10; omit it instead of inventing a business label.
+    if line == "Compris : Pulse backend-first runtime":
+        line = None
     return f"{line}\n{text}" if line and text else (text or line or "")
 
 
@@ -403,13 +407,14 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
 _GENERIC_HIDDEN = {"ok", "route", "route_id", "query", "request_count", "latency_ms", "duration_ms", "state", "intent", "path", "filters",
                    "provider", "workflow", "ui_used", "observed_at", "run_id", "schema_version", "business_rule", "coverage_complete",
                    "live", "providers_requested", "providers_checked", "capability", "operation", "verified",
-                   "source", "version", "fallback_from", "route_selection_reason", "reason_code"}
+                   "source", "version", "fallback_from", "route_selection_reason", "reason_code", "presentation"}
 
 
 # Amine 12/10 : noms de champs lisibles en français. Dictionnaire borné et générique (clé normalisée
-# → libellé) ; un champ inconnu garde le rendu historique (« project_id » → « Project id »).
+# → libellé) ; un champ inconnu garde le rendu historique (« custom_field » → « Custom field »).
 _FIELD_LABELS = {
-    "project_id": "N° de projet", "project_label": "Projet", "offer_id": "N° d'offre", "label": "Libellé",
+    "id": "N°", "project_id": "N° de projet", "project_label": "Projet", "offer_id": "N° d'offre",
+    "offer": "Offre", "label": "Libellé",
     "created_at": "Créé le", "updated_at": "Mis à jour le", "nature": "Nature", "type": "Type",
     "project_manager": "Chef de projet", "progress_to_date": "Avancement", "progress": "Avancement",
     "cumulative_progress": "Avancement cumulé", "status": "Statut", "priority": "Priorité",
@@ -463,6 +468,7 @@ def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
     label = _field_label
     # « project_count : 1 » repeats the size of its sibling list (« projects »), already shown by that list.
     sizes = {len(v) for v in value.values() if isinstance(v, list)}
+    counters = {str(k): v for k, v in value.items() if str(k).endswith("_count") and type(v) is int}
     for key, item in value.items():
         if len(lines) >= limit or str(key) in _GENERIC_HIDDEN or str(key).endswith("_ms"):
             continue
@@ -486,7 +492,10 @@ def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
                         lines.append("- " + " · ".join(cells))
                 if len(rows) > 8:
                     lines.append("- …")
-        elif isinstance(item, list) and len(item) == 1 and isinstance(item[0], dict):
+        elif (
+            isinstance(item, list) and len(item) == 1 and isinstance(item[0], dict)
+            and (not counters or counters.get(str(key)[:-1] + "_count") == 1)
+        ):
             # One result (« état du projet 20495 ») : its whole record, one field per line.
             for k, v in list(item[0].items())[:limit]:
                 if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list) and _generic_value(v):
