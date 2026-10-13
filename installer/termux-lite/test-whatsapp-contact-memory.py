@@ -108,4 +108,14 @@ class ContactMemoryTests(unittest.TestCase):
         payload=calls[0][4];self.assertIn('"source":"contact wa-0123456789abcdef"',payload)
         self.assertNotIn(NUMBER,payload)
 
+    def test_contact_pages_rotate_instead_of_starving_after_twenty(self):
+        numbers=['+2161'+str(i).zfill(7) for i in range(21)]
+        self.cfg['channels']['whatsapp']['allowFrom']=numbers;self.cfg['channels']['whatsapp']['direct']={'*':{'systemPrompt':'base'}}
+        seen=[]
+        def compact(number,metadata,databases):
+            seen.append(number);return {'state':'idle','events':0,'facts':0,'more':False}
+        with patch.object(m,'gateway_call',return_value={'hash':'h1','config':self.cfg}),patch.object(self.service,'compact_contact',side_effect=compact):
+            result=self.service.compact_contacts()
+        self.assertEqual((result['scanPage'],result['scanPages'],result['processed']),(1,2,1));self.assertEqual(seen,[numbers[-1]])
+
 if __name__=='__main__':unittest.main(verbosity=2)

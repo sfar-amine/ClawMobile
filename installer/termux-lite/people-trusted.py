@@ -1412,15 +1412,19 @@ class Contacts:
                 scope,text=self.policy(direct.get(number,{}))
                 metadata={'state':'active','scope':scope,'scopeText':text,'expiresAt':None,'addedAt':None,
                           'suspendedScope':None,'personId':None,'rooms':['maison'] if number in owners else ['conversation']}
-            if metadata and metadata['state']=='active' and (not metadata['expiresAt'] or stamp(metadata['expiresAt'])>=self.clock()):candidates.append((number,metadata))
+            if number in allow and metadata and metadata['state']=='active' and (not metadata['expiresAt'] or stamp(metadata['expiresAt'])>=self.clock()):candidates.append((number,metadata))
+        pages=max(1,(len(candidates)+CONTACT_MEMORY_CONTACTS-1)//CONTACT_MEMORY_CONTACTS)
+        page=(int(self.clock())//86400)%pages
+        selected=candidates[page*CONTACT_MEMORY_CONTACTS:(page+1)*CONTACT_MEMORY_CONTACTS]
         results=[];issues=[]
-        for number,metadata in candidates[:CONTACT_MEMORY_CONTACTS]:
+        for number,metadata in selected:
             try:results.append(self.compact_contact(number,metadata,databases))
             except Refused as error:issues.append({'contactId':contact_id(number),'reason':error.code})
             except Exception:issues.append({'contactId':contact_id(number),'reason':'contact_memory_unavailable'})
         return {'success':not issues,'state':'partial' if issues or len(candidates)>CONTACT_MEMORY_CONTACTS or any(r['more'] for r in results) else 'completed',
                 'receipt':None,'processed':len(results),'events':sum(r['events'] for r in results),'facts':sum(r['facts'] for r in results),
-                'remaining':max(0,len(candidates)-CONTACT_MEMORY_CONTACTS)+sum(1 for r in results if r['more']),'issues':issues[:20]}
+                'remaining':max(0,len(candidates)-len(selected))+sum(1 for r in results if r['more']),
+                'scanPage':page,'scanPages':pages,'issues':issues[:20]}
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}
