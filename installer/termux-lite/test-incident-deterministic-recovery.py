@@ -24,6 +24,9 @@ class DeterministicRecoveryTest(unittest.TestCase):
                     "INCIDENT_WORKER_POLL_S": "0.05"}
         self._wrapper("incident-orchestrator.py", f'exec python3 "{HERE / "incident-orchestrator.py"}" "$@"')
         self._wrapper("engineering-repair.sh", "exit 1")
+        runtime_mode = self.runtime / "runtime_mode.py"
+        runtime_mode.write_text("print('normal')\n")
+        runtime_mode.chmod(0o755)
         self._wrapper("incident-close.sh", "exit 0")
         bounded_log = self.runtime / "bounded-log.py"
         bounded_log.write_text("#!/usr/bin/env python3\n")

@@ -35,7 +35,7 @@ healthy(){
  if { [ "$prev" = degraded ] && [ "$old" -ge 3 ]; } || [ "$prev" = human_required ]; then "$ROOT/incident-orchestrator.py" recover "$n" "$(scope "$n")" --source health-manager --reason "service health verified after recovery" >/dev/null 2>&1 || true; "$ROOT/incident-close.sh" "$n" "Samantha — $n est de nouveau opérationnel et la récupération est vérifiée." || true; fi
 }
 scope(){ if [ "$1" = adb ]; then printf "boot-%s" "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)"; else printf runtime; fi; }
-incident_open(){ "$ROOT/incident-orchestrator.py" open "$1" "$(scope "$1")" --source health-manager --summary "$1 persistent health failure" --correlation-id "$2" --observation-kind probe 2>/dev/null | python3 -c 'import sys,json; row=json.load(sys.stdin); print(row["id"]+"|"+row["correlation_id"])'; }
+incident_open(){ n="$1"; correlation_id="$2"; summary="${3:-$n persistent health failure}"; "$ROOT/incident-orchestrator.py" open "$n" "$(scope "$n")" --source health-manager --summary "$summary" --correlation-id "$correlation_id" --observation-kind probe 2>/dev/null | python3 -c 'import sys,json; row=json.load(sys.stdin); print(row["id"]+"|"+row["correlation_id"])'; }
 shadow(){ n="$1"; c="$2"; iid="$3"; nohup "$ROOT/autonomous-engineering-shadow.sh" "$n" "$c" "$iid" 9>&- >>"$D/autonomous-engineering-shadow.stderr.log" 2>&1 </dev/null & }
 human_escalate(){
  n="$1"; probe_correlation="probe-$(now)-$$-$n"; opened=$(incident_open "$n" "$probe_correlation") || return 1; IFS='|' read -r iid correlation_id <<EOF
@@ -131,7 +131,10 @@ check_whatsapp(){
   put whatsapp status degraded; put whatsapp failures 0; put whatsapp next $((tick+15)); return
  fi
  if [ "$reason" = terminal_auth_logout ]; then
-  if [ "$(get whatsapp terminal_notified 0)" != 1 ]; then iid=$("$ROOT/incident-orchestrator.py" open whatsapp runtime --source health-manager --summary "WhatsApp terminal authentication logout (401 conflict)" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'); "$ROOT/incident-orchestrator.py" transition "$iid" human_required --source health-manager --reason "WhatsApp session logged out; QR relink required" --human-boundary >/dev/null 2>&1 || true; "$ROOT/incident-notify.sh" human_required "Samantha — WhatsApp est déconnecté (401 conflict / session logged out)." "Relier WhatsApp avec openclaw channels login --channel whatsapp puis scanner le QR." || true; put whatsapp terminal_notified 1; log "service=whatsapp state=human_required incident_id=$iid reason=terminal_auth_logout"; fi
+  if [ "$(get whatsapp terminal_notified 0)" != 1 ]; then probe_correlation="probe-$(now)-$$-whatsapp"; opened=$(incident_open whatsapp "$probe_correlation" "WhatsApp terminal authentication logout (401 conflict)"); IFS='|' read -r iid correlation_id <<EOF
+$opened
+EOF
+   "$ROOT/incident-orchestrator.py" transition "$iid" human_required --source health-manager --reason "WhatsApp session logged out; QR relink required" --human-boundary >/dev/null 2>&1 || true; "$ROOT/incident-notify.sh" human_required "Samantha — WhatsApp est déconnecté (401 conflict / session logged out)." "Relier WhatsApp avec openclaw channels login --channel whatsapp puis scanner le QR." || true; put whatsapp terminal_notified 1; log "service=whatsapp state=human_required incident_id=$iid correlation_id=$correlation_id reason=terminal_auth_logout"; fi
   put whatsapp status human_required; put whatsapp next 0; return
  fi
  due whatsapp || return

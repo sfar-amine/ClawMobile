@@ -1,13 +1,13 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-D="$HOME/.openclaw/incidents"; Q="$D/queue"; mkdir -p "$Q"
+D="$HOME/.openclaw/incidents"; Q="$D/queue"; L="$D/locks"; mkdir -p "$Q" "$L"
 kind=${1:-info}; shift || true
 msg=${1:-}; shift || true
 action="$*"
 [ -n "$msg" ] || exit 64
 if [ "$kind" = human_required ] && [ -z "$action" ]; then exit 65; fi
 id=$(printf '%s' "$kind:$msg:$action"|sha256sum|cut -c1-16); dir="$Q/$id"
-exec 8>"$Q/.$id.lock"; flock 8
+exec 8>"$L/$id.lock"; flock 8
 status=new
 [ -d "$dir" ] && status=$(cat "$dir/status" 2>/dev/null || echo new)
 # The content hash is the alert identity. An active or delivered identical
