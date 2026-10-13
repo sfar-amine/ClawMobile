@@ -558,7 +558,7 @@ def _forward_result(row: dict, observed: list[dict] | None = None) -> dict:
     owner_state = forward_owner_state(row)
     ready = (row["state"] in {"ACTIVE", "REUSED"} and matches and socket_matches and owner_state == "ALIVE"
              and not _forward_expired(row) and row.get("ownership_lost") is not True)
-    result = {"lease_id": row["lease_id"], "lease_path": str(forward_lease_path(row["lease_id"])),
+    return {"lease_id": row["lease_id"], "lease_path": str(forward_lease_path(row["lease_id"])),
             "type": "adb_forward", "state": row["state"], "reason": row.get("reason"), **resource,
             "ready": ready, "verified": ready or row.get("cleanup_verified") is True,
             "created": row.get("ownership_proven") is True, "reused": row.get("reused") is True,
@@ -569,9 +569,6 @@ def _forward_result(row: dict, observed: list[dict] | None = None) -> dict:
             "ttl_seconds": MAX_LEASE_AGE, "last_renewed_at": row.get("last_renewed_at"),
             "endpoint": ({"type": "unix", "socket_path": str(socket_path)} if socket_path is not None
                          else "http://127.0.0.1:" + resource["local"].split(":", 1)[1]) if ready else None}
-    if socket_path is not None:
-        result.update(endpoint_type="unix", socket_path=str(socket_path) if ready else None)
-    return result
 
 def _forward_matches(row: dict, observed: list[dict]) -> bool:
     if observed != [row["resource"]]:

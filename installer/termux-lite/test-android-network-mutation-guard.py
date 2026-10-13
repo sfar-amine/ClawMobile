@@ -1172,7 +1172,6 @@ class LocalFilesystemForwardTests(unittest.TestCase):
         acquired = self.acquire()
         self.assertTrue(acquired["ready"])
         self.assertEqual(acquired["endpoint"], {"type": "unix", "socket_path": str(self.local_path)})
-        self.assertEqual((acquired["endpoint_type"], acquired["socket_path"]), ("unix", str(self.local_path)))
         self.assertTrue(self.local_path.exists())
         closed = guard.release_adb_forward(self.LEASE, self.OWNER)
         self.assertTrue(closed["cleanup_verified"] and closed["restored_exact"])
