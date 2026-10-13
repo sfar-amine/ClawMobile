@@ -507,6 +507,7 @@ INBOX_LIMIT = 1024*1024
 INBOX_ENTRY = re.compile(r'^- ', re.M)
 INBOX_SENDER = re.compile(r'^\s+- Sender:.*?(\+?[0-9][0-9 ]{6,}[0-9])', re.M)
 CONTACT_TOOL_OP = re.compile(r'[A-Za-z0-9_.:-]{1,128}\Z')
+CONTACT_TOOL_RECEIPTS = 5000
 
 def normalize_rooms(value):
     if not isinstance(value,list) or not value or len(value)>len(ROOMS) or any(r not in ROOMS for r in value): fail('invalid_rooms')
@@ -834,7 +835,11 @@ class Contacts:
             try:return json.loads(old['message_id'])
             except (TypeError,ValueError): fail('contact_tool_indeterminate',503)
         now=int(self.clock());pending={'success':False,'state':'indeterminate','receipt':None}
-        c.execute('INSERT INTO send_receipts VALUES(?,?,?,\'pending\',?,?,?)',(key,identity,wanted,canonical(pending),now,now));c.commit();c.close()
+        c.execute('INSERT INTO send_receipts VALUES(?,?,?,\'pending\',?,?,?)',(key,identity,wanted,canonical(pending),now,now))
+        c.execute("""DELETE FROM send_receipts WHERE idempotency_key LIKE 'contact-tool:%' AND rowid NOT IN
+                     (SELECT rowid FROM send_receipts WHERE idempotency_key LIKE 'contact-tool:%'
+                      ORDER BY updated_at DESC,rowid DESC LIMIT ?)""",(CONTACT_TOOL_RECEIPTS,))
+        c.commit();c.close()
         try:
             if action=='noter_contact':
                 metadata=self.metadata(number)
