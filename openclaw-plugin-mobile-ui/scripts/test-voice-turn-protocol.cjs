@@ -22,7 +22,7 @@ function error(s){return s.events.flatMap(x=>x.warmEvent?.payload?.protocolError
   const receipt={warmControl:{receiptReply:{turnId:'voice-a'}}};for(const field of contract.controls.receiptReply)assert(field in receipt.warmControl.receiptReply,`receiptReply.${field}`);
   const frame={warmInput:{audio:{sessionEpoch:'session-1',turnId:'voice-a',firstSample:0,samples:320,sampleRate:16000,data:Buffer.alloc(640).toString('base64')}}};
   for(const field of contract.audio)assert(field in frame.warmInput.audio,`audio.${field}`);
-  const event={warmEvent:{version:2,connectionEpoch:1,sessionEpoch:'session-1',sequence:1,turnId:'voice-a',outputGenerationId:'out-voice-a',correlation:'exact',payload:{turnAdmitted:{}}}};
+  const s=setup();start(s);const event=s.events.find(v=>v.warmEvent?.payload?.turnAdmitted);
   for(const field of contract.warmEvent)assert(field in event.warmEvent,`warmEvent.${field}`);
  });
  await test('duplex greeting is correlated, once and never executable',async()=>{const s=setup(),m=control('speakFirst','greeting');s.p.receive(m);s.p.receive(m);assert.equal(s.sent.length,1);assert(s.sent[0].clientContent.turnComplete);s.p.provider({serverContent:{outputTranscription:{text:'Bonjour'},turnComplete:true}});assert.equal(s.events.find(x=>x.warmEvent?.payload?.serverContent)?.warmEvent.turnId,'greeting');assert.throws(()=>s.p.execute('greeting','',async()=>1));start(s);audio(s);end(s);finishAsr(s);assert.deepEqual(error(s),[]);});
