@@ -42,8 +42,14 @@ EOF
     continue
   fi
   if [ "$state" = detected ]; then
-    "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source orchestrator-worker --reason "deterministic recovery exhausted" >/dev/null 2>&1 || true
-    log "incident=$iid component=$component transition=diagnosing"; continue
+    if "$ROOT/incident-orchestrator.py" handled "$component" >/dev/null 2>&1; then
+      "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source orchestrator-worker --reason "deterministic recovery exhausted; managed handler available" >/dev/null 2>&1 || true
+      log "incident=$iid component=$component transition=diagnosing"
+    else
+      "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source orchestrator-worker --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true
+      log "incident=$iid component=$component state=awaiting_deterministic_recovery reason=no_managed_handler"
+    fi
+    continue
   fi
   if [ "$state" = diagnosing ] || [ "$state" = planning ] || [ "$state" = repairing ]; then
     if "$ROOT/engineering-repair.sh" supports "$component" >/dev/null 2>&1; then
@@ -114,8 +120,8 @@ PY_ADB_REUSE
       fi
     fi
     if ! "$ROOT/incident-orchestrator.py" handled --direct "$component" >/dev/null 2>&1; then
-        "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "no enabled managed repair handler" >/dev/null 2>&1 || true
-        log "incident=$iid component=$component terminal=failed reason=no_managed_handler"
+        "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source orchestrator-worker --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true
+        log "incident=$iid component=$component state=awaiting_deterministic_recovery reason=no_managed_handler"
         sleep "$POLL_S"
         continue
     fi
@@ -285,7 +291,7 @@ PY3
         "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "managed headless smoke verification failed" >/dev/null 2>&1 || true
       fi
     else
-      "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "no enabled managed repair handler" >/dev/null 2>&1 || true
+      "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source orchestrator-worker --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true
     fi
   fi
 done

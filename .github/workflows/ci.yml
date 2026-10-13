@@ -80,10 +80,11 @@ jobs:
           python3 ../installer/termux-lite/test-whatsapp-lock-recovery.py
           bash ../installer/termux-lite/test-whatsapp-owner-send.sh
 
-      - name: Run immune I2/I3/I8 contracts (repair-handler gate, LKG hold, ingress root)
+      - name: Run immune I1/I2/I3/I8 contracts (deterministic recovery, handler gate, LKG hold, ingress root)
         run: |
           python3 ../installer/termux-lite/test-tier0-lkg-hold.py
           python3 ../installer/termux-lite/test-incident-orchestrator.py
+          python3 ../installer/termux-lite/test-incident-deterministic-recovery.py
           python3 ../installer/termux-lite/test-incident-ingress.py
           python3 ../installer/termux-lite/test-companion-acceptance-settle.py
           python3 ../installer/termux-lite/test-runtime-sync.py
