@@ -23,6 +23,7 @@ async function main() {
   // Eligibility comes from the host session (room binding), never from the message.
   assert.equal(mod.pulseRoomContact(ev("x"), ctx()), CONTACT);
   assert.equal(mod.pulseRoomContact(ev("x"), ctx({ agentId: "contacts-projet-pulse", sessionKey: KEY.replace("contacts-pulse", "contacts-projet-pulse") })), CONTACT);
+  assert.equal(mod.pulseRoomContact(ev("x", { sessionKey: KEY.replace("contacts-pulse", "contacts-pulse-agenda") }), ctx({ agentId: "contacts-pulse-agenda", sessionKey: KEY.replace("contacts-pulse", "contacts-pulse-agenda") })), CONTACT);
   for (const [e, c] of [
     [ev("x", { isGroup: true }), ctx()],
     [ev("x", { senderIsOwner: true }), ctx()],
