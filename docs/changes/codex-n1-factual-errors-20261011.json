@@ -3,7 +3,7 @@
   "id": "codex-n1-factual-errors-20261011",
   "origin": "chat",
   "kind": "repair",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "N1 : cause factuelle et titre issu du premier vrai texte conservé.",
   "reason": "Les codes connus étaient masqués et un échec de transport était décrit abusivement comme un changement d’état.",
@@ -20,13 +20,13 @@
   "tests": [
     {
       "name": "N1 cause factuelle et frontière de transport",
-      "status": "pending",
-      "evidence": "Test inscrit dans la CI HS3 ; exécution locale attend le créneau autorisé."
+      "status": "passed",
+      "evidence": "Build TypeScript puis test-n1-factual-failure.cjs : 21/21 verts sur captures S24 existantes et injections synthétiques sans effet."
     },
     {
       "name": "N1 titre authentique et pages conservées",
-      "status": "pending",
-      "evidence": "Tests pages existants + vecteurs de titre synthétiques N1, sans filtre lexical ; créneau local attendu."
+      "status": "passed",
+      "evidence": "test-conversation-pages.cjs vert : 500 lignes, 50 conversations, titre fondé sur le premier userText authentique."
     }
   ],
   "documentation": [
@@ -54,8 +54,6 @@
   },
   "rollback": "Revert N1 core, aucune migration.",
   "limitations": [
-    "Ciblés et entière locale non exécutés à ce stade ; brouillon non prêt.",
-    "Trajet Browse Lines et erreur associée réels non capturés ; recette live à Claude, sans appel opérateur par Codex.",
-    "Aucune assurance de non-débit ni issue métier déduite d’une erreur de transport."
+    "Le trajet S24 historique Browse Lines reste à capturer par Claude ; le correctif est qualifié hors ligne sans appel opérateur ni paiement."
   ]
 }
