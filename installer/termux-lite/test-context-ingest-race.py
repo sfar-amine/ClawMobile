@@ -60,17 +60,56 @@ try:
     assert sorted(result['inserted'] for result in results)==[False,True],results
     assert {result['revision'] for result in results}=={1},results
 
+    # A second interleaving lets both workers open and validate the same
+    # pending file, then releases both os.replace calls together. Exactly one
+    # move wins; the loser must observe the validated processed event.
+    pathlib.Path.open=original_open
+    second_id='b'*64
+    second=pending/(second_id+'.json')
+    second.write_text(json.dumps({
+        'version':2,
+        'id':second_id,
+        'surface':'work',
+        'kind':'checkpoint',
+        'text':'concurrent identical move',
+        'createdAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    },separators=(',',':')))
+    replace_barrier=threading.Barrier(2,timeout=10)
+    original_replace=os.replace
+    def ordered_replace(source,destination):
+        if pathlib.Path(source)==second:
+            replace_barrier.wait()
+        return original_replace(source,destination)
+    os.replace=ordered_replace
+    move_results=[]
+    move_errors=[]
+    def simultaneous_move():
+        try:
+            with store.connect() as connection:move_results.append(store.ingest_file(connection,second))
+        except Exception as error:move_errors.append(error)
+    workers=[threading.Thread(target=simultaneous_move) for _ in range(2)]
+    for worker in workers:worker.start()
+    for worker in workers:worker.join(15)
+    os.replace=original_replace
+    assert not any(worker.is_alive() for worker in workers),'simultaneous move did not finish'
+    assert not move_errors,move_errors
+    assert sorted(result['inserted'] for result in move_results)==[False,True],move_results
+    assert {result['revision'] for result in move_results}=={2},move_results
+
     connection=sqlite3.connect(root/'memory.db')
     rows=connection.execute('SELECT id,revision FROM events ORDER BY revision').fetchall()
     head=int(connection.execute("SELECT value FROM memory_meta WHERE key='current_revision'").fetchone()[0])
     connection.close()
-    assert rows==[(event_id,1)],rows
-    assert head==1,head
+    assert rows==[(event_id,1),(second_id,2)],rows
+    assert head==2,head
     assert not event.exists()
     assert (root/'processed'/event.name).is_file()
+    assert not second.exists()
+    assert (root/'processed'/second.name).is_file()
     archive=list((root/'history').glob('*.jsonl'))
-    assert len(archive)==1 and len(archive[0].read_text().splitlines())==1
-    print('PASS context ingest pending/processed race is idempotent (1 revision, 1 archive row)')
+    assert len(archive)==1 and len(archive[0].read_text().splitlines())==2
+    print('PASS context ingest races are idempotent (2 events, contiguous revisions, 2 archive rows)')
 finally:
     if 'original_open' in globals():pathlib.Path.open=original_open
+    if 'original_replace' in globals():os.replace=original_replace
     shutil.rmtree(tmp,ignore_errors=True)

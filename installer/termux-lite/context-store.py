@@ -119,7 +119,16 @@ def ingest_file(c,path,require_active=None):
         with ap.open('a') as f: f.write(json.dumps(e,ensure_ascii=False,separators=(',',':'))+'\n')
         os.chmod(ap,0o600)
     dest=processed/p.name
-    if p.exists(): os.replace(p,dest)
+    if p!=dest:
+        try:
+            os.replace(p,dest)
+        except FileNotFoundError:
+            # A concurrent ingest of this same event may have committed and
+            # moved the shared pending file after our transaction committed.
+            # Treat only that fully materialized, DB-validated state as the
+            # idempotent winner; every other missing source remains an error.
+            durable=c.execute('SELECT revision,session_id FROM events WHERE id=?',(e['id'],)).fetchone()
+            if not dest.is_file() or durable!=(rev,session):raise
     return {'id':e['id'],'revision':rev,'inserted':inserted}
 
 def cursor(c,sid,surface=None,advance=None):
