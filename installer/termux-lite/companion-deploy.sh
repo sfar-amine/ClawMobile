@@ -24,6 +24,7 @@ if [ "${1:-}" = "--status" ]; then ls -t "$STATE"/companion-*.json 2>/dev/null |
 target="${1:-}"; [[ "$target" =~ ^[0-9a-f]{7,40}$ ]] || { echo "usage: $0 <commit>|--status" >&2; exit 2; }
 
 exec 9>"$STATE/companion-deploy.lock"; flock -n 9 || { echo "deploy_already_running" >&2; exit 3; }
+export SAMANTHA_DEPLOY_LOCK_FD=9
 stamp="$(date +%Y%m%dT%H%M%S)"; receipt="$STATE/companion-$stamp.json"; log="$STATE/companion-$stamp.log"
 write(){ python3 - "$receipt" "$@" <<'PY'
 import json,sys,datetime
