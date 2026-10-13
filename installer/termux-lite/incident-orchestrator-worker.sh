@@ -23,6 +23,8 @@ m.connect().close()
 PY_INIT
 while :; do
   printf '%s' "$(date +%s)" >"$HOME/.openclaw/health/incident-orchestrator.heartbeat"
+  mode=$(python3 "$ROOT/runtime_mode.py" 9>&- 2>/dev/null || true)
+  if [ "$mode" != normal ]; then log "state=paused mode=${mode:-unknown}"; sleep 5 9>&-; continue; fi
   row=$(python3 - "$DB" <<'PY'
 import sqlite3,sys,time
 try:
@@ -162,6 +164,8 @@ PY3
         esac
       fi
     else
+      rc=$?
+      if [ "$rc" -eq 75 ]; then log "incident=$iid component=$component action=deferred reason=canonical_mode_changed"; sleep 5 9>&-; continue; fi
       "$ROOT/incident-orchestrator.py" observe "$iid" diagnosis_failed --source orchestrator-worker --json '{"bounded":true}' >/dev/null 2>&1 || true
       count=$(python3 - "$DB" "$iid" <<'PY3'
 import sqlite3,sys

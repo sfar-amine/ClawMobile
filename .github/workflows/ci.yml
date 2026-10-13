@@ -41,7 +41,9 @@ jobs:
       - name: Fast path shows any deterministic result as readable text (Amine 12/10)
         run: python3 ../installer/termux-lite/test-model-fast-path-generic-display.py
       - name: Health manager never repairs the Companion during a deploy
-        run: python3 ../installer/termux-lite/test-health-deploy-lock.py
+        run: |
+          python3 ../installer/termux-lite/test-runtime-mode.py
+          python3 ../installer/termux-lite/test-health-deploy-lock.py
 
       - name: Run immune I2/I3/I8 contracts (repair-handler gate, LKG hold, ingress root)
         run: |
