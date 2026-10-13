@@ -59,6 +59,7 @@ type Owner = {
   understanding: VoiceUnderstandingState;
   sessionLocale(): string;
   executeVoiceCapability(meta: any, request: string, run: () => Promise<any>): Promise<any>;
+  measureVoiceDecision?(request: string, run: () => Promise<any>): Promise<any>;
 };
 type Execute = (request: string) => Promise<Record<string, any>>;
 type Deps = { capture?: RoundCaptureRunner; now?: () => number; assertCurrent?: () => void };
@@ -110,7 +111,7 @@ export async function clawLiveDecision(owner: Owner, request: string, resolve: (
   owner.understanding.noteTurn(request);
   // « La première » after a realignment must reach the capability route, not a free model answer.
   if (realignmentChoice(request, owner.understanding.pendingAnswer())) return { ...realignmentDecision(), state: "voice_realignment_choice" };
-  const result = await resolve();
+  const result = await (owner.measureVoiceDecision ? owner.measureVoiceDecision(request, resolve) : resolve());
   return {...result, voiceFastPath: {version: 1, execute: deterministicLiveDecision(result)}};
 }
 

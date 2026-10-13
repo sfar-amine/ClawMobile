@@ -28,6 +28,7 @@ type WarmDeps={
   now?:()=>number;
   retryDelay?:(attempt:number)=>number;
   telemetry?:VoiceTelemetry;
+  ownerHandoffWaitMs?:number;
 };
 
 function safeMeta(req:http.IncomingMessage):LocalMeta {
@@ -85,9 +86,12 @@ export class ClawLiveWarmCore {
   private stopped=false;
   private connectionGeneration=0;
   private pendingConnects=new Set<()=>void>();
+  private detachWaiters=new Set<()=>void>();
+  private readonly ownerHandoffWaitMs:number;
   private readonly telemetry:VoiceTelemetry;
   private telemetrySid="";
   private telemetryTurns=new Map<string,number>();
+  private clientWarmHit=new Map<WebSocket,boolean>();
   /** Lot 41 piste 2: ephemeral « Compris / Ce n'est pas ça » slot of the single voice owner. */
   readonly understanding=new VoiceUnderstandingState(()=>this.now());
 
@@ -97,6 +101,7 @@ export class ClawLiveWarmCore {
     this.idleMs=Math.max(60_000,deps.idleMs||Number(process.env.CLAW_LIVE_WARM_IDLE_MS)||DEFAULT_IDLE_MS);
     this.now=deps.now||(()=>Date.now());
     this.retryDelay=deps.retryDelay||reconnectDelay;
+    this.ownerHandoffWaitMs=Math.max(1,Math.min(2_000,deps.ownerHandoffWaitMs??750));
     this.telemetry=deps.telemetry||new VoiceTelemetry();
   }
 
@@ -114,10 +119,10 @@ export class ClawLiveWarmCore {
   private trace(ev:VoiceTelemetryCode,turn=0,x:Record<string,number|boolean>={}) {
     if(this.telemetrySid)this.telemetry.emit(this.telemetrySid,turn,ev,{connection:this.connectionGeneration,...x});
   }
-  private observeTurn(ev:string,id:string) {
+  private observeTurn(ev:string,id:string,x:Record<string,number|boolean>={}) {
     if(ev==="input_start"&&!this.telemetryTurns.has(id)&&this.telemetryTurns.size<64)this.telemetryTurns.set(id,this.telemetryTurns.size+1);
     const turn=this.telemetryTurns.get(id);
-    if(turn!==undefined&&ev!=="input_start")this.trace(ev as VoiceTelemetryCode,turn);
+    if(turn!==undefined&&ev!=="input_start")this.trace(ev as VoiceTelemetryCode,turn,x);
   }
 
   private armIdleTimer(){
@@ -143,11 +148,26 @@ export class ClawLiveWarmCore {
 
   async prewarm(meta:LocalMeta){
     validatedClawLiveVoice(meta.voice);
-    this.trace("t01");
     this.touch();
+    if(meta.sessionId!=="__prewarm__"&&this.localClients.size>0&&this.conversationId&&this.conversationId!==meta.sessionId)await this.waitForOwnerDetach();
+    this.trace("t01");
     await this.ensureConversation(meta);
     return this.status();
   }
+
+  private waitForOwnerDetach(){
+    if(this.localClients.size===0)return Promise.resolve();
+    if(this.detachWaiters.size>=8)return Promise.reject(new Error("voice_owner_busy"));
+    return new Promise<void>((resolve,reject)=>{
+      let done=false;
+      const finish=(error?:Error)=>{if(done)return;done=true;clearTimeout(timer);this.detachWaiters.delete(release);error?reject(error):resolve();};
+      const release=()=>finish();
+      const timer=setTimeout(()=>finish(new Error("voice_owner_busy")),this.ownerHandoffWaitMs);
+      this.detachWaiters.add(release);
+      if(this.localClients.size===0)release();
+    });
+  }
+  private releaseDetachWaiters(){for(const release of [...this.detachWaiters])release();}
 
   async attach(ws:WebSocket,meta:LocalMeta){
     validatedClawLiveVoice(meta.voice);
@@ -165,25 +185,26 @@ export class ClawLiveWarmCore {
       this.telemetrySid=meta.sessionEpoch!;this.telemetryTurns.clear();
     }
     this.trace("t01");
-    this.localClients.add(ws);this.clientMeta.set(ws,meta);this.touch();
+    const readyBefore=this.providerReady,generationBefore=this.connectionGeneration;
+    this.localClients.add(ws);this.clientMeta.set(ws,meta);this.clientWarmHit.set(ws,false);this.touch();
     ws.once("close",(code:number)=>{
       const legacyStale=meta.protocol!==2&&(this.legacyOpenTurn||this.legacyPendingTools.size>0);
       const rewarm=(meta.protocol===2||legacyStale)&&code===1000&&this.providerReady&&!this.stopped;
-      this.localClients.delete(ws);this.protocols.get(ws)?.close();this.protocols.delete(ws);this.clientMeta.delete(ws);this.touch();
+      this.localClients.delete(ws);this.protocols.get(ws)?.close();this.protocols.delete(ws);this.clientMeta.delete(ws);this.clientWarmHit.delete(ws);this.touch();
       if(meta.protocol===2)this.resetProvider("v2_owner_detached");
       else if(legacyStale)this.resetProvider("legacy_owner_detached_mid_turn");
       if(this.telemetrySid)void this.telemetry.closeSession(this.telemetrySid);
       this.telemetrySid="";this.telemetryTurns.clear();
+      const guardedHandoff=this.detachWaiters.size>0;this.releaseDetachWaiters();
       // Fresh unbound generation: old Voice turns/history never survive detach.
       // Reuse the existing bounded prewarm and shared connection promise.
-      if(rewarm)void this.prewarmDefault(meta.locale).catch(()=>{});
+      if(rewarm&&!guardedHandoff)void this.prewarmDefault(meta.locale).catch(()=>{});
     });
     ws.on("message",(data)=>this.onLocalMessage(ws,data));
-    const readyBefore=this.providerReady;
     try{
       await this.ensureConversation(meta,true);
       this.lastOwnerVoice=this.voice;
-      if(readyBefore&&this.providerReady)this.sendReady(ws,!this.historyLoaded);
+      if(readyBefore&&this.providerReady&&generationBefore===this.connectionGeneration){this.clientWarmHit.set(ws,true);this.sendReady(ws,!this.historyLoaded);}
     }catch{
       if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({warmError:{stage:this.stage,code:this.lastError||"warm_unavailable"}}));
     }
@@ -192,11 +213,12 @@ export class ClawLiveWarmCore {
   private sendReady(ws:WebSocket,historyRequired:boolean){
     if(ws.readyState!==WebSocket.OPEN)return;
     const meta=this.clientMeta.get(ws);
+    const warmHit=this.clientWarmHit.get(ws)===true;
     if(meta?.protocol===2&&!this.protocols.has(ws))this.protocols.set(ws,new VoiceTurnProtocol(this.connectionGeneration,meta.sessionEpoch!,
       value=>{if(this.providerReady&&this.provider?.readyState===WebSocket.OPEN)this.provider.send(JSON.stringify(value));},
       value=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(value));},
-      (ev,id)=>this.observeTurn(ev,id)));
-    this.trace("t07");
+      (ev,id,x)=>this.observeTurn(ev,id,x),undefined,warmHit));
+    this.trace("t07",0,{cached:warmHit});
     ws.send(JSON.stringify({warmReady:{historyRequired,resumed:this.resumedLast,setupMs:this.lastSetupMs,state:"warm",
       protocolVersion:meta?.protocol===2?2:1,connectionEpoch:this.connectionGeneration,sessionEpoch:meta?.sessionEpoch,
       bargeIn:readBargeInProfile()}}));
@@ -355,7 +377,13 @@ export class ClawLiveWarmCore {
   executeVoiceCapability(meta:any,request:string,run:()=>Promise<any>):Promise<any> {
     const entry=[...this.protocols.values()].find(p=>p.sessionEpoch===meta?.sessionEpoch&&p.connectionEpoch===meta?.connectionEpoch);
     if(!entry)throw Object.assign(new Error("voice_session_not_owned"),{statusCode:409});
-    return entry.execute(String(meta?.turnId||""),request,run);
+    const turnId=String(meta?.turnId||"");
+    return entry.execute(turnId,request,()=>entry.measureCapability(turnId,run));
+  }
+  measureVoiceDecision(request:string,run:()=>Promise<any>):Promise<any> {
+    const matches=[...this.protocols.values()].map(protocol=>({protocol,turnId:protocol.matchingFinalRequest(request)})).filter(row=>row.turnId!==null);
+    if(matches.length!==1)return run();
+    return matches[0].protocol.measureDecision(matches[0].turnId!,run);
   }
   private failStage(stage:string,e:any){this.state="error";this.stage=stage;this.lastError=String(e?.message||e||stage).slice(0,160);console.warn(`[claw-live-warm] ${stage}: ${this.lastError}`);}
   private scheduleReconnect(){
@@ -384,7 +412,7 @@ export class ClawLiveWarmCore {
     try{p?.close();}catch{}
   }
   cool(reason="manual",preserveResume=false){this.resetProvider(reason,preserveResume);}
-  shutdown(){this.stopped=true;if(this.idleTimer)clearTimeout(this.idleTimer);this.idleTimer=null;this.cool("shutdown",false);for(const c of this.localClients)try{c.close(1001,"shutdown");}catch{}this.localClients.clear();}
+  shutdown(){this.stopped=true;if(this.idleTimer)clearTimeout(this.idleTimer);this.idleTimer=null;this.releaseDetachWaiters();this.cool("shutdown",false);for(const c of this.localClients)try{c.close(1001,"shutdown");}catch{}this.localClients.clear();}
 }
 
 export const clawLiveWarmCore=new ClawLiveWarmCore();
