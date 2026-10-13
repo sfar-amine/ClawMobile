@@ -257,6 +257,8 @@ jobs:
           python3 ../installer/termux-lite/test-context-native-fixtures.py
           python3 ../installer/termux-lite/test-context-scale.py
           python3 ../installer/termux-lite/test-context-import.py
+      - name: Verify memory curator cron description reconciliation
+        run: python3 ../installer/termux-lite/test-memory-curator-cron.py
       - name: Test health manager resource restart policy
         run: |
           python3 ../installer/termux-lite/test-health-resource-policy.py
