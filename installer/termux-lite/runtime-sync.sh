@@ -25,7 +25,7 @@ CONTACTS="$STATE_DIR/workspace-contacts"
 PLAYBOOK_RULES="${RUNTIME_SYNC_PLAYBOOK_RULES:-$HOME/.openclaw/runtime-ui-playbooks/current/tools/install_interaction_rules.py}"
 OPENCLAW_DIST="${RUNTIME_SYNC_OPENCLAW_DIST:-/data/data/com.termux/files/usr/lib/node_modules/openclaw/dist}"
 COMPANION="${RUNTIME_SYNC_COMPANION_URL:-http://127.0.0.1:8765}"
-KEEP_RELEASES="${RUNTIME_SYNC_KEEP_RELEASES:-10}"
+KEEP_RELEASES="${RUNTIME_SYNC_KEEP_RELEASES:-5}"
 head="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)"
 commit="${1:-$head}"; [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: $0 [--check] <full commit>" >&2; exit 2; }
 [ "$head" = "$commit" ] || { echo '{"ok":false,"reason":"checkout_not_at_commit"}'; exit 3; }

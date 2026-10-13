@@ -8,11 +8,23 @@ action="$*"
 if [ "$kind" = human_required ] && [ -z "$action" ]; then exit 65; fi
 id=$(printf '%s' "$kind:$msg:$action"|sha256sum|cut -c1-16); dir="$Q/$id"
 exec 8>"$Q/.$id.lock"; flock 8
-if [ -d "$dir" ]; then
- status=$(cat "$dir/status" 2>/dev/null || echo pending)
- case "$status" in pending|notified|closed) exit 0;; esac
-fi
-tmp="$Q/.$id.tmp.$$"; rm -rf "$tmp"; mkdir "$tmp"
-printf '%s' "$kind" >"$tmp/kind"; printf '%s' "$msg" >"$tmp/message"; printf '%s' "$action" >"$tmp/action"
-date -Iseconds >"$tmp/created"; printf pending >"$tmp/status"; mv "$tmp" "$dir"
+status=new
+[ -d "$dir" ] && status=$(cat "$dir/status" 2>/dev/null || echo new)
+# The content hash is the alert identity. An active or delivered identical
+# notification is never queued twice. RDC/context alerts may start a new cycle
+# only after their exact component was closed by incident-close.sh.
+case "$status:$kind" in
+  pending:*|notified:*) exit 0;;
+  closed:remote_desktop|closed:context_guardian)
+    printf '%s' "$kind" >"$dir/kind"; printf '%s' "$msg" >"$dir/message"; printf '%s' "$action" >"$dir/action"
+    printf '%s' "$kind" >"$dir/component"; printf 0 >"$dir/tries"; printf 0 >"$dir/next"; printf pending >"$dir/status"
+    ;;
+  closed:*) exit 0;;
+  *)
+    tmp="$Q/.$id.tmp.$$"; rm -rf "$tmp"; mkdir "$tmp"
+    printf '%s' "$kind" >"$tmp/kind"; printf '%s' "$msg" >"$tmp/message"; printf '%s' "$action" >"$tmp/action"
+    case "$kind" in info|human_required) :;; *) printf '%s' "$kind" >"$tmp/component";; esac
+    date -Iseconds >"$tmp/created"; printf pending >"$tmp/status"; mv "$tmp" "$dir"
+    ;;
+esac
 printf '%s id=%s kind=%s event=queued state=pending\n' "$(date -Iseconds)" "$id" "$kind" >>"$D/events.log"

@@ -163,7 +163,7 @@ def cmd_root(a):
     if not CURRENT.exists(): raise SystemExit('no_active_release')
     print(CURRENT.resolve()/'termux-lite')
 
-def prune_plan(keep=10):
+def prune_plan(keep=5):
     """Only releases owned by tier0; never follow an arbitrary symlink."""
     if not 1 <= keep <= 100:
         raise ValueError('invalid_release_retention')
@@ -215,7 +215,7 @@ def main():
     q=sp.add_parser('rollback'); q.add_argument('--reason',default='manual')
     q=sp.add_parser('stop'); q.add_argument('--reason',default='manual')
     sp.add_parser('resume'); sp.add_parser('status'); sp.add_parser('root')
-    q=sp.add_parser('prune'); q.add_argument('--keep',type=int,default=10); q.add_argument('--apply',action='store_true')
+    q=sp.add_parser('prune'); q.add_argument('--keep',type=int,default=5); q.add_argument('--apply',action='store_true')
     a=p.parse_args(); RELEASES.mkdir(parents=True,exist_ok=True); TIER0.mkdir(parents=True,exist_ok=True)
     guard=runtime_mode.deployment_guard() if a.cmd=='promote' else contextlib.nullcontext()
     with guard:

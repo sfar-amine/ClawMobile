@@ -343,6 +343,7 @@ jobs:
           python3 ../installer/termux-lite/test-card-detector.py
           python3 ../installer/termux-lite/test-secret-scan-root-partition.py
           python3 ../installer/termux-lite/test-nightly-secret-scan.py
+          python3 ../installer/termux-lite/test-i9-noise.py
       - name: H8 nightly read-only acceptance, deployment lock and drift receipts
         run: |
           node scripts/test-nightly-health-http.cjs
