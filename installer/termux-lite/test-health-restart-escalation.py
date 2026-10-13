@@ -36,7 +36,7 @@ class RestartEscalationTests(unittest.TestCase):
             orchestrator.write_text(
                 "#!/bin/sh\n"
                 "echo \"$*\" >>\"$HOME/orchestrator.calls\"\n"
-                "[ \"$1\" = open ] && printf '%s\\n' '{\"id\":\"incident-one\"}'\n"
+                "[ \"$1\" = open ] && printf '%s\\n' '{\"id\":\"incident-one\",\"correlation_id\":\"probe-test-correlation\"}'\n"
             )
             orchestrator.chmod(0o700)
             close = runtime / "incident-close.sh"
