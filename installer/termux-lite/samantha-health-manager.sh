@@ -2,6 +2,7 @@
 set -u
 ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; D="$HOME/.openclaw/health"; LOG="$D/health.log"; S="$D/state"; mkdir -p "$D" "$S"; export TMPDIR="$HOME/.cache/tmp"
 PHANTOM_HEADROOM_TARGET=128; PHANTOM_HEADROOM_CHECK_S=60
+WHATSAPP_READINESS_GRACE_S=120
 exec 9>"$D/health.lock"; flock -n 9 || exit 0
 log(){ python3 "$ROOT/bounded-log.py" "$LOG" --append "$(date -Iseconds) component=health-manager $*"; }
 proc(){ pgrep -f "$1" 9>&- >/dev/null 2>&1; }; http(){ timeout 3 curl -fsS "$1" 9>&- >/dev/null 2>&1; }; adb_ok(){ timeout 3 adb 9>&- -s 127.0.0.1:5556 get-state 2>/dev/null|grep -qx device 9>&-; }
@@ -57,7 +58,20 @@ check_whatsapp(){
  st=$(verdict_field notification.whatsapp state); reason=$(verdict_field notification.whatsapp reason); prev=$(get whatsapp status unknown)
  if [ "$st" = healthy ]; then
   if [ "$prev" = human_required ]; then "$ROOT/incident-orchestrator.py" recover whatsapp runtime --source health-manager --reason "WhatsApp channel verified connected after relink" >/dev/null 2>&1 || true; "$ROOT/incident-close.sh" WhatsApp "Samantha — WhatsApp est de nouveau connecté et vérifié." || true; fi
-  put whatsapp terminal_notified 0; healthy whatsapp; return
+  put whatsapp unready_since 0; put whatsapp terminal_notified 0; healthy whatsapp; return
+ fi
+ # WhatsApp is an external readiness dependency, not process liveness. A
+ # transient channel flap is observed as degraded and cannot trigger a repair
+ # or incident. Only a continuous 120 s outage may enter the existing
+ # deterministic lock recovery / incident path. A healthy observation above
+ # resets the window, so separate flaps never accumulate.
+ tick=$(now); since=$(get whatsapp unready_since 0)
+ case "$since" in ''|*[!0-9]*|0) since="$tick"; put whatsapp unready_since "$since";; esac
+ if [ "$tick" -lt "$since" ]; then since="$tick"; put whatsapp unready_since "$since"; fi
+ unavailable_for=$((tick-since))
+ if [ "$unavailable_for" -lt "$WHATSAPP_READINESS_GRACE_S" ]; then
+  [ "$prev" = degraded ] || log "service=whatsapp state=degraded probe=readiness reason=${reason:-unknown} incident=deferred grace_s=$WHATSAPP_READINESS_GRACE_S"
+  put whatsapp status degraded; put whatsapp failures 0; put whatsapp next $((tick+15)); return
  fi
  if [ "$reason" = terminal_auth_logout ]; then
   if [ "$(get whatsapp terminal_notified 0)" != 1 ]; then iid=$("$ROOT/incident-orchestrator.py" open whatsapp runtime --source health-manager --summary "WhatsApp terminal authentication logout (401 conflict)" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'); "$ROOT/incident-orchestrator.py" transition "$iid" human_required --source health-manager --reason "WhatsApp session logged out; QR relink required" --human-boundary >/dev/null 2>&1 || true; "$ROOT/incident-notify.sh" human_required "Samantha — WhatsApp est déconnecté (401 conflict / session logged out)." "Relier WhatsApp avec openclaw channels login --channel whatsapp puis scanner le QR." || true; put whatsapp terminal_notified 1; log "service=whatsapp state=human_required incident_id=$iid reason=terminal_auth_logout"; fi
