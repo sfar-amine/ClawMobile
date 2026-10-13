@@ -4,7 +4,6 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 const SESSION = /^agent:(contacts(?:-projet)?(?:-pulse)?):whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
-const OP = /^[A-Za-z0-9_.:-]{1,128}$/;
 
 type ToolKind = "transmettre_a_amine" | "noter_contact";
 
@@ -24,11 +23,8 @@ async function invoke(kind: ToolKind, ctx: any, args: any): Promise<any> {
   const text = typeof args?.text === "string" ? args.text.trim() : "";
   if (!text || Array.from(text).length > 2000 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text))
     return { success: false, state: "refused", reason: "invalid_request" };
-  const supplied = typeof args?.operationId === "string" ? args.operationId : "";
   const origin = String(ctx?.messageId || ctx?.runId || ctx?.sessionKey || "contact");
-  const operationId = supplied && OP.test(supplied)
-    ? supplied
-    : `contact:${kind}:${crypto.createHash("sha256").update(origin + "\0" + text).digest("hex").slice(0, 32)}`;
+  const operationId = `contact:${kind}:${crypto.createHash("sha256").update(origin + "\0" + text).digest("hex").slice(0, 32)}`;
   return new Promise((resolve) => {
     const child = spawn("python3", [helper(), "allowlist", "contact-tool"], { stdio: ["pipe", "pipe", "pipe"] });
     let output = "", size = 0, settled = false;
@@ -61,7 +57,6 @@ export function createContactTool(kind: ToolKind, ctx: any) {
       type: "object",
       properties: {
         text: { type: "string", minLength: 1, maxLength: 2000 },
-        operationId: { type: "string", pattern: "^[A-Za-z0-9_.:-]{1,128}$" },
       },
       required: ["text"], additionalProperties: false,
     },
