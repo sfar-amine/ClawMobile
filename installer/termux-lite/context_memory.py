@@ -186,7 +186,7 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
     dated = [event_datetime(item) for item in decisions]
     newest_row = connection.execute(
         f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND {NOT_RETIRE_RECEIPT} '
-        'ORDER BY created_at DESC LIMIT 1').fetchone()
+        'AND julianday(created_at) IS NOT NULL ORDER BY julianday(created_at) DESC LIMIT 1').fetchone()
     newest = event_datetime(event(newest_row)) if newest_row else None
     cutoff = newest - timedelta(days=2) if newest else None
     older, current = [], []

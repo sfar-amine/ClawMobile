@@ -106,6 +106,9 @@ class ScaleTests(unittest.TestCase):
             rev += 1
             add(self.c, rev, 'decision', f'Décision historique {marker} : conserver cette information au-delà de deux jours.')
             self.c.execute('UPDATE events SET created_at=? WHERE revision=?', ('2026-10-08T12:00:00Z', rev))
+        rev += 1
+        add(self.c, rev, 'checkpoint', 'Horodatage historique invalide mais événement conservé')
+        self.c.execute('UPDATE events SET created_at=? WHERE revision=?', ('not-a-date', rev))
         body, meta = build_view(self.c, rev)
         for marker in ('ORION', 'VEGA', 'ALTAIR'):
             self.assertIn(f'Décision historique {marker}', body)
