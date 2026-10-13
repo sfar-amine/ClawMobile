@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 import uuid
 
 from context_memory import ACTIVE, COLUMNS, TELEMETRY, event, excerpt, normalized
@@ -18,6 +20,17 @@ HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("context_store", HERE / "context-store.py")
 store = importlib.util.module_from_spec(spec); spec.loader.exec_module(store)
 IMPROVEMENT_PREFIX = "IMPROVEMENT_CANDIDATE_V1:"
+
+def compact_contact_memory():
+    """Reuse the existing curator run; people-trusted remains the sole contact-file owner."""
+    command=[sys.executable,str(HERE/'people-trusted.py'),'allowlist','memory-compact']
+    try:
+        result=subprocess.run(command,input='{}',text=True,capture_output=True,timeout=120)
+        value=json.loads(result.stdout) if result.returncode==0 else None
+        if not isinstance(value,dict):return {'success':False,'state':'unavailable'}
+        return {key:value.get(key) for key in ('success','state','processed','events','facts','remaining')}
+    except (OSError,subprocess.TimeoutExpired,ValueError):
+        return {'success':False,'state':'unavailable'}
 
 
 def parse_improvement(text):
@@ -41,6 +54,7 @@ def parse_improvement(text):
 def main():
     started = datetime.datetime.now(datetime.timezone.utc)
     run_id = started.strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+    contact_memory=compact_contact_memory()
     with closing(store.connect()) as conn:
         store.migrate(conn)
         conn.execute("CREATE TABLE IF NOT EXISTS curator_fingerprints(event_id TEXT PRIMARY KEY,kind TEXT NOT NULL,norm_hash TEXT NOT NULL)")
@@ -121,6 +135,7 @@ def main():
                       "deepPromotions7d": None, "memoryRecallCount": None,
                       "deepPromotionsWindowComplete": False, "nativeMetricsAt": None,
                       "nativeMetricsState": "owner_source_unverified",
+                      "contactMemory": contact_memory,
                       "improvementEvents": improvement_events, "invalidImprovementEvents": invalid[:20],
                       "invalidImprovementCount": len(invalid), "proposals": proposals[:20],
                       "proposalPreviewTruncated": len(proposals) > 20,

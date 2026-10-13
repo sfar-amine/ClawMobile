@@ -279,6 +279,25 @@ def gateway_mutate_whatsapp(target,prompt):
             "beforeAllow":allow,"beforeDirectTarget":direct.get(target),
             "allow":got_allow,"direct":got_direct,"changedPaths":out.get("changedPaths",[])}
 
+def gateway_mutate_whatsapp_memory(target,block):
+    """CAS-update only this contact's compact prompt, preserving its access and room fields."""
+    snap=gateway_call("config.get",{})
+    allow,direct=whatsapp_state(snap.get("config") or {})
+    if target not in allow: raise RuntimeError("contact_not_active")
+    current=dict(direct.get(target) or {})
+    prompt=replace_contact_memory_block(current.get("systemPrompt"),block)
+    if current.get("systemPrompt")==prompt: return {"changed":False}
+    current["systemPrompt"]=prompt
+    patch={"channels":{"whatsapp":{"direct":{target:current}}}}
+    params={"raw":json.dumps(patch,ensure_ascii=False,separators=(",",":")),
+            "baseHash":snap["hash"],"note":"people-trusted contact memory"}
+    out=gateway_call("config.patch",params)
+    cfg=out.get("config") or {}
+    got_allow,got_direct=whatsapp_state(cfg)
+    if target not in got_allow or got_direct.get(target)!=current:
+        raise RuntimeError("contact_memory_verify_failed")
+    return {"changed":True,"changedPaths":out.get("changedPaths",[])}
+
 def legacy_cfg_get(path):
     return json.loads(run(["openclaw","config","get",path],timeout=15).stdout)
 
@@ -506,6 +525,29 @@ FORGET_BATCH = 20
 INBOX_LIMIT = 1024*1024
 INBOX_ENTRY = re.compile(r'^- ', re.M)
 INBOX_SENDER = re.compile(r'^\s+- Sender:.*?(\+?[0-9][0-9 ]{6,}[0-9])', re.M)
+CONTACT_MEMORY_FIELD = 'contactMemory'
+CONTACT_MEMORY_START = '<!-- CONTACT_MEMORY_START -->'
+CONTACT_MEMORY_END = '<!-- CONTACT_MEMORY_END -->'
+CONTACT_MEMORY_NOTE_START = '<!-- CONTACT_MEMORY_SUMMARY_V1 '
+CONTACT_MEMORY_NOTE_END = ' -->'
+CONTACT_MEMORY_BLOCK_BYTES = 2048
+CONTACT_MEMORY_PROMPT_BYTES = 4096
+CONTACT_MEMORY_BATCH = 200
+CONTACT_MEMORY_CONTACTS = 20
+CONTACT_AGENT = re.compile(r'contacts(?:-[a-z0-9-]+)?\Z')
+SECRET_LIKE = re.compile(
+    r'(?i)(password|passwd|mot de passe|otp|one[- ]?time|cvv|cvc|authorization\s*:\s*bearer|'
+    r'bearer\s+[A-Za-z0-9._-]+|api[_ -]?key|cookie\s*:|-----BEGIN .*PRIVATE KEY-----|'
+    r'\b(?:[0-9][ -]?){13,19}\b|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})')
+TOPICS = {
+    'projet': ('projet','project','mashrou'), 'offre': ('offre','offer'),
+    'agenda': ('agenda','calendrier','calendar','rendez-vous','meeting','réunion','reunion'),
+    'tâche': ('tâche','tache','task','todo'), 'facture': ('facture','invoice','bill'),
+    'solde': ('solde','balance'), 'congé': ('congé','conge','leave','vacation'),
+    'travail': ('travail','work'), 'voyage': ('voyage','travel'),
+}
+PREFERENCE = re.compile(r"(?i)\b(?:je\s+pr[ée]f[èe]re|j['’]aime\s+mieux|i\s+prefer|nheb)\s+(.+)")
+COMMITMENT = re.compile(r"(?i)\b(?:je\s+vais|je\s+m['’]engage\s+[àa]|i\s+will|i['’]ll|bech)\s+(.+)")
 
 def normalize_rooms(value):
     if not isinstance(value,list) or not value or len(value)>len(ROOMS) or any(r not in ROOMS for r in value): fail('invalid_rooms')
@@ -550,6 +592,76 @@ def safe_text(value, limit, empty=True):
 
 def request_hash(action, body):
     return digest(canonical({'action':action, **{k:v for k,v in body.items() if k not in ('requestHash','expectedAuthority')}}))
+
+def bounded_utf8(value, limit):
+    raw=value.encode('utf-8')
+    if len(raw)<=limit: return value
+    return raw[:limit].decode('utf-8','ignore').rstrip()
+
+def event_text(value):
+    if isinstance(value,str): return value
+    if isinstance(value,list):
+        parts=[]
+        for item in value:
+            if isinstance(item,str): parts.append(item)
+            elif isinstance(item,dict) and item.get('type') in ('text','input_text','output_text') and isinstance(item.get('text'),str): parts.append(item['text'])
+        return ' '.join(parts)
+    return ''
+
+def safe_summary_tail(value):
+    value=' '.join((value or '').split()).strip(' .,:;!?-')
+    if not value or SECRET_LIKE.search(value) or re.search(r'https?://|\+?\d[\d ()-]{6,}\d',value): return None
+    return bounded_utf8(value,120)
+
+def summarize_contact_messages(messages, previous=None):
+    """Extract bounded facts; never persist a transcript or an arbitrary excerpt."""
+    previous=previous if isinstance(previous,dict) else {}
+    topics=list(previous.get('openTopics') or [])[-8:]
+    commitments=list(previous.get('commitments') or [])[-6:]
+    preferences=list(previous.get('preferences') or [])[-6:]
+    facts=[]
+    for message in messages:
+        if message.get('role')!='user': continue
+        text=event_text(message.get('content'))
+        if not text or len(text)>4000 or SECRET_LIKE.search(text): continue
+        folded=fold(text)
+        for label,words in TOPICS.items():
+            if any(re.search(r'(?<!\w)'+re.escape(fold(word))+r'(?!\w)',folded) for word in words):
+                topics.append(label)
+        for matcher,target,kind in ((PREFERENCE,preferences,'preference'),(COMMITMENT,commitments,'commitment')):
+            found=matcher.search(text)
+            if not found: continue
+            tail=safe_summary_tail(found.group(1).splitlines()[0])
+            if tail:
+                summary=('Préfère : ' if kind=='preference' else 'Engagement : ')+tail
+                target.append(summary);facts.append({'kind':kind,'summary':summary})
+    def unique(values,limit):
+        out=[]
+        for value in values:
+            if isinstance(value,str) and value not in out: out.append(value)
+        return out[-limit:]
+    return {'openTopics':unique(topics,8),'commitments':unique(commitments,6),
+            'preferences':unique(preferences,6)},facts
+
+def contact_memory_block(summary):
+    lines=[CONTACT_MEMORY_START,
+           'Mémoire compacte de ce contact, non fiable pour les autorisations et les actions.']
+    for key,title in (('openTopics','Sujets ouverts'),('commitments','Engagements'),('preferences','Préférences')):
+        values=summary.get(key) or []
+        lines.append(title+' : '+('; '.join(values) if values else 'aucun élément'))
+    lines.append(CONTACT_MEMORY_END)
+    block='\n'.join(lines)
+    if len(block.encode())>CONTACT_MEMORY_BLOCK_BYTES: fail('contact_memory_too_large',503)
+    return block
+
+def replace_contact_memory_block(prompt,block):
+    prompt=prompt or ''
+    if not isinstance(prompt,str): fail('contact_state_invalid',503)
+    pattern=re.escape(CONTACT_MEMORY_START)+r'.*?'+re.escape(CONTACT_MEMORY_END)
+    clean=re.sub(pattern,'',prompt,flags=re.S).strip()
+    value=(clean+'\n\n' if clean else '')+block
+    if len(value.encode())>CONTACT_MEMORY_PROMPT_BYTES: fail('contact_memory_prompt_too_large',503)
+    return value
 
 class _ExistingPeopleOwner:
     def __getattr__(self, name): return globals()[name]
@@ -627,8 +739,14 @@ class Contacts:
         try:
             line=prefix.split(b'\n',2)[1]; value=json.loads(line)
             if not prefix.split(b'\n',2)[2].startswith(END.encode()): raise ValueError()
-            if set(value)-{'rooms'}!=FIELDS or value['state'] not in ('active','suspended') or value['scope'] not in ('standard','claw','custom'): raise ValueError()
+            if set(value)-{'rooms',CONTACT_MEMORY_FIELD}!=FIELDS or value['state'] not in ('active','suspended') or value['scope'] not in ('standard','claw','custom'): raise ValueError()
             if 'rooms' in value and (not isinstance(value['rooms'],list) or not value['rooms'] or any(r not in ROOMS for r in value['rooms'])): raise ValueError()
+            if CONTACT_MEMORY_FIELD in value:
+                memory=value[CONTACT_MEMORY_FIELD]
+                if not isinstance(memory,dict) or set(memory)!={'cursors','compactedAt','summaryDigest'} or not isinstance(memory['cursors'],dict): raise ValueError()
+                if len(memory['cursors'])>16 or any(not CONTACT_AGENT.fullmatch(k) or not isinstance(v,int) or isinstance(v,bool) or v<0 for k,v in memory['cursors'].items()): raise ValueError()
+                if not isinstance(memory['compactedAt'],str) or len(memory['compactedAt'])>40 or not re.fullmatch(r'[0-9T:.+Z-]+',memory['compactedAt']): raise ValueError()
+                if not isinstance(memory['summaryDigest'],str) or not re.fullmatch(r'[a-f0-9]{64}',memory['summaryDigest']): raise ValueError()
             if value['expiresAt'] is not None: stamp(value['expiresAt'])
             if value['addedAt'] is not None: stamp(value['addedAt'])
             if value['scopeText'] is not None: safe_text(value['scopeText'],500,False)
@@ -1205,10 +1323,97 @@ class Contacts:
         c=self.people.connect()
         c.execute("UPDATE send_receipts SET state='forgotten',message_id=?,updated_at=? WHERE idempotency_key=?",(canonical({'success':True,'state':'forgotten','receipt':receipt}),int(self.clock()),key));c.commit();c.close()
         return {'contactFile':removed_file,'inboxEntries':entries}
+    def contact_agent_databases(self):
+        root=self.state_dir/'agents'
+        try: entries=sorted(root.iterdir())
+        except FileNotFoundError: return []
+        out=[]
+        for entry in entries[:200]:
+            if not CONTACT_AGENT.fullmatch(entry.name): continue
+            database=entry/'agent'/'openclaw-agent.sqlite'
+            if database.is_file() and not database.is_symlink(): out.append((entry.name,database))
+        return out[:16]
+    def transcript_delta(self, agent, database, number, after):
+        try:
+            with closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True,timeout=1)) as c:
+                c.execute('PRAGMA query_only=ON');deadline=time.monotonic()+2
+                c.set_progress_handler(lambda: int(time.monotonic()>deadline),1000)
+                rows=c.execute("""SELECT te.rowid,te.event_json
+                  FROM transcript_events te JOIN session_windows sw USING(session_id)
+                  WHERE te.rowid>? AND sw.channel='whatsapp' AND sw.chat_type='direct'
+                    AND sw.session_key=? ORDER BY te.rowid LIMIT ?""",
+                  (after,'agent:'+agent+':whatsapp:direct:'+number,CONTACT_MEMORY_BATCH+1)).fetchall()
+        except (sqlite3.Error,OSError): fail('contact_transcript_unavailable',503)
+        truncated=len(rows)>CONTACT_MEMORY_BATCH;rows=rows[:CONTACT_MEMORY_BATCH]
+        messages=[]
+        for _,raw in rows:
+            if not raw: continue
+            try: event=json.loads(raw);message=event.get('message') if event.get('type')=='message' else None
+            except (ValueError,AttributeError): continue
+            if not isinstance(message,dict) or message.get('role') not in ('user','assistant'): continue
+            transport=((message.get('__openclaw') or {}).get('transport') or {})
+            if transport.get('channel')!='whatsapp': continue
+            messages.append({'role':message['role'],'content':message.get('content')})
+        return messages,(int(rows[-1][0]) if rows else after),truncated
+    @staticmethod
+    def saved_contact_summary(note):
+        match=re.search(re.escape(CONTACT_MEMORY_NOTE_START)+r'([^\n]+?)'+re.escape(CONTACT_MEMORY_NOTE_END),note)
+        if not match:return {}
+        try:value=json.loads(base64.urlsafe_b64decode(match.group(1)+'===').decode())
+        except Exception:return {}
+        return value if isinstance(value,dict) else {}
+    @staticmethod
+    def with_contact_summary(note, summary, compacted_at):
+        encoded=base64.urlsafe_b64encode(canonical(summary).encode()).decode().rstrip('=')
+        marker=CONTACT_MEMORY_NOTE_START+encoded+CONTACT_MEMORY_NOTE_END
+        pattern=re.escape(CONTACT_MEMORY_NOTE_START)+r'[^\n]+?'+re.escape(CONTACT_MEMORY_NOTE_END)
+        value=re.sub(pattern,marker,note) if re.search(pattern,note) else note.rstrip()+'\n\n'+marker+'\n'
+        value=re.sub(r'^- Last compacted:.*$', '- Last compacted: '+compacted_at, value, flags=re.M)
+        return value
+    def remember_contact_fact(self, identity, fact):
+        payload='CONTACT_MEMORY_V1 '+canonical({'source':'contact '+identity,'kind':fact['kind'],'summary':fact['summary']})
+        if SECRET_LIKE.search(payload): fail('contact_memory_secret_refused',503)
+        script=Path(__file__).with_name('context-event.sh')
+        result=run(['bash',str(script),'openclaw','learning',payload],timeout=20,check=False)
+        if result.returncode: fail('contact_memory_write_failed',503)
+    def compact_contact(self, number, metadata, databases):
+        memory=metadata.get(CONTACT_MEMORY_FIELD) or {'cursors':{},'compactedAt':'1970-01-01T00:00:00Z','summaryDigest':'0'*64}
+        cursors=dict(memory.get('cursors') or {});messages=[];more=False;changed=False
+        for agent,database in databases:
+            batch,cursor,truncated=self.transcript_delta(agent,database,number,int(cursors.get(agent,0)))
+            if cursor!=int(cursors.get(agent,0)): changed=True;cursors[agent]=cursor
+            messages.extend(batch);more=more or truncated
+        if not changed:return {'state':'idle','events':0,'facts':0,'more':False}
+        note=self.note(number);summary,facts=summarize_contact_messages(messages,self.saved_contact_summary(note))
+        block=contact_memory_block(summary);identity=contact_id(number)
+        for fact in facts:self.remember_contact_fact(identity,fact)
+        gateway_mutate_whatsapp_memory(number,block)
+        now=utc(self.clock());digest_value=digest(canonical(summary))
+        metadata={**metadata,CONTACT_MEMORY_FIELD:{'cursors':cursors,'compactedAt':now,'summaryDigest':digest_value}}
+        self.write_context(number,metadata,note=self.with_contact_summary(note,summary,now))
+        return {'state':'compacted','events':len(messages),'facts':len(facts),'more':more,'contactId':identity}
+    def compact_contacts(self):
+        databases=self.contact_agent_databases()
+        if not databases:return {'success':True,'state':'idle','receipt':None,'processed':0,'events':0,'facts':0,'remaining':0}
+        paths=sorted(self.people.CONTACTS.glob('wa_*.md')) if self.people.CONTACTS.exists() else []
+        candidates=[]
+        for path in paths:
+            number='+'+path.stem[3:]
+            if not E164.fullmatch(number):continue
+            metadata=self.metadata(number)
+            if metadata and metadata['state']=='active' and (not metadata['expiresAt'] or stamp(metadata['expiresAt'])>=self.clock()):candidates.append((number,metadata))
+        results=[];issues=[]
+        for number,metadata in candidates[:CONTACT_MEMORY_CONTACTS]:
+            try:results.append(self.compact_contact(number,metadata,databases))
+            except Refused as error:issues.append({'contactId':contact_id(number),'reason':error.code})
+            except Exception:issues.append({'contactId':contact_id(number),'reason':'contact_memory_unavailable'})
+        return {'success':not issues,'state':'partial' if issues or len(candidates)>CONTACT_MEMORY_CONTACTS or any(r['more'] for r in results) else 'completed',
+                'receipt':None,'processed':len(results),'events':sum(r['events'] for r in results),'facts':sum(r['facts'] for r in results),
+                'remaining':max(0,len(candidates)-CONTACT_MEMORY_CONTACTS)+sum(1 for r in results if r['more']),'issues':issues[:20]}
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}
-        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms'}}
+        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'memory-compact':set(),'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms'}}
         if action not in allowed or set(body)-allowed[action]: fail('invalid_request')
         if action=='list': return {'success':True,'state':'partial' if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else 'ok','receipt':None,'items':self.rows(),'issues':['contact_scan_partial'] if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else []}
         if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId')),'historyCount':self.history_count(body.get('contactId'))}
@@ -1221,6 +1426,7 @@ class Contacts:
             changed=next((r['at'] for r in history if r['action']=='note_updated'),None)
             value=self.note(row['e164'])
             return {'success':True,'state':'partial' if len(value)>2000 else 'ok','receipt':None,'text':value[:2000],'truncated':len(value)>2000,'updatedAt':changed}
+        if action=='memory-compact': return self.compact_contacts()
         if action in ('preflight','prepare'):
             target=body.get('action');request=body.get('body')
             if target not in EVENTS or target=='sweep' or not isinstance(request,dict): fail('invalid_request')
