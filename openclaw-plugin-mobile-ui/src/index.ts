@@ -54,6 +54,7 @@ import { agentCapabilityHook } from "./capabilityAgentGuard";
 import { createProviderFallbackCoordinator } from "./providerFallback";
 import { createContactTool } from "./contactTools";
 import { handleWhatsAppAccessBeforeDispatch } from "./whatsappAccessFastPath";
+import { handleContactRoomBeforeDispatch } from "./contactRoomFastPath";
 
 type JsonSchema = Record<string, any>;
 
@@ -225,6 +226,8 @@ function register(api: any) {
       api.logger?.debug?.("[capability-first] owner capability handled before model");
       return owner;
     }
+    const contactRoom = await handleContactRoomBeforeDispatch(event, ctx);
+    if (contactRoom.handled) return contactRoom;
     const room = await handlePulseRoomBeforeDispatch(event, ctx);
     if (room.handled) api.logger?.debug?.("[capability-first] pulse room handled before model");
     return room.handled ? room : undefined;

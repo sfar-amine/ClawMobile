@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
  const owner='+12025550101',other='+12025550102',number='+12025550103',hash=x=>crypto.createHash('sha256').update(x).digest('hex'),id=x=>'wa-'+hash(x).slice(0,16),cid=id(number);
  const canonical=process.env.SAMANTHA_ALLOWLIST_CANONICAL||path.resolve(__dirname,'../../installer/termux-lite/people-trusted.py');
  const helper=path.join(root,'wrapper.py'),config=path.join(root,'config.json');process.env.SAMANTHA_PEOPLE_TRUSTED=helper;
- const wildcard={agentId:'contacts',match:{channel:'whatsapp',accountId:'*',peer:{kind:'direct',id:'*'}}};const original={commands:{ownerAllowFrom:['whatsapp:'+owner]},agents:{entries:{main:{},contacts:{},'contacts-projet':{}}},bindings:[{agentId:'main',match:{channel:'whatsapp',accountId:'*',peer:{kind:'direct',id:owner}}},wildcard],channels:{whatsapp:{allowFrom:[other,owner],direct:{'*':{systemPrompt:'Shared policy'}}}}};fs.writeFileSync(config,JSON.stringify(original));
+ const wildcard={agentId:'contacts',match:{channel:'whatsapp',accountId:'*',peer:{kind:'direct',id:'*'}}};const closed={workspace:'/contacts',tools:{allow:[],deny:['exec','clawmobile_capability']}};const original={commands:{ownerAllowFrom:['whatsapp:'+owner]},agents:{entries:{main:{},contacts:closed,'contacts-projet':{...closed,workspace:'/projet'}}},bindings:[{agentId:'main',match:{channel:'whatsapp',accountId:'*',peer:{kind:'direct',id:owner}}},wildcard],channels:{whatsapp:{allowFrom:[other,owner],direct:{'*':{systemPrompt:'Shared policy'}}}}};fs.writeFileSync(config,JSON.stringify(original));
  fs.writeFileSync(path.join(root,'counter.json'),JSON.stringify({patches:0,messages:0}));
  fs.writeFileSync(helper,`import importlib.util,json,sys,hashlib,copy
 from pathlib import Path
@@ -15,7 +15,7 @@ def gw(method,params=None,timeout_ms=7000):
  if method=='config.get':return {'config':cfg,'hash':revision}
  if method!='config.patch':raise RuntimeError('unsupported fixture method')
  assert params['baseHash']==revision
- raw=json.loads(params['raw']);fields=raw['channels']['whatsapp'];cfg['channels']['whatsapp'].update(fields)\n if 'bindings' in raw:cfg['bindings']=raw['bindings']\n m.CONFIG.write_text(json.dumps(cfg));count=json.loads((root/'counter.json').read_text());count['patches']+=1;(root/'counter.json').write_text(json.dumps(count));return {'config':cfg}
+ raw=json.loads(params['raw']);fields=raw['channels']['whatsapp'];cfg['channels']['whatsapp'].update(fields)\n if 'agents' in raw:cfg['agents']['entries'].update(raw['agents']['entries'])\n if 'bindings' in raw:cfg['bindings']=raw['bindings']\n m.CONFIG.write_text(json.dumps(cfg));count=json.loads((root/'counter.json').read_text());count['patches']+=1;(root/'counter.json').write_text(json.dumps(count));return {'config':cfg}
 def send(*args):
  count=json.loads((root/'counter.json').read_text());count['messages']+=1;(root/'counter.json').write_text(json.dumps(count));raise AssertionError('silent operation sent a message')
 m.gateway_call=gw;m.whatsapp_send=send
@@ -45,10 +45,13 @@ print(json.dumps(result))
  assert.equal(granted.status,200,JSON.stringify(granted.body));assert.equal(granted.body.receipt.action,'rooms_changed');
  const routed=readConfig().bindings.map(b=>[b.agentId,b.match.peer.id]);assert.deepEqual(routed,[['main',owner],['contacts-projet',number],['contacts','*']]);
  assert.deepEqual((await request('GET')).body.items.find(x=>x.contactId===cid).rooms,['conversation','projet']);
- const refused=await request('PATCH','/'+cid,{operationId:'rooms-agenda',rooms:['agenda']});assert.equal(refused.status,409,JSON.stringify(refused.body));assert.equal(refused.body.reason,'room_not_available');
+ assert.equal((await request('PATCH','/'+cid,{operationId:'rooms-agenda-unconfirmed',rooms:['agenda']})).status,403);
+ const agendaProof=await approve('rooms',hash(number+'|conversation|agenda'));const agenda=await request('PATCH','/'+cid,{operationId:'rooms-agenda',rooms:['agenda'],confirmationId:agendaProof});assert.equal(agenda.status,200,JSON.stringify(agenda.body));
+ const agendaConfig=readConfig();assert.equal(agendaConfig.bindings.find(b=>b.match.peer?.id===number).agentId,'contacts-agenda');assert.ok(agendaConfig.agents.entries['contacts-agenda'].tools.deny.includes('clawmobile_capability'));
+ const refused=await request('PATCH','/'+cid,{operationId:'rooms-taches',rooms:['taches']});assert.equal(refused.status,409,JSON.stringify(refused.body));assert.equal(refused.body.reason,'room_not_available');
  const owned=await request('PATCH','/'+id(owner),{operationId:'rooms-owner',rooms:['projet']});assert.equal(owned.status,409);
  const narrowed=await request('PATCH','/'+cid,{operationId:'rooms-narrow',rooms:['conversation']});assert.equal(narrowed.status,200,JSON.stringify(narrowed.body));
  assert.deepEqual(readConfig().bindings,original.bindings);assert.equal(counters().messages,0);
- console.log('R17 rooms paired HTTP → actual Contacts owner: biometric widening, routed binding before wildcard, unenforced room and owner refused, free narrowing passed');
+ console.log('R17 rooms paired HTTP → actual Contacts owner: biometric widening, closed agenda profile, unenforced room and owner refused, free narrowing passed');
  }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));fs.rmSync(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1;});

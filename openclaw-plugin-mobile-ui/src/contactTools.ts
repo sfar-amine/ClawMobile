@@ -2,15 +2,14 @@ import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-
-const SESSION = /^agent:(contacts(?:-projet)?(?:-pulse)?):whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
+import { contactRoomSession } from "./contactRoomProfile";
 
 type ToolKind = "transmettre_a_amine" | "noter_contact";
 
 function caller(ctx: any) {
-  const match = SESSION.exec(String(ctx?.sessionKey || ""));
-  if (!match || (ctx?.agentId && ctx.agentId !== match[1])) return null;
-  return { agent: match[1], e164: match[2].startsWith("+") ? match[2] : "+" + match[2] };
+  const match = contactRoomSession(ctx?.sessionKey);
+  if (!match || (ctx?.agentId && ctx.agentId !== match.agent)) return null;
+  return { agent: match.agent, e164: match.e164 };
 }
 
 function helper(home = os.homedir()) {

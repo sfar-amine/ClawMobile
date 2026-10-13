@@ -493,11 +493,13 @@ EVENTS = {'add':'added', 'remove':'removed', 'scope':'scope_changed', 'suspend':
 # Access "rooms" (decision d'Amine 11/10). Enforced by agent routing, never by prompt: plain conversation is the
 # wildcard `contacts` agent, `projet` a read-only project snapshot agent, `maison` the owner's main agent.
 ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'maison')
-# The other rooms need per-contact capability filtering in the harness first: refused, never granted by prompt.
-ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'maison'}
+# Rooms are enforced by the concrete-peer binding. Agenda/actions/messages additionally pass through the
+# capability-first contact boundary, which checks the canonical decision before executing it.
+ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'agenda', 'actions', 'messages', 'maison'}
 PROJECT_AGENT = 'contacts-projet'
 # Pièce Pulse (fichier 52 §5): the agent only names the room; the plugin's pulse-room ingress executes Pulse alone.
 PULSE_AGENTS = {'pulse': 'contacts-pulse', 'projet+pulse': 'contacts-projet-pulse'}
+CAPABILITY_ROOMS = {'agenda', 'actions', 'messages'}
 ROOM_TAG = 'r17-rooms:'
 # M4 (décision d'Amine 12/10): contact material stays in the private context repo and is
 # forgotten 30 days after access ended (expiry or removal). Bounded per 60s sweep pass.
@@ -518,8 +520,28 @@ def normalize_rooms(value):
 def room_agent(rooms):
     rooms=rooms or ()
     if 'maison' in rooms: return 'main'
+    if CAPABILITY_ROOMS.intersection(rooms):
+        return 'contacts-'+'-'.join(r for r in ROOMS if r!='conversation' and r in rooms)
     if 'pulse' in rooms: return PULSE_AGENTS['projet+pulse' if 'projet' in rooms else 'pulse']
     return PROJECT_AGENT if 'projet' in rooms else None
+
+def ensure_room_profile(cfg, agent, rooms):
+    """Create only the concrete profile required by this grant, from the existing closed contact owners."""
+    entries=(cfg.get('agents') or {}).get('entries')
+    if not isinstance(entries,dict): fail('room_profile_unavailable',503)
+    if agent in entries: return
+    source=(PULSE_AGENTS['projet+pulse'] if 'pulse' in rooms and 'projet' in rooms else
+            PULSE_AGENTS['pulse'] if 'pulse' in rooms else PROJECT_AGENT if 'projet' in rooms else 'contacts')
+    base=entries.get(source)
+    if not isinstance(base,dict): fail('room_profile_unavailable',503)
+    tools=base.get('tools') or {}
+    denied=set(tools.get('deny') or [])
+    # Capabilities are executed before the model by the room boundary. The profile itself remains closed.
+    if 'clawmobile_capability' not in denied or 'exec' not in denied: fail('room_agent_tools_not_closed',503)
+    entry=copy.deepcopy(base)
+    entry.update(name=agent,agentDir=str(HOME/'.openclaw'/'agents'/agent/'agent'),
+                 identity={'emoji':'✨','name':'Samantha','theme':"Amine's contacts — "+', '.join(r for r in rooms if r!='conversation')})
+    entries[agent]=entry
 
 def route_rooms(cfg, number, rooms, identity):
     """One concrete-peer binding per contact with rooms; plain conversation needs none (wildcard → contacts)."""
@@ -527,6 +549,7 @@ def route_rooms(cfg, number, rooms, identity):
     agent=room_agent(rooms)
     if agent:
         entries=(cfg.get('agents') or {}).get('entries') or {}
+        if CAPABILITY_ROOMS.intersection(rooms): ensure_room_profile(cfg,agent,rooms);entries=(cfg.get('agents') or {}).get('entries') or {}
         if agent==PROJECT_AGENT and PROJECT_AGENT not in entries: fail('project_room_unavailable',503)
         if agent in PULSE_AGENTS.values() and agent not in entries: fail('pulse_room_unavailable',503)
         entry={'agentId':agent,'comment':ROOM_TAG+identity,'match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':number}}}
@@ -980,7 +1003,8 @@ class Contacts:
         except Exception:
             return self.legacy_patch(before,after)
         current=snap.get('config')
-        if not isinstance(current,dict) or self.people.whatsapp_state(current)!=self.people.whatsapp_state(before) or self.owners(current)!=self.owners(before) or current.get('bindings')!=before.get('bindings'): fail('config_changed',409)
+        before_agents=(before.get('agents') or {}).get('entries') or {};current_agents=((current.get('agents') or {}).get('entries') or {}) if isinstance(current,dict) else {}
+        if not isinstance(current,dict) or self.people.whatsapp_state(current)!=self.people.whatsapp_state(before) or self.owners(current)!=self.owners(before) or current.get('bindings')!=before.get('bindings') or current_agents!=before_agents: fail('config_changed',409)
         a,d=self.people.whatsapp_state(after); olda,oldd=self.people.whatsapp_state(before)
         patch={'channels':{'whatsapp':{}}}; replacements=[]
         if a!=olda: patch['channels']['whatsapp']['allowFrom']=a;replacements.append('channels.whatsapp.allowFrom')
@@ -988,13 +1012,18 @@ class Contacts:
             # Replace exact direct map under CAS: JSON merge cannot remove a property safely.
             patch['channels']['whatsapp']['direct']=d;replacements.append('channels.whatsapp.direct')
         if after.get('bindings')!=before.get('bindings'): patch['bindings']=after.get('bindings') or [];replacements.append('bindings')
+        after_agents=(after.get('agents') or {}).get('entries') or {}
+        if after_agents!=before_agents:
+            added={key:value for key,value in after_agents.items() if key not in before_agents}
+            if not added or any(key not in after_agents or after_agents[key]!=value for key,value in before_agents.items()): fail('config_changed',409)
+            patch['agents']={'entries':added}
         params={'raw':canonical(patch),'baseHash':snap.get('hash'),'replacePaths':replacements,'note':'whatsapp allowlist owner operation'}
         try: self.people.gateway_call('config.patch',params,timeout_ms=5000)
         except Exception: pass
         # One verification after success or uncertainty, never redispatch.
         try: verified=self.people.gateway_call('config.get',{},timeout_ms=5000).get('config')
         except Exception: return False
-        return isinstance(verified,dict) and self.people.whatsapp_state(verified)==self.people.whatsapp_state(after) and self.owners(verified)==self.owners(after) and verified.get('bindings')==after.get('bindings')
+        return isinstance(verified,dict) and self.people.whatsapp_state(verified)==self.people.whatsapp_state(after) and self.owners(verified)==self.owners(after) and verified.get('bindings')==after.get('bindings') and ((verified.get('agents') or {}).get('entries') or {})==after_agents
     def legacy_patch(self,before,after):
         olda,oldd=self.people.whatsapp_state(before);a,d=self.people.whatsapp_state(after)
         try:
@@ -1004,6 +1033,8 @@ class Contacts:
             if adding and d!=oldd: self.people.legacy_cfg_set('channels.whatsapp.direct',d,oldd,timeout=5)
             if a!=olda: self.people.legacy_cfg_set('channels.whatsapp.allowFrom',a,olda,timeout=5)
             if not adding and d!=oldd: self.people.legacy_cfg_set('channels.whatsapp.direct',d,oldd,timeout=5)
+            before_agents=(before.get('agents') or {}).get('entries') or {};after_agents=(after.get('agents') or {}).get('entries') or {}
+            if after_agents!=before_agents:self.people.legacy_cfg_set('agents.entries',after_agents,before_agents,timeout=5)
             if after.get('bindings')!=before.get('bindings'): self.people.legacy_cfg_set('bindings',after.get('bindings') or [],before.get('bindings') or [],timeout=5)
         except Exception: return False
         try: return self.local_config()==after

@@ -32,6 +32,7 @@ class AllowlistTests(unittest.TestCase):
         if method=='config.patch':
             self.assertEqual(params['baseHash'],'HASH');raw=json.loads(params['raw']);fields=raw['channels']['whatsapp']
             self.cfg['channels']['whatsapp'].update(fields)
+            if 'agents' in raw:self.cfg.setdefault('agents',{}).setdefault('entries',{}).update(raw['agents']['entries'])
             if 'bindings' in raw:self.assertIn('bindings',params['replacePaths']);self.cfg['bindings']=raw['bindings']
             self.save();return {'config':copy.deepcopy(self.cfg)}
         raise AssertionError(method)
@@ -81,7 +82,8 @@ class AllowlistTests(unittest.TestCase):
         if confirm:self.confirmed(body,'rooms',text=','.join(m.normalize_rooms(rooms)))
         return self.service.call('rooms',body)
     def with_rooms_config(self):
-        self.cfg['agents']={'entries':{'main':{},'contacts':{},m.PROJECT_AGENT:{}}}
+        closed={'tools':{'allow':['transmettre_a_amine','noter_contact'],'deny':['exec','clawmobile_capability']},'workspace':'/contacts'}
+        self.cfg['agents']={'entries':{'main':{},'contacts':closed,m.PROJECT_AGENT:{**closed,'workspace':'/projet'}}}
         self.cfg['bindings']=[{'agentId':'main','match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':OWNER}}},
                               {'agentId':'contacts','match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':'*'}}},
                               {'agentId':'main','match':{'channel':'whatsapp','accountId':'*'}}];self.save()
@@ -104,12 +106,24 @@ class AllowlistTests(unittest.TestCase):
         self.assertNotIn(NEW,[b['match'].get('peer',{}).get('id') for b in self.cfg['bindings']])
     def test_unenforced_room_unknown_room_and_owner_are_refused_without_write(self):
         self.add();self.with_rooms_config();calls=len(self.calls)
-        for rooms,code in ((['agenda'],'room_not_available'),(['salon'],'invalid_rooms'),([],'invalid_rooms')):
+        for rooms,code in ((['taches'],'room_not_available'),(['salon'],'invalid_rooms'),([],'invalid_rooms')):
             with self.assertRaises(m.Refused) as e:self.rooms(rooms,'rooms-'+code+str(len(rooms)),confirm=False)
             self.assertEqual(e.exception.code,code)
         with self.assertRaises(m.Refused) as e:self.service.call('rooms',self.body('rooms',operationId='rooms-owner',contactId=m.contact_id(OWNER),rooms=['projet']))
         self.assertEqual(e.exception.code,'owner_contact_protected')
         self.assertFalse(any(method=='config.patch' for method,_ in self.calls[calls:]))
+    def test_capability_rooms_generate_one_closed_combination_profile(self):
+        self.add();self.with_rooms_config()
+        out=self.rooms(['agenda','actions','messages'],'rooms-capabilities')
+        self.assertEqual(out['receipt']['rooms'],['conversation','agenda','actions','messages'])
+        agent='contacts-agenda-actions-messages';entry=self.cfg['agents']['entries'][agent]
+        self.assertEqual(entry['workspace'],'/contacts');self.assertIn('clawmobile_capability',entry['tools']['deny'])
+        peer=[b for b in self.cfg['bindings'] if b['match'].get('peer',{}).get('id')==NEW]
+        self.assertEqual([b['agentId'] for b in peer],[agent])
+        # Narrowing removes the binding but keeps the inert profile for other contacts/reuse.
+        self.rooms(['conversation'],'rooms-capabilities-off',confirm=False)
+        self.assertFalse(any(b['match'].get('peer',{}).get('id')==NEW for b in self.cfg['bindings']))
+        self.assertIn(agent,self.cfg['agents']['entries'])
     def test_pulse_room_picks_its_agent_alone_or_with_projet(self):
         self.add();self.with_rooms_config()
         self.cfg['agents']['entries'].update({'contacts-pulse':{},'contacts-projet-pulse':{}});self.save()
