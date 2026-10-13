@@ -268,13 +268,13 @@ export async function claimMemoTranscript(runId: string, attachmentId: string, t
 
 export const MEMO_MAX_ATTEMPTS = 3;
 const MEMO_RETRY_DELAYS = [2 * 60_000, 10 * 60_000];
+export const MEMO_FAILED_AUDIO_RETENTION_MS = 60 * 60_000;
 const MEMO_TERMINAL_ERROR = "La transcription du mémo a échoué. Enregistrez un nouveau mémo pour réessayer.";
-function releaseFailedMemoAudio(registry: CompanionRunRegistry, row: StoredRun) {
-  const paths = (row.attachments || []).map(a => a.serverPath || a.path || "");
-  const protectedPaths = new Set(registry.runs.filter(r => r.runId !== row.runId)
-    .flatMap(r => (r.attachments || []).map(a => a.serverPath || a.path || "")));
-  // Privacy wins over a terminal receipt: do not persist terminal failure while its audio is still owned by this run.
-  removeAttachments(paths, protectedPaths);
+function failedMemoAttachments(row: StoredRun, failedAt: number) {
+  const deadline = failedAt + MEMO_FAILED_AUDIO_RETENTION_MS;
+  return (row.attachments || []).map(attachment => ({...attachment,
+    expiresAt: Math.min(typeof attachment.expiresAt === "number" && Number.isFinite(attachment.expiresAt)
+      ? attachment.expiresAt : deadline, deadline)}));
 }
 /** Provider failure has no executable transcript. Keep audio only while an automatic retry remains. */
 export async function deferMemoTranscription(runId: string): Promise<void> {
@@ -283,8 +283,7 @@ export async function deferMemoTranscription(runId: string): Promise<void> {
     if (!row || row.state !== "running" || row.memo?.phase !== "transcribing" ||
         row.memo.ownerEpoch !== MEMO_OWNER_EPOCH || registry.runDeletions.some(r => r.runId === runId)) return;
     const exhausted = row.memo.attempts >= MEMO_MAX_ATTEMPTS, now = Date.now();
-    if (exhausted) releaseFailedMemoAudio(registry, row);
-    const next: StoredRun = {...row, attachments: exhausted ? undefined : row.attachments,
+    const next: StoredRun = {...row, attachments: exhausted ? failedMemoAttachments(row, now) : row.attachments,
       state: exhausted ? "failed" : "running",
       error: exhausted ? MEMO_TERMINAL_ERROR : undefined, updatedAt: now,
       memo: {...row.memo, phase: "transcription_pending", nextAttemptAt: exhausted ? undefined
@@ -302,7 +301,7 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
     const registry = await registryOrEmpty(), row = registry.runs.find(r => r.runId === runId), now = Date.now();
     if (row?.memo && (row.attachments || []).some(a => a.mimeType === "audio/mp4" &&
         typeof a.expiresAt === "number" && Number.isFinite(a.expiresAt) && a.expiresAt <= now)) {
-      const expired: StoredRun = {...row, state: "failed", error: "Le mémo vocal a expiré.", attachments: undefined,
+      const expired: StoredRun = {...row, state: "failed", error: row.state === "failed" ? row.error : "Le mémo vocal a expiré.", attachments: undefined,
         updatedAt: now, memo: {...row.memo, nextAttemptAt: undefined}};
       await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? expired : r), registry.archivedSessionIds);
       submittedRuns.set(runId, expired);
@@ -315,10 +314,9 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
     // A previous process may have stopped in STT, before any canonical dispatch.
     if (row.memo.phase === "transcribing" && row.memo.ownerEpoch !== MEMO_OWNER_EPOCH) {
       const exhausted = row.memo.attempts >= MEMO_MAX_ATTEMPTS;
-      if (exhausted) releaseFailedMemoAudio(registry, row);
       const waiting: StoredRun = {...row, updatedAt: now, memo: {...row.memo,
         phase: "transcription_pending", nextAttemptAt: row.memo.attempts >= MEMO_MAX_ATTEMPTS ? undefined : now + MEMO_RETRY_DELAYS[row.memo.attempts - 1]},
-        attachments: exhausted ? undefined : row.attachments,
+        attachments: exhausted ? failedMemoAttachments(row, now) : row.attachments,
         state: exhausted ? "failed" : "running",
         error: exhausted ? MEMO_TERMINAL_ERROR : undefined};
       await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? waiting : r), registry.archivedSessionIds);
@@ -2455,14 +2453,18 @@ export async function withAttachmentReferences<T>(effect:(paths:Set<string>)=>T)
  return mutateRegistry(async()=>{
   const registry=await registryOrEmpty(), now=Date.now();
   // Canonical audio expiry comes from fstat upload mtime, reconstructed by HTTP.
+  const expiredPaths:string[]=[];
   const runs=registry.runs.map(row=>{
    if(!row.memo||!(row.attachments||[]).some(a=>a.mimeType==='audio/mp4'&&typeof a.expiresAt==='number'&&Number.isFinite(a.expiresAt)&&a.expiresAt<=now))return row;
+   expiredPaths.push(...(row.attachments||[]).map(a=>a.serverPath||a.path||''));
    const next:StoredRun={...row,attachments:undefined,updatedAt:now,
-    state:row.memo.phase==='dispatched'?row.state:'failed',error:row.memo.phase==='dispatched'?row.error:'Le mémo vocal a expiré.',
+    state:row.memo.phase==='dispatched'?row.state:'failed',error:row.state==='failed'?row.error:row.memo.phase==='dispatched'?row.error:'Le mémo vocal a expiré.',
     memo:{...row.memo,nextAttemptAt:undefined}};
    submittedRuns.set(row.runId,next);return next;
   });
+  const protectedPaths=new Set(runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||'')));
+  if(expiredPaths.length)removeAttachments(expiredPaths,protectedPaths);
   if(runs.some((r,i)=>r!==registry.runs[i]))await writeCompanionRunRegistry(runs,registry.archivedSessionIds);
-  return effect(new Set(runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||''))));
+  return effect(protectedPaths);
  });
 }
