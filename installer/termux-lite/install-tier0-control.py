@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse,json,os,shutil,subprocess
 from pathlib import Path
 H=Path.home(); SRC=Path(__file__).resolve().parent; T=H/'.openclaw/tier0'; BIN=T/'bin'; BOOT=H/'.termux/boot/start-samantha'; TERMUX_PROPERTIES=H/'.termux/termux.properties'
-NAMES=('tier0-control.py','tier0-watchdog.py','tier0-bootstrap.sh','native-recovery-entrypoint.py')
+NAMES=('tier0-control.py','tier0-watchdog.py','tier0-bootstrap.sh','native-recovery-entrypoint.py','android-game-day-run.sh')
 def ensure_termux_external_apps(path:Path=TERMUX_PROPERTIES):
     path.parent.mkdir(parents=True,exist_ok=True)
     old=path.read_text() if path.exists() else ''

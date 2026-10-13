@@ -49,6 +49,7 @@ jobs:
           python3 ../installer/termux-lite/test-adb-recovery-readiness.py
           python3 ../installer/termux-lite/test-android-build-guard.py
           python3 ../installer/termux-lite/test-android-phantom-headroom.py
+          python3 ../installer/termux-lite/test-android-i10.py
           python3 ../installer/termux-lite/test-capability-recovery.py
           python3 ../installer/termux-lite/test-ci-registration.py
           python3 ../installer/termux-lite/test-claw-live.py
