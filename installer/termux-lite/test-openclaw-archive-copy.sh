@@ -1,6 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 R="$(cd "$(dirname "$0")" && pwd)"
+. "$R/host_test_support.sh"
 PATCH="$R/openclaw-compat/patch-openclaw-paths.sh"
 TMP_ROOT="$(mktemp -d "$HOME/.cache/tmp/openclaw-archive-patch-test.XXXXXX")"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -11,6 +12,7 @@ cat >"$TMP_ROOT/bin/npm" <<EOF
 exit 1
 EOF
 chmod +x "$TMP_ROOT/bin/npm"
+host_adapt_shebangs "$TMP_ROOT/bin/npm"
 TARGET="$TMP_ROOT/npm-root/openclaw/dist/session-accessor.sqlite-archive-artifact-test.mjs"
 cat >"$TARGET" <<'EOF'
 import fs from "node:fs";
