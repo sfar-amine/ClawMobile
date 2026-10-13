@@ -60,6 +60,9 @@ jobs:
       - name: Test canonical app and authenticated Bixby bootstrap
         run: node scripts/test-canonical-agent-bootstrap.cjs
 
+      - name: Native OpenClaw provider fallback stays pinned to the free Gemini profile
+        run: node scripts/test-native-provider-fallback.cjs
+
       - name: Run trace induction tests
         run: npm run test:trace-induction
 
