@@ -108,6 +108,9 @@ class RollbackIdentity(unittest.TestCase):
         self.assertEqual([self.previous], self.lines("runtime-sync.log"))
         self.assertEqual("previous build\n", (self.plugin / "dist/index.js").read_text())
         self.assertEqual(self.previous, subprocess.run([REAL_GIT, "-C", str(self.repo), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip())
+        # One probe for the target and three for the rollback (503, 503, 200): restart()
+        # owns the single bounded health check and rollback() must not probe again.
+        self.assertEqual(4, sum(1 for l in self.lines("curl.log") if l.endswith("/v1/health")))
 
     def test_head_left_on_the_target_is_a_failed_rollback(self):
         rc, receipt = self.deploy(FAKE_GIT_IGNORE_RESET="1")

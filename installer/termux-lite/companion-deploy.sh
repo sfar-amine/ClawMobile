@@ -112,7 +112,10 @@ rollback(){
   # acceptance. Under load a slow read or a transient 503 right after the restart wrote rollback_failed and
   # sent a false "rollback not healthy" alert. Checked: checkout HEAD is previous, the restored dist has the
   # hash recorded at backup time, /v1/health answers (bounded retry, 60 x 2 s).
-  health_ok=false; restart && health && health_ok=true
+  # restart() already performs the bounded /v1/health retry. Do not probe a second time: a
+  # second probe would extend the rollback budget and make the receipt describe a check
+  # different from the one that admitted the restarted Companion.
+  health_ok=false; restart && health_ok=true
   head_now="$(git rev-parse HEAD 2>/dev/null)"; dist_now="$(dist_hash "$PLUGIN/dist" 2>/dev/null)"
   rollback_acc=$(python3 - "$previous" "$head_now" "$backup_hash" "$dist_now" "$health_ok" <<'PY'
 import json,sys
