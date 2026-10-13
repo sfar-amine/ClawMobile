@@ -268,15 +268,25 @@ export async function claimMemoTranscript(runId: string, attachmentId: string, t
 
 export const MEMO_MAX_ATTEMPTS = 3;
 const MEMO_RETRY_DELAYS = [2 * 60_000, 10 * 60_000];
-/** Provider failure has no executable transcript. Keep its audio in the existing run. */
+const MEMO_TERMINAL_ERROR = "La transcription du mémo a échoué. Enregistrez un nouveau mémo pour réessayer.";
+function releaseFailedMemoAudio(registry: CompanionRunRegistry, row: StoredRun) {
+  const paths = (row.attachments || []).map(a => a.serverPath || a.path || "");
+  const protectedPaths = new Set(registry.runs.filter(r => r.runId !== row.runId)
+    .flatMap(r => (r.attachments || []).map(a => a.serverPath || a.path || "")));
+  // Privacy wins over a terminal receipt: do not persist terminal failure while its audio is still owned by this run.
+  removeAttachments(paths, protectedPaths);
+}
+/** Provider failure has no executable transcript. Keep audio only while an automatic retry remains. */
 export async function deferMemoTranscription(runId: string): Promise<void> {
   await mutateRegistry(async () => {
     const registry = await registryOrEmpty(), row = registry.runs.find(r => r.runId === runId);
     if (!row || row.state !== "running" || row.memo?.phase !== "transcribing" ||
         row.memo.ownerEpoch !== MEMO_OWNER_EPOCH || registry.runDeletions.some(r => r.runId === runId)) return;
     const exhausted = row.memo.attempts >= MEMO_MAX_ATTEMPTS, now = Date.now();
-    const next: StoredRun = {...row, state: exhausted ? "failed" : "running",
-      error: exhausted ? "Transcription du mémo indisponible." : undefined, updatedAt: now,
+    if (exhausted) releaseFailedMemoAudio(registry, row);
+    const next: StoredRun = {...row, attachments: exhausted ? undefined : row.attachments,
+      state: exhausted ? "failed" : "running",
+      error: exhausted ? MEMO_TERMINAL_ERROR : undefined, updatedAt: now,
       memo: {...row.memo, phase: "transcription_pending", nextAttemptAt: exhausted ? undefined
         : now + MEMO_RETRY_DELAYS[row.memo.attempts - 1]}};
     await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? next : r), registry.archivedSessionIds);
@@ -304,10 +314,13 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
         registry.archivedSessionIds.includes(row.sessionId) || registry.runDeletions.some(r => r.runId === runId)) return null;
     // A previous process may have stopped in STT, before any canonical dispatch.
     if (row.memo.phase === "transcribing" && row.memo.ownerEpoch !== MEMO_OWNER_EPOCH) {
+      const exhausted = row.memo.attempts >= MEMO_MAX_ATTEMPTS;
+      if (exhausted) releaseFailedMemoAudio(registry, row);
       const waiting: StoredRun = {...row, updatedAt: now, memo: {...row.memo,
         phase: "transcription_pending", nextAttemptAt: row.memo.attempts >= MEMO_MAX_ATTEMPTS ? undefined : now + MEMO_RETRY_DELAYS[row.memo.attempts - 1]},
-        state: row.memo.attempts >= MEMO_MAX_ATTEMPTS ? "failed" : "running",
-        error: row.memo.attempts >= MEMO_MAX_ATTEMPTS ? "Transcription du mémo indisponible." : undefined};
+        attachments: exhausted ? undefined : row.attachments,
+        state: exhausted ? "failed" : "running",
+        error: exhausted ? MEMO_TERMINAL_ERROR : undefined};
       await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? waiting : r), registry.archivedSessionIds);
       submittedRuns.set(runId, waiting); return {waiting: true as const};
     }
@@ -992,7 +1005,8 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   return {
     success: !failed,
     provenance: capabilityProvenance(stored.provenance),
-    memoTranscription: stored.memo ? {phase: stored.memo.phase, attempts: stored.memo.attempts, nextAttemptAt: stored.memo.nextAttemptAt} : undefined,
+    memoTranscription: stored.memo ? {phase: stored.memo.phase, attempts: stored.memo.attempts,
+      nextAttemptAt: stored.memo.nextAttemptAt, retryAllowed: stored.error === MEMO_TERMINAL_ERROR} : undefined,
     status: stored.memo && stored.memo.phase !== "dispatched" && !failed ? stored.memo.phase === "ready" ? "memo_ready_to_continue" : stored.memo.phase === "transcription_pending" ? "transcription_pending" : "transcribing"
       : stored.error === "run_inactivity_expired" ? "expired" : undefined,
     ...publicReceiptMetadata(runPresentation(stored)),

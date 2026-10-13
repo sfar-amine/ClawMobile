@@ -28,8 +28,9 @@ const fail=()=>resolve({success:false,state:'refused',receipt:null,error:'memo_t
  fail();await until(async()=> (await poll(a.runId)).status==='transcription_pending');
  assert.equal((await poll(a.runId)).memoTranscription.nextAttemptAt,now+600000);now+=599999;await poll(a.runId);assert.equal(calls,2);now++;
  await Promise.all(Array.from({length:12},()=>poll(a.runId)));assert.equal(calls,3);fail();
- await until(async()=> (await poll(a.runId)).state==='failed');now+=86400000;await poll(a.runId);assert.equal(calls,3);assert.equal(checks,0);assert.equal(effects,0);assert.ok(fs.existsSync(attachment.path));
- assert.equal(rows().find(r=>r.runId===a.runId).requestHash,hash);assert.equal((await api.submitIntent('','retry',[attachment],{clientRunId:'retry-one',authority:'owner',admission:admission.ticket('retry-one','retry')})).duplicate,true);
+ await until(async()=> (await poll(a.runId)).state==='failed');now+=86400000;const failedStatus=await poll(a.runId);assert.equal(calls,3);assert.equal(checks,0);assert.equal(effects,0);assert.equal(fs.existsSync(attachment.path),false,'terminal transcription failure releases audio immediately');
+ assert.match(failedStatus.message,/échoué.*nouveau mémo.*réessayer/i);assert.equal(failedStatus.memoTranscription.retryAllowed,true);const failedRow=rows().find(r=>r.runId===a.runId);assert.equal(failedRow.requestHash,hash);assert.equal(failedRow.attachments,undefined);assert.equal(failedRow.text,'memo:kept');assert.equal(failedRow.userText,'Mémo vocal');
+ assert.equal((await api.submitIntent('','retry',[attachment],{clientRunId:'retry-one',authority:'owner',admission:admission.ticket('retry-one','retry')})).duplicate,true);
  const successAudio=audio('success'),s=await api.submitIntent('','success',[successAudio],{clientRunId:'retry-success',authority:'owner',admission:admission.ticket('retry-success','success')});
  fail();await until(async()=> (await poll(s.runId)).status==='transcription_pending');now+=120000;await poll(s.runId);assert.equal(calls,5);
  resolve({success:true,state:'transcribed',text:'9addech batterie'});await until(async()=> (await poll(s.runId)).status==='memo_ready_to_continue');
@@ -68,5 +69,8 @@ const fail=()=>resolve({success:false,state:'refused',receipt:null,error:'memo_t
  await until(async()=> (await poll(r.runId)).status==='memo_ready_to_continue');
  assert.equal(effects,1);assert.ok(fs.existsSync(revokeAudio.path));fast.runModelFastPath=originalFast;
  await runs.deleteSession('revoke');
- console.log('HS8 deferred owner retry: two/ten-minute deadlines, twelve concurrent polls, three-attempt bound, stable identity, provider failures without execution, success audio cleanup and deletion passed');
+ now=clock();
+ const retryAudio=audio('retry-fresh'),freshRetry=await api.submitIntent('','retry-fresh',[retryAudio],{clientRunId:'retry-fresh',authority:'owner',admission:admission.ticket('retry-fresh','retry-fresh')});
+ assert.equal(freshRetry.accepted,true,'a new memo can retry after terminal failure');resolve({success:true,state:'transcribed',text:'9addech batterie'});await until(async()=> (await poll(freshRetry.runId)).state==='done');assert.equal(effects,2);assert.equal(fs.existsSync(retryAudio.path),false);
+ console.log('HS8 deferred owner retry: two/ten-minute deadlines, bounded automatic retries, terminal audio purge, clear fresh-memo retry, stable identity, no content in failed registry, success cleanup and deletion passed');
 }finally{Date.now=clock;fs.rmSync(dir,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});
