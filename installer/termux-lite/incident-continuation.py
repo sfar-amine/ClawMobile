@@ -33,12 +33,14 @@ def emit(i,state,component='',scope='',reason='',correlation_id=''):
 def reconcile():
  if not DB.exists():return {'checked':0,'emitted':0}
  c=sqlite3.connect(DB);c.row_factory=sqlite3.Row;links=load_links();n=0
+ has_correlation='correlation_id' in {row[1] for row in c.execute('pragma table_info(incidents)')}
  for i,m in links.items():
-  r=c.execute('select id,component,scope,state,correlation_id from incidents where id=?',(i,)).fetchone()
+  fields='id,component,scope,state,correlation_id' if has_correlation else 'id,component,scope,state'
+  r=c.execute(f'select {fields} from incidents where id=?',(i,)).fetchone()
   if not r:continue
   marker=m.get('last_reconciled_state')
   if r['state']!=marker:
-   emit(i,r['state'],r['component'],r['scope'],'periodic reconciliation',r['correlation_id'])
+   emit(i,r['state'],r['component'],r['scope'],'periodic reconciliation',r['correlation_id'] if has_correlation else '')
    links=load_links();links[i]['last_reconciled_state']=r['state'];n+=1
  save_links(links);c.close();return {'checked':len(links),'emitted':n}
 if __name__=='__main__':

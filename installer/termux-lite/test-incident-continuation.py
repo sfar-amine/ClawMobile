@@ -22,4 +22,8 @@ class T(unittest.TestCase):
  def test_reconcile_emits_state(self):
   a=io.open_incident('x','runtime','test','x');ic.link(a['id'],'cap.x')
   r=ic.reconcile();self.assertEqual(r['emitted'],1);self.assertTrue(ic.EVENTS.exists());self.assertEqual(json.loads(ic.EVENTS.read_text().splitlines()[0])['correlation_id'],a['correlation_id'])
+ def test_reconcile_accepts_database_before_correlation_migration(self):
+  import sqlite3
+  db=sqlite3.connect(ic.DB);db.execute('create table incidents(id text primary key,component text,scope text,state text)');db.execute("insert into incidents values('old','x','runtime','failed')");db.commit();db.close()
+  ic.link('old','cap.x');r=ic.reconcile();self.assertEqual(r['emitted'],1);self.assertIsNone(json.loads(ic.EVENTS.read_text().splitlines()[0])['correlation_id'])
 if __name__=='__main__':unittest.main()
