@@ -88,6 +88,8 @@ export type TerminalSessionResponse = {
 
 export type IntentSubmitResponse = {
   decision?: import("./receiptPresentation").PublicDecision;
+  /** Language of this request/turn, independent from Android uiLocale. */
+  responseLanguage?: import("./receiptPresentation").ResponseLanguage;
   presentation?: import("./receiptPresentation").ReceiptPresentation;
   understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
   alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];

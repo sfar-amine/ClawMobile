@@ -1,4 +1,4 @@
-import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision} from "./receiptPresentation";
+import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
 import crypto from "crypto";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
 import {transcribeMemoAttachment} from "./memoSttOwner";
@@ -186,6 +186,7 @@ async function submitTextIntent(
     return notSubmitted(normalizedSessionId, clientRunId, gateway.message);
   }
 
+  const responseLanguage=publicDecision(fastPathCheck.decision)?.responseLanguage;
   const promptWithAttachments = appendAttachmentContext(parentClarificationRunId ? routingText : normalized, attachments);
   const routed = learningOnly ? null : buildAutoSkillContextForIntent(promptWithAttachments);
   const contextualPrompt = learningOnly ? promptWithAttachments : await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
@@ -212,7 +213,7 @@ async function submitTextIntent(
     await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted });
   }
   void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority,
-    learningOnly ? undefined : options.admission, clientRunId, options.voiceDelegation);
+    learningOnly ? undefined : options.admission, clientRunId, options.voiceDelegation, responseLanguage);
 
   const message = describeOpenClawResult(accepted);
   return {
@@ -319,6 +320,7 @@ async function executeCapabilityFirst(
     duplicate,
     ...publicReceiptMetadata(presentation),
     ...(publicDecision(check.decision) ? {decision: publicDecision(check.decision)} : {}),
+    ...(publicDecision(check.decision)?.responseLanguage ? {responseLanguage: publicDecision(check.decision)!.responseLanguage} : {}),
     runId,
     clientRunId,
     sessionId,
@@ -386,12 +388,13 @@ async function submitIntentInBackground(
   admission?: AdmissionTicket,
   clientRunId?: string,
   voiceDelegation?: true,
+  responseLanguage?: ResponseLanguage,
 ) {
   try {
     if (admission !== undefined && !currentMemoOwner(admission, clientRunId, sessionId)) {
       await markSubmittedRunFailed(runId, "Validation du propriétaire expirée."); return;
     }
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId, voiceDelegation});
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId, voiceDelegation, responseLanguage});
     if (admission) console.log(`[companion] P1 turn ${runId}: transport=${openclaw.ownerTransport}`);
     await rememberSubmittedRun(text, {
       ...openclaw,

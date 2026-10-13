@@ -5,6 +5,7 @@ import {
   voiceTurnContext, type VoiceTurnContext,
 } from "./voiceUnderstanding";
 import { captureVoiceRound, type RoundCaptureResult, type RoundCaptureRunner } from "./voiceRoundLearning";
+import {publicDecision} from "./receiptPresentation";
 
 /**
  * Ephemeral « Compris / Ce n'est pas ça » state of the single Claw Live owner (one voice owner at
@@ -141,14 +142,20 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
   const choice = realignmentChoice(request, pending);
   return admit(async () => {
     const result = await execute(choice ? choice.label : request);
+    const responseLanguage=publicDecision(result?.decision)?.responseLanguage;
+    // The existing receipt speaker owns FR/EN copy. For derja the Gemini Live
+    // turn itself owns arabizi rendering; never impose a French uiLocale
+    // verbatim over a Tunisian request.
+    const receiptLocale=responseLanguage==='fr'||responseLanguage==='en'?responseLanguage:locale;
     let learning: RoundCaptureResult | undefined;
     if (pending) {
-      const corrected = readVoiceUnderstood(result, locale);
+      const corrected = readVoiceUnderstood(result, receiptLocale);
       const payload = realignmentRoundPayload(pending, "resolved", { capability: corrected?.capability || null, route: corrected?.route || null });
       if (payload) learning = stillCurrent() ? await capture(payload) : {state:"skipped",reason:"owner_admission_expired"};
     }
-    if (stillCurrent()) state.remember(voiceTurnContext(result, request, { locale, now: now(), scope: String(body?.voiceTurn?.sessionEpoch || "") }), request);
-    return { ...result, ...voiceReceiptProjection(result, locale), ...(learning ? { realignment_learning: learning } : {}), ...(choice ? { realignment_choice: choice.capability } : {}) };
+    if (stillCurrent()) state.remember(voiceTurnContext(result, request, { locale:receiptLocale, now: now(), scope: String(body?.voiceTurn?.sessionEpoch || "") }), request);
+    const speech=responseLanguage==='tn'?{}:voiceReceiptProjection(result, receiptLocale);
+    return { ...result, ...speech, ...(learning ? { realignment_learning: learning } : {}), ...(choice ? { realignment_choice: choice.capability } : {}) };
   });
 }
 
