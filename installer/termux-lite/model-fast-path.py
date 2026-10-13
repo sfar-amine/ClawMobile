@@ -910,9 +910,14 @@ def try_fast_path(
         metadata = _presentation_metadata(executed)
         if state in SAFE_EXECUTION_STATES:
             payload = execution.get("result")
+            executed_decision = executed.get("decision") if isinstance(executed.get("decision"), dict) else {}
+            decision_selected = executed_decision.get("selected") if isinstance(executed_decision.get("selected"), dict) else {}
+            resolved_risk = selected.get("risk") or decision_selected.get("risk")
             return {
-                # Business rendering of the owner result (O7 cards…), preceded by the HS3 « Compris » line.
-                "status": "hit", "source": "capability", "text": _understood_prefix(metadata, _display_text(payload, card=False)),
+                # A proven read renders its business result instead of an opaque receipt card.  For every other
+                # risk (including missing metadata), the explicit owner presentation remains authoritative.
+                "status": "hit", "source": "capability",
+                "text": _understood_prefix(metadata, _display_text(payload, card=resolved_risk != "read")),
                 **metadata,
                 "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
                 "route": selected.get("route"), "capability": selected.get("capability"),

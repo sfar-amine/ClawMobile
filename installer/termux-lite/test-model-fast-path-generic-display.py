@@ -119,12 +119,13 @@ ZAIN_PHASE_5 = FIXTURE["result"]["projects"][0]
 
 class ReadableResultCardTests(unittest.TestCase):
     """S24 12/10 : la fiche Pulse s'affichait « Compris : Pulse backend-first runtime », « Sold », « Raf », « Project count : 1 »."""
-    def run_hit(self, payload, card=CARD):
+    def run_hit(self, payload, card=CARD, risk="read"):
         resolution = {"decision": {"type": "EXECUTE"}, "harness": {"tool_policy": "required"},
                       "selected": {"state": "ready", "authorized": True, "deterministic": True}}
         old = (m.resolve_capability, m.execute_capability_decision)
         m.resolve_capability = lambda *a, **k: resolution
         m.execute_capability_decision = lambda *a, **k: {"decision": {"type": "EXECUTE", "target": "pulse", "intent": "project.snapshot"},
+                                                         "selected": {"risk": risk},
                                                          "execution": {"state": "completed", "result": payload}, "presentation": card}
         try:
             return m.try_fast_path("état projet zain phase 5")
@@ -169,6 +170,14 @@ class ReadableResultCardTests(unittest.TestCase):
     def test_amounts_still_pass_the_privacy_filter(self):
         # Exactly six digits stay masked as before; a value formatted with spaces is shown.
         self.assertEqual("Vendu (JH) : 1 234 567", m._display_text({"ok": True, "sold": "1 234 567", "raf": "123456"}))
+
+    def test_write_and_transaction_keep_the_explicit_owner_card(self):
+        payload = {"ok": True, "presentation": CARD, "projects": [{"project_id": "20495", "sold": "417"}]}
+        for risk in ("write", "transaction"):
+            with self.subTest(risk=risk):
+                text = self.run_hit(payload, risk=risk)["text"]
+                self.assertIn("Résultat à vérifier", text)
+                self.assertNotIn("N° de projet", text)
 
 
 class BridgeParityTests(unittest.TestCase):
