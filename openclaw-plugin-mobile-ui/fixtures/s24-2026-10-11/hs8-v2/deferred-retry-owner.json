@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "question": "Quel propriétaire EXISTANT peut porter « audio conservé, nouvel essai Gemini plus tard » (D45-3) sans nouveau store, scheduler ni démon ?",
+  "source": "Lecture du code runtime/samantha-companion-private 5631fe9 et de core #138 9973391b (openclaw-plugin-mobile-ui/src/companion).",
+  "owner": {
+    "state": "Registre des runs du Companion (runs.ts : StoredRun, mutateRegistry, writeCompanionRunRegistry). #138 y ajoute déjà StoredRun.memo {attachmentId, ownerEpoch, phase} et les claims claimMemoTranscript / claimMemoDispatch sous le verrou du registre.",
+    "audioRetention": "attachmentStorage.ts : purgeAttachments épargne tout fichier référencé par un run (withAttachmentReferences dans runs.ts) ; sinon rétention RETENTION_MS = 30 jours. Un run mémo en attente qui garde sa pièce jointe conserve donc l'audio sans nouveau stockage.",
+    "trigger": "Rapprochement paresseux à la lecture du statut, sur le modèle de reconcileInactiveRuns(runId) appelé par getRunStatus (GET /v1/runs/:id, sondé par l'app), plus un passage borné au démarrage dans startCompanionServer, à côté de la maintenance des pièces jointes déjà présente."
+  },
+  "proposedShape": {
+    "phase": "ajouter 'transcription_pending' à StoredRun.memo.phase, avec attempts et nextAttemptAt (champs du run existant)",
+    "bounds": "par exemple 3 essais au plus, espacés d'au moins 2 puis 10 minutes, en single-flight par run ; au-delà : échec définitif, audio conservé jusqu'à la purge normale",
+    "statusText": "« Transcription en attente, nouvel essai automatique. » (D45 lot R2 point 3)",
+    "deletion": "runDeletions et deleteSession l'emportent déjà avant tout claim (#138)",
+    "provider": "Gemini seul (google:claw-gemini-free), jamais OpenAI tant que D45-3 tient"
+  },
+  "rejected": [
+    { "owner": "Cron du Gateway OpenClaw (automations.ts : cron.list/run/update)", "why": "Il planifie des tours d'agent, pas un appel interne du Companion. Il faudrait un job par mémo et un aller-retour Gateway, avec des détails sensibles dans la description du job." },
+    { "owner": "Nouveau timer, file ou démon dans le Companion", "why": "Interdit par AGENTS.md (pas de nouveau scheduler/démon si un propriétaire existe)." },
+    { "owner": "Relance par l'app (nouveau POST /v1/runs)", "why": "Possible via l'idempotence clientRunId, mais l'état « en attente » resterait côté app et serait perdu si l'app est fermée ; le registre reste le propriétaire." }
+  ],
+  "status": "Recommandation de lecture du code, non implémentée. Le garde reste fermé (MEMO_STT_QUALIFICATION.success = false)."
+}

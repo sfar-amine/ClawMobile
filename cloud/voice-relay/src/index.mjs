@@ -6,7 +6,7 @@ const MAX_TEXT_CHARS = 12000;
 export const RELAY_WAIT_MS = 28000;
 // Tools whose device receipt is idempotent per action_key/step_key (canonical
 // remote-bridge receipt). Only these may report a pending state instead of an error.
-const ACTION_TOOLS = new Set(["claw_exec", "claw_execute"]);
+const ACTION_TOOLS = new Set(["claw_exec", "claw_execute", "claw_remember"]);
 
 // Transport outcome of an action tool, before the device answered.
 // device_timeout: the request was sent and the edge stopped waiting; the device

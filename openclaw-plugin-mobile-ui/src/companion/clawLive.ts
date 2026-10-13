@@ -157,14 +157,14 @@ export const clawLiveClarifications = new SurfaceClarifications(runModelFastPath
  * resolved by resolve-clarification. Otherwise the existing executor runs on the original/resolved text.
  */
 export async function clawLiveCapabilityTurn(
-  body: { request?: unknown; clarificationId?: unknown; originId?: string },
+  body: { request?: unknown; clarificationId?: unknown; originId?: string; assertCurrent?: () => void },
   execute: (text: string) => Promise<any>,
   clarifications: SurfaceClarifications = clawLiveClarifications,
 ) {
   const request = String(body?.request || "").trim();
   if (!request || request.length > 12000) return { success: false, error: "request_required" };
   const id = typeof body?.clarificationId === "string" ? body.clarificationId : undefined;
-  const turn = await clarifications.turn(request, { surface: "claw_live", id, originId: String(body?.originId || "claw-live").slice(0, 120) });
+  const turn = await clarifications.turn(request, { surface: "claw_live", id, originId: String(body?.originId || "claw-live").slice(0, 120), assertCurrent: body.assertCurrent });
   if (turn.state === "needs_clarification") {
     return {
       success: true, state: "needs_clarification", source: "capability",
@@ -177,6 +177,7 @@ export async function clawLiveCapabilityTurn(
   if (turn.state === "done" || turn.state === "failed") {
     return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), execution: { state: turn.state === "done" ? "completed" : "failed" } };
   }
+  body.assertCurrent?.();
   return execute(turn.text);
 }
 
@@ -204,6 +205,10 @@ export function buildClawLiveSetup(
     "Capability discovery is query-scoped inside the Claw harness; never infer capability availability from a static catalogue in this prompt.",
     "For current or personal state, device/account data, telecom, bills, contacts, calendar, messaging, automation, or any action Claw may execute, call clawmobile_capability before making a factual claim. Pure conversation, explanation, identity and creative requests may be answered directly.",
     "When calling clawmobile_capability, pass the user's request verbatim whenever possible; do not generalize or drop qualifiers.",
+    // Amine 11/10 : l'attente est moins pénible avec une phrase d'attente, comme ChatGPT.
+    "Before every clawmobile_capability or ask_samantha call, first say one very short waiting phrase in the user's language (for example « Je vérifie… », « Laisse-moi regarder… », « One moment… »), then call the tool. Never claim a result in that phrase, and never repeat it after the result.",
+    "The Companion checks the final transcription before tool selection. When it supplies an executed receipt, read it and never execute the same request again.",
+    "For memory and recollections, multiple steps, skills, files, long writing, or requests outside the deterministic capability catalogue, call ask_samantha with the user's request verbatim. It delegates to Samantha's main agent in the same conversation, with its memory and skills. Say one short waiting phrase, such as 'je regarde…', before waiting. Read only its returned answer; a pending result will arrive in the discussion.",
     "Treat the returned harness.tool_policy and execution receipt as authoritative. For tool_policy=required, do not claim a result, say you checked, or promise an action unless the returned execution receipt supports it.",
     "If execution is unavailable, failed, needs clarification or requires confirmation, report that state accurately instead of inventing successful execution.",
     "When a clawmobile_capability result contains voice.verbatim, start your spoken answer with exactly that text, word for word, without rephrasing, translating or shortening it; it states what Claw understood and, on failure, the step and readable reason. Never speak an error code, and never say that nothing was charged unless voice.verbatim says so.",
@@ -226,6 +231,15 @@ export function buildClawLiveSetup(
             request: { type: "STRING", description: "The owner's request, verbatim, to resolve and execute through Claw." },
             clarificationId: { type: "STRING", description: "Only when answering a needs_clarification result: its clarificationId." },
           },
+          required: ["request"],
+        },
+      }, {
+        name: "ask_samantha",
+        description: "Delegate the user's original request to Samantha's main agent in this same conversation, with memory and skills. Never reinterpret the request or impersonate owner admission.",
+        behavior: "BLOCKING",
+        parameters: {
+          type: "OBJECT",
+          properties: {request: {type: "STRING", description: "The user's original request, verbatim."}},
           required: ["request"],
         },
       }],
