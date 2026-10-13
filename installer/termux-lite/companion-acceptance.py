@@ -187,17 +187,18 @@ def main(session_id=None, baseline_path=None):
     baseline = load_baseline(baseline_path)
     warnings = []
     # HS1 builds the catalog lazily. Trigger exactly one generation before the timed /catalog row so a cold
-    # restart is not judged as a code regression. This is read-only and deliberately outside the budget.
-    for warm_attempt in range(3):
-        warm_code, _, warm_seconds = call("GET", "/catalog", 15)
-        if warm_code in (200, 404):
-            break
-        if warm_attempt < 2:
-            time.sleep(2)
-    warm_status = "ok" if warm_code == 200 else ("skipped" if warm_code == 404 else "fail")
-    failed |= warm_status == "fail"
-    results.append({"route": "/catalog", "check": "prewarm", "code": warm_code,
-                    "seconds": round(warm_seconds, 2), "status": warm_status})
+    # restart is not judged as a code regression. Focused acceptance tests may intentionally omit this route.
+    if any(path == "/catalog" for path, _ in READS):
+        for warm_attempt in range(3):
+            warm_code, _, warm_seconds = call("GET", "/catalog", 15)
+            if warm_code in (200, 404):
+                break
+            if warm_attempt < 2:
+                time.sleep(2)
+        warm_status = "ok" if warm_code == 200 else ("skipped" if warm_code == 404 else "fail")
+        failed |= warm_status == "fail"
+        results.append({"route": "/catalog", "check": "prewarm", "code": warm_code,
+                        "seconds": round(warm_seconds, 2), "status": warm_status})
     def metadata_checks(identifier):
         nonlocal failed
         for label,budget in (("cold",6.0),("warm",1.5)):
