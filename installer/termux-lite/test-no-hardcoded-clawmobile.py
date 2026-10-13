@@ -23,6 +23,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+REPO = ROOT.parents[1]
 SELF = Path(__file__).resolve().name
 REPO_DIR = "Claw" + "Mobile"  # découpé pour que ce test ne se détecte pas lui-même
 
@@ -38,13 +39,13 @@ PATTERN = re.compile(
     )
 )
 
-# Fichier (relatif à installer/termux-lite) -> raison de garder la copie de travail.
+# Fichier (relatif au dépôt) -> raison de garder la copie de travail.
 ALLOWLIST = {
-    "bootstrap.sh": "installeur : clone ou met à jour le dépôt dans ~/" + REPO_DIR + " (CLAWMOBILE_HOME).",
-    "lib.sh": "installeur : clawmobile_lite_repo_root localise le dépôt pour construire et installer le plugin, absent de la release.",
-    "runtime-sync.sh": "depuis une release (health manager), retrouve le checkout déployé (plugin, outils de déploiement) ; CLAW_CORE_REPO prioritaire.",
-    "project-room.py": "copie le dépôt samantha-core complet (docs, plugin, git) dans la salle projet, pas termux-lite ; CLAW_PROJECT_CORE prioritaire.",
-    "test-slack-runtime-contract.py": "lit la source du plugin (absente de la release) en dernier recours et vérifie le contrat de lib.sh ci-dessus.",
+    "installer/termux-lite/bootstrap.sh": "installeur : clone ou met à jour le dépôt dans ~/" + REPO_DIR + " (CLAWMOBILE_HOME).",
+    "installer/termux-lite/lib.sh": "installeur : clawmobile_lite_repo_root localise le dépôt pour construire et installer le plugin, absent de la release.",
+    "installer/termux-lite/runtime-sync.sh": "depuis une release (health manager), retrouve le checkout déployé (plugin, outils de déploiement) ; CLAW_CORE_REPO prioritaire.",
+    "installer/termux-lite/project-room.py": "copie le dépôt samantha-core complet (docs, plugin, git) dans la salle projet, pas termux-lite ; CLAW_PROJECT_CORE prioritaire.",
+    "installer/termux-lite/test-slack-runtime-contract.py": "lit la source du plugin (absente de la release) en dernier recours et vérifie le contrat de lib.sh ci-dessus.",
 }
 
 # Jobs planifiés générés par l'installeur : leur chemin doit viser la release courante.
@@ -52,7 +53,8 @@ RELEASE_LINK = "$HOME/.openclaw/releases/current/termux-lite"
 
 
 def text_files():
-    for path in sorted(ROOT.rglob("*")):
+    production_roots = (ROOT, REPO / "openclaw-plugin-mobile-ui/src")
+    for path in sorted(path for root in production_roots for path in root.rglob("*")):
         if not path.is_file() or "__pycache__" in path.parts or "node_modules" in path.parts:
             continue
         try:
@@ -64,8 +66,8 @@ def text_files():
 def offenders():
     found = {}
     for path, text in text_files():
-        rel = str(path.relative_to(ROOT))
-        if rel == SELF:
+        rel = str(path.relative_to(REPO))
+        if path == Path(__file__).resolve():
             continue
         lines = [f"{i}: {line.strip()}" for i, line in enumerate(text.splitlines(), 1) if PATTERN.search(line)]
         if lines:
@@ -101,7 +103,7 @@ class NoHardcodedWorkingCopyTests(unittest.TestCase):
     def test_allowlist_is_justified_and_not_stale(self):
         found = offenders()
         for rel, reason in ALLOWLIST.items():
-            self.assertTrue((ROOT / rel).is_file(), rel)
+            self.assertTrue((REPO / rel).is_file(), rel)
             self.assertGreater(len(reason), 20, rel)
             self.assertIn(rel, found, f"{rel} ne nomme plus la copie de travail : le retirer de la liste blanche")
 
