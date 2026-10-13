@@ -110,6 +110,30 @@ def append_once(path, marker, text):
             handle.write('\n')
         handle.write(text)
     return True
+
+def rotate_monthly_journal(path, now=None):
+    """Rotate the generated journal at a month boundary without another scheduler."""
+    path=Path(path)
+    if not path.exists() or path.stat().st_size==0:
+        return None
+    now=now or dt.datetime.now(dt.timezone.utc)
+    content=path.read_text(errors='replace')
+    dated=re.findall(r'^## Learning Gate .* — (\d{4}-\d{2})-\d{2}$',content,re.M)
+    modified=(dt.datetime.strptime(max(dated),'%Y-%m').replace(tzinfo=dt.timezone.utc)
+              if dated else dt.datetime.fromtimestamp(path.stat().st_mtime,dt.timezone.utc))
+    if (modified.year,modified.month)==(now.year,now.month):
+        return None
+    archive=path.with_name(f'{path.stem}.{modified:%Y-%m}{path.suffix}')
+    if archive.exists():
+        # Never overwrite a prior monthly truth. A non-empty current journal in
+        # the same archived month signals an operator copy/clock anomaly.
+        if path.read_bytes()==archive.read_bytes():
+            path.unlink()
+        else:
+            raise RuntimeError('development_journal_archive_conflict')
+    else:
+        os.replace(path,archive)
+    return archive
 def emit_context(record):
     if record["reusable_learning"]:
         payload={
@@ -143,6 +167,7 @@ def emit_context(record):
     return "LEARNING_GATE_V1:"+json.dumps(payload,ensure_ascii=False,separators=(",",":"))
 
 def write_journal(record):
+    rotate_monthly_journal(JOURNAL)
     marker=f"learning-gate:{record['receipt_id']}"
     attempts="; ".join(record["failed_attempts"]) or "none captured"
     body=(

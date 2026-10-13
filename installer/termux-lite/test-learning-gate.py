@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/python3
-import contextlib, importlib.util, io, json, os, shutil, subprocess, tempfile, unittest
+import contextlib, datetime as dt, importlib.util, io, json, os, shutil, subprocess, tempfile, unittest
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -84,6 +84,19 @@ class LearningGateTests(unittest.TestCase):
         self.assertEqual(out["no_learning_reason"],"no_explicit_reusable_learning_supplied")
         self.assertTrue(out["context_text"].startswith("LEARNING_GATE_V1:"))
         self.assertFalse(out["howto_updated"])
+
+    def test_development_journal_rotates_on_month_boundary(self):
+        journal=lg.JOURNAL
+        journal.write_text('# Development Journal\n\nold month\n')
+        old=dt.datetime(2026,9,30,12,tzinfo=dt.timezone.utc).timestamp()
+        os.utime(journal,(old,old))
+        archive=lg.rotate_monthly_journal(journal,dt.datetime(2026,10,1,tzinfo=dt.timezone.utc))
+        self.assertEqual(archive,journal.with_name('DEVELOPMENT_JOURNAL.2026-09.md'))
+        self.assertFalse(journal.exists())
+        self.assertIn('old month',archive.read_text())
+        self.run_close(closure_id='october')
+        self.assertTrue(journal.exists())
+        self.assertIn('learning-gate:',journal.read_text())
 
     def make_runtime_root(self):
         runtime=self.base/"runtime"; runtime.mkdir(exist_ok=True)
