@@ -18,6 +18,8 @@ function runner(script){const calls=[];const fn=async(message,options={})=>{call
   assert.equal(mod.contactRoomVerdict(decision('device.assistance','','','write'),rooms),'allowed');
   assert.equal(mod.contactRoomVerdict(decision('device.modes_routines','','','write'),rooms),'allowed');
   assert.equal(mod.contactRoomVerdict(decision('notification.whatsapp.owner','whatsapp','messaging.send','external_send'),rooms),'allowed');
+  const combined=profile.contactRoomSession(`agent:contacts-pulse-agenda:whatsapp:direct:${number}`).rooms;
+  assert.equal(mod.contactRoomVerdict(decision('pulse.projects','pulse','project.snapshot'),combined),'outside');
   for(const forbidden of [
     decision('payment.owner_native','payment','payment.execute','transaction'),
     decision('messaging.whatsapp.owner_context','whatsapp','messaging.read'),
@@ -35,9 +37,12 @@ function runner(script){const calls=[];const fn=async(message,options={})=>{call
   run=runner(()=>({status:'eligible',decision:decision('payment.owner_native','payment','payment.execute','transaction')}));
   assert.match((await mod.handleContactRoomBeforeDispatch(event('paye ma facture'),ctx,run)).text,/pas autorisée/);assert.equal(run.calls.length,1);
   run=runner(()=>({status:'miss'}));assert.deepEqual(await mod.handleContactRoomBeforeDispatch(event('bonjour'),ctx,run),{handled:false});
+  run=runner(()=>({status:'eligible',decision:decision('pulse.projects','pulse','project.snapshot')}));
+  const combinedKey=`agent:contacts-pulse-agenda:whatsapp:direct:${number}`;
+  assert.deepEqual(await mod.handleContactRoomBeforeDispatch({content:'projet Pulse',sessionKey:combinedKey,channel:'whatsapp'},{agentId:'contacts-pulse-agenda',sessionKey:combinedKey},run),{handled:false});
   run=runner(()=>{throw Error('must not run')});
   assert.deepEqual(await mod.handleContactRoomBeforeDispatch(event('agenda',{isGroup:true}),ctx,run),{handled:false});
   assert.deepEqual(await mod.handleContactRoomBeforeDispatch(event('agenda'),{...ctx,agentId:'contacts'},run),{handled:false});
   assert.equal(run.calls.length,0);
-  console.log('contact room fast path 18/18');
+  console.log('contact room fast path 20/20');
 })().catch(e=>{console.error(e);process.exit(1)});

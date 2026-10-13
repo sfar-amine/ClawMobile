@@ -23,6 +23,8 @@ export function contactRoomVerdict(decision: unknown, rooms: ReadonlySet<Contact
   const route = field(decision,"route") || field(selected,"route");
   const risk = field(decision,"risk") || field(selected,"risk");
   const confirmation = (decision as any).confirmationRequired === true || (selected as any)?.confirmation_required === true;
+  // Pulse has its own existing owner and validation boundary, which runs next in before_dispatch.
+  if (rooms.has("pulse") && (target === "pulse" || route.startsWith("pulse."))) return "outside";
   if (confirmation || /payment|bank|transaction/i.test(capability+" "+target+" "+intent+" "+route)) return "forbidden";
   if (rooms.has("agenda") && capability === "agenda.google_whatsapp" && target === "agenda" && risk === "read") return "allowed";
   if (rooms.has("messages") && capability === "notification.whatsapp.owner" && target === "whatsapp" && intent === "messaging.send") return "allowed";
@@ -52,6 +54,7 @@ export async function handleContactRoomBeforeDispatch(event:Event,ctx:Context,ru
     const decision=(result.decision&&typeof result.decision==="object"?result.decision:null) as Record<string,unknown>|null;
     if(!decision)return {handled:false};
     const verdict=contactRoomVerdict(decision,profile.rooms);
+    if(verdict==="outside")return {handled:false};
     if(verdict!=="allowed")return response("Cette demande n’est pas autorisée dans les pièces qui te sont ouvertes.");
     if(result.status==="clarification"){
       pending.set(conversation,{original:prior?.original||message,decision,at:now()});
