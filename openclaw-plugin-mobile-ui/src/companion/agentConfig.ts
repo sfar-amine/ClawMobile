@@ -82,7 +82,14 @@ function validProvider(auth:any,provider:string,profile?:string){
  return !!row&&['ok','static','expiring'].includes(row.status)&&(!profile||row.profiles?.some((x:any)=>x.profileId===profile&&['ok','static','expiring'].includes(x.status)));
 }
 const count=(value:any)=>typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null;
-export async function readAgentConfig(){
+// The complete public projection is immutable for a short window. This is the HTTP read cache for
+// /agent/config: simultaneous requests share the whole computation, rather than only two of its five
+// Gateway calls. Configuration mutations bypass it and invalidate it once the Gateway proves the effect.
+const AGENT_CONFIG_SERVE_MS=5000;
+let agentConfigCache:{value:any,at:number}|null=null;
+let agentConfigFlight:Promise<any>|null=null;
+function invalidateAgentConfigCache(){agentConfigCache=null;}
+async function buildAgentConfig(){
  const [{raw,catalog,auth},usage,defaults]=await Promise.all([readModelOwnerFresh(),readSessionsUsage(),sessionDefaults()]);
  const config=configObject(raw),id=modelId(config);
  const chosen=selection(config).value;
@@ -97,6 +104,13 @@ export async function readAgentConfig(){
   fallbacks:fallbacks?fallbacks.map(ref=>publicModelRef(ref)!):null,accounts,tools:{global:toolPolicy(config.tools),agent:toolPolicy(chosen.tools),effective:null,reason:'effective_tool_catalog_unavailable'},
   thinking:level(config),thinkingLevels,models,writeAvailable:selection(config).writeAvailable&&models.length>0,issues:[...(models.length?[]:['model_authentication_proof_unavailable']),...(defaults?[]:['session_thinking_defaults_unavailable'])],
   usage:usage?{scope:'sessions_usage_limit_100',inputTokens:count(usage.totals?.inputTokens),outputTokens:count(usage.totals?.outputTokens),totalTokens:count(usage.totals?.totalTokens),costUsd:count(usage.totals?.totalCost)}:null};
+}
+export async function readAgentConfig(){
+ if(agentConfigCache&&Date.now()-agentConfigCache.at<AGENT_CONFIG_SERVE_MS)return agentConfigCache.value;
+ if(agentConfigFlight)return agentConfigFlight;
+ const read=buildAgentConfig();agentConfigFlight=read;
+ try{const value=await read;if(value.usage&&!(value.issues||[]).includes('session_thinking_defaults_unavailable'))agentConfigCache={value,at:Date.now()};return value;}
+ finally{if(agentConfigFlight===read)agentConfigFlight=null;}
 }
 async function protectedActivity(){
  const [payments,confirmations]=await Promise.all([readPaymentRequests(),readOwnerConfirmations()]);
@@ -170,7 +184,7 @@ async function changeAgentConfigOnce(body:any){
     for(let attempt=0;attempt<3;attempt++){try{verified=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:2000});break;}catch{if(attempt<2)await new Promise(resolve=>setTimeout(resolve,200));}}
 
    const effective=configObject(verified),effectiveModel=selection(effective).value.model??effective.agents?.defaults?.model;
-   if(modelId(effective)===id&&level(effective)===body.thinking&&(!fallbacks||JSON.stringify(effectiveModel?.fallbacks)===JSON.stringify(fallbacks))){state='completed';invalidateSessionDefaults();artifact={configurationRevision:verified.hash,agentId:'main'};}
+   if(modelId(effective)===id&&level(effective)===body.thinking&&(!fallbacks||JSON.stringify(effectiveModel?.fallbacks)===JSON.stringify(fallbacks))){state='completed';invalidateSessionDefaults();invalidateAgentConfigCache();artifact={configurationRevision:verified.hash,agentId:'main'};}
    }
   }
  }catch{/* No proof: never repeat a possible configuration effect. */}

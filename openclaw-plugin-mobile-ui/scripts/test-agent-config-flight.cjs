@@ -32,6 +32,8 @@ const fixture=name=>structuredClone(require('../fixtures/s24-2026-10-10/ui-recet
  const first=await cohort();assert.equal(first.length,12);
  for(const method of ['config.get','models.list','models.authStatus','sessions.list','sessions.usage'])assert.equal(counts[method],1,method+' shared for simultaneous readers');
  assert.ok(first.every(value=>JSON.stringify(value)===JSON.stringify(first[0])),'same public projection');
+ await api.readAgentConfig();
+ for(const method of ['config.get','models.list','models.authStatus','sessions.list','sessions.usage'])assert.equal(counts[method],1,method+' complete projection cached');
  const index=require('../dist/companion/conversationOwnerIndex');index.invalidateSessionDefaults();
  const realNow=Date.now;let clock=realNow()+61000;Date.now=()=>clock;
  try{
@@ -44,7 +46,7 @@ const fixture=name=>structuredClone(require('../fixtures/s24-2026-10-10/ui-recet
   assert.equal(counts['sessions.usage'],2,'failure does not poison usage cache');
   assert.ok(recovered.every(value=>value.usage!==null));
   await api.readAgentConfig();assert.equal(counts['sessions.usage'],2,'existing sixty-second TTL retained');
-  assert.equal(counts['config.get'],4,'each fresh cohort and subsequent read retain fresh config');
+  assert.equal(counts['config.get'],3,'complete five-second projection cache expires between cohorts');
  }finally{Date.now=realNow;}
  console.log(JSON.stringify({suite:'agent-config-flight',passed:true,concurrentReaders:12,source:'cleaned S24 captures 2026-10-10; scheduling and failure injection synthetic',productionTimingQualified:false}));
 })().catch(error=>{console.error(error);process.exitCode=1});

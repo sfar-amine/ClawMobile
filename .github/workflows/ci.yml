@@ -49,6 +49,7 @@ jobs:
           python3 ../installer/termux-lite/test-incident-orchestrator.py
           python3 ../installer/termux-lite/test-incident-ingress.py
           python3 ../installer/termux-lite/test-companion-acceptance-settle.py
+          python3 ../installer/termux-lite/test-companion-deploy-preflight.py
           python3 ../installer/termux-lite/test-runtime-sync.py
           python3 ../installer/termux-lite/test-context-review-plan.py
       - name: Playbooks activation links ignored runtime dependencies

@@ -14,3 +14,9 @@ Complément réel PR173 (`3bd2e7423e31fce2e62f7ebead0bf036b433c87b`) repris byte
 
 
 Reprise fichier 46 : ciblés rejoués sur la base runtime `7c5cddc5`, douze lecteurs et récupération après erreur verts. Le correctif propriétaire F6 `dc5cc696` est repris : au-delà de 4096 entrées /proc, la preuve de vie reste inconnue ; aucun abandon fondé sur une liste tronquée. Le ciblé conserve 50020 reçus, 17 abandons et un budget de 10 s (435 ms observés). Les mesures S24 après correction restent à Claude.
+
+## Complément R02 — fichier 52
+
+La projection publique complète de `/agent/config` est maintenant servie pendant 5 s et partagée entre lecteurs concurrents. Une projection incomplète n'est pas mise en cache et une mutation prouvée invalide immédiatement la projection. Le déploiement compare les temps à la dernière recette `deployed` : un dépassement n'est bloquant que s'il dépasse aussi la release précédente de 50 % et d'au moins 0,5 s. Sans reçu antérieur, les budgets fixes restent la référence.
+
+La recette préchauffe `/catalog` avant sa ligne mesurée. Le préflight écrit un reçu `deferred` lorsque RAM disponible < 1 200 Mo et batterie en décharge, avant fetch, build ou redémarrage. Les tests injectent les latences Gateway 2 s et 10 s, la variance 9,0 → 9,5 s, le préchauffage, douze lecteurs et la récupération après erreur. Les opérations téléphone, S24, paiement et déploiement restent hors de cette PR.
