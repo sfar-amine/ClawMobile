@@ -39,6 +39,8 @@ export type RunCreateRequest = {
   attachments?: IntentAttachment[];
   /** Édition d'un message envoyé : rejoue depuis ce run dans une nouvelle conversation (voir runs.ts prepareReplay). */
   replayOf?: { sessionId?: string; runId?: string };
+  /** Owner-signed fact read by the Android app for deterministic date/time answers. */
+  phoneDateTime?: unknown;
   source?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 };

@@ -120,6 +120,7 @@ jobs:
           python3 scripts/test-voice-m1-corpus.py
           node scripts/test-voice-turn-protocol.cjs
           node scripts/test-warm-v2-ownership.cjs
+          node scripts/test-phone-datetime.cjs
           node scripts/test-claw-live-warm.cjs
           node scripts/test-claw-live-warm-cancellation.cjs
           TMPDIR=/tmp node scripts/test-claw-live.cjs
