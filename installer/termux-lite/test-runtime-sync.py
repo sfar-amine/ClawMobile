@@ -16,6 +16,18 @@ with open(home/"tier0.log","a") as f: f.write(" ".join(sys.argv[1:])+"\n")
 '''
 PRUNE_STUB = '#!/usr/bin/env python3\nimport pathlib,sys\nopen(pathlib.Path.home()/"tier0.log","a").write(" ".join(sys.argv[1:])+"\\n")\n'
 OPENCLAW_STUB = f'#!/bin/sh\necho "$@" >> "$HOME/openclaw.log"\n[ "$1 $2" = "plugins list" ] && echo {PLUGIN_ID}\nexit 0\n'
+RSYNC_STUB = r'''#!/usr/bin/env python3
+import pathlib, shutil, sys
+src, dst = map(pathlib.Path, sys.argv[-2:])
+dst.mkdir(parents=True, exist_ok=True)
+for path in dst.iterdir():
+    if path.name == "node_modules": continue
+    shutil.rmtree(path) if path.is_dir() else path.unlink()
+for path in src.iterdir():
+    if path.name == "node_modules": continue
+    target = dst / path.name
+    shutil.copytree(path, target) if path.is_dir() else shutil.copy2(path, target)
+'''
 
 
 class Companion(http.server.BaseHTTPRequestHandler):
@@ -75,6 +87,9 @@ class RuntimeSync(unittest.TestCase):
         self.dist = self.tmp / "openclaw-dist"; self.dist.mkdir()
         (self.dist / "dispatch-from-config-X.mjs").write_text("hookRunner.runBeforeDispatch(event)")
         bin_ = self.tmp / "bin"; bin_.mkdir(); (bin_ / "openclaw").write_text(OPENCLAW_STUB); (bin_ / "openclaw").chmod(0o755)
+        # rsync is installed on Termux but optional on generic Ubuntu hosts.
+        # The double preserves the --delete contract and the node_modules exclusion.
+        (bin_ / "rsync").write_text(RSYNC_STUB); (bin_ / "rsync").chmod(0o755)
         self.env = dict(os.environ, HOME=str(self.home), PATH=f"{bin_}:{os.environ['PATH']}", RUNTIME_SYNC_POLL_S="0", RUNTIME_SYNC_OPENCLAW_DIST=str(self.dist),
                         CLAW_PROJECT_ROOM_DIR=str(self.rooms["project"]), CLAW_PULSE_ROOM_DIR=str(self.rooms["pulse"]),
                         RUNTIME_SYNC_COMPANION_URL=f"http://127.0.0.1:{self.server.server_address[1]}")
