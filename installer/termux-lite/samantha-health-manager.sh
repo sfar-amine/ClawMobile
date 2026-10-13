@@ -2,17 +2,69 @@
 set -u
 ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; D="$HOME/.openclaw/health"; LOG="$D/health.log"; S="$D/state"; mkdir -p "$D" "$S"; export TMPDIR="$HOME/.cache/tmp"
 PHANTOM_HEADROOM_TARGET=128; PHANTOM_HEADROOM_CHECK_S=60
+RESTART_BUDGET_N="${HEALTH_RESTART_BUDGET_N:-3}"
+RESTART_WINDOW_S="${HEALTH_RESTART_WINDOW_S:-3600}"
+STABILITY_RESET_S="${HEALTH_STABILITY_RESET_S:-600}"
+ROLLBACK_GRACE_S="${HEALTH_ROLLBACK_GRACE_S:-120}"
+case "$RESTART_BUDGET_N:$RESTART_WINDOW_S:$STABILITY_RESET_S:$ROLLBACK_GRACE_S" in *[!0-9:]*) exit 64;; esac
+[ "$RESTART_BUDGET_N" -ge 1 ] && [ "$RESTART_WINDOW_S" -ge 1 ] && [ "$STABILITY_RESET_S" -ge 1 ] && [ "$ROLLBACK_GRACE_S" -ge 1 ] || exit 64
 exec 9>"$D/health.lock"; flock -n 9 || exit 0
 log(){ python3 "$ROOT/bounded-log.py" "$LOG" --append "$(date -Iseconds) component=health-manager $*"; }
 proc(){ pgrep -f "$1" 9>&- >/dev/null 2>&1; }; http(){ timeout 3 curl -fsS "$1" 9>&- >/dev/null 2>&1; }; adb_ok(){ timeout 3 adb 9>&- -s 127.0.0.1:5556 get-state 2>/dev/null|grep -qx device 9>&-; }
 now(){ date +%s; }; sf(){ echo "$S/$1.$2"; }; get(){ cat "$(sf "$1" "$2")" 2>/dev/null || echo "${3:-0}"; }; put(){ printf '%s' "$3" >"$(sf "$1" "$2")"; }
 canonical_mode(){ python3 "$ROOT/runtime_mode.py" 9>&- 2>/dev/null || true; }
 companion_idle_proven(){ timeout 8 python3 "$ROOT/gateway-memory-guard.py" --idle-proof 9>&- >/dev/null 2>&1; }
-healthy(){ n="$1"; prev=$(get "$n" status unknown); old=$(get "$n" failures 0); [ "$prev" = healthy ] || log "service=$n state=healthy"; put "$n" status healthy; put "$n" failures 0; put "$n" next 0; if [ "$prev" = degraded ] && [ "$old" -ge 3 ]; then "$ROOT/incident-orchestrator.py" recover "$n" "$(scope "$n")" --source health-manager --reason "service health verified after recovery" >/dev/null 2>&1 || true; "$ROOT/incident-close.sh" "$n" "Samantha — $n est de nouveau opérationnel et la récupération est vérifiée." || true; fi; }
+unstable(){ put "$1" stable_since 0; }
+reset_restart_budget(){
+ n="$1"; rm -f "$(sf "$n" restart_attempts)" "$(sf "$n" escalation)" "$(sf "$n" rollback_at)"
+ put "$n" failures 0; put "$n" next 0
+}
+healthy(){
+ n="$1"; prev=$(get "$n" status unknown); old=$(get "$n" failures 0); t=$(now); since=$(get "$n" stable_since 0)
+ if [ "$prev" != healthy ]; then log "service=$n state=healthy"; put "$n" stable_since "$t"; since="$t"; fi
+ put "$n" status healthy
+ [ -e "$(sf "$n" failures)" ] || put "$n" failures 0
+ [ -e "$(sf "$n" next)" ] || put "$n" next 0
+ case "$since" in ''|*[!0-9]*) since="$t"; put "$n" stable_since "$t";; esac
+ if [ "$since" -le 0 ]; then since="$t"; put "$n" stable_since "$t"; fi
+ if [ $((t-since)) -ge "$STABILITY_RESET_S" ]; then
+  [ "$(get "$n" escalation none)" = none ] && [ ! -s "$(sf "$n" restart_attempts)" ] || log "service=$n action=restart_budget_reset stable_s=$((t-since))"
+  reset_restart_budget "$n"
+ fi
+ if { [ "$prev" = degraded ] && [ "$old" -ge 3 ]; } || [ "$prev" = human_required ]; then "$ROOT/incident-orchestrator.py" recover "$n" "$(scope "$n")" --source health-manager --reason "service health verified after recovery" >/dev/null 2>&1 || true; "$ROOT/incident-close.sh" "$n" "Samantha — $n est de nouveau opérationnel et la récupération est vérifiée." || true; fi
+}
 scope(){ if [ "$1" = adb ]; then printf "boot-%s" "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)"; else printf runtime; fi; }
 incident_open(){ "$ROOT/incident-orchestrator.py" open "$1" "$(scope "$1")" --source health-manager --summary "$1 persistent health failure" --correlation-id "$2" --observation-kind probe 2>/dev/null | python3 -c 'import sys,json; row=json.load(sys.stdin); print(row["id"]+"|"+row["correlation_id"])'; }
 shadow(){ n="$1"; c="$2"; iid="$3"; nohup "$ROOT/autonomous-engineering-shadow.sh" "$n" "$c" "$iid" 9>&- >>"$D/autonomous-engineering-shadow.stderr.log" 2>&1 </dev/null & }
-fail(){ n="$1"; c=$(( $(get "$n" failures 0)+1 )); [ "$c" -gt 6 ] && c=6; delay=$((15*(1<<(c-1)))); [ "$delay" -gt 900 ] && delay=900; put "$n" failures "$c"; put "$n" status degraded; put "$n" next $(( $(now)+delay )); log "service=$n state=degraded failures=$c retry_in_s=$delay"; if [ "$c" -eq 3 ]; then probe_correlation="probe-$(now)-$$-$n"; opened=$(incident_open "$n" "$probe_correlation"); IFS='|' read -r iid correlation_id <<EOF
+human_escalate(){
+ n="$1"; probe_correlation="probe-$(now)-$$-$n"; opened=$(incident_open "$n" "$probe_correlation") || return 1; IFS='|' read -r iid correlation_id <<EOF
+$opened
+EOF
+ "$ROOT/incident-orchestrator.py" transition "$iid" human_required --source health-manager --reason "Tier0 rollback did not restore $n after the hourly restart budget" --human-boundary >/dev/null 2>&1 || true
+ "$ROOT/incident-notify.sh" human_required "Samantha — $n reste indisponible après le budget de relances et le retour arrière Tier0 (incident $iid)." "Vérifier le composant $n et l'incident $iid ; aucune nouvelle relance automatique ne sera tentée avant 10 minutes de stabilité vérifiée." || true
+ put "$n" escalation human_required; put "$n" status human_required; log "service=$n state=human_required incident_id=$iid correlation_id=$correlation_id reason=restart_budget_and_rollback_exhausted"
+}
+restart_gate(){
+ n="$1"; t=$(now); state=$(get "$n" escalation none); attempts=$(sf "$n" restart_attempts); tmp="$attempts.tmp.$$"
+ put "$n" stable_since 0
+ if [ "$state" = human_required ]; then log "service=$n action=restart_refused reason=human_required"; return 1; fi
+ if [ "$state" = rolled_back ]; then
+  at=$(get "$n" rollback_at 0); case "$at" in ''|*[!0-9]*) at=0;; esac
+  if [ $((t-at)) -lt "$ROLLBACK_GRACE_S" ]; then log "service=$n action=restart_refused reason=rollback_grace"; return 1; fi
+  human_escalate "$n"; return 1
+ fi
+ mkdir -p "$S"; : >"$tmp"; count=0
+ if [ -f "$attempts" ]; then
+  while IFS= read -r stamp; do case "$stamp" in ''|*[!0-9]*) continue;; esac; [ $((t-stamp)) -lt "$RESTART_WINDOW_S" ] || continue; printf '%s\n' "$stamp" >>"$tmp"; count=$((count+1)); done <"$attempts"
+ fi
+ if [ "$count" -lt "$RESTART_BUDGET_N" ]; then printf '%s\n' "$t" >>"$tmp"; mv "$tmp" "$attempts"; log "service=$n action=restart_authorized budget=$((count+1))/$RESTART_BUDGET_N window_s=$RESTART_WINDOW_S"; return 0; fi
+ rm -f "$tmp"; log "service=$n action=tier0_rollback reason=restart_budget_exhausted budget=$count/$RESTART_BUDGET_N"
+ if "$HOME/.openclaw/tier0/bin/tier0-control.py" rollback --reason "health_restart_budget_exhausted:$n" 9>&- >/dev/null 2>&1; then
+  put "$n" escalation rolled_back; put "$n" rollback_at "$t"; put "$n" next $((t+ROLLBACK_GRACE_S)); return 1
+ fi
+ log "service=$n action=tier0_rollback_failed reason=no_usable_lkg"; human_escalate "$n"; return 1
+}
+fail(){ n="$1"; put "$n" stable_since 0; c=$(( $(get "$n" failures 0)+1 )); [ "$c" -gt 6 ] && c=6; delay=$((15*(1<<(c-1)))); [ "$delay" -gt 900 ] && delay=900; put "$n" failures "$c"; put "$n" status degraded; put "$n" next $(( $(now)+delay )); log "service=$n state=degraded failures=$c retry_in_s=$delay"; if [ "$c" -eq 3 ]; then probe_correlation="probe-$(now)-$$-$n"; opened=$(incident_open "$n" "$probe_correlation"); IFS='|' read -r iid correlation_id <<EOF
 $opened
 EOF
  log "service=$n action=incident_opened incident_id=$iid correlation_id=$correlation_id"; if "$ROOT/incident-orchestrator.py" handled "$n" 9>&- >/dev/null 2>&1; then "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source health-manager --reason "deterministic recovery exhausted; managed handler available" >/dev/null 2>&1 || true; shadow "$n" "$c" "$iid"; else "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source health-manager --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true; log "service=$n state=awaiting_deterministic_recovery reason=no_repair_handler incident_id=$iid correlation_id=$correlation_id"; fi; fi; }
@@ -43,12 +95,12 @@ wait_supervisor_lock(){
    sleep 1 9>&-
  done
 }
-check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_on_current_root "$pat" "$script"; then healthy "$n"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else log "service=$n action=start"; fi; start "$n" "$script"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" && healthy "$n" || fail "$n"; }
+check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_on_current_root "$pat" "$script"; then healthy "$n"; return; fi; unstable "$n"; due "$n" || return; restart_gate "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else log "service=$n action=start"; fi; start "$n" "$script"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" && healthy "$n" || fail "$n"; }
 # A Companion deploy stops and restarts the server itself: never "repair" it meanwhile (S24 11/10: EADDRINUSE,
 # 15 concurrent repairs a day, each one cutting the Remote Bridge). The canonical mode also closes the race
 # between the outer loop and this repair boundary.
-check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; stop_wait="${6:-20}"; if http "$url"; then healthy "$n"; return; fi; repair_mode=$(canonical_mode); if [ "$repair_mode" != normal ]; then [ "$repair_mode" = deployment ] && repair_mode=deploy_in_progress; log "service=$n state=${repair_mode:-canonical_mode_unknown} action=skip_repair"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=starting_or_unhealthy grace_s=$grace"; sleep "$grace" 9>&-; if http "$url"; then healthy "$n"; return; fi; fi; if [ "$n" = companion ] && ! companion_idle_proven; then log "service=$n state=idle_unproven action=skip_repair"; put "$n" next $(( $(now)+15 )); return; fi; log "service=$n action=repair"; if proc "$pat"; then pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt "$stop_wait" ]; do sleep 2 9>&-; waited=$((waited+2)); done; if proc "$pat"; then log "service=$n state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 2 9>&-; if proc "$pat"; then fail "$n"; return; fi; fi; fi; start "$n" "$script"; sleep "$grace" 9>&-; http "$url" && healthy "$n" || fail "$n"; }
-check_adb(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || { "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; "$ROOT/chat-continuity-restore.sh" 9>&- >/dev/null 2>&1 || true; }; return; fi; due adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
+check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; stop_wait="${6:-20}"; if http "$url"; then healthy "$n"; return; fi; unstable "$n"; repair_mode=$(canonical_mode); if [ "$repair_mode" != normal ]; then [ "$repair_mode" = deployment ] && repair_mode=deploy_in_progress; log "service=$n state=${repair_mode:-canonical_mode_unknown} action=skip_repair"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=starting_or_unhealthy grace_s=$grace"; sleep "$grace" 9>&-; if http "$url"; then healthy "$n"; return; fi; fi; if [ "$n" = companion ] && ! companion_idle_proven; then log "service=$n state=idle_unproven action=skip_repair"; put "$n" next $(( $(now)+15 )); return; fi; restart_gate "$n" || return; log "service=$n action=repair"; if proc "$pat"; then pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt "$stop_wait" ]; do sleep 2 9>&-; waited=$((waited+2)); done; if proc "$pat"; then log "service=$n state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 2 9>&-; if proc "$pat"; then fail "$n"; return; fi; fi; fi; start "$n" "$script"; sleep "$grace" 9>&-; http "$url" && healthy "$n" || fail "$n"; }
+check_adb(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || { "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; "$ROOT/chat-continuity-restore.sh" 9>&- >/dev/null 2>&1 || true; }; return; fi; unstable adb; due adb || return; restart_gate adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
 verdict_field(){ python3 - "$D/current.json" "$1" "$2" <<'PY'
 import json,sys
 try:
@@ -70,8 +122,10 @@ check_whatsapp(){
  fi
  due whatsapp || return
  if [ "$reason" = channel_not_connected ]; then
+  unstable whatsapp
   lock_out=$("$ROOT/whatsapp-lock-recovery.py" --grace-seconds 120 2>&1); lock_rc=$?
   if [ "$lock_rc" -eq 10 ]; then
+   restart_gate whatsapp || return
    log "service=whatsapp state=stale_lock_quarantined action=gateway_restart detail=$lock_out"
    put whatsapp status recovering; put whatsapp failures 0; put whatsapp next $(( $(now)+45 ))
    nohup timeout --kill-after=5 240 curl -fsS --max-time 230 \
@@ -93,6 +147,7 @@ check_gateway_memory(){
  out=$(timeout 15 python3 "$ROOT/gateway-memory-guard.py" 9>&- 2>/dev/null) || { log "service=gateway_memory state=guard_failed"; return; }
  case "$out" in
   *'"action": "restart_requested"'*)
+   restart_gate gateway_memory || return
    log "service=gateway_memory state=restart_requested owner=companion detail=$out"
    ( timeout --kill-after=5 240 curl -fsS --max-time 230 \
        -X POST -H 'Content-Type: application/json' -d '{}' \
@@ -141,7 +196,9 @@ check_android_phantom_headroom(){
 ssh_ok(){ timeout 2 bash -c 'exec 3<>/dev/tcp/127.0.0.1/8022' 9>&- >/dev/null 2>&1; }
 check_sshd(){
  if ssh_ok; then healthy sshd; return; fi
+ unstable sshd
  due sshd || return
+ restart_gate sshd || return
  log 'service=sshd action=start port=8022'
  /data/data/com.termux/files/usr/bin/sshd 9>&- >>"$D/sshd.stderr.log" 2>&1 || true
  sleep 1 9>&-
@@ -161,7 +218,9 @@ check_slack_bridge(){
    put slack_bridge status delivery_attention; put slack_bridge next 0
    return
  fi
+ unstable slack_bridge
  due slack_bridge || return
+ restart_gate slack_bridge || return
  if proc '[c]law-slack-bridge.mjs'; then
    if slack_bridge_on_current_root; then
      log 'service=slack_bridge state=degraded action=restart'

@@ -44,6 +44,8 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-runtime-mode.py
           python3 ../installer/termux-lite/test-health-deploy-lock.py
+      - name: I5 bounded restart escalation, Tier0 rollback and notification dedupe
+        run: python3 ../installer/termux-lite/test-health-restart-escalation.py
 
       - name: R08/R09 portable Termux-lite tests and mandatory CI registration
         run: |

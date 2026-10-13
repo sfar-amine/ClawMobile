@@ -11,6 +11,13 @@ class T(unittest.TestCase):
   a=io.open_incident("adb","boot-1","watchdog","down")
   with self.assertRaises(SystemExit):io.transition(a["id"],"human_required","watchdog","guess",False)
   r=io.transition(a["id"],"human_required","orchestrator","pairing UI requires user code",True);self.assertEqual(r["state"],"human_required")
+ def test_bounded_wait_can_escalate_to_verified_human_boundary(self):
+  for waiting in ("waiting_model","waiting_validation"):
+   a=io.open_incident("component-"+waiting,"runtime","worker","down")
+   io.transition(a["id"],"diagnosing","worker")
+   io.transition(a["id"],waiting,"worker")
+   r=io.transition(a["id"],"human_required","health-manager","restart and rollback exhausted",True)
+   self.assertEqual(r["state"],"human_required")
  def test_recovery_path(self):
   a=io.open_incident("gateway","runtime","health","down");i=a["id"]
   last=None
