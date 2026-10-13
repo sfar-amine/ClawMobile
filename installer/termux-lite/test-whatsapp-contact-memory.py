@@ -58,13 +58,28 @@ class ContactMemoryTests(unittest.TestCase):
         note=self.service.context(NUMBER);self.assertNotIn('Réponse complète',note);self.assertNotIn('SECRET-RAW',note);self.assertNotIn('not yet',note)
         self.assertTrue(all(source==m.contact_id(NUMBER) for source,_ in facts))
         with patch.object(m,'gateway_call') as gateway,patch.object(self.service,'remember_contact_fact'):
-            replay=self.service.compact_contacts()
-        self.assertEqual(replay['events'],0);gateway.assert_not_called()
+            gateway.return_value={'hash':'h1','config':self.cfg};replay=self.service.compact_contacts()
+        self.assertEqual(replay['events'],0);self.assertEqual(gateway.call_count,1)
+
+    def test_active_legacy_contact_without_r17_marker_is_migrated(self):
+        path=self.service.path(NUMBER);path.write_text('# Legacy\n- Last compacted: not yet\n')
+        self.cfg['channels']['whatsapp']['direct'].pop(NUMBER)
+        self.message(1,'user','I prefer English for the project.')
+        with patch.object(m,'gateway_call',side_effect=self.gateway),patch.object(self.service,'remember_contact_fact'):
+            result=self.service.compact_contacts()
+        self.assertTrue(result['success']);metadata=self.service.metadata(NUMBER)
+        self.assertEqual(metadata['scope'],'standard');self.assertEqual(metadata['rooms'],['conversation'])
+        self.assertEqual(metadata['contactMemory']['cursors']['contacts'],1)
 
     def test_gateway_failure_does_not_commit_cursor(self):
         self.message(1,'user','Je préfère le français.')
         before=self.service.context(NUMBER)
-        with patch.object(m,'gateway_call',side_effect=RuntimeError('down')),patch.object(self.service,'remember_contact_fact'):
+        calls=0
+        def fail_second(method,params=None,timeout_ms=7000):
+            nonlocal calls;calls+=1
+            if calls==1:return {'hash':'h1','config':self.cfg}
+            raise RuntimeError('down')
+        with patch.object(m,'gateway_call',side_effect=fail_second),patch.object(self.service,'remember_contact_fact'):
             result=self.service.compact_contacts()
         self.assertFalse(result['success']);self.assertEqual(result['issues'][0]['reason'],'contact_memory_unavailable')
         self.assertEqual(self.service.context(NUMBER),before);self.assertNotIn('contactMemory',self.service.metadata(NUMBER))

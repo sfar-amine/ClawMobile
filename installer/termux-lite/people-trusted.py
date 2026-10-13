@@ -1396,12 +1396,22 @@ class Contacts:
     def compact_contacts(self):
         databases=self.contact_agent_databases()
         if not databases:return {'success':True,'state':'idle','receipt':None,'processed':0,'events':0,'facts':0,'remaining':0}
+        try:config=self.people.gateway_call('config.get',{},timeout_ms=5000).get('config')
+        except Exception:fail('contacts_unavailable',503)
+        if not isinstance(config,dict):fail('contacts_unavailable',503)
+        allow,direct=self.people.whatsapp_state(config);owners=self.owners(config)
         paths=sorted(self.people.CONTACTS.glob('wa_*.md')) if self.people.CONTACTS.exists() else []
-        candidates=[]
+        numbers={number for number in allow if isinstance(number,str) and E164.fullmatch(number)}
         for path in paths:
             number='+'+path.stem[3:]
-            if not E164.fullmatch(number):continue
+            if E164.fullmatch(number):numbers.add(number)
+        candidates=[]
+        for number in sorted(numbers):
             metadata=self.metadata(number)
+            if metadata is None and number in allow:
+                scope,text=self.policy(direct.get(number,{}))
+                metadata={'state':'active','scope':scope,'scopeText':text,'expiresAt':None,'addedAt':None,
+                          'suspendedScope':None,'personId':None,'rooms':['maison'] if number in owners else ['conversation']}
             if metadata and metadata['state']=='active' and (not metadata['expiresAt'] or stamp(metadata['expiresAt'])>=self.clock()):candidates.append((number,metadata))
         results=[];issues=[]
         for number,metadata in candidates[:CONTACT_MEMORY_CONTACTS]:
