@@ -29,6 +29,8 @@ def connect():
  if "correlation_id" not in cols: c.execute("ALTER TABLE incidents ADD COLUMN correlation_id TEXT NOT NULL DEFAULT ''");c.commit()
  event_cols={row[1] for row in c.execute("PRAGMA table_info(events)")}
  if "correlation_id" not in event_cols: c.execute("ALTER TABLE events ADD COLUMN correlation_id TEXT NOT NULL DEFAULT ''");c.commit()
+ c.execute("CREATE INDEX IF NOT EXISTS idx_incidents_correlation ON incidents(correlation_id)")
+ c.execute("CREATE INDEX IF NOT EXISTS idx_events_correlation ON events(correlation_id,seq)")
  for row in c.execute("SELECT id FROM incidents WHERE correlation_id='' OR correlation_id IS NULL").fetchall():
   legacy="corr-legacy-"+hashlib.sha256(row[0].encode()).hexdigest()[:16]
   c.execute("UPDATE incidents SET correlation_id=? WHERE id=?",(legacy,row[0]))
