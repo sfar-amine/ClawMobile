@@ -1,4 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
+import pathlib,sys
+sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent)); from host_test_support import host_runtime_copy
 from contextlib import closing
 import json
 import os
@@ -12,6 +14,8 @@ SRC = pathlib.Path(os.environ.get("SAMANTHA_TERMUX_LITE_SRC", pathlib.Path(__fil
 tmp = pathlib.Path(tempfile.mkdtemp(prefix="dream-test."))
 home = tmp / "home"
 home.mkdir()
+# Hors Termux, copie temporaire dont seuls les shebangs Termux sont adaptés (scripts appelés entre eux).
+SRC = host_runtime_copy(SRC, tmp / "runtime")
 root = home / ".openclaw/context-sync"
 hy = home / ".openclaw/workspace/context/HYBRID_CONTEXT.md"
 hy.parent.mkdir(parents=True)
