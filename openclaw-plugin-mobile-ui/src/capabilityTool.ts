@@ -56,7 +56,6 @@ export function createCapabilityTool(context: CapabilityTurnContext, options: Om
 function helperCandidates(home = os.homedir()): string[] {
   return [
     path.join(home, ".openclaw/releases/current/termux-lite/claw-capability.py"),
-    path.join(home, "ClawMobile/installer/termux-lite/claw-capability.py"),
   ];
 }
 

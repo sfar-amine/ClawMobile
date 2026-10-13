@@ -647,7 +647,7 @@ def _continuum_call(ui_root: Path, args: list[str], timeout: int = 15) -> dict[s
 def _bridge_cli(home: Path = HOME) -> Path:
     for path in (
         home / ".openclaw/releases/current/termux-lite/claw-bridge-cli.py",
-        home / "ClawMobile/installer/termux-lite/claw-bridge-cli.py",
+        Path(__file__).resolve().parent / "claw-bridge-cli.py",
     ):
         if path.is_file():
             return path
