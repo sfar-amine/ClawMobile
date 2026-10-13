@@ -63,6 +63,7 @@ jobs:
           python3 ../installer/termux-lite/test-gateway-preflight.py
           node ../installer/termux-lite/test-gemini-live-client.mjs
           python3 ../installer/termux-lite/test-incident-continuation.py
+          python3 ../installer/termux-lite/test-incident-correlation.py
           bash ../installer/termux-lite/test-incident-runtime-hardening.sh
           python3 ../installer/termux-lite/test-learning-gate.py
           python3 ../installer/termux-lite/test-native-recovery-entrypoint.py

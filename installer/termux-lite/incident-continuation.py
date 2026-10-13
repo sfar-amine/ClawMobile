@@ -13,9 +13,16 @@ def inherit(old_i,new_i):
  if not prior:return {}
  current=dict(prior);current.pop('last_reconciled_state',None);current['linked_at']=int(time.time());current['inherited_from']=old_i
  x[new_i]=current;save_links(x);return current
-def emit(i,state,component='',scope='',reason=''):
+def correlation_for(i):
+ if not DB.exists():return ''
+ try:
+  c=sqlite3.connect(DB);row=c.execute('select correlation_id from incidents where id=?',(i,)).fetchone();c.close()
+  return (row[0] if row else '') or ''
+ except (sqlite3.Error,OSError):return ''
+def emit(i,state,component='',scope='',reason='',correlation_id=''):
  x=load_links();meta=x.get(i,{})
- ev={'incident_id':i,'component':component,'scope':scope,'state':state,'affected_capability':meta.get('affected_capability'),'run_id':meta.get('run_id'),'ledger':meta.get('ledger'),'reason':reason,'ts':int(time.time())}
+ correlation_id=correlation_id or correlation_for(i)
+ ev={'incident_id':i,'correlation_id':correlation_id or None,'component':component,'scope':scope,'state':state,'affected_capability':meta.get('affected_capability'),'run_id':meta.get('run_id'),'ledger':meta.get('ledger'),'reason':reason,'ts':int(time.time())}
  BASE.mkdir(parents=True,exist_ok=True)
  with EVENTS.open('a') as f:f.write(json.dumps(ev,sort_keys=True)+'\n')
  if state=='recovered' and ev['affected_capability']:
@@ -27,11 +34,11 @@ def reconcile():
  if not DB.exists():return {'checked':0,'emitted':0}
  c=sqlite3.connect(DB);c.row_factory=sqlite3.Row;links=load_links();n=0
  for i,m in links.items():
-  r=c.execute('select id,component,scope,state from incidents where id=?',(i,)).fetchone()
+  r=c.execute('select id,component,scope,state,correlation_id from incidents where id=?',(i,)).fetchone()
   if not r:continue
   marker=m.get('last_reconciled_state')
   if r['state']!=marker:
-   emit(i,r['state'],r['component'],r['scope'],'periodic reconciliation')
+   emit(i,r['state'],r['component'],r['scope'],'periodic reconciliation',r['correlation_id'])
    links=load_links();links[i]['last_reconciled_state']=r['state'];n+=1
  save_links(links);c.close();return {'checked':len(links),'emitted':n}
 if __name__=='__main__':

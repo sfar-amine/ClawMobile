@@ -6,7 +6,8 @@ MAX_DIAG_FAILURES="${INCIDENT_MAX_DIAG_FAILURES:-2}"
 POLL_S="${INCIDENT_WORKER_POLL_S:-5}"; OBSERVE_S="${INCIDENT_WORKER_OBSERVE_S:-2}"; DIAG_BACKOFF_S="${INCIDENT_WORKER_DIAG_BACKOFF_S:-15}"
 ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; DB="$HOME/.openclaw/incidents/orchestrator.db"; LOG="$HOME/.openclaw/incidents/orchestrator-worker.log"
 mkdir -p "$(dirname "$LOG")"; exec 9>"$HOME/.openclaw/incidents/orchestrator-worker.lock"; flock -n 9 || exit 0
-log(){ printf '%s component=incident-orchestrator %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
+CORRELATION_ID=""
+log(){ printf '%s component=incident-orchestrator correlation_id=%s %s\n' "$(date -Iseconds)" "${CORRELATION_ID:-none}" "$*" >>"$LOG"; }
 # Keep supervisor liveness observable while a bounded engineering subprocess is running.
 run_observed(){
   "$@" 9>&- &
@@ -28,13 +29,13 @@ while :; do
   row=$(python3 - "$DB" <<'PY'
 import sqlite3,sys,time
 try:
- c=sqlite3.connect(sys.argv[1]);r=c.execute("select id,component,scope,state from incidents where state in ('detected','diagnosing','planning','repairing') or (state='waiting_model' and next_retry<=?) order by updated limit 1",(time.time(),)).fetchone()
+ c=sqlite3.connect(sys.argv[1]);r=c.execute("select id,component,scope,state,correlation_id from incidents where state in ('detected','diagnosing','planning','repairing') or (state='waiting_model' and next_retry<=?) order by updated limit 1",(time.time(),)).fetchone()
  print("|".join(map(str,r)) if r else "")
 except Exception: print("")
 PY
 )
   if [ -z "$row" ]; then sleep "$POLL_S"; continue; fi
-  IFS='|' read -r iid component scope state <<EOF
+  IFS='|' read -r iid component scope state CORRELATION_ID <<EOF
 $row
 EOF
   if [ "$state" = waiting_model ]; then
