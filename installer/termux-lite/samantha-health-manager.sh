@@ -21,6 +21,8 @@ healthy(){
  n="$1"; prev=$(get "$n" status unknown); old=$(get "$n" failures 0); t=$(now); since=$(get "$n" stable_since 0)
  if [ "$prev" != healthy ]; then log "service=$n state=healthy"; put "$n" stable_since "$t"; since="$t"; fi
  put "$n" status healthy
+ [ -e "$(sf "$n" failures)" ] || put "$n" failures 0
+ [ -e "$(sf "$n" next)" ] || put "$n" next 0
  case "$since" in ''|*[!0-9]*) since="$t"; put "$n" stable_since "$t";; esac
  if [ "$since" -le 0 ]; then since="$t"; put "$n" stable_since "$t"; fi
  if [ $((t-since)) -ge "$STABILITY_RESET_S" ]; then
