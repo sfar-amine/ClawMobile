@@ -60,12 +60,14 @@ class ScaleTests(unittest.TestCase):
         add(self.c, 2, 'decision', 'Réponse A', old); add(self.c, 3, 'decision', 'Réponse B', old)
         self.assertEqual(search(self.c, 'EVT-1')[0]['state'], 'conflict')
 
-    def test_budget_overflow_is_explicit_and_never_truncates_constraints(self):
+    def test_constraint_index_is_sourced_and_never_presents_an_excerpt_as_complete(self):
         text = 'NE PAS EXÉCUTER sans accord explicite. ' * 200
         add(self.c, 1, 'constraint', text)
         body, meta = build_view(self.c, 1, budget_bytes=4096)
-        self.assertFalse(meta['coverage_complete']); self.assertEqual(meta['critical_overflow_count'], 1)
-        self.assertIn('Coverage: BLOCKED', body); self.assertNotIn(text[:100], body)
+        self.assertTrue(meta['coverage_complete']); self.assertEqual(meta['critical_overflow_count'], 0)
+        self.assertIn('EVT-1 [chat/constraint]', body)
+        self.assertIn('aperçu ; lire la source avant utilisation', body)
+        self.assertNotIn(text, body)
         self.assertEqual(search(self.c, 'EVT-1')[0]['current']['text'], text)
 
     def test_all_old_open_threads_are_indexed_and_counted(self):
@@ -88,9 +90,40 @@ class ScaleTests(unittest.TestCase):
         body, meta = build_view(self.c, rev, foundation_bytes=1500)
         self.assertIn('« Bonjour Amine », jamais « Ahla »', body)
         self.assertNotIn('SITUATION_EVENT_V1', body)
+        # M1 caps the projection at 16 KiB and keeps a complete sourced index
+        # instead of letting full constraint bodies displace decisions.
         self.assertTrue(meta['coverage_complete'])
         for i in range(25, 72): self.assertIn(f'REQ-{i} ', body + ' ')
-        self.assertLessEqual(len(body.encode()) + 1500, 24576 + 600)
+        self.assertLessEqual(len(body.encode()) + 1500, 16384)
+
+    def test_decisions_older_than_two_days_keep_a_reserved_share(self):
+        rev = 0
+        for i in range(24):
+            rev += 1
+            add(self.c, rev, 'decision', f'Décision récente {i} : ' + 'contexte courant ' * 24)
+            self.c.execute('UPDATE events SET created_at=? WHERE revision=?', ('2026-10-12T12:00:00Z', rev))
+        for marker in ('ORION', 'VEGA', 'ALTAIR'):
+            rev += 1
+            add(self.c, rev, 'decision', f'Décision historique {marker} : conserver cette information au-delà de deux jours.')
+            self.c.execute('UPDATE events SET created_at=? WHERE revision=?', ('2026-10-08T12:00:00Z', rev))
+        body, meta = build_view(self.c, rev)
+        for marker in ('ORION', 'VEGA', 'ALTAIR'):
+            self.assertIn(f'Décision historique {marker}', body)
+        self.assertEqual(meta['older_decisions_rendered'], 3)
+        self.assertGreater(meta['reserved_bytes']['older_decisions'], 0)
+        self.assertLessEqual(len(body.encode()), 16384)
+
+    def test_newest_thread_keeps_detail_beyond_the_old_90_character_cut(self):
+        for rev in range(1, 30):
+            add(self.c, rev, 'open_thread', f'Fil ancien {rev} : vérifier le détail dans la source.')
+        text = ('Préambule documenté qui occupait auparavant toute la limite courte. ' * 2
+                + 'Le briefing Google Tasks est prévu à 10:00 et permet ajout et complétion confirmée.')
+        add(self.c, 30, 'open_thread', text)
+        body, meta = build_view(self.c, 30)
+        self.assertIn('briefing Google Tasks est prévu à 10:00', body)
+        self.assertIn('ajout et complétion confirmée', body)
+        self.assertEqual(meta['thread_overflow_count'], 0)
+        self.assertLessEqual(len(body.encode()), 16384)
 
     def test_telemetry_never_fills_recent_activity(self):
         add(self.c, 1, 'learning', 'LEARNING_GATE_V2 bruit machine')
@@ -107,7 +140,7 @@ class ScaleTests(unittest.TestCase):
         add(self.c, 2, 'open_thread', 'Relancer la SEREPT')
         add(self.c, 3, 'decision', 'Dreaming à 22:00')
         body, _ = build_view(self.c, 3)
-        self.assertIn('- 01/01 [chat/constraint] Toujours dire Bonjour Amine', body)
+        self.assertIn('- EVT-1 [chat/constraint] 01/01 Toujours dire Bonjour Amine', body)
         self.assertIn('- 01/01 [chat/decision] Dreaming à 22:00', body)
         self.assertIn('- REQ-2 [chat] 01/01 Relancer la SEREPT', body)
 
