@@ -40,7 +40,8 @@ Use:
 
 Le propriétaire `adb_forward` existant accepte aussi un endpoint Unix Termux strictement borné :
 `localfilesystem:$PREFIX/tmp/samantha-cellular-<32 hex>.sock` vers
-`localabstract:ai.samantha.cellular`. Le répertoire `$PREFIX/tmp` doit déjà exister,
+`localabstract:ai.samantha.cellular.<mêmes 32 hex>`. Le suffixe aléatoire doit être
+strictement identique des deux côtés. Le répertoire `$PREFIX/tmp` doit déjà exister,
 être un répertoire réel (aucun lien symbolique), appartenir à l'euid du garde et être
 en mode `0700`. Tout autre nom, destination, parent ou pathname préexistant inattendu
 est refusé avant l'appel ADB.
@@ -50,7 +51,12 @@ Le reçu expose l'endpoint sous la forme
 du forward par `adb forward --list` et celle du socket Unix. Le bail mémorise l'identité
 du socket créé. À la fermeture, le garde retire uniquement le forward exact puis ne
 supprime le pathname que si cette identité est inchangée ; un remplacement externe est
-préservé et place le bail en vérification. Le contrat TCP existant reste inchangé.
+préservé et place le bail en vérification. Si la réponse de création ADB est perdue après
+l'effet, le garde ne récupère la propriété que pour ce type `localfilesystem`, lorsque
+le snapshot antérieur était vide et que le mapping, le socket, son identité et le suffixe
+unique concordent avec le bail durable `CREATE_REQUESTED`. Le réconciliateur peut alors
+retirer cet effet après un crash. Le contrat TCP existant reste inchangé et conserve son
+refus de déduire la propriété d'une réponse perdue.
 
 ## Wi‑Fi coupé : auto-réparation (incident S24 du 11/10, 16:00)
 

@@ -1119,7 +1119,8 @@ class ForwardLeaseTests(unittest.TestCase):
         self.assertTrue(json.loads(output.getvalue())["cleanup_verified"])
 
 class LocalFilesystemForwardTests(unittest.TestCase):
-    REMOTE = guard.CELLULAR_FORWARD_REMOTE
+    SUFFIX = "b" * 32
+    REMOTE = guard.CELLULAR_FORWARD_REMOTE_PREFIX + SUFFIX
     SERIAL = "fixture-device"
     OWNER = 4242
     LEASE = "a" * 32
@@ -1146,7 +1147,7 @@ class LocalFilesystemForwardTests(unittest.TestCase):
         self.parent = self.prefix / "tmp"
         self.parent.mkdir(parents=True, mode=0o700)
         self.parent.chmod(0o700)
-        self.local_path = self.parent / ("samantha-cellular-" + "b" * 32 + ".sock")
+        self.local_path = self.parent / ("samantha-cellular-" + self.SUFFIX + ".sock")
         self.env = patch.dict(os.environ, {"PREFIX": str(self.prefix)})
         self.env.start()
         self.addCleanup(self.env.stop)
@@ -1203,6 +1204,11 @@ class LocalFilesystemForwardTests(unittest.TestCase):
                 self.acquire(**overrides)
         self.assertEqual(self.fake.mutations(), [])
 
+    def test_remote_suffix_must_equal_socket_suffix(self):
+        with self.assertRaisesRegex(ValueError, "unsupported_forward_remote"):
+            self.acquire(remote=guard.CELLULAR_FORWARD_REMOTE_PREFIX + "c" * 32)
+        self.assertEqual(self.fake.mutations(), [])
+
     def test_existing_unowned_path_is_refused_without_mutation(self):
         self.local_path.write_text("foreign")
         result = self.acquire()
@@ -1232,6 +1238,30 @@ class LocalFilesystemForwardTests(unittest.TestCase):
         self.assertEqual(released["state"], "PRESERVED")
         self.assertTrue(self.local_path.exists())
         self.assertEqual(len(self.fake.mutations()), 1)
+
+    def test_lost_adb_reply_is_owned_only_for_unique_localfilesystem_effect(self):
+        self.fake.create_behavior = "timeout"
+        acquired = self.acquire()
+        self.assertEqual(acquired["state"], "ACTIVE")
+        self.assertTrue(acquired["ready"] and acquired["created"])
+        closed = guard.release_adb_forward(self.LEASE, self.OWNER)
+        self.assertTrue(closed["cleanup_verified"])
+        self.assertEqual(self.fake.rows, [])
+        self.assertFalse(os.path.lexists(self.local_path))
+
+    def test_crash_after_effect_is_reconciled_from_durable_unique_lease(self):
+        self.fake.create_behavior = "crash"
+        with self.assertRaises(KeyboardInterrupt):
+            self.acquire()
+        lease = json.loads((guard.LEASES / (self.LEASE + ".json")).read_text())
+        self.assertEqual(lease["state"], "CREATE_REQUESTED")
+        self.assertFalse(lease["ownership_proven"])
+        self.identities.pop(self.OWNER)
+        self.assertEqual(guard.check_and_reconcile(False), 0)
+        reconciled = json.loads((guard.LEASES / (self.LEASE + ".json")).read_text())
+        self.assertTrue(reconciled["ownership_proven"] and reconciled["cleanup_verified"])
+        self.assertEqual(self.fake.rows, [])
+        self.assertFalse(os.path.lexists(self.local_path))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

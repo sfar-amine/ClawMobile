@@ -39,8 +39,8 @@ CHILD_STOP_GRACE_S = 2.0
 WIFI_REENABLED_EXIT = 3
 MAX_LEASE_AGE = int(os.environ.get("NETWORK_MUTATION_MAX_LEASE_AGE", "900"))
 TERMUX_PACKAGES = ("com.termux", "com.termux.api", "com.termux.boot")
-CELLULAR_FORWARD_REMOTE = "localabstract:ai.samantha.cellular"
-CELLULAR_SOCKET_RE = re.compile(r"samantha-cellular-[a-f0-9]{32}\.sock")
+CELLULAR_FORWARD_REMOTE_PREFIX = "localabstract:ai.samantha.cellular."
+CELLULAR_SOCKET_RE = re.compile(r"samantha-cellular-([a-f0-9]{32})\.sock")
 HEALTH_LOG = HOME / ".openclaw" / "health" / "health.log"
 BOUNDED_LOG = Path(__file__).resolve().with_name("bounded-log.py")
 # Incident S24 11/10 16:00 : Wi-Fi coupé 40 min, aucun garde vivant, aucun bail. La restauration
@@ -499,7 +499,8 @@ def validate_forward_resource(serial: str, local: str, remote: str) -> None:
         raise ValueError("invalid_forward_local")
     tcp = re.fullmatch(r"tcp:([1-9]\d{0,4})", remote) if isinstance(remote, str) else None
     unix = re.fullmatch(r"localabstract:[A-Za-z0-9_.:-]{1,200}", remote) if isinstance(remote, str) else None
-    if socket_path is not None and remote != CELLULAR_FORWARD_REMOTE:
+    suffix = CELLULAR_SOCKET_RE.fullmatch(socket_path.name)[1] if socket_path is not None else None
+    if socket_path is not None and remote != CELLULAR_FORWARD_REMOTE_PREFIX + suffix:
         raise ValueError("unsupported_forward_remote")
     if socket_path is None and not unix and not (tcp and 1 <= int(tcp[1]) <= 65535):
         raise ValueError("unsupported_forward_remote")
@@ -581,6 +582,24 @@ def _forward_matches(row: dict, observed: list[dict]) -> bool:
     except RuntimeError:
         return False
     return identity is not None and row.get("socket_identity") == identity
+
+def _recover_localfilesystem_ownership(path: Path, row: dict, observed: list[dict]) -> bool:
+    """Prove the unique Unix effect after a lost ADB reply; TCP stays fail-closed."""
+    socket_path = _cellular_socket_path(row["resource"]["local"])
+    if (socket_path is None or row.get("ownership_proven") is True or row.get("before") != []
+            or row.get("mutation_dispatched") is not True or observed != [row["resource"]]
+            or row.get("ownership_lost") is True):
+        return False
+    try:
+        identity = _socket_identity(socket_path)
+    except RuntimeError:
+        return False
+    if identity is None:
+        return False
+    row.update(socket_identity=identity, ownership_proven=True)
+    _forward_save(path, row, "OWNERSHIP_RECOVERED", "unique_localfilesystem_effect_observed",
+                  observed_after=observed)
+    return True
 
 def _forward_observe(row: dict) -> list[dict]:
     if row.get("adb_server") != forward_server_identity():
@@ -696,6 +715,10 @@ def acquire_adb_forward(serial: str, local: str = "tcp:0", remote: str = "locala
                             row["socket_identity"] = _socket_identity(socket_path)
                         except RuntimeError:
                             row["socket_identity"] = None
+                        if (row.get("ownership_proven") is not True and row.get("before") == []
+                                and row.get("mutation_dispatched") is True and after == [resource]
+                                and row["socket_identity"] is not None):
+                            row["ownership_proven"] = True
                     if row.get("ownership_proven") is True and _forward_matches(row, after):
                         _forward_save(path, row, "ACTIVE", "owned_forward_verified", observed_after=after)
                     else:
@@ -764,6 +787,7 @@ def _release_adb_forward(path: Path, row: dict) -> dict:
     except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
         _forward_save(path, row, "VERIFY_REQUIRED", "forward_cleanup_observation_unavailable", observation_error=type(exc).__name__)
         return _forward_result(row, [])
+    _recover_localfilesystem_ownership(path, row, current)
     if row.get("reused") is True:
         same = current == row["before"] and _forward_matches(row, current)
         _forward_save(path, row, "CLOSED" if same else "PRESERVED", "preexisting_forward_preserved" if same else "preexisting_forward_changed_externally",
