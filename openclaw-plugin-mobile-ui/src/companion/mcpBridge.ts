@@ -334,6 +334,10 @@ async function executeCapability(
       execute: false, surface: "external_mcp", caller: "owner", timeoutSeconds: 20, targetHint,requestId,checkBudgetMs:Math.max(1,Math.min(10000,webBounds.deadlineEpochMs-Date.now())),
     });
     preparedDecision = resolved?.decision && typeof resolved.decision === "object" ? resolved.decision : undefined;
+    if(resolved?.success===false){
+      return {state:"failed",request_id:requestId,task_id:taskId,retry_allowed:false,
+        reason:"capability_resolution_unavailable"};
+    }
   }
   const selected = resolved?.selected || {};
   const selectedRisk = String(preparedDecision?.risk || selected?.risk || "read");

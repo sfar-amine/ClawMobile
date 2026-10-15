@@ -47,8 +47,8 @@
       "name": "Web MCP canonical identity and dedup",
       "status": "passed",
       "evidence": {
-        "passed": 4,
-        "total": 4
+        "passed": 5,
+        "total": 5
       }
     },
     {
