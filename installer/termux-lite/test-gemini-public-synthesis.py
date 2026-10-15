@@ -7,6 +7,10 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import os
+import signal
+import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -127,6 +131,47 @@ class PublicSynthesis(unittest.TestCase):
         self.assertEqual(json.loads(proc.communicate.call_args.args[0]), request())
         kill.assert_called_once_with(777, m.signal.SIGKILL)
         proc.wait.assert_called_once()
+
+    def test_real_selector_does_not_swallow_sigterm_or_sigint_cancellation(self):
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            with self.subTest(signum=signum), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                wrapper = root / "gemini-request.py"
+                wrapper.write_text((HERE / "gemini-request.py").read_text())
+                ready = root / "provider.pid"
+                helper = root / "gemini-public-synthesis.mjs"
+                helper.write_text("import fs from 'node:fs';let raw='';for await(const c of process.stdin)raw+=c;"
+                    "process.on('SIGTERM',()=>{});"
+                    f"fs.writeFileSync({json.dumps(str(ready))},String(process.pid));setInterval(()=>{{}},1000);")
+                code = "\n".join([
+                    "import importlib.util,time,sys",
+                    f"s=importlib.util.spec_from_file_location('public_test',{str(wrapper)!r})",
+                    "m=importlib.util.module_from_spec(s);s.loader.exec_module(m)",
+                    "try: m.run_public_provider({},time.monotonic()+10)",
+                    "except m.PublicSynthesisCancelled: print('cancelled',flush=True)",
+                ])
+                runner = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE, text=True)
+                provider_pid = None
+                try:
+                    until = time.monotonic() + 3
+                    while not ready.exists() and time.monotonic() < until and runner.poll() is None:
+                        time.sleep(0.01)
+                    self.assertTrue(ready.exists(), "offline provider must be reached")
+                    provider_pid = int(ready.read_text())
+                    started = time.monotonic()
+                    runner.send_signal(signum)
+                    stdout, stderr = runner.communicate(timeout=1)
+                    self.assertEqual(runner.returncode, 0, stderr)
+                    self.assertEqual(stdout.strip(), "cancelled")
+                    self.assertLess(time.monotonic() - started, 0.8)
+                    self.assertFalse(Path(f"/proc/{provider_pid}").exists(), "provider must be reaped, not orphaned")
+                finally:
+                    if runner.poll() is None:
+                        runner.kill(); runner.wait()
+                    if provider_pid is not None:
+                        try: os.killpg(provider_pid, signal.SIGKILL)
+                        except ProcessLookupError: pass
 
     def test_provider_failure_and_secret_stderr_not_projected(self):
         output, provider = self.invoke(request(), subprocess.CompletedProcess([], 1, "", "PRIVATE_CANARY"))

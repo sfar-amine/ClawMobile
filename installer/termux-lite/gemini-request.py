@@ -40,6 +40,11 @@ class PolicyError(RuntimeError):
     pass
 
 
+class PublicSynthesisCancelled(Exception):
+    """Cancellation must not be mistaken for retryable EINTR by selectors."""
+    pass
+
+
 def atomic_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
@@ -576,7 +581,7 @@ def run_public_provider(request: dict, deadline: float):
     def cancelled(_signum, _frame):
         try: os.killpg(proc.pid, signal.SIGTERM)
         except ProcessLookupError: pass
-        raise InterruptedError("public_synthesis_cancelled")
+        raise PublicSynthesisCancelled("public_synthesis_cancelled")
     try:
         for signum in (signal.SIGTERM, signal.SIGINT):
             previous[signum] = signal.signal(signum, cancelled)
@@ -623,7 +628,7 @@ def public_synthesis_main() -> int:
             value = validate_public_result(value, request)
     except subprocess.TimeoutExpired:
         value = public_degradation("deadline_exceeded", attempts=attempts)
-    except InterruptedError:
+    except PublicSynthesisCancelled:
         value = public_degradation("cancelled", attempts=attempts)
     except PolicyError as exc:
         value = public_degradation("synthesis_review_required" if str(exc) == "synthesis_review_required" else "public_synthesis_refused", attempts=attempts)
