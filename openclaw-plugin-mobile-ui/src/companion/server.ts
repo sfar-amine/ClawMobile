@@ -1,3 +1,4 @@
+import {publicWebVoiceRecipeEnabled} from "./runWeb";
 import {conditionalRead} from "./readEtag";
 import {readCatalogResponse,catalogETag} from './catalog';
 import {readDeploymentReceipts} from "./deploymentReceipts";
@@ -899,6 +900,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         assertCurrent();
         return capabilityBridge(text, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35});
       },
+      undefined,
+      {publicWebVoiceRecipe:publicWebVoiceRecipeEnabled()},
     );
     const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute, {assertCurrent});
     res.setHeader("Cache-Control", "no-store");

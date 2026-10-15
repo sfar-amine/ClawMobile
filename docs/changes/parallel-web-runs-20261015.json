@@ -39,8 +39,8 @@
       "name": "Web run and actual S24 legacy envelope",
       "status": "passed",
       "evidence": {
-        "passed": 14,
-        "total": 14
+        "passed": 15,
+        "total": 15
       }
     },
     {
@@ -55,8 +55,8 @@
       "name": "Web voice source protocol, not acoustic acceptance",
       "status": "passed",
       "evidence": {
-        "passed": 7,
-        "total": 7
+        "passed": 10,
+        "total": 10
       }
     },
     {
@@ -96,7 +96,7 @@
   },
   "limitations": [
     "Runtime activation and real Parallel/Gemini searches not performed.",
-    "Live audio exactness and cost require the separate G6 recipe; transcript checks are post-generation.",
+    "Live Web dispatch defaults closed. Only host CLAW_PUBLIC_WEB_VOICE_RECIPE=1 opens the G6 recipe; audio exactness and cost remain unqualified, and transcript checks are post-generation.",
     "Native SDK tool replay after restart is not a new durable guarantee.",
     "Read cancellation propagates only when the existing caller supplies a signal; voice interruption does not cancel business execution."
   ],

@@ -160,11 +160,12 @@ export async function clawLiveCapabilityTurn(
   body: { request?: unknown; clarificationId?: unknown; originId?: string; sessionId?: string; assertCurrent?: () => void },
   execute: (text: string) => Promise<any>,
   clarifications: SurfaceClarifications = clawLiveClarifications,
+  hostOptions: {publicWebVoiceRecipe?: boolean} = {},
 ) {
   const request = String(body?.request || "").trim();
   if (!request || request.length > 12000) return { success: false, error: "request_required" };
   const id = typeof body?.clarificationId === "string" ? body.clarificationId : undefined;
-  const turn = await clarifications.turn(request, { surface: "claw_live", id, originId: String(body?.originId || "claw-live").slice(0, 120),sessionId:body.sessionId,runId:body.originId, assertCurrent: body.assertCurrent });
+  const turn = await clarifications.turn(request, { surface: "claw_live", id, originId: String(body?.originId || "claw-live").slice(0, 120),sessionId:body.sessionId,runId:body.originId, publicWebVoiceRecipe:hostOptions.publicWebVoiceRecipe === true, assertCurrent: body.assertCurrent });
   if (turn.state === "needs_clarification") {
     return {
       success: true, state: "needs_clarification", source: "capability",

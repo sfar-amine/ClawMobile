@@ -150,3 +150,24 @@ export function webResultText(web: RunWebResult): string {
 export function webRunState(web: RunWebResult): "done" | "failed" {
   return web.outcome === "complete" || web.outcome === "partial" ? "done" : "failed";
 }
+
+/** Host-only, explicit recipe switch; never read from user/model/tool JSON. */
+export function publicWebVoiceRecipeEnabled(): boolean {
+  return process.env.CLAW_PUBLIC_WEB_VOICE_RECIPE === "1";
+}
+
+/** A canonical decision was resolved, but G6 has not qualified delivery over Live audio. */
+export function voiceWebRecipeRequired(decision: Record<string, any>): RunWebResult {
+  const language = decision.plan?.parameters?.responseLanguage;
+  const messages: Record<string,string> = {
+    fr: "La recherche Web vocale attend sa recette audio ; utilise la conversation écrite.",
+    en: "Voice Web search is awaiting its audio acceptance test; use the text conversation.",
+    ar: "البحث الصوتي على الويب ينتظر اختبار الصوت؛ استخدم المحادثة النصية.",
+    aeb: "البحث بالصوت في الويب يستنّى تجربة الصوت؛ استعمل المحادثة المكتوبة.",
+  };
+  const responseLanguage = ["fr","en","ar","aeb"].includes(language) ? language as RunWebResult["responseLanguage"] : undefined;
+  return {version:1,operation:String(decision.capability || decision.selected?.capability)==="samantha.app.web.search"?"search":"answer",
+    ...(responseLanguage?{responseLanguage}:{}),outcome:"failed",provider:"parallel-free",providerAuth:"anonymous",model:null,profile:null,
+    sources:[],claims:[],citations:[],metrics:{logicalSearchCalls:0,httpRequests:0,transportPosts:0,providerAttempts:0,reportedCostUsd:null},
+    error:{code:"voice_recipe_required",stage:"policy",message:messages[responseLanguage||"en"],retryable:false},degradations:["voice_recipe_required"]};
+}

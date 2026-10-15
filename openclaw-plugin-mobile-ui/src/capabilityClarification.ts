@@ -1,4 +1,4 @@
-import {readRunWebResult,webResultText,webRunState,type RunWebResult} from "./companion/runWeb";
+import {readRunWebResult,webResultText,webRunState,voiceWebRecipeRequired,type RunWebResult} from "./companion/runWeb";
 import crypto from "node:crypto";
 import { readReceiptPresentation, publicReceiptMetadata } from "./companion/receiptPresentation";
 import type { FastPathResult, RunnerOptions } from "./modelFastPath";
@@ -64,7 +64,7 @@ export class SurfaceClarifications {
    * @param text the user's original text for this turn (transcription, message), never a model reformulation.
    * @param id   the pending clarification id for this conversation, when there is one.
    */
-  async turn(text: string, options: { surface: string; id?: string; originId: string; timeoutSeconds?: number; sessionId?: string; runId?: string; assertCurrent?: () => void }): Promise<SurfaceTurn> {
+  async turn(text: string, options: { surface: string; id?: string; originId: string; timeoutSeconds?: number; sessionId?: string; runId?: string; publicWebVoiceRecipe?: boolean; assertCurrent?: () => void }): Promise<SurfaceTurn> {
     const webStarted=performance.now(),webDeadline=Date.now()+12000;
     options.assertCurrent?.();
     this.cleanup();
@@ -96,7 +96,7 @@ export class SurfaceClarifications {
           return { state: "failed", source: "capability", text: String(clarified.text || "La clarification Claw n'est plus valide."), decision: clarified.decision, ...publicReceiptMetadata(readReceiptPresentation(clarified)) };
         }
         if (clarified.status === "eligible" && clarified.decision) {
-          const executed = await this.executePrepared(resolvedText, clarified.decision as Record<string, unknown>, common, options.assertCurrent, id);
+          const executed = await this.executePrepared(resolvedText, clarified.decision as Record<string, unknown>, common, options.assertCurrent, id, options.publicWebVoiceRecipe);
           if (executed) return executed;
         }
         // miss/assist: the surface continues with the RESOLVED text (resolution.text), no concatenation.
@@ -122,16 +122,20 @@ export class SurfaceClarifications {
     // A transaction (or any decision needing the owner confirmation) runs the prepared decision through
     // the same fast path as the app: owner confirmation card / handoff, never the agent.
     if (check.status === "eligible" && check.decision && (!isPlainRead(check.decision as Record<string, unknown>) || isWebDecision(check.decision))) {
-      const executed = await this.executePrepared(original, check.decision as Record<string, unknown>, common, options.assertCurrent, id);
+      const executed = await this.executePrepared(original, check.decision as Record<string, unknown>, common, options.assertCurrent, id, options.publicWebVoiceRecipe);
       if (executed) return executed;
     }
     // Plain reads keep the surface's existing executor and renderer, on the original text.
     return { state: "continue", text: original, decision: check.decision, ...publicReceiptMetadata(readReceiptPresentation(check)) };
   }
 
-  private async executePrepared(text: string, decision: Record<string, unknown>, common: RunnerOptions, assertCurrent?: () => void, id?: string): Promise<SurfaceTurn | null> {
+  private async executePrepared(text: string, decision: Record<string, unknown>, common: RunnerOptions, assertCurrent?: () => void, id?: string, publicWebVoiceRecipe?: boolean): Promise<SurfaceTurn | null> {
     assertCurrent?.();
     const isWeb=isWebDecision(decision);
+    if(isWeb && publicWebVoiceRecipe === false) {
+      const web=voiceWebRecipeRequired(decision);
+      return {state:"failed",source:"capability",text:webResultText(web),web,result:{web},decision};
+    }
     const remainingBudgetMs=isWeb?Math.floor(Math.min(12000-(performance.now()-Number((common as any).webStarted)),Number(common.deadlineEpochMs)-Date.now())):undefined;
     if(isWeb&&(!decision.requestId||!Number.isFinite(remainingBudgetMs)||remainingBudgetMs!<1))return {state:"failed",source:"capability",text:"Le délai de recherche est dépassé.",decision};
     const executed = await this.runner(text, {

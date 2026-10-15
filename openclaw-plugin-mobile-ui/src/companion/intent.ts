@@ -1,4 +1,4 @@
-import {readRunWebResult, webResultText, webRunState, type RunWebResult} from "./runWeb";
+import {readRunWebResult, webResultText, webRunState, publicWebVoiceRecipeEnabled, voiceWebRecipeRequired, type RunWebResult} from "./runWeb";
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision} from "./receiptPresentation";
 import crypto from "crypto";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
@@ -171,7 +171,7 @@ async function submitTextIntent(
     return executeCapabilityFirst(
       routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
       parentClarificationRunId, replayOf, reservedMemoRunId, options.admission, ownerAdmitted,
-      {started:webStarted,deadlineEpochMs:webDeadlineEpochMs},
+      {started:webStarted,deadlineEpochMs:webDeadlineEpochMs}, options.voiceDelegation,
     );
   }
   if (fastPathCheck.status === "error") {
@@ -252,6 +252,7 @@ async function executeCapabilityFirst(
   admission?: AdmissionTicket,
   ownerAdmitted = false,
   webBudget?: {started:number;deadlineEpochMs:number},
+  voiceDelegation?: true,
 ): Promise<IntentSubmitResponse> {
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
@@ -298,7 +299,9 @@ async function executeCapabilityFirst(
     const isWeb = ["samantha.app.web.search","samantha.app.web.answer"].includes(webCapability);
     const remainingBudgetMs = webBudget ? Math.floor(Math.min(12000-(performance.now()-webBudget.started),webBudget.deadlineEpochMs-Date.now())) : 0;
     const requestId = typeof check.decision?.requestId === "string" ? check.decision.requestId : undefined;
-    const result = isWeb && (!ownerAdmitted || !requestId || !webBudget || remainingBudgetMs < 1)
+    const result = isWeb && voiceDelegation === true && !publicWebVoiceRecipeEnabled()
+      ? {status:"known_error",execution_state:"failed",web:voiceWebRecipeRequired(check.decision!)} as FastPathResult
+      : isWeb && (!ownerAdmitted || !requestId || !webBudget || remainingBudgetMs < 1)
       ? {status:"known_error",execution_state:"not_started",reason:"web_execution_context_unavailable"} as FastPathResult
       : await runModelFastPath(text, {
       surface: "claw_live",
