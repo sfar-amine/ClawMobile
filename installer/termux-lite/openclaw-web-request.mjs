@@ -141,6 +141,16 @@ export async function loadNativeProvider() {
     if (hostRoot === path.dirname(hostRoot)) fail('provider_unavailable');
     const [major, minor] = process.versions.node.split('.').map(Number);
     if (!(major === 24 && minor >= 16 || major === 26 && minor >= 1 || major > 26)) fail('provider_unavailable');
+    const configEntry = localRequire.resolve('openclaw/plugin-sdk/config-runtime');
+    const configOwner = await import(pathToFileURL(configEntry).href);
+    if (typeof configOwner.loadConfig !== 'function') fail('provider_integrity');
+    const config = await configOwner.loadConfig();
+    // Respect administrative disable/allow rules without passing credentials or
+    // any global provider choice into the scoped public-search tool.
+    if (!isObject(config) || config.tools?.web?.search?.enabled === false || config.plugins?.enabled === false ||
+        config.plugins?.entries?.parallel?.enabled === false ||
+        Array.isArray(config.plugins?.allow) && config.plugins.allow.length > 0 && !config.plugins.allow.includes('parallel') ||
+        Array.isArray(config.plugins?.deny) && config.plugins.deny.includes('parallel')) fail('access_denied');
     const sdk = await import(pathToFileURL(sdkEntry).href);
     const searchConfig = Object.freeze({ provider: PROVIDER, maxResults: 5, cacheTtlMinutes: 0, timeoutSeconds: 12 });
     if (typeof sdk.resolveSearchCacheTtlMs !== 'function' || sdk.resolveSearchCacheTtlMs(searchConfig) !== 0) fail('provider_integrity');

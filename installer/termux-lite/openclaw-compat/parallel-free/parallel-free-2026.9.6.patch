@@ -113,7 +113,7 @@
 -	if (!init.ok) throw new ProviderHttpError(`Parallel MCP initialize failed (${init.status}): ${init.text || init.statusText}`, { status: init.status });
 +	if (!init.ok) throw parallelHttpError("initialize", init);
 @@ -135,0 +164 @@
-+ if (!isRecord(initEnvelope.result) || initEnvelope.result.protocolVersion !== MCP_PROTOCOL_VERSION || !isRecord(initEnvelope.result.capabilities) || !isRecord(initEnvelope.result.serverInfo)) throw new Error("parallel_mcp_initialize_invalid");
++ if (!isRecord(initEnvelope.result) || initEnvelope.result.protocolVersion !== MCP_PROTOCOL_VERSION || !isRecord(initEnvelope.result.capabilities) || !isRecord(initEnvelope.result.serverInfo) || ![initEnvelope.result.serverInfo.name, initEnvelope.result.serverInfo.version].every(value => typeof value === "string" && value.trim().length > 0 && value.length <= 200)) throw new Error("parallel_mcp_initialize_invalid");
 @@ -147 +176 @@
 -	if (!initialized.ok) throw new ProviderHttpError(`Parallel MCP notifications/initialized failed (${initialized.status}): ${initialized.text || initialized.statusText}`, { status: initialized.status });
 +	if (!initialized.ok) throw parallelHttpError("initialized", initialized);

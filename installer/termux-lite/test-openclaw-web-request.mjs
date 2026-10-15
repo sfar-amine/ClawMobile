@@ -50,7 +50,7 @@ await test('offline patch check, apply, idempotence and exact restore', () => {
 const hostRoot = path.join(packageRoot, 'node_modules/openclaw');
 await fs.mkdir(hostRoot, { recursive: true });
 await fs.copyFile(path.join(fixtures, 'native-sdk-offline.mjs'), path.join(hostRoot, 'sdk.mjs'));
-const exportsMap = Object.fromEntries(['extension-shared', 'lazy-runtime', 'logging-core', 'number-runtime', 'plugin-entry', 'provider-http', 'provider-web-search', 'provider-web-search-contract', 'security-runtime', 'string-coerce-runtime', 'text-utility-runtime'].map(name => [`./plugin-sdk/${name}`, './sdk.mjs']));
+const exportsMap = Object.fromEntries(['config-runtime', 'extension-shared', 'lazy-runtime', 'logging-core', 'number-runtime', 'plugin-entry', 'provider-http', 'provider-web-search', 'provider-web-search-contract', 'security-runtime', 'string-coerce-runtime', 'text-utility-runtime'].map(name => [`./plugin-sdk/${name}`, './sdk.mjs']));
 await fs.writeFile(path.join(hostRoot, 'package.json'), JSON.stringify({ name: 'openclaw', version: '2026.9.6', type: 'module', exports: exportsMap }));
 process.env.CLAW_WEB_PARALLEL_PLUGIN_DIR = packageRoot;
 
@@ -66,7 +66,7 @@ globalThis.__parallelNativeFetch = async request => {
   if (scenario === '429') return jsonResponse({ secret: 'NEVER_LOG_RAW_ERROR' }, 429, { 'retry-after': '90' });
   if (scenario === '403') return jsonResponse({ secret: 'NEVER_LOG_RAW_ERROR' }, 403);
   if (scenario === '500') return jsonResponse({ secret: 'NEVER_LOG_RAW_ERROR' }, 500);
-  if (body.method === 'initialize') return jsonResponse({ jsonrpc: '2.0', id: scenario === 'wrong-init-id' ? 'unrelated' : body.id, result: { protocolVersion: scenario === 'bad-protocol' ? '2000-01-01' : '2025-06-18', capabilities: {}, serverInfo: { name: 'offline-fixture', version: '1' } } }, 200, { 'mcp-session-id': 'fixture-transport-session' });
+  if (body.method === 'initialize') return jsonResponse({ jsonrpc: '2.0', id: scenario === 'wrong-init-id' ? 'unrelated' : body.id, result: { protocolVersion: scenario === 'bad-protocol' ? '2000-01-01' : '2025-06-18', capabilities: {}, serverInfo: scenario === 'empty-server-info' ? {} : scenario === 'invalid-server-info' ? { name: 1, version: null } : { name: 'offline-fixture', version: '1' } } }, 200, { 'mcp-session-id': 'fixture-transport-session' });
   if (body.method === 'notifications/initialized') return jsonResponse('');
   assert.equal(body.method, 'tools/call');
   nativeArgs = body.params.arguments;
@@ -103,11 +103,12 @@ await test('official provider handshake, free endpoint, session distinction, sou
   assert.notEqual(calls[2].headers['Mcp-Session-Id'], nativeArgs.session_id);
   await native('success'); assert.equal(calls.length, 3, 'identical request does not silently use cached sources');
 });
-for (const [name, expected] of [['sse', 'complete'], ['empty', 'insufficient_sources'], ['bad-url', 'insufficient_sources'], ['wrong-id', 'failed'], ['wrong-init-id', 'failed'], ['wrong-sse-id', 'failed'], ['duplicate-id', 'failed'], ['bad-protocol', 'failed'], ['malformed-result', 'failed'], ['tool-error', 'failed'], ['oversize-initialize', 'failed'], ['oversize-call', 'failed']]) {
+for (const [name, expected] of [['sse', 'complete'], ['empty', 'insufficient_sources'], ['bad-url', 'insufficient_sources'], ['wrong-id', 'failed'], ['wrong-init-id', 'failed'], ['empty-server-info', 'failed'], ['invalid-server-info', 'failed'], ['wrong-sse-id', 'failed'], ['duplicate-id', 'failed'], ['bad-protocol', 'failed'], ['malformed-result', 'failed'], ['tool-error', 'failed'], ['oversize-initialize', 'failed'], ['oversize-call', 'failed']]) {
   await test(`native transport ${name}`, async () => {
     const output = await native(name);
     assert.equal(output.outcome, expected, JSON.stringify(output));
     if (expected === 'failed') assert.ok(['provider_contract', 'provider_response_too_large'].includes(output.error.code));
+    if (['empty-server-info', 'invalid-server-info'].includes(name)) assert.equal(calls.length, 1);
     assert.ok(!JSON.stringify(output).includes('NEVER_LOG_RAW_ERROR'));
   });
 }
@@ -169,6 +170,28 @@ await test('global timeout includes provider loading and never calls a late-load
   const output = await executeSearch({ ...base, remainingBudgetMs: 10 }, { loadProvider: async () => { await new Promise(resolve => setTimeout(resolve, 50)); return { execute() { executed = true; } }; } });
   assert.equal(output.error.code, 'timeout');
   await new Promise(resolve => setTimeout(resolve, 60)); assert.equal(executed, false);
+});
+
+await test('canonical config disable/allow rules reject before network; credentials never forwarded', async () => {
+  for (const config of [
+    { tools: { web: { search: { enabled: false } } } },
+    { plugins: { enabled: false } },
+    { plugins: { entries: { parallel: { enabled: false } } } },
+    { plugins: { allow: ['other'] } },
+    { plugins: { deny: ['parallel'] } },
+  ]) {
+    globalThis.__parallelNativeConfig = config;
+    const output = await native('success');
+    assert.equal(output.error.code, 'access_denied'); assert.equal(calls.length, 0);
+  }
+  globalThis.__parallelNativeConfig = { tools: { web: { search: { enabled: true, provider: 'parallel' } } }, plugins: { allow: ['parallel'], entries: { parallel: { config: { webSearch: { apiKey: 'PRIVATE_CONFIG_CANARY' } } } } } };
+  const output = await native('success');
+  assert.equal(output.outcome, 'complete');
+  assert.ok(!JSON.stringify(calls).includes('PRIVATE_CONFIG_CANARY'));
+  assert.ok(!JSON.stringify(output).includes('PRIVATE_CONFIG_CANARY'));
+  globalThis.__parallelNativeConfig = { plugins: { allow: [] } };
+  assert.equal((await native('success')).outcome, 'complete');
+  delete globalThis.__parallelNativeConfig;
 });
 await test('missing installation and unpatched or drifted package fail before network', async () => {
   const saved = process.env.CLAW_WEB_PARALLEL_PLUGIN_DIR;

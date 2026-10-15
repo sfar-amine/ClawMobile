@@ -32,3 +32,5 @@ export const withTrustedWebSearchEndpoint = async (request, callback) => {
   const response = await globalThis.__parallelNativeFetch(request);
   return callback(response);
 };
+
+export const loadConfig = () => globalThis.__parallelNativeConfig ?? { tools: { web: { search: { enabled: true } } } };

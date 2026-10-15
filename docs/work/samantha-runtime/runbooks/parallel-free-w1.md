@@ -21,7 +21,7 @@ Le premier appel est une lecture. Le second refuse toute version/dérive, fait u
 
 ## Recette de transport seulement
 
-L’intégrateur fixe `CLAW_WEB_PARALLEL_PLUGIN_DIR` dans l’environnement interne contrôlé du processus enfant, avec une allowlist d’environnement. L’adaptateur reçoit uniquement un stdin public minimisé. L’absence de sélecteur ou une intégrité incorrecte donne provider_unavailable/provider_integrity et zéro recherche. Il ne lit pas openclaw.json, une clé ou la mémoire utilisateur.
+L’intégrateur fixe `CLAW_WEB_PARALLEL_PLUGIN_DIR` dans l’environnement interne contrôlé du processus enfant, avec une allowlist d’environnement. L’adaptateur reçoit uniquement un stdin public minimisé. L’absence de sélecteur ou une intégrité incorrecte donne provider_unavailable/provider_integrity et zéro recherche. La lecture de configuration passe par loadConfig du SDK existant ; seuls les gardes d’activation Web/plugin et allow/deny sont considérés, jamais les clés ni la mémoire utilisateur. Aucun champ de cette configuration n’est transmis à la recherche hormis la politique scoped fixe.
 
 Qualifier une question publique via l’adaptateur : provider effectif parallel-free, auth anonyme, aucune Authorization/Cookie, session_id UUID opaque stable, trois phases transport liées à leurs ids, causes distinctes, cache TTL=0, délais et annulation. L’appel natif peut utiliser le proxy/CA du runtime ; ne pas désactiver TLS. Vérifier les compteurs réellement instrumentés sans exposer les corps ni paramètres privés. Le compteur transport du reçu W1 reste inconnu tant que cette instrumentation n’existe pas.
 
