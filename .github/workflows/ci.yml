@@ -263,6 +263,9 @@ jobs:
           python3 ../installer/termux-lite/test-gateway-memory-guard.py
           python3 ../installer/termux-lite/test-owner-retention.py
           node scripts/test-remote-bridge-retention.cjs
+      - name: MCP raw execution Continuum fence admission
+        run: node scripts/test-mcp-raw-continuum.cjs
+
       - name: MCP context scopes and admitted client provenance
         run: |
           node scripts/test-mcp-context-provenance.cjs

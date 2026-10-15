@@ -1,0 +1,9 @@
+# Preserve Continuum fencing for owner MCP shell steps
+
+An owner `claw_exec` step submitted under an existing durable action previously went straight to the Bridge without preparing its effect fence, yielding `continuum_fence_required`. The adapter now observes that task's canonical capability, prepares the same stable request/step as a write, and forwards only the canonical armed fence. An unresolved prior attempt remains observation-only. A repeated receipt is recovered without execution, and changed command parameters under the same request are rejected.
+
+Standalone shell actions retain their existing path. Shadow clients still cannot execute shell commands. Missing task metadata, unavailable status, absent fence and uncertain effects fail closed; no read classification, inferred fence, automatic retry or session/authentication change is introduced. Generic shell completion does not verify its arbitrary effects.
+
+Validation: Companion TypeScript build; 7/7 dedicated raw-ingress contracts; existing Continuum Bridge integration confirms reads, armed writes and stale-epoch refusal. The dedicated suite is registered in `.github/workflows/ci.yml`. Unit fixtures exercise the internal adapter contract; the existing integration suite independently exercises the canonical Bridge fence. No route or endpoint was added, so acceptance route inventory is unchanged.
+
+Dependencies: activate the playbooks change exposing the existing capability in `continuum_ingress.status` before activating this core revision. Architecture: extend existing MCP adapter/Continuum owner only, no new store, router, scheduler or service. Capabilities unchanged. Six-primitive parity: claw_exec impacted, execute/status consume the unchanged canonical owner records, context/resolve/artifact_read unchanged. Rollback: revert the adapter change; no persistent schema changes. No activation or deployment performed by Codex.
