@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "mcp-raw-continuum-fence-20261015",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Prepare canonical effect fences for owner MCP shell commands on existing durable actions.",
+  "reason": "The existing shell adapter submitted effectful commands without the Continuum preparation required by the Bridge.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/mcp-raw-continuum-fence-20261015.md",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-raw-continuum.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "docs/changes/mcp-raw-continuum-fence-20261015.json"
+  ],
+  "tests": [
+    {
+      "name": "raw MCP Continuum contracts",
+      "status": "passed",
+      "evidence": {
+        "passed": 7,
+        "total": 7
+      }
+    },
+    {
+      "name": "existing Bridge fence integration",
+      "status": "passed",
+      "evidence": {
+        "read": true,
+        "writeFence": true,
+        "staleEpochRejected": true
+      }
+    },
+    {
+      "name": "Companion TypeScript build",
+      "status": "passed",
+      "evidence": {
+        "exit_code": 0
+      }
+    }
+  ],
+  "documentation": [
+    "docs/changes/mcp-raw-continuum-fence-20261015.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Fix adapter of existing owner shell primitive; no capability, route, permission or authentication added."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse the canonical Continuum owner and Bridge effect fences, no additional store or routing layer."
+  },
+  "rollback": "Revert this scoped adapter repair; no persistent schema change is introduced."
+}
