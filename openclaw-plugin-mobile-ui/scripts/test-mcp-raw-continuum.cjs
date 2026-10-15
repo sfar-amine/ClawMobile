@@ -41,3 +41,7 @@ test('same request replay observes its stored receipt and changed arguments are 
  const f=fixture({existing});const out=await executeRawCommand(request,'codex-cloud','chat-owner',args,f);assert.equal(out.result.stdout,'FIRST');assert.equal(f.calls.some(x=>!Array.isArray(x)||x[0]==='prepare'),false);
  await assert.rejects(executeRawCommand(request,'codex-cloud','chat-owner',{...args,command:'printf CHANGED'},f),/request_id_conflict/);
 });
+
+test('malformed canonical status cannot dispatch an unfenced command',async()=>{
+ const f=fixture({status:{}});await assert.rejects(executeRawCommand(request,'codex-cloud','chat-owner',args,f),/continuum_status_invalid/);assert.equal(f.calls.some(x=>!Array.isArray(x)),false);
+});

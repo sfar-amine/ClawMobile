@@ -460,7 +460,7 @@ export async function executeRawCommand(
         retry_allowed:false,continuum:observed};
     }
     const existing = getRequest(requestId);
-    if (existing && (existing.method !== method || existing.paramsHash !== paramsHash)) {
+    if (existing && (existing.requestId !== requestId || existing.taskId !== taskId || existing.method !== method || existing.paramsHash !== paramsHash)) {
       throw new Error("request_id_conflict");
     }
     if (existing) return {...projectReceipt(existing),continuum:observed};
