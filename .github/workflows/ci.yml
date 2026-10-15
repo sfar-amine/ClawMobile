@@ -391,3 +391,17 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/p1-sdk" --ignore-scripts --omit=dev --no-audit --no-fund "$RUNNER_TEMP/p1-openclaw-2026.9.6.tgz"
       - name: Test actual public Gateway admission revocation cancellation and clarification
         run: node scripts/diagnostics/p1-gateway-isolated.cjs "$RUNNER_TEMP/p1-sdk/node_modules/openclaw" "$(command -v node)" "$RUNNER_TEMP/p1-gateway-proof"
+
+  parallel-free-transport:
+    name: Parallel Free pinned native transport offline
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node 26 for OpenClaw provider compatibility
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26.11.1
+      - name: Test pinned native provider budget and boundaries without live network
+        run: node --test installer/termux-lite/test-openclaw-web-request.mjs

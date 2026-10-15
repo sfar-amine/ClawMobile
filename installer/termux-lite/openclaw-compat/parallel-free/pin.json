@@ -1,0 +1,36 @@
+{
+  "package": "@openclaw/parallel-plugin",
+  "version": "2026.9.6",
+  "hostVersion": "2026.9.6",
+  "tarball": "https://registry.npmjs.org/@openclaw/parallel-plugin/-/parallel-plugin-2026.9.6.tgz",
+  "tarballSha256": "f7e4981fea7838b662548ab7c9bdb39157f41f8ee688b10ffa0702355f008a4c",
+  "runtimeFile": "dist/.setup/parallel-free-web-search-provider.runtime-OAvvtssG.mjs",
+  "originalFiles": {
+    "openclaw.plugin.json": "b8706b39fb16cc853b88357d95fd609b6b87b81e5e09af3e6b926a235c9bf27f",
+    "package.json": "b6d5228d28f98d5470a2551adef03cbc1664fc4197000e2d2c919702d78a3b0b",
+    "dist/web-search-contract-api.js": "6950e3810a62908470015d57ebd20d7edca81b491183067d936f150679a100fa",
+    "dist/index.js": "1074668122f9c3e999d8d6b9d70df7eff89049382fcec5e0ebc1d7e6850902b8",
+    "dist/web-search-provider.js": "352618aef9ee96251113027563ecd32811b64f36b1b6b4a73832686b9c7b727c",
+    "dist/.setup/parallel-free-web-search-provider-cXSsdp4Y.mjs": "be0e66fe55577455f5bb24d4b663baad31624d77e18b4cfdadbcd5895fc4581f",
+    "dist/.setup/parallel-free-web-search-provider.runtime-OAvvtssG.mjs": "052c94d4c138132aff4830b21d63c4661aafcd91718d4913cd137f9bffb8775d",
+    "dist/.setup/parallel-web-search-provider.runtime-D3trDaRb.mjs": "5c6bc980438084bdeb9bf28577c1a41a34fd7a6298935d40e731edc292286073",
+    "dist/.setup/parallel-search-normalize-Jruxwvw_.mjs": "5966d4a9eed88aed3bbc647f9b94685839ac50da9762e0b0d9f9f95c084be3d7"
+  },
+  "hardenedFiles": {
+    "openclaw.plugin.json": "b8706b39fb16cc853b88357d95fd609b6b87b81e5e09af3e6b926a235c9bf27f",
+    "package.json": "b6d5228d28f98d5470a2551adef03cbc1664fc4197000e2d2c919702d78a3b0b",
+    "dist/web-search-contract-api.js": "6950e3810a62908470015d57ebd20d7edca81b491183067d936f150679a100fa",
+    "dist/index.js": "1074668122f9c3e999d8d6b9d70df7eff89049382fcec5e0ebc1d7e6850902b8",
+    "dist/web-search-provider.js": "352618aef9ee96251113027563ecd32811b64f36b1b6b4a73832686b9c7b727c",
+    "dist/.setup/parallel-free-web-search-provider-cXSsdp4Y.mjs": "be0e66fe55577455f5bb24d4b663baad31624d77e18b4cfdadbcd5895fc4581f",
+    "dist/.setup/parallel-free-web-search-provider.runtime-OAvvtssG.mjs": "3fe562c06260621f4657b872977e621976cc2ddcda56cce92261c2839ba03192",
+    "dist/.setup/parallel-web-search-provider.runtime-D3trDaRb.mjs": "5c6bc980438084bdeb9bf28577c1a41a34fd7a6298935d40e731edc292286073",
+    "dist/.setup/parallel-search-normalize-Jruxwvw_.mjs": "5966d4a9eed88aed3bbc647f9b94685839ac50da9762e0b0d9f9f95c084be3d7"
+  },
+  "patchSha256": "a3da96d5a7a2eb0f720f7aca3bbc1419c83d6d7d1b0fd4aa0a6fb17d7985c898",
+  "guards": {
+    "decodedBodyMaxBytes": 131072,
+    "jsonRpcIdMatchRequired": true,
+    "protocolVersion": "2025-06-18"
+  }
+}
