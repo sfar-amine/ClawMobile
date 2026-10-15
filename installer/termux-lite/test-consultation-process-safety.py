@@ -8,15 +8,7 @@ class ProcessSafety(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.wifi=self.root/'wifi';self.wifi.write_text('on')
   binary=self.root/'bin';binary.mkdir();adb=binary/'adb'
-  adb.write_text('#!'+sys.executable+'\n'+'''import os,sys
-from pathlib import Path
-from unittest.mock import patch
-p=Path(os.environ['O1_TEST_WIFI']);args=sys.argv[3:]
-if args==['shell','settings','list','global']: print('')
-elif args==['shell','cmd','wifi','status']: print('Wi-Fi is '+('enabled' if p.read_text()=='on' else 'disabled'))
-elif args[:3]==['shell','svc','wifi']: p.write_text('on' if args[3]=='enable' else 'off')
-else: raise SystemExit(5)
-''');adb.chmod(0o700)
+  adb.write_text('#!'+sys.executable+'\n'+"import os,sys\nfrom pathlib import Path\np=Path(os.environ['O1_TEST_WIFI']);args=sys.argv[3:]\nif args==['shell','settings','list','global']: print('multi_sim_data_call=1')\nelif args==['shell','settings','get','global','multi_sim_data_call']: print('1')\nelif args==['shell','cmd','wifi','status']: print('Wi-Fi is '+('enabled' if p.read_text()=='on' else 'disabled'))\nelif args[:3]==['shell','svc','wifi']: p.write_text('on' if args[3]=='enable' else 'off')\nelif args==['shell','dumpsys','isub']: print('SubscriptionInfo{ id=1 simSlotIndex=0 mcc=605 mnc=01}')\nelif args==['shell','dumpsys','connectivity']:\n if p.read_text()=='on': print('Active default network: 111\\nNetworkAgentInfo{network{111} handle{99} ni{WIFI CONNECTED extra: REDACTED} nc{[ Transports: WIFI Capabilities: INTERNET&NOT_VPN&VALIDATED ]}}')\n else: print('Active default network: 127\\nNetworkAgentInfo{network{127} handle{1197406605325} ni{MOBILE[LTE] CONNECTED extra: weborange} nc{[ Transports: CELLULAR Capabilities: INTERNET&NOT_VPN&VALIDATED Specifier: <TelephonyNetworkSpecifier [mSubId = 1]> SubscriptionIds: {1} ]}}')\nelse: raise SystemExit(5)\n");adb.chmod(0o700)
   (self.root/'sitecustomize.py').write_text('import os\nfrom pathlib import Path\nPath.home=classmethod(lambda cls: Path(os.environ["O1_TEST_ROOT"]))\n')
   package=self.root/'telecom';package.mkdir();(package/'__init__.py').write_text('')
   (package/'maxit_guarded_service.py').write_text('''import json,os,subprocess,sys,time

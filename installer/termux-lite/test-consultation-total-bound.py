@@ -40,13 +40,16 @@ class TotalBound(unittest.TestCase):
 
     def test_receipt_passes_remaining_budget_and_names_the_bound_on_timeout(self):
         with tempfile.TemporaryDirectory() as tmp:
-            lease = Path(tmp) / ("b" * 32 + ".json"); lease.write_text(json.dumps({"wifi_enabled": True}))
+            lease = Path(tmp) / ("b" * 32 + ".json"); lease.write_text(json.dumps({"wifi_enabled": True,"owner_token":"a"*32}))
             output = io.StringIO(); seen = {}
             def child(command, env, timeout_s):
                 seen["timeout_s"] = timeout_s
                 raise guard.ConsultationChildFailure("consultation_total_bound_exceeded", True)
-            with patch.object(guard, "mutation_lock", return_value=contextlib.nullcontext()), \
+            with patch.object(guard, "mutation_lock", return_value=contextlib.nullcontext(77)), \
                     patch.object(guard, "canonical_consultation_owner", return_value=True), \
+                    patch.object(guard,"_guard_fd_is_locked",return_value=True), \
+                    patch.object(guard,"capture_consultation_snapshot",return_value={"decision":{"route":"guarded_fallback","reason":"fixture"},"postcondition":{},"inspection_ms":1}), \
+                    patch.object(guard,"spawn_restorer",return_value=True), \
                     patch.object(guard, "create_lease", return_value=lease), patch.object(guard, "write_json"), \
                     patch.object(guard, "process_identity", return_value={"start_ticks": "1", "boot_id": "TEST"}), \
                     patch.object(guard, "set_wifi"), patch.object(guard, "restore_lease") as restore, \

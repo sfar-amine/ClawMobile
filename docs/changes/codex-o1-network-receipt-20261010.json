@@ -5,35 +5,56 @@
   "kind": "repair",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Expose canonical consultation network guard proof after exact restoration",
-  "reason": "Backlog37 O1: preserve guarded owner path and bounded A8 network provenance without bypassing deterministic payment.",
+  "summary": "One attested Orange network decision and final receipt through the existing guard, inherited lock and Android channel.",
+  "reason": "Reuse core112/271 and playbooks56, prevent env-only admission and unnecessary Wi-Fi toggles, and refuse enabled-only restoration claims.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/codex-o1-network-receipt-20261010.json",
     "docs/changes/codex-o1-network-receipt-20261010.md",
     "docs/work/samantha-runtime/contracts/o1.md",
     "installer/termux-lite/android-network-mutation-guard.py",
+    "installer/termux-lite/test-consultation-fastpath.py",
     "installer/termux-lite/test-consultation-network-receipt.py",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/o1/network-guard-source.json",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/o1/README.md",
     "installer/termux-lite/test-consultation-process-safety.py",
-    "installer/termux-lite/test-consultation-total-bound.py"
+    "installer/termux-lite/test-consultation-total-bound.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/o1/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/o1/network-guard-source.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-15/orange/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-15/orange/identity.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-15/orange/network-shape.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-15/orange/preflight.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-15/orange/read-offer.json"
   ],
   "tests": [
     {
-      "name": "o1-owner-and-provenance",
+      "name": "existing guard and payment recovery",
       "status": "passed",
-      "evidence": "8 receipt and 36 existing guard tests; actual S24 source SHA equality; generic with_wifi_off AST unchanged."
+      "evidence": "78 filesystem/fake-ADB cases; exact payment/generic AST from current S24 core344b2fd retained."
     },
     {
-      "name": "o1-process-counter-review-regressions",
+      "name": "consultation receipts and contradictory results",
       "status": "passed",
-      "evidence": "11 owner/receipt tests plus 8 real-process lifecycle tests; forged ordinary Python parent refused, canonical guard admitted, simultaneous snapshots serialized, descendant stopped on timeout and after nominal closed streams, stderr output cap enforced during collection, selector-before-launch and interrupted cleanup fail closed. Fake adb is filesystem-only."
+      "evidence": "13 cases, child network assertions ignored, failure never promoted from exit0 or JSONok."
     },
     {
-      "name": "o6-total-bound-in-guard",
+      "name": "canonical real processes",
       "status": "passed",
-      "evidence": "test-consultation-total-bound.py: 6 tests; bound equals the S24 timing proposal, under the 900 s lease; child budget 44 s covers DNS 8 s + service 30 s and 5x the observed total max; lock/preparation time shrinks it; a timeout names consultation_total_bound_exceeded and still certifies the exact restoration; with_wifi_off untouched."
+      "evidence": "8 real-process cases, owner birth/ancestry, serialization and bounded descendant cleanup."
+    },
+    {
+      "name": "total owner budget",
+      "status": "passed",
+      "evidence": "6 cases, original60s bound and16s reserve; no payment deadline introduced."
+    },
+    {
+      "name": "snapshot, kernel FD and crash recovery",
+      "status": "passed",
+      "evidence": "12/12 cases: captured source formats, effective restoration, no external rewrite, actual FLOCK/FD inheritance, PID replacement, SIGKILL parent, stale-journal refetch and EOF before READY with no module execution."
+    },
+    {
+      "name": "paired real PB/core admission",
+      "status": "passed",
+      "evidence": "5/5 real-process cases with actual canonical modules, inherited kernel lock and leases; provider/ADB boundaries inert. Wi-Fi channel, cell default, forged selection refused, explicit UI guarded fallback, env-only refused. No candidate live provider performance claimed."
     }
   ],
   "documentation": [
@@ -41,35 +62,47 @@
     "docs/changes/codex-o1-network-receipt-20261010.md"
   ],
   "capabilities": {
-    "impact": "none",
-    "ids": [],
-    "reason": "Canonical telecom.orange.consultation entrypoint unchanged; additive owner receipt fields, no capability or parallel route/catalogue created."
+    "impact": "modified",
+    "ids": [
+      "device.network_safety",
+      "telecom.orange.consultation"
+    ],
+    "reason": "Internal admission, execution and receipt contracts change in existing owners; paired playbooks56 owns registry, no core catalogue or duplicate route.",
+    "registry_owner": "sfar-amine/samantha-ui-playbooks/capabilities/registry.json",
+    "registry_pr": "https://github.com/sfar-amine/samantha-ui-playbooks/pull/56"
   },
   "architecture": {
     "changed": false,
-    "reason": "Existing network guard leases, health receipt and reconciler reused; no store/daemon/registry."
+    "reason": "Existing guard.lock, typed leases, child collector, detached restorer, forward owner and Android receiver reused; no new store, daemon, router or watchdog."
   },
   "mcp_owner_parity": {
     "tools": {
       "claw_context": "verified_no_impact",
       "claw_resolve": "verified_no_impact",
-      "claw_execute": "verified_no_impact",
+      "claw_execute": "updated",
       "claw_exec": "verified_no_impact",
-      "claw_status": "verified_no_impact",
+      "claw_status": "updated",
       "claw_artifact_read": "verified_no_impact"
     },
-    "reason": "Six canonical primitives unchanged; payload receipt fields are additive within existing claw_execute route.",
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "reason": "Six primitive schemas/admission unchanged; existing execution/status carry one closed final receipt. No direct raw-provider ingress or new tool is introduced. Live owner surface parity is a separate activation gate.",
     "evidence": [
-      "docs/work/samantha-runtime/contracts/o1.md"
+      "installer/termux-lite/test-consultation-fastpath.py",
+      "docs/work/samantha-runtime/contracts/o1.md",
+      "docs/changes/codex-o1-network-receipt-20261010.md"
     ]
   },
-  "rollback": "Revert twin PRs, activate previous snapshots via Claude only; existing reconciler owns outstanding leases.",
+  "rollback": "Use the existing previous-release mechanism through Claude. Preserve outstanding lease recovery; never delete journals to hide uncertain cleanup.",
   "limitations": [
-    "Source capture confirms owner schema only, not a live restored receipt. Claude must qualify canonical consultation after admission and guard activation.",
-    "No Wi-Fi mutation or operator consultation executed by Codex; no payment files modified.",
-    "O2 must call owner prepare before fallback; Wi-Fi-on path is never inferred from child transport text.",
-    "Core owner PR must precede playbooks; new tests union into H1 manifests if merged meanwhile.",
-    "Current source confirms original guard owner; new lifecycle tests are local fake-device processes, not live Android evidence. Descriptor observation is coherence with canonical lock-held code, not independent kernel owner attestation.",
-    "Total bound 60 s (O6 decision of 11/10 on S24 measurements): child gets the remaining time minus a 16 s restoration reserve; Graph and fast path waits are aligned by O6 (playbooks #57 and its core twin)."
+    "Not activated; no candidate provider call or S24 network mutation by this source agent.",
+    "Actual Android channel API/permission proof, physical cleanup, app/text/voice parity and comparable A/B p50/p95 remain activation gates.",
+    "The existing offer capture proves enabled-bit insufficiency only; it does not establish permanent Wi-Fi restoration failure.",
+    "Core112 integrates existing Unix forward owner core271 normally; do not duplicate its implementation or treat a Git merge as activation."
   ]
 }

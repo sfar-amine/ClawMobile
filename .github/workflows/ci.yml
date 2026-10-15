@@ -370,6 +370,7 @@ jobs:
           python3 ../installer/termux-lite/test-consultation-network-receipt.py
           python3 ../installer/termux-lite/test-consultation-process-safety.py
           python3 ../installer/termux-lite/test-consultation-total-bound.py
+          python3 ../installer/termux-lite/test-consultation-fastpath.py
       - name: O8 baseline model efficiency and Gemini client regression
         run: |
           python3 ../installer/termux-lite/test-model-efficiency.py
