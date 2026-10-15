@@ -3,7 +3,11 @@ const assert=require('node:assert/strict');
 const {executeRawCommand}=require('../dist/companion/mcpBridge.js');
 const args={command:'printf OK',action_key:'same-task',step_key:'diagnostic',timeout_ms:5000};
 const request='mcp-codex-cloud-same-task-diagnostic';
-function fixture({status={state:'waiting',capability:'engineering.learning_gate'},prepare={state:'ready',dispatch_allowed:true,wire_step_id:'continuum-wire',continuum_fence:{version:1,attemptId:'canonical-a',effectKey:'canonical-effect',ownershipEpoch:2,ownerId:'mcp-codex-cloud',bootId:'canonical-boot'}},existing=null}={}){
+const observed=require('../fixtures/s24-2026-10-15/mcp-continuum-learning-capture.json');
+assert.equal(observed.raw_diagnostic.error,'continuum_fence_required');
+assert.equal(observed.capture_status.state,'completed');
+assert.equal(observed.capture_status.continuum.state,'verification_required');
+function fixture({status={...observed.capture_status.continuum,capability:observed.capture_status.capability},prepare={state:'ready',dispatch_allowed:true,wire_step_id:'continuum-wire',continuum_fence:{version:1,attemptId:'canonical-a',effectKey:'canonical-effect',ownershipEpoch:2,ownerId:'mcp-codex-cloud',bootId:'canonical-boot'}},existing=null}={}){
  const calls=[];
  return {calls,ingress:async argv=>{calls.push(argv);if(argv[0]==='status')return status;if(argv[0]==='prepare')return prepare;return {state:'verification_required'};},getRequest:()=>existing,submit:async value=>{calls.push(value);return {requestId:request,taskId:'mcp:codex-cloud:same-task',stepId:value.stepId,method:'exec_wait',state:'completed',result:{success:true,stdout:'OK'}};}};
 }

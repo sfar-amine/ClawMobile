@@ -13,7 +13,8 @@
     "openclaw-plugin-mobile-ui/scripts/test-mcp-raw-continuum.cjs",
     "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
     "docs/changes/mcp-raw-continuum-fence-20261015.json",
-    "installer/termux-lite/test-runtime-sync.py"
+    "installer/termux-lite/test-runtime-sync.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-15/mcp-continuum-learning-capture.json"
   ],
   "tests": [
     {
