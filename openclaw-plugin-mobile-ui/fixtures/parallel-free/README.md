@@ -2,6 +2,7 @@
 
 - `s24-runtime-public.json` : sélection nettoyée des reçus réels du 15/10/2026, action `parallel-free-audit-20261015`, étapes runtime-baseline-01, runtime-interface-03, runtime-sdk-04. Version/Node/configuration de recherche non secrète/présence d’exports uniquement. Aucun contrat privé, chemin de credential ou token.
 - `parallel-plugin-2026.9.6.tgz` : archive npm publique officielle obtenue le 15/10, aucune installation/exécution réseau. URL et SHA-256 dans le pin versionné. Le test extrait ce fixture avec `tarfile` filter=data, après vérification d’intégrité, et utilise le code officiel et son patch pour tester le protocole.
+- `cloud-anonymous-search-20261015.json` : unique recherche réellement exécutée via SDK et plugin officiels le15/10, profil cloud isolé sans clé, sans modèle et sans fetch. Scope explicite : ni S24 ni app ; sourceHead et hash adaptateur conservés. Les courts extraits sont tronqués à300caractères pour la fixture ; les dates et URLs restent celles reçues. Aucun P50/P95 ou quota garanti.
 - `real-sdk-offline-worker.mjs` : vrai SDK installé par le job P1, aucune simulation des exports ; seul HTTP/DNS est injecté par la couture de test reconnue par OpenClaw. Les sockets sont interdits et l’environnement est une allowlist sans credential. Deux cas prouvent le chargement hors node_modules et le refus d’un SDK local incomplet.
 - `native-sdk-offline.mjs` : simulation explicite des exports SDK host et de l’HTTP pour tests sans réseau. Ce fichier n’est jamais importé en production et ne prouve pas la compatibilité réelle du SDK.
 

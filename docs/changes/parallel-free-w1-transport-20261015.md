@@ -34,7 +34,9 @@ Captures réellement lues sur S24 le 15/10 : reçus runtime-baseline-01, runtime
 
 Le vrai tarball npm public est conservé pour tests, SHA-256 `f7e4981fea7838b662548ab7c9bdb39157f41f8ee688b10ffa0702355f008a4c`. Les tests extraient cette archive, appliquent/restaurent le patch et exécutent son protocole MCP inchangé ; les exports SDK et réponses HTTP sont simulés et clairement identifiés. Ce n’est pas une qualification du SDK live. Un second test exécute le vrai SDK npm 2026.9.6, le vrai plugin hors node_modules et le patch : HTTP/DNS seulement simulés, sockets interdits, configuration isolée sans credential. Deux cas vérifient le succès natif et le refus d’un SDK local incomplet ; le resolver n’affecte pas les modules sans rapport. Le job P1 réutilise son installation SDK déjà épinglée pour cette preuve.
 
-Les 34 tests ciblés sont inscrits au job CI `parallel-free-transport`, Node 26.11.1, exécute les contrats sans connexion fournisseur : package et drift, JSON/SSE et id étranger, plafonds, corps lent, 429/403/500, session vs transport, annulation, timeout global, injection inerte, URLs et stdin fermé. Aucune modification du paiement, Gemini, Companion ou Android.
+Une unique recherche publique anonyme a également été qualifiée dans un profil cloud jetable, au SHA a99085e5 : SDK et plugin réels, aucune clé, aucun modèle ni fetch, cinq sources reçues. La fixture nettoyée conserve les URLs, dates observées et courts extraits (300 caractères), avec scope cloud explicite. Cela ne qualifie ni S24 ni app, ne prouve aucun quota/SLA et ne constitue pas un percentile. Les dates de pages de catégorie ne deviennent pas les dates des annonces.
+
+Les 35 tests ciblés sont inscrits au job CI `parallel-free-transport`, Node 26.11.1, exécute les contrats sans connexion fournisseur : package et drift, JSON/SSE et id étranger, plafonds, corps lent, 429/403/500, session vs transport, annulation, timeout global, injection inerte, URLs et stdin fermé. Aucune modification du paiement, Gemini, Companion ou Android.
 
 ## Retour arrière et gates
 

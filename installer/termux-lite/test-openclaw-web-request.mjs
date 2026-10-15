@@ -36,6 +36,21 @@ await test('real sanitized S24 fixture pins host, Node, cache and SDK declaratio
   assert.equal(Object.keys(fixture.sdkExports).length, 11);
   assert.ok(Object.values(fixture.sdkExports).every(value => value.export_declared));
 });
+await test('real isolated cloud capture keeps observed dates, provenance and scope without claiming S24', async () => {
+  const fixture = JSON.parse(await fs.readFile(path.join(fixtures, 'cloud-anonymous-search-20261015.json')));
+  assert.equal(fixture.logicalSearches, 1);
+  assert.equal(fixture.s24Access, false);
+  assert.equal(fixture.appLive, false);
+  assert.equal(fixture.credentialsInherited, false);
+  assert.equal(fixture.result.outcome, 'complete');
+  assert.equal(fixture.result.provider, 'parallel-free');
+  assert.equal(fixture.result.providerAuth, 'anonymous');
+  assert.equal(fixture.result.sources.length, 5);
+  assert.equal(fixture.result.sources[0].publishedAt, null);
+  assert.ok(fixture.result.sources.every(source => source.untrusted && source.evidenceType === 'search_excerpt' && source.excerpt.length <= 300 && publicSourceUrl(source.url)));
+  // The old provider date belongs to a page, not to every announcement in it.
+  assert.equal(fixture.result.sources[4].publishedAt, '2015-10-08');
+});
 await test('offline patch check, apply, idempotence and exact restore', () => {
   assert.equal(patch().changed, false);
   assert.equal(patch('--apply').after, 'hardened');
