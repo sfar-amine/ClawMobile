@@ -1,0 +1,127 @@
+{
+  "version": 2,
+  "id": "parallel-web-runs-20261015",
+  "origin": "chat",
+  "kind": "feature",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Preserve a bounded, typed Parallel Free result through canonical runs, MCP, native agent and voice readback.",
+  "reason": "The existing run and fast-path projections cannot safely carry citations or distinguish partial Web results and trusted execution metadata.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/parallel-web-runs-20261015.json",
+    "docs/changes/parallel-web-runs-20261015.md",
+    "installer/termux-lite/claw-capability.py",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-fast-path-web.py",
+    "installer/termux-lite/test-runtime-sync.py",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-agent.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-mcp.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-voice.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web.cjs",
+    "openclaw-plugin-mobile-ui/src/capabilityClarification.ts",
+    "openclaw-plugin-mobile-ui/src/capabilityTool.ts",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runWeb.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceUnderstanding.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts"
+  ],
+  "tests": [
+    {
+      "name": "Web run and actual S24 legacy envelope",
+      "status": "passed",
+      "evidence": {
+        "passed": 14,
+        "total": 14
+      }
+    },
+    {
+      "name": "Web MCP canonical identity and dedup",
+      "status": "passed",
+      "evidence": {
+        "passed": 4,
+        "total": 4
+      }
+    },
+    {
+      "name": "Web voice source protocol, not acoustic acceptance",
+      "status": "passed",
+      "evidence": {
+        "passed": 7,
+        "total": 7
+      }
+    },
+    {
+      "name": "Native SDK agent authority and opaque identity",
+      "status": "passed",
+      "evidence": {
+        "passed": 5,
+        "total": 5
+      }
+    },
+    {
+      "name": "Web Python frozen execution context",
+      "status": "passed",
+      "evidence": {
+        "passed": 5,
+        "total": 5
+      }
+    }
+  ],
+  "documentation": [
+    "docs/changes/parallel-web-runs-20261015.md"
+  ],
+  "capabilities": {
+    "impact": "modified",
+    "ids": [
+      "gateway.mcp.external",
+      "samantha.app.web.search",
+      "samantha.app.web.answer"
+    ],
+    "reason": "Execution contracts, transport metadata and typed presentation change in core. Canonical capability creation and registry changes belong to the paired playbooks PR163; core adds neither a duplicate catalogue nor a new route.",
+    "registry_owner": "sfar-amine/samantha-ui-playbooks/capabilities/registry.json",
+    "registry_pr": "https://github.com/sfar-amine/samantha-ui-playbooks/pull/163"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse existing run registry, Graph helper, authenticated MCP/agent and voice owners; additive optional projection, no additional store, service or routing layer."
+  },
+  "limitations": [
+    "Runtime activation and real Parallel/Gemini searches not performed.",
+    "Live audio exactness and cost require the separate G6 recipe; transcript checks are post-generation.",
+    "Native SDK tool replay after restart is not a new durable guarantee.",
+    "Read cancellation propagates only when the existing caller supplies a signal; voice interruption does not cancel business execution."
+  ],
+  "rollback": "Revert this scoped core release through the existing deployment owner; older readers ignore optional run.web without deleting receipts or replaying work.",
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "updated",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "updated",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "reason": "Six MCP tool schemas and admission remain unchanged. Resolve binds its host request identity; execute carries ephemeral budget outside paramsHash, returns the canonical web payload and reuses durable Bridge status. Raw shell and artifact storage are not Web implementation paths. Live activation remains pending.",
+    "evidence": [
+      "openclaw-plugin-mobile-ui/scripts/test-run-web-mcp.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-run-web.cjs",
+      "docs/changes/parallel-web-runs-20261015.md"
+    ]
+  }
+}

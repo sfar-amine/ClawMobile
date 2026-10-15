@@ -1,3 +1,4 @@
+import {readRunWebResult} from "./runWeb";
 import crypto from "crypto";
 import fs from "fs";
 import os from "os";
@@ -695,6 +696,8 @@ async function runCapabilityAtSurface(
   readOnly: boolean,
   requestId: string,
   defaultSurface = "external_mcp",
+  trustedSessionId?: string,
+  webBounds?: {startedMonotonic:number;deadlineEpochMs:number},
 ) {
   const request = String(params.request || "").trim();
   if (!request || request.length > 12000) throw new Error("invalid_capability_request");
@@ -712,6 +715,11 @@ async function runCapabilityAtSurface(
     ? params.decision as Record<string, unknown>
     : undefined;
   if (decision && Number(decision.version) !== 2) throw new Error("invalid_capability_decision");
+  const capability = String(decision?.capability || (decision?.selected as any)?.capability || "");
+  const isWeb = ["samantha.app.web.search","samantha.app.web.answer"].includes(capability);
+  const bounds = webBounds || {startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+12000};
+  const remaining = Math.floor(Math.min(12000-(performance.now()-bounds.startedMonotonic),bounds.deadlineEpochMs-Date.now()));
+  if(isWeb && (!decision?.requestId || remaining<1))return {success:false,execution:{state:"failed",reason:"web_execution_context_unavailable"}};
   const result: any = await capabilityBridge(request, {
     execute: true,
     readOnly,
@@ -720,7 +728,15 @@ async function runCapabilityAtSurface(
     timeoutSeconds: 30,
     targetHint,
     decision,
+    ...(isWeb ? {requestId:String(decision!.requestId),runId:requestId,sessionId:trustedSessionId,remainingBudgetMs:remaining,deadlineEpochMs:bounds.deadlineEpochMs} : {}),
   });
+  if(isWeb){
+    const raw=result?.execution?.result?.web;
+    const web=readRunWebResult(raw);
+    if(raw!==undefined&&!web)return {...result,execution:{state:"failed",reason:"invalid_web_result",result:null}};
+    if(web)result.execution.result={web};
+    return result;
+  }
   if (surface === "external_mcp" && !readOnly && result?.execution?.state === "delegation_required") {
     const capability = String(result?.capability || result?.selected?.capability || "");
     return {
@@ -735,11 +751,13 @@ async function runMcpCapability(
   params: Record<string, unknown>,
   readOnly: boolean,
   requestId: string,
+  sessionId?: string,
+  webBounds?: {startedMonotonic:number;deadlineEpochMs:number},
 ) {
-  return runCapabilityAtSurface(params, readOnly, requestId, "external_mcp");
+  return runCapabilityAtSurface(params, readOnly, requestId, "external_mcp",sessionId,webBounds);
 }
 
-async function dispatch(request: RemoteBridgeRequest) {
+async function dispatch(request: RemoteBridgeRequest, webBounds?: {startedMonotonic:number;deadlineEpochMs:number}) {
   const params = (request.params || {}) as Record<string, unknown>;
   switch (request.method) {
     case "ping":
@@ -762,13 +780,13 @@ async function dispatch(request: RemoteBridgeRequest) {
     case "artifact_read":
       return readArtifact(params);
     case "mcp_capability_execute_readonly":
-      return runMcpCapability(params, true, request.requestId);
+      return runMcpCapability(params, true, request.requestId,request.sessionId,webBounds);
     case "mcp_capability_execute_owner":
-      return runMcpCapability(params, false, request.requestId);
+      return runMcpCapability(params, false, request.requestId,request.sessionId,webBounds);
     case "capability_execute_readonly":
-      return runCapabilityAtSurface(params, true, request.requestId, "claw_live");
+      return runCapabilityAtSurface(params, true, request.requestId, "claw_live",request.sessionId,webBounds);
     case "capability_execute_owner":
-      return runCapabilityAtSurface(params, false, request.requestId, "claw_live");
+      return runCapabilityAtSurface(params, false, request.requestId, "claw_live",request.sessionId,webBounds);
     case "process_start":
       return startBridgeProcess(params);
     case "process_status":
@@ -790,12 +808,12 @@ async function dispatch(request: RemoteBridgeRequest) {
 
 // Process-local provenance cannot be supplied through HTTP or serialized JSON.
 const authenticatedMcpAccess = new WeakMap<object, ClawAccess>();
-export async function submitAuthenticatedMcpRequest(body: RemoteBridgeRequest): Promise<RemoteBridgeReceipt> {
+export async function submitAuthenticatedMcpRequest(body: RemoteBridgeRequest, webBounds?: {startedMonotonic:number;deadlineEpochMs:number}): Promise<RemoteBridgeReceipt> {
   const access = body._claw_access;
   if (!access) throw statusError(400,"invalid_claw_access");
   const trusted = {...body}; delete trusted._claw_access;
   authenticatedMcpAccess.set(trusted, {...access});
-  return submitRemoteBridgeRequest(trusted);
+  return submitRemoteBridgeRequest(trusted,webBounds);
 }
 function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   const requestId = String(body?.requestId || "").trim();
@@ -833,7 +851,9 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   };
 }export async function submitRemoteBridgeRequest(
   body: RemoteBridgeRequest,
+  webBounds?: {startedMonotonic:number;deadlineEpochMs:number},
 ): Promise<RemoteBridgeReceipt> {
+  const bounds=webBounds || {startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+12000};
   ensureDirs();
   const request = normalizeRequest(body);
   const params = (request.params || {}) as Record<string, unknown>;
@@ -888,7 +908,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   writeReceipt(receipt);
 
   try {
-    const rawResult = await dispatch(request);
+    const rawResult = await dispatch(request,bounds);
     const result = compactResult(request.requestId, rawResult);
     receipt = {
       ...receipt,

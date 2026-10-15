@@ -60,6 +60,14 @@ jobs:
       - name: Test canonical app and authenticated Bixby bootstrap
         run: node scripts/test-canonical-agent-bootstrap.cjs
 
+      - name: Parallel Free Web run contract, MCP identity and voice readback (offline)
+        run: |
+          node scripts/test-run-web.cjs
+          node scripts/test-run-web-mcp.cjs
+          node scripts/test-run-web-voice.cjs
+          node scripts/test-run-web-agent.cjs
+          python3 ../installer/termux-lite/test-model-fast-path-web.py
+
       - name: Run trace induction tests
         run: npm run test:trace-induction
 

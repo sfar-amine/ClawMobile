@@ -12,6 +12,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 from typing import Any
 
 HOME = Path.home()
@@ -129,6 +130,7 @@ def _graph_decision_cmd(
     ui_root: Path,
     timeout: int = 30,
     read_only: bool = False,
+    execution_context: dict[str, Any] | None = None,
 ) -> tuple[int, dict[str, Any], str]:
     if action not in {"validate-decision", "execute-decision"}:
         raise ValueError("invalid_decision_action")
@@ -137,8 +139,14 @@ def _graph_decision_cmd(
         args.extend(["--timeout", str(timeout)])
         if read_only:
             args.append("--read-only")
+    if action == "execute-decision" and execution_context:
+        for flag, key in (("--request-id","request_id"),("--run-id","run_id"),("--session-id","session_id"),
+                          ("--remaining-budget-ms","remaining_budget_ms"),("--deadline-epoch-ms","deadline_epoch_ms")):
+            if execution_context.get(key) is not None:
+                args.extend([flag,str(execution_context[key])])
+    process_timeout = min(timeout + 5, execution_context["remaining_budget_ms"] / 1000) if execution_context else timeout + 5
     return _run_json(
-        args, cwd=ui_root, timeout=timeout + 5, env=_python_env(ui_root),
+        args, cwd=ui_root, timeout=process_timeout, env=_python_env(ui_root),
         input_text=json.dumps(decision, ensure_ascii=False, separators=(",", ":")),
     )
 
@@ -157,9 +165,11 @@ def validate_prepared_decision(
 def execute_capability_decision(
     message: str, decision: dict[str, Any], ui_root: Path = UI_ROOT, *, timeout: int = 30,
     read_only: bool = False,
+    execution_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     _, value, stderr = _graph_decision_cmd(
         "execute-decision", message, decision, ui_root=ui_root, timeout=timeout, read_only=read_only,
+        **({"execution_context":execution_context} if execution_context else {}),
     )
     if stderr:
         value.setdefault("_runtime_warning", stderr[:800])
@@ -770,7 +780,13 @@ def try_fast_path(
     prepared_decision: dict[str, Any] | None = None,
     clarification_decision: dict[str, Any] | None = None,
     clarification_original_text: str | None = None,
+    request_id: str | None = None,
+    run_id: str | None = None,
+    session_id: str | None = None,
+    remaining_budget_ms: int | None = None,
+    deadline_epoch_ms: int | None = None,
 ) -> dict[str, Any]:
+    started = time.monotonic()
     try:
         if clarification_decision is not None:
             if not clarification_original_text:
@@ -810,7 +826,7 @@ def try_fast_path(
             resolution = checked.get("resolution") if isinstance(checked.get("resolution"), dict) else {}
         else:
             resolution = resolve_capability(
-                message, ui_root, surface=surface, caller=caller, request_id=origin_id,
+                message, ui_root, surface=surface, caller=caller, request_id=request_id or origin_id,
             )
             decision = resolution.get("decision") if isinstance(resolution.get("decision"), dict) else {}
 
@@ -839,6 +855,22 @@ def try_fast_path(
                 "decision": decision or None, "model_bypassed": True,
             }
 
+        web_capability = (resolution.get("selected") or {}).get("capability") in {"samantha.app.web.search", "samantha.app.web.answer"}
+        execution_context = None
+        if web_capability:
+            # Only explicit host metadata can authorize correlation/egress. Default origin/session strings are not identities.
+            if (caller != "owner" or not request_id or request_id != decision.get("requestId") or
+                decision.get("caller") != caller or decision.get("surface") != surface or
+                session_id is not None and not re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}",session_id) or
+                type(remaining_budget_ms) is not int or not 0 < remaining_budget_ms <= 12000 or
+                type(deadline_epoch_ms) is not int or deadline_epoch_ms <= int(time.time()*1000)):
+                return {"status":"known_error","reason":"invalid_web_execution_context","execution_state":"not_started","model_bypassed":True}
+            remaining = min(remaining_budget_ms-int((time.monotonic()-started)*1000),deadline_epoch_ms-int(time.time()*1000))
+            if remaining <= 0:
+                return {"status":"known_error","reason":"web_deadline_exceeded","execution_state":"not_started","model_bypassed":True}
+            execution_context={"request_id":request_id,"run_id":run_id,"session_id":session_id,
+                               "remaining_budget_ms":remaining,"deadline_epoch_ms":deadline_epoch_ms}
+
         if resolution.get("confirmation_required") is True:
             return _execute_declared_handoff(
                 resolution, message, ui_root=ui_root, surface=surface, caller=caller,
@@ -850,6 +882,8 @@ def try_fast_path(
         execution_timeout = guarded_execution_timeout(
             timeout, resolution.get("selected"), decision.get("selected") if isinstance(decision, dict) else None,
         )
+        if web_capability and continuum.get("mode") == "durable":
+            return {"status":"known_error","reason":"web_durable_contract_unqualified","execution_state":"verification_required","model_bypassed":True}
         if continuum.get("mode") == "durable":
             executed = _durable_capability_execute(
                 resolution, message, ui_root=ui_root, surface=surface, caller=caller,
@@ -857,7 +891,8 @@ def try_fast_path(
             )
         else:
             executed = (
-                execute_capability_decision(message, decision, ui_root, timeout=execution_timeout)
+                execute_capability_decision(message, decision, ui_root, timeout=execution_timeout,
+                                            **({"execution_context":execution_context} if execution_context else {}))
                 if decision
                 else execute_capability(message, ui_root, surface=surface, caller=caller, timeout=execution_timeout)
             )
@@ -865,6 +900,15 @@ def try_fast_path(
         state = str(execution.get("state") or "")
         selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
         metadata = _presentation_metadata(executed)
+        if web_capability:
+            payload = execution.get("result")
+            web = payload.get("web") if isinstance(payload,dict) else None
+            # The Graph owns validation; Companion applies its own closed projection before persisting/rendering.
+            # Do not run the legacy generic renderer over public pages, IDs, URLs or provider error objects.
+            return {"status":"hit" if state in SAFE_EXECUTION_STATES or state == "partial" else "known_error",
+                    "source":"capability","text":"Résultat de recherche disponible." if isinstance(web,dict) else "Le résultat de la recherche reste à vérifier.",
+                    "web":web,"result":{"web":web},"execution_state":state,
+                    "decision":executed.get("decision") or decision,"model_bypassed":True,**metadata}
         if state in SAFE_EXECUTION_STATES:
             payload = execution.get("result")
             return {
@@ -918,6 +962,9 @@ def try_fast_path(
             error_result.update(text=message, execution_state=state)
         return error_result
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        if remaining_budget_ms is not None:
+            return {"status":"known_error","reason":"web_deadline_exceeded" if isinstance(exc,subprocess.TimeoutExpired) else "web_execution_failed",
+                    "execution_state":"timeout" if isinstance(exc,subprocess.TimeoutExpired) else "failed","model_bypassed":True}
         return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}
 
 
@@ -931,6 +978,11 @@ def main() -> int:
     parser.add_argument("--caller", choices=("owner", "trusted", "other"), default="owner")
     parser.add_argument("--origin-id", default="capability-first")
     parser.add_argument("--timeout", type=int, default=30)
+    parser.add_argument("--request-id")
+    parser.add_argument("--run-id")
+    parser.add_argument("--session-id")
+    parser.add_argument("--remaining-budget-ms",type=int)
+    parser.add_argument("--deadline-epoch-ms",type=int)
     parser.add_argument("message", nargs="*")
     args = parser.parse_args()
     message = " ".join(args.message).strip()
@@ -962,6 +1014,8 @@ def main() -> int:
         message, args.ui_root, execute=not args.check, surface=args.surface, caller=args.caller,
         origin_id=args.origin_id, timeout=max(2, min(args.timeout, 120)), prepared_decision=prepared,
         clarification_decision=clarification_decision, clarification_original_text=clarification_original,
+        request_id=args.request_id,run_id=args.run_id,session_id=args.session_id,
+        remaining_budget_ms=args.remaining_budget_ms,deadline_epoch_ms=args.deadline_epoch_ms,
     )
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("status") in {"hit", "eligible", "miss", "assist", "clarification", "known_error"} else 75

@@ -1,3 +1,4 @@
+import {readRunWebResult, type RunWebResult} from "./runWeb";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
 import {runProgressSteps} from "./runProgress";
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ReceiptPresentation} from "./receiptPresentation";
@@ -20,6 +21,7 @@ import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSes
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment, ReplayLink } from "./types";
 
 type StoredRun = {
+  web?: RunWebResult;
   memo?: {attachmentId: string; ownerEpoch: string; phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number};
   presentation?: ReceiptPresentation;
   /** Derived on read from paymentRequests/ownerConfirmations (runPaymentPresentation.ts); stripped on write. */
@@ -380,9 +382,9 @@ export async function rememberSubmittedRun(
 
 export async function settleSubmittedRun(
   runId: string,
-  state: "done" | "failed",
+  state: "done" | "failed" | "unknown",
   result: string,
-  options: {provenance?: unknown; presentation?: unknown} = {},
+  options: {provenance?: unknown; presentation?: unknown; web?: unknown} = {},
 ) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));
@@ -390,6 +392,7 @@ export async function settleSubmittedRun(
   const stored: StoredRun = {
     ...existing,
     provenance: capabilityProvenance(options.provenance) || existing.provenance,
+    web: readRunWebResult(options.web) || existing.web,
     state,
     presentation: readReceiptPresentation(options.presentation) || (existing.executionSource === "capability_first" ? fallbackReceiptPresentation(state === "failed") : existing.presentation),
     inactivityCorrectionReceipt: state === "done" && (existing.error === "run_inactivity_expired" || existing.inactivityCorrectionReceipt?.to === "running") ? {
@@ -397,7 +400,7 @@ export async function settleSubmittedRun(
       at: Date.now(), evidenceAt: Date.now(),
     } : existing.inactivityCorrectionReceipt,
     result: state === "done" ? result : undefined,
-    error: state === "failed" ? result : undefined,
+    error: state !== "done" ? result : undefined,
     updatedAt: Date.now(),
   };
   submittedRuns.set(runId, stored);
@@ -579,7 +582,8 @@ export async function listRunSummaries(options: { limit?: number } = {}): Promis
 
 // F4: the Notifications screen reads this summary list; `result` is kept verbatim.
 function withNotification(status: CompanionRunStatus): CompanionRunStatus {
-  return { ...status, notification: structuredNotification(status.result, status.userText) };
+  const {web: _detail, ...summary} = status;
+  return { ...summary, notification: structuredNotification(status.result, status.userText) };
 }
 
 const LIST_LIVE_REFRESH_MAX=3;
@@ -983,15 +987,17 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   const failed = stored.state === "failed" || interruptedMemo;
   const expired = stored.error === "run_inactivity_expired";
   const done = stored.state === "done";
+  const unknown = stored.state === "unknown";
   const message = stored.memo?.phase === "ready" && !failed ? "Mémo transcrit, prêt à poursuivre." : stored.memo?.phase === "transcription_pending" && !failed ? "Transcription en attente, nouvel essai automatique." : interruptedMemo ? "Prise en charge du mémo interrompue ; aucune relance automatique." : failed
     ? expired ? "Run expired after verified inactivity. A later result can still correct this status." : stored.error || "OpenClaw did not accept this run."
-    : done
+    : unknown ? stored.error || "Le résultat de la recherche reste à vérifier ; aucune relance automatique." : done
       ? stored.result || "OpenClaw completed this run."
       : stored.memo && stored.memo.phase !== "dispatched" ? "Transcription du mémo en cours."
         : "OpenClaw is still working on this run.";
   return {
     success: !failed,
     provenance: capabilityProvenance(stored.provenance),
+    web: readRunWebResult(stored.web),
     memoTranscription: stored.memo ? {phase: stored.memo.phase, attempts: stored.memo.attempts, nextAttemptAt: stored.memo.nextAttemptAt} : undefined,
     status: stored.memo && stored.memo.phase !== "dispatched" && !failed ? stored.memo.phase === "ready" ? "memo_ready_to_continue" : stored.memo.phase === "transcription_pending" ? "transcription_pending" : "transcribing"
       : stored.error === "run_inactivity_expired" ? "expired" : undefined,
@@ -1003,7 +1009,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     sessionId: stored.sessionId,
     ...(stored.ownerAdmitted ? {ownerAdmitted: true} : {}),
     ...(stored.ownerTransport ? {ownerTransport: stored.ownerTransport} : {}),
-    state: failed ? "failed" : stored.state === "done" ? "done" : "running",
+    state: failed ? "failed" : unknown ? "unknown" : stored.state === "done" ? "done" : "running",
     message,
     progress: {
       text: failed ? expired ? "Expired after verified inactivity." : "OpenClaw submit failed." : done ? "Completed." : "Working...",
@@ -2012,6 +2018,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
       presentation: readReceiptPresentation(run.presentation),
       provenance: capabilityProvenance(run.provenance),
+      web: readRunWebResult(run.web),
       runId: run.runId,
       clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
       memo: run.memo && /^[A-Za-z0-9_-]{1,100}$/.test(run.memo.attachmentId || "") &&

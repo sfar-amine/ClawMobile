@@ -1,3 +1,4 @@
+import {readRunWebResult, webResultText, webRunState, type RunWebResult} from "./runWeb";
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision} from "./receiptPresentation";
 import crypto from "crypto";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
@@ -86,6 +87,8 @@ async function submitTextIntent(
 ): Promise<IntentSubmitResponse> {
   if (reservedMemoRunId && !currentMemoOwner(options.admission, options.clientRunId, sessionId))
     return notSubmitted(sessionId, options.clientRunId, "Une nouvelle validation du propriétaire est nécessaire.");
+  const webStarted = performance.now();
+  const webDeadlineEpochMs = Date.now() + 12000;
   const normalized = reservedMemoRunId ? text : text.trim();
   const visibleUserText = reservedMemoRunId ? text : (options.userText || normalized).trim();
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
@@ -142,7 +145,7 @@ async function submitTextIntent(
     if (pending) {
       const clarified = await runModelFastPath(normalized, {
         surface: "claw_live", caller, originId: clientRunId || normalizedSessionId,
-        timeoutSeconds: 12, checkOnly: true,
+        timeoutSeconds: 12, checkOnly: true,checkBudgetMs:Math.max(1,Math.min(10000,Math.floor(webDeadlineEpochMs-Date.now()))),
         clarificationDecision: pending.decision, clarificationOriginalText: pending.text,
       });
       if (clarified.status === "clarification_unrelated") {
@@ -156,7 +159,7 @@ async function submitTextIntent(
     if (!parentClarificationRunId) {
       fastPathCheck = await runModelFastPath(normalized, {
         surface: "claw_live", caller, originId: clientRunId || normalizedSessionId,
-        timeoutSeconds: 12, checkOnly: true,
+        timeoutSeconds: 12, checkOnly: true,checkBudgetMs:Math.max(1,Math.min(10000,Math.floor(webDeadlineEpochMs-Date.now()))),
       });
     }
   }
@@ -168,6 +171,7 @@ async function submitTextIntent(
     return executeCapabilityFirst(
       routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
       parentClarificationRunId, replayOf, reservedMemoRunId, options.admission, ownerAdmitted,
+      {started:webStarted,deadlineEpochMs:webDeadlineEpochMs},
     );
   }
   if (fastPathCheck.status === "error") {
@@ -247,6 +251,7 @@ async function executeCapabilityFirst(
   reservedMemoRunId?: string,
   admission?: AdmissionTicket,
   ownerAdmitted = false,
+  webBudget?: {started:number;deadlineEpochMs:number},
 ): Promise<IntentSubmitResponse> {
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
@@ -275,7 +280,8 @@ async function executeCapabilityFirst(
   }
   let presentation = readReceiptPresentation(check);
   let provenance: FastPathResult["provenance"];
-  let state: "done" | "failed";
+  let web: RunWebResult | undefined;
+  let state: "done" | "failed" | "unknown";
   let message: string;
   if (check.status === "clarification") {
     state = "done";
@@ -288,16 +294,33 @@ async function executeCapabilityFirst(
       await markSubmittedRunFailed(runId, "owner_admission_expired");
       return notSubmitted(sessionId, clientRunId, "owner_admission_expired");
     }
-    const result = await runModelFastPath(text, {
+    const webCapability = String(check.decision?.capability || (check.decision?.selected as any)?.capability || "");
+    const isWeb = ["samantha.app.web.search","samantha.app.web.answer"].includes(webCapability);
+    const remainingBudgetMs = webBudget ? Math.floor(Math.min(12000-(performance.now()-webBudget.started),webBudget.deadlineEpochMs-Date.now())) : 0;
+    const requestId = typeof check.decision?.requestId === "string" ? check.decision.requestId : undefined;
+    const result = isWeb && (!ownerAdmitted || !requestId || !webBudget || remainingBudgetMs < 1)
+      ? {status:"known_error",execution_state:"not_started",reason:"web_execution_context_unavailable"} as FastPathResult
+      : await runModelFastPath(text, {
       surface: "claw_live",
       caller: ownerAdmitted ? "owner" : "other",
       originId: clientRunId || runId,
       timeoutSeconds: 75,
       preparedDecision: check.decision,
+      ...(isWeb ? {requestId,runId,sessionId,remainingBudgetMs,deadlineEpochMs:webBudget!.deadlineEpochMs} : {}),
     });
     presentation = readReceiptPresentation(result);
     provenance = result.provenance;
-    if (result.status === "hit") {
+    if (isWeb) {
+      const rawWeb = result.web ?? (result.result as any)?.web;
+      web = readRunWebResult(rawWeb);
+      if(web && ["complete","partial"].includes(web.outcome) && !["completed","partial"].includes(String(result.execution_state)))web=undefined;
+      const uncertain = ["indeterminate","verification_required","unknown","running"].includes(String(result.execution_state || ""));
+      state = uncertain ? "unknown" : web ? webRunState(web) : "failed";
+      message = uncertain ? "Le résultat de la recherche reste à vérifier ; aucune relance automatique." : web ? webResultText(web) :
+        result.reason === "web_deadline_exceeded" ? "La recherche a dépassé le délai disponible." :
+        result.reason === "execution_cancelled" ? "Recherche annulée." :
+        "Le résultat de la recherche n’a pas pu être validé ; aucune synthèse non vérifiée n’est affichée.";
+    } else if (result.status === "hit") {
       state = "done";
       message = String(result.text || "Claw completed the capability.");
     } else if (result.status === "known_error") {
@@ -310,7 +333,7 @@ async function executeCapabilityFirst(
   }
 
   presentation ||= fallbackReceiptPresentation(state === "failed");
-  await settleSubmittedRun(runId, state, message, {provenance, presentation});
+  await settleSubmittedRun(runId, state, message, {provenance, presentation, web});
   return {
     success: true,
     accepted: true,
@@ -323,6 +346,7 @@ async function executeCapabilityFirst(
     clientRunId,
     sessionId,
     state,
+    ...(web ? {web} : {}),
     result: state === "done" ? message : undefined,
     message,
     userText,
@@ -368,6 +392,7 @@ function responseFromExisting(
     clientRunId: status.clientRunId,
     sessionId: status.sessionId,
     state: status.state,
+    ...(status.web ? {web:status.web} : {}),
     result: status.result || message,
     message,
     userText,

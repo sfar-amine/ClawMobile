@@ -1,11 +1,11 @@
-import { execFile } from "node:child_process";
+import {createHash} from "node:crypto";
+import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
+import {readRunWebResult} from "./companion/runWeb";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 
 import { AGENT_CAPABILITY_REFUSAL } from "./capabilityAgentGuard";
 
-const execFileAsync = promisify(execFile);
 
 export type CapabilityArgs = {
   request?: string;
@@ -18,6 +18,9 @@ export type CapabilityArgs = {
 /** OpenClaw 2026.9.6 plugin factory context; never supplied in model arguments. */
 export type CapabilityTurnContext = {
   senderIsOwner?: boolean;
+  nativeChannelId?: string;
+  /** Set only by the SDK callback; never read from model arguments. */
+  invocationId?: string;
   assertInvocationCurrent?: () => void;
 };
 
@@ -27,6 +30,7 @@ export function createCapabilityTool(context: CapabilityTurnContext, options: Om
   // Snapshot the host bit for this factory invocation, not a session-wide identity.
   const turnContext = {
     senderIsOwner: context?.senderIsOwner,
+    nativeChannelId:typeof context?.nativeChannelId === "string" ? context.nativeChannelId : undefined,
     assertInvocationCurrent: typeof context?.assertInvocationCurrent === "function"
       ? context.assertInvocationCurrent.bind(context) : undefined,
   };
@@ -47,7 +51,7 @@ export function createCapabilityTool(context: CapabilityTurnContext, options: Om
     description: "Resolve the canonical Claw capability graph using host-admitted turn authority, optionally executing its validated route.",
     schema, inputSchema: schema, parameters: schema,
     async execute(_toolCallId: unknown, args: CapabilityArgs) {
-      const result = await clawmobile_capability(args ?? {}, { ...options, turnContext });
+      const result = await clawmobile_capability(args ?? {}, { ...options, turnContext:{...turnContext,invocationId:typeof _toolCallId === "string"?_toolCallId:undefined} });
       return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     },
   };
@@ -79,6 +83,15 @@ export async function clawmobile_capability(
   }
   const execute = args.execute !== false;
   const timeout = Math.max(2, Math.min(Number(args.timeoutSeconds || 30), 120));
+  const started=performance.now(),deadlineEpochMs=Date.now()+12000;
+  const nativeChannel=options.turnContext?.nativeChannelId,invocation=options.turnContext?.invocationId;
+  const nativeIdentity=typeof nativeChannel==="string"&&nativeChannel.length>0&&nativeChannel.length<=512&&typeof invocation==="string"&&/^[A-Za-z0-9_.:-]{1,160}$/.test(invocation);
+  const opaque=(kind:string,value:string)=>{
+    const h=createHash("sha256").update(JSON.stringify(["claw-native-web-v1",kind,value])).digest("hex").slice(0,32);
+    return h.slice(0,8)+"-"+h.slice(8,12)+"-5"+h.slice(13,16)+"-a"+h.slice(17,20)+"-"+h.slice(20);
+  };
+  const requestId=nativeIdentity?opaque("request",JSON.stringify([nativeChannel,invocation])):undefined;
+  const sessionId=nativeIdentity?opaque("session",nativeChannel!):undefined;
   const helpers = options.helperPath ? [options.helperPath] : helperCandidates(options.home);
   let lastError = "helper_missing";
 
@@ -94,18 +107,28 @@ export async function clawmobile_capability(
         "--caller", caller,
       ];
       if (execute) argv.push("--timeout", String(timeout));
+      const remaining=Math.floor(Math.min(12000-(performance.now()-started),deadlineEpochMs-Date.now()));
+      if(execute&&nativeIdentity){
+        if(remaining<1)return {status:"error",reason:"web_deadline_exceeded"};
+        argv.push("--request-id",requestId!,"--run-id",requestId!,"--session-id",sessionId!,"--remaining-budget-ms",String(remaining),"--deadline-epoch-ms",String(deadlineEpochMs));
+      }
       try { options.turnContext?.assertInvocationCurrent?.(); }
       catch { return { status: "error", reason: "caller_not_admitted" }; }
-      const raw: any = await execFileAsync("python3", argv, {
-        timeout: (timeout + 8) * 1000,
-        maxBuffer: 2 * 1024 * 1024,
-        env: { ...process.env },
+      const raw: any = await runCapabilityHelperProcess(argv, {
+        timeoutMs:execute&&nativeIdentity?remaining:(timeout+8)*1000,
+        maxBuffer:2*1024*1024,env:{...process.env},killGroup:execute&&nativeIdentity,
       });
       const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
       const stderr = typeof raw === "string" ? "" : String(raw?.stderr ?? "");
       const parsed = JSON.parse(stdout || "{}");
       if (typeof parsed !== "object" || parsed === null) {
         return { status: "error", reason: "invalid_result" };
+      }
+      if(parsed?.execution?.result?.web!==undefined){
+        const web=readRunWebResult(parsed.execution.result.web);
+        if(!web)return {status:"error",reason:"invalid_web_result"};
+        if(execute&&nativeIdentity&&(performance.now()-started>=12000||Date.now()>=deadlineEpochMs))return {status:"error",reason:"web_deadline_exceeded"};
+        return {status:"ok",...parsed,execution:{...parsed.execution,result:{web}}};
       }
       if (parsed?.execution?.reason === AGENT_CAPABILITY_REFUSAL) {
         return {
@@ -132,7 +155,7 @@ export async function clawmobile_capability(
         const parsed = JSON.parse(stdout || "{}");
         if (parsed && typeof parsed === "object") return { status: "error", ...parsed };
       } catch {}
-      lastError = String(error?.message || "helper_failed").slice(0, 800);
+      lastError = execute&&nativeIdentity&&Date.now()>=deadlineEpochMs?"web_deadline_exceeded":"helper_failed";
       break;
     }
   }

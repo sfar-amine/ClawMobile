@@ -894,7 +894,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     // The same ephemeral ticket guards resolution, prepared execution and the final bridge.
     // A stored clarification never grants admission to a following request.
     const execute = (request: string) => clawLiveCapabilityTurn(
-      {request, clarificationId, originId: body.clientRunId, assertCurrent},
+      {request, clarificationId, originId: body.clientRunId,sessionId, assertCurrent},
       (text) => {
         assertCurrent();
         return capabilityBridge(text, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35});

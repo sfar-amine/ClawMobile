@@ -1,3 +1,4 @@
+import {readRunWebResult,webResultText,webRunState,type RunWebResult} from "./companion/runWeb";
 import crypto from "node:crypto";
 import { readReceiptPresentation, publicReceiptMetadata } from "./companion/receiptPresentation";
 import type { FastPathResult, RunnerOptions } from "./modelFastPath";
@@ -20,7 +21,7 @@ type Pending = { originalText: string; decision: Record<string, unknown>; surfac
 
 export type SurfaceTurn =
   | { state: "needs_clarification"; clarificationId: string; question: string; choices: unknown[]; decision?: Record<string, unknown>; presentation?: unknown }
-  | { state: "done" | "failed"; text: string; source: "capability"; result?: unknown; decision?: Record<string, unknown>; presentation?: unknown }
+  | { state: "done" | "failed"; text: string; source: "capability"; result?: unknown; web?: RunWebResult; decision?: Record<string, unknown>; presentation?: unknown }
   | { state: "continue"; text: string; resolvedFrom?: string; decision?: Record<string, unknown>; presentation?: unknown };
 
 const TTL_MS = 10 * 60_000;
@@ -63,14 +64,16 @@ export class SurfaceClarifications {
    * @param text the user's original text for this turn (transcription, message), never a model reformulation.
    * @param id   the pending clarification id for this conversation, when there is one.
    */
-  async turn(text: string, options: { surface: string; id?: string; originId: string; timeoutSeconds?: number; assertCurrent?: () => void }): Promise<SurfaceTurn> {
+  async turn(text: string, options: { surface: string; id?: string; originId: string; timeoutSeconds?: number; sessionId?: string; runId?: string; assertCurrent?: () => void }): Promise<SurfaceTurn> {
+    const webStarted=performance.now(),webDeadline=Date.now()+12000;
     options.assertCurrent?.();
     this.cleanup();
     const original = String(text || "").trim();
     const surface = options.surface;
     const id = options.id && ID_RE.test(options.id) ? options.id : undefined;
     const pending = id ? this.pending.get(id) : undefined;
-    const common = { surface, caller: "owner" as const, originId: options.originId, timeoutSeconds: options.timeoutSeconds ?? 12 };
+    const common = { surface, caller: "owner" as const, originId: options.originId, timeoutSeconds: options.timeoutSeconds ?? 12,
+      sessionId:options.sessionId,runId:options.runId,deadlineEpochMs:webDeadline,webStarted };
     if (id && pending) {
       const clarified = await this.runner(original, {
         ...common, checkOnly: true,
@@ -118,7 +121,7 @@ export class SurfaceClarifications {
     }
     // A transaction (or any decision needing the owner confirmation) runs the prepared decision through
     // the same fast path as the app: owner confirmation card / handoff, never the agent.
-    if (check.status === "eligible" && check.decision && !isPlainRead(check.decision as Record<string, unknown>)) {
+    if (check.status === "eligible" && check.decision && (!isPlainRead(check.decision as Record<string, unknown>) || isWebDecision(check.decision))) {
       const executed = await this.executePrepared(original, check.decision as Record<string, unknown>, common, options.assertCurrent, id);
       if (executed) return executed;
     }
@@ -128,9 +131,19 @@ export class SurfaceClarifications {
 
   private async executePrepared(text: string, decision: Record<string, unknown>, common: RunnerOptions, assertCurrent?: () => void, id?: string): Promise<SurfaceTurn | null> {
     assertCurrent?.();
+    const isWeb=isWebDecision(decision);
+    const remainingBudgetMs=isWeb?Math.floor(Math.min(12000-(performance.now()-Number((common as any).webStarted)),Number(common.deadlineEpochMs)-Date.now())):undefined;
+    if(isWeb&&(!decision.requestId||!Number.isFinite(remainingBudgetMs)||remainingBudgetMs!<1))return {state:"failed",source:"capability",text:"Le délai de recherche est dépassé.",decision};
     const executed = await this.runner(text, {
-      ...common, checkOnly: false, timeoutSeconds: Math.max(Number(common.timeoutSeconds || 12), 75), preparedDecision: decision,
+      surface:common.surface,caller:common.caller,originId:common.originId,
+      checkOnly: false, timeoutSeconds: Math.max(Number(common.timeoutSeconds || 12), 75), preparedDecision: decision,
+      ...(isWeb?{requestId:String(decision.requestId),runId:common.runId,sessionId:common.sessionId,remainingBudgetMs,deadlineEpochMs:common.deadlineEpochMs}:{}),
     });
+    if(isWeb){
+      const web=readRunWebResult(executed.web??(executed.result as any)?.web);
+      if(!web||!['completed','partial','failed','cancelled'].includes(String(executed.execution_state)))return {state:"failed",source:"capability",text:"Le résultat de la recherche n’a pas pu être validé.",decision};
+      return {state:webRunState(web),source:"capability",text:webResultText(web),web,result:{web},decision:executed.decision||decision};
+    }
     // Amine 12/10 : the executor found several matches; nothing ran. Same question, the answer resolves it.
     if (executed.status === "clarification" && executed.decision && String((executed.decision as any).type) === "CLARIFY") {
       const newId = id || SurfaceClarifications.newId();
@@ -151,3 +164,5 @@ export class SurfaceClarifications {
 function isPlainRead(decision: Record<string, unknown>): boolean {
   return String(decision.risk || "read") === "read" && decision.confirmationRequired !== true;
 }
+
+function isWebDecision(value: Record<string, unknown>): boolean {return ["samantha.app.web.search","samantha.app.web.answer"].includes(String(value.capability || (value.selected as any)?.capability || ""));}
