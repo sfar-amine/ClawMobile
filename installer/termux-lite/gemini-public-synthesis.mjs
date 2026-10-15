@@ -76,7 +76,7 @@ export function publicPolicy(cfg, env=process.env) {
     cfg?.auth?.profiles?.[PROFILE]?.provider!=="google"||cfg.auth.profiles[PROFILE].mode!=="api_key"||
     agent.contextInjection!=="never")fail("policy_refused");
   // Pin canonical auth resolution; never select an env key, override or another profile.
-  if(Object.keys(env).some(name=>/^(?:OPENCLAW_LIVE_GEMINI_KEY|GOOGLE_API_KEY|GEMINI_API_KEYS?|GEMINI_API_KEY_.+)$/.test(name)))fail("profile_unavailable");
+  if(Object.keys(env).some(name=>/^(?:OPENCLAW_LIVE_GEMINI_KEY|GOOGLE_API_KEY|GEMINI_API_KEYS?|GEMINI_API_KEY_.+|GOOGLE_GENAI_USE_VERTEXAI|GOOGLE_GENAI_USE_ENTERPRISE|GOOGLE_GEMINI_BASE_URL|GOOGLE_VERTEX_BASE_URL)$/.test(name)))fail("profile_unavailable");
   const providerKey=Object.keys(cfg.models?.providers||{}).find(k=>k.trim().toLowerCase()==="google");
   const provider=cfg.models?.providers?.[providerKey];
   if(provider?.apiKey!==undefined||provider?.headers&&Object.keys(provider.headers).length)fail("profile_unavailable");

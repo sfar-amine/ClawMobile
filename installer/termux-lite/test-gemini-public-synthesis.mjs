@@ -38,7 +38,9 @@ test("policy rejects fallback, wrong model/profile and private context injection
     cfg=>cfg.agents.entries.gemini.contextInjection="always"]){const cfg=config();change(cfg);assert.throws(()=>publicPolicy(cfg,{}));}
 });
 test("competing environment and provider credentials fail before auth or generation",async()=>{
-  for(const env of [{GEMINI_API_KEY:"NEVER_READ"},{GOOGLE_API_KEY:"NEVER_READ"}]){
+  for(const env of [{GEMINI_API_KEY:"NEVER_READ"},{GOOGLE_API_KEY:"NEVER_READ"},
+    {GOOGLE_GENAI_USE_VERTEXAI:"true"},{GOOGLE_GENAI_USE_ENTERPRISE:"true"},
+    {GOOGLE_GEMINI_BASE_URL:"http://localhost"},{GOOGLE_VERTEX_BASE_URL:"http://localhost"}]){
     const native=owner();const result=await synthesizePublic(request(),native,{env});
     assert.equal(result.outcome,"partial");assert.deepEqual(native.calls,{auth:0,complete:0});
   }
@@ -102,4 +104,10 @@ test("native stream overflow is aborted before parsing or returning claims",asyn
   }});
   const result=await synthesizePublic(request(),native,{env:{}});
   assert.equal(result.error.code,"invalid_provider_response");assert.deepEqual(result.claims,[]);
+});
+test("catalog pricing estimates are not reported as actual free-profile billing",async()=>{
+  const native=owner();const original=native.complete;
+  native.complete=async(...args)=>({...await original(...args),usage:{cost:{total:1.25}}});
+  const result=await synthesizePublic(request(),native,{env:{}});
+  assert.equal(result.outcome,"complete");assert.equal(result.metrics.reportedCostUsd,null);
 });

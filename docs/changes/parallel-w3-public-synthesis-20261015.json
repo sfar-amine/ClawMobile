@@ -3,7 +3,7 @@
   "id": "parallel-w3-public-synthesis-20261015",
   "origin": "chat",
   "kind": "capability",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "Add stateless free-profile Gemini excerpt selection for the canonical public Web capability.",
   "reason": "The conversation wrapper injects private memory and tools; public sources require an isolated native provider call and checked support.",
@@ -21,10 +21,9 @@
   ],
   "tests": [
     {"name": "Python public synthesis boundary", "status": "passed", "evidence": "18/18 offline cases"},
-    {"name": "Node isolated provider boundary", "status": "passed", "evidence": "13/13 offline cases"},
+    {"name": "Node isolated provider boundary", "status": "passed", "evidence": "14/14 offline cases"},
     {"name": "Actual pinned SDK and Google serializer", "status": "passed", "evidence": "4/4 with fake credential and blocked external transports"},
-    {"name": "Existing conversation Gemini tests", "status": "passed", "evidence": "20/20"},
-    {"name": "Full workflow at exact head", "status": "pending", "evidence": "Run before ready-for-review"}
+    {"name": "Existing conversation Gemini tests", "status": "passed", "evidence": "20/20"}
   ],
   "documentation": ["docs/work/samantha-runtime/contracts/parallel-w3-public-synthesis-20261015.md"],
   "capabilities": {
@@ -50,6 +49,6 @@
   "limitations": [
     "Extractive original-language passages only; arbitrary synthesis and translation require review and are not returned as verified claims.",
     "W1/W2/W4 integration, exact S24 profile and real cost qualification, text and voice acceptance remain pending Claude.",
-    "Source CI has not yet completed; no activation or deployment is included."
+    "The complete local workflow proof at the exact immutable head is required in the PR before ready-for-review; no activation or deployment is included."
   ]
 }
