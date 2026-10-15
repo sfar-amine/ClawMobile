@@ -55,6 +55,7 @@ test("native catalog and real provider serialize one public message without tool
   assert.equal(calls[0].body.toolConfig,undefined);
   assert.equal(calls[0].body.cachedContent,undefined);
   assert.equal(calls[0].body.generationConfig.responseMimeType,"application/json");
+  assert.deepEqual(calls[0].body.generationConfig.thinkingConfig,{thinkingLevel:"MINIMAL"});
   assert.equal(result.metrics.reportedCostUsd,null);
 });
 test("native Google 429 performs no hidden retries",async()=>{

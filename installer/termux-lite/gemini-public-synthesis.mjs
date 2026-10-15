@@ -171,12 +171,15 @@ export async function synthesizePublic(request, owner, {signal,env=process.env,c
         assertCurrent();
         const expectedContents=[{role:"user",parts:[{text:context.messages[0].content}]}];
         if(payload.model!==MODEL_ID||JSON.stringify(payload.contents)!==JSON.stringify(expectedContents)||
-          payload.config?.tools?.length||payload.config?.toolConfig)fail("policy_refused");
+          payload.config?.tools?.length||payload.config?.toolConfig||
+          JSON.stringify(payload.config?.thinkingConfig)!==JSON.stringify({thinkingLevel:"MINIMAL"}))fail("policy_refused");
         const safe={model:MODEL_ID,contents:payload.contents,config:{
           systemInstruction:SYSTEM,abortSignal:controller.signal,maxOutputTokens:1800,
           temperature:0,responseMimeType:"application/json",
           httpOptions:{timeout:Math.max(1,request.remainingBudgetMs-(clock()-start)),retryOptions:{attempts:1}},
-          thinkingConfig:{thinkingBudget:0}}};
+          // Keep the installed SDK's disabled-thinking projection for this
+          // Gemini 3.x model; do not substitute the older thinkingBudget API.
+          thinkingConfig:{thinkingLevel:payload.config.thinkingConfig.thinkingLevel}}};
         payloadAttested=true;
         return safe;
       }},assertCurrent,controller);

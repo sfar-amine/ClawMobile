@@ -19,7 +19,7 @@ function owner(overrides={}) {
       assert.equal(context.messages.length,1);assert.deepEqual(context.tools,[]);assert.equal(context.systemPrompt,SYSTEM);
       assert.ok(!JSON.stringify(context).includes("PRIVATE_CANARY"));
       assert.equal(options.maxRetries,0);assert.equal(options.apiKey,"FAKE_OFFLINE_CREDENTIAL");
-      const payload=options.onPayload({model:MODEL_ID,contents:[{role:"user",parts:[{text:context.messages[0].content}]}],config:{}});
+      const payload=options.onPayload({model:MODEL_ID,contents:[{role:"user",parts:[{text:context.messages[0].content}]}],config:{thinkingConfig:{thinkingLevel:"MINIMAL"}}});
       assert.equal(payload.config.tools,undefined);assert.equal(payload.config.httpOptions.retryOptions.attempts,1);
       assert.equal(payload.config.responseMimeType,"application/json");assert.equal(payload.config.abortSignal,options.signal);
       return {provider:"google",model:MODEL_ID,stopReason:"stop",content:[{type:"text",text:JSON.stringify({claims:[
@@ -65,7 +65,7 @@ test("provider must attest actual wire payload and native identity",async()=>{
   assert.equal((await synthesizePublic(request(),native,{env:{}})).error.code,"invalid_provider_response");
 });
 test("provider tool call is rejected and never executed",async()=>{
-  const native=owner({complete:async(model,ctx,opt)=>{opt.onPayload({model:MODEL_ID,contents:[{role:"user",parts:[{text:ctx.messages[0].content}]}],config:{}});
+  const native=owner({complete:async(model,ctx,opt)=>{opt.onPayload({model:MODEL_ID,contents:[{role:"user",parts:[{text:ctx.messages[0].content}]}],config:{thinkingConfig:{thinkingLevel:"MINIMAL"}}});
     return {provider:"google",model:MODEL_ID,stopReason:"toolUse",content:[{type:"toolCall",name:"read_memory"}]};}});
   assert.equal((await synthesizePublic(request(),native,{env:{}})).error.code,"invalid_provider_response");
 });
@@ -98,7 +98,7 @@ test("real citation cannot qualify unrelated paraphrase or translated assertion"
 });
 test("native stream overflow is aborted before parsing or returning claims",async()=>{
   const native=owner({stream:async function*(model,context,options) {
-    options.onPayload({model:MODEL_ID,contents:[{role:"user",parts:[{text:context.messages[0].content}]}],config:{}});
+    options.onPayload({model:MODEL_ID,contents:[{role:"user",parts:[{text:context.messages[0].content}]}],config:{thinkingConfig:{thinkingLevel:"MINIMAL"}}});
     yield {type:"text_delta",partial:{content:[{type:"text",text:"x".repeat(32769)}]}};
     assert.fail("must stop before another provider event");
   }});
