@@ -209,6 +209,21 @@ export async function synthesizePublic(request, owner, {signal,env=process.env,c
   } finally {clearTimeout(timer);signal?.removeEventListener("abort",abort);}
 }
 
+export async function loadAndSynthesizePublic(request, loadOwner=loadPublicSynthesisOwner,
+  {signal,env=process.env,clock=()=>performance.now()}={}) {
+  const started=clock();
+  try {
+    if(signal?.aborted)return degradation("cancelled");
+    const owner=await loadOwner();
+    // SDK imports/catalog preparation consume the same incoming budget. In
+    // particular, a delayed event-loop timer cannot authorize a late dispatch.
+    const remaining=Math.floor(request.remainingBudgetMs-(clock()-started));
+    if(signal?.aborted)return degradation("cancelled");
+    if(remaining<=0)return degradation("deadline_exceeded");
+    return await synthesizePublic({...request,remainingBudgetMs:remaining},owner,{signal,env,clock});
+  } catch {return degradation("sdk_unavailable");}
+}
+
 async function main() {
   // SDKs may log config/provider details; reserve stdout for the closed receipt.
   const output=process.stdout.write.bind(process.stdout);
@@ -224,7 +239,7 @@ async function main() {
   process.once("SIGTERM",()=>controller.abort());
   process.once("SIGINT",()=>controller.abort());
   let result;
-  try {result=await synthesizePublic(request,await loadPublicSynthesisOwner(),{signal:controller.signal});}
+  try {result=await loadAndSynthesizePublic(request,loadPublicSynthesisOwner,{signal:controller.signal});}
   catch {result=degradation("sdk_unavailable");}
   output(JSON.stringify(result)+"\n");
 }
