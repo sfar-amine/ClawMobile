@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { AGENT_CAPABILITY_REFUSAL } from "./capabilityAgentGuard";
+
 const execFileAsync = promisify(execFile);
 
 export type CapabilityArgs = {
@@ -54,7 +56,6 @@ export function createCapabilityTool(context: CapabilityTurnContext, options: Om
 function helperCandidates(home = os.homedir()): string[] {
   return [
     path.join(home, ".openclaw/releases/current/termux-lite/claw-capability.py"),
-    path.join(home, "ClawMobile/installer/termux-lite/claw-capability.py"),
   ];
 }
 
@@ -82,9 +83,11 @@ export async function clawmobile_capability(
 
   for (const helper of helpers) {
     try {
+      // 38 E3: the agent executes only through `agent-execute` (one canonical resolution, E3 policy,
+      // then that exact decision in read-only mode). Operator or non-read decisions are never run here.
       const argv = [
         helper,
-        execute ? "execute" : "resolve",
+        execute ? "agent-execute" : "resolve",
         request,
         "--surface", surface,
         "--caller", caller,
@@ -102,6 +105,16 @@ export async function clawmobile_capability(
       const parsed = JSON.parse(stdout || "{}");
       if (typeof parsed !== "object" || parsed === null) {
         return { status: "error", reason: "invalid_result" };
+      }
+      if (parsed?.execution?.reason === AGENT_CAPABILITY_REFUSAL) {
+        return {
+          status: "error",
+          reason: AGENT_CAPABILITY_REFUSAL,
+          executed: false,
+          capability: parsed.capability ?? null,
+          agent_policy: parsed.agent_policy ?? null,
+          message: "Demande opérateur ou transaction : elle passe par l'entrée Samantha avec le texte original de l'utilisateur, jamais par l'agent. N'affirme aucun résultat.",
+        };
       }
       return {
         status: "ok",

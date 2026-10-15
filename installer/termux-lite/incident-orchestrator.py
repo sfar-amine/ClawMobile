@@ -91,6 +91,16 @@ def recover_incident(component,scope,source,reason="verified service recovery"):
  if row["state"]!="verifying" or i!=row["id"]: transition(i,"verifying",source,reason)
  return transition(i,"recovered",source,reason)
 
+# Components the worker repairs itself; others may be covered by a trusted engineering-repair profile.
+DIRECT_HANDLERS=("adb","gateway-secretref-exec","openclaw-agent-headless","remote_desktop")
+def handled(component,direct_only=False):
+ """Doc 51 I2: one list for the worker and the health manager, so no model diagnosis runs for a component nobody can repair."""
+ if component in DIRECT_HANDLERS: return True
+ if direct_only: return False
+ repair=Path(__file__).with_name("engineering-repair.sh")
+ try: return subprocess.run([str(repair),"supports",component],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=30).returncode==0
+ except Exception: return False
+
 def show(i):
  c=connect();row=c.execute("SELECT * FROM incidents WHERE id=?",(i,)).fetchone();ev=[dict(x) for x in c.execute("SELECT * FROM events WHERE incident_id=? ORDER BY seq",(i,))];c.close();return {"incident":dict(row) if row else None,"events":ev}
 def main():
@@ -100,11 +110,13 @@ def main():
  e=s.add_parser("observe");e.add_argument("id");e.add_argument("kind");e.add_argument("--source",required=True);e.add_argument("--json",default="{}")
  r=s.add_parser("recover");r.add_argument("component");r.add_argument("scope");r.add_argument("--source",required=True);r.add_argument("--reason",default="verified service recovery")
  g=s.add_parser("show");g.add_argument("id")
+ h=s.add_parser("handled");h.add_argument("component");h.add_argument("--direct",action="store_true")
  a=p.parse_args()
  if a.cmd=="open": out=open_incident(a.component,a.scope,a.source,a.summary)
  elif a.cmd=="transition": out=transition(a.id,a.state,a.source,a.reason,a.human_boundary,a.retry_after)
  elif a.cmd=="observe": observe(a.id,a.source,a.kind,json.loads(a.json));out=show(a.id)
  elif a.cmd=="recover": out=recover_incident(a.component,a.scope,a.source,a.reason)
+ elif a.cmd=="handled": sys.exit(0 if handled(a.component,a.direct) else 1)
  else: out=show(a.id)
  print(json.dumps(out,ensure_ascii=False,indent=2))
 if __name__=="__main__": main()

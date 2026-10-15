@@ -9,6 +9,7 @@ import json, re, sys, time, urllib.error, urllib.request
 BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
 READS = [
+    ("/catalog", 0.3), # HS2: warm reads from memory; one HS1 generation is ≈ 360 ms on the S24, so the cold first read uses the retry.
     ("/health", 2.0),
     ("/control/health?contract=2", 2.0),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
@@ -33,6 +34,8 @@ READS = [
     ("/control/memory?limit=20", 3.0),
     ("/agent/config", 9.0),
     ("/laptop-access/computers", 6.0),
+    # P1 : état d'enrôlement de l'admission native (lecture d'un fichier local, aucune clé privée).
+    ("/owner-admission", 0.5),
     ("/security/surfaces", 2.0),
     # R8 user28 budgets; real recording volume is zero (captured producer forms are mock traces).
     ("/skills/candidates?limit=50", 1.5),
@@ -41,12 +44,15 @@ READS = [
     # P2-b: an installed workspace skill on the S24 (fixtures/s24-2026-10-10/gateway/skills.status.json).
     # The Gateway wait is capped at 3 s (then partial); skills.status measured 1.8-2.4 s.
     ("/skills/clawmobile-capabilities", 4.0),
+    # 38 A2 : projection owner d'improvements.db (engineering.learning_gate), cache court 5 s.
+    ("/learning/associations?limit=20", 0.5),
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
     ("POST", "/attachments"),
     ("POST", "/security/surfaces"),
     ("POST", "/automations/acceptance-probe/run"),
+    ("PATCH", "/automations/acceptance-probe"),  # R23 / E1 : modification refusée sans en-tête propriétaire, avant toute lecture
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
     ("POST", "/conversations/x/metadata"),
@@ -55,21 +61,43 @@ OWNER_GUARDS = [
     ("POST", "/control/memory/import"),
     ("POST", "/control/memory/" + "a" * 64 + "/forget"),
     ("POST", "/runs/acceptance-probe/approval"),
+    # 38 A2 : oublier et « Ce n'est pas ça » refusés sans en-tête propriétaire, avant tout effet.
+    ("POST", "/learning/associations/" + "a" * 64 + "/forget"),
+    ("POST", "/learning/not-this"),
     ("POST", "/whatsapp/allowlist"),
     ("POST", "/skills/clawmobile-capabilities/disable"),
     ("POST", "/skills/clawmobile-capabilities/enable"),
     ("POST", "/skills/clawmobile-capabilities/try"),
     ("POST", "/files"),
     ("POST", "/files/content"),
+    ("PUT", "/files/content?scope=agent&path=AGENTS.md"),  # E3 : écriture refusée sans en-tête propriétaire, avant toute lecture
     # Lot paiement Maxit 11/10 (P1-5): these routes changed budget (Payment Core quote 45 s,
     # local start = quote 45 s + execution 230 s, resume 65 s). Acceptance never sends an authorized
     # payment mutation: without the native owner header they must be refused before any effect.
+    # P1 : enrôlement et révocation de l'admission native refusés sans en-tête propriétaire (et sans biométrie/preuve signée).
+    ("POST", "/owner-admission/enrollment"),
+    ("DELETE", "/owner-admission/enrollment"),
+    ("POST", "/extensions/claw-live/capability"),  # P1: no signed admission, no voice effect
     ("POST", "/payments/local-handoffs"),
     ("POST", "/payments/local-start"),
     ("POST", "/payments/" + "1" * 8 + "-1111-4111-8111-" + "1" * 12 + "/bank-return"),
 ]
 OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0, "/payments/local-handoffs": 2.0, "/payments/local-start": 2.0}  # admission/refusal budget, no effect without owner proof
 SETTLE_SECONDS = 15
+# O9 (fichier 37): a voice run whose transcript is final (completed/interrupted) is never state=unknown.
+VOICE_TERMINAL_ROUTE = "/runs?limit=50"
+
+
+def voice_terminal_unknown(body):
+    """Read-only invariant on the already fetched run list: ids of voice runs left unknown with a final transcript."""
+    try:
+        listed = json.loads(body or b"{}").get("runs")
+    except (ValueError, AttributeError):
+        return None
+    if not isinstance(listed, list):
+        return None
+    return [str(run.get("runId"))[:80] for run in listed if isinstance(run, dict) and run.get("modality") == "voice"
+            and run.get("transcriptState") in ("completed", "interrupted") and run.get("state") == "unknown"]
 # Secrets and account e-mails. 10/10 (recette UI): /agent/config published the OAuth profile e-mail.
 # Measured read-only on the S24 the same day: no other READS route returns an e-mail address.
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bAKIA[0-9A-Z]{16}\b|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY")
@@ -88,6 +116,10 @@ def call(method, path, timeout, headers=None):
         return e.code, e.read(1 << 20), time.monotonic() - began
     except Exception:
         return 0, b"", time.monotonic() - began
+
+
+# Pause before the single second reading of a failed check (budget overrun or 5xx).
+RETRY_PAUSE_S = float(__import__("os").environ.get("COMPANION_ACCEPT_RETRY_PAUSE_S", "8"))
 
 
 def settle(path, body):
@@ -110,6 +142,15 @@ def settle(path, body):
             return False
 
 
+def owner_transport_unavailable(body):
+    """Nombre de runs récents dont l'admission native était valide mais la connexion admin indisponible."""
+    try:
+        runs = json.loads(body).get("runs")
+    except (ValueError, AttributeError):
+        return 0
+    return sum(1 for run in runs if isinstance(run, dict) and run.get("ownerTransport") == "write_cli_owner_unavailable") if isinstance(runs, list) else 0
+
+
 def main(session_id=None):
     if session_id is not None and (not isinstance(session_id,str) or not re.fullmatch(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*",session_id) or len(session_id)>80):
         return 2
@@ -119,7 +160,11 @@ def main(session_id=None):
         nonlocal failed
         for label,budget in (("cold",6.0),("warm",1.5)):
             if identifier is not None:
-                code, body, took = call("GET", "/conversations/" + identifier + "/metadata", budget + 1)
+                for attempt in (1, 2):
+                    code, body, took = call("GET", "/conversations/" + identifier + "/metadata", budget + 1)
+                    if (code == 200 and took <= budget) or code == 404 or attempt == 2:
+                        break
+                    time.sleep(RETRY_PAUSE_S)
                 leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
                 status = "skipped" if code == 404 else ("ok" if code == 200 and took <= budget and not leak else "fail")
             else:
@@ -134,6 +179,8 @@ def main(session_id=None):
             ok = code == 200 and took <= budget
             if ok or code == 404 or attempt == 2:
                 break
+            # A second reading after a pause, not back to back: a load spike is not a regression (retro 12/10).
+            time.sleep(RETRY_PAUSE_S)
         leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
         settled = settle(path, body) if code == 200 else True
         if code == 200 and EMAIL.search(body.decode("utf-8", "replace")):
@@ -141,6 +188,18 @@ def main(session_id=None):
         status = "skipped" if code == 404 else ("ok" if ok and not leak and settled else "fail")
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget, "leak": leak, "settled": settled, "status": status})
+        if path == VOICE_TERMINAL_ROUTE and code == 200:
+            stale = voice_terminal_unknown(body)
+            # No run list to judge (route shape owned by its READS row): skipped, never a rollback by itself.
+            voice_status = "skipped" if stale is None else ("ok" if stale == [] else "fail")
+            failed |= voice_status == "fail"
+            results.append({"route": path, "check": "voice_runs_terminal_state", "unknown_terminal": len(stale) if stale is not None else None, "status": voice_status})
+        if path == VOICE_TERMINAL_ROUTE and code == 200:
+            # P1 : un tour admis owner parti sur le CLI write (SDK OpenClaw absent ou version différente) est une alerte,
+            # pas un retour arrière : il est resté non-owner (refus fermé), mais l'autorité d'Amine ne passe plus.
+            degraded = owner_transport_unavailable(body)
+            if degraded:
+                warnings.append({"route": path, "warning": "owner_transport_unavailable", "runs": degraded})
         if path == "/runs?contract=2&view=conversations&limit=20" and code == 200 and conversation_id is None:
             try:
                 items = json.loads(body).get("items")

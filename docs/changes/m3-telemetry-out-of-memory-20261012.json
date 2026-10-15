@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "id": "m3-telemetry-out-of-memory-20261012",
+  "date": "2026-10-12",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Lot M3 « une seule mémoire » : la télémétrie machine sort de memory.db à la source (déploiement Companion, learning gate), refus défensif à l'entrée, curateur et vue sans télémétrie ; script réversible de remplacement des 862 événements existants (non exécuté).",
+  "scope": {
+    "files": [
+      "installer/termux-lite/companion-deploy.sh",
+      "installer/termux-lite/learning-gate-close.sh",
+      "installer/termux-lite/context-event.sh",
+      "installer/termux-lite/context-store.py",
+      "installer/termux-lite/context_memory.py",
+      "installer/termux-lite/context-dream.py",
+      "installer/termux-lite/context-retire-telemetry.py",
+      "installer/termux-lite/test-context-scale.py",
+      "installer/termux-lite/test-learning-gate.py",
+      "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11-m3-telemetry/"
+    ]
+  },
+  "payment_sequence": "unchanged",
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "Aucune route ni capability ; aucune ligne companion-acceptance.py nécessaire."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "reason": "Propriétaires existants seulement : reçus ~/.openclaw/deploys, reçus/journal du learning gate, situation_events (playbooks). Remplacement par la supersession de context-store.py (ingest_file require_active), sans nouveau store, registre, routeur, scheduler ni démon."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert du commit puis companion-deploy.sh. Si le script de remplacement a été exécuté : context-retire-telemetry.py --restore <manifest> --apply (refusé si d'autres écritures ont eu lieu depuis)."
+}

@@ -1,5 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -43,7 +44,8 @@ class AndroidPhantomHeadroomTests(unittest.TestCase):
             bindir = home / "bin"
             bindir.mkdir()
             fake_adb = bindir / "adb"
-            fake_adb.write_text(FAKE_ADB)
+            # Le shebang Termux du double est adapté à l'hôte (CI Ubuntu, conteneurs).
+            fake_adb.write_text(FAKE_ADB.replace("#!/data/data/com.termux/files/usr/bin/bash", "#!" + shutil.which("bash"), 1))
             fake_adb.chmod(0o700)
 
             effective_file = home / "effective"

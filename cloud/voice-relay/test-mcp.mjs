@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { handleMcpHttp } from "./src/mcp.mjs";
+import { pendingActionResult } from "./src/index.mjs";
 
 const token = "test-token-" + "x".repeat(40);
 const tokenSha256 = createHash("sha256").update(token).digest("hex");
@@ -123,6 +124,7 @@ assert.deepEqual(ownerNames, [
   "claw_context",
   "claw_exec",
   "claw_execute",
+  "claw_remember",
   "claw_resolve",
   "claw_status",
 ]);
@@ -239,6 +241,35 @@ result=await post({jsonrpc:'2.0',id:702,method:'tools/call',params:{name:'claw_c
 assert.equal(result.body.result.isError,true);assert.equal(calls.length,contextCallsBefore+1);
 result=await post({jsonrpc:'2.0',id:703,method:'tools/call',params:{name:'claw_context',arguments:{query:'Fixture',scopes:['memory']}}},'wrong-'+ 'z'.repeat(40));
 assert.equal(result.status,401);assert.equal(calls.length,contextCallsBefore+1);
+
+// M2 claw_remember: owner-only catalog entry, closed kinds, stable action identity, no surface argument.
+const rememberTool = ownerList.body.result.tools.find((tool) => tool.name === "claw_remember");
+assert.ok(rememberTool, "owner catalog exposes claw_remember");
+assert.deepEqual(rememberTool.inputSchema.properties.kind.enum, ["decision", "learning", "constraint", "open_thread", "completed_action"]);
+assert.equal(rememberTool.inputSchema.properties.text.maxLength, 1000);
+assert.deepEqual([...rememberTool.inputSchema.required].sort(), ["action_key", "kind", "text"]);
+assert.ok(!rememberTool.inputSchema.properties.surface, "surface is derived from the authenticated client");
+assert.equal(rememberTool.annotations.readOnlyHint, false);
+assert.equal(rememberTool.annotations.idempotentHint, true);
+const rememberCallsBefore = calls.length;
+const rememberCall = await post({jsonrpc:"2.0",id:801,method:"tools/call",params:{name:"claw_remember",arguments:{text:"Décision : réponses courtes.",kind:"decision",action_key:"remember-001",surface:"work"}}}, token, ownerEnv);
+assert.equal(rememberCall.status, 200);
+assert.equal(calls.length, rememberCallsBefore + 1);
+assert.equal(calls.at(-1).tool, "claw_remember");
+assert.equal(calls.at(-1).meta.requestId, "mcp-claude-chat-remember-001-execute");
+assert.equal(calls.at(-1).auth.profile, "chat-owner");
+assert.ok(!Object.hasOwn(calls.at(-1).args, "surface"));
+for (const bad of [{text:"x".repeat(1001),kind:"decision",action_key:"remember-002"},{text:"Point",kind:"checkpoint",action_key:"remember-003"},{text:"Point",kind:"decision",action_key:"bad key"},{text:"Point",kind:"decision",action_key:"remember-004",supersedes:"nothex"}]) {
+  const refused = await post({jsonrpc:"2.0",id:802,method:"tools/call",params:{name:"claw_remember",arguments:bad}}, token, ownerEnv);
+  assert.equal(refused.body.result.isError, true);
+}
+assert.equal(calls.length, rememberCallsBefore + 1);
+const shadowRemember = await post({jsonrpc:"2.0",id:803,method:"tools/call",params:{name:"claw_remember",arguments:{text:"Fait",kind:"learning",action_key:"remember-005"}}});
+assert.equal(shadowRemember.body.result?.isError ?? true, true);
+assert.equal(calls.length, rememberCallsBefore + 1);
+const pending = pendingActionResult("mcp-claude-chat-remember-001-execute", "claw_remember", {action_key:"remember-001"}, "device_timeout");
+assert.equal(pending.state, "running");
+assert.deepEqual(pending.status, {tool:"claw_status",action_key:"remember-001",step_key:"execute"});
 
 console.log(JSON.stringify({
   ok: true,

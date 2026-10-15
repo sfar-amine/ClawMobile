@@ -124,7 +124,8 @@ def runtime_script(name: str) -> Path:
     current = HOME / ".openclaw/releases/current/termux-lite" / name
     if current.exists():
         return current
-    fallback = HOME / "ClawMobile/installer/termux-lite" / name
+    # R10 : repli sur la racine de ce script (release Tier0 ou copie de travail), jamais un chemin en dur.
+    fallback = Path(__file__).resolve().parent / name
     return fallback
 
 
@@ -228,6 +229,9 @@ def load_status() -> dict:
         return {}
 
 
+FAST_PATH_PROCESS_TIMEOUT_S = 90
+
+
 def fast_path_request(message: str, caller: str = "owner", origin_id: str = "gemini-direct") -> dict:
     script = Path(__file__).resolve().with_name("model-fast-path.py")
     if not script.exists():
@@ -238,7 +242,9 @@ def fast_path_request(message: str, caller: str = "owner", origin_id: str = "gem
              "--caller", caller, "--origin-id", origin_id[:120], message],
             capture_output=True,
             text=True,
-            timeout=38,
+            # O6: a guarded operator read waits up to 70 s inside the fast path (60 s guard bound + margin);
+            # other routes stay bounded by the fast path's own 30 s execution budget.
+            timeout=FAST_PATH_PROCESS_TIMEOUT_S,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return {"status": "error", "reason": type(exc).__name__}

@@ -1,0 +1,69 @@
+{
+ "provenance": "reporting.control_learning list sur la capture S24 nettoyée improvements.db du 2026-10-11 (0 association réelle) — playbooks 38 A2",
+ "response": {
+  "schemaVersion": 1,
+  "receipt": null,
+  "owner": "engineering.learning_gate",
+  "kinds": [
+   {
+    "id": "candidate",
+    "label": {
+     "fr": "Candidats",
+     "en": "Candidates"
+    },
+    "available": true
+   },
+   {
+    "id": "learned",
+    "label": {
+     "fr": "Retenues",
+     "en": "Learned"
+    },
+    "available": true
+   },
+   {
+    "id": "counter_example",
+    "label": {
+     "fr": "Contre-exemples",
+     "en": "Counter-examples"
+    },
+    "available": true
+   },
+   {
+    "id": "default_slot",
+    "label": {
+     "fr": "Valeurs par défaut",
+     "en": "Default slots"
+    },
+    "available": true
+   },
+   {
+    "id": "outside_catalog",
+    "label": {
+     "fr": "Demandes hors catalogue",
+     "en": "Outside catalogue"
+    },
+    "available": false
+   }
+  ],
+  "offset": 0,
+  "limit": 50,
+  "policy": {
+   "autonomousPromotion": "verified_receipt_only",
+   "rememberAction": false,
+   "paymentConfirmation": "always",
+   "templatesOnly": true
+  },
+  "state": "ok",
+  "total": 0,
+  "counts": {
+   "candidate": 0,
+   "learned": 0,
+   "counter_example": 0,
+   "default_slot": 0,
+   "outside_catalog": 0
+  },
+  "items": [],
+  "revision": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+ }
+}

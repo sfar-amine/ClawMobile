@@ -4,7 +4,8 @@ HOME_DIR=${HOME:-/data/data/com.termux/files/home}
 STATE=$HOME_DIR/.openclaw/watchdogs
 LOG=$STATE/remote-desktop-supervisor.log
 LOCK=$STATE/remote-desktop-supervisor.lock
-CHILD=$HOME_DIR/ClawMobile/installer/termux-lite/remote-desktop-watchdog.sh
+ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
+CHILD=$ROOT/remote-desktop-watchdog.sh
 mkdir -p "$STATE"
 exec 9>"$LOCK"
 flock -n 9 || exit 0

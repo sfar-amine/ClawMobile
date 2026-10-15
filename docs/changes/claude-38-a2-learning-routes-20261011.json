@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "id": "claude-38-a2-learning-routes-20261011",
+  "origin": "work",
+  "kind": "capability",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "38 A2 : routes Companion owner /v1/learning/associations, forget et not-this via le propriétaire engineering.learning_gate.",
+  "reason": "Fichier 38 A2, D1 (pas de Retenir) et D3 (Ce n'est pas ça) ; l'écran app HA6 attend l'API.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/companion/learning.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-learning-routes.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/learning/associations-real-empty.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/learning/associations-synthetic.json",
+    "docs/work/samantha-runtime/contracts/38-a2-learning-routes.md",
+    "docs/changes/claude-38-a2-learning-routes-20261011.md",
+    "docs/changes/claude-38-a2-learning-routes-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "38 A2 learning routes",
+      "status": "passed",
+      "evidence": {
+        "command": "node scripts/test-learning-routes.cjs",
+        "budget_ms": 500,
+        "cold_ms_with_250ms_owner": "≈300",
+        "warm_ms": "≈2",
+        "fixtures": "projection réelle (capture S24 nettoyée, 0 association) et projection synthétique produites par reporting.control_learning"
+      }
+    },
+    {
+      "name": "Core CI steps",
+      "status": "passed",
+      "evidence": "Toutes les étapes de .github/workflows/ci.yml rejouées localement (voir PR)."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/38-a2-learning-routes.md",
+    "docs/changes/claude-38-a2-learning-routes-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "new",
+    "ids": [
+      "samantha.app.learning.list",
+      "samantha.app.learning.forget",
+      "samantha.app.learning.not_this"
+    ],
+    "reason": "Déclarées planned dans samantha-ui-playbooks/capabilities/registry.json (PR playbooks A2)."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Propriétaire existant (improvements.db, A1) et registre de runs existant ; cache court et rejeu bornés, pas de store, routeur ni démon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Routes owner natives ; aucun outil MCP modifié."
+  },
+  "rollback": "Revert de la PR ; la trace notThis des runs est ignorée par les versions précédentes.",
+  "limitations": [
+    "Dépend du module playbooks reporting.control_learning (PR playbooks A2, empilée sur A1) épinglé sur le S24 ; avant cela la route répond 503 learning_owner_unavailable.",
+    "Budget S24 à mesurer à la recette (Python froid)."
+  ]
+}

@@ -1,0 +1,114 @@
+// Extrait verbatim, lecture seule (claw_exec, 11/10/2026 ~03:40 UTC), OpenClaw 2026.9.6 (eb377ac)
+// Fichier : $PREFIX/lib/node_modules/openclaw/dist/src-BRUl7oDv.mjs (lignes 4049-4062, 4252-4290, 4351-4380, 4702-4725)
+function cronAgentTurnPayloadSchema(params) {
+	return closedObject({
+		kind: Type.Literal("agentTurn"),
+		message: params.message,
+		model: Type.Optional(params.model),
+		fallbacks: Type.Optional(params.fallbacks),
+		thinking: Type.Optional(params.thinking),
+		timeoutSeconds: Type.Optional(params.timeoutSeconds),
+		allowUnsafeExternalContent: Type.Optional(Type.Boolean()),
+		lightContext: Type.Optional(Type.Boolean()),
+		toolsAllow: Type.Optional(params.toolsAllow),
+		toolsAllowIsDefault: Type.Optional(Type.Boolean())
+	});
+}
+const CronScheduleSchema = Type.Union([
+	closedObject({
+		kind: Type.Literal("at"),
+		at: NonEmptyString
+	}),
+	closedObject({
+		kind: Type.Literal("every"),
+		everyMs: Type.Integer({
+			minimum: 1,
+			maximum: MAX_DATE_TIMESTAMP_MS
+		}),
+		anchorMs: Type.Optional(Type.Integer({
+			minimum: 0,
+			maximum: MAX_DATE_TIMESTAMP_MS
+		}))
+	}),
+	closedObject({
+		kind: Type.Literal("cron"),
+		expr: NonEmptyString,
+		tz: Type.Optional(Type.String()),
+		staggerMs: Type.Optional(Type.Integer({
+			minimum: 0,
+			maximum: MAX_DATE_TIMESTAMP_MS
+		}))
+	}),
+	closedObject({
+		kind: Type.Literal("on-exit"),
+		command: NonEmptyString,
+		cwd: Type.Optional(NonEmptyString)
+	}),
+	closedObject({
+		kind: Type.Literal("stream"),
+		command: Type.Array(NonEmptyString, { minItems: 1 }),
+		cwd: Type.Optional(NonEmptyString),
+		mode: Type.Optional(Type.Union([Type.Literal("line"), Type.Literal("match")])),
+		match: Type.Optional(Type.String()),
+		batchMs: Type.Optional(Type.Integer({ description: "Quiet-window milliseconds; clamped to 50-5000" })),
+		maxBatchBytes: Type.Optional(Type.Integer({ description: "UTF-8 batch byte cap; clamped to 1024-65536" }))
+	})
+]);
+const CronPayloadPatchSchema = Type.Union([
+	closedObject({
+		kind: Type.Literal("systemEvent"),
+		text: Type.Optional(NonEmptyString),
+		toolsAllow: Type.Optional(Type.Union([Type.Array(Type.String()), Type.Null()])),
+		toolsAllowIsDefault: Type.Optional(Type.Boolean())
+	}),
+	cronAgentTurnPayloadSchema({
+		message: Type.Optional(NonEmptyString),
+		model: Type.Union([Type.String(), Type.Null()]),
+		fallbacks: Type.Union([Type.Array(Type.String()), Type.Null()]),
+		toolsAllow: Type.Union([Type.Array(Type.String()), Type.Null()]),
+		thinking: Type.Union([Type.String(), Type.Null()]),
+		timeoutSeconds: Type.Union([Type.Number({ minimum: 0 }), Type.Null()])
+	}),
+	cronCommandPayloadSchema({
+		argv: Type.Optional(Type.Array(NonEmptyString, { minItems: 1 })),
+		timeoutSeconds: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]),
+		toolsAllow: Type.Union([Type.Array(Type.String()), Type.Null()])
+	}),
+	cronScriptPayloadSchema({
+		script: Type.Optional(Type.String({
+			minLength: 1,
+			maxLength: 65536
+		})),
+		timeoutSeconds: Type.Union([Type.Number({ minimum: 1 }), Type.Null()]),
+		toolsAllow: Type.Union([Type.Array(Type.String()), Type.Null()])
+	})
+]);
+const CronUpdateParamsSchema = cronIdOrJobIdParams({
+	patch: closedObject({
+		name: Type.Optional(NonEmptyString),
+		displayName: Type.Optional(Type.Union([CronDisplayNameSchema, Type.Null()])),
+		...CronCommonOptionalFields,
+		schedule: Type.Optional(CronScheduleSchema),
+		pacing: Type.Optional(Type.Union([CronPacingSchema, Type.Null()])),
+		trigger: Type.Optional(Type.Union([CronTriggerSchema, Type.Null()])),
+		sessionTarget: Type.Optional(CronSessionTargetSchema),
+		wakeMode: Type.Optional(CronWakeModeSchema),
+		payload: Type.Optional(CronPayloadPatchSchema),
+		delivery: Type.Optional(CronDeliveryPatchSchema),
+		failureAlert: Type.Optional(Type.Union([
+			Type.Literal(false),
+			CronFailureAlertPatchSchema,
+			Type.Null()
+		])),
+		state: Type.Optional(CronJobStatePatchSchema)
+	}),
+	/** Rejects the patch when the current definition does not match the caller's token. */
+	expectedConfigRevision: Type.Optional(CronConfigRevisionSchema)
+});
+const CronCommonOptionalFields = {
+	agentId: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
+	sessionKey: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
+	description: Type.Optional(Type.String()),
+	enabled: Type.Optional(Type.Boolean()),
+	deleteAfterRun: Type.Optional(Type.Boolean())
+};

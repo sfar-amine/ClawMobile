@@ -448,5 +448,40 @@ await test("V1.1 status hides bankReturnToken and continuation", async () => {
   assert.equal(done.state,"effect_unknown");release?.({state:"confirmed"});
  });
 
+ // Paiement réel Maxit du 11/10 16:50 : continuation webview v2 (checkoutId vide) refusée par le cœur → 502 et demande figée.
+ await test("Maxit webview continuation with an empty checkoutId reaches the bank step and resumes",async()=>{
+  const web={provider:"fixture.payment",checkoutId:"",gatewayOrderId:"3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b"};
+  const seen=[];
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required",continuation:web}),
+   resume:async(_q,_id,c)=>{seen.push(c);return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}}}});
+  const r=await f.prepared(),pending=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  assert.equal(pending.state,"requires_bank_action");
+  const done=await f.core.resume(r.requestId);assert.equal(done.state,"confirmed");assert.deepEqual(seen,[web]);
+ });
+ await test("an unusable continuation ends effect_unknown instead of a 502 that leaves the record executing",async()=>{
+  for(const continuation of [{provider:"fixture.payment",checkoutId:"x1",gatewayOrderId:"3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b"},
+    {provider:"other.adapter",checkoutId:"",gatewayOrderId:"3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b"},
+    {provider:"fixture.payment",checkoutId:"",gatewayOrderId:"not-a-uuid"}]){
+   const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required",continuation})});
+   const r=await f.prepared(),out=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+   assert.equal(out.state,"effect_unknown");assert.equal(out.canRetry,false);
+   const status=await f.core.status(r.requestId);
+   assert.equal(status.timeline.at(-1).reasonDetail,"invalid_payment_continuation");
+   await reject(()=>f.core.resume(r.requestId),"payment_resume_not_available");
+  }
+ });
+ await test("a destination blocked by the bank UI is traced by origin, other foreign origins stay refused",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"})});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  await f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"navigation_blocked",
+    navigation:{origin:"https://3dsnew.unknown-psp.test",path:"/api/v1/notification/{id}"}});
+  const status=await f.core.status(r.requestId);
+  assert.deepEqual(status.timeline.at(-1).navigation,{origin:"https://3dsnew.unknown-psp.test",path:"/api/v1/notification/{id}"});
+  await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",
+    navigation:{origin:"https://3dsnew.unknown-psp.test",path:"/x"}}),"invalid_payment_trace");
+  await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"navigation_blocked",
+    navigation:{origin:"http://plain.test",path:"/x"}}),"invalid_payment_trace");
+ });
+
 console.log("PAYMENT_CORE_TESTS_PASSED="+count);
 })().catch(e=>{console.error(e);process.exitCode=1});
