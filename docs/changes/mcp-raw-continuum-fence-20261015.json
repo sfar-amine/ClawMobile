@@ -12,7 +12,8 @@
     "docs/changes/mcp-raw-continuum-fence-20261015.md",
     "openclaw-plugin-mobile-ui/scripts/test-mcp-raw-continuum.cjs",
     "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
-    "docs/changes/mcp-raw-continuum-fence-20261015.json"
+    "docs/changes/mcp-raw-continuum-fence-20261015.json",
+    "installer/termux-lite/test-runtime-sync.py"
   ],
   "tests": [
     {
@@ -37,6 +38,15 @@
       "status": "passed",
       "evidence": {
         "exit_code": 0
+      }
+    },
+    {
+      "name": "existing PR235 runtime-sync portability dependency",
+      "status": "passed",
+      "evidence": {
+        "original_commit": "f5eb36b8c9fc824aba7d8873ef8fb584457822a8",
+        "passed": 8,
+        "total": 8
       }
     }
   ],
