@@ -172,6 +172,17 @@ await test('global timeout includes provider loading and never calls a late-load
   await new Promise(resolve => setTimeout(resolve, 60)); assert.equal(executed, false);
 });
 
+await test('delayed event loop cannot start network after a blocked loader exhausts the deadline', async () => {
+  let executed = false;
+  const output = await executeSearch({ ...base, remainingBudgetMs: 10 }, { loadProvider: () => {
+    const end = performance.now() + 35;
+    while (performance.now() < end) { /* Simulate synchronous SDK/config parsing. */ }
+    return { execute() { executed = true; } };
+  } });
+  assert.equal(output.error.code, 'timeout');
+  assert.equal(output.metrics.logicalSearchCalls, 0);
+  assert.equal(executed, false);
+});
 await test('canonical config disable/allow rules reject before network; credentials never forwarded', async () => {
   for (const config of [
     { tools: { web: { search: { enabled: false } } } },

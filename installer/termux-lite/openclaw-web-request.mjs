@@ -186,7 +186,9 @@ export async function executeSearch(input, { loadProvider = loadNativeProvider, 
     const request = validateRequest(input);
     signal?.addEventListener('abort', cancel, { once: true });
     if (signal?.aborted) cancel();
-    timeout = setTimeout(() => { abortedCode = 'timeout'; controller.abort(new Error('timeout')); }, request.remainingBudgetMs);
+    const remaining = request.remainingBudgetMs - (performance.now() - started);
+    if (remaining <= 0) fail('timeout');
+    timeout = setTimeout(() => { abortedCode = 'timeout'; controller.abort(new Error('timeout')); }, remaining);
     const abortPromise = new Promise((_, reject) => {
       if (controller.signal.aborted) reject(controller.signal.reason);
       else controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true });
@@ -194,6 +196,9 @@ export async function executeSearch(input, { loadProvider = loadNativeProvider, 
     controller.signal.throwIfAborted();
     const tool = await Promise.race([loadProvider(), abortPromise]);
     controller.signal.throwIfAborted();
+    // Timers can be delayed by synchronous module/config work. Check the
+    // monotonic deadline again before allowing the first transport call.
+    if (performance.now() - started >= request.remainingBudgetMs) fail('timeout');
     base.metrics.logicalSearchCalls = 1;
     const result = await Promise.race([tool.execute({ objective: request.objective, search_queries: request.searchQueries, count: 5, session_id: request.sessionId }, { signal: controller.signal }), abortPromise]);
     controller.signal.throwIfAborted();
