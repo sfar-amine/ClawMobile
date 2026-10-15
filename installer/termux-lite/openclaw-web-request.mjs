@@ -6,7 +6,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
+import { createRequire, registerHooks } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import net from 'node:net';
@@ -114,6 +114,69 @@ export function normalizeResult(result, retrievedAt) {
   return { sources, rejected };
 }
 
+// A compatibility resolver scoped to this one request process and to the
+// integrity-checked plugin files only. Node does not use the host's jiti aliases
+// when importing an independently installed plugin by file URL.
+let nativeResolver;
+async function registerNativeSdkResolver(root, hostRoot, hostRequire, pin) {
+  if (nativeResolver) {
+    if (nativeResolver.root !== root || nativeResolver.hostRoot !== hostRoot) fail('provider_integrity');
+    return;
+  }
+  const sdkNames = new Set([
+    'extension-shared', 'lazy-runtime', 'logging-core', 'number-runtime',
+    'plugin-entry', 'provider-http', 'provider-web-search',
+    'provider-web-search-contract', 'security-runtime', 'string-coerce-runtime',
+    'text-utility-runtime',
+  ].map(name => `openclaw/plugin-sdk/${name}`));
+  const parents = new Set(Object.keys(pin.hardenedFiles)
+    .filter(name => /\.(?:m?js)$/u.test(name))
+    .map(name => pathToFileURL(path.join(root, name)).href));
+  const targets = new Map();
+  for (const specifier of sdkNames) {
+    const target = await fs.realpath(hostRequire.resolve(specifier));
+    const relative = path.relative(hostRoot, target);
+    if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) fail('provider_integrity');
+    targets.set(specifier, pathToFileURL(target).href);
+  }
+  const hook = registerHooks({ resolve(specifier, context, nextResolve) {
+    if (parents.has(context.parentURL) && targets.has(specifier)) {
+      return { url: targets.get(specifier), shortCircuit: true };
+    }
+    return nextResolve(specifier, context);
+  } });
+  nativeResolver = { root, hostRoot, hook };
+}
+async function resolveHostSdk(root) {
+  let hostRequire = createRequire(path.join(root, 'package.json'));
+  let sdkEntry;
+  try { sdkEntry = hostRequire.resolve('openclaw/plugin-sdk/provider-web-search'); }
+  catch (error) {
+    // Reuse the already qualified host discovery owner; no npm install,
+    // guessed global directory, or second CLI/package-root resolver.
+    if (error?.code !== 'MODULE_NOT_FOUND') throw error;
+    // An existing but partial local host cannot be bypassed by another install.
+    for (const directory of hostRequire.resolve.paths('openclaw') ?? []) {
+      try {
+        if ((await fs.stat(path.join(directory, 'openclaw'))).isDirectory()) fail('provider_integrity');
+      } catch (localError) { if (localError instanceof PublicWebError) throw localError; }
+    }
+    const owner = createRequire(import.meta.url)(path.resolve(HERE, '../../openclaw-plugin-mobile-ui/dist/companion/ownerTurnGateway.js'));
+    const installed = await owner.installedPackageRoot(process.env.CLAWMOBILE_OPENCLAW_BIN || 'openclaw');
+    hostRequire = createRequire(path.join(installed.root, 'package.json'));
+    sdkEntry = hostRequire.resolve('openclaw/plugin-sdk/provider-web-search');
+  }
+  let hostRoot = path.dirname(sdkEntry);
+  while (hostRoot !== path.dirname(hostRoot)) {
+    try {
+      const manifest = JSON.parse(await fs.readFile(path.join(hostRoot, 'package.json'), 'utf8'));
+      if (manifest.name === 'openclaw') return { hostRequire, sdkEntry, hostRoot: await fs.realpath(hostRoot), hostVersion: manifest.version };
+    } catch {}
+    hostRoot = path.dirname(hostRoot);
+  }
+  fail('provider_unavailable');
+}
+
 /** The only production loader. No path/provider/config comes from request JSON. */
 export async function loadNativeProvider() {
   const pluginDirectory = process.env.CLAW_WEB_PARALLEL_PLUGIN_DIR;
@@ -125,23 +188,11 @@ export async function loadNativeProvider() {
       const filename = path.join(root, name);
       if ((await fs.lstat(filename)).isSymbolicLink() || hash(await fs.readFile(filename)) !== expected) fail('provider_integrity');
     }
-    const localRequire = createRequire(path.join(root, 'package.json'));
-    const sdkEntry = localRequire.resolve('openclaw/plugin-sdk/provider-web-search');
-    let hostRoot = path.dirname(sdkEntry);
-    while (hostRoot !== path.dirname(hostRoot)) {
-      try {
-        const manifest = JSON.parse(await fs.readFile(path.join(hostRoot, 'package.json'), 'utf8'));
-        if (manifest.name === 'openclaw') {
-          if (manifest.version !== pin.hostVersion) fail('provider_integrity');
-          break;
-        }
-      } catch (error) { if (error instanceof PublicWebError) throw error; }
-      hostRoot = path.dirname(hostRoot);
-    }
-    if (hostRoot === path.dirname(hostRoot)) fail('provider_unavailable');
+    const { hostRequire, sdkEntry, hostRoot, hostVersion } = await resolveHostSdk(root);
+    if (hostVersion !== pin.hostVersion) fail('provider_integrity');
     const [major, minor] = process.versions.node.split('.').map(Number);
     if (!(major === 24 && minor >= 16 || major === 26 && minor >= 1 || major > 26)) fail('provider_unavailable');
-    const configEntry = localRequire.resolve('openclaw/plugin-sdk/config-runtime');
+    const configEntry = hostRequire.resolve('openclaw/plugin-sdk/config-runtime');
     const configOwner = await import(pathToFileURL(configEntry).href);
     if (typeof configOwner.loadConfig !== 'function') fail('provider_integrity');
     const config = await configOwner.loadConfig();
@@ -154,6 +205,7 @@ export async function loadNativeProvider() {
     const sdk = await import(pathToFileURL(sdkEntry).href);
     const searchConfig = Object.freeze({ provider: PROVIDER, maxResults: 5, cacheTtlMinutes: 0, timeoutSeconds: 12 });
     if (typeof sdk.resolveSearchCacheTtlMs !== 'function' || sdk.resolveSearchCacheTtlMs(searchConfig) !== 0) fail('provider_integrity');
+    await registerNativeSdkResolver(root, hostRoot, hostRequire, pin);
     const module = await import(pathToFileURL(path.join(root, 'dist/web-search-provider.js')).href);
     const provider = module.createParallelFreeWebSearchProvider();
     if (provider.id !== PROVIDER || provider.requiresCredential !== false || provider.envVars?.length !== 0) fail('provider_integrity');
