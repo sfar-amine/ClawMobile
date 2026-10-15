@@ -112,7 +112,7 @@ export function validateExtractiveClaims(claims,sources) {
         !observed.get(support.sourceId)?.excerpt.includes(support.quote))fail("synthesis_review_required");
       supported.add(support.sourceId);
     }
-    if(supported.size!==c.sourceIds.length||!c.support.some(s=>s.quote===c.text))fail("synthesis_review_required");
+    if(supported.size!==c.sourceIds.length||!c.support.every(s=>s.quote===c.text))fail("synthesis_review_required");
   }
   const spoken=claims.map(c=>c.text).join(" ");
   if(spoken.length>1200)fail("synthesis_review_required");

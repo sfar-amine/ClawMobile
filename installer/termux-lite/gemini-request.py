@@ -543,7 +543,7 @@ def validate_public_result(value: object, request: dict) -> dict:
             supported.add(item["sourceId"])
         if supported != set(referenced):
             raise PolicyError("unsupported_citation")
-        if not any(item["quote"] == claim["text"] for item in support):
+        if not all(item["quote"] == claim["text"] for item in support):
             raise PolicyError("synthesis_review_required")
     # Deterministic oral rendering: no independent model-authored assertions.
     expected_spoken = " ".join(c["text"] for c in claims)

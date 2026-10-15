@@ -20,7 +20,7 @@
     "docs/changes/parallel-w3-public-synthesis-20261015.json"
   ],
   "tests": [
-    {"name": "Python public synthesis boundary", "status": "passed", "evidence": "16/16 offline cases"},
+    {"name": "Python public synthesis boundary", "status": "passed", "evidence": "18/18 offline cases"},
     {"name": "Node isolated provider boundary", "status": "passed", "evidence": "13/13 offline cases"},
     {"name": "Actual pinned SDK and Google serializer", "status": "passed", "evidence": "4/4 with fake credential and blocked external transports"},
     {"name": "Existing conversation Gemini tests", "status": "passed", "evidence": "20/20"},

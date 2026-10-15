@@ -139,6 +139,22 @@ class PublicSynthesis(unittest.TestCase):
         output, _ = self.invoke(request(), subprocess.CompletedProcess([], 0, json.dumps(value), ""))
         self.assertNotIn("PRIVATE_CANARY", json.dumps(output))
 
+    def test_review_required_cause_survives_wrapper(self):
+        value = m.public_degradation("synthesis_review_required", attempts=1)
+        output, _ = self.invoke(request(), subprocess.CompletedProcess([], 0, json.dumps(value), ""))
+        self.assertEqual(output["error"]["code"], "synthesis_review_required")
+        self.assertEqual(output["metrics"]["providerAttempts"], 1)
+        self.assertEqual(output["claims"], [])
+
+    def test_every_cited_support_must_equal_extractive_claim(self):
+        req = request()
+        req["sources"].append({"id": "s2", "title": "Other", "url": "https://example.org/other", "excerpt": "Autre passage sans rapport."})
+        output = result()
+        output["claims"][0]["sourceIds"].append("s2")
+        output["claims"][0]["support"].append({"sourceId": "s2", "quote": "Autre passage sans rapport."})
+        with self.assertRaisesRegex(m.PolicyError, "synthesis_review_required"):
+            m.validate_public_result(output, req)
+
     def test_bad_input_never_launches_provider(self):
         value = request(); value["history"] = "PRIVATE_CANARY"
         output, provider = self.invoke(value, None)
