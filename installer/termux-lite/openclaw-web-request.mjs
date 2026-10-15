@@ -6,10 +6,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { createRequire, registerHooks } from 'node:module';
+import * as nodeModule from 'node:module';
+const { createRequire } = nodeModule;
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import net from 'node:net';
+import os from 'node:os';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MAX_INPUT_BYTES = 16384;
@@ -139,7 +141,8 @@ async function registerNativeSdkResolver(root, hostRoot, hostRequire, pin) {
     if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) fail('provider_integrity');
     targets.set(specifier, pathToFileURL(target).href);
   }
-  const hook = registerHooks({ resolve(specifier, context, nextResolve) {
+  if (typeof nodeModule.registerHooks !== 'function') fail('provider_unavailable');
+  const hook = nodeModule.registerHooks({ resolve(specifier, context, nextResolve) {
     if (parents.has(context.parentURL) && targets.has(specifier)) {
       return { url: targets.get(specifier), shortCircuit: true };
     }
@@ -161,7 +164,12 @@ async function resolveHostSdk(root) {
         if ((await fs.stat(path.join(directory, 'openclaw'))).isDirectory()) fail('provider_integrity');
       } catch (localError) { if (localError instanceof PublicWebError) throw localError; }
     }
-    const owner = createRequire(import.meta.url)(path.resolve(HERE, '../../openclaw-plugin-mobile-ui/dist/companion/ownerTurnGateway.js'));
+    // runtime-sync/lib.sh deploy this owner separately from Tier0 termux-lite.
+    const stateDirectory = process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), '.openclaw');
+    if (!path.isAbsolute(stateDirectory)) fail('provider_unavailable');
+    const ownerFile = path.join(stateDirectory, 'extensions/openclaw-plugin-mobile-ui/dist/companion/ownerTurnGateway.js');
+    const owner = createRequire(import.meta.url)(await fs.realpath(ownerFile));
+    if (typeof owner.installedPackageRoot !== 'function') fail('provider_integrity');
     const installed = await owner.installedPackageRoot(process.env.CLAWMOBILE_OPENCLAW_BIN || 'openclaw');
     hostRequire = createRequire(path.join(installed.root, 'package.json'));
     sdkEntry = hostRequire.resolve('openclaw/plugin-sdk/provider-web-search');

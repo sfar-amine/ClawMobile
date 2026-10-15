@@ -17,7 +17,7 @@ assert.equal(createHash('sha256').update(await fs.readFile(archive)).digest('hex
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'parallel-real-sdk-'));
 const proofs = [];
 try {
-  for (const mode of ['official-outside-node-modules', 'partial-local-sdk']) {
+  for (const mode of ['official-outside-node-modules', 'tier0-release-layout', 'partial-local-sdk']) {
     const work = path.join(root, mode);
     await fs.mkdir(work);
     execFileSync('python3', ['-c', 'import tarfile,sys;t=tarfile.open(sys.argv[1]);t.extractall(sys.argv[2],filter="data")', archive, work]);
@@ -28,15 +28,33 @@ try {
       await fs.mkdir(partial, { recursive: true });
       await fs.writeFile(path.join(partial, 'package.json'), JSON.stringify({ name: 'openclaw', version: '2026.9.6', exports: { './plugin-sdk/provider-web-search': './missing.js' } }));
     }
+    // The deployed Companion extension is separate from releases/current/termux-lite.
+    // Copy the actual built owner and its dependency layout, not a mock owner.
+    const extension = path.join(work, 'state/extensions/openclaw-plugin-mobile-ui');
+    await fs.mkdir(extension, { recursive: true });
+    const builtPlugin = path.resolve(HERE, '../../openclaw-plugin-mobile-ui');
+    await fs.cp(path.join(builtPlugin, 'dist'), path.join(extension, 'dist'), { recursive: true });
+    await fs.copyFile(path.join(builtPlugin, 'package.json'), path.join(extension, 'package.json'));
+    await fs.symlink(path.join(builtPlugin, 'node_modules'), path.join(extension, 'node_modules'), 'dir');
+    let adapter = path.join(HERE, 'openclaw-web-request.mjs');
+    if (mode === 'tier0-release-layout') {
+      const tier0 = path.join(work, 'releases/current/termux-lite');
+      await fs.mkdir(tier0, { recursive: true });
+      await fs.copyFile(adapter, path.join(tier0, 'openclaw-web-request.mjs'));
+      await fs.cp(path.join(HERE, 'openclaw-compat/parallel-free'), path.join(tier0, 'openclaw-compat/parallel-free'), { recursive: true });
+      adapter = path.join(tier0, 'openclaw-web-request.mjs');
+      await assert.rejects(fs.access(path.resolve(tier0, '../../openclaw-plugin-mobile-ui')));
+      await assert.rejects(fs.access(path.resolve(tier0, '../../.git')));
+    }
     const config = path.join(work, 'openclaw.json');
     await fs.writeFile(config, JSON.stringify({ tools: { web: { search: { enabled: true } } } }));
     const env = { PATH: path.dirname(process.execPath) + ':/usr/bin:/bin', LANG: 'C.UTF-8', HOME: path.join(work, 'home'), OPENCLAW_STATE_DIR: path.join(work, 'state'), OPENCLAW_CONFIG_PATH: config, CLAW_WEB_PARALLEL_PLUGIN_DIR: pluginRoot, CLAWMOBILE_OPENCLAW_BIN: path.join(sdkRoot, 'openclaw.mjs') };
-    const child = execFileSync(process.execPath, [path.join(fixtures, 'real-sdk-offline-worker.mjs'), path.join(HERE, 'openclaw-web-request.mjs')], { env, encoding: 'utf8', timeout: 20000 });
+    const child = execFileSync(process.execPath, [path.join(fixtures, 'real-sdk-offline-worker.mjs'), adapter], { env, encoding: 'utf8', timeout: 20000 });
     const proof = JSON.parse(child);
     assert.equal(proof.forbiddenConnections, 0);
     assert.equal(proof.sdkSimulated, false);
     assert.equal(proof.unrelatedSpecifierStillUnresolved, true, 'resolver must not expose SDK to unrelated importers');
-    if (mode === 'official-outside-node-modules') {
+    if (mode !== 'partial-local-sdk') {
       assert.equal(proof.result.outcome, 'complete', JSON.stringify(proof.result));
       assert.equal(proof.result.sources[0].title, 'Official public fixture');
       assert.equal(proof.result.sources[0].excerpt, 'Public SDK contract fixture.');
@@ -49,5 +67,5 @@ try {
     }
     proofs.push({ mode, ...proof });
   }
-  console.log(JSON.stringify({ suite: 'real-pinned-sdk-native-plugin', cloudOnly: true, credentialsInherited: false, passed: 2, total: 2, proofs }));
+  console.log(JSON.stringify({ suite: 'real-pinned-sdk-native-plugin', cloudOnly: true, credentialsInherited: false, passed: 3, total: 3, proofs }));
 } finally { await fs.rm(root, { recursive: true, force: true }); }
