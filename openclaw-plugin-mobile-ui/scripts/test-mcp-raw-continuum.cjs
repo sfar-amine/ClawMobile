@@ -9,7 +9,7 @@ assert.equal(observed.capture_status.state,'completed');
 assert.equal(observed.capture_status.continuum.state,'verification_required');
 function fixture({status={...observed.capture_status.continuum,capability:observed.capture_status.capability},prepare={state:'ready',dispatch_allowed:true,wire_step_id:'continuum-wire',continuum_fence:{version:1,attemptId:'canonical-a',effectKey:'canonical-effect',ownershipEpoch:2,ownerId:'mcp-codex-cloud',bootId:'canonical-boot'}},existing=null}={}){
  const calls=[];
- return {calls,ingress:async argv=>{calls.push(argv);if(argv[0]==='status')return status;if(argv[0]==='prepare')return prepare;return {state:'verification_required'};},getRequest:()=>existing,submit:async value=>{calls.push(value);return {requestId:request,taskId:'mcp:codex-cloud:same-task',stepId:value.stepId,method:'exec_wait',state:'completed',result:{success:true,stdout:'OK'}};}};
+ return {calls,hasTask:()=>true,ingress:async argv=>{calls.push(argv);if(argv[0]==='status')return status;if(argv[0]==='prepare')return prepare;return {state:'verification_required'};},getRequest:()=>existing,submit:async value=>{calls.push(value);return {requestId:request,taskId:'mcp:codex-cloud:same-task',stepId:value.stepId,method:'exec_wait',state:'completed',result:{success:true,stdout:'OK'}};}};
 }
 test('raw owner execution on durable task prepares one canonically bound write fence',async()=>{
  const f=fixture();const out=await executeRawCommand(request,'codex-cloud','chat-owner',args,f);
@@ -34,7 +34,7 @@ test('unknown canonical capability and absent canonical fence fail closed',async
  const nofence=fixture({prepare:{state:'ready',dispatch_allowed:true,wire_step_id:'wire'}});await assert.rejects(executeRawCommand(request,'codex-cloud','chat-owner',args,nofence),/continuum_fence_required/);assert.equal(nofence.calls.some(x=>!Array.isArray(x)),false);
 });
 test('failed status read never falls back to an unfenced execution',async()=>{
- let effects=0;await assert.rejects(executeRawCommand(request,'codex-cloud','chat-owner',args,{ingress:async()=>{throw Error('status unavailable');},submit:async()=>{effects++;}}),/status unavailable/);assert.equal(effects,0);
+ let effects=0;await assert.rejects(executeRawCommand(request,'codex-cloud','chat-owner',args,{hasTask:()=>true,ingress:async()=>{throw Error('status unavailable');},submit:async()=>{effects++;}}),/status unavailable/);assert.equal(effects,0);
 });
 test('a standalone raw command preserves the existing receipt path without creating a task',async()=>{
  const f=fixture({status:{state:'not_found'}});const out=await executeRawCommand(request,'codex-cloud','chat-owner',args,f);assert.equal(out.state,'completed');assert.equal(f.calls.some(x=>Array.isArray(x)&&x[0]==='prepare'),false);assert.equal(f.calls.find(x=>!Array.isArray(x)).continuumFence,undefined);
@@ -48,4 +48,17 @@ test('same request replay observes its stored receipt and changed arguments are 
 
 test('malformed canonical status cannot dispatch an unfenced command',async()=>{
  const f=fixture({status:{}});await assert.rejects(executeRawCommand(request,'codex-cloud','chat-owner',args,f),/continuum_status_invalid/);assert.equal(f.calls.some(x=>!Array.isArray(x)),false);
+});
+
+test('canonical Bridge absence preserves standalone commands without Python or playbooks dependency',async()=>{
+ const f=fixture();f.hasTask=()=>false;f.ingress=async()=>{throw Error('must not invoke Python without task');};
+ const out=await executeRawCommand(request,'codex-cloud','chat-owner',args,f);assert.equal(out.state,'completed');assert.equal(f.calls.filter(x=>!Array.isArray(x)).length,1);
+});
+test('canonical task reader failure is not interpreted as absence',async()=>{
+ const f=fixture();f.hasTask=()=>{throw Error('continuum_journal_invalid');};
+ await assert.rejects(executeRawCommand(request,'codex-cloud','chat-owner',args,f),/continuum_journal_invalid/);assert.equal(f.calls.length,0);
+});
+test('task appearing after absence is rejected by the Bridge without fallback or replay',async()=>{
+ const f=fixture();f.hasTask=()=>false;let submissions=0;f.submit=async()=>{submissions++;throw Error('continuum_fence_required');};
+ await assert.rejects(executeRawCommand(request,'codex-cloud','chat-owner',args,f),/continuum_fence_required/);assert.equal(submissions,1);assert.equal(f.calls.length,0);
 });

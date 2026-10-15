@@ -8,6 +8,7 @@ import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge
 import { REMEMBER_KINDS, validateRemember } from "./memoryControl";
 import {
   getRemoteBridgeRequest,
+  hasContinuumTask,
   submitAuthenticatedMcpRequest,
 } from "./remoteBridge";
 
@@ -425,8 +426,9 @@ export async function executeRawCommand(
   clientId: string,
   profile: string,
   args: Record<string, unknown>,
-  dependencies: {ingress?:typeof continuumIngress;submit?:typeof submitAuthenticatedMcpRequest;getRequest?:typeof getRemoteBridgeRequest} = {},
+  dependencies: {hasTask?:typeof hasContinuumTask;ingress?:typeof continuumIngress;submit?:typeof submitAuthenticatedMcpRequest;getRequest?:typeof getRemoteBridgeRequest} = {},
 ) {
+  const hasTask=dependencies.hasTask || hasContinuumTask;
   const ingress=dependencies.ingress || continuumIngress;
   const submit=dependencies.submit || submitAuthenticatedMcpRequest;
   const getRequest=dependencies.getRequest || getRemoteBridgeRequest;
@@ -447,7 +449,7 @@ export async function executeRawCommand(
   const method = "exec_wait";
   const params = { command, ...(cwd ? { cwd } : {}), timeoutMs };
   const paramsHash = bridgeParamsHash(method, params);
-  const observed = await ingress(["status", "--task-id", taskId]);
+  const observed = hasTask(taskId) ? await ingress(["status", "--task-id", taskId]) : {state:"not_found"};
   if (!observed || typeof observed.state !== "string" || !observed.state) throw new Error("continuum_status_invalid");
   let wireStepId = stepKey;
   let continuumFence: any;

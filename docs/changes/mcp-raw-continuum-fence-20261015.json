@@ -14,15 +14,16 @@
     "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
     "docs/changes/mcp-raw-continuum-fence-20261015.json",
     "installer/termux-lite/test-runtime-sync.py",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-15/mcp-continuum-learning-capture.json"
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-15/mcp-continuum-learning-capture.json",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts"
   ],
   "tests": [
     {
       "name": "raw MCP Continuum contracts",
       "status": "passed",
       "evidence": {
-        "passed": 8,
-        "total": 8
+        "passed": 11,
+        "total": 11
       }
     },
     {
@@ -48,6 +49,15 @@
         "original_commit": "f5eb36b8c9fc824aba7d8873ef8fb584457822a8",
         "passed": 8,
         "total": 8
+      }
+    },
+    {
+      "name": "existing read-only security surfaces integration",
+      "status": "passed",
+      "evidence": {
+        "exit_code": 0,
+        "standalone_receipt_ingress": true,
+        "privacy_and_readonly_contracts": true
       }
     }
   ],
