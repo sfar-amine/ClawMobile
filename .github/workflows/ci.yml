@@ -34,6 +34,11 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: WhatsApp survives extended network outages without retry storms
+        run: |
+          python3 ../installer/termux-lite/test-whatsapp-network-recovery.py
+          node ../installer/termux-lite/test-whatsapp-network-recovery.cjs
+
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)
@@ -41,7 +46,13 @@ jobs:
       - name: Fast path shows any deterministic result as readable text (Amine 12/10)
         run: python3 ../installer/termux-lite/test-model-fast-path-generic-display.py
       - name: Health manager never repairs the Companion during a deploy
-        run: python3 ../installer/termux-lite/test-health-deploy-lock.py
+        run: |
+          python3 ../installer/termux-lite/test-runtime-mode.py
+          python3 ../installer/termux-lite/test-health-deploy-lock.py
+      - name: I5 bounded restart escalation, Tier0 rollback and notification dedupe
+        run: python3 ../installer/termux-lite/test-health-restart-escalation.py
+      - name: Runtime scripts resolve the Tier0 release root, never the working copy (R10/R12)
+        run: python3 ../installer/termux-lite/test-no-hardcoded-clawmobile.py
 
       - name: R08/R09 portable Termux-lite tests and mandatory CI registration
         run: |
@@ -80,13 +91,15 @@ jobs:
           python3 ../installer/termux-lite/test-whatsapp-lock-recovery.py
           bash ../installer/termux-lite/test-whatsapp-owner-send.sh
 
-      - name: Run immune I2/I3/I8 contracts (repair-handler gate, LKG hold, ingress root)
+      - name: Run immune I1/I2/I3/I8 contracts (deterministic recovery, handler gate, LKG hold, ingress root)
         run: |
           python3 ../installer/termux-lite/test-tier0-lkg-hold.py
           python3 ../installer/termux-lite/test-incident-orchestrator.py
+          python3 ../installer/termux-lite/test-incident-deterministic-recovery.py
           python3 ../installer/termux-lite/test-incident-ingress.py
           python3 ../installer/termux-lite/test-companion-acceptance-settle.py
           python3 ../installer/termux-lite/test-runtime-sync.py
+          python3 ../installer/termux-lite/test-companion-rollback-identity.py
           python3 ../installer/termux-lite/test-context-review-plan.py
       - name: Playbooks activation links ignored runtime dependencies
         run: bash ../installer/termux-lite/test-activate-ui-playbooks.sh
@@ -98,6 +111,9 @@ jobs:
         run: python3 ../installer/termux-lite/test-context-ingest-race.py
       - name: Test canonical app and authenticated Bixby bootstrap
         run: node scripts/test-canonical-agent-bootstrap.cjs
+
+      - name: Native OpenClaw provider fallback stays pinned to the free Gemini profile
+        run: node scripts/test-native-provider-fallback.cjs
 
       - name: Run trace induction tests
         run: npm run test:trace-induction
@@ -112,7 +128,7 @@ jobs:
         run: node scripts/test-delete-run.cjs
 
       - name: HS8 SDK export proof and memo transcript boundary (inactive)
-        run: node scripts/test-memo-stt-boundary.cjs && node scripts/test-memo-stt-owner.cjs && node scripts/test-memo-sdk-resolution.cjs
+        run: node scripts/test-memo-stt-boundary.cjs && node scripts/test-memo-stt-owner.cjs && node scripts/test-memo-sdk-resolution.cjs && node scripts/test-memo-audio-duration.cjs
       - name: Run edit-and-replay contract (édition d'un message envoyé, audit sans suppression)
         run: node scripts/test-edit-replay.cjs
 

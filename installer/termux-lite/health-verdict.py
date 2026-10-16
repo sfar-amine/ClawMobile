@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import argparse,json,os,sqlite3,subprocess,time,importlib.util
 from pathlib import Path
-H=Path.home(); OC=H/'.openclaw'; ROOT=H/'ClawMobile/installer/termux-lite'; OUT=OC/'health/current.json'
+H=Path.home(); OC=H/'.openclaw'; ROOT=Path(os.environ.get('CLAW_RUNTIME_ROOT') or Path(__file__).resolve().parent); OUT=OC/'health/current.json'
 NOW=time.time()
 # F5 (fichiers 35/41) : reçus écrits par « Samantha Engineering Maintenance » (every 900 s,
 # checked_at = début du run, durée mesurée 80-105 s). L'ancien seuil 660 s rendait le reçu

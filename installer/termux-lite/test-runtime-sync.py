@@ -58,6 +58,8 @@ class RuntimeSync(unittest.TestCase):
         repo = self.tmp / "repo"; self.root = repo / "installer/termux-lite"; self.root.mkdir(parents=True)
         for name in ("runtime-sync.sh", "lib.sh", "companion-deploy.sh", "companion-acceptance.py", "project-room.py", "pulse-room.py", "contacts-agent.md"):
             shutil.copy2(HERE / name, self.root / name)
+        compat = self.root / "openclaw-compat"; compat.mkdir()
+        (compat / "whatsapp-network-recovery.py").write_text('import json,os,sys\nstate=os.environ.get("STUB_WA_PATCH","unchanged")\nprint(json.dumps({"ok":state!="refused","state":state}))\nsys.exit(1 if state=="refused" else 0)\n')
         (self.root / "install-tier0-control.py").write_text(TIER0_STUB)
         plugin = repo / PLUGIN_ID; (plugin / "dist").mkdir(parents=True)
         (plugin / "package.json").write_text('{"name":"openclaw-plugin-mobile-ui"}')
@@ -128,6 +130,21 @@ class RuntimeSync(unittest.TestCase):
         self.assertEqual(0, rc, err)
         self.assertEqual({"ok": True, "commit": self.commit, "plugin": "unchanged", "release": "unchanged", "gateway": "unchanged", "tools": "unchanged", "rules": "unchanged"}, out)
         self.assertEqual([], Companion.calls); self.assertEqual(before, self.tier0_log())
+
+    def test_new_whatsapp_patch_restarts_even_when_plugin_already_matches(self):
+        self.sync(); Companion.calls.clear()
+        rc, out, err = self.sync(STUB_WA_PATCH="applied")
+        self.assertEqual(0, rc, err)
+        self.assertEqual("restarted", out["gateway"])
+        self.assertIn(("POST", "/v1/runtime/restart"), Companion.calls)
+
+    def test_unsupported_whatsapp_patch_refuses_sync_and_is_reported_as_drift(self):
+        rc, out, _ = self.sync(STUB_WA_PATCH="refused")
+        self.assertEqual((1, "whatsapp_network_recovery_refused"), (rc, out["reason"]))
+        self.assertEqual([], Companion.calls)
+        rc, out, _ = self.sync(check=True, STUB_WA_PATCH="refused")
+        self.assertEqual(1, rc)
+        self.assertIn("openclaw:whatsapp_network_recovery", out["drift"])
 
     def test_a_release_left_on_another_commit_fails_the_sync(self):
         rc, out, _ = self.sync(STUB_RELEASE_COMMIT="f3a19105")
