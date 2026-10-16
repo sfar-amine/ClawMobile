@@ -48,6 +48,43 @@ jobs:
       - name: Health manager never repairs the Companion during a deploy
         run: python3 ../installer/termux-lite/test-health-deploy-lock.py
 
+      - name: R08/R09 portable Termux-lite tests and mandatory CI registration
+        run: |
+          bash ../installer/termux-lite/test-adb-recovery-readiness-watchdog.sh
+          python3 ../installer/termux-lite/test-adb-recovery-readiness.py
+          python3 ../installer/termux-lite/test-android-build-guard.py
+          python3 ../installer/termux-lite/test-android-phantom-headroom.py
+          python3 ../installer/termux-lite/test-capability-recovery.py
+          python3 ../installer/termux-lite/test-ci-registration.py
+          python3 ../installer/termux-lite/test-claw-live.py
+          python3 ../installer/termux-lite/test-claw-slack-purge-setup.py
+          node ../installer/termux-lite/test-claw-slack-purge.mjs
+          python3 ../installer/termux-lite/test-context-coherence.py
+          python3 ../installer/termux-lite/test-context-dream.py
+          python3 ../installer/termux-lite/test-context-integration.py
+          python3 ../installer/termux-lite/test-context-memory.py
+          python3 ../installer/termux-lite/test-context-rule-installers.py
+          python3 ../installer/termux-lite/test-engineering-runtime-bridge.py
+          python3 ../installer/termux-lite/test-gateway-preflight.py
+          node ../installer/termux-lite/test-gemini-live-client.mjs
+          python3 ../installer/termux-lite/test-incident-continuation.py
+          bash ../installer/termux-lite/test-incident-runtime-hardening.sh
+          python3 ../installer/termux-lite/test-learning-gate.py
+          python3 ../installer/termux-lite/test-native-recovery-entrypoint.py
+          bash ../installer/termux-lite/test-openclaw-archive-copy.sh
+          bash ../installer/termux-lite/test-openclaw-backup-publish.sh
+          bash ../installer/termux-lite/test-plugin-install-noninteractive.sh
+          python3 ../installer/termux-lite/test-rdc-incident-loop.py
+          node ../installer/termux-lite/test-remote-desktop-health.mjs
+          python3 ../installer/termux-lite/test-remote-desktop-watchdog.py
+          node ../installer/termux-lite/test-slack-journal.mjs
+          python3 ../installer/termux-lite/test-slack-runtime-contract.py
+          python3 ../installer/termux-lite/test-supervisor-lock-portability.py
+          python3 ../installer/termux-lite/test-tier0-control.py
+          python3 ../installer/termux-lite/test-whatsapp-channel-health.py
+          python3 ../installer/termux-lite/test-whatsapp-lock-recovery.py
+          bash ../installer/termux-lite/test-whatsapp-owner-send.sh
+
       - name: Run immune I2/I3/I8 contracts (repair-handler gate, LKG hold, ingress root)
         run: |
           python3 ../installer/termux-lite/test-tier0-lkg-hold.py
