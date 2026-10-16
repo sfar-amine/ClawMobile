@@ -1,0 +1,71 @@
+# Runbook — bascule unique SAM-MIG-CC-001 V2.2 (B-01 à B-16)
+
+Dossier : `samantha-ui-playbooks/docs/work/samantha-convergence/56_Migration_dialogue_V2.2.md` (§12) ; ADR : `57_ADR_DIALOGUE.md`.
+Ce runbook est **adapté au code réel** des PR de construction (coordinateur `skill_intelligence/dialogue/`, adaptateurs core, `companion-deploy.sh --maintenance`). Il ne s'exécute que sur décision d'Amine (B-01, B-15). Toutes les commandes passent par `claw_exec`, avec une `action_key` stable par étape (`sammig-v22-cut-<date>`) ; après un timeout, `claw_status` avant tout nouvel essai. **Un seul job lourd à la fois.**
+
+## Variables (B-03, à figer avant toute action)
+
+```sh
+CORE=~/ClawMobile                              # checkout samantha-core (remote samantha-private)
+PB_W=~/.openclaw/workspace/ui-playbooks        # workspace playbooks (source des worktrees épinglés)
+PB_PIN=~/.openclaw/runtime-ui-playbooks/current
+CORE_SHA=<sha de fusion de la PR core claude/mig22-coordinator sur runtime/samantha-companion-private>
+PB_SHA=<sha de fusion de la PR playbooks claude/mig22-coordinator sur main>
+PREV_CORE=$(git -C $CORE rev-parse HEAD)
+PREV_PB=$(readlink $PB_PIN)
+STAMP=$(date +%Y%m%dT%H%M%S); BK=~/.openclaw/backups/sammig-v22-$STAMP; mkdir -p $BK; chmod 700 $BK
+```
+
+Prérequis : les PR L1 (`56`, `57`), le coordinateur playbooks et la PR core sont fusionnées. Le correctif Graph L2 (D-0) est livré séparément avant, ou il est inclus dans `PB_SHA`.
+
+| ID | Action | Commandes exactes | Preuve / arrêt |
+|---|---|---|---|
+| B-01 | Go d'entrée en maintenance d'Amine, avec le périmètre exact | `context-event.sh work decision "SAM-MIG V2.2 : go maintenance <périmètre>"` | Décision enregistrée ; **sinon arrêt** |
+| B-02 | Relire `AGENTS.md`, les remotes et les versions actives | `claw_context` ; `git -C $CORE remote -v; git -C $CORE rev-parse HEAD; readlink $PB_PIN; readlink ~/.openclaw/releases/current; openclaw --version` | Rapport daté. REQ-1574 est déjà classé (L0 point 6) |
+| B-03 | Geler le manifeste et la référence de retour | Variables ci-dessus. `printf 'core=%s\npb=%s\nprev_core=%s\nprev_pb=%s\ncodec=dlg1\nstatus_table=dialogue-status-table-v1\n' $CORE_SHA $PB_SHA $PREV_CORE $PREV_PB > $BK/manifest.txt` | `manifest.txt` |
+| B-04 | Préflight, puis accès d'administration hors dialogue | `pgrep -fc 'GradleDaemon\|gradle-termux\|tsc -p tsconfig'` doit valoir 0 ; `awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo` doit dépasser 1200 ; `uptime` (charge ≤ 7). Accès admin : `claw_exec` `echo ok` et `claw_status` (Remote Bridge, indépendant du coordinateur) | Un seul job lourd. **Arrêt** si le préflight échoue |
+| B-05 | (a) Épingler les playbooks : le coordinateur devient présent, mais inerte tant que le core n'est pas déployé. (b) Poser le verrou. (c) Corriger le job de maintenance (A-2). Le canal WhatsApp reste connecté | (a) `git -C $PB_W fetch origin main && bash $CORE/installer/termux-lite/activate-ui-playbooks.sh $PB_SHA` (lance ses propres tests de contrat)<br>(b) `git -C $CORE fetch samantha-private runtime/samantha-companion-private && git -C $CORE show $CORE_SHA:installer/termux-lite/companion-deploy.sh > ~/.openclaw/tmp/companion-deploy-$CORE_SHA.sh && cd $PB_PIN && A1=$(python3 -m skill_intelligence.dialogue ref app "app:<sessionId recette>:owner" \| python3 -c 'import json,sys;print(json.load(sys.stdin)["conversationRef"])') && A2=$(python3 -m skill_intelligence.dialogue ref whatsapp "agent:main:whatsapp:direct:<+numéro owner>" \| python3 -c 'import json,sys;print(json.load(sys.stdin)["conversationRef"])') && bash ~/.openclaw/tmp/companion-deploy-$CORE_SHA.sh --maintenance close --allow $A1 --allow $A2` (ajouter `--allow` du client MCP de recette : `python3 -m skill_intelligence.dialogue ref mcp claude-chat`)<br>(c) `openclaw cron list --json > $BK/cron-before.json && cd $PB_PIN && python3 tools/install_engineering_maintenance.py && python3 tools/install_engineering_maintenance.py --apply && openclaw cron list --json > $BK/cron-after.json` | (a) `ACTIVATED $PB_SHA`. (b) Reçu `~/.openclaw/deploys/maintenance-*.json` avec `state=closed` et une nouvelle `epoch`. **Le verrou ne prend effet qu'au premier tour servi par le core déployé (B-11)** : l'ancienne release ne le lit pas (F-14). (c) Un seul job `samantha:engineering-maintenance`, `cwd=…/runtime-ui-playbooks/current`, 15 min. Si l'ajout a créé un doublon, supprimer le nouvel identifiant, puis arrêt et analyse |
+| B-06 | Suspendre les promotions et les automatisations productrices | `openclaw cron list --json \| python3 -c 'import json,sys;[print(j["id"],j["name"]) for j in json.load(sys.stdin)["jobs"] if j.get("enabled") and j.get("name")!="Samantha Engineering Maintenance"]' > $BK/jobs-suspended.txt`, puis désactiver chaque job productif listé avec la commande de désactivation de `openclaw cron` (verbe exact à vérifier par `openclaw cron --help` au B-02 : non vérifié hors S24) | Liste et état de réactivation dans `$BK` |
+| B-07 | Inventaire : attentes, remises, missions, confirmations, file de livraison | `python3 - <<'EOF'`<br>`import json,pathlib,sqlite3,collections;h=pathlib.Path.home()`<br>`r=json.loads((h/".openclaw/clawmobile-companion/runs.json").read_text())["runs"];print("runs_pending",sum(x.get("clarificationState")=="pending" for x in r))`<br>`c=collections.Counter(json.loads(p.read_text()).get("state") for p in (h/".openclaw/continuations/foreground").glob("*.json") if not p.name.endswith(".events.jsonl"));print("missions",dict(c))`<br>`db=sqlite3.connect("file:"+str(h/".openclaw/state/openclaw.sqlite")+"?mode=ro",uri=True);print("delivery",db.execute("select status,count(*) from delivery_queue_entries group by 1").fetchall());print("ingress",db.execute("select status,count(*) from channel_ingress_events group by 1").fetchall())`<br>`EOF`<br>puis `cd $PB_PIN && python3 -m skill_intelligence.dialogue inventory` | Catégories du §12.2. Capture du 16/10 : 0 clarification `pending` dans le registre de runs |
+| B-08 | Drainer les opérations antérieures | Relancer B-07 jusqu'à ce qu'il n'y ait plus aucune mission `running`/`submitted`/`waiting` sans propriétaire capable de la réconcilier, et aucune entrée de livraison `pending` | **Aucun effet sensible sans propriétaire capable de le réconcilier.** Sinon, arrêt |
+| B-09 | Sauvegarder le registre de runs, les références de code et l'épinglage | `cp -p ~/.openclaw/clawmobile-companion/runs.json $BK/ && sha256sum $BK/runs.json > $BK/runs.sha256 && cd $PB_PIN && python3 -m skill_intelligence.dialogue backup $BK/dialogue.sqlite` | Empreintes. Restauration testée : `python3 -c "import sqlite3;print(sqlite3.connect('$BK/dialogue.sqlite').execute('pragma integrity_check').fetchone())"` |
+| B-10 | Invalider les attentes (D-C) | `cd $PB_PIN && python3 -m skill_intelligence.dialogue invalidate` (refusé si le verrou n'est pas fermé). Registre de runs : une projection `pending` héritée (sans `dialogueGoalRef`) est rendue `abandoned` à la lecture, sans écriture. Les Maps et copies en mémoire disparaissent au redémarrage de B-11 | Rapport `{"state":"invalidated","count":…}` |
+| B-11 | Déployer par le script existant, trafic fermé | `nohup setsid bash $CORE/installer/termux-lite/companion-deploy.sh $CORE_SHA >/dev/null 2>&1 &`, puis interroger `bash $CORE/installer/termux-lite/companion-deploy.sh --status` jusqu'à un état terminal. Le script fait le préflight, l'avance rapide, le build, la recette, `runtime-sync.sh` (plugin Gateway, release Tier0 avec `model-fast-path.py`, outils) et le retour arrière automatique | Reçu `companion-*.json` `state=deployed`. **En cas de `rolled_back` : arrêt (No-Go)** |
+| B-12 | Vérifier toutes les copies chargées | `test ! -e $CORE/openclaw-plugin-mobile-ui/dist/capabilityClarification.js && ! grep -rl SurfaceClarifications $CORE/openclaw-plugin-mobile-ui/dist ~/.openclaw/extensions/openclaw-plugin-mobile-ui/dist 2>/dev/null && grep -c "def run_dialogue" ~/.openclaw/releases/current/termux-lite/model-fast-path.py && test "$(readlink $PB_PIN)" = "$(dirname $PB_PIN)/$PB_SHA" && test -f $PB_PIN/skill_intelligence/dialogue/coordinator.py && git -C $CORE rev-parse HEAD` | Companion, plugin Gateway, Tier0, playbooks : tout égal au manifeste (T-M04) |
+| B-13 | Démarrer fermé ; autorité unique ; anciennes branches inatteignables | Un message WhatsApp d'un numéro non listé (autorisé par Amine), un tour app d'une session non listée, et `claw_execute` MCP : réponse de maintenance identique, rien n'est exécuté. `ls -l ~/.openclaw/samantha-dialogue` : fichiers en 0600, dossier en 0700 | T-M01. T-M04 (statique) déjà vert en CI |
+| B-14 | Recette P0 sous maintenance, identités autorisées (conversations `--allow`) | Liste « Cas P0 à exécuter sur le S24 » ci-dessous | **Aucun P0 non testé** |
+| B-15 | Go/No-Go d'Amine | `context-event.sh work decision "SAM-MIG V2.2 : go ouverture"` | No-Go : liste V2.1 §15.4. Un No-Go n'autorise jamais à effacer une opération incertaine |
+| B-16 | Ouvrir une fois, réactiver, observer, clôturer | `bash $CORE/installer/termux-lite/companion-deploy.sh --maintenance open` (nouvelle ouverture, même `epoch` : les messages admis avant sont rendus périmés) ; réactiver chaque job de `$BK/jobs-suspended.txt` ; observer les premiers parcours (`maintenance-last.json` : étape `dialogue`) ; mettre à jour `11`, le dossier et les règles | Reçu `maintenance-*.json` `state=open`. Preuves dans `$BK` |
+
+## Cas P0 à exécuter sur le S24 pendant la fenêtre (non exécutables hors S24)
+
+| Cas | Exécution | Oracle |
+|---|---|---|
+| T-X02 | WhatsApp owner (conversation `--allow`) : « Je veux les détails de l'offre » puis « huwaei ». Puis la salle Pulse réelle, avec un contact autorisé par Amine | Question puis lecture sourcée. Livraison vérifiée : ligne `outbound-prepared-v1` créée puis supprimée à l'accusé ; `channel_ingress_events` `completed` ; une seule réponse |
+| T-X03 | Voix (relais et Claw Live) : phrase coupée par l'ASR, puis barge-in pendant une lecture | ASR partiel non consommé ; le barge-in n'annule pas un effet ; même `clarificationId` (clé de conversation) entre les tours |
+| T-M01 | Chaque surface, avec une identité non listée | Réponse de maintenance identique ; rien à reprendre |
+| T-M02 | Redémarrer le Companion (`pkill -f dist/companion/server.js` ; le watchdog le relance), la Gateway et le processus Python ; puis **un redémarrage physique du S24** | Le verrou reste fermé (fichier) |
+| T-M03 | Reçu tardif d'une opération antérieure (B-08) | Traité par son propriétaire (Continuum), sans le coordinateur |
+| T-M04 | Contrôle B-12 sur les copies chargées | Copies égales au manifeste |
+| T-M05 | Message refusé pendant la maintenance, puis relivré par OpenClaw après l'ouverture | Événement déjà `completed` chez OpenClaw, aucun effet ; si le message est présenté de nouveau, il est rendu `STALE_EPOCH` |
+| T-M06 | Fermer le verrou (`--maintenance close`) pendant une remise en cours (lecture lente autorisée) ; message admis avant l'ouverture | Remise fermée en `MAINTENANCE_INVALIDATED`, rien n'est envoyé ; message rendu périmé |
+| T-B01 | Retour avant ouverture : RB-01 à RB-05 sur la référence `PREV_*` | Versions cohérentes ; refus et preuves conservés |
+| T-B02 | Retour après une opération simulée (lecture durable de recette) | Même mission et même reçu relus (Continuum) ; aucun rejeu |
+| T-B03 | Relivraison, après le retour, d'un message traité par la nouvelle release | Aucune nouvelle mission ni seconde réponse (OpenClaw `completed`, `clientRunId`) |
+| T-H06 | Même identité après un **vrai redémarrage physique du S24** (REQ-1574 (1), L0 point 6) : lecture durable de recette, `prepare()` puis redémarrage avant le règlement, puis rejeu | Même mission (`observe_existing` ou `step_settled`) ; des paramètres différents donnent `conflict` |
+| T-O02 | WhatsApp : couper le réseau juste après le début de l'envoi d'une réponse | Entrée `failed` visible (pas de rejeu aveugle), jamais de doublon ; aucun appel direct à la file par le plugin |
+| T-L01 | Deux messages WhatsApp rapprochés dans une même conversation, pendant une question | Traités l'un après l'autre (lane `remoteJid`) ; le second n'est jamais appliqué à la question ouverte par le premier |
+| T-D02 / T-D03 | Mode et taille du store ; sauvegarde puis restauration de `$BK/dialogue.sqlite` sur une copie hors chemin | `integrity_check=ok` ; références de remise non terminales conservées |
+
+## Retour arrière (RB-01 à RB-08, adapté)
+
+`companion-deploy.sh` n'avance qu'en avance rapide. Un retour de code se fait donc par une **PR de revert** sur `runtime/samantha-companion-private`, déployée avec `companion-deploy.sh <sha du revert>`.
+
+1. **RB-01** : `bash $CORE/installer/termux-lite/companion-deploy.sh --maintenance close`. La nouvelle release refuse alors tout. L'ancienne release ignorera le marqueur.
+2. **RB-02** : `cd $PB_PIN && python3 -m skill_intelligence.dialogue inventory > $BK/rb-inventory.json`.
+3. **RB-03** : laisser Continuum et les propriétaires traiter résultats et callbacks ; aucun nouvel essai.
+4. **RB-04** : `python3 -m skill_intelligence.dialogue backup $BK/rb-dialogue.sqlite && mkdir -p ~/.openclaw/archive && mv ~/.openclaw/samantha-dialogue ~/.openclaw/archive/samantha-dialogue-$STAMP`. Le store est archivé, jamais supprimé.
+5. **RB-05** : déployer le revert core avec `companion-deploy.sh <sha_revert>`, puis `bash $CORE/installer/termux-lite/activate-ui-playbooks.sh --rollback`. Remettre la déclaration précédente du job depuis `$BK/cron-before.json` (cwd du workspace).
+6. **RB-06 à RB-08** selon le dossier §13.
+
+L'étape `dialogue` du job rend `not_installed` une fois le store déplacé.

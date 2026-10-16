@@ -9,7 +9,7 @@ const api=require('../dist/companion/intent');
 let calls=0,effects=0,checks=0,resolve;
 const clock=Date.now;let now=clock();Date.now=()=>now;
 sdk.transcribeMemoAttachment=async()=>{calls++;return new Promise(r=>resolve=r);};
-require('../dist/modelFastPath').runModelFastPath=async(text,opts)=>{assert.equal(text,'9addech batterie');if(opts.checkOnly){checks++;return {status:'eligible',decision:{version:2,type:'EXECUTE',risk:'read',confirmationRequired:false,capability:'device.assistance'}};}effects++;return {status:'hit',text:'Synthetic read receipt'};};
+require('../dist/modelFastPath').runModelFastPath=require('./lib/legacy-fast-path-as-dialogue.cjs')(async(text,opts)=>{assert.equal(text,'9addech batterie');if(opts.checkOnly){checks++;return {status:'eligible',decision:{version:2,type:'EXECUTE',risk:'read',confirmationRequired:false,capability:'device.assistance'}};}effects++;return {status:'hit',text:'Synthetic read receipt'};});
 const source=fs.readFileSync(path.resolve(__dirname,'../fixtures/s24-2026-10-11/hs8-captures/bonjour-samantha.m4a'));
 const audio=id=>storage.saveAttachments([{id,mimeType:'audio/mp4',body:source}],new Set())[0];
 const rows=()=>JSON.parse(fs.readFileSync(path.join(dir,'clawmobile-companion/runs.json'))).runs;
@@ -63,7 +63,7 @@ const fail=()=>resolve({success:false,state:'refused',receipt:null,error:'memo_t
  // Revocation during canonical resolution blocks dispatch while preserving ready.
  const revokeAudio=audio('revoke'),r=await api.submitIntent('','revoke',[revokeAudio],{clientRunId:'revoke',authority:'owner',admission:admission.ticket('revoke','revoke')});
  const fast=require('../dist/modelFastPath'),originalFast=fast.runModelFastPath;
- fast.runModelFastPath=async(text,opts)=>{if(opts.checkOnly)admission.revoke();return originalFast(text,opts);};
+ fast.runModelFastPath=async(text,opts)=>{if(opts.dialogue?.mode==='turn')admission.revoke();return originalFast(text,opts);};
  resolve({success:true,state:'transcribed',text:'9addech batterie'});
  await until(async()=> (await poll(r.runId)).status==='memo_ready_to_continue');
  assert.equal(effects,1);assert.ok(fs.existsSync(revokeAudio.path));fast.runModelFastPath=originalFast;
