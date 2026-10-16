@@ -12,7 +12,7 @@ MANAGER = ROOT / "samantha-health-manager.sh"
 
 
 class HealthDeployLockTests(unittest.TestCase):
-    def run_check(self, hold_lock: bool) -> str:
+    def run_check(self, hold_lock: bool, idle_proven: bool = True) -> str:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             deploys = home / ".openclaw/deploys"
@@ -24,7 +24,8 @@ class HealthDeployLockTests(unittest.TestCase):
             prefix = MANAGER.read_text().split("log 'event=start", 1)[0]
             probe = home / "probe.sh"
             # Server down, no process: without the lock the manager starts a repair (start is stubbed).
-            probe.write_text(prefix + "\nhttp(){ return 1; }; proc(){ return 1; }; sleep(){ :; }; start(){ echo STARTED >>\"$HOME/started\"; }\n"
+            idle = "return 0" if idle_proven else "return 1"
+            probe.write_text(prefix + f"\nhttp(){{ return 1; }}; proc(){{ return 1; }}; sleep(){{ :; }}; companion_idle_proven(){{ {idle}; }}; start(){{ echo STARTED >>\"$HOME/started\"; }}\n"
                              "check_http companion http://127.0.0.1:1/ 'nomatch-[x]' /bin/true 0 0\n")
             env = dict(os.environ, HOME=str(home), CLAW_RUNTIME_ROOT=str(ROOT))
             subprocess.run(["bash", str(probe)], env=env, check=False, capture_output=True, text=True, timeout=30)
@@ -43,6 +44,12 @@ class HealthDeployLockTests(unittest.TestCase):
         out = self.run_check(hold_lock=False)
         self.assertIn("action=repair", out)
         self.assertIn("STARTED", out)
+
+    def test_companion_repair_requires_existing_idle_proof(self):
+        out = self.run_check(hold_lock=False, idle_proven=False)
+        self.assertIn("state=idle_unproven action=skip_repair", out)
+        self.assertNotIn("action=repair", out)
+        self.assertNotIn("STARTED", out)
 
 
 if __name__ == "__main__":

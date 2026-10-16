@@ -1,137 +1,121 @@
 import {lstat,readdir,readFile} from 'fs/promises';
+import {createHash} from 'crypto';
 import os from 'os';
 import path from 'path';
 
-/**
- * Bills status (STEG, SONEDE, Topnet) for GET /v1/catalog — dernier état connu, dérivé des propriétaires existants :
- *  1. reçus du pont MCP ~/.openclaw/remote-bridge/requests/<requestId>.json (capture S24 core #176,
- *     hs2/qualified-receipts-owner.json) : result.capability = billing.utility.fast_path, execution.state = completed,
- *     execution.result (schema 2) → providers[] {provider, status, coverage_complete, has_pending, pending_count,
- *     total_pending, currency, items[].due_date, checked_at} ;
- *  2. paymentRequests confirmés du registre runs.json (« payée après paiement »).
- * Lecture seule : aucun appel fournisseur, aucun réseau, aucune écriture. Le seul état est un mémo borné en mémoire
- * (reçus terminaux déjà lus), reconstruit au redémarrage. Contrat : docs/work/samantha-runtime/contracts/
- * run-payment-presentation-and-bill-status-20261011.md.
- */
+/** HS2 consumes the qualified projection emitted inside the existing Capability Graph receipt (playbooks #93). */
 export const BILL_PROVIDERS=['steg','sonede','topnet'] as const;
 export type BillProvider=typeof BILL_PROVIDERS[number];
 export const BILLING_CAPABILITY='billing.utility.fast_path';
-export type BillObservation={provider:BillProvider;state:'unpaid'|'paid'|'unknown';amountMinor?:number;dueDate?:string;checkedAt:string;reasonCode?:string};
-export type BillStatus={provider:BillProvider;state:'unpaid'|'paid'|'unknown';amountMinor?:number;decimals:3;currency:'TND';dueDate?:string;
-  checkedAt:string;source:'bridge_receipt'|'payment_request';reasonCode?:string;
-  /** App contract (HomeCatalog.kt CatalogStatus): status line text, tone and the server time it was checked. */
-  text:string;tone:'alert'|'info';at:string};
+export const ORANGE_CAPABILITY='telecom.orange.consultation';
+export const GENERAL_STATUS_TTL_S=24*60*60;
+export const BALANCE_TTL_S=60*60;
+const MAX_CLOCK_SKEW_MS=5*60_000;
 
-const ISO=/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:?[0-9]{2})$/;
-const CODE=/^[a-z][a-z0-9_.-]{0,79}$/;
+export type CatalogStatus={state:'unpaid'|'clear'|'available';checkedAt:string;expiresAt:string;observedDisplay:string;
+  source:'qualified_receipt';text:string;tone:'alert'|'info';at:string;count?:number};
+export type QualifiedStatuses={bills:Partial<Record<BillProvider,CatalogStatus>>;orange?:CatalogStatus};
+export type QualifiedReceipt={version:1;capability:string;kind:'general_status'|'balance';scope:string;observedAt:string;
+  observedDisplay:string;expiresAt:string;ttlSeconds:number;successVerified:true;completeness:'complete';
+  sourceReceiptRevision:string;items:Record<string,any>[]};
+
+const ISO=/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/;
 const NAME=/^[A-Za-z0-9._:-]{1,128}\.json$/;
+const SCOPE=/^[A-Za-z0-9_.:-]{1,40}$/;
 const obj=(v:unknown):v is Record<string,any>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const isProvider=(v:unknown):v is BillProvider=>typeof v==='string'&&(BILL_PROVIDERS as readonly string[]).includes(v);
+const instant=(v:unknown):number|undefined=>typeof v==='string'&&ISO.test(v)&&Number.isFinite(Date.parse(v))?Date.parse(v):undefined;
+const display=(ms:number)=>{const d=new Date(ms),p=(n:number)=>String(n).padStart(2,'0');return `${p(d.getUTCDate())}/${p(d.getUTCMonth()+1)}/${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;};
 
-/** ISO instant normalised to UTC seconds, or undefined (never guessed). */
-export function isoInstant(v:unknown):string|undefined{
-  if(typeof v==='number'&&Number.isSafeInteger(v)&&v>0)return new Date(v).toISOString().replace(/\.\d{3}Z$/,'Z');
-  if(typeof v!=='string'||!ISO.test(v))return undefined;
-  const t=Date.parse(v);return Number.isFinite(t)?new Date(t).toISOString().replace(/\.\d{3}Z$/,'Z'):undefined;
+/** Python json.dumps(sort_keys=True,separators=(',',':'),ensure_ascii=False) parity for playbooks' revision. */
+function canonical(value:any):string{
+  if(value===null||typeof value==='boolean'||typeof value==='string')return JSON.stringify(value);
+  if(typeof value==='number'&&Number.isFinite(value))return JSON.stringify(value);
+  if(Array.isArray(value))return '['+value.map(canonical).join(',')+']';
+  if(obj(value))return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical(value[k])).join(',')+'}';
+  throw new Error('invalid_qualified_receipt');
 }
-/** Millimes from "84.300" / 84.3 (TND, 3 decimals); undefined when not an exact non-negative amount. */
-export function millimes(v:unknown):number|undefined{
-  const s=typeof v==='number'&&Number.isFinite(v)&&v>=0?v.toFixed(3):typeof v==='string'?v.trim():'';
-  const m=/^(\d{1,7})(?:\.(\d{1,3}))?$/.exec(s);if(!m)return undefined;
-  return Number(m[1])*1000+Number((m[2]||'').padEnd(3,'0'));
-}
-/** Provider due dates arrive as "15/10/2026", "15-10-2026" or ISO; anything else is dropped. */
-export function dueDate(v:unknown):string|undefined{
-  if(typeof v!=='string')return undefined;const s=v.trim();
-  let y:string,mo:string,d:string;let m=/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(s);
-  if(m)[y,mo,d]=[m[1],m[2],m[3]];else if((m=/^(\d{2})[/.-](\d{2})[/.-](\d{4})$/.exec(s)))[y,mo,d]=[m[3],m[2],m[1]];else return undefined;
-  const t=Date.UTC(+y,+mo-1,+d);const date=new Date(t);
-  return date.getUTCFullYear()===+y&&date.getUTCMonth()===+mo-1&&date.getUTCDate()===+d?`${y}-${mo}-${d}`:undefined;
+function revision(value:Record<string,any>):string{return createHash('sha256').update(canonical(value)).digest('hex');}
+
+/** Validate again on every read. No legacy payload, payment row, cache time or completedAt can create freshness. */
+export function readQualifiedReceipt(value:unknown,nowMs=Date.now()):QualifiedReceipt|undefined{
+  if(!obj(value)||value.version!==1||![BILLING_CAPABILITY,ORANGE_CAPABILITY].includes(value.capability)||
+    !['general_status','balance'].includes(value.kind)||typeof value.scope!=='string'||!SCOPE.test(value.scope)||
+    value.successVerified!==true||value.completeness!=='complete'||!Array.isArray(value.items)||
+    !value.items.length||value.items.length>32||typeof value.sourceReceiptRevision!=='string'||
+    !/^[0-9a-f]{64}$/.test(value.sourceReceiptRevision)||!Number.isFinite(nowMs))return undefined;
+  const observed=instant(value.observedAt),expires=instant(value.expiresAt);
+  const ttl=value.kind==='balance'?BALANCE_TTL_S:GENERAL_STATUS_TTL_S;
+  if(observed===undefined||expires===undefined||value.ttlSeconds!==ttl||expires-observed!==ttl*1000||
+    observed>nowMs+MAX_CLOCK_SKEW_MS||nowMs>=expires||value.observedDisplay!==display(observed))return undefined;
+  if(value.capability===BILLING_CAPABILITY&&(value.kind!=='general_status'||value.scope!=='billing'))return undefined;
+  if(value.capability===ORANGE_CAPABILITY&&(value.kind!=='balance'||value.scope!=='orange'))return undefined;
+  const seen=new Set<string>();
+  for(const item of value.items){
+    if(!obj(item)||item.observedAt!==value.observedAt||item.observedDisplay!==value.observedDisplay||
+      typeof item.scope!=='string'||!SCOPE.test(item.scope))return undefined;
+    if(value.kind==='general_status'){
+      if(seen.has(item.scope)||!isProvider(item.scope)||!['unpaid','clear'].includes(item.state)||
+        (item.count!==undefined&&(!Number.isInteger(item.count)||item.count<0||item.count>10_000))||
+        (item.state==='clear'&&item.count!==undefined&&item.count!==0))return undefined;
+      seen.add(item.scope);
+    }else if(typeof item.value!=='string'||!item.value||item.value.length>80||typeof item.unit!=='string'||
+      !item.unit||item.unit.length>24||/[\u0000-\u001f]/.test(item.value+item.unit))return undefined;
+  }
+  const unsigned={...value};delete unsigned.sourceReceiptRevision;
+  if(revision(unsigned)!==value.sourceReceiptRevision)return undefined;
+  return value as QualifiedReceipt;
 }
 
-/** Observations carried by ONE bridge receipt; [] when it is not a completed billing read. */
-export function billObservationsFromReceipt(receipt:unknown):BillObservation[]{
-  if(!obj(receipt)||receipt.state!=='completed'||!obj(receipt.result))return [];
-  const r=receipt.result,execution=r.execution;
-  const capability=r.capability??(obj(r.selected)?r.selected.capability:undefined);
-  if(r.success!==true||capability!==BILLING_CAPABILITY||!obj(execution)||execution.state!=='completed'||execution.exit_code!==0)return [];
-  const value=execution.result;
-  if(!obj(value)||value.schema_version!==2||!Array.isArray(value.providers)||value.providers.length>8)return [];
-  const fallbackAt=isoInstant(value.checked_at)??isoInstant(receipt.completedAt);
-  const out:BillObservation[]=[];const seen=new Set<string>();
-  for(const row of value.providers){
-    if(!obj(row)||!isProvider(row.provider)||seen.has(row.provider))continue;seen.add(row.provider);
-    const checkedAt=isoInstant(row.checked_at)??fallbackAt;if(!checkedAt)continue;
-    const currency=row.currency??value.currency??'TND';
-    const complete=row.status==='ok'&&row.coverage_complete===true&&currency==='TND';
-    if(complete&&row.has_pending===false){out.push({provider:row.provider,state:'paid',amountMinor:0,checkedAt});continue;}
-    if(row.status==='ok'&&row.has_pending===true&&currency==='TND'){
-      // A known positive survives a partial coverage; its amount only when the provider total is complete.
-      const amount=complete?millimes(row.total_pending):undefined;
-      const dues=(Array.isArray(row.items)?row.items.slice(0,200):[]).map((i:any)=>dueDate(i?.due_date)).filter(Boolean).sort() as string[];
-      out.push({provider:row.provider,state:'unpaid',...(amount!==undefined&&amount>0?{amountMinor:amount}:{}),...(dues[0]?{dueDate:dues[0]}:{}),checkedAt});continue;
-    }
-    const reason=[row.reason_code,row.status].find(v=>typeof v==='string'&&CODE.test(v)&&v!=='ok');
-    out.push({provider:row.provider,state:'unknown',checkedAt,reasonCode:reason??'coverage_incomplete'});
+/** Outer bridge receipt and inner owner result must agree with the qualified projection. */
+export function qualifiedReceiptFromBridge(receipt:unknown,nowMs=Date.now()):QualifiedReceipt|undefined{
+  if(!obj(receipt)||receipt.state!=='completed'||!obj(receipt.result))return undefined;
+  const result=receipt.result,execution=result.execution,qualified=readQualifiedReceipt(result.qualified_receipt,nowMs);
+  const capability=result.capability??(obj(result.selected)?result.selected.capability:undefined);
+  if(result.success!==true||!obj(execution)||execution.state!=='completed'||execution.exit_code!==0||
+    !qualified||capability!==qualified.capability)return undefined;
+  return qualified;
+}
+
+function suffix(locale:'fr'|'en',receipt:QualifiedReceipt){return `${locale==='fr'?'Vérifié':'Checked'} ${receipt.observedDisplay}`;}
+/** Display projection: the visible text itself contains date + time; `at` remains for native formatting/accessibility. */
+export function qualifiedStatuses(receipts:QualifiedReceipt[],locale:'fr'|'en'):QualifiedStatuses{
+  const latest=new Map<string,QualifiedReceipt>();
+  for(const receipt of receipts){const previous=latest.get(receipt.capability);if(!previous||receipt.observedAt>=previous.observedAt)latest.set(receipt.capability,receipt);}
+  const out:QualifiedStatuses={bills:{}};
+  const billing=latest.get(BILLING_CAPABILITY);
+  if(billing)for(const item of billing.items){
+    const state=item.state as 'unpaid'|'clear';const count=Number.isInteger(item.count)?item.count:undefined;
+    const label=state==='unpaid'?(locale==='fr'?'Impayée':'Unpaid'):(locale==='fr'?'Aucun impayé':'Nothing due');
+    out.bills[item.scope as BillProvider]={state,checkedAt:billing.observedAt,expiresAt:billing.expiresAt,
+      observedDisplay:billing.observedDisplay,source:'qualified_receipt',text:`${label} · ${suffix(locale,billing)}`,
+      tone:state==='unpaid'?'alert':'info',at:billing.observedAt,...(count!==undefined?{count}:{})};
+  }
+  const orange=latest.get(ORANGE_CAPABILITY);
+  if(orange){
+    const values=orange.items.map(item=>`${item.value} ${item.unit}`).join(' · ');
+    out.orange={state:'available',checkedAt:orange.observedAt,expiresAt:orange.expiresAt,
+      observedDisplay:orange.observedDisplay,source:'qualified_receipt',text:`${values} · ${suffix(locale,orange)}`,
+      tone:'info',at:orange.observedAt};
   }
   return out;
 }
 
-const fmt=(m:number)=>`${Math.floor(m/1000)}.${String(m%1000).padStart(3,'0')}`;
-function line(s:Omit<BillStatus,'text'|'tone'|'at'>,locale:'fr'|'en'):{text:string;tone:'alert'|'info'}{
-  const fr=locale==='fr',money=s.amountMinor?` · ${fmt(s.amountMinor)} ${fr?'DT':'TND'}`:'';
-  if(s.state==='unpaid')return {text:(fr?'Impayée':'Unpaid')+money,tone:'alert'};
-  if(s.state==='paid')return {text:s.source==='payment_request'?(fr?'Payée':'Paid')+money:fr?'Aucun impayé':'Nothing due',tone:'info'};
-  return {text:fr?'État non vérifié':'Status not verified',tone:'info'};
-}
-
-/**
- * Latest known status per provider. A confirmed payment newer than the last check marks the bill paid only when it
- * matches the unpaid amount (or no complete check exists); otherwise the status becomes unknown until the next check.
- */
-export function billStatuses(observations:BillObservation[],payments:unknown[],locale:'fr'|'en'):Partial<Record<BillProvider,BillStatus>>{
-  const latest=new Map<BillProvider,BillObservation>();
-  for(const o of observations)if(isProvider(o?.provider)){const prev=latest.get(o.provider);if(!prev||Date.parse(o.checkedAt)>=Date.parse(prev.checkedAt))latest.set(o.provider,o);}
-  const paid=new Map<BillProvider,{at:string;amountMinor:number}>();
-  for(const p of Array.isArray(payments)?payments:[]){
-    if(!obj(p)||p.state!=='confirmed'||!obj(p.draft)||p.draft.mode!=='live'||!isProvider(p.draft.adapterId)||!obj(p.quote)||p.quote.currency!=='TND'||p.quote.decimals!==3||!Number.isSafeInteger(p.quote.amountMinor))continue;
-    const at=isoInstant(p.endedAt??p.updatedAt);if(!at)continue;
-    const prev=paid.get(p.draft.adapterId);if(!prev||Date.parse(at)>Date.parse(prev.at))paid.set(p.draft.adapterId,{at,amountMinor:p.quote.amountMinor});
-  }
-  const out:Partial<Record<BillProvider,BillStatus>>={};
-  for(const provider of BILL_PROVIDERS){
-    const o=latest.get(provider),pay=paid.get(provider);
-    let base:Omit<BillStatus,'text'|'tone'|'at'>|undefined;
-    if(pay&&(!o||Date.parse(pay.at)>Date.parse(o.checkedAt))){
-      const matches=!o||o.state!=='unpaid'||o.amountMinor===undefined||o.amountMinor===pay.amountMinor;
-      base=matches?{provider,state:'paid',amountMinor:pay.amountMinor,decimals:3,currency:'TND',checkedAt:pay.at,source:'payment_request'}
-        :{provider,state:'unknown',decimals:3,currency:'TND',checkedAt:pay.at,source:'payment_request',reasonCode:'payment_after_check'};
-    }else if(o){
-      base={provider,state:o.state,...(o.amountMinor!==undefined?{amountMinor:o.amountMinor}:{}),decimals:3,currency:'TND',
-        ...(o.dueDate?{dueDate:o.dueDate}:{}),checkedAt:o.checkedAt,source:'bridge_receipt',...(o.reasonCode?{reasonCode:o.reasonCode}:{})};
-    }
-    if(base)out[provider]={...base,...line(base,locale),at:base.checkedAt};
-  }
-  return out;
-}
-
-// ---- Bounded read of the bridge receipts (never on the request path: runs inside the catalog generation). ----
+// ---- Bounded read of existing bridge receipts. The memo stores envelopes, never a freshness verdict. ----
 const MAX_RECEIPT_BYTES=1024*1024;
 const MAX_NAMES=120_000;
 const SCAN_BUDGET_MS=1500;
 const STAT_BATCH=64;
 const REUSE_MS=5000;
-/** name → observations of a TERMINAL receipt (never changes again); non-terminal receipts are re-read next scan. */
-const memo=new Map<string,BillObservation[]|null>();
-let inFlight:Promise<BillObservation[]>|undefined;let last:{at:number;dir:string;value:BillObservation[]}|undefined;
+const memo=new Map<string,unknown|null>();
+let inFlight:Promise<QualifiedReceipt[]>|undefined;
+let last:{at:number;dir:string;value:(QualifiedReceipt|null)[]}|undefined;
 const TERMINAL=new Set(['completed','failed','abandoned']);
 
 export function bridgeRequestDir(){return path.join(process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),'.openclaw'),'remote-bridge','requests');}
 
-/** One bounded pass (no reuse window); exported for the budget test. */
-export async function scanBillObservations(dir:string,budgetMs=SCAN_BUDGET_MS):Promise<BillObservation[]>{
-  const started=Date.now();const left=()=>budgetMs-(Date.now()-started);
-  let names:string[];
+export async function scanQualifiedReceipts(dir:string,budgetMs=SCAN_BUDGET_MS,nowMs=Date.now()):Promise<QualifiedReceipt[]>{
+  const started=Date.now(),left=()=>budgetMs-(Date.now()-started);let names:string[];
   try{names=(await readdir(dir)).filter(n=>NAME.test(n)).slice(0,MAX_NAMES);}catch{names=[];}
   const present=new Set(names);for(const k of Array.from(memo.keys()))if(!present.has(k))memo.delete(k);
   const unseen=names.filter(n=>!memo.has(n));const stats:{name:string;mtimeMs:number;size:number}[]=[];
@@ -141,24 +125,24 @@ export async function scanBillObservations(dir:string,budgetMs=SCAN_BUDGET_MS):P
   }
   stats.sort((a,b)=>b.mtimeMs-a.mtimeMs);
   for(const s of stats){
-    if(left()<=0)break; // the rest is read by the next generation, newest first
+    if(left()<=0)break;
     if(s.size>MAX_RECEIPT_BYTES){memo.set(s.name,null);continue;}
     try{
       const row=JSON.parse(await readFile(path.join(dir,s.name),'utf8'));
       if(!obj(row)||row.requestId+'.json'!==s.name){memo.set(s.name,null);continue;}
       if(!TERMINAL.has(row.state))continue;
-      const found=billObservationsFromReceipt(row);memo.set(s.name,found.length?found:null);
+      memo.set(s.name,row);
     }catch{memo.set(s.name,null);}
   }
-  const out:BillObservation[]=[];for(const v of memo.values())if(v)out.push(...v);
+  const out:QualifiedReceipt[]=[];
+  for(const raw of memo.values()){const value=qualifiedReceiptFromBridge(raw,nowMs);if(value)out.push(value);}
   return out;
 }
 
-/** Shared single flight, reused for 5 s across locales; bounded by SCAN_BUDGET_MS. */
-export function readBillObservations(dir=bridgeRequestDir(),budgetMs=SCAN_BUDGET_MS):Promise<BillObservation[]>{
-  if(last&&last.dir===dir&&Date.now()-last.at<REUSE_MS)return Promise.resolve(last.value);
-  if(!inFlight)inFlight=scanBillObservations(dir,budgetMs).then(value=>{last={at:Date.now(),dir,value};return value;}).finally(()=>{inFlight=undefined;});
+export function readQualifiedReceipts(dir=bridgeRequestDir(),budgetMs=SCAN_BUDGET_MS,nowMs=Date.now()):Promise<QualifiedReceipt[]>{
+  const project=(values:(QualifiedReceipt|null)[])=>values.map(v=>readQualifiedReceipt(v,nowMs)).filter((v):v is QualifiedReceipt=>!!v);
+  if(last&&last.dir===dir&&Date.now()-last.at<REUSE_MS)return Promise.resolve(project(last.value));
+  if(!inFlight)inFlight=scanQualifiedReceipts(dir,budgetMs,nowMs).then(value=>{last={at:Date.now(),dir,value};return value;}).finally(()=>{inFlight=undefined;});
   return inFlight;
 }
-/** Test hook: forget the in-memory memo (no persistent state exists). */
-export function resetBillStatusMemo(){memo.clear();last=undefined;}
+export function resetQualifiedReceiptMemo(){memo.clear();last=undefined;}

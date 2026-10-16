@@ -211,6 +211,16 @@ class IdleProofOnCapture(unittest.TestCase):
 
 
 class Main(unittest.TestCase):
+    def test_idle_proof_cli_is_read_only_and_refuses_busy_or_unknown(self):
+        empty = {k: 0 for k in ("gateway_tasks", "cron_runs", "companion_runs", "remote_bridge", "deploy", "heavy_job", "payments", "confirmations")}
+        with patch.object(guard, "idle_proof", return_value=(empty, None)), patch("builtins.print") as out:
+            self.assertEqual(guard.main(["--idle-proof"]), 0)
+            self.assertIn('"idle": true', out.call_args.args[0])
+        with patch.object(guard, "idle_proof", return_value=({**empty, "companion_runs": 1}, None)):
+            self.assertEqual(guard.main(["--idle-proof"]), 3)
+        with patch.object(guard, "idle_proof", return_value=(None, "companion_registry_unreadable")):
+            self.assertEqual(guard.main(["--idle-proof"]), 3)
+
     def test_corrupt_history_never_restarts_and_is_kept(self):
         with tempfile.TemporaryDirectory() as td:
             receipt = Path(td) / "gateway-memory-guard.json"; receipt.write_text("{bad")

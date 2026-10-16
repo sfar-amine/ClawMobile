@@ -13,6 +13,9 @@ export type FastPathResult = {
   status?: string;
   text?: string;
   reason?: string;
+  /** Sanitized machine class emitted by the deterministic runner. */
+  reason_class?: string;
+  reasonClass?: string;
   target?: string;
   intent?: string;
   route?: string;
@@ -69,7 +72,6 @@ function helperCandidates(home = os.homedir()): string[] {
   return [
     process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER || "",
     path.join(home, ".openclaw/releases/current/termux-lite/model-fast-path.py"),
-    path.join(home, "ClawMobile/installer/termux-lite/model-fast-path.py"),
   ].filter(Boolean);
 }
 
