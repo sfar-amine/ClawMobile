@@ -73,7 +73,17 @@ class Tier0Tests(unittest.TestCase):
 
     def test_tier0_scripts_exist(self):
         root=Path(__file__).resolve().parent
-        for n in ['tier0-control.py','tier0-watchdog.py','tier0-bootstrap.sh','install-tier0-control.py']:self.assertTrue((root/n).is_file(),n)
+        for n in ['tier0-control.py','runtime_mode.py','tier0-watchdog.py','tier0-bootstrap.sh','install-tier0-control.py']:self.assertTrue((root/n).is_file(),n)
+
+    def test_tier0_promotion_uses_existing_deployment_lock(self):
+        root=Path(__file__).resolve().parent
+        control=(root/'tier0-control.py').read_text()
+        installer=(root/'install-tier0-control.py').read_text()
+        deploy=(root/'companion-deploy.sh').read_text()
+        self.assertIn("runtime_mode.deployment_guard() if a.cmd=='promote'",control)
+        self.assertIn("'runtime_mode.py'",installer)
+        self.assertIn("SAMANTHA_DEPLOY_LOCK_FD=9",deploy)
+        self.assertIn("pass_fds=pass_fds",installer)
 
     def test_core_identity_checks_do_not_spawn_lock_inheriting_pipelines(self):
         root=Path(__file__).resolve().parent

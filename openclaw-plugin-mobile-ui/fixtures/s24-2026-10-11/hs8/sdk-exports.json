@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "source": "S24 installed package source, read only; no SDK import or provider request",
+    "capturedAt": "2026-10-11",
+    "request_id": "mcp-codex-cloud-codex-hs8-owner-discovery-20261011-sdk-termux-package-read",
+    "state": "completed",
+    "exitCode": 0
+  },
+  "exports": {
+    "version": "2026.9.6",
+    "publicExport": true,
+    "transcribeAudioFileExported": true,
+    "transcribeSignaturePresent": true,
+    "runMediaUnderstandingFileExported": true,
+    "loadConfigExported": true
+  },
+  "qualification": {
+    "provider": false,
+    "audioFixture": false,
+    "globalDeadline": false,
+    "sdkLogPrivacy": false
+  }
+}

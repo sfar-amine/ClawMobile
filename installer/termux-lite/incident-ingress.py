@@ -11,7 +11,8 @@ import time
 from pathlib import Path
 
 HOME = Path.home()
-ROOT = HOME / "ClawMobile" / "installer" / "termux-lite"
+# Doc 51 I8: the orchestrator next to this file, i.e. the soaked tier0 release when called from it, never the working copy.
+ROOT = Path(__file__).resolve().parent
 BASE = HOME / ".openclaw" / "incidents"
 INBOX = BASE / "ingress"
 PROCESSED = BASE / "ingress-processed"

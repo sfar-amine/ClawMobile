@@ -1,0 +1,35 @@
+{
+  "capturedDate": "2026-10-13",
+  "source": "S24 read-only: openclaw cron list --json",
+  "job": {
+    "id": "ff8c7e99-5fdc-44c7-ad68-938b4693ec37",
+    "declarationKey": "claw:cross-surface-memory-curator",
+    "displayName": "Cross-surface Memory Curator",
+    "name": "Cross-surface Memory Curator",
+    "description": "Shadow-only cross-surface memory curation after native 13:00 dreaming promotion.",
+    "enabled": true,
+    "schedule": {
+      "kind": "cron",
+      "expr": "10 22 * * *",
+      "tz": "Africa/Tunis"
+    },
+    "sessionTarget": "isolated",
+    "wakeMode": "now",
+    "payload": {
+      "kind": "command",
+      "argv": [
+        "sh",
+        "-lc",
+        "/data/data/com.termux/files/home/ClawMobile/installer/termux-lite/context-dream.sh"
+      ]
+    },
+    "delivery": {
+      "mode": "none",
+      "channel": "last"
+    },
+    "lastRun": {
+      "status": "ok",
+      "mode": "shadow"
+    }
+  }
+}
