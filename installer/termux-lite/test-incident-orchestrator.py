@@ -24,6 +24,16 @@ class T(unittest.TestCase):
   for st in ["deterministic_recovery","diagnosing","planning","repairing","verifying","recovered"]: last=io.transition(i,st,"test")
   self.assertEqual(io.show(i)["incident"]["state"],"recovered")
   self.assertEqual(last["learning_gate"]["state"],"skipped_noncanonical_db")
+ def test_unhandled_incident_waits_and_recovers_on_same_id(self):
+  a=io.open_incident("companion","runtime","health-manager","down");i=a["id"]
+  waiting=io.transition(i,"awaiting_deterministic_recovery","health-manager","no managed handler")
+  self.assertEqual(waiting["state"],"awaiting_deterministic_recovery")
+  recovered=io.recover_incident("companion","runtime","health-manager","health probe verified")
+  self.assertEqual(recovered["id"],i);self.assertEqual(recovered["state"],"recovered")
+  shown=io.show(i)
+  self.assertNotIn("recovery_after_failed",[e["kind"] for e in shown["events"]])
+  transitions=[__import__('json').loads(e["payload"])["to"] for e in shown["events"] if e["kind"]=="transition"]
+  self.assertEqual(transitions,["awaiting_deterministic_recovery","verifying","recovered"])
  def test_recurrence_after_recovery_opens_new_episode(self):
   a=io.open_incident("adb","boot-1","watchdog","down");i=a["id"]
   io.transition(i,"human_required","orchestrator","pairing required",True)

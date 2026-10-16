@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; D="$HOME/.openclaw/health"; LOG="$D/health.log"; S="$D/state"; mkdir -p "$D" "$S"; export TMPDIR="$HOME/.cache/tmp"
+ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"; D="$HOME/.openclaw/health"; LOG="$D/health.log"; S="$D/state"; mkdir -p "$D" "$S"; export TMPDIR="$HOME/.cache/tmp"
 PHANTOM_HEADROOM_TARGET=128; PHANTOM_HEADROOM_CHECK_S=60
 RESTART_BUDGET_N="${HEALTH_RESTART_BUDGET_N:-3}"
 RESTART_WINDOW_S="${HEALTH_RESTART_WINDOW_S:-3600}"
@@ -12,6 +12,8 @@ exec 9>"$D/health.lock"; flock -n 9 || exit 0
 log(){ python3 "$ROOT/bounded-log.py" "$LOG" --append "$(date -Iseconds) component=health-manager $*"; }
 proc(){ pgrep -f "$1" 9>&- >/dev/null 2>&1; }; http(){ timeout 3 curl -fsS "$1" 9>&- >/dev/null 2>&1; }; adb_ok(){ timeout 3 adb 9>&- -s 127.0.0.1:5556 get-state 2>/dev/null|grep -qx device 9>&-; }
 now(){ date +%s; }; sf(){ echo "$S/$1.$2"; }; get(){ cat "$(sf "$1" "$2")" 2>/dev/null || echo "${3:-0}"; }; put(){ printf '%s' "$3" >"$(sf "$1" "$2")"; }
+canonical_mode(){ python3 "$ROOT/runtime_mode.py" 9>&- 2>/dev/null || true; }
+companion_idle_proven(){ timeout 8 python3 "$ROOT/gateway-memory-guard.py" --idle-proof 9>&- >/dev/null 2>&1; }
 unstable(){ put "$1" stable_since 0; }
 reset_restart_budget(){
  n="$1"; rm -f "$(sf "$n" restart_attempts)" "$(sf "$n" escalation)" "$(sf "$n" rollback_at)"
@@ -60,7 +62,7 @@ restart_gate(){
  fi
  log "service=$n action=tier0_rollback_failed reason=no_usable_lkg"; human_escalate "$n"; return 1
 }
-fail(){ n="$1"; put "$n" stable_since 0; c=$(( $(get "$n" failures 0)+1 )); [ "$c" -gt 6 ] && c=6; delay=$((15*(1<<(c-1)))); [ "$delay" -gt 900 ] && delay=900; put "$n" failures "$c"; put "$n" status degraded; put "$n" next $(( $(now)+delay )); log "service=$n state=degraded failures=$c retry_in_s=$delay"; if [ "$c" -eq 3 ]; then iid=$(incident_open "$n"); log "service=$n action=incident_opened incident_id=$iid"; "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source health-manager --reason "deterministic recovery exhausted" >/dev/null 2>&1 || true; if "$ROOT/incident-orchestrator.py" handled "$n" 9>&- >/dev/null 2>&1; then shadow "$n" "$c" "$iid"; else log "service=$n action=skip_model_diagnosis reason=no_repair_handler incident_id=$iid"; fi; fi; }
+fail(){ n="$1"; put "$n" stable_since 0; c=$(( $(get "$n" failures 0)+1 )); [ "$c" -gt 6 ] && c=6; delay=$((15*(1<<(c-1)))); [ "$delay" -gt 900 ] && delay=900; put "$n" failures "$c"; put "$n" status degraded; put "$n" next $(( $(now)+delay )); log "service=$n state=degraded failures=$c retry_in_s=$delay"; if [ "$c" -eq 3 ]; then iid=$(incident_open "$n"); log "service=$n action=incident_opened incident_id=$iid"; if "$ROOT/incident-orchestrator.py" handled "$n" 9>&- >/dev/null 2>&1; then "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source health-manager --reason "deterministic recovery exhausted; managed handler available" >/dev/null 2>&1 || true; shadow "$n" "$c" "$iid"; else "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source health-manager --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true; log "service=$n state=awaiting_deterministic_recovery reason=no_repair_handler incident_id=$iid"; fi; fi; }
 due(){ [ "$(now)" -ge "$(get "$1" next 0)" ]; }
 start(){ nohup "$2" 9>&- >>"$D/$1.stderr.log" 2>&1 </dev/null & }
 process_uses_script(){
@@ -90,9 +92,9 @@ wait_supervisor_lock(){
 }
 check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_on_current_root "$pat" "$script"; then healthy "$n"; return; fi; unstable "$n"; due "$n" || return; restart_gate "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else log "service=$n action=start"; fi; start "$n" "$script"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" && healthy "$n" || fail "$n"; }
 # A Companion deploy stops and restarts the server itself: never "repair" it meanwhile (S24 11/10: EADDRINUSE,
-# 15 concurrent repairs a day, each one cutting the Remote Bridge).
-deploy_in_progress(){ l="$HOME/.openclaw/deploys/companion-deploy.lock"; [ -e "$l" ] || return 1; exec 7>>"$l"; if flock -n 7 9>&- 2>/dev/null; then flock -u 7 9>&- 2>/dev/null; exec 7>&-; return 1; fi; exec 7>&-; return 0; }
-check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; stop_wait="${6:-20}"; if http "$url"; then healthy "$n"; return; fi; unstable "$n"; if [ "$n" = companion ] && deploy_in_progress; then log "service=$n state=deploy_in_progress action=skip_repair"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=starting_or_unhealthy grace_s=$grace"; sleep "$grace" 9>&-; if http "$url"; then healthy "$n"; return; fi; fi; restart_gate "$n" || return; log "service=$n action=repair"; if proc "$pat"; then pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt "$stop_wait" ]; do sleep 2 9>&-; waited=$((waited+2)); done; if proc "$pat"; then log "service=$n state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 2 9>&-; if proc "$pat"; then fail "$n"; return; fi; fi; fi; start "$n" "$script"; sleep "$grace" 9>&-; http "$url" && healthy "$n" || fail "$n"; }
+# 15 concurrent repairs a day, each one cutting the Remote Bridge). The canonical mode also closes the race
+# between the outer loop and this repair boundary.
+check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; stop_wait="${6:-20}"; if http "$url"; then healthy "$n"; return; fi; unstable "$n"; repair_mode=$(canonical_mode); if [ "$repair_mode" != normal ]; then [ "$repair_mode" = deployment ] && repair_mode=deploy_in_progress; log "service=$n state=${repair_mode:-canonical_mode_unknown} action=skip_repair"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=starting_or_unhealthy grace_s=$grace"; sleep "$grace" 9>&-; if http "$url"; then healthy "$n"; return; fi; fi; if [ "$n" = companion ] && ! companion_idle_proven; then log "service=$n state=idle_unproven action=skip_repair"; put "$n" next $(( $(now)+15 )); return; fi; restart_gate "$n" || return; log "service=$n action=repair"; if proc "$pat"; then pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt "$stop_wait" ]; do sleep 2 9>&-; waited=$((waited+2)); done; if proc "$pat"; then log "service=$n state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 2 9>&-; if proc "$pat"; then fail "$n"; return; fi; fi; fi; start "$n" "$script"; sleep "$grace" 9>&-; http "$url" && healthy "$n" || fail "$n"; }
 check_adb(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || { "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; "$ROOT/chat-continuity-restore.sh" 9>&- >/dev/null 2>&1 || true; }; return; fi; unstable adb; due adb || return; restart_gate adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
 verdict_field(){ python3 - "$D/current.json" "$1" "$2" <<'PY'
 import json,sys
@@ -232,7 +234,7 @@ check_slack_bridge(){
 # last_sweep extends the existing per-service health state (same sf/get/put).
 ALLOWLIST_LAST_CHECK=$(get whatsapp_allowlist last_sweep 0)
 # 12/10 « zéro désynchronisation » : every 30 min, prove each runtime copy and rule still matches the deployed commit.
-check_runtime_drift(){ [ "$(now)" -ge "$(get runtime_drift next 0)" ] || return; put runtime_drift next $(( $(now)+1800 )); deploy_in_progress && return; out=$(timeout 90 "$ROOT/runtime-sync.sh" --check 9>&- 2>/dev/null); rc=$?; if [ "$rc" -eq 0 ]; then [ "$(get runtime_drift status aligned)" = aligned ] || log "service=runtime_drift state=aligned"; put runtime_drift status aligned; put runtime_drift sig none; return; fi; detail=$(printf '%s' "$out" | tr -d '\n' | cut -c1-300); sig=$(printf '%s' "$detail" | sha256sum | cut -c1-16); put runtime_drift status drift; log "service=runtime_drift state=drift rc=$rc detail=$detail"; [ "$(get runtime_drift sig none)" = "$sig" ] && return; put runtime_drift sig "$sig"; "$ROOT/incident-notify.sh" human_required "Samantha — une copie du runtime n'est plus alignée sur le commit déployé : $detail" "Relancer companion-deploy.sh sur le commit déployé (runtime-sync.sh remet chaque copie au même commit)." || true; }
+check_runtime_drift(){ [ "$(now)" -ge "$(get runtime_drift next 0)" ] || return; put runtime_drift next $(( $(now)+1800 )); [ "$(canonical_mode)" = normal ] || return; out=$(timeout 90 "$ROOT/runtime-sync.sh" --check 9>&- 2>/dev/null); rc=$?; if [ "$rc" -eq 0 ]; then [ "$(get runtime_drift status aligned)" = aligned ] || log "service=runtime_drift state=aligned"; put runtime_drift status aligned; put runtime_drift sig none; return; fi; detail=$(printf '%s' "$out" | tr -d '\n' | cut -c1-300); sig=$(printf '%s' "$detail" | sha256sum | cut -c1-16); put runtime_drift status drift; log "service=runtime_drift state=drift rc=$rc detail=$detail"; [ "$(get runtime_drift sig none)" = "$sig" ] && return; put runtime_drift sig "$sig"; "$ROOT/incident-notify.sh" human_required "Samantha — une copie du runtime n'est plus alignée sur le commit déployé : $detail" "Relancer companion-deploy.sh sur le commit déployé (runtime-sync.sh remet chaque copie au même commit)." || true; }
 check_allowlist_expiry(){
  local tick elapsed result processed forgotten remaining
  tick=$(now);elapsed=$((tick-ALLOWLIST_LAST_CHECK))
@@ -250,6 +252,14 @@ check_allowlist_expiry(){
 log 'event=start result=ok state=persistent_backoff'
 while :; do
  printf '%s' "$(date +%s)" >"$D/health-manager.heartbeat"
+ mode=$(canonical_mode); [ -n "$mode" ] || mode=unknown
+ previous_mode=$(get canonical_mode status unknown)
+ if [ "$mode" != "$previous_mode" ]; then log "service=canonical_mode state=$mode"; put canonical_mode status "$mode"; fi
+ if [ "$mode" != normal ]; then
+  "$ROOT/health-verdict.py" --write 9>&- >/dev/null 2>&1 || true
+  sleep 15 9>&-
+  continue
+ fi
  check_allowlist_expiry
  check_supervisor root_guardian '[s]amantha-root-guardian.sh' "$ROOT/samantha-root-guardian.sh"
  check_allowlist_expiry

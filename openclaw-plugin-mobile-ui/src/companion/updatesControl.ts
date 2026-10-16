@@ -37,7 +37,7 @@ async function fingerprint(home:string){
 }
 
 async function generate():Promise<any>{
- const helper=process.env.SAMANTHA_TIER0_NATIVE||path.join(os.homedir(),"ClawMobile/installer/termux-lite/tier0-native-read.py");
+ const helper=process.env.SAMANTHA_TIER0_NATIVE||path.join(os.homedir(),".openclaw/releases/current/termux-lite/tier0-native-read.py");
  const args=[helper,"--home",process.env.SAMANTHA_CONTROL_HOME||os.homedir(),"--companion-version",companionBuildVersion()];
  return new Promise((resolve,reject)=>execFile("python3",args,{timeout:3500,maxBuffer:65536},(error,stdout)=>{
   if(error){reject(new Error("updates_unavailable"));return;}
