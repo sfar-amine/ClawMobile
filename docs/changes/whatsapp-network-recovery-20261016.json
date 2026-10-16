@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "id": "whatsapp-network-recovery-20261016",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Keep WhatsApp reconnecting with bounded slow backoff after prolonged transport failures.",
+  "reason": "A transient DNS failure exhausted twelve attempts and was misclassified as terminal, disabling automatic recovery after network restoration.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/whatsapp-network-recovery-20261016.md",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/gateway-start.sh",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.json",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-runtime-sync.py",
+    "installer/termux-lite/test-whatsapp-network-recovery.cjs",
+    "installer/termux-lite/test-whatsapp-network-recovery.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-16-whatsapp-recovery/LICENSE.openclaw",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-16-whatsapp-recovery/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-16-whatsapp-recovery/openclaw/dist/channel-health-policy-DnqLKLPL.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-16-whatsapp-recovery/openclaw/dist/server-runtime-startup-services-DaDODLLa.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-16-whatsapp-recovery/whatsapp/dist/.setup/connection-controller-C60mU7j7.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-16-whatsapp-recovery/whatsapp/dist/.setup/monitor-By82ehLA.mjs",
+    "docs/changes/whatsapp-network-recovery-20261016.json"
+  ],
+  "tests": [
+    {
+      "name": "whatsapp-network-recovery",
+      "status": "passed",
+      "evidence": "11 behavior cases and 8 patcher/startup cases on real installed S24 code, with fake clocks and sockets; no live send."
+    },
+    {
+      "name": "runtime-supervision-regression",
+      "status": "passed",
+      "evidence": "10 runtime-sync, 9 gateway preflight, 5 stale-lock, 2 deploy-lock, channel-health and owner-send contracts passed."
+    },
+    {
+      "name": "syntax",
+      "status": "passed",
+      "evidence": "All three patched modules parsed; modified shell scripts pass bash -n; git diff --check passed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/whatsapp-network-recovery-20261016.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Transport recovery only; no business capability, MCP route, user permission or payment change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing WhatsApp connection controller and gateway health supervisor retain ownership; no new scheduler, store, daemon or retry engine."
+  },
+  "rollback": "Use the versioned patcher --rollback to restore verified original bytes, then restart through the Companion owner. Deployment rollback invokes it before reverting to a revision without the patch.",
+  "limitations": [
+    "Not deployed; live extended outage and new inbound-to-delivered acceptance pending.",
+    "Pinned to OpenClaw/@openclaw/whatsapp 2026.9.6; unknown hashes and ambiguous generations refuse patching.",
+    "No Android callback bridge or historical-message replay added."
+  ]
+}
