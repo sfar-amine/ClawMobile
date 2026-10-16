@@ -258,8 +258,17 @@ def evaluate(now, prev, metrics, pid, idle_fn, healthy_fn, thresholds=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--observe", action="store_true", help="décision calculée, aucune demande de redémarrage")
+    parser.add_argument("--idle-proof", action="store_true", help="preuve de repos existante, sans écrire de reçu")
     args = parser.parse_args(argv)
     now = time.time()
+    if args.idle_proof:
+        busy, reason = idle_proof(now)
+        if busy is None:
+            print(json.dumps({"idle": False, "complete": False, "reason": reason}, sort_keys=True))
+            return 3
+        active = sum(int(value) for value in busy.values())
+        print(json.dumps({"idle": active == 0, "complete": True, "observed_at": now, **busy}, sort_keys=True))
+        return 0 if active == 0 else 3
     prev, ok = read_receipt()
     if not ok:
         # Unreadable history: never restart; keep the corrupt receipt for a human.
