@@ -51,7 +51,6 @@ import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath"
 import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
 import { createCapabilityTool } from "./capabilityTool";
 import { agentCapabilityHook } from "./capabilityAgentGuard";
-import { createProviderFallbackCoordinator } from "./providerFallback";
 
 type JsonSchema = Record<string, any>;
 
@@ -182,26 +181,7 @@ function register(api: any) {
   // This file is the contract boundary between the OpenClaw runtime and the
   // mobile runtime implementation below.
 
-  const providerFallback = createProviderFallbackCoordinator(api);
-  api.on("before_model_resolve", (event: any, ctx: any) =>
-    providerFallback.beforeModelResolve(event, ctx),
-  );
-  api.on("model_call_ended", (event: any, ctx: any) =>
-    providerFallback.modelCallEnded(event, ctx),
-  );
-  api.on("before_tool_call", (event: any, ctx: any) => {
-    // Existing provider-fallback bookkeeping (toolCalled) is preserved; E3 then fixes caller from the host turn.
-    providerFallback.beforeToolCall(event, ctx);
-    return agentCapabilityHook(event, ctx);
-  });
-  api.on("before_prompt_build", (event: any, ctx: any) =>
-    providerFallback.beforePromptBuild(event, ctx),
-  );
-  api.on(
-    "before_agent_reply",
-    (event: any, ctx: any) => providerFallback.beforeAgentReply(event, ctx),
-    { eligibleTriggers: ["user"], timeoutMs: 70000 },
-  );
+  api.on("before_tool_call", agentCapabilityHook);
 
   api.on("inbound_claim", async (event: any, ctx: any) => {
     const result = await handleOwnerFastPath(event, ctx);

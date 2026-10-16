@@ -8,6 +8,7 @@ const bankReturnToken="B".repeat(43);
 const reference="topup-"+"a".repeat(32)+"-"+"b".repeat(32)+"-5000";
 const quote={payee:"Orange Maxit ••••1234",reference,amountMinor:5000,currency:"TND",decimals:3,feeMinor:700,totalMinor:5700,feeLabel:"Frais Maxit"};
 const continuation={provider:"maxit.topup",checkoutId:"456789",gatewayOrderId:"22222222-2222-4222-8222-222222222222"};
+const webviewContinuation=JSON.parse(fs.readFileSync(path.join(__dirname,"..","fixtures","contracts","maxit_webview_v2.json"),"utf8"));
 
 function fixture({armed=true,live,card}={}){
   const tmp=path.join(os.homedir(),".cache","claw-tests");fs.mkdirSync(tmp,{recursive:true});
@@ -143,16 +144,16 @@ test("P1-5 adapter runs use the nested named budgets",async()=>{
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
 
-test("Webview contract 11/10: an empty Maxit transaction id keeps the bank continuation, a malformed one does not",async()=>{
-  const web={provider:"maxit.topup",checkoutId:"",gatewayOrderId:"22222222-2222-4222-8222-222222222222"};
+test("Webview contract 11/10: the shared continuation fixture reaches the adapter and malformed variants do not",async()=>{
+  assert.deepEqual(Object.keys(webviewContinuation).sort(),["checkoutId","gatewayOrderId","provider"]);
   const make=checkoutId=>fixture({live:async payload=>payload.operation==="start"
-    ?{state:"requires_bank_action",reason_code:"bank_verification_required",continuation:{...web,checkoutId}}
+    ?{state:"requires_bank_action",reason_code:"bank_verification_required",continuation:{...webviewContinuation,checkoutId}}
     :{state:"confirmed",reason_code:"gateway_return_and_provider_settled",gateway_return_correlated:true,fresh_provider_read:true}});
   const ok=make("");
   try{
     const started=await ok.adapter.executeLocal(quote,requestId,{bankReturnToken});
     assert.equal(started.state,"requires_bank_action");
-    assert.deepEqual(started.continuation,web);
+    assert.deepEqual(started.continuation,webviewContinuation);
   }finally{fs.rmSync(ok.root,{recursive:true,force:true});}
   const bad=make("abc");
   try{
