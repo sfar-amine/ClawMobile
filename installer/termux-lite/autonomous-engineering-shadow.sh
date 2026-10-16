@@ -11,6 +11,9 @@ component="${1:-}"
 failures="${2:-0}"
 canonical_incident_id="${3:-}"
 
+mode=$(python3 "$ROOT/runtime_mode.py" 2>/dev/null || true)
+[ "$mode" = normal ] || exit 75
+
 case "$component" in
   ""|*[!A-Za-z0-9._-]*) exit 64 ;;
 esac

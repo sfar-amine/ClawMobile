@@ -15,7 +15,8 @@ PLUGIN="$REPO/openclaw-plugin-mobile-ui"
 # previous after a rollback), so every lot's acceptance lines run. The copy next to this script is only
 # a fallback for a checkout that does not carry it yet. A rollback is not judged by it (R03, see rollback()).
 ACCEPT_FALLBACK="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/companion-acceptance.py"
-accept(){ if [ -f "$ROOT/companion-acceptance.py" ]; then python3 "$ROOT/companion-acceptance.py"; else python3 "$ACCEPT_FALLBACK"; fi; }
+accept(){ script="$ACCEPT_FALLBACK"; [ -f "$ROOT/companion-acceptance.py" ] && script="$ROOT/companion-acceptance.py"
+  if [ -n "${BASELINE_RECEIPT:-}" ]; then python3 "$script" --baseline "$BASELINE_RECEIPT"; else python3 "$script"; fi; }
 STATE="$HOME/.openclaw/deploys"; BACKUPS="$HOME/.openclaw/backups"
 REMOTE="${COMPANION_DEPLOY_REMOTE:-samantha-private}"; BRANCH="${COMPANION_DEPLOY_BRANCH:-runtime/samantha-companion-private}"
 KEEP_BACKUPS="${COMPANION_DEPLOY_KEEP:-5}"; MIN_AVAILABLE_MB="${COMPANION_DEPLOY_MIN_MB:-1200}"; MAX_LOAD="${COMPANION_DEPLOY_MAX_LOAD:-7}"
@@ -25,7 +26,20 @@ if [ "${1:-}" = "--status" ]; then ls -t "$STATE"/companion-*.json 2>/dev/null |
 target="${1:-}"; [[ "$target" =~ ^[0-9a-f]{7,40}$ ]] || { echo "usage: $0 <commit>|--status" >&2; exit 2; }
 
 exec 9>"$STATE/companion-deploy.lock"; flock -n 9 || { echo "deploy_already_running" >&2; exit 3; }
+export SAMANTHA_DEPLOY_LOCK_FD=9
 stamp="$(date +%Y%m%dT%H%M%S)"; receipt="$STATE/companion-$stamp.json"; log="$STATE/companion-$stamp.log"
+# The latest successful receipt is the measured previous release. Refused and rollback receipts do not
+# describe the currently running target and are intentionally ignored.
+BASELINE_RECEIPT="$(python3 - "$STATE" <<'PY'
+import json,pathlib,sys
+for path in sorted(pathlib.Path(sys.argv[1]).glob('companion-*.json'),key=lambda p:p.stat().st_mtime,reverse=True):
+ try:
+  doc=json.loads(path.read_text()); value=doc.get('acceptance')
+  if doc.get('state')=='deployed' and value and (isinstance(value,dict) or isinstance(value,str)):
+   print(path);break
+ except (OSError,ValueError): pass
+PY
+)"
 write(){ python3 - "$receipt" "$@" <<'PY'
 import json,sys,datetime
 path,state,target,previous,detail=sys.argv[1:6]
@@ -69,11 +83,24 @@ WAIT_CALM_S="${COMPANION_DEPLOY_WAIT_CALM_S:-0}"
 [ "$WAIT_CALM_S" -gt 0 ] && wait_calm "$WAIT_CALM_S" "$MAX_LOAD" >/dev/null 2>&1 || true
 
 # Preflight: never stack a deploy on a heavy job (Gradle, another build) or on a phone short of memory.
-available=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo); # /proc/loadavg is denied to detached processes on Android: read the 1-minute load from uptime.
+MEMINFO_FILE="${COMPANION_DEPLOY_MEMINFO_FILE:-/proc/meminfo}"
+BATTERY_STATUS_FILE="${COMPANION_DEPLOY_BATTERY_STATUS_FILE:-/sys/class/power_supply/battery/status}"
+available=$(awk '/MemAvailable/{print int($2/1024)}' "$MEMINFO_FILE"); # /proc/loadavg is denied to detached processes on Android: read the 1-minute load from uptime.
 load=$(uptime 2>/dev/null | sed -n 's/.*load average: *\([0-9.]*\).*/\1/p'); load="${load:-0}"
+battery_status=$(cat "$BATTERY_STATUS_FILE" 2>/dev/null || true)
+if [ -z "$battery_status" ] && command -v dumpsys >/dev/null 2>&1; then
+  battery_status=$(dumpsys battery 2>/dev/null | awk '
+    /AC powered:|USB powered:|Wireless powered:|Dock powered:/ && $NF=="true" {powered=1}
+    END {print powered ? "Charging" : "Discharging"}')
+fi
+previous="$(git -C "$REPO" rev-parse HEAD 2>/dev/null || true)"
+if [ "${available:-0}" -lt "$MIN_AVAILABLE_MB" ] && [ "$battery_status" = "Discharging" ]; then
+  write deferred "$target" "$previous" "preflight: battery=discharging available=${available}MB; retry_when_powered_or_memory_recovers"
+  echo "$receipt"; exit 0
+fi
 if pgrep -f 'GradleDaemon|gradle-termux|tsc -p tsconfig' >/dev/null || [ "${available:-0}" -lt "$MIN_AVAILABLE_MB" ] \
    || awk -v l="$load" -v m="$MAX_LOAD" 'BEGIN{exit !(l>m)}'; then
-  write refused "$target" "" "preflight: available=${available}MB load=$load heavy_job=$(pgrep -fc 'GradleDaemon|gradle-termux|tsc -p tsconfig')"
+  write refused "$target" "$previous" "preflight: battery=${battery_status:-unknown} available=${available}MB load=$load heavy_job=$(pgrep -fc 'GradleDaemon|gradle-termux|tsc -p tsconfig')"
   echo "$receipt"; exit 4
 fi
 

@@ -119,7 +119,7 @@ class RuntimeSync(unittest.TestCase):
         manifest = json.loads((self.home / ".openclaw/releases/current/manifest.json").read_text())
         self.assertEqual(self.commit, manifest["source_commit"])
         # S24 12/10: the Gateway restarts before the Tier0 promotion, never inside its soak window.
-        self.assertEqual(["gateway-restart", "--apply", "prune --keep 10 --apply"], self.tier0_log())
+        self.assertEqual(["gateway-restart", "--apply", "prune --keep 5 --apply"], self.tier0_log())
         self.assertEqual((self.root / "companion-deploy.sh").read_text(), (self.home / ".openclaw/tools/companion-deploy.sh").read_text())
         self.assertEqual(("POST", "/v1/runtime/restart"), Companion.calls[0])
         self.assertIn(("GET", "/v1/control/health?contract=2"), Companion.calls)

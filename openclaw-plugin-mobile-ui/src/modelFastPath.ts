@@ -13,6 +13,9 @@ export type FastPathResult = {
   status?: string;
   text?: string;
   reason?: string;
+  /** Sanitized machine class emitted by the deterministic runner. */
+  reason_class?: string;
+  reasonClass?: string;
   target?: string;
   intent?: string;
   route?: string;
