@@ -1,0 +1,213 @@
+// Extrait verbatim, OpenClaw 2026.9.6 (eb377ac), dist/agents-CzjKlYR1.mjs lignes 165-200 et 301-395 (handler agents.files.set)
+function hashWorkspaceFileContent(content) {
+	return createHash("sha256").update(content).digest("hex");
+}
+function respondWorkspaceFileUnsafe$1(respond, name) {
+	respond(false, void 0, errorShape(ErrorCodes.INVALID_REQUEST, `unsafe workspace file "${name}"`));
+}
+function respondWorkspaceFileMissing(params) {
+	params.respond(true, {
+		agentId: params.agentId,
+		workspace: params.workspaceDir,
+		file: {
+			name: params.name,
+			path: params.filePath,
+			missing: true,
+			expectedAbsent: isExpectedAbsentBootstrapFile(params.name)
+		}
+	}, void 0);
+}
+async function readWorkspaceFileHash(workspaceRoot, name) {
+	try {
+		return hashWorkspaceFileContent((await workspaceRoot.read(name, {
+			hardlinks: "reject",
+			nonBlockingRead: true
+		})).buffer);
+	} catch (err) {
+		if (isMissingPathError(err)) return;
+		throw err;
+	}
+}
+function respondWorkspaceFileConflict(respond, name, currentHash) {
+	respond(false, void 0, errorShape(ErrorCodes.INVALID_REQUEST, `agent file "${name}" changed since it was read`, { details: {
+		type: "agent_file_conflict",
+		name,
+		...currentHash ? { currentHash } : {}
+	} }));
+}
+	"agents.files.set": async ({ params, respond, context }) => {
+		if (!assertValidParams(params, validateAgentsFilesSetParams, "agents.files.set", respond)) return;
+		const resolved = resolveAgentWorkspaceFileOrRespondError(params, respond, context.getRuntimeConfig());
+		if (!resolved) return;
+		const { agentId, workspaceDir, name } = resolved;
+		const access = getAgentWorkspaceAccess(workspaceDir);
+		if (access) {
+			if (Buffer.byteLength(params.content) > 2097152) throw new Error("Workspace document exceeds its write bound");
+			const assertCurrent = () => {
+				if (getAgentWorkspaceAccess(workspaceDir) !== access) throw new Error("Workspace access changed while saving an Agent document");
+			};
+			const conflict = await enqueueWorkspaceFileUpdate(async () => {
+				assertCurrent();
+				const expectedHash = params.expectedHash?.toLowerCase();
+				if (expectedHash) {
+					const stat = await access.bridge.stat({ filePath: name });
+					assertCurrent();
+					let currentHash;
+					if (stat) {
+						const data = await access.bridge.readFile({
+							filePath: name,
+							maxBytes: MAX_WORKSPACE_BOOTSTRAP_FILE_BYTES
+						});
+						assertCurrent();
+						if (data.length > 2097152) throw new Error("Workspace document exceeds its read bound");
+						currentHash = hashWorkspaceFileContent(data);
+					}
+					if (currentHash !== expectedHash) return { currentHash };
+				}
+				await access.bridge.writeFile({
+					filePath: name,
+					data: params.content,
+					mkdir: true
+				});
+				assertCurrent();
+			});
+			if (conflict) {
+				respondWorkspaceFileConflict(respond, name, conflict.currentHash);
+				return;
+			}
+			respond(true, {
+				ok: true,
+				agentId,
+				workspace: workspaceDir,
+				file: {
+					name,
+					path: path.join(workspaceDir, name),
+					missing: false,
+					size: Buffer.byteLength(params.content),
+					hash: hashWorkspaceFileContent(params.content),
+					content: params.content
+				}
+			}, void 0);
+			return;
+		}
+		await fs.mkdir(workspaceDir, { recursive: true });
+		const filePath = path.join(workspaceDir, name);
+		const content = params.content;
+		let workspaceRoot;
+		let conflict;
+		try {
+			workspaceRoot = await root(workspaceDir);
+			const writeRoot = workspaceRoot;
+			const expectedHash = params.expectedHash?.toLowerCase();
+			conflict = await enqueueWorkspaceFileUpdate(async () => {
+				if (expectedHash) {
+					const currentHash = await readWorkspaceFileHash(writeRoot, name);
+					if (currentHash !== expectedHash) return { currentHash };
+				}
+				await writeRoot.write(name, content, { encoding: "utf8" });
+			});
+		} catch (err) {
+			if (!(err instanceof FsSafeError)) throw err;
+			respondWorkspaceFileUnsafe$1(respond, name);
+			return;
+		}
+		if (conflict) {
+			respondWorkspaceFileConflict(respond, name, conflict.currentHash);
+			return;
+		}
+		const meta = await statWorkspaceFileSafely(workspaceRoot, workspaceDir, name);
+		respond(true, {
+			ok: true,
+			agentId,
+			workspace: workspaceDir,
+			file: {
+				name,
+				path: filePath,
+				missing: false,
+				size: meta?.size,
+				updatedAtMs: meta?.updatedAtMs,
+				hash: hashWorkspaceFileContent(content),
+				content
+			}
+		}, void 0);
+// dist/workspace-fs-DfgXp1be.mjs lignes 1-12 et 85-125 (file d'attente des écritures)
+import { t as FsSafeError, w as root } from "./fs-safe-BAPek8At.mjs";
+import { r as isPathInside } from "./path-guards-D5kuI0Tv.mjs";
+import { t as readFileWindowFully } from "./file-read-Csm265gq.mjs";
+import path from "node:path";
+import { createHash } from "node:crypto";
+//#region src/gateway/server-methods/workspace-fs.ts
+/** Shared preview cap: keeps file payloads comfortably under client WS limits. */
+const WORKSPACE_PREVIEW_MAX_BYTES = 262144;
+let workspaceFileUpdateQueue = Promise.resolve();
+async function openWorkspaceRoot(rootDir) {
+	try {
+		return await root(rootDir, {
+function enqueueWorkspaceFileUpdate(update) {
+	const result = workspaceFileUpdateQueue.then(update, update);
+	workspaceFileUpdateQueue = result.then(() => void 0, () => void 0);
+	return result;
+}
+async function updateWorkspaceFile(rootDir, browserPath, content, expectedHash, assertCurrent) {
+	const workspaceRoot = await openWorkspaceRoot(rootDir);
+	if (!workspaceRoot) return { status: "unsafe" };
+	return await enqueueWorkspaceFileUpdate(async () => {
+		let current;
+		try {
+			current = await workspaceRoot.read(browserPath, {
+				hardlinks: "reject",
+				maxBytes: WORKSPACE_PREVIEW_MAX_BYTES,
+				nonBlockingRead: true,
+				symlinks: "reject"
+			});
+		} catch {
+			return { status: "unsafe" };
+		}
+		if (decodeUtf8Strict(current.buffer) === void 0) return { status: "unsafe" };
+		const currentHash = createHash("sha256").update(current.buffer).digest("hex");
+		if (currentHash !== expectedHash) return {
+			status: "conflict",
+			currentHash
+		};
+		assertCurrent?.();
+		await workspaceRoot.write(browserPath, content, {
+			encoding: "utf8",
+			renameIdentity: "strict"
+		});
+		const stat = await workspaceRoot.stat(browserPath);
+		if (!stat.isFile) return { status: "unsafe" };
+		return {
+			status: "updated",
+			canonicalPath: path.relative(workspaceRoot.rootReal, current.realPath).split(path.sep).join("/"),
+			hash: createHash("sha256").update(content, "utf8").digest("hex"),
+			stat
+		};
+	});
+}
+// dist/workspace-bootstrap-policy-DSEIbIS8.mjs lignes 8-33 (ALLOWED_FILE_NAMES = WORKSPACE_BOOTSTRAP_FILENAMES)
+const DEFAULT_AGENTS_FILENAME = "AGENTS.md";
+const DEFAULT_SOUL_FILENAME = "SOUL.md";
+const DEFAULT_TOOLS_FILENAME = "TOOLS.md";
+const DEFAULT_IDENTITY_FILENAME = "IDENTITY.md";
+const DEFAULT_USER_FILENAME = "USER.md";
+const DEFAULT_BOOTSTRAP_FILENAME = "BOOTSTRAP.md";
+const DEFAULT_MEMORY_FILENAME = CANONICAL_ROOT_MEMORY_FILENAME;
+const GENERATED_WORKSPACE_BOOTSTRAP_FILENAMES = [
+	DEFAULT_AGENTS_FILENAME,
+	DEFAULT_SOUL_FILENAME,
+	DEFAULT_IDENTITY_FILENAME,
+	DEFAULT_USER_FILENAME
+];
+/**
+* Canonical bootstrap filenames in prompt order. Single source for the runtime
+* validation set, the name union, and the Control UI core-files list; a private
+* copy anywhere else silently drifts when a file is retired.
+*/
+const WORKSPACE_BOOTSTRAP_FILENAMES = [
+	DEFAULT_AGENTS_FILENAME,
+	DEFAULT_SOUL_FILENAME,
+	DEFAULT_IDENTITY_FILENAME,
+	DEFAULT_USER_FILENAME,
+	DEFAULT_BOOTSTRAP_FILENAME,
+	DEFAULT_MEMORY_FILENAME
+];

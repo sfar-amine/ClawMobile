@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "id": "codex-38-e3-agent-guard-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "E3 : l'agent ne lance plus de capability opérateur ou transaction hors du harness ; CLARIFY et resolve-clarification sur WhatsApp, relais voix et Gemini Live",
+  "reason": "38 E3 : décision atomique dans l'outil (agent-execute : une résolution canonique, politique E3, exécution read-only de la décision exacte), hook caller depuis le tour, même contrat CLARIFY que l'app sur toutes les surfaces.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/claw-capability.py",
+    "installer/termux-lite/test-claw-capability-agent-policy.py",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/src/capabilityTool.ts",
+    "openclaw-plugin-mobile-ui/src/capabilityClarification.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-capability-guard.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-e3-surfaces.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/openclaw-2026.9.6/e3-hook-excerpts.d.ts",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/openclaw-2026.9.6/e3-hook-provenance.json",
+    "docs/work/samantha-runtime/contracts/38-e3.md",
+    "docs/changes/codex-38-e3-agent-guard-20261011.md",
+    "docs/changes/codex-38-e3-agent-guard-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "E3 politique agent (Python)",
+      "status": "passed",
+      "evidence": "28 contrôles : refus sans exécution pour opérateur, transaction, écriture, CLARIFY à choix écriture ; lecture non opérateur exécutée en read-only, décision identique."
+    },
+    {
+      "name": "E3 hook et outil",
+      "status": "passed",
+      "evidence": "39 contrôles ; P1 admission 27 ; capability-tool PASS."
+    },
+    {
+      "name": "E3 surfaces (forme T5)",
+      "status": "passed",
+      "evidence": "44 contrôles : WhatsApp, relais voix, Gemini Live ; resolve-clarification avec texte original, run 2 appris sans question."
+    },
+    {
+      "name": "CI locale complète",
+      "status": "passed",
+      "evidence": "54 étapes de ci.yml vertes en local."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/38-e3.md",
+    "docs/changes/codex-38-e3-agent-guard-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Aucune action nouvelle ; route claw-live/capability : champ optionnel clarificationId."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Politique E3 appliquée à la décision canonique existante ; aucun owner, store, registre ni routeur ajouté. Clarifications des surfaces non-app bornées en mémoire."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "MCP renvoie déjà needs_clarification ; outils Claw inchangés."
+  },
+  "rollback": "Revert de la PR ; aucun état persistant ajouté.",
+  "limitations": [
+    "Recette T5 réelle sur le S24 à faire après déploiement (Claude).",
+    "Question de compteur d'exécuteur (needs_counter) de la voix : chemin ciblé existant conservé, ce n'est pas une décision CLARIFY.",
+    "WhatsApp : après une clarification résolue non déterministe, l'agent continue dans la même session (question + réponse) ; inbound_claim ne peut pas réécrire le message."
+  ]
+}

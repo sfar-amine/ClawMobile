@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -42,6 +43,23 @@ def _python_env(ui_root: Path) -> dict[str, str]:
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = str(ui_root) + (os.pathsep + existing if existing else "")
     return env
+
+
+# O6 (fichier 37, décision du 11/10/2026) : une consultation opérateur gardée tient en 60 s au total
+# (borne du garde réseau, CONSULTATION_TOTAL_S d'android-network-mutation-guard.py). Le fast path l'attend
+# avec marge et n'abandonne jamais pendant que le garde tient le Wi-Fi coupé.
+GUARDED_OPERATOR_ENTRYPOINTS = ("python -m telecom.maxit_guarded_service ",)
+GUARDED_ENTRY_TOTAL_S = 60
+GUARDED_ENTRY_WAIT_S = 70
+
+
+def guarded_execution_timeout(timeout: int, *selections: Any) -> int:
+    """Execution wait for the selected route: at least the guarded total plus margin for a guarded entry."""
+    for selected in selections:
+        entrypoint = str(selected.get("entrypoint") or "") if isinstance(selected, dict) else ""
+        if entrypoint.startswith(GUARDED_OPERATOR_ENTRYPOINTS):
+            return min(120, max(int(timeout), GUARDED_ENTRY_WAIT_S))
+    return timeout
 
 
 def _run_json(
@@ -227,42 +245,233 @@ def capability_first_eligibility(value: dict[str, Any]) -> tuple[str, str]:
     return "eligible", "capability_first"
 
 
-def _display_text(value: Any) -> str:
+_presentation_module = None
+
+def _presentation_metadata(value):
+    if not isinstance(value, dict) or not isinstance(value.get("presentation"), dict):
+        return {}
+    global _presentation_module
+    if _presentation_module is None:
+        spec = importlib.util.spec_from_file_location("_hs3_presentation_read", Path(__file__).with_name("receipt-presentation-read.py"))
+        _presentation_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_presentation_module)
+    return _presentation_module.read(value) or {}
+
+
+def _understood_prefix(metadata, text):
+    understood = (metadata.get("presentation") or {}).get("understood") if metadata else None
+    line = understood.get("text") if isinstance(understood, dict) and understood.get("capability") else None
+    return f"{line}\n{text}" if line and text else (text or line or "")
+
+
+def _presentation_display(value):
+    metadata = _presentation_metadata(value)
+    return _presentation_module.display(metadata) if metadata else None
+
+
+# Reuse the canonical memory import privacy boundary for free text only.
+# Do not apply its number/OTP heuristic to structured telecom amounts.
+_display_privacy_spec = importlib.util.spec_from_file_location(
+    "_claw_display_context_import", Path(__file__).with_name("context_import.py"))
+_display_privacy_owner = importlib.util.module_from_spec(_display_privacy_spec)
+_display_privacy_spec.loader.exec_module(_display_privacy_owner)
+_DISPLAY_SENSITIVE = _display_privacy_owner.SENSITIVE
+
+
+def _plain_display(value: Any, maximum: int = 120, bracket_text: bool = False) -> str:
+    if not isinstance(value, str):
+        return ""
+    if _DISPLAY_SENSITIVE.search(value):
+        return ""
+    text = " ".join(value.split())[:maximum].strip()
+    json_like = text.startswith(("{", "[{", '["', "[[")) if bracket_text else text.startswith(("{", "["))
+    if not text or json_like or re.search(r"https?://|\bBearer\b|\+\d{8,}|\b(?:ghp_|github_pat_|sk-|AKIA)[A-Za-z0-9_-]+", text, re.I):
+        return ""
+    return text
+
+
+def _telecom_cards(value: dict[str, Any]) -> str:
+    data = value.get("data") if isinstance(value.get("data"), dict) else value
+    cards = data.get("cards")
+    if not isinstance(cards, list):
+        return ""
+    lines = []
+    skipped = 0
+    for card in cards[:32]:
+        if not isinstance(card, dict):
+            skipped += 1
+            continue
+        label = _plain_display(card.get("label") or card.get("title"), 80)
+        amount = card.get("value")
+        unit = _plain_display(card.get("unit"), 20)
+        if unit not in {"TND", "DT", "GO", "MO", "KO", "GB", "MB", "KB", "Minutes", "MIN", "SMS", "USD", "EUR", "DZD", "MAD", "IQD", "JOD", "JD", "LYD", "%"}:
+            skipped += 1
+            continue
+        if not label or not unit or isinstance(amount, bool) or not re.fullmatch(r"-?\d{1,30}(?:[.,]\d{1,12})?", str(amount)):
+            skipped += 1
+            continue
+        # One card per line: exact value, unit, validity. Never summed (cards of one unit are distinct counters).
+        line = f"{label} : {amount} {unit}"
+        days = card.get("days_remaining")
+        # Real S24 capture (10/10 09:41): "Compte de recharge" carries 4100 days; bound at 100 years.
+        if type(days) is int and 0 <= days <= 36500:
+            line += f" — validité restante : {days} jour(s)"
+        lines.append(line)
+    if lines and skipped:
+        lines.append(f"{skipped} autre(s) carte(s) non affichable(s) en texte.")
+    return "\n".join(lines)
+
+
+def _execution_provenance(selected: dict[str, Any], execution: dict[str, Any]) -> dict[str, str] | None:
+    result = {}
+    payload = execution.get("result") if isinstance(execution.get("result"), dict) else {}
+    for key in ("capability", "route"):
+        value = selected.get(key)
+        if key == "route":
+            if "actual_route" in execution:
+                value = execution.get("actual_route")
+            elif isinstance(payload.get("route_id"), str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{0,159}", payload["route_id"]):
+                # Older receipts (S24 10/10 09:41) lack execution.actual_route; the owner result names the
+                # route it really executed (orange.usage.maxit.v1 while the plan was orange.summary.maxit.v1).
+                value = payload["route_id"]
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{0,159}", value):
+            return None
+        result[key] = value
+    guard = payload.get("network_guard") if isinstance(payload.get("network_guard"), dict) else {}
+    network_path = execution.get("network_path") or payload.get("network_path") or guard.get("path")
+    if network_path in ("wifi_off", "cellular_bind_wifi_on"):
+        result["network_path"] = network_path
+    return result
+
+
+def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None) -> str:
+    remaining = [128] if remaining is None else remaining
+    remaining[0] -= 1
+    if depth >= 4 or remaining[0] < 0:
+        return "Résultat disponible auprès de Claw ; détails non affichables en texte."
+    if depth == 0:
+        presented = _presentation_display(value)
+        if presented:
+            return presented
     if isinstance(value, dict):
+        cards = _telecom_cards(value)
+        if cards:
+            return cards
         if value.get("strategy") == "composed_read" and isinstance(value.get("results"), list):
             lines = []
-            for row in value["results"]:
+            for row in value["results"][:32]:
                 if not isinstance(row, dict):
                     continue
-                label = str(row.get("label") or row.get("target") or "Lecture")
+                label = _plain_display(row.get("label") or row.get("target"), 80) or "Lecture"
                 payload = row.get("result")
                 if row.get("state") == "completed" and isinstance(payload, dict) and payload.get("ok") is True:
-                    text = _display_text(payload)
+                    text = _display_text(payload, depth + 1, remaining)
                 elif row.get("state") == "indeterminate":
                     text = "Résultat à vérifier ; lecture non rejouée."
                 elif row.get("state") == "not_started":
                     text = "Lecture non exécutée."
                 else:
                     text = "Lecture indisponible."
-                lines.append(label + " : " + text)
+                line = label + " : " + text
+                if sum(len(item) + 1 for item in lines) + len(line) > 8000:
+                    break
+                lines.append(line)
+                if remaining[0] <= 0:
+                    break
             if lines:
                 return "\n".join(lines)
         for key in ("text", "message", "summary", "answer"):
             text = value.get(key)
-            if isinstance(text, str) and text.strip():
-                return text.strip()
+            if isinstance(text, str) and _plain_display(text, 4000):
+                return _plain_display(text, 4000)
         if value.get("state") == "needs_counter" and isinstance(value.get("choices"), list):
-            choices = [str(x) for x in value["choices"] if str(x).strip()]
+            choices = [_plain_display(x, 80) for x in value["choices"][:32] if _plain_display(x, 80)]
             if choices:
                 return "Précise : " + " / ".join(choices)
         if value.get("state") == "needs_parameter":
             question = value.get("question")
-            if isinstance(question, str) and question.strip():
-                return question.strip()
-        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            if isinstance(question, str) and _plain_display(question, 4000):
+                return _plain_display(question, 4000)
+        return _generic_display(value) or "Résultat disponible auprès de Claw ; détails non affichables en texte."
     if isinstance(value, list):
-        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-    return str(value).strip()
+        return _generic_display({"résultats": value}) or "Résultat disponible auprès de Claw ; détails non affichables en texte."
+    return _plain_display(value, 4000) or "Résultat disponible auprès de Claw."
+
+
+# Executor bookkeeping, never shown (Amine 12/10 : affichage générique de tout résultat déterministe).
+_GENERIC_HIDDEN = {"ok", "route", "route_id", "query", "request_count", "latency_ms", "duration_ms", "state", "intent", "path", "filters",
+                   "provider", "workflow", "ui_used", "observed_at", "run_id", "schema_version", "business_rule", "coverage_complete",
+                   "live", "providers_requested", "providers_checked", "capability", "operation", "verified",
+                   "source", "version", "fallback_from", "route_selection_reason", "reason_code"}
+
+
+def _generic_value(value: Any, depth: int = 0) -> str:
+    if isinstance(value, bool):
+        return "oui" if value else "non"
+    if isinstance(value, (int, float)):
+        return f"{value:g}" if isinstance(value, float) else str(value)
+    if isinstance(value, dict) and depth < 2:
+        # « {value: 0.000, unit: BD} » → « 0.000 BD » ; « {displayed: 0%, …} » → « 0% » ; else « k v ; … ».
+        if "value" in value and set(value) <= {"value", "unit", "currency"}:
+            return " ".join(x for x in (_generic_value(value.get("value"), depth + 1), _plain_display(value.get("unit") or value.get("currency"), 20)) if x)
+        if "displayed" in value:
+            return _generic_value(value.get("displayed"), depth + 1)
+        parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v, depth + 1)}" for k, v in list(value.items())[:8]
+                 if str(k) not in _GENERIC_HIDDEN and _generic_value(v, depth + 1)]
+        return " ; ".join(parts)
+    if isinstance(value, str) and value.startswith("[") and not value.startswith(("[{", '["', "[[")):
+        return _plain_display(value, 160, bracket_text=True)  # « [Offre] : … » is text, not JSON
+    return _plain_display(value, 160)
+
+
+def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
+    """Readable lines for any executor result: scalar fields, one level of nested scalars, list sizes with
+    their first rows. Bookkeeping keys and anything sensitive (_plain_display) are left out; bounded."""
+    if value.get("ok") is False:
+        return ""
+    lines: list[str] = []
+    label = lambda key: str(key).replace("_", " ").strip().capitalize()
+    for key, item in value.items():
+        if len(lines) >= limit or str(key) in _GENERIC_HIDDEN or str(key).endswith("_ms"):
+            continue
+        if isinstance(item, dict):
+            parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v)}" for k, v in list(item.items())[:12]
+                     if not isinstance(v, list) and _generic_value(v) and str(k) not in _GENERIC_HIDDEN]
+            if parts:
+                lines.append(f"{label(key)} : " + " ; ".join(parts))
+        elif isinstance(item, list) and item and all(isinstance(t, dict) and isinstance(t.get("headers"), list) and isinstance(t.get("rows"), list) for t in item):
+            # Tables (CRA, évaluations…) : each row as « en-tête : valeur » cells, bounded.
+            for table in item[:3]:
+                headers = [_plain_display(h, 40) or "" for h in table["headers"]]
+                rows = [r for r in table["rows"] if isinstance(r, list)]
+                lines.append(f"{label(key)} : {len(rows)} ligne(s)")
+                for row in rows[:8]:
+                    cells = [(f"{headers[i]} : " if i < len(headers) and headers[i] else "") + _generic_value(v)
+                             for i, v in enumerate(row[:6]) if _generic_value(v)]
+                    if cells:
+                        lines.append("- " + " · ".join(cells))
+                if len(rows) > 8:
+                    lines.append("- …")
+        elif isinstance(item, list) and len(item) == 1 and isinstance(item[0], dict):
+            # One result (« état du projet 20495 ») : its whole record, one field per line.
+            for k, v in list(item[0].items())[:limit]:
+                if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list) and _generic_value(v):
+                    lines.append(f"{str(k).replace('_', ' ').capitalize()} : {_generic_value(v)}")
+        elif isinstance(item, list):
+            rows = []
+            for row in item[:5]:
+                if isinstance(row, dict):
+                    cells = [_generic_value(v) for k, v in row.items() if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list)]
+                    cells = [c for c in cells if c][:4]
+                    if cells:
+                        rows.append(" · ".join(cells))
+                elif _generic_value(row):
+                    rows.append(_generic_value(row))
+            head = f"{label(key)} : {len(item)}" if item else f"{label(key)} : aucun"
+            lines.append(head + ("" if not rows else "\n" + "\n".join("- " + r for r in rows) + ("\n- …" if len(item) > 5 else "")))
+        elif _generic_value(item):
+            lines.append(f"{label(key)} : {_generic_value(item)}")
+    return "\n".join(lines)[:4000]
 
 
 def _handoff_contract(resolution: dict[str, Any]) -> dict[str, Any] | None:
@@ -405,8 +614,23 @@ def _stable_identity(prefix: str, *parts: str) -> str:
     return f"{prefix}:{digest}"
 
 
+def _js_json(value: Any) -> Any:
+    """The value as JavaScript's JSON.parse would give it back: 1.0 → 1. The Remote Bridge re-hashes params with
+    JSON.stringify; a decision carrying confidence 1.0 hashed « 1.0 » here and « 1 » there, and every durable
+    capability-first action was refused (continuum_transport_binding_mismatch, recette du 12/10)."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {str(k): _js_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_js_json(v) for v in value]
+    return value
+
+
 def _bridge_params_hash(method: str, params: dict[str, Any]) -> str:
-    raw = json.dumps({"method": method, "params": params}, ensure_ascii=False, separators=(",", ":"))
+    raw = json.dumps({"method": method, "params": _js_json(params)}, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -466,6 +690,7 @@ def _durable_capability_execute(
     params = {"request": message, "targetHint": "", "surface": surface, "caller": caller}
     if isinstance(decision, dict):
         params["decision"] = decision
+    params = _js_json(params)
     owner_id = "capfirst-" + hashlib.sha256(origin_id.encode()).hexdigest()[:24]
     prepared = _continuum_call(ui_root, [
         "prepare", "--task-id", task_id, "--step-id", step_id,
@@ -621,46 +846,76 @@ def try_fast_path(
             ) | {"decision": decision or None}
 
         continuum = resolution.get("continuum") if isinstance(resolution.get("continuum"), dict) else {}
+        # Read execution only (the confirmed handoff above keeps its own budget): O6 guarded wait.
+        execution_timeout = guarded_execution_timeout(
+            timeout, resolution.get("selected"), decision.get("selected") if isinstance(decision, dict) else None,
+        )
         if continuum.get("mode") == "durable":
             executed = _durable_capability_execute(
                 resolution, message, ui_root=ui_root, surface=surface, caller=caller,
-                origin_id=origin_id, timeout=timeout, decision=decision or None,
+                origin_id=origin_id, timeout=execution_timeout, decision=decision or None,
             )
         else:
             executed = (
-                execute_capability_decision(message, decision, ui_root, timeout=timeout)
+                execute_capability_decision(message, decision, ui_root, timeout=execution_timeout)
                 if decision
-                else execute_capability(message, ui_root, surface=surface, caller=caller, timeout=timeout)
+                else execute_capability(message, ui_root, surface=surface, caller=caller, timeout=execution_timeout)
             )
         execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
         state = str(execution.get("state") or "")
         selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
+        metadata = _presentation_metadata(executed)
         if state in SAFE_EXECUTION_STATES:
             payload = execution.get("result")
             return {
-                "status": "hit", "source": "capability", "text": _display_text(payload),
+                # Business rendering of the owner result (O7 cards…), preceded by the HS3 « Compris » line.
+                "status": "hit", "source": "capability", "text": _understood_prefix(metadata, _display_text(payload)),
+                **metadata,
                 "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
                 "route": selected.get("route"), "capability": selected.get("capability"),
                 "execution_state": state, "decision": executed.get("decision") or decision or None,
+                "provenance": _execution_provenance(selected, execution),
                 "model_bypassed": True,
             }
+        if state == "needs_clarification" and isinstance(executed.get("decision"), dict) and executed["decision"].get("type") == "CLARIFY":
+            # Amine 12/10 : several matches → one question listing them; nothing was executed.
+            choices = [c for c in (execution.get("choices") or []) if isinstance(c, dict) and _plain_display(c.get("label"), 120)]
+            question = _plain_display(execution.get("question"), 300) or "Lequel veux-tu ?"
+            return {
+                "status": "clarification", "reason": "choice_required",
+                "text": question + "".join("\n- " + _plain_display(c.get("label"), 120) for c in choices),
+                "clarification": {"question": question, "choices": choices},
+                "decision": executed["decision"], "model_bypassed": True,
+            }
         if state in ASSISTED_EXECUTION_STATES:
-            return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None}
+            return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None, **metadata}
         if state == "confirmation_required":
-            return _execute_declared_handoff(
+            handed = _execute_declared_handoff(
                 executed, message, ui_root=ui_root, surface=surface, caller=caller,
                 origin_id=origin_id, timeout=timeout,
             ) | {"decision": executed.get("decision") or decision or None}
+            # The Graph metadata describes the pending confirmation (« Compris : … ») only
+            # when the handoff opened; a failed handoff keeps the generic error fallback.
+            return handed | metadata if handed.get("status") == "hit" else handed
         payload = execution.get("result")
         composed = (selected.get("execution_contract") or {}).get("strategy") == "composed_read"
         error_result = {
             "status": "known_error", "reason": state or "known_execution_failed",
+            **metadata,
             "text": "Claw a identifié la capacité mais son exécution n'a pas atteint un état terminal vérifié.",
             "resolution": executed, "decision": executed.get("decision") or decision or None,
             "model_bypassed": True,
+            "provenance": _execution_provenance(selected, execution),
         }
         if composed and isinstance(payload, dict):
             error_result.update(text=_display_text(payload), result=payload, execution_state=state)
+        if metadata:
+            error_result["text"] = _display_text(executed)
+        # Amine 12/10 : a service closed (declared hours) or not answering says so in one fixed sentence from the
+        # Graph, never a generic error and never the model. Last: the receipt card must not cover it (S24, 19:52).
+        message = _plain_display(execution.get("message"), 400) if isinstance(execution.get("message"), str) else ""
+        if message:
+            error_result.update(text=message, execution_state=state)
         return error_result
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}

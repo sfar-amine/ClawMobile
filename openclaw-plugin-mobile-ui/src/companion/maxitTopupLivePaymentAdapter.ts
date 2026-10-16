@@ -16,7 +16,18 @@ const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const TX=/^[0-9]{1,32}$/;
 const GATE_FILE="maxit-topup-live-acceptance.enabled";
 const GATE_VALUE="maxit-topup-v1-live-acceptance";
-const MAX=65536,LIVE_MAX=524288,START_TIMEOUT_MS=225000,RESUME_TIMEOUT_MS=60000;
+const MAX=65536,LIVE_MAX=524288;
+// P1-5 nested budgets (11/10): each layer waits longer than what it calls.
+//   quote : Python provider 40 s < this runner 43 s < Payment Core quote bound 45 s
+//   start : this runner 220 s < Payment Core execution bound 230 s < Android local-start call
+//   resume: Python status 40 s < this runner 60 s < Payment Core resume bound 65 s < Android bank-return call
+/** Upstream contract: ui-playbooks billing/direct-runtime PROVIDER_TIMEOUT_MS (Python provider, guarded). */
+export const MAXIT_PROVIDER_BUDGET_MS=40000;
+export const MAXIT_QUOTE_RUN_TIMEOUT_MS=43000;
+export const MAXIT_START_RUN_TIMEOUT_MS=220000;
+export const MAXIT_RESUME_RUN_TIMEOUT_MS=60000;
+const REASON_CODE=/^[a-z0-9_]{1,96}$/;
+const reasonDetailOf=(value:any)=>typeof value==="string"&&REASON_CODE.test(value)?value:undefined;
 
 function defaultExecJson(file:string,args:string[],timeoutMs:number):Promise<any>{
   return new Promise((resolve,reject)=>execFile(file,args,{timeout:timeoutMs,maxBuffer:MAX,encoding:"utf8"},(error,stdout)=>{
@@ -80,17 +91,27 @@ async function forwardTrace(sink:PaymentTraceSink|undefined,event:any){
     stage:event.event,
     outcome:typeof event.outcome==="string"?event.outcome:undefined,
     reasonCode:typeof event.reason_code==="string"?event.reason_code:undefined,
+    reasonDetail:reasonDetailOf(event.reason_detail),
     invoiceState:typeof event.invoice_state==="string"?event.invoice_state:undefined
   });
 }
 
 function validContinuation(value:any):value is PaymentContinuation{
   return !!value&&typeof value==="object"&&!Array.isArray(value)&&
-    value.provider==="maxit.topup"&&typeof value.checkoutId==="string"&&TX.test(value.checkoutId)&&
+    // Webview contract (11/10): Maxit no longer returns its transaction id, the continuation keeps it empty.
+    value.provider==="maxit.topup"&&typeof value.checkoutId==="string"&&(value.checkoutId===""||TX.test(value.checkoutId))&&
     typeof value.gatewayOrderId==="string"&&UUID.test(value.gatewayOrderId);
 }
 
+function notSubmitted(reasonDetail?:string):PaymentExecutionResult{
+  return {state:"blocked",reasonCode:"payment_not_submitted",...(reasonDetail?{reasonDetail}:{})};
+}
+
 function mapResult(result:any,requestId:string):PaymentExecutionResult{
+  // P1-3: the live runner proves no gateway submission happened (card never sent): honest block,
+  // not an uncertain effect. Anything else without that proof stays effect_unknown.
+  if(result?.state==="not_submitted"&&result.submission_attempted===false)
+    return notSubmitted(reasonDetailOf(result.reason_detail)??reasonDetailOf(result.reason_code));
   if(result?.state==="requires_bank_action"&&result.reason_code==="bank_verification_required"&&validContinuation(result.continuation))
     return {state:"requires_bank_action",reasonCode:"bank_verification_required",continuation:result.continuation};
   if(result?.state==="confirmed"&&result.gateway_return_correlated===true&&result.fresh_provider_read===true){
@@ -100,7 +121,8 @@ function mapResult(result:any,requestId:string):PaymentExecutionResult{
   }
   if(result?.state==="failed"&&result.gateway_return_correlated===true&&result.fresh_provider_read===true)
     return {state:"failed",reasonCode:"payment_rejected_reason_unavailable",rejectionVerified:true};
-  return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
+  const detail=reasonDetailOf(result?.reason_detail);
+  return {state:"effect_unknown",reasonCode:"payment_effect_unverified",...(detail?{reasonDetail:detail}:{})};
 }
 
 export function createMaxitTopupLivePaymentAdapter(options:MaxitTopupLivePaymentAdapterOptions={}):PaymentAdapter{
@@ -116,27 +138,38 @@ export function createMaxitTopupLivePaymentAdapter(options:MaxitTopupLivePayment
 
   async function quote(reference:string):Promise<PaymentQuote>{
     if(!REF.test(reference))throw new Error("invalid_maxit_topup_reference");
-    const result=await liveRun(liveCli,{operation:"quote",reference},60000);
+    const result=await liveRun(liveCli,{operation:"quote",reference},MAXIT_QUOTE_RUN_TIMEOUT_MS);
+    // A quote has no effect: its precise block reason reaches the owner (P0-8), never a raw dump.
+    if(result?.state==="blocked")throw new Error(reasonDetailOf(result.reason_code)??"maxit_quote_contract_unverified");
     const q=result?.quote;
     if(result?.state!=="quote_ready"||!q||typeof q.payee!=="string"||!/^Orange Maxit ••••[0-9]{4}$/.test(q.payee)||
-       q.reference!==reference||q.currency!=="TND"||q.decimals!==3||!Number.isSafeInteger(q.amountMinor)||q.amountMinor<=0)
+       q.reference!==reference||q.currency!=="TND"||q.decimals!==3||!Number.isSafeInteger(q.amountMinor)||q.amountMinor<=0||
+       // Maxit fee (11/10): the quote must declare the exact breakdown; the total is what the owner confirms.
+       q.feeLabel!=="Frais Maxit"||!Number.isSafeInteger(q.feeMinor)||q.feeMinor<0||!Number.isSafeInteger(q.totalMinor)||
+       q.totalMinor!==q.amountMinor+q.feeMinor)
       throw new Error("maxit_quote_contract_unverified");
-    return q;
+    return {payee:q.payee,reference:q.reference,amountMinor:q.amountMinor,currency:q.currency,decimals:q.decimals,
+      feeMinor:q.feeMinor,totalMinor:q.totalMinor,feeLabel:q.feeLabel};
   }
 
   async function executeLocal(quoteValue:PaymentQuote,requestId:string,context?:PaymentExecutionContext):Promise<PaymentExecutionResult>{
-    if(!armed||!gateReady()||!context||typeof context.bankReturnToken!=="string")
-      return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
+    // Gate or card absent: nothing has been sent anywhere, so the record is blocked (P1-3).
+    if(!armed||!gateReady())return notSubmitted("maxit_live_acceptance_not_armed");
+    if(!context||typeof context.bankReturnToken!=="string")return notSubmitted("payment_context_unavailable");
+    // Only a confirmed total (amount + Maxit fee) may reach the runner, which requires the gateway to equal it.
+    if(!Number.isSafeInteger(quoteValue.feeMinor)||!Number.isSafeInteger(quoteValue.totalMinor)||
+       quoteValue.totalMinor!==quoteValue.amountMinor+quoteValue.feeMinor!)return notSubmitted("maxit_quote_contract_unverified");
     let card:any;
-    try{card=await execJson(process.execPath,[cardCli,"status"],15000);}catch{return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};}
+    try{card=await execJson(process.execPath,[cardCli,"status"],15000);}catch{return notSubmitted("payment_card_status_unavailable");}
     if(card?.state!=="ready"||typeof card.last4!=="string"||!/^[0-9]{4}$/.test(card.last4)||card.cvc_stored!==true)
-      return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
+      return notSubmitted("payment_card_not_ready");
     try{
       const result=await liveRun(liveCli,{
         operation:"start",
-        request:{reference:quoteValue.reference,expected_amount_millimes:quoteValue.amountMinor,expected_last4:card.last4},
+        request:{reference:quoteValue.reference,expected_amount_millimes:quoteValue.amountMinor,
+          expected_total_millimes:quoteValue.totalMinor,expected_last4:card.last4},
         context:{paymentRequestId:requestId,bankReturnToken:context.bankReturnToken}
-      },START_TIMEOUT_MS,event=>forwardTrace(context,event));
+      },MAXIT_START_RUN_TIMEOUT_MS,event=>forwardTrace(context,event));
       return mapResult(result,requestId);
     }catch{
       return {state:"effect_unknown",reasonCode:"payment_effect_unverified"};
@@ -150,7 +183,7 @@ export function createMaxitTopupLivePaymentAdapter(options:MaxitTopupLivePayment
         operation,
         request:{reference:quoteValue.reference,expected_amount_millimes:quoteValue.amountMinor},
         continuation
-      },RESUME_TIMEOUT_MS,event=>forwardTrace(traceSink,event));
+      },MAXIT_RESUME_RUN_TIMEOUT_MS,event=>forwardTrace(traceSink,event));
       return mapResult(result,requestId);
     }catch{
       return {state:"effect_unknown",reasonCode:"payment_effect_unverified"} as PaymentExecutionResult;
@@ -166,6 +199,7 @@ export function createMaxitTopupLivePaymentAdapter(options:MaxitTopupLivePayment
     unavailableReason:armed?"maxit_live_acceptance_pending":"maxit_live_acceptance_not_armed",
     bankNavigationOrigins:[
       "https://3ds2.clictopay.com",
+      "https://3dsnew.clictopay.com",
       "https://ipay.clictopay.com",
       "https://krakend-bff.maxit.orange.tn"
     ],

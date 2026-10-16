@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import datetime,json,os,pathlib,sqlite3,sys,hashlib,re
-from context_memory import ensure_indexes, search, control_items
+from context_memory import ensure_indexes, search, control_items, refused_telemetry
 from context_import import preview as import_preview, selection as import_selection, canonical as import_canonical, PAYMENT as MEMORY_PAYMENT
 H=pathlib.Path.home()
 D=pathlib.Path(os.environ.get("SAMANTHA_CONTEXT_ROOT",H/".openclaw/context-sync"))
@@ -30,6 +30,7 @@ def migrate(c):
             proposal_id TEXT PRIMARY KEY,run_id TEXT NOT NULL,action TEXT NOT NULL,
             source_ids TEXT NOT NULL,payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'proposed',
             created_at TEXT NOT NULL,applied_at TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_dream_action_status_date ON dream_proposals(action,status,created_at)")
         missing=c.execute("SELECT rowid FROM events WHERE revision IS NULL ORDER BY created_at,rowid").fetchall()
         head=c.execute("SELECT COALESCE(MAX(revision),0) FROM events").fetchone()[0]
         for (rowid,) in missing:
@@ -68,7 +69,7 @@ def ingest_file(c,path,require_active=None):
         else: raise FileNotFoundError(path)
     e=json.loads(p.read_text())
     if not all(e.get(k) for k in ('id','surface','kind','text','createdAt')): raise ValueError('missing required field')
-    if e['surface'] not in ('chat','work','voice','openclaw'): raise ValueError('bad surface')
+    if e['surface'] not in ('chat','work','voice','openclaw','claude','codex','app'): raise ValueError('bad surface')
     if e['kind'] not in ('decision','learning','open_thread','completed_action','constraint','checkpoint'): raise ValueError('bad kind')
     session=e.get('sessionId')
     if session is not None and (e['kind']!='open_thread' or not isinstance(session,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',session)):
@@ -92,6 +93,9 @@ def ingest_file(c,path,require_active=None):
             rev=row[0]; inserted=False
         else:
             if require_active and c.execute('SELECT 1 FROM events WHERE supersedes=?',(require_active,)).fetchone():raise ValueError('memory_already_superseded')
+            # M3: machine telemetry belongs to its owner (deploy receipts, learning gate, situations).
+            # Replaying an already-accepted processed/ file (DB rebuild) stays possible.
+            if refused_telemetry(e['text']) and p.parent.resolve()!=(D/'processed').resolve():raise ValueError('machine_telemetry_refused')
             h=int(c.execute("SELECT value FROM memory_meta WHERE key='current_revision'").fetchone()[0]); rev=h+1
             now=datetime.datetime.now(datetime.timezone.utc).isoformat()
             c.execute('INSERT INTO events(id,surface,kind,text,created_at,ingested_at,supersedes,revision,session_id) VALUES(?,?,?,?,?,?,?,?,?)',(e['id'],e['surface'],e['kind'],' '.join(str(e['text']).split()),e['createdAt'],now,e.get('supersedes'),rev,session))

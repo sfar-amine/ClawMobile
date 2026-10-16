@@ -1,0 +1,195 @@
+{
+ "_capture": {
+  "host": "Samsung S24 / Termux",
+  "access": "MCP Claw claw_exec, profil chat-owner, clés cc2-k2-*",
+  "capturedAt": "2026-10-11T13:06:06Z",
+  "runtimeCore": "5631fe9d6fbe9972d4fbb744bf48a2b521af0f50 (~/ClawMobile, fichiers people-trusted.py, whatsapp-owner-send.sh, incident-notify.sh, incident-manager.sh, samantha-health-manager.sh sans modification locale)",
+  "mode": "lecture seule : directory.db ouvert en mode=ro, comptage du journal sortant et de la file d'incidents, GET public en loopback sans en-tête propriétaire ; aucun envoi, aucune mutation d'accès",
+  "sanitized": "aucun numéro, nom, texte de message ni identifiant de contact ; les clés d'idempotence libres (hors préfixes structurés) sont réduites à leur longueur"
+ },
+ "decision": "Amine 11/10 (core #119) : pas de rappel ; message au propriétaire à chaque accès accordé, prolongé, retiré ou expiré.",
+ "codeOwners": {
+  "accessChangeOwner": {
+   "module": "installer/termux-lite/people-trusted.py",
+   "entrypoint": "python3 people-trusted.py allowlist <action> (stdin JSON), classe Contacts.mutate",
+   "calledBy": [
+    "Companion openclaw-plugin-mobile-ui/src/companion/whatsappAllowlist.ts allowlistOwner() — routes /v1/whatsapp/allowlist[/…] (add, patch, remove, note)",
+    "samantha-health-manager.sh check_allowlist_expiry() — 'allowlist sweep' toutes les 60 s, expiration (event 'expired', état 'removed')"
+   ],
+   "events": [
+    "added",
+    "removed",
+    "scope_changed",
+    "suspended",
+    "reactivated",
+    "extended",
+    "shortened",
+    "note_updated",
+    "expired"
+   ]
+  },
+  "receipt": {
+   "store": "~/.openclaw/people/directory.db, table send_receipts (idempotency_key PK, target, message_sha256, state, message_id, created_at, updated_at)",
+   "key": "'r17:' + sha256(operationId)",
+   "target": "contactId wa-<sha256(e164)[:16]>",
+   "messageIdColumn": "JSON {receipt:{version,operationId,contactId,action,at,state,scope,durationDays}, …} (réutilise la colonne d'envoi pour le reçu R17)",
+   "states": [
+    "pending",
+    "added",
+    "removed",
+    "updated",
+    "suspended",
+    "reactivated",
+    "indeterminate",
+    "failed_before_effect"
+   ],
+   "changeIdentity": "operationId fourni par l'app (opérations HTTP) ; pour l'expiration 'expire:'+sha256(e164\\0expiresAt)[:40]+':'+n (n = nombre de reçus 'expired' déjà présents pour ce contact)",
+   "dedup": "une ligne par operationId (PK) ; requestHash vérifié ; reprise par lecture du reçu (read_operation), jamais de seconde mutation",
+   "retention": "aucune purge de send_receipts dans le code"
+  },
+  "messagesSentByAccessOwner": [
+   {
+    "when": "action add réussie ET notify=true",
+    "to": "le CONTACT ajouté (pas le propriétaire)",
+    "text": "phrase fixe de bienvenue",
+    "receipt": "send_receipts clé 'trusted:r17-welcome:'+sha256(operationId), via people-trusted.whatsapp_send → Gateway 'send'"
+   }
+  ],
+  "ownerMessageOnAccessChange": "ABSENT : aucun chemin de people-trusted.py, whatsappAllowlist.ts ni samantha-health-manager.sh n'envoie de message au propriétaire après accordé/prolongé/retiré/expiré",
+  "existingOwnerDeliveryPrimitive": {
+   "script": "installer/termux-lite/whatsapp-owner-send.sh <message> <key>",
+   "target": "premier commands.ownerAllowFrom 'whatsapp:…' de openclaw.json",
+   "transport": "openclaw gateway call send (channel whatsapp, accountId default, idempotencyKey=<key>)",
+   "receipt": "ligne dans ~/.openclaw/health/whatsapp-outbound.log (champs state, key, message_id, rc, reason, elapsed_s) ; pas de base",
+   "callers": [
+    "incident-manager.sh (file ~/.openclaw/incidents/queue/<sha256(kind:msg:action)[:16]>, statut pending→notified, 3 essais WhatsApp puis e-mail incident-email.sh)",
+    "incident-close.sh",
+    "autonomous-engineering-close.sh"
+   ],
+   "dedup": "incident-notify.sh : dossier par sha256(kind:message:action)[:16] ; un message identique réutilise le même dossier (statut 'closed' = ignoré, 'notified' = renvoyé) ; Gateway idempotencyKey = 'incident-<id>'"
+  }
+ },
+ "s24": {
+  "ownerTargetConfigured": true,
+  "sendReceipts": {
+   "total": 8,
+   "r17Rows": 0,
+   "r17WelcomeRows": 0,
+   "rowsTargetingOwner": 1,
+   "rows": [
+    {
+     "keyPrefix": "trusted:durable",
+     "state": "accepted",
+     "updatedAt": "1970-01-01T00:00:01Z"
+    },
+    {
+     "keyPrefix": "<clé libre:28 car.>",
+     "state": "accepted",
+     "updatedAt": "2026-09-29T07:37:59Z"
+    },
+    {
+     "keyPrefix": "<clé libre:27 car.>",
+     "state": "accepted",
+     "updatedAt": "2026-10-01T14:56:06Z"
+    },
+    {
+     "keyPrefix": "<clé libre:34 car.>",
+     "state": "accepted",
+     "updatedAt": "2026-10-01T14:56:19Z"
+    },
+    {
+     "keyPrefix": "<clé libre:34 car.>",
+     "state": "accepted",
+     "updatedAt": "2026-10-01T14:58:19Z"
+    },
+    {
+     "keyPrefix": "<clé libre:27 car.>",
+     "state": "accepted",
+     "updatedAt": "2026-10-01T15:00:10Z"
+    },
+    {
+     "keyPrefix": "<clé libre:27 car.>",
+     "state": "accepted",
+     "updatedAt": "2026-10-01T15:00:29Z"
+    },
+    {
+     "keyPrefix": "<clé libre:33 car.>",
+     "state": "accepted",
+     "updatedAt": "2026-10-01T15:10:00Z"
+    }
+   ]
+  },
+  "ownerOutboundLog": {
+   "path": "~/.openclaw/health/whatsapp-outbound.log",
+   "lines": 416,
+   "lineFieldNames": [
+    "elapsed_s",
+    "key",
+    "message_id",
+    "rc",
+    "reason",
+    "state"
+   ],
+   "byKeyPrefixState": {
+    "incident|accepted": 268,
+    "incident|failed": 120,
+    "samantha|accepted": 13,
+    "samantha|failed": 2,
+    "immune|accepted": 3,
+    "recovery|accepted": 2,
+    "recovery|failed": 2,
+    "adapter|accepted": 1,
+    "agenda|accepted": 1,
+    "qa|accepted": 1,
+    "validation|accepted": 2,
+    "TEST|accepted": 1
+   },
+   "allowlistRelatedLines": 0
+  },
+  "incidentQueue": {
+   "path": "~/.openclaw/incidents/queue",
+   "dirs": 26,
+   "byKindStatus": {
+    "human_required|notified": 7,
+    "human_required|closed": 3,
+    "info|notified": 5,
+    "remote_desktop|closed": 3,
+    "remote_desktop|notified": 2,
+    "recovered|closed": 2,
+    "recovered|notified": 1,
+    "test|notified": 1,
+    "test_hardening|closed": 1,
+    "test_whatsapp_outbound|closed": 1
+   },
+   "allowlistRelated": 0
+  },
+  "processes": {
+   "samantha-health-manager.sh": 1,
+   "incident-manager.sh": 2
+  },
+  "historyRoute": {
+   "_capture": {
+    "method": "GET",
+    "route": "/v1/whatsapp/allowlist/history?limit=50",
+    "status": 200,
+    "latencyMs": 197,
+    "capturedAt": "2026-10-11T13:06:06+00:00",
+    "headers": "Connection: close ; sans en-tête propriétaire, Origin ni Referer"
+   },
+   "response": {
+    "success": true,
+    "state": "ok",
+    "receipt": null,
+    "items": [],
+    "nextBefore": null
+   }
+  }
+ },
+ "verdict": {
+  "ownerDeliveryOwnerToday": "aucun pour les changements d'accès WhatsApp",
+  "receiptForOwnerMessage": "aucun",
+  "dedupPerContactChange": "aucune côté message propriétaire ; la seule identité stable de changement est le reçu R17 send_receipts 'r17:'+sha256(operationId) (operationId d'expiration dérivé de e164+expiresAt+compteur)",
+  "observedVolume": "0 reçu R17 et historique public vide : aucun changement d'accès n'a encore été fait par la route R17 sur ce S24",
+  "candidateReuse": "whatsapp-owner-send.sh (direct) ou incident-notify.sh (file + repli e-mail) — à trancher ; aucun ne porte de reçu lié à operationId ni d'état livré/refusé hors journal texte"
+ }
+}

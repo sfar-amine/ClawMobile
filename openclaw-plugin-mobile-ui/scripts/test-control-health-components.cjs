@@ -18,6 +18,9 @@ const request = (port, url) => new Promise((resolve, reject) => {
   }).on('error', reject);
 });
 (async () => {
+  const nightly = projectHealthComponents({components:[{id:'control_plane.nightly_acceptance',name:'Recette nocturne',status:'unknown'}]}, verdict({capabilities:{'control_plane.nightly_acceptance':{state:'attention',checked_at:now/1000-86400,reason:'nightly_acceptance_attention'}}}), now).components[0];
+  assert.equal(nightly.label.fr,'Recette nocturne');assert.equal(nightly.status,'attention');
+  assert.equal(nightly.checkedAt,new Date(now-86400000).toISOString());assert.equal(nightly.description,'La recette nocturne signale une dérive de latence.');
   const original = data(); const projected = projectHealthComponents(original, verdict(), now);
   assert.equal(original.components.length, 1);
   const maintenance = projected.components.find(row => row.id === 'control_plane.maintenance');

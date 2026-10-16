@@ -1,5 +1,5 @@
 import path from "path";
-import {protectedPayment} from "./automations";
+import {resolveIntentProtection} from "./automations";
 import {createHash} from "crypto";
 import {getWorkspaceSkill,buildSkillAgentPrompt} from "./skills";
 import {getWorkspaceDir} from "../tools/workspace";
@@ -43,7 +43,7 @@ async function canonicalSkill(id:string,fresh=true){
 export async function skillControlDetail(id:string){
  validate(id);const detail=getWorkspaceSkill(id);if(!detail)throw nativeError("skill_not_found",404);
  let enabled:boolean|null=null,timer:any;try{enabled=!(await Promise.race([canonicalSkill(id,false),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(nativeError("skills_owner_slow",503)),SKILL_DETAIL_STATUS_WAIT_MS);})])).disabled;}catch{/* absence or a slow owner is not "enabled": partial, the read keeps filling the cache */}finally{clearTimeout(timer);}
- const protectedSkill=detail.risk==="high"||protectedPayment(id+" "+detail.name+" "+detail.description);
+ const protectedSkill=detail.risk==="high";
  return {...detail,success:true,state:enabled===null?"partial":"ok",receipt:null,enabled,activationAvailable:enabled!==null&&!protectedSkill,tryAvailable:enabled===true&&!protectedSkill&&!detail.requiresConfirmation};
 }
 function stored(status:any){
@@ -51,7 +51,7 @@ function stored(status:any){
  try{const value=JSON.parse(status.result);if(value.receipt?.runId===status.runId&&value.receipt.version===1)return value;}catch{}
  return {success:false,state:"indeterminate",receipt:null};
 }
-export async function changeSkill(id:string,action:string,body:any){
+export async function changeSkill(id:string,action:string,body:any,options:{authority?:"owner"}={}){
  validate(id);if(!["enable","disable","try"].includes(action))throw nativeError("invalid_skill_action");
  const operationId=operation(body,action);
  const identity=JSON.stringify({action:"skill."+action,target:id,...(action==="try"?{instruction:body.instruction.trim()}: {})});
@@ -60,7 +60,14 @@ export async function changeSkill(id:string,action:string,body:any){
  const existing=await findSubmittedRunByClientRunId(clientId,{text:identity,sessionId});
  if(existing)return stored(existing);
  const detail=getWorkspaceSkill(id);if(!detail)throw nativeError("skill_not_found",404);
- if(detail.risk==="high"||(action==="try"&&detail.requiresConfirmation)||protectedPayment(id+" "+detail.name+" "+detail.description+" "+(body.instruction||"")))throw nativeError("protected_skill",409);
+ // Enable/disable mutate the existing owner configuration; they do not execute
+ // a skill instruction. Only a trial resolves its actual instruction.
+ if(action==="try"){
+  const protection=await resolveIntentProtection(body.instruction,"skill-owner-action-guard");
+  if(protection==="unavailable")throw nativeError("skill_guard_unavailable",503);
+  if(protection==="protected")throw nativeError("protected_skill",409);
+ }
+ if(detail.risk==="high"||(action==="try"&&detail.requiresConfirmation))throw nativeError("protected_skill",409);
  let row:any;
  try{row=await canonicalSkill(id);}catch{return {success:false,state:"failed",receipt:null,error:"skills_owner_unavailable"};}
  if(action==="try"){
@@ -73,7 +80,7 @@ export async function changeSkill(id:string,action:string,body:any){
  try{
   if(action==="try"){
    const prompt=buildSkillAgentPrompt(detail,body.instruction.trim(),{});
-   const result=await submitIntent(prompt,"skill-"+id,[],{userText:body.instruction.trim(),clientRunId:"skill-trial-"+createHash("sha256").update(operationId).digest("hex")});
+   const result=await submitIntent(prompt,"skill-"+id,[],{userText:body.instruction.trim(),clientRunId:"skill-trial-"+createHash("sha256").update(operationId).digest("hex"),authority:options.authority});
    if(result.accepted&&result.runId){state="accepted";artifact={runId:result.runId,sessionId:result.sessionId};}
    else if(result.submissionState==="not_submitted")state="failed";
   }else{

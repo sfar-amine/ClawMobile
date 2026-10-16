@@ -3,14 +3,14 @@ set -u
 ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; D="$HOME/.openclaw/health"; LOG="$D/health.log"; S="$D/state"; mkdir -p "$D" "$S"; export TMPDIR="$HOME/.cache/tmp"
 PHANTOM_HEADROOM_TARGET=128; PHANTOM_HEADROOM_CHECK_S=60
 exec 9>"$D/health.lock"; flock -n 9 || exit 0
-log(){ printf '%s component=health-manager %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
+log(){ python3 "$ROOT/bounded-log.py" "$LOG" --append "$(date -Iseconds) component=health-manager $*"; }
 proc(){ pgrep -f "$1" 9>&- >/dev/null 2>&1; }; http(){ timeout 3 curl -fsS "$1" 9>&- >/dev/null 2>&1; }; adb_ok(){ timeout 3 adb 9>&- -s 127.0.0.1:5556 get-state 2>/dev/null|grep -qx device 9>&-; }
 now(){ date +%s; }; sf(){ echo "$S/$1.$2"; }; get(){ cat "$(sf "$1" "$2")" 2>/dev/null || echo "${3:-0}"; }; put(){ printf '%s' "$3" >"$(sf "$1" "$2")"; }
 healthy(){ n="$1"; prev=$(get "$n" status unknown); old=$(get "$n" failures 0); [ "$prev" = healthy ] || log "service=$n state=healthy"; put "$n" status healthy; put "$n" failures 0; put "$n" next 0; if [ "$prev" = degraded ] && [ "$old" -ge 3 ]; then "$ROOT/incident-orchestrator.py" recover "$n" "$(scope "$n")" --source health-manager --reason "service health verified after recovery" >/dev/null 2>&1 || true; "$ROOT/incident-close.sh" "$n" "Samantha — $n est de nouveau opérationnel et la récupération est vérifiée." || true; fi; }
 scope(){ if [ "$1" = adb ]; then printf "boot-%s" "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)"; else printf runtime; fi; }
 incident_open(){ "$ROOT/incident-orchestrator.py" open "$1" "$(scope "$1")" --source health-manager --summary "$1 persistent health failure" 2>/dev/null | python -c 'import sys,json; print(json.load(sys.stdin)["id"])'; }
 shadow(){ n="$1"; c="$2"; iid="$3"; nohup "$ROOT/autonomous-engineering-shadow.sh" "$n" "$c" "$iid" 9>&- >>"$D/autonomous-engineering-shadow.stderr.log" 2>&1 </dev/null & }
-fail(){ n="$1"; c=$(( $(get "$n" failures 0)+1 )); [ "$c" -gt 6 ] && c=6; delay=$((15*(1<<(c-1)))); [ "$delay" -gt 900 ] && delay=900; put "$n" failures "$c"; put "$n" status degraded; put "$n" next $(( $(now)+delay )); log "service=$n state=degraded failures=$c retry_in_s=$delay"; if [ "$c" -eq 3 ]; then iid=$(incident_open "$n"); log "service=$n action=autonomous_engineering_shadow incident_id=$iid"; "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source health-manager --reason "deterministic recovery exhausted" >/dev/null 2>&1 || true; shadow "$n" "$c" "$iid"; fi; }
+fail(){ n="$1"; c=$(( $(get "$n" failures 0)+1 )); [ "$c" -gt 6 ] && c=6; delay=$((15*(1<<(c-1)))); [ "$delay" -gt 900 ] && delay=900; put "$n" failures "$c"; put "$n" status degraded; put "$n" next $(( $(now)+delay )); log "service=$n state=degraded failures=$c retry_in_s=$delay"; if [ "$c" -eq 3 ]; then iid=$(incident_open "$n"); log "service=$n action=incident_opened incident_id=$iid"; "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source health-manager --reason "deterministic recovery exhausted" >/dev/null 2>&1 || true; if "$ROOT/incident-orchestrator.py" handled "$n" 9>&- >/dev/null 2>&1; then shadow "$n" "$c" "$iid"; else log "service=$n action=skip_model_diagnosis reason=no_repair_handler incident_id=$iid"; fi; fi; }
 due(){ [ "$(now)" -ge "$(get "$1" next 0)" ]; }
 start(){ nohup "$2" 9>&- >>"$D/$1.stderr.log" 2>&1 </dev/null & }
 process_uses_script(){
@@ -39,7 +39,10 @@ wait_supervisor_lock(){
  done
 }
 check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_on_current_root "$pat" "$script"; then healthy "$n"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else log "service=$n action=start"; fi; start "$n" "$script"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" && healthy "$n" || fail "$n"; }
-check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; stop_wait="${6:-20}"; if http "$url"; then healthy "$n"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=starting_or_unhealthy grace_s=$grace"; sleep "$grace" 9>&-; if http "$url"; then healthy "$n"; return; fi; fi; log "service=$n action=repair"; if proc "$pat"; then pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt "$stop_wait" ]; do sleep 2 9>&-; waited=$((waited+2)); done; if proc "$pat"; then log "service=$n state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 2 9>&-; if proc "$pat"; then fail "$n"; return; fi; fi; fi; start "$n" "$script"; sleep "$grace" 9>&-; http "$url" && healthy "$n" || fail "$n"; }
+# A Companion deploy stops and restarts the server itself: never "repair" it meanwhile (S24 11/10: EADDRINUSE,
+# 15 concurrent repairs a day, each one cutting the Remote Bridge).
+deploy_in_progress(){ l="$HOME/.openclaw/deploys/companion-deploy.lock"; [ -e "$l" ] || return 1; exec 7>>"$l"; if flock -n 7 9>&- 2>/dev/null; then flock -u 7 9>&- 2>/dev/null; exec 7>&-; return 1; fi; exec 7>&-; return 0; }
+check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; stop_wait="${6:-20}"; if http "$url"; then healthy "$n"; return; fi; if [ "$n" = companion ] && deploy_in_progress; then log "service=$n state=deploy_in_progress action=skip_repair"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=starting_or_unhealthy grace_s=$grace"; sleep "$grace" 9>&-; if http "$url"; then healthy "$n"; return; fi; fi; log "service=$n action=repair"; if proc "$pat"; then pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt "$stop_wait" ]; do sleep 2 9>&-; waited=$((waited+2)); done; if proc "$pat"; then log "service=$n state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 2 9>&-; if proc "$pat"; then fail "$n"; return; fi; fi; fi; start "$n" "$script"; sleep "$grace" 9>&-; http "$url" && healthy "$n" || fail "$n"; }
 check_adb(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || { "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; "$ROOT/chat-continuity-restore.sh" 9>&- >/dev/null 2>&1 || true; }; return; fi; due adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
 verdict_field(){ python3 - "$D/current.json" "$1" "$2" <<'PY'
 import json,sys
@@ -77,8 +80,39 @@ check_whatsapp(){
  fi
  fail whatsapp
 }
+# P0-4: Gateway memory guard (measured thresholds, sustained 10 min, idle proof, 6 h cooldown,
+# receipt health/gateway-memory-guard.json). Graceful restart through the existing Companion route.
+check_gateway_memory(){
+ due gateway_memory || return
+ put gateway_memory next $(( $(now)+60 ))
+ out=$(timeout 15 python3 "$ROOT/gateway-memory-guard.py" 9>&- 2>/dev/null) || { log "service=gateway_memory state=guard_failed"; return; }
+ case "$out" in
+  *'"action": "restart_requested"'*)
+   log "service=gateway_memory state=restart_requested owner=companion detail=$out"
+   ( timeout --kill-after=5 240 curl -fsS --max-time 230 \
+       -X POST -H 'Content-Type: application/json' -d '{}' \
+       http://127.0.0.1:8765/v1/runtime/restart 2>&1 \
+     | python3 "$ROOT/bounded-log.py" "$D/gateway-memory-restart.log" --stream ) 9>&- </dev/null >/dev/null 2>&1 &
+   ;;
+  *'"pressure": ["'*) log "service=gateway_memory state=pressure detail=$out";;
+ esac
+}
 check_smtp(){ due smtp || return; if timeout 25 "$ROOT/incident-email.sh" --probe 9>&- >/dev/null 2>&1; then healthy smtp; put smtp next $(( $(now)+300 )); else fail smtp; fi; }
-check_network_safety(){ due network_safety || return; if "$ROOT/android-network-mutation-guard.py" check 9>&- >/dev/null 2>&1; then healthy network_safety; else fail network_safety; fi; }
+# Le check restaure tout bail réseau dont le garde est mort ou dont le TTL est échu (ligne de reçu
+# écrite par le garde dans ce journal). Wi-Fi coupé SANS bail : jamais réactivé automatiquement
+# (choix possible d'Amine), seulement signalé ici une fois par transition et dans le reçu santé.
+check_network_safety(){ due network_safety || return; if "$ROOT/android-network-mutation-guard.py" check 9>&- >/dev/null 2>&1; then healthy network_safety; else fail network_safety; fi; network_wifi_warning; }
+network_wifi_warning(){
+ w=$(python3 - "$D/network-mutation-safety.json" 9>&- 2>/dev/null <<'PY'
+import json,sys
+try: print('1' if 'wifi_disabled_without_lease' in (json.load(open(sys.argv[1])).get('warnings') or []) else '0')
+except Exception: print('0')
+PY
+)
+ [ "$w" = "$(get network_wifi_unmanaged status 0)" ] && return 0
+ put network_wifi_unmanaged status "$w"
+ if [ "$w" = 1 ]; then log 'service=network_safety state=warning reason=wifi_disabled_without_lease action=none'; else log 'service=network_safety state=warning_cleared reason=wifi_disabled_without_lease'; fi
+}
 check_android_phantom_headroom(){
  due android_phantom_headroom || return
  if ! adb_ok; then put android_phantom_headroom next $(( $(now)+PHANTOM_HEADROOM_CHECK_S )); return; fi
@@ -140,14 +174,18 @@ check_slack_bridge(){
 # R17 runs cooperatively inside this owner, never in an extra daemon.
 # last_sweep extends the existing per-service health state (same sf/get/put).
 ALLOWLIST_LAST_CHECK=$(get whatsapp_allowlist last_sweep 0)
+# 12/10 « zéro désynchronisation » : every 30 min, prove each runtime copy and rule still matches the deployed commit.
+check_runtime_drift(){ [ "$(now)" -ge "$(get runtime_drift next 0)" ] || return; put runtime_drift next $(( $(now)+1800 )); deploy_in_progress && return; out=$(timeout 90 "$ROOT/runtime-sync.sh" --check 9>&- 2>/dev/null); rc=$?; if [ "$rc" -eq 0 ]; then [ "$(get runtime_drift status aligned)" = aligned ] || log "service=runtime_drift state=aligned"; put runtime_drift status aligned; put runtime_drift sig none; return; fi; detail=$(printf '%s' "$out" | tr -d '\n' | cut -c1-300); sig=$(printf '%s' "$detail" | sha256sum | cut -c1-16); put runtime_drift status drift; log "service=runtime_drift state=drift rc=$rc detail=$detail"; [ "$(get runtime_drift sig none)" = "$sig" ] && return; put runtime_drift sig "$sig"; "$ROOT/incident-notify.sh" human_required "Samantha — une copie du runtime n'est plus alignée sur le commit déployé : $detail" "Relancer companion-deploy.sh sur le commit déployé (runtime-sync.sh remet chaque copie au même commit)." || true; }
 check_allowlist_expiry(){
- local tick elapsed result processed
+ local tick elapsed result processed forgotten remaining
  tick=$(now);elapsed=$((tick-ALLOWLIST_LAST_CHECK))
  [ "$elapsed" -ge 60 ] || [ "$elapsed" -lt 0 ] || return 0
  ALLOWLIST_LAST_CHECK="$tick"
  result=$(timeout --kill-after=2 22 python3 "$ROOT/people-trusted.py" allowlist sweep 9>&- <<<'{}' 2>/dev/null) || { log 'service=whatsapp_allowlist state=expired_pending reason=sweep_budget'; return 0; }
- processed=$(printf '%s' "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("processed",0))' 9>&- 2>/dev/null) || return 0
+ read -r processed forgotten remaining <<<"$(printf '%s' "$result" | python3 -c 'import json,sys; v=json.load(sys.stdin); f=v.get("forget") or {}; print(v.get("processed",0),f.get("forgotten",0),f.get("remaining",0))' 9>&- 2>/dev/null)" || return 0
  case "$processed" in ''|*[!0-9]*) return 0;; esac
+ # M4 forget-on-expiry: counts only, never a number, name or message.
+ case "$forgotten$remaining" in ''|*[!0-9]*) ;; *) [ "$forgotten" -gt 0 ] && log "service=whatsapp_allowlist event=forget forgotten=$forgotten remaining=$remaining";; esac
  # No R17 disk write when no expiry was processed.
  [ "$processed" -gt 0 ] && put whatsapp_allowlist last_sweep "$tick"
  return 0
@@ -179,7 +217,11 @@ while :; do
  check_allowlist_expiry
  "$ROOT/health-verdict.py" --write 9>&- >/dev/null 2>&1 || true
  check_allowlist_expiry
+ # F7: existing maintenance cycle; Companion-owned O_APPEND log stays on its inode.
+ timeout --kill-after=1 2 python3 "$ROOT/gateway-log-retention.py" 9>&- >/dev/null 2>&1 || true
  check_gateway
+ check_allowlist_expiry
+ check_gateway_memory
  check_allowlist_expiry
  check_whatsapp
  check_allowlist_expiry
@@ -188,5 +230,6 @@ while :; do
  check_http companion http://127.0.0.1:8765/ 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 12 20
  check_allowlist_expiry
  check_slack_bridge
+ check_runtime_drift
  sleep 15 9>&-
 done

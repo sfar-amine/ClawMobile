@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "id": "codex-j1-card-detector-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Reject timestamp/card false positives and partition the existing nightly scan by root with closed bounded diagnostics.",
+  "reason": "Backlog 46 carrying decision 45: eight sequential roots, ten seconds each, existing H8 owner with explicit bounded job envelope and unchanged user-route budgets.",
+  "files": [
+    "installer/termux-lite/workspace-secret-scan.py",
+    "installer/termux-lite/workspace-secret-scan-fixtures.json",
+    "installer/termux-lite/nightly-secret-scan.py",
+    "installer/termux-lite/test-card-detector.py",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-runtime/contracts/j1-card-detector.md",
+    "docs/changes/codex-j1-card-detector-20261011.md",
+    "docs/changes/codex-j1-card-detector-20261011.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/j1/secret-scan-before.json",
+    "installer/termux-lite/test-nightly-secret-scan.py",
+    "installer/termux-lite/test-secret-scan-root-partition.py",
+    "docs/work/samantha-runtime/contracts/j1.md",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs"
+  ],
+  "tests": [
+    {
+      "name": "J1 bounded root partitions and inherited owners",
+      "status": "passed",
+      "evidence": "EX stage lock: test-secret-scan-root-partition.py 12/12; test-nightly-secret-scan.py 7/7; test-card-detector.py 7/7; test-workspace-secret-scan.py 16/16; test-companion-nightly-acceptance.py 12/12. Total 54/54 on prepared code; complete frozen-head CI still pending."
+    },
+    {
+      "name": "Shared F6/R20 process cleanup corrections",
+      "status": "passed",
+      "evidence": "EX lock, Node20 npm ci/build + five script gates passed: remote-bridge-abandoned, strict-process-cleanup (9/9 physical groups), file-gateway-limits, file-read-boundary, file-gateway-read. J1 54/54 rerun passed. Log /workspace/artifacts/b42/j1-detector/shared-corrections-targeted-r2.log. First attempt stopped before tests because node_modules was absent; archived. Whole exact-head CI remains pending."
+    },
+    {
+      "name": "Fresh runtime191 workflow union",
+      "status": "passed",
+      "evidence": "Normal merge of runtime f5d8a6d7, AGENTS reread. All base commands preserved:77 run steps, with J1 detector/partition and strict-cleanup commands added inside existing steps. Claude191 quote fixture/test inherited unchanged, no payment owner delta. Local previous54/54 plus shared5/5 script evidence preserved, entire new-head CI pending."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/j1-card-detector.md",
+    "docs/changes/codex-j1-card-detector-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this lot; no migration or new persistent owner.",
+  "limitations": [
+    "Complete frozen-head local CI (77 run stages on runtime 7c5cddc5) and final S24 nightly receipt remain pending; no ready claim.",
+    "PR176 f036943 measured old code 1d66b82c: 351 to 14 cards over eight complete separate scans. Combined scan remains partial at unchanged budget; current-head reduction is unmeasured.",
+    "Five exact public core blobs at 3298d98d audited as negative masking/refusal fixtures, no private exclusion changed. Playbooks signatures remain active pending canonical pin and public source attestation.",
+    "Nightly scan envelope changes from combined 12 s to at most 128 s: 8 x (10 s scan + 2 s subprocess margin + 4 s existing cleanup). Global volumes unchanged; final per-root S24 qualification pending.",
+    "Fresh runtime 7c5cddc5 changed test-file-read-boundary.cjs; old whole-file attestation intentionally stops applying. Four other public blobs remain byte-identical; no new acceptance or live count claimed."
+  ]
+}

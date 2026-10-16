@@ -37,6 +37,8 @@ export type RunCreateRequest = {
   userText?: string;
   sessionId?: string;
   attachments?: IntentAttachment[];
+  /** Édition d'un message envoyé : rejoue depuis ce run dans une nouvelle conversation (voir runs.ts prepareReplay). */
+  replayOf?: { sessionId?: string; runId?: string };
   source?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 };
@@ -85,6 +87,11 @@ export type TerminalSessionResponse = {
 };
 
 export type IntentSubmitResponse = {
+  decision?: import("./receiptPresentation").PublicDecision;
+  presentation?: import("./receiptPresentation").ReceiptPresentation;
+  understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
+  alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];
+  failure?: import("./receiptPresentation").ReceiptPresentation["failure"];
   success: boolean;
   accepted?: boolean;
   submissionState?: "accepted" | "not_submitted";
@@ -99,23 +106,43 @@ export type IntentSubmitResponse = {
   userText?: string;
   canvas: CanvasSchema;
   attachments?: IntentAttachment[];
+  /** Édition-relecture acceptée : ancienne conversation, tours remplacés (marqués, non supprimés) et effets connus. */
+  replay?: { sourceSessionId: string; runId: string; seededTurns: number; supersededRuns: number; effects: { executed: number; unknown: number } };
   gatewayRun?: unknown;
 };
 
 export type CompanionRunStatus = {
+  /** P1 : tour admis par preuve native, et connexion Gateway finalement utilisée. */
+  ownerAdmitted?: boolean;
+  ownerTransport?: "admin_admitted" | "write_cli" | "write_cli_owner_unavailable";
+  /** Closed projection of the stored decision (receiptPresentation.publicDecision). */
+  decision?: import("./receiptPresentation").PublicDecision;
+  presentation?: import("./receiptPresentation").ReceiptPresentation;
+  understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
+  alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];
+  failure?: import("./receiptPresentation").ReceiptPresentation["failure"];
+  provenance?: import("./capabilityProvenance").CapabilityProvenance;
   inactivityCorrectionReceipt?: import("./runInactivity").InactivityReceipt;
   modality?: "voice";
   clientRunId?: string;
   transcriptState?: "partial" | "completed" | "interrupted";
   playback?: import("./voicePlaybackMetadata").VoicePlaybackMetadata;
+  /** Édition-relecture : ce run rejoue un message modifié de `replayOf` ; `supersededBy` marque l'ancienne branche (audit, jamais supprimée). */
+  replayOf?: ReplayLink;
+  supersededBy?: ReplayLink;
+  /** Ce que l'on sait de l'effet de ce tour : `none` (lecture ou question), `executed` (action exécutée), `unknown` (agent ou échec). */
+  replayEffect?: "none" | "executed" | "unknown";
   success: boolean;
   runId: string;
   sessionId?: string;
   sessionKey?: string;
   state: "running" | "done" | "failed" | "unknown";
   status?: string;
+  memoTranscription?: {phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number};
   message: string;
   result?: string;
+  /** F4: structured projection of `result` (summary list only); `result` stays the raw fallback. */
+  notification?: import("./notificationText").StructuredNotification | null;
   pendingApprovals?: unknown[];
   progress?: CompanionRunProgress;
   prompt?: string;
@@ -130,6 +157,8 @@ export type CompanionRunStatus = {
   canvas?: CanvasSchema;
   raw?: unknown;
 };
+
+export type ReplayLink = { version: 1; sessionId: string; runId: string; at: number };
 
 export type CompanionRunTokenUsage = {
   inputTokens?: number;
@@ -146,6 +175,11 @@ export type CompanionRunProgress = {
   detail?: string;
   updatedAt?: number;
   events: CompanionRunProgressEvent[];
+  /** HS5: real steps derived on read (runProgress.ts); absent for voice runs. */
+  steps?: import("./runProgress").RunStep[];
+  failedStep?: string;
+  cause?: string;
+  effect?: {debited: "unknown"; source: "receipt"};
 };
 
 export type CompanionRunProgressEvent = {

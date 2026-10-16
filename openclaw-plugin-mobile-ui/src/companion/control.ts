@@ -1,5 +1,6 @@
+import {conditionalRead} from "./readEtag";
 import {completeUsageAttention} from './usageControl';
-import {allJobs,protectedJob} from "./automations";
+import {allJobs} from "./automations";
 import { execFile, spawn } from "child_process";
 import {existsSync, constants} from "fs";
 import type { IncomingMessage, ServerResponse } from "http";
@@ -28,7 +29,7 @@ export function automationNotificationProjection(value:any,jobs:any[]=[]):any {
   if(!value||!Array.isArray(value.items))return value;
   return {...value,activationRoute:'/v1/automations/{automationId}/enable|disable',items:value.items.map((item:any)=>
     item?.kind==='scheduled'&&typeof item.automationId==='string'&&/^[A-Za-z0-9_.:-]{1,160}$/.test(item.automationId)
-      ? (()=>{const job=jobs.find(j=>j.id===item.automationId);return {...item,togglable:!!job&&!protectedJob(job),reason:job?(protectedJob(job)?'protected_automation':'delivery_evidence_unavailable'):'automation_unavailable'};})() : item)};
+      ? (()=>{const job=jobs.find(j=>j.id===item.automationId);return {...item,togglable:false,reason:job?'action_guard_not_qualified':'automation_unavailable'};})() : item)};
 }
 
 export function readControl(section: string, signal?: AbortSignal): Promise<unknown> {
@@ -225,6 +226,16 @@ export class ControlReadPool {
 }
 const controlReads=new ControlReadPool();
 
+/** Derived read-only presentations share the existing bounded Control pool. */
+export async function readControlProjection(key:string,generate:(signal:AbortSignal)=>Promise<unknown>,signal?:AbortSignal):Promise<any>{
+  const result=await controlReads.read('projection:'+key,async abort=>{
+    const data=await generate(abort);
+    return {schemaVersion:2,sections:{projection:{schemaVersion:2,resourceKey:key,dataRevision:createHash('sha256').update(JSON.stringify(data)).digest('hex'),remainingFreshMs:15000,availability:'ready',freshness:'fresh',data}}};
+  },signal,{cache:true});
+  return result.sections.projection.data;
+}
+
+
 // A revision input, never a replacement scheduler or a second copy of its jobs.
 async function automationSourceRevision():Promise<string|null>{
   const root=process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),".openclaw");
@@ -319,7 +330,7 @@ export async function handleControl(req: IncomingMessage, res: ServerResponse, r
   const routeOnly=route.split("?")[0];
   if (!routeOnly.startsWith("/control/")) return false;
   const address=req.socket.remoteAddress||"";
-  if(!["127.0.0.1","::1","::ffff:127.0.0.1"].includes(address)||req.headers.origin||req.headers["sec-fetch-site"]){res.writeHead(403);res.end();return true;}
+  if(!["127.0.0.1","::1","::ffff:127.0.0.1"].includes(address)||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){res.writeHead(403);res.end();return true;}
   if(req.method!=="GET"){res.writeHead(405,{Allow:"GET"});res.end();return true;}
   const target=routeOnly.slice("/control/".length);
   if(target==="activity/stream"){streamControl(req,res);return true;}
@@ -353,7 +364,7 @@ export async function handleControl(req: IncomingMessage, res: ServerResponse, r
       }
       value=result;
     }
-    if(!res.destroyed){res.writeHead(200,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});res.end(JSON.stringify(value));}
+    if(!res.destroyed){const body=JSON.stringify(value);res.setHeader("Content-Type","application/json; charset=utf-8");res.setHeader("Cache-Control","no-store");if(!conditionalRead(req,res,200,value,body)){res.statusCode=200;res.end(body);}}
   }catch(error:any){
     if(!res.destroyed){const code=[400,404,429,499,504].includes(error?.statusCode)?error.statusCode:503;
       res.writeHead(code,{"Content-Type":"application/json","Cache-Control":"no-store"});res.end(JSON.stringify({error:code===400?"invalid_control_request":code===429?"control_read_busy":"control_unavailable"}));}

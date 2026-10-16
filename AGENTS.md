@@ -33,7 +33,8 @@ Le S24 reste la source de vérité opérationnelle (`claw_context`). Une copie G
 8. **Capabilities.** Toute action, tout réglage et toute information de l'app accessible à l'agent ou à la voix est une capability `samantha.app.*` du registre canonique (`samantha-ui-playbooks/capabilities/registry.json`), avec son `execution` (route), ses exemples en français, son `risk` et sa `confirmation_required`.
    - Une route owner sans capability est listée dans `NO_CAPABILITY`, avec sa raison.
    - Aucun outil ni pré-routeur parallèle aux capabilities, dans la voix, l'app ou le Companion.
-9. **Une PR décrit** :
+9. **Entrée canonique des consultations opérateur** (audit Orange du 10/10 ; règle runtime `OPERATOR_CANONICAL_ENTRY_V1` dans `samantha-ui-playbooks`). Toute consultation opérateur passe par l'entrée canonique de sa capability (registre puis Capability Graph ; Orange = `python -m telecom.maxit_guarded_service <intention> --mode auto`, qui bascule en 4G pour l'authentification SIM puis restaure le Wi-Fi). Jamais d'appel direct à `telecom.service`, `cli`, `maxit_direct`, `maxit_retrieval` ni à l'app opérateur — ni par un agent, ni par un script, ni par une recette. Un repli interne (Orange : liaison cellulaire avec Wi-Fi actif quand Maxit renvoie HTTP 400 en Wi-Fi, décision d'Amine du 10/10) n'existe qu'à l'intérieur de l'entrée canonique et est tracé dans son reçu (`network_guard.path`). Un test sans réseau réel simule le wrapper ou le garde ; un test live passe par l'entrée canonique et son reçu prouve le chemin réseau et la restauration. Chaque route a un test CI qui fixe son entrée. Aucun résultat brut affiché à l'utilisateur. Vaut pour toute capability à parcours déterministe déjà développé : réutiliser, jamais court-circuiter.
+10. **Une PR décrit** :
    - ses routes, avec leur budget et leur capability ;
    - ses tests, et s'ils sont dans la CI ;
    - ses fixtures et leur provenance ;
@@ -44,9 +45,11 @@ Le S24 reste la source de vérité opérationnelle (`claw_context`). Une copie G
   - le préflight (refus si un job lourd tourne, si la mémoire est sous 1 200 Mo ou si la charge dépasse 7) ;
   - l'avance rapide uniquement ;
   - la recette automatique ;
-  - le **retour arrière automatique** si besoin ;
+  - **toutes les copies exécutées amenées au même commit** (`runtime-sync.sh`) : le plugin de la passerelle WhatsApp (`~/.openclaw/extensions`, puis redémarrage propre de la passerelle), la release Tier0 qui lui sert `model-fast-path.py` (`~/.openclaw/releases/current`, bornée à 10), et les outils de déploiement (`~/.openclaw/tools`). Une copie différente fait échouer le déploiement. Incident du 12/10 : la passerelle exécutait encore le plugin du 11/10, et la pièce Pulse répondait par le modèle ;
+  - le **retour arrière automatique** si besoin (il ramène aussi ces copies) ;
+  - les consignes des agents (pièces Projet et Pulse, contacts `contacts-agent.md`) suivent le même commit. Toutes les 30 min, le gestionnaire de santé lance `runtime-sync.sh --check`. Ce contrôle prouve que chaque copie, chaque consigne, les règles des playbooks et le contrat `before_dispatch` d'OpenClaw sont toujours alignés, et il alerte sinon ;
   - l'écriture du reçu dans `~/.openclaw/deploys/`.
-- Playbooks : `activate-ui-playbooks.sh <sha>`.
+- Playbooks : `activate-ui-playbooks.sh <sha>`, qui réinstalle aussi les règles globales (`install_interaction_rules.py --apply`).
 - L'app Android est compilée par GitHub Actions et installée par `android/samantha/tools/install-from-ci.sh`, qui vérifie le checksum et la clé du S24. **Pas de Gradle sur le téléphone.**
 - **Un seul job lourd à la fois** sur le S24.
 - Toute route à plus de 80 % de son budget dans un reçu devient une tâche d'optimisation.

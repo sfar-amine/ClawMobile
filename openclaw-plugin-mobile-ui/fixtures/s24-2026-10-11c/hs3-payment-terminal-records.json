@@ -1,0 +1,439 @@
+{
+ "provenance": {
+  "captured_at": "2026-10-11T02:11:29+01:00",
+  "device": "S24 (Termux, profil owner)",
+  "captured_by": "Claude via claw_exec (lecture seule)",
+  "source": "~/.openclaw/clawmobile-companion/runs.json, champ paymentRequests (PaymentRecord persistés, lus par readPaymentRequests() de runs.ts)",
+  "core_runtime_head": "507851b58bbb6d40bde9b908793f549c71fb6ae7",
+  "projection": "champs de paymentView() (paymentCore.ts) : state, reasonCode, financialSubmissionAttempted (mode live et executorAttempts>0), timeline (stage, outcome, reasonCode, invoiceState, seq) ; temps relatifs a createdAt. Retires : id, nonce, keyId, quote, montants, references, http, navigation, receipt, continuation. Etapes http_exchange et bank_ui_navigation omises (detail transport) ; une ligne par (etat, raison, adaptateur).",
+  "dedup": "une ligne par combinaison (etat, raison, mode, adaptateur, suite des etapes) ; occurrences dans count"
+ },
+ "records": [
+  {
+   "adapterId": "demo.confirmation",
+   "mode": "demo",
+   "state": "cancelled",
+   "reasonCode": "owner_cancelled",
+   "executorAttempts": 0,
+   "financialSubmissionAttempted": false,
+   "hasReceipt": false,
+   "timeline": [],
+   "createdAtDay": "2026-10-03",
+   "count": 3
+  },
+  {
+   "adapterId": "topnet",
+   "mode": "live",
+   "state": "failed",
+   "reasonCode": "session_expired",
+   "executorAttempts": 1,
+   "financialSubmissionAttempted": true,
+   "hasReceipt": false,
+   "timeline": [],
+   "createdAtDay": "2026-10-04",
+   "count": 2
+  },
+  {
+   "adapterId": "topnet",
+   "mode": "live",
+   "state": "failed",
+   "reasonCode": "payment_rejected_reason_unavailable",
+   "executorAttempts": 1,
+   "financialSubmissionAttempted": true,
+   "hasReceipt": false,
+   "timeline": [],
+   "createdAtDay": "2026-10-04",
+   "count": 1
+  },
+  {
+   "adapterId": "topnet",
+   "mode": "live",
+   "state": "blocked",
+   "reasonCode": "browser_context_unavailable",
+   "executorAttempts": 1,
+   "financialSubmissionAttempted": true,
+   "hasReceipt": false,
+   "timeline": [
+    {
+     "stage": "owner_confirmation_consumed",
+     "seq": 1,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "payment_record_created",
+     "seq": 2,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "financial_dispatch_committed",
+     "seq": 3,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "provider_session_started",
+     "seq": 4,
+     "atOffsetMs": 2519
+    },
+    {
+     "stage": "provider_session_authenticated",
+     "seq": 6,
+     "atOffsetMs": 4419
+    },
+    {
+     "stage": "invoice_revalidated",
+     "invoiceState": "unpaid",
+     "seq": 8,
+     "atOffsetMs": 9100
+    },
+    {
+     "stage": "checkout_prepared",
+     "seq": 12,
+     "atOffsetMs": 10372
+    },
+    {
+     "stage": "execution_error",
+     "reasonCode": "browser_context_unavailable",
+     "seq": 13,
+     "atOffsetMs": 10948
+    },
+    {
+     "stage": "state_transition",
+     "outcome": "effect_unknown",
+     "reasonCode": "payment_effect_unverified",
+     "seq": 14,
+     "atOffsetMs": 11036
+    },
+    {
+     "stage": "state_transition",
+     "outcome": "blocked",
+     "reasonCode": "browser_context_unavailable",
+     "seq": 15,
+     "atOffsetMs": 357055
+    }
+   ],
+   "createdAtDay": "2026-10-04",
+   "count": 1
+  },
+  {
+   "adapterId": "topnet",
+   "mode": "live",
+   "state": "cancelled",
+   "reasonCode": "payment_cancelled",
+   "executorAttempts": 1,
+   "financialSubmissionAttempted": true,
+   "hasReceipt": false,
+   "timeline": [
+    {
+     "stage": "owner_confirmation_consumed",
+     "seq": 1,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "payment_record_created",
+     "seq": 2,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "financial_dispatch_committed",
+     "seq": 3,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "provider_session_started",
+     "seq": 4,
+     "atOffsetMs": 1911
+    },
+    {
+     "stage": "provider_session_authenticated",
+     "seq": 6,
+     "atOffsetMs": 3855
+    },
+    {
+     "stage": "invoice_revalidated",
+     "invoiceState": "unpaid",
+     "seq": 8,
+     "atOffsetMs": 7541
+    },
+    {
+     "stage": "checkout_prepared",
+     "seq": 12,
+     "atOffsetMs": 8337
+    },
+    {
+     "stage": "browser_context_ready",
+     "outcome": "android_webview",
+     "seq": 13,
+     "atOffsetMs": 9344
+    },
+    {
+     "stage": "gateway_submission_started",
+     "seq": 14,
+     "atOffsetMs": 9366
+    },
+    {
+     "stage": "gateway_submission_result",
+     "outcome": "challenge",
+     "reasonCode": "bank_challenge_received",
+     "seq": 17,
+     "atOffsetMs": 20724
+    },
+    {
+     "stage": "bank_ui_opened",
+     "outcome": "3ds2",
+     "seq": 18,
+     "atOffsetMs": 21041
+    },
+    {
+     "stage": "state_transition",
+     "outcome": "requires_bank_action",
+     "reasonCode": "bank_verification_required",
+     "seq": 19,
+     "atOffsetMs": 33125
+    },
+    {
+     "stage": "bank_timeout_reconciliation_started",
+     "seq": 20,
+     "atOffsetMs": 1664485
+    },
+    {
+     "stage": "provider_readback",
+     "invoiceState": "unpaid",
+     "seq": 21,
+     "atOffsetMs": 1671619
+    },
+    {
+     "stage": "state_transition",
+     "outcome": "cancelled",
+     "reasonCode": "payment_cancelled",
+     "seq": 22,
+     "atOffsetMs": 1671660
+    }
+   ],
+   "createdAtDay": "2026-10-04",
+   "count": 2
+  },
+  {
+   "adapterId": "demo.confirmation",
+   "mode": "demo",
+   "state": "demo_confirmed",
+   "reasonCode": "demo_only_no_payment",
+   "executorAttempts": 1,
+   "financialSubmissionAttempted": false,
+   "hasReceipt": false,
+   "timeline": [
+    {
+     "stage": "state_transition",
+     "outcome": "demo_confirmed",
+     "reasonCode": "demo_only_no_payment",
+     "seq": 1,
+     "atOffsetMs": 3403
+    }
+   ],
+   "createdAtDay": "2026-10-04",
+   "count": 1
+  },
+  {
+   "adapterId": "demo.confirmation",
+   "mode": "demo",
+   "state": "expired",
+   "reasonCode": "owner_confirmation_expired",
+   "executorAttempts": 0,
+   "financialSubmissionAttempted": false,
+   "hasReceipt": false,
+   "timeline": [],
+   "createdAtDay": "2026-10-04",
+   "count": 2
+  },
+  {
+   "adapterId": "topnet",
+   "mode": "live",
+   "state": "confirmed",
+   "reasonCode": "gateway_and_provider_confirmed",
+   "executorAttempts": 1,
+   "financialSubmissionAttempted": true,
+   "hasReceipt": true,
+   "timeline": [
+    {
+     "stage": "owner_confirmation_consumed",
+     "seq": 1,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "payment_record_created",
+     "seq": 2,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "financial_dispatch_committed",
+     "seq": 3,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "provider_session_started",
+     "seq": 4,
+     "atOffsetMs": 2474
+    },
+    {
+     "stage": "provider_session_authenticated",
+     "seq": 6,
+     "atOffsetMs": 4412
+    },
+    {
+     "stage": "invoice_revalidated",
+     "invoiceState": "unpaid",
+     "seq": 8,
+     "atOffsetMs": 9908
+    },
+    {
+     "stage": "checkout_prepared",
+     "seq": 12,
+     "atOffsetMs": 11824
+    },
+    {
+     "stage": "browser_context_ready",
+     "outcome": "android_webview",
+     "seq": 13,
+     "atOffsetMs": 12708
+    },
+    {
+     "stage": "gateway_submission_started",
+     "seq": 14,
+     "atOffsetMs": 12738
+    },
+    {
+     "stage": "gateway_submission_result",
+     "outcome": "challenge",
+     "reasonCode": "bank_challenge_received",
+     "seq": 17,
+     "atOffsetMs": 24057
+    },
+    {
+     "stage": "bank_ui_opened",
+     "outcome": "3ds2",
+     "seq": 18,
+     "atOffsetMs": 24557
+    },
+    {
+     "stage": "bank_ui_lifecycle",
+     "outcome": "bank_form_visible",
+     "seq": 23,
+     "atOffsetMs": 25865
+    },
+    {
+     "stage": "state_transition",
+     "outcome": "requires_bank_action",
+     "reasonCode": "bank_verification_required",
+     "seq": 24,
+     "atOffsetMs": 36589
+    },
+    {
+     "stage": "bank_ui_lifecycle",
+     "outcome": "finalizing_loading_visible",
+     "seq": 26,
+     "atOffsetMs": 40436
+    },
+    {
+     "stage": "bank_return_detected",
+     "outcome": "navigation_intercepted",
+     "seq": 28,
+     "atOffsetMs": 41318
+    },
+    {
+     "stage": "bank_return_requested",
+     "outcome": "same_payment_record",
+     "seq": 29,
+     "atOffsetMs": 41361
+    },
+    {
+     "stage": "bank_resume_started",
+     "seq": 30,
+     "atOffsetMs": 41407
+    },
+    {
+     "stage": "provider_session_started",
+     "seq": 31,
+     "atOffsetMs": 42841
+    },
+    {
+     "stage": "provider_session_authenticated",
+     "seq": 33,
+     "atOffsetMs": 45227
+    },
+    {
+     "stage": "provider_readback",
+     "invoiceState": "settled",
+     "seq": 38,
+     "atOffsetMs": 58137
+    },
+    {
+     "stage": "provider_callback_correlated",
+     "outcome": "authenticated_callback",
+     "seq": 41,
+     "atOffsetMs": 61280
+    },
+    {
+     "stage": "state_transition",
+     "outcome": "confirmed",
+     "reasonCode": "gateway_and_provider_confirmed",
+     "seq": 44,
+     "atOffsetMs": 68441
+    },
+    {
+     "stage": "bank_return_detected",
+     "outcome": "page_finished",
+     "seq": 46,
+     "atOffsetMs": 68565
+    }
+   ],
+   "createdAtDay": "2026-10-05",
+   "count": 1
+  },
+  {
+   "adapterId": "maxit.topup",
+   "mode": "live",
+   "state": "effect_unknown",
+   "reasonCode": "payment_effect_unverified",
+   "executorAttempts": 1,
+   "financialSubmissionAttempted": true,
+   "hasReceipt": false,
+   "timeline": [
+    {
+     "stage": "owner_confirmation_consumed",
+     "seq": 1,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "payment_record_created",
+     "seq": 2,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "financial_dispatch_committed",
+     "seq": 3,
+     "atOffsetMs": 0
+    },
+    {
+     "stage": "execution_error",
+     "reasonCode": "maxit_order_contract_unverified",
+     "seq": 4,
+     "atOffsetMs": 5454
+    },
+    {
+     "stage": "state_transition",
+     "outcome": "effect_unknown",
+     "reasonCode": "payment_effect_unverified",
+     "seq": 5,
+     "atOffsetMs": 5510
+    },
+    {
+     "stage": "bank_ui_lifecycle",
+     "outcome": "preparing_loading_visible",
+     "seq": 6,
+     "atOffsetMs": 5549
+    }
+   ],
+   "createdAtDay": "2026-10-07",
+   "count": 2
+  }
+ ]
+}

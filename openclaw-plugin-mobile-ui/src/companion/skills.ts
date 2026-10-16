@@ -1,5 +1,4 @@
 import fs from "fs";
-import {protectedPayment} from "./automations";
 import path from "path";
 import { getWorkspaceDir } from "../tools/workspace";
 import { runSkillFastPath } from "../trace_induction/fastpath";
@@ -279,7 +278,7 @@ export function previewWorkspaceSkill(id: string, request: SkillPreviewRequest =
   };
 }
 
-export async function runWorkspaceSkill(id: string, request: SkillRunRequest = {}) {
+export async function runWorkspaceSkill(id: string, request: SkillRunRequest = {}, options:{authority?:"owner"}={}) {
   const loaded = findWorkspaceSkill(id);
   const skill = loaded?.detail || null;
   if (!skill) return null;
@@ -307,7 +306,7 @@ export async function runWorkspaceSkill(id: string, request: SkillRunRequest = {
 
   const prompt = buildSkillAgentPrompt(skill, instruction, inputs);
   try {
-    const submitted = await submitToOpenClawAgent(prompt, runId, sessionId);
+    const submitted = await submitToOpenClawAgent(prompt, runId, sessionId, options);
     await rememberSubmittedRun(prompt, submitted);
     return {
       success: true,
@@ -758,7 +757,7 @@ function loadSkill(skillDir: string, id: string): LoadedSkill | null {
   const candidateJson = readJson(path.join(skillDir, "skill_candidate.json"));
   const generated = frontmatter.clawmobile_generated === "true" || !!generatedJson || !!candidateJson;
   const feedback = readFeedback(path.join(skillDir, "execution_feedback.jsonl"));
-  // Shared automations.ts payment guard over title, SKILL.md body and fast-path metadata.
+  // Structured trace risk only; title and markdown words cannot qualify an action.
   const risk = inferRisk(id, description, generated, {name,markdown,generatedJson,candidateJson});
   const scope = inferScope(id, description, generatedJson, candidateJson);
   const overview = buildOverview(markdown, description, scope, generated);
@@ -1368,10 +1367,12 @@ function inferStatus(generated: boolean, feedback: FeedbackSummary, fastPaths: C
 }
 
 function inferRisk(id: string, description: string, generated: boolean, sources: Record<string, any> = {}): "low" | "medium" | "high" {
-  const text = `${id} ${description}`.toLowerCase();
-  if (protectedPayment({id,description,...sources}) || text.includes("delete")) return "high";
-  if (generated || text.includes("policy") || text.includes("record") || text.includes("promote")) return "medium";
-  return "low";
+  // Presentation of structured trace metadata only; text cannot classify payment.
+  // Actual mutations still require their canonical check-only owner decision.
+  const source = sources.generatedJson || sources.candidateJson;
+  const records = [source?.fast_path, source?.fastPath, ...normalizeArray(source?.fast_paths || source?.fastPaths)];
+  if (records.some(record => record?.risk === "high")) return "high";
+  return generated ? "medium" : "low";
 }
 
 function inferScope(id: string, description: string, generatedJson: any | null, candidateJson: any | null): CompanionSkillSummary["scope"] {

@@ -10,7 +10,9 @@ from pathlib import Path
 import sqlite3
 import uuid
 
-from context_memory import ACTIVE, COLUMNS, event, excerpt, normalized
+from context_memory import ACTIVE, COLUMNS, TELEMETRY, event, excerpt, normalized
+from context_digest import close_supersessions, bridge_digest
+from context_native_metrics import read_native_metrics
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("context_store", HERE / "context-store.py")
@@ -91,7 +93,9 @@ def main():
             # Extractive digest: evidence pointers, source type and full hashes
             # survive. It is never injected as a new fact or used as authority.
             # No lexical guess can close a thread, revoke a constraint or promote a route.
-            active_rows = [row for row in rows if not conn.execute("SELECT 1 FROM events WHERE supersedes=? LIMIT 1", (row["id"],)).fetchone()]
+            # M3: machine telemetry and retirement receipts never reach the native memory digest.
+            active_rows = [row for row in rows if not TELEMETRY.match(row["text"] or "")
+                           and not conn.execute("SELECT 1 FROM events WHERE supersedes=? LIMIT 1", (row["id"],)).fetchone()]
             for offset in range(0, len(active_rows), 24):
                 batch = active_rows[offset:offset + 24]
                 items = []
@@ -105,16 +109,24 @@ def main():
                         {"mode": "extractive_review_only", "authority": "source_required",
                          "instruction": "Read full cited events before applying any semantic change. No independent fact or authorization.",
                          "items": items})
+            supersessions_applied = close_supersessions(conn, started)
+            native_digest = bridge_digest(conn, Path.home()/".openclaw/workspace", started)
             last = rows[-1]["revision"] if rows else after
             conn.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('curator_revision_v1',?)", (str(last),))
             status = {"runId": run_id, "mode": "shadow", "fromRevision": after, "toRevision": head,
                       "lastProcessedRevision": last, "morePending": last < head,
                       "eventsScanned": len(rows), "newProposals": len(proposals),
+                      "supersessionsApplied": supersessions_applied, "nativeDigest": native_digest,
+                      "nativeElementsLinked": native_digest.get("elementsLinked"),
+                      "deepPromotions7d": None, "memoryRecallCount": None,
+                      "deepPromotionsWindowComplete": False, "nativeMetricsAt": None,
+                      "nativeMetricsState": "owner_source_unverified",
                       "improvementEvents": improvement_events, "invalidImprovementEvents": invalid[:20],
                       "invalidImprovementCount": len(invalid), "proposals": proposals[:20],
                       "proposalPreviewTruncated": len(proposals) > 20,
                       "startedAt": started.isoformat(),
                       "finishedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+            status.update(read_native_metrics(Path.home()/".openclaw/state/openclaw.sqlite", started))
             conn.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('curator_last_run_v1',?)", (json.dumps(status, separators=(",", ":")),))
             conn.execute("COMMIT")
         except Exception:

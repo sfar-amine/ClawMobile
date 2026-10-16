@@ -1,0 +1,1106 @@
+{
+  "capture": {
+    "ownerDirectory": "~/.openclaw/deploys",
+    "readOnly": true,
+    "sanitization": "closed metadata fields before transport; route/log/output strings omitted; only app detail matching exact version-and-numeric-run grammar retained",
+    "counts": {
+      "companion": 15,
+      "app": 7
+    },
+    "elapsedMs": 10.93
+  },
+  "samples": [
+    {
+      "filename": "companion-20261010T210633.json",
+      "kind": "companion",
+      "receipt": {
+        "version": 1,
+        "state": "deployed",
+        "target": "f95be8d71ae82e398c514f30d4b084654833a0b2",
+        "previous": "c1ff5e76f76755d41fc54dbb16fa4acdbf78bc01",
+        "at": "2026-10-10T20:08:06.398531+00:00",
+        "acceptance": {
+          "accepted": true,
+          "checks": [
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.15,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.14,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.07,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.08,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.05,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 5.01,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 12.0,
+              "seconds": 3.53,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 4.97,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 4.05,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.15,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 1.03,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 4.71,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 4.0,
+              "seconds": 0.02,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 0.3,
+              "seconds": 0.04,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.34,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 3.0,
+              "seconds": 0.21,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 4.0,
+              "seconds": 0.66,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 3.0,
+              "seconds": 0.28,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 9.0,
+              "seconds": 7.65,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 0.17,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 1.04,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.01,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.0,
+              "seconds": 0.0,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.0,
+              "seconds": 0.01,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 4.0,
+              "seconds": 2.9,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 2.62,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.0,
+              "leak": false
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 405,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            }
+          ]
+        }
+      },
+      "topKeys": [
+        "version",
+        "state",
+        "target",
+        "previous",
+        "detail",
+        "acceptance",
+        "at"
+      ],
+      "acceptanceKeys": [
+        "accepted",
+        "checks",
+        "warnings"
+      ],
+      "checkKeys": [
+        "route",
+        "code",
+        "seconds",
+        "budget",
+        "leak",
+        "settled",
+        "status"
+      ]
+    },
+    {
+      "filename": "companion-20261010T205754.json",
+      "kind": "companion",
+      "receipt": {
+        "version": 1,
+        "state": "deployed",
+        "target": "c1ff5e76f76755d41fc54dbb16fa4acdbf78bc01",
+        "previous": "9cdd84f730b9a22de65021636e55099bb9e8802b",
+        "at": "2026-10-10T19:59:11.688140+00:00",
+        "acceptance": {
+          "accepted": true,
+          "checks": [
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.07,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.12,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.07,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.07,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.06,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 5.3,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 12.0,
+              "seconds": 3.46,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 5.52,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 3.01,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.15,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 1.02,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 2.73,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 4.0,
+              "seconds": 0.01,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 0.3,
+              "seconds": 0.02,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.21,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 3.0,
+              "seconds": 0.17,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 4.0,
+              "seconds": 0.47,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 3.0,
+              "seconds": 0.2,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 9.0,
+              "seconds": 7.01,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 0.14,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.36,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.0,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.0,
+              "seconds": 0.0,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.0,
+              "seconds": 0.01,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 4.0,
+              "seconds": 2.48,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 2.36,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.0,
+              "leak": false
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.02
+            },
+            {
+              "code": 405,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.02
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.02
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.02
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.02
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.02
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.02
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            }
+          ]
+        }
+      },
+      "topKeys": [
+        "version",
+        "state",
+        "target",
+        "previous",
+        "detail",
+        "acceptance",
+        "at"
+      ],
+      "acceptanceKeys": [
+        "accepted",
+        "checks"
+      ],
+      "checkKeys": [
+        "route",
+        "code",
+        "seconds",
+        "budget",
+        "leak",
+        "settled",
+        "status"
+      ]
+    },
+    {
+      "filename": "companion-20261010T204016.json",
+      "kind": "companion",
+      "receipt": {
+        "version": 1,
+        "state": "deployed",
+        "target": "9cdd84f730b9a22de65021636e55099bb9e8802b",
+        "previous": "9cdd84f730b9a22de65021636e55099bb9e8802b",
+        "at": "2026-10-10T19:41:34.747397+00:00",
+        "acceptance": {
+          "accepted": true,
+          "checks": [
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.07,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.08,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.07,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.06,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.06,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 2.25,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 12.0,
+              "seconds": 2.26,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 3.75,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 2.61,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.15,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 1.02,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 3.52,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 4.0,
+              "seconds": 0.02,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 0.3,
+              "seconds": 0.02,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.44,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 3.0,
+              "seconds": 0.18,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 4.0,
+              "seconds": 0.44,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 3.0,
+              "seconds": 0.24,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 9.0,
+              "seconds": 6.86,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 0.37,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.36,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.01,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.0,
+              "seconds": 0.0,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.0,
+              "seconds": 0.01,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 4.0,
+              "seconds": 2.61,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 6.0,
+              "seconds": 0.02,
+              "leak": false
+            },
+            {
+              "code": 200,
+              "status": "ok",
+              "budget": 1.5,
+              "seconds": 0.0,
+              "leak": false
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 405,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 2.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.0
+            },
+            {
+              "code": 403,
+              "status": "ok",
+              "budget": 10.0,
+              "seconds": 0.01
+            }
+          ]
+        }
+      },
+      "topKeys": [
+        "version",
+        "state",
+        "target",
+        "previous",
+        "detail",
+        "acceptance",
+        "at"
+      ],
+      "acceptanceKeys": [
+        "accepted",
+        "checks"
+      ],
+      "checkKeys": [
+        "route",
+        "code",
+        "seconds",
+        "budget",
+        "leak",
+        "settled",
+        "status"
+      ]
+    },
+    {
+      "filename": "companion-20261010T160019.json",
+      "kind": "companion",
+      "receipt": {
+        "version": 1,
+        "state": "refused",
+        "target": "0bf30ab",
+        "previous": null,
+        "at": "2026-10-10T15:00:19.624564+00:00",
+        "acceptance": null
+      },
+      "topKeys": [
+        "version",
+        "state",
+        "target",
+        "previous",
+        "detail",
+        "acceptance",
+        "at"
+      ],
+      "acceptanceKeys": [],
+      "checkKeys": []
+    },
+    {
+      "filename": "app-20261010T210308.json",
+      "kind": "app",
+      "receipt": {
+        "version": 1,
+        "state": "installed",
+        "commit": "369402296da999bcc917eb157a3e355cac92a192",
+        "at": "2026-10-10T20:04:15.943655+00:00",
+        "acceptance": null
+      },
+      "topKeys": [
+        "version",
+        "state",
+        "commit",
+        "detail",
+        "at"
+      ],
+      "acceptanceKeys": [],
+      "checkKeys": []
+    },
+    {
+      "filename": "app-20261010T191706.json",
+      "kind": "app",
+      "receipt": {
+        "version": 1,
+        "state": "installed",
+        "commit": "53b8b36fe08d0cd7ae8b4018e645d5a7c7910eb1",
+        "at": "2026-10-10T18:17:20.018883+00:00",
+        "acceptance": null
+      },
+      "topKeys": [
+        "version",
+        "state",
+        "commit",
+        "detail",
+        "at"
+      ],
+      "acceptanceKeys": [],
+      "checkKeys": []
+    },
+    {
+      "filename": "app-20261010T185241.json",
+      "kind": "app",
+      "receipt": {
+        "version": 1,
+        "state": "installed",
+        "commit": "1b1b5d1e5597ac503bfffbe79a0ca9fd5f57f1cd",
+        "at": "2026-10-10T17:53:11.884331+00:00",
+        "acceptance": null
+      },
+      "topKeys": [
+        "version",
+        "state",
+        "commit",
+        "detail",
+        "at"
+      ],
+      "acceptanceKeys": [],
+      "checkKeys": []
+    },
+    {
+      "filename": "app-20261010T155643.json",
+      "kind": "app",
+      "receipt": {
+        "version": 1,
+        "state": "refused",
+        "commit": "7acc109",
+        "at": "2026-10-10T15:06:42.505798+00:00",
+        "acceptance": null
+      },
+      "topKeys": [
+        "version",
+        "state",
+        "commit",
+        "detail",
+        "at"
+      ],
+      "acceptanceKeys": [],
+      "checkKeys": []
+    }
+  ],
+  "issues": []
+}

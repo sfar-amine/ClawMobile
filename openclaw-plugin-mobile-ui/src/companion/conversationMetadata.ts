@@ -1,6 +1,6 @@
 import {conversationContext} from "./conversationContext";
-import {observeConversationOwnerRow,readConversationOwnerRow} from "./conversationOwnerIndex";
-import {readModelOwnerFresh,peekModelOwner,readModelOwnerCached} from "./modelOwner";
+import {observeConversationOwnerRow,observeSessionDefaults,readConversationOwnerRow} from "./conversationOwnerIndex";
+import {configuredModelAllow,readModelOwnerFresh,peekModelOwner,readModelOwnerCached} from "./modelOwner";
 import {accountAlias,accountView,knownProfiles,publicModelRef,resolveModelRef} from "./accountIdentity";
 import {createHash} from "crypto";
 import {callOpenClawGateway,expectedCompanionSessionKey} from "./openclawAgentClient";
@@ -23,6 +23,7 @@ function session(id:string){if(!/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(id)||id.
 async function ownerRow(id:string){
  const key=session(id),value=await callOpenClawGateway('sessions.list',{search:key,limit:20},readBudget);
  if(!Array.isArray(value?.sessions)||value.sessions.length>20)throw nativeError('conversation_owner_unavailable',503);
+ observeSessionDefaults(value.defaults);
  const matches=value.sessions.filter((row:any)=>row.key===key);
  if(matches.length!==1)throw nativeError(matches.length?'conversation_identity_ambiguous':'conversation_not_found',matches.length?409:404);
  observeConversationOwnerRow(matches[0]);
@@ -42,7 +43,7 @@ function projection(id:string,row:any){
   issues:[...(!('authProfileOverride' in row)?['conversation_auth_profile_unknown']:[]),...(pinned===null?['conversation_pin_unknown']:[]),...(!model?['conversation_model_unknown']:[])]};
 }
 function modelCatalogFrom({raw:configRaw,catalog,auth}:any){
- const config=configRaw?.config,allow=config?.agents?.entries?.main?.modelPolicy?.allow;
+ const config=configRaw?.config,allow=configuredModelAllow(config);
  if(!Array.isArray(allow)||!Array.isArray(catalog?.models)||catalog.models.length>2000||auth?.unavailable||!Array.isArray(auth?.providers))throw nativeError('conversation_model_catalog_unavailable',503);
  const usable=(provider:string,profile?:string)=>{
   const row=auth.providers.find((x:any)=>x.provider===provider);
@@ -88,7 +89,8 @@ export async function readConversationMetadata(id:string){
  if(!cached||cached.stale||age>=60000)void readModelOwnerCached().catch(()=>{});
  let catalog:string[]|null=null;
  if(cached)try{catalog=modelCatalogFrom({raw:{config:cached.config},catalog:cached.catalog,auth:cached.auth});}catch{}
- const catalogFresh=!!cached&&!cached.stale&&age<CATALOG_SERVE_MS;
+ // The snapshot itself is a successful read: a later failed refresh (`stale`) does not void it inside the window.
+ const catalogFresh=!!cached&&age<CATALOG_SERVE_MS;
  return publicMetadata({...value,models:catalog||[],thinkingChangeAvailable:value.thinkingChangeAvailable&&owner.state!=='pending',modelChangeAvailable:owner.state!=='pending'&&catalogFresh&&catalog!==null&&catalog.length>0&&owner.row.hasActiveRun===false&&owner.row.permissionModePending===false,
   issues:[...value.issues,...(catalog===null?['conversation_model_catalog_unavailable']:!catalogFresh?['conversation_model_catalog_stale']:[]),
    ...(owner.state==='stale'?['conversation_owner_stale']:owner.state==='pending'?['conversation_owner_refresh_pending']:[]),...(!value.thinkingLevels.length?['conversation_thinking_profile_unknown']:[])]});

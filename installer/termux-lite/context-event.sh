@@ -2,10 +2,10 @@
 set -euo pipefail
 ROOT="${SAMANTHA_CONTEXT_ROOT:-$HOME/.openclaw/context-sync}"
 Q="$ROOT/pending"; P="$ROOT/processed"; S="$ROOT/state"
-usage(){ echo "usage: $0 <chat|work|voice|openclaw> <decision|learning|open_thread|completed_action|constraint|checkpoint> [--supersedes EVENT_ID] [--session COMPANION_SESSION_ID] <text>" >&2; exit 64; }
+usage(){ echo "usage: $0 <chat|work|voice|openclaw|claude|codex|app> <decision|learning|open_thread|completed_action|constraint|checkpoint> [--supersedes EVENT_ID] [--session COMPANION_SESSION_ID] <text>" >&2; exit 64; }
 [ "$#" -ge 3 ] || usage
 surface="$1"; kind="$2"; shift 2
-case "$surface" in chat|work|voice|openclaw) ;; *) usage;; esac
+case "$surface" in chat|work|voice|openclaw|claude|codex|app) ;; *) usage;; esac
 case "$kind" in decision|learning|open_thread|completed_action|constraint|checkpoint) ;; *) usage;; esac
 supersedes=""; session=""
 while [ "$#" -gt 0 ]; do
@@ -27,6 +27,12 @@ body="$*"; [ -n "$body" ] || usage
 if printf '%s' "$body" | grep -Eqi '(password|passwd|otp|one[- ]?time|cvv|cvc|authorization:[[:space:]]*bearer|bearer[[:space:]]+[A-Za-z0-9._-]+|api[_ -]?key|cookie:|-----BEGIN .*PRIVATE KEY-----|(^|[^0-9])([0-9][ -]?){13,19}([^0-9]|$))'; then
   echo "refusing secret-like context payload" >&2; exit 65
 fi
+R="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+# M3 « une seule mémoire » : machine telemetry stays with its canonical owner (deploy receipts,
+# learning gate receipts/journal, skill_intelligence situation_events). Refused before any pending file.
+if PYTHONPATH="$R" python3 -c 'import sys; from context_memory import refused_telemetry; sys.exit(0 if refused_telemetry(sys.argv[1]) else 1)' "$body"; then
+  echo "refusing machine telemetry: owned by its canonical receipt, not shared memory" >&2; exit 66
+fi
 mkdir -p "$Q" "$P" "$S"; chmod 700 "$ROOT" "$Q" "$P" "$S"
 if [ -n "$session" ]; then
   id="$(printf '%s\0%s\0%s\0%s\0companion-session\0%s' "$surface" "$kind" "$supersedes" "$body" "$session" | sha256sum | awk '{print $1}')"
@@ -44,7 +50,6 @@ os.chmod(tmp,0o600); os.replace(tmp,tmp[:-4])
 PY
 # Primary path: transactionally ingest now so the new revision is immediately visible.
 # Materialization is best-effort here; the periodic compactor remains reconciliation/recovery.
-R="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 if [ -e "$Q/$id.json" ]; then
   python3 "$R/context-store.py" ingest-file "$Q/$id.json" >/dev/null
 fi

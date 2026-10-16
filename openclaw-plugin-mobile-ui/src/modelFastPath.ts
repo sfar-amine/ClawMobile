@@ -1,7 +1,9 @@
 import { execFile } from "node:child_process";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { SurfaceClarifications } from "./capabilityClarification";
 
 const execFileAsync = promisify(execFile);
 const MAX_MESSAGE_CHARS = 12000;
@@ -16,8 +18,13 @@ export type FastPathResult = {
   route?: string;
   capability?: string;
   source?: string;
+  provenance?: import("./companion/capabilityProvenance").CapabilityProvenance;
   model_bypassed?: boolean;
   decision?: Record<string, unknown>;
+  presentation?: unknown;
+  understood?: unknown;
+  failure?: unknown;
+  alternatives?: unknown;
   clarification?: Record<string, unknown>;
   resolution?: Record<string, unknown>;
 };
@@ -43,7 +50,7 @@ type InboundContext = {
   messageProvider?: string;
 };
 
-type RunnerOptions = {
+export type RunnerOptions = {
   helperPath?: string;
   home?: string;
   surface?: string;
@@ -114,6 +121,14 @@ function originId(event: InboundEvent, ctx: InboundContext): string {
   ).slice(0, 120);
 }
 
+/** O6 (fichier 37) : a guarded operator read holds Wi-Fi off for at most 60 s; the helper waits up to 70 s for it.
+ * An executing call is never killed before that wait (+ 15 s for resolution and process start). Other routes stay
+ * bounded by the helper's own budget; a check-only call keeps its short budget. */
+export const GUARDED_ENTRY_WAIT_S = 70;
+export function fastPathProcessTimeoutMs(timeoutSeconds: number, checkOnly: boolean): number {
+  return checkOnly ? (timeoutSeconds + 8) * 1000 : (Math.max(timeoutSeconds, GUARDED_ENTRY_WAIT_S) + 15) * 1000;
+}
+
 export async function runModelFastPath(
   message: string,
   options: RunnerOptions = {},
@@ -137,11 +152,12 @@ export async function runModelFastPath(
         "--timeout", String(Math.max(2, Math.min(options.timeoutSeconds || 30, 120))),
         message,
       ];
+      const timeoutSeconds = Math.max(2, Math.min(options.timeoutSeconds || 30, 120));
       const raw: any = await execFileAsync(
         "python3",
         [helper, ...argv],
         {
-          timeout: Math.min((Math.max(2, Math.min(options.timeoutSeconds || 30, 120)) + 8) * 1000,remaining ?? Infinity),
+          timeout: Math.min(fastPathProcessTimeoutMs(timeoutSeconds, !!options.checkOnly),remaining ?? Infinity),
           ...(remaining!==undefined?{killSignal:"SIGKILL" as const}:{}),
           maxBuffer: 2 * 1024 * 1024,
           env: {
@@ -178,14 +194,77 @@ export async function runModelFastPath(
   return { status: "error", reason: lastError };
 }
 
+let whatsappClarifications: SurfaceClarifications | null = null;
+
+/** Exposed for tests: the bounded pending CLARIFY questions of inbound (WhatsApp) conversations. */
+export function inboundClarifications(runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath) {
+  if (!whatsappClarifications) whatsappClarifications = new SurfaceClarifications(runner);
+  return whatsappClarifications;
+}
+
+function conversationKey(event: InboundEvent, ctx: InboundContext): string {
+  return String(ctx.sessionKey || event.sessionKey || ctx.channel || "inbound").slice(0, 240);
+}
+
+const OWNER_WHATSAPP_SESSION = /^agent:main:whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
+
+/** Owner WhatsApp numbers from the Gateway's canonical config (commands.ownerAllowFrom « whatsapp:+… »). */
+export function ownerWhatsAppNumbers(configPath = path.join(process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), ".openclaw"), "openclaw.json")): Set<string> {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const values: unknown[] = config?.commands?.ownerAllowFrom ?? [];
+    return new Set(values.filter((v): v is string => typeof v === "string" && /^whatsapp:\+[1-9][0-9]{7,14}$/.test(v)).map((v) => v.slice(9)));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * S24 12/10: the Gateway runs inbound_claim only for plugin-bound conversations, so the owner's WhatsApp turns
+ * never reached the capability-first path (Amine: « même pour moi il ne faut pas passer par le modèle »).
+ * before_dispatch runs for every inbound message but carries no senderIsOwner: the owner is proved by the routed
+ * main session key AND the number listed in commands.ownerAllowFrom. WhatsApp only: app turns already run the
+ * fast path in the Companion and must never execute twice.
+ */
+export async function handleOwnerBeforeDispatch(
+  event: { messageId?: string; content?: string; body?: string; channel?: string; sessionKey?: string; isGroup?: boolean },
+  ctx: { messageId?: string; channelId?: string; sessionKey?: string },
+  runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
+  owners: () => Set<string> = ownerWhatsAppNumbers,
+): Promise<{ handled: boolean; text?: string }> {
+  const sessionKey = String(ctx?.sessionKey ?? event?.sessionKey ?? "");
+  const channel = String(event?.channel ?? ctx?.channelId ?? "").toLowerCase();
+  const match = OWNER_WHATSAPP_SESSION.exec(sessionKey);
+  if (channel !== "whatsapp" || !match || event?.isGroup === true) return { handled: false };
+  const number = match[1].startsWith("+") ? match[1] : "+" + match[1];
+  if (!owners().has(number)) return { handled: false };
+  const out = await handleOwnerFastPath(
+    // content is the sender's text; body may carry the channel envelope.
+    { content: event?.content || event?.body, senderIsOwner: true, isGroup: false, sessionKey },
+    { agentId: "main", sessionKey, channel: "whatsapp", runId: event?.messageId ?? ctx?.messageId },
+    runner,
+  );
+  return out.handled ? { handled: true, text: out.reply?.text } : { handled: false };
+}
+
 export async function handleOwnerFastPath(
   event: InboundEvent,
   ctx: InboundContext,
   runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
+  clarifications: SurfaceClarifications = runner === runModelFastPath ? inboundClarifications() : new SurfaceClarifications(runner),
 ): Promise<{ handled: boolean; reply?: { text: string } }> {
   if (!isOwnerFastPathEligible(event, ctx)) return { handled: false };
   const message = (event.bodyForAgent ?? event.content ?? "").trim();
   try {
+    const id = SurfaceClarifications.idFor(conversationKey(event, ctx));
+    // 38 E3: a pending CLARIFY of this conversation is answered through resolve-clarification.
+    if (clarifications.hasPending(id)) {
+      const turn = await clarifications.turn(message, { surface: surfaceFor(ctx), id, originId: originId(event, ctx), timeoutSeconds: 30 });
+      if (turn.state === "needs_clarification") return { handled: true, reply: { text: turn.question } };
+      if (turn.state === "done" || turn.state === "failed") return { handled: true, reply: { text: turn.text } };
+      // Resolved but not deterministic: the agent continues in the same session (question + answer).
+      return { handled: false };
+    }
     const result = await runner(message, {
       surface: surfaceFor(ctx),
       caller: "owner",
@@ -195,6 +274,11 @@ export async function handleOwnerFastPath(
     const text = typeof result.text === "string" ? result.text.trim() : "";
     if ((result.status === "hit" || result.status === "known_error") && text) {
       return { handled: true, reply: { text } };
+    }
+    if (result.status === "clarification" && result.decision) {
+      // Same question on every surface; the answer comes back through resolve-clarification.
+      const question = text || String((result.clarification as any)?.question || "Précise ce que tu veux faire.");
+      if (clarifications.hold(id, message, result.decision, surfaceFor(ctx))) return { handled: true, reply: { text: question } };
     }
     return { handled: false };
   } catch {
