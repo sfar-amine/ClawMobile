@@ -34,6 +34,11 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: WhatsApp survives extended network outages without retry storms
+        run: |
+          python3 ../installer/termux-lite/test-whatsapp-network-recovery.py
+          node ../installer/termux-lite/test-whatsapp-network-recovery.cjs
+
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)
