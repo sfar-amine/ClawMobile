@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; D="$HOME/.openclaw/health"; LOG="$D/health.log"; S="$D/state"; mkdir -p "$D" "$S"; export TMPDIR="$HOME/.cache/tmp"
+ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"; D="$HOME/.openclaw/health"; LOG="$D/health.log"; S="$D/state"; mkdir -p "$D" "$S"; export TMPDIR="$HOME/.cache/tmp"
 PHANTOM_HEADROOM_TARGET=128; PHANTOM_HEADROOM_CHECK_S=60
 exec 9>"$D/health.lock"; flock -n 9 || exit 0
 log(){ python3 "$ROOT/bounded-log.py" "$LOG" --append "$(date -Iseconds) component=health-manager $*"; }
@@ -12,7 +12,7 @@ healthy(){ n="$1"; prev=$(get "$n" status unknown); old=$(get "$n" failures 0); 
 scope(){ if [ "$1" = adb ]; then printf "boot-%s" "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)"; else printf runtime; fi; }
 incident_open(){ "$ROOT/incident-orchestrator.py" open "$1" "$(scope "$1")" --source health-manager --summary "$1 persistent health failure" 2>/dev/null | python -c 'import sys,json; print(json.load(sys.stdin)["id"])'; }
 shadow(){ n="$1"; c="$2"; iid="$3"; nohup "$ROOT/autonomous-engineering-shadow.sh" "$n" "$c" "$iid" 9>&- >>"$D/autonomous-engineering-shadow.stderr.log" 2>&1 </dev/null & }
-fail(){ n="$1"; c=$(( $(get "$n" failures 0)+1 )); [ "$c" -gt 6 ] && c=6; delay=$((15*(1<<(c-1)))); [ "$delay" -gt 900 ] && delay=900; put "$n" failures "$c"; put "$n" status degraded; put "$n" next $(( $(now)+delay )); log "service=$n state=degraded failures=$c retry_in_s=$delay"; if [ "$c" -eq 3 ]; then iid=$(incident_open "$n"); log "service=$n action=incident_opened incident_id=$iid"; "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source health-manager --reason "deterministic recovery exhausted" >/dev/null 2>&1 || true; if "$ROOT/incident-orchestrator.py" handled "$n" 9>&- >/dev/null 2>&1; then shadow "$n" "$c" "$iid"; else log "service=$n action=skip_model_diagnosis reason=no_repair_handler incident_id=$iid"; fi; fi; }
+fail(){ n="$1"; c=$(( $(get "$n" failures 0)+1 )); [ "$c" -gt 6 ] && c=6; delay=$((15*(1<<(c-1)))); [ "$delay" -gt 900 ] && delay=900; put "$n" failures "$c"; put "$n" status degraded; put "$n" next $(( $(now)+delay )); log "service=$n state=degraded failures=$c retry_in_s=$delay"; if [ "$c" -eq 3 ]; then iid=$(incident_open "$n"); log "service=$n action=incident_opened incident_id=$iid"; if "$ROOT/incident-orchestrator.py" handled "$n" 9>&- >/dev/null 2>&1; then "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source health-manager --reason "deterministic recovery exhausted; managed handler available" >/dev/null 2>&1 || true; shadow "$n" "$c" "$iid"; else "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source health-manager --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true; log "service=$n state=awaiting_deterministic_recovery reason=no_repair_handler incident_id=$iid"; fi; fi; }
 due(){ [ "$(now)" -ge "$(get "$1" next 0)" ]; }
 start(){ nohup "$2" 9>&- >>"$D/$1.stderr.log" 2>&1 </dev/null & }
 process_uses_script(){

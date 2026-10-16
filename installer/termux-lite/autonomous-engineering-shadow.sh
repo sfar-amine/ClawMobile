@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
-ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
+ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
 UI="$HOME/.openclaw/workspace/ui-playbooks"
 BASE="$HOME/.openclaw/autonomous-engineering"
 SHADOW="$BASE/shadow"
