@@ -15,6 +15,29 @@ const ids=p=>p.steps.map(s=>s.id+':'+s.state);
 // Capability-first EXECUTE done (Orange balance run of 10/10).
 let p=runProgressSteps(find(r=>r.executionSource==='capability_first'&&r.state==='done'&&r.decision?.type==='EXECUTE'));
 assert.deepEqual(ids(p),['accepted:done','understood:done','execute:done']);assert.equal(p.steps[2].at,T0+6533);assert.equal(p.failedStep,undefined);
+// File 52 E: a real S24 billing receipt, augmented only with the paired Graph
+// contract, publishes business stages instead of agent tool calls.
+const terminalReceipts=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/hs3-terminal-receipts.json'),'utf8'));
+const billingReceipt=terminalReceipts.families.factures.receipt.envelope;
+const billingDecision={...billingReceipt,type:'EXECUTE',selected:{...billingReceipt.selected,execution_contract:{
+  published_steps:['provider_selection','provider_read','verified_aggregation'],
+  published_steps_scope:'business_only_no_agent_tool_calls',
+}}};
+p=runProgressSteps({executionSource:'capability_first',state:'done',acceptedAt:T0,updatedAt:T0+5510,decision:billingDecision});
+assert.deepEqual(ids(p),['accepted:done','understood:done','business-provider_selection:done','business-provider_read:done','business-verified_aggregation:done']);
+assert.deepEqual(p.steps.slice(2).map(s=>s.label),['Sélection des fournisseurs','Lecture des factures','Synthèse vérifiée']);
+assert.ok(!JSON.stringify(p).includes('claw.skill_route'));
+// Unknown or tool-shaped contract entries cannot become public progress labels.
+const unsafeDecision={...billingDecision,selected:{...billingDecision.selected,execution_contract:{
+  published_steps:['provider_selection','agent.tool_call','{"raw":1}'],
+  published_steps_scope:'business_only_no_agent_tool_calls',
+}}};
+p=runProgressSteps({executionSource:'capability_first',state:'running',acceptedAt:T0,decision:unsafeDecision});
+assert.deepEqual(ids(p),['accepted:done','understood:done','business-provider_selection:running']);
+const gatewayBusiness=runProgressSteps({executionSource:'gateway',state:'running',acceptedAt:T0,decision:billingDecision,
+  events:[{type:'tool',label:'claw.skill_route',at:T0+10,seq:1}]});
+assert.deepEqual(ids(gatewayBusiness),['accepted:done','business-provider_selection:running','business-provider_read:pending','business-verified_aggregation:pending']);
+assert.ok(!JSON.stringify(gatewayBusiness).includes('claw.skill_route'));
 // Failed run: failed step visible, raw error never used as cause, effect unknown.
 p=runProgressSteps(find(r=>r.state==='failed'));
 assert.deepEqual(ids(p),['accepted:done','understood:done','execute:failed']);assert.equal(p.failedStep,'Exécution');

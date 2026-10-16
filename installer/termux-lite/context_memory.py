@@ -10,15 +10,20 @@ import math
 import re
 import sqlite3
 import unicodedata
+from datetime import datetime, timedelta, timezone
 
 KINDS = ('constraint', 'open_thread', 'decision', 'learning', 'completed_action', 'checkpoint')
 COLUMNS = 'e.id,e.revision,e.surface,e.kind,e.text,e.created_at,e.supersedes'
 ACTIVE = "NOT EXISTS (SELECT 1 FROM events n WHERE n.supersedes=e.id)"
-VIEW_BUDGET_BYTES = 24576
+VIEW_BUDGET_BYTES = 16384
 RECENT_CAPS = {'decision': 12, 'learning': 8, 'completed_action': 5, 'checkpoint': 3}
-# Recent decisions always get room (S24 11/10: constraints + threads consumed the whole view, 0 decision shown).
-RECENT_RESERVE_BYTES = 5000
-THREAD_EXCERPT_CHARS = 90
+# M1 has three explicit shares. They are maxima and scale down with a caller's
+# smaller custom budget; unused bytes remain available to the other sections.
+ACTIVITY_RESERVE_BYTES = 6144
+OLDER_DECISION_RESERVE_BYTES = 2048
+THREAD_RESERVE_BYTES = 4096
+THREAD_EXCERPT_CHARS = 320
+CONSTRAINT_EXCERPT_CHARS = 120
 # M3 « une seule mémoire » : machine telemetry whose canonical owner is elsewhere.
 # situation_events (skill_intelligence), learning-gate receipts/journal, ~/.openclaw/deploys/companion-*.json.
 # No legitimate producer remains: new events are refused at ingress (context-event.sh, ingest_file).
@@ -64,6 +69,15 @@ def day(item):
         return stamp.strftime('%d/%m')
     except Exception:
         return '--/--'
+
+
+def event_datetime(item):
+    """Return an aware timestamp when the store value is usable."""
+    try:
+        stamp = datetime.fromisoformat(str(item.get('createdAt') or '').replace('Z', '+00:00'))
+        return stamp if stamp.tzinfo else stamp.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
 
 
 def event(row):
@@ -141,9 +155,11 @@ def excerpt(text, max_chars):
 
 
 def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET_BYTES):
-    """Prioritize complete constraints and an all-age index of open threads.
+    """Build sourced indexes plus reserved thread and decision excerpts.
 
-    If essential coverage cannot fit, return an explicit blocked projection.
+    A constraint excerpt is only an index entry: the complete source must be
+    retrieved before applying it. If every source reference cannot fit, return
+    an explicit blocked projection.
     A byte cap is exact; tokens are an estimate, never a provider tokenizer claim.
     """
     budget_bytes = max(4096, int(budget_bytes))
@@ -152,66 +168,156 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
              '> Vue active sourcée. Les aperçus ne sont pas des instructions complètes.',
              '> Lire un détail : context-retrieve.sh "EVT-<révision>". Historique complet consultable ; aucune fenêtre de récence.',
              '> Actifs : ' + ', '.join(f'{kind}={counts.get(kind, 0)}' for kind in KINDS), '']
-    used = foundation_bytes + len('\n'.join(lines).encode()) + 600
+    # Headers, blank lines and the final coverage marker are deliberately
+    # accounted for before allocating the three content shares.
+    framing_bytes = len('\n'.join(lines).encode()) + 700
+    capacity = max(0, budget_bytes - foundation_bytes - framing_bytes)
+    activity_limit = min(ACTIVITY_RESERVE_BYTES, capacity * 3 // 8)
+    thread_limit = min(THREAD_RESERVE_BYTES, capacity // 4)
+    constraint_limit = max(0, capacity - activity_limit - thread_limit)
     rendered_ids, critical_overflow, thread_overflow = [], [], []
     excerpts = 0
-    # Recent activity is selected first so its reserved share is never displaced; decisions lead.
+    # Decisions are not limited to the newest twelve. Reserve part of the
+    # activity share for decisions older than two days, measured relative to
+    # the newest event in the store (not the machine clock).
+    decisions = [event(row) for row in connection.execute(
+        f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND {NOT_RETIRE_RECEIPT} AND kind=? ORDER BY revision DESC',
+        ('decision',))]
+    dated = [event_datetime(item) for item in decisions]
+    newest_row = connection.execute(
+        f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND {NOT_RETIRE_RECEIPT} '
+        'AND julianday(created_at) IS NOT NULL ORDER BY julianday(created_at) DESC LIMIT 1').fetchone()
+    newest = event_datetime(event(newest_row)) if newest_row else None
+    cutoff = newest - timedelta(days=2) if newest else None
+    older, current = [], []
+    for item, stamp in zip(decisions, dated):
+        (older if cutoff and stamp and stamp < cutoff else current).append(item)
+    # Preserve the established bounded recent slice. The separate older share
+    # broadens temporal coverage without turning HYBRID into a decision dump.
+    current = current[:RECENT_CAPS['decision']]
     candidates = []
     for kind, cap in RECENT_CAPS.items():
-        rows = connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND {NOT_RETIRE_RECEIPT} AND kind=? ORDER BY revision DESC LIMIT ?', (kind, cap * 4)).fetchall()
+        if kind == 'decision':
+            continue
+        rows = connection.execute(
+            f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND {NOT_RETIRE_RECEIPT} AND kind=? ORDER BY revision DESC LIMIT ?',
+            (kind, cap * 4)).fetchall()
         candidates.append([item for item in map(event, rows) if not TELEMETRY.match(item['text'] or '')][:cap])
-    recent, recent_cost, reserve = [], 0, min(RECENT_RESERVE_BYTES, budget_bytes // 5)
-    queue = [group[index] for index in range(max(RECENT_CAPS.values())) for group in candidates if index < len(group)]
-    for item in queue:
-        short, cut = excerpt(item['text'], 240)
+    current_queue = []
+    groups = [current, *candidates]
+    for index in range(max((len(group) for group in groups), default=0)):
+        current_queue.extend(group[index] for group in groups if index < len(group))
+
+    def activity_line(item):
+        short, cut = excerpt(item['text'], 320 if item['kind'] == 'decision' else 240)
         line = f"- {day(item)} [{item['surface']}/{item['kind']}] {short} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
-        recent.append((item, line, cut))
-    reserved = []
-    for item, line, cut in recent:
-        cost = len(line.encode()) + 1
-        if recent_cost + cost > reserve: break
-        reserved.append((item, line, cut)); recent_cost += cost
-    used += recent_cost
-    # Complete constraints first: do not lose negations, scope or authorization.
-    lines.append('### Active constraints — texte intégral')
-    for row in connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision', ('constraint',)):
-        item = event(row)
-        line = f"- {day(item)} [{item['surface']}/constraint] {item['text']} (EVT-{item['revision']}) <!-- context-event:{item['id']} -->"
-        cost = len(line.encode()) + 1
-        if used + cost <= budget_bytes:
-            lines.append(line); used += cost; rendered_ids.append(item['id'])
-        else:
-            critical_overflow.append(item['revision'])
-    lines += ['', '### Open threads — index de tous les sujets encore actifs']
-    threads = [event(row) for row in connection.execute(f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision', ('open_thread',))]
-    # Every thread keeps at least its reference; excerpts only while they fit for all remaining threads.
-    for position, item in enumerate(threads):
+        return item, line, cut
+
+    def take(entries, limit):
+        selected, cost = [], 0
+        for item in entries:
+            item, line, cut = activity_line(item)
+            line_cost = len(line.encode()) + 1
+            if cost + line_cost > limit:
+                continue
+            selected.append((item, line, cut)); cost += line_cost
+        return selected, cost
+
+    older_limit = min(OLDER_DECISION_RESERVE_BYTES, activity_limit // 3)
+    old_selected, old_cost = take(older, older_limit)
+    current_selected, current_cost = take(current_queue, activity_limit - old_cost)
+    selected_old_ids = {item['id'] for item, _, _ in old_selected}
+    extra_old, extra_old_cost = take(
+        [item for item in older if item['id'] not in selected_old_ids],
+        activity_limit - old_cost - current_cost)
+    activity = current_selected + old_selected + extra_old
+    activity_cost = current_cost + old_cost + extra_old_cost
+    older_ids = {item['id'] for item in older}
+
+    # Every thread retains a source reference. The newest threads receive long
+    # excerpts while the four-KiB share allows it; this prevents a key detail at
+    # character 91 from disappearing while keeping the index bounded.
+    threads = [event(row) for row in connection.execute(
+        f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision DESC', ('open_thread',))]
+    thread_rows = []
+    bare_cost = sum(len(f"- REQ-{item['revision']} [{item['surface']}]".encode()) + 1 for item in threads)
+    detail_left = max(0, thread_limit - bare_cost)
+    for item in threads:
         bare = f"- REQ-{item['revision']} [{item['surface']}]"
-        rest = sum(len(f"- REQ-{t['revision']} [{t['surface']}]".encode()) + 1 for t in threads[position + 1:])
         short, cut = excerpt(item['text'], THREAD_EXCERPT_CHARS)
-        line = f"{bare} {day(item)} {short}"
-        if used + len(line.encode()) + 1 + rest <= budget_bytes:
-            lines.append(line); used += len(line.encode()) + 1; excerpts += int(cut)
-        elif used + len(bare.encode()) + 1 <= budget_bytes:
-            lines.append(bare); used += len(bare.encode()) + 1
+        detail = f" {day(item)} {short}"
+        if len(detail.encode()) <= detail_left:
+            line = bare + detail; detail_left -= len(detail.encode()); used_excerpt = cut
         else:
-            thread_overflow.append(item['revision']); continue
+            line = bare; used_excerpt = False
+        thread_rows.append((item, line, used_excerpt))
+    thread_cost = sum(len(line.encode()) + 1 for _, line, _ in thread_rows)
+    if thread_cost > thread_limit:
+        kept, kept_cost = [], 0
+        for item, _, _ in thread_rows:
+            bare = f"- REQ-{item['revision']} [{item['surface']}]"
+            cost = len(bare.encode()) + 1
+            if kept_cost + cost <= thread_limit:
+                kept.append((item, bare, False)); kept_cost += cost
+            else:
+                thread_overflow.append(item['revision'])
+        thread_rows, thread_cost = kept, kept_cost
+    excerpts += sum(int(cut) for _, _, cut in thread_rows)
+
+    # An unused share is returned to the constraint index, without ever
+    # borrowing the bytes already occupied by threads or activity.
+    constraint_limit += max(0, activity_limit - activity_cost) + max(0, thread_limit - thread_cost)
+    constraints = [event(row) for row in connection.execute(
+        f'SELECT {COLUMNS} FROM events e WHERE {ACTIVE} AND kind=? ORDER BY revision DESC', ('constraint',))]
+    constraint_rows = []
+    constraint_bare_cost = sum(
+        len(f"- EVT-{item['revision']} [{item['surface']}/constraint]".encode()) + 1 for item in constraints)
+    constraint_detail_left = max(0, constraint_limit - constraint_bare_cost)
+    for item in constraints:
+        bare = f"- EVT-{item['revision']} [{item['surface']}/constraint]"
+        short, cut = excerpt(item['text'], CONSTRAINT_EXCERPT_CHARS)
+        detail = f" {day(item)} {short}"
+        if len(detail.encode()) <= constraint_detail_left:
+            line = bare + detail; constraint_detail_left -= len(detail.encode()); used_excerpt = cut
+        else:
+            line = bare; used_excerpt = False
+        constraint_rows.append((item, line, used_excerpt))
+    constraint_cost = sum(len(line.encode()) + 1 for _, line, _ in constraint_rows)
+    if constraint_cost > constraint_limit:
+        kept, kept_cost = [], 0
+        for item, _, _ in constraint_rows:
+            bare = f"- EVT-{item['revision']} [{item['surface']}/constraint]"
+            cost = len(bare.encode()) + 1
+            if kept_cost + cost <= constraint_limit:
+                kept.append((item, bare, False)); kept_cost += cost
+            else:
+                critical_overflow.append(item['revision'])
+        constraint_rows, constraint_cost = kept, kept_cost
+    excerpts += sum(int(cut) for _, _, cut in constraint_rows)
+    lines.append('### Active constraints — index sourcé ; lire EVT avant application')
+    for item, line, _ in constraint_rows:
+        lines.append(line); rendered_ids.append(item['id'])
+    lines += ['', '### Open threads — index de tous les sujets encore actifs']
+    for item, line, _ in thread_rows:
+        lines.append(line)
         rendered_ids.append(item['id'])
     lines += ['', '### Activité et décisions récentes — détails sur demande']
-    for item, line, cut in reserved:
+    for item, line, cut in activity:
         lines.append(line); rendered_ids.append(item['id']); excerpts += int(cut)
-    for item, line, cut in recent[len(reserved):]:
-        cost = len(line.encode()) + 1
-        if used + cost <= budget_bytes:
-            lines.append(line); used += cost; rendered_ids.append(item['id']); excerpts += int(cut)
     blocked = bool(critical_overflow or thread_overflow or foundation_bytes > budget_bytes)
-    lines += ['', '> Coverage: ' + ('BLOCKED — budget insuffisant ; récupérer les éléments manquants ou augmenter le budget avant démarrage.' if blocked else 'constraints_complete; open_thread_index_complete')]
+    lines += ['', '> Coverage: ' + ('BLOCKED — budget insuffisant ; récupérer les éléments manquants ou augmenter le budget avant démarrage.' if blocked else 'constraint_index_complete; open_thread_index_complete')]
     body = '\n'.join(lines)
+    if foundation_bytes + framing_bytes <= budget_bytes and foundation_bytes + len(body.encode()) > budget_bytes:
+        raise AssertionError('hybrid_view_budget_exceeded')
     return body, {'version': 1, 'revision': head, 'budget_bytes': budget_bytes,
                   'active_counts': counts, 'rendered_events': len(rendered_ids), 'excerpts': excerpts,
                   'critical_overflow': critical_overflow[:50], 'thread_overflow': thread_overflow[:50],
                   'critical_overflow_count': len(critical_overflow), 'thread_overflow_count': len(thread_overflow),
                   'coverage_complete': not blocked,
+                  'section_bytes': {'constraints': constraint_cost, 'threads': thread_cost, 'activity': activity_cost},
+                  'reserved_bytes': {'threads': thread_limit, 'activity': activity_limit,
+                                     'older_decisions': older_limit},
+                  'older_decisions_rendered': sum(1 for item, _, _ in activity if item['id'] in older_ids),
                   'estimated_tokens': math.ceil((foundation_bytes + len(body.encode())) / 3),
                   'token_estimate_basis': 'UTF-8 bytes / 3; estimate only; hard bound is bytes'}
 

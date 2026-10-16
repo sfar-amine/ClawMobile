@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),http=require('node:http');
 (async()=>{
+ const realNow=Date.now;let clock=realNow();Date.now=()=>clock;
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'agent-config-'));process.env.OPENCLAW_STATE_DIR=root;await fs.mkdir(path.join(root,'clawmobile-companion'));const file=path.join(root,'clawmobile-companion/runs.json');await fs.writeFile(file,JSON.stringify({version:1,runs:[],archivedSessionIds:[],paymentRequests:[],ownerConfirmations:[]}));
  let unavailable=0,noDispatch=false,cas=false,readFailures=0,restart=false,authUnavailable=false;
  let config={agents:{entries:{main:{model:{primary:'openai/old',fallbacks:['local/plain','google/gemini-3.5-flash-lite@google:claw-gemini-free']},thinkingDefault:'low',modelPolicy:{allow:['openai/new','local/plain','google/gemini-3.5-flash-lite','qwen/qwen3-max']},skills:['retain'],tools:{allow:['read'],deny:['exec']}},other:{model:'other/unchanged'}}},auth:{private:'fixture-configuration-secret'},plugins:{entries:{openai:{enabled:true},local:{enabled:true},qwen:{enabled:false}}},channels:{untouched:true}},hash='hmac-sha256:'+'Aa0+'.repeat(11)+'xy=',effects=0,uncertain=false;
@@ -19,7 +20,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
  try{
   const detail=await request();assert.equal(detail.body.model,'openai/old');assert.equal(detail.body.thinking,'low');const alias=require('../dist/companion/accountIdentity').accountAlias('google:claw-gemini-free');assert.deepEqual(detail.body.fallbacks,['local/plain','google/gemini-3.5-flash-lite@'+alias],'account profiles leave as opaque handles');assert.deepEqual(detail.body.accounts,[{id:alias,provider:'google',label:'google · compte connecté'}]);assert.ok(!JSON.stringify(detail.body).includes('claw-gemini-free'));assert.deepEqual(detail.body.tools.agent.allow,['read']);assert.equal(detail.body.receipt,null);assert.equal(detail.body.usage.totalTokens,8);assert.ok(!JSON.stringify(detail).includes('fixture-configuration-secret'));
   assert.ok(detail.body.models.every(x=>x.provider!=='qwen'));
-  authUnavailable=true;const unready=await request();assert.deepEqual(unready.body.models,[]);assert.equal(unready.body.writeAvailable,false);authUnavailable=false;
+  authUnavailable=true;clock+=6000;const unready=await request();assert.deepEqual(unready.body.models,[]);assert.equal(unready.body.writeAvailable,false);authUnavailable=false;
   const body={operationId:'set',provider:'openai',model:'new',thinking:'high',revision:hash},owner={'x-clawmobile-owner-flow':'v1'};
   assert.equal((await request('POST',body)).status,403);assert.equal((await request('POST',{...body,raw:'injected'},owner)).status,400);
   const first=await request('POST',body,owner);assert.equal(first.body.state,'completed');assert.equal(effects,1);assert.deepEqual((await request('POST',body,owner)).body,first.body);assert.equal(effects,1);
@@ -42,5 +43,5 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   authUnavailable=true;const blocked=await request('POST',{...body,operationId:'unknown-auth',revision:hash},owner);assert.equal(blocked.status,409);assert.equal(effects,5);authUnavailable=false;
   const stored=JSON.parse(await fs.readFile(file,'utf8'));stored.paymentRequests=[{state:'requires_bank_action'}];await fs.writeFile(file,JSON.stringify(stored));const protectedBefore=await fs.readFile(file,'utf8');assert.equal((await request('POST',{...body,operationId:'bank',revision:hash},owner)).status,409);assert.equal(await fs.readFile(file,'utf8'),protectedBefore);assert.equal(effects,5);
   console.log('R6: redacted config/model/usage projection, exact scoped merge-patch, revisions, owner guard, receipts/replay/conflict, late verified setting and bank refusal without write passed');
- }finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(root,{recursive:true,force:true});}
+ }finally{Date.now=realNow;server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(root,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1});

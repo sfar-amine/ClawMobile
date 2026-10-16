@@ -862,7 +862,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       surface: "claw_live",
       caller: "owner",
       timeoutSeconds: 10,
-    }));
+    }),body?.phoneDateTime);
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
@@ -971,6 +971,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
     // P1 : l'autorité owner vient uniquement de l'admission native signée (plus du loopback).
     const authority = admission.admitted || legacyContext ? "owner" as const : undefined;
+    if((body as any)?.phoneDateTime!==undefined&&!admission.admitted){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required"});return;}
     // Édition-relecture : objet fermé {sessionId, runId}, réservé au propriétaire natif ADMIS (preuve signée ; jamais le drapeau legacy).
     let replayOf:{sessionId:string;runId:string}|undefined;
     if(body?.replayOf!==undefined){
@@ -989,6 +990,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         authority,
         admission: admission.admitted ? admission.ticket : undefined,
         ...((body as any)?.voiceDelegation === true ? {voiceDelegation:true as const} : {}),
+        ...((body as any)?.phoneDateTime !== undefined ? {phoneDateTime:(body as any).phoneDateTime} : {}),
         ...(replayOf?{replayOf}:{}),
       },
     );

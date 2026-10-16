@@ -124,7 +124,8 @@ def runtime_script(name: str) -> Path:
     current = HOME / ".openclaw/releases/current/termux-lite" / name
     if current.exists():
         return current
-    fallback = HOME / "ClawMobile/installer/termux-lite" / name
+    # R10 : repli sur la racine de ce script (release Tier0 ou copie de travail), jamais un chemin en dur.
+    fallback = Path(__file__).resolve().parent / name
     return fallback
 
 
