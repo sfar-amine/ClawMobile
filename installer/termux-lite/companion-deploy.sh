@@ -107,6 +107,12 @@ sync_runtime(){ [ -x "$ROOT/runtime-sync.sh" ] || { echo '{"ok":true,"skipped":"
 
 rollback(){
   reason="$1"; acc="${2:-}"
+  # Undo this compatibility patch before returning to a revision that does not own it.
+  if [ -f "$ROOT/openclaw-compat/whatsapp-network-recovery.py" ] &&
+     ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py" 2>/dev/null; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "whatsapp_patch_rollback_failed"; exit 6; }
+  fi
   git reset -q --hard "$previous" >>"$log" 2>&1 && rm -rf "$PLUGIN/dist" && cp -a "$backup/dist" "$PLUGIN/dist"
   # R03 (doc 52, 1.1): the rollback is judged on identity and availability, not on the full performance
   # acceptance. Under load a slow read or a transient 503 right after the restart wrote rollback_failed and
