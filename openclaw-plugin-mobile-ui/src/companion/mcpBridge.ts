@@ -291,19 +291,20 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
  * preview_resolution (no dialogue state read or written, no effect); its normalized outcome comes from the single
  * status table, alongside the unchanged resolution. The client answers a question with a completed request and a
  * new action_key. */
-export async function dialoguePreview(request: string, runner = runModelFastPath) {
+export async function dialoguePreview(request: string, clientId?: string, runner = runModelFastPath) {
   try {
     const out: any = await runner(request, { surface: "external_mcp", caller: "owner", originId: "mcp-preview",
-      timeoutSeconds: 15, checkOnly: true, dialogue: { mode: "preview" } });
+      timeoutSeconds: 15, checkOnly: true,
+      dialogue: { mode: "preview", ...(clientId ? { event: { conversationKey: clientId } } : {}) } });
     if (out && typeof out.outcome === "string") {
-      return { outcome: out.outcome, reasonCode: out.reasonCode, statusTable: out.statusTable,
+      return { outcome: out.outcome, reasonCode: out.reasonCode, statusTable: out.statusTable, ...(out.text ? { text: out.text } : {}),
         ...(out.question ? { question: out.question } : {}), ...(out.klass ? { klass: out.klass } : {}) };
     }
   } catch {}
   return { outcome: "TECHNICAL_FAILURE", reasonCode: "coordinator_unavailable" };
 }
 
-async function resolveCapability(args: Record<string, unknown>) {
+async function resolveCapability(args: Record<string, unknown>, clientId?: string) {
   const request = requiredString(args.request, "request", 12000);
   const targetHint = optionalString(args.target_hint, "target_hint", 128, /^[A-Za-z0-9._-]+$/);
   const [resolved, dialogue] = await Promise.all([capabilityBridge(request, {
@@ -312,7 +313,7 @@ async function resolveCapability(args: Record<string, unknown>) {
     caller: "owner",
     timeoutSeconds: 20,
     targetHint,
-  }), dialoguePreview(request)]);
+  }), dialoguePreview(request, clientId)]);
   return { ...resolved, dialogue };
 }
 
@@ -330,6 +331,13 @@ async function executeCapability(
   if (requestId !== expectedRequestId) throw new Error("action_request_id_mismatch");
 
   const taskId = actionTaskId(clientId, actionKey);
+  // SAM-MIG V2.2 §12.1: a stateless surface is refused deterministically during maintenance (T-M01); nothing is kept
+  // to resume and the action_key stays the replay protection of its owner.
+  const gate = await dialoguePreview(request, clientId);
+  if (gate.outcome === "MAINTENANCE") {
+    return { state: "refused", request_id: requestId, task_id: taskId, retry_allowed: false, reason: "maintenance",
+      text: (gate as any).text, outcome: "MAINTENANCE" };
+  }
   const method = profile === "chat-owner" ? "mcp_capability_execute_owner" : "mcp_capability_execute_readonly";
   const suppliedDecision = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision)
     ? args.decision as Record<string, unknown>
@@ -583,7 +591,7 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
     case "claw_context":
       return contextBundle(args,clientId);
     case "claw_resolve":
-      return { state: "resolved", result: await resolveCapability(args) };
+      return { state: "resolved", result: await resolveCapability(args, clientId) };
     case "claw_execute":
       return executeCapability(requestId, clientId, profile, args);
     case "claw_exec":

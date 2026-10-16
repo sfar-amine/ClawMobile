@@ -1016,7 +1016,9 @@ def run_dialogue(message: str, *, mode: str, ui_root: Path, surface: str, caller
     except Exception:  # an older pinned playbook or a broken install: fail closed (T-X05)
         return dict(DIALOGUE_UNAVAILABLE)
     if mode == "preview":
-        return coordinator.preview_resolution(message, ports, surface=surface, caller=caller)
+        key = (event or {}).get("conversationKey")
+        return coordinator.preview_resolution(message, ports, surface=surface, caller=caller,
+                                              conversation_key=str(key) if key else None)
     event = {**(event or {}), "text": message, "caller": caller}
     if mode == "turn":
         return coordinator.handle_admitted_event(event, ports, policy=policy or {})

@@ -39,8 +39,8 @@ def load_helper():
 STUB_COORDINATOR = '''
 import json
 CALLS = []
-def preview_resolution(text, ports, *, surface="mcp", caller="owner"):
-    return {"outcome": "READY", "statusTable": "dialogue-status-table-v1", "preview": text, "surface": surface}
+def preview_resolution(text, ports, *, surface="mcp", caller="owner", conversation_key=None):
+    return {"outcome": "READY", "statusTable": "dialogue-status-table-v1", "preview": text, "surface": surface, "key": conversation_key}
 def handle_admitted_event(event, ports, *, policy=None):
     resolved = ports.resolve(event["text"], {"caller": event.get("caller"), "eventKey": "evt-1"})
     return {"outcome": "COMPLETED", "handled": True, "event": event, "policy": policy, "resolved": resolved.get("status"),
@@ -95,8 +95,8 @@ class DialogueWiringTests(unittest.TestCase):
         self.assertTrue(out["hasExecute"] and out["hasStatus"])
         self.assertEqual(out["policy"], {"modelAllowed": True})
         preview = self.mfp.run_dialogue("x", mode="preview", ui_root=self.ui, surface="external_mcp", caller="owner",
-                                        timeout=15)
-        self.assertEqual(preview["outcome"], "READY")
+                                        timeout=15, event={"conversationKey": "claude-chat"})
+        self.assertEqual((preview["outcome"], preview["key"]), ("READY", "claude-chat"))
         abort = self.mfp.run_dialogue("x", mode="abort", ui_root=self.ui, surface="claw_live", caller="owner",
                                       timeout=15, event={}, goal_ref="goal-0123456789abcdef0123")
         self.assertTrue(abort["abort"])

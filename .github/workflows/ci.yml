@@ -329,6 +329,8 @@ jobs:
           python3 ../installer/termux-lite/test-claw-capability-agent-policy.py
       - name: E3 surfaces on the dialogue coordinator (WhatsApp, voice relay, Gemini Live) and INV-01 static removal (SAM-MIG V2.2)
         run: node scripts/test-e3-surfaces.cjs
+      - name: MCP stateless on the dialogue coordinator (claw_resolve preview, maintenance refusal of claw_execute)
+        run: node scripts/test-mcp-dialogue-gate.cjs
       - name: PR template section regression tests
         run: python3 -m unittest discover -s ../tests -p test_pr_template.py
       - name: PR description follows repository template
