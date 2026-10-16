@@ -39,6 +39,8 @@ export type RunCreateRequest = {
   attachments?: IntentAttachment[];
   /** Édition d'un message envoyé : rejoue depuis ce run dans une nouvelle conversation (voir runs.ts prepareReplay). */
   replayOf?: { sessionId?: string; runId?: string };
+  /** Owner-signed fact read by the Android app for deterministic date/time answers. */
+  phoneDateTime?: unknown;
   source?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 };
@@ -140,7 +142,7 @@ export type CompanionRunStatus = {
   sessionKey?: string;
   state: "running" | "done" | "failed" | "unknown";
   status?: string;
-  memoTranscription?: {phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number};
+  memoTranscription?: {phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number; retryAllowed?: boolean};
   message: string;
   result?: string;
   /** F4: structured projection of `result` (summary list only); `result` stays the raw fallback. */

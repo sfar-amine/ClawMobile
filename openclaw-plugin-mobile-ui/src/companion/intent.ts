@@ -11,8 +11,9 @@ import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
 import { turnAdmission, type AdmissionTicket } from "./ownerTurnAdmission";
+import {phoneDateTimeDecision} from "./phoneDateTime";
 
-type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; admission?: AdmissionTicket; voiceDelegation?: true; replayOf?: {sessionId: string; runId: string}};
+type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; admission?: AdmissionTicket; voiceDelegation?: true; replayOf?: {sessionId: string; runId: string};phoneDateTime?:unknown};
 
 function currentMemoOwner(admission: unknown, clientRunId: string | undefined, sessionId: string): boolean {
   try { return require("./ownerTurnAdmission").turnAdmission.isCurrent(admission, {clientRunId, sessionId}) === true; }
@@ -128,6 +129,12 @@ async function submitTextIntent(
   // n'est jamais reprise par un tour admis (aucun texte dérivé d'un tiers sur la connexion admin).
   const ownerAdmitted = currentOwner();
   const caller = ownerAdmitted ? "owner" as const : "other" as const;
+  const phoneAnswer=ownerAdmitted?phoneDateTimeDecision(normalized,options.phoneDateTime):null;
+  if(phoneAnswer){
+    const pending=await findPendingClarificationRun(normalizedSessionId);
+    if(pending&&pending.ownerAdmitted===ownerAdmitted)await markClarificationRun(pending.runId,"abandoned");
+    return executePhoneDateTimeFirst(normalizedSessionId,visibleUserText,attachments,clientRunId,phoneAnswer,options.admission,options.voiceDelegation,ownerAdmitted);
+  }
   let routingText = normalized;
   let parentClarificationRunId: string | undefined;
   let fastPathCheck: FastPathResult = { status: "miss", reason: "attachments_require_model" };
@@ -234,6 +241,26 @@ async function submitTextIntent(
     ...(replay ? {replay: publicReplay(replay)} : {}),
     gatewayRun: includeRawIntent() ? { ...accepted, skillRouting: routed?.routed } : undefined,
   };
+}
+
+async function executePhoneDateTimeFirst(sessionId:string,userText:string,attachments:IntentAttachment[],clientRunId:string|undefined,
+  answer:NonNullable<ReturnType<typeof phoneDateTimeDecision>>,admission?:AdmissionTicket,voiceDelegation?:true,ownerAdmitted=false):Promise<IntentSubmitResponse>{
+  if(!ownerAdmitted||!turnAdmission.isCurrent(admission,{clientRunId,sessionId}))return notSubmitted(sessionId,clientRunId,"owner_admission_expired");
+  let runId=`run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,duplicate=false;
+  if(clientRunId){
+    const reservation=await reserveSubmittedRun(userText,sessionId,clientRunId,{userText,attachments,requestText:userText,
+      executionSource:"capability_first",decision:answer.decision,ownerAdmitted});
+    runId=reservation.status.runId;duplicate=!reservation.created;
+    if(duplicate)return responseFromExisting(reservation.status,userText);
+  }else await rememberSubmittedRun(userText,acceptedRun(runId,sessionId,voiceDelegation),{userText,attachments,
+    executionSource:"capability_first",decision:answer.decision,ownerAdmitted});
+  if(!turnAdmission.isCurrent(admission,{clientRunId,sessionId})){
+    await markSubmittedRunFailed(runId,"owner_admission_expired");return notSubmitted(sessionId,clientRunId,"owner_admission_expired");
+  }
+  const state=answer.state==="done"?"done" as const:"failed" as const,decision=publicDecision(answer.decision);
+  await settleSubmittedRun(runId,state,answer.text,{});
+  return{success:true,accepted:true,submissionState:"accepted",retrySafe:false,duplicate,...(decision?{decision}:{}),
+    runId,clientRunId,sessionId,state,result:answer.text,message:answer.text,userText,canvas:intentCanvas(userText,answer.text),attachments};
 }
 
 async function executeCapabilityFirst(

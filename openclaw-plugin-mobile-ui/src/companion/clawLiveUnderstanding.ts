@@ -6,6 +6,7 @@ import {
 } from "./voiceUnderstanding";
 import { captureVoiceRound, type RoundCaptureResult, type RoundCaptureRunner } from "./voiceRoundLearning";
 import {publicDecision} from "./receiptPresentation";
+import {phoneDateTimeDecision} from "./phoneDateTime";
 
 /**
  * Ephemeral « Compris / Ce n'est pas ça » state of the single Claw Live owner (one voice owner at
@@ -106,11 +107,13 @@ function realignmentReceipt(context: VoiceTurnContext, learning: RoundCaptureRes
 }
 
 /** /claw-live/decision: a listed gesture in the window short-circuits to an evidence-required turn. */
-export async function clawLiveDecision(owner: Owner, request: string, resolve: () => Promise<Record<string, any>>) {
+export async function clawLiveDecision(owner: Owner, request: string, resolve: () => Promise<Record<string, any>>, phoneDateTime?:unknown) {
   if (owner.understanding.gestureTarget(request)) return realignmentDecision();
   owner.understanding.noteTurn(request);
   // « La première » after a realignment must reach the capability route, not a free model answer.
   if (realignmentChoice(request, owner.understanding.pendingAnswer())) return { ...realignmentDecision(), state: "voice_realignment_choice" };
+  const phoneAnswer=phoneDateTimeDecision(request,phoneDateTime);
+  if(phoneAnswer)return{...phoneAnswer,voiceFastPath:{version:1,execute:true}};
   const result = await resolve();
   return {...result, voiceFastPath: {version: 1, execute: deterministicLiveDecision(result)}};
 }
@@ -136,6 +139,9 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
       return realignmentReceipt(target, learning);
     });
   }
+
+  const phoneAnswer=phoneDateTimeDecision(request,body?.phoneDateTime);
+  if(phoneAnswer)return admit(async()=>phoneAnswer);
 
   const stillCurrent = () => { try { deps.assertCurrent?.(); return true; } catch { return false; } };
   const pending = state.pendingAnswer();

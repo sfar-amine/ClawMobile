@@ -14,7 +14,7 @@ class IncidentLoop(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.home=Path(self.tmp.name);self.root=self.home/'runtime';self.root.mkdir()
-        for name in ['incident-orchestrator.py','incident-orchestrator-worker.sh']:
+        for name in ['incident-orchestrator.py','incident-orchestrator-worker.sh','runtime_mode.py']:
             shutil.copy2(ROOT/name,self.root/name)
         self.write('engineering-repair.sh','#!/bin/sh\nexit 1\n')
         self.write('incident-continuation.py','#!/usr/bin/env python3\n')
