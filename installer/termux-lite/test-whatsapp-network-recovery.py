@@ -48,6 +48,20 @@ class PatchTests(unittest.TestCase):
             p=self.cli("--"+mode,"--whatsapp-root",str(self.roots["whatsapp"]))
             self.assertEqual(p.returncode,0,p.stdout+p.stderr)
         self.assertEqual(before,self.snapshot())
+    def test_release_start_follows_deployed_checkout_patch_ownership(self):
+        start=(HERE/"gateway-start.sh").read_text()
+        block=start[start.index('WA_PATCH_SOURCE='):start.index('echo "[lite] Starting')]
+        root=Path(self.tmp.name); release=root/"release"; checkout=root/"checkout"
+        for folder in (release/"openclaw-compat",checkout/"installer/termux-lite/openclaw-compat"): folder.mkdir(parents=True)
+        stub='import sys\nprint(sys.argv[1])\n'
+        relative="installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py"
+        (checkout/relative).write_text(stub); (release/"openclaw-compat/whatsapp-network-recovery.py").write_text(stub)
+        env={**os.environ,"CLAW_CORE_REPO":str(checkout),"SCRIPT_DIR":str(release)}
+        p=subprocess.run(["bash","-c",block],env=env,capture_output=True,text=True)
+        self.assertEqual(p.returncode,0); self.assertIn("--apply",p.stderr)
+        (checkout/relative).unlink()
+        p=subprocess.run(["bash","-c",block],env=env,capture_output=True,text=True)
+        self.assertEqual(p.returncode,0); self.assertIn("--rollback",p.stderr)
     def test_apply_verify_idempotent_and_exact_rollback(self):
         before=self.snapshot()
         self.assertFalse(mod.reconcile(self.roots,"check")["ok"])

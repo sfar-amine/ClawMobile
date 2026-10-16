@@ -12,7 +12,7 @@ The monitor publishes a bounded recoveryRetryAt in its existing status object. T
 
 This is a compatibility patch for the installed OpenClaw and @openclaw/whatsapp **2026.9.6** modules. Original and resulting SHA-256 values are pinned in installer/termux-lite/openclaw-compat/whatsapp-network-recovery.json. The patcher validates all modules before writing, performs atomic per-file replacements, restores preceding writes on ordinary I/O failure, and can resume an interrupted partial patch. Rollback reconstructs the exact original bytes. It never changes ephemeral plugin captures or credentials.
 
-runtime-sync applies the patch and restarts the existing gateway owner when needed. Its read-only check reports drift. gateway-start reapplies the same hash-gated patch before a fresh gateway load. An unsupported version or ambiguous npm generation is refused for patching and reported by runtime-sync; startup remains available with an explicit warning. Upgrades require a reviewed new patch or removal after an upstream fix. No claim of universal future-version compatibility.
+runtime-sync applies the patch and restarts the existing gateway owner when needed. Its read-only check reports drift. gateway-start follows patch ownership in the deployed checkout before a fresh gateway load; an older Tier0 release therefore cannot reapply a patch after rollback. An unsupported version or ambiguous npm generation is refused for patching and reported by runtime-sync; startup remains available with an explicit warning. Upgrades require a reviewed new patch or removal after an upstream fix. No claim of universal future-version compatibility.
 
 The Companion deployment rollback removes this patch before returning to a revision that does not own it. If source bytes cannot be verified, rollback stops with an explicit failure rather than overwriting unknown changes. The standard plugin synchronization and gateway restart then restore the previous loaded code. Manual recovery is also available with the reviewed patcher --rollback, followed by a restart through the Companion owner.
 
@@ -22,7 +22,7 @@ Real installed code was captured read-only from the S24 into openclaw-plugin-mob
 
 Local tests on the S24, isolated from the running installation:
 - 11 JavaScript behavior cases: exhaustion beyond 12, 10,000 repeated failures, jitter bounds, transport classification, auth boundaries, flapping, stable reset, status deadlines, the actual gateway supervisor, existing single-flight and cancellation; all three resulting modules parse.
-- 7 patch transaction/CLI cases: apply/check/idempotence/exact rollback, changed hash, unsupported version, ambiguous package generations, interrupted partial application and injected write failure.
+- 8 patch transaction/CLI/startup cases: apply/check/idempotence/exact rollback, changed hash, unsupported version, ambiguous package generations, interrupted partial application and injected write failure.
 - 10 runtime-sync cases, including patch-only gateway restart, unsupported patch refusal and drift.
 - Gateway preflight (9), WhatsApp stale locks (5), deploy lock (2), channel health and owner-send idempotency contracts; shell syntax and git diff checks.
 

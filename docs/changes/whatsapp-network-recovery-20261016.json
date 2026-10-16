@@ -30,7 +30,7 @@
     {
       "name": "whatsapp-network-recovery",
       "status": "passed",
-      "evidence": "11 behavior cases and 7 patcher cases on real installed S24 code, with fake clocks and sockets; no live send."
+      "evidence": "11 behavior cases and 8 patcher/startup cases on real installed S24 code, with fake clocks and sockets; no live send."
     },
     {
       "name": "runtime-supervision-regression",
