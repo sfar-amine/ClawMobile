@@ -8,7 +8,7 @@ const assert=require("node:assert/strict");
 const fs=require("fs"),os=require("os"),path=require("path"),http=require("http");
 
 const root=fs.mkdtempSync(path.join(os.tmpdir(),"voice-understanding-"));
-process.env.HOME=root;process.env.OPENCLAW_STATE_DIR=path.join(root,"state");
+os.homedir=()=>root;process.env.OPENCLAW_STATE_DIR=path.join(root,"state");
 process.env.CLAW_VOICE_RELAY_CONFIG=path.join(root,"missing-relay.json");
 
 const fx=(name)=>JSON.parse(fs.readFileSync(path.join(__dirname,"..","fixtures","s24-2026-10-11",name),"utf8"));
@@ -149,6 +149,18 @@ test("V2 Claw Live: gesture → realignment (recall, 2–3 shortlist candidates,
   assert.equal(answer.realignment_learning.state,"pending");
 });
 
+test("P1 revocation during accepted voice effect preserves its receipt and skips subsequent learning",async()=>{
+  const o=owner();let captures=0,current=true;
+  const deps={capture:async()=>{captures++;return {state:"pending"}},now:()=>o.st.t,assertCurrent:()=>{if(!current)throw new Error("owner_admission_expired")}};
+  await clawLiveCapability(o,{request:RES.resolutions.r11.text},async()=>fromResolution("r11",{presentation:HS3.topup_fr}),deps);
+  await clawLiveCapability(o,{request:"Non, c'est pas ça"},async()=>{throw new Error("unexpected execute")},deps);
+  captures=0;let release,entered;const gate=new Promise(r=>release=r),started=new Promise(r=>entered=r),receipt=orangeEnvelope();
+  const pending=clawLiveCapability(o,{request:"la première"},async()=>{entered();await gate;return receipt},deps);
+  await started;current=false;release();const result=await pending;
+  assert.equal(captures,0);assert.equal(result.success,receipt.success);assert.deepEqual(result.execution,receipt.execution);
+  assert.deepEqual(result.realignment_learning,{state:"skipped",reason:"owner_admission_expired"});
+});
+
 test("V2 Claw Live: no realignment after 2 minutes or after an intervening turn without capability",async()=>{
   const o=owner();let resolves=0;const deps={capture:async()=>({state:"pending"}),now:()=>o.st.t};
   const text=RES.resolutions.r11.text;
@@ -243,10 +255,18 @@ test("HTTP routes /claw-live/decision and /claw-live/capability carry the impose
   const pb=path.join(root,"playbooks-http","skill_intelligence");fs.mkdirSync(pb,{recursive:true});
   fs.writeFileSync(path.join(pb,"improvement.py"),"import json,sys\njson.loads(sys.stdin.read())\nprint(json.dumps({'receipt_id':'c'*32,'state':'pending','duplicate':False}))\n");
   process.env.CLAW_UI_PLAYBOOKS_ROOT=path.dirname(pb);
+  // Synthetic local enrollment only; S24/Android biometric enrollment is not exercised here.
+  const crypto=require("node:crypto"), admission=require("../dist/companion/ownerTurnAdmission.js");
+  const pair=crypto.generateKeyPairSync("ec",{namedCurve:"prime256v1"}),der=pair.publicKey.export({type:"spki",format:"der"}),keyId=admission.sha256Hex(der);
+  const state=path.join(process.env.OPENCLAW_STATE_DIR,"clawmobile-companion");fs.mkdirSync(state,{recursive:true});
+  fs.writeFileSync(path.join(state,"owner-turn-admission.json"),JSON.stringify({version:1,keyId,publicKey:der.toString("base64"),enrolledAt:Date.now(),epoch:crypto.randomBytes(16).toString("hex"),confirmationId:crypto.randomUUID()}),{mode:0o600});
   const {route}=require("../dist/companion/server.js");
   const server=http.createServer((q,s)=>route(q,s).catch(e=>{s.statusCode=500;s.end(JSON.stringify({message:e.message}))}));
   await new Promise(r=>server.listen(0,"127.0.0.1",r));const base="http://127.0.0.1:"+server.address().port+"/v1/extensions/claw-live";
-  const post=async(p,body)=>{const t0=Date.now();const r=await fetch(base+p,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});return {code:r.status,body:await r.json(),ms:Date.now()-t0};};
+  const post=async(p,input)=>{const t0=Date.now(),sessionId="voice-understanding-http",clientRunId="voice-cap-"+crypto.randomUUID();
+    const body=JSON.stringify(p==="/capability"?{...input,sessionId,clientRunId}:input),headers={"content-type":"application/json"};
+    if(p==="/capability"){const ts=String(Date.now()),nonce=crypto.randomBytes(16).toString("hex");const message=admission.admissionMessage({method:"POST",path:"/v1/extensions/claw-live/capability",bodyHash:admission.sha256Hex(Buffer.from(body)),clientRunId,sessionId,timestamp:ts,nonce,keyId});Object.assign(headers,{"x-samantha-admission":"v1","x-samantha-admission-key":keyId,"x-samantha-admission-ts":ts,"x-samantha-admission-nonce":nonce,"x-samantha-admission-signature":crypto.sign("sha256",Buffer.from(message),pair.privateKey).toString("base64")});}
+    const r=await fetch(base+p,{method:"POST",headers,body});return {code:r.status,body:await r.json(),ms:Date.now()-t0};};
   try{
     const d=await post("/decision",{request:text});assert.equal(d.code,200);
     const c=await post("/capability",{request:text});assert.equal(c.code,200);

@@ -1,0 +1,40 @@
+{
+  "provenance": {
+    "captured_at": "2026-10-11",
+    "device": "S24 (Termux, profil owner)",
+    "captured_by": "Claude via claw_exec (action_key p1adm-20261011-r03), lecture seule",
+    "openclaw": "2026.9.6",
+    "method": "grep/sha256sum sur $PREFIX/lib/node_modules/openclaw/dist ; aucun appel Gateway, aucun secret",
+    "cross_check": "empreintes identiques au paquet npm openclaw@2026.9.6"
+  },
+  "export": {
+    "module": "dist/plugin-sdk/gateway-runtime.js",
+    "reexports_from": "../gateway-rpc-DaUnOpOo.mjs",
+    "name": "callGatewayFromCli"
+  },
+  "files": {
+    "gateway-rpc.runtime-CyijISl5.mjs": "e00990b3e28d73ab",
+    "call-CysZoL4g.mjs": "775a18b8759d650d"
+  },
+  "signature": "callGatewayFromCli(method, opts, params, extra) -> callGatewayFromCliRuntime(method, opts, params, extra)",
+  "runtime_excerpt": [
+    "async function callGatewayFromCliRuntime(method, opts, params, extra) {",
+    "const timeoutMs = extra?.timeoutMs !== void 0 ? extra.timeoutMs : opts.timeout === null ? null : parseTimeoutMsWithFallback(opts.timeout, extra?.defaultTimeoutMs ?? DEFAULT_GATEWAY_RPC_TIMEOUT_MS, { invalidType: \"error\" });",
+    "expectFinal: extra?.expectFinal ?? Boolean(opts.expectFinal),",
+    "scopes: extra?.scopes,",
+    "signal: extra?.signal,",
+    "timeoutMs,",
+    "clientName: extra?.clientName ?? GATEWAY_CLIENT_NAMES.CLI,",
+    "mode: extra?.mode ?? GATEWAY_CLIENT_MODES.CLI"
+  ],
+  "call_excerpt": [
+    "async function callGatewayCli(opts) {",
+    "assertGatewayCliMessageContext(opts.method, opts.params);",
+    "if (Array.isArray(opts.scopes)) return await callGatewayWithScopes(opts, opts.scopes);",
+    "const scopes = isGatewayMethodClassified(opts.method) ? resolveLeastPrivilegeOperatorScopesForMethod(opts.method, opts.params) : CLI_DEFAULT_OPERATOR_SCOPES;"
+  ],
+  "enrollment_state": {
+    "owner-confirmation-public.pem": "present, -rw-------",
+    "owner-turn-admission.json": "absent (aucun enrôlement)"
+  }
+}

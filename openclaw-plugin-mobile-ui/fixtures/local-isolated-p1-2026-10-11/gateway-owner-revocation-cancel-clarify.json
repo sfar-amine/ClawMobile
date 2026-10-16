@@ -1,0 +1,291 @@
+{
+  "version": "2026.9.6",
+  "loopbackOnly": true,
+  "environmentAllowlist": [
+    "PATH",
+    "LANG",
+    "NODE_DISABLE_COMPILE_CACHE",
+    "OPENCLAW_SKIP_CHANNELS",
+    "OPENCLAW_DISABLE_BONJOUR",
+    "OPENCLAW_STATE_DIR",
+    "OPENCLAW_CONFIG_PATH",
+    "OPENCLAW_HOME",
+    "OPENCLAW_PROFILE",
+    "B46_PROBE_EVENTS",
+    "NODE_OPTIONS"
+  ],
+  "tokenGeneratedForTest": true,
+  "s24Access": false,
+  "externalProviderCalls": 0,
+  "checks": [
+    "cancellation_closes_invocation_before_effect",
+    "real_gateway_owner_vs_nonowner",
+    "revocation_after_gateway_acceptance_finishes_original_turn",
+    "following_revocation_nonowner",
+    "clarify_http_signed_owner_does_not_resolve_nonowner"
+  ],
+  "gatewayPort": 41059,
+  "providerPort": 44675,
+  "globalFetchAndHttpsBlocked": true,
+  "providerRequestMetadata": [
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "toolResultIds": [
+        "isolatedprobe"
+      ]
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "toolResultIds": [
+        "isolatedprobe"
+      ]
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "toolResultIds": [
+        "isolatedprobe"
+      ]
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "toolResultIds": [
+        "isolatedprobe"
+      ]
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "toolResultIds": [
+        "isolatedprobe"
+      ]
+    }
+  ],
+  "transport": [
+    {
+      "case": "owner",
+      "transport": "admin_admitted",
+      "runId": "isolated-run-owner"
+    },
+    {
+      "case": "nonowner",
+      "transport": "write_cli",
+      "runId": "isolated-run-nonowner"
+    },
+    {
+      "case": "revoked_after_acceptance",
+      "transport": "admin_admitted",
+      "runId": "isolated-run-revoke"
+    },
+    {
+      "case": "following_revocation",
+      "transport": "write_cli",
+      "runId": "isolated-run-after-revoke"
+    },
+    {
+      "case": "cancel",
+      "transport": "admin_admitted",
+      "aborted": true
+    },
+    {
+      "case": "clarify_nonowner_not_resolved_by_owner",
+      "ownerAdmission": true,
+      "parentState": "abandoned",
+      "resolveCalls": 0,
+      "runId": "run_1791731193070_093ec6c2"
+    }
+  ],
+  "status": "passed",
+  "pending": [],
+  "hostEvents": [
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-owner",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "effect",
+      "sessionKey": "agent:main:companion-chat-p1-owner",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-nonowner",
+      "owner": false,
+      "guardAvailable": true
+    },
+    {
+      "phase": "effect",
+      "sessionKey": "agent:main:companion-chat-p1-nonowner",
+      "owner": false,
+      "guardAvailable": true
+    },
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-revoke",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-after-revoke",
+      "owner": false,
+      "guardAvailable": true
+    },
+    {
+      "phase": "effect",
+      "sessionKey": "agent:main:companion-chat-p1-after-revoke",
+      "owner": false,
+      "guardAvailable": true
+    },
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-cancel",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-clarify",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "effect",
+      "sessionKey": "agent:main:companion-chat-p1-clarify",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "effect",
+      "sessionKey": "agent:main:companion-chat-p1-revoke",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "cancelled",
+      "sessionKey": "agent:main:companion-chat-p1-cancel",
+      "owner": true,
+      "guardAvailable": true
+    }
+  ],
+  "tokenDestroyed": true,
+  "disposableFilesDestroyed": true,
+  "provenance": {
+    "kind": "local_disposable_gateway_test",
+    "isS24Capture": false,
+    "isAndroidBiometricRecipe": false,
+    "coreCompiledSource": "2810820472c1a2274c0628c3139ba038672e31d3",
+    "scripts": {
+      "gateway-proof.cjs": "9f04b355af5e8237854e83a97bcaf530cb8cbc9f6e5dc287a32c64b302a0138c",
+      "clarify-proof.cjs": "a3a66a796ecffc8cc5918df58753255424259529fd5748e86dd441d6f9b152c2"
+    },
+    "originalProofSha256": "cf05260434389cfa5f3d993fe4f847790628c94bb60c7e9a82589e1dea684f08"
+  },
+  "limitations": [
+    "Companion revocation after Gateway ACK does not invalidate the accepted host invocation.",
+    "Before-ACK SDK bootstrap/handshake admission revalidation is not qualified.",
+    "Cancellation is a public SDK admin operation in this isolated test; no app run-cancellation endpoint is qualified.",
+    "Global fetch/https hooks do not constitute a network air gap: SDK public metadata refresh was attempted; all model requests use the local synthetic provider."
+  ]
+}

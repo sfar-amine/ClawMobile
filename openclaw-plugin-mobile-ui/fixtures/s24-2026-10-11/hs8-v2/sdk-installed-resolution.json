@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "verdict": "OK_SANS_NODE_PATH",
+  "summary": "Le résolveur de core #138 (9973391b) charge les trois exports SDK depuis le contexte du Companion installé SANS NODE_PATH, par sa branche `npm root -g`. Avec NODE_PATH=$PREFIX/lib/node_modules, il passe par la branche locale (require) et charge le même paquet. #138 n'est PAS déployé sur le S24.",
+  "provenance": {
+    "capturedAt": "2026-10-11",
+    "method": "Code compilé (tsc, CommonJS ES2020, tsconfig du paquet) de memoSttOwner.ts, memoSttBoundary.ts et attachmentStorage.ts pris à 9973391b, copié dans ~/.cache/tmp (supprimé ensuite). Exécuté avec le binaire, le cwd et l'environnement exacts du process Companion (/proc/<pid>/cmdline, cwd, environ via `env -i`). resolveMemoSdkEntries appelé avec createRequire(dist/companion/server.js).resolve et ses paths, donc la résolution du module Companion, et installedMemoSdkRoot réel.",
+    "core138": {
+      "headSha": "9973391bd08b8ccaa8161ce09da6eb76ca2fca66",
+      "sourceSha256": {
+        "memoSttOwner.ts": "de97ac2eff2e643dc9b0dd76a2a12cf69d6d75b3a8a840beb2c524b3289c0788",
+        "memoSttBoundary.ts": "2b15c071f9ed4c253f79ba85905d0cba15b297d496448e51472397cf587fe9e9",
+        "attachmentStorage.ts": "b3512fd43c2f25dc4bab69d9083c8a6fdc489421934a07f656dbbf7090b920d3"
+      },
+      "transfer": "branche temporaire claude/hs8v2-transfer-20261011, SHA256 des archives vérifiés identiques sur le S24"
+    },
+    "request_ids": [
+      "mcp-claude-chat-hs8v2-probe-env-01-execute",
+      "mcp-claude-chat-hs8v2-probe-deploy-01-execute",
+      "mcp-claude-chat-hs8v2-sdk-plain-01-execute",
+      "mcp-claude-chat-hs8v2-sdk-full-01-execute"
+    ]
+  },
+  "installedCompanion": {
+    "entry": "~/ClawMobile/openclaw-plugin-mobile-ui/dist/companion/server.js",
+    "launcher": "glibc ld-linux-aarch64 + ~/.openclaw-android/node/bin/node.real",
+    "node": "v24.21.0",
+    "runtimeCheckout": { "branch": "runtime/samantha-companion-private", "head": "5631fe9d6fbe9972d4fbb744bf48a2b521af0f50" },
+    "core138Deployed": false,
+    "core138Evidence": "9973391b absent du dépôt S24 (git cat-file : objet inconnu, non ancêtre de HEAD) ; aucun dist/companion/memoSttOwner.js ; aucune occurrence de installedMemoSdkRoot, isM4aContainer ou claw-gemini-free dans dist/companion/*.js.",
+    "envVariableNames": ["ANDROID_ART_ROOT","ANDROID_DATA","ANDROID_I18N_ROOT","ANDROID_ROOT","ANDROID_SERIAL","ANDROID_TZDATA_ROOT","ANDROID__BUILD_VERSION_SDK","BOOTCLASSPATH","CLAWDHUB_WORKDIR","CLAWMOBILE_COMPANION_HOST","CLAWMOBILE_COMPANION_PORT","CLAWMOBILE_GATEWAY_HOST","CLAWMOBILE_GATEWAY_PORT","CLAWMOBILE_RUNTIME_START_ARGS","CLAWMOBILE_RUNTIME_START_COMMAND","CLAW_MOBILE_TERMUX_BIN","CLAW_RUNTIME_ROOT","CLAW_UI_PLAYBOOKS_ROOT","COLORTERM","CONTAINER","CPATH","DEX2OATBOOTCLASSPATH","DROIDRUN_SERIAL","EXTERNAL_STORAGE","HOME","LANG","NODE_OPTIONS","NPM_CONFIG_REGISTRY","OA_GLIBC","OLDPWD","OPENCLAW_STATE_DIR","OPENCLAW_WORKSPACE","PATH","PREFIX","PWD","SAMANTHA_CONTROL_CACHE","SHLVL","TEMP","TERM","TERMUX_API_VERSION","TERMUX_APK_RELEASE","TERMUX_APP_PID","TERMUX_APP__DATA_DIR","TERMUX_APP__LEGACY_DATA_DIR","TERMUX_APP__SE_FILE_CONTEXT","TERMUX_APP__SE_INFO","TERMUX_IS_DEBUGGABLE_BUILD","TERMUX_VERSION","TERMUX__HOME","TERMUX__PREFIX","TERMUX__ROOTFS_DIR","TERMUX__SE_PROCESS_CONTEXT","TMP","TMPDIR","_OA_WRAPPER_PATH"],
+    "NODE_PATH": null,
+    "googleKeyEnvNamesMatchingCore138Regex": []
+  },
+  "openclawPackage": { "name": "openclaw", "version": "2026.9.6", "gitHead": null, "root": "$PREFIX/lib/node_modules/openclaw", "versionAcceptedByCore138": true },
+  "runs": [
+    {
+      "id": "without_node_path",
+      "nodePathSet": false,
+      "companionRequireResolve": {
+        "openclaw/plugin-sdk/media-understanding-runtime": "MODULE_NOT_FOUND",
+        "openclaw/plugin-sdk/config-runtime": "MODULE_NOT_FOUND",
+        "openclaw/plugin-sdk/agent-runtime": "MODULE_NOT_FOUND"
+      },
+      "resolveMemoSdkEntries": { "ok": true, "branch": "npm_root_g", "ms": [346, 187] },
+      "entries": [
+        "$PREFIX/lib/node_modules/openclaw/dist/plugin-sdk/media-understanding-runtime.js",
+        "$PREFIX/lib/node_modules/openclaw/dist/plugin-sdk/config-runtime.js",
+        "$PREFIX/lib/node_modules/openclaw/dist/plugin-sdk/agent-runtime.js"
+      ],
+      "loadMemoMediaOwner": { "ok": true, "coldImportMs": [3613, 2841] },
+      "exports": { "runMediaUnderstandingFile": true, "loadConfig": true, "resolveApiKeyForProvider": true }
+    },
+    {
+      "id": "with_node_path",
+      "nodePathSet": true,
+      "nodePath": "$PREFIX/lib/node_modules",
+      "companionRequireResolve": {
+        "openclaw/plugin-sdk/media-understanding-runtime": "$PREFIX/lib/node_modules/openclaw/dist/plugin-sdk/media-understanding-runtime.js",
+        "openclaw/plugin-sdk/config-runtime": "$PREFIX/lib/node_modules/openclaw/dist/plugin-sdk/config-runtime.js",
+        "openclaw/plugin-sdk/agent-runtime": "$PREFIX/lib/node_modules/openclaw/dist/plugin-sdk/agent-runtime.js"
+      },
+      "resolveMemoSdkEntries": { "ok": true, "branch": "local_require", "ms": 4 },
+      "loadMemoMediaOwner": { "ok": true, "coldImportMs": 2675 },
+      "exports": { "runMediaUnderstandingFile": true, "loadConfig": true, "resolveApiKeyForProvider": true }
+    }
+  ],
+  "notes": [
+    "NODE_PATH n'est pas nécessaire pour 9973391b : la branche npm root -g suffit. Il économise environ 0,2 à 0,35 s de résolution (sous-processus npm) ; l'import à froid reste de 2,7 à 3,6 s.",
+    "Le paquet openclaw n'expose ni gitHead ni commit : la version 2026.9.6 est la seule preuve d'identité du SDK. 9973391b est le commit de core #138 (code Companion), pas un commit du SDK."
+  ]
+}

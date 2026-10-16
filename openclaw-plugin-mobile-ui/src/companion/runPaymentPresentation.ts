@@ -10,9 +10,9 @@
  */
 import type {PaymentRecord} from "./paymentTypes";
 import type {ConfirmationRecord} from "./confirmationCore";
-import type {ReceiptPresentation,ReceiptSlots} from "./receiptPresentation";
+import {publicInitialPaymentFailure,publicPaymentHandoff,type ReceiptPresentation,type ReceiptSlots} from "./receiptPresentation";
 
-type RunLike = {runId: string; clientRunId?: string; decision?: Record<string, unknown>; presentation?: ReceiptPresentation};
+type RunLike = {state?: string; updatedAt?: number; runId: string; clientRunId?: string; decision?: Record<string, unknown>; presentation?: ReceiptPresentation};
 
 const ID = /^[a-z][a-z0-9_.-]{0,159}$/;
 const LINK_ID = /^[A-Za-z0-9._:-]{1,160}$/;
@@ -141,7 +141,22 @@ function lastStage(payment: PaymentRecord | undefined): string {
   return "unknown";
 }
 
-export type RunPaymentOutcome = {state: string; reasonCode: string | null; stepId: string};
+export type RunPaymentOutcome = import("./receiptPresentation").PaymentOutcome;
+
+// Use the FIRST owner execution_error; never a later grouped transition or retry error.
+function initialFailure(payment:PaymentRecord|undefined){
+ const trace=payment?.trace;if(!Array.isArray(trace)||trace.length>160)return undefined;
+ const first=trace.find(event=>event?.stage==='execution_error');if(!first)return undefined;
+ const at=Number.isSafeInteger(first.at)&&first.at>0?first.at:null;
+ // Both candidates belong to this same first event; never inspect a subsequent error.
+ return publicInitialPaymentFailure({stepId:'execution_error',reasonCode:first.reasonDetail,at})
+   ?? publicInitialPaymentFailure({stepId:'execution_error',reasonCode:first.reasonCode,at});
+}
+function handoff(run:RunLike,payment:PaymentRecord|undefined){
+ return publicPaymentHandoff({runState:run.state,runUpdatedAt:run.updatedAt,paymentCreatedAt:payment?.createdAt,
+   runUpdatedBeforePaymentCreated:typeof run.updatedAt==='number'&&typeof payment?.createdAt==='number'&&run.updatedAt<payment.createdAt});
+}
+
 
 /**
  * Presentation of a run whose decision handed off to a payment request. The stored presentation keeps its
@@ -178,13 +193,13 @@ export function projectRunPayment(run: RunLike, payments: PaymentRecord[], confi
   const confirmed = effective === "confirmed";
   const spoken = failed ? t.failed : confirmed ? t.confirmed : effective === "executing" ? t.executing
     : effective === "requires_bank_action" ? t.bank : effective === "awaiting_owner" ? t.waiting : t.spoken;
-  const stepId = lastStage(payment);
+  const stepId = lastStage(payment), firstFailure=initialFailure(payment), runHandoff=handoff(run,payment);
   const out: ReceiptPresentation = {version: 1, locale, status: failed ? "error" : "info", label,
     title: failed ? t.failedTitle : confirmed ? t.confirmedTitle : t.title, rows: [], spoken,
     primary: {label: stored?.primary?.label || (locale === "fr" ? "Terminer" : "Done"), action: "done"},
     effect: {debited: "unknown", source: "receipt"}, meta: {capability},
     understood: {capability, label, slots, text: t.understood + parts.join(" · ")},
-    alternatives: [], payment: {state: effective, reasonCode, stepId}};
+    alternatives: [], payment: {state: effective, reasonCode, stepId,...(firstFailure?{initialFailure:firstFailure}:{}),...(runHandoff?{handoff:runHandoff}:{})}};
   if (failed) {
     // blocked = the payment owner proves nothing was submitted (paymentCore applyResult); no record = no dispatch.
     const notSubmitted = !payment || effective === "blocked" && reasonCode === "payment_not_submitted" ||

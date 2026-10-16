@@ -21,7 +21,7 @@ import {automationDetail,changeAutomation} from "./automations";
 import {editAutomation} from "./automationEditValidation";
 import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
 import {notificationSources} from "./notificationSources";
-import {allowlistRead,allowlistChange,allowlistBody} from "./whatsappAllowlist";
+import {allowlistRead,allowlistChange,allowlistBody,allowlistReasons} from "./whatsappAllowlist";
 import { handleControl } from "./control";
 import {accountGuardedRoute,redactAccountIdentifiers} from "./accountIdentity";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
@@ -38,6 +38,8 @@ import { submitIntent } from "./intent";
 import {securitySurfaces} from "./securitySurfaces";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
+import { turnAdmission, legacyLoopbackOwnerContextEnabled, publicAdmission } from "./ownerTurnAdmission";
+import {normalizeCompanionSessionId} from "./openclawAgentClient";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
@@ -528,7 +530,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       }
       writeJson(res,match||!suffix||suffix==='/history'?405:404,{success:false,state:match||!suffix||suffix==='/history'?'refused':'not_found',receipt:null});
     }catch(error:any){
-      const reason=error?.message;const known=['owner_contact_protected','country_code_required','invalid_e164','confirmation_required','confirmation_mismatch','confirmation_expired','invalid_scope','invalid_duration','note_too_long','unknown_contact','operation_conflict'].includes(reason);
+      const reason=error?.message;const known=allowlistReasons.has(reason);
       const code=error?.statusCode===413?400:[400,403,404,409,503].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,...(known?{reason}:code===503?{error:'allowlist_unavailable'}:{})});
     }
@@ -677,6 +679,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/confirmations",
         "/v1/confirmations/:requestId/challenge",
         "/v1/confirmations/:requestId/owner-confirmation",
+        "/v1/owner-admission",
+        "/v1/owner-admission/enrollment",
         "/v1/payments",
         "/v1/payments/local-intents",
         "/v1/payments/local-start",
@@ -858,48 +862,122 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       surface: "claw_live",
       caller: "owner",
       timeoutSeconds: 10,
-    }));
+    }),body?.phoneDateTime);
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
   }
 
   if (method === "POST" && routePath === "/claw-live/capability") {
-    const body = await readJsonBody<any>(req);
-    // Shared understanding wraps the canonical clarification owner; warm admission happens once.
+    const raw = await readRawBody(req, MAX_BODY_BYTES);
+    let body: any;
+    try { body = JSON.parse(raw.toString("utf8")); }
+    catch { throw new HttpError(400, "Request body must be valid JSON."); }
+    const admission = isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"]
+      ? turnAdmission.verifyRequest({method, path: requestUrl.pathname + requestUrl.search, headers: req.headers,
+          rawBody: raw, clientRunId: body?.clientRunId, sessionId: body?.sessionId})
+      : {admitted: false as const, reason: "no_proof" as const};
+    if (!admission.admitted) {
+      writeJson(res,403,{success:false,error:"owner_admission_required",ownerAdmission:publicAdmission(admission)});
+      return;
+    }
+    const sessionId = normalizeCompanionSessionId(String(body?.sessionId || "default"));
+    const binding = {clientRunId: body.clientRunId, sessionId};
+    const assertCurrent = () => {
+      if (!turnAdmission.isCurrent(admission.ticket, binding)) throw new HttpError(403,"owner_admission_required");
+    };
+    assertCurrent();
+    const clarificationId = SurfaceClarifications.idFor("claw-live:" + sessionId);
+    if (body.clarificationId !== undefined && body.clarificationId !== clarificationId) {
+      writeJson(res,400,{success:false,error:"clarification_session_mismatch"}); return;
+    }
+    // The same ephemeral ticket guards resolution, prepared execution and the final bridge.
+    // A stored clarification never grants admission to a following request.
     const execute = (request: string) => clawLiveCapabilityTurn(
-      {
-        request,
-        clarificationId: typeof body?.clarificationId === "string" ? body.clarificationId
-          : body?.voiceTurn?.sessionEpoch !== undefined ? SurfaceClarifications.idFor("claw-live:" + String(body.voiceTurn.sessionEpoch)) : undefined,
-        originId: body?.voiceTurn?.turnId ? "claw-live-" + String(body.voiceTurn.turnId) : undefined,
+      {request, clarificationId, originId: body.clientRunId, assertCurrent},
+      (text) => {
+        assertCurrent();
+        return capabilityBridge(text, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35});
       },
-      (text) => capabilityBridge(text, { execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35 }),
     );
-    const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute);
-
+    const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute, {assertCurrent});
     res.setHeader("Cache-Control", "no-store");
-    writeJson(res, result.success === false ? 400 : 200, result);
+    writeJson(res, result.success === false ? 400 : 200, {...result,ownerAdmission:publicAdmission(admission)});
     return;
   }
 
+  if (routePath === "/owner-admission" || routePath === "/owner-admission/enrollment") {
+    // P1 : admission native. Jamais depuis un navigateur ; l'en-tête constant ne suffit à aucune autorité.
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"]) {
+      writeJson(res,403,{success:false,state:"refused",error:"native_loopback_required"}); return;
+    }
+    res.setHeader("Cache-Control","no-store");
+    if (requestUrl.search) {writeJson(res,400,{success:false,state:"refused",error:"unsupported_parameter"}); return;}
+    try {
+      if (method === "GET" && routePath === "/owner-admission") {writeJson(res,200,turnAdmission.status(req.headers["x-samantha-admission-key"])); return;}
+      if (routePath !== "/owner-admission/enrollment" || req.headers["x-clawmobile-owner-flow"] !== "v1") {
+        writeJson(res, routePath === "/owner-admission/enrollment" ? 403 : 405, {success:false,state:"refused",error:"native_owner_flow_required"}); return;
+      }
+      if (method === "POST") {
+        // L'enrôlement exige la confirmation biométrique consommée et la possession de la clé.
+        writeJson(res,200,{success:true,...await turnAdmission.enroll(await readJsonBody(req,4096))}); return;
+      }
+      if (method === "DELETE") {
+        // Révocation par l'app : signée par la clé enrôlée. Révocation opérateur : supprimer le fichier d'enrôlement.
+        const raw = await readRawBody(req, 1024);
+        let body: any; try { body = JSON.parse(raw.toString("utf8") || "{}"); } catch { throw new HttpError(400,"invalid_revocation_request"); }
+        const proof = turnAdmission.verifyRequest({method, path: requestUrl.pathname, headers: req.headers, rawBody: raw,
+          clientRunId: body?.operationId, sessionId: "owner-admission"});
+        if (!proof.admitted) {writeJson(res,403,{success:false,state:"refused",error:"admission_proof_required"}); return;}
+        writeJson(res,200,{success:true,...turnAdmission.revoke()}); return;
+      }
+      writeJson(res,405,{success:false,state:"refused",error:"method_not_allowed"}); return;
+    } catch (error: any) {
+      const status = [400,403,404,409].includes(error?.statusCode) ? error.statusCode : 503;
+      const code = typeof error?.message === "string" && /^[a-z_]{3,64}$/.test(error.message) ? error.message : "owner_admission_unavailable";
+      writeJson(res,status,{success:false,state:"refused",error:status===503?"owner_admission_unavailable":code}); return;
+    }
+  }
+
   if (method === "POST" && routePath === "/runs") {
-    const body = await readJsonBody<RunCreateRequest>(req);
+    const rawRunBody = await readRawBody(req, MAX_BODY_BYTES);
+    let body: RunCreateRequest;
+    try { body = (rawRunBody.toString("utf8").trim() ? JSON.parse(rawRunBody.toString("utf8")) : {}) as RunCreateRequest; }
+    catch { throw new HttpError(400, "Request body must be valid JSON."); }
+    // P1 : owner uniquement sur preuve native signée (clé Keystore enrôlée), liée au corps exact et au tour.
+    // Le loopback seul ne donne plus d'autorité ; le drapeau de compatibilité (OFF) ne rend que le contexte canonique.
+    const admission = isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"]
+      ? turnAdmission.verifyRequest({method, path: requestUrl.pathname + requestUrl.search, headers: req.headers, rawBody: rawRunBody,
+          clientRunId: body?.clientRunId, sessionId: body?.sessionId})
+      : {admitted: false as const, reason: "no_proof" as const};
+    if (admission.admitted === false && admission.reason !== "no_proof") console.log(`[companion] P1 admission refusée : ${admission.reason}`);
+    if ((body as any)?.voiceDelegation !== undefined) {
+      if ((body as any).voiceDelegation !== true || (body as any).agentId !== undefined || body?.replayOf !== undefined || body?.attachments !== undefined) {
+        writeJson(res,400,{success:false,accepted:false,submissionState:"not_submitted",message:"voice_delegation_invalid"});return;
+      }
+      if (!admission.admitted) {
+        writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required",ownerAdmission:publicAdmission(admission)});return;
+      }
+    }
+    const legacyContext = !admission.admitted && legacyLoopbackOwnerContextEnabled() &&
+      isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"];
     try{if(body?.attachments){
      if(!Array.isArray(body.attachments)||body.attachments.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
-     body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
+     body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':file.mime.startsWith('audio/')?'audio':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,...(file.mime==="audio/mp4"?{createdAt:file.createdAt,expiresAt:file.expiresAt}:{}),displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
      if(body.attachments.reduce((sum:number,x:any)=>sum+x.sizeBytes,0)>25*1024*1024)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
     }
     }catch(e:any){const status=[400,404,413].includes(e?.statusCode)?e.statusCode:503;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":status===413?"attachment_share_limit":"invalid_attachment_request"});return;}
     const instruction = String(body?.instruction || body?.text || "");
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
-    const authority=isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner" as const:undefined;
-    // Édition-relecture : objet fermé {sessionId, runId}, réservé au propriétaire natif.
+    // P1 : l'autorité owner vient uniquement de l'admission native signée (plus du loopback).
+    const authority = admission.admitted || legacyContext ? "owner" as const : undefined;
+    if((body as any)?.phoneDateTime!==undefined&&!admission.admitted){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required"});return;}
+    // Édition-relecture : objet fermé {sessionId, runId}, réservé au propriétaire natif ADMIS (preuve signée ; jamais le drapeau legacy).
     let replayOf:{sessionId:string;runId:string}|undefined;
     if(body?.replayOf!==undefined){
       const r:any=body.replayOf;
       if(!r||typeof r!=="object"||Array.isArray(r)||Object.keys(r).sort().join(",")!=="runId,sessionId"||typeof r.sessionId!=="string"||typeof r.runId!=="string"){writeJson(res,400,{success:false,accepted:false,submissionState:"not_submitted",message:"replay_invalid"});return;}
-      if(!authority){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required"});return;}
+      if(!admission.admitted){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required",ownerAdmission:publicAdmission(admission)});return;}
       replayOf={sessionId:r.sessionId,runId:r.runId};
     }
     const result = await submitIntent(
@@ -910,11 +988,14 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         userText: displayText,
         clientRunId: body?.clientRunId,
         authority,
+        admission: admission.admitted ? admission.ticket : undefined,
+        ...((body as any)?.voiceDelegation === true ? {voiceDelegation:true as const} : {}),
+        ...((body as any)?.phoneDateTime !== undefined ? {phoneDateTime:(body as any).phoneDateTime} : {}),
         ...(replayOf?{replayOf}:{}),
       },
     );
     const statusCode = replayRefusalStatusCode(result) ?? runSubmissionStatusCode(result);
-    writeJson(res, statusCode, result);
+    writeJson(res, statusCode, {...result, ownerAdmission: publicAdmission(admission)});
     return;
   }
 

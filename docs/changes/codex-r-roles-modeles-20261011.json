@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "id": "codex-r-roles-modeles-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Prepare read-only usage roles and canonical effective model policy",
+  "reason": "Prepared owner projection qualified locally on real cleaned PR170 source paths; no policy widening. Targeted Node20 build and role/model-owner/provider/metadata contracts passed. Full exact-head CI follows this note commit; live activation remains Claude.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-r-roles-modeles-20261011.json",
+    "docs/changes/codex-r-roles-modeles-20261011.md",
+    "docs/work/samantha-runtime/contracts/r-recette-roles.md",
+    "openclaw-plugin-mobile-ui/scripts/test-model-roles.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+    "openclaw-plugin-mobile-ui/src/companion/conversationMetadata.ts",
+    "openclaw-plugin-mobile-ui/src/companion/modelOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/providers.ts",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/lot-r/agent-config-selector-gemini.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/lot-r/providers.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/lot-r/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/lot-r/models.authStatus.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/lot-r/config-models-projection.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/lot-r/models.list.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/lot-r/immune-verdict.json",
+    "openclaw-plugin-mobile-ui/scripts/test-model-owner.cjs"
+  ],
+  "tests": [
+    {
+      "name": "complete_local_ci",
+      "status": "pending",
+      "evidence": "Not executed on this preparation head; no passing count claimed."
+    },
+    {
+      "name": "targeted_owner_roles_and_existing_consumers",
+      "status": "passed",
+      "evidence": "Node20 npm ci/build and test-model-roles/model-owner/usage-providers/recette2-server/conversation-metadata/conversation-owner-cache passed; new PR170 config/auth/catalogue assertions rerun after source integration. Provider default retains null model, voice from existing talk owner, explicit main allow unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-r-roles-modeles-20261011.md",
+    "docs/work/samantha-runtime/contracts/r-recette-roles.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing /providers, /agent/config and conversation metadata projections; no new action, route or execution owner."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP primitive admission/execution unchanged; preparation reuses canonical owners.",
+    "evidence": [
+      "docs/changes/codex-r-roles-modeles-20261011.md",
+      "docs/work/samantha-runtime/contracts/r-recette-roles.md"
+    ]
+  },
+  "rollback": "Revert this PR; no new store or migration.",
+  "limitations": [
+    "PR170 a75955f8 cleaned captures integrated verbatim, installed runtime363a6b8e and pinned playbooksc7f3e79; no deployment of this revision claimed.",
+    "Terra is fallback1 but absent from explicit main allow. No widening or configuration mutation. Realtime google and memory.search gemini omit model: provider_default, never an invented model.",
+    "Immune verdict source ~/.openclaw/health/current.json remains served by existing Health owner; no additional reader/store added. Signed Android APK and physical acceptance remain Claude."
+  ]
+}
