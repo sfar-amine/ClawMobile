@@ -6,13 +6,14 @@ DEFAULT_DB=Path.home()/".openclaw"/"incidents"/"orchestrator.db"
 DB=DEFAULT_DB
 TERMINAL={"recovered","failed"}
 TRANSITIONS={
- "detected":{"deterministic_recovery","diagnosing","verifying","human_required","failed"},
- "deterministic_recovery":{"diagnosing","verifying","human_required","failed"},
- "diagnosing":{"planning","verifying","waiting_model","waiting_validation","human_required","failed"},
+ "detected":{"deterministic_recovery","awaiting_deterministic_recovery","diagnosing","verifying","human_required","failed"},
+ "deterministic_recovery":{"awaiting_deterministic_recovery","diagnosing","verifying","human_required","failed"},
+ "awaiting_deterministic_recovery":{"verifying","human_required"},
+ "diagnosing":{"awaiting_deterministic_recovery","planning","verifying","waiting_model","waiting_validation","human_required","failed"},
  "planning":{"diagnosing","repairing","verifying","waiting_model","waiting_validation","human_required","failed"},
  "repairing":{"verifying","rolling_back","diagnosing","waiting_model","waiting_validation","human_required","failed"},
- "waiting_model":{"diagnosing","planning","verifying","failed"},
- "waiting_validation":{"planning","verifying","failed"},
+ "waiting_model":{"diagnosing","planning","verifying","human_required","failed"},
+ "waiting_validation":{"planning","verifying","human_required","failed"},
  "rolling_back":{"diagnosing","verifying","failed"},
  "verifying":{"recovered","diagnosing","human_required","failed"},
  "human_required":{"diagnosing","verifying","recovered","failed"},
