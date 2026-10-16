@@ -99,6 +99,8 @@ jobs:
         run: python3 ../installer/termux-lite/test-k2-owner-message.py
       - name: Test canonical context event surfaces
         run: python3 ../installer/termux-lite/test-context-surfaces.py
+      - name: Context ingest is idempotent across pending to processed race
+        run: python3 ../installer/termux-lite/test-context-ingest-race.py
       - name: Test canonical app and authenticated Bixby bootstrap
         run: node scripts/test-canonical-agent-bootstrap.cjs
 
