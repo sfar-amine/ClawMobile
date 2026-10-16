@@ -184,6 +184,17 @@ def gateway_healthy():
         return False
 
 
+RELEASE_FRACTION = 0.85
+
+
+def clearly_below(metrics, thresholds):
+    """Unknown measurements never extend a pressure window."""
+    values = (metrics.rss_kib, metrics.swap_kib)
+    if not all(isinstance(v, (int, float)) for v in values):
+        return True
+    return metrics.rss_kib < thresholds.rss_kib * RELEASE_FRACTION and metrics.swap_kib < thresholds.swap_kib * RELEASE_FRACTION
+
+
 def evaluate(now, prev, metrics, pid, idle_fn, healthy_fn, thresholds=None):
     thresholds = thresholds or policy.MEASURED_THRESHOLDS
     last = dict(prev.get("last_attempt") or {})
@@ -194,8 +205,14 @@ def evaluate(now, prev, metrics, pid, idle_fn, healthy_fn, thresholds=None):
         elif now - float(last.get("at") or 0) > REQUESTED_RESOLVE_S:
             last.update(state="uncertain", resolved_at=now)
     reasons = policy.restart_reasons(metrics, thresholds)
-    since = prev.get("pressure", {}).get("since") if reasons else None
-    if reasons and not isinstance(since, (int, float)):
+    # Retro 12/10 (S24): Android moves Gateway pages between RAM and zram all the time, so its
+    # swap oscillated around the 1.5 GiB limit and one sample under it reset the window: 90
+    # pressure samples in 12 h, never "sustained", Gateway at 2.8 GiB after 31 h. Hysteresis: the
+    # window survives a dip and only clears when the same Gateway is clearly below every limit.
+    prior = prev.get("pressure", {}).get("since")
+    same = isinstance(prior, (int, float)) and prev.get("gateway_pid") in (None, pid)
+    since = prior if same and (reasons or not clearly_below(metrics, thresholds)) else None
+    if reasons and since is None:
         since = now
     row = {
         "version": 1, "checked_at": now, "gateway_pid": pid,
@@ -241,8 +258,17 @@ def evaluate(now, prev, metrics, pid, idle_fn, healthy_fn, thresholds=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--observe", action="store_true", help="décision calculée, aucune demande de redémarrage")
+    parser.add_argument("--idle-proof", action="store_true", help="preuve de repos existante, sans écrire de reçu")
     args = parser.parse_args(argv)
     now = time.time()
+    if args.idle_proof:
+        busy, reason = idle_proof(now)
+        if busy is None:
+            print(json.dumps({"idle": False, "complete": False, "reason": reason}, sort_keys=True))
+            return 3
+        active = sum(int(value) for value in busy.values())
+        print(json.dumps({"idle": active == 0, "complete": True, "observed_at": now, **busy}, sort_keys=True))
+        return 0 if active == 0 else 3
     prev, ok = read_receipt()
     if not ok:
         # Unreadable history: never restart; keep the corrupt receipt for a human.
@@ -250,9 +276,10 @@ def main(argv=None):
         return 0
     pid = gateway_pid()
     row = evaluate(now, prev, probe_metrics(pid), pid, idle_proof, gateway_healthy)
-    # First activation is observation only: a restart request needs the explicit
-    # SAMANTHA_GATEWAY_MEMORY_RESTART=1 (no S24 env file owns this switch yet).
-    row["mode"] = "restart" if not args.observe and os.environ.get("SAMANTHA_GATEWAY_MEMORY_RESTART") == "1" else "observe"
+    # Observation phase closed 12/10 (Amine: « corriger durablement »): 24 h of receipts showed the
+    # Gateway growing without bound. Restart (idle proof, 6 h cooldown, graceful) is the default;
+    # SAMANTHA_GATEWAY_MEMORY_RESTART=0 or --observe keeps observation only.
+    row["mode"] = "observe" if args.observe or os.environ.get("SAMANTHA_GATEWAY_MEMORY_RESTART") == "0" else "restart"
     if row["mode"] == "observe":
         if row["action"] == "restart_requested":
             row["action"] = "observe_only"

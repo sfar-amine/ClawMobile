@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { readReceiptPresentation, publicReceiptMetadata } from "./companion/receiptPresentation";
 import type { FastPathResult, RunnerOptions } from "./modelFastPath";
 
 /** 38 E3 — one CLARIFY contract for the surfaces that are not the app (WhatsApp, voice relay, Gemini Live).
@@ -18,9 +19,9 @@ export type ClarificationRunner = (message: string, options?: RunnerOptions) => 
 type Pending = { originalText: string; decision: Record<string, unknown>; surface: string; at: number };
 
 export type SurfaceTurn =
-  | { state: "needs_clarification"; clarificationId: string; question: string; choices: unknown[]; decision?: Record<string, unknown> }
-  | { state: "done" | "failed"; text: string; source: "capability"; result?: unknown; decision?: Record<string, unknown> }
-  | { state: "continue"; text: string; resolvedFrom?: string; decision?: Record<string, unknown> };
+  | { state: "needs_clarification"; clarificationId: string; question: string; choices: unknown[]; decision?: Record<string, unknown>; presentation?: unknown }
+  | { state: "done" | "failed"; text: string; source: "capability"; result?: unknown; decision?: Record<string, unknown>; presentation?: unknown }
+  | { state: "continue"; text: string; resolvedFrom?: string; decision?: Record<string, unknown>; presentation?: unknown };
 
 const TTL_MS = 10 * 60_000;
 const MAX_PENDING = 64;
@@ -62,7 +63,8 @@ export class SurfaceClarifications {
    * @param text the user's original text for this turn (transcription, message), never a model reformulation.
    * @param id   the pending clarification id for this conversation, when there is one.
    */
-  async turn(text: string, options: { surface: string; id?: string; originId: string; timeoutSeconds?: number }): Promise<SurfaceTurn> {
+  async turn(text: string, options: { surface: string; id?: string; originId: string; timeoutSeconds?: number; assertCurrent?: () => void }): Promise<SurfaceTurn> {
+    options.assertCurrent?.();
     this.cleanup();
     const original = String(text || "").trim();
     const surface = options.surface;
@@ -74,31 +76,33 @@ export class SurfaceClarifications {
         ...common, checkOnly: true,
         clarificationDecision: pending.decision, clarificationOriginalText: pending.originalText,
       });
+      options.assertCurrent?.();
       if (clarified.status === "clarification") {
         this.remember(id, { ...pending, decision: (clarified.decision as Record<string, unknown>) || pending.decision });
         return {
           state: "needs_clarification", clarificationId: id,
           question: String(clarified.text || (clarified.clarification as any)?.question || "Précise ce que tu veux faire."),
           choices: Array.isArray((clarified.clarification as any)?.choices) ? (clarified.clarification as any).choices : [],
-          decision: clarified.decision,
+          decision: clarified.decision, ...publicReceiptMetadata(readReceiptPresentation(clarified)),
         };
       }
       this.pending.delete(id);
       if (clarified.status !== "clarification_unrelated") {
         const resolvedText = String((clarified.resolution as any)?.text || pending.originalText).trim();
         if (clarified.status === "known_error") {
-          return { state: "failed", source: "capability", text: String(clarified.text || "La clarification Claw n'est plus valide."), decision: clarified.decision };
+          return { state: "failed", source: "capability", text: String(clarified.text || "La clarification Claw n'est plus valide."), decision: clarified.decision, ...publicReceiptMetadata(readReceiptPresentation(clarified)) };
         }
         if (clarified.status === "eligible" && clarified.decision) {
-          const executed = await this.executePrepared(resolvedText, clarified.decision as Record<string, unknown>, common);
+          const executed = await this.executePrepared(resolvedText, clarified.decision as Record<string, unknown>, common, options.assertCurrent, id);
           if (executed) return executed;
         }
         // miss/assist: the surface continues with the RESOLVED text (resolution.text), no concatenation.
-        return { state: "continue", text: resolvedText, resolvedFrom: pending.originalText, decision: clarified.decision };
+        return { state: "continue", text: resolvedText, resolvedFrom: pending.originalText, decision: clarified.decision, ...publicReceiptMetadata(readReceiptPresentation(clarified)) };
       }
       // Unrelated answer: a new request, handled below from its own original text.
     }
     const check = await this.runner(original, { ...common, checkOnly: true });
+    options.assertCurrent?.();
     if (check.status === "clarification" && check.decision) {
       const newId = id || SurfaceClarifications.newId();
       this.remember(newId, { originalText: original, decision: check.decision as Record<string, unknown>, surface });
@@ -106,28 +110,40 @@ export class SurfaceClarifications {
         state: "needs_clarification", clarificationId: newId,
         question: String(check.text || (check.clarification as any)?.question || "Précise ce que tu veux faire."),
         choices: Array.isArray((check.clarification as any)?.choices) ? (check.clarification as any).choices : [],
-        decision: check.decision,
+        decision: check.decision, ...publicReceiptMetadata(readReceiptPresentation(check)),
       };
     }
     if (check.status === "known_error" && check.text) {
-      return { state: "failed", source: "capability", text: String(check.text), decision: check.decision };
+      return { state: "failed", source: "capability", text: String(check.text), decision: check.decision, ...publicReceiptMetadata(readReceiptPresentation(check)) };
     }
     // A transaction (or any decision needing the owner confirmation) runs the prepared decision through
     // the same fast path as the app: owner confirmation card / handoff, never the agent.
     if (check.status === "eligible" && check.decision && !isPlainRead(check.decision as Record<string, unknown>)) {
-      const executed = await this.executePrepared(original, check.decision as Record<string, unknown>, common);
+      const executed = await this.executePrepared(original, check.decision as Record<string, unknown>, common, options.assertCurrent, id);
       if (executed) return executed;
     }
     // Plain reads keep the surface's existing executor and renderer, on the original text.
-    return { state: "continue", text: original, decision: check.decision };
+    return { state: "continue", text: original, decision: check.decision, ...publicReceiptMetadata(readReceiptPresentation(check)) };
   }
 
-  private async executePrepared(text: string, decision: Record<string, unknown>, common: RunnerOptions): Promise<SurfaceTurn | null> {
+  private async executePrepared(text: string, decision: Record<string, unknown>, common: RunnerOptions, assertCurrent?: () => void, id?: string): Promise<SurfaceTurn | null> {
+    assertCurrent?.();
     const executed = await this.runner(text, {
       ...common, checkOnly: false, timeoutSeconds: Math.max(Number(common.timeoutSeconds || 12), 75), preparedDecision: decision,
     });
-    if (executed.status === "hit") return { state: "done", source: "capability", text: String(executed.text || "Claw a terminé la capacité."), result: (executed as any).result, decision: executed.decision };
-    if (executed.status === "known_error") return { state: "failed", source: "capability", text: String(executed.text || "Claw n'a pas pu terminer la capacité."), decision: executed.decision };
+    // Amine 12/10 : the executor found several matches; nothing ran. Same question, the answer resolves it.
+    if (executed.status === "clarification" && executed.decision && String((executed.decision as any).type) === "CLARIFY") {
+      const newId = id || SurfaceClarifications.newId();
+      this.remember(newId, { originalText: text, decision: executed.decision as Record<string, unknown>, surface: String(common.surface) });
+      return {
+        state: "needs_clarification", clarificationId: newId,
+        question: String(executed.text || (executed.clarification as any)?.question || "Lequel veux-tu ?"),
+        choices: Array.isArray((executed.clarification as any)?.choices) ? (executed.clarification as any).choices : [],
+        decision: executed.decision, ...publicReceiptMetadata(readReceiptPresentation(executed)),
+      };
+    }
+    if (executed.status === "hit") return { state: "done", source: "capability", text: String(executed.text || "Claw a terminé la capacité."), result: (executed as any).result, decision: executed.decision, ...publicReceiptMetadata(readReceiptPresentation(executed)) };
+    if (executed.status === "known_error") return { state: "failed", source: "capability", text: String(executed.text || "Claw n'a pas pu terminer la capacité."), decision: executed.decision, ...publicReceiptMetadata(readReceiptPresentation(executed)) };
     return null;
   }
 }

@@ -1,9 +1,12 @@
 import {execFile} from 'child_process';
+import {MEMO_STT_QUALIFICATION} from './memoSttBoundary';
 import {createHash} from 'crypto';
 import {readFile} from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import {controlPaths,readControlProjection} from './control';
+import {qualifiedStatuses,readQualifiedReceipts,BILLING_CAPABILITY,BILL_PROVIDERS,ORANGE_CAPABILITY,
+  GENERAL_STATUS_TTL_S,BALANCE_TTL_S,type CatalogStatus,type QualifiedStatuses,type BillProvider} from './billStatus';
 
 /**
  * HS2 — GET /v1/catalog: a derived view, compiled from the canonical registry (HS1 `catalog()`), the
@@ -58,7 +61,16 @@ export function parseSurfaceView(raw:any):SurfaceView{
 const unavailableText=(locale:string)=>locale==='fr'?'Indisponible pour l’instant':'Currently unavailable';
 
 /** Validates the HS1 projection, keeps its availability and greys what the app surface cannot reach. */
-export function catalogProjection(source:any,view:SurfaceView):any {
+/** A status is attached only to the action that produced its qualified receipt. */
+function qualifiedStatusFor(themeId:string,groupId:string,actions:any[],statuses:QualifiedStatuses|undefined):CatalogStatus|undefined{
+  if(!statuses)return undefined;
+  if(themeId==='bills'&&(BILL_PROVIDERS as readonly string[]).includes(groupId)&&actions.some(a=>a.capability===BILLING_CAPABILITY))
+    return statuses.bills[groupId as BillProvider];
+  if(themeId==='lines'&&groupId==='orange'&&actions.some(a=>a.capability===ORANGE_CAPABILITY))return statuses.orange;
+  return undefined;
+}
+
+export function catalogProjection(source:any,view:SurfaceView,statuses?:QualifiedStatuses):any {
   if(!source||source.version!==1||!['fr','en'].includes(source.locale)||!Array.isArray(source.themes)||!source.themes.length||source.themes.length>32||!Array.isArray(source.defaultPinned)||source.defaultPinned.length>9||typeof source.generatedAt!=='string'||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$/.test(source.generatedAt)||!Number.isFinite(Date.parse(source.generatedAt)))throw fail();
   const locale=source.locale as 'fr'|'en';
   const reach=new Map((view?.capabilities||[]).map(c=>[c.id,c.reachability]));
@@ -94,15 +106,26 @@ export function catalogProjection(source:any,view:SurfaceView):any {
           information:available?null:reason==='in_development'?(locale==='fr'?'En cours de développement':'In development'):unavailableText(locale),
           ...(typeof a.intent==='string'?{intent:id(a.intent)}:{})};
       });
-      return {id:groupId,title:text(group.title),icon:id(group.icon),actions};
+      const status=qualifiedStatusFor(themeId,groupId,actions,statuses);
+      if(status)for(const a of actions)if(a.capability===(themeId==='bills'?BILLING_CAPABILITY:ORANGE_CAPABILITY))a.status=status;
+      return {id:groupId,title:text(group.title),icon:id(group.icon),...(status?{status}:{}),actions};
     });
+    const groupStatuses=groups.map((g:any)=>g.status).filter(Boolean) as CatalogStatus[];
+    const unpaid=themeId==='bills'?groupStatuses.filter(s=>s.state==='unpaid'):[];
+    const newest=unpaid.sort((a,b)=>a.checkedAt.localeCompare(b.checkedAt)).at(-1);
+    const badge=newest?{tone:'alert',count:unpaid.length,source:'qualified_receipt',at:newest.checkedAt,
+      expiresAt:newest.expiresAt,observedDisplay:newest.observedDisplay,
+      text:(locale==='fr'?`${unpaid.length} impayée${unpaid.length>1?'s':''}`:`${unpaid.length} unpaid`)+` · ${locale==='fr'?'Vérifié':'Checked'} ${newest.observedDisplay}`}:undefined;
     const all=groups.flatMap((g:any)=>g.actions);const available=all.some((a:any)=>a.available);
-    return {id:themeId,title:text(theme.title),subtitle:text(theme.subtitle),icon:id(theme.icon),example:text(theme.example),order:theme.order,groups,
+    return {id:themeId,title:text(theme.title),subtitle:text(theme.subtitle),icon:id(theme.icon),example:text(theme.example),
+      // Phrase française à dire (« Ou dis simplement »), identique quelle que soit la locale ; absente d'un HS1 plus ancien → null.
+      exampleFr:theme.exampleFr==null?null:text(theme.exampleFr),order:theme.order,groups,
+      ...(badge?{badge}:{}),
       available,availability:available?'available':all.every((a:any)=>a.reason==='in_development')?'soon':'unavailable'};
   });
   const defaultPinned=source.defaultPinned.map(id);if(new Set(defaultPinned).size!==defaultPinned.length||defaultPinned.some((pin:string)=>!themeIds.has(pin)))throw fail();
   const value={version:1,locale,defaultPinned,themes,generatedAt:source.generatedAt,
-    inputs:{voiceMemo:{available:false,availability:'soon'}},
+    inputs:{voiceMemo:{available:MEMO_STT_QUALIFICATION.success,availability:MEMO_STT_QUALIFICATION.success?'available':'soon'}},
     availabilitySource:view?'registry_route_health_owner_gates_surface_view':'registry_route_health_owner_gates_reachability_unknown',
     ...(view?{surface:APP_SURFACE}:{})};
   if(Buffer.byteLength(JSON.stringify(value))>MAX_BYTES)throw fail();
@@ -125,12 +148,42 @@ async function ownerGates():Promise<GateEvidence>{
 async function generate(locale:'fr'|'en',abort?:AbortSignal):Promise<any>{
   const root=controlPaths().playbooks;
   const healthPath=path.join(stateDir(),'skill-intelligence','route-health.json');
-  const [gates,view]=await Promise.all([ownerGates(),readSurfaceView()]);
+  const [gates,view,statuses]=await Promise.all([ownerGates(),readSurfaceView(),readStatuses(locale)]);
   const source=await new Promise<any>((resolve,reject)=>execFile('python3',['-c',HS1_SCRIPT,locale,healthPath,JSON.stringify(gates)],{cwd:root,timeout:6000,maxBuffer:MAX_BYTES,signal:abort},(error,stdout)=>{
     if(error){reject(fail());return;}try{resolve(JSON.parse(stdout));}catch{reject(fail());}
   }));
   if(source?.locale!==locale)throw fail();
-  return catalogProjection(source,view);
+  return catalogProjection(source,view,statuses);
+}
+
+/** Existing owner receipt only; legacy raw billStatus/payment rows no longer create catalogue truth. */
+async function readStatuses(locale:'fr'|'en'):Promise<QualifiedStatuses>{
+  try{return qualifiedStatuses(await readQualifiedReceipts(),locale);}
+  catch{return {bills:{}};}
+}
+
+/** Cache revalidation: a warm/stale catalogue can never extend an owner receipt beyond its TTL. */
+export function revalidateCatalogStatuses(value:any,nowMs=Date.now()):any{
+  const out=JSON.parse(JSON.stringify(value));
+  for(const theme of Array.isArray(out?.themes)?out.themes:[]){
+    for(const group of Array.isArray(theme?.groups)?theme.groups:[]){
+      const status=group?.status,ttl=theme.id==='bills'?GENERAL_STATUS_TTL_S:theme.id==='lines'&&group.id==='orange'?BALANCE_TTL_S:0;
+      const observed=Date.parse(status?.checkedAt),expires=Date.parse(status?.expiresAt);
+      const valid=ttl>0&&status?.source==='qualified_receipt'&&Number.isFinite(observed)&&Number.isFinite(expires)&&
+        expires-observed===ttl*1000&&nowMs<expires&&status.at===status.checkedAt&&typeof status.observedDisplay==='string'&&
+        typeof status.text==='string'&&status.text.includes(status.observedDisplay);
+      if(!valid){delete group.status;for(const action of Array.isArray(group?.actions)?group.actions:[])delete action.status;}
+    }
+    delete theme.badge;
+    if(theme.id==='bills'){
+      const unpaid=(theme.groups||[]).map((g:any)=>g.status).filter((s:any)=>s?.state==='unpaid') as CatalogStatus[];
+      const newest=unpaid.sort((a,b)=>a.checkedAt.localeCompare(b.checkedAt)).at(-1);
+      if(newest)theme.badge={tone:'alert',count:unpaid.length,source:'qualified_receipt',at:newest.checkedAt,
+        expiresAt:newest.expiresAt,observedDisplay:newest.observedDisplay,
+        text:(out.locale==='fr'?`${unpaid.length} impayée${unpaid.length>1?'s':''}`:`${unpaid.length} unpaid`)+` · ${out.locale==='fr'?'Vérifié':'Checked'} ${newest.observedDisplay}`};
+    }
+  }
+  return out;
 }
 
 const lastGood=new Map<string,{value:any;at:number}>();
@@ -152,9 +205,9 @@ export async function readCatalogResponse(locale:'fr'|'en'):Promise<any>{
   if(hit&&Date.now()-hit.at<STALE_MAX_MS){
     const pending=refresh(locale).catch(()=>undefined);
     const fresh=await Promise.race([pending,new Promise(r=>setTimeout(()=>r(undefined),5))]);
-    return fresh??lastGood.get(key)?.value??hit.value;
+    return revalidateCatalogStatuses(fresh??lastGood.get(key)?.value??hit.value);
   }
-  return refresh(locale);
+  return revalidateCatalogStatuses(await refresh(locale));
 }
 export function catalogETag(value:any):string{return '"'+createHash('sha256').update(JSON.stringify(value)).digest('hex')+'"';}
 /** Test hook: forget served projections (no persistent state exists). */

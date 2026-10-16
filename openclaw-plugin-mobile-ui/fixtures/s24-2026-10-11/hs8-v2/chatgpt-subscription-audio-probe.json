@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "verdict": "TRANSCRIPTION_IMPOSSIBLE_PAR_ABONNEMENT",
+  "decision": "D45-3 (playbooks docs/work/samantha-convergence/45_Backlog_Codex_voix_parite_et_reliquats.md)",
+  "provenance": {
+    "date": "2026-10-11",
+    "source": "Sonde S24 citée dans D45-3, transmise par Codex. Pas rejouée dans cette capture (aucun nouvel appel OpenAI, conformément à D45-3). Le 429 de l'API de transcription est aussi constaté dans hs8-captures/stt-runs.json (run gemini_fail_openai_fallback).",
+    "auth": "profil OpenAI OAuth unique de l'abonnement ChatGPT (identifiant privé non publié)",
+    "sanitized": "Ni identifiant de compte, ni jeton, ni request_id fournisseur, ni corps brut."
+  },
+  "attempts": [
+    {
+      "id": "subscription_input_file_m4a",
+      "endpoint": "chatgpt.com/backend-api/codex/responses",
+      "method": "POST, Responses, contenu input_file audio/mp4",
+      "status": 400,
+      "errorClass": "invalid_value",
+      "reason": "unsupported MIME type"
+    },
+    {
+      "id": "subscription_input_audio_wav",
+      "endpoint": "chatgpt.com/backend-api/codex/responses",
+      "method": "POST, Responses, contenu input_audio wav",
+      "status": 400,
+      "errorClass": "invalid_request",
+      "reason": "Audio input is not available"
+    },
+    {
+      "id": "openclaw_transcription_api",
+      "endpoint": "api.openai.com/v1/audio/transcriptions",
+      "method": "chemin de transcription OpenClaw (runMediaUnderstandingFile, openai/gpt-4o-transcribe) avec le même profil OAuth",
+      "status": 429,
+      "errorClass": "insufficient_quota",
+      "reason": "abonnement sans crédit API"
+    }
+  ],
+  "conclusion": "L'abonnement ChatGPT ne transcrit pas l'audio, ni par le backend Codex ni par l'API publique. Pas de repli OpenAI sans crédits API (décision d'Amine). Le repli HS8 est « audio conservé, nouvel essai Gemini plus tard »."
+}

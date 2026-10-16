@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "source": "~/.openclaw/openclaw.json (lecture seule) et loadConfig() SDK 2026.9.6 sur S24",
+    "capturedAt": "2026-10-11",
+    "request_ids": [
+      "mcp-claude-chat-hs8c-config-proj-01-execute",
+      "mcp-claude-chat-hs8c-probe-auth-02-execute"
+    ],
+    "configChanged": false
+  },
+  "tools.media.models": {
+    "isArray": true,
+    "count": 0,
+    "entries": [],
+    "finding": "VIDE : aucune entrée Google ni OpenAI. memoAudioConfig (core #138) lève memo_transcript_unavailable avant tout appel."
+  },
+  "tools.media.audio": {
+    "enabled": true,
+    "keys": [
+      "enabled"
+    ],
+    "models": null,
+    "maxBytes": null,
+    "timeoutSeconds": null,
+    "maxChars": null,
+    "preferredModel": null,
+    "headers": false
+  },
+  "orderRequired": [
+    "google",
+    "openai"
+  ],
+  "orderConfigured": [],
+  "publicModelsSeenElsewhereInConfig": [
+    "google/gemini-3.5-flash-lite"
+  ],
+  "auth": {
+    "googleFreeProfile": {
+      "present": true,
+      "provider": "google",
+      "mode": "api_key"
+    },
+    "openaiSubscriptionProfiles": {
+      "count": 1,
+      "modes": [
+        "oauth"
+      ]
+    },
+    "models.providers.google": {
+      "present": true,
+      "apiKeyFieldPresent": true,
+      "headers": false,
+      "apiKeyIdenticalToFreeProfileKey": false
+    },
+    "models.providers.openai": {
+      "present": false
+    },
+    "companionEnvAlternateGeminiKeys": false,
+    "finding": "models.providers.google.apiKey est présent et n'est pas identique (ou est une référence) à la clé du profil gratuit : avec le code core #138, primaryBlocked=true, donc Gemini est toujours écarté au profit d'OpenAI."
+  }
+}

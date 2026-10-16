@@ -51,7 +51,7 @@ async function cached(request:ReturnType<typeof query>,content:boolean){
   if(signal.aborted)throw failure('files_owner_unavailable',503);
   const raw=content?await gatewayFileContent(scope,request.name,{signal,deadline}):await gatewayFileList(scope,request.name,{signal,deadline},request.search);
   if(signal.aborted)throw failure("files_owner_unavailable",503);
-  const data=content?{contentType:(raw as any).contentType,contentBase64:(raw as any).bytes.toString("base64"),truncated:(raw as any).truncated,redacted:(raw as any).redacted}:raw;
+  const data=content?{contentType:(raw as any).contentType,contentBase64:(raw as any).bytes.toString("base64"),truncated:(raw as any).truncated,redacted:(raw as any).redacted,...("revision" in (raw as any)?{revision:(raw as any).revision}:{})}:raw;
   return {schemaVersion:2,sections:{files:{schemaVersion:2,resourceKey,computedAt:new Date().toISOString(),dataRevision:key(data),remainingFreshMs:15000,availability:"ready",freshness:"fresh",data}}};
  },undefined,{cache:true}).then(value=>({value}),error=>({error}));
  let timer:ReturnType<typeof setTimeout>|undefined;
@@ -67,5 +67,7 @@ export async function filesContent(parameters:URLSearchParams){
  const request=query(parameters,true),loaded=await cached(request,true);
  if("pending"in loaded)return pending;if("error"in loaded)throw loaded.error;
  const data:any=loaded.value.sections.files.data;
- return {success:true,state:"ok",receipt:null,ready:true,installedSchemaQualified:false,contentType:data.contentType,bytes:Buffer.from(data.contentBase64,"base64"),truncated:data.truncated,redacted:data.redacted};
+ return {success:true,state:"ok",receipt:null,ready:true,installedSchemaQualified:false,contentType:data.contentType,bytes:Buffer.from(data.contentBase64,"base64"),truncated:data.truncated,redacted:data.redacted,...("revision" in data?{revision:data.revision}:{})};
 }
+/** E3: a completed agent file write drops cached previews so the next read shows the owner's new bytes. */
+export function invalidateFileReads(){pool.invalidate();}

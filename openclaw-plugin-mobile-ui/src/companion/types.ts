@@ -37,6 +37,10 @@ export type RunCreateRequest = {
   userText?: string;
   sessionId?: string;
   attachments?: IntentAttachment[];
+  /** Édition d'un message envoyé : rejoue depuis ce run dans une nouvelle conversation (voir runs.ts prepareReplay). */
+  replayOf?: { sessionId?: string; runId?: string };
+  /** Owner-signed fact read by the Android app for deterministic date/time answers. */
+  phoneDateTime?: unknown;
   source?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 };
@@ -85,7 +89,11 @@ export type TerminalSessionResponse = {
 };
 
 export type IntentSubmitResponse = {
+  /** Stable public machine class copied from the deterministic runner receipt. */
+  reasonClass?: string;
   decision?: import("./receiptPresentation").PublicDecision;
+  /** Language of this request/turn, independent from Android uiLocale. */
+  responseLanguage?: import("./receiptPresentation").ResponseLanguage;
   presentation?: import("./receiptPresentation").ReceiptPresentation;
   understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
   alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];
@@ -104,10 +112,17 @@ export type IntentSubmitResponse = {
   userText?: string;
   canvas: CanvasSchema;
   attachments?: IntentAttachment[];
+  /** Édition-relecture acceptée : ancienne conversation, tours remplacés (marqués, non supprimés) et effets connus. */
+  replay?: { sourceSessionId: string; runId: string; seededTurns: number; supersededRuns: number; effects: { executed: number; unknown: number } };
   gatewayRun?: unknown;
 };
 
 export type CompanionRunStatus = {
+  /** P1 : tour admis par preuve native, et connexion Gateway finalement utilisée. */
+  ownerAdmitted?: boolean;
+  ownerTransport?: "admin_admitted" | "write_cli" | "write_cli_owner_unavailable";
+  /** Stable public machine class copied from the deterministic runner receipt. */
+  reasonClass?: string;
   /** Closed projection of the stored decision (receiptPresentation.publicDecision). */
   decision?: import("./receiptPresentation").PublicDecision;
   presentation?: import("./receiptPresentation").ReceiptPresentation;
@@ -120,12 +135,18 @@ export type CompanionRunStatus = {
   clientRunId?: string;
   transcriptState?: "partial" | "completed" | "interrupted";
   playback?: import("./voicePlaybackMetadata").VoicePlaybackMetadata;
+  /** Édition-relecture : ce run rejoue un message modifié de `replayOf` ; `supersededBy` marque l'ancienne branche (audit, jamais supprimée). */
+  replayOf?: ReplayLink;
+  supersededBy?: ReplayLink;
+  /** Ce que l'on sait de l'effet de ce tour : `none` (lecture ou question), `executed` (action exécutée), `unknown` (agent ou échec). */
+  replayEffect?: "none" | "executed" | "unknown";
   success: boolean;
   runId: string;
   sessionId?: string;
   sessionKey?: string;
   state: "running" | "done" | "failed" | "unknown";
   status?: string;
+  memoTranscription?: {phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number; retryAllowed?: boolean};
   message: string;
   result?: string;
   /** F4: structured projection of `result` (summary list only); `result` stays the raw fallback. */
@@ -144,6 +165,8 @@ export type CompanionRunStatus = {
   canvas?: CanvasSchema;
   raw?: unknown;
 };
+
+export type ReplayLink = { version: 1; sessionId: string; runId: string; at: number };
 
 export type CompanionRunTokenUsage = {
   inputTokens?: number;

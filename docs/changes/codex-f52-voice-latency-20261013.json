@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "id": "codex-f52-voice-latency-20261013",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Guard voice prewarm handoff and measure decision, capability, Gemini, and result-audio latency against the five-second budget.",
+  "reason": "File 52 section 3.4 records a skipped prewarm and a fifteen-second tool-to-response delay; existing telemetry could not identify the responsible stage.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-f52-voice-latency-20261013.json",
+    "docs/changes/codex-f52-voice-latency-20261013.md",
+    "docs/work/samantha-runtime/contracts/f52-voice-latency.md",
+    "openclaw-plugin-mobile-ui/scripts/test-claw-live-warm.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-latency-budget.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-latency-report.py",
+    "openclaw-plugin-mobile-ui/scripts/voice-m1-analyze.py",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTelemetry.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts"
+  ],
+  "tests": [
+    {
+      "name": "voice-latency-targeted",
+      "status": "passed",
+      "evidence": "TypeScript build; injected 3600 ms complete pipeline under the 5000 ms contract; warm handoff race; telemetry 12/12; analyzer 9/9; M1 contracts 11/11; protocol 16/16; understanding 21/21. No S24 or physical audio claim."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-f52-voice-latency-20261013.md",
+    "docs/work/samantha-runtime/contracts/f52-voice-latency.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing Claw Live routes and canonical capability resolution are unchanged; only owner handoff and technical timing metadata change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The existing Warm owner, Voice protocol, telemetry writer, and analyzer are reused without a new persistent component."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "No MCP route or schema changes; the Voice telemetry JSONL gains bounded technical x fields only."
+    ]
+  },
+  "rollback": "Revert this PR; no migration or durable business state exists.",
+  "limitations": [
+    "Local injected timing proves stage attribution and budget verdict only; Claude must measure real t23-to-t32 latency on the S24.",
+    "No endpointing or acoustic detector change is included."
+  ]
+}

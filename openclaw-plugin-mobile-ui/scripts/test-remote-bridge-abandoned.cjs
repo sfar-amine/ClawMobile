@@ -38,7 +38,10 @@ function write(receipt, mtimeMs) {
 }
 function read(requestId) { return JSON.parse(fs.readFileSync(path.join(requestsDir, `${requestId}.json`), "utf8")); }
 
+const originalReaddirSync = fs.readdirSync;
+let alive, survivor;
 (async () => {
+  try {
   const now = Date.now();
   const stuck = fixture.receipts.filter((row) => !row.note);
   assert.strictEqual(stuck.length, 16, "16 reçus bloqués dans la capture");
@@ -69,20 +72,31 @@ function read(requestId) { return JSON.parse(fs.readFileSync(path.join(requestsD
   write({ requestId: "f6-young", method: "exec_wait", paramsHash: "x", state: "running", instanceId: instance(deadPid()), receivedAt: now - 10 * 60 * 1000, startedAt: now - 10 * 60 * 1000, mutationRisk: "unknown" });
 
   // 4. Instance vivante (pid existant) : jamais abandonné.
-  const alive = spawn(process.execPath, ["-e", "setTimeout(()=>{}, 20000)"], { stdio: "ignore" });
+  // Lifetime is controlled by the test, not by time spent writing 50 000 files.
+  alive = spawn(process.execPath, ["-e", "process.stdin.resume()"], { stdio: ["pipe", "ignore", "ignore"] });
   write({ requestId: "f6-alive", method: "exec_wait", paramsHash: "x", state: "running", instanceId: instance(alive.pid), receivedAt: now - 5 * HOUR, startedAt: now - 5 * HOUR, mutationRisk: "unknown" });
 
   // 5. Instance morte, mais script exec_wait encore dans une ligne de commande vivante.
   const scriptStart = now - 3 * HOUR;
   const script = path.join(processDir, `cmd-${scriptStart}-deadbeef.sh`);
-  fs.writeFileSync(script, "sleep 20\n", { mode: 0o700 });
-  const survivor = spawn("sh", [script], { stdio: "ignore" });
+  fs.writeFileSync(script, "read -r release\n", { mode: 0o700 });
+  survivor = spawn("sh", [script], { stdio: ["pipe", "ignore", "ignore"] });
   await new Promise((resolve) => setTimeout(resolve, 150));
   write({ requestId: "f6-live-command", method: "exec_wait", paramsHash: "x", state: "running", instanceId: instance(deadPid()), receivedAt: scriptStart, startedAt: scriptStart, mutationRisk: "unknown" });
 
   // 6. Volume réaliste : 50 000 reçus terminés, jamais modifiés.
   const filler = JSON.stringify({ requestId: "", method: "ping", paramsHash: "p", state: "completed", instanceId: "1-1-00000000", receivedAt: 1, completedAt: 2, mutationRisk: "read" });
   for (let i = 0; i < 50000; i++) fs.writeFileSync(path.join(requestsDir, `done-${i}.json`), filler.replace('"requestId":""', `"requestId":"done-${i}"`));
+
+  // Isolated synthetic /proc directory view for this fixture: the child PIDs
+  // and their cmdline files are real. Unrelated host processes are not evidence
+  // about these synthetic receipts, especially on a reused CI host >4096 PIDs.
+  process.kill(alive.pid, 0);
+  process.kill(survivor.pid, 0);
+  assert.ok(fs.readFileSync(`/proc/${survivor.pid}/cmdline`, "utf8").includes(script));
+  fs.readdirSync = (dir, ...args) => String(dir) === "/proc"
+    ? [String(process.pid), String(alive.pid), String(survivor.pid)]
+    : originalReaddirSync(dir, ...args);
 
   const started = Date.now();
   const sweep = bridge.abandonStaleRemoteBridgeReceipts({ budgetMs: 10000 });
@@ -139,10 +153,31 @@ function read(requestId) { return JSON.parse(fs.readFileSync(path.join(requestsD
   const again = await bridge.submitRemoteBridgeRequest({ requestId: "f6-replay", method: "exec_wait", params });
   assert.deepStrictEqual(again, read("f6-replay"), "abandoned est terminal et stable");
 
-  alive.kill("SIGKILL");
-  survivor.kill("SIGKILL");
-  fs.rmSync(root, { recursive: true, force: true });
-  console.log(JSON.stringify({ ok: true, test: "remote-bridge-abandoned", sweepMs: elapsed, abandoned: sweep.abandoned }));
+  // Fresh owner module: an inventory above the unchanged 4096-PID bound must
+  // be unknown, never proof that a running command has disappeared.
+  write({ requestId: "f6-proc-overflow", method: "exec_wait", paramsHash: "x", state: "running", instanceId: instance(deadPid()), receivedAt: now - 6 * HOUR, startedAt: now - 6 * HOUR, mutationRisk: "unknown" });
+  const overflowCheck = spawnSync(process.execPath, ["-e", `
+    const assert = require("assert"), fs = require("fs");
+    const real = fs.readdirSync;
+    let procReads = 0;
+    const read = fs.readFileSync;
+    fs.readdirSync = (dir, ...args) => String(dir) === "/proc" ? Array.from({length:4097}, (_,i)=>String(i+1)) : real(dir,...args);
+    fs.readFileSync = (file, ...args) => { if (String(file).startsWith("/proc/")) procReads++; return read(file,...args); };
+    const owner = require(process.argv[1]);
+    const result = owner.getRemoteBridgeRequest("f6-proc-overflow");
+    assert.strictEqual(result.state, "indeterminate");
+    assert.strictEqual(result.abandonment, undefined);
+    assert.strictEqual(procReads, 0, "incomplete inventory must not be partially scanned");
+  `, path.resolve(__dirname, "..", "dist", "companion", "remoteBridge.js")], { timeout: 10000, encoding: "utf8" });
+  assert.strictEqual(overflowCheck.status, 0, overflowCheck.stderr);
+  assert.strictEqual(read("f6-proc-overflow").state, "indeterminate");
+  console.log(JSON.stringify({ ok: true, test: "remote-bridge-abandoned", sweepMs: elapsed, abandoned: sweep.abandoned, procOverflowUnknown: true }));
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+    alive?.kill("SIGKILL");
+    survivor?.kill("SIGKILL");
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 })().catch((error) => {
   console.error(error);
   process.exit(1);
