@@ -6,6 +6,7 @@
 #   companion-deploy.sh <commit>        deploy that commit of samantha-private/runtime/samantha-companion-private
 #   COMPANION_DEPLOY_WAIT_CALM_S=1200   wait up to that long for a calm phone instead of refusing at once
 #   companion-deploy.sh --status        print the last receipt
+#   companion-deploy.sh --maintenance close|open|status   maintenance lock of SAM-MIG V2.2 (see below)
 set -uo pipefail
 ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
 REPO="$(CDPATH= cd -- "$ROOT/../.." && pwd)"
@@ -21,7 +22,57 @@ KEEP_BACKUPS="${COMPANION_DEPLOY_KEEP:-5}"; MIN_AVAILABLE_MB="${COMPANION_DEPLOY
 mkdir -p "$STATE" "$BACKUPS"; chmod 700 "$STATE"
 
 if [ "${1:-}" = "--status" ]; then ls -t "$STATE"/companion-*.json 2>/dev/null | head -1 | xargs -r cat; exit 0; fi
-target="${1:-}"; [[ "$target" =~ ^[0-9a-f]{7,40}$ ]] || { echo "usage: $0 <commit>|--status" >&2; exit 2; }
+# SAM-MIG V2.2 §12.1 — minimal maintenance lock. This script is the ONLY writer of the durable marker read by the
+# dialogue coordinator at admission and again at the hand-off point. A restart never lifts it (it is a file).
+#   companion-deploy.sh --maintenance close [--allow conv-…]…   new epoch, every new request refused (D-B);
+#                                                               --allow: acceptance conversations (B-14)
+#   companion-deploy.sh --maintenance open                      reopen this epoch; older messages render stale
+#   companion-deploy.sh --maintenance status
+# The WhatsApp channel is never stopped: each message gets the deterministic maintenance reply and OpenClaw marks it
+# completed, so nothing is delivered late after the reopening.
+if [ "${1:-}" = "--maintenance" ]; then
+  shift
+  DIALOGUE_HOME="${CLAW_DIALOGUE_HOME:-$HOME/.openclaw/samantha-dialogue}"
+  mkdir -p "$DIALOGUE_HOME"; chmod 700 "$DIALOGUE_HOME"
+  exec 8>"$DIALOGUE_HOME/maintenance.lock"; flock -w 10 8 || { echo "maintenance_marker_busy" >&2; exit 3; }
+  python3 - "$DIALOGUE_HOME/maintenance.json" "$STATE" "$@" <<'PY'
+import json, os, re, sys, time
+path, state_dir, args = sys.argv[1], sys.argv[2], sys.argv[3:]
+action = args[0] if args else "status"
+try:
+    current = json.load(open(path))
+except FileNotFoundError:
+    current = {"state": "open", "epoch": 0, "changedAt": 0}
+except (OSError, ValueError):
+    current = {"state": "closed", "epoch": None, "invalid": True}
+if action == "status":
+    print(json.dumps(current, ensure_ascii=False)); sys.exit(0)
+allow = [args[i + 1] for i, a in enumerate(args) if a == "--allow" and i + 1 < len(args)]
+if action not in ("close", "open") or any(not re.fullmatch(r"conv-[a-f0-9]{24}", ref) for ref in allow) \
+        or (allow and action != "close"):
+    print("usage: --maintenance close [--allow conv-<24 hex>]... | open | status", file=sys.stderr); sys.exit(2)
+epoch = int(current.get("epoch") or 0)
+if current.get("invalid") and action == "open":
+    print("maintenance_marker_invalid: close it again before opening", file=sys.stderr); sys.exit(2)
+now = int(time.time() * 1000)
+value = {"state": "closed" if action == "close" else "open",
+         "epoch": epoch + 1 if action == "close" and current.get("state") != "closed" else epoch,
+         "changedAt": now, "by": "companion-deploy.sh", "acceptance": allow}
+tmp = path + ".next"
+fd = os.open(tmp, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w") as out:
+    json.dump(value, out); out.flush(); os.fsync(out.fileno())
+os.replace(tmp, path)
+os.chmod(path, 0o600)
+stamp = time.strftime("%Y%m%dT%H%M%S")
+receipt = os.path.join(state_dir, f"maintenance-{stamp}.json")
+with open(receipt, "w") as out:
+    json.dump({"version": 1, "action": action, "previous": current, "marker": value}, out, ensure_ascii=False)
+print(json.dumps({"state": value["state"], "epoch": value["epoch"], "receipt": receipt}))
+PY
+  exit $?
+fi
+target="${1:-}"; [[ "$target" =~ ^[0-9a-f]{7,40}$ ]] || { echo "usage: $0 <commit>|--status|--maintenance close|open|status" >&2; exit 2; }
 
 exec 9>"$STATE/companion-deploy.lock"; flock -n 9 || { echo "deploy_already_running" >&2; exit 3; }
 stamp="$(date +%Y%m%dT%H%M%S)"; receipt="$STATE/companion-$stamp.json"; log="$STATE/companion-$stamp.log"

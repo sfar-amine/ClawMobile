@@ -5,6 +5,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge";
+import { runModelFastPath } from "../modelFastPath";
 import { REMEMBER_KINDS, validateRemember } from "./memoryControl";
 import {
   getRemoteBridgeRequest,
@@ -286,16 +287,33 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
   };
 }
 
+/** SAM-MIG V2.2 §5.5: MCP keeps no server-side dialogue state. `claw_resolve` is the coordinator's
+ * preview_resolution (no dialogue state read or written, no effect); its normalized outcome comes from the single
+ * status table, alongside the unchanged resolution. The client answers a question with a completed request and a
+ * new action_key. */
+export async function dialoguePreview(request: string, runner = runModelFastPath) {
+  try {
+    const out: any = await runner(request, { surface: "external_mcp", caller: "owner", originId: "mcp-preview",
+      timeoutSeconds: 15, checkOnly: true, dialogue: { mode: "preview" } });
+    if (out && typeof out.outcome === "string") {
+      return { outcome: out.outcome, reasonCode: out.reasonCode, statusTable: out.statusTable,
+        ...(out.question ? { question: out.question } : {}), ...(out.klass ? { klass: out.klass } : {}) };
+    }
+  } catch {}
+  return { outcome: "TECHNICAL_FAILURE", reasonCode: "coordinator_unavailable" };
+}
+
 async function resolveCapability(args: Record<string, unknown>) {
   const request = requiredString(args.request, "request", 12000);
   const targetHint = optionalString(args.target_hint, "target_hint", 128, /^[A-Za-z0-9._-]+$/);
-  return capabilityBridge(request, {
+  const [resolved, dialogue] = await Promise.all([capabilityBridge(request, {
     execute: false,
     surface: "external_mcp",
     caller: "owner",
     timeoutSeconds: 20,
     targetHint,
-  });
+  }), dialoguePreview(request)]);
+  return { ...resolved, dialogue };
 }
 
 async function executeCapability(

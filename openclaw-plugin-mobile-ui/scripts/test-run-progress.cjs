@@ -38,7 +38,7 @@ assert.equal(p.failedStep,'Exécution du paiement');assert.equal(p.cause,failedP
 assert.equal(runProgressSteps({...find(r=>r.state==='failed'),presentation:{...failedPayment,locale:'en'}}).steps[0].label,'Request received');
 
 // Existing route GET /v1/runs/{id}: steps derived on read, never persisted.
-const helper=path.join(root,'helper.py');fs.writeFileSync(helper,`import sys,json\np=json.loads(${JSON.stringify(JSON.stringify(failedPayment))})\nprint(json.dumps({'status':'eligible'} if '--check' in sys.argv else {'status':'known_error','text':p['spoken'],'presentation':p}))\n`);process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
+const helper=path.join(root,'helper.py');fs.writeFileSync(helper,`import sys,json\np=json.loads(${JSON.stringify(JSON.stringify(failedPayment))})\nm=sys.argv[sys.argv.index('--dialogue')+1]\nprint(json.dumps({'outcome':'READY','handled':True,'goalRef':'goal-eeeeeeeeeeeeeeeeeeee','pendingHandoff':{'goalRef':'goal-eeeeeeeeeeeeeeeeeeee','klass':'DURABLE'}} if m=='turn' else {'outcome':'FAILED','text':p['spoken'],'handled':True,'metadata':{'presentation':p}}))\n`);process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
 const {submitIntent}=require('../dist/companion/intent'),{route}=require('../dist/companion/server');
 const request=(port,runId)=>new Promise((resolve,reject)=>{http.get({host:'127.0.0.1',port,path:'/v1/runs/'+runId},res=>{let body='';res.on('data',c=>body+=c);res.on('end',()=>{try{resolve({status:res.statusCode,body:JSON.parse(body)})}catch(e){reject(e)}})}).on('error',reject)});
 (async()=>{const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}')}));await new Promise(r=>server.listen(0,'127.0.0.1',r));try{
