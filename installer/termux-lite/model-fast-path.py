@@ -282,7 +282,7 @@ _display_privacy_spec.loader.exec_module(_display_privacy_owner)
 _DISPLAY_SENSITIVE = _display_privacy_owner.SENSITIVE
 
 
-def _plain_display(value: Any, maximum: int = 120, bracket_text: bool = False) -> str:
+def _plain_display(value: Any, maximum: int | None = 120, bracket_text: bool = False) -> str:
     if not isinstance(value, str):
         return ""
     if _DISPLAY_SENSITIVE.search(value):
@@ -451,17 +451,19 @@ def _generic_value(value: Any, depth: int = 0) -> str:
             return " ".join(x for x in (_generic_value(value.get("value"), depth + 1), _plain_display(value.get("unit") or value.get("currency"), 20)) if x)
         if "displayed" in value:
             return _generic_value(value.get("displayed"), depth + 1)
-        parts = [f"{_field_label(k, False)} : {_generic_value(v, depth + 1)}" for k, v in list(value.items())[:8]
+        parts = [f"{_field_label(k, False)} : {_generic_value(v, depth + 1)}" for k, v in value.items()
                  if str(k) not in _GENERIC_HIDDEN and _generic_value(v, depth + 1)]
         return " ; ".join(parts)
     if isinstance(value, str) and value.startswith("[") and not value.startswith(("[{", '["', "[[")):
-        return _plain_display(value, 160, bracket_text=True)  # « [Offre] : … » is text, not JSON
-    return _plain_display(value, 160)
+        return _plain_display(value, None, bracket_text=True)  # « [Offre] : … » is text, not JSON
+    return _plain_display(value, None)
 
 
-def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
-    """Readable lines for any executor result: scalar fields, one level of nested scalars, list sizes with
-    their first rows. Bookkeeping keys and anything sensitive (_plain_display) are left out; bounded."""
+def _generic_display(value: dict[str, Any]) -> str:
+    """Readable lines for any executor result: scalar fields, one level of nested scalars, every list row and
+    table row in full. Bookkeeping keys and anything sensitive (_plain_display) are left out. Never truncated
+    (Amine 16/10 : « quand c'est long il devient tronqué, il ne faut pas avoir de limite ») — the executor
+    already bounds what it returns."""
     if value.get("ok") is False:
         return ""
     lines: list[str] = []
@@ -470,51 +472,49 @@ def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
     sizes = {len(v) for v in value.values() if isinstance(v, list)}
     counters = {str(k): v for k, v in value.items() if str(k).endswith("_count") and type(v) is int}
     for key, item in value.items():
-        if len(lines) >= limit or str(key) in _GENERIC_HIDDEN or str(key).endswith("_ms"):
+        if str(key) in _GENERIC_HIDDEN or str(key).endswith("_ms"):
             continue
         if str(key).endswith("_count") and type(item) is int and item in sizes:
             continue
         if isinstance(item, dict):
-            parts = [f"{_field_label(k, False)} : {_generic_value(v)}" for k, v in list(item.items())[:12]
+            parts = [f"{_field_label(k, False)} : {_generic_value(v)}" for k, v in item.items()
                      if not isinstance(v, list) and _generic_value(v) and str(k) not in _GENERIC_HIDDEN]
             if parts:
                 lines.append(f"{label(key)} : " + " ; ".join(parts))
         elif isinstance(item, list) and item and all(isinstance(t, dict) and isinstance(t.get("headers"), list) and isinstance(t.get("rows"), list) for t in item):
-            # Tables (CRA, évaluations…) : each row as « en-tête : valeur » cells, bounded.
-            for table in item[:3]:
-                headers = [_plain_display(h, 40) or "" for h in table["headers"]]
+            # Tables (CRA, évaluations…) : each row as « en-tête : valeur » cells, every row.
+            for table in item:
+                headers = [_plain_display(h, None) or "" for h in table["headers"]]
                 rows = [r for r in table["rows"] if isinstance(r, list)]
                 lines.append(f"{label(key)} : {len(rows)} ligne(s)")
-                for row in rows[:8]:
+                for row in rows:
                     cells = [(f"{headers[i]} : " if i < len(headers) and headers[i] else "") + _generic_value(v)
-                             for i, v in enumerate(row[:6]) if _generic_value(v)]
+                             for i, v in enumerate(row) if _generic_value(v)]
                     if cells:
                         lines.append("- " + " · ".join(cells))
-                if len(rows) > 8:
-                    lines.append("- …")
         elif (
             isinstance(item, list) and len(item) == 1 and isinstance(item[0], dict)
             and (not counters or counters.get(str(key)[:-1] + "_count") == 1)
         ):
             # One result (« état du projet 20495 ») : its whole record, one field per line.
-            for k, v in list(item[0].items())[:limit]:
+            for k, v in item[0].items():
                 if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list) and _generic_value(v):
                     lines.append(f"{label(k)} : {_generic_value(v)}")
         elif isinstance(item, list):
             rows = []
-            for row in item[:5]:
+            for row in item:
                 if isinstance(row, dict):
                     cells = [_generic_value(v) for k, v in row.items() if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list)]
-                    cells = [c for c in cells if c][:4]
+                    cells = [c for c in cells if c]
                     if cells:
                         rows.append(" · ".join(cells))
                 elif _generic_value(row):
                     rows.append(_generic_value(row))
             head = f"{label(key)} : {len(item)}" if item else f"{label(key)} : aucun"
-            lines.append(head + ("" if not rows else "\n" + "\n".join("- " + r for r in rows) + ("\n- …" if len(item) > 5 else "")))
+            lines.append(head + ("" if not rows else "\n" + "\n".join("- " + r for r in rows)))
         elif _generic_value(item):
             lines.append(f"{label(key)} : {_generic_value(item)}")
-    return "\n".join(lines)[:4000]
+    return "\n".join(lines)
 
 
 def _handoff_contract(resolution: dict[str, Any]) -> dict[str, Any] | None:

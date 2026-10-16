@@ -17,7 +17,26 @@ class GenericDisplayTests(unittest.TestCase):
                                 "latency_ms": {"total": 1485}})
         self.assertIn("Solde : Solde à date (jours) : 16.427 ; Cumul de l'année (jours) : 21", text)
         self.assertIn("Demandes : 7\n- 15150 · Congé Annuel · 15/10/2026 09:00", text)
-        self.assertTrue(text.endswith("- …")); self.assertNotIn("latency", text.lower())
+        self.assertEqual(7, text.count("- 15150 · Congé Annuel")); self.assertNotIn("…", text)
+        self.assertNotIn("latency", text.lower())
+
+    def test_long_results_are_never_truncated(self):
+        # Amine 16/10 (capture « Résultat à vérifier », équipe ZAIN BAHRAIN Wave 1) : 7 membres, 5 affichés puis « - … ».
+        team = [{"name": n} for n in ("ALOUINI Soumaya", "AMRI Zayd", "BAYAR Sadok", "BEN SALAH Elyes", "BEY Sondes",
+                                      "CHAOUCH Imen", "DRIDI Walid")]
+        text = m._display_text({"ok": True, "project_id": "18589", "project": "ZAIN BAHRAIN - Wave 1_Data Consulting",
+                                "team": team, "team_count": 7})
+        for member in team:
+            self.assertIn("- " + member["name"], text)
+        self.assertNotIn("…", text); self.assertNotIn("Team count", text)
+        long_note = "Commentaire " + "très détaillé " * 60
+        rows = [{"id": i, "a": "x", "b": "y", "c": "z", "d": "fin-%d" % i} for i in range(40)]
+        table = {"headers": [f"h{i}" for i in range(9)], "rows": [[f"v{r}-{c}" for c in range(9)] for r in range(30)]}
+        text = m._display_text({"ok": True, "note": long_note, "items": rows, "tables": [table] * 4,
+                                **{f"champ_{i}": f"valeur {i}" for i in range(40)}})
+        self.assertIn(" ".join(long_note.split()), text)
+        self.assertIn("fin-39", text); self.assertIn("v29-8", text); self.assertEqual(4, text.count("Tableaux : 30 ligne(s)"))
+        self.assertIn("Champ 39 : valeur 39", text); self.assertGreater(len(text), 4000); self.assertNotIn("…", text)
 
     def test_forecast_and_empty_search(self):
         self.assertEqual("N° d'offre : 20447\nCharges : 2026-11 : 50\nTotal (JH) : 665",
