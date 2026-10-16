@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "verdict": "BLOQUE_PERMISSION_MICRO",
+  "summary": "Aucun vrai mémo Android capturé. L'app Samantha n'a pas d'enregistreur de mémo (ni intent ni hook de test). Le repli Termux:API est refusé : com.termux.api n'a pas RECORD_AUDIO. L'accorder est un changement de permission, qui demande une décision d'Amine. La transcription Gemini par le code #138 a été qualifiée sur le mémo M4A existant (synthétique).",
+  "provenance": {
+    "capturedAt": "2026-10-11",
+    "request_ids": [
+      "mcp-claude-chat-hs8v2-probe-tools-01-execute",
+      "mcp-claude-chat-hs8v2-probe-app-02-execute",
+      "mcp-claude-chat-hs8v2-probe-perm-01-execute",
+      "mcp-claude-chat-hs8v2-probe-appsrc-02-execute",
+      "mcp-claude-chat-hs8v2-live-tts-01-execute",
+      "mcp-claude-chat-hs8v2-mic-record-01-execute",
+      "mcp-claude-chat-hs8v2-sdk-full-01-execute"
+    ]
+  },
+  "appRecorder": {
+    "package": "ai.samantha.android.dev",
+    "versionName": "0.10.1-native-dev-opt",
+    "recordAudioGranted": true,
+    "memoRecorderEntry": false,
+    "evidence": "Seule capture audio dans les sources de l'app (S24 ~/samantha-core, main bfb42ec) : SessionAudio.kt, AudioRecord PCM en flux pour la voix Live, sans MediaRecorder ni fichier. VoiceLabReceiver (action ai.samantha.android.VOICE_LAB) ne règle que des drapeaux voix. Aucun export m4a."
+  },
+  "termuxApiFallback": {
+    "tools": { "termux-microphone-record": true, "termux-media-player": true, "play-audio": false, "ffmpeg": false, "ffprobe": false },
+    "recordAudioGranted": false,
+    "result": "termux-microphone-record : « Please grant the following permission to use this command: android.permission.RECORD_AUDIO ». Aucun fichier produit.",
+    "referencePhrase": {
+      "text": "Bonjour Samantha, quel temps fait-il ?",
+      "source": "socket claw-live du Companion (client=samantha_android, locale fr-FR, session probe-*), protocole legacy, consigne « prononce mot pour mot, aucun outil »",
+      "pcm": { "format": "s16le mono 24 kHz", "bytes": 121922, "seconds": 2.54 },
+      "toolCallSeen": false,
+      "liveTurnMs": 5822,
+      "playedThroughSpeaker": true,
+      "musicVolume": "7/15 (non modifié)",
+      "kept": false
+    },
+    "unblock": "Décision d'Amine : accorder RECORD_AUDIO à Termux:API (invite Android ou `pm grant com.termux.api android.permission.RECORD_AUDIO`), puis relancer la même séquence (enregistrement 6 s pendant la lecture). Autre voie possible, non utilisée : l'enregistreur Samsung (com.sec.android.app.voicenote), qui demande de piloter l'interface."
+  },
+  "containerBrand": {
+    "captured": false,
+    "core138Check": "isM4aContainer : accepté seulement si 'M4A ' figure dans la marque majeure ou les marques compatibles",
+    "expectedAndroidMediaRecorder": {
+      "basis": "Source AOSP de MPEG4Writer (OutputFormat.MPEG_4), non vérifiée sur ce S24",
+      "majorBrand": "mp42",
+      "compatibleBrands": ["isom", "mp42"],
+      "acceptedByCore138": false
+    },
+    "risk": "Si le S24 confirme mp42/isom, #138 refusera tout vrai mémo Android (attachment_type_mismatch). Ajouter 'mp42' et 'isom' avec un contrôle de piste audio, ou accepter tout ftyp ISO-BMFF dont le handler est 'soun'."
+  },
+  "sttViaCore138Code": {
+    "memo": { "file": "../hs8-captures/bonjour-samantha.m4a", "kind": "synthetic_speech (cf. hs8-captures/memo-audio.json)", "sizeBytes": 12967, "sha256": "45b72fe4f79215f6ab6f4366239a79117330f355cc2bf17f745bce29b929c826", "isM4aContainer_core138": true },
+    "path": "loadMemoMediaOwner (npm root -g) → memoAudioConfig (9973391b) sur une cfg en mémoire avec google/gemini-3.5-flash-lite et openai/gpt-4o-transcribe → filtre Google seul (D45-3) → runMediaUnderstandingFile(capability audio, mime audio/mp4, MEMO_TRANSCRIPTION_PROMPT) → projectMemoTranscript",
+    "profilePinned": "google:claw-gemini-free",
+    "timeoutSeconds": 60,
+    "openaiCalled": false,
+    "outcome": "success",
+    "provider": "google",
+    "model": "gemini-3.5-flash-lite",
+    "latencyMs": 1486,
+    "text": "Bonjour, Samantha.",
+    "reference": "Bonjour Samantha",
+    "matchIgnoringPunctuation": true,
+    "configOnDiskModified": false
+  },
+  "cleanup": "~/.cache/tmp/hs8 (WAV de référence, scripts, code compilé, copie du m4a) supprimé du S24 ; aucun fichier audio brut conservé."
+}

@@ -60,9 +60,11 @@ function cleanHttpTrace(value:any){
   return out;
 }
 const BANK_UI_TRACE_STAGES=new Set(["bank_ui_navigation","bank_ui_lifecycle","bank_return_detected","bank_return_requested","bank_return_response","bank_result_presented"]);
-function cleanNavigationTrace(value:any,allowedOrigins:ReadonlySet<string>){
+// A destination the app blocked is traced by its https origin only (never a query), so the next diagnosis is not blind.
+const BLOCKED_ORIGIN=/^https:\/\/[a-z0-9-]{1,63}(\.[a-z0-9-]{1,63}){1,8}$/;
+function cleanNavigationTrace(value:any,allowedOrigins:ReadonlySet<string>,blocked=false){
   if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).sort().join(",")!=="origin,path"||
-     typeof value.origin!=="string"||!allowedOrigins.has(value.origin)||
+     typeof value.origin!=="string"||!(allowedOrigins.has(value.origin)||(blocked&&value.origin.length<=260&&BLOCKED_ORIGIN.test(value.origin)))||
      typeof value.path!=="string"||value.path.length<1||value.path.length>256||!value.path.startsWith("/")||
      value.path.includes("?")||value.path.includes("#")||!/^\/[A-Za-z0-9_{}./-]*$/.test(value.path))
     paymentError("invalid_payment_trace",503);
@@ -83,7 +85,7 @@ function cleanTraceInput(value:PaymentTraceInput,allowedOrigins:ReadonlySet<stri
   if(value.stage==="http_exchange"&&!out.http)paymentError("invalid_payment_trace",503);
   if(value.navigation!==undefined){
     if(!["bank_ui_navigation","bank_return_detected"].includes(value.stage))paymentError("invalid_payment_trace",503);
-    out.navigation=cleanNavigationTrace(value.navigation,allowedOrigins);
+    out.navigation=cleanNavigationTrace(value.navigation,allowedOrigins,value.stage==="bank_ui_navigation"&&value.outcome==="navigation_blocked");
   }
   if(value.stage==="bank_ui_navigation"&&!out.navigation)paymentError("invalid_payment_trace",503);
   return out;
@@ -101,20 +103,38 @@ export function validateDraft(v:any):PaymentDraft {
     !["demo","live"].includes(v.mode)||!["chatgpt","work","claw","samantha"].includes(v.origin.channel)||!safeText(v.origin.id)) paymentError("invalid_payment_request");
   return {requestKey:v.requestKey,adapterId:v.adapterId,reference:v.reference,mode:v.mode,origin:{channel:v.origin.channel,id:v.origin.id}};
 }
+const QUOTE_KEYS=["payee","reference","amountMinor","currency","decimals"];
+const FEE_KEYS=["feeMinor","totalMinor","feeLabel"];
+export function quoteHasFee(q:PaymentQuote):q is PaymentQuote&{feeMinor:number;totalMinor:number;feeLabel:string} {
+  return q.feeMinor!==undefined;
+}
 export function validateQuote(v:any):PaymentQuote {
-  object(v,["payee","reference","amountMinor","currency","decimals"]);
+  const withFee=!!v&&typeof v==="object"&&Object.prototype.hasOwnProperty.call(v,"feeMinor");
+  object(v,withFee?[...QUOTE_KEYS,...FEE_KEYS]:QUOTE_KEYS);
   if(!safeText(v.payee)||!safeText(v.reference,100)||!Number.isSafeInteger(v.amountMinor)||v.amountMinor<0||v.amountMinor>9000000000000||
     typeof v.currency!=="string"||!/^[A-Z]{3}$/.test(v.currency)||!Number.isInteger(v.decimals)||v.decimals<0||v.decimals>3) paymentError("invalid_payment_quote",502);
+  // A provider fee is only accepted as an exact breakdown: the total is what the owner confirms and what the gateway must equal.
+  if(withFee&&(!Number.isSafeInteger(v.feeMinor)||v.feeMinor<0||!Number.isSafeInteger(v.totalMinor)||v.totalMinor!==v.amountMinor+v.feeMinor||
+    v.totalMinor>9000000000000||!safeText(v.feeLabel,40))) paymentError("invalid_payment_quote",502);
   return {...v};
 }
 export function quoteDigest(adapterId:string,mode:string,q:PaymentQuote) {
+  if(quoteHasFee(q))
+    return hash(["claw.payment.quote.v2",adapterId,mode,q.payee,q.reference,q.amountMinor,q.feeMinor,q.totalMinor,q.feeLabel,q.currency,q.decimals].join("\n"));
   return hash(["claw.payment.quote.v1",adapterId,mode,q.payee,q.reference,q.amountMinor,q.currency,q.decimals].join("\n"));
 }
+// Gateway order ids are issued by the PSP (ClicToPay mdOrder): same RFC shape as UUID, any case.
+const GATEWAY_ORDER_ID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+// Maxit webview contract (11/10): Maxit no longer returns its transaction id, so checkoutId may be empty.
+// Paiement réel du 11/10 16:50 : l'adaptateur l'acceptait mais pas ce cœur (502, demande figée en executing).
+function validContinuationShape(v:any):boolean {
+  return !!v&&typeof v==="object"&&!Array.isArray(v)&&Object.keys(v).sort().join(",")==="checkoutId,gatewayOrderId,provider"&&
+    typeof v.provider==="string"&&/^[a-z][a-z0-9_.-]{1,60}$/.test(v.provider)&&
+    typeof v.checkoutId==="string"&&/^[0-9]{0,32}$/.test(v.checkoutId)&&
+    typeof v.gatewayOrderId==="string"&&GATEWAY_ORDER_ID.test(v.gatewayOrderId);
+}
 function validateContinuation(v:any):PaymentContinuation {
-  object(v,["provider","checkoutId","gatewayOrderId"]);
-  if(typeof v.provider!=="string"||!/^[a-z][a-z0-9_.-]{1,60}$/.test(v.provider)||
-    typeof v.checkoutId!=="string"||!/^[0-9]{1,32}$/.test(v.checkoutId)||
-    typeof v.gatewayOrderId!=="string"||!UUID.test(v.gatewayOrderId))paymentError("invalid_payment_continuation",502);
+  if(!validContinuationShape(v))paymentError("invalid_payment_continuation",502);
   return {provider:v.provider,checkoutId:v.checkoutId,gatewayOrderId:v.gatewayOrderId};
 }
 export function confirmationMessage(r:PaymentRecord) {
@@ -229,6 +249,9 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
     const r=locate(rows,id);
     if(r.state!=="executing")return paymentView(r);
     const at=now();
+    if(state==="requires_bank_action"&&(!validContinuationShape(continuation)||continuation!.provider!==r.draft.adapterId)){
+      state="effect_unknown";reason="payment_effect_unverified";reasonDetail="invalid_payment_continuation";continuation=undefined;
+    }
     r.state=state;r.reasonCode=reason;r.receipt=receipt;r.updatedAt=at;
     // The precise provider code survives in the trace even when the state reason is grouped (P0-4).
     const detail=typeof reasonDetail==="string"&&REASON_DETAIL.test(reasonDetail)?{reasonDetail}:{};
@@ -257,7 +280,9 @@ export function createPaymentCore(options:{store:PaymentStore;adapters:PaymentAd
       return finish(id,"demo_confirmed","demo_only_no_payment");
     }
     if(result.state==="requires_bank_action") {
-      if(!result.continuation)return finish(id,"effect_unknown","payment_effect_unverified");
+      // Never leave the record in executing: an unusable continuation ends as effect_unknown (never retried).
+      if(!validContinuationShape(result.continuation))
+        return finish(id,"effect_unknown","payment_effect_unverified",undefined,undefined,"invalid_payment_continuation");
       return finish(id,"requires_bank_action",result.reasonCode,undefined,result.continuation);
     }
     if(result.state==="confirmed") {

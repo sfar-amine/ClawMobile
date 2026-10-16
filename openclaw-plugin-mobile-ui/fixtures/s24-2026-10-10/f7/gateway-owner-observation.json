@@ -1,0 +1,27 @@
+{
+  "provenance": {
+    "source": "https://github.com/sfar-amine/samantha-core/pull/81#issuecomment-6102100431",
+    "capturedBy": "Claude",
+    "method": "Read-only process fd survey reported in PR81; no log contents captured",
+    "observedAtApprox": "2026-10-10T20:10:00Z"
+  },
+  "legacy": {
+    "name": "health/gateway.stderr.log",
+    "bytes": 36653070,
+    "lastWrite": "2026-10-07T19:22:00",
+    "openFileDescriptors": 0,
+    "subsequentlyDeletedByClaude": true
+  },
+  "active": {
+    "name": "workspace/logs/companion-openclaw-gateway.log",
+    "approxBytes": 3100000,
+    "writer": "openclaw-gateway",
+    "fd": [
+      1,
+      2
+    ],
+    "append": true,
+    "owner": "openclawGatewayClient.ts",
+    "detached": true
+  }
+}

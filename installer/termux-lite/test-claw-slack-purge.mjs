@@ -99,7 +99,9 @@ await new Promise((resolve) => server.listen(18992, "127.0.0.1", resolve));
 
 async function runOnce() {
   return await new Promise((resolve, reject) => {
-    const child = spawn(path.join(os.homedir(), ".openclaw-android", "bin", "node"), [
+    // The production entrypoint keeps its Termux shebang. Tests use the current
+    // Node executable so the same contract runs on the Ubuntu CI host.
+    const child = spawn(process.execPath, [
       path.resolve(path.dirname(new URL(import.meta.url).pathname), "claw-slack-purge.mjs"),
       "--ttl-seconds", "86400",
       "--now-seconds", String(now),

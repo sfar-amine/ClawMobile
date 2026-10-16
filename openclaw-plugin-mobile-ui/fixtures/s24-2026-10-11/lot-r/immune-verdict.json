@@ -1,0 +1,182 @@
+{
+ "_capture": {
+  "source": "~/.openclaw/health/current.json (écrit par installer/termux-lite/health-verdict.py), lecture fichier seule",
+  "capturedAt": "2026-10-11T10:50:14Z",
+  "host": "Samsung S24 / Termux",
+  "runtimeCore": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+  "sanitized": true,
+  "note": "Projection : états, criticité, raisons codées, fraîcheur. Identifiants d'incident et horodatages internes retirés ; l'empreinte d'erreur du résumé d'incident est remplacée."
+ },
+ "verdict": {
+  "schema_version": 1,
+  "generated_at": 1791715814,
+  "overall": "healthy",
+  "summary": {
+   "active_incidents": 0,
+   "degraded_stale_unverified": 0,
+   "down": 0,
+   "healthy_ready": 17,
+   "human_required": 0,
+   "noncritical_advisories": 1,
+   "stuck_continuations": 0
+  },
+  "capabilities": {
+   "boot.persistence": {
+    "state": "ready",
+    "critical": true,
+    "reason": null,
+    "freshness_s": null
+   },
+   "chat.continuity": {
+    "state": "ready",
+    "critical": false,
+    "reason": null,
+    "freshness_s": null
+   },
+   "companion": {
+    "state": "healthy",
+    "critical": true,
+    "reason": null,
+    "freshness_s": null
+   },
+   "control_plane.maintenance": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "semantic maintenance healthy",
+    "freshness_s": 585.8
+   },
+   "device.adb": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "canonical endpoint verified",
+    "freshness_s": null
+   },
+   "device.adb.recovery_readiness": {
+    "state": "standby",
+    "critical": false,
+    "reason": "wireless_endpoint_not_discoverable_primary_healthy",
+    "freshness_s": 26.6
+   },
+   "device.network_safety": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "network_settings_clean",
+    "freshness_s": 0.4
+   },
+   "gateway": {
+    "state": "healthy",
+    "critical": true,
+    "reason": null,
+    "freshness_s": null
+   },
+   "immune.adb_watchdog": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "process and loop evidence healthy",
+    "freshness_s": 26.4
+   },
+   "immune.health_manager": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "process and loop evidence healthy",
+    "freshness_s": 0.1
+   },
+   "immune.incident_manager": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "process and loop evidence healthy",
+    "freshness_s": 5.0
+   },
+   "immune.incident_orchestrator": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "process and loop evidence healthy",
+    "freshness_s": 1.2
+   },
+   "immune.remote_watchdog": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "process and loop evidence healthy",
+    "freshness_s": 0
+   },
+   "immune.root_guardian": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "process and loop evidence healthy",
+    "freshness_s": 9.1
+   },
+   "notification.smtp": {
+    "state": "ready",
+    "critical": false,
+    "reason": "probe_ok",
+    "freshness_s": 114.1
+   },
+   "notification.whatsapp": {
+    "state": "healthy",
+    "critical": false,
+    "reason": "channel_connected",
+    "freshness_s": null
+   },
+   "remote_desktop": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "local_mcp_ping_and_remote_heartbeat",
+    "freshness_s": 9.8
+   },
+   "transactions.runtime": {
+    "state": "healthy",
+    "critical": true,
+    "reason": "pending_archives=0 repeated_failures=3",
+    "freshness_s": 511.7
+   }
+  },
+  "incidents": {
+   "active": 0,
+   "human_required": 0,
+   "recent_failed": [
+    {
+     "component": "transaction.whatsapp.processing",
+     "scope": "runtime",
+     "state": "failed",
+     "summary": "Repeated transaction failure: error_<empreinte> (indeterminate)",
+     "human_boundary": 0
+    }
+   ]
+  },
+  "continuations": {
+   "blocked": 0,
+   "resuming": 0,
+   "stuck": 0
+  },
+  "consistency_warnings": [],
+  "maintenance": {
+   "delivery_state": "synchronized",
+   "delivery_head": "c7f3e7939591a6637149d7f026761de11e9ace20"
+  }
+ },
+ "previousReadAt": "2026-10-11T10:48:41Z",
+ "previousRead": {
+  "overall": "healthy",
+  "summary": {
+   "healthy_ready": 16,
+   "down": 1,
+   "noncritical_advisories": 2
+  },
+  "notification.whatsapp": {
+   "state": "down",
+   "critical": false,
+   "reason": "channel_not_connected"
+  },
+  "recent_failed": [
+   {
+    "component": "whatsapp",
+    "summary": "whatsapp persistent health failure",
+    "state": "failed"
+   }
+  ]
+ },
+ "findings": [
+  "Verdict global healthy aux deux lectures ; WhatsApp (non critique) est passé de down à healthy en 93 s.",
+  "transactions.runtime reste healthy avec repeated_failures=3."
+ ]
+}

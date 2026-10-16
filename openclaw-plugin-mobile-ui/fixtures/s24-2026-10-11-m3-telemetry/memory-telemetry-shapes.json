@@ -1,0 +1,70 @@
+{
+ "capturedAt": "2026-10-11",
+ "source": "S24 ~/.openclaw/context-sync/memory.db (lecture seule, claw_exec m3t-survey-1/4/5)",
+ "sanitization": "Formes réelles (préfixes, séparateurs, clés JSON, surfaces, kinds) ; toutes les valeurs remplacées.",
+ "s24Counts": {
+  "events": 2025,
+  "situation_event": 401,
+  "learning_gate": 345,
+  "companion_deploy": 48,
+  "improvement_candidate": 68,
+  "total": 862,
+  "notes": [
+   "LEARNING_GATE_V1 : 334 openclaw/learning + 11 chat/learning (écrits à la main entre le 03/10 et le 07/10)",
+   "IMPROVEMENT_CANDIDATE_V1 : 68 événements, tous sous le curseur du curateur et cités par une proposition improvement_candidate « bridged »",
+   "SITUATION_EVENT_V1 : 399 de forme transition + 2 notifications humaines",
+   "les 794 lignes situation/gate/déploiement correspondent toutes au motif REFUSED_TELEMETRY ; 0 forme divergente"
+  ]
+ },
+ "rows": [
+  {
+   "class": "situation_event",
+   "surface": "work",
+   "kind": "checkpoint",
+   "text": "SITUATION_EVENT_V1: {\"event\":\"EVT-GHIJKLMNOPABCDEF\",\"id\":\"SIT-ABCDEFGHIJKLMNOP\",\"kind\":\"transition\",\"state\":\"analyzing\",\"title\":\"Incident composant\"}"
+  },
+  {
+   "class": "situation_event",
+   "surface": "work",
+   "kind": "checkpoint",
+   "text": "SITUATION_EVENT_V1: {\"channel\":\"whatsapp\",\"event\":\"EVT-PONMLKJIHGFEDCBA\",\"human_action\":\"HA-ABCDEFGHIJKLMNOP\",\"id\":\"SIT-ABCDEFGHIJKLMNOP\",\"notification\":\"accepted\"}"
+  },
+  {
+   "class": "learning_gate",
+   "surface": "openclaw",
+   "kind": "learning",
+   "text": "LEARNING_GATE_V1:{\"source\":\"incident\",\"closure_id\":\"inc-redacted\",\"component\":\"slack_bridge\",\"capability_id\":\"device.remote_bridge\",\"status\":\"recovered\",\"symptom\":\"redacted\",\"evidence\":[\"incident:inc-redacted\",\"incident_events:4\"],\"no_learning_reason\":\"no_explicit_reusable_learning_supplied\",\"confidence\":\"provisional\"}"
+  },
+  {
+   "class": "learning_gate",
+   "surface": "chat",
+   "kind": "learning",
+   "text": "LEARNING_GATE_V1:{\"source\":\"engineering_closure\",\"capability_id\":\"redacted.capability\",\"status\":\"validated\",\"learning\":\"redacted\",\"evidence\":[\"redacted\"],\"confidence\":\"validated\"}"
+  },
+  {
+   "class": "companion_deploy",
+   "surface": "work",
+   "kind": "completed_action",
+   "text": "Companion déployé 0123456789ab (précédent ba9876543210), recette automatique acceptée."
+  },
+  {
+   "class": "improvement_candidate",
+   "surface": "openclaw",
+   "kind": "learning",
+   "text": "IMPROVEMENT_CANDIDATE_V1:{\"target\":\"device.remote_bridge\",\"capability\":\"device.remote_bridge\",\"intent\":\"redacted\",\"type\":\"rule\",\"learning_type\":\"closure_learning\",\"current_state\":{\"symptom\":\"redacted\"},\"proposed_state\":{\"final_fix\":\"redacted\"},\"evidence\":[\"redacted\"],\"expected_gain\":{\"recurrence\":\"lower\"},\"risk\":\"read\",\"rollback\":{\"strategy\":\"retain_prior_operational_rule\"},\"promotion_eligible\":false,\"confidence\":\"provisional\",\"requires_review\":true}",
+   "bridged": true
+  },
+  {
+   "class": null,
+   "surface": "work",
+   "kind": "checkpoint",
+   "text": "SITUATION_SIGNAL_V1:{\"correlation_key\":\"redacted\",\"source\":\"redacted\"}"
+  },
+  {
+   "class": null,
+   "surface": "chat",
+   "kind": "decision",
+   "text": "Décision durable (texte personnel retiré)."
+  }
+ ]
+}

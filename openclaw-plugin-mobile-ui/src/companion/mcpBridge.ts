@@ -5,8 +5,10 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge";
+import { REMEMBER_KINDS, validateRemember } from "./memoryControl";
 import {
   getRemoteBridgeRequest,
+  hasContinuumTask,
   submitAuthenticatedMcpRequest,
 } from "./remoteBridge";
 
@@ -75,6 +77,18 @@ function projectReceipt(receipt: any) {
     return { ...base, state: receipt.state, error: receipt.error ? "claw_execution_failed" : undefined };
   }
   const value = receipt.result;
+  if (receipt.method === "context_remember") {
+    // Receipt only: the remembered text is never echoed back nor persisted in the receipt.
+    return {
+      ...base,
+      state: value?.state === "recorded" ? "recorded" : value?.state === "refused" ? "refused" : "failed",
+      event_id: value?.event_id,
+      surface: value?.surface,
+      kind: value?.kind,
+      supersedes: value?.supersedes,
+      reason: value?.reason,
+    };
+  }
   if (value?.artifact) {
     return { ...base, state: "result_available", artifact: safeValue(value.artifact), preview: String(value.preview || "").slice(0, 8000) };
   }
@@ -353,7 +367,8 @@ async function executeCapability(
       "--method", method,
       "--params-hash", bridgeParamsHash(method, params),
       "--capability", capability,
-      "--risk", selectedRisk,
+      // The Bridge fences every owner execution whose decision is not `read`: arm the fence on the same rule.
+      "--risk", String(preparedDecision?.risk || "").trim() === "read" ? "read" : "write",
       "--owner-id", `mcp-${clientId}`,
     ]);
     continuumState = prepared;
@@ -406,12 +421,17 @@ async function executeCapability(
   return { ...projected, continuum: continuumState };
 }
 
-async function executeRawCommand(
+export async function executeRawCommand(
   requestId: string,
   clientId: string,
   profile: string,
   args: Record<string, unknown>,
+  dependencies: {hasTask?:typeof hasContinuumTask;ingress?:typeof continuumIngress;submit?:typeof submitAuthenticatedMcpRequest;getRequest?:typeof getRemoteBridgeRequest} = {},
 ) {
+  const hasTask=dependencies.hasTask || hasContinuumTask;
+  const ingress=dependencies.ingress || continuumIngress;
+  const submit=dependencies.submit || submitAuthenticatedMcpRequest;
+  const getRequest=dependencies.getRequest || getRemoteBridgeRequest;
   if (profile !== "chat-owner") throw new Error("owner_profile_required");
   const command = requiredString(args.command, "command", 32768);
   const actionKey = requiredString(args.action_key, "action_key", 40, ACTION_ID_RE);
@@ -425,20 +445,85 @@ async function executeRawCommand(
     throw new Error("invalid_timeout_ms");
   }
 
+  const taskId = actionTaskId(clientId, actionKey);
+  const method = "exec_wait";
+  const params = { command, ...(cwd ? { cwd } : {}), timeoutMs };
+  const paramsHash = bridgeParamsHash(method, params);
+  const observed = hasTask(taskId) ? await ingress(["status", "--task-id", taskId]) : {state:"not_found"};
+  if (!observed || typeof observed.state !== "string" || !observed.state) throw new Error("continuum_status_invalid");
+  let wireStepId = stepKey;
+  let continuumFence: any;
+  const durable = observed?.state && observed.state !== "not_found";
+  if (durable) {
+    // Metadata comes only from the canonical task projection, never tool arguments.
+    const capability = String(observed.capability || "");
+    if (!/^[A-Za-z0-9._-]{1,128}$/.test(capability)) {
+      return {state:"blocked",error:"continuum_capability_unavailable",request_id:requestId,task_id:taskId,
+        retry_allowed:false,continuum:observed};
+    }
+    const existing = getRequest(requestId);
+    if (existing && (existing.requestId !== requestId || existing.taskId !== taskId || existing.method !== method || existing.paramsHash !== paramsHash)) {
+      throw new Error("request_id_conflict");
+    }
+    if (existing) return {...projectReceipt(existing),continuum:observed};
+    const prepared = await ingress([
+      "prepare", "--task-id", taskId, "--step-id", stepKey, "--request-id", requestId,
+      "--method", method, "--params-hash", paramsHash, "--capability", capability,
+      "--risk", "write", "--owner-id", `mcp-${clientId}`,
+    ]);
+    if (prepared.state !== "ready" || prepared.dispatch_allowed !== true) {
+      return {state:prepared.mission_state || prepared.state || "blocked",request_id:requestId,task_id:taskId,
+        retry_allowed:false,continuum:prepared};
+    }
+    wireStepId = requiredString(prepared.wire_step_id, "wire_step_id", 128, REQUEST_ID_RE);
+    continuumFence = prepared.continuum_fence;
+    // No fabricated fence or read classification: the Bridge validates the canonical armed effect.
+    if (!continuumFence) throw new Error("continuum_fence_required");
+  }
+  const receipt = await submit({
+    requestId, taskId, stepId:wireStepId, sessionId:`external_mcp:${clientId}`,
+    _claw_access:accessMetadata(clientId,profile), method, params,
+    ...(continuumFence ? {continuumFence} : {}),
+  });
+  const projected = projectReceipt(receipt);
+  if (!durable) return projected;
+  let continuum: any;
+  try {
+    await ingress(["settle", "--task-id", taskId, "--request-id", requestId]);
+    continuum = await ingress(["status", "--task-id", taskId]);
+  } catch { continuum = {state:"verification_required",retry_allowed:false}; }
+  return {...projected,continuum};
+}
+
+async function rememberFact(
+  requestId: string,
+  clientId: string,
+  profile: string,
+  args: Record<string, unknown>,
+) {
+  if (profile !== "chat-owner") throw new Error("owner_profile_required");
+  const actionKey = requiredString(args.action_key, "action_key", 40, ACTION_ID_RE);
+  const stepKey = "execute";
+  const expectedRequestId = actionRequestId(clientId, actionKey, stepKey);
+  if (requestId !== expectedRequestId) throw new Error("action_request_id_mismatch");
+  const kind = String(args.kind || "");
+  if (!(REMEMBER_KINDS as readonly string[]).includes(kind)) throw new Error("invalid_kind");
+  // Surface comes from the admitted relay identity, never from tool arguments.
+  const params = validateRemember({
+    surface: contextSurface(clientId),
+    kind,
+    text: args.text,
+    supersedes: args.supersedes,
+  });
   const receipt = await submitAuthenticatedMcpRequest({
     requestId,
     taskId: actionTaskId(clientId, actionKey),
     stepId: stepKey,
     sessionId: `external_mcp:${clientId}`,
-      _claw_access: accessMetadata(clientId,profile),
-    method: "exec_wait",
-    params: {
-      command,
-      ...(cwd ? { cwd } : {}),
-      timeoutMs,
-    },
+    _claw_access: accessMetadata(clientId, profile),
+    method: "context_remember",
+    params: { surface: params.surface, kind: params.kind, text: params.text, ...(params.supersedes ? { supersedes: params.supersedes } : {}) },
   });
-
   return projectReceipt(receipt);
 }
 
@@ -524,6 +609,8 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
       return executeCapability(requestId, clientId, profile, args);
     case "claw_exec":
       return executeRawCommand(requestId, clientId, profile, args);
+    case "claw_remember":
+      return rememberFact(requestId, clientId, profile, args);
     case "claw_status":
       return statusFor(clientId, args);
     case "claw_artifact_read":

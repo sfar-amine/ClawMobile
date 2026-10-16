@@ -6,7 +6,10 @@ STORE="${SAMANTHA_IMPROVEMENT_STORE:-$HOME/.openclaw/skill-intelligence/improvem
 gate_json="$("$ROOT/learning-gate.py" close "$@")"
 learning_text="$(printf '%s' "$gate_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("context_text",""))')"
 receipt_id="$(printf '%s' "$gate_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("receipt_id",""))')"
-if [ -n "$learning_text" ]; then
+# M3 « une seule mémoire » : LEARNING_GATE_V1 (no reusable learning) stays in the gate's own receipt,
+# ledger and DEVELOPMENT_JOURNAL. Only IMPROVEMENT_CANDIDATE_V1 enters memory.db, where the curator
+# (context-dream.py -> dream_proposals) feeds the improvement bridge.
+if [[ "$learning_text" == IMPROVEMENT_CANDIDATE_V1:* ]]; then
   "$ROOT/context-event.sh" openclaw learning "$learning_text" >/dev/null
 fi
 bridge_json='{"state":"noop","reason":"not_improvement_candidate"}'

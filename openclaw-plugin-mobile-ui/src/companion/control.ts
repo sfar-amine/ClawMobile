@@ -1,6 +1,6 @@
 import {conditionalRead} from "./readEtag";
 import {completeUsageAttention} from './usageControl';
-import {allJobs,protectedJob} from "./automations";
+import {allJobs} from "./automations";
 import { execFile, spawn } from "child_process";
 import {existsSync, constants} from "fs";
 import type { IncomingMessage, ServerResponse } from "http";
@@ -20,7 +20,7 @@ export function controlPaths() {
   const pinned=path.join(os.homedir(), ".openclaw/runtime-ui-playbooks/current");
   return {
     playbooks: process.env.SAMANTHA_CONTROL_PLAYBOOKS || process.env.CLAW_UI_PLAYBOOKS_ROOT || (existsSync(path.join(pinned,"reporting/control_snapshot.py")) ? pinned : path.join(os.homedir(), ".openclaw/workspace/ui-playbooks")),
-    live: process.env.SAMANTHA_CONTROL_LIVE || path.join(os.homedir(), "ClawMobile/installer/termux-lite/claw-live.py"),
+    live: process.env.SAMANTHA_CONTROL_LIVE || path.join(os.homedir(), ".openclaw/releases/current/termux-lite/claw-live.py"),
   };
 }
 
@@ -29,7 +29,7 @@ export function automationNotificationProjection(value:any,jobs:any[]=[]):any {
   if(!value||!Array.isArray(value.items))return value;
   return {...value,activationRoute:'/v1/automations/{automationId}/enable|disable',items:value.items.map((item:any)=>
     item?.kind==='scheduled'&&typeof item.automationId==='string'&&/^[A-Za-z0-9_.:-]{1,160}$/.test(item.automationId)
-      ? (()=>{const job=jobs.find(j=>j.id===item.automationId);return {...item,togglable:!!job&&!protectedJob(job),reason:job?(protectedJob(job)?'protected_automation':'delivery_evidence_unavailable'):'automation_unavailable'};})() : item)};
+      ? (()=>{const job=jobs.find(j=>j.id===item.automationId);return {...item,togglable:false,reason:job?'action_guard_not_qualified':'automation_unavailable'};})() : item)};
 }
 
 export function readControl(section: string, signal?: AbortSignal): Promise<unknown> {

@@ -1,6 +1,6 @@
 import {conversationContext} from "./conversationContext";
 import {observeConversationOwnerRow,observeSessionDefaults,readConversationOwnerRow} from "./conversationOwnerIndex";
-import {readModelOwnerFresh,peekModelOwner,readModelOwnerCached} from "./modelOwner";
+import {configuredModelAllow,readModelOwnerFresh,peekModelOwner,readModelOwnerCached} from "./modelOwner";
 import {accountAlias,accountView,knownProfiles,publicModelRef,resolveModelRef} from "./accountIdentity";
 import {createHash} from "crypto";
 import {callOpenClawGateway,expectedCompanionSessionKey} from "./openclawAgentClient";
@@ -43,7 +43,7 @@ function projection(id:string,row:any){
   issues:[...(!('authProfileOverride' in row)?['conversation_auth_profile_unknown']:[]),...(pinned===null?['conversation_pin_unknown']:[]),...(!model?['conversation_model_unknown']:[])]};
 }
 function modelCatalogFrom({raw:configRaw,catalog,auth}:any){
- const config=configRaw?.config,allow=config?.agents?.entries?.main?.modelPolicy?.allow;
+ const config=configRaw?.config,allow=configuredModelAllow(config);
  if(!Array.isArray(allow)||!Array.isArray(catalog?.models)||catalog.models.length>2000||auth?.unavailable||!Array.isArray(auth?.providers))throw nativeError('conversation_model_catalog_unavailable',503);
  const usable=(provider:string,profile?:string)=>{
   const row=auth.providers.find((x:any)=>x.provider===provider);
@@ -64,11 +64,17 @@ function modelCatalogFrom({raw:configRaw,catalog,auth}:any){
 }
 /** Same window as R21 providers: a successful owner snapshot stays usable 5 min while the shared refresh runs. */
 const CATALOG_SERVE_MS=300000;
+export type ConversationAvailabilityCause={code:'conversation_gateway_session_unavailable';messages:{fr:string;en:string}};
+export function conversationAvailabilityCause(code:unknown):ConversationAvailabilityCause|undefined{
+ if(code!=='conversation_gateway_session_unavailable')return undefined;
+ return {code,messages:{fr:'Cette conversation reste consultable, mais sa session Gateway n’est plus disponible. Elle est en lecture seule.',en:'This conversation remains readable, but its Gateway session is no longer available. It is read-only.'}};
+}
 /** A conversation the Companion still lists but the Gateway no longer knows: readable, never mutable. */
 function retainedOnly(id:string,retained:{lastActivityAt:number|null}){
+ const cause=conversationAvailabilityCause('conversation_gateway_session_unavailable')!;
  return {success:true,state:'degraded',receipt:null,sessionId:id,readOnly:true,thinkingLevel:null,thinkingLevelSource:null,thinkingLevels:[],hasActiveRun:null,
   thinkingChangeAvailable:false,context:null,title:null,pinned:null,model:null,modelAuthProfile:null,modelAccount:null,modelSource:null,mutationAvailable:false,
-  models:[],modelChangeAvailable:false,lastActivityAt:retained.lastActivityAt,issues:['conversation_gateway_session_unavailable']};
+  models:[],modelChangeAvailable:false,lastActivityAt:retained.lastActivityAt,cause,issues:[cause.code]};
 }
 /** App-facing projection: account profiles only as opaque `acct-…` handles. */
 function publicMetadata(value:any){
