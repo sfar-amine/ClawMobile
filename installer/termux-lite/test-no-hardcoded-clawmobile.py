@@ -45,6 +45,7 @@ ALLOWLIST = {
     "installer/termux-lite/lib.sh": "installeur : clawmobile_lite_repo_root localise le dépôt pour construire et installer le plugin, absent de la release.",
     "installer/termux-lite/runtime-sync.sh": "depuis une release (health manager), retrouve le checkout déployé (plugin, outils de déploiement) ; CLAW_CORE_REPO prioritaire.",
     "installer/termux-lite/project-room.py": "copie le dépôt samantha-core complet (docs, plugin, git) dans la salle projet, pas termux-lite ; CLAW_PROJECT_CORE prioritaire.",
+    "installer/termux-lite/gateway-start.sh": "#277 : suit le patch WhatsApp du checkout déployé pour qu'une release Tier0 plus ancienne ne réapplique jamais un patch retiré par un retour arrière ; CLAW_CORE_REPO prioritaire, repli --rollback sur la release.",
     "installer/termux-lite/test-slack-runtime-contract.py": "lit la source du plugin (absente de la release) en dernier recours et vérifie le contrat de lib.sh ci-dessus.",
 }
 
