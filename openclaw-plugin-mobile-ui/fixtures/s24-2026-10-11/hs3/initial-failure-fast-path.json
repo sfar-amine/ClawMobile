@@ -1,0 +1,600 @@
+{
+ "_capture": {
+  "host": "Samsung S24 / Termux",
+  "access": "MCP Claw claw_exec, profil chat-owner, clés cc2-*",
+  "capturedAt": "2026-10-11T13:07:36+00:00",
+  "runtimeCore": "5631fe9d6fbe9972d4fbb744bf48a2b521af0f50 (HEAD de ~/ClawMobile, branche runtime/samantha-companion-private ; inclut core #180 runPaymentPresentation)",
+  "playbooksPinned": "2ffc0e8404506ddc927bff14b3009cd475f14c24",
+  "mode": "lecture seule de runs.json + GET /v1/runs/<runId> sur loopback sans en-tête propriétaire ; aucun état modifié ; identifiants pseudonymisés HMAC (sel jetable, non corrélables avec #176) ; montants, quote, draft, nonce, fingerprint, keyId, textes utilisateur exclus ; horodatages réels gardés (pas des secrets)",
+  "sha256CanonicalOnS24": "b6b02b616189e6ae3ff5fdddbba141f4bd9a65b496dc02175e49c23f61045efb",
+  "request": "HS3 : échec INITIAL des branches de paiement dont #176 montrait l'échec aval ; lien run→paiement réutilisé de core #180 (paymentRequests.ownerConfirmationId → ownerConfirmations.intent.origin.id → runs.decision.requestId)"
+ },
+ "source": "~/.openclaw/clawmobile-companion/runs.json",
+ "blockedChains": [
+  {
+   "payment": {
+    "id": "h_d9841703b480",
+    "state": "blocked",
+    "reasonCode": "browser_context_unavailable",
+    "executorAttempts": 1,
+    "bankResumeAttempts": 0,
+    "authorizationSource": "local_owner_confirmation",
+    "adapter": null,
+    "createdAt": "2026-10-04T19:49:03.052Z",
+    "executionStartedAt": "2026-10-04T19:49:03.052Z",
+    "endedAt": "2026-10-04T19:55:00.107Z",
+    "trace": [
+     {
+      "seq": 1,
+      "stage": "owner_confirmation_consumed",
+      "at": "2026-10-04T19:49:03.052Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 2,
+      "stage": "payment_record_created",
+      "at": "2026-10-04T19:49:03.052Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 3,
+      "stage": "financial_dispatch_committed",
+      "at": "2026-10-04T19:49:03.052Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 4,
+      "stage": "provider_session_started",
+      "at": "2026-10-04T19:49:05.571Z",
+      "tPlusMs": 2519
+     },
+     {
+      "seq": 5,
+      "stage": "http_exchange",
+      "at": "2026-10-04T19:49:06.430Z",
+      "tPlusMs": 3378
+     },
+     {
+      "seq": 6,
+      "stage": "provider_session_authenticated",
+      "at": "2026-10-04T19:49:07.471Z",
+      "tPlusMs": 4419
+     },
+     {
+      "seq": 7,
+      "stage": "http_exchange",
+      "at": "2026-10-04T19:49:07.770Z",
+      "tPlusMs": 4718
+     },
+     {
+      "seq": 8,
+      "stage": "invoice_revalidated",
+      "at": "2026-10-04T19:49:12.152Z",
+      "tPlusMs": 9100
+     },
+     {
+      "seq": 9,
+      "stage": "http_exchange",
+      "at": "2026-10-04T19:49:12.784Z",
+      "tPlusMs": 9732
+     },
+     {
+      "seq": 10,
+      "stage": "http_exchange",
+      "at": "2026-10-04T19:49:13.049Z",
+      "tPlusMs": 9997
+     },
+     {
+      "seq": 11,
+      "stage": "http_exchange",
+      "at": "2026-10-04T19:49:13.395Z",
+      "tPlusMs": 10343
+     },
+     {
+      "seq": 12,
+      "stage": "checkout_prepared",
+      "at": "2026-10-04T19:49:13.424Z",
+      "tPlusMs": 10372
+     },
+     {
+      "seq": 13,
+      "stage": "execution_error",
+      "at": "2026-10-04T19:49:14.000Z",
+      "tPlusMs": 10948,
+      "reasonCode": "browser_context_unavailable"
+     },
+     {
+      "seq": 14,
+      "stage": "state_transition",
+      "at": "2026-10-04T19:49:14.088Z",
+      "tPlusMs": 11036,
+      "reasonCode": "payment_effect_unverified",
+      "outcome": "effect_unknown"
+     },
+     {
+      "seq": 15,
+      "stage": "state_transition",
+      "at": "2026-10-04T19:55:00.107Z",
+      "tPlusMs": 357055,
+      "reasonCode": "browser_context_unavailable",
+      "outcome": "blocked"
+     }
+    ]
+   },
+   "ownerConfirmation": {
+    "id": "h_bc5e0a2b2df0",
+    "state": "consumed",
+    "createdAt": "2026-10-04T19:48:41.916Z",
+    "consumedAt": "2026-10-04T19:49:03.024Z",
+    "expiresAt": "2026-10-04T19:50:41.916Z",
+    "actionType": "payment.local_start",
+    "originChannel": "chatgpt",
+    "originId": "h_2c4c0c1aa518"
+   },
+   "runLinked": false
+  },
+  {
+   "payment": {
+    "id": "h_77f592fb1838",
+    "state": "blocked",
+    "reasonCode": "payment_not_submitted",
+    "executorAttempts": 1,
+    "bankResumeAttempts": 0,
+    "authorizationSource": "local_owner_confirmation",
+    "adapter": null,
+    "createdAt": "2026-10-11T10:30:20.141Z",
+    "executionStartedAt": "2026-10-11T10:30:20.141Z",
+    "endedAt": "2026-10-11T10:30:26.641Z",
+    "trace": [
+     {
+      "seq": 1,
+      "stage": "owner_confirmation_consumed",
+      "at": "2026-10-11T10:30:20.141Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 2,
+      "stage": "payment_record_created",
+      "at": "2026-10-11T10:30:20.141Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 3,
+      "stage": "financial_dispatch_committed",
+      "at": "2026-10-11T10:30:20.141Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 4,
+      "stage": "execution_error",
+      "at": "2026-10-11T10:30:26.581Z",
+      "tPlusMs": 6440,
+      "reasonCode": "maxit_topup_command_changed",
+      "reasonDetail": "maxit_topup_command_changed"
+     },
+     {
+      "seq": 5,
+      "stage": "state_transition",
+      "at": "2026-10-11T10:30:26.641Z",
+      "tPlusMs": 6500,
+      "reasonCode": "payment_not_submitted",
+      "reasonDetail": "maxit_topup_command_changed",
+      "outcome": "blocked"
+     }
+    ]
+   },
+   "ownerConfirmation": {
+    "id": "h_a0a40c8f1bd4",
+    "state": "consumed",
+    "createdAt": "2026-10-11T10:30:10.793Z",
+    "consumedAt": "2026-10-11T10:30:20.073Z",
+    "expiresAt": "2026-10-11T10:32:10.793Z",
+    "actionType": "payment.local_start",
+    "originChannel": "claw",
+    "originId": "h_2710bf1d0702"
+   },
+   "runLinked": true,
+   "run": {
+    "runId": "h_4e3a8f9a9fc0",
+    "requestId": "h_2710bf1d0702",
+    "state": "done",
+    "acceptedAt": "2026-10-11T10:30:06.495Z",
+    "updatedAt": "2026-10-11T10:30:12.832Z",
+    "executionSource": "capability_first",
+    "decision": {
+     "reason": "capability_first",
+     "surface": "claw_live",
+     "capability": "payment.owner_native",
+     "intent": "telecom.orange.topup_own_number",
+     "route": "orange.maxit.topup.own.v1",
+     "risk": "transaction",
+     "type": "EXECUTE"
+    },
+    "storedPresentation": {
+     "status": "info",
+     "understoodCapability": null,
+     "hasFailure": false
+    },
+    "runDoneBeforePaymentCreatedMs": 7309
+   },
+   "publicRunProjection": {
+    "route": "GET /v1/runs/<runId>",
+    "status": 200,
+    "latencyMs": 74,
+    "topKeys": [
+     "alternatives",
+     "clientRunId",
+     "decision",
+     "failure",
+     "message",
+     "presentation",
+     "progress",
+     "prompt",
+     "replayEffect",
+     "result",
+     "runId",
+     "sessionId",
+     "state",
+     "submittedAt",
+     "success",
+     "understood",
+     "updatedAt",
+     "userText"
+    ],
+    "presentation": {
+     "status": "error",
+     "understood": {
+      "capability": "payment.owner_native",
+      "label": "<texte:20 car.>"
+     },
+     "payment": {
+      "state": "blocked",
+      "reasonCode": "payment_not_submitted",
+      "stepId": "execution_error"
+     },
+     "failure": {
+      "step": "<texte:21 car.>",
+      "stepId": "execution_error",
+      "reason": "<texte:50 car.>",
+      "reasonCode": "payment_not_submitted",
+      "notDone": {
+       "code": "payment_not_submitted",
+       "text": "Rien n’a été envoyé au fournisseur."
+      }
+     }
+    }
+   }
+  },
+  {
+   "payment": {
+    "id": "h_78499536ea98",
+    "state": "blocked",
+    "reasonCode": "payment_not_submitted",
+    "executorAttempts": 1,
+    "bankResumeAttempts": 0,
+    "authorizationSource": "local_owner_confirmation",
+    "adapter": null,
+    "createdAt": "2026-10-11T10:53:49.978Z",
+    "executionStartedAt": "2026-10-11T10:53:49.978Z",
+    "endedAt": "2026-10-11T10:53:56.709Z",
+    "trace": [
+     {
+      "seq": 1,
+      "stage": "owner_confirmation_consumed",
+      "at": "2026-10-11T10:53:49.978Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 2,
+      "stage": "payment_record_created",
+      "at": "2026-10-11T10:53:49.978Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 3,
+      "stage": "financial_dispatch_committed",
+      "at": "2026-10-11T10:53:49.978Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 4,
+      "stage": "execution_error",
+      "at": "2026-10-11T10:53:56.632Z",
+      "tPlusMs": 6654,
+      "reasonCode": "maxit_order_missing_order_id",
+      "reasonDetail": "maxit_order_missing_order_id"
+     },
+     {
+      "seq": 5,
+      "stage": "state_transition",
+      "at": "2026-10-11T10:53:56.709Z",
+      "tPlusMs": 6731,
+      "reasonCode": "payment_not_submitted",
+      "reasonDetail": "maxit_order_missing_order_id",
+      "outcome": "blocked"
+     }
+    ]
+   },
+   "ownerConfirmation": {
+    "id": "h_7d3cee955e53",
+    "state": "consumed",
+    "createdAt": "2026-10-11T10:53:33.016Z",
+    "consumedAt": "2026-10-11T10:53:49.886Z",
+    "expiresAt": "2026-10-11T10:55:33.016Z",
+    "actionType": "payment.local_start",
+    "originChannel": "claw",
+    "originId": "h_0c301f0107a1"
+   },
+   "runLinked": true,
+   "run": {
+    "runId": "h_8f7b35467279",
+    "requestId": "h_0c301f0107a1",
+    "state": "done",
+    "acceptedAt": "2026-10-11T10:53:27.576Z",
+    "updatedAt": "2026-10-11T10:53:35.562Z",
+    "executionSource": "capability_first",
+    "decision": {
+     "reason": "capability_first",
+     "surface": "claw_live",
+     "capability": "payment.owner_native",
+     "intent": "telecom.orange.topup_own_number",
+     "route": "orange.maxit.topup.own.v1",
+     "risk": "transaction",
+     "type": "EXECUTE"
+    },
+    "storedPresentation": {
+     "status": "info",
+     "understoodCapability": null,
+     "hasFailure": false
+    },
+    "runDoneBeforePaymentCreatedMs": 14416
+   },
+   "publicRunProjection": {
+    "route": "GET /v1/runs/<runId>",
+    "status": 200,
+    "latencyMs": 61,
+    "topKeys": [
+     "alternatives",
+     "clientRunId",
+     "decision",
+     "failure",
+     "message",
+     "presentation",
+     "progress",
+     "prompt",
+     "replayEffect",
+     "result",
+     "runId",
+     "sessionId",
+     "state",
+     "submittedAt",
+     "success",
+     "understood",
+     "updatedAt",
+     "userText"
+    ],
+    "presentation": {
+     "status": "error",
+     "understood": {
+      "capability": "payment.owner_native",
+      "label": "<texte:20 car.>"
+     },
+     "payment": {
+      "state": "blocked",
+      "reasonCode": "payment_not_submitted",
+      "stepId": "execution_error"
+     },
+     "failure": {
+      "step": "<texte:21 car.>",
+      "stepId": "execution_error",
+      "reason": "<texte:50 car.>",
+      "reasonCode": "payment_not_submitted",
+      "notDone": {
+       "code": "payment_not_submitted",
+       "text": "Rien n’a été envoyé au fournisseur."
+      }
+     }
+    }
+   }
+  },
+  {
+   "payment": {
+    "id": "h_ed0d1b589753",
+    "state": "blocked",
+    "reasonCode": "payment_not_submitted",
+    "executorAttempts": 1,
+    "bankResumeAttempts": 0,
+    "authorizationSource": "local_owner_confirmation",
+    "adapter": null,
+    "createdAt": "2026-10-11T11:48:56.844Z",
+    "executionStartedAt": "2026-10-11T11:48:56.844Z",
+    "endedAt": "2026-10-11T11:49:08.916Z",
+    "trace": [
+     {
+      "seq": 1,
+      "stage": "owner_confirmation_consumed",
+      "at": "2026-10-11T11:48:56.844Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 2,
+      "stage": "payment_record_created",
+      "at": "2026-10-11T11:48:56.844Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 3,
+      "stage": "financial_dispatch_committed",
+      "at": "2026-10-11T11:48:56.844Z",
+      "tPlusMs": 0
+     },
+     {
+      "seq": 4,
+      "stage": "provider_session_started",
+      "at": "2026-10-11T11:49:08.269Z",
+      "tPlusMs": 11425
+     },
+     {
+      "seq": 5,
+      "stage": "http_exchange",
+      "at": "2026-10-11T11:49:08.521Z",
+      "tPlusMs": 11677
+     },
+     {
+      "seq": 6,
+      "stage": "http_exchange",
+      "at": "2026-10-11T11:49:08.794Z",
+      "tPlusMs": 11950
+     },
+     {
+      "seq": 7,
+      "stage": "execution_error",
+      "at": "2026-10-11T11:49:08.856Z",
+      "tPlusMs": 12012,
+      "reasonCode": "gateway_amount_mismatch",
+      "reasonDetail": "gateway_amount_mismatch"
+     },
+     {
+      "seq": 8,
+      "stage": "state_transition",
+      "at": "2026-10-11T11:49:08.916Z",
+      "tPlusMs": 12072,
+      "reasonCode": "payment_not_submitted",
+      "reasonDetail": "gateway_amount_mismatch",
+      "outcome": "blocked"
+     }
+    ]
+   },
+   "ownerConfirmation": {
+    "id": "h_c293d365cb3d",
+    "state": "consumed",
+    "createdAt": "2026-10-11T11:48:43.339Z",
+    "consumedAt": "2026-10-11T11:48:56.713Z",
+    "expiresAt": "2026-10-11T11:50:43.339Z",
+    "actionType": "payment.local_start",
+    "originChannel": "claw",
+    "originId": "h_80c4ec1480de"
+   },
+   "runLinked": true,
+   "run": {
+    "runId": "h_626348126308",
+    "requestId": "h_80c4ec1480de",
+    "state": "done",
+    "acceptedAt": "2026-10-11T11:48:34.098Z",
+    "updatedAt": "2026-10-11T11:48:46.451Z",
+    "executionSource": "capability_first",
+    "decision": {
+     "reason": "capability_first",
+     "surface": "claw_live",
+     "capability": "payment.owner_native",
+     "intent": "telecom.orange.topup_own_number",
+     "route": "orange.maxit.topup.own.v1",
+     "risk": "transaction",
+     "type": "EXECUTE"
+    },
+    "storedPresentation": {
+     "status": "info",
+     "understoodCapability": null,
+     "hasFailure": false
+    },
+    "runDoneBeforePaymentCreatedMs": 10393
+   },
+   "publicRunProjection": {
+    "route": "GET /v1/runs/<runId>",
+    "status": 200,
+    "latencyMs": 78,
+    "topKeys": [
+     "alternatives",
+     "clientRunId",
+     "decision",
+     "failure",
+     "message",
+     "presentation",
+     "progress",
+     "prompt",
+     "replayEffect",
+     "result",
+     "runId",
+     "sessionId",
+     "state",
+     "submittedAt",
+     "success",
+     "understood",
+     "updatedAt",
+     "userText"
+    ],
+    "presentation": {
+     "status": "error",
+     "understood": {
+      "capability": "payment.owner_native",
+      "label": "<texte:20 car.>"
+     },
+     "payment": {
+      "state": "blocked",
+      "reasonCode": "payment_not_submitted",
+      "stepId": "execution_error"
+     },
+     "failure": {
+      "step": "<texte:21 car.>",
+      "stepId": "execution_error",
+      "reason": "<texte:50 car.>",
+      "reasonCode": "payment_not_submitted",
+      "notDone": {
+       "code": "payment_not_submitted",
+       "text": "Rien n’a été envoyé au fournisseur."
+      }
+     }
+    }
+   }
+  }
+ ],
+ "decisionLog": {
+  "path": "~/.openclaw/logs/decision-v2-companion.log",
+  "sizeBytes": 903,
+  "lastModified": "2026-10-08T22:12:08+00:00",
+  "decisionEntries": 0,
+  "note": "seulement des lignes de démarrage [lite] ; aucune décision du 11/10"
+ },
+ "analysis": {
+  "linkedToRunsCount": 3,
+  "note": "#176 (11:47Z) voyait 2 chaînes blocked liées ; une 3e (11:48:56Z) est apparue juste après sa capture. La 4e chaîne blocked (04/10, origine chatgpt) n'est liée à aucun run.",
+  "commonPath": "run Claw capability_first payment.owner_native / telecom.orange.topup_own_number / orange.maxit.topup.own.v1 → run marqué done avec presentation info AVANT la création du paiement (7,3 s, 14,4 s, 10,4 s) → ownerConfirmation payment.local_start consommée → paymentRequest → executor Maxit (playbooks) → execution_error → blocked/payment_not_submitted (rien soumis, executorAttempts=1, bankResumeAttempts=0)",
+  "initialFailures": [
+   {
+    "payment": "h_77f592fb1838",
+    "at": "2026-10-11T10:30:26.581Z",
+    "tPlusMs": 6440,
+    "stage": "execution_error",
+    "reasonCode": "maxit_topup_command_changed",
+    "where": "samantha-ui-playbooks telecom/maxit_topup_payment.py, validation de la réponse /command Maxit (request.msisdn)",
+    "why": "Maxit renvoie désormais le payeur avec l'indicatif 216 (11 chiffres au lieu de 8) ; contrôle « payeur = ta ligne » refusé avant toute soumission",
+    "fix": "playbooks 41b82e71 (2026-10-11T10:35:25Z), note docs/changes/maxit-payer-country-code-20261011"
+   },
+   {
+    "payment": "h_78499536ea98",
+    "at": "2026-10-11T10:53:56.632Z",
+    "tPlusMs": 6654,
+    "stage": "execution_error",
+    "reasonCode": "maxit_order_missing_order_id",
+    "where": "telecom/maxit_topup_payment.py parse_order / _parse_webview_order",
+    "why": "la réponse /command Maxit est devenue un WEB_VIEW ClicToPay (mdOrder, sans orderId/transactionId/callback) ; arrêt avant la banque",
+    "fix": "playbooks bf4586af (2026-10-11T11:02:32Z) + 2888e810, note docs/changes/maxit-webview-order-20261011"
+   },
+   {
+    "payment": "h_ed0d1b589753",
+    "at": "2026-10-11T11:49:08.856Z",
+    "tPlusMs": 12012,
+    "stage": "execution_error",
+    "reasonCode": "gateway_amount_mismatch",
+    "where": "billing/direct-runtime/payment-gateways/clictopay.mjs (montant session ClicToPay ≠ montant confirmé par le propriétaire)",
+    "why": "après les deux correctifs, la session ClicToPay est atteinte (provider_session_started + 2 http_exchange) puis refusée sur le montant ; aucune carte envoyée",
+    "fix": "aucun constaté dans cette capture"
+   }
+  ],
+  "decisionLog": "decision-v2-companion.log n'est pas une source : 13 lignes de démarrage, dernière écriture 08/10",
+  "gapsAfterCore180": [
+   "la projection publique expose failure.reasonCode=payment_not_submitted et stepId=execution_error mais pas le code fournisseur initial (trace.reasonCode / reasonDetail : maxit_topup_command_changed, maxit_order_missing_order_id, gateway_amount_mismatch)",
+   "le run stocké reste state=done / presentation info (projection à la lecture seulement, voulu par #180)"
+  ]
+ }
+}

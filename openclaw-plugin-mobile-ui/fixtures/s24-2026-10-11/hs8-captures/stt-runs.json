@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "source": "S24, script jetable ~/.cache/tmp (supprimé), runMediaUnderstandingFile réel, cfg de requête en mémoire (tools.media.models vide sur disque, aucune config modifiée)",
+    "capturedAt": "2026-10-11",
+    "audio": "bonjour-samantha.m4a sha256 45b72fe4…c826",
+    "prompt": "MEMO_TRANSCRIPTION_PROMPT de core #138",
+    "entryOptions": {
+      "timeoutSeconds": 60,
+      "maxBytes": 10485760,
+      "profiles": "google:claw-gemini-free / profil OAuth OpenAI unique"
+    },
+    "failureSimulation": "noms de modèles invalides dans le script uniquement"
+  },
+  "runs": [
+    {
+      "id": "gemini_success",
+      "request": [
+        "google/gemini-3.5-flash-lite",
+        "openai/gpt-4o-transcribe"
+      ],
+      "outcome": "success",
+      "provider": "google",
+      "model": "gemini-3.5-flash-lite",
+      "transcript": "Bonjour Samantha.",
+      "attempts": [
+        {
+          "provider": "google",
+          "model": "gemini-3.5-flash-lite",
+          "outcome": "success"
+        }
+      ],
+      "durationMs": [
+        3178,
+        2026
+      ],
+      "request_ids": [
+        "mcp-claude-chat-hs8c-run-gemini-02-execute",
+        "mcp-claude-chat-hs8c-run-fallback-02-execute"
+      ]
+    },
+    {
+      "id": "gemini_retired_model",
+      "request": [
+        "google/gemini-2.5-flash",
+        "openai/gpt-4o-transcribe"
+      ],
+      "outcome": "failed",
+      "errorClass": "model_not_found (HTTP 404, modèle retiré pour nouveaux utilisateurs)",
+      "durationMs": 4756,
+      "note": "le modèle par défaut public n'est pas utilisable ; ne pas l'utiliser"
+    },
+    {
+      "id": "gemini_fail_openai_fallback",
+      "request": [
+        "google/gemini-hs8-invalid-model",
+        "openai/gpt-4o-transcribe"
+      ],
+      "outcome": "failed",
+      "attempts": [
+        {
+          "provider": "google",
+          "outcome": "failed",
+          "errorClass": "model_not_found"
+        },
+        {
+          "provider": "openai",
+          "outcome": "failed",
+          "errorClass": "rate_or_quota (HTTP 429 insufficient_quota)"
+        }
+      ],
+      "openaiHttp": [
+        {
+          "host": "api.openai.com",
+          "status": 429
+        }
+      ],
+      "durationMs": [
+        3284,
+        2654
+      ],
+      "thrownErrorClass": "model_not_found (première raison)",
+      "request_ids": [
+        "mcp-claude-chat-hs8c-run-fallback-01-execute",
+        "mcp-claude-chat-hs8c-run-fallback-02-execute"
+      ]
+    },
+    {
+      "id": "openai_only",
+      "request": [
+        "openai/gpt-4o-transcribe"
+      ],
+      "outcome": "failed",
+      "errorClass": "rate_or_quota (HTTP 429 insufficient_quota)",
+      "durationMs": 2120,
+      "request_id": "mcp-claude-chat-hs8c-run-openai-only-01-execute"
+    },
+    {
+      "id": "double_failure",
+      "request": [
+        "google/gemini-hs8-invalid-model",
+        "openai/gpt-hs8-invalid-transcribe"
+      ],
+      "outcome": "failed",
+      "attempts": [
+        {
+          "provider": "google",
+          "outcome": "failed",
+          "errorClass": "model_not_found"
+        },
+        {
+          "provider": "openai",
+          "outcome": "failed",
+          "errorClass": "model_not_found (HTTP 404)"
+        }
+      ],
+      "durationMs": [
+        2819,
+        2620
+      ],
+      "request_ids": [
+        "mcp-claude-chat-hs8c-run-double-01-execute",
+        "mcp-claude-chat-hs8c-run-fallback-02-execute"
+      ]
+    }
+  ],
+  "sdkBehaviour": {
+    "fallback": "les entrées sont essayées dans l'ordre ; échec HTTP → entrée suivante (OpenAI réellement appelé après échec Google)",
+    "totalFailure": "runMediaUnderstandingFile LÈVE une Error dont le message contient le texte brut du fournisseur et un request_id : à n'exposer jamais (core #138 le capture déjà en échec générique)",
+    "googleTransport": "appels Google hors globalThis.fetch (non instrumentés) ; clé effectivement utilisée par le SDK (profil gratuit vs models.providers.google.apiKey) NON attestée",
+    "perAttemptTimeoutSeconds": 60,
+    "globalDeadline": "aucun public ; pire cas observé ≈ 2 tentatives × 60 s + import à froid 4–9 s",
+    "logs": {
+      "consoleLinesPerFailure": 1,
+      "line": "[media-understanding] audio: failed (n/m) reason=ProviderHttpError",
+      "mentionsFilePath": false,
+      "credentialLike": false,
+      "mentionsTranscript": false,
+      "verboseEnabled": false,
+      "knownLogFilesMentioningMemo": 0
+    },
+    "retention": "fichier de test supprimé ; aucune copie SDK observée dans les journaux ; rétention produit = pièces jointes existantes (30 j)"
+  },
+  "openaiCompatibility": {
+    "oauthProfileResolves": true,
+    "transcriptionEndpoint": "api.openai.com",
+    "result": "HTTP 429 insufficient_quota / credit_balance_exhausted",
+    "verdict": "le profil OAuth d'abonnement n'est PAS utilisable pour la STT API sans crédits API ; repli OpenAI non qualifiable sans nouveau compte/crédit (exclu par décision)"
+  }
+}

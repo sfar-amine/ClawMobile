@@ -1,0 +1,300 @@
+{
+  "version": "2026.9.6",
+  "loopbackOnly": true,
+  "environmentAllowlist": [
+    "PATH",
+    "LANG",
+    "NODE_DISABLE_COMPILE_CACHE",
+    "OPENCLAW_SKIP_CHANNELS",
+    "OPENCLAW_DISABLE_BONJOUR",
+    "OPENCLAW_STATE_DIR",
+    "OPENCLAW_CONFIG_PATH",
+    "OPENCLAW_HOME",
+    "OPENCLAW_PROFILE",
+    "B46_PROBE_EVENTS",
+    "NODE_OPTIONS"
+  ],
+  "tokenGeneratedForTest": true,
+  "s24Access": false,
+  "externalProviderCalls": 0,
+  "checks": [
+    "cancellation_closes_invocation_before_effect",
+    "real_gateway_owner_vs_nonowner",
+    "revocation_after_gateway_acceptance_finishes_original_turn",
+    "following_revocation_nonowner",
+    "clarify_http_signed_owner_does_not_resolve_nonowner",
+    "real_hello_revocation_before_agent_no_dispatch"
+  ],
+  "gatewayPort": 34101,
+  "providerPort": 32891,
+  "globalFetchAndHttpsBlocked": true,
+  "providerRequestMetadata": [
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "toolResultIds": [
+        "isolatedprobe"
+      ]
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "toolResultIds": [
+        "isolatedprobe"
+      ]
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "toolResultIds": [
+        "isolatedprobe"
+      ]
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user"
+      ],
+      "toolResultIds": []
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "toolResultIds": [
+        "isolatedprobe"
+      ]
+    },
+    {
+      "toolNames": [
+        "p1_owner_probe"
+      ],
+      "roles": [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ],
+      "toolResultIds": [
+        "isolatedprobe"
+      ]
+    }
+  ],
+  "transport": [
+    {
+      "case": "revoked_after_real_hello_before_agent",
+      "rejected": true,
+      "helloCount": 1,
+      "requestSent": false
+    },
+    {
+      "case": "owner",
+      "transport": "admin_admitted",
+      "runId": "isolated-run-owner"
+    },
+    {
+      "case": "nonowner",
+      "transport": "write_cli",
+      "runId": "isolated-run-nonowner"
+    },
+    {
+      "case": "revoked_after_acceptance",
+      "transport": "admin_admitted",
+      "runId": "isolated-run-revoke"
+    },
+    {
+      "case": "following_revocation",
+      "transport": "write_cli",
+      "runId": "isolated-run-after-revoke"
+    },
+    {
+      "case": "cancel",
+      "transport": "admin_admitted",
+      "aborted": true
+    },
+    {
+      "case": "clarify_nonowner_not_resolved_by_owner",
+      "ownerAdmission": true,
+      "parentState": "abandoned",
+      "resolveCalls": 0,
+      "runId": "run_1791732601011_b9967e82"
+    }
+  ],
+  "status": "passed",
+  "pending": [],
+  "hostEvents": [
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-owner",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "effect",
+      "sessionKey": "agent:main:companion-chat-p1-owner",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-nonowner",
+      "owner": false,
+      "guardAvailable": true
+    },
+    {
+      "phase": "effect",
+      "sessionKey": "agent:main:companion-chat-p1-nonowner",
+      "owner": false,
+      "guardAvailable": true
+    },
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-revoke",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-after-revoke",
+      "owner": false,
+      "guardAvailable": true
+    },
+    {
+      "phase": "effect",
+      "sessionKey": "agent:main:companion-chat-p1-after-revoke",
+      "owner": false,
+      "guardAvailable": true
+    },
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-cancel",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "entered",
+      "sessionKey": "agent:main:companion-chat-p1-clarify",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "effect",
+      "sessionKey": "agent:main:companion-chat-p1-clarify",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "effect",
+      "sessionKey": "agent:main:companion-chat-p1-revoke",
+      "owner": true,
+      "guardAvailable": true
+    },
+    {
+      "phase": "cancelled",
+      "sessionKey": "agent:main:companion-chat-p1-cancel",
+      "owner": true,
+      "guardAvailable": true
+    }
+  ],
+  "tokenDestroyed": true,
+  "disposableFilesDestroyed": true,
+  "provenance": {
+    "kind": "local_disposable_integration",
+    "s24_capture": false,
+    "android_biometric_qualification": false,
+    "sdk_version": "2026.9.6",
+    "sdk_archive_sha256": "1a7355691bc0e605222ba818f1f72c1787253c78dfeb0df6be2086ec73b71e63",
+    "compiled_source_commit": "82794746",
+    "ci_registration_commit": "75f3bb72",
+    "node_gateway": "26.11.1",
+    "original_proof_sha256": "cab0d52a9ca8b0723cf805880d28eb05921d1ea49b05edbeda92014f6a3e165d",
+    "diagnostic_script_sha256": "d95d6eaca58000a10dee4453850f9890e9a8945b7fe0476957831ad5595a9425"
+  },
+  "limitations": [
+    "La frontière garantie est immédiatement avant émission synchronique, pas avant réception distante. Après socket.send, un échec reste indéterminé, sans repli ni second envoi.",
+    "Un tour accepté peut conserver owner et produire son effet malgré révocation Companion. Son reçu est conservé.",
+    "Annulation Gateway admin vérifiée ; aucune route d’annulation app livrée ou qualifiée ici.",
+    "Le fournisseur modèle est local sans compte externe. Les appels de métadonnées du SDK ne sont pas une garantie d’isolation réseau complète.",
+    "Le sous-ensemble local token/password est testé ; remote/TLS/URL overrides et SecretRef irrésolu sont refusés."
+  ]
+}

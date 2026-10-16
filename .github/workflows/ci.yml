@@ -34,6 +34,32 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: WhatsApp survives extended network outages without retry storms
+        run: |
+          python3 ../installer/termux-lite/test-whatsapp-network-recovery.py
+          node ../installer/termux-lite/test-whatsapp-network-recovery.cjs
+
+      - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
+        run: python3 ../installer/termux-lite/test-project-room.py
+      - name: Pulse room agents (fichier 52 §5)
+        run: python3 ../installer/termux-lite/test-pulse-room.py
+      - name: Fast path shows any deterministic result as readable text (Amine 12/10)
+        run: python3 ../installer/termux-lite/test-model-fast-path-generic-display.py
+      - name: Health manager never repairs the Companion during a deploy
+        run: python3 ../installer/termux-lite/test-health-deploy-lock.py
+
+      - name: Run immune I2/I3/I8 contracts (repair-handler gate, LKG hold, ingress root)
+        run: |
+          python3 ../installer/termux-lite/test-tier0-lkg-hold.py
+          python3 ../installer/termux-lite/test-incident-orchestrator.py
+          python3 ../installer/termux-lite/test-incident-ingress.py
+          python3 ../installer/termux-lite/test-companion-acceptance-settle.py
+          python3 ../installer/termux-lite/test-runtime-sync.py
+          python3 ../installer/termux-lite/test-context-review-plan.py
+      - name: Playbooks activation links ignored runtime dependencies
+        run: bash ../installer/termux-lite/test-activate-ui-playbooks.sh
+      - name: K2 owner access-change receipts without real sends
+        run: python3 ../installer/termux-lite/test-k2-owner-message.py
       - name: Test canonical context event surfaces
         run: python3 ../installer/termux-lite/test-context-surfaces.py
       - name: Test canonical app and authenticated Bixby bootstrap
@@ -51,6 +77,11 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
+      - name: HS8 SDK export proof and memo transcript boundary (inactive)
+        run: node scripts/test-memo-stt-boundary.cjs && node scripts/test-memo-stt-owner.cjs && node scripts/test-memo-sdk-resolution.cjs
+      - name: Run edit-and-replay contract (édition d'un message envoyé, audit sans suppression)
+        run: node scripts/test-edit-replay.cjs
+
       - name: Run 38 A2 learning owner routes (guards, budget, not-this run marker)
         run: node scripts/test-learning-routes.cjs
 
@@ -62,18 +93,28 @@ jobs:
           node scripts/test-voice-relay.cjs
           node scripts/test-voice-relay-reconnect.cjs
 
+      - name: Lot 41 piste 2 — la voix dit ce qu'elle a compris (V1, V2, V3) sur fixtures S24
+        run: node scripts/test-voice-understanding.cjs
+      - name: Voice option A canonical admission
+        run: node scripts/test-voice-option-a.cjs
       - name: HS3 closed presentation and existing run transport
         run: |
           python3 scripts/test-receipt-presentation-read.py
           node scripts/test-receipt-presentation.cjs
 
+      - name: HS6 shared receipt privacy (OTP/PIN)
+        run: node scripts/test-voice-receipt-metadata.cjs
       - name: HS5 run progress steps from existing receipts
         run: node scripts/test-run-progress.cjs
+
+      - name: HS3 payment handoff run reflects its payment request (S24 capture core 176)
+        run: node scripts/test-run-payment-presentation.cjs && node scripts/test-hs3-initial-failure.cjs
 
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
           node scripts/test-model-fast-path.cjs
+          node scripts/test-pulse-room-fast-path.cjs
 
       - name: Qualify Companion M1 contracts and telemetry offline
         run: |
@@ -109,8 +150,13 @@ jobs:
           node scripts/test-payment-steps.cjs
           node scripts/test-payment-api.cjs
           node scripts/test-payment-handoff.cjs
+          node scripts/test-maxit-quote-real-shape.cjs
       - name: Network mutation guard (Auto Wi-Fi lease, Wi-Fi watch, exact restore) — lot 11/10
         run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py
+      - name: Wi-Fi-off guard self-healing (detached restorer, bounded TTL, sweep, cellular default untouched) — incident 11/10 16:00
+        run: |
+          python3 ../installer/termux-lite/test-android-network-mutation-guard.py WifiRestorerTests DetachedRestorerProcessTest HealthManagerSweepContractTest CellularDefaultTests -v
+          python3 ../installer/termux-lite/test-health-verdict.py
       - name: Run request cancellation owner contract
         run: node scripts/test-control-request-cancel.cjs
       - name: Run Control pinned runtime snapshot regression
@@ -119,6 +165,10 @@ jobs:
         run: node scripts/test-automation-detail.cjs
       - name: Test laptop owner pairing and biometric scope
         run: node scripts/test-laptop-access.cjs
+      - name: P1 admission native des tours owner (preuve Keystore, anti-rejeu, connexion admin dédiée, révocation)
+        run: node scripts/test-owner-turn-admission.cjs
+      - name: P1 recette — alerte transport owner indisponible et gardes d'admission
+        run: python3 ../installer/termux-lite/test-companion-acceptance-owner-transport.py
       - name: Run read-only notification source contract
         run: node scripts/test-notification-sources.cjs
 
@@ -156,6 +206,7 @@ jobs:
           python3 ../installer/termux-lite/test-whatsapp-allowlist-acceptance.py
           node scripts/test-whatsapp-allowlist.cjs
           node scripts/test-whatsapp-allowlist-paired.cjs
+          node scripts/test-whatsapp-rooms-paired.cjs
 
       - name: Run skill detail and owner controls contract
         run: node scripts/test-skill-control.cjs
@@ -181,6 +232,7 @@ jobs:
           node scripts/test-file-gateway-read.cjs
           node scripts/test-files-http.cjs
           node scripts/test-file-gateway-limits.cjs
+          node scripts/test-strict-process-cleanup.cjs
           python3 scripts/test-files-acceptance.py
 
       - name: Run usage and shared provider read contracts
@@ -222,6 +274,8 @@ jobs:
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
           node ../cloud/voice-relay/test-long-action.mjs
+      - name: M2 claw_remember MCP owner capture through canonical context-event writer (200k events)
+        run: node scripts/test-mcp-remember.cjs
 
       - name: Verify host-bound capability owner admission (P1)
         run: |
@@ -246,6 +300,8 @@ jobs:
       - name: J1 bounded read-only secret scan and H8 integration
         run: |
           python3 ../installer/termux-lite/test-workspace-secret-scan.py
+          python3 ../installer/termux-lite/test-card-detector.py
+          python3 ../installer/termux-lite/test-secret-scan-root-partition.py
           python3 ../installer/termux-lite/test-nightly-secret-scan.py
       - name: H8 nightly read-only acceptance, deployment lock and drift receipts
         run: |
@@ -259,6 +315,10 @@ jobs:
         run: node scripts/test-notification-structured.cjs
       - name: Run derived catalogue fail-closed projection and real HTTP cache contract
         run: node scripts/test-catalog.cjs
+      - name: Catalogue exampleFr recopié de HS1 (phrase française à dire, sources S24)
+        run: node scripts/test-catalog-example-fr.cjs
+      - name: Catalogue bills status from bridge receipts and confirmed payments (50 000 receipts, warm 300 ms)
+        run: node scripts/test-catalog-bill-status.cjs
       - name: G4 deployment receipts and route budget
         run: node scripts/test-deployment-receipts.cjs
       - name: C5 canonical voice owner transport fixture
@@ -289,5 +349,52 @@ jobs:
       - name: O10 voice admits the low-risk owner decision record, never payment or confirmed paths
         run: node scripts/test-voice-low-risk-admission.cjs
 
+      - name: HS8 memo owner pipeline idempotence and canonical text continuation
+        run: node scripts/test-memo-intent-pipeline.cjs && node scripts/test-memo-deferred-retry.cjs && node scripts/test-memo-p1-http.cjs
+      - name: R1 model usage roles from canonical config owner
+        run: node scripts/test-model-roles.cjs
+
+      - name: F7 Gateway append log retention
+        run: python3 ../installer/termux-lite/test-gateway-log-retention.py
+
+      - name: E3 agent file write (biometric, CAS, privacy lines kept, free vocabulary, five backups)
+        run: node scripts/test-agent-file-write-plan.cjs
+
+      - name: R23 automation edit (validation, real cron captures, CAS, confirmation, receipts)
+        working-directory: openclaw-plugin-mobile-ui
+        run: |
+          node scripts/test-automation-edit-validation.cjs
+          node scripts/test-automation-edit-http.cjs
+
+      - name: H6 canonical resolved intention and free vocabulary boundary
+        run: node scripts/test-payment-pattern-boundary.cjs
       - name: Test R22 automation history and scheduler HTTP contracts
         run: node scripts/test-automation-runs-preparation.cjs && node scripts/test-automation-runs-http.cjs
+
+  p1-isolated-gateway:
+    name: P1 public Gateway isolated integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: openclaw-plugin-mobile-ui
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node 26 for public Gateway integration
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26.11.1
+          cache: npm
+          cache-dependency-path: openclaw-plugin-mobile-ui/package-lock.json
+      - name: Install integration plugin dependencies
+        run: npm ci
+      - name: Build integration plugin
+        run: npm run build
+      - name: Install pinned public OpenClaw SDK without lifecycle scripts
+        run: |
+          curl --fail --silent --show-error --location https://registry.npmjs.org/openclaw/-/openclaw-2026.9.6.tgz --output "$RUNNER_TEMP/p1-openclaw-2026.9.6.tgz"
+          echo "1a7355691bc0e605222ba818f1f72c1787253c78dfeb0df6be2086ec73b71e63  $RUNNER_TEMP/p1-openclaw-2026.9.6.tgz" | sha256sum --check
+          npm install --prefix "$RUNNER_TEMP/p1-sdk" --ignore-scripts --omit=dev --no-audit --no-fund "$RUNNER_TEMP/p1-openclaw-2026.9.6.tgz"
+      - name: Test actual public Gateway admission revocation cancellation and clarification
+        run: node scripts/diagnostics/p1-gateway-isolated.cjs "$RUNNER_TEMP/p1-sdk/node_modules/openclaw" "$(command -v node)" "$RUNNER_TEMP/p1-gateway-proof"

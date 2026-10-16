@@ -1,0 +1,1093 @@
+{
+ "_capture": {
+  "host": "Samsung S24 / Termux",
+  "access": "connecteur MCP Claw, claw_exec, profil chat-owner, clés cap1011-*",
+  "runtimeCore": "3298d98d8a29458abda6617c37ca5e4b114f4be2 (~/ClawMobile, runtime/samantha-companion-private, arbre propre)",
+  "playbooksPinned": "9c4576a058c3c252078bac3ae802c28631447e17 (~/.openclaw/runtime-ui-playbooks/current)",
+  "sanitized": true,
+  "capturedAt": "2026-10-11T11:45:37Z",
+  "request": "Codex, fichier 42 point 6 ; playbooks #93 (HS2, contrat seulement)",
+  "mode": "lecture seule de route-health.json, remote-bridge/requests/*.json (méthodes mcp_capability_execute_*), clawmobile-companion/runs.json, billing/last-status.json ; noms de champs, codes, booléens, compteurs non monétaires, âges en secondes ; identifiants pseudonymisés h_ (HMAC, sel jetable) ; textes réduits à leur longueur ; montants, références, bénéficiaires exclus",
+  "complements": "core #170 hs2-badges/qualified-receipts-sources.json (même jour, 10:58Z)"
+ },
+ "routeHealth": {
+  "path": "~/.openclaw/skill-intelligence/route-health.json",
+  "topKeys": [
+   "routes",
+   "version"
+  ],
+  "nRoutes": 25,
+  "entryKeys": [
+   "consecutive_failures",
+   "fallback_route",
+   "history",
+   "incident_id",
+   "incident_state",
+   "intent",
+   "last_failure_at",
+   "last_failure_class",
+   "last_success_at",
+   "last_verified_at",
+   "route",
+   "state",
+   "suppress_until",
+   "target"
+  ],
+  "selected": {
+   "maxit-tunisie|telecom.balances|orange.balances.ussd.v1": {
+    "state": "open",
+    "consecutive_failures": 1,
+    "last_failure_class": "local_runtime",
+    "lastSuccessAgeS": null,
+    "lastVerifiedAgeS": null,
+    "lastFailureAgeS": 837108,
+    "incident": true,
+    "suppress_until_future": false,
+    "history": {
+     "n": 3,
+     "byResultVerified": {
+      "failure|verified=None|local_runtime": 1,
+      "incident_linked|verified=None|": 1,
+      "incident_state|verified=None|": 1
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "incident_id",
+      "primary",
+      "repair_component",
+      "result",
+      "state",
+      "summary",
+      "ts"
+     ],
+     "lastEventAgeS": 836807
+    }
+   },
+   "maxit-tunisie|telecom.balance|orange.balances.ussd.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 428352,
+    "lastVerifiedAgeS": null,
+    "lastFailureAgeS": null,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 3,
+     "byResultVerified": {
+      "success|verified=False|": 3
+     },
+     "eventKeys": [
+      "latency_ms",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 428352
+    }
+   },
+   "maxit-tunisie|telecom.balance|orange.silent_first.balance": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 835706,
+    "lastVerifiedAgeS": null,
+    "lastFailureAgeS": null,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 15,
+     "byResultVerified": {
+      "success|verified=False|": 15
+     },
+     "eventKeys": [
+      "latency_ms",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 835706
+    }
+   },
+   "maxit-tunisie|telecom.balance|orange.summary.maxit.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 755823,
+    "lastVerifiedAgeS": null,
+    "lastFailureAgeS": null,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 6,
+     "byResultVerified": {
+      "success|verified=False|": 6
+     },
+     "eventKeys": [
+      "latency_ms",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 755823
+    }
+   },
+   "maxit-tunisie|telecom.balance|orange.usage.maxit.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 97468,
+    "lastVerifiedAgeS": null,
+    "lastFailureAgeS": null,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 7,
+     "byResultVerified": {
+      "success|verified=False|": 7
+     },
+     "eventKeys": [
+      "latency_ms",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 97468
+    }
+   },
+   "maxit-tunisie|telecom.orange.offer|orange.silent_first.offer": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 220944,
+    "lastVerifiedAgeS": null,
+    "lastFailureAgeS": null,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 2,
+     "byResultVerified": {
+      "success|verified=False|": 2
+     },
+     "eventKeys": [
+      "latency_ms",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 220944
+    }
+   },
+   "maxit-tunisie|telecom.recharge_balance|orange.recharge.maxit.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 51940,
+    "lastVerifiedAgeS": null,
+    "lastFailureAgeS": null,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 4,
+     "byResultVerified": {
+      "success|verified=False|": 4
+     },
+     "eventKeys": [
+      "latency_ms",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 51940
+    }
+   },
+   "orange|telecom.data|orange.data.maxit.v1": {
+    "state": "degraded",
+    "consecutive_failures": 1,
+    "last_failure_class": "transient_dependency",
+    "lastSuccessAgeS": 359533,
+    "lastVerifiedAgeS": 359533,
+    "lastFailureAgeS": 265468,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 7,
+     "byResultVerified": {
+      "failure|verified=None|transient_dependency": 2,
+      "success|verified=True|": 5
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "latency_ms",
+      "primary",
+      "repair_component",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 265468
+    }
+   },
+   "orange|telecom.data|orange.data.ui.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 265442,
+    "lastVerifiedAgeS": 265442,
+    "lastFailureAgeS": 393945,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 2,
+     "byResultVerified": {
+      "failure|verified=None|transient_dependency": 1,
+      "success|verified=True|": 1
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "latency_ms",
+      "primary",
+      "repair_component",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 265442
+    }
+   },
+   "orange|telecom.offer|orange.offer.maxit.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 220944,
+    "lastVerifiedAgeS": 220944,
+    "lastFailureAgeS": 393883,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 8,
+     "byResultVerified": {
+      "failure|verified=None|transient_dependency": 1,
+      "success|verified=True|": 7
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "latency_ms",
+      "primary",
+      "repair_component",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 220944
+    }
+   },
+   "orange|telecom.offer|orange.offer.ussd.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 393856,
+    "lastVerifiedAgeS": 393856,
+    "lastFailureAgeS": null,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 1,
+     "byResultVerified": {
+      "success|verified=True|": 1
+     },
+     "eventKeys": [
+      "latency_ms",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 393856
+    }
+   },
+   "orange|telecom.phone_number|orange.phone_number.maxit.v1": {
+    "state": "degraded",
+    "consecutive_failures": 1,
+    "last_failure_class": "transient_dependency",
+    "lastSuccessAgeS": 339216,
+    "lastVerifiedAgeS": 339216,
+    "lastFailureAgeS": 227960,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 2,
+     "byResultVerified": {
+      "success|verified=True|": 1,
+      "failure|verified=None|transient_dependency": 1
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "latency_ms",
+      "primary",
+      "repair_component",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 227960
+    }
+   },
+   "orange|telecom.phone_number|orange.phone_number.native.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 227957,
+    "lastVerifiedAgeS": 227957,
+    "lastFailureAgeS": null,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 1,
+     "byResultVerified": {
+      "success|verified=True|": 1
+     },
+     "eventKeys": [
+      "latency_ms",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 227957
+    }
+   },
+   "orange|telecom.recharge|orange.recharge.maxit.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 51940,
+    "lastVerifiedAgeS": 51940,
+    "lastFailureAgeS": 220664,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 10,
+     "byResultVerified": {
+      "success|verified=True|": 5,
+      "failure|verified=None|transient_dependency": 5
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "latency_ms",
+      "primary",
+      "repair_component",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 51940
+    }
+   },
+   "orange|telecom.recharge|orange.recharge.ussd.v1": {
+    "state": "degraded",
+    "consecutive_failures": 2,
+    "last_failure_class": "transient_dependency",
+    "lastSuccessAgeS": 392262,
+    "lastVerifiedAgeS": 392262,
+    "lastFailureAgeS": 220652,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 6,
+     "byResultVerified": {
+      "failure|verified=None|transient_dependency": 3,
+      "success|verified=True|": 3
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "latency_ms",
+      "primary",
+      "repair_component",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 220652
+    }
+   },
+   "orange|telecom.summary|orange.summary.maxit.v1": {
+    "state": "degraded",
+    "consecutive_failures": 1,
+    "last_failure_class": "transient_dependency",
+    "lastSuccessAgeS": 392420,
+    "lastVerifiedAgeS": 392420,
+    "lastFailureAgeS": 392388,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 20,
+     "byResultVerified": {
+      "success|verified=True|": 13,
+      "failure|verified=None|transient_dependency": 7
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "latency_ms",
+      "primary",
+      "repair_component",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 392388
+    }
+   },
+   "orange|telecom.usage|orange.usage.maxit.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 97469,
+    "lastVerifiedAgeS": 97469,
+    "lastFailureAgeS": 265476,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 13,
+     "byResultVerified": {
+      "success|verified=True|": 12,
+      "failure|verified=None|transient_dependency": 1
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "latency_ms",
+      "primary",
+      "repair_component",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 97469
+    }
+   },
+   "orange|telecom.usage|orange.usage.ui.v1": {
+    "state": "degraded",
+    "consecutive_failures": 1,
+    "last_failure_class": "transient_dependency",
+    "lastSuccessAgeS": null,
+    "lastVerifiedAgeS": null,
+    "lastFailureAgeS": 265471,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 1,
+     "byResultVerified": {
+      "failure|verified=None|transient_dependency": 1
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "primary",
+      "repair_component",
+      "result",
+      "ts"
+     ],
+     "lastEventAgeS": 265471
+    }
+   },
+   "orange|telecom.voice|orange.voice.maxit.v1": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 359527,
+    "lastVerifiedAgeS": 359527,
+    "lastFailureAgeS": 392297,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 4,
+     "byResultVerified": {
+      "failure|verified=None|transient_dependency": 2,
+      "success|verified=True|": 2
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "latency_ms",
+      "primary",
+      "repair_component",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 359527
+    }
+   },
+   "orange|telecom.voice|orange.voice.ui.v1": {
+    "state": "degraded",
+    "consecutive_failures": 2,
+    "last_failure_class": "transient_dependency",
+    "lastSuccessAgeS": null,
+    "lastVerifiedAgeS": null,
+    "lastFailureAgeS": 392293,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 2,
+     "byResultVerified": {
+      "failure|verified=None|transient_dependency": 2
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "primary",
+      "repair_component",
+      "result",
+      "ts"
+     ],
+     "lastEventAgeS": 392293
+    }
+   },
+   "sonede|billing.unpaid|sonede.unpaid.direct.v2": {
+    "state": "degraded",
+    "consecutive_failures": 2,
+    "last_failure_class": "transient_dependency",
+    "lastSuccessAgeS": null,
+    "lastVerifiedAgeS": null,
+    "lastFailureAgeS": 510784,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 2,
+     "byResultVerified": {
+      "failure|verified=None|transient_dependency": 2
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "primary",
+      "repair_component",
+      "result",
+      "summary",
+      "ts"
+     ],
+     "lastEventAgeS": 510784
+    }
+   },
+   "steg|billing.unpaid|steg.unpaid.direct.v2": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 511255,
+    "lastVerifiedAgeS": 511255,
+    "lastFailureAgeS": null,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 1,
+     "byResultVerified": {
+      "success|verified=True|": 1
+     },
+     "eventKeys": [
+      "latency_ms",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 511255
+    }
+   },
+   "topnet|billing.unpaid|topnet.unpaid.direct.v2": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 511255,
+    "lastVerifiedAgeS": 511255,
+    "lastFailureAgeS": null,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 1,
+     "byResultVerified": {
+      "success|verified=True|": 1
+     },
+     "eventKeys": [
+      "latency_ms",
+      "result",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 511255
+    }
+   },
+   "utility-billing|billing.unpaid|utility-billing.unpaid.direct.v2": {
+    "state": "healthy",
+    "consecutive_failures": 0,
+    "last_failure_class": null,
+    "lastSuccessAgeS": 428445,
+    "lastVerifiedAgeS": 599643,
+    "lastFailureAgeS": 600120,
+    "incident": false,
+    "suppress_until_future": false,
+    "history": {
+     "n": 17,
+     "byResultVerified": {
+      "failure|verified=None|local_runtime": 2,
+      "incident_linked|verified=None|": 2,
+      "success|verified=True|": 2,
+      "success|verified=False|": 10,
+      "incident_state|verified=None|": 1
+     },
+     "eventKeys": [
+      "classification",
+      "fallback_route",
+      "incident_id",
+      "latency_ms",
+      "primary",
+      "repair_component",
+      "result",
+      "state",
+      "summary",
+      "ts",
+      "verified"
+     ],
+     "lastEventAgeS": 428445
+    }
+   }
+  }
+ },
+ "bridge": {
+  "path": "~/.openclaw/remote-bridge/requests/<requestId>.json",
+  "n": 24,
+  "byMethodStateCap": {
+   "mcp_capability_execute_readonly|completed|device.laptop_termux_access": 4,
+   "mcp_capability_execute_readonly|completed|engineering.autonomous": 2,
+   "mcp_capability_execute_owner|completed|None": 3,
+   "mcp_capability_execute_owner|completed|device.assistance": 1,
+   "mcp_capability_execute_owner|completed|engineering.autonomous": 1,
+   "mcp_capability_execute_owner|completed|memory.cross_surface": 2,
+   "mcp_capability_execute_owner|completed|gateway.mcp.external": 1,
+   "mcp_capability_execute_owner|completed|device.adb": 1,
+   "mcp_capability_execute_owner|completed|claw.situations": 2,
+   "mcp_capability_execute_owner|completed|device.remote_desktop": 1,
+   "mcp_capability_execute_owner|completed|billing.utility.fast_path": 1,
+   "mcp_capability_execute_owner|abandoned|None": 1,
+   "mcp_capability_execute_owner|completed|qa.test_campaign": 1,
+   "mcp_capability_execute_owner|completed|engineering.learning_gate": 1,
+   "mcp_capability_execute_owner|completed|telecom.orange.consultation": 1,
+   "mcp_capability_execute_owner|completed|": 1
+  },
+  "resultTopKeys": {
+   "success": 22,
+   "version": 22,
+   "capability_revision": 22,
+   "surface": 21,
+   "caller": 21,
+   "text": 22,
+   "harness": 21,
+   "capability": 21,
+   "matches": 21,
+   "skill_plan": 21,
+   "execution_contract": 21,
+   "selected": 21,
+   "confirmation_required": 21,
+   "blocked_paths": 21,
+   "operational_preflight": 21,
+   "denied_paths": 21,
+   "latency_ms": 15,
+   "execution": 22,
+   "continuum": 7,
+   "round_learning": 6,
+   "clarification": 6,
+   "decision": 7,
+   "artifact": 1,
+   "preview": 1
+  }
+ },
+ "bridgeExamples": {
+  "billing.utility.fast_path": [
+   {
+    "method": "mcp_capability_execute_owner",
+    "state": "completed",
+    "mutationRisk": "read",
+    "receivedAgeS": 428450,
+    "completedAgeS": 428445,
+    "result": {
+     "success": true,
+     "capability": "billing.utility.fast_path",
+     "surface": "external_mcp",
+     "caller": "owner",
+     "confirmation_required": false,
+     "selected": {
+      "executor": "claw.skill_route",
+      "capability": "billing.utility.fast_path",
+      "target": "utility-billing",
+      "intent": "billing.unpaid",
+      "route": "utility-billing.unpaid.direct.v2",
+      "risk": "read",
+      "deterministic": true,
+      "model_required": false
+     },
+     "skill_plan.route_metrics": {
+      "utility-billing.unpaid.direct.v2": {
+       "runs": 11,
+       "success_rate": 0.8181818181818182,
+       "median_latency_ms": 4164.968,
+       "p95_latency_ms": 5708.502,
+       "verification_rate": 0,
+       "semantic_complete_rate": 1,
+       "last_failure_class": "local_runtime"
+      }
+     },
+     "execution": {
+      "state": "completed",
+      "executor": "claw.skill_route",
+      "route": "utility-billing.unpaid.direct.v2",
+      "actual_route": "utility-billing.unpaid.direct.v2",
+      "fallback": false,
+      "exit_code": 0,
+      "duration_ms": 4840.191,
+      "capability": null
+     },
+     "execution.result": {
+      "schema_version": 2,
+      "status": "ok",
+      "coverage_complete": true,
+      "checked_at": {
+       "ageS": 428445
+      },
+      "live": true,
+      "currency": "<texte:3>",
+      "providers_requested": 3,
+      "providers_checked": 3,
+      "has_pending": true,
+      "pending_count": null,
+      "identified_invoice_count": 0,
+      "reference_balances_count": 1,
+      "latency_ms": 2455,
+      "run_id": "h_6fce9d6a9e1d",
+      "process_wall_ms": 4484
+     },
+     "execution.result.providers": [
+      {
+       "provider": "steg",
+       "status": "ok",
+       "has_pending": true,
+       "pending_count": null,
+       "coverage_complete": true,
+       "reason_code": null,
+       "checked_at": {
+        "ageS": 428445
+       },
+       "coverage_basis": "all_account_references",
+       "references_checked": 1,
+       "identified_invoice_count": 0,
+       "reference_balances_count": 1
+      },
+      {
+       "provider": "sonede",
+       "status": "ok",
+       "has_pending": false,
+       "pending_count": 0,
+       "coverage_complete": true,
+       "reason_code": null,
+       "checked_at": {
+        "ageS": 428447
+       },
+       "coverage_basis": "provider_account_unpaid_list",
+       "references_checked": null,
+       "identified_invoice_count": 0,
+       "reference_balances_count": 0
+      },
+      {
+       "provider": "topnet",
+       "status": "ok",
+       "has_pending": false,
+       "pending_count": 0,
+       "coverage_complete": true,
+       "reason_code": null,
+       "checked_at": {
+        "ageS": 428446
+       },
+       "coverage_basis": "provider_unpaid_counter_zero",
+       "references_checked": null,
+       "identified_invoice_count": 0,
+       "reference_balances_count": 0
+      }
+     ],
+     "execution.route_health_update": {
+      "consecutive_failures": 0,
+      "fallback_route": null,
+      "incident_id": null,
+      "incident_state": null,
+      "intent": "billing.unpaid",
+      "last_failure_at": {
+       "ageS": 600120
+      },
+      "last_failure_class": null,
+      "last_success_at": {
+       "ageS": 428445
+      },
+      "last_verified_at": {
+       "ageS": 599643
+      },
+      "route": "utility-billing.unpaid.direct.v2",
+      "state": "healthy",
+      "suppress_until": 0,
+      "target": "utility-billing",
+      "effective_state": "healthy"
+     },
+     "execution.route_health_update.history_head": [
+      {
+       "classification": "local_runtime",
+       "fallback_route": null,
+       "primary": true,
+       "repair_component": null,
+       "result": "failure",
+       "summary": "<texte:172>",
+       "ts": {
+        "ageS": 649240
+       }
+      },
+      {
+       "incident_id": "h_c9b4d2e7e275",
+       "result": "incident_linked",
+       "ts": {
+        "ageS": 649239
+       }
+      },
+      {
+       "latency_ms": 10743,
+       "result": "success",
+       "ts": {
+        "ageS": 649102
+       },
+       "verified": true
+      }
+     ]
+    }
+   }
+  ],
+  "qa.test_campaign": [
+   {
+    "method": "mcp_capability_execute_owner",
+    "state": "completed",
+    "mutationRisk": "write",
+    "receivedAgeS": 420741,
+    "completedAgeS": 420740,
+    "result": {
+     "success": true,
+     "capability": "qa.test_campaign",
+     "surface": "external_mcp",
+     "caller": "owner",
+     "confirmation_required": false,
+     "selected": {
+      "executor": "claw.capability_runtime",
+      "capability": "qa.test_campaign",
+      "target": null,
+      "intent": null,
+      "route": null,
+      "risk": "write",
+      "deterministic": true,
+      "model_required": false
+     },
+     "skill_plan.route_metrics": null,
+     "execution": {
+      "state": "completed",
+      "executor": "claw.capability_runtime",
+      "route": null,
+      "actual_route": null,
+      "fallback": null,
+      "exit_code": 0,
+      "duration_ms": 267.406,
+      "capability": "qa.test_campaign"
+     },
+     "execution.result": {
+      "ok": true,
+      "capability_id": "h_a079d4eea87a",
+      "operation": "docs"
+     },
+     "execution.result.providers": [],
+     "execution.route_health_update": null,
+     "execution.route_health_update.history_head": []
+    }
+   }
+  ],
+  "telecom.orange.consultation": [
+   {
+    "method": "mcp_capability_execute_owner",
+    "state": "completed",
+    "mutationRisk": "read",
+    "receivedAgeS": 124121,
+    "completedAgeS": 124115,
+    "result": {
+     "success": true,
+     "capability": "telecom.orange.consultation",
+     "surface": "external_mcp",
+     "caller": "owner",
+     "confirmation_required": false,
+     "selected": {
+      "executor": "claw.skill_route",
+      "capability": "telecom.orange.consultation",
+      "target": "maxit-tunisie",
+      "intent": "telecom.balance",
+      "route": "orange.summary.maxit.v1",
+      "risk": "read",
+      "deterministic": true,
+      "model_required": false
+     },
+     "skill_plan.route_metrics": null,
+     "execution": {
+      "state": "completed",
+      "executor": "claw.skill_route",
+      "route": "orange.summary.maxit.v1",
+      "actual_route": "orange.usage.maxit.v1",
+      "fallback": false,
+      "exit_code": 0,
+      "duration_ms": 5932.633,
+      "capability": null
+     },
+     "execution.result": {
+      "ok": true,
+      "provider": "orange",
+      "workflow": "balance",
+      "state": null,
+      "source": "orange.usage.maxit.v1",
+      "transport": "https_waaat",
+      "ui_used": false,
+      "data": {
+       "cards": [
+        {
+         "value": "<texte:5>",
+         "unit": "<texte:2>",
+         "days_remaining": 21,
+         "kind": "<texte:4>",
+         "section": "org2"
+        },
+        {
+         "value": "<texte:2>",
+         "unit": "<texte:3>",
+         "days_remaining": 51,
+         "kind": "<texte:5>",
+         "section": "org3"
+        },
+        {
+         "value": "<texte:6>",
+         "unit": "<texte:3>",
+         "days_remaining": 4100,
+         "kind": "<texte:5>",
+         "section": "org3"
+        },
+        "<+5>"
+       ]
+      },
+      "observed_at": {
+       "ageS": 124115
+      },
+      "blocked_by": null,
+      "latency_ms": 1099,
+      "route_id": "h_13e21d96234d",
+      "coverage": "maxit_line_view_all",
+      "run_id": "h_652ec2ddb410"
+     },
+     "execution.result.providers": [],
+     "execution.route_health_update": {
+      "consecutive_failures": 0,
+      "fallback_route": null,
+      "incident_id": null,
+      "incident_state": null,
+      "intent": "telecom.balance",
+      "last_failure_at": null,
+      "last_failure_class": null,
+      "last_success_at": {
+       "ageS": 124115
+      },
+      "last_verified_at": null,
+      "route": "orange.usage.maxit.v1",
+      "state": "healthy",
+      "suppress_until": 0,
+      "target": "maxit-tunisie",
+      "effective_state": "healthy"
+     },
+     "execution.route_health_update.history_head": [
+      {
+       "latency_ms": 5010.751,
+       "result": "success",
+       "ts": {
+        "ageS": 266878
+       },
+       "verified": false
+      },
+      {
+       "latency_ms": 5839.623,
+       "result": "success",
+       "ts": {
+        "ageS": 264131
+       },
+       "verified": false
+      },
+      {
+       "latency_ms": 4927.796,
+       "result": "success",
+       "ts": {
+        "ageS": 222747
+       },
+       "verified": false
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "companionRuns": {
+  "path": "~/.openclaw/clawmobile-companion/runs.json",
+  "n": 37,
+  "byCapStatePres": {
+   "billing.utility.fast_path|failed|error": 1,
+   "runtime.inventory|failed|error": 1,
+   "None|done|None": 20,
+   "payment.owner_native|done|info": 5,
+   "None|done|info": 3,
+   "device.assistance|done|None": 3,
+   "qa.test_campaign|failed|None": 1,
+   "telecom.orange.consultation|done|None": 3
+  },
+  "resultTypes": {
+   "NoneType": 3,
+   "str": 34
+  }
+ },
+ "billingLastStatus": {
+  "path": "~/.openclaw/billing/last-status.json",
+  "checkedAgeS": 428445,
+  "status": "ok",
+  "providers": [
+   {
+    "provider": "steg",
+    "status": "ok",
+    "coverage_complete": true,
+    "reason_code": null,
+    "coverage_basis": "all_account_references",
+    "references_checked": 1
+   },
+   {
+    "provider": "sonede",
+    "status": "ok",
+    "coverage_complete": true,
+    "reason_code": null,
+    "coverage_basis": "provider_account_unpaid_list",
+    "references_checked": null
+   },
+   {
+    "provider": "topnet",
+    "status": "ok",
+    "coverage_complete": true,
+    "reason_code": null,
+    "coverage_basis": "provider_unpaid_counter_zero",
+    "references_checked": null
+   }
+  ]
+ }
+}
