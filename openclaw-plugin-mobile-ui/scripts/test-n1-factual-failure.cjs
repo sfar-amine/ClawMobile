@@ -20,8 +20,8 @@ for(const raw of [null,[],{status:'error',reason:'constructor'},{status:'error',
  assert.equal(p.failure.reason,'La cause n’est pas établie par le reçu.');count++;
 }
 const helper=path.join(root,'helper.py'),mode=path.join(root,'mode.json');
-// Synthetic fault injection at the existing helper transport; decision is the unchanged real Orange READ fixture.
-fs.writeFileSync(helper,`import sys,json\nx=json.load(open(${JSON.stringify(mode)}))\nd=json.loads(${JSON.stringify(JSON.stringify(orange.decision_envelope))})\nprint(json.dumps({'status':'eligible','decision':d} if x['phase']=='execution' and '--check' in sys.argv else {'status':'error','reason':x['reason'],'detail':'private provider detail'}))\n`);
+// Synthetic fault injection at the existing helper transport (SAM-MIG V2.2: the dialogue protocol of model-fast-path.py); decision is the unchanged real Orange READ fixture.
+fs.writeFileSync(helper,`import sys,json\nx=json.load(open(${JSON.stringify(mode)}))\nd=json.loads(${JSON.stringify(JSON.stringify(orange.decision_envelope))})\nm=sys.argv[sys.argv.index('--dialogue')+1]\nprint(json.dumps({'outcome':'READY','handled':True,'goalRef':'goal-0000000000000000a1a1','pendingHandoff':{'goalRef':'goal-0000000000000000a1a1','klass':'FAST'},'decision':d} if x['phase']=='execution' and m=='turn' else {'status':'error','reason':x['reason'],'detail':'private provider detail'}))\n`);
 process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
 const {submitIntent}=require('../dist/companion/intent'),runs=require('../dist/companion/runs');
 (async()=>{

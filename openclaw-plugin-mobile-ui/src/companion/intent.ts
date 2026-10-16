@@ -155,6 +155,11 @@ async function submitTextIntent(
     return notSubmitted(normalizedSessionId, clientRunId, "owner_admission_expired");
   }
 
+  if (dialogue?.outcome === "TECHNICAL_FAILURE" && dialogue.reasonCode === "coordinator_unavailable") {
+    // N1: nothing was admitted by the coordinator; the turn is not submitted (retry-safe), with a readable cause.
+    const presentation=fastPathFailurePresentation({status:"error",reason:dialogue.source} as FastPathResult,'resolution');
+    return {...notSubmitted(normalizedSessionId,clientRunId,presentation.spoken),...publicReceiptMetadata(presentation)};
+  }
   if (dialogue && dialogueInput && dialogue.handled) {
     if (options.voiceDelegation === true && !currentOwner()) {
       if (dialogue.pendingHandoff) await dialogueHandoff(runModelFastPath, dialogueInput, dialogue.pendingHandoff.goalRef, true);
@@ -300,9 +305,11 @@ async function executeCapabilityFirst(
   let presentation = readReceiptPresentation(metadata);
   const provenance: FastPathResult["provenance"] = metadata.provenance;
   const state: "done" | "failed" = isQuestionReply(reply) || isDoneReply(reply) ? "done" : "failed";
-  const message = String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
-  if (!presentation && state === "failed" && reply.outcome === "TECHNICAL_FAILURE") presentation = fastPathFailurePresentation({status: "error", reason: reply.reasonCode} as FastPathResult, "execution");
+  let message = String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
+  if (!presentation && state === "failed" && reply.outcome === "TECHNICAL_FAILURE") presentation = fastPathFailurePresentation({status: "error", reason: reply.source || reply.reasonCode} as FastPathResult, "execution");
+  const spoken = !reply.metadata && reply.reasonCode === "coordinator_unavailable" && presentation ? presentation.spoken : undefined;
   presentation ||= fallbackReceiptPresentation(state === "failed");
+  if (spoken) message = spoken;
   const reasonClass=publicReasonClass((metadata as any).reasonClass ?? (metadata as any).reason_class);
   await settleSubmittedRun(runId, state, message, {provenance, presentation, reasonClass});
   return {

@@ -19,6 +19,8 @@ export type DialogueSurfaceName = "whatsapp" | "pulse_room" | "app" | "voice" | 
 export type DialogueReply = {
   outcome: string;
   reasonCode?: string;
+  /** Transport reason when the coordinator could not be reached (helper_missing, helper_failed…). */
+  source?: string;
   text?: string;
   conversationRef?: string | null;
   goalRef?: string | null;
@@ -67,7 +69,9 @@ export function isDialogueConversationId(value: unknown): value is string {
 export function asDialogueReply(raw: unknown): DialogueReply {
   const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
   if (typeof value.outcome !== "string" || !OUTCOMES.has(value.outcome)) {
-    return { outcome: "TECHNICAL_FAILURE", reasonCode: "coordinator_unavailable", text: DIALOGUE_UNAVAILABLE_TEXT,
+    // The helper transport's own reason (helper_missing, helper_failed…) is kept for the N1 failure presentation.
+    const source = value.status === "error" && typeof value.reason === "string" ? value.reason : "invalid_result";
+    return { outcome: "TECHNICAL_FAILURE", reasonCode: "coordinator_unavailable", source, text: DIALOGUE_UNAVAILABLE_TEXT,
       handled: true, modelAllowed: false };
   }
   const reply = value as unknown as DialogueReply;
@@ -110,7 +114,7 @@ export async function dialogueTurn(runner: DialogueRunner, input: DialogueInput)
     const raw = await runner(input.text, runnerOptions(input, { mode: "turn", event: eventOf(input), policy: input.policy || {} }));
     return asDialogueReply(raw);
   } catch {
-    return asDialogueReply(null);
+    return asDialogueReply({ status: "error", reason: "helper_failed" });
   }
 }
 
@@ -120,7 +124,7 @@ export async function dialogueHandoff(runner: DialogueRunner, input: DialogueInp
     const raw = await runner(input.text, runnerOptions(input, { mode: abort ? "abort" : "handoff", event: eventOf(input), policy: input.policy || {}, goalRef }));
     return asDialogueReply(raw);
   } catch {
-    return asDialogueReply(null);
+    return asDialogueReply({ status: "error", reason: "helper_failed" });
   }
 }
 
