@@ -9,6 +9,19 @@ tmp_root="$(mktemp -d "${TMPDIR:-$HOME/.openclaw/tmp}/clawmobile-plugin-install-
 trap 'rm -rf "$tmp_root"' EXIT
 log="$tmp_root/openclaw.log"
 
+# The update path uses rsync on Termux. Keep this host test independent from
+# the Ubuntu image's optional packages while preserving --delete semantics.
+mkdir -p "$tmp_root/bin"
+cat >"$tmp_root/bin/rsync" <<'EOF_RSYNC'
+#!/usr/bin/env bash
+set -euo pipefail
+src="${@: -2:1}"; dst="${@: -1}"
+find "$dst" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+cp -a "$src"/. "$dst"/
+EOF_RSYNC
+chmod +x "$tmp_root/bin/rsync"
+PATH="$tmp_root/bin:$PATH"
+
 openclaw() {
   printf '%s\n' "$*" >> "$log"
   if [ "${1:-}" = "plugins" ] && [ "${2:-}" = "install" ] && [ "${3:-}" = "--help" ]; then

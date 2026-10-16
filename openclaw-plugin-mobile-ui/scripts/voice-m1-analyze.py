@@ -31,6 +31,12 @@ STARTUP_STAGES = {
     't01_to_t07_ms': (('companion', 't01'), ('companion', 't07')),
     't00_to_t07c_ms': (('app', 't00'), ('app', 't07c')),
 }
+PIPELINE_FIELDS = {
+    "decision_ms": "decision_ms",
+    "capability_ms": "capability_ms",
+    "gemini_after_receipt_ms": "gemini_ms",
+    "end_to_result_audio_ms": "response_ms",
+}
 
 
 def startup_report(events, drifted, unknown_boundary):
@@ -53,11 +59,45 @@ def startup_report(events, drifted, unknown_boundary):
         result[label] = {**summarize(values), 'p95_ms': round(percentile(values, .95), 2) if len(values) >= 100 else None,
                          'observed_p95_ms': round(percentile(values, .95), 2) if values else None,
                          'missing_sessions': missing, 'p95_qualified': len(values) >= 100}
+    ready = [e for e in events if e['src'] == 'companion' and e['ev'] == 't07' and e['turn'] == 0 and e['sid'] not in drifted]
+    hits = sum(e['x'].get('cached') is True for e in ready)
+    misses = sum(e['x'].get('cached') is False for e in ready)
     return {'schema': 'samantha.voice.startup-latency.v1', 'metrics': result,
+            'prewarm_guard': {'observed': len(ready), 'warm_hits': hits, 'warm_misses': misses,
+                              'missing_outcome': len(ready) - hits - misses},
             'joinedBy': ['sid', 'src', 'turn=0'], 'clock_drift_excluded_sessions': sorted(drifted),
             'clock_drift_unknown_boundary_sessions': sorted(unknown_boundary),
             'clock_policy': {'untruncated_drift_us': '>1000 absolute', 'legacy_drift_us': '>=1000 absolute',
                              'legacy_exact_1000_reason': 'unknown_truncated_boundary'}}
+
+
+def pipeline_report(events, drifted):
+    rows = [e for e in events if e['src'] == 'companion' and e['ev'] == 't30p'
+            and e['turn'] > 0 and e['sid'] not in drifted and e['x'].get('phase') == 1]
+    values = {label: [] for label in PIPELINE_FIELDS}
+    complete = []
+    for event in rows:
+        metadata = event['x']
+        for label, field in PIPELINE_FIELDS.items():
+            value = metadata.get(field)
+            if type(value) is int and value >= 0:
+                values[label].append(value)
+        required = [metadata.get(field) for field in PIPELINE_FIELDS.values()]
+        if all(type(value) is int and value >= 0 for value in required):
+            complete.append(metadata)
+    budget_ms = 5000
+    breaches = sum(row['response_ms'] >= budget_ms for row in complete)
+    return {
+        'schema': 'samantha.voice.pipeline-latency.v1',
+        'budget_ms': budget_ms,
+        'result_audio_samples': len(rows),
+        'complete_samples': len(complete),
+        'missing_stage_samples': len(rows) - len(complete),
+        'under_budget_samples': len(complete) - breaches,
+        'budget_breaches': breaches,
+        'metrics': {label: summarize(samples) for label, samples in values.items()},
+        'qualification': 'physical_s24_recipe_required',
+    }
 
 def read_events(paths):
     events = []
@@ -156,6 +196,7 @@ def analyze(events):
         "clock_drift_unknown_boundary_sessions": sorted(unknown_boundary),
         "metrics": {name: {**summarize(durations[name]), "missing_turns": missing[name]} for name in STAGES},
         "startup": startup_report(events, drifted, unknown_boundary),
+        "pipeline": pipeline_report(events, drifted),
         "external_reference_required": {
             "real_speech_end_to_first_audible_ms": "t23_external_to_t32",
             "barge_detect_ms": "t40_external_to_t41",

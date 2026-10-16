@@ -4,6 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 ROOT=Path(__file__).resolve().parent
+import sys; sys.path.insert(0,str(ROOT))
+from host_test_support import adapt_shebangs, host_cmd
 P=ROOT/"learning-gate.py"
 spec=importlib.util.spec_from_file_location("learning_gate",P)
 lg=importlib.util.module_from_spec(spec); spec.loader.exec_module(lg)
@@ -94,6 +96,7 @@ class LearningGateTests(unittest.TestCase):
         context.chmod(0o755)
         wa=runtime/"whatsapp-owner-send.sh"; wa.write_text("#!/bin/sh\nexit 0\n"); wa.chmod(0o755)
         mail=runtime/"incident-email.sh"; mail.write_text("#!/bin/sh\nexit 1\n"); mail.chmod(0o755)
+        adapt_shebangs(runtime)  # copies seulement : shebangs Termux adaptés hors Termux
         return runtime
 
     def subprocess_env(self, runtime):
@@ -105,7 +108,7 @@ class LearningGateTests(unittest.TestCase):
         runtime=self.make_runtime_root()
         learning=self.base/"engineering.json"
         learning.write_text(json.dumps({"reusable_learning":"complex RPC payloads use B64 envelope","how_to":["prefer CLAW_RPC_V1_B64 for complex payloads"],"confidence":"validated"}))
-        proc=subprocess.run([str(ROOT/"autonomous-engineering-close.sh"),"recovered","slack_bridge","fixed",str(learning)],
+        proc=subprocess.run([*host_cmd(ROOT/"autonomous-engineering-close.sh"),"recovered","slack_bridge","fixed",str(learning)],
                             env=self.subprocess_env(runtime),text=True,capture_output=True)
         self.assertEqual(proc.returncode,0,proc.stdout+proc.stderr)
         closure=(self.base/".openclaw"/"autonomous-engineering"/"closure.log").read_text()
@@ -118,7 +121,7 @@ class LearningGateTests(unittest.TestCase):
         queue.mkdir(parents=True)
         (queue/"status").write_text("pending")
         (queue/"message").write_text("slack_bridge down")
-        proc=subprocess.run([str(ROOT/"incident-close.sh"),"slack_bridge","verified recovery"],
+        proc=subprocess.run([*host_cmd(ROOT/"incident-close.sh"),"slack_bridge","verified recovery"],
                             env=self.subprocess_env(runtime),text=True,capture_output=True)
         self.assertEqual(proc.returncode,0,proc.stdout+proc.stderr)
         self.assertEqual((queue/"status").read_text(),"closed")
@@ -136,7 +139,7 @@ class LearningGateTests(unittest.TestCase):
         queue.mkdir(parents=True)
         (queue/"status").write_text("pending")
         (queue/"message").write_text("slack_bridge down")
-        subprocess.run([str(ROOT/"incident-close.sh"),"slack_bridge","verified recovery"],
+        subprocess.run([*host_cmd(ROOT/"incident-close.sh"),"slack_bridge","verified recovery"],
                        env=self.subprocess_env(runtime),text=True,capture_output=True)
         self.assertEqual((queue/"status").read_text(),"recovered")
         self.assertFalse((queue/"closed").exists())

@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "package_version": "2026.9.6",
+  "files": [
+    {
+      "root": "whatsapp",
+      "path": "dist/.setup/connection-controller-C60mU7j7.mjs",
+      "original": "87ece261c62acb9062ac8146dbe0b29acdf93841aea6aaee7c3697d5b68edb62",
+      "patched": "86158e806b7226b73116fda72171147058c4f6671b27d354e211a05fc7a6a7cd",
+      "replacements": [
+        [
+          "const LOGGED_OUT_STATUS = 401;",
+          "// Samantha network recovery v1: retain the existing socket owner and retry loop.\nfunction isRecoverableWhatsAppTransport(status, error) {\n if (typeof status === \"number\") return [408, 428, 503].includes(status) || status === 499 && error === WHATSAPP_WATCHDOG_TIMEOUT_ERROR;\n return [\"EAI_AGAIN\", \"ENOTFOUND\", \"ECONNRESET\", \"ECONNREFUSED\", \"ENETUNREACH\", \"ETIMEDOUT\"].includes(error?.code);\n}\nconst LOGGED_OUT_STATUS = 401;"
+        ],
+        [
+          "if (current && Date.now() - current.startedAt > this.heartbeatSeconds * 1e3) this.reconnectAttempts = 0;",
+          "if (current && Date.now() - current.startedAt >= 12e4 && Date.now() - current.lastTransportActivityAt <= 6e4) this.reconnectAttempts = 0;"
+        ],
+        [
+          "if (normalized.isLoggedOut) return {",
+          "if (normalized.isLoggedOut || normalized.statusCode === LOGGED_OUT_STATUS) return {"
+        ],
+        [
+          "const retryDecision = this.consumeReconnectAttempt();",
+          "const retryDecision = this.consumeReconnectAttempt({ allowSlow: isRecoverableWhatsAppTransport(normalized.statusCode, normalized.error) });"
+        ],
+        [
+          "if (typeof statusCode !== \"number\") return null;",
+          "if (typeof statusCode !== \"number\" && !isRecoverableWhatsAppTransport(statusCode, error)) return null;"
+        ],
+        [
+          "\tconsumeReconnectAttempt() {\n\t\tthis.reconnectAttempts += 1;",
+          "\tconsumeReconnectAttempt({ allowSlow = false } = {}) {\n        // Bounded counter and delay; no new fast burst until a stable connection.\n        const fastLimit = this.reconnectPolicy.maxAttempts;\n        this.reconnectAttempts = Math.min(this.reconnectAttempts + 1, fastLimit > 0 ? fastLimit + 2 : Number.MAX_SAFE_INTEGER);\n        if (allowSlow && this.keepAlive && fastLimit > 0 && this.reconnectAttempts >= fastLimit) {\n            const nominal = [60000, 120000, 300000][Math.min(this.reconnectAttempts - fastLimit, 2)];\n            return {\n                action: \"retry\",\n                delayMs: Math.min(300000, Math.round(nominal * (0.8 + Math.random() * 0.4))),\n                reconnectAttempts: this.reconnectAttempts,\n                healthState: \"reconnecting\"\n            };\n        }"
+        ]
+      ]
+    },
+    {
+      "root": "whatsapp",
+      "path": "dist/.setup/monitor-By82ehLA.mjs",
+      "original": "9510c361eab7fde2fa5b3ec739936bec81dc25ae86126402e7d393f86d1c1078",
+      "patched": "becfeb779fbdb934c783491e7993f1d491f6a9acdd7d27e26f4dc906c0f298ec",
+      "replacements": [
+        [
+          "\t\tnoteConnected(at = Date.now()) {",
+          "\t\tnoteConnected(at = Date.now()) {\n            status.recoveryRetryAt = null;"
+        ],
+        [
+          "\t\t\tstatus.healthState = params.healthState;",
+          "            // Deadline includes one bounded socket setup/cleanup allowance.\n            status.recoveryRetryAt = params.healthState === \"reconnecting\" && Number.isFinite(params.retryDelayMs)\n                ? at + Math.min(300000, Math.max(0, params.retryDelayMs)) + 120000 : null;\n\t\t\tstatus.healthState = params.healthState;"
+        ],
+        [
+          "\t\tmarkStopped(at = Date.now()) {",
+          "\t\tmarkStopped(at = Date.now()) {\n            status.recoveryRetryAt = null;"
+        ],
+        [
+          "\t\t\t\t\t\thealthState: setupDecision.healthState\n",
+          "\t\t\t\t\t\thealthState: setupDecision.healthState,\n                        retryDelayMs: setupDecision.delayMs\n"
+        ],
+        [
+          "\t\t\t\thealthState: decision.healthState,\n\t\t\t\twatchdogRecovery:",
+          "\t\t\t\thealthState: decision.healthState,\n                retryDelayMs: decision.delayMs,\n\t\t\t\twatchdogRecovery:"
+        ]
+      ]
+    },
+    {
+      "root": "openclaw",
+      "path": "dist/server-runtime-startup-services-DaDODLLa.mjs",
+      "original": "24ddcf5241a8985417416b540fdb0eb87043aac7e95fb318482fba98cef2488d",
+      "patched": "973f548b0a61c81e70e7833ef5a3794e43c4437a592966cac97239ac008532a4",
+      "replacements": [
+        [
+          "const log = createSubsystemLogger(\"gateway/health-monitor\");",
+          "// Samantha network recovery v1: supervision must not create a second retry owner.\nfunction hasOwnedWhatsAppRecovery(channelId, status, now) {\n return channelId === \"whatsapp\" && status.running === true && status.connected === false\n  && status.lifecycle === \"recovering\" && status.terminalDisconnect !== true\n  && Number.isFinite(status.recoveryRetryAt) && status.recoveryRetryAt > now\n  && status.recoveryRetryAt <= now + 420000;\n}\nconst log = createSubsystemLogger(\"gateway/health-monitor\");"
+        ],
+        [
+          "\t\t\t\t\tif (health.healthy) continue;",
+          "\t\t\t\t\tif (health.healthy || hasOwnedWhatsAppRecovery(channelId, status, now)) continue;"
+        ]
+      ]
+    }
+  ]
+}
