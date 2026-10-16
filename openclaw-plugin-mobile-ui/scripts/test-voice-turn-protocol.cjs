@@ -1,5 +1,8 @@
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
 const {VoiceTurnProtocol}=require('../dist/companion/voiceTurnProtocol.js');
+const contract=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/protocol/voice-v2-app-companion.json'),'utf8'));
 let passed=0;
 function test(name,run){return Promise.resolve().then(run).then(()=>{passed++;console.log('PASS '+name);});}
 function setup(){const sent=[],events=[];return {sent,events,p:new VoiceTurnProtocol(1,'session-1',v=>sent.push(v),v=>events.push(v))};}
@@ -10,6 +13,18 @@ function end(s,id='voice-a',last=320){s.p.receive(control('turnEnd',id,{lastSamp
 function finishAsr(s,text='Bonjour',id='voice-a'){s.p.receive(control('transcriptFinal',id,{source:'android_speech_service',text}));}
 function error(s){return s.events.flatMap(x=>x.warmEvent?.payload?.protocolError?.code||[]);}
 (async()=>{
+ await test('Android and Companion share every v2 envelope',()=>{const samples={
+  speakFirst:control('speakFirst','greeting'),turnStart:control('turnStart','voice-a',{firstSample:0}),
+  turnEnd:control('turnEnd','voice-a',{lastSampleExclusive:320}),
+  transcriptFinal:control('transcriptFinal','voice-a',{source:'android_speech_service',text:'Bonjour'}),
+  interrupt:control('interrupt','voice-a',{outputGenerationId:'out-voice-a'})};
+  for(const [kind,message] of Object.entries(samples)){const body=message.warmControl[kind];for(const field of contract.controls[kind])assert(field in body,`${kind}.${field}`);}
+  const receipt={warmControl:{receiptReply:{turnId:'voice-a'}}};for(const field of contract.controls.receiptReply)assert(field in receipt.warmControl.receiptReply,`receiptReply.${field}`);
+  const frame={warmInput:{audio:{sessionEpoch:'session-1',turnId:'voice-a',firstSample:0,samples:320,sampleRate:16000,data:Buffer.alloc(640).toString('base64')}}};
+  for(const field of contract.audio)assert(field in frame.warmInput.audio,`audio.${field}`);
+  const s=setup();start(s);const event=s.events.find(v=>v.warmEvent?.payload?.turnAdmitted);
+  for(const field of contract.warmEvent)assert(field in event.warmEvent,`warmEvent.${field}`);
+ });
  await test('duplex greeting is correlated, once and never executable',async()=>{const s=setup(),m=control('speakFirst','greeting');s.p.receive(m);s.p.receive(m);assert.equal(s.sent.length,1);assert(s.sent[0].clientContent.turnComplete);s.p.provider({serverContent:{outputTranscription:{text:'Bonjour'},turnComplete:true}});assert.equal(s.events.find(x=>x.warmEvent?.payload?.serverContent)?.warmEvent.turnId,'greeting');assert.throws(()=>s.p.execute('greeting','',async()=>1));start(s);audio(s);end(s);finishAsr(s);assert.deepEqual(error(s),[]);});
  await test('greeting cannot request a tool or replace a user turn',()=>{const s=setup();s.p.receive(control('speakFirst','greeting'));s.p.provider({toolCall:{functionCalls:[{id:'unsafe',name:'ask_samantha',args:{request:'do it'}}]}});assert(error(s).includes('greeting_tool_not_admissible'));assert(!s.events.some(x=>x.warmEvent?.payload?.toolCall));const t=setup();start(t);t.p.receive(control('speakFirst','late-greeting'));assert(error(t).includes('greeting_not_admissible'));});
  await test('start/end replay is idempotent',()=>{const s=setup();start(s);start(s);audio(s);audio(s);end(s);end(s);assert.equal(s.sent.length,3);assert.deepEqual(error(s),[]);});
@@ -19,6 +34,7 @@ function error(s){return s.events.flatMap(x=>x.warmEvent?.payload?.protocolError
  await test('provider transcript cannot authorize execution',()=>{const s=setup();start(s);audio(s);end(s);s.p.provider({serverContent:{inputTranscription:{text:'Bonjour',finished:true}}});assert(s.p.snapshot().asrPending);assert.throws(()=>s.p.execute('voice-a','Bonjour',async()=>1));assert.deepEqual(error(s),[]);});
  await test('tools await on-device final transcript',()=>{const s=setup();start(s);audio(s);end(s);s.p.provider({toolCall:{functionCalls:[{id:'fc1',name:'clawmobile_capability',args:{request:'Bonjour'}}]}});assert(!s.events.some(x=>x.warmEvent?.payload?.toolCall));finishAsr(s);assert(s.events.some(x=>x.warmEvent?.payload?.toolCall));});
  await test('execution is exactly once for the admitted turn',async()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);let count=0;const run=()=>{count++;return Promise.resolve({ok:true});};const a=s.p.execute('voice-a','Bonjour',run),b=s.p.execute('voice-a','Bonjour',run);assert.equal(a,b);await a;assert.equal(count,1);assert.throws(()=>s.p.execute('voice-a','Other',run));});
+ await test('receipt reply is accepted only after the correlated execution and generation end',async()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);await s.p.execute('voice-a','Bonjour',async()=>({execution:{state:'completed'}}));s.p.receive({warmControl:{receiptReply:{turnId:'voice-a'}}});assert(error(s).includes('receipt_reply_not_admissible'));const t=setup();start(t);audio(t);end(t);finishAsr(t);await t.p.execute('voice-a','Bonjour',async()=>({execution:{state:'completed'}}));t.p.provider({serverContent:{turnComplete:true}});t.p.receive({warmControl:{receiptReply:{turnId:'voice-a'}}});assert(t.events.some(x=>x.warmEvent?.payload?.outputResumed));assert.equal(t.sent.filter(x=>x.clientContent?.turnComplete).length,1);});
  await test('interruption preserves admitted execution but rejects new old-turn execution',async()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);let complete;const execution=s.p.execute('voice-a','Bonjour',()=>new Promise(r=>complete=r));await Promise.resolve();s.p.receive(control('interrupt','voice-a',{outputGenerationId:'out-voice-a'}));complete({done:true});assert.deepEqual(await execution,{done:true});const t=setup();start(t);audio(t);end(t);finishAsr(t);t.p.receive(control('interrupt','voice-a',{outputGenerationId:'out-voice-a'}));assert.throws(()=>t.p.execute('voice-a','Bonjour',async()=>1));});
  await test('late tool from interrupted generation is not exposed',()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);s.p.receive(control('interrupt','voice-a',{outputGenerationId:'out-voice-a'}));start(s,'voice-b',5000);s.p.provider({toolCall:{functionCalls:[{id:'late',name:'clawmobile_capability',args:{request:'Bonjour'}}]}});assert(!s.events.some(x=>x.warmEvent?.payload?.toolCall));});
  await test('output crosses turns only at provider completion',()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);start(s,'voice-b',5000);s.p.provider({serverContent:{interrupted:true,turnComplete:true}});s.p.provider({serverContent:{outputTranscription:{text:'new'}}});const e=s.events.filter(x=>x.warmEvent?.payload?.serverContent?.outputTranscription).at(-1);assert.equal(e.warmEvent.turnId,'voice-b');});

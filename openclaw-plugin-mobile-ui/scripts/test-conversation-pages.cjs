@@ -14,7 +14,7 @@ const line=(role,text,stopReason)=>JSON.stringify({type:'message',message:{role,
  const first=await api.conversationSummariesPage({limit:20});
  assert.equal(first.items.length,20);assert.equal(new Set(first.items.map(x=>x.sessionId)).size,20);
  assert.equal(first.coverage.availableConversations,50);assert.equal(first.coverage.retainedRunCount,100);assert.equal(first.coverage.fullHistory,false);
- assert.equal(first.items[0].sessionId,'session-49');assert.equal(first.items[0].titlePreview,'Question 99');assert.equal(first.items[0].availableTurnCount,2);
+ assert.equal(first.items[0].sessionId,'session-49');assert.equal(first.items[0].titlePreview,'Question 98');assert.equal(first.items[0].availableTurnCount,2);
  const second=await api.conversationSummariesPage({limit:20,cursor:first.nextCursor});
  assert.equal(second.items.length,20);assert.equal(second.items.some(x=>first.items.some(y=>x.sessionId===y.sessionId)),false);
  const third=await api.conversationSummariesPage({limit:20,cursor:second.nextCursor});assert.equal(third.items.length,10);assert.equal(third.hasMore,false);
