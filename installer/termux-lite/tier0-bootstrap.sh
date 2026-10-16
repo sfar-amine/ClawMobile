@@ -87,6 +87,9 @@ export TMPDIR="$HOME/.cache/tmp"; mkdir -p "$TMPDIR"; chmod 700 "$TMPDIR"
 if timeout 3 adb -s 127.0.0.1:5556 get-state 2>/dev/null | grep -qx device; then
   timeout 12 "$ROOT/android-network-mutation-guard.py" ensure-termux-background >/dev/null 2>&1 || true
 fi
+# I10: one closed, read-only receipt per Android boot. Drift is reported and
+# existing owners remain responsible for repair.
+timeout 30 python3 "$ROOT/android-startup-check.py" >/dev/null 2>&1 || true
 if ! pgrep -f '[t]ier0-watchdog.py' >/dev/null 2>&1; then
   nohup "$TIER0/bin/tier0-watchdog.py" >>"$TIER0/watchdog.stderr.log" 2>&1 </dev/null &
 fi

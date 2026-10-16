@@ -140,7 +140,7 @@ export type CompanionRunStatus = {
   sessionKey?: string;
   state: "running" | "done" | "failed" | "unknown";
   status?: string;
-  memoTranscription?: {phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number};
+  memoTranscription?: {phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number; retryAllowed?: boolean};
   message: string;
   result?: string;
   /** F4: structured projection of `result` (summary list only); `result` stays the raw fallback. */
