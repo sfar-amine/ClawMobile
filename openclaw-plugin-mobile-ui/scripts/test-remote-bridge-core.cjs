@@ -80,6 +80,15 @@ async function stop(child) {
 }
 
 async function main() {
+  // S24 11/10 : « état de mes factures » via claw_execute (owner, décision `read`) refusé en continuum_fence_required,
+  // l'ingress n'armant aucune clôture pour une lecture. Le Bridge applique maintenant la même règle que le reçu.
+  const { continuumFenceRequired } = require("../dist/companion/remoteBridge.js");
+  assert.equal(continuumFenceRequired("mcp_capability_execute_owner", { request: "état de mes factures", decision: { risk: "read" } }), false);
+  assert.equal(continuumFenceRequired("mcp_capability_execute_owner", { decision: { risk: "write" } }), true);
+  assert.equal(continuumFenceRequired("mcp_capability_execute_owner", { request: "x" }), true);
+  assert.equal(continuumFenceRequired("write_file", { path: "x" }), true);
+  assert.equal(continuumFenceRequired("read_file", { path: "x" }), false);
+
   const proc = spawn(node, [companion], {
     env: {
       ...process.env,

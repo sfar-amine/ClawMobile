@@ -133,6 +133,24 @@ class Evaluate(unittest.TestCase):
         self.assertEqual(rows[1]["pressure"]["since"], None)
         self.assertEqual(rows[3]["decision"]["reason"], "pressure_not_sustained")
 
+    def test_swap_oscillating_around_the_limit_is_sustained(self):
+        # S24 12/10, Gateway pid 2624: swap 1.10 → 1.83 GiB, dipping under 1.5 GiB between samples.
+        t0 = 2_500_000
+        swaps = [1600, 1450, 1700, 1400, 1650, 1833]
+        rows, calls = self.run_seq([(t0 + i * 120, m(1000, s), 2624) for i, s in enumerate(swaps)])
+        self.assertEqual({r["pressure"]["since"] for r in rows}, {t0})
+        self.assertEqual(rows[-1]["action"], "restart_requested")
+        self.assertEqual(rows[-1]["last_attempt"]["reasons"], ["gateway_swap"])
+
+    def test_window_clears_when_clearly_below_or_on_new_gateway(self):
+        t0 = 2_600_000
+        rows, _ = self.run_seq([(t0, m(1000, 1600), 5), (t0 + 60, m(1000, 1200), 5), (t0 + 120, m(1000, 1600), 5)])
+        self.assertIsNone(rows[1]["pressure"]["since"], "1.2 GiB < 85 % de 1.5 GiB : fenêtre close")
+        self.assertEqual(rows[2]["pressure"]["since"], t0 + 120)
+        rows, _ = self.run_seq([(t0, m(1000, 1600), 5), (t0 + 700, m(1000, 1600), 6)])
+        self.assertEqual(rows[1]["pressure"]["since"], t0 + 700, "nouvelle Gateway : nouvelle fenêtre")
+        self.assertEqual(rows[1]["decision"]["reason"], "pressure_not_sustained")
+
     def test_failed_or_uncertain_attempt_counts_for_six_hours(self):
         t0 = 3_000_000
         rows, _ = self.run_seq([(t0, m(2700), 7), (t0 + 600, m(2700), 7), (t0 + 1300, m(2700), 7), (t0 + 2 * 3600, m(2700), 7)], healthy=lambda: False)
@@ -193,6 +211,16 @@ class IdleProofOnCapture(unittest.TestCase):
 
 
 class Main(unittest.TestCase):
+    def test_idle_proof_cli_is_read_only_and_refuses_busy_or_unknown(self):
+        empty = {k: 0 for k in ("gateway_tasks", "cron_runs", "companion_runs", "remote_bridge", "deploy", "heavy_job", "payments", "confirmations")}
+        with patch.object(guard, "idle_proof", return_value=(empty, None)), patch("builtins.print") as out:
+            self.assertEqual(guard.main(["--idle-proof"]), 0)
+            self.assertIn('"idle": true', out.call_args.args[0])
+        with patch.object(guard, "idle_proof", return_value=({**empty, "companion_runs": 1}, None)):
+            self.assertEqual(guard.main(["--idle-proof"]), 3)
+        with patch.object(guard, "idle_proof", return_value=(None, "companion_registry_unreadable")):
+            self.assertEqual(guard.main(["--idle-proof"]), 3)
+
     def test_corrupt_history_never_restarts_and_is_kept(self):
         with tempfile.TemporaryDirectory() as td:
             receipt = Path(td) / "gateway-memory-guard.json"; receipt.write_text("{bad")
@@ -228,10 +256,12 @@ class Main(unittest.TestCase):
                 guard.main([])
             return out.call_args.args[0], json.loads(receipt.read_text())
 
-    def test_default_is_observation_only(self):
+    def test_default_requests_restart_and_zero_keeps_observation(self):
         printed, row = self._granted({})
+        self.assertIn('"action": "restart_requested"', printed)
+        self.assertEqual(row["mode"], "restart")
+        printed, row = self._granted({"SAMANTHA_GATEWAY_MEMORY_RESTART": "0"})
         self.assertIn("observe_only", printed)
-        self.assertNotIn("restart_requested", printed)
         self.assertEqual(row["mode"], "observe")
         self.assertEqual(row["last_attempt"], {"at": 0, "state": "none"})
 

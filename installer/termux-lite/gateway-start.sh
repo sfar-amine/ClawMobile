@@ -27,5 +27,18 @@ if [ "$lock_state" = "recovered" ]; then
   echo "[lite] Recovered an orphaned Android gateway lock; evidence quarantined under OpenClaw backups."
 fi
 
+# Hash-gated local patch only: no build, network or credential mutation.
+# Unsupported upgrades remain startable; runtime-sync reports the missing protection.
+# A Tier0 release can outlive a checkout rollback. Follow the deployed checkout's
+# patch ownership so an old release never reapplies a patch just rolled back.
+WA_PATCH_SOURCE="${CLAW_CORE_REPO:-$HOME/ClawMobile}/installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py"
+WA_PATCH_MODE=--apply
+if [ ! -f "$WA_PATCH_SOURCE" ]; then
+  WA_PATCH_SOURCE="$SCRIPT_DIR/openclaw-compat/whatsapp-network-recovery.py"
+  WA_PATCH_MODE=--rollback
+fi
+python3 "$WA_PATCH_SOURCE" "$WA_PATCH_MODE" >&2 ||
+  echo "[lite] WARNING: WhatsApp network recovery patch unsupported; runtime drift requires review." >&2
+
 echo "[lite] Starting OpenClaw Gateway through fast recovery path..."
 exec openclaw gateway --bind "$GATEWAY_BIND" --port "$GATEWAY_PORT" --verbose

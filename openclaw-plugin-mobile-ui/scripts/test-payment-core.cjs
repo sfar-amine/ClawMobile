@@ -1,10 +1,10 @@
-const assert=require("assert/strict"),crypto=require("crypto");
+const assert=require("assert/strict"),crypto=require("crypto"),fs=require("fs"),path=require("path");
 const {createHash} = crypto;
 const {createPaymentCore,ownerKey,confirmationMessage,quoteDigest,BANK_ACTION_TIMEOUT_MS}=require("../dist/companion/paymentCore.js");
 const {PAYMENT_QUOTE_TIMEOUT_MS,bankAuthorizationIntent,bindPaymentAuthorizations}=require("../dist/companion/payments.js");
 let count=0;
 async function test(name,fn){await fn();count++;console.log("PASS "+name)}
-function fixture({mode="demo",execute,resume,timeoutReconcile,revalidate,quote,validated=true,timeouts}={}){
+function fixture({mode="demo",adapterId="fixture.payment",execute,resume,timeoutReconcile,revalidate,quote,validated=true,timeouts}={}){
  const pair=crypto.generateKeyPairSync("ec",{namedCurve:"prime256v1"});
  const key=ownerKey(pair.publicKey.export({type:"spki",format:"pem"}));
  let rows=[],clock=1000000,calls=0,resumes=0,writes=Promise.resolve();
@@ -13,8 +13,8 @@ function fixture({mode="demo",execute,resume,timeoutReconcile,revalidate,quote,v
   writes=next.then(()=>{},()=>{});return next;
  }};
  const q={payee:"Marchand de test",reference:"DEMO",amountMinor:mode==="demo"?0:2345,currency:"TND",decimals:3};
- const continuation={provider:"fixture.payment",checkoutId:"12345",gatewayOrderId:"11111111-1111-4111-8111-111111111111"};
- const adapter={id:"fixture.payment",label:"Synthetic adapter",mode,executionValidated:validated,bankNavigationOrigins:["https://bank.fixture.test"],
+ const continuation={provider:adapterId,checkoutId:"12345",gatewayOrderId:"11111111-1111-4111-8111-111111111111"};
+ const adapter={id:adapterId,label:"Synthetic adapter",mode,executionValidated:validated,bankNavigationOrigins:["https://bank.fixture.test"],
   quote:quote||asyncRef,revalidate:revalidate||(async value=>({...value})),
   async execute(...args){calls++;const value=execute?await execute(...args):{state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"TEST-RECEIPT",transactionCorrelated:true,providerReconciled:true}};return value?.state==="requires_bank_action"&&!value.continuation?{...value,continuation}:value},
   async resume(...args){resumes++;return resume?resume(...args):{state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"TEST-RECEIPT",transactionCorrelated:true,providerReconciled:true}}},
@@ -446,6 +446,42 @@ await test("V1.1 status hides bankReturnToken and continuation", async () => {
   const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
   f.setTime(f.time()+BANK_ACTION_TIMEOUT_MS);const done=await f.core.timeoutBankAction(r.requestId);
   assert.equal(done.state,"effect_unknown");release?.({state:"confirmed"});
+ });
+
+ // Shared with ui-playbooks: exact maxit_webview_v2 continuation emitted by startMaxitTopup.
+ await test("the shared Maxit webview v2 fixture crosses Payment Core and reaches the bank step",async()=>{
+  const web=JSON.parse(fs.readFileSync(path.join(__dirname,"..","fixtures","contracts","maxit_webview_v2.json"),"utf8"));
+  assert.deepEqual(Object.keys(web).sort(),["checkoutId","gatewayOrderId","provider"]);
+  const seen=[];
+  const f=fixture({mode:"live",adapterId:"maxit.topup",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required",continuation:web}),
+   resume:async(_q,_id,c)=>{seen.push(c);return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}}}});
+  const r=await f.prepared(),pending=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  assert.equal(pending.state,"requires_bank_action");
+  const done=await f.core.resume(r.requestId);assert.equal(done.state,"confirmed");assert.deepEqual(seen,[web]);
+ });
+ await test("an unusable continuation ends effect_unknown instead of a 502 that leaves the record executing",async()=>{
+  for(const continuation of [{provider:"fixture.payment",checkoutId:"x1",gatewayOrderId:"3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b"},
+    {provider:"other.adapter",checkoutId:"",gatewayOrderId:"3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b"},
+    {provider:"fixture.payment",checkoutId:"",gatewayOrderId:"not-a-uuid"}]){
+   const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required",continuation})});
+   const r=await f.prepared(),out=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+   assert.equal(out.state,"effect_unknown");assert.equal(out.canRetry,false);
+   const status=await f.core.status(r.requestId);
+   assert.equal(status.timeline.at(-1).reasonDetail,"invalid_payment_continuation");
+   await reject(()=>f.core.resume(r.requestId),"payment_resume_not_available");
+  }
+ });
+ await test("a destination blocked by the bank UI is traced by origin, other foreign origins stay refused",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"})});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  await f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"navigation_blocked",
+    navigation:{origin:"https://3dsnew.unknown-psp.test",path:"/api/v1/notification/{id}"}});
+  const status=await f.core.status(r.requestId);
+  assert.deepEqual(status.timeline.at(-1).navigation,{origin:"https://3dsnew.unknown-psp.test",path:"/api/v1/notification/{id}"});
+  await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",
+    navigation:{origin:"https://3dsnew.unknown-psp.test",path:"/x"}}),"invalid_payment_trace");
+  await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"navigation_blocked",
+    navigation:{origin:"http://plain.test",path:"/x"}}),"invalid_payment_trace");
  });
 
 console.log("PAYMENT_CORE_TESTS_PASSED="+count);

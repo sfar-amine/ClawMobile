@@ -1,11 +1,11 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import datetime,json,os,pathlib,sqlite3,sys,hashlib,re
-from context_memory import ensure_indexes, search, control_items
+from context_memory import ensure_indexes, search, control_items, refused_telemetry
 from context_import import preview as import_preview, selection as import_selection, canonical as import_canonical, PAYMENT as MEMORY_PAYMENT
 H=pathlib.Path.home()
 D=pathlib.Path(os.environ.get("SAMANTHA_CONTEXT_ROOT",H/".openclaw/context-sync"))
 DB=D/"memory.db"
-SCHEMA_VERSION=4
+SCHEMA_VERSION=5
 
 def connect():
     D.mkdir(parents=True,exist_ok=True); os.chmod(D,0o700)
@@ -31,6 +31,18 @@ def migrate(c):
             source_ids TEXT NOT NULL,payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'proposed',
             created_at TEXT NOT NULL,applied_at TEXT)""")
         c.execute("CREATE INDEX IF NOT EXISTS idx_dream_action_status_date ON dream_proposals(action,status,created_at)")
+        # M3 keeps the immutable events as the source of truth.  These two tables are a
+        # rebuildable curator projection and its append-only audit, in the same owner DB.
+        c.execute("""CREATE TABLE IF NOT EXISTS curated_facts(
+            event_id TEXT PRIMARY KEY,root_event_id TEXT NOT NULL,valid_from TEXT NOT NULL,
+            valid_to TEXT,observed_at TEXT NOT NULL,state TEXT NOT NULL,
+            invalidated_by TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_curated_facts_active ON curated_facts(state,valid_to)")
+        c.execute("""CREATE TABLE IF NOT EXISTS curator_audit(
+            audit_id TEXT PRIMARY KEY,run_id TEXT NOT NULL,action TEXT NOT NULL,
+            event_id TEXT NOT NULL,prior_event_id TEXT,valid_from TEXT NOT NULL,
+            valid_to TEXT,observed_at TEXT NOT NULL)""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_curator_audit_observed ON curator_audit(observed_at,audit_id)")
         missing=c.execute("SELECT rowid FROM events WHERE revision IS NULL ORDER BY created_at,rowid").fetchall()
         head=c.execute("SELECT COALESCE(MAX(revision),0) FROM events").fetchone()[0]
         for (rowid,) in missing:
@@ -63,11 +75,21 @@ def delta(c,after,limit=500):
 
 def ingest_file(c,path,require_active=None):
     p=pathlib.Path(path)
-    if not p.exists():
-        alt=D/'processed'/p.name
-        if alt.exists(): p=alt
-        else: raise FileNotFoundError(path)
-    e=json.loads(p.read_text())
+    # Another writer can move a pending event to processed between a path
+    # existence check and the read. Open the candidates directly so that an
+    # already-open file remains readable across rename, and retry the canonical
+    # processed location when the pending path has already moved.
+    candidates=(p,D/'processed'/p.name)
+    missing=None
+    for candidate in candidates:
+        try:
+            with candidate.open() as stream:e=json.load(stream)
+            p=candidate
+            break
+        except FileNotFoundError as error:
+            missing=error
+    else:
+        raise missing if missing is not None else FileNotFoundError(path)
     if not all(e.get(k) for k in ('id','surface','kind','text','createdAt')): raise ValueError('missing required field')
     if e['surface'] not in ('chat','work','voice','openclaw','claude','codex','app'): raise ValueError('bad surface')
     if e['kind'] not in ('decision','learning','open_thread','completed_action','constraint','checkpoint'): raise ValueError('bad kind')
@@ -93,6 +115,9 @@ def ingest_file(c,path,require_active=None):
             rev=row[0]; inserted=False
         else:
             if require_active and c.execute('SELECT 1 FROM events WHERE supersedes=?',(require_active,)).fetchone():raise ValueError('memory_already_superseded')
+            # M3: machine telemetry belongs to its owner (deploy receipts, learning gate, situations).
+            # Replaying an already-accepted processed/ file (DB rebuild) stays possible.
+            if refused_telemetry(e['text']) and p.parent.resolve()!=(D/'processed').resolve():raise ValueError('machine_telemetry_refused')
             h=int(c.execute("SELECT value FROM memory_meta WHERE key='current_revision'").fetchone()[0]); rev=h+1
             now=datetime.datetime.now(datetime.timezone.utc).isoformat()
             c.execute('INSERT INTO events(id,surface,kind,text,created_at,ingested_at,supersedes,revision,session_id) VALUES(?,?,?,?,?,?,?,?,?)',(e['id'],e['surface'],e['kind'],' '.join(str(e['text']).split()),e['createdAt'],now,e.get('supersedes'),rev,session))
@@ -106,7 +131,16 @@ def ingest_file(c,path,require_active=None):
         with ap.open('a') as f: f.write(json.dumps(e,ensure_ascii=False,separators=(',',':'))+'\n')
         os.chmod(ap,0o600)
     dest=processed/p.name
-    if p.exists(): os.replace(p,dest)
+    if p!=dest:
+        try:
+            os.replace(p,dest)
+        except FileNotFoundError:
+            # A concurrent ingest of this same event may have committed and
+            # moved the shared pending file after our transaction committed.
+            # Treat only that fully materialized, DB-validated state as the
+            # idempotent winner; every other missing source remains an error.
+            durable=c.execute('SELECT revision,session_id FROM events WHERE id=?',(e['id'],)).fetchone()
+            if not dest.is_file() or durable!=(rev,session):raise
     return {'id':e['id'],'revision':rev,'inserted':inserted}
 
 def cursor(c,sid,surface=None,advance=None):

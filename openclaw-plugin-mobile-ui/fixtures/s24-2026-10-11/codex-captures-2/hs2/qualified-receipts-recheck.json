@@ -1,0 +1,184 @@
+{
+ "_capture": {
+  "host": "Samsung S24 / Termux",
+  "access": "MCP Claw claw_exec, profil chat-owner, clé cc2-hs2-scan-a1",
+  "capturedAt": "2026-10-11T13:08:00Z",
+  "runtimeCore": "5631fe9d6fbe9972d4fbb744bf48a2b521af0f50 (inclut 80a683f7 / core #180 billStatus.ts)",
+  "playbooksPinned": "2ffc0e8404506ddc927bff14b3009cd475f14c24",
+  "mode": "lecture seule : route-health.json, 3 000 reçus du pont les plus récents sur 8 023, GET /v1/catalog en loopback sans en-tête propriétaire ; montants, échéances et textes retirés",
+  "request": "playbooks #93 (HS2) : source commune de reçus qualifiés ?"
+ },
+ "routeHealth": {
+  "path": "~/.openclaw/skill-intelligence/route-health.json",
+  "mtime": "2026-10-10T21:19:57Z",
+  "topKeys": [
+   "routes",
+   "version"
+  ],
+  "routes": 25,
+  "entryKeys": [
+   "consecutive_failures",
+   "fallback_route",
+   "history[]{classification,fallback_route,primary,repair_component,result,summary,ts}",
+   "incident_id",
+   "incident_state",
+   "intent",
+   "last_failure_at",
+   "last_failure_class",
+   "last_success_at",
+   "last_verified_at",
+   "route",
+   "state",
+   "suppress_until",
+   "target"
+  ],
+  "indexedBy": "<target>|<intent>|<route> (sans capability)",
+  "withCapabilityField": 0,
+  "withExpiryField": 0,
+  "verifiedRoutes": 14,
+  "routeIdPrefixes": {
+   "orange": 13,
+   "maxit-tunisie": 7,
+   "steg": 1,
+   "sonede": 1,
+   "topnet": 1,
+   "utility-billing": 1,
+   "tunisie-telecom": 1
+  },
+  "billingRoutes": {
+   "steg|billing.unpaid|steg.unpaid.direct.v2": {
+    "state": "healthy",
+    "last_success_at": "2026-10-05T13:44:41Z",
+    "last_verified_at": "2026-10-05T13:44:41Z",
+    "last_failure_at": null
+   },
+   "topnet|billing.unpaid|topnet.unpaid.direct.v2": {
+    "state": "healthy",
+    "last_success_at": "2026-10-05T13:44:41Z",
+    "last_verified_at": "2026-10-05T13:44:41Z",
+    "last_failure_at": null
+   },
+   "sonede|billing.unpaid|sonede.unpaid.direct.v2": {
+    "state": "degraded",
+    "last_success_at": null,
+    "last_verified_at": null,
+    "last_failure_at": "2026-10-05T13:52:33Z"
+   },
+   "utility-billing|billing.unpaid|utility-billing.unpaid.direct.v2": {
+    "state": "healthy",
+    "last_success_at": "2026-10-06T12:44:52Z",
+    "last_verified_at": "2026-10-04T13:11:34Z",
+    "last_failure_at": "2026-10-04T13:03:36Z"
+   }
+  }
+ },
+ "bridgeReceipts": {
+  "path": "~/.openclaw/remote-bridge/requests/*.json",
+  "total": 8023,
+  "scannedMostRecent": 3000,
+  "withResultCapability": {
+   "billing.utility.fast_path|completed|true": 1,
+   "telecom.orange.consultation|completed|true": 1,
+   "qa.test_campaign|completed|true": 1,
+   "engineering.learning_gate|completed|true": 1,
+   "device.laptop_termux_access|completed|true": 3
+  },
+  "topLevelExpiryKeys": 0,
+  "latestBillingReceipt": {
+   "mtime": "2026-10-11T11:09:16Z",
+   "state": "completed",
+   "resultSuccess": true,
+   "topKeys": [
+    "completedAt",
+    "instanceId",
+    "method",
+    "mutationRisk",
+    "paramsHash",
+    "receivedAt",
+    "requestId",
+    "result",
+    "startedAt",
+    "state",
+    "stepId",
+    "taskId"
+   ],
+   "topLevelExecution": null,
+   "schemaVersion2ProvidersFound": false,
+   "note": "ce reçu récent n'a pas de bloc execution au premier niveau : billStatus.ts (qui exige execution.state=completed, exit_code=0, execution.result.schema_version=2) l'ignore ; le catalogue sert un reçu plus ancien (06/10)"
+  }
+ },
+ "catalog": {
+  "route": "GET /v1/catalog",
+  "status": 200,
+  "latencyMs": 1726,
+  "availabilitySource": "registry_route_health_owner_gates_surface_view",
+  "generatedAt": "2026-10-11T13:07:59.810759Z",
+  "statusKeys": [
+   "amountMinor",
+   "at",
+   "checkedAt",
+   "currency",
+   "decimals",
+   "provider",
+   "source",
+   "state",
+   "text",
+   "tone"
+  ],
+  "groupStatuses": [
+   {
+    "group": "steg",
+    "state": "unpaid",
+    "source": "bridge_receipt",
+    "checkedAt": "2026-10-06T12:44:51Z",
+    "ageHours": 120.4,
+    "tone": "alert"
+   },
+   {
+    "group": "sonede",
+    "state": "paid",
+    "source": "bridge_receipt",
+    "checkedAt": "2026-10-06T12:44:50Z",
+    "ageHours": 120.4,
+    "tone": "info"
+   },
+   {
+    "group": "topnet",
+    "state": "paid",
+    "source": "bridge_receipt",
+    "checkedAt": "2026-10-06T12:44:51Z",
+    "ageHours": 120.4,
+    "tone": "info"
+   }
+  ],
+  "themeBadges": [
+   {
+    "theme": "bills",
+    "tone": "alert",
+    "count": 1,
+    "source": "bridge_receipt",
+    "at": "2026-10-06T12:44:51Z"
+   }
+  ],
+  "ownerGates": "catalog.ts ownerGateEvidence : maxit.topup armé depuis payments.capabilities() avec expiresAt = maintenant + 120 s (calculé à la lecture, non attesté par une source)"
+ },
+ "criteria": {
+  "capabilityLink": {
+   "exists": "reçus du pont (result.capability) ; projection billStatus limitée à billing.utility.fast_path",
+   "missing": "route-health (aucune capability) ; consultations opérateur et qa.test_campaign n'ont pas de projection"
+  },
+  "verifiedSuccess": {
+   "exists": "route-health last_verified_at par route ; reçus du pont result.success + execution.exit_code (factures seulement)",
+   "missing": "aucune source ne lie 'vérifié' à une capability ; sonede jamais vérifiée ; maxit-tunisie|telecom.* non vérifiées (#176)"
+  },
+  "freshness": {
+   "exists": "checked_at par fournisseur (factures), last_verified_at par route, mtime des reçus",
+   "missing": "aucune règle de fraîcheur commune ; l'app affiche l'âge (at) sans seuil serveur ; catalogue sert un état de 120 h"
+  },
+  "expiry": {
+   "exists": "aucune (0 champ expir* dans route-health et reçus) ; seul expiresAt est celui, calculé, des gates paiement (+120 s)",
+   "missing": "expiration attestée par le propriétaire"
+  }
+ },
+ "verdict": "Pas de source commune de reçus qualifiés. Depuis 80a683f il existe une projection à la lecture, propre aux factures (billStatus.ts : reçus du pont + paiements confirmés), qui donne capability, succès vérifié et checkedAt, sans expiration ; elle ne couvre ni les consultations opérateur ni qa.test_campaign et ignore le dernier reçu de facture (forme sans execution)."
+}

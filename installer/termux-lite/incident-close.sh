@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
+ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
 D="$HOME/.openclaw/incidents"; Q="$D/queue"; LOG="$D/events.log"
 component="${1:-}"; message="${2:-Samantha — récupération vérifiée.}"
 learning_file="${CLAW_LEARNING_FILE:-}"
@@ -19,7 +19,20 @@ for dir in "$Q"/*; do
   st="$(cat "$dir/status" 2>/dev/null || echo pending)"
   [ "$st" = closed ] && continue
   msg="$(cat "$dir/message" 2>/dev/null || true)"
-  case "$msg" in *"$component"*) ;; *) continue;; esac
+  kind="$(cat "$dir/kind" 2>/dev/null || true)"
+  # Prefer the structured incident identity. Legacy queue entries did not have
+  # one, so retain an exact token match without the old substring ambiguity
+  # (for example, `adb` must never close `adb_watchdog`).
+  stored="$(cat "$dir/component" 2>/dev/null || true)"
+  if [ -n "$stored" ]; then
+    [ "$stored" = "$component" ] || continue
+  elif [ "$kind" != "$component" ]; then
+    python3 - "$component" "$msg" <<'PY' >/dev/null 2>&1 || continue
+import re,sys
+component,message=sys.argv[1:]
+raise SystemExit(0 if re.search(r'(?<![A-Za-z0-9_])'+re.escape(component)+r'(?![A-Za-z0-9_])',message,re.I) else 1)
+PY
+  fi
   id="$(basename "$dir")"; matched=1; last_id="$id"
   printf recovered >"$dir/status"
   printf '%s id=%s component=%s event=recovered state=verified\n' "$(date -Iseconds)" "$id" "$component" >>"$LOG"

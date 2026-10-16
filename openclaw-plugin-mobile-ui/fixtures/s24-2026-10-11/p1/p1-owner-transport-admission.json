@@ -1,0 +1,540 @@
+{
+  "provenance": {
+    "captured_at": "2026-10-11T12:39:16+01:00",
+    "device": "S24 (Termux, profil owner)",
+    "captured_by": "Claude via claw_exec (action_keys p1cap-20261011-a01..a25)",
+    "openclaw": "OpenClaw 2026.9.6 (eb377ac)",
+    "gateway": {
+      "mode": "local",
+      "bind": "loopback",
+      "port": 18789,
+      "tls": false,
+      "auth_mode": "token",
+      "token_source": "secretref",
+      "trusted_proxies": 0,
+      "tailscale": "off"
+    },
+    "core_runtime_head_deployed": "3298d98d8a29458abda6617c37ca5e4b114f4be2",
+    "core_runtime_branch": "runtime/samantha-companion-private",
+    "p0_1_head_reviewed_not_deployed": "377ddcaeacb153a3dade79d880606e8955f052a0",
+    "contract_reviewed": "sfar-amine/samantha-ui-playbooks#87 @ 0d35777f1fccaf88c7363631b6ecb4640cd5ad69",
+    "method": "client WS jetable (module ws du paquet OpenClaw installé), connect protocole 4, deviceIdentity absente, role operator ; jeton partagé résolu en mémoire via plugin-sdk config-runtime/secret-ref-runtime, jamais affiché ni écrit ; seule RPC émise après hello : models.list (lecture) ; aucune RPC agent/chat.send, aucun tour, aucun appel de modèle",
+    "pseudonymization": "conn = 'h:' + sha256(connId)[:10] ; aucun jeton, aucune clé d'appareil, aucun texte utilisateur",
+    "not_done": [
+      "aucun tour agent/chat.send (senderIsOwner observé = dérivation de code, pas un tour exécuté)",
+      "aucune modification de config, aucun redémarrage, aucun déploiement",
+      "aucune révocation ni rotation du jeton partagé ou des appareils appairés",
+      "aucun POST Companion /v1/runs (soumettrait un tour)"
+    ],
+    "cleanup": "~/.cache/tmp/p1cap supprimé après capture"
+  },
+  "gateway_handshake_cases": [
+    {
+      "case": "no_credential_admin_requested",
+      "client": "cli/cli",
+      "auth": "none",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [],
+      "handshake": "refused",
+      "error": {
+        "code": "NOT_PAIRED",
+        "detail": "DEVICE_IDENTITY_REQUIRED",
+        "authReason": null
+      },
+      "grantedScopes": null,
+      "senderIsOwnerDerived": false,
+      "closeCode": 1008
+    },
+    {
+      "case": "wrong_token_admin_requested",
+      "client": "cli/cli",
+      "auth": "wrong",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [],
+      "handshake": "refused",
+      "error": {
+        "code": "INVALID_REQUEST",
+        "detail": "AUTH_TOKEN_MISMATCH",
+        "authReason": "token_mismatch"
+      },
+      "grantedScopes": null,
+      "senderIsOwnerDerived": false,
+      "closeCode": 1008
+    },
+    {
+      "case": "no_credential_forged_owner_headers",
+      "client": "cli/cli",
+      "auth": "none",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [
+        "x-clawmobile-owner-flow",
+        "x-forwarded-for",
+        "x-real-ip"
+      ],
+      "socketError": "error",
+      "closeCode": 1006,
+      "note": "upgrade WS refusé avant handshake (x-forwarded-for depuis une source non trusted ; trustedProxies=0) ; HTTP 403 confirmé par la passe 2"
+    },
+    {
+      "case": "no_credential_owner_claims_in_connect",
+      "client": "cli/cli",
+      "auth": "none",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [],
+      "handshake": "refused",
+      "error": {
+        "code": "INVALID_REQUEST",
+        "detail": null,
+        "authReason": null
+      },
+      "grantedScopes": null,
+      "senderIsOwnerDerived": false,
+      "closeCode": 1008,
+      "note": "champ senderIsOwner/authority hors schéma connect : refus INVALID_REQUEST (schéma fermé)"
+    },
+    {
+      "case": "valid_token_cli_read_only",
+      "client": "cli/cli",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.read"
+      ],
+      "forgedHeaders": [],
+      "handshake": "hello-ok",
+      "authMethod": "token",
+      "role": "operator",
+      "grantedScopes": [
+        "operator.read"
+      ],
+      "conn": "h:71d6c8ea5c",
+      "senderIsOwnerDerived": false,
+      "call": {
+        "method": "models.list",
+        "ok": true,
+        "code": null,
+        "detail": null,
+        "ms": 60
+      },
+      "closeCode": 1005
+    },
+    {
+      "case": "valid_token_cli_write_only",
+      "client": "cli/cli",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.write"
+      ],
+      "forgedHeaders": [],
+      "handshake": "hello-ok",
+      "authMethod": "token",
+      "role": "operator",
+      "grantedScopes": [
+        "operator.write"
+      ],
+      "conn": "h:97818a8dd3",
+      "senderIsOwnerDerived": false,
+      "call": {
+        "method": "models.list",
+        "ok": true,
+        "code": null,
+        "detail": null,
+        "ms": 94
+      },
+      "closeCode": 1005
+    },
+    {
+      "case": "valid_token_cli_p0_1_union",
+      "client": "cli/cli",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [],
+      "handshake": "hello-ok",
+      "authMethod": "token",
+      "role": "operator",
+      "grantedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "conn": "h:388114ff35",
+      "senderIsOwnerDerived": true,
+      "call": {
+        "method": "models.list",
+        "ok": true,
+        "code": null,
+        "detail": null,
+        "ms": 47
+      },
+      "closeCode": 1005
+    },
+    {
+      "case": "valid_token_cli_empty_scopes",
+      "client": "cli/cli",
+      "auth": "valid",
+      "requestedScopes": [],
+      "forgedHeaders": [],
+      "handshake": "hello-ok",
+      "authMethod": "token",
+      "role": "operator",
+      "grantedScopes": [],
+      "conn": "h:185eea0b0b",
+      "senderIsOwnerDerived": false,
+      "call": {
+        "method": "models.list",
+        "ok": false,
+        "code": "FORBIDDEN",
+        "detail": "MISSING_SCOPE",
+        "ms": 4
+      },
+      "closeCode": 1005
+    },
+    {
+      "case": "valid_token_cli_union_forged_origin",
+      "client": "cli/cli",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [
+        "origin"
+      ],
+      "handshake": "hello-ok",
+      "authMethod": "token",
+      "role": "operator",
+      "grantedScopes": [],
+      "conn": "h:e1e0a83d68",
+      "senderIsOwnerDerived": false,
+      "call": {
+        "method": "models.list",
+        "ok": false,
+        "code": "FORBIDDEN",
+        "detail": "MISSING_SCOPE",
+        "ms": 4
+      },
+      "closeCode": 1005
+    },
+    {
+      "case": "valid_token_cli_union_forged_xff_remote",
+      "client": "cli/cli",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [
+        "x-forwarded-for"
+      ],
+      "socketError": "error",
+      "closeCode": 1006,
+      "note": "upgrade WS refusé avant handshake (x-forwarded-for depuis une source non trusted ; trustedProxies=0) ; HTTP 403 confirmé par la passe 2"
+    },
+    {
+      "case": "valid_token_android_ui_union",
+      "client": "openclaw-android/ui",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [],
+      "handshake": "hello-ok",
+      "authMethod": "token",
+      "role": "operator",
+      "grantedScopes": [],
+      "conn": "h:ea10627b08",
+      "senderIsOwnerDerived": false,
+      "call": {
+        "method": "models.list",
+        "ok": false,
+        "code": "FORBIDDEN",
+        "detail": "MISSING_SCOPE",
+        "ms": 17
+      },
+      "closeCode": 1005
+    },
+    {
+      "case": "valid_token_backend_union",
+      "client": "gateway-client/backend",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [],
+      "handshake": "hello-ok",
+      "authMethod": "token",
+      "role": "operator",
+      "grantedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "conn": "h:05559a5392",
+      "senderIsOwnerDerived": true,
+      "call": {
+        "method": "models.list",
+        "ok": true,
+        "code": null,
+        "detail": null,
+        "ms": 76
+      },
+      "closeCode": 1005
+    },
+    {
+      "case": "valid_token_cli_union_owner_claims_in_connect",
+      "client": "cli/cli",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [],
+      "handshake": "refused",
+      "error": {
+        "code": "INVALID_REQUEST",
+        "detail": null,
+        "authReason": null
+      },
+      "grantedScopes": null,
+      "senderIsOwnerDerived": false,
+      "closeCode": 1008,
+      "note": "champ senderIsOwner/authority hors schéma connect : refus INVALID_REQUEST (schéma fermé)"
+    },
+    {
+      "case": "concurrent_admin_conn",
+      "client": "cli/cli",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [],
+      "handshake": "hello-ok",
+      "authMethod": "token",
+      "role": "operator",
+      "grantedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "conn": "h:be1e0e693c",
+      "senderIsOwnerDerived": true,
+      "call": {
+        "method": "models.list",
+        "ok": true,
+        "code": null,
+        "detail": null,
+        "ms": 47
+      },
+      "closeCode": 1005
+    },
+    {
+      "case": "concurrent_write_conn",
+      "client": "cli/cli",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.write"
+      ],
+      "forgedHeaders": [],
+      "handshake": "hello-ok",
+      "authMethod": "token",
+      "role": "operator",
+      "grantedScopes": [
+        "operator.write"
+      ],
+      "conn": "h:3451d60072",
+      "senderIsOwnerDerived": false,
+      "call": {
+        "method": "models.list",
+        "ok": true,
+        "code": null,
+        "detail": null,
+        "ms": 73
+      },
+      "closeCode": 1005
+    },
+    {
+      "case": "reconnect_after_admin_close_requests_write",
+      "client": "cli/cli",
+      "auth": "valid",
+      "requestedScopes": [
+        "operator.write"
+      ],
+      "forgedHeaders": [],
+      "handshake": "hello-ok",
+      "authMethod": "token",
+      "role": "operator",
+      "grantedScopes": [
+        "operator.write"
+      ],
+      "conn": "h:188d04446e",
+      "senderIsOwnerDerived": false,
+      "call": {
+        "method": "models.list",
+        "ok": true,
+        "code": null,
+        "detail": null,
+        "ms": 182
+      }
+    },
+    {
+      "case": "no_credential_owner_flow_header_only",
+      "client": "cli/cli",
+      "auth": "none",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [
+        "x-clawmobile-owner-flow"
+      ],
+      "handshake": "refused",
+      "error": {
+        "code": "NOT_PAIRED",
+        "detail": "DEVICE_IDENTITY_REQUIRED"
+      },
+      "grantedScopes": null,
+      "senderIsOwnerDerived": false
+    },
+    {
+      "case": "no_credential_xff_loopback",
+      "client": "cli/cli",
+      "auth": "none",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [
+        "x-forwarded-for"
+      ],
+      "upgrade": "refused",
+      "httpStatus": 403,
+      "grantedScopes": null,
+      "senderIsOwnerDerived": false
+    },
+    {
+      "case": "no_credential_origin_companion",
+      "client": "cli/cli",
+      "auth": "none",
+      "requestedScopes": [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals"
+      ],
+      "forgedHeaders": [
+        "origin"
+      ],
+      "handshake": "refused",
+      "error": {
+        "code": "NOT_PAIRED",
+        "detail": "DEVICE_IDENTITY_REQUIRED"
+      },
+      "grantedScopes": null,
+      "senderIsOwnerDerived": false
+    }
+  ],
+  "companion_admission_probe": {
+    "deployed_head": "3298d98d",
+    "cases": [
+      {
+        "request": "GET /v1/runs?limit=1",
+        "headers": [],
+        "status": 200
+      },
+      {
+        "request": "GET /v1/runs?limit=1",
+        "headers": [
+          "origin"
+        ],
+        "status": 403
+      },
+      {
+        "request": "GET /v1/runs?limit=1",
+        "headers": [
+          "x-clawmobile-owner-flow"
+        ],
+        "status": 200
+      }
+    ],
+    "static_evidence": {
+      "POST /v1/runs authority": "dist/companion/server.js:1171 authority = isLoopback && !origin && !referer && !sec-fetch-site ? 'owner' : undefined",
+      "owner mutations gate": "server.js (≥12 routes) : isLoopback && pas d'en-têtes navigateur && x-clawmobile-owner-flow == 'v1' (constante)",
+      "android client": "android/samantha/.../AgentModelScreen.kt, ComposerContracts.kt : en-tête constant x-clawmobile-owner-flow: v1, aucun secret ni Authorization",
+      "conclusion": "aucune admission native authentifiée : loopback + en-tête constant, reproductible par tout processus local (Termux ou app Android avec INTERNET)"
+    }
+  },
+  "gateway_static_evidence": {
+    "owner_derivation_agent": "dist/agent-turn-service-BfYSuxip.mjs:2397 senderIsOwner = restoredCronContinuation ? true : clientHasAdminScope(client)",
+    "owner_derivation_chat_send": "dist/chat-send-handler-BlzZtMKP.mjs:4665/5654 senderIsOwner: hasGatewayAdminScope(client)",
+    "clientHasAdminScope": "dist/agent-handler-helpers-D9skpgss.mjs:26 (client.connect.scopes ?? []).includes('operator.admin')",
+    "scope_grant_without_device": "dist/message-handler-D5c0StBB.mjs:1124 clearUnboundScopes() sauf skipLocalBackendSelfPairing (gateway-client/backend local) ou preserveLocalCliSharedAuthScopes (cli/cli direct_local, sans Origin, sharedAuthOk)",
+    "hello_ok_reports": "hello-ok.auth = {method, role, scopes} = scopes accordés effectivement vus par clientHasAdminScope",
+    "agent_reset_requires_admin": "agent-turn-service:433 /reset exige operator.admin",
+    "file_mtimes": "message-handler / agent-turn-service / client-info inchangés depuis l'installation (2026-09-24) ; fichiers samantha-auth-*-candidate.mjs présents dans dist mais non importés"
+  },
+  "findings": {
+    "admin_grant_is_self_declared_by_token_holder": true,
+    "admin_granted_requires_shared_token": true,
+    "loopback_alone_grants": false,
+    "headers_alone_grant": false,
+    "connect_owner_claims_accepted": false,
+    "browser_origin_clears_scopes": true,
+    "proxy_headers_refused_at_upgrade": true,
+    "owner_bit_scope": "connexion entière (toutes les soumissions sur une connexion admin sont owner)",
+    "concurrent_connections_isolated": true,
+    "reconnect_rederives_from_request": true,
+    "companion_native_admission_authenticated": false
+  },
+  "test_plans_not_executed": {
+    "revocation": "Sur un Gateway de test (profil OPENCLAW_HOME jetable, port distinct, jeton jetable) : connexion admin ouverte + tour long en cours ; rotation du jeton ; attendre onClose et vérifier : (a) reconnexion refusée AUTH_TOKEN_MISMATCH, (b) le tour en cours garde-t-il senderIsOwner=true jusqu'à la fin (instantané à l'acceptation) ; (c) toute invocation outil après fermeture refusée par assertInvocationCurrent. Ne jamais faire tourner le jeton réel du S24.",
+    "cancellation": "Sur le même Gateway de test : tour owner, chat.abort/sessions abort, puis rejouer l'invocation outil capturée : refus attendu (invocation non courante) ; compteur d'exécution = 0.",
+    "concurrent_turns": "Deux tours simultanés, l'un sur connexion admin (owner), l'autre sur connexion write : lire __openclaw.senderIsOwner dans trajectory_runtime_events (mode=ro) pour chaque runId pseudonymisé ; attendu true/false sans croisement.",
+    "native_admission": "À définir avant capture : aucune frontière authentifiée n'existe aujourd'hui (voir companion_admission_probe)."
+  }
+}

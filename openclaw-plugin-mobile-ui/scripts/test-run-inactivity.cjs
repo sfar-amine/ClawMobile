@@ -28,7 +28,7 @@ process.env.CLAWMOBILE_OPENCLAW_BIN = gateway;
 const api = require('../dist/companion/runs');
 const {expectedCompanionSessionKey} = require('../dist/companion/openclawAgentClient');
 const now = Date.now(), old = now - 30 * 60 * 1000;
-const run = (id, extra = {}) => ({runId: id, sessionId: id, text: 'Unique request ' + id,
+const run = (id, extra = {}) => ({decision:{version:2,type:'REASON',risk:'read'},runId: id, sessionId: id, text: 'Unique request ' + id,
   acceptedAt: old, updatedAt: old, state: 'running', executionSource: 'capability_first', ...extra});
 const message = (role, content, timestamp, extra = {}) => ({role, content, timestamp, ...extra});
 function write(run, payments = [], confirmations = []) {
@@ -100,6 +100,7 @@ async function expire(r){const before=entered;const start=performance.now();cons
  r=run('long-tool');write(r);ownerProof(r,[message('user',r.text,old),message('assistant',[{type:'toolCall',id:'tool-1',name:'legitimate'}],old+1000)]);assert.equal((await status(r)).state,'running');await idle();assert.equal(stored().error,undefined);
  // Required 4: protected runs never enter the pool, regardless of origin IDs.
  for(const [id,payments,confirmations,decision] of [
+  ['legacy-unqualified',[],[],undefined],
   ['bank',[{state:'requires_bank_action',ownerConfirmationId:'canonical-confirm',draft:{origin:{id:'foreign'}}}],[],undefined],
   ['biometric',[],[{id:'canonical-confirm',state:'awaiting_owner',intent:{origin:{id:'foreign'}}}],undefined],
   ['capability',[],[],{version:2,capability_id:'payment.topup'}],
