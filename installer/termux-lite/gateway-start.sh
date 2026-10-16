@@ -27,5 +27,10 @@ if [ "$lock_state" = "recovered" ]; then
   echo "[lite] Recovered an orphaned Android gateway lock; evidence quarantined under OpenClaw backups."
 fi
 
+# Hash-gated local patch only: no build, network or credential mutation.
+# Unsupported upgrades remain startable; runtime-sync reports the missing protection.
+python3 "$SCRIPT_DIR/openclaw-compat/whatsapp-network-recovery.py" --apply >&2 ||
+  echo "[lite] WARNING: WhatsApp network recovery patch unsupported; runtime drift requires review." >&2
+
 echo "[lite] Starting OpenClaw Gateway through fast recovery path..."
 exec openclaw gateway --bind "$GATEWAY_BIND" --port "$GATEWAY_PORT" --verbose
