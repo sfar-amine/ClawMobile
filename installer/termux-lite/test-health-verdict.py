@@ -3,6 +3,15 @@ import importlib.util,json,tempfile,time,unittest
 from pathlib import Path
 spec=importlib.util.spec_from_file_location('hv',Path(__file__).with_name('health-verdict.py'));hv=importlib.util.module_from_spec(spec);spec.loader.exec_module(hv)
 class T(unittest.TestCase):
+ def test_wifi_off_without_lease_is_noncritical_warning(self):
+  with tempfile.TemporaryDirectory() as td:
+   path=Path(td)/'ns.json'
+   path.write_text(json.dumps({'checked_at':hv.NOW,'state':'healthy','reason':'network_settings_clean','warnings':['wifi_disabled_without_lease']}))
+   x=hv.network_safety_items(path)
+   self.assertEqual(x['device.network_safety']['state'],'healthy')
+   w=x['device.network_safety.wifi_unmanaged'];self.assertEqual((w['state'],w['critical'],w['reason']),('degraded',False,'wifi_disabled_without_lease'))
+   path.write_text(json.dumps({'checked_at':hv.NOW,'state':'healthy','reason':'network_settings_clean','warnings':[]}))
+   self.assertNotIn('device.network_safety.wifi_unmanaged',hv.network_safety_items(path))
  def test_item(self):
   x=hv.item('healthy',True,evidence='x');self.assertEqual(x['state'],'healthy');self.assertTrue(x['critical'])
  def test_continuation_gap(self):

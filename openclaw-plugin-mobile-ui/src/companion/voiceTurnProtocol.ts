@@ -34,8 +34,8 @@ export class VoiceTurnProtocol {
       if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("invalid_message");
       if(value.warmInput?.audio) {this.audio(value.warmInput.audio);return;}
       const control=value.warmControl;
-      if(control?.turnStart||control?.turnEnd||control?.transcriptFinal||control?.interrupt) {
-        const names=["turnStart","turnEnd","transcriptFinal","interrupt"].filter(k=>control[k]);
+      if(control?.turnStart||control?.turnEnd||control?.transcriptFinal||control?.interrupt||control?.speakFirst) {
+        const names=["turnStart","turnEnd","transcriptFinal","interrupt","speakFirst"].filter(k=>control[k]);
         if(names.length!==1)throw new Error("one_control_required");
         const kind=names[0],body=control[kind];const op=this.requireId(body.operationId);
         if(body.sessionEpoch!==this.sessionEpoch)throw new Error("stale_session");
@@ -46,6 +46,7 @@ export class VoiceTurnProtocol {
         if(kind==="turnStart")state=this.start(body);
         else if(kind==="turnEnd")this.end(body);
         else if(kind==="transcriptFinal")this.transcriptFinal(body);
+        else if(kind==="speakFirst")this.speakFirst(body);
         else this.interrupt(body);
         const reply={warmAck:{version:2,operationId:op,state,connectionEpoch:this.connectionEpoch,sessionEpoch:this.sessionEpoch}};
         this.operations.set(op,{hash,reply});this.emit(reply);return;
@@ -56,6 +57,16 @@ export class VoiceTurnProtocol {
       if(value.clientContent?.turnComplete===false && this.turns.size===0) {this.forward(value);return;}
       throw new Error("unsupported_v2_message");
     } catch(e:any) {this.ambiguous=true;this.error(String(e?.message||"protocol_error"));}
+  }
+  private speakFirst(body:any) {
+    const id=this.requireId(body.turnId);
+    if(this.turns.size||this.asrOwner||this.outputOwner||this.closed)throw new Error("greeting_not_admissible");
+    const t:Turn={id,end:0,inputEnded:true,asrFinished:true,outputEnded:false,interrupted:false,
+      generation:"out-"+id,audio:new Map(),input:"",greeting:true};
+    this.turns.set(id,t);this.outputOwner=id;
+    this.event({greetingAdmitted:{}},id,t.generation);
+    this.forward({clientContent:{turns:[{role:"user",parts:[{text:
+      "[session_start] The owner just opened a voice conversation. Speak first: greet them in one short, warm sentence, in French unless the conversation history shows another language, then stop and listen. Do not call any tool."}]}],turnComplete:true}});
   }
   private start(body:any):string {
     const id=this.requireId(body.turnId);const first=body.firstSample;
@@ -157,6 +168,7 @@ export class VoiceTurnProtocol {
     const id=this.outputOwner,t=id?this.turns.get(id):null;
     if(value.toolCall?.functionCalls) {
       if(!t) {this.error("unowned_tool_call");return;}
+      if(t.greeting) {this.error("greeting_tool_not_admissible");return;}
       const calls=value.toolCall.functionCalls;
       if(!Array.isArray(calls)||calls.length>16) {this.error("tool_call_budget");return;}
       for(const call of calls) {if(typeof call.id!=="string"||this.toolOwners.size>=128){this.error("tool_call_budget");return;}this.toolOwners.set(call.id,t.id);}
@@ -175,10 +187,12 @@ export class VoiceTurnProtocol {
       if(Object.keys(output).length) {
         if(!t) {this.error("unowned_provider_output");return;}
         if(output.modelTurn?.parts?.some((part:any)=>part.inlineData?.mimeType?.startsWith("audio/")&&part.inlineData?.data)&&!t.firstAudio){t.firstAudio=true;this.observe("t30p",t.id);}
+        if(typeof output.outputTranscription?.text==="string"&&this.executions.get(t.id)?.result)t.spoken=((t.spoken||"")+output.outputTranscription.text).slice(0,4000);
         if(output.interrupted){t.interrupted=true;if(!t.interruptionObserved){t.interruptionObserved=true;this.observe("t44",t.id);}}
         this.event({serverContent:output},t.id,t.generation);
         if(output.interrupted||output.turnComplete) {
           t.outputEnded=true;
+          this.verbatimCheck(t);
           if(this.nextOutput) {
             const next=this.nextOutput;this.nextOutput=null;this.outputOwner=null;
             if(this.waiting?.id===next&&!this.asrOwner){const pending=this.waiting;this.waiting=null;this.admit(pending);}
@@ -195,7 +209,7 @@ export class VoiceTurnProtocol {
       if(existing.request!==request)throw new Error("voice_execution_identity_conflict");
       return existing.promise;
     }
-    if(this.closed||this.ambiguous||!t||!t.asrFinished||!t.inputEnded||t.interrupted||normalized(t.input)!==normalized(request))
+    if(this.closed||this.ambiguous||!t||t.greeting||!t.asrFinished||!t.inputEnded||t.interrupted||normalized(t.input)!==normalized(request))
       throw new Error("voice_execution_not_admissible");
     const entry:{request:string;promise:Promise<any>;result?:any}={request,promise:Promise.resolve(null)};
     this.executions.set(turnId,entry);
@@ -207,16 +221,32 @@ export class VoiceTurnProtocol {
     if(!t||t.interrupted||!t.outputEnded||!entry?.result)throw new Error("receipt_reply_not_admissible");
     t.outputEnded=false;t.generation="out-"+turnId+"-receipt";this.outputOwner=turnId;
     this.event({outputResumed:{}},turnId,t.generation);
+    const imposed=imposedVoiceText(entry.result);
     const instruction="The Claw harness already executed the previous user request. Verified receipt JSON: "+
-      JSON.stringify(entry.result).slice(0,48000)+"\nVerbalize only this receipt in the user's language. Do not execute the request again.";
+      JSON.stringify(entry.result).slice(0,48000)+"\nVerbalize only this receipt in the user's language. Do not execute the request again."+
+      (imposed?"\nStart your answer with exactly this text, word for word, without rephrasing, translating or shortening it: \u00ab"+imposed+"\u00bb. Then add only what the receipt supports.":"");
     this.forward({clientContent:{turns:[{role:"user",parts:[{text:instruction}]}],turnComplete:true}});
+  }
+  /** Lot 41 V1/V3: did the spoken answer start with the imposed text? In-memory transcript only, dropped after the check. */
+  private verbatimCheck(t:Turn) {
+    const imposed=imposedVoiceText(this.executions.get(t.id)?.result);
+    if(!imposed||t.verbatimChecked||t.spoken===undefined)return;
+    t.verbatimChecked=true;
+    const spoken=spokenKey(t.spoken);t.spoken=undefined;
+    this.event({voiceVerbatim:{imposed:true,spoken:spoken.startsWith(spokenKey(imposed))}},t.id,t.generation);
   }
   close(){this.closed=true;this.waiting=null;this.pendingTools.clear();}
   snapshot(){return {version:2,turns:this.turns.size,asrPending:Boolean(this.asrOwner),inputWaiting:Boolean(this.waiting),ambiguous:this.ambiguous};}
 }
 
 type Start={id:string;first:number;activityStarted:boolean};
-type Turn={firstAudio?:boolean;interruptionObserved?:boolean;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
+type Turn={greeting?:boolean;spoken?:string;verbatimChecked?:boolean;firstAudio?:boolean;interruptionObserved?:boolean;id:string;end:number;inputEnded:boolean;asrFinished:boolean;outputEnded:boolean;interrupted:boolean;generation:string;input:string;audio:Map<number,string>};
 const ID=/^[A-Za-z0-9._:-]{1,160}$/;
 const BASE64=/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 function digest(value:string|Buffer){return createHash("sha256").update(value).digest("hex");}
+
+function imposedVoiceText(result:any):string|null {
+  const text=result?.voice?.verbatim;
+  return typeof text==="string"&&text.trim()&&text.length<=600?text.trim():null;
+}
+function spokenKey(value:string){return value.normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();}

@@ -1,6 +1,7 @@
 import {execFile} from "child_process";
 import path from "path";
 import os from "os";
+import fs from "fs";
 const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
 const owner=()=>process.env.SAMANTHA_MEMORY_OWNER||path.join(os.homedir(),"ClawMobile/installer/termux-lite/context-store.py");
 async function callOwner(args:string[],body?:any):Promise<any>{
@@ -50,4 +51,44 @@ export async function memoryImport(body:any,commit:boolean){
   const observed=await callOwner(['control-import-check'],body).catch(()=>null);
   return observed?.state==='imported'?observed:{success:false,state:'indeterminate',receipt:null};
  }
+}
+// M2 « retiens ça » : one durable fact through the canonical writer context-event.sh
+// (closed surfaces/kinds, secret filter, content-addressed id, SQLite ingestion).
+// No store of its own; idempotence per action_key is the Remote Bridge receipt.
+export const REMEMBER_SURFACES=["claude","codex","chat","app","voice"] as const;
+export const REMEMBER_KINDS=["decision","learning","constraint","open_thread","completed_action"] as const;
+export const REMEMBER_MAX_CHARS=1000;
+const contextEventWriters=(home=os.homedir())=>[
+ String(process.env.SAMANTHA_CONTEXT_EVENT||"").trim(),
+ path.join(home,".openclaw/releases/current/termux-lite/context-event.sh"),
+ path.join(home,"ClawMobile/installer/termux-lite/context-event.sh"),
+].filter(Boolean);
+const TRANSCRIPT_ROLE=/^\s*(?:user|assistant|human|system|ai|claude|chatgpt|codex|amine|samantha)\s*:/gim;
+export function validateRemember(params:Record<string,unknown>){
+ const surface=String(params.surface||""),kind=String(params.kind||""),text=typeof params.text==="string"?params.text.trim():"";
+ const supersedes=params.supersedes===undefined||params.supersedes===null||params.supersedes===""?"":String(params.supersedes);
+ if(!(REMEMBER_SURFACES as readonly string[]).includes(surface))throw nativeError("invalid_remember_surface");
+ if(!(REMEMBER_KINDS as readonly string[]).includes(kind))throw nativeError("invalid_remember_kind");
+ if(supersedes&&!/^[0-9a-f]{64}$/.test(supersedes))throw nativeError("invalid_remember_supersedes");
+ if(!text||text.length>REMEMBER_MAX_CHARS||text.startsWith("--"))throw nativeError("invalid_remember_text");
+ // A durable fact is a short statement, never a pasted conversation.
+ if(text.split("\n").length>6||(text.match(TRANSCRIPT_ROLE)||[]).length>=2)throw nativeError("remember_transcript_refused");
+ return {surface,kind,text,supersedes};
+}
+export async function memoryRemember(params:Record<string,unknown>){
+ const {surface,kind,text,supersedes}=validateRemember(params);
+ const writer=contextEventWriters().find((candidate)=>{try{return fs.statSync(candidate).isFile();}catch{return false;}});
+ if(!writer)throw nativeError("memory_owner_unavailable",503);
+ const argv=[writer,surface,kind,...(supersedes?["--supersedes",supersedes]:[]),text];
+ return new Promise<Record<string,unknown>>((resolve,reject)=>{
+  execFile("bash",argv,{timeout:10_000,maxBuffer:64*1024},(error,stdout)=>{
+   const code=(error as any)?.code;
+   // context-event.sh exits 65 on its secret/payment filter: nothing was written.
+   if(code===65){resolve({state:"refused",reason:"secret_like_text",surface,kind,written:false});return;}
+   if(code===64){reject(nativeError("invalid_remember_event"));return;}
+   const eventId=String(stdout||"").trim().split("\n").pop()||"";
+   if(error||!/^[0-9a-f]{64}$/.test(eventId)){reject(nativeError("memory_owner_unavailable",503));return;}
+   resolve({state:"recorded",event_id:eventId,surface,kind,...(supersedes?{supersedes}:{}),chars:text.length,written:true});
+  });
+ });
 }

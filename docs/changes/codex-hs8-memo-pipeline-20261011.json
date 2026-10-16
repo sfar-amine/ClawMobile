@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "codex-hs8-memo-pipeline-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "HS8 : réserve audio et continuation texte canonique idempotente sous qualification fermée",
+  "reason": "Préparer le mémo autorisé du 11/10 sans double STT, nouveau run, contournement capability-first ou activation non qualifiée.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/catalog.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-memo-intent-pipeline.cjs",
+    "docs/work/samantha-runtime/contracts/hs8-pipeline.md",
+    "docs/changes/codex-hs8-memo-pipeline-20261011.md",
+    "docs/changes/codex-hs8-memo-pipeline-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "HS8 pipeline ciblé",
+      "status": "passed",
+      "evidence": "npm ci ; npm run build ; node scripts/test-memo-intent-pipeline.cjs ; node scripts/test-delete-run.cjs ; node scripts/test-companion-runs.cjs ; node scripts/test-catalog.cjs : exit 0. Pipeline également rejoué avec Node 20. SDK/transcripts exclusivement synthétiques ; aucune recette S24 audio."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs8-pipeline.md",
+    "docs/changes/codex-hs8-memo-pipeline-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert du pipeline et de son test CI ; champs memo additionnels ignorés par versions précédentes, aucun store nouveau ni migration.",
+  "limitations": [
+    "MEMO_STT_QUALIFICATION fermé ; catalogue et uploads audio restent indisponibles avant qualification S24.",
+    "Suppression avant claim empêche continuation, sans promettre annulation fournisseur SDK ou effet déjà commencé.",
+    "Aucun stop-run inventé ; control_actions reste propriétaire des demandes métier.",
+    "Fixtures audio/auth/budgets/journaux SDK à obtenir et qualifier avec Claude."
+  ]
+}
