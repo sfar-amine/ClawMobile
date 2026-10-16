@@ -45,6 +45,12 @@ chmod 600 "$CONFIG"
 echo "Running purge dry-run..."
 "$HOME/.openclaw-android/bin/node" "$ROOT/claw-slack-purge.mjs" --dry-run
 
+# R10 : le job planifié pointe la release Tier0 courante (lien « current », résolu à chaque exécution),
+# pas la copie de travail d'où ce script est lancé. Repli sur ROOT si Tier0 n'est pas installé.
+JOB_ROOT="$ROOT"
+RELEASE_ROOT="$HOME/.openclaw/releases/current/termux-lite"
+[ -f "$RELEASE_ROOT/claw-slack-purge.mjs" ] && JOB_ROOT="$RELEASE_ROOT"
+
 export PATH="$HOME/.openclaw-android/bin:$PATH"
 existing="$(openclaw cron list --json 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((j.get("id","") for j in d.get("jobs",[]) if j.get("declarationKey")=="samantha:slack-control-purge"),""))' 2>/dev/null || true)"
 if [ -n "$existing" ]; then
@@ -58,7 +64,7 @@ else
     --name "Slack Control Purge" \
     --description "Hourly housekeeping for completed Claw RPC messages older than 24h in the dedicated Slack control channel." \
     --every 1h \
-    --command-argv "[\"$HOME/.openclaw-android/bin/node\",\"$ROOT/claw-slack-purge.mjs\"]" \
+    --command-argv "[\"$HOME/.openclaw-android/bin/node\",\"$JOB_ROOT/claw-slack-purge.mjs\"]" \
     --timeout-seconds "$PURGE_TIMEOUT_SECONDS" \
     --no-output-timeout-seconds "$PURGE_TIMEOUT_SECONDS" \
     --no-deliver >/dev/null
