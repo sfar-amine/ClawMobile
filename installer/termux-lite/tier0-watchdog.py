@@ -1,10 +1,39 @@
 #!/data/data/com.termux/files/usr/bin/python3
 from __future__ import annotations
-import json,subprocess,time
+import fcntl,json,os,subprocess,time
 from pathlib import Path
 H=Path.home(); T=H/'.openclaw/tier0'; STATE=T/'state.json'; STOP=T/'emergency-stop.json'; HEALTH=H/'.openclaw/health/current.json'
 CONTROL=T/'bin/tier0-control.py'; BOOT=T/'bin/tier0-bootstrap.sh'
 OK={'healthy','ready'}
+# Doc 51 I3: a release that passed the soak becomes last-known-good only after this many clean seconds.
+LKG_HOLD_S=int(os.environ.get('TIER0_LKG_HOLD_S','21600'))
+DEPLOY_LOCK=H/'.openclaw/deploys/companion-deploy.lock'
+def deploying():
+    """A Companion deploy restarts the Companion on purpose: its samples are not evidence against the release."""
+    if not DEPLOY_LOCK.exists(): return False
+    try:
+        with DEPLOY_LOCK.open('a') as f:
+            fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB);fcntl.flock(f,fcntl.LOCK_UN)
+        return False
+    except OSError: return True
+def bad_caps(s):
+    caps=load(HEALTH).get('capabilities',{})
+    return [c for c in s.get('critical_capabilities',[]) if str(caps.get(c,{}).get('state','')).lower() not in OK]
+def hold(s):
+    """Stable release waiting to become LKG: any bad sample restarts the clean window; a newer promotion drops it."""
+    cand=s.get('lkg_candidate')
+    cur=(H/'.openclaw/releases/current').resolve()
+    if cur.name!=cand:
+        s.pop('lkg_candidate',None);s.pop('lkg_due_epoch',None);save(s);return
+    if deploying(): return
+    if bad_caps(s):
+        s['lkg_due_epoch']=int(time.time())+LKG_HOLD_S;save(s);return
+    if int(time.time())>=int(s.get('lkg_due_epoch',0)):
+        lkg=H/'.openclaw/releases/last-known-good';tmp=lkg.with_name('last-known-good.next')
+        try:tmp.unlink()
+        except FileNotFoundError:pass
+        tmp.symlink_to(cur);tmp.replace(lkg)
+        s['last_known_good']=cur.name;s.pop('lkg_candidate',None);s.pop('lkg_due_epoch',None);s['lkg_confirmed_at']=time.time();save(s)
 def load(p):
     try:return json.loads(p.read_text())
     except Exception:return {}
@@ -13,11 +42,13 @@ def save(s):
     tmp=STATE.with_suffix('.tmp');tmp.write_text(json.dumps(s,indent=2,sort_keys=True)+'\n');tmp.replace(STATE)
 def tick():
     s=load(STATE)
+    if s and s.get('soak_state')=='stable' and s.get('lkg_candidate'): return hold(s)
     if not s or s.get('soak_state')!='running': return
+    if deploying():
+        s['soak_bad_samples']=0;save(s);return
     if int(time.time()) < int(s.get('soak_grace_until_epoch',0)):
         s['soak_bad_samples']=0;save(s);return
-    h=load(HEALTH); caps=h.get('capabilities',{})
-    bad=[c for c in s.get('critical_capabilities',[]) if str(caps.get(c,{}).get('state','')).lower() not in OK]
+    bad=bad_caps(s)
     if bad:s['soak_bad_samples']=int(s.get('soak_bad_samples',0))+1;s['last_bad']=bad
     else:s['soak_bad_samples']=0;s.pop('last_bad',None)
     if s.get('soak_bad_samples',0)>=2 and not STOP.exists():
@@ -30,12 +61,10 @@ def tick():
         subprocess.Popen([str(BOOT),'--restart-core'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         return
     if int(time.time())>=int(s.get('soak_deadline_epoch',0)) and not bad:
-        cur=(H/'.openclaw/releases/current').resolve(); lkg=H/'.openclaw/releases/last-known-good'
-        tmp=lkg.with_name('last-known-good.next')
-        try:tmp.unlink()
-        except FileNotFoundError:pass
-        tmp.symlink_to(cur);tmp.replace(lkg)
-        s['last_known_good']=cur.name;s['soak_state']='stable';s['soak_completed_at']=time.time()
+        # The previous LKG stays the rollback target until this release has held LKG_HOLD_S clean seconds.
+        cur=(H/'.openclaw/releases/current').resolve()
+        s['soak_state']='stable';s['soak_completed_at']=time.time()
+        s['lkg_candidate']=cur.name;s['lkg_due_epoch']=int(time.time())+LKG_HOLD_S
     save(s)
 def main():
     while True:

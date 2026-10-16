@@ -488,7 +488,50 @@ CID = re.compile(r'wa-[a-f0-9]{16}\Z')
 E164 = re.compile(r'\+[1-9][0-9]{7,14}\Z')
 FIELDS = {'state', 'scope', 'scopeText', 'expiresAt', 'addedAt', 'suspendedScope', 'personId'}
 EVENTS = {'add':'added', 'remove':'removed', 'scope':'scope_changed', 'suspend':'suspended',
-          'reactivate':'reactivated', 'expiry':'extended', 'note':'note_updated', 'sweep':'expired'}
+          'reactivate':'reactivated', 'expiry':'extended', 'note':'note_updated', 'sweep':'expired',
+          'rooms':'rooms_changed'}
+# Access "rooms" (decision d'Amine 11/10). Enforced by agent routing, never by prompt: plain conversation is the
+# wildcard `contacts` agent, `projet` a read-only project snapshot agent, `maison` the owner's main agent.
+ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'maison')
+# The other rooms need per-contact capability filtering in the harness first: refused, never granted by prompt.
+ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'maison'}
+PROJECT_AGENT = 'contacts-projet'
+# Pièce Pulse (fichier 52 §5): the agent only names the room; the plugin's pulse-room ingress executes Pulse alone.
+PULSE_AGENTS = {'pulse': 'contacts-pulse', 'projet+pulse': 'contacts-projet-pulse'}
+ROOM_TAG = 'r17-rooms:'
+# M4 (décision d'Amine 12/10): contact material stays in the private context repo and is
+# forgotten 30 days after access ended (expiry or removal). Bounded per 60s sweep pass.
+FORGET_RETENTION_DAYS = 30
+FORGET_BATCH = 20
+INBOX_LIMIT = 1024*1024
+INBOX_ENTRY = re.compile(r'^- ', re.M)
+INBOX_SENDER = re.compile(r'^\s+- Sender:.*?(\+?[0-9][0-9 ]{6,}[0-9])', re.M)
+
+def normalize_rooms(value):
+    if not isinstance(value,list) or not value or len(value)>len(ROOMS) or any(r not in ROOMS for r in value): fail('invalid_rooms')
+    rooms=['maison'] if 'maison' in value else sorted(set(value)|{'conversation'},key=ROOMS.index)
+    if any(r not in ENFORCED_ROOMS for r in rooms): fail('room_not_available',409)
+    return rooms
+
+def room_agent(rooms):
+    rooms=rooms or ()
+    if 'maison' in rooms: return 'main'
+    if 'pulse' in rooms: return PULSE_AGENTS['projet+pulse' if 'projet' in rooms else 'pulse']
+    return PROJECT_AGENT if 'projet' in rooms else None
+
+def route_rooms(cfg, number, rooms, identity):
+    """One concrete-peer binding per contact with rooms; plain conversation needs none (wildcard → contacts)."""
+    bindings=[b for b in (cfg.get('bindings') or []) if not (isinstance(b,dict) and b.get('comment')==ROOM_TAG+identity)]
+    agent=room_agent(rooms)
+    if agent:
+        entries=(cfg.get('agents') or {}).get('entries') or {}
+        if agent==PROJECT_AGENT and PROJECT_AGENT not in entries: fail('project_room_unavailable',503)
+        if agent in PULSE_AGENTS.values() and agent not in entries: fail('pulse_room_unavailable',503)
+        entry={'agentId':agent,'comment':ROOM_TAG+identity,'match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':number}}}
+        # Listed before the wildcard DM binding: within one tier the first binding in config order wins.
+        at=next((i for i,b in enumerate(bindings) if ((b.get('match') or {}).get('peer') or {}).get('id')=='*'),len(bindings))
+        bindings.insert(at,entry)
+    cfg['bindings']=bindings
 
 class Refused(Exception):
     def __init__(self, code, status=400): self.code, self.status = code, status
@@ -512,8 +555,9 @@ class _ExistingPeopleOwner:
     def __getattr__(self, name): return globals()[name]
 
 class Contacts:
-    def __init__(self, people, clock=time.time, state_dir=None):
+    def __init__(self, people, clock=time.time, state_dir=None, owner_sender=None):
         self.people, self.clock = people, clock
+        self.owner_sender = owner_sender or self.send_owner_message
         self.state_dir = Path(state_dir or os.environ.get('OPENCLAW_STATE_DIR', Path.home()/'.openclaw'))
     def local_config(self):
         try: value=self.people.local_config()
@@ -583,7 +627,8 @@ class Contacts:
         try:
             line=prefix.split(b'\n',2)[1]; value=json.loads(line)
             if not prefix.split(b'\n',2)[2].startswith(END.encode()): raise ValueError()
-            if set(value)!=FIELDS or value['state'] not in ('active','suspended') or value['scope'] not in ('standard','claw','custom'): raise ValueError()
+            if set(value)-{'rooms'}!=FIELDS or value['state'] not in ('active','suspended') or value['scope'] not in ('standard','claw','custom'): raise ValueError()
+            if 'rooms' in value and (not isinstance(value['rooms'],list) or not value['rooms'] or any(r not in ROOMS for r in value['rooms'])): raise ValueError()
             if value['expiresAt'] is not None: stamp(value['expiresAt'])
             if value['addedAt'] is not None: stamp(value['addedAt'])
             if value['scopeText'] is not None: safe_text(value['scopeText'],500,False)
@@ -620,7 +665,14 @@ class Contacts:
         head='' if removed else MARKER+'\n'+canonical(metadata)+'\n'+END+'\n'
         if len(head.encode())>2048 or len((head+old).encode())>1024*1024: fail('contact_state_invalid',503)
         path=self.path(number); path.parent.mkdir(parents=True,exist_ok=True)
-        if path.parent.is_symlink(): fail('contact_state_invalid',503)
+        # S24: the contacts directory is an owner-configured symlink to the
+        # private context repo. Write in its resolved real directory; the
+        # contact file itself must never be a symlink (checked by context()).
+        try: directory=path.parent.resolve(strict=True)
+        except (OSError,RuntimeError): fail('contact_state_invalid',503)
+        if not directory.is_dir() or directory.is_symlink(): fail('contact_state_invalid',503)
+        path=directory/path.name
+        if path.is_symlink(): fail('contact_state_invalid',503)
         temporary=path.with_suffix('.r17.tmp')
         fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
         try:
@@ -673,6 +725,7 @@ class Contacts:
             if state=='active' and metadata['expiresAt'] and stamp(metadata['expiresAt'])<self.clock(): state='expired_pending'
             out.append({'contactId':contact_id(number),'e164':number,'name':directory.get(number,{}).get('name') or None,'owner':number in owners,
                         'scope':metadata['scope'],'scopeText':metadata['scopeText'],'state':state,
+                        'rooms':['maison'] if number in owners else (metadata.get('rooms') or ['conversation']),
                         'expiresAt':metadata['expiresAt'],'addedAt':metadata['addedAt'],'personId':metadata['personId'],
                         'lastActivityAt':utc(activity[number]['timestamp']/1000) if activity.get(number,{}).get('timestamp') and not activity[number]['reason'] else None,
                         **({'reason':'archived_history'} if activity.get(number,{}).get('reason')=='archived_history' else {})})
@@ -699,10 +752,16 @@ class Contacts:
         if not row: return None
         if wanted is not None and wanted!=row[0]: fail('operation_conflict',409)
         value=json.loads(row[2]) if row[2] else {'success':False,'state':'indeterminate','receipt':None}
+        intent=value.get('_ownerMessageIntent')
         value={k:v for k,v in value.items() if not k.startswith('_')}
+        if intent and value.get('receipt') and 'ownerMessage' not in value['receipt']:
+            # A crash before finalization cannot erase delivery intent. Observe
+            # it without replaying either the mutation or an unqualified send.
+            value['receipt']['ownerMessage']={'state':'awaiting_change','change':intent['change']}
+            if row[1]=='failed_before_effect':value['receipt']['ownerMessage']['state']='failed_before_effect'
         if row[1]=='failed_before_effect': value['retryable']=True
         return value
-    def reserve(self, operation, target, wanted, confirmation_id=None, event=None):
+    def reserve(self, operation, target, wanted, confirmation_id=None, event=None, owner_change=False):
         c=self.people.connect(); c.execute('BEGIN IMMEDIATE')
         row=c.execute('SELECT message_sha256,state,message_id FROM send_receipts WHERE idempotency_key=?',('r17:'+digest(operation),)).fetchone()
         if row:
@@ -719,12 +778,63 @@ class Contacts:
             if claim:c.rollback();c.close();fail('confirmation_mismatch',403)
         now=int(self.clock());pending={'success':False,'state':'indeterminate','receipt':{'version':1,'operationId':operation,'action':event or 'added','contactId':target,'state':'indeterminate','at':utc(self.clock())}}
         if confirmation_id:pending['_confirmationId']=confirmation_id
+        if owner_change:pending['_ownerMessageIntent']={'change':event,'operationId':operation,'contactId':target}
         c.execute("INSERT INTO send_receipts VALUES(?,?,?,'pending',?,?,?)",('r17:'+digest(operation),target,wanted,canonical(pending),now,now));c.commit();c.close();return True
-    def finish(self, operation, value):
+    def finish(self, operation, value, owner_change=False):
         c=self.people.connect();previous=c.execute('SELECT message_id FROM send_receipts WHERE idempotency_key=?',('r17:'+digest(operation),)).fetchone()
         stored=dict(value)
         if previous and previous[0]:stored.update({k:v for k,v in json.loads(previous[0]).items() if k.startswith('_')})
+        if owner_change and value['success']:
+            # The delivery receipt shares the mutation's existing operation row.
+            # Persist both together; no new store, queue or replay identity.
+            notice={'state':'pending','change':value['receipt']['action']}
+            stored['receipt']=dict(value['receipt'],ownerMessage=notice)
+            value['receipt']=stored['receipt']
+        if stored.get('_ownerMessageIntent') and 'ownerMessage' not in stored['receipt']:
+            notice={'state':'awaiting_change','change':stored['_ownerMessageIntent']['change']}
+            stored['receipt']=dict(value['receipt'],ownerMessage=notice)
+            value['receipt']=stored['receipt']
         c.execute('UPDATE send_receipts SET state=?,message_id=?,updated_at=? WHERE idempotency_key=?',(value['state'],canonical(stored),int(self.clock()),'r17:'+digest(operation)));c.commit();c.close();return value
+    def send_owner_message(self, message, key):
+        # Existing delivery owner validates Gateway acceptance. Never expose its
+        # stdout/stderr (message IDs, account metadata) through this receipt.
+        script=Path(__file__).with_name('whatsapp-owner-send.sh')
+        try:
+            result=subprocess.run(['bash',str(script),message,key],stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL,timeout=17)
+        except FileNotFoundError: return 'failed_before_effect'
+        except Exception: return 'indeterminate'
+        if result.returncode==0: return 'accepted'
+        if result.returncode in (64,66): return 'failed_before_effect'
+        return 'indeterminate'
+    def deliver_owner_change(self):
+        if not self.people.DB.exists(): return {'state':'idle'}
+        # A single atomic claim per existing 60s sweep. An uncertain send is
+        # persisted BEFORE transport and never automatically replayed.
+        c=self.people.connect();c.execute('BEGIN IMMEDIATE')
+        row=c.execute("SELECT idempotency_key,message_id FROM send_receipts WHERE idempotency_key LIKE 'r17:%' AND json_valid(message_id) AND json_extract(message_id,'$.receipt.ownerMessage.state') IN ('pending','failed_before_effect') ORDER BY created_at,idempotency_key LIMIT 1").fetchone()
+        if not row: c.rollback();c.close();return {'state':'idle'}
+        value=json.loads(row[1]);receipt=value['receipt'];notice=receipt['ownerMessage']
+        labels={'added':'accordé','extended':'prolongé','removed':'retiré','expired':'expiré','rooms_changed':'élargi (pièces)'}
+        if notice.get('change') not in labels or receipt.get('action')!=notice['change']:
+            c.rollback();c.close();return {'state':'invalid_receipt'}
+        # Includes stable operation/contact/change identity; identical message
+        # texts for different changes do not collide at the delivery owner.
+        key='k2:'+digest(canonical([receipt['operationId'],receipt['contactId'],notice['change']]))
+        notice.update(state='indeterminate',attemptedAt=utc(self.clock()))
+        c.execute('UPDATE send_receipts SET message_id=? WHERE idempotency_key=?',(canonical(value),row[0]));c.commit();c.close()
+        try: state=self.owner_sender('Accès WhatsApp '+labels[notice['change']]+' (référence '+receipt['contactId']+').',key)
+        except Exception: state='indeterminate'
+        if state not in ('accepted','failed_before_effect','indeterminate'): state='indeterminate'
+        # Keep the mutation timestamp/state intact: notification must not reorder
+        # allowlist history or alter confirmation/expiry identities.
+        c=self.people.connect();c.execute('BEGIN IMMEDIATE')
+        current=c.execute('SELECT message_id FROM send_receipts WHERE idempotency_key=?',(row[0],)).fetchone()
+        if current:
+            stored=json.loads(current[0]);stored['receipt']['ownerMessage'].update(state=state)
+            c.execute('UPDATE send_receipts SET message_id=? WHERE idempotency_key=?',(canonical(stored),row[0]))
+        c.commit();c.close()
+        return {'state':state,'operationId':receipt['operationId'],'contactId':receipt['contactId'],'change':notice['change']}
     def history(self, identity=None, limit=50):
         if identity is not None and not CID.fullmatch(identity or ''): fail('invalid_contact_id')
         if not isinstance(limit,int) or isinstance(limit,bool) or not 1<=limit<=100: fail('invalid_request')
@@ -762,7 +872,7 @@ class Contacts:
         c=sqlite3.connect(f'file:{self.people.DB}?mode=ro',uri=True)
         row=c.execute("SELECT message_id FROM send_receipts WHERE target=? AND idempotency_key LIKE 'r17:%' AND state IN ('added','updated') AND json_valid(message_id) AND json_extract(message_id,'$.receipt.action') IN ('added','extended','shortened') ORDER BY updated_at DESC,rowid DESC LIMIT 1",(identity,)).fetchone();c.close()
         value=json.loads(row[0]).get('receipt',{}).get('durationDays') if row else None
-        return value if value in (1,3,5) and not isinstance(value,bool) else None
+        return value if value in (1,3,5,7) and not isinstance(value,bool) else None
     def noop(self, operation, identity, wanted, state):
         if not self.reserve(operation,identity,wanted): return self.read_operation(operation,wanted)
         return self.finish(operation,{'success':True,'state':state,'receipt':{'version':1,'operationId':operation,'action':'added' if state=='already_present' else 'removed','contactId':identity,'state':state,'at':utc(self.clock())}})
@@ -809,20 +919,21 @@ class Contacts:
         except Exception:
             return self.legacy_patch(before,after)
         current=snap.get('config')
-        if not isinstance(current,dict) or self.people.whatsapp_state(current)!=self.people.whatsapp_state(before) or self.owners(current)!=self.owners(before): fail('config_changed',409)
+        if not isinstance(current,dict) or self.people.whatsapp_state(current)!=self.people.whatsapp_state(before) or self.owners(current)!=self.owners(before) or current.get('bindings')!=before.get('bindings'): fail('config_changed',409)
         a,d=self.people.whatsapp_state(after); olda,oldd=self.people.whatsapp_state(before)
         patch={'channels':{'whatsapp':{}}}; replacements=[]
         if a!=olda: patch['channels']['whatsapp']['allowFrom']=a;replacements.append('channels.whatsapp.allowFrom')
         if d!=oldd:
             # Replace exact direct map under CAS: JSON merge cannot remove a property safely.
             patch['channels']['whatsapp']['direct']=d;replacements.append('channels.whatsapp.direct')
+        if after.get('bindings')!=before.get('bindings'): patch['bindings']=after.get('bindings') or [];replacements.append('bindings')
         params={'raw':canonical(patch),'baseHash':snap.get('hash'),'replacePaths':replacements,'note':'whatsapp allowlist owner operation'}
         try: self.people.gateway_call('config.patch',params,timeout_ms=5000)
         except Exception: pass
         # One verification after success or uncertainty, never redispatch.
         try: verified=self.people.gateway_call('config.get',{},timeout_ms=5000).get('config')
         except Exception: return False
-        return isinstance(verified,dict) and self.people.whatsapp_state(verified)==self.people.whatsapp_state(after) and self.owners(verified)==self.owners(after)
+        return isinstance(verified,dict) and self.people.whatsapp_state(verified)==self.people.whatsapp_state(after) and self.owners(verified)==self.owners(after) and verified.get('bindings')==after.get('bindings')
     def legacy_patch(self,before,after):
         olda,oldd=self.people.whatsapp_state(before);a,d=self.people.whatsapp_state(after)
         try:
@@ -832,6 +943,7 @@ class Contacts:
             if adding and d!=oldd: self.people.legacy_cfg_set('channels.whatsapp.direct',d,oldd,timeout=5)
             if a!=olda: self.people.legacy_cfg_set('channels.whatsapp.allowFrom',a,olda,timeout=5)
             if not adding and d!=oldd: self.people.legacy_cfg_set('channels.whatsapp.direct',d,oldd,timeout=5)
+            if after.get('bindings')!=before.get('bindings'): self.people.legacy_cfg_set('bindings',after.get('bindings') or [],before.get('bindings') or [],timeout=5)
         except Exception: return False
         try: return self.local_config()==after
         except Exception: return False
@@ -889,7 +1001,7 @@ class Contacts:
                 if phase=='preflight': return {'success':True,'state':'already_present','receipt':None}
                 return self.noop(operation,identity,wanted,'already_present')
             if action=='add':
-                if duration not in (None,1,3,5) or isinstance(duration,bool): fail('invalid_duration')
+                if duration not in (None,1,3,5,7) or isinstance(duration,bool): fail('invalid_duration')
                 if number in owners and duration is not None: fail('owner_contact_protected',409)
                 self.confirmation(body,'add',identity,digest('|'.join([number,scope,text or '',str(duration) if duration else 'permanent'])),retry=retry)
                 wa['allowFrom'].append(number);metadata['addedAt']=utc(self.clock());metadata['expiresAt']=utc(self.clock()+duration*86400) if duration else None
@@ -899,7 +1011,16 @@ class Contacts:
             if rule: wa['direct'][number]=rule
             else: wa['direct'].pop(number,None)
             metadata.update(scope=scope,scopeText=text,state='active')
+        elif action=='rooms':
+            if number in owners: fail('owner_contact_protected',409)
+            rooms=normalize_rooms(body.get('rooms'));current=metadata.get('rooms') or ['conversation']
+            if any(r not in current for r in rooms) and current!=['maison']: self.confirmation(body,'rooms',identity,digest('|'.join([number]+rooms)),retry=retry)
+            metadata['rooms']=rooms;route_rooms(after,number,rooms,identity)
+            if after.get('bindings')==before.get('bindings') and current==rooms:
+                if phase=='preflight': return {'success':True,'state':'already_present','receipt':None}
+                return self.noop(operation,identity,wanted,'already_present')
         elif action in ('remove','suspend','sweep'):
+            if action in ('remove','sweep') and any(isinstance(b,dict) and b.get('comment')==ROOM_TAG+identity for b in (before.get('bindings') or [])): route_rooms(after,number,[],identity)
             if action=='remove': self.confirmation(body,'remove',identity,digest(number),retry=retry)
             if action=='sweep' and (not metadata['expiresAt'] or stamp(metadata['expiresAt'])>=self.clock()): return {'success':True,'state':'not_due','receipt':None}
             wa['allowFrom']=[x for x in allow if x!=number]
@@ -913,7 +1034,7 @@ class Contacts:
             if number not in wa['allowFrom']: wa['allowFrom'].append(number)
             metadata['state']='active';metadata['suspendedScope']=None
         elif action=='expiry':
-            if duration not in (None,1,3,5) or isinstance(duration,bool): fail('invalid_duration')
+            if duration not in (None,1,3,5,7) or isinstance(duration,bool): fail('invalid_duration')
             expires=utc(self.clock()+duration*86400) if duration else None
             if original['expiresAt'] is not None and (expires is None or stamp(expires)>stamp(original['expiresAt'])): self.confirmation(body,'extend',identity,digest('|'.join([number,str(duration) if duration else 'permanent'])),retry=retry)
             if original['expiresAt'] is None and expires is None: event='extended'
@@ -923,14 +1044,18 @@ class Contacts:
             if isinstance(body.get('text'),str) and len(body['text'])>2000: fail('note_too_long')
             note=safe_text(body.get('text'),2000)
         if len((MARKER+'\n'+canonical(metadata)+'\n'+END+'\n').encode())>2048: fail('invalid_scope')
+        owner_change=(action=='add' or (action=='rooms' and any(r not in (original.get('rooms') or ['conversation']) for r in metadata['rooms'])) or
+            (action=='expiry' and event=='extended' and original['expiresAt'] is not None and metadata['expiresAt']!=original['expiresAt']) or
+            action in ('remove','sweep'))
         if phase=='preflight': return {'success':True,'state':'validated','receipt':None}
         if phase=='prepare':
             self.prepare_claim(self.confirmation_claim)
-            if not self.reserve(operation,identity,wanted,body.get('confirmationId'),event): return self.read_operation(operation,wanted)
+            if not self.reserve(operation,identity,wanted,body.get('confirmationId'),event,owner_change): return self.read_operation(operation,wanted)
             self.release_failed(operation)
             return {'success':True,'state':'prepared','receipt':None,'confirmationClaim':self.confirmation_claim,'allowConsumedRetry':retry}
-        if not self.reserve(operation,identity,wanted,body.get('confirmationId'),event): return self.read_operation(operation,wanted)
+        if not self.reserve(operation,identity,wanted,body.get('confirmationId'),event,owner_change): return self.read_operation(operation,wanted)
         receipt={'version':1,'operationId':operation,'contactId':identity,'action':event,'at':utc(self.clock()),'state':state,'scope':metadata['scope'],'durationDays':duration if action in ('add','expiry') else self.duration_days(identity)}
+        if action=='rooms': receipt['rooms']=metadata['rooms']
         effect_possible=False;staged_content=None;previous_context=None
         try:
             # Persist expiry BEFORE access becomes effective: a kill after CAS
@@ -949,6 +1074,11 @@ class Contacts:
             if error.code=='config_changed':
                 if staged_content is not None and self.context(number)==staged_content: self.people.restore_context(self.path(number),previous_context)
                 return self.release_failed(operation)
+            # A refusal before any config dispatch (e.g. metadata-only expiry)
+            # had no effect: retryable failure, never an uncertain receipt.
+            if not effect_possible:
+                if staged_content is not None and self.context(number)==staged_content: self.people.restore_context(self.path(number),previous_context)
+                return self.release_failed(operation)
             state='indeterminate'
         except Exception:
             if not effect_possible:
@@ -957,7 +1087,7 @@ class Contacts:
         success=state=='completed'
         if success: state={'add':'added','remove':'removed','sweep':'removed','suspend':'suspended','reactivate':'reactivated'}.get(action,'updated')
         receipt['state']=state
-        return self.finish(operation,{'success':success,'state':state,'receipt':receipt})
+        return self.finish(operation,{'success':success,'state':state,'receipt':receipt},owner_change=owner_change and success)
     def sweep(self):
         paths=sorted(self.people.CONTACTS.glob('wa_*.md')) if self.people.CONTACTS.exists() else []
         due=[]
@@ -982,11 +1112,103 @@ class Contacts:
             body={'contactId':contact_id(number),'operationId':prefix+str(attempt)};body['requestHash']=request_hash('sweep',body)
             results.append(self.mutate('sweep',body,sweep_target=(number,metadata),sweep_config=snapshot))
         success=len(results)==len(due) and all(row['success'] for row in results)
-        return {'success':success,'state':('partial' if pages>1 else 'completed') if success else 'expired_pending','receipt':None,'processed':len(results),'remaining':len(due)-sum(row['success'] for row in results),'scanComplete':pages==1,'scanPage':page,'scanPages':pages}
+        # Bound extra delivery work to the existing sweep's 20s cycle budget.
+        # Expiry mutation always has priority; backlog remains in canonical R17.
+        owner_message=self.deliver_owner_change() if time.monotonic()+17<deadline else {'state':'deferred'}
+        # Forget runs last, on what remains of the same cycle; backlog waits for the next pass.
+        try: forget=self.forget(deadline) if time.monotonic()+6<deadline else {'state':'deferred'}
+        except Refused as error: forget={'state':'unavailable','reason':error.code}
+        except Exception: forget={'state':'unavailable'}  # never fails the expiry sweep; retried next pass
+        return {'success':success,'state':('partial' if pages>1 else 'completed') if success else 'expired_pending','receipt':None,'processed':len(results),'remaining':len(due)-sum(row['success'] for row in results),'scanComplete':pages==1,'scanPage':page,'scanPages':pages,'ownerMessage':owner_message,'forget':forget}
+    def access_ended(self):
+        """contactId -> access end (epoch s) for contacts whose LAST terminal R17 receipt is a completed removal/expiry."""
+        if not self.people.DB.exists(): return {}
+        with closing(sqlite3.connect(f'file:{self.people.DB}?mode=ro',uri=True,timeout=1)) as c:
+            # The latest grant/removal decides (same-second ties: insertion order).
+            rows=c.execute("SELECT target,state,updated_at FROM (SELECT target,state,updated_at,ROW_NUMBER() OVER (PARTITION BY target ORDER BY updated_at DESC,rowid DESC) AS rank FROM send_receipts WHERE idempotency_key LIKE 'r17:%' AND state IN ('added','reactivated','removed')) WHERE rank=1").fetchall()
+        return {target:int(ended) for target,state,ended in rows if state=='removed' and CID.fullmatch(target or '')}
+    def inbox_path(self): return self.people.WORKSPACE/'memory'/'amine-inbox.md'
+    def inbox_text(self):
+        path=self.inbox_path()
+        try:
+            real=path.resolve(strict=True)
+            if real.is_symlink() or not real.is_file() or real.stat().st_size>INBOX_LIMIT: return None,None
+            return real,real.read_text(encoding='utf-8')
+        except FileNotFoundError: return None,''
+        except (OSError,RuntimeError,UnicodeDecodeError): return None,None
+    @staticmethod
+    def inbox_entries(text):
+        starts=[m.start() for m in INBOX_ENTRY.finditer(text)]
+        return text[:starts[0]] if starts else text,[text[a:b] for a,b in zip(starts,starts[1:]+[len(text)])]
+    @staticmethod
+    def inbox_sender(entry):
+        found=INBOX_SENDER.search(entry)
+        if not found: return None
+        digits=re.sub(r'\D','',found.group(1))
+        return '+'+digits if E164.fullmatch('+'+digits) else None
+    def forget(self, deadline):
+        ended=self.access_ended();cutoff=self.clock()-FORGET_RETENTION_DAYS*86400
+        due={cid:at for cid,at in ended.items() if at<=cutoff}
+        if not due: return {'state':'idle','forgotten':0,'remaining':0}
+        numbers={}
+        paths=sorted(self.people.CONTACTS.glob('wa_*.md')) if self.people.CONTACTS.exists() else []
+        for path in paths:
+            number='+'+path.stem[3:]
+            if E164.fullmatch(number) and contact_id(number) in due: numbers[number]=True
+        inbox_real,inbox=self.inbox_text()
+        if inbox:
+            for entry in self.inbox_entries(inbox)[1]:
+                number=self.inbox_sender(entry)
+                if number and contact_id(number) in due: numbers[number]=True
+        if not numbers: return {'state':'idle','forgotten':0,'remaining':0}
+        # One authoritative read per pass, only when material is actually due.
+        config=self.people.gateway_call('config.get',{},timeout_ms=5000).get('config')
+        if not isinstance(config,dict): fail('contacts_unavailable',503)
+        owners=self.owners(config);allow,direct=self.people.whatsapp_state(config)
+        candidates=[n for n in sorted(numbers) if n not in owners and n not in allow and n not in direct and self.metadata(n) is None]
+        done=[];protected=len(numbers)-len(candidates)
+        for number in candidates[:FORGET_BATCH]:
+            if time.monotonic()>=deadline: break
+            done.append(self.forget_one(number,due[contact_id(number)]))
+        return {'state':'completed' if len(done)==len(candidates) else 'partial','forgotten':len(done),
+                'remaining':len(candidates)-len(done),'protected':protected,
+                'contactFiles':sum(r['contactFile'] for r in done),'inboxEntries':sum(r['inboxEntries'] for r in done)}
+    def forget_one(self, number, ended_at):
+        identity=contact_id(number);operation='forget:'+identity+':'+str(ended_at)
+        key='r17:'+digest(operation);now=int(self.clock())
+        receipt={'version':1,'operationId':operation,'action':'forgotten','contactId':identity,'state':'indeterminate',
+                 'at':utc(self.clock()),'accessEndedAt':utc(ended_at),'retentionDays':FORGET_RETENTION_DAYS}
+        # Intent persisted before any deletion; a crashed pass is finished (never doubled) by the next one.
+        c=self.people.connect()
+        c.execute("INSERT OR IGNORE INTO send_receipts VALUES(?,?,?,'pending',?,?,?)",(key,identity,digest(operation),canonical({'success':False,'state':'indeterminate','receipt':receipt}),now,now));c.commit();c.close()
+        removed_file=False
+        path=self.path(number)
+        try:
+            directory=path.parent.resolve(strict=True);real=directory/path.name
+            if real.is_symlink(): fail('contact_state_invalid',503)
+            real.unlink();removed_file=True
+        except FileNotFoundError: pass
+        entries=0;inbox_real,inbox=self.inbox_text()
+        if inbox_real and inbox:
+            head,items=self.inbox_entries(inbox)
+            kept=[e for e in items if self.inbox_sender(e)!=number];entries=len(items)-len(kept)
+            if entries:
+                temporary=inbox_real.with_name('.'+inbox_real.name+'.m4.tmp')
+                fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,stat.S_IMODE(inbox_real.stat().st_mode))
+                try:
+                    with os.fdopen(fd,'w',encoding='utf-8') as file: file.write(head+''.join(kept));file.flush();os.fsync(file.fileno())
+                    os.replace(temporary,inbox_real)
+                finally:
+                    try: temporary.unlink()
+                    except FileNotFoundError: pass
+        receipt.update(state='forgotten',purged={'contactFile':removed_file,'inboxEntries':entries})
+        c=self.people.connect()
+        c.execute("UPDATE send_receipts SET state='forgotten',message_id=?,updated_at=? WHERE idempotency_key=?",(canonical({'success':True,'state':'forgotten','receipt':receipt}),int(self.clock()),key));c.commit();c.close()
+        return {'contactFile':removed_file,'inboxEntries':entries}
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}
-        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'}}
+        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms'}}
         if action not in allowed or set(body)-allowed[action]: fail('invalid_request')
         if action=='list': return {'success':True,'state':'partial' if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else 'ok','receipt':None,'items':self.rows(),'issues':['contact_scan_partial'] if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else []}
         if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId')),'historyCount':self.history_count(body.get('contactId'))}

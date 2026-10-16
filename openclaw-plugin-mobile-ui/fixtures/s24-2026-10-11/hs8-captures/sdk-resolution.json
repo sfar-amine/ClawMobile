@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "source": "S24, openclaw global installé, imports réels depuis le contexte du module Companion (dist/companion/server.js)",
+    "capturedAt": "2026-10-11",
+    "request_ids": [
+      "mcp-claude-chat-hs8c-probe-resolve-01-execute",
+      "mcp-claude-chat-hs8c-probe-auth-02-execute"
+    ]
+  },
+  "openclawVersion": "2026.9.6",
+  "installedAt": "$PREFIX/lib/node_modules/openclaw (npm global Termux)",
+  "companionProcess": {
+    "entry": "ClawMobile/openclaw-plugin-mobile-ui/dist/companion/server.js",
+    "nodePathSet": false,
+    "localNodeModulesOpenclaw": false
+  },
+  "requireResolveFromCompanion": {
+    "openclaw/plugin-sdk/media-understanding-runtime": "MODULE_NOT_FOUND",
+    "openclaw/plugin-sdk/config-runtime": "MODULE_NOT_FOUND",
+    "openclaw/plugin-sdk/agent-runtime": "MODULE_NOT_FOUND"
+  },
+  "requireResolveWithNodePathGlobal": {
+    "openclaw/plugin-sdk/media-understanding-runtime": "$PREFIX/lib/node_modules/openclaw/dist/plugin-sdk/media-understanding-runtime.js",
+    "openclaw/plugin-sdk/config-runtime": "$PREFIX/lib/node_modules/openclaw/dist/plugin-sdk/config-runtime.js",
+    "openclaw/plugin-sdk/agent-runtime": "$PREFIX/lib/node_modules/openclaw/dist/plugin-sdk/agent-runtime.js"
+  },
+  "exportsTypes": {
+    "runMediaUnderstandingFile": "function",
+    "transcribeAudioFile": "function",
+    "loadConfig": "function",
+    "resolveApiKeyForProvider": "function (alias de resolveApiKeyForProviderCore)"
+  },
+  "coldImportMs": {
+    "min": 4265,
+    "max": 8886,
+    "samples": 8
+  },
+  "resolveApiKeyForProvider": {
+    "google": {
+      "params": {
+        "provider": "google",
+        "profileId": "google:claw-gemini-free",
+        "lockedProfile": true
+      },
+      "resultKeys": [
+        "apiKey",
+        "mode",
+        "profileId",
+        "source"
+      ],
+      "profileIdIsFree": true,
+      "mode": "api-key",
+      "credentialPresent": true,
+      "sourceClass": "profile"
+    },
+    "openai": {
+      "params": {
+        "provider": "openai",
+        "profileId": "<unique oauth profile>",
+        "lockedProfile": true
+      },
+      "profileIdMatches": true,
+      "mode": "oauth",
+      "credentialPresent": true
+    }
+  },
+  "finding": "Le loader de core #138 (require.resolve('openclaw/plugin-sdk/…')) échoue dans le process Companion actuel. Correctif possible sans nouveau service : lancer le Companion avec NODE_PATH=$PREFIX/lib/node_modules (companion-server.sh) ou résoudre via createRequire depuis la racine npm globale (`npm root -g`). Décision de Codex/Claude."
+}

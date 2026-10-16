@@ -1,0 +1,89 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-11T10:47Z → 10:56Z",
+  "host": "Samsung S24 / Termux",
+  "runtimeCore": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+  "openclaw": "2026.9.6 (eb377ac)",
+  "mode": "lecture seule : config.get + openclaw.json projetés, résolution de modules (require.resolve) et recherche de noms dans les fichiers du paquet installé ; aucun import du SDK, aucun appel fournisseur, aucun enregistrement",
+  "sanitized": true
+ },
+ "toolsMedia": {
+  "source": "config.get (config = runtimeConfig) et ~/.openclaw/openclaw.json, identiques",
+  "tools.media.audio": {
+   "enabled": true
+  },
+  "tools.media.models": [],
+  "entriesGoogleThenOpenAI": false,
+  "note": "Aucune entrée média n'est configurée : la liste est vide. L'ordre Google → OpenAI, les modèles publics et les limites attendus par l'adaptateur #138 n'existent pas encore dans la config du S24."
+ },
+ "authAvailability": {
+  "google:claw-gemini-free": {
+   "configured": true,
+   "mode": "api_key",
+   "authStatus": "static",
+   "keyPresent": true
+  },
+  "openai:<profil-oauth>": {
+   "configured": true,
+   "mode": "oauth",
+   "authStatus": "ok",
+   "expiresInLabel": "10d"
+  },
+  "source": "models.authStatus 10:47:40Z + auth.profiles (booléens et états seulement)"
+ },
+ "sdkExports": {
+  "package": "<npm-root-g>/openclaw (version 2026.9.6)",
+  "packageExports": {
+   "./plugin-sdk/media-understanding-runtime": {
+    "declared": true,
+    "entry": "dist/plugin-sdk/media-understanding-runtime.js",
+    "names": [
+     "runMediaUnderstandingFile",
+     "transcribeAudioFile"
+    ]
+   },
+   "./plugin-sdk/config-runtime": {
+    "declared": true,
+    "entry": "dist/plugin-sdk/config-runtime.js",
+    "names": [
+     "loadConfig"
+    ]
+   },
+   "./plugin-sdk/agent-runtime": {
+    "declared": true,
+    "entry": "dist/plugin-sdk/agent-runtime.js",
+    "names": [
+     "resolveApiKeyForProvider (alias de resolveApiKeyForProviderCore, dist/model-auth-provider-BvghCCFz.mjs)"
+    ]
+   }
+  },
+  "lockedProfileSupported": true,
+  "lockedProfileEvidence": "model-auth-provider-BvghCCFz.mjs : 4 occurrences, dont un refus explicite quand le profil résolu diffère du profil verrouillé ; extensions/openai/audio-transcription.js passe lockedProfile: Boolean(context.profile)",
+  "resolvableFromInstalledCompanion": false,
+  "resolution": {
+   "companionPid": "présent",
+   "companionCwd": "~/ClawMobile",
+   "entry": "~/ClawMobile/openclaw-plugin-mobile-ui/dist/companion/server.js",
+   "NODE_PATH": "absent",
+   "NODE_OPTIONS": [
+    "-r ~/.openclaw-android/patches/glibc-compat.js",
+    "--max-old-space-size=<v>"
+   ],
+   "require.resolve('openclaw/plugin-sdk/media-understanding-runtime') depuis openclaw-plugin-mobile-ui/": "MODULE_NOT_FOUND",
+   "require.resolve(...) depuis dist/companion/": "MODULE_NOT_FOUND",
+   "openclaw/package.json depuis le Companion": "MODULE_NOT_FOUND",
+   "note": "Le paquet openclaw n'est installé qu'en global (npm root -g) ; il n'est ni dans node_modules du plugin ni dans un NODE_PATH. Les trois exports existent dans le paquet, mais le require.resolve de memoSttOwner.ts échouerait dans le processus Companion tel qu'il est installé."
+  }
+ },
+ "notDone": {
+  "memoRecording": "non fait : l'enregistrement du mémo neutre se fera avec Amine",
+  "providerTrials": "non faits : succès Gemini, échec Gemini puis OpenAI, double échec — essais réels avec Amine",
+  "deadlines/retention/logPrivacy": "non mesurés : dépendent des essais réels",
+  "openaiOauthSttCompat": "non attesté : nécessite un appel réel"
+ },
+ "findings": [
+  "tools.media.models est vide : sans entrées audio Google/OpenAI, l'adaptateur n'a rien à sélectionner.",
+  "Le Companion installé ne résout pas « openclaw/plugin-sdk/* » (paquet global seulement, pas de NODE_PATH).",
+  "lockedProfile est bien appliqué par resolveApiKeyForProviderCore dans 2026.9.6."
+ ]
+}

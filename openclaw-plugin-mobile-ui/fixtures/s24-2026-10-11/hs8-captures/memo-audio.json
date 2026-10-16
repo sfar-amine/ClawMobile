@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "file": "bonjour-samantha.m4a",
+  "content": "Bonjour Samantha (phrase neutre, aucune donnée personnelle)",
+  "mime": "audio/mp4",
+  "extension": ".m4a",
+  "container": {
+    "ftypMajorBrand": "M4A ",
+    "compatibleBrands": [
+      "M4A ",
+      "isom",
+      "iso2"
+    ],
+    "isM4aContainer_core138": true
+  },
+  "codec": {
+    "name": "aac",
+    "profile": "LC",
+    "sampleRateHz": 24000,
+    "channels": 1,
+    "bitRate": 49215
+  },
+  "durationSeconds": 1.91,
+  "sizeBytes": 12967,
+  "sha256": "45b72fe4f79215f6ab6f4366239a79117330f355cc2bf17f745bce29b929c826",
+  "provenance": {
+    "capturedAt": "2026-10-11",
+    "kind": "synthetic_speech",
+    "honesty": "Parole SYNTHÉTIQUE produite par Gemini Live via le socket claw-live local du S24 (client=samantha_android, locale fr-FR, session probe-*), consigne « Répète exactement : Bonjour Samantha ». Ce n'est PAS un enregistrement micro de l'app : aucun TTS ni ffmpeg sur le S24, et le micro reste désactivé.",
+    "source": {
+      "socket": "ws://127.0.0.1:8765/v1/extensions/claw-live/socket",
+      "request_id": "mcp-claude-chat-hs8c-live-tts-02-execute",
+      "pcm": {
+        "mime": "audio/pcm;rate=24000",
+        "format": "s16le mono",
+        "bytes": 62882,
+        "sha256": "27b52bdd890d48af01dbb16ac8292d7ccda11e837d188facbe30d6e05bbb493e"
+      }
+    },
+    "encoding": {
+      "where": "conteneur Claude (S24 sans ffmpeg), PCM transféré par branche Git temporaire supprimée ensuite, SHA256 PCM vérifié identique",
+      "tool": "ffmpeg 6.1.1",
+      "command": "ffmpeg -f s16le -ar 24000 -ac 1 -i memo.pcm -af adelay=300,apad=pad_dur=0.3 -c:a aac -profile:a aac_low -b:a 64k -ar 24000 -ac 1 -map_metadata -1 -fflags +bitexact -flags:a +bitexact -movflags +faststart -f ipod bonjour-samantha.m4a",
+      "reproducible": true
+    },
+    "returnedToS24": {
+      "request_id": "mcp-claude-chat-hs8c-m4a-fetch-01-execute",
+      "sha256Match": true
+    }
+  },
+  "limits": "Ne qualifie pas le format réel de l'enregistreur Android (MediaRecorder MPEG_4/AAC) : marque ftyp et fréquence de l'app à capturer sur un vrai mémo."
+}

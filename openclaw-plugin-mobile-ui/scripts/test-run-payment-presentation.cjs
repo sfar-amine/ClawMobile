@@ -36,7 +36,7 @@ assert.equal(p.status,'error');assert.equal(p.effect.debited,'unknown');
 assert.equal(p.understood.capability,'payment.owner_native');assert.equal(p.meta.capability,'payment.owner_native');
 assert.equal(p.understood.label,'Recharger mon numéro');assert.deepEqual(p.understood.slots,{operator:'orange',beneficiary:'owner'});
 assert.equal(p.understood.text,'Compris : Recharger mon numéro · Orange · ta ligne');
-assert.deepEqual(p.payment,{state:'blocked',reasonCode:'payment_not_submitted',stepId:'execution_error'});
+assert.deepEqual(p.payment,{state:'blocked',reasonCode:'payment_not_submitted',stepId:'execution_error',initialFailure:{stepId:'execution_error',reasonCode:'maxit_order_missing_order_id',at:null}}); // #176 masks timestamps; never invent one.
 assert.equal(p.failure.stepId,'execution_error');assert.equal(p.failure.step,'Exécution du paiement');assert.equal(p.failure.reasonCode,'payment_not_submitted');
 assert.deepEqual(p.failure.notDone,{code:'payment_not_submitted',text:'Rien n’a été envoyé au fournisseur.'});
 // It survives the closed reader used by the intent transport.

@@ -112,6 +112,9 @@ export type IntentSubmitResponse = {
 };
 
 export type CompanionRunStatus = {
+  /** P1 : tour admis par preuve native, et connexion Gateway finalement utilisée. */
+  ownerAdmitted?: boolean;
+  ownerTransport?: "admin_admitted" | "write_cli" | "write_cli_owner_unavailable";
   /** Closed projection of the stored decision (receiptPresentation.publicDecision). */
   decision?: import("./receiptPresentation").PublicDecision;
   presentation?: import("./receiptPresentation").ReceiptPresentation;
@@ -135,6 +138,7 @@ export type CompanionRunStatus = {
   sessionKey?: string;
   state: "running" | "done" | "failed" | "unknown";
   status?: string;
+  memoTranscription?: {phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number};
   message: string;
   result?: string;
   /** F4: structured projection of `result` (summary list only); `result` stays the raw fallback. */

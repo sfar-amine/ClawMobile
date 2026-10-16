@@ -24,11 +24,20 @@ def close_supersessions(conn, now):
             AND r.supersedes=CASE WHEN json_valid(payload) THEN json_extract(payload,'$.superseded') END)""", (now.isoformat(),))
     return conn.execute('SELECT changes()').fetchone()[0]
 
+def _anchor(absolute):
+    """Android denies opening '/' to apps (S24 12/10 : the curator failed every run). The owner's
+    HOME is then the trusted anchor; below it, the walk stays descriptor-based and NOFOLLOW."""
+    try: return os.open('/',os.O_RDONLY|os.O_DIRECTORY),absolute.parts[1:]
+    except PermissionError:
+        home=Path(os.path.abspath(os.path.expanduser('~')))
+        if absolute!=home and home not in absolute.parents: raise
+        return os.open(home,os.O_RDONLY|os.O_DIRECTORY),absolute.relative_to(home).parts
+
 def _directory(path):
     # Walk directory descriptors: no symlink ancestor or rename race follows a foreign tree.
-    absolute=Path(os.path.abspath(path));fd=os.open('/',os.O_RDONLY|os.O_DIRECTORY)
+    absolute=Path(os.path.abspath(path));fd,parts=_anchor(absolute)
     try:
-        for part in absolute.parts[1:]:
+        for part in parts:
             try: child=os.open(part,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=fd)
             except FileNotFoundError:
                 os.mkdir(part,mode=0o700,dir_fd=fd)
@@ -68,7 +77,12 @@ def _write(fd,name,body):
         try: os.stat(name,dir_fd=fd,follow_symlinks=False)
         except FileNotFoundError: pass
         else: raise ValueError('native_memory_file_collision')
-        os.link(temporary,name,src_dir_fd=fd,dst_dir_fd=fd,follow_symlinks=False);os.fsync(fd)
+        if hasattr(os,'link'): os.link(temporary,name,src_dir_fd=fd,dst_dir_fd=fd,follow_symlinks=False)
+        else:
+            # Android/Termux Python has no os.link (S24 12/10). The fully written, fsynced temporary is
+            # renamed in the same directory; the stat above and the curator lock refuse a collision.
+            os.rename(temporary,name,src_dir_fd=fd,dst_dir_fd=fd)
+        os.fsync(fd)
     finally:
         try: os.unlink(temporary,dir_fd=fd)
         except FileNotFoundError: pass
