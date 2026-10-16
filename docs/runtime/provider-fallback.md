@@ -1,67 +1,38 @@
-# OpenAI → Google Free provider fallback
+# OpenAI → Google Free native provider fallback
 
-## Native Samantha route — 6 October 2026
+## Canonical route
 
-The main agent now uses the native chain Sol → Luna → Gemini Free, with the named `google:claw-gemini-free` profile. The scoped config patch and verified canary are documented in `../changes/samantha-native-fallback-warm-20261006.md`. The primary model, other agents and credentials remain unchanged. Native session history and execution/refusal semantics remain owned by OpenClaw.
+The main agent uses OpenClaw's native provider chain:
 
-The WhatsApp-only answer recovery described below remains a legacy guard; it must not make a second Google attempt after native fallback or process a terminal policy refusal.
+1. the owner-selected OpenAI primary;
+2. `openai/gpt-5.6-luna`;
+3. `google/gemini-3.5-flash-lite@google:claw-gemini-free`.
 
+The scoped configuration patch is
+[`config/samantha-provider-fallback.json`](config/samantha-provider-fallback.json).
+It does not replace the primary model, widen the allowed model set, or change any
+other agent. Native session history, retries, tool execution and refusal semantics
+remain owned by OpenClaw.
 
-## Legacy answer-only recovery contract
+The former WhatsApp plugin recovery path was removed because its Gateway hooks do
+not run on the deployed OpenClaw version. Keeping it would duplicate the native
+Google attempt and create a second owner for provider fallback behavior.
 
-Before the native route correction, the main agent used only:
+## Verification
 
-1. `openai/gpt-5.6-sol`
-2. `openai/gpt-5.6-luna`
+`openclaw-plugin-mobile-ui/scripts/test-native-provider-fallback.cjs` verifies that
+the patch is limited to `main`, preserves the owner-selected primary, and pins the
+last native fallback to the named free Gemini profile. The check runs in the
+repository CI workflow.
 
-Both are OpenAI models. The provider fallback activates only after the OpenAI turn reaches a terminal provider/rate-limit/cooldown reply.
+## Boundaries
 
-For an eligible direct trusted WhatsApp text turn, the mobile plugin keeps the original prompt and observes the model lifecycle. If OpenAI exhausts its normal Sol/Luna path, the plugin calls the existing `gemini-request.py` wrapper in `--provider-fallback` mode.
-
-The fallback is Google Free Tier only. The wrapper already enforces:
-
-- provider = `google`;
-- model = the configured free Gemini model;
-- no provider/model reroute;
-- no model fallback;
-- reported provider cost must be zero.
-
-If any invariant is not met, the fallback result is rejected.
-
-## Safety boundaries
-
-Provider fallback is answer-only.
-
-It does not run when:
-
-- the turn already called a tool;
-- the input contains an attachment;
-- the sender is not in the existing WhatsApp allowlist;
-- the session is not the `main` direct WhatsApp path;
-- the turn is not user-triggered.
-
-The dedicated fallback Gemini session receives `toolsAllow: []`. The wrapper also omits Claw capability hints and private memory retrieval in provider-fallback mode. It receives only the current text message, generic Gemini workspace rules and a non-sensitive memory revision number used as trace metadata.
-
-A failed or quota-exhausted Google fallback does not trigger a paid provider and does not hide the original OpenAI terminal failure.
-
-## Android / Termux child-process contract
-
-The plugin launches `gemini-request.py` with `spawn()` and explicit stdout/stderr pipes. On the S24 Termux Node runtime, promisified `execFile()` was reproduced returning exit code 0 with empty stdout even when Python printed output; that path caused valid Gemini results to be rejected fail-closed. The spawn+pipe path is covered by a default-runner regression test and preserves the wrapper JSON output. Output is bounded to 1 MiB per stream and the child is terminated after 70 seconds.
-
-## Live acceptance — 2026-10-03
-
-With Gateway and WhatsApp healthy, a controlled answer-only acceptance forced the OpenAI terminal cooldown path without calling any tool. The installed coordinator using the corrected child-process collector returned `handled=true`, `reason=provider_fallback_google_free`, a non-empty reply and cleared its in-memory turn state. The underlying wrapper reported `provider=google`, `model=gemini-3.5-flash-lite`, `rerouted=false` and `reported_cost_usd=0`. No WhatsApp message was sent by the acceptance harness.
-
-An earlier attempt was blocked by a simultaneous local Gateway outage (`ECONNREFUSED`); the same acceptance was repeated only after the Companion restored Gateway and WhatsApp to healthy. This is recorded as a runtime prerequisite incident, not a provider-fallback failure.
-
-## Operational result
-
-This is a third availability curtain, not a route promotion:
-
-`deterministic fast path when eligible → OpenAI Sol → OpenAI Luna → Google Gemini Free answer-only`
-
-The normal preferred provider remains OpenAI. Google fallback success does not promote Google to primary.
+This configuration does not change the dedicated Gemini agent or the HS8 voice
+memo transcription pipeline. Those paths keep their existing provider policy,
+retry registry and runtime contracts.
 
 ## Rollback
 
-Remove the provider-fallback hook registrations from the mobile plugin and the `--provider-fallback` wrapper mode, rebuild/reinstall the previous plugin revision, then restart/reload the OpenClaw runtime. No durable conversation or capability state is owned by this fallback.
+Restore the previous `main.model.fallbacks` configuration with the existing
+OpenClaw configuration owner. No plugin hook, durable state, conversation or
+capability state is owned by this fallback.

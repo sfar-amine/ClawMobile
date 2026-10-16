@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "codex-hs2-qualified-catalog-20261013",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Consume playbooks HS2 qualified receipts with visible timestamps and fail-closed catalogue expiry",
+  "reason": "Amine accepted 24-hour general status validity and one-hour balance validity; legacy billStatus had no owner-attested expiry",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/billStatus.ts",
+    "openclaw-plugin-mobile-ui/src/companion/catalog.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-catalog-bill-status.cjs",
+    "docs/work/samantha-runtime/contracts/hs2-qualified-receipts-20261013.md",
+    "docs/changes/codex-hs2-qualified-catalog-20261013.md",
+    "docs/changes/codex-hs2-qualified-catalog-20261013.json"
+  ],
+  "tests": [
+    {
+      "name": "catalog qualified receipt targeted suite",
+      "status": "passed",
+      "evidence": "npm run build and node scripts/test-catalog-bill-status.cjs: green; 50002 receipts, qualified source found in 5 bounded passes, slowest pass 1502 ms, warm catalogue p95 2 ms"
+    },
+    {
+      "name": "catalogue neighbour regression suite",
+      "status": "passed",
+      "evidence": "node scripts/test-catalog.cjs: green; 4 owner reads, 0 forbidden live reads, warm p95 71 ms, stale p95 65 ms, 47 available actions"
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs2-qualified-receipts-20261013.md",
+    "docs/changes/codex-hs2-qualified-catalog-20261013.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing catalogue and owner capabilities keep their routes, risk, authorization and execution; only optional receipt-backed presentation metadata changes"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The existing bridge receipt and Control catalogue pool remain the owners; no store, route, scheduler, daemon or provider read is added"
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Receipt storage and MCP execution are unchanged; catalogue presentation reads optional qualified metadata"
+  },
+  "rollback": "Revert the qualified receipt reader and catalogue projection; no persisted state or migration is introduced",
+  "limitations": [
+    "Requires coordinated activation of playbooks #93 before fresh qualified receipts can appear",
+    "QA remains absent until a real terminal qualified result is captured",
+    "Full local CI and S24 recipe are pending; only the targeted build and suite are claimed"
+  ]
+}

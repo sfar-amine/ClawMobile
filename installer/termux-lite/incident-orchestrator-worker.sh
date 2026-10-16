@@ -2,16 +2,19 @@
 set -u
 cd "$HOME" || exit 70
 MAX_DIAG_FAILURES="${INCIDENT_MAX_DIAG_FAILURES:-2}"
-ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; DB="$HOME/.openclaw/incidents/orchestrator.db"; LOG="$HOME/.openclaw/incidents/orchestrator-worker.log"
+# Intervalles injectables pour les tests (valeurs de production par défaut inchangées).
+POLL_S="${INCIDENT_WORKER_POLL_S:-5}"; OBSERVE_S="${INCIDENT_WORKER_OBSERVE_S:-2}"; DIAG_BACKOFF_S="${INCIDENT_WORKER_DIAG_BACKOFF_S:-15}"
+ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"; DB="$HOME/.openclaw/incidents/orchestrator.db"; LOG="$HOME/.openclaw/incidents/orchestrator-worker.log"
 mkdir -p "$(dirname "$LOG")"; exec 9>"$HOME/.openclaw/incidents/orchestrator-worker.lock"; flock -n 9 || exit 0
-log(){ printf '%s component=incident-orchestrator %s\n' "$(date -Iseconds)" "$*" >>"$LOG"; }
+CORRELATION_ID=""
+log(){ printf '%s component=incident-orchestrator correlation_id=%s %s\n' "$(date -Iseconds)" "${CORRELATION_ID:-none}" "$*" >>"$LOG"; }
 # Keep supervisor liveness observable while a bounded engineering subprocess is running.
 run_observed(){
   "$@" 9>&- &
   child=$!
   while kill -0 "$child" 2>/dev/null; do
     printf '%s' "$(date +%s)" >"$HOME/.openclaw/health/incident-orchestrator.heartbeat"
-    sleep 2 9>&-
+    sleep "$OBSERVE_S" 9>&-
   done
   wait "$child"
 }
@@ -23,16 +26,18 @@ m.connect().close()
 PY_INIT
 while :; do
   printf '%s' "$(date +%s)" >"$HOME/.openclaw/health/incident-orchestrator.heartbeat"
+  mode=$(python3 "$ROOT/runtime_mode.py" 9>&- 2>/dev/null || true)
+  if [ "$mode" != normal ]; then log "state=paused mode=${mode:-unknown}"; sleep 5 9>&-; continue; fi
   row=$(python3 - "$DB" <<'PY'
 import sqlite3,sys,time
 try:
- c=sqlite3.connect(sys.argv[1]);r=c.execute("select id,component,scope,state from incidents where state in ('detected','diagnosing','planning','repairing') or (state='waiting_model' and next_retry<=?) order by updated limit 1",(time.time(),)).fetchone()
+ c=sqlite3.connect(sys.argv[1]);r=c.execute("select id,component,scope,state,correlation_id from incidents where state in ('detected','diagnosing','planning','repairing') or (state='waiting_model' and next_retry<=?) order by updated limit 1",(time.time(),)).fetchone()
  print("|".join(map(str,r)) if r else "")
 except Exception: print("")
 PY
 )
-  if [ -z "$row" ]; then sleep 5; continue; fi
-  IFS='|' read -r iid component scope state <<EOF
+  if [ -z "$row" ]; then sleep "$POLL_S"; continue; fi
+  IFS='|' read -r iid component scope state CORRELATION_ID <<EOF
 $row
 EOF
   if [ "$state" = waiting_model ]; then
@@ -40,8 +45,14 @@ EOF
     continue
   fi
   if [ "$state" = detected ]; then
-    "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source orchestrator-worker --reason "deterministic recovery exhausted" >/dev/null 2>&1 || true
-    log "incident=$iid component=$component transition=diagnosing"; continue
+    if "$ROOT/incident-orchestrator.py" handled "$component" >/dev/null 2>&1; then
+      "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source orchestrator-worker --reason "deterministic recovery exhausted; managed handler available" >/dev/null 2>&1 || true
+      log "incident=$iid component=$component transition=diagnosing"
+    else
+      "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source orchestrator-worker --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true
+      log "incident=$iid component=$component state=awaiting_deterministic_recovery reason=no_managed_handler"
+    fi
+    continue
   fi
   if [ "$state" = diagnosing ] || [ "$state" = planning ] || [ "$state" = repairing ]; then
     if "$ROOT/engineering-repair.sh" supports "$component" >/dev/null 2>&1; then
@@ -112,9 +123,9 @@ PY_ADB_REUSE
       fi
     fi
     if ! "$ROOT/incident-orchestrator.py" handled --direct "$component" >/dev/null 2>&1; then
-        "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "no enabled managed repair handler" >/dev/null 2>&1 || true
-        log "incident=$iid component=$component terminal=failed reason=no_managed_handler"
-        sleep 5
+        "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source orchestrator-worker --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true
+        log "incident=$iid component=$component state=awaiting_deterministic_recovery reason=no_managed_handler"
+        sleep "$POLL_S"
         continue
     fi
     log "incident=$iid component=$component action=diagnose"
@@ -162,6 +173,8 @@ PY3
         esac
       fi
     else
+      rc=$?
+      if [ "$rc" -eq 75 ]; then log "incident=$iid component=$component action=deferred reason=canonical_mode_changed"; sleep 5 9>&-; continue; fi
       "$ROOT/incident-orchestrator.py" observe "$iid" diagnosis_failed --source orchestrator-worker --json '{"bounded":true}' >/dev/null 2>&1 || true
       count=$(python3 - "$DB" "$iid" <<'PY3'
 import sqlite3,sys
@@ -173,7 +186,7 @@ PY3
         log "incident=$iid component=$component terminal=failed reason=model_diagnosis_budget"
       else
         log "incident=$iid component=$component diagnosis=failed count=$count/$MAX_DIAG_FAILURES"
-        sleep 15
+        sleep "$DIAG_BACKOFF_S"
       fi
     fi
     continue
@@ -202,7 +215,7 @@ PY2
           "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "diagnostic budget exhausted without verified human boundary" >/dev/null 2>&1 || true
           log "incident=$iid component=$component terminal=failed reason=diagnostic_budget"
         fi
-        sleep 5; continue
+        sleep "$POLL_S"; continue
       fi
       ev=$(python3 - <<'PY2'
 import json,subprocess
@@ -218,7 +231,7 @@ PY2
       "$ROOT/incident-orchestrator.py" observe "$iid" diagnostics_collected --source orchestrator-worker --json "$ev" >/dev/null 2>&1 || true
       "$ROOT/incident-orchestrator.py" transition "$iid" diagnosing --source orchestrator-worker --reason "read-only diagnostics collected" >/dev/null 2>&1 || true
       log "incident=$iid component=$component action=collect_more result=done count=$((count+1))"
-      sleep 5
+      sleep "$POLL_S"
     elif [ "$component" = gateway-secretref-exec ]; then
       if "$ROOT/gateway-secretref-exec.sh" --help >/dev/null 2>&1; then
         "$ROOT/incident-orchestrator.py" transition "$iid" verifying --source orchestrator-worker --reason "secure gateway SecretRef execution wrapper installed" >/dev/null 2>&1 || true
@@ -283,7 +296,7 @@ PY3
         "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "managed headless smoke verification failed" >/dev/null 2>&1 || true
       fi
     else
-      "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "no enabled managed repair handler" >/dev/null 2>&1 || true
+      "$ROOT/incident-orchestrator.py" transition "$iid" awaiting_deterministic_recovery --source orchestrator-worker --reason "no managed handler; waiting for health-manager verification" >/dev/null 2>&1 || true
     fi
   fi
 done
