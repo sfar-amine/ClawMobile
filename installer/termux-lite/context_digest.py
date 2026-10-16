@@ -125,7 +125,7 @@ def bridge_digest(conn, workspace, now):
     items=[];filtered=0;body=HEADER.encode();bridged=set()
     # Never trust copied digest excerpts: retrieve the exact still-active owner event.
     source_ids=list(source_proposals)[:5000]
-    for (identifier,revision,surface,kind,text,created) in conn.execute(f"SELECT e.id,e.revision,e.surface,e.kind,e.text,e.created_at FROM json_each(?) ids JOIN events e ON e.id=ids.value WHERE {ACTIVE} AND e.kind IN ('decision','checkpoint','learning','constraint') AND length(CAST(e.text AS BLOB))<=32768 ORDER BY e.revision DESC LIMIT 1000", (json.dumps(source_ids),)):
+    for (identifier,revision,surface,kind,text,created) in conn.execute(f"SELECT e.id,e.revision,e.surface,e.kind,e.text,e.created_at FROM json_each(?) ids JOIN events e ON e.id=ids.value JOIN curated_facts f ON f.event_id=e.id AND f.state='active' AND f.valid_to IS NULL WHERE {ACTIVE} AND e.kind IN ('decision','checkpoint','learning','constraint') AND length(CAST(e.text AS BLOB))<=32768 ORDER BY e.revision DESC LIMIT 1000", (json.dumps(source_ids),)):
         if identifier not in source_proposals: continue
         if not isinstance(text,str) or SENSITIVE.search(text) or PAYMENT.search(text): filtered+=1;continue
         if not isinstance(surface,str) or not re.fullmatch('[a-z_]{1,40}',surface) or SENSITIVE.search(surface) or PAYMENT.search(surface): filtered+=1;continue
