@@ -99,6 +99,12 @@ sync_runtime(){ [ -x "$ROOT/runtime-sync.sh" ] || { echo '{"ok":true,"skipped":"
 
 rollback(){
   reason="$1"; acc="${2:-}"
+  # Undo this compatibility patch before returning to a revision that does not own it.
+  if [ -f "$ROOT/openclaw-compat/whatsapp-network-recovery.py" ] &&
+     ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py" 2>/dev/null; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "whatsapp_patch_rollback_failed"; exit 6; }
+  fi
   git reset -q --hard "$previous" >>"$log" 2>&1 && rm -rf "$PLUGIN/dist" && cp -a "$backup/dist" "$PLUGIN/dist"
   if restart && after=$(accept 2>>"$log") && runtime=$(sync_runtime "$previous"); then write rolled_back "$full" "$previous" "$reason" "$acc" "$runtime"
   else write rollback_failed "$full" "$previous" "$reason" "$acc" "${runtime:-}"; "$ROOT/incident-notify.sh" human_required "Samantha — déploiement Companion ${full:0:7} annulé mais le retour arrière n'est pas sain." >/dev/null 2>&1 || true; fi
