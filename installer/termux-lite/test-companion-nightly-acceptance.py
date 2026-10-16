@@ -38,6 +38,12 @@ class NightlyTests(unittest.TestCase):
    out,code=m.execute(state,ROOT,NOW,runner=lambda *_:called.append(1),preflight=lambda:False)
    self.assertEqual((code,out['reason']),(3,'deployment_preflight_busy'));self.assertEqual(called,[])
    self.assertFalse((state/'nightly-20261011.json').exists())
+ def test_emergency_stop_refuses_without_running_or_writing(self):
+  with tempfile.TemporaryDirectory() as td:
+   oc=Path(td);state=oc/'deploys';stop=oc/'tier0/emergency-stop.json';stop.parent.mkdir();stop.write_text('{"enabled":true}')
+   called=[];out,code=m.execute(state,ROOT,NOW,runner=lambda *_:called.append(1),preflight=lambda:True)
+   self.assertEqual((code,out['reason']),(3,'emergency_stop_active'));self.assertEqual(called,[])
+   self.assertFalse(state.exists())
  def test_seven_night_median_and_duplicate_route_budgets_do_not_mix(self):
   # Generated dates/latencies for the drift boundary, retaining real captured route forms.
   row=copy.deepcopy(REAL['checks'][0]);row.update(seconds=0.2,budget=2,status='ok')

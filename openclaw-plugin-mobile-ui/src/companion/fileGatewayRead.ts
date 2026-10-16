@@ -1,4 +1,5 @@
 import pathModule from "path";
+import {createHash} from "crypto";
 import {callOpenClawGateway} from "./openclawAgentClient";
 import {safeFileName,boundedFileContent,fileContentAllowed,fileOwnerRootAllowed} from "./fileReadBoundary";
 
@@ -73,5 +74,7 @@ export async function gatewayFileContent(scope:FileReadScope,path:string,bounds:
  if(!agent&&bytes.length>256*1024)throw unavailable();
  const preview=boundedFileContent(path,bytes);
  if(file.previewKind==="image"&&preview.contentType!==file.mimeType)throw unavailable();
- return {...preview,installedSchemaQualified:false,headers:{"X-Content-Type-Options":"nosniff"}};
+ // E3: the agent file revision is the owner's sha256 of the exact bytes (agents.files.set expectedHash).
+ const revision=agent&&typeof file.hash==="string"&&file.hash.toLowerCase()===createHash("sha256").update(bytes).digest("hex")?file.hash.toLowerCase():null;
+ return {...preview,...(agent?{revision}:{}),installedSchemaQualified:false,headers:{"X-Content-Type-Options":"nosniff"}};
 }

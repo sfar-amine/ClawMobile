@@ -698,6 +698,21 @@ kept separate from documentation: a legacy incident may be recovered but is
 not marked closed when the gate itself fails. No new daemon or scheduler is
 introduced.
 
+## Android startup guard and monthly game day (I10)
+
+`tier0-bootstrap.sh` runs `android-startup-check.py` once per Android boot. The
+read-only probe closes `~/.openclaw/health/android-startup.json` after checking
+the effective phantom-process limit, the Termux wakelock and the battery
+optimization exemption. A drift is queued through the existing incident
+notifier; the existing Health Manager remains the only repair owner.
+
+`android-game-day-setup.sh` reconciles one 30-day job in the existing OpenClaw
+scheduler. Its 30-minute run exercises a Gateway `kill -9`, a network cut via
+the existing mutation guard and a recoverable ADB disconnect. It refuses to run
+during a Companion deployment, closes one bounded health receipt and sends its
+mini-postmortem through the existing learning gate. The setup script only
+registers the job; Claude runs it when activating the reviewed Tier0 release.
+
 ## Non-shell Incident Ingress
 
 `incident-ingress.py` provides a filesystem ingress for foreground blockers when

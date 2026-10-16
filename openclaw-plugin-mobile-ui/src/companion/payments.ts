@@ -45,9 +45,12 @@ export function bankAuthorizationIntent(payment:any):OwnerIntent {
   if(!Number.isSafeInteger(q.amountMinor)||!Number.isInteger(q.decimals)||q.decimals<0||q.decimals>3)
     paymentError("payment_record_invalid",503);
   const factor=10**q.decimals;
-  const amount=(q.amountMinor/factor).toFixed(q.decimals);
-  const payloadHash=ownerHash(["claw.payment.bank.v1",payment.requestId,payment.adapterId,payment.mode,
-    q.payee,q.reference,q.amountMinor,q.currency,q.decimals].join("\n"));
+  const fee=q.feeMinor!==undefined;
+  if(fee&&(!Number.isSafeInteger(q.totalMinor)||q.totalMinor!==q.amountMinor+q.feeMinor))paymentError("payment_record_invalid",503);
+  // With a provider fee the bank step names the total debited, not the top-up amount alone.
+  const amount=((fee?q.totalMinor:q.amountMinor)/factor).toFixed(q.decimals);
+  const payloadHash=ownerHash([fee?"claw.payment.bank.v2":"claw.payment.bank.v1",payment.requestId,payment.adapterId,payment.mode,
+    q.payee,q.reference,q.amountMinor,...(fee?[q.feeMinor,q.totalMinor,q.feeLabel]:[]),q.currency,q.decimals].join("\n"));
   return {audience:"confirmation",
     action:{type:"payment.bank_2fa",reference:payment.requestId,payloadHash},
     presentation:{title:"Autoriser l’authentification bancaire",subtitle:`${q.payee} — ${amount} ${q.currency}`,
@@ -98,7 +101,9 @@ export function validateLocalHandoffInput(v:any):{requestKey:string;adapterId:st
 }
 
 function formatPayableAmount(q:PaymentQuote){
-  const scale=10**q.decimals,whole=Math.floor(q.amountMinor/scale),frac=q.amountMinor%scale;
+  // Total debited when a provider fee applies (Maxit), otherwise the amount.
+  const value=q.feeMinor!==undefined&&Number.isSafeInteger(q.totalMinor)?q.totalMinor!:q.amountMinor;
+  const scale=10**q.decimals,whole=Math.floor(value/scale),frac=value%scale;
   return q.decimals?String(whole)+","+String(frac).padStart(q.decimals,"0"):String(whole);
 }
 

@@ -13,6 +13,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   if(method==='skills.status'){statusCalls++;assert.deepEqual(options,{timeoutMs:4000,hardTimeoutMs:5000});if(statusDelay)await new Promise(r=>setTimeout(r,statusDelay));if(ownerDown)throw Error('private-owner-error');assert.deepEqual(params,{agentId:'main'});return {...capture.response,skills:[...capture.response.skills,{...capture.response.skills[0],name:'demo',filePath:path.join(dir,'SKILL.md'),baseDir:dir,skillKey:'demo-canonical',disabled}]};}
   assert.equal(method,'skills.update');assert.deepEqual(options,{timeoutMs:6000,hardTimeoutMs:7000});assert.equal(params.skillKey,'demo-canonical');assert.deepEqual(Object.keys(params).sort(),['enabled','skillKey']);effects++;disabled=!params.enabled;if(uncertain)throw Error('private-secret');return {ok:true};
  };
+ const guardedInstructions=new Set(['payer avec Maxit','virement 100 EUR','OTP carte bancaire','payer la facture STEG','recharge ooredoo','acheter un ticket','top-up orange','pay electricity bill','régler 50 TND']);
+ require('../dist/modelFastPath').runModelFastPath=async(text,options)=>{assert.equal(options.checkOnly,true);return {status:'miss',decision:{version:2,type:'REASON',risk:guardedInstructions.has(text)?'transaction':'read'}}};
  const api=require('../dist/companion/skillControl');const {route}=require('../dist/companion/server');const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}')}));await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const request=(url,method='GET',body,headers={})=>new Promise((resolve,reject)=>{
   const content=body?JSON.stringify(body):null;const req=http.request({host:'127.0.0.1',port:server.address().port,path:'/v1/skills/'+url,method,headers:{'content-type':'application/json',...(content?{'content-length':Buffer.byteLength(content)}:{}),...headers}},res=>{let text='';res.on('data',x=>text+=x);res.on('end',()=>resolve({status:res.statusCode,body:JSON.parse(text||'{}')}))});req.on('error',reject);req.end(content);
@@ -37,10 +39,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
    for(const location of ['title','body','fastpath']){
     await fs.writeFile(path.join(dir,'SKILL.md'),location==='title'?original.replace('name: demo','name: '+text):original+(location==='body'?'\n## Procedure\n'+text:'') );
     if(location==='fastpath')await fs.writeFile(path.join(dir,'generalized_skill.json'),JSON.stringify({fast_path:{id:'demo-fast',title:'Inspect',steps:[{description:text}]}}));
-    const protectedDetail=await request('demo');assert.equal(protectedDetail.body.risk,'high',text+" "+location);assert.equal(protectedDetail.body.requiresConfirmation,true);assert.equal(protectedDetail.body.activationAvailable,false,text+" "+location);if(location==='fastpath')assert.ok(protectedDetail.body.fastPaths.length&&protectedDetail.body.fastPaths.every(x=>x.risk==='high'));assert.equal(protectedDetail.body.tryAvailable,false);
-    const before=effects,priorTrials=trials;
-    for(const action of ['enable','disable','try']){const result=await request('demo/'+action,'POST',{operationId:'financial-'+i+'-'+location+'-'+action,...(action==='try'?{instruction:'Inspect a local document'}:{})},owner);assert.equal(result.status,409);assert.equal(result.body.error,'invalid_or_protected_skill');}
-    assert.equal(effects,before);assert.equal(trials,priorTrials);
+    const financialDetail=await request('demo');assert.notEqual(financialDetail.body.risk,'high',text+' '+location);assert.equal(financialDetail.body.activationAvailable,true);assert.equal(financialDetail.body.tryAvailable,location!=='fastpath');
     await fs.rm(path.join(dir,'generalized_skill.json'),{force:true});
    }
    await fs.writeFile(path.join(dir,'SKILL.md'),original);

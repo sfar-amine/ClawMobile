@@ -1,0 +1,15 @@
+{
+  "capturedAt": "2026-10-12",
+  "source": "S24 read-only (claw_exec m4-ls-ctx-5, m4-shape-6, m4-log-cron-7): structure only; names, numbers and messages replaced by placeholders",
+  "symlinks": {
+    "~/.openclaw/workspace/memory/whatsapp/contacts": "~/samantha-context-private/whatsapp/contacts",
+    "~/.openclaw/workspace/memory/amine-inbox.md": "~/samantha-context-private/whatsapp/inbox/amine-inbox.md"
+  },
+  "absent": ["~/.openclaw/workspace/memory/cross-surface"],
+  "privateWhatsappTree": ["whatsapp/contacts/wa_<digits>.md (4 files: 1 with R17 marker, 3 legacy without)", "whatsapp/inbox/amine-inbox.md", "whatsapp/contacts-index.md (generic, no per-contact line)"],
+  "inboxHeader": "# Amine Inbox\n\nMessages explicitly left for Amine by other contacts are stored here.\n\n",
+  "inboxEntryTemplate": "- Date/time: {at}\n  - Sender: {name} ({number})\n  - Message: {message}\n  - Requested action: Transmettre à Amine.\n  - Urgency/deadline: Non précisée.\n  - Status: {status}\n\n",
+  "inboxFields": ["Date/time (YYYY-MM-DD HH:MM UTC)", "Sender (Name (number))", "Message", "Requested action", "Urgency/deadline (optional)", "Status (PENDING|DELIVERED)"],
+  "outboundLogLine": "2026-10-11T10:00:05+01:00 state=accepted elapsed_s=5 key=samantha:todos:daily:20261011 message_id=<ID>",
+  "briefingOwner": "cron_jobs declaration_key=samantha:todos:daily-1000, 0 10 * * * Africa/Tunis, argv: cd $HOME/.openclaw/workspace/ui-playbooks && python3 tools/todos_daily.py --send"
+}

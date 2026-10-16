@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
 
-ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
+ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
 UI="$HOME/.openclaw/workspace/ui-playbooks"
 BASE="$HOME/.openclaw/autonomous-engineering"
 SHADOW="$BASE/shadow"
@@ -10,6 +10,9 @@ HEALTH_LOG="$HOME/.openclaw/health/health.log"
 component="${1:-}"
 failures="${2:-0}"
 canonical_incident_id="${3:-}"
+
+mode=$(python3 "$ROOT/runtime_mode.py" 2>/dev/null || true)
+[ "$mode" = normal ] || exit 75
 
 case "$component" in
   ""|*[!A-Za-z0-9._-]*) exit 64 ;;

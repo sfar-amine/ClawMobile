@@ -8,6 +8,9 @@ const STATES=new Set(["deployed","installed","failed","refused","rolled_back","r
 export type DeploymentReceiptsView={schemaVersion:1,state:"ok"|"partial"|"unavailable",items:any[],issues:string[]};
 let cached:{root:string,until:number,value:DeploymentReceiptsView}|null=null;
 let flight:{root:string,promise:Promise<DeploymentReceiptsView>}|null=null;
+// Receipts are written once by their owner; a rewrite changes inode, size or mtime. Retro 12/10: the deploy
+// acceptance read /control/deploys cold twice under memory pressure (1.93 s for 100 × 256 KiB zero-filled buffers).
+const parsed=new Map<string,{key:string,row:any|null}>();
 function iso(value:unknown):string|null{if(typeof value!=="string"||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(value))return null;const n=Date.parse(value);return Number.isFinite(n)?new Date(n).toISOString():null;}
 function project(d:any,kind:string):any|null{
  if(!d||typeof d!=="object"||Array.isArray(d)||d.version!==1)return null;
@@ -33,10 +36,13 @@ async function collect(root:string):Promise<DeploymentReceiptsView>{
   for(const name of names.slice(0,MAX_READ)){
    let file:fs.promises.FileHandle|undefined;
    try{file=await fs.promises.open(path.join(anchored,name),C.O_RDONLY|C.O_NOFOLLOW|C.O_NONBLOCK);const stat=await file.stat();if(!stat.isFile()||stat.size>MAX_BYTES){issues.add("receipt_unavailable");continue;}
-    const bytes=Buffer.alloc(MAX_BYTES+1);const {bytesRead}=await file.read(bytes,0,bytes.length,0);if(bytesRead>MAX_BYTES){issues.add("receipt_unavailable");continue;}
-    const row=project(JSON.parse(bytes.subarray(0,bytesRead).toString("utf8")),name.startsWith("app-")?"app":"companion");if(row)items.push(row);else issues.add("receipt_invalid");
+    const key=`${root}\0${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`;let hit=parsed.get(name);
+    if(hit?.key!==key){const bytes=Buffer.allocUnsafe(stat.size+1);const {bytesRead}=await file.read(bytes,0,bytes.length,0);if(bytesRead>MAX_BYTES||bytesRead!==stat.size){issues.add("receipt_unavailable");continue;}
+     hit={key,row:project(JSON.parse(bytes.subarray(0,bytesRead).toString("utf8")),name.startsWith("app-")?"app":"companion")};parsed.set(name,hit);}
+    if(hit.row)items.push(hit.row);else issues.add("receipt_invalid");
    }catch{issues.add("receipt_unavailable");}finally{await file?.close();}
   }
+  const kept=new Set(names.slice(0,MAX_READ));for(const name of parsed.keys())if(!kept.has(name))parsed.delete(name);
   items.sort((a,b)=>b.at.localeCompare(a.at));
   return {schemaVersion:1,state:issues.size?"partial":"ok",items,issues:[...issues]};
  }catch{return {schemaVersion:1,state:"unavailable",items:[],issues:["deployments_owner_unavailable"]};}finally{await dir?.close();await parent?.close();await home?.close();}

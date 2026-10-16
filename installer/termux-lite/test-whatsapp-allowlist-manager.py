@@ -47,4 +47,17 @@ timeout(){ printf 'SCAN %s\n' "$CLOCK" >>"$TRACE"; printf '{"processed":%s}' "$P
         self.assertIn('timeout --kill-after=2 22 python3 "$ROOT/people-trusted.py" allowlist sweep 9>&-',text)
         self.assertNotIn('nohup',self.functions())
 
+    def test_forget_counts_logged_without_personal_content(self):
+        prefix='''CLOCK=100;ROOT=/fixture
+now(){ printf '%s' "$CLOCK"; }
+get(){ printf 0; }
+put(){ printf 'WRITE %s %s %s\\n' "$1" "$2" "$3" >>"$TRACE"; }
+log(){ printf 'LOG %s\\n' "$1" >>"$TRACE"; }
+timeout(){ printf '{"processed":0,"forget":{"state":"partial","forgotten":2,"remaining":1}}'; }
+'''
+        trace=self.execute(prefix,'check_allowlist_expiry')
+        self.assertEqual(trace,['LOG service=whatsapp_allowlist event=forget forgotten=2 remaining=1'])
+        idle=prefix.replace('"forgotten":2','"forgotten":0')
+        self.assertEqual(self.execute(idle,'check_allowlist_expiry'),[])
+
 if __name__=='__main__':unittest.main()
