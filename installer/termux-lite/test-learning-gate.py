@@ -122,7 +122,11 @@ class LearningGateTests(unittest.TestCase):
                             env=self.subprocess_env(runtime),text=True,capture_output=True)
         self.assertEqual(proc.returncode,0,proc.stdout+proc.stderr)
         self.assertEqual((queue/"status").read_text(),"closed")
-        self.assertIn("LEARNING_GATE_V1:",(self.base/"context-events.log").read_text())
+        # M3: LEARNING_GATE_V1 stays in the gate receipt/journal, never in the shared memory.
+        log=self.base/"context-events.log"
+        self.assertNotIn("LEARNING_GATE_V1:",log.read_text() if log.exists() else "")
+        receipts=list((self.state/"receipts").glob("*.json"))
+        self.assertTrue(any(json.loads(x.read_text())["context_text"].startswith("LEARNING_GATE_V1:") for x in receipts))
 
     def test_legacy_incident_stays_recovered_if_gate_fails(self):
         runtime=self.make_runtime_root()

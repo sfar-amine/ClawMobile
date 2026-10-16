@@ -278,13 +278,14 @@ _display_privacy_spec.loader.exec_module(_display_privacy_owner)
 _DISPLAY_SENSITIVE = _display_privacy_owner.SENSITIVE
 
 
-def _plain_display(value: Any, maximum: int = 120) -> str:
+def _plain_display(value: Any, maximum: int = 120, bracket_text: bool = False) -> str:
     if not isinstance(value, str):
         return ""
     if _DISPLAY_SENSITIVE.search(value):
         return ""
     text = " ".join(value.split())[:maximum].strip()
-    if not text or text.startswith(("{", "[")) or re.search(r"https?://|\bBearer\b|\+\d{8,}|\b(?:ghp_|github_pat_|sk-|AKIA)[A-Za-z0-9_-]+", text, re.I):
+    json_like = text.startswith(("{", "[{", '["', "[[")) if bracket_text else text.startswith(("{", "["))
+    if not text or json_like or re.search(r"https?://|\bBearer\b|\+\d{8,}|\b(?:ghp_|github_pat_|sk-|AKIA)[A-Za-z0-9_-]+", text, re.I):
         return ""
     return text
 
@@ -391,10 +392,86 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
             question = value.get("question")
             if isinstance(question, str) and _plain_display(question, 4000):
                 return _plain_display(question, 4000)
-        return "Résultat disponible auprès de Claw ; détails non affichables en texte."
+        return _generic_display(value) or "Résultat disponible auprès de Claw ; détails non affichables en texte."
     if isinstance(value, list):
-        return "Résultat disponible auprès de Claw ; détails non affichables en texte."
+        return _generic_display({"résultats": value}) or "Résultat disponible auprès de Claw ; détails non affichables en texte."
     return _plain_display(value, 4000) or "Résultat disponible auprès de Claw."
+
+
+# Executor bookkeeping, never shown (Amine 12/10 : affichage générique de tout résultat déterministe).
+_GENERIC_HIDDEN = {"ok", "route", "route_id", "query", "request_count", "latency_ms", "duration_ms", "state", "intent", "path", "filters",
+                   "provider", "workflow", "ui_used", "observed_at", "run_id", "schema_version", "business_rule", "coverage_complete",
+                   "live", "providers_requested", "providers_checked", "capability", "operation", "verified",
+                   "source", "version", "fallback_from", "route_selection_reason", "reason_code"}
+
+
+def _generic_value(value: Any, depth: int = 0) -> str:
+    if isinstance(value, bool):
+        return "oui" if value else "non"
+    if isinstance(value, (int, float)):
+        return f"{value:g}" if isinstance(value, float) else str(value)
+    if isinstance(value, dict) and depth < 2:
+        # « {value: 0.000, unit: BD} » → « 0.000 BD » ; « {displayed: 0%, …} » → « 0% » ; else « k v ; … ».
+        if "value" in value and set(value) <= {"value", "unit", "currency"}:
+            return " ".join(x for x in (_generic_value(value.get("value"), depth + 1), _plain_display(value.get("unit") or value.get("currency"), 20)) if x)
+        if "displayed" in value:
+            return _generic_value(value.get("displayed"), depth + 1)
+        parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v, depth + 1)}" for k, v in list(value.items())[:8]
+                 if str(k) not in _GENERIC_HIDDEN and _generic_value(v, depth + 1)]
+        return " ; ".join(parts)
+    if isinstance(value, str) and value.startswith("[") and not value.startswith(("[{", '["', "[[")):
+        return _plain_display(value, 160, bracket_text=True)  # « [Offre] : … » is text, not JSON
+    return _plain_display(value, 160)
+
+
+def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
+    """Readable lines for any executor result: scalar fields, one level of nested scalars, list sizes with
+    their first rows. Bookkeeping keys and anything sensitive (_plain_display) are left out; bounded."""
+    if value.get("ok") is False:
+        return ""
+    lines: list[str] = []
+    label = lambda key: str(key).replace("_", " ").strip().capitalize()
+    for key, item in value.items():
+        if len(lines) >= limit or str(key) in _GENERIC_HIDDEN or str(key).endswith("_ms"):
+            continue
+        if isinstance(item, dict):
+            parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v)}" for k, v in list(item.items())[:12]
+                     if not isinstance(v, list) and _generic_value(v) and str(k) not in _GENERIC_HIDDEN]
+            if parts:
+                lines.append(f"{label(key)} : " + " ; ".join(parts))
+        elif isinstance(item, list) and item and all(isinstance(t, dict) and isinstance(t.get("headers"), list) and isinstance(t.get("rows"), list) for t in item):
+            # Tables (CRA, évaluations…) : each row as « en-tête : valeur » cells, bounded.
+            for table in item[:3]:
+                headers = [_plain_display(h, 40) or "" for h in table["headers"]]
+                rows = [r for r in table["rows"] if isinstance(r, list)]
+                lines.append(f"{label(key)} : {len(rows)} ligne(s)")
+                for row in rows[:8]:
+                    cells = [(f"{headers[i]} : " if i < len(headers) and headers[i] else "") + _generic_value(v)
+                             for i, v in enumerate(row[:6]) if _generic_value(v)]
+                    if cells:
+                        lines.append("- " + " · ".join(cells))
+                if len(rows) > 8:
+                    lines.append("- …")
+        elif isinstance(item, list) and len(item) == 1 and isinstance(item[0], dict):
+            # One result (« état du projet 20495 ») : its whole record, one field per line.
+            for k, v in list(item[0].items())[:limit]:
+                if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list) and _generic_value(v):
+                    lines.append(f"{str(k).replace('_', ' ').capitalize()} : {_generic_value(v)}")
+        elif isinstance(item, list):
+            rows = []
+            for row in item[:5]:
+                if isinstance(row, dict):
+                    cells = [_generic_value(v) for k, v in row.items() if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list)]
+                    cells = [c for c in cells if c][:4]
+                    if cells:
+                        rows.append(" · ".join(cells))
+                elif _generic_value(row):
+                    rows.append(_generic_value(row))
+            head = f"{label(key)} : {len(item)}" if item else f"{label(key)} : aucun"
+            lines.append(head + ("" if not rows else "\n" + "\n".join("- " + r for r in rows) + ("\n- …" if len(item) > 5 else "")))
+        elif _generic_value(item):
+            lines.append(f"{label(key)} : {_generic_value(item)}")
+    return "\n".join(lines)[:4000]
 
 
 def _handoff_contract(resolution: dict[str, Any]) -> dict[str, Any] | None:
@@ -537,8 +614,23 @@ def _stable_identity(prefix: str, *parts: str) -> str:
     return f"{prefix}:{digest}"
 
 
+def _js_json(value: Any) -> Any:
+    """The value as JavaScript's JSON.parse would give it back: 1.0 → 1. The Remote Bridge re-hashes params with
+    JSON.stringify; a decision carrying confidence 1.0 hashed « 1.0 » here and « 1 » there, and every durable
+    capability-first action was refused (continuum_transport_binding_mismatch, recette du 12/10)."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict):
+        return {str(k): _js_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_js_json(v) for v in value]
+    return value
+
+
 def _bridge_params_hash(method: str, params: dict[str, Any]) -> str:
-    raw = json.dumps({"method": method, "params": params}, ensure_ascii=False, separators=(",", ":"))
+    raw = json.dumps({"method": method, "params": _js_json(params)}, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -598,6 +690,7 @@ def _durable_capability_execute(
     params = {"request": message, "targetHint": "", "surface": surface, "caller": caller}
     if isinstance(decision, dict):
         params["decision"] = decision
+    params = _js_json(params)
     owner_id = "capfirst-" + hashlib.sha256(origin_id.encode()).hexdigest()[:24]
     prepared = _continuum_call(ui_root, [
         "prepare", "--task-id", task_id, "--step-id", step_id,
@@ -784,6 +877,16 @@ def try_fast_path(
                 "provenance": _execution_provenance(selected, execution),
                 "model_bypassed": True,
             }
+        if state == "needs_clarification" and isinstance(executed.get("decision"), dict) and executed["decision"].get("type") == "CLARIFY":
+            # Amine 12/10 : several matches → one question listing them; nothing was executed.
+            choices = [c for c in (execution.get("choices") or []) if isinstance(c, dict) and _plain_display(c.get("label"), 120)]
+            question = _plain_display(execution.get("question"), 300) or "Lequel veux-tu ?"
+            return {
+                "status": "clarification", "reason": "choice_required",
+                "text": question + "".join("\n- " + _plain_display(c.get("label"), 120) for c in choices),
+                "clarification": {"question": question, "choices": choices},
+                "decision": executed["decision"], "model_bypassed": True,
+            }
         if state in ASSISTED_EXECUTION_STATES:
             return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None, **metadata}
         if state == "confirmation_required":
@@ -808,6 +911,11 @@ def try_fast_path(
             error_result.update(text=_display_text(payload), result=payload, execution_state=state)
         if metadata:
             error_result["text"] = _display_text(executed)
+        # Amine 12/10 : a service closed (declared hours) or not answering says so in one fixed sentence from the
+        # Graph, never a generic error and never the model. Last: the receipt card must not cover it (S24, 19:52).
+        message = _plain_display(execution.get("message"), 400) if isinstance(execution.get("message"), str) else ""
+        if message:
+            error_result.update(text=message, execution_state=state)
         return error_result
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}

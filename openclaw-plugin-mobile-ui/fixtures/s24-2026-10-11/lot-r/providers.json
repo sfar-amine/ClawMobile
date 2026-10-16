@@ -1,0 +1,90 @@
+{
+ "_capture": {
+  "route": "GET http://127.0.0.1:8765/v1/providers",
+  "method": "GET",
+  "status": 200,
+  "durationMs": 5567,
+  "capturedAt": "2026-10-11T10:46:49Z",
+  "host": "Samsung S24 / Termux",
+  "runtimeCore": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+  "sanitized": true,
+  "note": "réponse complète, sans donnée sensible ; mesure curl time_total, charge système ~7"
+ },
+ "response": {
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-11T09:54:45.457Z",
+  "summary": {
+   "ready": 0,
+   "needsAttention": 0,
+   "unknown": 3,
+   "configuredModels": 3
+  },
+  "providers": [
+   {
+    "id": "github-copilot",
+    "name": "github-copilot",
+    "auth": "unknown",
+    "quota": null,
+    "state": "unknown",
+    "models": []
+   },
+   {
+    "id": "google",
+    "name": "google",
+    "auth": "unknown",
+    "quota": null,
+    "state": "unknown",
+    "models": [
+     {
+      "id": "gemini-3.5-flash-lite",
+      "name": "Gemini 3.5 Flash Lite",
+      "available": true,
+      "capabilities": [
+       "reasoning",
+       "image",
+       "video"
+      ],
+      "contextTokens": 1048576,
+      "inUse": "fallback"
+     }
+    ]
+   },
+   {
+    "id": "openai",
+    "name": "openai",
+    "auth": "unknown",
+    "quota": null,
+    "state": "unknown",
+    "models": [
+     {
+      "id": "gpt-5.6-sol",
+      "name": "GPT-5.6-Sol",
+      "available": true,
+      "capabilities": [
+       "reasoning",
+       "image"
+      ],
+      "contextTokens": 272000,
+      "inUse": "primary"
+     },
+     {
+      "id": "gpt-5.6-luna",
+      "name": "GPT-5.6-Luna",
+      "available": true,
+      "capabilities": [
+       "reasoning",
+       "image"
+      ],
+      "contextTokens": 272000,
+      "inUse": "fallback"
+     }
+    ]
+   }
+  ]
+ },
+ "findings": [
+  "auth/state « unknown » pour les 3 fournisseurs alors que models.authStatus, lu une minute plus tard, donne openai ok, google et copilot static : la projection n'est pas jugée fraîche (updatedAt 09:54:45Z, soit ~52 min avant la lecture).",
+  "Terra absente (hors main.modelPolicy.allow).",
+  "5,6 s pour une lecture servie depuis une projection."
+ ]
+}
