@@ -14,6 +14,7 @@ import uuid
 
 from context_memory import ACTIVE, COLUMNS, TELEMETRY, event, excerpt, normalized
 from context_digest import close_supersessions, bridge_digest
+from context_curator import apply_actions
 from context_native_metrics import read_native_metrics
 
 HERE = Path(__file__).resolve().parent
@@ -66,6 +67,12 @@ def main():
         try:
             head = conn.execute("SELECT COALESCE(MAX(revision),0) FROM events").fetchone()[0]
             rows = [event(r) for r in conn.execute(f"SELECT {COLUMNS} FROM events e WHERE revision>? AND revision<=? ORDER BY revision LIMIT ?", (after, head, limit))]
+            fact_cursor = conn.execute("SELECT value FROM memory_meta WHERE key='curator_facts_revision_v1'").fetchone()
+            fact_after = int(fact_cursor[0]) if fact_cursor else 0
+            fact_rows = [event(r) for r in conn.execute(f"SELECT {COLUMNS} FROM events e WHERE revision>? AND revision<=? ORDER BY revision LIMIT ?", (fact_after, head, limit))]
+            curator_actions = apply_actions(conn, fact_rows, run_id, started)
+            fact_last = fact_rows[-1]["revision"] if fact_rows else fact_after
+            conn.execute("INSERT OR REPLACE INTO memory_meta(key,value) VALUES('curator_facts_revision_v1',?)", (str(fact_last),))
             proposals = []; invalid = []; improvement_events = 0
 
             def propose(action, ids, payload):
@@ -130,6 +137,11 @@ def main():
             status = {"runId": run_id, "mode": "shadow", "fromRevision": after, "toRevision": head,
                       "lastProcessedRevision": last, "morePending": last < head,
                       "eventsScanned": len(rows), "newProposals": len(proposals),
+                      "factActions": curator_actions["counts"],
+                      "invalidFactEvents": curator_actions["invalid"],
+                      "invalidFactEventCount": curator_actions["invalidCount"],
+                      "factsLastProcessedRevision": fact_last,
+                      "factsMorePending": fact_last < head,
                       "supersessionsApplied": supersessions_applied, "nativeDigest": native_digest,
                       "nativeElementsLinked": native_digest.get("elementsLinked"),
                       "deepPromotions7d": None, "memoryRecallCount": None,
