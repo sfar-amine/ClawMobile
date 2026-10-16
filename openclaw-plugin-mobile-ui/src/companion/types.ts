@@ -39,6 +39,8 @@ export type RunCreateRequest = {
   attachments?: IntentAttachment[];
   /** Édition d'un message envoyé : rejoue depuis ce run dans une nouvelle conversation (voir runs.ts prepareReplay). */
   replayOf?: { sessionId?: string; runId?: string };
+  /** Owner-signed fact read by the Android app for deterministic date/time answers. */
+  phoneDateTime?: unknown;
   source?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 };
@@ -90,6 +92,8 @@ export type IntentSubmitResponse = {
   /** Stable public machine class copied from the deterministic runner receipt. */
   reasonClass?: string;
   decision?: import("./receiptPresentation").PublicDecision;
+  /** Language of this request/turn, independent from Android uiLocale. */
+  responseLanguage?: import("./receiptPresentation").ResponseLanguage;
   presentation?: import("./receiptPresentation").ReceiptPresentation;
   understood?: import("./receiptPresentation").ReceiptPresentation["understood"];
   alternatives?: import("./receiptPresentation").ReceiptPresentation["alternatives"];
@@ -142,7 +146,7 @@ export type CompanionRunStatus = {
   sessionKey?: string;
   state: "running" | "done" | "failed" | "unknown";
   status?: string;
-  memoTranscription?: {phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number};
+  memoTranscription?: {phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number; retryAllowed?: boolean};
   message: string;
   result?: string;
   /** F4: structured projection of `result` (summary list only); `result` stays the raw fallback. */

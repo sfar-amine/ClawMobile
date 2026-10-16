@@ -30,7 +30,7 @@ assert.equal(hook({toolName:'android_health',params:{}},{}),undefined);checks++;
 const live={request:'lecture'};const snap=hook({toolName:'clawmobile_capability',params:live},{requester:{senderIsOwner:false}});
 live.request='changed';assert.equal(snap.params.request,'lecture');checks++;
 
-// Runtime registration: one before_tool_call that keeps providerFallback bookkeeping and applies E3.
+// Runtime registration: one before_tool_call applies E3 directly.
 const hooks=[];require('../dist/index.js').register({on(name,fn){hooks.push([name,fn]);},registerTool(){},logger:{}});
 const before=hooks.filter(x=>x[0]==='before_tool_call');assert.equal(before.length,1);checks++;
 const out=before[0][1]({toolName:'clawmobile_capability',params:{request:'mon solde orange',caller:'owner'}},{requester:{senderIsOwner:false},sessionKey:'agent:main:whatsapp:direct:x'});
