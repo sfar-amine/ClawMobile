@@ -1,7 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/python3
 from __future__ import annotations
-import argparse,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile,fcntl
+import argparse,contextlib,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile,fcntl
 from pathlib import Path
+import runtime_mode
 
 HOME=Path.home()
 TIER0=HOME/'.openclaw/tier0'
@@ -119,6 +120,9 @@ def cmd_package(a):
     verify_release(dest); print(release_id)
 
 def cmd_promote(a):
+    mode=runtime_mode.current_mode()
+    if mode=='emergency_stop': raise SystemExit('emergency_stop_active')
+    if mode=='unknown': raise SystemExit('canonical_mode_unknown')
     target=RELEASES/a.release_id; meta=verify_release(target)
     old=CURRENT.resolve() if CURRENT.exists() else None
     s=load_state()
@@ -159,7 +163,7 @@ def cmd_root(a):
     if not CURRENT.exists(): raise SystemExit('no_active_release')
     print(CURRENT.resolve()/'termux-lite')
 
-def prune_plan(keep=10):
+def prune_plan(keep=5):
     """Only releases owned by tier0; never follow an arbitrary symlink."""
     if not 1 <= keep <= 100:
         raise ValueError('invalid_release_retention')
@@ -211,9 +215,11 @@ def main():
     q=sp.add_parser('rollback'); q.add_argument('--reason',default='manual')
     q=sp.add_parser('stop'); q.add_argument('--reason',default='manual')
     sp.add_parser('resume'); sp.add_parser('status'); sp.add_parser('root')
-    q=sp.add_parser('prune'); q.add_argument('--keep',type=int,default=10); q.add_argument('--apply',action='store_true')
+    q=sp.add_parser('prune'); q.add_argument('--keep',type=int,default=5); q.add_argument('--apply',action='store_true')
     a=p.parse_args(); RELEASES.mkdir(parents=True,exist_ok=True); TIER0.mkdir(parents=True,exist_ok=True)
-    with open(TIER0/'control.lock','a') as lock:
-        fcntl.flock(lock,fcntl.LOCK_EX)
-        return globals()['cmd_'+a.cmd.replace('-','_')](a)
+    guard=runtime_mode.deployment_guard() if a.cmd=='promote' else contextlib.nullcontext()
+    with guard:
+        with open(TIER0/'control.lock','a') as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            return globals()['cmd_'+a.cmd.replace('-','_')](a)
 if __name__=='__main__': main()

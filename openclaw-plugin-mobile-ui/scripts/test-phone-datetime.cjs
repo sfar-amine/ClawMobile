@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict');
+const {phoneDateTimeQuery,readPhoneDateTimeFact,phoneDateTimeText,phoneDateTimeDecision}=require('../dist/companion/phoneDateTime');
+const {VoiceUnderstandingState,clawLiveDecision,clawLiveCapability}=require('../dist/companion/clawLiveUnderstanding');
+let n=0;const test=(name,fn)=>{fn();n++;process.stdout.write(`ok ${n} - ${name}\n`)};
+const fact={version:1,epochMs:Date.UTC(2026,9,13,16,42),zoneId:'Africa/Tunis'};
+test('recognises narrow French, English and derja questions',()=>{assert.deepEqual(phoneDateTimeQuery("Quelle heure est-il ?"),{kind:'time',language:'fr'});assert.deepEqual(phoneDateTimeQuery("What day is it today?"),{kind:'day',language:'en'});assert.deepEqual(phoneDateTimeQuery("Chnowa nhar lyoum?"),{kind:'day',language:'derja'});assert.deepEqual(phoneDateTimeQuery("Ch7al fi se3a w chnowa date lyoum?"),{kind:'date_time',language:'derja'});});
+test('does not steal agenda or reminder requests',()=>{for(const q of ["Ajoute demain à mon agenda","Rappelle-moi mardi à 8 heures","Show today's calendar","paie la facture le 13 octobre"])assert.equal(phoneDateTimeQuery(q),null,q);});
+test('accepts only the closed phone fact',()=>{assert.deepEqual(readPhoneDateTimeFact(fact),fact);for(const bad of [{...fact,extra:true},{...fact,zoneId:'Mars/Olympus'},{...fact,epochMs:1},{version:'1',epochMs:fact.epochMs,zoneId:fact.zoneId}])assert.equal(readPhoneDateTimeFact(bad),null);});
+test('formats the phone instant in its phone timezone',()=>{assert.equal(phoneDateTimeText({kind:'time',language:'fr'},fact),'Il est 17:42.');assert.equal(phoneDateTimeText({kind:'date',language:'en'},fact),'Today is Tuesday, 13 October 2026.');assert.equal(phoneDateTimeText({kind:'date_time',language:'derja'},fact),'El youm eth-thletha 13 octobre 2026, w esse3a 17:42.');});
+test('produces a deterministic model-bypassed decision and verbatim receipt',()=>{const out=phoneDateTimeDecision('Quelle heure est-il ?',fact);assert.equal(out.model_bypassed,true);assert.equal(out.source,'android_phone_clock');assert.equal(out.decision.selected.model_required,false);assert.equal(out.voice.verbatim,'Il est 17:42.');});
+(async()=>{
+ const owner={understanding:new VoiceUnderstandingState(),sessionLocale:()=>"fr",executeVoiceCapability:(_meta,_request,run)=>run()};let resolves=0,executes=0;
+ const decision=await clawLiveDecision(owner,'Quelle heure est-il ?',async()=>{resolves++;return{}},fact);
+ assert.equal(decision.voiceFastPath.execute,true);assert.equal(resolves,0);n++;process.stdout.write(`ok ${n} - voice decision never calls the resolver\n`);
+ const receipt=await clawLiveCapability(owner,{request:'Quelle heure est-il ?',phoneDateTime:fact},async()=>{executes++;return{}});
+ assert.equal(receipt.voice.verbatim,'Il est 17:42.');assert.equal(executes,0);n++;process.stdout.write(`ok ${n} - voice execution reads the phone receipt without capability or model\n`);
+ const unavailable=await clawLiveDecision(owner,'What time is it?',async()=>{resolves++;return{}},undefined);
+ assert.equal(unavailable.source,'android_phone_clock_unavailable');assert.equal(unavailable.model_bypassed,true);assert.equal(resolves,0);n++;process.stdout.write(`ok ${n} - missing phone fact fails closed without resolver\n`);
+ process.stdout.write(`1..${n}\n`);
+})().catch(error=>{console.error(error);process.exitCode=1});
