@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
+ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
 D="$HOME/.openclaw/incidents"; Q="$D/queue"; LOG="$D/events.log"
 component="${1:-}"; message="${2:-Samantha — récupération vérifiée.}"
 learning_file="${CLAW_LEARNING_FILE:-}"
