@@ -4,7 +4,7 @@ cd "$HOME" || exit 70
 MAX_DIAG_FAILURES="${INCIDENT_MAX_DIAG_FAILURES:-2}"
 # Intervalles injectables pour les tests (valeurs de production par défaut inchangées).
 POLL_S="${INCIDENT_WORKER_POLL_S:-5}"; OBSERVE_S="${INCIDENT_WORKER_OBSERVE_S:-2}"; DIAG_BACKOFF_S="${INCIDENT_WORKER_DIAG_BACKOFF_S:-15}"
-ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"; DB="$HOME/.openclaw/incidents/orchestrator.db"; LOG="$HOME/.openclaw/incidents/orchestrator-worker.log"
+ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"; DB="$HOME/.openclaw/incidents/orchestrator.db"; LOG="$HOME/.openclaw/incidents/orchestrator-worker.log"
 mkdir -p "$(dirname "$LOG")"; exec 9>"$HOME/.openclaw/incidents/orchestrator-worker.lock"; flock -n 9 || exit 0
 CORRELATION_ID=""
 log(){ printf '%s component=incident-orchestrator correlation_id=%s %s\n' "$(date -Iseconds)" "${CORRELATION_ID:-none}" "$*" >>"$LOG"; }

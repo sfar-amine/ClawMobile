@@ -54,12 +54,14 @@ if [ "$mode" = check ]; then
     case "$out" in *'"planned"'*) drift+=(rules:operating);; esac
   fi
   dispatch_contract || drift+=(openclaw:before_dispatch_missing)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --check >/dev/null 2>&1 || drift+=(openclaw:whatsapp_network_recovery)
   list=$(printf '"%s",' "${drift[@]}"); list="[${list%,}]"; [ "${#drift[@]}" -eq 0 ] && list='[]'
   printf '{"ok":%s,"commit":"%s","drift":%s}\n' "$([ "${#drift[@]}" -eq 0 ] && echo true || echo false)" "$commit" "$list"
   [ "${#drift[@]}" -eq 0 ]; exit $?
 fi
 
 dispatch_contract || fail openclaw_before_dispatch_missing
+wa_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --apply) || fail whatsapp_network_recovery_refused
 
 # 1. Gateway plugin. Forced: after a rollback the restored dist is older than the install stamp.
 if ! same_plugin; then
@@ -71,7 +73,7 @@ fi
 # 2. The Gateway loads its plugin at start only: restart it gracefully when the plugin changed, then wait for it.
 # Before the Tier0 promotion: a restart inside the soak window reads as a health regression (S24 12/10, 17:31 —
 # release 5631a6aa rolled back to the 11/10 release after one bad sample).
-if [ "$plugin" = synced ]; then
+if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]]; then
   curl -fsS -m 240 -X POST "$COMPANION/v1/runtime/restart" >/dev/null 2>&1 || fail gateway_restart_failed
   ready=0
   for _ in $(seq 1 30); do
