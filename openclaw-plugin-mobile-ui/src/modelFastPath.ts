@@ -69,7 +69,6 @@ function helperCandidates(home = os.homedir()): string[] {
   return [
     process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER || "",
     path.join(home, ".openclaw/releases/current/termux-lite/model-fast-path.py"),
-    path.join(home, "ClawMobile/installer/termux-lite/model-fast-path.py"),
   ].filter(Boolean);
 }
 
