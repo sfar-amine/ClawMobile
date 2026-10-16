@@ -101,7 +101,8 @@ def cmd_package(a):
     if dest.exists(): raise SystemExit('release_exists')
     tmp=RELEASES/(release_id+'.tmp'); shutil.rmtree(tmp,ignore_errors=True); tmp.mkdir(parents=True)
     shutil.copytree(source,tmp/'termux-lite',dirs_exist_ok=True,symlinks=True)
-    critical_capabilities=a.critical_capability or ['immune.root_guardian','immune.health_manager','immune.incident_orchestrator']
+    # Doc 51 I3: the soak also watches what users depend on, not only the immune processes.
+    critical_capabilities=a.critical_capability or ['immune.root_guardian','immune.health_manager','immune.incident_orchestrator','gateway','companion','transactions.runtime']
     startup_grace_seconds=int(a.startup_grace_seconds)
     if 'remote_desktop' in critical_capabilities:
         startup_grace_seconds=max(startup_grace_seconds,210)
@@ -120,10 +121,11 @@ def cmd_package(a):
 def cmd_promote(a):
     target=RELEASES/a.release_id; meta=verify_release(target)
     old=CURRENT.resolve() if CURRENT.exists() else None
-    if old and old!=target.resolve(): link_atomic(LKG,old)
-    link_atomic(CURRENT,target)
     s=load_state()
-    for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad'):
+    # A release still in its LKG hold never becomes the rollback target; the confirmed LKG stays.
+    if old and old!=target.resolve() and not (LKG.exists() and s.get('lkg_candidate')==old.name): link_atomic(LKG,old)
+    link_atomic(CURRENT,target)
+    for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad','lkg_candidate','lkg_due_epoch'):
         s.pop(key,None)
     epoch=int(dt.datetime.now().timestamp())
     s.update({'current':a.release_id,'last_known_good':LKG.resolve().name if LKG.exists() else None,
@@ -135,7 +137,7 @@ def cmd_promote(a):
 def cmd_rollback(a):
     if not LKG.exists(): raise SystemExit('no_last_known_good')
     target=LKG.resolve(); verify_release(target); link_atomic(CURRENT,target)
-    s=load_state(); previous=s.get('current'); s.update({'current':target.name,'rolled_back_from':previous,'rollback_reason':a.reason,'soak_state':'rolled_back'})
+    s=load_state(); previous=s.get('current'); s.pop('lkg_candidate',None); s.pop('lkg_due_epoch',None); s.update({'current':target.name,'rolled_back_from':previous,'rollback_reason':a.reason,'soak_state':'rolled_back'})
     save_state(s); print(target.name)
 
 def cmd_stop(a):

@@ -9,7 +9,7 @@ const adapterModule=require("../dist/companion/maxitTopupLivePaymentAdapter.js")
 const {createMaxitTopupLivePaymentAdapter,MAXIT_PROVIDER_BUDGET_MS,MAXIT_QUOTE_RUN_TIMEOUT_MS,MAXIT_START_RUN_TIMEOUT_MS,MAXIT_RESUME_RUN_TIMEOUT_MS}=adapterModule;
 
 const reference="topup-"+"a".repeat(32)+"-"+"b".repeat(32)+"-5000";
-const quote={payee:"Orange Maxit ••••1234",reference,amountMinor:5000,currency:"TND",decimals:3};
+const quote={payee:"Orange Maxit ••••1234",reference,amountMinor:5000,currency:"TND",decimals:3,feeMinor:700,totalMinor:5700,feeLabel:"Frais Maxit"};
 
 test("budgets are nested from the Python provider up to the route",()=>{
   assert.equal(MAXIT_PROVIDER_BUDGET_MS,40000);

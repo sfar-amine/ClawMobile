@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "id": "wifi-guard-restorer-20261011",
+  "date": "2026-10-11",
+  "origin": "chat",
+  "kind": "incident_fix",
+  "summary": "Garde Wi-Fi coupé auto-réparant : bail borné (TTL), restaurateur détaché par bail, refus des gardes concurrents, aucune bascule quand le cellulaire est déjà le réseau par défaut, balayage Health Manager et avertissement Wi-Fi coupé sans bail.",
+  "scope": {
+    "files": [
+      "installer/termux-lite/android-network-mutation-guard.py",
+      "installer/termux-lite/samantha-health-manager.sh",
+      "installer/termux-lite/health-verdict.py",
+      "installer/termux-lite/test-android-network-mutation-guard.py",
+      "installer/termux-lite/test-health-verdict.py",
+      "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/android/",
+      ".github/workflows/ci.yml",
+      "docs/network-mutation-safety.md"
+    ]
+  },
+  "payment_sequence": "unchanged",
+  "capability_impact": {
+    "changed": false,
+    "ids": ["device.network_safety"],
+    "detail": "Aucune nouvelle capability ni route ; avertissement non critique device.network_safety.wifi_unmanaged dans le verdict santé existant."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "reason": "Le Network Mutation Guard reste seul propriétaire ; même répertoire de baux, même guard.lock, même reçu ; restaurateur éphémère par bail, aucun démon, store ni scheduler."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert du commit ; déploiement par companion-deploy.sh."
+}

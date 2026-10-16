@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "id": "codex-hs3-initial-failure-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "HS3 : projeter la première cause publique et les dates factuelles du handoff",
+  "reason": "Passation46 : capture184 distingue execution_error initial et état aval, et atteste run done avant création paiement. Projection publique uniquement, aucune mutation du parcours paiement.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-hs3-initial-failure-20261011.json",
+    "docs/changes/codex-hs3-initial-failure-20261011.md",
+    "docs/work/samantha-runtime/contracts/hs3-initial-failure-20261011.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs3/initial-failure-fast-path.json",
+    "openclaw-plugin-mobile-ui/scripts/test-hs3-initial-failure.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-payment-presentation.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runPaymentPresentation.ts"
+  ],
+  "tests": [
+    {
+      "name": "HS3 capture184 et projection HTTP immutable",
+      "status": "passed",
+      "evidence": "npm ci puis build Node20 vert ; log hs3-46-targeted-r5 : capture184 HTTP immuable + présentation176 (2 chaînes, maxReadMs30) + voix20/20. Échecs r1-r4 conservés, corrections de types et forme de fixture explicitement documentées."
+    },
+    {
+      "name": "HS3 shared F6 and R20 union targeted",
+      "status": "passed",
+      "evidence": "Node20 build + initial-failure184/public HTTP + presentation176 maxReadMs21 + strict process cleanup9/9 exit0 /workspace/artifacts/b42/hs3-46-r20-union-targeted.log. F6 targeted exit0 17abandons sweep467ms overflowunknown /workspace/artifacts/b42/hs3-46-f6-targeted.log. Portable corrections dc5cc696/a947eefa reviewed by root; projection owner/payment logic unchanged."
+    },
+    {
+      "name": "Fresh base core191 captured Maxit quote shape",
+      "status": "passed",
+      "evidence": "Normal merge runtimef5d8a6d7b327d3a3769b9b04bf97174084ea6e6c, Node20 build + real cleaned quote3/3 in each worktree, hs8-hs3-base191-targeted.log exit0. HS3 initial-failure HTTP and presentation176 also pass (maxReadMs19). Only captured fixture/new CI test imported; no payment owner modified or provider live called."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/hs3-initial-failure-20261011.md",
+    "docs/changes/codex-hs3-initial-failure-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Extension de projection des runs existants, aucune route/action/capability nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Projecteur en lecture seule des propriétaires runs/confirmations/paymentRequests existants ; aucune persistence ou exécution supplémentaire."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Retirer les nouveaux champs optionnels de projection, sans migration ni état runtime à restaurer.",
+  "limitations": [
+    "updatedAt est la date de dernière mise à jour, pas une date de completion ; false ne prouve aucune chronologie de fin.",
+    "Premier code inconnu omis sans remplacement par un échec ultérieur ; aucun stack/message/trace privée projeté.",
+    "Code initial et état done ne prouvent ni débit ni non-débit, effet reste unknown.",
+    "Aucun fichier propriétaire du paiement modifié ; capture réelle nettoyée et conversions de dates explicitement déclarées.",
+    "Aucune fusion, activation ou déploiement par Codex ; suite entière finale obligatoire avant readiness.",
+    "Whole local CI at final SHA remains pending; targeted results do not claim full readiness.",
+    "Runtime base refreshed by normal merge of core191f5d8a6d7; full CI at the new frozen SHA is still pending, prior whole results are not reused."
+  ]
+}
