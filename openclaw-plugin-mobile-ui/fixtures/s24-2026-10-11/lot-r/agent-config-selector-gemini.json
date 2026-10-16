@@ -1,0 +1,140 @@
+{
+ "_capture": {
+  "route": "GET http://127.0.0.1:8765/v1/agent/config",
+  "status": 200,
+  "capturedAt": "2026-10-11T10:48:46Z",
+  "host": "Samsung S24 / Termux",
+  "runtimeCore": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+  "sanitized": true,
+  "note": "Réponse du sélecteur (lecture froide). Les comptes ne sortent que sous forme de handles opaques acct-… servis tels quels par la route."
+ },
+ "response": {
+  "success": true,
+  "state": "ok",
+  "schemaVersion": 1,
+  "revision": "hmac-sha256:v1:AYGSIxtSBLq6VLNAXhCpmwzHC2TLka5uRv7zhym5AI0",
+  "agentId": "main",
+  "model": "openai/gpt-5.6-sol@acct-22477f3dabfb",
+  "provider": "openai",
+  "fallbacks": [
+   "openai/gpt-5.6-terra",
+   "openai/gpt-5.6-luna",
+   "google/gemini-3.5-flash-lite@acct-bd186a666d02"
+  ],
+  "accounts": [
+   {
+    "id": "acct-22477f3dabfb",
+    "provider": "openai",
+    "label": "openai · compte connecté"
+   },
+   {
+    "id": "acct-bd186a666d02",
+    "provider": "google",
+    "label": "google · compte connecté"
+   }
+  ],
+  "tools": {
+   "global": {
+    "profile": "full",
+    "allow": null,
+    "deny": null
+   },
+   "agent": {
+    "profile": null,
+    "allow": null,
+    "deny": null
+   },
+   "effective": null,
+   "reason": "effective_tool_catalog_unavailable"
+  },
+  "thinking": "low",
+  "thinkingLevels": [
+   "off",
+   "minimal",
+   "low",
+   "medium",
+   "high",
+   "xhigh",
+   "adaptive",
+   "max",
+   "ultra"
+  ],
+  "models": [
+   {
+    "id": "gemini-3.5-flash-lite",
+    "provider": "google",
+    "reasoning": true,
+    "thinkingLevels": [
+     "off",
+     "minimal",
+     "low",
+     "medium",
+     "adaptive",
+     "high"
+    ],
+    "thinkingDefault": "low",
+    "thinkingSource": "model_catalog"
+   },
+   {
+    "id": "gpt-5.6-sol",
+    "provider": "openai",
+    "reasoning": true,
+    "thinkingLevels": [
+     "minimal",
+     "low",
+     "medium",
+     "high",
+     "xhigh",
+     "max",
+     "ultra"
+    ],
+    "thinkingDefault": "low",
+    "thinkingSource": "model_catalog"
+   },
+   {
+    "id": "gpt-5.6-luna",
+    "provider": "openai",
+    "reasoning": true,
+    "thinkingLevels": [
+     "minimal",
+     "low",
+     "medium",
+     "high",
+     "xhigh",
+     "max",
+     "ultra"
+    ],
+    "thinkingDefault": "low",
+    "thinkingSource": "model_catalog"
+   }
+  ],
+  "writeAvailable": true,
+  "issues": [],
+  "usage": null
+ },
+ "geminiForms": [
+  {
+   "form": "google/gemini-3.5-flash-lite",
+   "where": [
+    "response.models[] (catalogue, choix du sélecteur)",
+    "main.modelPolicy.allow",
+    "agents.entries.gemini.modelPolicy.allow"
+   ],
+   "profileBound": false
+  },
+  {
+   "form": "google/gemini-3.5-flash-lite@acct-bd186a666d02",
+   "configForm": "google/gemini-3.5-flash-lite@google:claw-gemini-free",
+   "where": [
+    "response.fallbacks[2]",
+    "agents.entries.main.model.fallbacks[2]",
+    "agents.entries.gemini.model.primary (config)"
+   ],
+   "profileBound": true
+  }
+ ],
+ "findings": [
+  "Terra figure dans fallbacks mais pas dans models[] : le sélecteur l'affiche comme repli existant sans pouvoir la proposer (agentConfig.ts filtre sur main.modelPolicy.allow).",
+  "Le sélecteur voit Gemini deux fois : une forme catalogue sans compte et une forme liée au profil gratuit."
+ ]
+}

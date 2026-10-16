@@ -1,0 +1,238 @@
+{
+ "_capture": {
+  "host": "Samsung S24 / Termux",
+  "gateway": "OpenClaw 2026.9.6 (eb377ac)",
+  "runtimeCore": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+  "playbooksPinned": "c7f3e7939591a6637149d7f026761de11e9ace20",
+  "sanitized": true,
+  "method": "config.get",
+  "params": {},
+  "latencyMs": 4184,
+  "exit": "rc=0",
+  "capturedAt": "2026-10-11T10:47:48Z",
+  "note": "Projection des seuls chemins demandés (lot R). Lue via `openclaw gateway call config.get --json`. `config` et `runtimeConfig` sont identiques sur ces chemins ; `resolved` ne diffère que par compaction.mode/maxConcurrent/subagents (défauts) et google.baseUrl/models vides. Profil OAuth OpenAI remplacé par owner@example.invalid ; instructions realtime réduites à leur longueur ; clé Google réduite à sa présence.",
+  "configHash": "hmac-sha256:v1:AYGSIxtSBLq6VLNAXhCpmwzHC2TLka5uRv7zhym5AI0",
+  "fileSha256": "38b563d89b0180d5e1a4655b638139576cded5a01b5e054071d086739d37d5e7",
+  "valid": true,
+  "issues": 0,
+  "warnings": 0,
+  "legacyIssues": 0
+ },
+ "agents.ownership": "explicit",
+ "agents.defaults": {
+  "model": {
+   "primary": "openai/gpt-5.6-sol",
+   "fallbacks": [
+    "openai/gpt-5.6-terra",
+    "openai/gpt-5.6-luna"
+   ]
+  },
+  "modelPolicy": {
+   "allow": [
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-terra",
+    "openai/gpt-5.6-luna"
+   ]
+  },
+  "models": {
+   "openai/gpt-5.6-luna": {
+    "agentRuntime": {
+     "id": "openclaw"
+    }
+   },
+   "openai/gpt-5.6-sol": {
+    "agentRuntime": {
+     "id": "openclaw"
+    }
+   },
+   "openai/gpt-5.6-terra": {
+    "agentRuntime": {
+     "id": "openclaw"
+    }
+   }
+  },
+  "thinkingDefault": "low",
+  "fastModeDefault": true,
+  "contextInjection": "continuation-skip",
+  "compaction": {
+   "model": "openai/gpt-5.6-luna",
+   "mode": "safeguard",
+   "keepRecentTokens": 40000,
+   "recentTurnsPreserve": 8,
+   "maxActiveTranscriptBytes": 1600000,
+   "memoryFlush": {
+    "enabled": true,
+    "softThresholdTokens": 120000,
+    "forceFlushTranscriptBytes": 1300000
+   },
+   "qualityGuard": {
+    "enabled": true,
+    "maxRetries": 2
+   }
+  },
+  "systemAgent": {
+   "agentId": "main"
+  },
+  "heartbeat": {
+   "agentId": "main"
+  }
+ },
+ "agents.entries.main": {
+  "model": {
+   "primary": "openai/gpt-5.6-sol@openai:owner@example.invalid",
+   "fallbacks": [
+    "openai/gpt-5.6-terra",
+    "openai/gpt-5.6-luna",
+    "google/gemini-3.5-flash-lite@google:claw-gemini-free"
+   ]
+  },
+  "modelPolicy": {
+   "allow": [
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-luna",
+    "google/gemini-3.5-flash-lite",
+    "github-copilot/*"
+   ]
+  },
+  "models": {
+   "openai/gpt-5.6-sol": {
+    "agentRuntime": {
+     "id": "openclaw"
+    }
+   },
+   "openai/gpt-5.6-terra": {
+    "agentRuntime": {
+     "id": "openclaw"
+    }
+   },
+   "openai/gpt-5.6-luna": {
+    "agentRuntime": {
+     "id": "openclaw"
+    }
+   }
+  },
+  "thinkingDefault": "low",
+  "fastModeDefault": true,
+  "contextInjection": "continuation-skip"
+ },
+ "agents.entries.engineering-lite": {
+  "model": {
+   "primary": "openai/gpt-5.6-sol",
+   "fallbacks": [
+    "openai/gpt-5.6-terra",
+    "openai/gpt-5.6-luna"
+   ]
+  },
+  "modelPolicy": {
+   "allow": [
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-luna"
+   ]
+  },
+  "models": {
+   "openai/gpt-5.6-luna": {
+    "agentRuntime": {
+     "id": "openclaw"
+    }
+   },
+   "openai/gpt-5.6-sol": {
+    "agentRuntime": {
+     "id": "openclaw"
+    }
+   },
+   "openai/gpt-5.6-terra": {
+    "agentRuntime": {
+     "id": "openclaw"
+    }
+   }
+  },
+  "thinkingDefault": "low",
+  "fastModeDefault": true,
+  "contextInjection": "never",
+  "tools": {
+   "allow": []
+  }
+ },
+ "agents.entries.gemini": {
+  "model": {
+   "primary": "google/gemini-3.5-flash-lite@google:claw-gemini-free",
+   "fallbacks": []
+  },
+  "modelPolicy": {
+   "allow": [
+    "google/gemini-3.5-flash-lite"
+   ]
+  },
+  "models": {
+   "google/gemini-3.5-flash-lite": {
+    "agentRuntime": {
+     "id": "openclaw"
+    }
+   }
+  },
+  "thinkingDefault": "low",
+  "fastModeDefault": true,
+  "contextInjection": "never",
+  "tools": {
+   "allow": [
+    "clawmobile_capability"
+   ]
+  }
+ },
+ "talk": {
+  "agentId": "main",
+  "provider": "microsoft",
+  "consultFastMode": true,
+  "consultThinkingLevel": "low",
+  "providers": {
+   "microsoft": {
+    "lang": "fr-FR",
+    "languageCode": "fr-FR",
+    "voice": "fr-FR-DeniseNeural",
+    "voiceId": "fr-FR-DeniseNeural"
+   }
+  }
+ },
+ "talk.realtime": {
+  "provider": "google",
+  "model": null,
+  "speakerVoice": "Aoede",
+  "mode": "realtime",
+  "transport": "gateway-relay",
+  "instructions": "<texte:224 car.>"
+ },
+ "memory.search": {
+  "enabled": true,
+  "provider": "gemini",
+  "model": null,
+  "configPath": "memory.search (openclaw.json racine)"
+ },
+ "models.mode": "merge",
+ "models.providers.google": {
+  "apiKey": {
+   "present": true,
+   "source": "store"
+  },
+  "baseUrl": {
+   "present": false
+  },
+  "models": []
+ },
+ "auth.profiles": {
+  "google:claw-gemini-free": {
+   "provider": "google",
+   "mode": "api_key"
+  },
+  "openai:owner@example.invalid": {
+   "provider": "openai",
+   "mode": "oauth"
+  }
+ },
+ "findings": [
+  "Terra est dans agents.defaults.modelPolicy.allow, mais PAS dans agents.entries.main.modelPolicy.allow ni dans engineering-lite. Or main la place en 1er repli et le sélecteur (agentConfig.ts) filtre sur main.modelPolicy.allow : Terra n'est donc ni proposé ni listé (absent de models.list et de /v1/providers).",
+  "talk.realtime ne fixe pas de modèle : seul le fournisseur google et la voix Aoede sont configurés (modèle = défaut du fournisseur).",
+  "memory.search ne fixe pas de modèle : provider gemini, source openclaw.json > memory.search.",
+  "Voix lue : talk.provider=microsoft, voix fr-FR-DeniseNeural (seul fournisseur déclaré sous talk.providers).",
+  "Résumé : agents.defaults.compaction.model = openai/gpt-5.6-luna."
+ ]
+}

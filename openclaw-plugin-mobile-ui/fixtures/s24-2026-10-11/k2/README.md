@@ -1,0 +1,5 @@
+# K2 — sources d’accès et primitives de livraison (avant implémentation)
+
+Copie byte-identique de https://github.com/sfar-amine/samantha-core/pull/184 au SHA `07be0bbb28a1947aacf97a8fa6222b4545bf594c`, fichier original `openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/codex-captures-2/k2/access-change-owner-delivery.json`. SHA-256 `cadf6096d77a0e9299d9d0a30affaf5337593d5e3152c90f009904fc5a9e35b5`. Capture readonly du 11/10 à 13:06 UTC, runtime 5631fe9d, playbooks 2ffc0e84 ; PR184 ouverte, aucune fusion présumée.
+
+La capture atteste le propriétaire de mutation R17 et des primitives de notification existantes. Elle confirme **l’absence de livraison propriétaire K2** et ne certifie aucun nouveau message. Le reçu R17 déduplique une mutation par operationId, pas le message propriétaire ; la file d’incidents déduplique par texte et peut renvoyer une entrée notified. Le canal, le reçu corrélé au changement et la reprise après timeout sont encore à définir chez le propriétaire existant. Aucun envoi live ni modification d’accès par Codex.
