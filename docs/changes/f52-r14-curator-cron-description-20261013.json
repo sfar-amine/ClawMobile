@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "id": "f52-r14-curator-cron-description-20261013",
+  "date": "2026-10-13",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "R14 corrige uniquement la description périmée du cron curateur : 22:10 Tunis, dreaming natif désactivé, mode shadow conservé jusqu'à M5 non régressif.",
+  "scope": {
+    "files": [
+      "installer/termux-lite/reconcile-memory-curator-cron.py",
+      "installer/termux-lite/test-memory-curator-cron.py",
+      "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-13/r14/memory-curator-cron.json"
+    ]
+  },
+  "payment_sequence": "unchanged",
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "NO_CAPABILITY : maintenance de métadonnée du scheduler existant, sans route agent, voix ou app."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "reason": "Réutilise le cron OpenClaw existant et son declarationKey ; aucun store, scheduler, démon, registre ou routeur ajouté."
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Réappliquer l'ancienne description au même job ; aucun état mémoire n'est migré."
+}

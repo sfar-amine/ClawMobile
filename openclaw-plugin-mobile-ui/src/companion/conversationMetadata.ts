@@ -64,11 +64,17 @@ function modelCatalogFrom({raw:configRaw,catalog,auth}:any){
 }
 /** Same window as R21 providers: a successful owner snapshot stays usable 5 min while the shared refresh runs. */
 const CATALOG_SERVE_MS=300000;
+export type ConversationAvailabilityCause={code:'conversation_gateway_session_unavailable';messages:{fr:string;en:string}};
+export function conversationAvailabilityCause(code:unknown):ConversationAvailabilityCause|undefined{
+ if(code!=='conversation_gateway_session_unavailable')return undefined;
+ return {code,messages:{fr:'Cette conversation reste consultable, mais sa session Gateway n’est plus disponible. Elle est en lecture seule.',en:'This conversation remains readable, but its Gateway session is no longer available. It is read-only.'}};
+}
 /** A conversation the Companion still lists but the Gateway no longer knows: readable, never mutable. */
 function retainedOnly(id:string,retained:{lastActivityAt:number|null}){
+ const cause=conversationAvailabilityCause('conversation_gateway_session_unavailable')!;
  return {success:true,state:'degraded',receipt:null,sessionId:id,readOnly:true,thinkingLevel:null,thinkingLevelSource:null,thinkingLevels:[],hasActiveRun:null,
   thinkingChangeAvailable:false,context:null,title:null,pinned:null,model:null,modelAuthProfile:null,modelAccount:null,modelSource:null,mutationAvailable:false,
-  models:[],modelChangeAvailable:false,lastActivityAt:retained.lastActivityAt,issues:['conversation_gateway_session_unavailable']};
+  models:[],modelChangeAvailable:false,lastActivityAt:retained.lastActivityAt,cause,issues:[cause.code]};
 }
 /** App-facing projection: account profiles only as opaque `acct-…` handles. */
 function publicMetadata(value:any){

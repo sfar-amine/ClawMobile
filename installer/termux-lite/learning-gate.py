@@ -290,7 +290,7 @@ def main():
     parser=argparse.ArgumentParser()
     subs=parser.add_subparsers(dest="cmd",required=True)
     close_p=subs.add_parser("close")
-    close_p.add_argument("--source",required=True,choices=["incident","legacy_incident","engineering","manual"])
+    close_p.add_argument("--source",required=True,choices=["incident","legacy_incident","engineering","manual","game_day"])
     close_p.add_argument("--closure-id",required=True)
     close_p.add_argument("--component",required=True)
     close_p.add_argument("--status",required=True)

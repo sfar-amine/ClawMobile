@@ -1,0 +1,86 @@
+{
+  "capturedAt": "2026-10-15T14:39:18.477793+00:00",
+  "scope": "isolated-cloud-owner-engineering",
+  "sourceHead": "a99085e5baa248a46a88e011bb95fef70f6ab7ee",
+  "adapterSha256": "e9ca8cd1f02155858bca28f75546e7525fca9af9d3c9e3f1f23c806b0847f1e9",
+  "hostVersion": "2026.9.6",
+  "pluginVersion": "2026.9.6",
+  "s24Access": false,
+  "appLive": false,
+  "credentialsInherited": false,
+  "logicalSearches": 1,
+  "provider": "parallel-free",
+  "providerAuth": "anonymous",
+  "fixtureExcerptMaxChars": 300,
+  "excerptShortenedForFixture": true,
+  "query": "Samsung official announcements",
+  "result": {
+    "version": 1,
+    "provider": "parallel-free",
+    "providerAuth": "anonymous",
+    "sources": [
+      {
+        "id": "s1",
+        "title": "Press Releases – Samsung Global Newsroom",
+        "url": "https://news.samsung.com/global/category/press-resources/press-release",
+        "searchRetrievedAt": "2026-10-15T14:39:18.464Z",
+        "publishedAt": null,
+        "excerpt": "* Samsung Presents ‘Design Is an Act of Love’ at Seoul Design Week 2026 October 15, 2026 Press Release\n* Samsung Hosts Silicon Valley Future Wireless Summit 2026 October 15, 2026 Press Release\n* Samsung Health Makes Sleep Coaching Easier To Start and Tailors Weekly Guidance October 14, 2026 Press Re",
+        "evidenceType": "search_excerpt",
+        "untrusted": true
+      },
+      {
+        "id": "s2",
+        "title": "Mobile – Samsung Global Newsroom",
+        "url": "https://news.samsung.com/global/category/products/mobile",
+        "searchRetrievedAt": "2026-10-15T14:39:18.464Z",
+        "publishedAt": null,
+        "excerpt": "* Samsung Expands Language Support Across AI Experiences on Galaxy October 14, 2026\n* Samsung Health Makes Sleep Coaching Easier To Start and Tailors Weekly Guidance October 14, 2026 Press Release\n* Samsung Introduces Galaxy Tab S12 Series: The Ultimate Productivity Powerhouse Built for Growth Septe",
+        "evidenceType": "search_excerpt",
+        "untrusted": true
+      },
+      {
+        "id": "s3",
+        "title": "Samsung Global Newsroom – All the latest news, key facts and inspiring stories about Samsung Electronics.",
+        "url": "https://news.samsung.com/global/",
+        "searchRetrievedAt": "2026-10-15T14:39:18.464Z",
+        "publishedAt": null,
+        "excerpt": "Samsung Art Store Debuts First-Ever Cinematic Collection for Samsung TVs Samsung Art Store1 has announced its first-ever cinematic collection, featuring 38 stills from acclaimed films produced by studio A24.\nAvailable on supported Samsung Art TVs worldwide, the collection allows subscribers to revis",
+        "evidenceType": "search_excerpt",
+        "untrusted": true
+      },
+      {
+        "id": "s4",
+        "title": "Samsung Announces New Bixby with Perplexity Integration",
+        "url": "https://sammyguru.com/samsung-announces-new-bixby-with-perplexity-integration/",
+        "searchRetrievedAt": "2026-10-15T14:39:18.464Z",
+        "publishedAt": "2026-01-20",
+        "excerpt": "Announcements\nSamsung Announces New Bixby with Perplexity Integration\nby Sumit Adhikari · January 20, 2026 · Announcements , Bixby , News , One UI\nSammyGuru is reader-supported. We have affiliate and sponsored partnerships, so we may earn a commission when you buy through links on our site, at no ex",
+        "evidenceType": "search_excerpt",
+        "untrusted": true
+      },
+      {
+        "id": "s5",
+        "title": "Samsung U.S. Newsroom | Latest News & inspiring stories about Samsung Electronics America",
+        "url": "https://samsung.com/news",
+        "searchRetrievedAt": "2026-10-15T14:39:18.464Z",
+        "publishedAt": "2015-10-08",
+        "excerpt": "Galaxy S26 Series Keeps Your Video Steady — Even If Your Hands Don’t\nJuly 10, 2026\nMobile\nWhy Foldables? Understanding the Devices Redefining the Smartphone Experience\nJuly 10, 2026\nMobile\nNeuroscape and Samsung Partner to Study Cognitive Change Across the Lifespan\nJuly 9, 2026\nDisplay\nSamsung Advan",
+        "evidenceType": "search_excerpt",
+        "untrusted": true
+      }
+    ],
+    "externalContent": {
+      "untrusted": true,
+      "source": "web_search"
+    },
+    "metrics": {
+      "searchMs": 2736,
+      "logicalSearchCalls": 1,
+      "transportPosts": null,
+      "cacheHit": false
+    },
+    "error": null,
+    "outcome": "complete"
+  }
+}

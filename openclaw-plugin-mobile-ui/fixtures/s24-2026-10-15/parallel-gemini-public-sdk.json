@@ -1,0 +1,88 @@
+{
+  "kind": "google_manifest",
+  "path": "dist/extensions/google/openclaw.plugin.json",
+  "sha256": "8fcd5d8d460b1aa6bcdee8c15b26b0d72d11afc9e3705f604190757678aa4660",
+  "catalog_shape": [
+    "api",
+    "baseUrl",
+    "models"
+  ],
+  "catalog": {
+    "api": "google-generative-ai",
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+    "models": [
+      {
+        "id": "gemini-3.5-flash-lite",
+        "name": "Gemini 3.5 Flash-Lite",
+        "reasoning": true,
+        "input": [
+          "text",
+          "image"
+        ],
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0
+        },
+        "contextWindow": 1048576,
+        "maxTokens": 65536,
+        "compat": {
+          "codeMode": "preferred"
+        }
+      }
+    ]
+  },
+  "provenance": {
+    "date": "2026-10-15",
+    "core": "344b2fd30d8e5293a0675fb6284f5d317f85a555",
+    "openclaw": "2026.9.6",
+    "action": "parallel-web-dev-20261015",
+    "step": "gemini-catalog-shape-03",
+    "method": "readonly installed SDK and bundled Google manifest; no provider request or credential output"
+  },
+  "sdk": {
+    "./plugin-sdk/llm": {
+      "export": {
+        "default": "./dist/plugin-sdk/llm.js"
+      },
+      "files": [
+        {
+          "path": "./dist/plugin-sdk/llm.js",
+          "sha256": "0b2063ab7c606a2354d8b4bfa7ebba4fa41d554943cb71a0d0b80a4b6993f443",
+          "bytes": 1139
+        }
+      ]
+    },
+    "./plugin-sdk/agent-sessions": {
+      "export": {
+        "default": "./dist/plugin-sdk/agent-sessions.js"
+      },
+      "files": [
+        {
+          "path": "./dist/plugin-sdk/agent-sessions.js",
+          "sha256": "f65e6b8ef835d62e7b4cedcc02a1fd108b00b46cc2c53ca3a09cdddbf56d534a",
+          "bytes": 1105
+        }
+      ]
+    },
+    "./plugin-sdk/agent-runtime": {
+      "export": {
+        "types": "./dist/plugin-sdk/agent-runtime.d.ts",
+        "default": "./dist/plugin-sdk/agent-runtime.js"
+      },
+      "files": [
+        {
+          "path": "./dist/plugin-sdk/agent-runtime.d.ts",
+          "sha256": "f08784e7b0edb1732e9326341afe673c3b087b1076cf98986e5184e8cb8d880e",
+          "bytes": 8058
+        },
+        {
+          "path": "./dist/plugin-sdk/agent-runtime.js",
+          "sha256": "ffbae3753650456d80ff58fa0ad393c1899442321a0cab4b04cf5d5c5ab2cf16",
+          "bytes": 5557
+        }
+      ]
+    }
+  }
+}
