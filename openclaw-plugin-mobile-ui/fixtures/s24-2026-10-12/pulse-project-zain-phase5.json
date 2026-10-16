@@ -1,0 +1,37 @@
+{
+  "provenance": {
+    "source": "S24 Pulse deterministic read captured on 2026-10-12",
+    "request": "état projet zain phase 5",
+    "owner": "billing/direct-runtime/pulse-projects.mjs --one",
+    "redacted": true
+  },
+  "result": {
+    "ok": true,
+    "route": "/Affaires/ListeAffaires",
+    "query": "zain phase 5",
+    "project_count": 1,
+    "projects": [
+      {
+        "project_id": "20495",
+        "label": "ZAIN BAHRAIN - PHASE 5",
+        "created_at": "30/09/2026 14:17",
+        "nature": "Services",
+        "type": "Forfait",
+        "project_manager": "Amine SFAR",
+        "progress_to_date": "13%",
+        "status": "En attente du BC",
+        "priority": "P1",
+        "sold": "417",
+        "consumption_current_week": "0",
+        "consumption_current_month": "15.06",
+        "consumption_current_year": "52.19",
+        "consumption_total": "52.19",
+        "raf": "362",
+        "att": "414.19",
+        "drift": "-0.67%"
+      }
+    ],
+    "request_count": 3,
+    "latency_ms": 2140
+  }
+}
