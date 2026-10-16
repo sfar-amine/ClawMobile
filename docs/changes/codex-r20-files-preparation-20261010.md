@@ -5,3 +5,5 @@ Routes `GET /v1/files` et `GET /v1/files/content`, lecture seule, loopback, sur 
 Reprise Claude (10/10) : captures réelles de la session principale ajoutées aux fixtures, sélection par `agentId`/`isMain`, cache de découverte 10 min, sondes racine parallèles, recherche avec `browser.path:""`, masquage des cartes limité à 13-19 chiffres, recette par `settle()` de la base avec échec conditionnel.
 
 Retour arrière : revert du lot ; déploiement et retour arrière automatiques par `companion-deploy.sh`. Paiement inchangé.
+
+Reprise 11/10 : H6 42dc3460 intégré par merge normal. Build et sept suites ciblées verts : écriture 49 assertions, PUT 6931 ms, 5 sauvegardes ; cinq contrats lecture/HTTP/CLI/acceptance sur captures S24 et frontière H6. Vocabulaire financier libre, confidentialité et lignes privées masquées préservées. Suite entière à rejouer sur la tête documentée avant ready ; aucune mutation/recette S24 revendiquée.

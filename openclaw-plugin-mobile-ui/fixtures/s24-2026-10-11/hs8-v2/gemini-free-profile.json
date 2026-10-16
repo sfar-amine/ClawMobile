@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "verdict": "PROFIL_OK_MAIS_GARDE_138_ECARTE_GEMINI",
+  "summary": "resolveApiKeyForProvider(google, lockedProfile) rend google:claw-gemini-free en api-key, et la résolution Google par défaut du SDK choisit aussi ce profil. models.providers.google.apiKey existe (SecretRef du store) avec une clé différente : #138 calcule donc primaryBlocked=true et n'essaierait jamais Gemini.",
+  "provenance": {
+    "capturedAt": "2026-10-11",
+    "method": "SDK 2026.9.6 installé, environnement exact du Companion, loadConfig() réel. Clés comparées par SHA256 en mémoire, jamais affichées ni écrites.",
+    "request_ids": [
+      "mcp-claude-chat-hs8v2-sdk-full-01-execute",
+      "mcp-claude-chat-hs8v2-secretref-01-execute",
+      "mcp-claude-chat-hs8v2-secretref-03-execute"
+    ]
+  },
+  "profile": { "id": "google:claw-gemini-free", "configured": true, "provider": "google", "mode": "api_key" },
+  "resolveApiKeyForProvider": {
+    "lockedProfile": {
+      "params": { "provider": "google", "profileId": "google:claw-gemini-free", "lockedProfile": true },
+      "ok": true, "profileId": "google:claw-gemini-free", "mode": "api-key", "source": "profile", "keyPresent": true
+    },
+    "unpinnedDefault": {
+      "params": { "provider": "google" },
+      "ok": true, "profileIdIsFree": true, "mode": "api-key", "source": "profile", "keyEqualsFreeProfileKey": true
+    }
+  },
+  "providersGoogleApiKey": {
+    "present": true,
+    "form": "SecretRef { id, provider, source }",
+    "source": "store",
+    "idLooksLikeEnvVarName": true,
+    "idMatchesCore138EnvRegex": true,
+    "idPresentInCompanionEnv": false,
+    "resolvesViaSdk": true,
+    "resolvedSource": "secretRef",
+    "equalsFreeProfileKey": false
+  },
+  "core138": {
+    "primaryBlocked": true,
+    "reason": "hasOwnProperty(models.providers.google, 'apiKey')",
+    "consequence": "runMemoAudioOwner ne tente pas Gemini et part directement sur OpenAI (exclu par D45-3) ; tel quel, le mémo échoue toujours."
+  },
+  "mediaModelsOnDisk": 0
+}

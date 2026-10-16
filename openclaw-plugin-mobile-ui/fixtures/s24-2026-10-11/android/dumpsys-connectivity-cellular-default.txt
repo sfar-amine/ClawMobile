@@ -1,0 +1,23 @@
+NetworkProviders for:
+  8: UntrustedWifiNetworkFactory
+  3: VcnNetworkProvider
+  9: RestrictedWifiNetworkFactory
+  11: MultiInternetWifiNetworkFactory
+  4: L2capNetworkProvider
+  5: VpnNetworkProvider:0
+  2: WIFI_AWARE_FACTORY
+  7: WifiNetworkFactory
+  10: OemPaidWifiNetworkFactory
+  1: EthernetNetworkFactory
+  6: TelephonyNetworkProvider
+
+Active default network: 127
+
+Current network preferences: 
+  Default requests:
+    Request: [uid/pid:1000/2849] - Satisfier: [127] Preference order: 40 Tracked UIDs: {10120-10120, 10240-10240}
+
+Current Networks:
+  NetworkAgentInfo{network{127}  handle{0}  ni{MOBILE[LTE] CONNECTED extra: weborange} created=2026-10-10T23:55:15.584Z Score(Policies : TRANSPORT_PRIMARY&EVER_EVALUATED&EVER_VALIDATED&IS_VALIDATED ; KeepConnected : 0)  created 51725717 firstValidated 51726247 lastValidated 51726247  lp{{InterfaceName: rmnet_data0 LinkAddresses: [ REDACTED ] DnsAddresses: [ REDACTED ] Domains: null MTU: 1500 TcpBufferSizes: 2097152,4194304,8388608,4096,1048576,2097152 Routes: [ REDACTED ]}}  nc{[ Transports: CELLULAR Capabilities: SUPL&INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&VALIDATED&NOT_ROAMING&FOREGROUND&NOT_CONGESTED&NOT_SUSPENDED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED LinkUpBandwidth>=10000Kbps LinkDnBandwidth>=10000Kbps Specifier: <TelephonyNetworkSpecifier [mSubId = 1]> AdminUids: [ REDACTED ] SubscriptionIds: {1} UnderlyingNetworks: Null]}  factorySerialNumber=6}
+    Nat464Xlat:
+      <not started>

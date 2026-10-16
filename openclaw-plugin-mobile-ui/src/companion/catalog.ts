@@ -1,4 +1,5 @@
 import {execFile} from 'child_process';
+import {MEMO_STT_QUALIFICATION} from './memoSttBoundary';
 import {createHash} from 'crypto';
 import {readFile} from 'fs/promises';
 import os from 'os';
@@ -119,7 +120,7 @@ export function catalogProjection(source:any,view:SurfaceView,bills?:BillStatuse
   });
   const defaultPinned=source.defaultPinned.map(id);if(new Set(defaultPinned).size!==defaultPinned.length||defaultPinned.some((pin:string)=>!themeIds.has(pin)))throw fail();
   const value={version:1,locale,defaultPinned,themes,generatedAt:source.generatedAt,
-    inputs:{voiceMemo:{available:false,availability:'soon'}},
+    inputs:{voiceMemo:{available:MEMO_STT_QUALIFICATION.success,availability:MEMO_STT_QUALIFICATION.success?'available':'soon'}},
     availabilitySource:view?'registry_route_health_owner_gates_surface_view':'registry_route_health_owner_gates_reachability_unknown',
     ...(view?{surface:APP_SURFACE}:{})};
   if(Buffer.byteLength(JSON.stringify(value))>MAX_BYTES)throw fail();

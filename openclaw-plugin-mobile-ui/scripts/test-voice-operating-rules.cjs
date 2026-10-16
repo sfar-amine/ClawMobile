@@ -27,6 +27,7 @@ try {
     const {setup} = buildClawLiveSetup('gemini-3.8-live', {home});
     samples.push(performance.now() - before);
     assert.ok(setup.systemInstruction.parts[0].text.includes(specializedSection.trim()));
+    assert.ok(setup.systemInstruction.parts[0].text.includes('first say one very short waiting phrase'), 'waiting phrase rule missing (Amine 11/10)');
   }
   samples.sort((a,b) => a-b);
   assert.ok(samples[23] < 100, 'bounded local bootstrap exceeded 100 ms');
