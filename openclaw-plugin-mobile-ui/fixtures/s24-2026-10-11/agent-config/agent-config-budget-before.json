@@ -1,0 +1,145 @@
+{
+ "_capture": {
+  "route": "GET http://127.0.0.1:8765/v1/agent/config",
+  "host": "Samsung S24 / Termux",
+  "runtimeCore": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+  "prBase": "#167 non déployée : mesure « avant » uniquement",
+  "capturedAt": "2026-10-11T10:48:38Z → 10:51:03Z",
+  "tool": "curl -s -w '%{http_code} %{time_total}' en loopback, script détaché, aucun en-tête owner (GET)",
+  "load": "load average 5,7 à 7,0 ; mémoire disponible ~2,3 Go ; aucun redémarrage",
+  "budgetMs": 9000,
+  "sanitized": true
+ },
+ "sequential": [
+  {
+   "phase": "froid",
+   "note": "première lecture après >60 s sans lecture du propriétaire modèle (CACHE_MS=60000)",
+   "at": "10:48:38.5Z",
+   "status": 200,
+   "totalMs": 7473
+  },
+  {
+   "phase": "chaud-1",
+   "gapS": 4,
+   "status": 200,
+   "totalMs": 9569,
+   "overBudget": true
+  },
+  {
+   "phase": "chaud-2",
+   "gapS": 4,
+   "status": 200,
+   "totalMs": 6756
+  },
+  {
+   "phase": "chaud-3",
+   "gapS": 4,
+   "status": 200,
+   "totalMs": 8449
+  }
+ ],
+ "concurrent12": {
+  "startedAt": "10:50:33.126Z",
+  "note": "lancée 70 s après la dernière lecture chaude (cache modèle expiré)",
+  "results": {
+   "status503": 12,
+   "status200": 0
+  },
+  "totalMs": {
+   "min": 16188,
+   "max": 16310
+  },
+  "body": {
+   "success": false,
+   "state": "failed",
+   "error": "agent_config_unavailable"
+  }
+ },
+ "concurrent12_second_wave": {
+  "startedAt": "10:50:52.6Z",
+  "note": "3 s après la première vague",
+  "results": {
+   "status503": 12,
+   "status200": 0
+  },
+  "totalMs": {
+   "min": 10359,
+   "max": 10416
+  }
+ },
+ "gatewayCallsFromLog": {
+  "source": "$PREFIX/tmp/openclaw/openclaw-2026-10-11.log, lignes « ⇄ res » (journal gateway/ws), noms de méthode et durées uniquement",
+  "caveat": "le journal ne distingue pas l'appelant : d'autres clients (app, maintenance) peuvent compter dans ces fenêtres",
+  "windows": {
+   "froid (10:48:38–10:48:46.5)": {
+    "config.get": {
+     "n": 1,
+     "ok": 1,
+     "ms": 21
+    },
+    "models.list": {
+     "n": 1,
+     "ok": 1,
+     "ms": 341
+    },
+    "models.authStatus": {
+     "n": 1,
+     "ok": 1,
+     "ms": 204
+    }
+   },
+   "chaud (10:48:46.5–10:49:20)": {
+    "config.get": {
+     "n": 2,
+     "ok": 2,
+     "medianMs": 19,
+     "maxMs": 21
+    },
+    "models.list": {
+     "n": 2,
+     "ok": 2,
+     "medianMs": 137,
+     "maxMs": 155
+    },
+    "models.authStatus": {
+     "n": 2,
+     "ok": 2,
+     "medianMs": 67,
+     "maxMs": 109
+    },
+    "sessions.list": {
+     "n": 9,
+     "ok": 9,
+     "medianMs": 9452,
+     "maxMs": 14372
+    },
+    "sessions.usage": {
+     "n": 1,
+     "ok": 1,
+     "medianMs": 5154,
+     "maxMs": 5154
+    }
+   },
+   "12 lecteurs (10:50:33–10:51:04)": {
+    "config.get": 0,
+    "models.list": 0,
+    "models.authStatus": 0,
+    "sessions.list": 0,
+    "sessions.usage": 0,
+    "note": "aucune réponse Gateway de ces méthodes n'est journalisée pendant les deux vagues ; seuls health (cached), question.list, progressCard.get et un avertissement de reconnexion d'un client apparaissent"
+   }
+  }
+ },
+ "projectionAges": "non exposées par la réponse (pas de champ d'âge) ; /v1/providers servait au même moment une projection datée de 09:54:45Z",
+ "findings": [
+  "Séquentiel : 6,8 à 9,6 s ; une lecture chaude dépasse le budget de 9 s (9,57 s).",
+  "Les lectures du propriétaire modèle (config.get, models.list, models.authStatus) sont rapides côté Gateway (20 à 340 ms) ; sessions.list (jusqu'à 14,4 s) et sessions.usage (5,2 s) dominent.",
+  "12 lecteurs simultanés : 12/12 en 503 agent_config_unavailable après ~16,2 s, puis 12/12 en 503 après ~10,4 s à la vague suivante, sans aucune réponse Gateway journalisée pour les cinq méthodes : la version déployée ne tient pas la charge concurrente."
+ ],
+ "recoveryCheck": {
+  "at": "2026-10-11T10:57:53Z",
+  "status": 200,
+  "totalMs": 8064,
+  "note": "lecture seule unique 7 min après les vagues : la route répond de nouveau"
+ }
+}

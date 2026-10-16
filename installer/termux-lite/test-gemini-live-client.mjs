@@ -89,9 +89,8 @@ assert.equal(token.token, "ephemeral-test-token");
 assert.equal(token.model, MODEL);
 assert.equal(tokenHeaders["x-goog-api-key"], "test-google-key");
 
-const secret = await resolveGeminiApiKey({});
-assert.equal(typeof secret, "string");
-assert.ok(secret.length >= 20);
+const secret = await resolveGeminiApiKey({ GEMINI_API_KEY: "test-google-key-for-host-ci" });
+assert.equal(secret, "test-google-key-for-host-ci");
 
 console.log(JSON.stringify({
   ok: true,

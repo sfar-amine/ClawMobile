@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -u
-ROOT="${CLAW_RUNTIME_ROOT:-$HOME/ClawMobile/installer/termux-lite}"
+ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
 D="$HOME/.openclaw/autonomous-engineering"; LOG="$D/closure.log"; mkdir -p "$D"
 state="${1:-}"; component="${2:-unknown}"; summary="${3:-Autonomous Engineering update}"
 learning_file="${4:-${CLAW_LEARNING_FILE:-}}"

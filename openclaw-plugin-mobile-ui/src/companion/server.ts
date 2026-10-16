@@ -1,3 +1,4 @@
+import {serverLanguage,localizedRoute,localizeServerPresentation,ServerLanguage} from "./serverLocale";
 import {conditionalRead} from "./readEtag";
 import {readCatalogResponse,catalogETag} from './catalog';
 import {readDeploymentReceipts} from "./deploymentReceipts";
@@ -224,6 +225,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   const requestUrl = new URL(req.url || "/", "http://localhost");
   const routePath = normalizeProtocolPath(requestUrl.pathname);
   if(routePath&&accountGuardedRoute(routePath))accountGuardedResponses.add(res);
+  if(routePath&&localizedRoute(routePath))responseLanguages.set(res,serverLanguage(req.headers["accept-language"]));
 
   if (shouldBlockBrowserRequest(req, routePath || requestUrl.pathname)) {
     writeJson(res, 403, {
@@ -507,7 +509,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
       const value=method==='GET'?await readAgentConfig():await changeAgentConfig(await readJsonBody(req,2048));
       writeJson(res,value.state==='refused'?409:200,value);
-    }catch(error:any){const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    }catch(error:any){
+      const challenge=error?.confirmation;
+      if(error?.statusCode===403&&error?.message==='confirmation_required'&&challenge?.scope==='agent.config.expand_fallbacks'&&challenge.reference==='main'&&/^[a-f0-9]{64}$/.test(challenge.payloadHash)){
+        writeJson(res,403,{success:false,state:'refused',receipt:null,error:'confirmation_required',scope:challenge.scope,reference:challenge.reference,payloadHash:challenge.payloadHash});
+      }else{const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    }
     return;
   }
 
@@ -862,7 +869,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       surface: "claw_live",
       caller: "owner",
       timeoutSeconds: 10,
-    }));
+    }),body?.phoneDateTime);
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
@@ -971,6 +978,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
     // P1 : l'autorité owner vient uniquement de l'admission native signée (plus du loopback).
     const authority = admission.admitted || legacyContext ? "owner" as const : undefined;
+    if((body as any)?.phoneDateTime!==undefined&&!admission.admitted){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required"});return;}
     // Édition-relecture : objet fermé {sessionId, runId}, réservé au propriétaire natif ADMIS (preuve signée ; jamais le drapeau legacy).
     let replayOf:{sessionId:string;runId:string}|undefined;
     if(body?.replayOf!==undefined){
@@ -989,6 +997,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         authority,
         admission: admission.admitted ? admission.ticket : undefined,
         ...((body as any)?.voiceDelegation === true ? {voiceDelegation:true as const} : {}),
+        ...((body as any)?.phoneDateTime !== undefined ? {phoneDateTime:(body as any).phoneDateTime} : {}),
         ...(replayOf?{replayOf}:{}),
       },
     );
@@ -2142,9 +2151,12 @@ function writeHtml(res: http.ServerResponse, statusCode: number, body: string) {
 
 // App-facing state routes: no account e-mail may leave, whatever the producer.
 const accountGuardedResponses=new WeakSet<http.ServerResponse>();
+const responseLanguages=new WeakMap<http.ServerResponse,ServerLanguage>();
 const conditionalRequests=new WeakMap<http.ServerResponse,http.IncomingMessage>();
 function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
   if(accountGuardedResponses.has(res))value=redactAccountIdentifiers(value);
+  const language=responseLanguages.get(res);
+  if(language){value=localizeServerPresentation(value,language);res.setHeader("Content-Language",language);res.setHeader("Vary","Accept-Language");}
   const body = statusCode === 204 ? "" : JSON.stringify(value, null, 2);
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");

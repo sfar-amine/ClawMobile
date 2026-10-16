@@ -1,0 +1,45 @@
+{
+  "schema": "samantha.capture.lot-r.agent-config-budget.v1",
+  "provenance": {
+    "runtime_core_sha": "3298d98d8a29458abda6617c37ca5e4b114f4be2",
+    "deploy_receipt": "~/.openclaw/deploys/companion-20261011T121900.json",
+    "core_pr_167_deployed": false,
+    "request": "curl -m 40 http://127.0.0.1:8765/v1/agent/config (GET, loopback, sans en-tete owner)",
+    "load_context": "load average 13.08 / 8.87 / 7.04 a 12:37:32 (au-dessus du seuil de preflight 7) ; memoire disponible 3010 Mo a 12:39:20"
+  },
+  "route": {"method": "GET", "path": "/v1/agent/config", "budget_s": 9.0, "acceptance_line": "installer/termux-lite/companion-acceptance.py (\"/agent/config\", 9.0)"},
+  "server_internal_budget": {
+    "source": "modelOwner.ts readModelOwnerFresh (code deploye)",
+    "budget_ms": 10000,
+    "parallel_calls": ["config.get", "models.list {agentId:main, includeDetails:true}", "models.authStatus {agentId:main}"],
+    "plus": ["sessions.usage {limit:100} (5,5 s, cache 60 s)", "sessionDefaults()"],
+    "single_flight": true,
+    "exposes_timings": false
+  },
+  "gateway_cli_reference_ms": {
+    "source": "openclaw gateway call --json, sequentiel, 12:34-12:35 (config-projection.json)",
+    "config.get": 3901,
+    "models.list": 3876,
+    "models.authStatus": 9809,
+    "sessions.list": null,
+    "sessions.usage": null,
+    "note": "sessions.list et sessions.usage non mesures separement ; la route n'expose aucun timing par appel"
+  },
+  "runs": [
+    {"phase": "premier appel (froid probable, cache inconnu)", "at": "~2026-10-11T12:36:52+01:00", "status": 200, "duration_s": 9.195, "body": {"success": true, "state": "ok", "issues": [], "usage_present": false, "models": ["gemini-3.5-flash-lite", "gpt-5.6-sol", "gpt-5.6-luna"], "fallbacks": ["openai/gpt-5.6-terra", "openai/gpt-5.6-luna", "google/gemini-3.5-flash-lite@acct-<handle>"]}},
+    {"phase": "chaud 1", "status": 503, "duration_s": 10.091, "body": {"success": false, "state": "failed", "error": "agent_config_unavailable"}},
+    {"phase": "chaud 2", "status": 200, "duration_s": 9.827},
+    {"phase": "12 lecteurs concurrents", "wall_s": 10.4, "statuses": {"503": 12}, "durations_s": [10.046, 10.045, 10.011, 10.010, 10.013, 9.978, 9.997, 9.791, 9.779, 9.760, 9.769, 9.718], "body": {"success": false, "state": "failed", "error": "agent_config_unavailable"}},
+    {"phase": "re-mesure sequentielle 1", "at": "2026-10-11T12:39:20+01:00", "status": 503, "duration_s": 10.053},
+    {"phase": "re-mesure sequentielle 2", "status": 503, "duration_s": 10.088},
+    {"phase": "re-mesure sequentielle 3", "status": 503, "duration_s": 10.073}
+  ],
+  "verdict": {
+    "within_budget_9s": 0,
+    "total_runs": 18,
+    "status_200": 2,
+    "status_503": 16,
+    "reading": "Avant #167 : la route depasse son budget de 9 s a chaque appel. Les 200 arrivent a 9,2-9,8 s ; les 503 tombent a ~10 s, soit l'echeance interne de readModelOwnerFresh. models.authStatus seul prend 9,8 s en CLI. Les 12 lecteurs partagent le meme vol et echouent ensemble.",
+    "after_167": "en attente : #167 n'est pas deploye (runtime 3298d98d)."
+  }
+}

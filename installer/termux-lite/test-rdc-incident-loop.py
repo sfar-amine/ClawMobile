@@ -3,12 +3,18 @@
 import json, os, shutil, signal, sqlite3, subprocess, tempfile, time, unittest, sys
 from pathlib import Path
 ROOT=Path(__file__).parent
+sys.path.insert(0,str(ROOT.resolve()))
+from host_test_support import adapt_shebangs
 
 class IncidentLoop(unittest.TestCase):
+    # Horloge et borne injectées : le test ne dépend pas des intervalles de production (5 s, 2 s, 15 s).
+    CLOCK=staticmethod(time.monotonic)
+    TERMINAL_BOUND_S=float(os.environ.get('RDC_LOOP_TERMINAL_BOUND_S','15'))
+    WORKER_INTERVALS={'INCIDENT_WORKER_POLL_S':'0.1','INCIDENT_WORKER_OBSERVE_S':'0.1','INCIDENT_WORKER_DIAG_BACKOFF_S':'0.1'}
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.home=Path(self.tmp.name);self.root=self.home/'runtime';self.root.mkdir()
-        for name in ['incident-orchestrator.py','incident-orchestrator-worker.sh']:
+        for name in ['incident-orchestrator.py','incident-orchestrator-worker.sh','runtime_mode.py']:
             shutil.copy2(ROOT/name,self.root/name)
         self.write('engineering-repair.sh','#!/bin/sh\nexit 1\n')
         self.write('incident-continuation.py','#!/usr/bin/env python3\n')
@@ -30,7 +36,7 @@ p=h/'.openclaw/autonomous-engineering/shadow';p.mkdir(parents=True,exist_ok=True
 with (h/'model-rounds').open('a') as f:f.write(str(n)+'\\n')
 subprocess.run([str(pathlib.Path(__file__).with_name('incident-orchestrator.py')),'observe',i,'diagnosis','--source','test-double','--json',json.dumps({'recommended_action_id':action})],stdout=subprocess.DEVNULL,check=True)
 ''')
-        self.env=dict(os.environ,HOME=str(self.home),CLAW_RUNTIME_ROOT=str(self.root))
+        self.env=dict(os.environ,HOME=str(self.home),CLAW_RUNTIME_ROOT=str(self.root),**self.WORKER_INTERVALS)
         (self.home/'.openclaw/health').mkdir(parents=True)
         self.orch=self.root/'incident-orchestrator.py'
     def write(self,name,text):
@@ -41,6 +47,7 @@ subprocess.run([str(pathlib.Path(__file__).with_name('incident-orchestrator.py')
     def start(self):
         # Portable fixture shebang for copied orchestrator.
         text=self.orch.read_text();self.orch.write_text('#!'+sys.executable+'\n'+'\n'.join(text.splitlines()[1:])+'\n');self.orch.chmod(0o755)
+        adapt_shebangs(self.root)  # autres copies (ex. engineering-incident-result.py) : shebang Termux adapté hors Termux
         self.proc=subprocess.Popen(['bash',str(self.root/'incident-orchestrator-worker.sh')],env=self.env,start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         def cleanup():
             try:os.killpg(self.proc.pid,signal.SIGTERM)
@@ -48,8 +55,8 @@ subprocess.run([str(pathlib.Path(__file__).with_name('incident-orchestrator.py')
             self.proc.wait(timeout=5)
         self.addCleanup(cleanup)
     def terminal(self,i):
-        deadline=time.monotonic()+15
-        while time.monotonic()<deadline:
+        deadline=self.CLOCK()+self.TERMINAL_BOUND_S
+        while self.CLOCK()<deadline:
             d=self.call('show',i)
             if d['incident']['state'] in ('recovered','failed'):return d
             time.sleep(.1)

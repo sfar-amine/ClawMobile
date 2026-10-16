@@ -80,7 +80,8 @@ export class VoiceTelemetry {
     try {
       safe={};
       for(const [key,value] of Object.entries(x)) {
-        if(!["connection","cached","attempt"].includes(key)||!(typeof value==="boolean"||typeof value==="number"&&Number.isSafeInteger(value)&&value>=0))throw Error("invalid_metadata");
+        if(!["connection","cached","attempt","phase","warm_hit","decision_ms","capability_ms","gemini_ms","response_ms","budget_ms","budget_exceeded"].includes(key)
+          ||!(typeof value==="boolean"||typeof value==="number"&&Number.isSafeInteger(value)&&value>=0))throw Error("invalid_metadata");
         safe[key]=value;
       }
     }catch{this.failed++;return;}
