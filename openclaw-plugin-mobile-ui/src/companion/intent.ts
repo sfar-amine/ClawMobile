@@ -1,18 +1,19 @@
-import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision} from "./receiptPresentation";
+import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
 import crypto from "crypto";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
 import {transcribeMemoAttachment} from "./memoSttOwner";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { appendReplayContext, appendVoiceConversationContext, findPendingClarificationRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch, deferMemoTranscription } from "./runs";
+import { appendReplayContext, appendVoiceConversationContext, findPendingClarificationRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch, deferMemoTranscription, publicReasonClass } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
 import { turnAdmission, type AdmissionTicket } from "./ownerTurnAdmission";
+import {phoneDateTimeDecision} from "./phoneDateTime";
 
-type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; admission?: AdmissionTicket; voiceDelegation?: true; replayOf?: {sessionId: string; runId: string}};
+type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; admission?: AdmissionTicket; voiceDelegation?: true; replayOf?: {sessionId: string; runId: string};phoneDateTime?:unknown};
 
 function currentMemoOwner(admission: unknown, clientRunId: string | undefined, sessionId: string): boolean {
   try { return require("./ownerTurnAdmission").turnAdmission.isCurrent(admission, {clientRunId, sessionId}) === true; }
@@ -128,6 +129,12 @@ async function submitTextIntent(
   // n'est jamais reprise par un tour admis (aucun texte dérivé d'un tiers sur la connexion admin).
   const ownerAdmitted = currentOwner();
   const caller = ownerAdmitted ? "owner" as const : "other" as const;
+  const phoneAnswer=ownerAdmitted?phoneDateTimeDecision(normalized,options.phoneDateTime):null;
+  if(phoneAnswer){
+    const pending=await findPendingClarificationRun(normalizedSessionId);
+    if(pending&&pending.ownerAdmitted===ownerAdmitted)await markClarificationRun(pending.runId,"abandoned");
+    return executePhoneDateTimeFirst(normalizedSessionId,visibleUserText,attachments,clientRunId,phoneAnswer,options.admission,options.voiceDelegation,ownerAdmitted);
+  }
   let routingText = normalized;
   let parentClarificationRunId: string | undefined;
   let fastPathCheck: FastPathResult = { status: "miss", reason: "attachments_require_model" };
@@ -171,10 +178,8 @@ async function submitTextIntent(
     );
   }
   if (fastPathCheck.status === "error") {
-    return notSubmitted(
-      normalizedSessionId, clientRunId,
-      "Claw capability routing is temporarily unavailable.",
-    );
+    const presentation=fastPathFailurePresentation(fastPathCheck,'resolution');
+    return {...notSubmitted(normalizedSessionId,clientRunId,presentation.spoken),...publicReceiptMetadata(presentation)};
   }
 
   if (parentClarificationRunId) {
@@ -186,6 +191,7 @@ async function submitTextIntent(
     return notSubmitted(normalizedSessionId, clientRunId, gateway.message);
   }
 
+  const responseLanguage=publicDecision(fastPathCheck.decision)?.responseLanguage;
   const promptWithAttachments = appendAttachmentContext(parentClarificationRunId ? routingText : normalized, attachments);
   const routed = learningOnly ? null : buildAutoSkillContextForIntent(promptWithAttachments);
   const contextualPrompt = learningOnly ? promptWithAttachments : await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
@@ -212,7 +218,7 @@ async function submitTextIntent(
     await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted });
   }
   void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority,
-    learningOnly ? undefined : options.admission, clientRunId, options.voiceDelegation);
+    learningOnly ? undefined : options.admission, clientRunId, options.voiceDelegation, responseLanguage);
 
   const message = describeOpenClawResult(accepted);
   return {
@@ -233,6 +239,26 @@ async function submitTextIntent(
     ...(replay ? {replay: publicReplay(replay)} : {}),
     gatewayRun: includeRawIntent() ? { ...accepted, skillRouting: routed?.routed } : undefined,
   };
+}
+
+async function executePhoneDateTimeFirst(sessionId:string,userText:string,attachments:IntentAttachment[],clientRunId:string|undefined,
+  answer:NonNullable<ReturnType<typeof phoneDateTimeDecision>>,admission?:AdmissionTicket,voiceDelegation?:true,ownerAdmitted=false):Promise<IntentSubmitResponse>{
+  if(!ownerAdmitted||!turnAdmission.isCurrent(admission,{clientRunId,sessionId}))return notSubmitted(sessionId,clientRunId,"owner_admission_expired");
+  let runId=`run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,duplicate=false;
+  if(clientRunId){
+    const reservation=await reserveSubmittedRun(userText,sessionId,clientRunId,{userText,attachments,requestText:userText,
+      executionSource:"capability_first",decision:answer.decision,ownerAdmitted});
+    runId=reservation.status.runId;duplicate=!reservation.created;
+    if(duplicate)return responseFromExisting(reservation.status,userText);
+  }else await rememberSubmittedRun(userText,acceptedRun(runId,sessionId,voiceDelegation),{userText,attachments,
+    executionSource:"capability_first",decision:answer.decision,ownerAdmitted});
+  if(!turnAdmission.isCurrent(admission,{clientRunId,sessionId})){
+    await markSubmittedRunFailed(runId,"owner_admission_expired");return notSubmitted(sessionId,clientRunId,"owner_admission_expired");
+  }
+  const state=answer.state==="done"?"done" as const:"failed" as const,decision=publicDecision(answer.decision);
+  await settleSubmittedRun(runId,state,answer.text,{});
+  return{success:true,accepted:true,submissionState:"accepted",retrySafe:false,duplicate,...(decision?{decision}:{}),
+    runId,clientRunId,sessionId,state,result:answer.text,message:answer.text,userText,canvas:intentCanvas(userText,answer.text),attachments};
 }
 
 async function executeCapabilityFirst(
@@ -274,6 +300,7 @@ async function executeCapabilityFirst(
     return notSubmitted(sessionId, clientRunId, "Une nouvelle validation du propriétaire est nécessaire.");
   }
   let presentation = readReceiptPresentation(check);
+  let runnerOutcome:FastPathResult=check;
   let provenance: FastPathResult["provenance"];
   let state: "done" | "failed";
   let message: string;
@@ -295,6 +322,7 @@ async function executeCapabilityFirst(
       timeoutSeconds: 75,
       preparedDecision: check.decision,
     });
+    runnerOutcome=result;
     presentation = readReceiptPresentation(result);
     provenance = result.provenance;
     if (result.status === "hit") {
@@ -305,12 +333,14 @@ async function executeCapabilityFirst(
       message = String(result.text || "Claw could not complete the known capability.");
     } else {
       state = "failed";
-      message = "Claw capability state changed before deterministic execution; no model fallback was used.";
+      presentation=fastPathFailurePresentation(result,'execution');
+      message=presentation.spoken;
     }
   }
 
   presentation ||= fallbackReceiptPresentation(state === "failed");
-  await settleSubmittedRun(runId, state, message, {provenance, presentation});
+  const reasonClass=publicReasonClass(runnerOutcome.reasonClass ?? runnerOutcome.reason_class);
+  await settleSubmittedRun(runId, state, message, {provenance, presentation, reasonClass});
   return {
     success: true,
     accepted: true,
@@ -319,6 +349,7 @@ async function executeCapabilityFirst(
     duplicate,
     ...publicReceiptMetadata(presentation),
     ...(publicDecision(check.decision) ? {decision: publicDecision(check.decision)} : {}),
+    ...(publicDecision(check.decision)?.responseLanguage ? {responseLanguage: publicDecision(check.decision)!.responseLanguage} : {}),
     runId,
     clientRunId,
     sessionId,
@@ -328,6 +359,7 @@ async function executeCapabilityFirst(
     userText,
     canvas: intentCanvas(userText, message),
     attachments,
+    ...(reasonClass ? {reasonClass} : {}),
   };
 }
 
@@ -373,6 +405,7 @@ function responseFromExisting(
     userText,
     canvas: intentCanvas(userText, message),
     attachments: status.attachments,
+    ...(status.reasonClass ? {reasonClass: status.reasonClass} : {}),
   };
 }
 
@@ -386,12 +419,13 @@ async function submitIntentInBackground(
   admission?: AdmissionTicket,
   clientRunId?: string,
   voiceDelegation?: true,
+  responseLanguage?: ResponseLanguage,
 ) {
   try {
     if (admission !== undefined && !currentMemoOwner(admission, clientRunId, sessionId)) {
       await markSubmittedRunFailed(runId, "Validation du propriétaire expirée."); return;
     }
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId, voiceDelegation});
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId, voiceDelegation, responseLanguage});
     if (admission) console.log(`[companion] P1 turn ${runId}: transport=${openclaw.ownerTransport}`);
     await rememberSubmittedRun(text, {
       ...openclaw,

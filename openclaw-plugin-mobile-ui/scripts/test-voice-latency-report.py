@@ -5,8 +5,8 @@ spec = importlib.util.spec_from_file_location('latency', Path(__file__).with_nam
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
-def event(sid, src, ev, ms, x=None):
-    return dict(sid=sid, src=src, turn=0, ev=ev, boot_ns=int(ms*1000000), x=x or {})
+def event(sid, src, ev, ms, x=None, turn=0):
+    return dict(sid=sid, src=src, turn=turn, ev=ev, boot_ns=int(ms*1000000), x=x or {})
 
 class LatencyTests(unittest.TestCase):
     def test_hundred_source_joined_sessions(self):
@@ -56,5 +56,27 @@ class LatencyTests(unittest.TestCase):
         bad = event('a','companion','t07',30); bad['turn'] = 1
         rows = [event('a','app','t00',0),event('a','app','t01',1),bad,event('a','app','t07c',40)]
         self.assertEqual(module.analyze(rows)['startup']['metrics']['t01_to_t07_ms']['n'],0)
+
+    def test_prewarm_guard_counts_explicit_hit_and_miss(self):
+        rows = [event('warm','companion','t07',1,{'cached':True}),
+                event('cold','companion','t07',1,{'cached':False}),
+                event('legacy','companion','t07',1)]
+        self.assertEqual(module.analyze(rows)['startup']['prewarm_guard'],
+                         {'observed':3,'warm_hits':1,'warm_misses':1,'missing_outcome':1})
+
+    def test_pipeline_reports_complete_result_audio_and_budget_breach(self):
+        complete={'phase':1,'decision_ms':100,'capability_ms':2900,'gemini_ms':400,
+                  'response_ms':4200,'budget_ms':5000,'budget_exceeded':False,'warm_hit':True}
+        slow={**complete,'response_ms':5100,'budget_exceeded':True}
+        waiting={'phase':0,'gemini_ms':200,'warm_hit':True}
+        rows=[event('a','companion','t30p',4.2,complete,1),event('b','companion','t30p',5.1,slow,1),
+              event('a','companion','t30p',.2,waiting,1)]
+        report=module.analyze(rows)['pipeline']
+        self.assertEqual(report['result_audio_samples'],2)
+        self.assertEqual(report['complete_samples'],2)
+        self.assertEqual(report['under_budget_samples'],1)
+        self.assertEqual(report['budget_breaches'],1)
+        self.assertEqual(report['metrics']['capability_ms']['p50_ms'],2900)
+        self.assertEqual(report['qualification'],'physical_s24_recipe_required')
 
 if __name__ == '__main__': unittest.main()

@@ -1,0 +1,176 @@
+{
+  "schema": "samantha.capture.lot-r.config-projection.v1",
+  "provenance": {
+    "captured_at": "2026-10-11T12:34:25+01:00",
+    "device": "S24 (Termux), claw_exec profil chat-owner, cles cl-lotr-20261011-*",
+    "openclaw": "2026.9.6 (eb377ac)",
+    "runtime_core_sha": "3298d98d8a29458abda6617c37ca5e4b114f4be2",
+    "runtime_branch": "runtime/samantha-companion-private",
+    "deploy_receipt": "~/.openclaw/deploys/companion-20261011T121900.json (target 3298d98d, previous 363a6b8e)",
+    "method": "openclaw gateway call <method> --json --timeout 30000 ; projection nettoyee sur le telephone (aucun brut publie)",
+    "sanitization": "e-mails de compte remplaces par <compte-masque> ; aucune cle, aucun jeton ; seuls modeles, voix, chemins et statuts sont conserves"
+  },
+  "gateway_calls": [
+    {"method": "config.get", "params": {}, "rc": 0, "duration_ms": 3901, "bytes": 103328},
+    {"method": "models.list", "params": {}, "rc": 0, "duration_ms": 3876, "bytes": 3568},
+    {"method": "models.authStatus", "params": {}, "rc": 0, "duration_ms": 9809, "bytes": 7276},
+    {"method": "models.list", "params": {"agentId": "main"}, "rc": 0, "duration_ms": 3866},
+    {"method": "models.list", "params": {"agentId": "engineering-lite"}, "rc": 0, "duration_ms": 3444},
+    {"method": "models.list", "params": {"agentId": "gemini"}, "rc": 0, "duration_ms": 3231}
+  ],
+  "config": {
+    "path": "~/.openclaw/openclaw.json",
+    "exists": true,
+    "valid": true,
+    "projection_source": "config.get.runtimeConfig",
+    "agents.ownership": "explicit",
+    "models.mode": "merge"
+  },
+  "agents": {
+    "defaults": {
+      "model.primary": "openai/gpt-5.6-sol",
+      "model.fallbacks": ["openai/gpt-5.6-terra", "openai/gpt-5.6-luna"],
+      "models(keys)": ["openai/gpt-5.6-luna", "openai/gpt-5.6-sol", "openai/gpt-5.6-terra"],
+      "modelPolicy.allow": ["openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna"],
+      "chain_vs_allow": [
+        {"ref": "openai/gpt-5.6-sol", "allowed": true},
+        {"ref": "openai/gpt-5.6-terra", "allowed": true},
+        {"ref": "openai/gpt-5.6-luna", "allowed": true}
+      ]
+    },
+    "main": {
+      "model.primary": "openai/gpt-5.6-sol@openai:<compte-masque>",
+      "model.fallbacks": ["openai/gpt-5.6-terra", "openai/gpt-5.6-luna", "google/gemini-3.5-flash-lite@google:claw-gemini-free"],
+      "models(keys)": ["openai/gpt-5.6-luna", "openai/gpt-5.6-sol", "openai/gpt-5.6-terra"],
+      "modelPolicy.allow": ["openai/gpt-5.6-sol", "openai/gpt-5.6-luna", "google/gemini-3.5-flash-lite", "github-copilot/*"],
+      "chain_vs_allow": [
+        {"ref": "openai/gpt-5.6-sol@openai:<compte-masque>", "allowed": true},
+        {"ref": "openai/gpt-5.6-terra", "allowed": false},
+        {"ref": "openai/gpt-5.6-luna", "allowed": true},
+        {"ref": "google/gemini-3.5-flash-lite@google:claw-gemini-free", "allowed": true}
+      ]
+    },
+    "engineering-lite": {
+      "model.primary": "openai/gpt-5.6-sol",
+      "model.fallbacks": ["openai/gpt-5.6-terra", "openai/gpt-5.6-luna"],
+      "models(keys)": ["openai/gpt-5.6-luna", "openai/gpt-5.6-sol", "openai/gpt-5.6-terra"],
+      "modelPolicy.allow": ["openai/gpt-5.6-sol", "openai/gpt-5.6-luna"],
+      "chain_vs_allow": [
+        {"ref": "openai/gpt-5.6-sol", "allowed": true},
+        {"ref": "openai/gpt-5.6-terra", "allowed": false},
+        {"ref": "openai/gpt-5.6-luna", "allowed": true}
+      ]
+    },
+    "gemini": {
+      "model.primary": "google/gemini-3.5-flash-lite@google:claw-gemini-free",
+      "model.fallbacks": [],
+      "models(keys)": ["google/gemini-3.5-flash-lite"],
+      "modelPolicy.allow": ["google/gemini-3.5-flash-lite"],
+      "tools.allow": ["clawmobile_capability"],
+      "chain_vs_allow": [
+        {"ref": "google/gemini-3.5-flash-lite@google:claw-gemini-free", "allowed": true}
+      ]
+    }
+  },
+  "conversation_chain_main": [
+    "openai/gpt-5.6-sol@openai:<compte-masque>",
+    "openai/gpt-5.6-terra",
+    "openai/gpt-5.6-luna",
+    "google/gemini-3.5-flash-lite@google:claw-gemini-free"
+  ],
+  "terra": {
+    "in_defaults.allow": true,
+    "in_main.allow": false,
+    "in_main.fallbacks": true,
+    "in_main.models": true,
+    "in_engineering-lite.allow": false,
+    "in_engineering-lite.fallbacks": true,
+    "in_models.list": {"main": false, "engineering-lite": false, "gemini": false, "sans_agentId": false},
+    "verdict": "Terra est dans la chaine de main et d'engineering-lite mais absente de leur modelPolicy.allow propre ; models.list l'exclut (tags fallback#2/#3 sautent fallback#1). Terra n'est donc ni autorisee ni disponible pour main. Constat seulement, rien corrige."
+  },
+  "models.list": {
+    "sans_agentId": [
+      {"ref": "google/gemini-3.5-flash-lite", "tags": ["fallback#3"], "available": true},
+      {"ref": "openai/gpt-5.6-sol", "tags": ["default", "configured"], "available": true},
+      {"ref": "openai/gpt-5.6-luna", "tags": ["fallback#2", "configured"], "available": true}
+    ],
+    "main": [
+      {"ref": "google/gemini-3.5-flash-lite", "tags": ["fallback#3"], "available": true},
+      {"ref": "openai/gpt-5.6-sol", "tags": ["default", "configured"], "available": true},
+      {"ref": "openai/gpt-5.6-luna", "tags": ["fallback#2", "configured"], "available": true}
+    ],
+    "engineering-lite": [
+      {"ref": "openai/gpt-5.6-sol", "tags": ["default", "configured"], "available": true},
+      {"ref": "openai/gpt-5.6-luna", "tags": ["fallback#2", "configured"], "available": true}
+    ],
+    "gemini": [
+      {"ref": "google/gemini-3.5-flash-lite", "tags": ["default", "configured"], "available": true}
+    ],
+    "providerOutcomes": [
+      {"provider": "openai", "profileId": "openai:<compte-masque>", "status": "ready"},
+      {"provider": "google", "status": "ready"},
+      {"provider": "github-copilot", "profileId": "github-copilot:github", "status": "ready"}
+    ]
+  },
+  "gemini_catalog_forms": {
+    "profile_pinned": "google/gemini-3.5-flash-lite@google:claw-gemini-free",
+    "profile_pinned_used_in": ["agents.entries.main.model.fallbacks[2]", "agents.entries.gemini.model.primary"],
+    "bare": "google/gemini-3.5-flash-lite",
+    "bare_used_in": ["agents.entries.main.modelPolicy.allow", "agents.entries.gemini.modelPolicy.allow", "agents.entries.gemini.models"],
+    "models.list_ids": ["google/gemini-3.5-flash-lite"],
+    "models.list_duplicates": false,
+    "agent_config_forms": {"fallbacks": "google/gemini-3.5-flash-lite@acct-<handle>", "models[].id": "gemini-3.5-flash-lite (sans prefixe provider)"},
+    "models.providers.google.models_count": 0,
+    "note": "Deux formes pour le meme modele : epinglee profil (@google:claw-gemini-free) et nue. models.list ne les duplique pas ; un consommateur qui compare les chaines brutes doit retirer le suffixe @profil."
+  },
+  "talk": {
+    "provider": "microsoft",
+    "agentId": "main",
+    "read_aloud": {"source": "talk.providers.microsoft", "voice": "fr-FR-DeniseNeural", "voiceId": "fr-FR-DeniseNeural", "lang": "fr-FR", "languageCode": "fr-FR"},
+    "realtime": {"provider": "google", "model": null, "speakerVoice": "Aoede", "mode": "realtime", "transport": "gateway-relay"},
+    "realtime.model_present_in_config": false,
+    "plugins.openclaw-plugin-mobile-ui.voiceBargeIn.protocolModel": "gemini-3.8-live",
+    "skills.sherpa-onnx-tts.enabled": false
+  },
+  "compaction": {"path": "agents.defaults.compaction.model", "model": "openai/gpt-5.6-luna", "mode": "safeguard"},
+  "memory_search": {
+    "config_path": "memory.search",
+    "value": {"enabled": true, "provider": "gemini"},
+    "model_present": false,
+    "agents.defaults.memorySearch": null,
+    "plugins.memory-core.enabled": true
+  },
+  "auth": {
+    "providers": [
+      {"provider": "github-copilot", "status": "static", "profiles": [{"profileId": "github-copilot:github", "type": "token", "status": "static"}], "usage_plan_present": true, "usage_windows": 2},
+      {"provider": "google", "status": "static", "profiles": [{"profileId": "google:claw-gemini-free", "type": "api_key", "status": "static"}], "usage_plan_present": false, "usage_windows": 0},
+      {"provider": "openai", "status": "ok", "profiles": [{"profileId": "openai:<compte-masque>", "type": "oauth", "status": "ok", "expiry_label": "9d"}], "usage_plan_present": true, "usage_windows": 1}
+    ],
+    "providerCapabilities_count": 26
+  },
+  "copilot": {
+    "auth_status": "static",
+    "providerOutcome": "ready",
+    "allow_patterns": {"main": ["github-copilot/*"], "engineering-lite": [], "gemini": [], "defaults": []},
+    "models_in_any_chain_or_models_map": [],
+    "models_in_models.list": [],
+    "verdict": "connected_unused"
+  },
+  "immune_system": {
+    "source": "~/.openclaw/health/current.json (health-verdict.py), lu tel quel",
+    "exposed_by_config.get": false,
+    "overall": "degraded",
+    "generated_at": 1791718738,
+    "age_s_at_read": 12.2,
+    "non_healthy_components_read_at": "2026-10-11T12:39:50+01:00",
+    "non_healthy_components": ["control_plane.maintenance", "notification.whatsapp", "transactions.runtime"],
+    "immune_capabilities": {
+      "immune.adb_watchdog": "healthy",
+      "immune.health_manager": "healthy",
+      "immune.incident_manager": "healthy",
+      "immune.incident_orchestrator": "healthy",
+      "immune.remote_watchdog": "healthy",
+      "immune.root_guardian": "healthy"
+    }
+  }
+}
