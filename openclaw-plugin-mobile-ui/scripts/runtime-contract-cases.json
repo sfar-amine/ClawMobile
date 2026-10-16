@@ -1208,6 +1208,37 @@
       "test": "scripts/test-laptop-access.cjs"
     },
     {
+      "id": "owner-admission-status",
+      "template": "/v1/owner-admission",
+      "method": "GET",
+      "types": {
+        "enrolled": "boolean"
+      },
+      "phase": "pending",
+      "source": "core@5ee72bd",
+      "test": "scripts/test-owner-turn-admission.cjs"
+    },
+    {
+      "id": "owner-admission-enroll",
+      "template": "/v1/owner-admission/enrollment",
+      "method": "POST",
+      "types": {},
+      "phase": "offline",
+      "source": "core@5ee72bd",
+      "reason": "pairing_or_biometric_owner_recipe",
+      "test": "scripts/test-owner-turn-admission.cjs"
+    },
+    {
+      "id": "owner-admission-revoke",
+      "template": "/v1/owner-admission/enrollment",
+      "method": "DELETE",
+      "types": {},
+      "phase": "offline",
+      "source": "core@5ee72bd",
+      "reason": "pairing_or_biometric_owner_recipe",
+      "test": "scripts/test-owner-turn-admission.cjs"
+    },
+    {
       "id": "capability-detail-r13",
       "template": "/v1/capabilities/:id",
       "method": "GET",

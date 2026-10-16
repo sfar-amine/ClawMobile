@@ -1,0 +1,136 @@
+{
+ "provenance": "reporting.control_learning list : schéma et lignes de la capture S24 nettoyée + 3 associations SYNTHÉTIQUES (candidat, retenue paiement, oubliée) — playbooks 38 A2",
+ "response": {
+  "schemaVersion": 1,
+  "receipt": null,
+  "owner": "engineering.learning_gate",
+  "kinds": [
+   {
+    "id": "candidate",
+    "label": {
+     "fr": "Candidats",
+     "en": "Candidates"
+    },
+    "available": true
+   },
+   {
+    "id": "learned",
+    "label": {
+     "fr": "Retenues",
+     "en": "Learned"
+    },
+    "available": true
+   },
+   {
+    "id": "counter_example",
+    "label": {
+     "fr": "Contre-exemples",
+     "en": "Counter-examples"
+    },
+    "available": true
+   },
+   {
+    "id": "default_slot",
+    "label": {
+     "fr": "Valeurs par défaut",
+     "en": "Default slots"
+    },
+    "available": true
+   },
+   {
+    "id": "outside_catalog",
+    "label": {
+     "fr": "Demandes hors catalogue",
+     "en": "Outside catalogue"
+    },
+    "available": false
+   }
+  ],
+  "offset": 0,
+  "limit": 50,
+  "policy": {
+   "autonomousPromotion": "verified_receipt_only",
+   "rememberAction": false,
+   "paymentConfirmation": "always",
+   "templatesOnly": true
+  },
+  "state": "ok",
+  "total": 3,
+  "counts": {
+   "candidate": 1,
+   "learned": 1,
+   "counter_example": 1,
+   "default_slot": 0,
+   "outside_catalog": 0
+  },
+  "items": [
+   {
+    "id": "f6d0641d8e32c575fe845f98a348a2fded1ea5bb9a9671ff9b1b183c796b3071",
+    "kind": "alias",
+    "view": "counter_example",
+    "status": "REJECTED",
+    "active": false,
+    "template": "recharge bonus orange la {montant} dt",
+    "capability": "payment.owner_native",
+    "target": "maxit-tunisie",
+    "intent": "telecom.orange.topup_own_number",
+    "risk": "transaction",
+    "requiresOwnerConfirmation": true,
+    "confirmationNotice": {
+     "fr": "Confirmation et biométrie toujours demandées.",
+     "en": "Confirmation and biometrics are always required."
+    },
+    "slotDefaults": {},
+    "seen": 1,
+    "lastSeenAt": "2026-10-11T03:02:42.448113+00:00",
+    "createdAt": "2026-10-11T03:02:42.444737+00:00",
+    "forgettable": false
+   },
+   {
+    "id": "68191cf548596ed5c7c69b38ea532f6936f3bdcfebeba0e106f26ce635a88859",
+    "kind": "alias",
+    "view": "candidate",
+    "status": "PROPOSED",
+    "active": false,
+    "template": "recharge bonus orange {montant} dt",
+    "capability": "payment.owner_native",
+    "target": "maxit-tunisie",
+    "intent": "telecom.orange.topup_own_number",
+    "risk": "transaction",
+    "requiresOwnerConfirmation": true,
+    "confirmationNotice": {
+     "fr": "Confirmation et biométrie toujours demandées.",
+     "en": "Confirmation and biometrics are always required."
+    },
+    "slotDefaults": {},
+    "seen": 1,
+    "lastSeenAt": "2026-10-11T03:02:42.445106+00:00",
+    "createdAt": "2026-10-11T03:02:42.434199+00:00",
+    "forgettable": true
+   },
+   {
+    "id": "9141d87c24ba9e5363a53ac86949ff70e721af3045859ccb0a3b89e2360ca723",
+    "kind": "alias",
+    "view": "learned",
+    "status": "STABLE",
+    "active": true,
+    "template": "recharge bonus orange le {montant} dt",
+    "capability": "payment.owner_native",
+    "target": "maxit-tunisie",
+    "intent": "telecom.orange.topup_own_number",
+    "risk": "transaction",
+    "requiresOwnerConfirmation": true,
+    "confirmationNotice": {
+     "fr": "Confirmation et biométrie toujours demandées.",
+     "en": "Confirmation and biometrics are always required."
+    },
+    "slotDefaults": {},
+    "seen": 1,
+    "lastSeenAt": "2026-10-11T03:02:42.442897+00:00",
+    "createdAt": "2026-10-11T03:02:42.439525+00:00",
+    "forgettable": true
+   }
+  ],
+  "revision": "75d4d9d2304e4ed1fef26048b10f1092b312c122050ccb14f2ac85de4f51a0d3"
+ }
+}

@@ -394,6 +394,10 @@ install_openclaw_package() {
     python -c "import yaml" 2>/dev/null || {
       command -v pip >/dev/null 2>&1 && pip install pyyaml -q || true
     }
+    # Termux ships no system zoneinfo: without tzdata every ZoneInfo("Africa/Tunis") raises (S24 11/10).
+    python -c "from zoneinfo import ZoneInfo; ZoneInfo('Africa/Tunis')" 2>/dev/null || {
+      command -v pip >/dev/null 2>&1 && pip install tzdata -q || true
+    }
   fi
 
   if npm list -g openclaw >/dev/null 2>&1 || [ -d "$PREFIX/lib/node_modules/openclaw" ]; then

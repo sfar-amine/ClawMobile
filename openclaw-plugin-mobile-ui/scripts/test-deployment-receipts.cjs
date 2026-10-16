@@ -34,6 +34,13 @@ const fixture=require('../fixtures/s24-2026-10-10/g4/deploy-receipts.json');
   // 600 real-shape receipts, latest filename last in directory iteration, mixed owners.
   await fs.rm(dir,{recursive:true});await fs.mkdir(dir);for(let i=0;i<600;i++){const date=new Date(Date.UTC(2026,9,1)+i*1000);const stamp=date.toISOString().slice(0,19).replace(/[-:]/g,'');const kind=i%2?'app':'companion';const source=kind==='app'?app:first;await fs.writeFile(path.join(dir,`${kind}-${stamp}.json`),JSON.stringify({...source.receipt,at:date.toISOString()}));}
   await new Promise(r=>setTimeout(r,1010));start=performance.now();const volume=await get('?limit=50');const cold=performance.now()-start;assert.ok(cold<500,`cold ${cold}`);assert.equal(volume.body.items.length,50);assert.equal(volume.body.items[0].at,new Date(Date.UTC(2026,9,1)+599000).toISOString());assert.ok(volume.body.issues.includes('receipt_read_limit'));assert.equal(await latestCompanionDeploymentAt(first.receipt.target),null);
+  // Retro 12/10 (S24 companion-20261012T092357: 1.93 s cold read under swap): unchanged receipts are parsed once,
+  // a receipt rewritten by its owner is read again.
+  let reads=0;const alloc=Buffer.allocUnsafe;Buffer.allocUnsafe=(n)=>{reads++;return alloc(n);};
+  await new Promise(r=>setTimeout(r,1010));const again=await get('?limit=50');assert.deepEqual(again.body,volume.body);assert.equal(reads,0,'unchanged receipts re-read');
+  const newest=(await fs.readdir(dir)).sort((a,b)=>a.slice(a.indexOf('-')).localeCompare(b.slice(b.indexOf('-')))).pop();const rewritten=JSON.parse(await fs.readFile(path.join(dir,newest),'utf8'));rewritten.state='rolled_back';rewritten.detail='acceptance_failed';
+  await fs.writeFile(path.join(dir,newest),JSON.stringify(rewritten));await new Promise(r=>setTimeout(r,1010));
+  const updated=await get('?limit=50');Buffer.allocUnsafe=alloc;assert.equal(reads,1);assert.equal(updated.body.items[0].state,'rolled_back');assert.equal(updated.body.items[0].rollback,true);
   // Symlinked owner parent must not escape the runtime directory.
   const outside=await fs.mkdtemp(path.join(os.tmpdir(),'g4-outside-'));await fs.mkdir(path.join(outside,'deploys'));await fs.writeFile(path.join(outside,'deploys',first.filename),JSON.stringify(first.receipt));
   await fs.rm(path.join(home,'.openclaw'),{recursive:true});await fs.symlink(outside,path.join(home,'.openclaw'));await new Promise(r=>setTimeout(r,1010));assert.equal((await readDeploymentReceipts()).state,'unavailable');await fs.rm(outside,{recursive:true});
