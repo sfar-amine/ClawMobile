@@ -19,6 +19,12 @@ class OriginTests(unittest.TestCase):
         return p.stdout.strip()
     def rows(self):
         with sqlite3.connect(self.root/'memory.db') as c:return c.execute('SELECT id,revision,session_id,supersedes FROM events ORDER BY revision').fetchall()
+    def archived(self,eid):
+        for archive in (self.root/'history').glob('*.jsonl'):
+            for line in archive.read_text().splitlines():
+                row=json.loads(line)
+                if row['id']==eid:return row
+        self.fail('missing archived event '+eid)
     def ingest(self,obj,ok=True):
         p=self.home/'candidate.json';p.write_text(json.dumps(obj));out=subprocess.run(['python3',str(self.bin/'context-store.py'),'ingest-file',str(p)],env=self.env,text=True,capture_output=True)
         self.assertEqual(out.returncode==0,ok,out.stderr);return out
@@ -32,12 +38,12 @@ class OriginTests(unittest.TestCase):
     def test_same_text_distinct_origins_exact_replay(self):
         a=self.event('chat','open_thread','--session','alpha_1','Same request');b=self.event('chat','open_thread','--session','beta-2','Same request')
         self.assertNotEqual(a,b);self.assertEqual(a,self.event('chat','open_thread','--session','alpha_1','Same request'));self.assertEqual([(r[1],r[2]) for r in self.rows()],[(1,'alpha_1'),(2,'beta-2')])
-        self.assertEqual(json.loads((self.root/'processed'/f'{a}.json').read_text())['sessionId'],'alpha_1')
+        self.assertEqual(self.archived(a)['sessionId'],'alpha_1');self.assertFalse((self.root/'processed'/f'{a}.json').exists())
     def test_invalid_flags_write_nothing(self):
         for flags in [('chat','open_thread','--session','agent:main:x','x'),('chat','open_thread','--session','x'*81,'x'),('chat','open_thread','--session','alpha\nbeta','x'),('chat','decision','--session','alpha','x'),('chat','open_thread','--session','a','--session','b','x'),('chat','open_thread','--other','x')]:self.event(*flags,ok=False)
         self.assertFalse(self.root.exists())
     def test_conflict_and_bad_json_leave_events_unchanged(self):
-        a=self.event('work','open_thread','--session','alpha','Same request');before=self.rows();obj=json.loads((self.root/'processed'/f'{a}.json').read_text());obj['sessionId']='beta'
+        a=self.event('work','open_thread','--session','alpha','Same request');before=self.rows();obj=self.archived(a);obj['sessionId']='beta'
         self.assertIn('event_session_conflict',self.ingest(obj,ok=False).stderr);self.assertEqual(self.rows(),before)
         obj['sessionId']='agent:main:x';self.assertIn('invalid_companion_session',self.ingest(obj,ok=False).stderr);self.assertEqual(self.rows(),before)
     def test_supersedes_preserves_root_and_refuses_wrong_origin(self):

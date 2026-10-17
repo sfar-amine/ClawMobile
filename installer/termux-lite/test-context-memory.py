@@ -17,17 +17,27 @@ def T(name,fn):
  except Exception as e: tests.append((name,'FAIL',str(e)))
 def event(surface='chat',kind='decision',text='TEST-ALPHA règle ORANGE-47',extra=()):
  return run('context-event.sh',surface,kind,*extra,text).stdout.strip()
-T('U01 valid event becomes durable immediately',lambda: (lambda i: (_ for _ in ()).throw(AssertionError()) if not ((root/'pending'/f'{i}.json').exists() or (root/'processed'/f'{i}.json').exists()) else None)(event()))
-T('U02 duplicate is idempotent',lambda: (_ for _ in ()).throw(AssertionError()) if event()=='' or len(list((root/'pending').glob('*.json')))+len(list((root/'processed').glob('*.json')))!=1 else None)
+def durable_ids():
+ con=sqlite3.connect(root/'memory.db');db={r[0] for r in con.execute('select id from events')};con.close()
+ history=[]
+ for path in (root/'history').glob('*.jsonl'):
+  history.extend(json.loads(line)['id'] for line in path.read_text().splitlines() if line.strip())
+ return db,history
+first=event()
+T('U01 valid event becomes durable immediately',lambda: (lambda state: (_ for _ in ()).throw(AssertionError()) if first not in state[0] or first not in state[1] else None)(durable_ids()))
+def u02():
+ assert event()==first;db,history=durable_ids();assert list(db).count(first)==1 and history.count(first)==1
+T('U02 duplicate is idempotent',u02)
 def u03():
  for s in ('work','voice','openclaw'): event(s,'learning',f'unit surface {s}')
- assert len(list((root/'pending').glob('*.json')))+len(list((root/'processed').glob('*.json'))) == 4
+ db,history=durable_ids();assert len(db)==4 and len(history)==4
 T('U03 all surfaces accepted',u03)
 T('U04 invalid surface rejected',lambda: run('context-event.sh','bad','decision','x',ok=(64,)))
 T('U05 secret OTP rejected',lambda: run('context-event.sh','chat','decision','OTP 123456',ok=(65,)))
 T('U05b payment-card-like rejected',lambda: run('context-event.sh','chat','decision','card 4168437700288503',ok=(65,)))
 def u06():
- run('context-compact.sh'); assert len(list((root/'pending').glob('*.json')))==0; assert len(list((root/'processed').glob('*.json')))>=4
+ run('context-compact.sh');db,history=durable_ids();assert len(db)>=4 and len(history)>=4
+ assert not list((root/'pending').glob('*.json')) and not list((root/'processed').glob('*.json'))
 T('U06 compact drains valid pending',u06)
 def u07():
  before=sqlite3.connect(root/'memory.db').execute('select count(*) from events').fetchone()[0]; run('context-compact.sh'); after=sqlite3.connect(root/'memory.db').execute('select count(*) from events').fetchone()[0]; assert before==after

@@ -34,6 +34,8 @@ type StoredRun = {
   clarificationState?: "pending" | "resolved" | "abandoned";
   clarificationExpiresAt?: number;
   parentClarificationRunId?: string;
+  /** SAM-MIG V2.2: goal of the dialogue coordinator this run projects (display only, never a decision source). */
+  dialogueGoalRef?: string;
   sessionId: string;
   sessionKey?: string;
   text: string;
@@ -175,6 +177,8 @@ function submissionRequestHash(
   })).digest("hex");
 }
 
+/** Optional admission runs under the existing registry writer before any reservation. */
+export type RunReservationAdmission=(run:Readonly<StoredRun>,existing:readonly StoredRun[],canRetain:(rows:StoredRun[])=>boolean)=>void;
 export async function reserveSubmittedRun(
   text: string,
   sessionId: string,
@@ -186,6 +190,8 @@ export async function reserveSubmittedRun(
     executionSource?: "gateway" | "capability_first";
     decision?: Record<string, unknown>;
     parentClarificationRunId?: string;
+    dialogueGoalRef?: string;
+    admission?: RunReservationAdmission;
     memoAttachmentId?: string;
     replayOf?: {sessionId: string; runId: string};
     ownerAdmitted?: boolean;
@@ -230,8 +236,9 @@ export async function reserveSubmittedRun(
       presentation: options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined,
       decision: options.decision && typeof options.decision === "object" ? options.decision : undefined,
       clarificationState: String(options.decision?.type || "") === "CLARIFY" ? "pending" : undefined,
-      clarificationExpiresAt: String(options.decision?.type || "") === "CLARIFY" ? now + 10 * 60 * 1000 : undefined,
+      clarificationExpiresAt: String(options.decision?.type || "") === "CLARIFY" ? now + CLARIFICATION_PROJECTION_MS : undefined,
       parentClarificationRunId: options.parentClarificationRunId,
+      dialogueGoalRef: dialogueGoalRefOf(options.dialogueGoalRef),
       sessionId: normalizedSessionId,
       sessionKey: expectedCompanionSessionKey(normalizedSessionId),
       text,
@@ -247,6 +254,12 @@ export async function reserveSubmittedRun(
     const link: ReplayLink | undefined = source ? {version: 1, sessionId: normalizedSessionId, runId: newRunId, at: now} : undefined;
     const marked = source && link ? registry.runs.map(run => run.sessionId === source.sessionId && compareRuns(run, source) >= 0 && !run.supersededBy
       ? {...run, supersededBy: link} : run) : registry.runs;
+    options.admission?.(stored,marked,(rows)=>{
+      const retained=retainStoredRuns(rows);
+      return retained.length===rows.length&&rows.every(row=>retained.some(candidate=>candidate.runId===row.runId))&&
+        Buffer.byteLength(JSON.stringify({version:1,...registry,runs:rows},null,2),'utf8')+512<=MAX_PERSISTED_RUN_BYTES;
+    });
+    // E4 admission runs before any cache update: a refused reservation leaves no superseded mark behind.
     if (link) for (const run of marked) if (run.supersededBy === link && submittedRuns.has(run.runId)) submittedRuns.set(run.runId, run);
     const next = retainStoredRuns([stored, ...marked]);
     const archivedSessionIds = registry.archivedSessionIds.filter((id) => id !== normalizedSessionId);
@@ -342,17 +355,18 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
 }
 
 export async function claimMemoDispatch(runId: string, text: string, executionSource: "gateway" | "capability_first",
-  decision?: Record<string, unknown>, parentClarificationRunId?: string, authorized?: () => boolean, ownerAdmitted = false): Promise<boolean> {
+  decision?: Record<string, unknown>, parentClarificationRunId?: string, authorized?: () => boolean, ownerAdmitted = false,
+  dialogueGoalRef?: string): Promise<boolean> {
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
     const row = registry.runs.find(run => run.runId === runId);
     if (authorized?.() !== true || !row || row.state !== "running" || row.memo?.phase !== "ready" || row.text !== text ||
         registry.runDeletions.some(r => r.runId === runId)) return false;
     const now = Date.now();
-    const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId, ownerAdmitted: ownerAdmitted === true ? true as const : undefined,
+    const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId, dialogueGoalRef: dialogueGoalRefOf(dialogueGoalRef), ownerAdmitted: ownerAdmitted === true ? true as const : undefined,
       memo: {...row.memo, phase: "dispatched", ownerEpoch: MEMO_OWNER_EPOCH}, updatedAt: now,
       clarificationState: decision?.type === "CLARIFY" ? "pending" : undefined,
-      clarificationExpiresAt: decision?.type === "CLARIFY" ? now + 10 * 60 * 1000 : undefined};
+      clarificationExpiresAt: decision?.type === "CLARIFY" ? now + CLARIFICATION_PROJECTION_MS : undefined};
     await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? claimed : r), registry.archivedSessionIds);
     submittedRuns.set(runId, claimed);
     // Release only this authorized dispatch's audio, under the same registry lock.
@@ -366,7 +380,7 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
 export async function rememberSubmittedRun(
   text: string,
   result: OpenClawAgentSubmitResult,
-  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; ownerAdmitted?: boolean } = {},
+  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; dialogueGoalRef?: string; ownerAdmitted?: boolean } = {},
 ) {
   const existing = submittedRuns.get(result.runId)
     || (await findStoredRun(result.runId).catch(() => null));
@@ -382,8 +396,9 @@ export async function rememberSubmittedRun(
     attachments: options.attachments && options.attachments.length > 0 ? options.attachments : existing?.attachments,
     decision: options.decision || existing?.decision,
     clarificationState: String(options.decision?.type || existing?.decision?.type || "") === "CLARIFY" ? (existing?.clarificationState || "pending") : existing?.clarificationState,
-    clarificationExpiresAt: String(options.decision?.type || existing?.decision?.type || "") === "CLARIFY" ? (existing?.clarificationExpiresAt || Date.now() + 10 * 60 * 1000) : existing?.clarificationExpiresAt,
+    clarificationExpiresAt: String(options.decision?.type || existing?.decision?.type || "") === "CLARIFY" ? (existing?.clarificationExpiresAt || Date.now() + CLARIFICATION_PROJECTION_MS) : existing?.clarificationExpiresAt,
     parentClarificationRunId: options.parentClarificationRunId || existing?.parentClarificationRunId,
+    dialogueGoalRef: dialogueGoalRefOf(options.dialogueGoalRef) || existing?.dialogueGoalRef,
     acceptedAt: existing?.acceptedAt || result.acceptedAt || Date.now(),
     updatedAt: Date.now(),
     state: "running" as const,
@@ -449,6 +464,32 @@ export async function markSubmittedRunFailed(runId: string, message: string) {
   };
   submittedRuns.set(runId, stored);
   await saveStoredRun(stored).catch(() => undefined);
+}
+
+/** Local retained-history archive owner. No Gateway transcript deletion. */
+export async function conversationArchiveState(sessionId:string):Promise<boolean|null>{
+  requireConversationId(sessionId);await registryWrite;
+  const registry=await registryOrEmpty();
+  if(registry.runs.some(run=>run.sessionId===sessionId&&['accepted','running'].includes(run.state||'')))
+    throw Object.assign(new Error('protected_owner_activity'),{statusCode:409});
+  return registry.runs.some(run=>run.sessionId===sessionId)?registry.archivedSessionIds.includes(sessionId):null;
+}
+export async function setConversationArchived(sessionId:string,archived:boolean){
+  requireConversationId(sessionId);
+  return mutateRegistry(async()=>{
+    const registry=await registryOrEmpty();
+    if(!registry.runs.some(run=>run.sessionId===sessionId))throw Object.assign(new Error('conversation_not_found'),{statusCode:404,effectNotStarted:true});
+    if(sessionId==='native-owner-actions'||registry.runs.some(run=>run.sessionId===sessionId&&['accepted','running'].includes(run.state||''))||
+      registry.paymentRequests.some(row=>['awaiting_owner','executing','effect_unknown','requires_bank_action'].includes(row.state))||
+      registry.ownerConfirmations.some(row=>row.state==='awaiting_owner'&&row.expiresAt>Date.now()))
+      throw Object.assign(new Error('protected_owner_activity'),{statusCode:409,effectNotStarted:true});
+    const before=registry.archivedSessionIds.includes(sessionId);
+    if(before!==archived){
+      const next=archived?[...registry.archivedSessionIds,sessionId]:registry.archivedSessionIds.filter(id=>id!==sessionId);
+      await writeCompanionRunRegistry(registry.runs,next,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+    }
+    return {sessionId,archived,changed:before!==archived};
+  });
 }
 
 export async function archiveSession(sessionId: string) {
@@ -680,31 +721,26 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
   );
 }
 
-export async function findPendingClarificationRun(sessionId: string): Promise<{
-  runId: string; text: string; userText: string; decision: Record<string, unknown>; expiresAt: number; ownerAdmitted: boolean;
-} | null> {
-  const normalizedSessionId = normalizeCompanionSessionId(sessionId || "default");
-  const runs = await readStoredRuns();
-  const latest = runs.find((run) => run.sessionId === normalizedSessionId && run.modality !== "voice");
-  if (!latest || latest.clarificationState !== "pending" || !latest.decision || String(latest.decision.type || "") !== "CLARIFY") {
-    return null;
-  }
-  const expiresAt = Number(latest.clarificationExpiresAt || 0);
-  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-    await markClarificationRun(latest.runId, "abandoned");
-    return null;
-  }
-  return {
-    runId: latest.runId,
-    text: latest.text,
-    userText: latest.userText || latest.text,
-    decision: latest.decision,
-    expiresAt,
-    ownerAdmitted: latest.ownerAdmitted === true,
-  };
+/**
+ * SAM-MIG V2.2: the run registry is no longer an authority of clarification. A run only PROJECTS the question
+ * owned by the dialogue coordinator (display, comprehension metrics). These helpers link and update that
+ * projection; nothing reads it to decide (INV-01).
+ */
+export const CLARIFICATION_PROJECTION_MS = 30 * 60 * 1000; // D-D: question 30 min
+const DIALOGUE_GOAL_RE = /^goal-[a-f0-9]{20}$/;
+export function dialogueGoalRefOf(value: unknown): string | undefined {
+  return typeof value === "string" && DIALOGUE_GOAL_RE.test(value) ? value : undefined;
 }
 
-export async function markClarificationRun(
+export async function findClarificationProjectionRun(sessionId: string, goalRef: unknown): Promise<string | undefined> {
+  const goal = dialogueGoalRefOf(goalRef);
+  if (!goal) return undefined;
+  const normalizedSessionId = normalizeCompanionSessionId(sessionId || "default");
+  const runs = await readStoredRuns();
+  return runs.find((run) => run.sessionId === normalizedSessionId && run.dialogueGoalRef === goal && run.clarificationState === "pending")?.runId;
+}
+
+export async function projectClarificationRun(
   runId: string, state: "resolved" | "abandoned",
 ): Promise<void> {
   const existing = submittedRuns.get(runId) || (await findStoredRun(runId).catch(() => null));
@@ -2051,11 +2087,14 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       decision: run.decision && typeof run.decision === "object" && Number(run.decision.version) === 2
         ? run.decision
         : undefined,
+      // D-C at cutover: a legacy pending question (no coordinator goal) or an expired one is shown abandoned.
       clarificationState: ["pending", "resolved", "abandoned"].includes(String(run.clarificationState || ""))
-        ? run.clarificationState
+        ? (run.clarificationState === "pending" && (!dialogueGoalRefOf(run.dialogueGoalRef) ||
+            (typeof run.clarificationExpiresAt === "number" && run.clarificationExpiresAt <= Date.now())) ? "abandoned" : run.clarificationState)
         : undefined,
       clarificationExpiresAt: typeof run.clarificationExpiresAt === "number" ? run.clarificationExpiresAt : undefined,
       parentClarificationRunId: typeof run.parentClarificationRunId === "string" ? run.parentClarificationRunId : undefined,
+      dialogueGoalRef: dialogueGoalRefOf(run.dialogueGoalRef),
       sessionId: normalizeCompanionSessionId(String(run.sessionId || "default")),
       sessionKey: typeof run.sessionKey === "string" ? run.sessionKey : undefined,
       text: typeof run.text === "string" ? run.text : "",
@@ -2309,13 +2348,14 @@ export async function mutateOwnerConfirmations<T>(operation:(records:Confirmatio
 }
 
 // Presentation-only retained-history contract. No new durable store or wider retention.
-type PageOptions={limit?:number;cursor?:string;query?:string};
+type PageOptions={limit?:number;cursor?:string;query?:string;archived?:boolean};
 const pageSecret=randomBytes(32);
 const pageEpoch=randomUUID();
 const digest=(value:unknown)=>createHash("sha256").update(JSON.stringify(value)).digest("hex");
 function pageError(message:string,statusCode=409){return Object.assign(new Error(message),{statusCode});}
 function normalizedPageOptions(options:PageOptions){
   const limit=options.limit??20,query=options.query??"";
+  if(options.archived!==undefined&&typeof options.archived!=="boolean")throw pageError("invalid_pagination",400);
   if(!Number.isSafeInteger(limit)||limit<1||limit>40||query.length>512||(options.cursor?.length??0)>2048)throw pageError("invalid_pagination",400);
   return {limit,query,cursor:options.cursor};
 }
@@ -2335,11 +2375,11 @@ function cursorAnchor(cursor:string|undefined,scope:string,revision:string):stri
     throw pageError("pagination_invalidated");
   return value.anchor;
 }
-async function retainedRuns():Promise<StoredRun[]> {
+async function retainedRuns(archiveScope:boolean|null=false):Promise<StoredRun[]> {
   reconcileInactiveRuns();
   await registryWrite;
   const registry=await registryOrEmpty(),archived=new Set(registry.archivedSessionIds);
-  return registry.runs.filter(x=>!archived.has(x.sessionId)).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
+  return registry.runs.filter(x=>archiveScope===null||archived.has(x.sessionId)===archiveScope).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
 }
 
 /** The Companion's own retained view of one conversation (no Gateway read). */
@@ -2381,7 +2421,8 @@ export function readablePreview(raw:string,max=140):string{
 
 export async function conversationSummariesPage(options:PageOptions={}){
   const {limit,query,cursor}=normalizedPageOptions(options);
-  const runs=await retainedRuns();const grouped=new Map<string,StoredRun[]>();
+  const archiveScope=options.archived===true;
+  const runs=await retainedRuns(archiveScope);const grouped=new Map<string,StoredRun[]>();
   // Background single-flight refresh; pagination never waits on a Gateway process.
   const ownerIndex=runs.length?conversationOwnerIndex():{rows:new Map<string,any>(),state:'pending'};
   const metadata=ownerIndex.rows;
@@ -2394,13 +2435,13 @@ export async function conversationSummariesPage(options:PageOptions={}){
       // First retained authentic request; routed prompt, assistant text and catalogue labels are not title evidence.
       const original=[...rows].reverse().find(row=>typeof row.userText==='string'&&row.userText.trim().length>0);
       const titlePreview=(original?.userText||'').slice(0,160);
-      return {sessionId,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview,
+      return {sessionId,archived:archiveScope,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview,
         lastResultPreview:readablePreview(latest.result||""),lastRunState:status.state,
         lastActivityAt:latest.updatedAt||latest.acceptedAt,sortAt:latest.acceptedAt,
         modality:latest.modality||"text",transcriptState:latest.transcriptState||"",
         availableTurnCount:rows.length,previewTruncated:(!/^\s*[{\[]/.test(latest.result||"")&&(latest.result?.length||0)>140)||(original?.userText||"").length>160};
     }).sort((a,b)=>b.sortAt-a.sortAt||a.sessionId.localeCompare(b.sessionId));
-  const revision=digest({items,retainedRunCount:runs.length,availableConversations:grouped.size}),scope=pageScope("conversations",query,limit),anchor=cursorAnchor(cursor,scope,revision);
+  const revision=digest({archived:archiveScope,items,retainedRunCount:runs.length,availableConversations:grouped.size}),scope=pageScope("conversations:"+(archiveScope?"archived":"active"),query,limit),anchor=cursorAnchor(cursor,scope,revision);
   const index=anchor?items.findIndex(x=>x.sessionId===anchor):-1;
   if(anchor&&index<0)throw pageError("pagination_invalidated");
   const start=index+1,page=items.slice(start,start+limit),more=start+page.length<items.length;
@@ -2411,11 +2452,11 @@ export async function conversationSummariesPage(options:PageOptions={}){
 }
 export async function conversationTurnsPage(sessionId:string,options:PageOptions={}){
   requireConversationId(sessionId);const {limit,cursor}=normalizedPageOptions(options);
-  if(options.query)throw pageError("unsupported_turn_query",400);
+  if(options.query||options.archived!==undefined)throw pageError("unsupported_turn_query",400);
   // Keep the canonical full preparation path separate from this UI page.
   let partial=false;
   if(!cursor)try{await getConversationTurns(sessionId);}catch{partial=true;}
-  const all=(await retainedRuns()).filter(x=>x.sessionId===sessionId).sort((a,b)=>a.acceptedAt-b.acceptedAt||a.runId.localeCompare(b.runId));
+  const all=(await retainedRuns(null)).filter(x=>x.sessionId===sessionId).sort((a,b)=>a.acceptedAt-b.acceptedAt||a.runId.localeCompare(b.runId));
   const revision=digest(all.map(statusFromStoredRun));
   const scope=pageScope("turns:"+sessionId,"",limit),anchor=cursorAnchor(cursor,scope,revision);
   const end=anchor?all.findIndex(x=>x.runId===anchor):all.length;

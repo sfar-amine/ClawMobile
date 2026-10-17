@@ -2,8 +2,9 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('nod
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'reason-class-cause-'));process.env.OPENCLAW_STATE_DIR=root;
 const registry=path.join(root,'clawmobile-companion/runs.json');fs.mkdirSync(path.dirname(registry),{recursive:true});
 fs.writeFileSync(registry,JSON.stringify({version:1,runs:[],paymentRequests:[],ownerConfirmations:[],archivedSessionIds:[],runDeletions:[]}));
+// SAM-MIG V2.2: stand-in of `model-fast-path.py --dialogue` (turn, then deferred hand-off); reason_class travels in the reply metadata.
 const helper=path.join(root,'runner.py');
-fs.writeFileSync(helper,`import json,sys\nd={'version':2,'type':'EXECUTE','capability':'device.status','intent':'device.status','target':'device','risk':'read','confirmationRequired':False,'parameters':{}}\nif '--check' in sys.argv: print(json.dumps({'status':'eligible','decision':d}))\nelse: print(json.dumps({'status':'known_error','text':'Lecture indisponible.','reason_class':'transport_timeout','decision':d}))\n`);
+fs.writeFileSync(helper,`import json,sys\nd={'version':2,'type':'EXECUTE','capability':'device.status','intent':'device.status','target':'device','risk':'read','confirmationRequired':False,'parameters':{}}\nm=sys.argv[sys.argv.index('--dialogue')+1]\nif m=='turn': print(json.dumps({'outcome':'READY','handled':True,'goalRef':'goal-0000000000000000beef','pendingHandoff':{'goalRef':'goal-0000000000000000beef','klass':'FAST'},'decision':d}))\nelse: print(json.dumps({'outcome':'FAILED','text':'Lecture indisponible.','handled':True,'decision':d,'metadata':{'reason_class':'transport_timeout'}}))\n`);
 process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
 const client=require('../dist/companion/openclawAgentClient');client.callOpenClawGateway=async(method)=>{if(method==='sessions.list')return {sessions:[]};throw Error('unexpected gateway call '+method)};
 const runs=require('../dist/companion/runs'),{submitIntent}=require('../dist/companion/intent'),metadata=require('../dist/companion/conversationMetadata');

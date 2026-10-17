@@ -5,6 +5,9 @@ os.homedir=()=>home;
 fs.mkdirSync(path.join(work,'context'),{recursive:true});
 fs.writeFileSync(path.join(work,'SOUL.md'),'C1_IDENTITY');fs.writeFileSync(path.join(work,'USER.md'),'C1_PREFERENCES');fs.writeFileSync(path.join(work,'context/HYBRID_CONTEXT.md'),'C1_CONTINUITY');
 fs.writeFileSync(path.join(work,'context/OPERATING_RULES.md'),'C1_OPERATING\n'+'rule-prefix\n'.repeat(1300)+'\n## Règles spécialisées\nC1_SPECIALIZED\n### Payments\nHuman confirmation remains mandatory.\n## Unrelated tail\nTAIL_EXCLUDED');
+// SAM-MIG V2.2: a voice turn first goes to the dialogue coordinator; the stand-in answers UNRESOLVED (no question
+// pending, model policy allowed), so the turn continues on the agent path this test is about.
+const dialogueHelper=path.join(home,'dialogue-helper.py');fs.writeFileSync(dialogueHelper,"import json\nprint(json.dumps({'outcome':'UNRESOLVED','reasonCode':'model_allowed','modelAllowed':True,'handled':False}))\n");process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=dialogueHelper;
 const output=path.join(home,'params.json'),cli=path.join(home,'gateway-fixture.py');
 fs.writeFileSync(cli,'#!/usr/bin/env python3\nimport json,sys,time\nfrom pathlib import Path\ntime.sleep(3.2)\np=json.loads(sys.argv[sys.argv.index("--params")+1]);Path('+JSON.stringify(output)+').write_text(json.dumps(p));print(json.dumps({"runId":p["idempotencyKey"],"status":"accepted"}))\n');fs.chmodSync(cli,0o700);process.env.CLAWMOBILE_OPENCLAW_BIN=cli;
 // Sanitized real pre-C1 reports: metadata only, never reconstruct private bootstrap content.

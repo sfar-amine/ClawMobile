@@ -4,14 +4,13 @@ import {conditionalRead} from "./readEtag";
 import {completeUsageAttention} from './usageControl';
 import {allJobs} from "./automations";
 import { execFile, spawn } from "child_process";
-import {existsSync, constants} from "fs";
+import {existsSync} from "fs";
 import type { IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
 import readline from "readline";
 import { randomUUID, createHash } from "crypto";
 import { performance } from "perf_hooks";
-import fs from "fs/promises";
 import { completeHealthSection } from "./control-health";
 import {companionBuildVersion} from "./updatesControl";
 
@@ -238,18 +237,25 @@ export async function readControlProjection(key:string,generate:(signal:AbortSig
 }
 
 
-// A revision input, never a replacement scheduler or a second copy of its jobs.
+// Digest comes from the existing Python reporting owner, never a second scheduler store.
+// Probe timeout 600 ms (S24 17/10): 128 ms measured cold, but the post-deploy load doubles Python start-up; at 200 ms
+// the probe fell back to the ~4 s normal collector and rolled the deploy back. 600 + 80 ms stays under the 1 s budget.
+let revisionFlight:{key:string;value:Promise<string|null>}|undefined;
 async function automationSourceRevision():Promise<string|null>{
-  const root=process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),".openclaw");
-  const directory=path.join(root,"cron"),source=path.join(directory,"jobs.json");
-  let file:Awaited<ReturnType<typeof fs.open>>|undefined;
-  try{
-    for(const parent of [root,directory]){const info=await fs.lstat(parent);if(!info.isDirectory()||info.isSymbolicLink())return null;}
-    file=await fs.open(source,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
-    const info=await file.stat();if(!info.isFile()||info.size>8*1024*1024)return null;
-    const data=await file.readFile();if(data.length>8*1024*1024)return null;
-    return createHash("sha256").update(data).digest("hex");
-  }catch{return null;}finally{await file?.close();}
+  const roots=controlPaths(),root=process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),".openclaw");
+  const key=JSON.stringify([roots.playbooks,root]);
+  if(revisionFlight){if(revisionFlight.key===key)return revisionFlight.value;await revisionFlight.value;return automationSourceRevision();}
+  const value=new Promise<string|null>(resolve=>{
+    execFile("python3",["-m","reporting.control_snapshot","--automation-revision"],{
+      cwd:roots.playbooks,env:{...process.env},timeout:600,killSignal:"SIGKILL",maxBuffer:2048,
+    },(error,stdout)=>{
+      if(error){resolve(null);return;}
+      try{const result=JSON.parse(stdout);if(!result||typeof result!=="object"||Array.isArray(result)||Object.keys(result).some(k=>!["schemaVersion","sourceRevision"].includes(k))||result.schemaVersion!==1||!(result.sourceRevision===null||typeof result.sourceRevision==="string"&&/^[a-f0-9]{64}$/.test(result.sourceRevision)))throw Error();resolve(result.sourceRevision);}
+      catch{resolve(null);}
+    });
+  });
+  revisionFlight={key,value};void value.finally(()=>{if(revisionFlight?.value===value)revisionFlight=undefined;});
+  return value;
 }
 
 function deferredAutomations(revision:string|null):ControlResult{
@@ -324,7 +330,7 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
   // The existing bounded collector continues; polling shares its single flight.
   let timer:ReturnType<typeof setTimeout>|undefined;
   try{return await Promise.race([result.then(completeAutomationScheduler),new Promise<ControlResult>(resolve=>{
-    timer=setTimeout(()=>resolve(deferredAutomations(sourceRevision)),180);
+    timer=setTimeout(()=>resolve(deferredAutomations(sourceRevision)),80);
   })]);}finally{if(timer)clearTimeout(timer);}
 }
 

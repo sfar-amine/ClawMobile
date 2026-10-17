@@ -8,24 +8,34 @@ process.env.OPENCLAW_STATE_DIR = path.join(root, "openclaw-state");
 process.env.CLAWMOBILE_AGENT_ID = "main";
 const helper = path.join(root, "model-fast-path.py");
 const helperLog = path.join(root, "model-fast-path.log");
+// SAM-MIG V2.2: stand-in for `model-fast-path.py --dialogue` (the coordinator itself is tested in
+// samantha-ui-playbooks). It keeps the pending question per conversation in a file, as the coordinator does in its
+// store; the Companion keeps none.
 fs.writeFileSync(helper, [
-  "import json, os, sys",
-  "mode = 'clarify' if '--resolve-clarification' in sys.argv else 'execute_decision' if '--execute-decision' in sys.argv else 'check' if '--check' in sys.argv else 'execute'",
+  "import base64, json, os, sys",
+  "mode = sys.argv[sys.argv.index('--dialogue') + 1] if '--dialogue' in sys.argv else 'legacy'",
   "message = sys.argv[-1] if sys.argv else ''",
   "with open(os.environ['CLAWMOBILE_TEST_FAST_PATH_LOG'], 'a', encoding='utf-8') as h: h.write(mode + '\\n')",
+  "event = json.loads(base64.b64decode(os.environ.get('CLAW_DIALOGUE_EVENT_B64', 'e30=')))",
+  "state_path = os.environ['CLAWMOBILE_TEST_FAST_PATH_LOG'] + '.state'",
+  "state = json.load(open(state_path)) if os.path.exists(state_path) else {}",
   "def decision(kind, ident):",
-  " return {'version':2,'type':kind,'decisionId':ident,'requestId':ident,'textHash':'x','capabilityRevision':'rev','contractHash':'hash'}",
-  "if mode == 'clarify':",
-  " print(json.dumps({'status':'eligible','model_bypassed':True,'decision':decision('EXECUTE','child-decision'),'resolution':{'text':'resolved capability'}}))",
+  " return {'version':2,'type':kind,'decisionId':ident}",
+  "conv = event.get('conversationKey')",
+  "if mode == 'handoff':",
+  " out = {'outcome':'COMPLETED','text':'CAPABILITY_FIRST_DIRECT_OK','handled':True,'goalRef':sys.argv[sys.argv.index('--goal-ref') + 1]}",
+  "elif mode != 'turn':",
+  " raise SystemExit('unexpected_mode')",
   "elif 'ambiguous capability' in message:",
-  " print(json.dumps({'status':'clarification','text':'Tu veux consulter ou agir ?','model_bypassed':True,'decision':{**decision('CLARIFY','parent-decision'),'clarification':{'question':'Tu veux consulter ou agir ?','choices':[{'intent':'read','label':'consulter'},{'intent':'act','label':'agir'}]}}}))",
-  "elif mode == 'check':",
-  " print(json.dumps({'status':'eligible','model_bypassed':True,'decision':decision('EXECUTE','direct-decision')}))",
-  "elif mode == 'execute_decision':",
-  " assert os.environ.get('CLAW_PREPARED_DECISION_B64')",
-  " print(json.dumps({'status':'hit','text':'CAPABILITY_FIRST_DIRECT_OK','model_bypassed':True}))",
+  " state[conv] = 'goal-aaaaaaaaaaaaaaaaaaaa'",
+  " out = {'outcome':'NEEDS_CHOICE','text':'Tu veux consulter ou agir ?','handled':True,'goalRef':state[conv],'decision':decision('CLARIFY','parent-decision'),'question':{'version':1,'kind':'choice','text':'Tu veux consulter ou agir ?'}}",
+  "elif conv in state:",
+  " goal = state.pop(conv)",
+  " out = {'outcome':'READY','handled':True,'goalRef':goal,'pendingHandoff':{'goalRef':goal,'klass':'FAST'},'decision':decision('EXECUTE','child-decision')}",
   "else:",
-  " raise SystemExit('unexpected_unprepared_execute')",
+  " out = {'outcome':'READY','handled':True,'goalRef':'goal-bbbbbbbbbbbbbbbbbbbb','pendingHandoff':{'goalRef':'goal-bbbbbbbbbbbbbbbbbbbb','klass':'FAST'},'decision':decision('EXECUTE','direct-decision')}",
+  "json.dump(state, open(state_path, 'w'))",
+  "print(json.dumps(out))",
   "",
 ].join("\n"));
 process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER = helper;
@@ -144,7 +154,7 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   )).runs.find((run) => run.runId === direct.runId);
   assert.equal(afterEnrichmentAttempt.result, "CAPABILITY_FIRST_DIRECT_OK");
   const callsAfterFirst = fs.readFileSync(helperLog, "utf8").trim().split(/\s+/);
-  assert.deepEqual(callsAfterFirst, ["check", "execute_decision"]);
+  assert.deepEqual(callsAfterFirst, ["turn", "handoff"]);
   const directDuplicate = await submitIntent("known direct capability", "session-direct-capability", [], {
     userText: "known direct capability", clientRunId: directClientRunId,
   });
@@ -174,7 +184,7 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   assert.equal(clarificationDurable.clarificationState, "pending");
   assert.ok(clarificationDurable.clarificationExpiresAt > Date.now());
   const clarificationCalls = fs.readFileSync(helperLog, "utf8").trim().split(/\s+/);
-  assert.equal(clarificationCalls.at(-1), "check");
+  assert.equal(clarificationCalls.at(-1), "turn");
 
   const childClientRunId = "samantha-615eec1e-c749-4ecc-b70b-193cb52d85fa";
   const child = await submitIntent("la première", "session-clarification", [], {
@@ -193,7 +203,8 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   assert.equal(childStored.decision.decisionId, "child-decision");
   assert.equal(childStored.executionSource, "capability_first");
   const childCalls = fs.readFileSync(helperLog, "utf8").trim().split(/\s+/);
-  assert.deepEqual(childCalls.slice(-2), ["clarify", "execute_decision"]);
+  assert.deepEqual(childCalls.slice(-2), ["turn", "handoff"]);
+  assert.equal(childStored.dialogueGoalRef, parentStored.dialogueGoalRef, "the run only projects the coordinator goal");
 
   const rejected = notSubmitted(sessionId, clientRunId, "gateway unavailable");
   assert.equal(rejected.accepted, false);

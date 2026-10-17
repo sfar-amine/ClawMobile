@@ -1,4 +1,5 @@
 import {readAutomationRuns,invalidateAutomationViews} from "./automationRunsPreparation";
+import {changeConversationArchive} from "./conversationArchive";
 import {serverLanguage,localizedRoute,localizeServerPresentation,ServerLanguage} from "./serverLocale";
 import {conditionalRead} from "./readEtag";
 import {readCatalogResponse,catalogETag} from './catalog';
@@ -46,7 +47,7 @@ import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { SurfaceClarifications } from "../capabilityClarification";
+import { dialogueConversationId } from "../dialogueSurface";
 import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { clawLiveCapability, clawLiveDecision } from "./clawLiveUnderstanding";
@@ -438,6 +439,25 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(pc&&method==='DELETE'){writeJson(res,200,await laptopChange('revoke',decodeURIComponent(pc[1]),await readJsonBody(req,2048)));return;}
       writeJson(res,405,{success:false,state:'refused',receipt:null,reason:'unsupported_laptop_route'});
     }catch(error:any){const invalid=error?.statusCode===400||error instanceof URIError;writeJson(res,invalid?400:503,{success:false,state:invalid?'refused':'indeterminate',receipt:null,reason:invalid?'invalid_laptop_operation':'laptop_owner_indeterminate'});}
+    return;
+  }
+
+  const conversationArchive=/^\/conversations\/([^/]+)\/(archive|unarchive)$/.exec(routePath);
+  if(conversationArchive){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']||req.headers['x-clawmobile-owner-flow']!=='v1'){
+      writeJson(res,403,{success:false,state:'refused',receipt:null,error:'native_owner_flow_required'});return;
+    }
+    if(method!=='POST'){res.setHeader('Allow','POST');writeJson(res,405,{success:false,state:'refused',receipt:null,error:'method_not_allowed'});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error('invalid_operation'),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(conversationArchive[1]);}catch{throw Object.assign(new Error('invalid_session_id'),{statusCode:400});}
+      const value=await changeConversationArchive(id,conversationArchive[2]==='archive',await readJsonBody(req,2048));
+      res.setHeader('Cache-Control','no-store');writeJson(res,Number.isInteger(value.httpStatus)?value.httpStatus:200,value);
+    }catch(error:any){
+      const status=[400,404,409,429].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,status,{success:false,state:status===503?'unavailable':'refused',receipt:null,error:
+        status===400?'invalid_conversation_archive':status===404?'conversation_not_found':status===409&&error?.message==='protected_owner_activity'?'protected_owner_activity':status===409?'operation_conflict':status===429?'conversation_archive_busy':error?.message==='archive_capacity_exceeded'?'archive_capacity_exceeded':'conversation_owner_unavailable'});
+    }
     return;
   }
 
@@ -900,7 +920,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if (!turnAdmission.isCurrent(admission.ticket, binding)) throw new HttpError(403,"owner_admission_required");
     };
     assertCurrent();
-    const clarificationId = SurfaceClarifications.idFor("claw-live:" + sessionId);
+    const clarificationId = dialogueConversationId("claw_live", "claw-live:" + sessionId);
     if (body.clarificationId !== undefined && body.clarificationId !== clarificationId) {
       writeJson(res,400,{success:false,error:"clarification_session_mismatch"}); return;
     }
@@ -1442,10 +1462,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if(!isLoopback||req.headers.origin||req.headers["sec-fetch-site"]){writeJson(res,403,{error:"native_loopback_required"});return;}
     if(process.env.SAMANTHA_HISTORY_V2 === "0"){writeJson(res,404,{error:"unsupported_contract"});return;}
     try{
-      for(const [key] of requestUrl.searchParams)if(!["contract","view","limit","cursor","q"].includes(key))throw Object.assign(Error(),{statusCode:400});
+      for(const [key] of requestUrl.searchParams)if(!["contract","view","limit","cursor","q","archived"].includes(key))throw Object.assign(Error(),{statusCode:400});
       const rawLimit=requestUrl.searchParams.get("limit")||"20";
       if(!/^[0-9]{1,2}$/.test(rawLimit))throw Object.assign(Error(),{statusCode:400});
-      const options={limit:Number(rawLimit),cursor:requestUrl.searchParams.get("cursor")||undefined,query:requestUrl.searchParams.get("q")||undefined};
+      const archived=requestUrl.searchParams.get('archived');
+      if(archived!==null&&(pagedTurns||!['0','1'].includes(archived)))throw Object.assign(Error(),{statusCode:400});
+      const options={...(archived!==null?{archived:archived==='1'}:{}),limit:Number(rawLimit),cursor:requestUrl.searchParams.get("cursor")||undefined,query:requestUrl.searchParams.get("q")||undefined};
       if(routePath === "/runs" && requestUrl.searchParams.get("view")!=="conversations")throw Object.assign(Error(),{statusCode:400});
       const value=pagedTurns?await conversationTurnsPage(decodeURIComponent(pagedTurns[1]),options):await conversationSummariesPage(options);
       res.setHeader("Cache-Control","no-store");writeJson(res,200,value);
