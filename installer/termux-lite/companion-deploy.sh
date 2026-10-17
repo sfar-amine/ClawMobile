@@ -7,10 +7,20 @@
 #   companion-deploy.sh <commit>        deploy that commit of samantha-private/runtime/samantha-companion-private
 #   COMPANION_DEPLOY_WAIT_CALM_S=1200   wait up to that long for a calm phone instead of refusing at once
 #   companion-deploy.sh --status        print the last receipt
+#   companion-deploy.sh --resolve       print the resolved runtime root and checkout, change nothing
 #   companion-deploy.sh --maintenance close|open|status   maintenance lock of SAM-MIG V2.2 (see below)
 set -uo pipefail
+# A deploy always reads the git checkout: REPO is fetched from and fast-forwarded, so `$ROOT/../..` has to be a
+# repository. tier0-bootstrap.sh exports CLAW_RUNTIME_ROOT at the Tier0 release it pinned, by design, so that the
+# daemons it starts run that release; every process it spawns inherits it, Gateway and Claw bridge included. A
+# release copy is not a checkout, and runtime-sync.sh prunes it later, so an inherited value sends this script
+# outside any repository and the deploy dies on `fetch_failed` with nothing to point at (S24 17/10, 18:57).
+# Same fallback as runtime-sync.sh: honour the override only when it really carries a checkout.
 ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
+[ -e "$ROOT/../../.git" ] || ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REPO="$(CDPATH= cd -- "$ROOT/../.." && pwd)"
+# Fail closed and say why, rather than letting `git fetch` report a bare `fetch_failed` two steps later.
+[ -e "$REPO/.git" ] || { echo "deploy_requires_checkout: $REPO is not a git checkout" >&2; exit 2; }
 PLUGIN="$REPO/openclaw-plugin-mobile-ui"
 # The acceptance check is the one carried by the checkout being judged (target after the fast-forward,
 # previous after a rollback), so every lot's acceptance lines run. The copy next to this script is only
@@ -24,6 +34,8 @@ KEEP_BACKUPS="${COMPANION_DEPLOY_KEEP:-5}"; MIN_AVAILABLE_MB="${COMPANION_DEPLOY
 mkdir -p "$STATE" "$BACKUPS"; chmod 700 "$STATE"
 
 if [ "${1:-}" = "--status" ]; then ls -t "$STATE"/companion-*.json 2>/dev/null | head -1 | xargs -r cat; exit 0; fi
+# Read-only: lets test-companion-deploy-root.py prove the resolution above without running a deploy.
+if [ "${1:-}" = "--resolve" ]; then printf '{"root":"%s","repo":"%s"}\n' "$ROOT" "$REPO"; exit 0; fi
 # SAM-MIG V2.2 §12.1 — minimal maintenance lock. This script is the ONLY writer of the durable marker read by the
 # dialogue coordinator at admission and again at the hand-off point. A restart never lifts it (it is a file).
 #   companion-deploy.sh --maintenance close [--allow conv-…]…   new epoch, every new request refused (D-B);
