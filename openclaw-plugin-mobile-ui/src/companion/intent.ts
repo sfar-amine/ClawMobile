@@ -1,4 +1,4 @@
-import {readRunWebResult, webResultText, webRunState, type RunWebResult} from "./runWeb";
+import {PUBLIC_WEB_BUDGET_MS, readRunWebResult, webResultText, webRunState, type RunWebResult} from "./runWeb";
 import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
 import crypto from "crypto";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
@@ -89,8 +89,11 @@ async function submitTextIntent(
 ): Promise<IntentSubmitResponse> {
   if (reservedMemoRunId && !currentMemoOwner(options.admission, options.clientRunId, sessionId))
     return notSubmitted(sessionId, options.clientRunId, "Une nouvelle validation du propriétaire est nécessaire.");
-  // W4: one 12 s Web budget per admitted turn, created by the host (never from the body or the model).
-  const webDeadlineEpochMs = Date.now() + 12000;
+  // W4: one Web budget per admitted turn, created by the host (never from the body or the model). The single value is
+  // PUBLIC_WEB_BUDGET_MS (search + one synthesis). S24 17/10 23:17 : ce plafond était resté à 12 s alors que le
+  // propriétaire Web était passé à 20 s ; il gagnait (min des deux) et chaque web.answer échouait sur
+  // web_deadline_exceeded, affiché « cause non établie ».
+  const webDeadlineEpochMs = Date.now() + PUBLIC_WEB_BUDGET_MS;
   const normalized = reservedMemoRunId ? text : text.trim();
   const visibleUserText = reservedMemoRunId ? text : (options.userText || normalized).trim();
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
@@ -317,6 +320,8 @@ async function executeCapabilityFirst(
     : isQuestionReply(reply) || isDoneReply(reply) ? "done" : "failed";
   let message = web ? webResultText(web) : String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
   if (!presentation && state === "failed" && reply.outcome === "TECHNICAL_FAILURE") presentation = fastPathFailurePresentation({status: "error", reason: reply.source || reply.reasonCode} as FastPathResult, "execution");
+  // Un délai Web dépassé est une cause connue : la dire, plutôt que « la cause n'est pas établie par le reçu ».
+  if (!presentation && state === "failed" && reply.reasonCode === "web_deadline_exceeded") presentation = fastPathFailurePresentation({status: "error", reason: reply.reasonCode} as FastPathResult, "execution");
   const spoken = !reply.metadata && reply.reasonCode === "coordinator_unavailable" && presentation ? presentation.spoken : undefined;
   presentation ||= fallbackReceiptPresentation(state === "failed");
   if (spoken) message = spoken;

@@ -325,13 +325,14 @@ export class ClawLiveWarmCore {
         this.trackLegacyProvider(m);
         this.broadcast(raw);
       });
-      ws.on("close",()=>{
+      ws.on("close",(code:number,reason:Buffer)=>{
         if(this.provider!==ws)return;
         const wasReady=this.providerReady;this.providerReady=false;this.provider=null;
         for(const [client] of this.protocols)client.close(1012,"voice_connection_replaced");
         this.protocols.clear();
         if(this.stopped)return;
-        if(!wasReady&&!settled){fail("closed_before_ready",new Error("gemini_live_closed_before_ready"));return;}
+        // F2 (doc 62): the provider's close code and reason are the cause (quota, model, auth); keep them, bounded.
+        if(!wasReady&&!settled){fail("closed_before_ready",new Error(`gemini_live_closed_before_ready code=${code} reason=${String(reason??"").replace(/[^\x20-\x7e]/g,"?").slice(0,100)||"empty"}`));return;}
         if(this.localClients.size>0||this.now()-this.lastUsedAt<this.idleMs)this.scheduleReconnect();else this.state="cold";
       });
     }).catch(async(e)=>{
@@ -385,7 +386,7 @@ export class ClawLiveWarmCore {
     if(matches.length!==1)return run();
     return matches[0].protocol.measureDecision(matches[0].turnId!,run);
   }
-  private failStage(stage:string,e:any){this.state="error";this.stage=stage;this.lastError=String(e?.message||e||stage).slice(0,160);console.warn(`[claw-live-warm] ${stage}: ${this.lastError}`);}
+  private failStage(stage:string,e:any){const message=String(e?.message||e||stage);this.state="error";this.stage=stage;this.lastError=message.slice(0,160);console.warn(`[claw-live-warm] ${stage}: ${message.slice(0,320)}`);}
   private scheduleReconnect(){
     if(this.reconnectTimer||this.stopped)return;
     if(this.localClients.size===0&&this.now()-this.lastUsedAt>=this.idleMs){this.state="cold";return;}

@@ -11,6 +11,7 @@ import sys
 import tempfile
 import json
 import re
+import datetime
 
 
 def rotate(path, max_bytes=1024*1024, keep=3):
@@ -106,6 +107,8 @@ if __name__=='__main__':
     parser.add_argument('path');parser.add_argument('--max-bytes',type=int,default=1024*1024)
     parser.add_argument('--keep',type=int,default=3);parser.add_argument('--append')
     parser.add_argument('--stream',action='store_true')
+    # F3 (doc 62): a stream line without a clock cannot be correlated with the app, the relay or the health owner.
+    parser.add_argument('--timestamp',action='store_true',help='prefix each streamed line with the local ISO time')
     parser.add_argument('--deployment-logs',action='store_true')
     args=parser.parse_args()
     if args.max_bytes<1 or not 1<=args.keep<=10:
@@ -119,10 +122,16 @@ if __name__=='__main__':
             parser.error('append_and_stream_conflict')
         # One sink per existing owner process, never a daemon or scheduler.
         # Bounded reads also handle a producer with no newline.
+        at_line_start=True
         while True:
             data=sys.stdin.buffer.readline(min(65536,args.max_bytes))
             if not data:
                 break
+            if args.timestamp and at_line_start:
+                stamp=datetime.datetime.now().astimezone().isoformat(timespec='milliseconds')
+                data=(stamp+' ').encode('ascii')+data
+                if len(data)>args.max_bytes:data=data[:args.max_bytes]
+            at_line_start=data.endswith(b'\n')
             append_bytes(args.path,data,args.max_bytes,args.keep)
     elif args.append is None:
         rotate(args.path,args.max_bytes,args.keep)

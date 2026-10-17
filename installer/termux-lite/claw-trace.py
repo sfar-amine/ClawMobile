@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""F3 (doc 62): rebuild one time window across the S24 owners, in order, in one command.
+
+    claw-trace.py [--minutes 15 | --since 23:30 [--until 23:40]] [--no-app] [--json]
+
+Reads only what the existing owners already write — no daemon, no new store:
+  companion  ~/.openclaw/health/companion.stderr.log*   (lines stamped by bounded-log.py --timestamp)
+  health     ~/.openclaw/health/health.log*
+  app        files/voice-trace.jsonl* of the app (adb run-as), telemetry C1: codes and timings only
+  dialogue   transitions of ~/.openclaw/samantha-dialogue/dialogue.sqlite
+  runs       ~/.openclaw/clawmobile-companion/runs.json (state, source, capability, error — never the user's text)
+"""
+import argparse
+import datetime as dt
+import json
+import os
+import re
+import sqlite3
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path(os.environ.get("HOME", "~")).expanduser()
+OC = HOME / ".openclaw"
+APP = os.environ.get("SAMANTHA_APP_PACKAGE", "ai.samantha.android.dev")
+DEVICE = os.environ.get("SAMANTHA_ADB_DEVICE", "127.0.0.1:5556")
+STAMP = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:[+-]\d\d:\d\d|Z)?)\s+(.*)$")
+LOCAL = dt.datetime.now().astimezone().tzinfo
+
+
+def instant(text):
+    value = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    return value if value.tzinfo else value.replace(tzinfo=LOCAL)
+
+
+def from_ms(ms):
+    return dt.datetime.fromtimestamp(ms / 1000, LOCAL)
+
+
+def rotated(path):
+    return [p for p in [path] + [path.with_name(path.name + "." + str(n)) for n in range(1, 4)] if p.is_file()]
+
+
+def stamped_lines(source, path):
+    for file in rotated(path):
+        try:
+            text = file.read_text(errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            match = STAMP.match(line)
+            if match:
+                try:
+                    yield instant(match.group(1)), source, match.group(2).strip()
+                except ValueError:
+                    continue
+
+
+def app_trace():
+    rows = []
+    for name in ("files/voice-trace.jsonl.1", "files/voice-trace.jsonl"):
+        try:
+            out = subprocess.run(["adb", "-s", DEVICE, "shell", "run-as", APP, "cat", name],
+                                 capture_output=True, text=True, timeout=15).stdout
+        except (OSError, subprocess.SubprocessError):
+            return rows
+        for line in out.splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if row.get("schema") != "samantha.voice.telemetry.v1" or not isinstance(row.get("wall_ms"), int):
+                continue
+            extra = json.dumps(row.get("x") or {}, ensure_ascii=False, separators=(",", ":"))[:200]
+            rows.append((from_ms(row["wall_ms"]), "app", f"{row.get('ev')} turn={row.get('turn')} sid={str(row.get('sid'))[:8]} {extra}"))
+    return rows
+
+
+def dialogue(since_ms, until_ms):
+    path = OC / "samantha-dialogue" / "dialogue.sqlite"
+    if not path.is_file():
+        return []
+    try:
+        db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        rows = db.execute("select at,goal_ref,event_kind,to_state,outcome,reason_code from transitions "
+                          "where at between ? and ? order by id", (since_ms, until_ms)).fetchall()
+    except sqlite3.Error:
+        return []
+    return [(from_ms(at), "dialogue", f"{kind} → {state} {outcome} {reason or ''} {goal}".strip())
+            for at, goal, kind, state, outcome, reason in rows]
+
+
+def runs(since_ms, until_ms):
+    path = OC / "clawmobile-companion" / "runs.json"
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return []
+    items = data.get("runs", data) if isinstance(data, dict) else data
+    items = list(items.values()) if isinstance(items, dict) else items
+    out = []
+    for run in items if isinstance(items, list) else []:
+        if not isinstance(run, dict):
+            continue
+        capability = (run.get("decision") or {}).get("capability") or "-"
+        for key, label in (("acceptedAt", "accepted"), ("updatedAt", run.get("state"))):
+            at = run.get(key)
+            if isinstance(at, int) and since_ms <= at <= until_ms:
+                error = str(run.get("error") or "")[:80]
+                out.append((from_ms(at), "runs", f"{label} {run.get('runId')} source={run.get('executionSource')} capability={capability} {error}".strip()))
+    return out
+
+
+def window(args):
+    now = dt.datetime.now(LOCAL)
+    def clock(text):
+        if re.fullmatch(r"\d\d:\d\d(:\d\d)?", text):
+            return dt.datetime.combine(now.date(), dt.time.fromisoformat(text), LOCAL)
+        return instant(text)
+    since = clock(args.since) if args.since else now - dt.timedelta(minutes=args.minutes)
+    until = clock(args.until) if args.until else now
+    return since, until
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--minutes", type=int, default=15)
+    parser.add_argument("--since")
+    parser.add_argument("--until")
+    parser.add_argument("--no-app", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+    since, until = window(args)
+    s_ms, u_ms = int(since.timestamp() * 1000), int(until.timestamp() * 1000)
+    rows = []
+    rows += stamped_lines("companion", OC / "health" / "companion.stderr.log")
+    rows += stamped_lines("health", OC / "health" / "health.log")
+    if not args.no_app:
+        rows += app_trace()
+    rows += dialogue(s_ms, u_ms)
+    rows += runs(s_ms, u_ms)
+    rows = sorted((r for r in rows if since <= r[0] <= until), key=lambda r: r[0])
+    for at, source, text in rows:
+        if args.json:
+            print(json.dumps({"at": at.isoformat(timespec="milliseconds"), "source": source, "text": text}, ensure_ascii=False))
+        else:
+            print(f"{at.strftime('%H:%M:%S.%f')[:-3]} {source:<9} {text}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

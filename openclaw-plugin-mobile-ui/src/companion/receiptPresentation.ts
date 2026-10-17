@@ -60,6 +60,7 @@ export function fastPathFailurePresentation(raw:unknown,stage:'resolution'|'exec
   invalid_result:'Le service de traitement a renvoyé un résultat invalide.',
   invalid_check_budget:'Le budget de résolution est invalide.',
   check_budget_exceeded:'Le délai de résolution a été dépassé.',
+  web_deadline_exceeded:'La recherche web n’a pas abouti dans le délai imparti.',
  };
  const code=obj(raw)&&raw.status==='error'&&typeof raw.reason==='string'&&Object.prototype.hasOwnProperty.call(reasons,raw.reason)?raw.reason:undefined;
  const reason=code?reasons[code]:p.failure!.reason;

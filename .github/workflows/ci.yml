@@ -211,6 +211,7 @@ jobs:
           node scripts/test-claw-live-warm-detach.cjs
           python3 scripts/test-voice-m1-corpus.py
           node scripts/test-voice-turn-protocol.cjs
+          node scripts/test-claw-live-token-failure.cjs
           node scripts/test-warm-v2-ownership.cjs
           node scripts/test-phone-datetime.cjs
           node scripts/test-claw-live-warm.cjs
@@ -381,6 +382,7 @@ jobs:
           python3 ../installer/termux-lite/test-health-resource-policy.py
           python3 ../installer/termux-lite/test-gateway-memory-guard.py
           python3 ../installer/termux-lite/test-owner-retention.py
+          python3 ../installer/termux-lite/test-claw-trace.py
           node scripts/test-remote-bridge-retention.cjs
       - name: MCP raw execution Continuum fence admission
         run: node scripts/test-mcp-raw-continuum.cjs
