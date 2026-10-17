@@ -106,7 +106,7 @@ function projectReceipt(receipt: any) {
     const execution = value?.execution || {};
     const domain = execution?.result;
     let state = "blocked";
-    if (execution.state === "completed") state = domain?.ok === false || domain?.success === false ? "failed" : "completed";
+    if (execution.state === "completed" || execution.state === "partial") state = domain?.ok === false || domain?.success === false || ["failed","insufficient_sources","cancelled"].includes(domain?.web?.outcome) ? "failed" : "completed";
     else if (execution.state === "failed") state = "failed";
     else if (execution.state === "running" || execution.state === "indeterminate") state = execution.state;
     else if (execution.state === "low_confidence" || domain?.state === "needs_counter" || domain?.state === "needs_clarification") state = "needs_clarification";
@@ -358,6 +358,7 @@ async function executeCapability(
   profile: string,
   args: Record<string, unknown>,
 ) {
+  const webBounds={startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+12000};
   const request = requiredString(args.request, "request", 12000);
   const actionKey = requiredString(args.action_key, "action_key", 40, ACTION_ID_RE);
   const stepKey = optionalString(args.step_key, "step_key", 24, STEP_ID_RE) || "execute";
@@ -391,7 +392,7 @@ async function executeCapability(
   let resolved: any = undefined;
   let preparedDecision: any = suppliedDecision;
   if (preparedDecision) {
-    const validation: any = await validateCapabilityDecision(request, preparedDecision, { timeoutSeconds: 20 });
+    const validation: any = await validateCapabilityDecision(request, preparedDecision, { timeoutSeconds: 20,checkBudgetMs:Math.max(1,Math.min(10000,webBounds.deadlineEpochMs-Date.now())) });
     if (validation?.state !== "valid" || !validation?.decision) {
       return {
         state: "revalidation_required", request_id: requestId, task_id: taskId, retry_allowed: false,
@@ -402,9 +403,13 @@ async function executeCapability(
     resolved = validation.resolution || {};
   } else {
     resolved = await capabilityBridge(request, {
-      execute: false, surface: "external_mcp", caller: "owner", timeoutSeconds: 20, targetHint,
+      execute: false, surface: "external_mcp", caller: "owner", timeoutSeconds: 20, targetHint,requestId,checkBudgetMs:Math.max(1,Math.min(10000,webBounds.deadlineEpochMs-Date.now())),
     });
     preparedDecision = resolved?.decision && typeof resolved.decision === "object" ? resolved.decision : undefined;
+    if(resolved?.success===false){
+      return {state:"failed",request_id:requestId,task_id:taskId,retry_allowed:false,
+        reason:"capability_resolution_unavailable"};
+    }
   }
   const selected = resolved?.selected || {};
   const selectedRisk = String(preparedDecision?.risk || selected?.risk || "read");
@@ -479,7 +484,7 @@ async function executeCapability(
     method,
     params,
     ...(continuumFence ? { continuumFence } : {}),
-  });
+  },webBounds);
 
   const projected: any = projectReceipt(receipt);
   if (!durable) return projected;

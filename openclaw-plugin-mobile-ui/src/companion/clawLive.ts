@@ -149,7 +149,7 @@ export function compactVoiceOperatingRules(raw: string, maxChars = 12000) {
 }
 
 // SAM-MIG V2.2: Gemini Live is one surface of the dialogue coordinator (single owner of the pending question).
-export const clawLiveDialogue = new DialogueSurface(runModelFastPath, "claw_live", "claw_live");
+export const clawLiveDialogue = new DialogueSurface(runModelFastPath, "claw_live", "claw_live", { modelAllowed: true }, { voice: true });
 
 /** One Gemini Live tool turn. `request` is the user's original transcription for this turn
  * (Android v2 already enforces request == ASR final; the browser page sends its input transcription).
@@ -157,14 +157,15 @@ export const clawLiveDialogue = new DialogueSurface(runModelFastPath, "claw_live
  * resolved by resolve-clarification. Otherwise the existing executor runs on the original/resolved text.
  */
 export async function clawLiveCapabilityTurn(
-  body: { request?: unknown; clarificationId?: unknown; originId?: string; assertCurrent?: () => void },
+  body: { request?: unknown; clarificationId?: unknown; originId?: string; sessionId?: string; assertCurrent?: () => void },
   execute: (text: string) => Promise<any>,
   dialogue: DialogueSurface = clawLiveDialogue,
 ) {
   const request = String(body?.request || "").trim();
   if (!request || request.length > 12000) return { success: false, error: "request_required" };
   const id = isDialogueConversationId(body?.clarificationId) ? body.clarificationId : undefined;
-  const turn = await dialogue.turn(request, { id, originId: String(body?.originId || "claw-live").slice(0, 120), assertCurrent: body.assertCurrent });
+  // W4: host-only session/run identities for a Web hand-off; the G6 voice gate is enforced before dispatch.
+  const turn = await dialogue.turn(request, { id, originId: String(body?.originId || "claw-live").slice(0, 120), sessionId: body.sessionId, runId: body.originId, assertCurrent: body.assertCurrent });
   if (turn.state === "needs_clarification") {
     return {
       success: true, state: "needs_clarification", source: "capability",
@@ -175,7 +176,7 @@ export async function clawLiveCapabilityTurn(
     };
   }
   if (turn.state === "done" || turn.state === "failed") {
-    return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), execution: { state: turn.state === "done" ? "completed" : "failed" } };
+    return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), ...(turn.web?{web:turn.web}:{}), execution: { state: turn.state === "done" ? "completed" : "failed",...(turn.web?{result:{web:turn.web}}:{}) } };
   }
   body.assertCurrent?.();
   return execute(turn.text);

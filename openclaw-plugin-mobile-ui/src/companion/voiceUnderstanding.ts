@@ -1,3 +1,4 @@
+import {readRunWebResult} from "./runWeb";
 import crypto from "crypto";
 import { readReceiptPresentation, publicDecision } from "./receiptPresentation";
 
@@ -24,6 +25,7 @@ export type VoiceUnderstood = {
 export type VoiceAlternative = { capability: string; label: string };
 export type VoiceSpeech = {
   version: 1;
+  mode?: "public_web";
   locale: VoiceLocale;
   phase: "transaction" | "clarify" | "read_low_confidence" | "failure" | "none";
   understood?: string;
@@ -243,6 +245,15 @@ function sentence(text: string) {
 export function planVoiceSpeech(envelope: unknown, options: { locale?: unknown; threshold?: number } = {}): VoiceSpeech {
   const fallbackLocale = voiceLocale(options.locale);
   if (!obj(envelope)) return { version: 1, locale: fallbackLocale, phase: "none", verbatim: null };
+  const rawWeb=envelope.web ?? envelope.execution?.result?.web ?? envelope.result?.web;
+  if(rawWeb!==undefined){
+    const web=readRunWebResult(rawWeb);
+    const neutral={fr:"Les résultats sont disponibles dans la conversation.",en:"The search results are available in the conversation.",ar:"نتائج البحث متاحة في المحادثة.",aeb:"نتائج البحث تلقاهم في المحادثة."};
+    const text=web?.spokenText || web?.error?.message || (web?.responseLanguage?neutral[web.responseLanguage]:null);
+    const invalid=!web;
+    return {version:1,mode:"public_web",locale:fallbackLocale,phase:invalid||webRunFailed(web)?"failure":"none",
+      verbatim:invalid?(fallbackLocale==="en"?"The search result could not be verified.":"Le résultat de la recherche n’a pas pu être validé."):text};
+  }
   const p = presentationOf(envelope);
   const locale: VoiceLocale = p && (p.locale === "fr" || p.locale === "en") ? p.locale : fallbackLocale;
   const threshold = typeof options.threshold === "number" && options.threshold >= 0 && options.threshold <= 1 ? options.threshold : HARNESS_TRUST_THRESHOLD;
@@ -397,5 +408,7 @@ export function realignmentRoundPayload(context: VoiceTurnContext, stage: "reque
 /** Projection added to a voice receipt so every renderer reads the same imposed text. */
 export function voiceReceiptProjection(envelope: unknown, locale: unknown) {
   const speech = planVoiceSpeech(envelope, { locale });
-  return speech.verbatim ? { voice: speech } : {};
+  return speech.verbatim || speech.mode === "public_web" ? { voice: speech } : {};
 }
+
+function webRunFailed(web: ReturnType<typeof readRunWebResult>): boolean {return !!web && !["complete","partial"].includes(web.outcome);}

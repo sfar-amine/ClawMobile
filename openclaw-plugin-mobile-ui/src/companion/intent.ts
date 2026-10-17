@@ -1,3 +1,4 @@
+import {readRunWebResult, webResultText, webRunState, type RunWebResult} from "./runWeb";
 import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
 import crypto from "crypto";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
@@ -88,6 +89,8 @@ async function submitTextIntent(
 ): Promise<IntentSubmitResponse> {
   if (reservedMemoRunId && !currentMemoOwner(options.admission, options.clientRunId, sessionId))
     return notSubmitted(sessionId, options.clientRunId, "Une nouvelle validation du propriétaire est nécessaire.");
+  // W4: one 12 s Web budget per admitted turn, created by the host (never from the body or the model).
+  const webDeadlineEpochMs = Date.now() + 12000;
   const normalized = reservedMemoRunId ? text : text.trim();
   const visibleUserText = reservedMemoRunId ? text : (options.userText || normalized).trim();
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
@@ -146,6 +149,7 @@ async function submitTextIntent(
       conversationKey: `app:${normalizedSessionId}:${ownerAdmitted ? "owner" : "other"}`,
       eventRef: transportEventRef(clientRunId, reservedMemoRunId), text: normalized, caller,
       admittedAt: Date.now(), policy: { modelAllowed: true, deferHandoff: true }, timeoutSeconds: 75,
+      web: { sessionId: normalizedSessionId, deadlineEpochMs: webDeadlineEpochMs, voiceDelegation: options.voiceDelegation === true },
     };
     dialogue = await dialogueTurn(runModelFastPath, dialogueInput);
   }
@@ -299,19 +303,25 @@ async function executeCapabilityFirst(
       await markSubmittedRunFailed(runId, "owner_admission_expired");
       return notSubmitted(sessionId, clientRunId, "owner_admission_expired");
     }
-    reply = await dialogueHandoff(runModelFastPath, input, first.pendingHandoff.goalRef);
+    // W4: the run id joins the host Web context of the hand-off (correlation only; the coordinator decides).
+    reply = await dialogueHandoff(runModelFastPath, input.web ? {...input, web: {...input.web, runId}} : input, first.pendingHandoff.goalRef);
   }
   const metadata = (reply.metadata || {}) as FastPathResult;
   let presentation = readReceiptPresentation(metadata);
   const provenance: FastPathResult["provenance"] = metadata.provenance;
-  const state: "done" | "failed" = isQuestionReply(reply) || isDoneReply(reply) ? "done" : "failed";
-  let message = String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
+  // W4: the closed `run.web` projection travels in the coordinator metadata; the visible text is rebuilt from the
+  // admitted claims/sources only (never a second, unverified synthesis).
+  const web: RunWebResult | undefined = readRunWebResult((metadata as any).web);
+  const state: "done" | "failed" = web && (isDoneReply(reply) || reply.outcome === "FAILED")
+    ? (isDoneReply(reply) ? webRunState(web) : "failed")
+    : isQuestionReply(reply) || isDoneReply(reply) ? "done" : "failed";
+  let message = web ? webResultText(web) : String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
   if (!presentation && state === "failed" && reply.outcome === "TECHNICAL_FAILURE") presentation = fastPathFailurePresentation({status: "error", reason: reply.source || reply.reasonCode} as FastPathResult, "execution");
   const spoken = !reply.metadata && reply.reasonCode === "coordinator_unavailable" && presentation ? presentation.spoken : undefined;
   presentation ||= fallbackReceiptPresentation(state === "failed");
   if (spoken) message = spoken;
   const reasonClass=publicReasonClass((metadata as any).reasonClass ?? (metadata as any).reason_class);
-  await settleSubmittedRun(runId, state, message, {provenance, presentation, reasonClass});
+  await settleSubmittedRun(runId, state, message, {provenance, presentation, reasonClass, web});
   return {
     success: true,
     accepted: true,
@@ -325,6 +335,7 @@ async function executeCapabilityFirst(
     clientRunId,
     sessionId,
     state,
+    ...(web ? {web} : {}),
     result: state === "done" ? message : undefined,
     message,
     userText,
@@ -371,6 +382,7 @@ function responseFromExisting(
     clientRunId: status.clientRunId,
     sessionId: status.sessionId,
     state: status.state,
+    ...(status.web ? {web:status.web} : {}),
     result: status.result || message,
     message,
     userText,
