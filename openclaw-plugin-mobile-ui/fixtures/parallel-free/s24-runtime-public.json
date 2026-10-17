@@ -1,0 +1,54 @@
+{
+  "capturedAt": "2026-10-15",
+  "sourceReceipts": [
+    "parallel-free-audit-20261015/runtime-baseline-01",
+    "parallel-free-audit-20261015/runtime-interface-03",
+    "parallel-free-audit-20261015/runtime-sdk-04"
+  ],
+  "searchConfiguration": {
+    "enabled": true,
+    "maxResults": 5,
+    "cacheTtlMinutes": 15,
+    "timeoutSeconds": 30
+  },
+  "nodeVersion": "v24.21.0",
+  "openclawVersion": "2026.9.6",
+  "nodeEngine": ">=24.16.0 <25 || >=26.1.0",
+  "sdkExports": {
+    "openclaw/plugin-sdk/extension-shared": {
+      "export_declared": true
+    },
+    "openclaw/plugin-sdk/lazy-runtime": {
+      "export_declared": true
+    },
+    "openclaw/plugin-sdk/logging-core": {
+      "export_declared": true
+    },
+    "openclaw/plugin-sdk/number-runtime": {
+      "export_declared": true
+    },
+    "openclaw/plugin-sdk/plugin-entry": {
+      "export_declared": true
+    },
+    "openclaw/plugin-sdk/provider-http": {
+      "export_declared": true
+    },
+    "openclaw/plugin-sdk/provider-web-search": {
+      "export_declared": true
+    },
+    "openclaw/plugin-sdk/provider-web-search-contract": {
+      "export_declared": true
+    },
+    "openclaw/plugin-sdk/security-runtime": {
+      "export_declared": true
+    },
+    "openclaw/plugin-sdk/string-coerce-runtime": {
+      "export_declared": true
+    },
+    "openclaw/plugin-sdk/text-utility-runtime": {
+      "export_declared": true
+    }
+  },
+  "parallelInstalled": false,
+  "liveParallelSearched": false
+}

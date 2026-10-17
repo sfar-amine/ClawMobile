@@ -1,0 +1,75 @@
+{
+  "schema": "samantha.capture.lot-r.v1-providers.v1",
+  "provenance": {
+    "captured_at": "2026-10-11T12:36:46+01:00",
+    "runtime_core_sha": "3298d98d8a29458abda6617c37ca5e4b114f4be2",
+    "request": "curl -m 30 http://127.0.0.1:8765/v1/providers (loopback, sans en-tete owner)"
+  },
+  "request": {
+    "method": "GET",
+    "path": "/v1/providers",
+    "query": null
+  },
+  "response": {
+    "status": 200,
+    "duration_s": 5.586,
+    "acceptance_budget_s": 6.0
+  },
+  "shape": {
+    "schemaVersion": "int",
+    "updatedAt": "string",
+    "summary": {
+      "ready": "int",
+      "needsAttention": "int",
+      "unknown": "int",
+      "configuredModels": "int"
+    },
+    "providers": [
+      {
+        "id": "string",
+        "name": "string",
+        "auth": "string",
+        "quota": "null",
+        "state": "string",
+        "models": "array"
+      }
+    ]
+  },
+  "providers_rows": [
+    {
+      "id": "github-copilot",
+      "name": "github-copilot",
+      "auth": "unknown",
+      "quota": null,
+      "state": "unknown",
+      "models_count": 0
+    },
+    {
+      "id": "google",
+      "name": "google",
+      "auth": "unknown",
+      "quota": null,
+      "state": "unknown",
+      "models_count": 1
+    },
+    {
+      "id": "openai",
+      "name": "openai",
+      "auth": "unknown",
+      "quota": null,
+      "state": "unknown",
+      "models_count": 2
+    }
+  ],
+  "observation": "Les trois providers sortent auth=unknown, state=unknown (summary.ready=0, unknown=3) alors que models.authStatus donne openai ok, google static, github-copilot static et que models.list les donne ready (meme minute). updatedAt (12:20:05 heure de Tunis) a 16 min d'age au moment de la lecture (12:36:46) : la reponse vient d'un instantane, pas d'une lecture fraiche. openai porte 2 modeles et google 1 (identifiants non releves ; coherent avec models.list sans Terra), configuredModels=3. Duree 5,59 s, soit 93 % du budget de 6 s.",
+  "body_head": {
+    "schemaVersion": 1,
+    "updatedAt": "2026-10-11T11:20:05.359Z",
+    "summary": {
+      "ready": 0,
+      "needsAttention": 0,
+      "unknown": 3,
+      "configuredModels": 3
+    }
+  }
+}

@@ -18,7 +18,7 @@ logs=load('bounded_log','bounded-log.py')
 
 
 class OwnerRetentionTests(unittest.TestCase):
-    def test_110_releases_keep_current_lkg_and_ten_newest(self):
+    def test_110_releases_keep_current_lkg_and_five_newest(self):
         with tempfile.TemporaryDirectory() as directory:
             tier0.RELEASES=Path(directory)/'releases';tier0.RELEASES.mkdir()
             tier0.CURRENT=tier0.RELEASES/'current';tier0.LKG=tier0.RELEASES/'last-known-good'
@@ -33,9 +33,9 @@ class OwnerRetentionTests(unittest.TestCase):
             outside=Path(directory)/'outside';outside.mkdir();(outside/'proof').write_text('preserve')
             (tier0.RELEASES/'external').symlink_to(outside)
             plan=tier0.prune_plan()
-            self.assertEqual(len(plan['retained']),12)
-            self.assertEqual(len(plan['remove']),98)
-            tier0.cmd_prune(argparse.Namespace(keep=10,apply=True))
+            self.assertEqual(len(plan['retained']),7)
+            self.assertEqual(len(plan['remove']),103)
+            tier0.cmd_prune(argparse.Namespace(keep=5,apply=True))
             self.assertTrue(tier0.CURRENT.exists());self.assertTrue(tier0.LKG.exists())
             self.assertTrue(unknown.exists());self.assertTrue(pending.exists());self.assertTrue((outside/'proof').exists())
             self.assertEqual(tier0.prune_plan()['remove'],[])

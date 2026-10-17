@@ -84,8 +84,10 @@ class RepairHandlerGate(unittest.TestCase):
 
     def test_health_manager_and_worker_use_the_same_gate(self):
         hm = (HERE / 'samantha-health-manager.sh').read_text(); worker = (HERE / 'incident-orchestrator-worker.sh').read_text()
-        self.assertIn('incident-orchestrator.py" handled "$n"', hm); self.assertIn('skip_model_diagnosis', hm)
+        self.assertIn('incident-orchestrator.py" handled "$n"', hm)
+        self.assertIn('state=awaiting_deterministic_recovery reason=no_repair_handler', hm)
         self.assertIn('incident-orchestrator.py" handled --direct "$component"', worker)
+        self.assertIn('state=awaiting_deterministic_recovery reason=no_managed_handler', worker)
         self.assertNotIn('adb|gateway-secretref-exec|openclaw-agent-headless|remote_desktop) ;;', worker)
 
     def test_ingress_uses_its_own_release_root(self):
