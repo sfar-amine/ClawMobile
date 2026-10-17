@@ -1,0 +1,21 @@
+{
+  "source": "ClawMobile/installer/termux-lite/android-network-mutation-guard.py",
+  "sha256": "c6450f394fd119f25965095dfa278155ffb03df813ff9e0c283b95826972feb3",
+  "functions": {
+    "restore_lease": "def restore_lease(row: dict) -> None:\n    restore_state(row[\"settings\"])\n    if row.get(\"type\") == \"wifi_off\":\n        expected = bool(row.get(\"wifi_enabled\"))\n        if wifi_enabled() is not expected:\n            set_wifi(expected)\n        if wifi_enabled() is not expected:\n            raise RuntimeError(\"wifi_restore_mismatch\")",
+    "lease_alive": "def lease_alive(row: dict) -> bool:\n    pid = int(row.get(\"owner_pid\") or 0)\n    if pid <= 0:\n        return False\n    if row.get(\"type\") == \"adb_forward\":\n        return forward_owner_state(row) == \"ALIVE\"\n    try:\n        os.kill(pid, 0)\n        return True\n    except OSError:\n        return False",
+    "create_lease": "def create_lease(purpose: str, *, lease_type: str = \"global_proxy\", include_wifi: bool = False) -> Path:\n    if lease_type not in {\"global_proxy\", \"wifi_off\"}:\n        raise ValueError(\"unsupported_network_lease_type\")\n    if include_wifi != (lease_type == \"wifi_off\"):\n        raise ValueError(\"wifi_lease_contract_mismatch\")\n    LEASES.mkdir(parents=True, exist_ok=True)\n    lease = LEASES / (uuid.uuid4().hex + \".json\")\n    row = {\n        \"schema_version\": 1,\n        \"type\": lease_type,\n        \"created_at\": time.time(),\n        \"owner_pid\": os.getpid(),\n        \"purpose\": purpose,\n        \"settings\": settings_state(),\n    }\n    if include_wifi:\n        row[\"wifi_enabled\"] = wifi_enabled()\n    write_json(lease, row)\n    return lease",
+    "with_wifi_off": "def with_wifi_off(purpose: str, command: list[str]) -> int:\n    lease = create_lease(purpose, lease_type=\"wifi_off\", include_wifi=True)\n    row = json.loads(lease.read_text())\n    restore_error = None\n    def interrupted(_sig, _frame):\n        raise KeyboardInterrupt\n    signal.signal(signal.SIGTERM, interrupted)\n    signal.signal(signal.SIGINT, interrupted)\n    try:\n        if row[\"wifi_enabled\"] is True:\n            set_wifi(False)\n        child = subprocess.run(command)\n        return child.returncode\n    finally:\n        try:\n            restore_lease(row)\n            lease.unlink(missing_ok=True)\n            write_receipt(\"healthy\", \"temporary_wifi_restored\", wifi_initially_enabled=bool(row[\"wifi_enabled\"]))\n        except Exception as exc:\n            restore_error = type(exc).__name__\n            write_receipt(\"degraded\", \"temporary_wifi_restore_failed\", lease=lease.name, error=restore_error)\n        if restore_error:\n            raise RuntimeError(\"temporary_wifi_restore_failed\")"
+  },
+  "wifi_lease_schemas": [],
+  "_capture": {
+    "source": "S24 read-only ast source capture",
+    "action_key": "codex-o1-read-contract-20261010",
+    "step_key": "read-guard-schema",
+    "date": "2026-10-10",
+    "exitCode": 0,
+    "wifi_changes": false,
+    "consultation_executed": false,
+    "settings_values_included": false
+  }
+}

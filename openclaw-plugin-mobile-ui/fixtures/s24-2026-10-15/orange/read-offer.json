@@ -1,0 +1,71 @@
+{
+  "purpose": "sanitized contract fixture from existing canonical read, not candidate qualification",
+  "scenario": "offer",
+  "network_before": {
+    "default_net_id": 279,
+    "networks": [
+      {
+        "net_id": 278,
+        "cellular": true,
+        "wifi": false,
+        "vpn": false,
+        "internet": true,
+        "validated": true,
+        "not_vpn": true,
+        "orange_apn": true
+      },
+      {
+        "net_id": 279,
+        "cellular": false,
+        "wifi": true,
+        "vpn": false,
+        "internet": true,
+        "validated": true,
+        "not_vpn": true,
+        "orange_apn": false
+      }
+    ],
+    "wifi_enabled": 1,
+    "data_subscription": 1
+  },
+  "read_only": true,
+  "financial_effect": false,
+  "heavy_job_count": 0,
+  "entry": "python -m telecom.maxit_guarded_service offer --mode silent",
+  "canonical_process_ms": 8593.621,
+  "exit_code": 0,
+  "receipt": {
+    "ok": true,
+    "state": null,
+    "provider": "orange",
+    "workflow": "offer",
+    "source": "orange.offer.maxit.v1",
+    "transport": "https_waaat",
+    "ui_used": false
+  },
+  "data_shape": {
+    "offer": "string"
+  },
+  "raw_values_saved": false,
+  "stderr_present": false,
+  "network_after": {
+    "default_net_id": 278,
+    "networks": [
+      {
+        "net_id": 278,
+        "cellular": true,
+        "wifi": false,
+        "vpn": false,
+        "internet": true,
+        "validated": true,
+        "not_vpn": true,
+        "orange_apn": true
+      }
+    ],
+    "wifi_enabled": 1,
+    "data_subscription": 1
+  },
+  "wifi_initial_equals_final": true,
+  "sim_initial_equals_final": true,
+  "status": "passed_existing_contract"
+}

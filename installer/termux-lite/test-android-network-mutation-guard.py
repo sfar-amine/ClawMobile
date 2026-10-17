@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import os
+import socket
 import subprocess
 import tempfile
 import unittest
@@ -796,10 +797,18 @@ class FakeAdb:
             if any(r["local"] == local for r in self.rows):
                 return subprocess.CompletedProcess(args, 1, "", "fixture: cannot rebind")
             self.rows.append({"serial": kwargs["serial"], "local": local, "remote": remote})
+            if local.startswith("localfilesystem:"):
+                unix = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                try:
+                    unix.bind(local.split(":", 1)[1])
+                finally:
+                    unix.close()
             if self.create_behavior == "timeout":
                 raise subprocess.TimeoutExpired("fixture-adb", 1)
             if self.create_behavior == "crash":
                 raise KeyboardInterrupt("fixture crash after effect before acknowledgment")
+            if self.create_behavior == "nonzero_effect":
+                return subprocess.CompletedProcess(args, 1, "", "fixture explicit failure after effect")
             if self.fail_after_create:
                 self.fail_lists = True
             return subprocess.CompletedProcess(args, 0, "", "")
@@ -1110,6 +1119,179 @@ class ForwardLeaseTests(unittest.TestCase):
         with patch.object(guard.sys, "argv", args), patch.object(guard.sys, "stdout", new_callable=io.StringIO) as output:
             self.assertEqual(guard.main(), 0)
         self.assertTrue(json.loads(output.getvalue())["cleanup_verified"])
+
+class LocalFilesystemForwardTests(unittest.TestCase):
+    SUFFIX = "b" * 32
+    REMOTE = guard.CELLULAR_FORWARD_REMOTE_PREFIX + SUFFIX
+    SERIAL = "fixture-device"
+    OWNER = 4242
+    LEASE = "a" * 32
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "network-mutation"
+        self.clock = 10000.0
+        self.identities = {self.OWNER: {"start_ticks": "fixture-birth-1", "boot_id": "fixture-boot"}}
+        self.server = {"binary": "/fixture/adb", "ADB_SERVER_SOCKET": None}
+        self.fake = FakeAdb(self)
+        patches = {"ROOT": self.root, "LEASES": self.root / "leases",
+                   "RECEIPT": self.root / "health.json", "MAX_LEASE_AGE": 900, "adb": self.fake}
+        for name, value in patches.items():
+            item = patch.object(guard, name, value); item.start(); self.addCleanup(item.stop)
+        for name, function in (("process_identity", lambda pid: self.identities.get(pid)),
+                               ("forward_server_identity", lambda: dict(self.server)),
+                               ("settings_state", blank)):
+            item = patch.object(guard, name, side_effect=function); item.start(); self.addCleanup(item.stop)
+        item = patch.object(guard.time, "time", side_effect=lambda: self.clock)
+        item.start(); self.addCleanup(item.stop)
+        self.prefix = Path(self.tmp.name) / "termux-prefix"
+        self.parent = self.prefix / "tmp"
+        self.parent.mkdir(parents=True, mode=0o700)
+        self.parent.chmod(0o700)
+        self.local_path = self.parent / ("samantha-cellular-" + self.SUFFIX + ".sock")
+        self.env = patch.dict(os.environ, {"PREFIX": str(self.prefix)})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+
+    def assert_lock_held(self):
+        fd = os.open(self.root / "guard.lock", os.O_RDWR)
+        try:
+            with self.assertRaises(BlockingIOError):
+                guard.fcntl.flock(fd, guard.fcntl.LOCK_EX | guard.fcntl.LOCK_NB)
+        finally:
+            os.close(fd)
+
+    def acquire(self, **overrides):
+        args = {"serial": self.SERIAL, "local": "localfilesystem:" + str(self.local_path),
+                "remote": self.REMOTE, "purpose": "ORANGE CELLULAR FIXTURE ONLY",
+                "owner_pid": self.OWNER, "lease_id": self.LEASE}
+        args.update(overrides)
+        return guard.acquire_adb_forward(**args)
+
+    def test_localfilesystem_endpoint_is_typed_and_cleanup_is_exact(self):
+        unrelated = {"serial": "other-device", "local": "tcp:49153", "remote": "tcp:8080"}
+        self.fake.rows.append(unrelated)
+        acquired = self.acquire()
+        self.assertTrue(acquired["ready"])
+        self.assertEqual(acquired["endpoint"], {"type": "unix", "socket_path": str(self.local_path)})
+        self.assertTrue(self.local_path.exists())
+        closed = guard.release_adb_forward(self.LEASE, self.OWNER)
+        self.assertTrue(closed["cleanup_verified"] and closed["restored_exact"])
+        self.assertFalse(os.path.lexists(self.local_path))
+        self.assertEqual(self.fake.rows, [unrelated])
+
+    def test_parent_must_be_real_owned_and_mode_0700(self):
+        for mode in (0o750, 0o777):
+            with self.subTest(mode=oct(mode)):
+                self.parent.chmod(mode)
+                with self.assertRaisesRegex(ValueError, "insecure_forward_parent"):
+                    self.acquire(lease_id=(f"{mode:032x}"[-32:]))
+        self.parent.chmod(0o700)
+        with patch.object(guard.os, "geteuid", return_value=os.geteuid() + 1), \
+             self.assertRaisesRegex(ValueError, "insecure_forward_parent"):
+            self.acquire(lease_id="d" * 32)
+        real = self.prefix / "tmp-real"
+        self.parent.rename(real)
+        self.parent.symlink_to(real, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "insecure_forward_parent"):
+            self.acquire(lease_id="c" * 32)
+        self.assertEqual(self.fake.mutations(), [])
+
+    def test_only_cellular_remote_and_canonical_socket_name_are_accepted(self):
+        bad_name = self.parent / "cellular.sock"
+        for overrides in ({"remote": "localabstract:other"},
+                          {"local": "localfilesystem:" + str(bad_name)}):
+            with self.subTest(overrides=overrides), self.assertRaises(ValueError):
+                self.acquire(**overrides)
+        self.assertEqual(self.fake.mutations(), [])
+
+    def test_remote_suffix_must_equal_socket_suffix(self):
+        with self.assertRaisesRegex(ValueError, "unsupported_forward_remote"):
+            self.acquire(remote=guard.CELLULAR_FORWARD_REMOTE_PREFIX + "c" * 32)
+        self.assertEqual(self.fake.mutations(), [])
+
+    def test_existing_unowned_path_is_refused_without_mutation(self):
+        self.local_path.write_text("foreign")
+        result = self.acquire()
+        self.assertEqual((result["state"], result["reason"]),
+                         ("BLOCKED", "unexpected_forward_socket_path"))
+        self.assertEqual(self.fake.mutations(), [])
+        self.assertEqual(self.local_path.read_text(), "foreign")
+        self.local_path.unlink()
+        self.local_path.symlink_to(self.parent / "missing-target")
+        result = self.acquire(lease_id="e" * 32)
+        self.assertEqual((result["state"], result["reason"]),
+                         ("BLOCKED", "unexpected_forward_socket_path"))
+        self.assertTrue(self.local_path.is_symlink())
+        self.assertEqual(self.fake.mutations(), [])
+
+    def test_socket_inode_change_is_preserved_with_mapping(self):
+        self.acquire()
+        original = self.local_path.lstat().st_ino
+        # Bind the replacement while the original still exists, then rename it over the path:
+        # both inodes coexist, so the filesystem cannot hand the freed inode number back (flaky on a full disk).
+        staged = self.local_path.with_name("staged-" + self.local_path.name)
+        replacement = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        replacement.bind(str(staged))
+        replacement.close()
+        os.replace(staged, self.local_path)
+        self.assertNotEqual(original, self.local_path.lstat().st_ino)
+        inspected = guard.inspect_adb_forward(self.LEASE)
+        self.assertEqual(inspected["state"], "VERIFY_REQUIRED")
+        released = guard.release_adb_forward(self.LEASE, self.OWNER)
+        self.assertEqual(released["state"], "PRESERVED")
+        self.assertTrue(self.local_path.exists())
+        self.assertEqual(len(self.fake.mutations()), 1)
+
+    def test_lost_adb_reply_is_owned_only_for_unique_localfilesystem_effect(self):
+        self.fake.create_behavior = "timeout"
+        acquired = self.acquire()
+        self.assertEqual(acquired["state"], "ACTIVE")
+        self.assertTrue(acquired["ready"] and acquired["created"])
+        closed = guard.release_adb_forward(self.LEASE, self.OWNER)
+        self.assertTrue(closed["cleanup_verified"])
+        self.assertEqual(self.fake.rows, [])
+        self.assertFalse(os.path.lexists(self.local_path))
+
+    def test_explicit_create_failure_never_adopts_observed_effect(self):
+        self.fake.create_behavior = "nonzero_effect"
+        acquired = self.acquire()
+        self.assertEqual(acquired["state"], "VERIFY_REQUIRED")
+        self.assertFalse(acquired["ready"] or acquired["created"])
+        released = guard.release_adb_forward(self.LEASE, self.OWNER)
+        self.assertEqual(released["state"], "VERIFY_REQUIRED")
+        self.assertEqual(len(self.fake.mutations()), 1)
+        self.assertTrue(self.local_path.exists())
+
+    def test_preexisting_exact_localfilesystem_mapping_is_never_reused(self):
+        existing = {"serial": self.SERIAL, "local": "localfilesystem:" + str(self.local_path),
+                    "remote": self.REMOTE}
+        unix = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        unix.bind(str(self.local_path)); unix.close()
+        self.fake.rows = [existing]
+        acquired = self.acquire()
+        self.assertEqual((acquired["state"], acquired["reason"]),
+                         ("BLOCKED", "preexisting_localfilesystem_forward_preserved"))
+        self.assertFalse(acquired["ready"] or acquired["created"] or acquired["reused"])
+        guard.release_adb_forward(self.LEASE, self.OWNER)
+        self.assertEqual(self.fake.rows, [existing])
+        self.assertTrue(self.local_path.exists())
+        self.assertEqual(self.fake.mutations(), [])
+
+    def test_crash_after_effect_is_reconciled_from_durable_unique_lease(self):
+        self.fake.create_behavior = "crash"
+        with self.assertRaises(KeyboardInterrupt):
+            self.acquire()
+        lease = json.loads((guard.LEASES / (self.LEASE + ".json")).read_text())
+        self.assertEqual(lease["state"], "CREATE_REQUESTED")
+        self.assertFalse(lease["ownership_proven"])
+        self.identities.pop(self.OWNER)
+        self.assertEqual(guard.check_and_reconcile(False), 0)
+        reconciled = json.loads((guard.LEASES / (self.LEASE + ".json")).read_text())
+        self.assertTrue(reconciled["ownership_proven"] and reconciled["cleanup_verified"])
+        self.assertEqual(self.fake.rows, [])
+        self.assertFalse(os.path.lexists(self.local_path))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

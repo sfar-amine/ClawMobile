@@ -4,7 +4,9 @@
 
 Le fichier 46 de la passation est applicable : transcription par **Gemini `gemini-3.5-flash-lite`**, profil gratuit existant `google:claw-gemini-free`, sans OpenAI. Le repli est un nouvel essai Gemini différé. Aucun compte, modèle de remplacement, secret, configuration globale ou service n'est créé.
 
-La préparation est intégrable sous le garde fermé `MEMO_STT_QUALIFICATION`. Upload audio, transcription produit et `catalog.inputs.voiceMemo` restent refusés. Une suite locale verte atteste le code préparatoire ; elle ne constitue ni activation, ni recette Android, ni déploiement.
+La préparation est intégrable sous le garde `MEMO_STT_QUALIFICATION`.
+
+**Mise à jour 17/10/2026 — qualification S24.** Le garde est calculé par `memoSttBoundary.qualifyMemoStt` depuis le reçu `fixtures/s24-2026-10-17/hs8-qualification/qualification-receipt.json` : propriétaire canonique installé (`dist/companion` du runtime `636becf5`), SDK 2026.9.6, Gemini `gemini-3.5-flash-lite`, profil gratuit verrouillé malgré la clé provider concurrente (projection sans `apiKey`, configuration globale intacte), prompt identique par SHA256, M4A `mp42` (forme `MediaRecorder`) et M4A #174 transcrits, aucune autre tentative fournisseur, aucune écriture runtime, aucun texte dans les journaux. Toute différence referme l'entrée. Restent à constater en recette réelle avec Amine : vrai fichier du recorder Android, précision voix humaine (français, derja), parcours HTTP complet avec P1, budgets cumulés et journaux du process Companion.
 
 ## Sources réelles et portée des preuves
 

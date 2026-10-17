@@ -1,0 +1,72 @@
+{
+  "network_mutations": 0,
+  "provider_calls": 0,
+  "captured_at": "2026-10-15T18:11:33Z",
+  "app": {
+    "package": "ai.samantha.android.dev",
+    "identity_confirmed": true,
+    "version_name": "0.10.1-native-dev-opt",
+    "permissions": {
+      "READ_PHONE_STATE": {
+        "mentioned": false,
+        "grant_declared": false
+      },
+      "ACCESS_NETWORK_STATE": {
+        "mentioned": true,
+        "grant_declared": true
+      },
+      "INTERNET": {
+        "mentioned": true,
+        "grant_declared": true
+      }
+    }
+  },
+  "network": {
+    "read_ok": true,
+    "default_net_id": 279,
+    "networks": [
+      {
+        "net_id": 278,
+        "handle": 1197406605325,
+        "cellular": true,
+        "wifi": false,
+        "vpn": false,
+        "validated": true,
+        "not_vpn": true,
+        "orange_apn": true,
+        "subscription_id": 1,
+        "subscription_ids": [
+          1
+        ]
+      },
+      {
+        "net_id": 279,
+        "handle": 1201701572621,
+        "cellular": false,
+        "wifi": true,
+        "vpn": false,
+        "validated": true,
+        "not_vpn": true,
+        "orange_apn": false,
+        "subscription_id": null,
+        "subscription_ids": null
+      }
+    ],
+    "sanitized_cellular_lines": [
+      {
+        "provenance": "whitelisted exact fragments from real NetworkAgentInfo; omitted private fields",
+        "fragments": [
+          "network{278}",
+          "handle{1197406605325}",
+          "ni{MOBILE[LTE] CONNECTED extra: weborange}",
+          "Transports: CELLULAR",
+          "TelephonyNetworkSpecifier [mSubId = 1]",
+          "SubscriptionIds: {1}"
+        ]
+      }
+    ],
+    "raw_saved": false
+  },
+  "wifi_on": 1,
+  "multi_sim_data_call": 1
+}

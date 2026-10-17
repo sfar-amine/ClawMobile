@@ -36,6 +36,30 @@ Use:
 
 `with-wifi-off` is intended for workflows such as Orange/Maxit that require mobile-network execution. It does not change the default SIM or mobile-data setting and restores Wi‑Fi only to the state observed at entry.
 
+## Canal cellulaire avec Wi-Fi actif
+
+Le propriétaire `adb_forward` existant accepte aussi un endpoint Unix Termux strictement borné :
+`localfilesystem:$PREFIX/tmp/samantha-cellular-<32 hex>.sock` vers
+`localabstract:ai.samantha.cellular.<mêmes 32 hex>`. Le suffixe aléatoire doit être
+strictement identique des deux côtés. Le répertoire `$PREFIX/tmp` doit déjà exister,
+être un répertoire réel (aucun lien symbolique), appartenir à l'euid du garde et être
+en mode `0700`. Tout autre nom, destination, parent ou pathname préexistant inattendu
+est refusé avant l'appel ADB.
+
+Le reçu expose l'endpoint sous la forme
+`{"type":"unix","socket_path":"…"}`. L'état prêt exige à la fois l'observation exacte
+du forward par `adb forward --list` et celle du socket Unix. Le bail mémorise l'identité
+du socket créé. À la fermeture, le garde retire uniquement le forward exact puis ne
+supprime le pathname que si cette identité est inchangée ; un remplacement externe est
+préservé et place le bail en vérification. Si la réponse de création ADB est perdue après
+l'effet, le garde ne récupère la propriété que pour ce type `localfilesystem`, lorsque
+le snapshot antérieur était vide et que le mapping, le socket, son identité et le suffixe
+unique concordent avec le bail durable `CREATE_REQUESTED`. Le réconciliateur peut alors
+retirer cet effet après un crash. Un résultat ADB explicitement non nul ne peut jamais
+être promu depuis la seule observation, et un mapping `localfilesystem` préexistant est
+refusé puis préservé plutôt que réutilisé. Le contrat TCP existant reste inchangé et conserve son
+refus de déduire la propriété d'une réponse perdue.
+
 ## Wi‑Fi coupé : auto-réparation (incident S24 du 11/10, 16:00)
 
 Constat : Wi‑Fi coupé 40 min, aucun garde vivant, `leases/` vide, `network_safety` resté sain (aucun bail à réconcilier). Cause la plus probable : deux gardes concurrents. Le second photographie « Wi‑Fi coupé » pendant que le premier le tient coupé. Le premier restaure. Le second voit le Wi‑Fi revenir, arrête son enfant et « restaure » l'état coupé, puis supprime son bail. Une mort du garde par délai du pont pendant la coupure produit le même symptôme côté utilisateur. Règle désormais : **la restauration du Wi‑Fi ne dépend jamais de la survie du garde.**

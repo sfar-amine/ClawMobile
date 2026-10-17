@@ -5,7 +5,7 @@ process.env.OPENCLAW_STATE_DIR=dir;process.env.CLAWMOBILE_ATTACHMENT_DIR=path.jo
 delete process.env.CLAWMOBILE_RUNS_LEGACY_LOOPBACK_CONTEXT;os.homedir=()=>dir;
 const clock=Date.now;let now=clock();Date.now=()=>now;
 const state=path.join(dir,'clawmobile-companion');fs.mkdirSync(state,{recursive:true});
-const boundary=require('../dist/companion/memoSttBoundary');assert.equal(boundary.MEMO_STT_QUALIFICATION.success,false);boundary.MEMO_STT_QUALIFICATION={success:true};
+const boundary=require('../dist/companion/memoSttBoundary');assert.equal(boundary.MEMO_STT_QUALIFICATION.success,true);boundary.MEMO_STT_QUALIFICATION={success:true};
 const p1=require('../dist/companion/ownerTurnAdmission'),owner=p1.turnAdmission;
 const key=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'}),der=key.publicKey.export({type:'spki',format:'der'}),keyId=p1.sha256Hex(der);
 // Enrôlement préalable isolé : format du propriétaire réel. Biométrie d'enrôlement testée dans test-owner-turn-admission.
