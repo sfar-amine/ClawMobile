@@ -1,5 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/python3
-"""Force pending -> processed during ingest and prove idempotent revisioning."""
+"""Force concurrent ingests of one pending event and prove idempotent revisioning.
+
+M6 (#262) removes the transient pending copy once SQLite and the fsynced history agree, instead of
+moving it to processed/. The races of #238 are kept: a worker that opens the event after another one
+committed and removed it, and two workers that validated the same file and release it together."""
 import datetime
 import importlib.util
 import json
@@ -40,7 +44,7 @@ try:
     def ordered_open(path,*args,**kwargs):
         if threading.current_thread().name=='delayed-ingest' and path==event:
             delayed_at_open.set()
-            if not event_processed.wait(10):raise AssertionError('fast ingest did not move the event')
+            if not event_processed.wait(10):raise AssertionError('fast ingest did not settle the event')
         return original_open(path,*args,**kwargs)
 
     pathlib.Path.open=ordered_open
@@ -61,8 +65,8 @@ try:
     assert {result['revision'] for result in results}=={1},results
 
     # A second interleaving lets both workers open and validate the same
-    # pending file, then releases both os.replace calls together. Exactly one
-    # move wins; the loser must observe the validated processed event.
+    # pending file, then releases both removals of the transient copy together.
+    # Exactly one removal wins; the loser must tolerate the already removed copy.
     pathlib.Path.open=original_open
     second_id='b'*64
     second=pending/(second_id+'.json')
@@ -74,13 +78,13 @@ try:
         'text':'concurrent identical move',
         'createdAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
     },separators=(',',':')))
-    replace_barrier=threading.Barrier(2,timeout=10)
-    original_replace=os.replace
-    def ordered_replace(source,destination):
-        if pathlib.Path(source)==second:
-            replace_barrier.wait()
-        return original_replace(source,destination)
-    os.replace=ordered_replace
+    release_barrier=threading.Barrier(2,timeout=10)
+    original_unlink=pathlib.Path.unlink
+    def ordered_unlink(path,*args,**kwargs):
+        if path==second:
+            release_barrier.wait()
+        return original_unlink(path,*args,**kwargs)
+    pathlib.Path.unlink=ordered_unlink
     move_results=[]
     move_errors=[]
     def simultaneous_move():
@@ -90,7 +94,7 @@ try:
     workers=[threading.Thread(target=simultaneous_move) for _ in range(2)]
     for worker in workers:worker.start()
     for worker in workers:worker.join(15)
-    os.replace=original_replace
+    pathlib.Path.unlink=original_unlink
     assert not any(worker.is_alive() for worker in workers),'simultaneous move did not finish'
     assert not move_errors,move_errors
     assert sorted(result['inserted'] for result in move_results)==[False,True],move_results
@@ -102,14 +106,15 @@ try:
     connection.close()
     assert rows==[(event_id,1),(second_id,2)],rows
     assert head==2,head
+    # M6 contract: no transient copy survives once both durable truths agree (no processed/ copy).
     assert not event.exists()
-    assert (root/'processed'/event.name).is_file()
+    assert not (root/'processed'/event.name).exists()
     assert not second.exists()
-    assert (root/'processed'/second.name).is_file()
+    assert not (root/'processed'/second.name).exists()
     archive=list((root/'history').glob('*.jsonl'))
     assert len(archive)==1 and len(archive[0].read_text().splitlines())==2
     print('PASS context ingest races are idempotent (2 events, contiguous revisions, 2 archive rows)')
 finally:
     if 'original_open' in globals():pathlib.Path.open=original_open
-    if 'original_replace' in globals():os.replace=original_replace
+    if 'original_unlink' in globals():pathlib.Path.unlink=original_unlink
     shutil.rmtree(tmp,ignore_errors=True)

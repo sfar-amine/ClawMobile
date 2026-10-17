@@ -27,6 +27,8 @@ READS = [
     ("/runs?limit=50", 4.0),
     ("/runs?limit=40&summary=1", 1.0),  # F4 : écran Notifications (80 ms capturés), projection structurée
     ("/runs?contract=2&view=conversations&limit=20", 0.3),
+    # E4: archived subset of the same local projection, read warm after its sibling (never the first cold read).
+    ("/runs?contract=2&view=conversations&archived=1&limit=20", 0.3),
     ("/control/deploys?limit=20", 0.5),
     ("/control/engineering?limit=20", 2.0),
     ("/control/diagnostic/export", 3.0),
@@ -49,6 +51,8 @@ READS = [
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
+    ("POST", "/conversations/acceptance-probe/archive"),
+    ("POST", "/conversations/acceptance-probe/unarchive"),
     ("POST", "/attachments"),
     ("POST", "/security/surfaces"),
     ("POST", "/automations/acceptance-probe/run"),
@@ -82,7 +86,7 @@ OWNER_GUARDS = [
     ("POST", "/payments/local-start"),
     ("POST", "/payments/" + "1" * 8 + "-1111-4111-8111-" + "1" * 12 + "/bank-return"),
 ]
-OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0, "/payments/local-handoffs": 2.0, "/payments/local-start": 2.0}  # admission/refusal budget, no effect without owner proof
+OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0, "/payments/local-handoffs": 2.0, "/payments/local-start": 2.0, "/conversations/acceptance-probe/archive": 2.0, "/conversations/acceptance-probe/unarchive": 2.0}  # admission/refusal budget, no effect without owner proof
 SETTLE_SECONDS = 15
 # O9 (fichier 37): a voice run whose transcript is final (completed/interrupted) is never state=unknown.
 VOICE_TERMINAL_ROUTE = "/runs?limit=50"

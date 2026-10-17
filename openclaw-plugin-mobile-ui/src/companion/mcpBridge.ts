@@ -30,6 +30,11 @@ const REQUEST_CONTEXT = path.join(
   "tools",
   "request_context.py",
 );
+function memoryOwner(){
+  const candidates=[process.env.SAMANTHA_MEMORY_OWNER,
+    path.join(os.homedir(),'.openclaw','releases','current','termux-lite','context-store.py')].filter(Boolean) as string[];
+  return candidates.find(candidate=>fs.existsSync(candidate));
+}
 
 type McpRelayMessage = {
   requestId?: unknown;
@@ -209,7 +214,9 @@ function contextScopes(value:unknown) {
 
 async function contextBundle(args: Record<string, unknown>,clientId:string) {
   const query = requiredString(args.query, "query", 2000);
-  const argv = [REQUEST_CONTEXT, "--query", query, '--surface', contextSurface(clientId)];
+  const surface=contextSurface(clientId);
+  const session=`mcp-${clientId}`;
+  const argv = [REQUEST_CONTEXT, "--query", query, '--surface', surface,'--session',session];
   const scopes=contextScopes(args.scopes);
   if(scopes.length)argv.push('--scopes',scopes.join(','));
 
@@ -277,6 +284,29 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
     }
   }
 
+  const owner=memoryOwner();
+  const context=raw?.context && typeof raw.context==='object'?raw.context:{};
+  const revision=Number(context.truncated?context.lastReturnedRevision:context.toRevision);
+  if(owner&&raw?.readiness?.state!=='blocked'&&Number.isInteger(revision)&&revision>=0){
+    const knownContracts=Object.fromEntries((Array.isArray(raw.contracts)?raw.contracts:[])
+      .filter((row:any)=>typeof row?.key==='string'&&/^[a-f0-9]{64}$/.test(String(row?.sha256||'')))
+      .map((row:any)=>[row.key,row.sha256]));
+    const globalBaseline=raw?.global?.baseline_after_verified_read||{};
+    const state=JSON.stringify({knownContracts,globalBaseline});
+    try{
+      await execFileAsync('python3',[owner,'cursor-ack',session,surface,String(revision),state],{
+        cwd:path.dirname(owner),timeout:4000,maxBuffer:128*1024,env:{...process.env},
+      });
+      raw.cursor_advanced=true;
+      if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=true;
+    }catch{
+      // Context is already complete. Cursor optimization must fail open without
+      // leaking helper stderr or claiming an acknowledgement that did not occur.
+      raw.cursor_advanced=false;
+      raw.cursor_error='cursor_ack_unavailable';
+      if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=false;
+    }
+  }
   return {
     state: "context",
     bundle: sanitizeRequestContext(raw),

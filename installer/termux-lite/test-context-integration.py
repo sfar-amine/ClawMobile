@@ -49,7 +49,10 @@ def i06():
     assert all(x['state']=='open' for x in got)
 test('I06 multiple AMINE-REQ references resolve in one turn',i06)
 def r01():
- eid=ev('chat','decision','R01 event-driven durable processing'); assert (root/'processed'/f'{eid}.json').exists(); assert int(run('context-head.sh').stdout.strip())>0
+ eid=ev('chat','decision','R01 event-driven durable processing')
+ assert not (root/'pending'/f'{eid}.json').exists() and not (root/'processed'/f'{eid}.json').exists()
+ assert eid in ''.join(p.read_text() for p in (root/'history').glob('*.jsonl'))
+ assert int(run('context-head.sh').stdout.strip())>0
 test('R01 event becomes durable immediately',r01)
 def r02():
  def one(i): return ev(('chat','work','voice','openclaw')[i%4],'learning',f'R02 concurrent event {i:03d}')

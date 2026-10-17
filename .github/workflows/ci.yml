@@ -3,10 +3,13 @@ name: CI
 on:
   push:
     branches:
-      - main
-      - feature/termux-adb-lite
+      - runtime/samantha-companion-private
   pull_request:
     types: [opened, synchronize, reopened, edited, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   mobile-ui-plugin:
@@ -108,6 +111,9 @@ jobs:
         run: bash ../installer/termux-lite/test-activate-ui-playbooks.sh
       - name: K2 owner access-change receipts without real sends
         run: python3 ../installer/termux-lite/test-k2-owner-message.py
+
+      - name: Test health hysteresis with S24 correlated window
+        run: python3 ../installer/termux-lite/test-health-hysteresis.py
       - name: Test canonical context event surfaces
         run: python3 ../installer/termux-lite/test-context-surfaces.py
       - name: Context ingest is idempotent across pending to processed race
@@ -195,7 +201,7 @@ jobs:
 
       - name: Test attachment HTTP contract
         run: node scripts/test-attachment-http.cjs
-      - name: Run inactivity evidence and lifecycle regression contracts
+      - name: Deterministic run inactivity evidence and lifecycle regression contracts (H2)
         run: |
           node scripts/test-run-inactivity.cjs
           node scripts/test-conversation-backfill-races.cjs
@@ -241,6 +247,11 @@ jobs:
         working-directory: openclaw-plugin-mobile-ui
         run: node scripts/test-agent-config-flight.cjs
 
+      - name: Refresh curated private context before background save
+        run: python3 ../scripts/test-context-background-sync.py
+
+      - name: H5 existing R6 R7 R12 acceptance evidence
+        run: python3 scripts/test-h5-acceptance-evidence.py
       - name: Preserve specialized rules in bounded voice bootstrap
         run: node scripts/test-voice-operating-rules.cjs
 
@@ -324,6 +335,8 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-context-digest.py
           python3 ../installer/termux-lite/test-context-curator.py
+
+          python3 ../installer/termux-lite/test-context-m6-retention.py
           python3 ../installer/termux-lite/test-context-native-fixtures.py
           python3 ../installer/termux-lite/test-context-scale.py
           python3 ../installer/termux-lite/test-context-import.py
@@ -343,6 +356,7 @@ jobs:
           node scripts/test-mcp-context-provenance.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
+
           node ../cloud/voice-relay/test-long-action.mjs
       - name: M2 claw_remember MCP owner capture through canonical context-event writer (200k events)
         run: node scripts/test-mcp-remember.cjs
@@ -401,6 +415,8 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-model-efficiency.py
           python3 ../installer/termux-lite/test-gemini-request.py
+          python3 ../installer/termux-lite/test-gemini-public-synthesis.py
+          node --test ../installer/termux-lite/test-gemini-public-synthesis.mjs
 
       - name: Verify telecom display and bounded execution provenance (O7)
         run: |
@@ -431,14 +447,26 @@ jobs:
       - name: E3 agent file write (biometric, CAS, privacy lines kept, free vocabulary, five backups)
         run: node scripts/test-agent-file-write-plan.cjs
 
+      - name: H4 actionable agent fallback confirmation challenge on S24 captures
+        run: node scripts/test-agent-confirmation-challenge.cjs
+
+      - name: F3 server presentation localization on S24 captures
+        run: node scripts/test-server-localization.cjs
       - name: R23 automation edit (validation, real cron captures, CAS, confirmation, receipts)
         working-directory: openclaw-plugin-mobile-ui
         run: |
           node scripts/test-automation-edit-validation.cjs
           node scripts/test-automation-edit-http.cjs
 
+      - name: H3 explicit canonical budget source and relocated report
+        run: python3 scripts/test-budget-source.py
       - name: H6 canonical resolved intention and free vocabulary boundary
         run: node scripts/test-payment-pattern-boundary.cjs
+      - name: Check Context Guardian SQLite read-only owner
+        run: python3 ../installer/termux-lite/test-context-guardian-sqlite.py
+
+      - name: Reversible conversation archive and retained pagination contract
+        run: node scripts/test-conversation-archive.cjs
 
   p1-isolated-gateway:
     name: P1 public Gateway isolated integration
@@ -465,5 +493,24 @@ jobs:
           curl --fail --silent --show-error --location https://registry.npmjs.org/openclaw/-/openclaw-2026.9.6.tgz --output "$RUNNER_TEMP/p1-openclaw-2026.9.6.tgz"
           echo "1a7355691bc0e605222ba818f1f72c1787253c78dfeb0df6be2086ec73b71e63  $RUNNER_TEMP/p1-openclaw-2026.9.6.tgz" | sha256sum --check
           npm install --prefix "$RUNNER_TEMP/p1-sdk" --ignore-scripts --omit=dev --no-audit --no-fund "$RUNNER_TEMP/p1-openclaw-2026.9.6.tgz"
+      - name: Test native Parallel SDK loader and transport budget offline
+        run: node ../installer/termux-lite/test-openclaw-web-real-sdk.mjs "$RUNNER_TEMP/p1-sdk/node_modules/openclaw"
+
+      - name: Public Gemini synthesis on real pinned SDK with offline transport
+        run: node ../installer/termux-lite/test-gemini-public-native.mjs "$RUNNER_TEMP/p1-sdk/node_modules/openclaw"
       - name: Test actual public Gateway admission revocation cancellation and clarification
         run: node scripts/diagnostics/p1-gateway-isolated.cjs "$RUNNER_TEMP/p1-sdk/node_modules/openclaw" "$(command -v node)" "$RUNNER_TEMP/p1-gateway-proof"
+
+  parallel-free-transport:
+    name: Parallel Free pinned native transport offline
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node 26 for OpenClaw provider compatibility
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26.11.1
+      - name: Test pinned native provider budget and boundaries without live network
+        run: node --test installer/termux-lite/test-openclaw-web-request.mjs
