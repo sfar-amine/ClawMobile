@@ -12,7 +12,16 @@ import {createMaxitTopupLivePaymentAdapter} from "./maxitTopupLivePaymentAdapter
 import {LOCAL_PAYMENT_ACTION_TYPE, buildLocalPaymentIntent, localPaymentPayloadHash, parseLocalPaymentReference} from "./localPaymentIntent";
 import {runTermuxCommand} from "../backends/termux";
 
-export const PAYMENT_QUOTE_TIMEOUT_MS=20_000;
+// P1-5 nested budgets (11/10). Every layer waits longer than the layer it calls:
+//   quote  : Python provider 40 s < adapter runner 43 s < PAYMENT_QUOTE_TIMEOUT_MS 45 s < CLI HTTP 50 s
+//   start  : adapter runner 220 s < PAYMENT_EXECUTION_TIMEOUT_MS 230 s;
+//            route /payments/local-start = quote + execution = LOCAL_START_ROUTE_BUDGET_MS < Android call
+//   resume : Python status 40 s < adapter runner 60 s < PAYMENT_RESUME_TIMEOUT_MS 65 s < Android bank-return call
+export const PAYMENT_QUOTE_TIMEOUT_MS=45_000;
+export const PAYMENT_EXECUTION_TIMEOUT_MS=230_000;
+export const PAYMENT_RESUME_TIMEOUT_MS=65_000;
+export const LOCAL_START_ROUTE_BUDGET_MS=PAYMENT_QUOTE_TIMEOUT_MS+PAYMENT_EXECUTION_TIMEOUT_MS;
+export {BANK_ACTION_TIMEOUT_MS};
 
 const adapters:PaymentAdapter[]=[
   {id:"demo.confirmation",label:"Test de confirmation — aucun paiement",mode:"demo",executionValidated:true,
@@ -36,9 +45,12 @@ export function bankAuthorizationIntent(payment:any):OwnerIntent {
   if(!Number.isSafeInteger(q.amountMinor)||!Number.isInteger(q.decimals)||q.decimals<0||q.decimals>3)
     paymentError("payment_record_invalid",503);
   const factor=10**q.decimals;
-  const amount=(q.amountMinor/factor).toFixed(q.decimals);
-  const payloadHash=ownerHash(["claw.payment.bank.v1",payment.requestId,payment.adapterId,payment.mode,
-    q.payee,q.reference,q.amountMinor,q.currency,q.decimals].join("\n"));
+  const fee=q.feeMinor!==undefined;
+  if(fee&&(!Number.isSafeInteger(q.totalMinor)||q.totalMinor!==q.amountMinor+q.feeMinor))paymentError("payment_record_invalid",503);
+  // With a provider fee the bank step names the total debited, not the top-up amount alone.
+  const amount=((fee?q.totalMinor:q.amountMinor)/factor).toFixed(q.decimals);
+  const payloadHash=ownerHash([fee?"claw.payment.bank.v2":"claw.payment.bank.v1",payment.requestId,payment.adapterId,payment.mode,
+    q.payee,q.reference,q.amountMinor,...(fee?[q.feeMinor,q.totalMinor,q.feeLabel]:[]),q.currency,q.decimals].join("\n"));
   return {audience:"confirmation",
     action:{type:"payment.bank_2fa",reference:payment.requestId,payloadHash},
     presentation:{title:"Autoriser l’authentification bancaire",subtitle:`${q.payee} — ${amount} ${q.currency}`,
@@ -89,7 +101,9 @@ export function validateLocalHandoffInput(v:any):{requestKey:string;adapterId:st
 }
 
 function formatPayableAmount(q:PaymentQuote){
-  const scale=10**q.decimals,whole=Math.floor(q.amountMinor/scale),frac=q.amountMinor%scale;
+  // Total debited when a provider fee applies (Maxit), otherwise the amount.
+  const value=q.feeMinor!==undefined&&Number.isSafeInteger(q.totalMinor)?q.totalMinor!:q.amountMinor;
+  const scale=10**q.decimals,whole=Math.floor(value/scale),frac=value%scale;
   return q.decimals?String(whole)+","+String(frac).padStart(q.decimals,"0"):String(whole);
 }
 
@@ -124,6 +138,33 @@ function latestUiProgress(payment:any){
   }
   return null;
 }
+const SAFE_CODE=/^[a-z0-9_]{1,96}$/;
+/** Last traced step carrying a reason (P0-8): the app renders it as readable text, never raw. */
+export function latestPaymentStep(payment:any){
+  const timeline=Array.isArray(payment?.timeline)?payment.timeline:[];
+  for(let i=timeline.length-1;i>=0;i--){
+    const e=timeline[i];
+    if(!e||typeof e.stage!=="string"||e.stage==="http_exchange"||e.stage.startsWith("bank_ui")||e.stage.startsWith("bank_return"))continue;
+    if(typeof e.reasonCode!=="string"&&typeof e.reasonDetail!=="string"&&e.stage!=="state_transition")continue;
+    // The state transition only groups; prefer the precise execution_error just before it.
+    const prior=timeline.slice(0,i).reverse().find((x:any)=>x?.stage==="execution_error"&&typeof x.reasonDetail==="string");
+    const detail=typeof e.reasonDetail==="string"?e.reasonDetail:prior?.reasonDetail;
+    return {
+      stage:e.stage==="state_transition"&&prior?prior.stage:e.stage,
+      ...(typeof e.reasonCode==="string"&&SAFE_CODE.test(e.reasonCode)?{reasonCode:e.reasonCode}:{}),
+      ...(typeof detail==="string"&&SAFE_CODE.test(detail)?{reasonDetail:detail}:{})
+    };
+  }
+  return null;
+}
+function safeStepError(error:any){
+  const code=String(error?.message??"");
+  return SAFE_CODE.test(code)?code:"payment_step_failed";
+}
+async function recordConfirmationStep(id:string,stage:string,reasonCode?:string,outcome?:string){
+  // Best effort: the receipt must never turn a no-effect refusal into a different error.
+  try{await confirmations.recordStep(id,{stage,...(reasonCode?{reasonCode}:{}),...(outcome?{outcome}:{})});}catch{}
+}
 export function compactPaymentUiView(payment:any){
   if(!payment||payment.schemaVersion!==1||typeof payment.requestId!=="string")paymentError("invalid_payment_response",503);
   return {
@@ -135,6 +176,9 @@ export function compactPaymentUiView(payment:any){
     quote:payment.quote,
     financialSubmissionAttempted:payment.financialSubmissionAttempted===true,
     progress:latestUiProgress(payment),
+    lastStep:latestPaymentStep(payment),
+    ...(Number.isSafeInteger(payment.bankActionDeadlineAt)
+      ?{bankActionDeadlineAt:payment.bankActionDeadlineAt,bankActionTimeoutMs:payment.bankActionTimeoutMs}:{}),
     ...(payment.receipt?{receipt:payment.receipt}:{})
   };
 }
@@ -147,7 +191,8 @@ function validateLocalIntentInput(v:any):{requestKey:string;adapterId:string;ref
   return {requestKey:v.requestKey,adapterId:v.adapterId,reference:v.reference,origin:validateOrigin(v.origin)};
 }
 
-const core=createPaymentCore({store:{read:readPaymentRequests,change:mutatePaymentRequests},adapters,key,timeouts:{quoteMs:PAYMENT_QUOTE_TIMEOUT_MS,executionMs:225000}});
+const core=createPaymentCore({store:{read:readPaymentRequests,change:mutatePaymentRequests},adapters,key,
+  timeouts:{quoteMs:PAYMENT_QUOTE_TIMEOUT_MS,executionMs:PAYMENT_EXECUTION_TIMEOUT_MS,resumeMs:PAYMENT_RESUME_TIMEOUT_MS}});
 const bankTimeoutTimers=new Map<string,ReturnType<typeof setTimeout>>();
 function clearBankTimeout(id:string){
   const timer=bankTimeoutTimers.get(id);
@@ -198,6 +243,7 @@ async function prepareLocalHandoff(input:any){
   const v=validateLocalHandoffInput(input);
   const intent=buildLocalPaymentIntent({adapterId:v.adapterId,quote:v.quote,origin:v.origin});
   const prepared=await confirmations.prepare({requestKey:v.requestKey,action:intent.action,presentation:intent.presentation,origin:intent.origin});
+  await recordConfirmationStep(prepared.requestId,"handoff_prepared",undefined,"awaiting_owner");
   const notificationSent=v.notify?await notifyLocalHandoff(prepared.requestId,v.quote):false;
   return {schemaVersion:1,state:"awaiting_owner",confirmationRequestId:prepared.requestId,quote:v.quote,expiresAt:prepared.expiresAt,notificationSent};
 }
@@ -220,8 +266,10 @@ async function localIntentStatus(id:string) {
     payment:compactPaymentUiView(payment)
   };
   const confirmation=await confirmations.status(id);
+  const lastStep=await confirmations.lastStep(id).catch(()=>null);
   return {schemaVersion:1, confirmationRequestId:id, state:confirmation.state,
-    financialSubmissionAttempted:false};
+    financialSubmissionAttempted:false, ...(lastStep?{lastStep:{stage:lastStep.stage,
+      ...(lastStep.reasonCode?{reasonCode:lastStep.reasonCode}:{})}}:{})};
 }
 
 async function localStart(input:any) {
@@ -233,22 +281,28 @@ async function localStart(input:any) {
   if(existing) return compactPaymentUiView(existing);
 
   const conf=await confirmations.status(id);
+  const refuse=async(stage:string,code:string,status:number):Promise<never>=>{
+    await recordConfirmationStep(id,stage,code);
+    return paymentError(code,status);
+  };
 
-  if(conf.state==="consumed") paymentError("local_payment_start_interrupted_before_dispatch",409);
-  if(conf.state==="expired") paymentError("local_start_confirmation_expired",409);
-  if(conf.state!=="approved") paymentError("local_start_confirmation_not_approved",409);
-  if(conf.intent.action.type!==LOCAL_PAYMENT_ACTION_TYPE) paymentError("local_start_action_type_mismatch",409);
+  if(conf.state==="consumed") await refuse("owner_confirmation","local_payment_start_interrupted_before_dispatch",409);
+  if(conf.state==="expired") await refuse("owner_confirmation","local_start_confirmation_expired",409);
+  if(conf.state!=="approved") await refuse("owner_confirmation","local_start_confirmation_not_approved",409);
+  if(conf.intent.action.type!==LOCAL_PAYMENT_ACTION_TYPE) await refuse("owner_confirmation","local_start_action_type_mismatch",409);
 
   let parsedRef:{adapterId:string; providerReference:string};
   try {
     parsedRef=parseLocalPaymentReference(conf.intent.action.reference);
   } catch {
-    paymentError("local_payment_reference_invalid",400);
+    return refuse("owner_confirmation","local_payment_reference_invalid",400);
   }
 
-  const freshQuote=await core.localQuote(parsedRef.adapterId, parsedRef.providerReference);
-  if(freshQuote.reference!==parsedRef.providerReference) paymentError("invalid_payment_quote",502);
-  if(conf.intent.action.payloadHash!==localPaymentPayloadHash(parsedRef.adapterId, freshQuote)) paymentError("payment_quote_changed",409);
+  let freshQuote:PaymentQuote;
+  try {freshQuote=await core.localQuote(parsedRef.adapterId, parsedRef.providerReference);}
+  catch(error:any) {return refuse("quote_revalidation",safeStepError(error),Number(error?.statusCode)||502);}
+  if(freshQuote.reference!==parsedRef.providerReference) await refuse("quote_revalidation","invalid_payment_quote",502);
+  if(conf.intent.action.payloadHash!==localPaymentPayloadHash(parsedRef.adapterId, freshQuote)) await refuse("quote_revalidation","payment_quote_changed",409);
 
   const expectedIntent=buildLocalPaymentIntent({
     adapterId:parsedRef.adapterId,
@@ -256,7 +310,9 @@ async function localStart(input:any) {
     origin:{channel:conf.intent.origin.channel,id:conf.intent.origin.id}
   });
 
-  await confirmations.consume(id, expectedIntent);
+  try {await confirmations.consume(id, expectedIntent);}
+  catch(error:any) {return refuse("confirmation_consume",safeStepError(error),Number(error?.statusCode)||409);}
+  await recordConfirmationStep(id,"payment_dispatch",undefined,"payment_record_created");
   const result=await core.startLocalAuthorized({
     confirmationRequestId:id,
     adapterId:parsedRef.adapterId,
@@ -281,8 +337,13 @@ async function resume(id:string,confirmationRequestId:string){
   return compactPaymentUiView(result);
 }
 
+async function statusCompact(id:string){
+  return compactPaymentUiView(await core.status(id));
+}
+
 export const payments = {
   ...bound,
+  statusCompact,
   resume,
   bankReturn,
   bankUiEvent,

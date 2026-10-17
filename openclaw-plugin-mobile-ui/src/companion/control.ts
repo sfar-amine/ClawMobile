@@ -1,14 +1,15 @@
+import {serverLanguage,localizedRoute,localizeServerPresentation} from "./serverLocale";
+import {conditionalRead} from "./readEtag";
 import {completeUsageAttention} from './usageControl';
-import {allJobs,protectedJob} from "./automations";
+import {allJobs} from "./automations";
 import { execFile, spawn } from "child_process";
-import {existsSync, constants} from "fs";
+import {existsSync} from "fs";
 import type { IncomingMessage, ServerResponse } from "http";
 import os from "os";
 import path from "path";
 import readline from "readline";
 import { randomUUID, createHash } from "crypto";
 import { performance } from "perf_hooks";
-import fs from "fs/promises";
 import { completeHealthSection } from "./control-health";
 import {companionBuildVersion} from "./updatesControl";
 
@@ -19,7 +20,7 @@ export function controlPaths() {
   const pinned=path.join(os.homedir(), ".openclaw/runtime-ui-playbooks/current");
   return {
     playbooks: process.env.SAMANTHA_CONTROL_PLAYBOOKS || process.env.CLAW_UI_PLAYBOOKS_ROOT || (existsSync(path.join(pinned,"reporting/control_snapshot.py")) ? pinned : path.join(os.homedir(), ".openclaw/workspace/ui-playbooks")),
-    live: process.env.SAMANTHA_CONTROL_LIVE || path.join(os.homedir(), "ClawMobile/installer/termux-lite/claw-live.py"),
+    live: process.env.SAMANTHA_CONTROL_LIVE || path.join(os.homedir(), ".openclaw/releases/current/termux-lite/claw-live.py"),
   };
 }
 
@@ -28,7 +29,7 @@ export function automationNotificationProjection(value:any,jobs:any[]=[]):any {
   if(!value||!Array.isArray(value.items))return value;
   return {...value,activationRoute:'/v1/automations/{automationId}/enable|disable',items:value.items.map((item:any)=>
     item?.kind==='scheduled'&&typeof item.automationId==='string'&&/^[A-Za-z0-9_.:-]{1,160}$/.test(item.automationId)
-      ? (()=>{const job=jobs.find(j=>j.id===item.automationId);return {...item,togglable:!!job&&!protectedJob(job),reason:job?(protectedJob(job)?'protected_automation':'delivery_evidence_unavailable'):'automation_unavailable'};})() : item)};
+      ? (()=>{const job=jobs.find(j=>j.id===item.automationId);return {...item,togglable:false,reason:job?'action_guard_not_qualified':'automation_unavailable'};})() : item)};
 }
 
 export function readControl(section: string, signal?: AbortSignal): Promise<unknown> {
@@ -225,18 +226,35 @@ export class ControlReadPool {
 }
 const controlReads=new ControlReadPool();
 
-// A revision input, never a replacement scheduler or a second copy of its jobs.
+/** Derived read-only presentations share the existing bounded Control pool. */
+export async function readControlProjection(key:string,generate:(signal:AbortSignal)=>Promise<unknown>,signal?:AbortSignal):Promise<any>{
+  const result=await controlReads.read('projection:'+key,async abort=>{
+    const data=await generate(abort);
+    return {schemaVersion:2,sections:{projection:{schemaVersion:2,resourceKey:key,dataRevision:createHash('sha256').update(JSON.stringify(data)).digest('hex'),remainingFreshMs:15000,availability:'ready',freshness:'fresh',data}}};
+  },signal,{cache:true});
+  return result.sections.projection.data;
+}
+
+
+// Digest comes from the existing Python reporting owner, never a second scheduler store.
+// Probe timeout 600 ms (S24 17/10): 128 ms measured cold, but the post-deploy load doubles Python start-up; at 200 ms
+// the probe fell back to the ~4 s normal collector and rolled the deploy back. 600 + 80 ms stays under the 1 s budget.
+let revisionFlight:{key:string;value:Promise<string|null>}|undefined;
 async function automationSourceRevision():Promise<string|null>{
-  const root=process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),".openclaw");
-  const directory=path.join(root,"cron"),source=path.join(directory,"jobs.json");
-  let file:Awaited<ReturnType<typeof fs.open>>|undefined;
-  try{
-    for(const parent of [root,directory]){const info=await fs.lstat(parent);if(!info.isDirectory()||info.isSymbolicLink())return null;}
-    file=await fs.open(source,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
-    const info=await file.stat();if(!info.isFile()||info.size>8*1024*1024)return null;
-    const data=await file.readFile();if(data.length>8*1024*1024)return null;
-    return createHash("sha256").update(data).digest("hex");
-  }catch{return null;}finally{await file?.close();}
+  const roots=controlPaths(),root=process.env.OPENCLAW_STATE_DIR||path.join(os.homedir(),".openclaw");
+  const key=JSON.stringify([roots.playbooks,root]);
+  if(revisionFlight){if(revisionFlight.key===key)return revisionFlight.value;await revisionFlight.value;return automationSourceRevision();}
+  const value=new Promise<string|null>(resolve=>{
+    execFile("python3",["-m","reporting.control_snapshot","--automation-revision"],{
+      cwd:roots.playbooks,env:{...process.env},timeout:600,killSignal:"SIGKILL",maxBuffer:2048,
+    },(error,stdout)=>{
+      if(error){resolve(null);return;}
+      try{const result=JSON.parse(stdout);if(!result||typeof result!=="object"||Array.isArray(result)||Object.keys(result).some(k=>!["schemaVersion","sourceRevision"].includes(k))||result.schemaVersion!==1||!(result.sourceRevision===null||typeof result.sourceRevision==="string"&&/^[a-f0-9]{64}$/.test(result.sourceRevision)))throw Error();resolve(result.sourceRevision);}
+      catch{resolve(null);}
+    });
+  });
+  revisionFlight={key,value};void value.finally(()=>{if(revisionFlight?.value===value)revisionFlight=undefined;});
+  return value;
 }
 
 function deferredAutomations(revision:string|null):ControlResult{
@@ -311,7 +329,7 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
   // The existing bounded collector continues; polling shares its single flight.
   let timer:ReturnType<typeof setTimeout>|undefined;
   try{return await Promise.race([result,new Promise<ControlResult>(resolve=>{
-    timer=setTimeout(()=>resolve(deferredAutomations(sourceRevision)),180);
+    timer=setTimeout(()=>resolve(deferredAutomations(sourceRevision)),80);
   })]);}finally{if(timer)clearTimeout(timer);}
 }
 
@@ -319,7 +337,7 @@ export async function handleControl(req: IncomingMessage, res: ServerResponse, r
   const routeOnly=route.split("?")[0];
   if (!routeOnly.startsWith("/control/")) return false;
   const address=req.socket.remoteAddress||"";
-  if(!["127.0.0.1","::1","::ffff:127.0.0.1"].includes(address)||req.headers.origin||req.headers["sec-fetch-site"]){res.writeHead(403);res.end();return true;}
+  if(!["127.0.0.1","::1","::ffff:127.0.0.1"].includes(address)||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){res.writeHead(403);res.end();return true;}
   if(req.method!=="GET"){res.writeHead(405,{Allow:"GET"});res.end();return true;}
   const target=routeOnly.slice("/control/".length);
   if(target==="activity/stream"){streamControl(req,res);return true;}
@@ -353,9 +371,14 @@ export async function handleControl(req: IncomingMessage, res: ServerResponse, r
       }
       value=result;
     }
-    if(!res.destroyed){res.writeHead(200,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"});res.end(JSON.stringify(value));}
+    if(!res.destroyed){
+      res.setHeader("Content-Type","application/json; charset=utf-8");res.setHeader("Cache-Control","no-store");
+      if(localizedRoute(routeOnly)){const language=serverLanguage(req.headers["accept-language"]);value=localizeServerPresentation(value,language);res.setHeader("Content-Language",language);res.setHeader("Vary","Accept-Language");}
+      const body=JSON.stringify(value);if(!conditionalRead(req,res,200,value,body)){res.statusCode=200;res.end(body);}
+    }
   }catch(error:any){
     if(!res.destroyed){const code=[400,404,429,499,504].includes(error?.statusCode)?error.statusCode:503;
+      if(localizedRoute(routeOnly)){res.setHeader("Content-Language",serverLanguage(req.headers["accept-language"]));res.setHeader("Vary","Accept-Language");}
       res.writeHead(code,{"Content-Type":"application/json","Cache-Control":"no-store"});res.end(JSON.stringify({error:code===400?"invalid_control_request":code===429?"control_read_busy":"control_unavailable"}));}
   }finally{res.removeListener("close",cancel);}
   return true;

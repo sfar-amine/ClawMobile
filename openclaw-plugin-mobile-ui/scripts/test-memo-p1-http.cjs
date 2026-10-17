@@ -1,0 +1,40 @@
+// Composition réelle HTTP + propriétaire P1 crypto ; fournisseur simulé, pas recette S24.
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto'),http=require('node:http');
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'memo-p1-http-'));
+process.env.OPENCLAW_STATE_DIR=dir;process.env.CLAWMOBILE_ATTACHMENT_DIR=path.join(dir,'audio');
+delete process.env.CLAWMOBILE_RUNS_LEGACY_LOOPBACK_CONTEXT;os.homedir=()=>dir;
+const clock=Date.now;let now=clock();Date.now=()=>now;
+const state=path.join(dir,'clawmobile-companion');fs.mkdirSync(state,{recursive:true});
+const boundary=require('../dist/companion/memoSttBoundary');assert.equal(boundary.MEMO_STT_QUALIFICATION.success,false);boundary.MEMO_STT_QUALIFICATION={success:true};
+const p1=require('../dist/companion/ownerTurnAdmission'),owner=p1.turnAdmission;
+const key=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'}),der=key.publicKey.export({type:'spki',format:'der'}),keyId=p1.sha256Hex(der);
+// Enrôlement préalable isolé : format du propriétaire réel. Biométrie d'enrôlement testée dans test-owner-turn-admission.
+const enroll=()=>fs.writeFileSync(path.join(state,'owner-turn-admission.json'),JSON.stringify({version:1,keyId,publicKey:der.toString('base64'),enrolledAt:now,confirmationId:crypto.randomUUID(),epoch:crypto.randomBytes(16).toString('hex')}),{mode:0o600});enroll();
+const storage=require('../dist/companion/attachmentStorage'),sdk=require('../dist/companion/memoSttOwner');
+let providerCalls=0,effects=0,resolve,verifications=0;
+sdk.transcribeMemoAttachment=async()=>{providerCalls++;return new Promise(r=>resolve=r);};
+require('../dist/modelFastPath').runModelFastPath=require('./lib/legacy-fast-path-as-dialogue.cjs')(async(text,opts)=>{assert.equal(text,'9addech batterie');if(opts.checkOnly)return{status:'eligible',decision:{version:2,type:'EXECUTE',risk:'read',confirmationRequired:false,capability:'device.assistance'}};effects++;return{status:'hit',text:'Synthetic read receipt'};});
+const verify=owner.verifyRequest;owner.verifyRequest=request=>{verifications++;return verify(request);};
+const {route}=require('../dist/companion/server');
+const server=http.createServer((req,res)=>route(req,res).catch(e=>{res.writeHead(500);res.end(JSON.stringify({error:String(e.message)}));}));
+const request=(method,url,data,headers={})=>new Promise((done,reject)=>{const body=data===undefined?undefined:typeof data==='string'?data:JSON.stringify(data);const req=http.request({host:'127.0.0.1',port:server.address().port,path:url,method,headers:{...(body===undefined?{}:{'content-type':'application/json','content-length':Buffer.byteLength(body)}),...headers}},res=>{let raw='';res.on('data',x=>raw+=x);res.on('end',()=>done({status:res.statusCode,body:JSON.parse(raw)}));});req.on('error',reject);req.end(body);});
+const signed=body=>{const b=JSON.parse(body),nonce=crypto.randomBytes(16).toString('hex'),timestamp=String(now);const message=p1.admissionMessage({method:'POST',path:'/v1/runs',bodyHash:p1.sha256Hex(Buffer.from(body)),clientRunId:b.clientRunId,sessionId:b.sessionId,timestamp,nonce,keyId});return{'x-samantha-admission':'v1','x-samantha-admission-key':keyId,'x-samantha-admission-ts':timestamp,'x-samantha-admission-nonce':nonce,'x-samantha-admission-signature':crypto.sign('sha256',Buffer.from(message),key.privateKey).toString('base64')};};
+const until=async f=>{for(let i=0;i<100;i++){if(await f())return;await new Promise(r=>setTimeout(r,5));}throw Error('memo HTTP did not settle');};
+(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));try{
+ const source=fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/hs8-captures/bonjour-samantha.m4a'));
+ const audio=storage.saveAttachments([{id:'p1audio',mimeType:'audio/mp4',body:source}],new Set())[0];
+ const body=JSON.stringify({instruction:'',displayText:'Mémo vocal',sessionId:'memo-p1',clientRunId:'memo-p1-client',attachments:[{id:audio.serverId||audio.id,displayName:audio.displayName}]}),headers=signed(body);
+ const initial=await request('POST','/v1/runs',body,headers);assert.equal(initial.status,200);assert.equal(initial.body.accepted,true);assert.deepEqual(initial.body.ownerAdmission,{owner:true});assert.equal(verifications,1);assert.equal(owner.nonceCount(),1);assert.equal(providerCalls,1);
+ const runId=initial.body.runId;const repeated=await request('POST','/v1/runs',body,headers);assert.equal(repeated.body.accepted,false);assert.equal(repeated.body.ownerAdmission.owner,false);assert.equal(p1.recentAdmissionRefusals().at(-1).reason,'replayed_nonce');assert.equal(owner.nonceCount(),1);assert.equal(verifications,2);assert.equal(providerCalls,1);
+ resolve({success:false,state:'refused',receipt:null,error:'memo_transcript_unavailable'});
+ await until(async()=> (await request('GET','/v1/runs/'+runId)).body.status==='transcription_pending');
+ now+=120000;await Promise.all(Array.from({length:12},()=>request('GET','/v1/runs/'+runId)));assert.equal(providerCalls,2);assert.equal(verifications,2,'GET never issues/reverifies native ticket');
+ resolve({success:true,state:'transcribed',text:'9addech batterie'});
+ await until(async()=> (await request('GET','/v1/runs/'+runId)).body.status==='memo_ready_to_continue');assert.equal(effects,0);assert.ok(fs.existsSync(audio.path));
+ owner.revoke();let blocked=await request('POST','/v1/runs',body,signed(body));assert.equal(blocked.body.accepted,false);assert.equal(blocked.body.ownerAdmission.owner,false);assert.equal(effects,0);assert.ok(fs.existsSync(audio.path));
+ blocked=await request('POST','/v1/runs',JSON.stringify({...JSON.parse(body),admission:{owner:true},memoContinuation:true}));assert.equal(blocked.body.accepted,false);assert.equal(effects,0,'HTTP cannot manufacture opaque ticket');
+ enroll();const before=verifications,fresh=await request('POST','/v1/runs',body,signed(body));assert.equal(fresh.status,200);assert.equal(fresh.body.accepted,true);assert.equal(fresh.body.runId,runId);assert.equal(fresh.body.clientRunId,'memo-p1-client');assert.equal(verifications,before+1,'exactly one native verification during continuation');
+ await until(async()=> (await request('GET','/v1/runs/'+runId)).body.state==='done');assert.equal(effects,1);assert.equal(providerCalls,2);assert.equal(fs.existsSync(audio.path),false);
+ const row=JSON.parse(fs.readFileSync(path.join(state,'runs.json'))).runs.find(r=>r.runId===runId);assert.equal(row.ownerAdmitted,true);assert.equal(row.memo.phase,'dispatched');assert.equal(row.attachments,undefined);
+ console.log('HS8 HTTP + real P1: one signed nonce verification, replay refused, GET STT only, revocation/forged ticket denied and fresh same-run continuation passed');
+}finally{owner.verifyRequest=verify;Date.now=clock;await new Promise(r=>server.close(r));fs.rmSync(dir,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});

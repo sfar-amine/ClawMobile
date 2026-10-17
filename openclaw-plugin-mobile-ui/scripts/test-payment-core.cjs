@@ -1,10 +1,10 @@
-const assert=require("assert/strict"),crypto=require("crypto");
+const assert=require("assert/strict"),crypto=require("crypto"),fs=require("fs"),path=require("path");
 const {createHash} = crypto;
-const {createPaymentCore,ownerKey,confirmationMessage,quoteDigest}=require("../dist/companion/paymentCore.js");
+const {createPaymentCore,ownerKey,confirmationMessage,quoteDigest,BANK_ACTION_TIMEOUT_MS}=require("../dist/companion/paymentCore.js");
 const {PAYMENT_QUOTE_TIMEOUT_MS,bankAuthorizationIntent,bindPaymentAuthorizations}=require("../dist/companion/payments.js");
 let count=0;
 async function test(name,fn){await fn();count++;console.log("PASS "+name)}
-function fixture({mode="demo",execute,resume,timeoutReconcile,revalidate,quote,validated=true,timeouts}={}){
+function fixture({mode="demo",adapterId="fixture.payment",execute,resume,timeoutReconcile,revalidate,quote,validated=true,timeouts}={}){
  const pair=crypto.generateKeyPairSync("ec",{namedCurve:"prime256v1"});
  const key=ownerKey(pair.publicKey.export({type:"spki",format:"pem"}));
  let rows=[],clock=1000000,calls=0,resumes=0,writes=Promise.resolve();
@@ -13,8 +13,8 @@ function fixture({mode="demo",execute,resume,timeoutReconcile,revalidate,quote,v
   writes=next.then(()=>{},()=>{});return next;
  }};
  const q={payee:"Marchand de test",reference:"DEMO",amountMinor:mode==="demo"?0:2345,currency:"TND",decimals:3};
- const continuation={provider:"fixture.payment",checkoutId:"12345",gatewayOrderId:"11111111-1111-4111-8111-111111111111"};
- const adapter={id:"fixture.payment",label:"Synthetic adapter",mode,executionValidated:validated,bankNavigationOrigins:["https://bank.fixture.test"],
+ const continuation={provider:adapterId,checkoutId:"12345",gatewayOrderId:"11111111-1111-4111-8111-111111111111"};
+ const adapter={id:adapterId,label:"Synthetic adapter",mode,executionValidated:validated,bankNavigationOrigins:["https://bank.fixture.test"],
   quote:quote||asyncRef,revalidate:revalidate||(async value=>({...value})),
   async execute(...args){calls++;const value=execute?await execute(...args):{state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"TEST-RECEIPT",transactionCorrelated:true,providerReconciled:true}};return value?.state==="requires_bank_action"&&!value.continuation?{...value,continuation}:value},
   async resume(...args){resumes++;return resume?resume(...args):{state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"TEST-RECEIPT",transactionCorrelated:true,providerReconciled:true}}},
@@ -30,7 +30,7 @@ function fixture({mode="demo",execute,resume,timeoutReconcile,revalidate,quote,v
 }
 const reject=(fn,code)=>assert.rejects(fn,e=>e.message===code);
 (async()=>{
- await test("local owner provider quote window tolerates bounded slow reads",async()=>{assert.equal(PAYMENT_QUOTE_TIMEOUT_MS,20000)});
+ await test("local owner provider quote window tolerates bounded slow reads",async()=>{assert.equal(PAYMENT_QUOTE_TIMEOUT_MS,45000)});
  await test("demo confirmation is explicitly not a payment",async()=>{const f=fixture(),r=await f.prepared();f.setTime(f.time()+500);
   const out=await f.core.confirm(r.requestId,await f.proof(r.requestId));assert.equal(out.state,"demo_confirmed");assert.equal(out.financialSubmissionAttempted,false);
   assert.equal(out.metrics.ownerWaitMs,500);assert.equal(f.calls(),1);assert.equal(out.canRetry,false)});
@@ -389,6 +389,100 @@ await test("V1.1 status hides bankReturnToken and continuation", async () => {
   assert.equal(json.includes("CHK"),false);
   assert.equal(json.includes("11111111-1111-4111-8111-111111111111"),false);
 });
+
+ // --- Lot paiement Maxit 11/10 (P1-3, P0-4, P2-2) ------------------------------------------
+ await test("P1-3 proven no-submission result is blocked, never effect_unknown, and frees the reference",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"blocked",reasonCode:"payment_not_submitted",reasonDetail:"maxit_order_creation_failed"})});
+  const r=await f.prepared();const out=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  assert.equal(out.state,"blocked");assert.equal(out.reasonCode,"payment_not_submitted");
+  const last=out.timeline.at(-1);assert.equal(last.stage,"state_transition");assert.equal(last.reasonDetail,"maxit_order_creation_failed");
+  await f.prepared(); // blocked does not guard the reference: nothing was submitted
+ });
+ await test("P1-3 blocked is refused after a submission (resume / timeout reconcile)",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"}),
+   timeoutReconcile:async()=>({state:"blocked",reasonCode:"payment_not_submitted"})});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  f.setTime(f.time()+BANK_ACTION_TIMEOUT_MS);const done=await f.core.timeoutBankAction(r.requestId);
+  assert.equal(done.state,"effect_unknown");assert.equal(done.reasonCode,"invalid_payment_adapter_result");
+ });
+ await test("P0-4 reasonDetail is a fixed code: free text in the trace is refused",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"effect_unknown",reasonCode:"payment_effect_unverified",reasonDetail:"Card declined at 10:42"})});
+  const r=await f.prepared();const out=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  assert.equal(out.state,"effect_unknown");assert.equal(out.timeline.at(-1).reasonDetail,undefined);
+ });
+ await test("P2-2 bank window is one named constant exposed as a deadline for the app countdown",async()=>{
+  assert.equal(BANK_ACTION_TIMEOUT_MS,60000); // value unchanged pending Amine's decision
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"})});
+  const r=await f.prepared();const pending=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  assert.equal(pending.bankActionTimeoutMs,BANK_ACTION_TIMEOUT_MS);
+  assert.equal(pending.bankActionDeadlineAt,f.time()+BANK_ACTION_TIMEOUT_MS);
+  const status=await f.core.status(r.requestId);assert.equal(status.bankActionDeadlineAt,pending.bankActionDeadlineAt);
+ });
+ await test("P2-2 expiry reconciles by READING provider status, never cancels while unknown, never re-submits",async()=>{
+  let reads=0;
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"}),
+   timeoutReconcile:async()=>{reads++;return {state:"effect_unknown",reasonCode:"payment_effect_unverified",reasonDetail:"maxit_transaction_status_unavailable"};}});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  f.adapter.quote=async()=>{throw Error("quote_must_not_be_used_to_infer_cancellation")};
+  f.setTime(f.time()+BANK_ACTION_TIMEOUT_MS-1);await reject(()=>f.core.timeoutBankAction(r.requestId),"payment_bank_timeout_not_available");
+  f.setTime(f.time()+1);const done=await f.core.timeoutBankAction(r.requestId);
+  assert.equal(done.state,"effect_unknown");assert.notEqual(done.state,"cancelled");
+  assert.equal(reads,1);assert.equal(f.calls(),1);assert.equal(f.resumes(),0);
+  assert.equal(done.timeline.at(-1).reasonDetail,"maxit_transaction_status_unavailable");
+  await reject(()=>f.core.timeoutBankAction(r.requestId),"payment_bank_timeout_not_available");assert.equal(reads,1);
+ });
+ await test("P2-2 a verified provider rejection at expiry is reported as failed, not cancelled",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"}),
+   timeoutReconcile:async()=>({state:"failed",reasonCode:"payment_rejected_reason_unavailable",rejectionVerified:true})});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  f.setTime(f.time()+BANK_ACTION_TIMEOUT_MS);const done=await f.core.timeoutBankAction(r.requestId);
+  assert.equal(done.state,"failed");
+ });
+ await test("P1-5 resume bound is separate and never exceeds the execution bound",async()=>{
+  assert.throws(()=>fixture({mode:"live",timeouts:{quoteMs:45000,executionMs:230000,resumeMs:240000}}),e=>e.message==="invalid_payment_timeout");
+  let release;const f=fixture({mode:"live",timeouts:{quoteMs:45000,executionMs:230000,resumeMs:5},
+   execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"}),
+   timeoutReconcile:()=>new Promise(resolve=>release=resolve)});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  f.setTime(f.time()+BANK_ACTION_TIMEOUT_MS);const done=await f.core.timeoutBankAction(r.requestId);
+  assert.equal(done.state,"effect_unknown");release?.({state:"confirmed"});
+ });
+
+ // Shared with ui-playbooks: exact maxit_webview_v2 continuation emitted by startMaxitTopup.
+ await test("the shared Maxit webview v2 fixture crosses Payment Core and reaches the bank step",async()=>{
+  const web=JSON.parse(fs.readFileSync(path.join(__dirname,"..","fixtures","contracts","maxit_webview_v2.json"),"utf8"));
+  assert.deepEqual(Object.keys(web).sort(),["checkoutId","gatewayOrderId","provider"]);
+  const seen=[];
+  const f=fixture({mode:"live",adapterId:"maxit.topup",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required",continuation:web}),
+   resume:async(_q,_id,c)=>{seen.push(c);return {state:"confirmed",reasonCode:"gateway_and_provider_confirmed",receipt:{reference:"R",transactionCorrelated:true,providerReconciled:true}}}});
+  const r=await f.prepared(),pending=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  assert.equal(pending.state,"requires_bank_action");
+  const done=await f.core.resume(r.requestId);assert.equal(done.state,"confirmed");assert.deepEqual(seen,[web]);
+ });
+ await test("an unusable continuation ends effect_unknown instead of a 502 that leaves the record executing",async()=>{
+  for(const continuation of [{provider:"fixture.payment",checkoutId:"x1",gatewayOrderId:"3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b"},
+    {provider:"other.adapter",checkoutId:"",gatewayOrderId:"3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b"},
+    {provider:"fixture.payment",checkoutId:"",gatewayOrderId:"not-a-uuid"}]){
+   const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required",continuation})});
+   const r=await f.prepared(),out=await f.core.confirm(r.requestId,await f.proof(r.requestId));
+   assert.equal(out.state,"effect_unknown");assert.equal(out.canRetry,false);
+   const status=await f.core.status(r.requestId);
+   assert.equal(status.timeline.at(-1).reasonDetail,"invalid_payment_continuation");
+   await reject(()=>f.core.resume(r.requestId),"payment_resume_not_available");
+  }
+ });
+ await test("a destination blocked by the bank UI is traced by origin, other foreign origins stay refused",async()=>{
+  const f=fixture({mode:"live",execute:async()=>({state:"requires_bank_action",reasonCode:"bank_verification_required"})});
+  const r=await f.prepared();await f.core.confirm(r.requestId,await f.proof(r.requestId));
+  await f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"navigation_blocked",
+    navigation:{origin:"https://3dsnew.unknown-psp.test",path:"/api/v1/notification/{id}"}});
+  const status=await f.core.status(r.requestId);
+  assert.deepEqual(status.timeline.at(-1).navigation,{origin:"https://3dsnew.unknown-psp.test",path:"/api/v1/notification/{id}"});
+  await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"page_started",
+    navigation:{origin:"https://3dsnew.unknown-psp.test",path:"/x"}}),"invalid_payment_trace");
+  await reject(()=>f.core.recordBankUiEvent(r.requestId,{stage:"bank_ui_navigation",outcome:"navigation_blocked",
+    navigation:{origin:"http://plain.test",path:"/x"}}),"invalid_payment_trace");
+ });
 
 console.log("PAYMENT_CORE_TESTS_PASSED="+count);
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,8 +1,17 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import argparse,json,os,sqlite3,subprocess,time,importlib.util
 from pathlib import Path
-H=Path.home(); OC=H/'.openclaw'; ROOT=H/'ClawMobile/installer/termux-lite'; OUT=OC/'health/current.json'
+H=Path.home(); OC=H/'.openclaw'; ROOT=Path(os.environ.get('CLAW_RUNTIME_ROOT') or Path(__file__).resolve().parent); OUT=OC/'health/current.json'
 NOW=time.time()
+# F5 (fichiers 35/41) : reçus écrits par « Samantha Engineering Maintenance » (every 900 s,
+# checked_at = début du run, durée mesurée 80-105 s). L'ancien seuil 660 s rendait le reçu
+# « stale » à chaque cycle pendant ~5 min (capture s24-2026-10-11b/f5).
+MAINTENANCE_CADENCE_S=900; MAINTENANCE_RUN_MAX_S=180
+MAINTENANCE_RECEIPT_STALE_S=MAINTENANCE_CADENCE_S+MAINTENANCE_RUN_MAX_S+120
+TX_WINDOW_S=3600; TX_REPEAT_THRESHOLD=2  # identiques à skill_intelligence/transaction_health.py
+# Hystérésis : un composant sain ne passe en attention qu'au 2e relevé non sain consécutif.
+ATTENTION_STATES=('degraded','stale','unverified'); HEALTHY_STATES=('healthy','ready')
+HYSTERESIS_PREVIOUS_MAX_AGE_S=300
 def run(cmd,timeout=5):
  try:return subprocess.run(cmd,shell=True,text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=timeout).stdout.strip()
  except Exception:return ''
@@ -10,18 +19,62 @@ def proc(p):return bool(run(f"pgrep -f '{p}'"))
 def age(p):
  try:return max(0,NOW-p.stat().st_mtime)
  except:return None
-def item(state,critical=True,reason='',evidence='',freshness=None):
- return {'state':state,'critical':critical,'reason':reason or None,'evidence':evidence or None,'freshness_s':round(freshness,1) if freshness is not None else None,'checked_at':int(NOW)}
+def item(state,critical=True,reason='',evidence='',freshness=None,probe_kind='readiness'):
+ # I6/R07: keep the backwards-compatible effective state while identifying
+ # whether the evidence proves that a local process is alive or that a
+ # component/dependency is ready to serve. Readiness must never be used as
+ # evidence that a process should be restarted.
+ if probe_kind not in ('liveness','readiness'):
+  raise ValueError('invalid_probe_kind')
+ return {'state':state,'critical':critical,'probe_kind':probe_kind,'reason':reason or None,'evidence':evidence or None,'freshness_s':round(freshness,1) if freshness is not None else None,'checked_at':int(NOW)}
+def external_readiness(state,critical=False,reason='',evidence='',freshness=None):
+ # Provider/channel/network availability is not local process liveness. Keep
+ # the verdict degraded (never down) and publish the no-restart policy so
+ # consumers cannot turn a provider outage into a local restart loop.
+ effective='degraded' if state=='down' else state
+ row=item(effective,critical,reason,evidence,freshness,probe_kind='readiness')
+ row['dependency']='external';row['restart_allowed']=False
+ return row
+def repeated_failures(td):
+ # Même règle que le propriétaire : count>=2 ET dernier échec dans la fenêtre de 3600 s.
+ try:ref=float(td.get('checked_at') or NOW)
+ except (TypeError,ValueError):ref=NOW
+ n=0
+ for r in (td.get('failures') or {}).values():
+  try:
+   if int(r.get('count',0))>=TX_REPEAT_THRESHOLD and ref-float(r.get('last_seen',0))<=TX_WINDOW_S:n+=1
+  except (TypeError,ValueError,AttributeError):continue
+ return n
+def previous_verdict(path=None):
+ try:
+  row=json.loads((path or OUT).read_text());gen=float(row.get('generated_at',0))
+  if 0<=NOW-gen<=HYSTERESIS_PREVIOUS_MAX_AGE_S and isinstance(row.get('capabilities'),dict):return row
+ except (OSError,ValueError,TypeError):pass
+ return None
+def apply_hysteresis(caps,previous):
+ # Publie l'état observé, sauf premier relevé « attention » d'un composant sain au relevé
+ # précédent (verdict précédent récent) : l'état sain est conservé une fois, avec la trace
+ # pending_attention. 'down' n'est jamais retardé. Sans verdict précédent récent : aucun effet.
+ prev_caps=(previous or {}).get('capabilities') or {}
+ for k,v in caps.items():
+  raw=v.get('state');v['observed_state']=raw
+  p=prev_caps.get(k) if isinstance(prev_caps.get(k),dict) else None
+  if raw not in ATTENTION_STATES or not p:continue
+  prev_observed=p.get('observed_state',p.get('state'))
+  if prev_observed in HEALTHY_STATES and p.get('state') in HEALTHY_STATES:
+   v['pending_attention']={'state':raw,'reason':v.get('reason'),'readings':1,'required':2}
+   v['state']=p.get('state')
+ return caps
 def whatsapp_health(raw,last_outbound=''):
  lines=[z.strip().lower() for z in raw.splitlines()]
  status=next((z for z in lines if z.startswith('- whatsapp ')), '')
  terminal=('health:logged-out' in status or 'status=401 unauthorized' in status or 'session logged out' in raw.lower())
  failed='state=failed' in last_outbound.lower()
  connected=', connected' in status and 'stopped' not in status
- if terminal:return 'down','terminal_auth_logout'
+ if terminal:return 'degraded','terminal_auth_logout'
  if connected and failed:return 'degraded','latest_outbound_failed'
  if connected:return 'healthy','channel_connected'
- return 'down','channel_not_connected'
+ return 'degraded','channel_not_connected'
 def latest_channel_event(path,channel):
  if not path.exists():return ''
  rows=[z for z in path.read_text(errors='ignore').splitlines() if f'channel={channel} state=' in z]
@@ -45,23 +98,30 @@ def adb_recovery_readiness(path):
   return state,row.get('reason') or 'readiness_probe',fresh
  except (OSError,ValueError,TypeError):
   return 'unverified','readiness_receipt_absent_or_invalid',None
+def network_safety_items(ns):
+ x={}
+ try:
+  nd=json.loads(ns.read_text()); na=NOW-float(nd.get('checked_at',0)); nstate=nd.get('state','unverified')
+  x['device.network_safety']=item('healthy' if nstate=='healthy' and na<=90 else ('stale' if nstate=='healthy' else nstate),True,reason=nd.get('reason','network mutation safety receipt'),evidence=str(ns),freshness=na)
+  # Avertissement non critique : Wi-Fi coupé sans bail (jamais réactivé automatiquement, choix possible d'Amine).
+  if 'wifi_disabled_without_lease' in (nd.get('warnings') or []):
+   x['device.network_safety.wifi_unmanaged']=item('degraded',False,reason='wifi_disabled_without_lease',evidence=str(ns),freshness=na)
+ except (OSError,ValueError,TypeError,AttributeError):
+  x['device.network_safety']=item('unverified',True,reason='network mutation safety receipt absent or invalid',evidence=str(ns))
+ return x
 def live():
  x={}
  expected=(OC/'watchdogs/adb-expected-serial').read_text().strip() if (OC/'watchdogs/adb-expected-serial').exists() else ''
  state=run('timeout 3 adb -s 127.0.0.1:5556 get-state')
  serial=run('timeout 3 adb -s 127.0.0.1:5556 shell getprop ro.serialno')
  x['device.adb']=item('healthy' if state=='device' and (not expected or serial==expected) else 'degraded',True,'canonical endpoint verified' if state=='device' else 'canonical endpoint unavailable','127.0.0.1:5556')
- ns=OC/'health/network-mutation-safety.json'
- try:
-  nd=json.loads(ns.read_text()); na=NOW-float(nd.get('checked_at',0)); nstate=nd.get('state','unverified')
-  x['device.network_safety']=item('healthy' if nstate=='healthy' and na<=90 else ('stale' if nstate=='healthy' else nstate),True,reason=nd.get('reason','network mutation safety receipt'),evidence=str(ns),freshness=na)
- except (OSError,ValueError,TypeError):
-  x['device.network_safety']=item('unverified',True,reason='network mutation safety receipt absent or invalid',evidence=str(ns))
+ x.update(network_safety_items(OC/'health/network-mutation-safety.json'))
  rr_state,rr_reason,rr_fresh=adb_recovery_readiness(OC/'health/adb-recovery-readiness.json')
  x['device.adb.recovery_readiness']=item(rr_state,False,reason=rr_reason,evidence='trusted Wireless Debugging recovery path',freshness=rr_fresh)
  checks={
   'immune.root_guardian':("[s]amantha-root-guardian.sh",OC/'health/root-guardian.heartbeat',30),
-  'immune.health_manager':("[s]amantha-health-manager.sh",OC/'health/health-manager.heartbeat',45),
+  # Doc 51 I8: one repair cycle (grace 12 s + stop 20 s + grace 12 s + lock wait) outlives 45 s without being stuck.
+  'immune.health_manager':("[s]amantha-health-manager.sh",OC/'health/health-manager.heartbeat',120),
   'immune.incident_manager':("[i]ncident-manager.sh",OC/'health/incident-manager.heartbeat',30),
   'immune.incident_orchestrator':("[i]ncident-orchestrator-worker.sh",OC/'health/incident-orchestrator.heartbeat',20),
   'immune.remote_watchdog':("[r]emote-desktop-watchdog.sh",OC/'health/remote-watchdog.heartbeat',45),
@@ -70,7 +130,7 @@ def live():
  for k,(pat,log,ttl) in checks.items():
   a=age(log); up=proc(pat)
   st='healthy' if up and a is not None and a<=ttl else ('stale' if up else 'down')
-  x[k]=item(st,True,'process and loop evidence healthy' if st=='healthy' else ('loop evidence stale' if up else 'process missing'),str(log),a)
+  x[k]=item(st,True,'process and loop evidence healthy' if st=='healthy' else ('loop evidence stale' if up else 'process missing'),str(log),a,probe_kind='liveness')
  try:
   spec=importlib.util.spec_from_file_location('rdc_control',Path(__file__).with_name('remote-desktop-control.py'))
   rdc=importlib.util.module_from_spec(spec); spec.loader.exec_module(rdc); rd=rdc.health()
@@ -86,13 +146,13 @@ def live():
   if lines:lastwa=lines[-1]
  if not lastwa:lastwa=latest_channel_event(ev,'whatsapp')
  wastate,wareason=whatsapp_health(wa,lastwa)
- x['notification.whatsapp']=item(wastate,False,reason=wareason,evidence='channel status + latest canonical outbound evidence')
+ x['notification.whatsapp']=external_readiness(wastate,False,reason=wareason,evidence='channel status + latest canonical outbound evidence')
  smstate,smreason,smfresh=smtp_health(OC/'health/smtp-probe.json',ev)
- x['notification.smtp']=item(smstate,False,reason=smreason,evidence='live SMTP probe + latest delivery evidence',freshness=smfresh)
+ x['notification.smtp']=external_readiness(smstate,False,reason=smreason,evidence='live SMTP probe + latest delivery evidence',freshness=smfresh)
  tx=OC/'health/transaction-health.json'
  try:
   td=json.loads(tx.read_text()); ta=NOW-float(td.get('checked_at',0)); ts=td.get('status','unverified')
-  x['transactions.runtime']=item(ts if ta<=660 else 'stale',True,reason=f"pending_archives={td.get('pending_archives',0)} repeated_failures={sum(1 for r in td.get('failures',{}).values() if int(r.get('count',0))>=2)}",evidence=str(tx),freshness=ta)
+  x['transactions.runtime']=item(ts if ta<=MAINTENANCE_RECEIPT_STALE_S else 'stale',True,reason=f"pending_archives={td.get('pending_archives',0)} repeated_failures={repeated_failures(td)}",evidence=str(tx),freshness=ta)
  except (OSError,ValueError,TypeError):
   x['transactions.runtime']=item('unverified',True,reason='transaction health receipt absent or invalid',evidence=str(tx))
  x['boot.persistence']=item('ready' if (H/'.termux/boot/start-samantha').exists() else 'down',True,evidence='Termux:Boot')
@@ -157,7 +217,7 @@ def maintenance_view():
  try:
   row=json.loads(p.read_text())
   stamp=row.get('checked_at',0)
-  if not isinstance(stamp,(int,float)) or NOW-stamp>660 or stamp>NOW+30:
+  if not isinstance(stamp,(int,float)) or NOW-stamp>MAINTENANCE_RECEIPT_STALE_S or stamp>NOW+30:
    return {'state':'stale','reason':'maintenance_receipt_stale'}
   tasks=row.get('task_health')
   if not isinstance(tasks,dict):return {'state':'unverified','reason':'task_accounting_absent'}
@@ -173,6 +233,14 @@ def maintenance_view():
  except (OSError,ValueError,TypeError):
   return {'state':'unverified','reason':'maintenance_receipt_unreadable'}
 
+def nightly_view():
+ try:
+  spec=importlib.util.spec_from_file_location('companion_nightly',Path(__file__).with_name('companion-nightly-acceptance.py'))
+  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+  return module.health_view(OC/'deploys',NOW)
+ except (OSError,ValueError,TypeError):
+  return {'state':'unverified','reason':'nightly_acceptance_unavailable','checked_at':None,'freshness_s':None}
+
 def build():
  caps=live(); maintenance=maintenance_view(); active,failed,human=incidents(caps); cont=continuations(); warnings=[]
  mstate=maintenance.get('state')
@@ -182,6 +250,10 @@ def build():
  ) or 'semantic maintenance requires attention'
  caps['control_plane.maintenance']=item(cstate,True,reason=reason,evidence=str(OC/'autonomous-engineering/maintenance-last.json'),
                                         freshness=(NOW-maintenance.get('checked_at')) if isinstance(maintenance.get('checked_at'),(int,float)) else None)
+ nightly=nightly_view()
+ caps['control_plane.nightly_acceptance']=item(nightly['state'],False,reason=nightly['reason'],evidence='nightly acceptance receipt',freshness=nightly.get('freshness_s'))
+ caps['control_plane.nightly_acceptance']['checked_at']=nightly.get('checked_at')
+ apply_hysteresis(caps,previous_verdict())
  live_components={k.split('.',1)[-1]:v for k,v in caps.items()}
  for i in active:
   ck=i['component']

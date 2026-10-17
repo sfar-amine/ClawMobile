@@ -1,8 +1,13 @@
+import {changeConversationArchive} from "./conversationArchive";
+import {serverLanguage,localizedRoute,localizeServerPresentation,ServerLanguage} from "./serverLocale";
+import {conditionalRead} from "./readEtag";
+import {readCatalogResponse,catalogETag} from './catalog';
 import {readDeploymentReceipts} from "./deploymentReceipts";
 import {skillControlDetail,changeSkill} from "./skillControl";
 import {learnSkill,learningCandidates,learningCandidate} from "./skillLearning";
 import {filesList,filesContent} from "./fileReads";
-import {readUsage,readUsageDetails} from './usage';
+import {writeAgentFile} from "./agentFileWritePlan";
+import {prewarmUsage,readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
 import {capabilityDetail} from "./capabilityControl";
@@ -11,12 +16,14 @@ import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} fro
 import {withAttachmentReferences} from "./runs";
 import {readAgentConfig,changeAgentConfig} from "./agentConfig";
 import {engineeringRead} from "./engineeringRead";
+import {learningForget, learningList, learningNotThis} from "./learning";
 import {cancelControlRequest} from "./controlActions";
 import {diagnosticRead} from "./diagnostic";
 import {automationDetail,changeAutomation} from "./automations";
+import {editAutomation} from "./automationEditValidation";
 import {laptopList,laptopPairStart,laptopPairStatus,laptopChange} from "./laptopAccess";
 import {notificationSources} from "./notificationSources";
-import {allowlistRead,allowlistChange,allowlistBody} from "./whatsappAllowlist";
+import {allowlistRead,allowlistChange,allowlistBody,allowlistReasons} from "./whatsappAllowlist";
 import { handleControl } from "./control";
 import {accountGuardedRoute,redactAccountIdentifiers} from "./accountIdentity";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "child_process";
@@ -33,12 +40,16 @@ import { submitIntent } from "./intent";
 import {securitySurfaces} from "./securitySurfaces";
 import { payments } from "./payments";
 import { confirmations } from "./confirmations";
+import { turnAdmission, legacyLoopbackOwnerContextEnabled, publicAdmission } from "./ownerTurnAdmission";
+import {normalizeCompanionSessionId} from "./openclawAgentClient";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
-import { getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
+import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
+import { dialogueConversationId } from "../dialogueSurface";
+import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
+import { clawLiveCapability, clawLiveDecision } from "./clawLiveUnderstanding";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
 import { archiveSession, deleteSession, deleteRun, getRunStatus, getRunStatusByClientRunId, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
@@ -67,6 +78,12 @@ type TerminalShellSession = {
   running: boolean;
   updatedAt: number;
 };
+
+/** Une relecture refusée (source absente, active, déjà remplacée…) n'a rien soumis : 404/409 plutôt que 503. */
+export function replayRefusalStatusCode(result: { success?: boolean; submissionState?: string; message?: string }) {
+  if (result.success || result.submissionState !== "not_submitted" || !/^replay_[a-z_]+$/.test(String(result.message || ""))) return undefined;
+  return result.message === "replay_source_not_found" ? 404 : result.message === "replay_invalid" ? 400 : 409;
+}
 
 export function runSubmissionStatusCode(result: { success?: boolean; submissionState?: string }) {
   if (result.success) return 200;
@@ -119,6 +136,9 @@ export function startCompanionServer() {
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 
+  // One usage.status read at startup (1.6-4.4 s CLI on the S24): the first /usage, often the post-deploy
+  // acceptance, joins it instead of paying the whole cold read inside its 6 s budget.
+  prewarmUsage();
   startTerminalShellSession();
   startWhatsAppListenerWatchdog();
   startVoiceRecoveryWatchdog();
@@ -135,6 +155,15 @@ export function startCompanionServer() {
       console.warn("[claw-live-warm] startup prewarm failed: " + String(error?.message || error).slice(0, 160));
     });
   }, 1_000).unref();
+  // F6: one bounded pass after startup over receipts left by previous instances.
+  setTimeout(() => {
+    try {
+      const sweep = abandonStaleRemoteBridgeReceipts({ budgetMs: 3_000 });
+      console.log(`[remote-bridge] abandon sweep state=${sweep.state} scanned=${sweep.scanned} abandoned=${sweep.abandoned} uncertain=${sweep.effectUncertain}`);
+    } catch (error: any) {
+      console.warn("[remote-bridge] abandon sweep unavailable: " + String(error?.message || error).slice(0, 160));
+    }
+  }, Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_SWEEP_DELAY_MS || 30_000)).unref();
 
   return server;
 }
@@ -192,10 +221,12 @@ function startWhatsAppListenerWatchdog() {
 }
 
 export async function route(req: http.IncomingMessage, res: http.ServerResponse) {
+  conditionalRequests.set(res,req);
   const method = req.method || "GET";
   const requestUrl = new URL(req.url || "/", "http://localhost");
   const routePath = normalizeProtocolPath(requestUrl.pathname);
   if(routePath&&accountGuardedRoute(routePath))accountGuardedResponses.add(res);
+  if(routePath&&localizedRoute(routePath))responseLanguages.set(res,serverLanguage(req.headers["accept-language"]));
 
   if (shouldBlockBrowserRequest(req, routePath || requestUrl.pathname)) {
     writeJson(res, 403, {
@@ -237,6 +268,21 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if(routePath==="/files"||routePath==="/files/content"){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_loopback_required"});return;}
+    if(method==="PUT"&&routePath==="/files/content"&&req.headers["x-clawmobile-owner-flow"]==="v1"){
+      // E3 / R20 lot 2: agent files only, biometric agent.file_write, CAS on baseHash, bounded backup, payment lines kept.
+      res.setHeader("Cache-Control","no-store");
+      const params=requestUrl.searchParams;
+      try{
+        if([...params.keys()].some(k=>!["scope","path"].includes(k))||params.getAll("scope").length!==1||params.get("scope")!=="agent"||params.getAll("path").length!==1)throw Object.assign(new Error("invalid_file_write"),{statusCode:400});
+        const result:any=await writeAgentFile(params.get("path"),await readJsonBody(req,300*1024));
+        writeJson(res,result.state==="needs_confirmation"?403:result.state==="refused"||result.state==="blocked"?409:result.state==="completed"||result.state==="unchanged"?200:503,result);
+      }catch(error:any){
+        const status=[400,403,404,413,422].includes(error?.statusCode)?error.statusCode:503;
+        const known=["invalid_file_write","file_write_not_available","invalid_file_content","invalid_file_revision","invalid_operation_id","confirmation_mismatch","file_content_protected","file_protected_lines_changed","file_not_available","operation_conflict"];
+        writeJson(res,error?.statusCode===409?409:status,{success:false,state:status===503&&error?.statusCode!==409?"failed":"refused",receipt:null,error:known.includes(error?.message)?error.message:status===503?"files_owner_unavailable":"invalid_file_write"});
+      }
+      return;
+    }
     if(method!=="GET"){writeJson(res,req.headers["x-clawmobile-owner-flow"]!=="v1"?403:405,{success:false,state:"refused",receipt:null,error:"file_read_only"});return;}
     try{
       const value:any=routePath==="/files"?await filesList(requestUrl.searchParams):await filesContent(requestUrl.searchParams);
@@ -286,6 +332,27 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  if(routePath==="/learning/associations"||routePath.startsWith("/learning/")){
+    // 38 A2 : owner natif uniquement ; mutations avec l'en-tête propriétaire. Jamais d'approve (D1).
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){
+      writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;
+    }
+    res.setHeader("Cache-Control","no-store");
+    try{
+      if(routePath==="/learning/associations"){
+        if(method!=="GET"){res.setHeader("Allow","GET");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+        const value=await learningList(requestUrl.searchParams);writeJson(res,value.state==="unavailable"?503:200,value);return;
+      }
+      const forget=/^\/learning\/associations\/([a-f0-9]{64})\/forget$/.exec(routePath);
+      if(!forget&&routePath!=="/learning/not-this"){writeJson(res,404,{success:false,state:"not_found",receipt:null,error:"not_found"});return;}
+      if(method!=="POST"){res.setHeader("Allow","POST");writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      const value=forget?await learningForget(forget[1],await readJsonBody(req,1024)):await learningNotThis(await readJsonBody(req,1024));
+      writeJson(res,value.state==="not_found"?404:200,value);
+    }catch(error:any){const status=error?.statusCode===400?400:503;writeJson(res,status,{success:false,state:status===400?"refused":"unavailable",receipt:null,error:status===400?"invalid_learning_request":"learning_owner_unavailable"});}
+    return;
+  }
+
   if (/^\/control\/requests\/[^/]+\/cancel$/.test(routePath)) {
     if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
         req.headers["x-clawmobile-owner-flow"] !== "v1") {
@@ -328,11 +395,23 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       let id:string;try{id=decodeURIComponent(match[1]);}catch{throw Object.assign(new Error("invalid_automation_id"),{statusCode:400});}
       res.setHeader("Cache-Control","no-store");
       if(method==="GET"&&!match[2]){writeJson(res,200,await automationDetail(id));return;}
+      if(method==="PATCH"&&!match[2]){
+        // R23 / E1: payment and validation refusals precede any owner read; CAS via If-Match (native configRevision).
+        const ifMatch=typeof req.headers["if-match"]==="string"?req.headers["if-match"].replace(/^"|"$/g,""):undefined;
+        let result:any;
+        try{result=await editAutomation(id,await readJsonBody(req,8*1024),ifMatch);}
+        catch(error:any){
+          const status=[400,404,409,413,422,428].includes(error?.statusCode)?error.statusCode:503;
+          const known=["invalid_automation_edit","invalid_automation_id","automation_sensitive_input","automation_payment_excluded","automation_message_unsupported","automation_guard_unavailable","automation_protected","automation_not_found","automation_revision_required","operation_conflict"];
+          writeJson(res,status,{success:false,state:status===503?"failed":"refused",receipt:null,error:known.includes(error?.message)?error.message:status===503?"automation_unavailable":"invalid_automation_request"});return;
+        }
+        writeJson(res,result.state==="needs_confirmation"?403:result.state==="refused"||result.state==="blocked"?409:result.state==="completed"?200:503,result);return;
+      }
       if((method==="POST"&&match[2])||(method==="DELETE"&&!match[2])){
         const result=await changeAutomation(id,match[2]||"delete",await readJsonBody(req,1024));
         writeJson(res,result.state==="blocked"?409:result.state==="not_found"?404:result.state==="failed"?503:result.state==="refused"?403:200,result);return;
       }
-      res.setHeader("Allow",match[2]?"POST":"GET, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
+      res.setHeader("Allow",match[2]?"POST":"GET, PATCH, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
     } catch(error:any) {
       const code=[400,404,409].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,error:code===400?"invalid_automation_request":code===404?"automation_not_found":code===409?"operation_conflict":"automation_unavailable"});
@@ -354,6 +433,25 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(pc&&method==='DELETE'){writeJson(res,200,await laptopChange('revoke',decodeURIComponent(pc[1]),await readJsonBody(req,2048)));return;}
       writeJson(res,405,{success:false,state:'refused',receipt:null,reason:'unsupported_laptop_route'});
     }catch(error:any){const invalid=error?.statusCode===400||error instanceof URIError;writeJson(res,invalid?400:503,{success:false,state:invalid?'refused':'indeterminate',receipt:null,reason:invalid?'invalid_laptop_operation':'laptop_owner_indeterminate'});}
+    return;
+  }
+
+  const conversationArchive=/^\/conversations\/([^/]+)\/(archive|unarchive)$/.exec(routePath);
+  if(conversationArchive){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']||req.headers['x-clawmobile-owner-flow']!=='v1'){
+      writeJson(res,403,{success:false,state:'refused',receipt:null,error:'native_owner_flow_required'});return;
+    }
+    if(method!=='POST'){res.setHeader('Allow','POST');writeJson(res,405,{success:false,state:'refused',receipt:null,error:'method_not_allowed'});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error('invalid_operation'),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(conversationArchive[1]);}catch{throw Object.assign(new Error('invalid_session_id'),{statusCode:400});}
+      const value=await changeConversationArchive(id,conversationArchive[2]==='archive',await readJsonBody(req,2048));
+      res.setHeader('Cache-Control','no-store');writeJson(res,Number.isInteger(value.httpStatus)?value.httpStatus:200,value);
+    }catch(error:any){
+      const status=[400,404,409,429].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,status,{success:false,state:status===503?'unavailable':'refused',receipt:null,error:
+        status===400?'invalid_conversation_archive':status===404?'conversation_not_found':status===409&&error?.message==='protected_owner_activity'?'protected_owner_activity':status===409?'operation_conflict':status===429?'conversation_archive_busy':error?.message==='archive_capacity_exceeded'?'archive_capacity_exceeded':'conversation_owner_unavailable'});
+    }
     return;
   }
 
@@ -431,7 +529,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
       const value=method==='GET'?await readAgentConfig():await changeAgentConfig(await readJsonBody(req,2048));
       writeJson(res,value.state==='refused'?409:200,value);
-    }catch(error:any){const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    }catch(error:any){
+      const challenge=error?.confirmation;
+      if(error?.statusCode===403&&error?.message==='confirmation_required'&&challenge?.scope==='agent.config.expand_fallbacks'&&challenge.reference==='main'&&/^[a-f0-9]{64}$/.test(challenge.payloadHash)){
+        writeJson(res,403,{success:false,state:'refused',receipt:null,error:'confirmation_required',scope:challenge.scope,reference:challenge.reference,payloadHash:challenge.payloadHash});
+      }else{const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    }
     return;
   }
 
@@ -454,10 +557,27 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       }
       writeJson(res,match||!suffix||suffix==='/history'?405:404,{success:false,state:match||!suffix||suffix==='/history'?'refused':'not_found',receipt:null});
     }catch(error:any){
-      const reason=error?.message;const known=['owner_contact_protected','country_code_required','invalid_e164','confirmation_required','confirmation_mismatch','confirmation_expired','invalid_scope','invalid_duration','note_too_long','unknown_contact','operation_conflict'].includes(reason);
+      const reason=error?.message;const known=allowlistReasons.has(reason);
       const code=error?.statusCode===413?400:[400,403,404,409,503].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,state:code===503?'failed':'refused',receipt:null,...(known?{reason}:code===503?{error:'allowlist_unavailable'}:{})});
     }
+    return;
+  }
+
+  if(routePath==='/catalog'){
+    res.setHeader('Cache-Control','private, no-cache');
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']){writeJson(res,403,{success:false,error:'native_loopback_required'});return;}
+    if(method!=='GET'){writeJson(res,405,{success:false,error:'method_not_allowed'});return;}
+    // The app sends ?locale=fr|en (HomeCatalog.kt); any other parameter is refused.
+    const params=[...requestUrl.searchParams.keys()];const queryLocale=requestUrl.searchParams.get('locale');
+    if(params.some(k=>k!=='locale')||params.length>1||(queryLocale!==null&&!['fr','en'].includes(queryLocale))){writeJson(res,400,{success:false,error:'unsupported_parameter'});return;}
+    const locale=(queryLocale as 'fr'|'en'|null)||(/^en(?:-|,|;|$)/i.test(String(req.headers['accept-language']||''))?'en':'fr');
+    res.setHeader('Vary','Accept-Language');res.setHeader('Content-Language',locale);
+    try{const value=await readCatalogResponse(locale);
+      const tag=catalogETag(value);res.setHeader('ETag',tag);
+      if(req.headers['if-none-match']===tag){res.writeHead(304);res.end();return;}
+      writeJson(res,200,value);
+    }catch{writeJson(res,503,{success:false,error:'catalog_source_unavailable'});}
     return;
   }
 
@@ -532,7 +652,10 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     const match = /^\/payments\/([a-f0-9-]{36})(?:\/(challenge|owner-confirmation|bank-authorization|bank-return|bank-ui-event|resume|cancel))?$/.exec(routePath);
     if (match) {
       const [, id, action] = match;
-      if (method === "GET" && !action) { writeJson(res,200,await payments.status(id)); return; }
+      if (method === "GET" && !action) {
+        // view=compact: bounded Android projection (no forensic timeline) used by the bank countdown/reconciliation.
+        writeJson(res,200,requestUrl.searchParams.get("view")==="compact"?await payments.statusCompact(id):await payments.status(id)); return;
+      }
       if (method === "GET" && action === "challenge") { writeJson(res,200,await payments.challenge(id)); return; }
       if (method === "POST" && action === "cancel") {
         const body=await readJsonBody(req,256);
@@ -583,6 +706,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/confirmations",
         "/v1/confirmations/:requestId/challenge",
         "/v1/confirmations/:requestId/owner-confirmation",
+        "/v1/owner-admission",
+        "/v1/owner-admission/enrollment",
         "/v1/payments",
         "/v1/payments/local-intents",
         "/v1/payments/local-start",
@@ -596,6 +721,9 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         "/v1/runs/:runId",
         "/v1/sessions/:sessionId/archive",
         "/v1/sessions/:sessionId",
+        "/v1/learning/associations",
+        "/v1/learning/associations/:associationId/forget",
+        "/v1/learning/not-this",
         "/v1/runtime/start",
         "/v1/runtime/stop",
         "/v1/runtime/restart",
@@ -755,40 +883,130 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "POST" && routePath === "/claw-live/decision") {
     const body = await readJsonBody<any>(req);
-    const result = await capabilityBridge(String(body?.request || ""), {
+    // Lot 41 V2: a listed correction gesture after a voice turn needs no resolver call.
+    const result: any = await clawLiveDecision(clawLiveWarmCore, String(body?.request || ""), () => capabilityBridge(String(body?.request || ""), {
       execute: false,
       surface: "claw_live",
       caller: "owner",
       timeoutSeconds: 10,
-    });
+    }),body?.phoneDateTime);
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
   }
 
   if (method === "POST" && routePath === "/claw-live/capability") {
-    const body = await readJsonBody<any>(req);
-    const execute = () => capabilityBridge(String(body?.request || ""), {
-      execute: true, surface: "claw_live", caller: "owner", timeoutSeconds: 35,
-    });
-    const result = body?.voiceTurn
-      ? await clawLiveWarmCore.executeVoiceCapability(body.voiceTurn,String(body?.request||""),execute)
-      : await execute();
+    const raw = await readRawBody(req, MAX_BODY_BYTES);
+    let body: any;
+    try { body = JSON.parse(raw.toString("utf8")); }
+    catch { throw new HttpError(400, "Request body must be valid JSON."); }
+    const admission = isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"]
+      ? turnAdmission.verifyRequest({method, path: requestUrl.pathname + requestUrl.search, headers: req.headers,
+          rawBody: raw, clientRunId: body?.clientRunId, sessionId: body?.sessionId})
+      : {admitted: false as const, reason: "no_proof" as const};
+    if (!admission.admitted) {
+      writeJson(res,403,{success:false,error:"owner_admission_required",ownerAdmission:publicAdmission(admission)});
+      return;
+    }
+    const sessionId = normalizeCompanionSessionId(String(body?.sessionId || "default"));
+    const binding = {clientRunId: body.clientRunId, sessionId};
+    const assertCurrent = () => {
+      if (!turnAdmission.isCurrent(admission.ticket, binding)) throw new HttpError(403,"owner_admission_required");
+    };
+    assertCurrent();
+    const clarificationId = dialogueConversationId("claw_live", "claw-live:" + sessionId);
+    if (body.clarificationId !== undefined && body.clarificationId !== clarificationId) {
+      writeJson(res,400,{success:false,error:"clarification_session_mismatch"}); return;
+    }
+    // The same ephemeral ticket guards resolution, prepared execution and the final bridge.
+    // A stored clarification never grants admission to a following request.
+    const execute = (request: string) => clawLiveCapabilityTurn(
+      {request, clarificationId, originId: body.clientRunId, assertCurrent},
+      (text) => {
+        assertCurrent();
+        return capabilityBridge(text, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35});
+      },
+    );
+    const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute, {assertCurrent});
     res.setHeader("Cache-Control", "no-store");
-    writeJson(res, result.success === false ? 400 : 200, result);
+    writeJson(res, result.success === false ? 400 : 200, {...result,ownerAdmission:publicAdmission(admission)});
     return;
   }
 
+  if (routePath === "/owner-admission" || routePath === "/owner-admission/enrollment") {
+    // P1 : admission native. Jamais depuis un navigateur ; l'en-tête constant ne suffit à aucune autorité.
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"]) {
+      writeJson(res,403,{success:false,state:"refused",error:"native_loopback_required"}); return;
+    }
+    res.setHeader("Cache-Control","no-store");
+    if (requestUrl.search) {writeJson(res,400,{success:false,state:"refused",error:"unsupported_parameter"}); return;}
+    try {
+      if (method === "GET" && routePath === "/owner-admission") {writeJson(res,200,turnAdmission.status(req.headers["x-samantha-admission-key"])); return;}
+      if (routePath !== "/owner-admission/enrollment" || req.headers["x-clawmobile-owner-flow"] !== "v1") {
+        writeJson(res, routePath === "/owner-admission/enrollment" ? 403 : 405, {success:false,state:"refused",error:"native_owner_flow_required"}); return;
+      }
+      if (method === "POST") {
+        // L'enrôlement exige la confirmation biométrique consommée et la possession de la clé.
+        writeJson(res,200,{success:true,...await turnAdmission.enroll(await readJsonBody(req,4096))}); return;
+      }
+      if (method === "DELETE") {
+        // Révocation par l'app : signée par la clé enrôlée. Révocation opérateur : supprimer le fichier d'enrôlement.
+        const raw = await readRawBody(req, 1024);
+        let body: any; try { body = JSON.parse(raw.toString("utf8") || "{}"); } catch { throw new HttpError(400,"invalid_revocation_request"); }
+        const proof = turnAdmission.verifyRequest({method, path: requestUrl.pathname, headers: req.headers, rawBody: raw,
+          clientRunId: body?.operationId, sessionId: "owner-admission"});
+        if (!proof.admitted) {writeJson(res,403,{success:false,state:"refused",error:"admission_proof_required"}); return;}
+        writeJson(res,200,{success:true,...turnAdmission.revoke()}); return;
+      }
+      writeJson(res,405,{success:false,state:"refused",error:"method_not_allowed"}); return;
+    } catch (error: any) {
+      const status = [400,403,404,409].includes(error?.statusCode) ? error.statusCode : 503;
+      const code = typeof error?.message === "string" && /^[a-z_]{3,64}$/.test(error.message) ? error.message : "owner_admission_unavailable";
+      writeJson(res,status,{success:false,state:"refused",error:status===503?"owner_admission_unavailable":code}); return;
+    }
+  }
+
   if (method === "POST" && routePath === "/runs") {
-    const body = await readJsonBody<RunCreateRequest>(req);
+    const rawRunBody = await readRawBody(req, MAX_BODY_BYTES);
+    let body: RunCreateRequest;
+    try { body = (rawRunBody.toString("utf8").trim() ? JSON.parse(rawRunBody.toString("utf8")) : {}) as RunCreateRequest; }
+    catch { throw new HttpError(400, "Request body must be valid JSON."); }
+    // P1 : owner uniquement sur preuve native signée (clé Keystore enrôlée), liée au corps exact et au tour.
+    // Le loopback seul ne donne plus d'autorité ; le drapeau de compatibilité (OFF) ne rend que le contexte canonique.
+    const admission = isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"]
+      ? turnAdmission.verifyRequest({method, path: requestUrl.pathname + requestUrl.search, headers: req.headers, rawBody: rawRunBody,
+          clientRunId: body?.clientRunId, sessionId: body?.sessionId})
+      : {admitted: false as const, reason: "no_proof" as const};
+    if (admission.admitted === false && admission.reason !== "no_proof") console.log(`[companion] P1 admission refusée : ${admission.reason}`);
+    if ((body as any)?.voiceDelegation !== undefined) {
+      if ((body as any).voiceDelegation !== true || (body as any).agentId !== undefined || body?.replayOf !== undefined || body?.attachments !== undefined) {
+        writeJson(res,400,{success:false,accepted:false,submissionState:"not_submitted",message:"voice_delegation_invalid"});return;
+      }
+      if (!admission.admitted) {
+        writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required",ownerAdmission:publicAdmission(admission)});return;
+      }
+    }
+    const legacyContext = !admission.admitted && legacyLoopbackOwnerContextEnabled() &&
+      isLoopback && !req.headers.origin && !req.headers.referer && !req.headers["sec-fetch-site"];
     try{if(body?.attachments){
      if(!Array.isArray(body.attachments)||body.attachments.length>5)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
-     body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
+     body.attachments=body.attachments.map((input:any)=>{const file=attachmentContent(input?.serverId||input?.id||'');fs.closeSync(file.fd);return {id:input.serverId||input.id,serverId:input.serverId||input.id,mimeType:file.mime,type:file.mime.startsWith('image/')?'image':file.mime.startsWith('audio/')?'audio':'file',sizeBytes:file.size,path:file.file,serverPath:file.file,...(file.mime==="audio/mp4"?{createdAt:file.createdAt,expiresAt:file.expiresAt}:{}),displayName:sanitizeFilePart(String(input.displayName||''))||path.basename(file.file)};});
      if(body.attachments.reduce((sum:number,x:any)=>sum+x.sizeBytes,0)>25*1024*1024)throw Object.assign(new Error('attachment_share_limit'),{statusCode:413});
     }
     }catch(e:any){const status=[400,404,413].includes(e?.statusCode)?e.statusCode:503;writeJson(res,status,{success:false,error:status===404?"attachment_not_found":status===413?"attachment_share_limit":"invalid_attachment_request"});return;}
     const instruction = String(body?.instruction || body?.text || "");
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
+    // P1 : l'autorité owner vient uniquement de l'admission native signée (plus du loopback).
+    const authority = admission.admitted || legacyContext ? "owner" as const : undefined;
+    if((body as any)?.phoneDateTime!==undefined&&!admission.admitted){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required"});return;}
+    // Édition-relecture : objet fermé {sessionId, runId}, réservé au propriétaire natif ADMIS (preuve signée ; jamais le drapeau legacy).
+    let replayOf:{sessionId:string;runId:string}|undefined;
+    if(body?.replayOf!==undefined){
+      const r:any=body.replayOf;
+      if(!r||typeof r!=="object"||Array.isArray(r)||Object.keys(r).sort().join(",")!=="runId,sessionId"||typeof r.sessionId!=="string"||typeof r.runId!=="string"){writeJson(res,400,{success:false,accepted:false,submissionState:"not_submitted",message:"replay_invalid"});return;}
+      if(!admission.admitted){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required",ownerAdmission:publicAdmission(admission)});return;}
+      replayOf={sessionId:r.sessionId,runId:r.runId};
+    }
     const result = await submitIntent(
       instruction,
       String(body?.sessionId || "default"),
@@ -796,11 +1014,15 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       {
         userText: displayText,
         clientRunId: body?.clientRunId,
-        authority:isLoopback&&!req.headers.origin&&!req.headers.referer&&!req.headers["sec-fetch-site"]?"owner":undefined,
+        authority,
+        admission: admission.admitted ? admission.ticket : undefined,
+        ...((body as any)?.voiceDelegation === true ? {voiceDelegation:true as const} : {}),
+        ...((body as any)?.phoneDateTime !== undefined ? {phoneDateTime:(body as any).phoneDateTime} : {}),
+        ...(replayOf?{replayOf}:{}),
       },
     );
-    const statusCode = runSubmissionStatusCode(result);
-    writeJson(res, statusCode, result);
+    const statusCode = replayRefusalStatusCode(result) ?? runSubmissionStatusCode(result);
+    writeJson(res, statusCode, {...result, ownerAdmission: publicAdmission(admission)});
     return;
   }
 
@@ -1234,10 +1456,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if(!isLoopback||req.headers.origin||req.headers["sec-fetch-site"]){writeJson(res,403,{error:"native_loopback_required"});return;}
     if(process.env.SAMANTHA_HISTORY_V2 === "0"){writeJson(res,404,{error:"unsupported_contract"});return;}
     try{
-      for(const [key] of requestUrl.searchParams)if(!["contract","view","limit","cursor","q"].includes(key))throw Object.assign(Error(),{statusCode:400});
+      for(const [key] of requestUrl.searchParams)if(!["contract","view","limit","cursor","q","archived"].includes(key))throw Object.assign(Error(),{statusCode:400});
       const rawLimit=requestUrl.searchParams.get("limit")||"20";
       if(!/^[0-9]{1,2}$/.test(rawLimit))throw Object.assign(Error(),{statusCode:400});
-      const options={limit:Number(rawLimit),cursor:requestUrl.searchParams.get("cursor")||undefined,query:requestUrl.searchParams.get("q")||undefined};
+      const archived=requestUrl.searchParams.get('archived');
+      if(archived!==null&&(pagedTurns||!['0','1'].includes(archived)))throw Object.assign(Error(),{statusCode:400});
+      const options={...(archived!==null?{archived:archived==='1'}:{}),limit:Number(rawLimit),cursor:requestUrl.searchParams.get("cursor")||undefined,query:requestUrl.searchParams.get("q")||undefined};
       if(routePath === "/runs" && requestUrl.searchParams.get("view")!=="conversations")throw Object.assign(Error(),{statusCode:400});
       const value=pagedTurns?await conversationTurnsPage(decodeURIComponent(pagedTurns[1]),options):await conversationSummariesPage(options);
       res.setHeader("Cache-Control","no-store");writeJson(res,200,value);
@@ -1949,8 +2173,12 @@ function writeHtml(res: http.ServerResponse, statusCode: number, body: string) {
 
 // App-facing state routes: no account e-mail may leave, whatever the producer.
 const accountGuardedResponses=new WeakSet<http.ServerResponse>();
+const responseLanguages=new WeakMap<http.ServerResponse,ServerLanguage>();
+const conditionalRequests=new WeakMap<http.ServerResponse,http.IncomingMessage>();
 function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
   if(accountGuardedResponses.has(res))value=redactAccountIdentifiers(value);
+  const language=responseLanguages.get(res);
+  if(language){value=localizeServerPresentation(value,language);res.setHeader("Content-Language",language);res.setHeader("Vary","Accept-Language");}
   const body = statusCode === 204 ? "" : JSON.stringify(value, null, 2);
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -1960,6 +2188,8 @@ function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
     res.setHeader("Access-Control-Allow-Headers", "content-type, authorization, x-clawmobile-client, x-clawmobile-request-id, x-clawmobile-attachment-id, x-clawmobile-filename, x-clawmobile-attachment-type, x-clawmobile-owner-flow, x-clawmobile-operation-id");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   }
+  const request=conditionalRequests.get(res);
+  if(request&&conditionalRead(request,res,statusCode,value,body))return;
   res.end(body);
 }
 

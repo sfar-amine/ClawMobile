@@ -1,7 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/python3
 from __future__ import annotations
-import argparse,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile
+import argparse,contextlib,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile,fcntl
 from pathlib import Path
+import runtime_mode
 
 HOME=Path.home()
 TIER0=HOME/'.openclaw/tier0'
@@ -101,7 +102,8 @@ def cmd_package(a):
     if dest.exists(): raise SystemExit('release_exists')
     tmp=RELEASES/(release_id+'.tmp'); shutil.rmtree(tmp,ignore_errors=True); tmp.mkdir(parents=True)
     shutil.copytree(source,tmp/'termux-lite',dirs_exist_ok=True,symlinks=True)
-    critical_capabilities=a.critical_capability or ['immune.root_guardian','immune.health_manager','immune.incident_orchestrator']
+    # Doc 51 I3: the soak also watches what users depend on, not only the immune processes.
+    critical_capabilities=a.critical_capability or ['immune.root_guardian','immune.health_manager','immune.incident_orchestrator','gateway','companion','transactions.runtime']
     startup_grace_seconds=int(a.startup_grace_seconds)
     if 'remote_desktop' in critical_capabilities:
         startup_grace_seconds=max(startup_grace_seconds,210)
@@ -118,12 +120,16 @@ def cmd_package(a):
     verify_release(dest); print(release_id)
 
 def cmd_promote(a):
+    mode=runtime_mode.current_mode()
+    if mode=='emergency_stop': raise SystemExit('emergency_stop_active')
+    if mode=='unknown': raise SystemExit('canonical_mode_unknown')
     target=RELEASES/a.release_id; meta=verify_release(target)
     old=CURRENT.resolve() if CURRENT.exists() else None
-    if old and old!=target.resolve(): link_atomic(LKG,old)
-    link_atomic(CURRENT,target)
     s=load_state()
-    for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad'):
+    # A release still in its LKG hold never becomes the rollback target; the confirmed LKG stays.
+    if old and old!=target.resolve() and not (LKG.exists() and s.get('lkg_candidate')==old.name): link_atomic(LKG,old)
+    link_atomic(CURRENT,target)
+    for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad','lkg_candidate','lkg_due_epoch'):
         s.pop(key,None)
     epoch=int(dt.datetime.now().timestamp())
     s.update({'current':a.release_id,'last_known_good':LKG.resolve().name if LKG.exists() else None,
@@ -135,7 +141,7 @@ def cmd_promote(a):
 def cmd_rollback(a):
     if not LKG.exists(): raise SystemExit('no_last_known_good')
     target=LKG.resolve(); verify_release(target); link_atomic(CURRENT,target)
-    s=load_state(); previous=s.get('current'); s.update({'current':target.name,'rolled_back_from':previous,'rollback_reason':a.reason,'soak_state':'rolled_back'})
+    s=load_state(); previous=s.get('current'); s.pop('lkg_candidate',None); s.pop('lkg_due_epoch',None); s.update({'current':target.name,'rolled_back_from':previous,'rollback_reason':a.reason,'soak_state':'rolled_back'})
     save_state(s); print(target.name)
 
 def cmd_stop(a):
@@ -157,6 +163,51 @@ def cmd_root(a):
     if not CURRENT.exists(): raise SystemExit('no_active_release')
     print(CURRENT.resolve()/'termux-lite')
 
+def prune_plan(keep=5):
+    """Only releases owned by tier0; never follow an arbitrary symlink."""
+    if not 1 <= keep <= 100:
+        raise ValueError('invalid_release_retention')
+    protected=set()
+    for link in (CURRENT,LKG):
+        if not link.is_symlink():
+            raise ValueError('release_reference_unknown')
+        target=link.resolve(strict=True)
+        if target.parent != RELEASES.resolve() or not target.is_dir():
+            raise ValueError('release_reference_invalid')
+        protected.add(target.name)
+    candidates=[]; skipped=0
+    for root in RELEASES.iterdir():
+        if root.is_symlink() or not root.is_dir() or root.name.endswith('.tmp'):
+            continue
+        try:
+            manifest_path=root/'manifest.json'
+            if manifest_path.is_symlink() or not manifest_path.is_file():
+                raise ValueError('manifest_unknown')
+            meta=json.loads(manifest_path.read_text())
+            if meta.get('version') != 1 or meta.get('release_id') != root.name or not isinstance(meta.get('files'),dict):
+                raise ValueError('manifest_unknown')
+            created=dt.datetime.fromisoformat(meta['created_at'])
+            if created.tzinfo is None:
+                raise ValueError('manifest_date_unknown')
+            candidates.append((created.timestamp(),root.name))
+        except (OSError,ValueError,KeyError,TypeError):
+            skipped+=1
+    candidates.sort(reverse=True)
+    retained=protected | {name for _,name in candidates[:keep]}
+    return {'retained':sorted(retained),'remove':[name for _,name in candidates if name not in retained],
+            'unknown_preserved':skipped,'keep_newest':keep}
+
+def cmd_prune(a):
+    plan=prune_plan(a.keep)
+    # main() holds the same owner lock for packaging, promotion and pruning.
+    if a.apply:
+        for name in plan['remove']:
+            root=RELEASES/name
+            if root.is_symlink() or root.parent.resolve()!=RELEASES.resolve():
+                raise ValueError('release_changed')
+            shutil.rmtree(root)
+    print(json.dumps({'success':True,'state':'applied' if a.apply else 'planned',**plan}))
+
 def main():
     p=argparse.ArgumentParser(); sp=p.add_subparsers(dest='cmd',required=True)
     q=sp.add_parser('package'); q.add_argument('--source',required=True); q.add_argument('--source-commit'); q.add_argument('--release-id'); q.add_argument('--soak-seconds',type=int,default=300); q.add_argument('--startup-grace-seconds',type=int,default=30); q.add_argument('--critical-capability',action='append'); q.add_argument('--product-manifest')
@@ -164,6 +215,11 @@ def main():
     q=sp.add_parser('rollback'); q.add_argument('--reason',default='manual')
     q=sp.add_parser('stop'); q.add_argument('--reason',default='manual')
     sp.add_parser('resume'); sp.add_parser('status'); sp.add_parser('root')
+    q=sp.add_parser('prune'); q.add_argument('--keep',type=int,default=5); q.add_argument('--apply',action='store_true')
     a=p.parse_args(); RELEASES.mkdir(parents=True,exist_ok=True); TIER0.mkdir(parents=True,exist_ok=True)
-    return globals()['cmd_'+a.cmd.replace('-','_')](a)
+    guard=runtime_mode.deployment_guard() if a.cmd=='promote' else contextlib.nullcontext()
+    with guard:
+        with open(TIER0/'control.lock','a') as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX)
+            return globals()['cmd_'+a.cmd.replace('-','_')](a)
 if __name__=='__main__': main()

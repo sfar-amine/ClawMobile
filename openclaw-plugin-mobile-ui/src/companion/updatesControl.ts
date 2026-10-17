@@ -3,6 +3,8 @@ import path from "path";
 import os from "os";
 import fs from "fs/promises";
 import {readFileSync} from "fs";
+import {latestCompanionDeploymentAt} from "./deploymentReceipts";
+import {withCompanionDeploymentDate} from "./updateDeploymentDate";
 
 /**
  * Deployed commit of this Companion, read once at start from the checkout it
@@ -35,11 +37,11 @@ async function fingerprint(home:string){
 }
 
 async function generate():Promise<any>{
- const helper=process.env.SAMANTHA_TIER0_NATIVE||path.join(os.homedir(),"ClawMobile/installer/termux-lite/tier0-native-read.py");
+ const helper=process.env.SAMANTHA_TIER0_NATIVE||path.join(os.homedir(),".openclaw/releases/current/termux-lite/tier0-native-read.py");
  const args=[helper,"--home",process.env.SAMANTHA_CONTROL_HOME||os.homedir(),"--companion-version",companionBuildVersion()];
  return new Promise((resolve,reject)=>execFile("python3",args,{timeout:3500,maxBuffer:65536},(error,stdout)=>{
   if(error){reject(new Error("updates_unavailable"));return;}
-  try{const value=JSON.parse(stdout);if(value.success!==true||!Array.isArray(value.items)||value.items.length!==4||value.receipt!==null||value.actions?.length)throw Error();resolve(value);}catch{reject(new Error("updates_unavailable"));}
+  try{const value=JSON.parse(stdout);if(value.success!==true||!Array.isArray(value.items)||value.items.length!==4||value.receipt!==null||value.actions?.length)throw Error();withCompanionDeploymentDate(value,deployedCommit,latestCompanionDeploymentAt).then(resolve,()=>reject(new Error("updates_unavailable")));}catch{reject(new Error("updates_unavailable"));}
  }));
 }
 

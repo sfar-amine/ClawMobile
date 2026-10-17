@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "id": "codex-r5-bis-companion-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Consume canonical reporting SQLite revision with bounded single-flight probe and normal absence fallback",
+  "reason": "Real sanitized S24 STRICT SQLite schema and rows from merged core82 integrated; expected digest verified and captured latency replayed. Review and production qualification remain Claude responsibilities.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-control-automations-latency.cjs",
+    "docs/work/samantha-runtime/contracts/r5-bis.md",
+    "docs/changes/codex-r5-bis-companion-20261010.json"
+  ],
+  "tests": [
+    {
+      "name": "automation-revision-real-latency",
+      "status": "passed",
+      "evidence": "HTTP collector boundary replays captured S24 STRICT SQLite rows, 2475ms collection and128.38ms cold probe; route target300ms, existing acceptance1s unchanged. Full CI evidence recorded after execution below."
+    },
+    {
+      "name": "current-runtime-ci",
+      "status": "passed",
+      "evidence": "Full ci.yml on integrated b40b867 base: CI_LOCAL_OK, all base steps preserved. Real S24 latency replay HTTP baseline2505.62ms/cold251.34ms/cache162.91ms. Build and final relay MCP suite pass."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r5-bis.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal reporting revision for existing Control projection, no new agent or voice route/action."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing reporting read_db and canonical SQLite owner reused, no new store or scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP owner contracts unchanged; digest reader is internal reporting only."
+  },
+  "rollback": "Revert isolated paired lot under review; any qualified activation/rollback is performed by Claude using activate-ui-playbooks.sh and companion-deploy.sh with known-good SHAs and receipts.",
+  "limitations": [
+    "No new commits activated or deployed on S24; Claude qualifies after playbooks pin then Companion deployment.",
+    "Production previous cold collector1729–4557ms exceeds1s; cache2–8ms. Normal fallback intentionally retains this slower collector rather than deferred forever.",
+    "Multiple scheduler store keys refuse ambiguous revision and preserve normal Control read. R22 and V6 remain separate."
+  ]
+}

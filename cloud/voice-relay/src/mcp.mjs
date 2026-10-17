@@ -17,7 +17,10 @@ const CHAT_TOOLS = new Set([
   "claw_status",
   "claw_artifact_read",
   "claw_exec",
+  "claw_remember",
 ]);
+// Canonical context-event.sh kinds a client may record ("retiens ça"); checkpoint stays internal.
+const REMEMBER_KINDS = ["decision", "learning", "constraint", "open_thread", "completed_action"];
 
 function json(value, status = 200, headers = {}) {
   return new Response(JSON.stringify(value), {
@@ -95,7 +98,7 @@ export async function authenticateMcpClient(request, env) {
 
 function toolAllowed(profile, tool) {
   if (!SUPPORTED_PROFILES.has(profile) || !CHAT_TOOLS.has(tool)) return false;
-  if (tool === "claw_exec") return profile === "chat-owner";
+  if (tool === "claw_exec" || tool === "claw_remember") return profile === "chat-owner";
   return true;
 }
 
@@ -138,6 +141,8 @@ function stableActionRequestId(clientId, args) {
 
 function relayRequestId(clientId, tool, args) {
   if (tool === "claw_execute" || tool === "claw_exec") return stableActionRequestId(clientId, args);
+  // claw_remember has a single step: its identity is the action_key alone.
+  if (tool === "claw_remember") return stableActionRequestId(clientId, { action_key: args?.action_key });
   return `mcp:${clientId}:${crypto.randomUUID()}`;
 }
 
@@ -202,7 +207,7 @@ function registerTools(server, auth, invoke) {
   if (ownerProfile) {
     server.registerTool("claw_exec", {
       title: "Execute arbitrary S24 command",
-      description: "Execute an arbitrary shell command directly on the S24/Termux owner runtime through the existing Claw Remote Bridge. This is a generic owner terminal primitive, not a business capability route. Reuse action_key for retries of the same command; use a new stable step_key only for a materially new command.",
+      description: "Execute an arbitrary shell command directly on the S24/Termux owner runtime through the existing Claw Remote Bridge. This is a generic owner terminal primitive, not a business capability route. Reuse action_key for retries of the same command; use a new stable step_key only for a materially new command. A command still running after ~28 s returns state running (not an error): read claw_status with the same keys, never replay.",
       inputSchema: {
         command: z.string().min(1).max(32768),
         action_key: z.string().regex(ACTION_ID_RE),
@@ -214,9 +219,23 @@ function registerTools(server, auth, invoke) {
     }, run("claw_exec"));
   }
 
+  if (ownerProfile) {
+    server.registerTool("claw_remember", {
+      title: "Remember a durable fact (retiens ça)",
+      description: "Record ONE durable fact, decision, constraint or open thread in Samantha's shared S24 memory (canonical context-event writer). Use when the owner says « retiens ça » or a decision is taken. Write a short self-contained statement in French, never a transcript, never secrets (passwords, OTP, card numbers, tokens are refused). The surface is derived from this authenticated client. To close a thread or replace a fact, record a decision with supersedes = the previous event_id. Reuse action_key for retries (idempotent receipt); after a timeout read claw_status with the same action_key, never replay.",
+      inputSchema: {
+        text: z.string().min(1).max(1000),
+        kind: z.enum(REMEMBER_KINDS),
+        action_key: z.string().regex(ACTION_ID_RE),
+        supersedes: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, run("claw_remember"));
+  }
+
   server.registerTool("claw_status", {
     title: "Read Claw execution status",
-    description: "Read the canonical receipt for a previously submitted claw_execute or claw_exec action. This never retries or replays execution.",
+    description: "Read the canonical receipt for a previously submitted claw_execute, claw_exec or claw_remember action. This never retries or replays execution.",
     inputSchema: {
       action_key: z.string().regex(ACTION_ID_RE),
       step_key: z.string().regex(STEP_ID_RE).optional(),

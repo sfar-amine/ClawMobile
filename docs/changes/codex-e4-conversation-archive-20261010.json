@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "codex-e4-conversation-archive-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Reversible owner conversation archive, retained turns and exact paginated archive filter",
+  "reason": "File35 E4: reuse existing archive metadata and native operation receipts; no transcript deletion or separate registry.",
+  "files": [
+    "docs/changes/codex-e4-conversation-archive-20261010.json",
+    "docs/work/samantha-runtime/contracts/e4.md",
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/companion/conversationArchive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-archive.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/nativeOperation.ts"
+  ],
+  "tests": [
+    {
+      "name": "e4-archive-contract",
+      "status": "passed",
+      "evidence": "Real S24 captured P0-3 HTTP runs adapted explicitly to existing registry; thirteen done rows; 500-row bound; HTTP guards, replay after process restart, concurrent replay, conflict, retained history and 1632ms background owner latency tested. Boundary tests: 500 rows refuse before reservation (first/last targets, archive/unarchive), replay at full capacity, concurrent 499 admissions retain all history, refusal remains retryable; byte limit accounts for final receipt. Optional admission hook leaves other owners unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/e4.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Paired canonical planned entries in playbooks; no separate core registry."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing runs archive flags, native receipts and owner cache reused; no new store or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP contracts unchanged; planned canonical descriptions do not activate a second route.",
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "openclaw-plugin-mobile-ui/scripts/test-conversation-archive.cjs",
+      "docs/work/samantha-runtime/contracts/e4.md"
+    ]
+  },
+  "rollback": "Revert paired E4 PRs; archives reversible, no S24 deployment by Codex.",
+  "limitations": [
+    "Local preparation only; remote CI and S24 qualification remain pending.",
+    "Retention remains 500 runs / 8 MiB; E4 admission atomically refuses before reserving if retained history would be evicted. Receipt lifetime still follows the existing owner retention; no raw registry capture claimed.",
+    "Playbooks pinned before Companion; capabilities stay planned until V6/qualification."
+  ]
+}

@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import {constants} from "fs";
 import os from "os";
 import path from "path";
-import {reserveSubmittedRun,settleSubmittedRun} from "./runs";
+import {reserveSubmittedRun,settleSubmittedRun,type RunReservationAdmission} from "./runs";
 
 export const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
 export function operationBody(body:any):string{
@@ -38,10 +38,10 @@ export async function storedNativeOperationResult(runId:string){
     value?.receipt===null&&["refused","already_closed","not_found","indeterminate"].includes(value.state)?value:null;
 }
 /** Effects are claimed only after the existing canonical run ledger has persisted the receipt. */
-export async function nativeOperation(operationId:string,action:string,target:string,effect:()=>Promise<"completed"|"accepted"|{state:"completed"|"accepted"|"refused";artifact:Record<string,unknown>}>){
+export async function nativeOperation(operationId:string,action:string,target:string,effect:()=>Promise<"completed"|"accepted"|{state:"completed"|"accepted"|"refused";artifact:Record<string,unknown>}>,admission?:RunReservationAdmission){
  const identity=JSON.stringify({action,target});
  const reserved=await reserveSubmittedRun(identity,"native-owner-actions","native-operation-"+operationId,
-  {requestText:identity,executionSource:"capability_first",decision:{version:2,type:"EXECUTE",capability:action}});
+  {requestText:identity,executionSource:"capability_first",decision:{version:2,type:"EXECUTE",capability:action},admission});
  const unknown={success:false,state:"indeterminate",receipt:null};
  if(!reserved.created)return await storedNativeOperationResult(reserved.status.runId).catch(()=>null)||unknown;
  let state:string;let artifact:Record<string,unknown>|undefined;

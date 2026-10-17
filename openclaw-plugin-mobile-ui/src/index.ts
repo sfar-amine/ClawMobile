@@ -47,9 +47,10 @@ import { getSkillStatus as clawmobile_skill_status } from "./trace_induction/sta
 import { runSkillFastPath as clawmobile_skill_run_fast_path } from "./trace_induction/fastpath";
 import { reflectFastPathFailure as clawmobile_skill_reflect_fast_path_failure } from "./trace_induction/repair";
 import { clawmobile_batch_execute } from "./tools/batch";
-import { handleOwnerFastPath } from "./modelFastPath";
-import { clawmobile_capability } from "./capabilityTool";
-import { createProviderFallbackCoordinator } from "./providerFallback";
+import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath";
+import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
+import { createCapabilityTool } from "./capabilityTool";
+import { agentCapabilityHook } from "./capabilityAgentGuard";
 
 type JsonSchema = Record<string, any>;
 
@@ -180,55 +181,36 @@ function register(api: any) {
   // This file is the contract boundary between the OpenClaw runtime and the
   // mobile runtime implementation below.
 
-  const providerFallback = createProviderFallbackCoordinator(api);
-  api.on("before_model_resolve", (event: any, ctx: any) =>
-    providerFallback.beforeModelResolve(event, ctx),
-  );
-  api.on("model_call_ended", (event: any, ctx: any) =>
-    providerFallback.modelCallEnded(event, ctx),
-  );
-  api.on("before_tool_call", (event: any, ctx: any) =>
-    providerFallback.beforeToolCall(event, ctx),
-  );
-  api.on("before_prompt_build", (event: any, ctx: any) =>
-    providerFallback.beforePromptBuild(event, ctx),
-  );
-  api.on(
-    "before_agent_reply",
-    (event: any, ctx: any) => providerFallback.beforeAgentReply(event, ctx),
-    { eligibleTriggers: ["user"], timeoutMs: 70000 },
-  );
+  api.on("before_tool_call", agentCapabilityHook);
 
   api.on("inbound_claim", async (event: any, ctx: any) => {
     const result = await handleOwnerFastPath(event, ctx);
     if (result.handled) {
       api.logger?.debug?.("[capability-first] owner capability handled before model");
+      return result;
     }
     return result;
   });
 
-  // ---- compact cross-surface capability tool ----
+  // Pièce Pulse (fichier 52 §5): only a contact routed to a Pulse room agent, closed to the Pulse family.
+  // before_dispatch, not inbound_claim: the Gateway runs inbound_claim only for plugin-bound conversations (S24 12/10).
+  api.on("before_dispatch", async (event: any, ctx: any) => {
+    // Owner WhatsApp turns: same capability-first path as the app (inbound_claim never fires for them).
+    const owner = await handleOwnerBeforeDispatch(event, ctx);
+    if (owner.handled) {
+      api.logger?.debug?.("[capability-first] owner capability handled before model");
+      return owner;
+    }
+    const room = await handlePulseRoomBeforeDispatch(event, ctx);
+    if (room.handled) api.logger?.debug?.("[capability-first] pulse room handled before model");
+    return room.handled ? room : undefined;
+  });
+
+  // The factory receives OpenClaw's trusted current-turn context. The first
+  // execute argument is a tool-call id, not an authorization context.
   api.registerTool(
-    toolDef(
-      "clawmobile_capability",
-      "Resolve the canonical Claw capability/executor graph and optionally execute the shortest reachable validated Claw route. Use this single compact tool instead of guessing whether GPT, Gemini, Bixby or Claw can handle a request.",
-      {
-        type: "object",
-        properties: {
-          request: { type: "string", minLength: 1, maxLength: 12000 },
-          execute: { type: "boolean" },
-          surface: {
-            type: "string",
-            enum: ["chatgpt", "gemini_claw", "gemini_live", "bixby", "whatsapp"],
-          },
-          caller: { type: "string", enum: ["owner", "trusted", "other"] },
-          timeoutSeconds: { type: "integer", minimum: 2, maximum: 120 },
-        },
-        required: ["request"],
-        additionalProperties: false,
-      },
-      async (args) => clawmobile_capability(args)
-    )
+    (ctx: any) => createCapabilityTool(ctx),
+    { name: "clawmobile_capability" },
   );
 
   // ---- composite mobile runtime tools ----
