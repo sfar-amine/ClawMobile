@@ -12,6 +12,8 @@ Sortie fermée v1 : `outcome:complete|partial`, modèle/profil exacts seulement 
 
 Le pilote est **extractif** : text doit être identique à un passage support effectivement présent dans un extrait fourni. Une paraphrase, même associée à une vraie citation, produit partial/synthesis_review_required sans nouvelle génération. Le résultat ne prouve pas la vérité du site ni l'implication d'une paraphrase : il sélectionne des citations textuelles attribuables. L'interface doit afficher explicitement ces extraits dans leur langue originale et expliquer la limite dans la langue de la demande. Aucune traduction ni réponse de synthèse libre n'est qualifiée. La voix reste sous sa gate W5 ; spokenText est seulement la concaténation déterministe des mêmes passages, bornée à 1 200 caractères et sans URL.
 
+> **Mise à jour du 17/10/2026 (décision d'Amine)** : la réponse est désormais **rédigée** dans la langue de la question (traduction/paraphrase admises), une phrase par claim, chaque source citée gardant une citation exacte et chaque chiffre/nom propre devant figurer dans ses citations, titres, dates, la question ou la date du jour. Voir `docs/changes/web-answer-synthesis-20261017.md`. Le paragraphe ci-dessus décrit le pilote initial.
+
 ## Isolation et réutilisation
 
 Le mode appelle les gardes existantes ensure_free_policy/ensure_efficiency_policy et le profil exact `google:claw-gemini-free`, modèle `google/gemini-3.5-flash-lite`, sans fallback. Il n'appelle ni fastpath, compact_memory/build_prompt, contexte privé, session d'agent, session conversationnelle, outil, Grounding, module de Learning Gate ni écriture de statut/mémoire. Le chemin conversationnel normal et provider-fallback restent inchangés.

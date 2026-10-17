@@ -1,0 +1,35 @@
+{
+  "provenance": {
+    "source": "S24 claw_exec (lecture seule), 17/10/2026 : ~/.openclaw/clawmobile-companion/runs.json, ~/.openclaw/openclaw.json (forme seulement, aucune valeur), sondes gemini-public-synthesis.mjs sur la release Tier0 20261017T135303-d3beb769",
+    "captured_at": "2026-10-17T15:10:00Z",
+    "sanitized": "identifiants de session et de client remplacés ; aucune clé, aucun jeton ; la SecretRef ne contient qu'un nom de variable"
+  },
+  "run": {
+    "runId": "run_1792249272899_4c533f37",
+    "parentClarificationRunId": "run_1792249249125_096536ce",
+    "parentText": "Search the web",
+    "userText": "est ce que thibo depen ai fera un reset aujourd'hui ?",
+    "decision": {"version": 2, "type": "EXECUTE", "intent": "search", "risk": "read", "capability": "samantha.app.web.search", "responseLanguage": "fr"},
+    "web": {"operation": "search", "outcome": "complete", "model": null, "profile": null, "responseLanguage": "en", "claims": [], "sourceCount": 5,
+      "metrics": {"logicalSearchCalls": 1, "searchMs": 6528, "cacheHit": false}},
+    "durationMs": 8385
+  },
+  "termux_node": {
+    "version": "v24.21.0",
+    "promisify_execFile_npm_root_g": {"typeof": "string", "value": "/data/data/com.termux/files/usr/lib/node_modules\n"},
+    "synthesis_result": {"outcome": "partial", "error": {"code": "sdk_unavailable", "stage": "synthesis"}, "metrics": {"providerAttempts": 0}}
+  },
+  "openclaw_config_shape": {
+    "models.providers.google.apiKey": {"source": "store", "provider": "default", "id": "GEMINI_API_KEY"},
+    "models.providers.google.keys": ["apiKey", "baseUrl", "models"],
+    "auth_resolution": {"profileId": "google:claw-gemini-free", "mode": "api-key", "source": "profile:google:claw-gemini-free"},
+    "synthesis_result": {"outcome": "partial", "error": {"code": "profile_unavailable", "stage": "synthesis"}, "metrics": {"providerAttempts": 0}}
+  },
+  "google_server_deadline": {
+    "httpOptions_timeout_ms": 6000,
+    "terminal": {"provider": "google", "model": "gemini-3.5-flash-lite", "stopReason": "error"},
+    "errorMessage": "400: {\"error\":{\"code\":400,\"message\":\"Manually set deadline 6s is too short. Minimum allowed deadline is 10s.\",\"status\":\"INVALID_ARGUMENT\"}}",
+    "synthesis_result": {"outcome": "partial", "error": {"code": "invalid_provider_response", "stage": "synthesis"}, "metrics": {"providerAttempts": 1}}
+  },
+  "budget_probe": {"remainingBudgetMs": 12000, "searchMs": 4327, "synthesisMs": 5886, "totalMs": 10458}
+}

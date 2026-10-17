@@ -95,12 +95,14 @@ export function readRunWebResult(value: unknown): RunWebResult | undefined {
       if (!Array.isArray(c.support) || !c.support.length || c.support.length > 10) return;
       support = [];
       for (const p of c.support) {
-        if (!object(p) || !c.sourceIds.includes(p.sourceId) || !text(p.quote,1500) || p.quote !== c.text ||
+        // Written (translated/paraphrased) claims are grounded upstream (number/name checks with the
+        // question and date, in gemini-request.py and the Graph); here every proof stays an exact excerpt quote.
+        if (!object(p) || !c.sourceIds.includes(p.sourceId) || !text(p.quote,1500) ||
             !sources.find(s=>s.id===p.sourceId)?.excerpt.includes(p.quote)) return;
         support.push({sourceId:p.sourceId,quote:p.quote});
       }
     }
-    if(!support || c.sourceIds.some((id:string)=>!support!.some(p=>p.sourceId===id&&p.quote===c.text)))return;
+    if(!support || c.sourceIds.some((id:string)=>!support!.some(p=>p.sourceId===id)))return;
     claimIds.add(c.id); claims.push({id:c.id,text:c.text,sourceIds:[...c.sourceIds],...(support ? {support} : {})});
   }
   const pairs = new Set<string>(); const citations: RunWebResult["citations"] = [];
@@ -138,11 +140,19 @@ export function readRunWebResult(value: unknown): RunWebResult | undefined {
     model:value.model,profile:value.profile,...(value.responseLanguage?{responseLanguage:value.responseLanguage}:{}),sources,claims,citations,metrics,error,degradations:[...value.degradations],...(spokenText?{spokenText}:{})};
 }
 
+const SOURCES_LABEL: Record<string,string> = {fr:"Sources", en:"Sources", ar:"المصادر", aeb:"El masader"};
+
+/** Plain text of the run (also the voice/dialogue text): the admitted written answer only. The app
+ * renders the [sN] references and the sources from the structured projection. Without an admitted
+ * answer, the cause comes first, then the source list, so a bare list never looks like an answer. */
 export function webResultText(web: RunWebResult): string {
   if (web.outcome === "cancelled") return web.error?.message || "Recherche annulée.";
   const parts = web.claims.map(c=>c.text);
-  if (!parts.length && web.sources.length) parts.push(...web.sources.map(s=>s.title));
-  if (web.error) parts.push(web.error.message);
+  if (!parts.length) {
+    if (web.error) parts.push(web.error.message);
+    if (web.sources.length) parts.push((SOURCES_LABEL[web.responseLanguage || "fr"] || "Sources")+" :\n"+
+      web.sources.map(s=>"["+s.id+"] "+s.title.replace(/\s+/g," ").slice(0,160)).join("\n"));
+  } else if (web.error) parts.push(web.error.message);
   if (!parts.length) parts.push("Aucune source suffisamment probante n’a été trouvée.");
   return parts.join("\n\n").slice(0,4000);
 }
