@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Offline fail-closed tests for canonical localci.py; never run on S24."""
 import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -69,9 +71,11 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
         executable = self.bin / "gh"
         executable.write_text(
             "#!/usr/bin/env python3\n"
-            "import json,os\n"
-            "print(json.dumps({'headRefOid':os.environ['MOCK_HEAD'],"
-            "'baseRefOid':os.environ['MOCK_BASE'],"
+            "import json,os,sys\n"
+            "# REST only: GraphQL (gh pr view) is refused in agent containers.\n"
+            "assert sys.argv[1:3]==['api','repos/example/samantha-context-private/pulls/5'], sys.argv\n"
+            "print(json.dumps({'head':{'sha':os.environ['MOCK_HEAD']},"
+            "'base':{'sha':os.environ['MOCK_BASE']},"
             "'body':'## Résumé\\n\\n## Vérification\\n','number':5}))\n",
             encoding="utf-8")
         executable.chmod(0o755)
@@ -107,6 +111,16 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
             with self.assertRaisesRegex(localci.LocalCIError, "GitHub PR head SHA mismatch"):
                 localci.run_ci(str(self.repo), head, "5", str(self.log))
         self.assertFalse(self.log.exists())
+
+    def test_versioned_python_gets_a_setup_python_shim(self):
+        # Stock images often ship python3 = another minor version and python3.12 beside it.
+        folder = localci.bin_for("python", "3.12") if shutil.which("python3.12") else None
+        if folder is None:
+            self.skipTest("python3.12 absent")
+        for name in ("python", "python3"):
+            out = subprocess.run([str(Path(folder) / name), "-c", "import sys;print(sys.version_info[:2])"],
+                                 capture_output=True, text=True).stdout.strip()
+            self.assertEqual(out, "(3, 12)")
 
     def test_exit_failure_aborts_remaining_commands(self):
         head = self.commit("jobs:\n  contract:\n    steps:\n"
