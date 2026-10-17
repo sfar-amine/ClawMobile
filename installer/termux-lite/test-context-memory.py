@@ -34,7 +34,7 @@ def u03():
 T('U03 all surfaces accepted',u03)
 T('U04 invalid surface rejected',lambda: run('context-event.sh','bad','decision','x',ok=(64,)))
 T('U05 secret OTP rejected',lambda: run('context-event.sh','chat','decision','OTP 123456',ok=(65,)))
-T('U05b payment-card-like rejected',lambda: run('context-event.sh','chat','decision','card 4168437700288503',ok=(65,)))
+T('U05b payment-card-like rejected',lambda: run('context-event.sh','chat','decision','card 4111111111111111',ok=(65,)))
 def u06():
  run('context-compact.sh');db,history=durable_ids();assert len(db)>=4 and len(history)>=4
  assert not list((root/'pending').glob('*.json')) and not list((root/'processed').glob('*.json'))
