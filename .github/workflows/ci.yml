@@ -454,6 +454,7 @@ jobs:
       - name: O9 voice runs terminal state on the captured S24 runs and acceptance line
         run: |
           node scripts/test-voice-run-terminal-state.cjs
+          node scripts/test-voice-greeting-turn.cjs
           python3 ../installer/termux-lite/test-companion-acceptance-voice.py
 
       - name: O6 fast path waits for the guarded operator entry (60 s bound)
