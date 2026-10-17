@@ -107,4 +107,18 @@ class CardDetectorTests(unittest.TestCase):
                 self.assertEqual(changed['stats']['files'],0)
                 self.assertEqual((len(changed['accepted']),len(changed['findings'])),(0,0))
 
+class CommittedAttestations(unittest.TestCase):
+    def test_every_public_fixture_hash_matches_the_committed_file(self):
+        # Nightly 17/10: two attested tests changed without re-attestation, so their public card samples
+        # became findings. Re-verify the file's synthetic content and update its hash in the same PR.
+        repo = Path(__file__).resolve().parents[2]
+        roots = {'core': repo, 'core_plugin': repo / 'openclaw-plugin-mobile-ui', 'core_installer': repo / 'installer'}
+        rows = scan.accepted_signature_rows()
+        self.assertTrue(rows)
+        for row in rows:
+            if row['type'] != 'public_fixture':
+                continue
+            prefix, rest = row['path'].split('/', 1)
+            self.assertEqual(hashlib.sha256((roots[prefix] / rest).read_bytes()).hexdigest(), row['hash'], row['path'])
+
 if __name__=='__main__':unittest.main()
