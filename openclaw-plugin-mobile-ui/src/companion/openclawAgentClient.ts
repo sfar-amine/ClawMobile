@@ -102,7 +102,9 @@ export async function callOpenClawGateway(
 ): Promise<any> {
   // Host turns retain the canonical CLI least-privilege policy until P1 admission is qualified.
   // This is the sole dispatch path for these methods, never a replay after a WS request.
-  if (method === "agent" || method === "chat.send") return callOpenClawGatewayCli(method, params, {
+  // R20 strict reads (bounded stdout/stderr, hard deadline, process-group kill, cleanupState) keep the
+  // canonical strict CLI owner: the persistent transport does not carry the cleanupState contract.
+  if (method === "agent" || method === "chat.send" || options.strictOutput) return callOpenClawGatewayCli(method, params, {
     ...options, timeoutMs: options.timeoutMs ?? DEFAULT_GATEWAY_CALL_TIMEOUT_MS,
   });
   if (!gatewayTransport) {
