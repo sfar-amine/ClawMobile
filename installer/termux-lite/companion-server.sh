@@ -46,4 +46,4 @@ echo "[lite] OpenClaw gateway target is ${CLAWMOBILE_GATEWAY_HOST}:${CLAWMOBILE_
 # cannot keep growing an archive forever. No extra daemon or periodic task.
 COMPANION_LOG_DIR="$HOME/.openclaw/health"
 mkdir -p "$COMPANION_LOG_DIR"
-node "$PLUGIN_DIR/dist/companion/server.js" 2>&1 | python3 "$SCRIPT_DIR/bounded-log.py" "$COMPANION_LOG_DIR/companion.stderr.log" --stream
+node "$PLUGIN_DIR/dist/companion/server.js" 2>&1 | python3 "$SCRIPT_DIR/bounded-log.py" "$COMPANION_LOG_DIR/companion.stderr.log" --stream --timestamp

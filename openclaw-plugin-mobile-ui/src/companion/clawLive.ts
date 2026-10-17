@@ -267,15 +267,31 @@ function tokenHelperPath() {
   );
 }
 
+/** Bounded, credential-free description of a failed token helper run: exit code, signal, timeout, duration, first stderr line. */
+export function tokenHelperFailure(e: any, elapsedMs: number): string {
+  const stderr = String(e?.stderr ?? "").split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+  const safe = stderr.replace(/[A-Za-z0-9_\-]{24,}/g, "<redacted>").replace(/[^\x20-\x7e]/g, "?").slice(0, 120);
+  const exit = e?.code ?? "none", signal = e?.signal ?? "none", killed = e?.killed === true;
+  return `gemini_live_token_helper_failed exit=${exit} signal=${signal} killed=${killed} ms=${Math.max(0, Math.round(elapsedMs))} stderr=${safe || "empty"}`;
+}
+
 async function mintViaHelper(helperPath = tokenHelperPath(), observe?: (event:"t02"|"t03")=>void) {
   const trace=(event:"t02"|"t03")=>{try{observe?.(event);}catch{}};
   const node = path.join(os.homedir(), ".openclaw-android", "bin", "node");
   trace("t02");
-  const raw: any = await execFileAsync(node, [helperPath, "--mint-token"], {
-    timeout: 15_000,
-    maxBuffer: 256 * 1024,
-    env: { ...process.env },
-  });
+  const started = Date.now();
+  let raw: any;
+  try {
+    raw = await execFileAsync(node, [helperPath, "--mint-token"], {
+      timeout: 15_000,
+      maxBuffer: 256 * 1024,
+      env: { ...process.env },
+    });
+  } catch (e: any) {
+    // F2 (doc 62): the cause first, bounded, never the command line nor a credential. S24 17/10: the former
+    // "Command failed: <long node path>…" was cut at 160 characters before any cause appeared.
+    throw new Error(tokenHelperFailure(e, Date.now() - started));
+  }
   const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
   const value = JSON.parse(stdout || "{}");
   if (typeof value?.token !== "string" || !value.token) {
