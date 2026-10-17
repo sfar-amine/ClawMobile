@@ -1,7 +1,7 @@
 name: CI
 
 # La CI de référence est LOCALE (décision d'Amine, 17/10) : les étapes ci-dessous sont rejouées sur le tree
-# exact du head par wt/close-core-tools/localci.py, et c'est ce fichier qui en est la source. localci.py ne lit
+# exact du head par samantha-core/tools/localci.py, et c'est ce fichier qui en est la source. localci.py ne lit
 # que la clé `jobs` et ignore entièrement ce bloc `on:`.
 # Les déclencheurs automatiques sont retirés parce que, depuis le 13/10/2026 14:41 UTC, aucune exécution
 # GitHub ne démarre : chaque job est refusé avant lancement (« The job was not started because recent account
