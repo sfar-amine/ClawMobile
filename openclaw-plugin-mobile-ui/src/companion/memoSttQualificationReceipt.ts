@@ -152,7 +152,7 @@ export const MEMO_STT_QUALIFICATION_RECEIPT: unknown = {
   "runtimeWrites": "none",
   "personalData": false,
   "logPrivacy": {
-    "method": "Recherche du texte transcrit et des noms de fichiers dans tous les fichiers de ~/.openclaw, ~/.cache, $PREFIX/tmp et ~/ClawMobile modifiés dans les 30 min.",
+    "method": "Recherche du texte transcrit et des noms de fichiers dans tous les fichiers de ~/.openclaw, ~/.cache, $PREFIX/tmp et la copie runtime (CLAW_RUNTIME_ROOT) modifiés dans les 30 min.",
     "transcriptOrAudioPathPersistedBySdk": false,
     "onlyHits": "reçus Claw de ces commandes de qualification (remote-bridge/requests, processes)"
   },
