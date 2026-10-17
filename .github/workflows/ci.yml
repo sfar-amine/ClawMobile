@@ -28,6 +28,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Canonical off-device CI contract regression (K)
+        run: python3 ../tools/test_localci.py
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
