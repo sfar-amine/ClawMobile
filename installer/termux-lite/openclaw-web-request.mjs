@@ -41,7 +41,12 @@ function hash(value) { return createHash('sha256').update(value).digest('hex'); 
 function cleanText(value, limit) {
   if (typeof value !== 'string') fail('provider_contract');
   // Keep source text as untrusted data. Remove UI controls, not words/intents.
-  return Array.from(value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069]/gu, '')).slice(0, limit).join('');
+  const points = Array.from(value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069]/gu, '')).slice(0, limit);
+  // The consumers bound the same text in UTF-16 units (TypeScript projection, Kotlin app), so an emoji or
+  // other astral character made a 1500-code-point excerpt 1501 units long and the whole run was refused
+  // (S24 17/10, Samsung query). Drop whole code points until both bounds hold; never split a surrogate pair.
+  while (points.join('').length > limit) points.pop();
+  return points.join('');
 }
 export function validateRequest(value) {
   if (!isObject(value) || Buffer.byteLength(JSON.stringify(value), 'utf8') > MAX_INPUT_BYTES) fail('invalid_request');

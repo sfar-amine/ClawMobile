@@ -174,6 +174,16 @@ await test('source URLs reject local, encoded, credential and executable destina
   for (const url of ['file:///tmp/key', 'javascript:alert(1)', 'data:text/html,x', 'content://x', 'intent://x', 'http://127.1/a', 'http://2130706433/a', 'http://0x7f000001/a', 'http://10.0.0.1/a', 'http://169.254.169.254/a', 'http://192.168.1.2/a', 'http://100.64.1.2/a', 'http://[::1]/a', 'http://[::ffff:127.0.0.1]/a', 'https://a:b@example.org', 'https://example.local/a', 'https://public.example/a?token=SECRET', 'https://public.example/a?X-Amz-Signature=SECRET']) assert.equal(publicSourceUrl(url), null, url);
   assert.equal(publicSourceUrl('https://example.org/a#script'), 'https://example.org/a');
 });
+await test('excerpts stay within 1500 UTF-16 units so the app projection admits them (S24 17/10)', () => {
+  // An emoji counts as one code point but two UTF-16 units: a 1500-code-point excerpt was 1501 units and
+  // the whole run was refused by the TypeScript projection and the Kotlin app.
+  const long = nativeWrapped('🙂'.repeat(900) + 'x'.repeat(900));
+  const value = normalizeResult({ ...normalized, results: [{ ...normalized.results[0], excerpts: [long], title: nativeWrapped('🙂'.repeat(400)) }] }, '2026-10-15T12:00:00Z');
+  assert.ok(value.sources[0].excerpt.length <= 1500);
+  assert.ok(value.sources[0].title.length <= 300);
+  assert.ok([...value.sources[0].excerpt].every(c => c !== '\ufffd'));
+  assert.ok(!/[\ud800-\udbff]$/.test(value.sources[0].excerpt));
+});
 await test('unknown provider, malformed wrappers and invented dates fail or stay unknown', () => {
   assert.throws(() => normalizeResult({ ...normalized, provider: 'parallel' }, 'date'));
   assert.throws(() => normalizeResult({ ...normalized, results: [{ ...normalized.results[0], title: 'unwrapped' }] }, 'date'));
