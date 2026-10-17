@@ -221,6 +221,8 @@ jobs:
           node scripts/test-maxit-quote-real-shape.cjs
       - name: Network mutation guard (Auto Wi-Fi lease, Wi-Fi watch, exact restore) — lot 11/10
         run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py
+      - name: Orange cellular Unix forward (private pathname, exact observation and cleanup)
+        run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py LocalFilesystemForwardTests -v
       - name: Wi-Fi-off guard self-healing (detached restorer, bounded TTL, sweep, cellular default untouched) — incident 11/10 16:00
         run: |
           python3 ../installer/termux-lite/test-android-network-mutation-guard.py WifiRestorerTests DetachedRestorerProcessTest HealthManagerSweepContractTest CellularDefaultTests -v
@@ -418,6 +420,15 @@ jobs:
       - name: H9 read-only UI smoke synthetic safety boundaries
         run: python3 ../installer/termux-lite/test-ui-smoke.py
 
+      - name: O1 canonical consultation guard evidence
+        run: |
+          python3 ../installer/termux-lite/test-android-network-mutation-guard.py
+          python3 ../installer/termux-lite/test-consultation-network-receipt.py
+          python3 ../installer/termux-lite/test-consultation-process-safety.py
+          python3 ../installer/termux-lite/test-consultation-total-bound.py
+          python3 ../installer/termux-lite/test-consultation-fastpath.py
+      - name: Orange 4G et Wi-Fi (décision 17/10) — garanties paiement du garde partagé
+        run: python3 ../installer/termux-lite/test-payment-guard-invariance.py
       - name: O8 baseline model efficiency and Gemini client regression
         run: |
           python3 ../installer/termux-lite/test-model-efficiency.py

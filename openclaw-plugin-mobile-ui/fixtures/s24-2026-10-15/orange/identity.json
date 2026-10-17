@@ -1,0 +1,97 @@
+{
+  "read_only_network": true,
+  "network_mutations": 0,
+  "provider_calls": 0,
+  "checkpoint_recorded": true,
+  "operator_properties": {
+    "gsm.sim.operator.numeric": {
+      "read_ok": true,
+      "plmns": [
+        "60501",
+        "60502"
+      ]
+    },
+    "gsm.operator.numeric": {
+      "read_ok": true,
+      "plmns": [
+        "60501",
+        "60502"
+      ]
+    }
+  },
+  "captured_at": "2026-10-15T18:08:08Z",
+  "subscription_shapes": {
+    "read_ok": true,
+    "records": [
+      {
+        "subscription_id": "1",
+        "slot_index": "0",
+        "mcc": "605",
+        "mnc": "01"
+      },
+      {
+        "subscription_id": "4",
+        "slot_index": "1",
+        "mcc": "605",
+        "mnc": "02"
+      },
+      {
+        "subscription_id": "2",
+        "slot_index": "-1",
+        "mcc": "605",
+        "mnc": "02"
+      },
+      {
+        "subscription_id": "3",
+        "slot_index": "-1",
+        "mcc": "426",
+        "mnc": "02"
+      }
+    ],
+    "private_values_saved": false
+  },
+  "native_network_shapes": {
+    "read_ok": true,
+    "records": [
+      {
+        "net_id": 278,
+        "cellular_transport": true,
+        "orange_apn": true,
+        "telephony_subscription": "1",
+        "subscription_ids": "1"
+      },
+      {
+        "net_id": 279,
+        "cellular_transport": false,
+        "orange_apn": false
+      }
+    ],
+    "raw_saved": false
+  },
+  "app_permission_shape": {
+    "read_ok": true,
+    "read_phone_state_mentioned": false,
+    "access_network_state_mentioned": false,
+    "private_values_saved": false,
+    "qualification": "not_qualified_package_identity_requires_check"
+  },
+  "fdinfo": {
+    "open_unlocked": {
+      "lock_lines": [],
+      "has_flock": false,
+      "has_write": false
+    },
+    "exclusive_locked": {
+      "lock_lines": [
+        "lock:\tN: FLOCK  ADVISORY  WRITE N fe:N:N N EOF"
+      ],
+      "has_flock": true,
+      "has_write": true
+    },
+    "after_unlock": {
+      "lock_lines": [],
+      "has_flock": false,
+      "has_write": false
+    }
+  }
+}
