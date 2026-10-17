@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "id": "claude-orange-voice-keep-wifi-20261017",
+  "origin": "chat",
+  "kind": "incident",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Incident Orange vocal du 15/10 : une consultation lancée en voix en direct ne coupe jamais le Wi-Fi ; sans chemin cellulaire attesté, refus motivé.",
+  "reason": "Reçus S24 du 15/10 : lecture Maxit réussie mais session vocale perdue par la coupure du Wi-Fi du garde ; réponse jamais dite, chargement infini.",
+  "files": [
+    "installer/termux-lite/android-network-mutation-guard.py",
+    "installer/termux-lite/test-consultation-voice-keep-wifi.py",
+    ".github/workflows/ci.yml",
+    "docs/changes/claude-orange-voice-keep-wifi-20261017.md",
+    "docs/changes/claude-orange-voice-keep-wifi-20261017.json"
+  ],
+  "tests": [
+    {
+      "name": "test-consultation-voice-keep-wifi.py",
+      "status": "passed",
+      "evidence": "5/5 : incident reproduit (couloir Wi-Fi coupé en voix refusé sans toggle, bail ni enfant), chemins cellulaires attestés conservés, texte inchangé, with-wifi-off refuse le drapeau."
+    },
+    {
+      "name": "test-payment-guard-invariance.py",
+      "status": "passed",
+      "evidence": "6/6 : parcours de recharge identique à la base runtime."
+    }
+  ],
+  "documentation": [
+    "docs/changes/claude-orange-voice-keep-wifi-20261017.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Aucune route ni capability ; drapeau interne du garde de consultation."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise le garde existant ; aucun propriétaire, store ni démon ajouté."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "updated",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "reason": "Six primitive schemas/admission unchanged; existing execution/status carry one closed final receipt. No direct raw-provider ingress or new tool is introduced. Live owner surface parity is a separate activation gate.",
+    "evidence": [
+      "installer/termux-lite/test-consultation-fastpath.py",
+      "docs/work/samantha-runtime/contracts/o1.md",
+      "docs/changes/codex-o1-network-receipt-20261010.md"
+    ]
+  },
+  "rollback": "Revert du commit et de la PR jumelle playbooks.",
+  "limitations": [
+    "Recette vocale live après déploiement (décision d'Amine du 17/10 : tests en live)."
+  ]
+}
