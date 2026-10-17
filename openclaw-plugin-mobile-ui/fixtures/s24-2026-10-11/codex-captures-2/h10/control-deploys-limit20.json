@@ -1,0 +1,259 @@
+{
+ "_capture": {
+  "method": "GET",
+  "route": "/v1/control/deploys?limit=20",
+  "status": 200,
+  "latencyMs": 201,
+  "capturedAt": "2026-10-11T13:02:46.435471+00:00",
+  "calls": 1,
+  "firstCall": null,
+  "deferred": false,
+  "headers": "Connection: close, Accept: application/json ; sans en-tête propriétaire, Origin ni Referer",
+  "transport": "loopback http://127.0.0.1:8765 depuis le S24 (python urllib)",
+  "sanitized": "aucune valeur masquée : la réponse ne contient que des SHA de commit, dates ISO, compteurs et codes HTTP de checks",
+  "summary": {
+   "items": 20,
+   "byKindState": {
+    "companion|deployed": 16,
+    "companion|rollback_failed": 1,
+    "app|installed": 3
+   },
+   "rollbackTrue": 1,
+   "appVersionNonNull": 0,
+   "appTargetNull": 1,
+   "issues": 0
+  }
+ },
+ "response": {
+  "schemaVersion": 1,
+  "state": "ok",
+  "items": [
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "5631fe9d6fbe9972d4fbb744bf48a2b521af0f50",
+    "previous": "80a683f7faa506bee44800a89103d4f7b40e0c71",
+    "at": "2026-10-11T12:53:00.791Z",
+    "appVersion": null,
+    "checksCount": 55,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "80a683f7faa506bee44800a89103d4f7b40e0c71",
+    "previous": "f6138a77fa3bc9eac17247086daff1ee69770ad9",
+    "at": "2026-10-11T12:49:25.599Z",
+    "appVersion": null,
+    "checksCount": 55,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "f6138a77fa3bc9eac17247086daff1ee69770ad9",
+    "previous": "5ee72bdaf127d781ed67e928bf5539f4cb363945",
+    "at": "2026-10-11T12:22:53.506Z",
+    "appVersion": null,
+    "checksCount": 55,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "5ee72bdaf127d781ed67e928bf5539f4cb363945",
+    "previous": "255255629fc49e4a31208e18357c4f793ee6b50e",
+    "at": "2026-10-11T12:15:36.037Z",
+    "appVersion": null,
+    "checksCount": 55,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "255255629fc49e4a31208e18357c4f793ee6b50e",
+    "previous": "3298d98d8a29458abda6617c37ca5e4b114f4be2",
+    "at": "2026-10-11T11:47:41.020Z",
+    "appVersion": null,
+    "checksCount": 55,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "3298d98d8a29458abda6617c37ca5e4b114f4be2",
+    "previous": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+    "at": "2026-10-11T11:20:11.602Z",
+    "appVersion": null,
+    "checksCount": 55,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "app",
+    "state": "installed",
+    "target": null,
+    "previous": null,
+    "at": "2026-10-11T09:51:19.840Z",
+    "appVersion": null,
+    "checksCount": null,
+    "failedChecks": null,
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+    "previous": "98472551d836942341ae41022928add31abdd69c",
+    "at": "2026-10-11T09:47:28.773Z",
+    "appVersion": null,
+    "checksCount": 55,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "rollback_failed",
+    "target": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+    "previous": "98472551d836942341ae41022928add31abdd69c",
+    "at": "2026-10-11T09:41:13.997Z",
+    "appVersion": null,
+    "checksCount": 55,
+    "failedChecks": [
+     {
+      "check": 31,
+      "code": 503
+     }
+    ],
+    "rollback": true
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "98472551d836942341ae41022928add31abdd69c",
+    "previous": "b5acb643d6af7546a94e5a212769aa4e228356aa",
+    "at": "2026-10-11T09:05:01.187Z",
+    "appVersion": null,
+    "checksCount": 52,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "b5acb643d6af7546a94e5a212769aa4e228356aa",
+    "previous": "fe5e5b11318365bc30cb2b0bf55893ba2fa015b9",
+    "at": "2026-10-11T08:47:44.028Z",
+    "appVersion": null,
+    "checksCount": 51,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "fe5e5b11318365bc30cb2b0bf55893ba2fa015b9",
+    "previous": "59227f0e1c8f1ce1643b37c61d279f2422e964d3",
+    "at": "2026-10-11T06:54:23.432Z",
+    "appVersion": null,
+    "checksCount": 51,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "59227f0e1c8f1ce1643b37c61d279f2422e964d3",
+    "previous": "4d57e911a9ddb670e527336dd960c596dc7a0ffb",
+    "at": "2026-10-11T05:47:56.470Z",
+    "appVersion": null,
+    "checksCount": 51,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "app",
+    "state": "installed",
+    "target": "ac018b2e13a4310ccfe6e3f605db9850f520b470",
+    "previous": null,
+    "at": "2026-10-11T04:28:11.069Z",
+    "appVersion": null,
+    "checksCount": null,
+    "failedChecks": null,
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "4d57e911a9ddb670e527336dd960c596dc7a0ffb",
+    "previous": "352a8b97f72311757c71c5e26122ba4d76d0573b",
+    "at": "2026-10-11T04:18:36.272Z",
+    "appVersion": null,
+    "checksCount": 50,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "352a8b97f72311757c71c5e26122ba4d76d0573b",
+    "previous": "7210959cde605406ffe9e07e0e37db30faf17748",
+    "at": "2026-10-11T02:44:42.581Z",
+    "appVersion": null,
+    "checksCount": 50,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "app",
+    "state": "installed",
+    "target": "fc4e949c70ff569f13d6c64757c92024f4955e67",
+    "previous": null,
+    "at": "2026-10-11T01:58:45.494Z",
+    "appVersion": null,
+    "checksCount": null,
+    "failedChecks": null,
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "7210959cde605406ffe9e07e0e37db30faf17748",
+    "previous": "e7afceb9669a95cee3127adfaebc4b7a4518d83f",
+    "at": "2026-10-11T01:46:35.574Z",
+    "appVersion": null,
+    "checksCount": 49,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "e7afceb9669a95cee3127adfaebc4b7a4518d83f",
+    "previous": "507851b58bbb6d40bde9b908793f549c71fb6ae7",
+    "at": "2026-10-11T01:28:45.168Z",
+    "appVersion": null,
+    "checksCount": 49,
+    "failedChecks": [],
+    "rollback": false
+   },
+   {
+    "kind": "companion",
+    "state": "deployed",
+    "target": "507851b58bbb6d40bde9b908793f549c71fb6ae7",
+    "previous": "5de1c492fe4a8f140c823848ee5bd1d884cd4c02",
+    "at": "2026-10-11T00:51:52.420Z",
+    "appVersion": null,
+    "checksCount": 44,
+    "failedChecks": [],
+    "rollback": false
+   }
+  ],
+  "issues": []
+ }
+}

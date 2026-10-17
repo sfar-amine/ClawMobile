@@ -1,0 +1,126 @@
+--- a/dist/.setup/parallel-free-web-search-provider.runtime-OAvvtssG.mjs
++++ b/dist/.setup/parallel-free-web-search-provider.runtime-OAvvtssG.mjs
+@@ -33,34 +33,23 @@
+-	let envelope = {};
+-	const selectMessage = (message) => {
+-		if (!isRecord(message) || !("result" in message || "error" in message)) return false;
+-		envelope = message;
+-		return message.id === requestId;
+-	};
+-	const selectPayload = (json) => {
+-		try {
+-			const payload = JSON.parse(json);
+-			return Array.isArray(payload) ? payload.some(selectMessage) : selectMessage(payload);
+-		} catch {
+-			return false;
+-		}
+-	};
+-	const body = (text ?? "").trim();
+-	if (!body) return envelope;
+-	if (body.startsWith("{") || body.startsWith("[")) {
+-		selectPayload(body);
+-		return envelope;
+-	}
+-	let dataLines = [];
+-	const flush = () => {
+-		if (dataLines.length === 0) return false;
+-		const matched = selectPayload(dataLines.join("\n"));
+-		dataLines = [];
+-		return matched;
+-	};
+-	for (const raw of body.split("\n")) {
+-		const line = raw.replace(/\r$/, "");
+-		if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+-		else if (line.trim() === "" && flush()) return envelope;
+-	}
+-	flush();
+-	return envelope;
++ const body = (text ?? "").trim();
++ const matches = [];
++ const parse = (text) => {
++  let payload;
++  try { payload = JSON.parse(text); } catch { throw new Error("parallel_mcp_invalid_response"); }
++  for (const message of Array.isArray(payload) ? payload : [payload]) {
++   if (isRecord(message) && message.jsonrpc === "2.0" && message.id === requestId &&
++       (("result" in message) !== ("error" in message))) matches.push(message);
++  }
++ };
++ if (body.startsWith("{") || body.startsWith("[")) parse(body);
++ else {
++  let data = [];
++  const flush = () => { if (data.length) { parse(data.join("\n")); data = []; } };
++  for (const raw of body.split("\n")) {
++   const line = raw.replace(/\r$/, "");
++   if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
++   else if (!line.trim()) flush();
++  }
++  flush();
++ }
++ if (matches.length !== 1) throw new Error("parallel_mcp_correlation_failed");
++ return matches[0];
+@@ -76 +65 @@
+-	if ("error" in envelope) throw new Error(`Parallel MCP error: ${truncateUtf16Safe(JSON.stringify(envelope.error), 500)}`);
++	if ("error" in envelope) throw new Error("parallel_mcp_tool_failed");
+@@ -78 +67 @@
+-	if (result.isError) throw new Error(`Parallel MCP tool error: ${truncateUtf16Safe(JSON.stringify(result), 500)}`);
++	if (result.isError) throw new Error("parallel_mcp_tool_failed");
+@@ -85 +74,39 @@
+-	throw new Error(`Parallel MCP returned no parseable content: ${truncateUtf16Safe(JSON.stringify(result), 500)}`);
++	throw new Error("parallel_mcp_invalid_response");
++}
++// Samantha compatibility guard: bounded decoded bytes before JSON/SSE parsing.
++async function readParallelMcpBody(response, signal) {
++ const limit = 131072;
++ const reader = response.body?.getReader();
++ if (!reader) return "";
++ const chunks = [];
++ let size = 0;
++ const cancel = () => { reader.cancel().catch(() => {}); };
++ signal?.addEventListener("abort", cancel, { once: true });
++ try {
++  signal?.throwIfAborted();
++  while (true) {
++   const { done, value } = await reader.read();
++   signal?.throwIfAborted();
++   if (done) break;
++   size += value.byteLength;
++   if (size > limit) { await reader.cancel(); throw new Error("parallel_mcp_response_too_large"); }
++   chunks.push(value);
++  }
++  const bytes = new Uint8Array(size);
++  let offset = 0;
++  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
++  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
++ } finally {
++  signal?.removeEventListener("abort", cancel);
++  reader.releaseLock();
++ }
++}
++function parallelHttpError(stage, response) {
++ const error = new ProviderHttpError(`parallel_mcp_${stage}_failed`, { status: response.status });
++ const retry = response.retryAfter;
++ if (retry && /^\d{1,6}$/.test(retry)) error.retryAfterMs = Math.min(Number(retry) * 1000, 3600000);
++ else if (retry && retry.length <= 100) {
++  const date = Date.parse(retry);
++  if (Number.isFinite(date)) error.retryAfterMs = Math.max(0, Math.min(date - Date.now(), 3600000));
++ }
++ return error;
+@@ -104 +131,2 @@
+-		text: response.ok ? await readProviderTextResponse(response, "Parallel MCP") : await readResponseTextLimited(response, PARALLEL_MCP_ERROR_BODY_LIMIT_BYTES),
++		text: response.ok ? await readParallelMcpBody(response, params.signal) : "",
++        retryAfter: response.headers.get("retry-after"),
+@@ -133 +161 @@
+-	if (!init.ok) throw new ProviderHttpError(`Parallel MCP initialize failed (${init.status}): ${init.text || init.statusText}`, { status: init.status });
++	if (!init.ok) throw parallelHttpError("initialize", init);
+@@ -135,0 +164 @@
++ if (!isRecord(initEnvelope.result) || initEnvelope.result.protocolVersion !== MCP_PROTOCOL_VERSION || !isRecord(initEnvelope.result.capabilities) || !isRecord(initEnvelope.result.serverInfo) || ![initEnvelope.result.serverInfo.name, initEnvelope.result.serverInfo.version].every(value => typeof value === "string" && value.trim().length > 0 && value.length <= 200)) throw new Error("parallel_mcp_initialize_invalid");
+@@ -147 +176 @@
+-	if (!initialized.ok) throw new ProviderHttpError(`Parallel MCP notifications/initialized failed (${initialized.status}): ${initialized.text || initialized.statusText}`, { status: initialized.status });
++	if (!initialized.ok) throw parallelHttpError("initialized", initialized);
+@@ -164 +193 @@
+-	if (!call.ok) throw new ProviderHttpError(`Parallel MCP tools/call failed (${call.status}): ${call.text || call.statusText}`, { status: call.status });
++	if (!call.ok) throw parallelHttpError("call", call);
+@@ -184 +213,2 @@
+-	const results = (Array.isArray(payload.results) ? payload.results : []).slice(0, Math.max(params.maxResults, 1));
++	if (!Array.isArray(payload.results)) throw new Error("parallel_mcp_invalid_response");
++ const results = payload.results.slice(0, Math.max(params.maxResults, 1));

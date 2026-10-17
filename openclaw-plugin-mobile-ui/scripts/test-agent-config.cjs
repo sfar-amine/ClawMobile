@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),http=require('node:http');
 (async()=>{
+ const realNow=Date.now;let clock=realNow();Date.now=()=>clock;
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'agent-config-'));process.env.OPENCLAW_STATE_DIR=root;await fs.mkdir(path.join(root,'clawmobile-companion'));const file=path.join(root,'clawmobile-companion/runs.json');await fs.writeFile(file,JSON.stringify({version:1,runs:[],archivedSessionIds:[],paymentRequests:[],ownerConfirmations:[]}));
  let unavailable=0,noDispatch=false,cas=false,readFailures=0,restart=false,authUnavailable=false;
  let config={agents:{entries:{main:{model:{primary:'openai/old',fallbacks:['local/plain','google/gemini-3.5-flash-lite@google:claw-gemini-free']},thinkingDefault:'low',modelPolicy:{allow:['openai/new','local/plain','google/gemini-3.5-flash-lite','qwen/qwen3-max']},skills:['retain'],tools:{allow:['read'],deny:['exec']}},other:{model:'other/unchanged'}}},auth:{private:'fixture-configuration-secret'},plugins:{entries:{openai:{enabled:true},local:{enabled:true},qwen:{enabled:false}}},channels:{untouched:true}},hash='hmac-sha256:'+'Aa0+'.repeat(11)+'xy=',effects=0,uncertain=false;
@@ -19,7 +20,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
  try{
   const detail=await request();assert.equal(detail.body.model,'openai/old');assert.equal(detail.body.thinking,'low');const alias=require('../dist/companion/accountIdentity').accountAlias('google:claw-gemini-free');assert.deepEqual(detail.body.fallbacks,['local/plain','google/gemini-3.5-flash-lite@'+alias],'account profiles leave as opaque handles');assert.deepEqual(detail.body.accounts,[{id:alias,provider:'google',label:'google · compte connecté'}]);assert.ok(!JSON.stringify(detail.body).includes('claw-gemini-free'));assert.deepEqual(detail.body.tools.agent.allow,['read']);assert.equal(detail.body.receipt,null);assert.equal(detail.body.usage.totalTokens,8);assert.ok(!JSON.stringify(detail).includes('fixture-configuration-secret'));
   assert.ok(detail.body.models.every(x=>x.provider!=='qwen'));
-  authUnavailable=true;const unready=await request();assert.deepEqual(unready.body.models,[]);assert.equal(unready.body.writeAvailable,false);authUnavailable=false;
+  authUnavailable=true;clock+=6000;const unready=await request();assert.deepEqual(unready.body.models,[]);assert.equal(unready.body.writeAvailable,false);authUnavailable=false;
   const body={operationId:'set',provider:'openai',model:'new',thinking:'high',revision:hash},owner={'x-clawmobile-owner-flow':'v1'};
   assert.equal((await request('POST',body)).status,403);assert.equal((await request('POST',{...body,raw:'injected'},owner)).status,400);
   const first=await request('POST',body,owner);assert.equal(first.body.state,'completed');assert.equal(effects,1);assert.deepEqual((await request('POST',body,owner)).body,first.body);assert.equal(effects,1);
@@ -33,7 +34,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   cas=true;const rejected=await request('POST',{...body,operationId:'cas',revision:hash},owner);assert.equal(rejected.body.state,'refused');cas=false;assert.equal(effects,4);
   assert.equal((await request('POST',{...body,operationId:'disabled',provider:'qwen',model:'qwen3-max',revision:hash},owner)).status,409);assert.equal(effects,4);
   const previous=config.agents.entries.main;delete config.agents.entries.main;assert.equal((await request()).body.writeAvailable,false);assert.equal((await request('POST',{...body,operationId:'shape',revision:hash},owner)).status,409);config.agents.entries.main=previous;
-  assert.equal((await request('POST',{...body,operationId:'bio-required',revision:hash,fallbacks:['local/plain']},owner)).status,409);assert.equal(effects,4);
+  const challenge=await request('POST',{...body,operationId:'bio-required',revision:hash,fallbacks:['local/plain']},owner);assert.equal(challenge.status,403);assert.equal(challenge.body.error,'confirmation_required');assert.equal(challenge.body.scope,'agent.config.expand_fallbacks');assert.equal(challenge.body.reference,'main');assert.match(challenge.body.payloadHash,/^[a-f0-9]{64}$/);assert.equal(effects,4);
   const confirmationApi=require('../dist/companion/confirmations').confirmations;let consumed=0;
   confirmationApi.status=async()=>({intent:{presentation:{title:'Fallback',subtitle:'Agent',description:'Provider extension'},origin:{channel:'samantha',id:'owner'}}});
   confirmationApi.consume=async(id,intent)=>{if(id!=='approved-fixture')throw Object.assign(Error('scope mismatch'),{statusCode:403});assert.equal(id,'approved-fixture');assert.equal(intent.action.type,'agent.config.expand_fallbacks');assert.equal(intent.action.reference,'main');assert.match(intent.action.payloadHash,/^[a-f0-9]{64}$/);consumed++;return {consumed:true};};
@@ -42,5 +43,5 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   authUnavailable=true;const blocked=await request('POST',{...body,operationId:'unknown-auth',revision:hash},owner);assert.equal(blocked.status,409);assert.equal(effects,5);authUnavailable=false;
   const stored=JSON.parse(await fs.readFile(file,'utf8'));stored.paymentRequests=[{state:'requires_bank_action'}];await fs.writeFile(file,JSON.stringify(stored));const protectedBefore=await fs.readFile(file,'utf8');assert.equal((await request('POST',{...body,operationId:'bank',revision:hash},owner)).status,409);assert.equal(await fs.readFile(file,'utf8'),protectedBefore);assert.equal(effects,5);
   console.log('R6: redacted config/model/usage projection, exact scoped merge-patch, revisions, owner guard, receipts/replay/conflict, late verified setting and bank refusal without write passed');
- }finally{server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(root,{recursive:true,force:true});}
+ }finally{Date.now=realNow;server.closeAllConnections();await new Promise(r=>server.close(r));await fs.rm(root,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1});
