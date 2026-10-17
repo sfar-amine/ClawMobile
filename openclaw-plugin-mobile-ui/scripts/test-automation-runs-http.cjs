@@ -27,7 +27,9 @@ client.callOpenClawGateway=async(method,params,options)=>{
   const results=await Promise.all(Array.from({length:20},(_,i)=>request(query+'?limit='+(i%2?20:5))));
   assert.equal(counts['cron.runs'],1);assert(performance.now()-began>=limit50LatencyMs-50);assert(performance.now()-began<budget);
   assert.equal(results[0].value.items.length,5);assert.equal(results[1].value.items.length,20);
-  const row=results[1].value.items[0],real=history.response.entries[0];assert.deepEqual(Object.keys(row),['startedAt','finishedAt','durationMs','status','error']);assert.equal(row.startedAt,new Date(real.runAtMs).toISOString());assert.equal(row.finishedAt,new Date(real.ts).toISOString());assert.equal(row.durationMs,real.durationMs);
+  const row=results[1].value.items[0],real=history.response.entries[0];assert.deepEqual(Object.keys(row).filter(key=>key!=='statusLabel'),['startedAt','finishedAt','durationMs','status','error']);
+  // F3 (#105) server localization labels every known status additively; R22 keeps its five fields and the app (#66) reads them by name.
+  if('statusLabel' in row){assert.equal(typeof row.statusLabel,'string');assert(row.statusLabel.length>0&&row.statusLabel!==row.status);}assert.equal(row.startedAt,new Date(real.runAtMs).toISOString());assert.equal(row.finishedAt,new Date(real.ts).toISOString());assert.equal(row.durationMs,real.durationMs);
   assert(!/summary|diagnostics|sessionId|jobName|owner@example|storePath|sqlitePath/.test(JSON.stringify(results)));
   for(const headers of [{origin:'https://fixture.invalid'},{referer:'https://fixture.invalid'},{'sec-fetch-site':'same-origin'}])assert.equal((await request(query,headers)).status,403);
   for(const q of ['limit=0','limit=51','limit=01','limit=20&limit=21','other=1'])assert.equal((await request(query+'?'+q)).status,400);
