@@ -34,7 +34,7 @@ class RuntimeBridgeTests(unittest.TestCase):
         self.assertEqual(m.show(row['id'])['incident']['state'],'diagnosing')
     def test_live_worker_routes_catalog_profile_to_existing_result_handler(self):
         runtime=self.home/'runtime';runtime.mkdir()
-        for name in ['incident-orchestrator-worker.sh','incident-orchestrator.py','engineering-incident-result.py']:
+        for name in ['incident-orchestrator-worker.sh','incident-orchestrator.py','engineering-incident-result.py','runtime_mode.py']:
             shutil.copy2(ROOT/name,runtime/name)
         stub=runtime/'engineering-repair.sh'
         stub.write_text('#!/data/data/com.termux/files/usr/bin/bash\nif [ "$1" = supports ]; then [ "$2" = reporting-incident-source ]; exit; fi\nprintf "run\\n" >>"$HOME/repair-calls"\necho \'{"status":"recovered"}\'\n')

@@ -1,0 +1,76 @@
+{
+  "_capture": {
+    "source": "claw_resolve (connecteur MCP Claw, surface external_mcp, caller owner) — résolution seule, aucun claw_execute",
+    "capturedAt": "2026-10-11T10:47Z",
+    "host": "Samsung S24 / Termux",
+    "capabilityRevision": "90a0c68e6ea5838f",
+    "runtimeCore": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+    "playbooksPinned": "c7f3e7939591a6637149d7f026761de11e9ace20",
+    "sanitized": true,
+    "note": "Projection des champs demandés par Codex (playbooks #90). Les blocs harness/execution_contract/operational_preflight, identiques aux captures précédentes, sont omis. Le montant 5 vient de la phrase de test, pas d'une transaction. Aucune langue de présentation n'est renvoyée par claw_resolve : le champ est absent de la réponse (null ci-dessous signifie « non exposé »)."
+  },
+  "cases": [
+    {
+      "text": "recharge mon numéro Orange 5 dinars please",
+      "latencyMs": 143.918,
+      "decision": {"type": "EXECUTE", "reason": "capability_first", "confidence": 0.99, "risk": "transaction", "confirmationRequired": true, "humanBoundary": "owner_biometric", "requiredSlots": ["amountTnd"], "parameters": {"amountTnd": "5"}},
+      "capability": "payment.owner_native",
+      "target": "maxit-tunisie",
+      "intent": "telecom.orange.topup_own_number",
+      "route": "orange.maxit.topup.own.v1",
+      "selected": {"executor": "claw.skill_route", "kind": "claw", "entrypoint": "python3 -m payments.cli owner-handoff --input-stdin", "deterministic": true, "model_required": false, "latency_class": "fast", "confirmation_required": true, "owner_only": false},
+      "pre_model_handoff": {"entrypoint": "python3 -m payments.request_handoff", "effect_before_boundary": "none", "boundary": "owner_biometric", "adapter": "maxit.topup", "amountTnd": {"extractor": "tnd_amount", "min": "0.001", "max": "200"}},
+      "clarification": null,
+      "presentationLanguage": null,
+      "observations": [
+        "Montant + verbe de paiement : jamais une lecture (risk=transaction, confirmation requise, frontière biométrique).",
+        "« mon numéro » est lu comme sa propre ligne (topup_own_number) : aucun bénéficiaire tiers n'est demandé, ce qui est cohérent avec la phrase. Le cas tiers n'est pas couvert par cette capture.",
+        "Le mot anglais « please » ne perturbe pas la résolution."
+      ]
+    },
+    {
+      "text": "my facture STEG chnowa fiha",
+      "latencyMs": 48.334,
+      "decision": {"type": "CLARIFY", "reason": "intent_clarification_required", "confidence": 0.936, "risk": "transaction", "confirmationRequired": false, "requiredSlots": [], "parameters": {}},
+      "capability": null,
+      "target": "steg",
+      "intent": null,
+      "selected": null,
+      "clarification": {
+        "question": "Tu veux plutôt mes factures steg ou payer ta facture STEG ?",
+        "choices": [
+          {"capability": "billing.utility.fast_path", "intent": "billing.invoices", "label": "mes factures steg", "risk": "read", "score": 0.936},
+          {"capability": "payment.owner_native", "intent": "billing.pay", "label": "payer ta facture STEG", "risk": "transaction", "score": 0.613}
+        ]
+      },
+      "presentationLanguage": null,
+      "observations": [
+        "« chnowa fiha » (que contient-elle) n'est pas reconnu comme une lecture : clarification lecture/paiement alors que la lecture a 0.936.",
+        "Question en français alors que la demande est mixte EN/derja ; pronoms incohérents dans les libellés (« mes factures » / « ta facture »).",
+        "model_required non exposé : pas d'executor sélectionné tant que la clarification n'est pas tranchée."
+      ]
+    },
+    {
+      "text": "9addech batterie",
+      "latencyMs": 81.978,
+      "decision": {"type": "EXECUTE", "reason": "capability_first", "confidence": 0.187, "risk": "read", "confirmationRequired": false, "requiredSlots": [], "parameters": {}},
+      "capability": "device.assistance",
+      "harnessConfidence": 0.94,
+      "selected": {"executor": "claw.capability_runtime", "kind": "claw", "entrypoint": "python3 device/assistant.py", "input_mode": "request_arg", "deterministic": true, "model_required": false, "latency_class": "fast", "confirmation_required": false},
+      "shortlist": [
+        {"id": "device.assistance", "score": 0.94},
+        {"id": "android.termux_api.read", "score": 0.283},
+        {"id": "claw.situations", "score": 0.109},
+        {"id": "billing.utility.fast_path", "score": 0.106},
+        {"id": "samantha.voice.decision.record", "score": 0.099}
+      ],
+      "skill_plan": {"mode": "discovery", "target": "steg", "intent": "billing.unpaid", "confidence": 0.187},
+      "clarification": null,
+      "presentationLanguage": null,
+      "observations": [
+        "Bonne capability (device.assistance, 0.94), mais decision.confidence reprend la confiance du skill_plan de découverte (0.187), qui vise steg/billing.unpaid : fuite du plan de découverte dans la décision.",
+        "« 9addech » (combien, arabizi) n'est pas dans les exemples de device.assistance ; la correspondance vient de « batterie »."
+      ]
+    }
+  ]
+}

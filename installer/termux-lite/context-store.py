@@ -5,7 +5,8 @@ from context_import import preview as import_preview, selection as import_select
 H=pathlib.Path.home()
 D=pathlib.Path(os.environ.get("SAMANTHA_CONTEXT_ROOT",H/".openclaw/context-sync"))
 DB=D/"memory.db"
-SCHEMA_VERSION=5
+# 6: M3 curated_facts/curator_audit (#256) and M6 cursor state (#262), both additive and idempotent.
+SCHEMA_VERSION=6
 
 def connect():
     D.mkdir(parents=True,exist_ok=True); os.chmod(D,0o700)
@@ -30,6 +31,18 @@ def migrate(c):
         cursor_cols={r[1] for r in c.execute("PRAGMA table_info(session_cursors)")}
         if 'known_contracts' not in cursor_cols:c.execute("ALTER TABLE session_cursors ADD COLUMN known_contracts TEXT NOT NULL DEFAULT '{}'")
         if 'global_baseline' not in cursor_cols:c.execute("ALTER TABLE session_cursors ADD COLUMN global_baseline TEXT NOT NULL DEFAULT '{}'")
+        # M3 keeps the immutable events as the source of truth.  These two tables are a
+        # rebuildable curator projection and its append-only audit, in the same owner DB.
+        c.execute("""CREATE TABLE IF NOT EXISTS curated_facts(
+            event_id TEXT PRIMARY KEY,root_event_id TEXT NOT NULL,valid_from TEXT NOT NULL,
+            valid_to TEXT,observed_at TEXT NOT NULL,state TEXT NOT NULL,
+            invalidated_by TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_curated_facts_active ON curated_facts(state,valid_to)")
+        c.execute("""CREATE TABLE IF NOT EXISTS curator_audit(
+            audit_id TEXT PRIMARY KEY,run_id TEXT NOT NULL,action TEXT NOT NULL,
+            event_id TEXT NOT NULL,prior_event_id TEXT,valid_from TEXT NOT NULL,
+            valid_to TEXT,observed_at TEXT NOT NULL)""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_curator_audit_observed ON curator_audit(observed_at,audit_id)")
         c.execute("""CREATE TABLE IF NOT EXISTS dream_proposals(
             proposal_id TEXT PRIMARY KEY,run_id TEXT NOT NULL,action TEXT NOT NULL,
             source_ids TEXT NOT NULL,payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'proposed',
@@ -147,14 +160,17 @@ def ingest_event(c,e,replay_history=False,accepted_legacy=False,require_active=N
 
 def ingest_file(c,path,require_active=None):
     p=pathlib.Path(path)
-    if not p.exists():
+    # Open directly (#238): another worker can durably commit, archive and remove the same pending
+    # file between an existence check and the read. An already-open file stays readable.
+    try:
+        with p.open() as stream:e=json.load(stream)
+    except FileNotFoundError:
         # Concurrent identical producers can observe the pending file after another
         # worker has durably committed, archived and removed it.
         if re.fullmatch(r'[a-f0-9]{64}\.json',p.name):
             migrate(c); row=c.execute('SELECT revision,supersedes FROM events WHERE id=?',(p.stem,)).fetchone()
             if row and (require_active is None or row[1]==require_active):return {'id':p.stem,'revision':row[0],'inserted':False}
-        raise FileNotFoundError(path)
-    e=json.loads(p.read_text())
+        raise
     result=ingest_event(c,e,accepted_legacy=p.parent.resolve()==(D/'processed').resolve(),require_active=require_active)
     row=c.execute('SELECT revision,surface,kind,text,created_at,supersedes FROM events WHERE id=?',(e['id'],)).fetchone()
     # Delete the transient copy only after both durable truths independently match.

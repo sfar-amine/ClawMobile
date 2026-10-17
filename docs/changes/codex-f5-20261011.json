@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "codex-f5-20261011",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Qualify canonical health cadence and attention hysteresis with S24 #131 evidence.",
+  "reason": "Runtime already owns the 1200-second freshness and 300-second attention hysteresis; remove the parallel earlier candidate.",
+  "files": [
+    "installer/termux-lite/test-health-hysteresis.py",
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-f5-20261011.md",
+    "docs/changes/codex-f5-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "canonical-health-verdict",
+      "status": "passed",
+      "evidence": "13/13 tests passed on preparation 69eab17812440e8daaf94895e1bbe9d12322e91e, exclusive local stage lock; existing owner1200s/300s unchanged."
+    },
+    {
+      "name": "f5-health-hysteresis-s24-window",
+      "status": "passed",
+      "evidence": "4/4 F5 regressions passed on preparation 69eab17812440e8daaf94895e1bbe9d12322e91e; actual18-sample captured window, true degraded preserved, two observations before attention, immediate recovery/down and repeated-failure reference clock."
+    },
+    {
+      "name": "complete-final-head-ci",
+      "status": "pending",
+      "evidence": "Full local workflow replay follows this frozen note, all71 runsteps including current base5631fe9d union; no previous-head result reused."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-f5-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing health projection, no new capability."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "State bounded in existing current.json owner."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "No MCP handler change."
+  },
+  "rollback": "Revert commit; no migration.",
+  "limitations": [
+    "Claude performs the new live 18-sample recipe and Tier0 promotion with Amine. No activation claimed."
+  ]
+}

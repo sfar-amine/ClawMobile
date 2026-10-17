@@ -1,3 +1,5 @@
+import {changeConversationArchive} from "./conversationArchive";
+import {serverLanguage,localizedRoute,localizeServerPresentation,ServerLanguage} from "./serverLocale";
 import {conditionalRead} from "./readEtag";
 import {readCatalogResponse,catalogETag} from './catalog';
 import {readDeploymentReceipts} from "./deploymentReceipts";
@@ -224,6 +226,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   const requestUrl = new URL(req.url || "/", "http://localhost");
   const routePath = normalizeProtocolPath(requestUrl.pathname);
   if(routePath&&accountGuardedRoute(routePath))accountGuardedResponses.add(res);
+  if(routePath&&localizedRoute(routePath))responseLanguages.set(res,serverLanguage(req.headers["accept-language"]));
 
   if (shouldBlockBrowserRequest(req, routePath || requestUrl.pathname)) {
     writeJson(res, 403, {
@@ -433,6 +436,25 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  const conversationArchive=/^\/conversations\/([^/]+)\/(archive|unarchive)$/.exec(routePath);
+  if(conversationArchive){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']||req.headers['x-clawmobile-owner-flow']!=='v1'){
+      writeJson(res,403,{success:false,state:'refused',receipt:null,error:'native_owner_flow_required'});return;
+    }
+    if(method!=='POST'){res.setHeader('Allow','POST');writeJson(res,405,{success:false,state:'refused',receipt:null,error:'method_not_allowed'});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error('invalid_operation'),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(conversationArchive[1]);}catch{throw Object.assign(new Error('invalid_session_id'),{statusCode:400});}
+      const value=await changeConversationArchive(id,conversationArchive[2]==='archive',await readJsonBody(req,2048));
+      res.setHeader('Cache-Control','no-store');writeJson(res,Number.isInteger(value.httpStatus)?value.httpStatus:200,value);
+    }catch(error:any){
+      const status=[400,404,409,429].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,status,{success:false,state:status===503?'unavailable':'refused',receipt:null,error:
+        status===400?'invalid_conversation_archive':status===404?'conversation_not_found':status===409&&error?.message==='protected_owner_activity'?'protected_owner_activity':status===409?'operation_conflict':status===429?'conversation_archive_busy':error?.message==='archive_capacity_exceeded'?'archive_capacity_exceeded':'conversation_owner_unavailable'});
+    }
+    return;
+  }
+
   const conversationMetadata=/^\/conversations\/([^/]+)\/metadata$/.exec(routePath);
   if(conversationMetadata){
     if(!isLoopback||req.headers.origin||req.headers.referer||req.headers["sec-fetch-site"]||(method!=="GET"&&req.headers["x-clawmobile-owner-flow"]!=="v1")){writeJson(res,403,{success:false,state:"refused",receipt:null,error:"native_owner_flow_required"});return;}
@@ -507,7 +529,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
       const value=method==='GET'?await readAgentConfig():await changeAgentConfig(await readJsonBody(req,2048));
       writeJson(res,value.state==='refused'?409:200,value);
-    }catch(error:any){const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    }catch(error:any){
+      const challenge=error?.confirmation;
+      if(error?.statusCode===403&&error?.message==='confirmation_required'&&challenge?.scope==='agent.config.expand_fallbacks'&&challenge.reference==='main'&&/^[a-f0-9]{64}$/.test(challenge.payloadHash)){
+        writeJson(res,403,{success:false,state:'refused',receipt:null,error:'confirmation_required',scope:challenge.scope,reference:challenge.reference,payloadHash:challenge.payloadHash});
+      }else{const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+    }
     return;
   }
 
@@ -862,7 +889,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       surface: "claw_live",
       caller: "owner",
       timeoutSeconds: 10,
-    }));
+    }),body?.phoneDateTime);
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, result);
     return;
@@ -971,6 +998,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     const displayText = String(body?.displayText || body?.userText || body?.text || instruction);
     // P1 : l'autorité owner vient uniquement de l'admission native signée (plus du loopback).
     const authority = admission.admitted || legacyContext ? "owner" as const : undefined;
+    if((body as any)?.phoneDateTime!==undefined&&!admission.admitted){writeJson(res,403,{success:false,accepted:false,submissionState:"not_submitted",message:"owner_required"});return;}
     // Édition-relecture : objet fermé {sessionId, runId}, réservé au propriétaire natif ADMIS (preuve signée ; jamais le drapeau legacy).
     let replayOf:{sessionId:string;runId:string}|undefined;
     if(body?.replayOf!==undefined){
@@ -989,6 +1017,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         authority,
         admission: admission.admitted ? admission.ticket : undefined,
         ...((body as any)?.voiceDelegation === true ? {voiceDelegation:true as const} : {}),
+        ...((body as any)?.phoneDateTime !== undefined ? {phoneDateTime:(body as any).phoneDateTime} : {}),
         ...(replayOf?{replayOf}:{}),
       },
     );
@@ -1427,10 +1456,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     if(!isLoopback||req.headers.origin||req.headers["sec-fetch-site"]){writeJson(res,403,{error:"native_loopback_required"});return;}
     if(process.env.SAMANTHA_HISTORY_V2 === "0"){writeJson(res,404,{error:"unsupported_contract"});return;}
     try{
-      for(const [key] of requestUrl.searchParams)if(!["contract","view","limit","cursor","q"].includes(key))throw Object.assign(Error(),{statusCode:400});
+      for(const [key] of requestUrl.searchParams)if(!["contract","view","limit","cursor","q","archived"].includes(key))throw Object.assign(Error(),{statusCode:400});
       const rawLimit=requestUrl.searchParams.get("limit")||"20";
       if(!/^[0-9]{1,2}$/.test(rawLimit))throw Object.assign(Error(),{statusCode:400});
-      const options={limit:Number(rawLimit),cursor:requestUrl.searchParams.get("cursor")||undefined,query:requestUrl.searchParams.get("q")||undefined};
+      const archived=requestUrl.searchParams.get('archived');
+      if(archived!==null&&(pagedTurns||!['0','1'].includes(archived)))throw Object.assign(Error(),{statusCode:400});
+      const options={...(archived!==null?{archived:archived==='1'}:{}),limit:Number(rawLimit),cursor:requestUrl.searchParams.get("cursor")||undefined,query:requestUrl.searchParams.get("q")||undefined};
       if(routePath === "/runs" && requestUrl.searchParams.get("view")!=="conversations")throw Object.assign(Error(),{statusCode:400});
       const value=pagedTurns?await conversationTurnsPage(decodeURIComponent(pagedTurns[1]),options):await conversationSummariesPage(options);
       res.setHeader("Cache-Control","no-store");writeJson(res,200,value);
@@ -2142,9 +2173,12 @@ function writeHtml(res: http.ServerResponse, statusCode: number, body: string) {
 
 // App-facing state routes: no account e-mail may leave, whatever the producer.
 const accountGuardedResponses=new WeakSet<http.ServerResponse>();
+const responseLanguages=new WeakMap<http.ServerResponse,ServerLanguage>();
 const conditionalRequests=new WeakMap<http.ServerResponse,http.IncomingMessage>();
 function writeJson(res: http.ServerResponse, statusCode: number, value: any) {
   if(accountGuardedResponses.has(res))value=redactAccountIdentifiers(value);
+  const language=responseLanguages.get(res);
+  if(language){value=localizeServerPresentation(value,language);res.setHeader("Content-Language",language);res.setHeader("Vary","Accept-Language");}
   const body = statusCode === 204 ? "" : JSON.stringify(value, null, 2);
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");

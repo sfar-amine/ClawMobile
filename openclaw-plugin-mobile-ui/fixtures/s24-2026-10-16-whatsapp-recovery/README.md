@@ -1,0 +1,1 @@
+Captured read-only from the S24 on 2026-10-16: OpenClaw and @openclaw/whatsapp 2026.9.6. These are installed upstream code, not credentials or chat transcripts. Used to reproduce the real 408/EAI_AGAIN retry exhaustion after 12 attempts. See docs/changes/whatsapp-network-recovery-20261016.md. Upstream MIT license retained in LICENSE.openclaw.

@@ -56,9 +56,15 @@ type StoredRun = {
   ownerAdmitted?: true;
   /** P1 : connexion finalement utilisée pour ce tour (l'admission peut expirer avant la remise). */
   ownerTransport?: OwnerTransport;
+  /** Sanitized deterministic-runner failure class; no provider detail or free text. */
+  reasonClass?: string;
 };
 export type OwnerTransport = "admin_admitted" | "write_cli" | "write_cli_owner_unavailable";
 const OWNER_TRANSPORTS = new Set<string>(["admin_admitted", "write_cli", "write_cli_owner_unavailable"]);
+const REASON_CLASS_RE = /^[a-z][a-z0-9_]{0,95}$/;
+export function publicReasonClass(value: unknown): string | undefined {
+  return typeof value === "string" && REASON_CLASS_RE.test(value) ? value : undefined;
+}
 
 /** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */
 export type RunCorrection = {version: 1; operationId: string; at: number; neutralized: number;
@@ -169,6 +175,8 @@ function submissionRequestHash(
   })).digest("hex");
 }
 
+/** Optional admission runs under the existing registry writer before any reservation. */
+export type RunReservationAdmission=(run:Readonly<StoredRun>,existing:readonly StoredRun[],canRetain:(rows:StoredRun[])=>boolean)=>void;
 export async function reserveSubmittedRun(
   text: string,
   sessionId: string,
@@ -180,6 +188,7 @@ export async function reserveSubmittedRun(
     executionSource?: "gateway" | "capability_first";
     decision?: Record<string, unknown>;
     parentClarificationRunId?: string;
+    admission?: RunReservationAdmission;
     memoAttachmentId?: string;
     replayOf?: {sessionId: string; runId: string};
     ownerAdmitted?: boolean;
@@ -241,6 +250,12 @@ export async function reserveSubmittedRun(
     const link: ReplayLink | undefined = source ? {version: 1, sessionId: normalizedSessionId, runId: newRunId, at: now} : undefined;
     const marked = source && link ? registry.runs.map(run => run.sessionId === source.sessionId && compareRuns(run, source) >= 0 && !run.supersededBy
       ? {...run, supersededBy: link} : run) : registry.runs;
+    options.admission?.(stored,marked,(rows)=>{
+      const retained=retainStoredRuns(rows);
+      return retained.length===rows.length&&rows.every(row=>retained.some(candidate=>candidate.runId===row.runId))&&
+        Buffer.byteLength(JSON.stringify({version:1,...registry,runs:rows},null,2),'utf8')+512<=MAX_PERSISTED_RUN_BYTES;
+    });
+    // E4 admission runs before any cache update: a refused reservation leaves no superseded mark behind.
     if (link) for (const run of marked) if (run.supersededBy === link && submittedRuns.has(run.runId)) submittedRuns.set(run.runId, run);
     const next = retainStoredRuns([stored, ...marked]);
     const archivedSessionIds = registry.archivedSessionIds.filter((id) => id !== normalizedSessionId);
@@ -268,15 +283,24 @@ export async function claimMemoTranscript(runId: string, attachmentId: string, t
 
 export const MEMO_MAX_ATTEMPTS = 3;
 const MEMO_RETRY_DELAYS = [2 * 60_000, 10 * 60_000];
-/** Provider failure has no executable transcript. Keep its audio in the existing run. */
+export const MEMO_FAILED_AUDIO_RETENTION_MS = 60 * 60_000;
+const MEMO_TERMINAL_ERROR = "La transcription du mémo a échoué. Enregistrez un nouveau mémo pour réessayer.";
+function failedMemoAttachments(row: StoredRun, failedAt: number) {
+  const deadline = failedAt + MEMO_FAILED_AUDIO_RETENTION_MS;
+  return (row.attachments || []).map(attachment => ({...attachment,
+    expiresAt: Math.min(typeof attachment.expiresAt === "number" && Number.isFinite(attachment.expiresAt)
+      ? attachment.expiresAt : deadline, deadline)}));
+}
+/** Provider failure has no executable transcript. Keep audio only while an automatic retry remains. */
 export async function deferMemoTranscription(runId: string): Promise<void> {
   await mutateRegistry(async () => {
     const registry = await registryOrEmpty(), row = registry.runs.find(r => r.runId === runId);
     if (!row || row.state !== "running" || row.memo?.phase !== "transcribing" ||
         row.memo.ownerEpoch !== MEMO_OWNER_EPOCH || registry.runDeletions.some(r => r.runId === runId)) return;
     const exhausted = row.memo.attempts >= MEMO_MAX_ATTEMPTS, now = Date.now();
-    const next: StoredRun = {...row, state: exhausted ? "failed" : "running",
-      error: exhausted ? "Transcription du mémo indisponible." : undefined, updatedAt: now,
+    const next: StoredRun = {...row, attachments: exhausted ? failedMemoAttachments(row, now) : row.attachments,
+      state: exhausted ? "failed" : "running",
+      error: exhausted ? MEMO_TERMINAL_ERROR : undefined, updatedAt: now,
       memo: {...row.memo, phase: "transcription_pending", nextAttemptAt: exhausted ? undefined
         : now + MEMO_RETRY_DELAYS[row.memo.attempts - 1]}};
     await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? next : r), registry.archivedSessionIds);
@@ -292,7 +316,7 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
     const registry = await registryOrEmpty(), row = registry.runs.find(r => r.runId === runId), now = Date.now();
     if (row?.memo && (row.attachments || []).some(a => a.mimeType === "audio/mp4" &&
         typeof a.expiresAt === "number" && Number.isFinite(a.expiresAt) && a.expiresAt <= now)) {
-      const expired: StoredRun = {...row, state: "failed", error: "Le mémo vocal a expiré.", attachments: undefined,
+      const expired: StoredRun = {...row, state: "failed", error: row.state === "failed" ? row.error : "Le mémo vocal a expiré.", attachments: undefined,
         updatedAt: now, memo: {...row.memo, nextAttemptAt: undefined}};
       await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? expired : r), registry.archivedSessionIds);
       submittedRuns.set(runId, expired);
@@ -304,10 +328,12 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
         registry.archivedSessionIds.includes(row.sessionId) || registry.runDeletions.some(r => r.runId === runId)) return null;
     // A previous process may have stopped in STT, before any canonical dispatch.
     if (row.memo.phase === "transcribing" && row.memo.ownerEpoch !== MEMO_OWNER_EPOCH) {
+      const exhausted = row.memo.attempts >= MEMO_MAX_ATTEMPTS;
       const waiting: StoredRun = {...row, updatedAt: now, memo: {...row.memo,
         phase: "transcription_pending", nextAttemptAt: row.memo.attempts >= MEMO_MAX_ATTEMPTS ? undefined : now + MEMO_RETRY_DELAYS[row.memo.attempts - 1]},
-        state: row.memo.attempts >= MEMO_MAX_ATTEMPTS ? "failed" : "running",
-        error: row.memo.attempts >= MEMO_MAX_ATTEMPTS ? "Transcription du mémo indisponible." : undefined};
+        attachments: exhausted ? failedMemoAttachments(row, now) : row.attachments,
+        state: exhausted ? "failed" : "running",
+        error: exhausted ? MEMO_TERMINAL_ERROR : undefined};
       await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? waiting : r), registry.archivedSessionIds);
       submittedRuns.set(runId, waiting); return {waiting: true as const};
     }
@@ -382,7 +408,7 @@ export async function settleSubmittedRun(
   runId: string,
   state: "done" | "failed",
   result: string,
-  options: {provenance?: unknown; presentation?: unknown} = {},
+  options: {provenance?: unknown; presentation?: unknown; reasonClass?: unknown} = {},
 ) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));
@@ -390,6 +416,7 @@ export async function settleSubmittedRun(
   const stored: StoredRun = {
     ...existing,
     provenance: capabilityProvenance(options.provenance) || existing.provenance,
+    reasonClass: publicReasonClass(options.reasonClass) || existing.reasonClass,
     state,
     presentation: readReceiptPresentation(options.presentation) || (existing.executionSource === "capability_first" ? fallbackReceiptPresentation(state === "failed") : existing.presentation),
     inactivityCorrectionReceipt: state === "done" && (existing.error === "run_inactivity_expired" || existing.inactivityCorrectionReceipt?.to === "running") ? {
@@ -431,6 +458,32 @@ export async function markSubmittedRunFailed(runId: string, message: string) {
   };
   submittedRuns.set(runId, stored);
   await saveStoredRun(stored).catch(() => undefined);
+}
+
+/** Local retained-history archive owner. No Gateway transcript deletion. */
+export async function conversationArchiveState(sessionId:string):Promise<boolean|null>{
+  requireConversationId(sessionId);await registryWrite;
+  const registry=await registryOrEmpty();
+  if(registry.runs.some(run=>run.sessionId===sessionId&&['accepted','running'].includes(run.state||'')))
+    throw Object.assign(new Error('protected_owner_activity'),{statusCode:409});
+  return registry.runs.some(run=>run.sessionId===sessionId)?registry.archivedSessionIds.includes(sessionId):null;
+}
+export async function setConversationArchived(sessionId:string,archived:boolean){
+  requireConversationId(sessionId);
+  return mutateRegistry(async()=>{
+    const registry=await registryOrEmpty();
+    if(!registry.runs.some(run=>run.sessionId===sessionId))throw Object.assign(new Error('conversation_not_found'),{statusCode:404,effectNotStarted:true});
+    if(sessionId==='native-owner-actions'||registry.runs.some(run=>run.sessionId===sessionId&&['accepted','running'].includes(run.state||''))||
+      registry.paymentRequests.some(row=>['awaiting_owner','executing','effect_unknown','requires_bank_action'].includes(row.state))||
+      registry.ownerConfirmations.some(row=>row.state==='awaiting_owner'&&row.expiresAt>Date.now()))
+      throw Object.assign(new Error('protected_owner_activity'),{statusCode:409,effectNotStarted:true});
+    const before=registry.archivedSessionIds.includes(sessionId);
+    if(before!==archived){
+      const next=archived?[...registry.archivedSessionIds,sessionId]:registry.archivedSessionIds.filter(id=>id!==sessionId);
+      await writeCompanionRunRegistry(registry.runs,next,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+    }
+    return {sessionId,archived,changed:before!==archived};
+  });
 }
 
 export async function archiveSession(sessionId: string) {
@@ -992,7 +1045,8 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   return {
     success: !failed,
     provenance: capabilityProvenance(stored.provenance),
-    memoTranscription: stored.memo ? {phase: stored.memo.phase, attempts: stored.memo.attempts, nextAttemptAt: stored.memo.nextAttemptAt} : undefined,
+    memoTranscription: stored.memo ? {phase: stored.memo.phase, attempts: stored.memo.attempts,
+      nextAttemptAt: stored.memo.nextAttemptAt, retryAllowed: stored.error === MEMO_TERMINAL_ERROR} : undefined,
     status: stored.memo && stored.memo.phase !== "dispatched" && !failed ? stored.memo.phase === "ready" ? "memo_ready_to_continue" : stored.memo.phase === "transcription_pending" ? "transcription_pending" : "transcribing"
       : stored.error === "run_inactivity_expired" ? "expired" : undefined,
     ...publicReceiptMetadata(runPresentation(stored)),
@@ -1003,6 +1057,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     sessionId: stored.sessionId,
     ...(stored.ownerAdmitted ? {ownerAdmitted: true} : {}),
     ...(stored.ownerTransport ? {ownerTransport: stored.ownerTransport} : {}),
+    ...(stored.reasonClass ? {reasonClass: stored.reasonClass} : {}),
     state: failed ? "failed" : stored.state === "done" ? "done" : "running",
     message,
     progress: {
@@ -1837,19 +1892,23 @@ function validInactivityReceipt(value: any, runId: string): InactivityReceipt | 
     at: value.at, evidenceAt: value.evidenceAt};
 }
 
+/** Injectable inactivity clock boundary; production defaults to the system clock. */
+export const runInactivityClock={now:()=>Date.now()};
 let inactivityRead: Promise<void> | undefined;
+/** Wait only for an already-started owner pass, including its persisted settlement. No new read. */
+export async function awaitRunInactivity():Promise<void>{await inactivityRead;}
 let inactivityCursor = 0;
 const INACTIVITY_READ_BUDGET_MS = 10000;
 /** Read snapshots never await reconciliation. One bounded owner pass at a time. */
 function reconcileInactiveRuns(targetRunId?:string):void {
   if(inactivityRead)return;
-  inactivityRead=reconcileInactiveRunsOnce(targetRunId,Date.now()+INACTIVITY_READ_BUDGET_MS)
+  inactivityRead=reconcileInactiveRunsOnce(targetRunId,runInactivityClock.now()+INACTIVITY_READ_BUDGET_MS)
     .catch(()=>undefined).finally(()=>{inactivityRead=undefined;});
 }
 
 async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadline: number): Promise<void> {
   await registryWrite;
-  const initial = await registryOrEmpty(), now = Date.now();
+  const initial = await registryOrEmpty(), now = runInactivityClock.now();
   const eligible = (run: StoredRun, registry: CompanionRunRegistry) => run.modality !== "voice" &&
     (!run.memo || run.memo.phase === "dispatched") &&
     !run.result && (!run.state || run.state === "running" || run.error === "run_inactivity_expired") &&
@@ -1865,7 +1924,7 @@ async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadli
   if (!candidates.length) return;
   // The owner API works across SQLite migrations; absent legacy files prove nothing.
   const ownerRead = (method: string, params: Record<string, unknown>) => {
-    const remaining = deadline - Date.now();
+    const remaining = deadline - runInactivityClock.now();
     if (remaining <= 0) return Promise.reject(new Error("inactivity_read_budget_exceeded"));
     return callOpenClawGateway(method, params, {timeoutMs: remaining, hardTimeoutMs: remaining});
   };
@@ -1880,7 +1939,7 @@ async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadli
   for (const run of [...candidates,...revived]) {
     const key = run.sessionKey || expectedCompanionSessionKey(run.sessionId);
     const session = sessions.find((row: any) => row?.key === key || row?.sessionKey === key);
-    if (!session || Date.now() >= deadline) continue;
+    if (!session || runInactivityClock.now() >= deadline) continue;
     const active = session.hasActiveRun === true || session.status === "running" || (Array.isArray(session.activeRunIds) && session.activeRunIds.length > 0);
     if (active) {
       if (run.error === "run_inactivity_expired" && Array.isArray(session.activeRunIds) && session.activeRunIds.includes(run.runId)) changes.set(run.runId, {before: run, after: {
@@ -2057,6 +2116,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       supersededBy: validReplayLink(run.supersededBy),
       ownerAdmitted: run.ownerAdmitted === true ? true as const : undefined,
       ownerTransport: OWNER_TRANSPORTS.has(String(run.ownerTransport || "")) ? run.ownerTransport : undefined,
+      reasonClass: publicReasonClass(run.reasonClass),
     }));
   // HS3: a run that handed off to a payment request shows that request's state (read-time projection only).
   for (const run of parsedRuns) {
@@ -2284,13 +2344,14 @@ export async function mutateOwnerConfirmations<T>(operation:(records:Confirmatio
 }
 
 // Presentation-only retained-history contract. No new durable store or wider retention.
-type PageOptions={limit?:number;cursor?:string;query?:string};
+type PageOptions={limit?:number;cursor?:string;query?:string;archived?:boolean};
 const pageSecret=randomBytes(32);
 const pageEpoch=randomUUID();
 const digest=(value:unknown)=>createHash("sha256").update(JSON.stringify(value)).digest("hex");
 function pageError(message:string,statusCode=409){return Object.assign(new Error(message),{statusCode});}
 function normalizedPageOptions(options:PageOptions){
   const limit=options.limit??20,query=options.query??"";
+  if(options.archived!==undefined&&typeof options.archived!=="boolean")throw pageError("invalid_pagination",400);
   if(!Number.isSafeInteger(limit)||limit<1||limit>40||query.length>512||(options.cursor?.length??0)>2048)throw pageError("invalid_pagination",400);
   return {limit,query,cursor:options.cursor};
 }
@@ -2310,11 +2371,11 @@ function cursorAnchor(cursor:string|undefined,scope:string,revision:string):stri
     throw pageError("pagination_invalidated");
   return value.anchor;
 }
-async function retainedRuns():Promise<StoredRun[]> {
+async function retainedRuns(archiveScope:boolean|null=false):Promise<StoredRun[]> {
   reconcileInactiveRuns();
   await registryWrite;
   const registry=await registryOrEmpty(),archived=new Set(registry.archivedSessionIds);
-  return registry.runs.filter(x=>!archived.has(x.sessionId)).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
+  return registry.runs.filter(x=>archiveScope===null||archived.has(x.sessionId)===archiveScope).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
 }
 
 /** The Companion's own retained view of one conversation (no Gateway read). */
@@ -2356,7 +2417,8 @@ export function readablePreview(raw:string,max=140):string{
 
 export async function conversationSummariesPage(options:PageOptions={}){
   const {limit,query,cursor}=normalizedPageOptions(options);
-  const runs=await retainedRuns();const grouped=new Map<string,StoredRun[]>();
+  const archiveScope=options.archived===true;
+  const runs=await retainedRuns(archiveScope);const grouped=new Map<string,StoredRun[]>();
   // Background single-flight refresh; pagination never waits on a Gateway process.
   const ownerIndex=runs.length?conversationOwnerIndex():{rows:new Map<string,any>(),state:'pending'};
   const metadata=ownerIndex.rows;
@@ -2366,13 +2428,16 @@ export async function conversationSummariesPage(options:PageOptions={}){
       const latest=rows[0],status=statusFromStoredRun(latest),owner:any=metadata.get(latest.sessionKey||expectedCompanionSessionKey(sessionId));
       const title=typeof owner?.label==='string'&&owner.label.length<=160&&!/[\p{C}\p{Zl}\p{Zp}]/u.test(owner.label)?owner.label:null;
       const pinned=typeof owner?.pinned==='boolean'?owner.pinned:null;
-      return {sessionId,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview:(latest.userText||latest.text||"").slice(0,160),
+      // First retained authentic request; routed prompt, assistant text and catalogue labels are not title evidence.
+      const original=[...rows].reverse().find(row=>typeof row.userText==='string'&&row.userText.trim().length>0);
+      const titlePreview=(original?.userText||'').slice(0,160);
+      return {sessionId,archived:archiveScope,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview,
         lastResultPreview:readablePreview(latest.result||""),lastRunState:status.state,
         lastActivityAt:latest.updatedAt||latest.acceptedAt,sortAt:latest.acceptedAt,
         modality:latest.modality||"text",transcriptState:latest.transcriptState||"",
-        availableTurnCount:rows.length,previewTruncated:(!/^\s*[{\[]/.test(latest.result||"")&&(latest.result?.length||0)>140)||(latest.userText||latest.text||"").length>160};
+        availableTurnCount:rows.length,previewTruncated:(!/^\s*[{\[]/.test(latest.result||"")&&(latest.result?.length||0)>140)||(original?.userText||"").length>160};
     }).sort((a,b)=>b.sortAt-a.sortAt||a.sessionId.localeCompare(b.sessionId));
-  const revision=digest({items,retainedRunCount:runs.length,availableConversations:grouped.size}),scope=pageScope("conversations",query,limit),anchor=cursorAnchor(cursor,scope,revision);
+  const revision=digest({archived:archiveScope,items,retainedRunCount:runs.length,availableConversations:grouped.size}),scope=pageScope("conversations:"+(archiveScope?"archived":"active"),query,limit),anchor=cursorAnchor(cursor,scope,revision);
   const index=anchor?items.findIndex(x=>x.sessionId===anchor):-1;
   if(anchor&&index<0)throw pageError("pagination_invalidated");
   const start=index+1,page=items.slice(start,start+limit),more=start+page.length<items.length;
@@ -2383,11 +2448,11 @@ export async function conversationSummariesPage(options:PageOptions={}){
 }
 export async function conversationTurnsPage(sessionId:string,options:PageOptions={}){
   requireConversationId(sessionId);const {limit,cursor}=normalizedPageOptions(options);
-  if(options.query)throw pageError("unsupported_turn_query",400);
+  if(options.query||options.archived!==undefined)throw pageError("unsupported_turn_query",400);
   // Keep the canonical full preparation path separate from this UI page.
   let partial=false;
   if(!cursor)try{await getConversationTurns(sessionId);}catch{partial=true;}
-  const all=(await retainedRuns()).filter(x=>x.sessionId===sessionId).sort((a,b)=>a.acceptedAt-b.acceptedAt||a.runId.localeCompare(b.runId));
+  const all=(await retainedRuns(null)).filter(x=>x.sessionId===sessionId).sort((a,b)=>a.acceptedAt-b.acceptedAt||a.runId.localeCompare(b.runId));
   const revision=digest(all.map(statusFromStoredRun));
   const scope=pageScope("turns:"+sessionId,"",limit),anchor=cursorAnchor(cursor,scope,revision);
   const end=anchor?all.findIndex(x=>x.runId===anchor):all.length;
@@ -2441,14 +2506,18 @@ export async function withAttachmentReferences<T>(effect:(paths:Set<string>)=>T)
  return mutateRegistry(async()=>{
   const registry=await registryOrEmpty(), now=Date.now();
   // Canonical audio expiry comes from fstat upload mtime, reconstructed by HTTP.
+  const expiredPaths:string[]=[];
   const runs=registry.runs.map(row=>{
    if(!row.memo||!(row.attachments||[]).some(a=>a.mimeType==='audio/mp4'&&typeof a.expiresAt==='number'&&Number.isFinite(a.expiresAt)&&a.expiresAt<=now))return row;
+   expiredPaths.push(...(row.attachments||[]).map(a=>a.serverPath||a.path||''));
    const next:StoredRun={...row,attachments:undefined,updatedAt:now,
-    state:row.memo.phase==='dispatched'?row.state:'failed',error:row.memo.phase==='dispatched'?row.error:'Le mémo vocal a expiré.',
+    state:row.memo.phase==='dispatched'?row.state:'failed',error:row.state==='failed'?row.error:row.memo.phase==='dispatched'?row.error:'Le mémo vocal a expiré.',
     memo:{...row.memo,nextAttemptAt:undefined}};
    submittedRuns.set(row.runId,next);return next;
   });
+  const protectedPaths=new Set(runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||'')));
+  if(expiredPaths.length)removeAttachments(expiredPaths,protectedPaths);
   if(runs.some((r,i)=>r!==registry.runs[i]))await writeCompanionRunRegistry(runs,registry.archivedSessionIds);
-  return effect(new Set(runs.flatMap(row=>(row.attachments||[]).map(x=>x.serverPath||x.path||''))));
+  return effect(protectedPaths);
  });
 }
