@@ -25,6 +25,8 @@ CONTACTS="$STATE_DIR/workspace-contacts"
 PLAYBOOK_RULES="${RUNTIME_SYNC_PLAYBOOK_RULES:-$HOME/.openclaw/runtime-ui-playbooks/current/tools/install_interaction_rules.py}"
 OPENCLAW_DIST="${RUNTIME_SYNC_OPENCLAW_DIST:-/data/data/com.termux/files/usr/lib/node_modules/openclaw/dist}"
 COMPANION="${RUNTIME_SYNC_COMPANION_URL:-http://127.0.0.1:8765}"
+# Same readiness evidence as the health manager's `gateway` capability (health/current.json).
+GATEWAY_HEALTHZ="${RUNTIME_SYNC_GATEWAY_HEALTHZ_URL:-http://127.0.0.1:18789/healthz}"
 KEEP_RELEASES="${RUNTIME_SYNC_KEEP_RELEASES:-5}"
 head="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)"
 commit="${1:-$head}"; [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: $0 [--check] <full commit>" >&2; exit 2; }
@@ -76,8 +78,11 @@ fi
 if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]]; then
   curl -fsS -m 240 -X POST "$COMPANION/v1/runtime/restart" >/dev/null 2>&1 || fail gateway_restart_failed
   ready=0
+  # Control HTTP 200 alone is not Gateway readiness: on 16/10 (release 20261016T112943) the soak then consumed a
+  # Gateway shutdown sample and rolled back. Wait for the Gateway's own readiness probe as well.
   for _ in $(seq 1 30); do
-    [ "$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$COMPANION/v1/control/health?contract=2" 2>/dev/null)" = 200 ] && { ready=1; break; }
+    [ "$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$COMPANION/v1/control/health?contract=2" 2>/dev/null)" = 200 ] \
+      && [ "$(curl -s -o /dev/null -w '%{http_code}' -m 5 "$GATEWAY_HEALTHZ" 2>/dev/null)" = 200 ] && { ready=1; break; }
     sleep "${RUNTIME_SYNC_POLL_S:-4}"
   done
   [ "$ready" = 1 ] || fail gateway_not_ready

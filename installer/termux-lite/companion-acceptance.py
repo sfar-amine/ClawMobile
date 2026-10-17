@@ -11,6 +11,8 @@ BASE = "http://127.0.0.1:8765/v1"
 READS = [
     ("/catalog", 0.3), # HS2: warm reads from memory; one HS1 generation is ≈ 360 ms on the S24, so the cold first read uses the retry.
     ("/health", 2.0),
+    # R22 real non-sensitive Context Sync job (fixture PR82); absent jobs are skipped.
+    ("/automations/d1d0e51c-6815-4e7a-8eda-c7302bab8118/runs?limit=20", 6.0),
     ("/control/health?contract=2", 2.0),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
     ("/files?scope=agent", 1.5),
@@ -104,6 +106,22 @@ def voice_terminal_unknown(body):
         return None
     return [str(run.get("runId"))[:80] for run in listed if isinstance(run, dict) and run.get("modality") == "voice"
             and run.get("transcriptState") in ("completed", "interrupted") and run.get("state") == "unknown"]
+# HS8 (17/10): the composer microphone is announced by /catalog inputs.voiceMemo, gated by the S24 qualification receipt.
+def voice_memo_input(body):
+    """Read-only check on the already fetched catalog: True/False when inputs.voiceMemo is a coherent
+    {available, availability} object, "absent" for a body without it (older build), None when it is
+    malformed (the app would mis-render the microphone)."""
+    try:
+        inputs = json.loads(body or b"{}").get("inputs")
+        if inputs is None:
+            return "absent"
+        memo = inputs.get("voiceMemo")
+    except (ValueError, AttributeError):
+        return None
+    if not isinstance(memo, dict) or not isinstance(memo.get("available"), bool):
+        return None
+    expected = "available" if memo["available"] else "soon"
+    return memo["available"] if memo.get("availability") == expected else None
 # Secrets and account e-mails. 10/10 (recette UI): /agent/config published the OAuth profile e-mail.
 # Measured read-only on the S24 the same day: no other READS route returns an e-mail address.
 LEAK = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._-]{8,}|\bsk-[A-Za-z0-9_-]{8,}|\bgh[pousr]_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bAKIA[0-9A-Z]{16}\b|refresh_token|access_token|-----BEGIN [A-Z ]*PRIVATE KEY")
@@ -248,6 +266,14 @@ def main(session_id=None, baseline_path=None):
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget,
                         "previousSeconds": previous_seconds, "regression": regression,
                         "leak": leak, "settled": settled, "status": status})
+        if path == "/catalog" and code == 200:
+            memo = voice_memo_input(body)
+            # Malformed = regression; a closed (qualification refused) microphone is reported, never a rollback by itself.
+            memo_status = "skipped" if memo == "absent" else ("fail" if memo is None else "ok")
+            failed |= memo_status == "fail"
+            results.append({"route": path, "check": "voice_memo_input", "available": memo if isinstance(memo, bool) else None, "status": memo_status})
+            if memo is False:
+                warnings.append({"route": path, "warning": "voice_memo_unavailable"})
         if path == VOICE_TERMINAL_ROUTE and code == 200:
             stale = voice_terminal_unknown(body)
             # No run list to judge (route shape owned by its READS row): skipped, never a rollback by itself.

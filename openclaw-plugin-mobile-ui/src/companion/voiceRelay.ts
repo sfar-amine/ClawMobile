@@ -76,7 +76,7 @@ const recent = new Map<string, { hash: string; at: number; response: any }>();
 const VOICE_SURFACE = "bixby_claw";
 // SAM-MIG V2.2: the dialogue coordinator owns the pending question; `conversations` below keeps only the relay's
 // transport binding (conversationId -> coordinator conversation id), never a question nor a decision.
-let voiceDialogue = new DialogueSurface(runModelFastPath, "voice", VOICE_SURFACE);
+let voiceDialogue = new DialogueSurface(runModelFastPath, "voice", VOICE_SURFACE, { modelAllowed: true }, { voice: true });
 const conversations = new Map<string, PendingConversation>();
 // Lot 41 V2: last deterministic voice turn (bounded projection, no transcript), 2-minute window.
 let lastRelayTurn: VoiceTurnContext | null = null;

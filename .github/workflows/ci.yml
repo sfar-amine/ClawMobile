@@ -128,6 +128,14 @@ jobs:
       - name: Native OpenClaw provider fallback stays pinned to the free Gemini profile
         run: node scripts/test-native-provider-fallback.cjs
 
+      - name: Parallel Free Web run contract, MCP identity and voice readback (offline)
+        run: |
+          node scripts/test-run-web.cjs
+          node scripts/test-run-web-mcp.cjs
+          node scripts/test-run-web-voice.cjs
+          node scripts/test-run-web-agent.cjs
+          python3 ../installer/termux-lite/test-model-fast-path-web.py
+
       - name: Run trace induction tests
         run: npm run test:trace-induction
 
@@ -140,8 +148,10 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
-      - name: HS8 SDK export proof and memo transcript boundary (inactive)
+      - name: HS8 memo STT qualification receipt (S24 17/10), owner and transcript boundary
         run: node scripts/test-memo-stt-boundary.cjs && node scripts/test-memo-stt-owner.cjs && node scripts/test-memo-sdk-resolution.cjs && node scripts/test-memo-audio-duration.cjs
+      - name: HS8 acceptance line for the composer microphone (catalog inputs.voiceMemo)
+        run: python3 ../installer/termux-lite/test-companion-acceptance-memo.py
       - name: Run edit-and-replay contract (édition d'un message envoyé, audit sans suppression)
         run: node scripts/test-edit-replay.cjs
 
@@ -221,6 +231,8 @@ jobs:
           node scripts/test-maxit-quote-real-shape.cjs
       - name: Network mutation guard (Auto Wi-Fi lease, Wi-Fi watch, exact restore) — lot 11/10
         run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py
+      - name: Orange cellular Unix forward (private pathname, exact observation and cleanup)
+        run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py LocalFilesystemForwardTests -v
       - name: Wi-Fi-off guard self-healing (detached restorer, bounded TTL, sweep, cellular default untouched) — incident 11/10 16:00
         run: |
           python3 ../installer/termux-lite/test-android-network-mutation-guard.py WifiRestorerTests DetachedRestorerProcessTest HealthManagerSweepContractTest CellularDefaultTests -v
@@ -347,6 +359,8 @@ jobs:
           python3 ../installer/termux-lite/test-context-native-fixtures.py
           python3 ../installer/termux-lite/test-context-scale.py
           python3 ../installer/termux-lite/test-context-import.py
+      - name: Run M5 memory evaluation scorer (50 real questions, synthetic db)
+        run: python3 ../installer/termux-lite/test-memory-eval.py
       - name: Verify memory curator cron description reconciliation
         run: python3 ../installer/termux-lite/test-memory-curator-cron.py
       - name: Test health manager resource restart policy
@@ -420,6 +434,15 @@ jobs:
       - name: H9 read-only UI smoke synthetic safety boundaries
         run: python3 ../installer/termux-lite/test-ui-smoke.py
 
+      - name: O1 canonical consultation guard evidence
+        run: |
+          python3 ../installer/termux-lite/test-android-network-mutation-guard.py
+          python3 ../installer/termux-lite/test-consultation-network-receipt.py
+          python3 ../installer/termux-lite/test-consultation-process-safety.py
+          python3 ../installer/termux-lite/test-consultation-total-bound.py
+          python3 ../installer/termux-lite/test-consultation-fastpath.py
+      - name: Orange 4G et Wi-Fi (décision 17/10) — garanties paiement du garde partagé
+        run: python3 ../installer/termux-lite/test-payment-guard-invariance.py
       - name: O8 baseline model efficiency and Gemini client regression
         run: |
           python3 ../installer/termux-lite/test-model-efficiency.py
@@ -435,6 +458,7 @@ jobs:
       - name: O9 voice runs terminal state on the captured S24 runs and acceptance line
         run: |
           node scripts/test-voice-run-terminal-state.cjs
+          node scripts/test-voice-greeting-turn.cjs
           python3 ../installer/termux-lite/test-companion-acceptance-voice.py
 
       - name: O6 fast path waits for the guarded operator entry (60 s bound)
@@ -473,6 +497,9 @@ jobs:
         run: node scripts/test-payment-pattern-boundary.cjs
       - name: Check Context Guardian SQLite read-only owner
         run: python3 ../installer/termux-lite/test-context-guardian-sqlite.py
+
+      - name: Test R22 automation history and scheduler HTTP contracts
+        run: node scripts/test-automation-runs-preparation.cjs && node scripts/test-automation-runs-http.cjs
 
       - name: Reversible conversation archive and retained pagination contract
         run: node scripts/test-conversation-archive.cjs

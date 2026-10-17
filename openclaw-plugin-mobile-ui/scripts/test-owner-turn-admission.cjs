@@ -77,7 +77,8 @@ function proof({method='POST',pathName='/v1/runs',body,clientRunId,sessionId,ts=
 let server,port;
 const request=(method,url,body,headers={})=>new Promise((resolve,reject)=>{
  const data=body===undefined?undefined:(typeof body==='string'?body:JSON.stringify(body));
- const req=http.request({host:'127.0.0.1',port,path:url,method,headers:{...(data!==undefined?{'content-type':'application/json','content-length':Buffer.byteLength(data)}:{}),...headers}},res=>{let t='';res.on('data',x=>t+=x);res.on('end',()=>{let b;try{b=JSON.parse(t)}catch{b=t}resolve({status:res.statusCode,body:b})});});
+ // agent:false — Node 20 keep-alive reuses a socket the server closed during the long synchronous section 4 (ECONNRESET under load).
+ const req=http.request({host:'127.0.0.1',port,path:url,method,agent:false,headers:{...(data!==undefined?{'content-type':'application/json','content-length':Buffer.byteLength(data)}:{}),...headers}},res=>{let t='';res.on('data',x=>t+=x);res.on('end',()=>{let b;try{b=JSON.parse(t)}catch{b=t}resolve({status:res.statusCode,body:b})});});
  req.on('error',reject);req.end(data);
 });
 const owner={'x-clawmobile-owner-flow':'v1'};

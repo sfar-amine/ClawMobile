@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 from __future__ import annotations
-import argparse,contextlib,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile,fcntl
+import argparse,contextlib,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile,fcntl,sys
 from pathlib import Path
 import runtime_mode
 
@@ -218,8 +218,12 @@ def main():
     q=sp.add_parser('prune'); q.add_argument('--keep',type=int,default=5); q.add_argument('--apply',action='store_true')
     a=p.parse_args(); RELEASES.mkdir(parents=True,exist_ok=True); TIER0.mkdir(parents=True,exist_ok=True)
     guard=runtime_mode.deployment_guard() if a.cmd=='promote' else contextlib.nullcontext()
-    with guard:
-        with open(TIER0/'control.lock','a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX)
-            return globals()['cmd_'+a.cmd.replace('-','_')](a)
+    try:
+        with guard:
+            with open(TIER0/'control.lock','a') as lock:
+                fcntl.flock(lock,fcntl.LOCK_EX)
+                return globals()['cmd_'+a.cmd.replace('-','_')](a)
+    except runtime_mode.DeploymentLockBusy as error:
+        print(json.dumps({'success':False,'state':'refused','reason':'deployment_lock_busy','detail':str(error)}),file=sys.stderr)
+        raise SystemExit(3)
 if __name__=='__main__': main()

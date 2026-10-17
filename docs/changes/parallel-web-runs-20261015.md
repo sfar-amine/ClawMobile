@@ -1,0 +1,45 @@
+# Parallel Free — projection des runs et liaison aux entrées existantes
+
+Lot source W4, avec raccord de lecture vocale W5 et entrée agent W6 de la spécification 53 (playbooks). Aucune capability n’est activée et aucun appel Parallel/Gemini réel n’est effectué par ce lot. Claude reste responsable de l’intégration, de la recette S24 et du déploiement.
+
+Une recherche canonique renvoyant `execution.result.web` traverse désormais le fast path, l’intention et le registre existant des runs, puis les réponses de soumission et de consultation. Le nouveau champ facultatif `run.web` est une projection fermée version 1. Les clients anciens conservent un résultat textuel lisible, jamais un objet JSON brut. Les listes de résumés omettent cette projection volumineuse ; le détail du run et la conversation la conservent. Aucun nouveau fichier de stockage, endpoint, routeur ou service.
+
+La projection exige Parallel anonyme et, pour une synthèse, le modèle/profil gratuits exacts. Elle borne 5 sources, 12 claims, 4 000 caractères de claims, 1 200 de texte oral et 64 Kio de résultat. Chaque claim admis reprend une citation extractive exacte de chacun de ses passages sources, et les paires claim/source doivent être citées. Les URL avec hôte local, IP littérale, IDN, credentials, port non HTTP(S) ou query de secret sont refusées ; cette garde de présentation n’est pas un fetcher ni une preuve SSRF réseau. Une date de publication connue peut rester `YYYY-MM-DD`, sans inventer minuit ; les horodatages de collecte restent des timestamps. Coût absent = null. La langue facultative provient du contrat Graph, pas du téléphone.
+
+L’admission signée `POST /v1/runs` existante reste l’unique entrée de l’app. Les nouveaux arguments CLI `--request-id`, `--run-id`, `--session-id`, `--remaining-budget-ms` et `--deadline-epoch-ms` proviennent de l’hôte ; requestId doit correspondre à la décision gelée. Les champs du corps modèle ne peuvent pas leur conférer de droits. Les résolutions/validations de lecture sont bornées à dix secondes, puis le Web reçoit le reste de son budget total de douze secondes. Les gardes d’exécution opérateur/paiement conservent leur contrat. Le MCP utilise la même projection avec métadonnées temporelles transitoires hors `paramsHash`. Les doublons app/MCP réutilisent leurs reçus existants.
+
+L’outil agent `clawmobile_capability` conserve son schéma et sa garde E3 : l’owner vient de `senderIsOwner` et de `assertInvocationCurrent`. La corrélation est dérivée en UUID opaque du couple natif `nativeChannelId`/toolCallId, sans envoyer cet identifiant natif brut. L’absence de ce contexte ferme la nouvelle exécution Web ; elle ne reconstruit aucune autorité. Cette liaison ne crée pas de journal de reprise des tool calls SDK : la garantie de rejeu SDK après redémarrage reste à qualifier, contrairement aux reçus app/MCP déjà persistés.
+
+Les états Companion restent `running`, `done`, `failed`, `unknown`. Sources exploitables sans synthèse = `done` avec `web.outcome=partial` et cause explicite ; un transport non résolu reste `unknown`. Aucun payload contradictoire ou malformé ne peut obtenir un succès par simple code de sortie 0.
+
+Le sous-processus borné possède un groupe de processus, reçoit TERM puis KILL après une grâce bornée, et rejette toute réponse après annulation/expiration. Le signal est transmis lorsqu’une entrée existante le fournit. L’interruption vocale historique continue d’invalider l’audio de l’ancien tour sans annuler une action métier ; aucun endpoint général d’annulation ni modification du paiement n’est ajouté.
+
+La voix reçoit seulement les claims admis ou une phrase neutre déterministe dans la langue de la demande. Le retour vers Gemini Live ne contient ni pages, ni extraits, ni URL. La phase de lecture interdit un nouvel appel outil et le contrôle de transcription compare le texte complet, pas seulement un préfixe. **Ce contrôle intervient après génération audio : il ne garantit pas le son avant diffusion.** La gate acoustique G6 est effectivement fermée par défaut : après résolution canonique, les entrées Live et délégation vocale refusent le Web avant tout dispatch fournisseur. Seul le réglage hôte explicite `CLAW_PUBLIC_WEB_VOICE_RECIPE=1` ouvre ce trajet pour la recette ; aucun champ du corps, argument outil ou surface ne peut l’ouvrir. La qualification réelle du protocole, du coût et du modèle Live reste nécessaire ; ce lot ne change aucune clé, aucun modèle global ni moteur TTS. Sans langue ni claim dans un résultat historique, la lecture Web reste fermée.
+
+## Rebranchement sur le coordinateur de dialogue V2.2 (17/10/2026)
+
+La première version de W4 faisait passer les décisions Web par `SurfaceClarifications` (`capabilityClarification.ts`), une des trois autorités de clarification supprimées par SAM-MIG-CC-001 V2.2. Ce lot est rebranché sur le coordinateur unique, sans autorité parallèle :
+
+- l'app (`POST /v1/runs`), Claw Live et le relais vocal envoient un seul événement admis au coordinateur (`model-fast-path.py --dialogue`). L'exécution Web a lieu dans le port `execute` du coordinateur (`FastPathPorts`), via le chemin canonique `execute_resolved` ; aucune question, aucun état en attente et aucune reprise ne sont gérés hors du coordinateur ;
+- les métadonnées hôte de la passation (`--run-id`, `--session-id`, `--deadline-epoch-ms`, `--voice-delegation`) viennent du Companion, jamais du corps ni du modèle. Sans échéance hôte valide, le port borne lui-même à douze secondes ; le `requestId` est celui de la décision gelée par le coordinateur ;
+- la gate G6 est appliquée dans ce port, **avant tout dispatch** : surface `voice`, Claw Live ou délégation vocale signée sans `CLAW_PUBLIC_WEB_VOICE_RECIPE=1` sur l'hôte = refus `voice_recipe_required`, zéro appel fournisseur ;
+- la projection `web` voyage dans `metadata` de la réponse du coordinateur (clé ajoutée à la liste fermée côté playbooks, PR #163) ; le Companion la revalide (`readRunWebResult`) avant de la persister dans le run ou de l'afficher, et reconstruit le texte depuis les claims/sources admis. WhatsApp, sans rendu structuré, reçoit un texte avec titres et URL des sources ;
+- MCP et l'outil agent restent sans état de dialogue, comme le prévoit la V2.2 ; l'exécution MCP reste gardée par l'aperçu sans état du coordinateur.
+
+Tests ajoutés : `WebDialoguePorts` dans `test-model-fast-path-web.py` (gate vocale avant dispatch, contexte hôte, rendu des sources, échéance expirée, appelant non owner) ; `test-run-web.cjs` et `test-run-web-voice.cjs` passent désormais par le coordinateur (READY puis passation différée).
+
+Robustesse de test (17/10) : `test-owner-turn-admission.cjs` ouvre une connexion par requête (`agent:false`). Sous Node 20, la réutilisation keep-alive tombait sur un socket fermé par le serveur pendant la longue section synchrone 4 (ECONNRESET, 2 échecs sur 6 aussi sur la base `636becf5`) ; aucune assertion n'est retirée.
+
+## Tests et provenance
+
+Les nouveaux contrats Web sont des fixtures synthétiques explicitement identifiées. La compatibilité du registre est testée avec la capture nettoyée existante `fixtures/s24-2026-10-11c/hs5-runs-shapes.json`, source S24 `~/.openclaw/clawmobile-companion/runs.json`, version 1. L’autorité native s’appuie sur la fixture SDK 2026.9.6 `fixtures/protocol/openclaw-2026.9.6/tool-context-excerpts.d.ts`. Aucun nouveau chemin ou table S24 n’est supposé.
+
+Les suites `test-run-web.cjs`, `test-run-web-mcp.cjs`, `test-run-web-voice.cjs`, `test-run-web-agent.cjs` et `test-model-fast-path-web.py` sont ajoutées à la CI existante. Elles vérifient notamment la persistance/reprise des résultats partiels, l’identité gelée, les refus de contexte forgé, les citations adversariales, le non-rejeu MCP, les bornes, l’arrêt des descendants et la projection de lecture vocale. Les suites historiques E3, voix, runs, admission et paiement sont conservées. La CI complète doit être rejouée au SHA exact avant « prêt à fusionner » ; son décompte est publié dans la PR, sans inventer un résultat live.
+
+Dépendance de test réutilisée sans nouvelle implémentation : PR235, commit `f5eb36b8c9fc824aba7d8873ef8fb584457822a8`, cherry-pick normal de la fixture rsync portable. Les autres correctifs ouverts restent indépendants ; leur code n’est pas recopié ici.
+
+## Intégration et retour arrière
+
+Intégrer les contrats playbooks de la spécification 53, l’adaptateur fournisseur et la synthèse isolée avant toute ouverture de la capability ; intégrer les DTO Android compatibles avant la recette de l’app. Le runtime courant ne possède pas ces nouvelles entrées Web et n’est pas modifié par la publication de cette branche.
+
+Retour arrière : revenir à la release core précédente par la procédure de Claude. Le champ facultatif `web` peut rester dans les runs existants et être ignoré par l’ancien code ; aucune migration, suppression de reçu, réauthentification ou relecture métier n’est nécessaire. Ne pas restaurer une configuration globale ni annuler des changements concurrents.

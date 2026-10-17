@@ -1,0 +1,16 @@
+{
+  "_source": "installer/termux-lite/android-network-mutation-guard.py @ runtime/samantha-companion-private 636becf5b6ce5727c39dfb77bab0a2ba007e073c (déployé S24 le 17/10)",
+  "_method": "sha256(ast.get_source_segment)",
+  "with_wifi_off": "6d289316229d1844986070b0444925b510f202feec5cd0ae9de379fad8a26414",
+  "_run_without_mutation": "c433c7bef4112e9197c7673282264fce266f5968452db2d5eab2f56a9549e9bd",
+  "run_while_wifi_stays_off": "2d7a31577d93787d2ea96494c0dfa5b7717940e1c43192d1cbe6e7560b0221e9",
+  "wifi_toggle_decision": "23ec8a9bbfc8bf2d83b1bcb9e912c47302388941630472218bdf269164117ea2",
+  "restore_state": "ff0c0e9c4e25b4110526ec1323e1c2c64df65f213311951dc461769bdff174c9",
+  "spawn_restorer": "f11ba9a84b8da734ed1e4b03f050f97f215b97bc30e9ffdcf0135b73c1bb63a5",
+  "_reconcile_stale_wifi_leases": "13bc16093b60d17df3df9e46e19ba3da79fdeb243303bc10bf39ae4994c4cf85",
+  "read_wifi_lease": "4835515b1a3e6aec0c7875c354f0b96b67094546cfca9d384d8f974d693c2fe2",
+  "wifi_off_ttl": "21abda9deecc074abbb78a709bcb80317e431501464e50b236b972ac0fc99477",
+  "disable_auto_wifi": "61c0ea12fcbf4f5a7e66d86477ce58a437022ac173e90ae9b9d106bd4d891613",
+  "restore_auto_wifi": "d0cceec4525b35dc93d74abf6385ba83f4338975a821f0952187375a95258a88",
+  "restorer_main": "53eb1adaea5f353b6a6eb1aa42879a8168a04ef72045569e00f524c3c207b6a5"
+}

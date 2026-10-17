@@ -1,3 +1,4 @@
+export type {RunWebResult} from "./runWeb";
 export type RuntimeCommandState = "not_started" | "running" | "failed" | "stopping";
 
 export type GatewayStatus = {
@@ -89,6 +90,7 @@ export type TerminalSessionResponse = {
 };
 
 export type IntentSubmitResponse = {
+  web?: import("./runWeb").RunWebResult;
   /** Stable public machine class copied from the deterministic runner receipt. */
   reasonClass?: string;
   decision?: import("./receiptPresentation").PublicDecision;
@@ -118,6 +120,7 @@ export type IntentSubmitResponse = {
 };
 
 export type CompanionRunStatus = {
+  web?: import("./runWeb").RunWebResult;
   /** P1 : tour admis par preuve native, et connexion Gateway finalement utilisée. */
   ownerAdmitted?: boolean;
   ownerTransport?: "admin_admitted" | "write_cli" | "write_cli_owner_unavailable";
