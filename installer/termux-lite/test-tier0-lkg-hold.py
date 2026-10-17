@@ -26,10 +26,31 @@ class LkgHold(unittest.TestCase):
         else: os.environ['HOME'] = self.old_home
         os.environ.pop('TIER0_LKG_HOLD_S', None); self.tmp.cleanup()
 
-    def health(self, ok, cap='gateway'):
+    def health(self, ok, cap='gateway', generated_at=None):
         caps = {c: {'state': 'healthy'} for c in ('immune.health_manager', 'gateway', 'companion')}
         if not ok: caps[cap] = {'state': 'degraded'}
-        (self.home / '.openclaw/health/current.json').write_text(json.dumps({'capabilities': caps}))
+        value = {'capabilities': caps}
+        if generated_at is not None: value['generated_at'] = generated_at
+        (self.home / '.openclaw/health/current.json').write_text(json.dumps(value))
+
+    def test_health_sample_older_than_the_grace_is_not_evidence(self):
+        # S24 16/10: rollback of 20261016T112943 on a Gateway shutdown sample generated before the grace ended.
+        now = int(time.time())
+        s = self.state(); s.update(soak_deadline_epoch=now + 600, soak_grace_until_epoch=now - 5, soak_bad_samples=0); self.state(s)
+        self.health(False, 'gateway', generated_at=now - 60)
+        for _ in range(3): self.w.tick()
+        s = self.state(); self.assertEqual('running', s['soak_state']); self.assertEqual(0, s['soak_bad_samples'])
+        self.assertEqual('A', self.lkg())
+        self.health(False, 'gateway', generated_at=now)
+        self.w.tick(); self.assertEqual(1, self.state()['soak_bad_samples'], 'a fresh sample still counts')
+
+    def test_stale_health_never_makes_a_release_stable(self):
+        now = int(time.time())
+        s = self.state(); s.update(soak_deadline_epoch=now - 1, soak_grace_until_epoch=now - 5); self.state(s)
+        self.health(True, generated_at=now - 60); self.w.tick()
+        self.assertEqual('running', self.state()['soak_state'])
+        self.health(True, generated_at=now); self.w.tick()
+        self.assertEqual('stable', self.state()['soak_state'])
 
     def state(self, value=None):
         p = self.home / '.openclaw/tier0/state.json'

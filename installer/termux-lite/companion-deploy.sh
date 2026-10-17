@@ -36,7 +36,15 @@ if [ "${1:-}" = "--maintenance" ]; then
   shift
   DIALOGUE_HOME="${CLAW_DIALOGUE_HOME:-$HOME/.openclaw/samantha-dialogue}"
   mkdir -p "$DIALOGUE_HOME"; chmod 700 "$DIALOGUE_HOME"
-  exec 8>"$DIALOGUE_HOME/maintenance.lock"; flock -w 10 8 || { echo "maintenance_marker_busy" >&2; exit 3; }
+  # Bounded wait with `flock -n` only: the toybox flock found first on some S24 PATHs has no `-w`
+  # (bascule 17/10: `flock -w 10` failed there). Same 10 s bound, same refusal, any flock.
+  exec 8>"$DIALOGUE_HOME/maintenance.lock"
+  lock_tries=$(( ${COMPANION_MAINTENANCE_LOCK_WAIT_S:-10} * 5 ))
+  until flock -n 8; do
+    lock_tries=$((lock_tries - 1))
+    [ "$lock_tries" -gt 0 ] || { echo "maintenance_marker_busy" >&2; exit 3; }
+    sleep 0.2
+  done
   python3 - "$DIALOGUE_HOME/maintenance.json" "$STATE" "$@" <<'PY'
 import json, os, re, sys, time
 path, state_dir, args = sys.argv[1], sys.argv[2], sys.argv[3:]

@@ -12,6 +12,7 @@ import fcntl
 import json
 import os
 import stat
+import time
 from pathlib import Path
 
 
@@ -84,8 +85,12 @@ def _inherited_lock_fd(path: Path) -> int | None:
         return None
 
 
+class DeploymentLockBusy(OSError):
+    """The deployment lock is held elsewhere and was not inherited (bounded wait elapsed)."""
+
+
 @contextlib.contextmanager
-def deployment_guard(root: Path | None = None):
+def deployment_guard(root: Path | None = None, wait_seconds: float | None = None):
     """Hold the existing deployment lock, reusing a verified inherited fd."""
     root = Path(root or openclaw_home())
     path = root / "deploys" / "companion-deploy.lock"
@@ -98,7 +103,23 @@ def deployment_guard(root: Path | None = None):
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise OSError("deployment_lock_invalid")
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        # Bounded, never an infinite wait: a parent deploy that holds the lock without exporting
+        # SAMANTHA_DEPLOY_LOCK_FD (older companion-deploy.sh, bascule 17/10) would otherwise deadlock its child.
+        if wait_seconds is None:
+            raw = os.environ.get("SAMANTHA_DEPLOY_LOCK_WAIT_S", "30")
+            wait_seconds = float(raw) if raw.replace(".", "", 1).isdigit() else 30.0
+        deadline = time.monotonic() + wait_seconds
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise DeploymentLockBusy(
+                        "deployment_lock_busy: companion-deploy.lock is held by another process and "
+                        "SAMANTHA_DEPLOY_LOCK_FD does not name an inherited holder; if a parent deploy "
+                        "started this command, it must export SAMANTHA_DEPLOY_LOCK_FD") from None
+                time.sleep(0.2)
         yield fd
     finally:
         os.close(fd)
