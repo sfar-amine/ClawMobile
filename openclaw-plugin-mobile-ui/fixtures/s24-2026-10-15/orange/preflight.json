@@ -1,0 +1,259 @@
+{
+  "read_only": true,
+  "network_mutations": 0,
+  "provider_calls": 0,
+  "source_files": {
+    "telecom/maxit_guarded_service.py": {
+      "exists": true,
+      "sha256": "a42cda8f5d0bb9fb91d1296e819b82ad4dc6371fd61f8a7d710c2c53717a5ce0"
+    },
+    "telecom/maxit_network.py": {
+      "exists": true,
+      "sha256": "1490b46e8cb0e64ace51754cf87657fe7ab0d103821818f96083f8c6a4bc1e30"
+    },
+    "telecom/maxit_direct.py": {
+      "exists": true,
+      "sha256": "9ab7f62cc1694b8e2064ad8204dea016329778a73f5d7c28f98cea8be7f7988b"
+    },
+    "telecom/service.py": {
+      "exists": true,
+      "sha256": "ee51a7f21b777daaf9ed6a499520b980556c774f606c51d7fb39411e84360246"
+    },
+    "skill_intelligence/manifests/maxit-tunisie.json": {
+      "exists": true,
+      "sha256": "001ccd1ca82172fe0aca25a72581d5df14d784221b637cb3f7fc5df5460160b1"
+    },
+    "capabilities/registry.json": {
+      "exists": true,
+      "sha256": "bd90cfabe901ff306022284cd1dc7a4ffe6ead9840cf78cbfef303d34d8a56cf"
+    },
+    "telecom/cellular_channel.py": {
+      "exists": false,
+      "sha256": null
+    },
+    "telecom/maxit_guard.py": {
+      "exists": false,
+      "sha256": null
+    }
+  },
+  "playbooks_head": "cbeb6e7044530bf1571c07a08c4175df982da254",
+  "core_head": "344b2fd30d8e5293a0675fb6284f5d317f85a555",
+  "release_path": "/data/data/com.termux/files/home/.openclaw/releases/20261012T202027-d3beb769/termux-lite",
+  "guard": {
+    "exists": true,
+    "sha256": "3b65986c24bb62d3e2e9cee2f012c939d4ba47bfb193ffea8f9850c0ff6585a5",
+    "functions": [
+      "wifi_off_ttl",
+      "log_line",
+      "adb",
+      "settings_state",
+      "auto_wifi_state",
+      "disable_auto_wifi",
+      "restore_auto_wifi",
+      "wifi_enabled",
+      "parse_default_network",
+      "default_network",
+      "wifi_connected",
+      "wifi_toggle_decision",
+      "set_wifi",
+      "write_json",
+      "restore_state",
+      "restore_lease",
+      "proxy_active",
+      "_allow_mode",
+      "installed_termux_packages",
+      "termux_background_state",
+      "repair_termux_background",
+      "ensure_termux_background_network",
+      "lease_alive",
+      "lease_expired",
+      "create_lease",
+      "process_identity",
+      "forward_owner_state",
+      "mutation_lock",
+      "forward_lease_path",
+      "forward_server_identity",
+      "validate_forward_resource",
+      "forward_state",
+      "_forward_at",
+      "_forward_save",
+      "_forward_load",
+      "_forward_expired",
+      "_forward_result",
+      "_forward_observe",
+      "_forward_inspect",
+      "acquire_adb_forward",
+      "inspect_adb_forward",
+      "renew_adb_forward",
+      "_release_adb_forward",
+      "release_adb_forward",
+      "write_receipt",
+      "check_and_reconcile",
+      "with_global_proxy",
+      "_stop_child",
+      "run_while_wifi_stays_off",
+      "_safe_token",
+      "_blocked",
+      "wifi_lease_path",
+      "read_wifi_lease",
+      "_reconcile_stale_wifi_leases",
+      "spawn_restorer",
+      "run_restorer",
+      "restorer_main",
+      "_run_without_mutation",
+      "with_wifi_off",
+      "main"
+    ]
+  },
+  "legacy_guard": {
+    "exists": true,
+    "sha256": "3b65986c24bb62d3e2e9cee2f012c939d4ba47bfb193ffea8f9850c0ff6585a5",
+    "functions": [
+      "wifi_off_ttl",
+      "log_line",
+      "adb",
+      "settings_state",
+      "auto_wifi_state",
+      "disable_auto_wifi",
+      "restore_auto_wifi",
+      "wifi_enabled",
+      "parse_default_network",
+      "default_network",
+      "wifi_connected",
+      "wifi_toggle_decision",
+      "set_wifi",
+      "write_json",
+      "restore_state",
+      "restore_lease",
+      "proxy_active",
+      "_allow_mode",
+      "installed_termux_packages",
+      "termux_background_state",
+      "repair_termux_background",
+      "ensure_termux_background_network",
+      "lease_alive",
+      "lease_expired",
+      "create_lease",
+      "process_identity",
+      "forward_owner_state",
+      "mutation_lock",
+      "forward_lease_path",
+      "forward_server_identity",
+      "validate_forward_resource",
+      "forward_state",
+      "_forward_at",
+      "_forward_save",
+      "_forward_load",
+      "_forward_expired",
+      "_forward_result",
+      "_forward_observe",
+      "_forward_inspect",
+      "acquire_adb_forward",
+      "inspect_adb_forward",
+      "renew_adb_forward",
+      "_release_adb_forward",
+      "release_adb_forward",
+      "write_receipt",
+      "check_and_reconcile",
+      "with_global_proxy",
+      "_stop_child",
+      "run_while_wifi_stays_off",
+      "_safe_token",
+      "_blocked",
+      "wifi_lease_path",
+      "read_wifi_lease",
+      "_reconcile_stale_wifi_leases",
+      "spawn_restorer",
+      "run_restorer",
+      "restorer_main",
+      "_run_without_mutation",
+      "with_wifi_off",
+      "main"
+    ]
+  },
+  "capability_contracts": [
+    {
+      "id": "device.network_safety",
+      "status": "e2e_validated",
+      "entrypoints": [
+        "ClawMobile installer/termux-lite/android-network-mutation-guard.py"
+      ],
+      "notes": "Exact snapshot/restore for Claw-owned temporary network mutations. Existing proxy leases remain fail-safe; with-wifi-off additionally snapshots Wi-Fi enabled/disabled state, disables Wi-Fi only for the scoped child command, restores and re-verifies the exact initial state, and lets stale owned leases be reconciled by the existing Health Manager. The same canonical guard/Health Manager verifies and self-repairs effective Termux-family background network protections (DeviceIdle whitelist, background AppOps, Data Saver UID whitelist, standby/inactive state, and hibernation where supported); Tier0 performs a best-effort boot reconciliation. The 2026-10-06 adb_forward extension manages stable caller lease IDs, PID birth/boot identity, durable pre-mutation snapshots, one-shot creation/removal receipts, bounded renewal and exact owned-forward reconciliation. Uncertain or externally changed mappings are preserved. Guard commit ffddc91ea6e94a08ecf54bafefda259f3019c910 was published and promoted as release 20261006-adb-forward-ffddc91ea6e9 with stable Tier0 soak. Physical CDP/QA acceptance remains separate from proxy/background/Wi-Fi functions."
+    },
+    {
+      "id": "telecom.orange.consultation",
+      "status": "e2e_validated",
+      "entrypoints": [
+        "python -m telecom.maxit_guarded_service <intent> --mode auto",
+        "telecom/ROUTING.md"
+      ],
+      "execution_budget": {
+        "guarded_entry_total_s": 60,
+        "restoration_reserve_s": 16,
+        "dns_ready_s": 8,
+        "graph_wait_s": 65,
+        "fast_path_wait_s": 70,
+        "lease_max_age_s": 900,
+        "observed_total_ms": {
+          "p50": 5621.8,
+          "p95": 6177.1,
+          "max": 6308.8
+        },
+        "source": "tests/fixtures/s24-2026-10-11/o6/network-guard-timing.json"
+      },
+      "notes": "Owner-approved request-scoped deterministic routing. Every Orange/Maxit consultation enters through telecom.maxit_guarded_service, which reuses device.network_safety to snapshot Wi-Fi, temporarily disable it when initially enabled, wait up to 8 seconds for the Maxit BFF DNS to become ready on mobile data, then run the existing Orange/Maxit service and restore/verify the exact initial Wi-Fi state. Maxit Direct remains primary for phone number, offer, recharge, data, voice and usage. For balance/solde/balances, the user contract is the complete Ma ligne -> Mon suivi conso -> Voir tout projection: orange.usage.maxit.v1 is priority 1 and orange.usage.ui.v1 is the auto/UI fallback; generic balance no longer falls back to USSD. Three independent shadows validate this mapping, including two live 2026-10-07 comparisons with 8/8 equivalent cards. Explicit distinct counters not exposed by that page retain their targeted routes. tracking_codes remains validated USSD. Missing fields are never inferred as zero. Transactional Maxit actions are outside this read-only capability and must delegate to payment.owner_native when a validated owner route exists. The transaction route reuses the required network guard/readiness contract and its native biometric/issuer boundaries; the consultation capability must not turn such a delegation into a generic payment refusal. This rule is Orange/Maxit-specific and is not applied to Zain or TT. A8 : execution.planned_route et actual_route rendent toute projection summary vers usage explicite ; route_deviation donne la raison m\u00e9tier summary_uses_maxit_full_line_usage sans annoncer un fallback de transport. O6 (decision of 2026-10-11 on S24 measurements, tests/fixtures/s24-2026-10-11/o6/network-guard-timing.json): a failed Maxit mobile DNS readiness, a failed guard or a failed exact network restoration terminates the read-autonomy corridor without a second UI/network attempt; ordinary read transport failures keep the existing fallback. Timeouts (execution_budget): the guarded entry is bounded at 60 s in total by the network guard (lock, Wi-Fi preparation, DNS 8 s, service, child stop, restoration; child gets the remainder minus a 16 s restoration reserve), well under the 900 s lease; the CapabilityGraph waits at least 65 s for a guarded entry whatever the caller default (30 s, ceiling 120 s); the core fast path waits 70 s. Observed guarded entry: p50 5.6 s, p95 6.2 s, max 6.3 s."
+    },
+    {
+      "id": "payment.owner_native",
+      "status": "experimental",
+      "entrypoints": [
+        "python3 -m payments.cli capabilities",
+        "python3 -m payments.cli owner-handoff --input-stdin",
+        "python3 -m payments.cli handoff-provider --adapter PROVIDER --origin-channel CHANNEL --origin-id ORIGIN_ID",
+        "python3 -m payments.cli maxit-topup --amount-tnd AMOUNT --origin-channel CHANNEL --origin-id ORIGIN_ID",
+        "python3 -m payments.cli run-local-intent --input-stdin",
+        "python3 -m payments.cli local-intent --input-stdin",
+        "python3 -m payments.cli show-local-intent CONFIRMATION_ID",
+        "python3 -m payments.cli prepare --input-stdin",
+        "python3 -m payments.cli show REQUEST_ID",
+        "python3 -m payments.cli status REQUEST_ID",
+        "python3 -m payments.cli trace-report REQUEST_ID",
+        "python3 -m payments.cli bank-authorize REQUEST_ID"
+      ],
+      "notes": "Experimental native-owner payment capability with one canonical Payment Core/PaymentRecord and two inert entrypoints. App path: Samantha > Payments lazily reads only local-owner-validated provider payables; tapping Pay creates a local-handoff from the displayed quote and opens native owner confirmation. Chat/Work/Claw path: owner-handoff is the structured cross-surface ingress for an explicit owner action; it accepts only allowlisted action + bounded parameters + origin, prepares the provider quote, creates the same inert local-handoff, and requests the native owner confirmation. handoff-provider remains the payable-discovery path for providers such as Topnet. Neither structured owner-handoff nor provider handoff creates a live PaymentRecord, provider command, FORM1 or gateway submission before biometric. Only successful local biometric confirmation causes local-start to re-read the provider quote, verify the signed payload hash, persist one PaymentRecord and allow one financial dispatch. Bank/OTP/3DS remains human-only. Merchant return correlation alone is never success; the callback is consumed in an authenticated provider session and fresh provider readback is required. No automatic replay. After local biometric approval, Android now presents fixed deterministic loading states for payment preparation, issuer-verification opening and post-bank finalization; the human bank form remains the only interactive bank boundary and no model re-enters the flow. The same three transitions are exposed in the canonical timeline as non-sensitive lifecycle markers with Android clientAt, Companion at, and trace-report deliveryLagMs for fast RCA. Owner confirmation keeps the expiresAt countdown visible before biometric, positioned high enough to remain readable with the Samsung BiometricPrompt. After biometric success the Samantha countdown surface is removed; no Samantha preparation/progress holding screen remains before the human ClicToPay/ACS surface. Terminal/no-effect feedback remains fail-closed. Android action endpoints use compact projections without the forensic timeline, preventing response-size growth from suppressing the result UI. Topnet and Maxit use provider-specific local-owner transaction contracts. Maxit own-number top-up has a deterministic adapter that resolves the current line, binds the quote to that line and amount, replays the exact Maxit-generated TOP_UP_ONLINE_MULTIPLE request only after native biometric, and then reuses the common ClicToPay/issuer rail. Maxit live execution is fail-closed whenever its explicit acceptance gate is absent; when the gate is armed for an owner-authorized acceptance, the route is executable only after native biometric confirmation. A missing gate or unsupported provider must be reported specifically, not generalized into a ban on payments. STEG/SONEDE stay blocked. Android owner confirmation now renders an expiresAt-bound MM:SS countdown for payment.local_start; the last 15 seconds are highlighted. Pre-financial expiry is shown as no payment launched only after Companion confirms financialSubmissionAttempted=false; otherwise effect uncertainty remains fail-closed. Capability-First now uses one metadata-driven payments.request_handoff ingress for validated payment intents. Maxit uses owner_action with a bounded amount extractor; Topnet uses provider_payable. Future validated STEG/SONEDE/app/web providers join through their provider adapter plus manifest handoff metadata, without a Samantha routing patch. Every pre-model handoff remains inert and cannot cross the biometric/issuer boundary or weaken Payment Core effect/idempotence/readback guards. Unready high-consequence payment intents are still owned by payment.owner_native: STEG/SONEDE payment wording is tool-required and returns a no-effect adapter-not-validated result until provider-specific contracts are promoted; it never falls back to read-only invoice consultation or model refusal. Payment intent routing now consumes target-scoped strong action markers and bounded clarification from Skill Intelligence, preventing phrases such as \u201ctop up Maxit mon num\u00e9ro 5 TND\u201d from being misclassified as read-only offer/number consultation. Payment owner selection now receives a frozen DecisionEnvelope; provider/handoff execution cannot silently reclassify the user text between Capability-First admission and the owner biometric boundary."
+    }
+  ],
+  "connectivity": {
+    "exit_code": 0,
+    "inspection_ms": 107,
+    "raw_bytes": 203296,
+    "raw_saved": false,
+    "default_net_id": 278,
+    "networks": [
+      {
+        "net_id": 278,
+        "handle": 1197406605325,
+        "wifi_connected": false,
+        "mobile_connected": true,
+        "orange_apn": true,
+        "validated": true,
+        "not_vpn": true,
+        "cellular_transport": true,
+        "vpn_transport": false
+      }
+    ]
+  },
+  "wifi_enabled": {
+    "read_ok": true,
+    "value": 0
+  },
+  "default_data_subscription": {
+    "read_ok": true,
+    "value": 1
+  },
+  "global_proxy": {
+    "read_ok": true,
+    "present": false,
+    "value_saved": false
+  }
+}
