@@ -34,6 +34,8 @@ type StoredRun = {
   clarificationState?: "pending" | "resolved" | "abandoned";
   clarificationExpiresAt?: number;
   parentClarificationRunId?: string;
+  /** SAM-MIG V2.2: goal of the dialogue coordinator this run projects (display only, never a decision source). */
+  dialogueGoalRef?: string;
   sessionId: string;
   sessionKey?: string;
   text: string;
@@ -188,6 +190,7 @@ export async function reserveSubmittedRun(
     executionSource?: "gateway" | "capability_first";
     decision?: Record<string, unknown>;
     parentClarificationRunId?: string;
+    dialogueGoalRef?: string;
     admission?: RunReservationAdmission;
     memoAttachmentId?: string;
     replayOf?: {sessionId: string; runId: string};
@@ -233,8 +236,9 @@ export async function reserveSubmittedRun(
       presentation: options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined,
       decision: options.decision && typeof options.decision === "object" ? options.decision : undefined,
       clarificationState: String(options.decision?.type || "") === "CLARIFY" ? "pending" : undefined,
-      clarificationExpiresAt: String(options.decision?.type || "") === "CLARIFY" ? now + 10 * 60 * 1000 : undefined,
+      clarificationExpiresAt: String(options.decision?.type || "") === "CLARIFY" ? now + CLARIFICATION_PROJECTION_MS : undefined,
       parentClarificationRunId: options.parentClarificationRunId,
+      dialogueGoalRef: dialogueGoalRefOf(options.dialogueGoalRef),
       sessionId: normalizedSessionId,
       sessionKey: expectedCompanionSessionKey(normalizedSessionId),
       text,
@@ -351,17 +355,18 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
 }
 
 export async function claimMemoDispatch(runId: string, text: string, executionSource: "gateway" | "capability_first",
-  decision?: Record<string, unknown>, parentClarificationRunId?: string, authorized?: () => boolean, ownerAdmitted = false): Promise<boolean> {
+  decision?: Record<string, unknown>, parentClarificationRunId?: string, authorized?: () => boolean, ownerAdmitted = false,
+  dialogueGoalRef?: string): Promise<boolean> {
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
     const row = registry.runs.find(run => run.runId === runId);
     if (authorized?.() !== true || !row || row.state !== "running" || row.memo?.phase !== "ready" || row.text !== text ||
         registry.runDeletions.some(r => r.runId === runId)) return false;
     const now = Date.now();
-    const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId, ownerAdmitted: ownerAdmitted === true ? true as const : undefined,
+    const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId, dialogueGoalRef: dialogueGoalRefOf(dialogueGoalRef), ownerAdmitted: ownerAdmitted === true ? true as const : undefined,
       memo: {...row.memo, phase: "dispatched", ownerEpoch: MEMO_OWNER_EPOCH}, updatedAt: now,
       clarificationState: decision?.type === "CLARIFY" ? "pending" : undefined,
-      clarificationExpiresAt: decision?.type === "CLARIFY" ? now + 10 * 60 * 1000 : undefined};
+      clarificationExpiresAt: decision?.type === "CLARIFY" ? now + CLARIFICATION_PROJECTION_MS : undefined};
     await writeCompanionRunRegistry(registry.runs.map(r => r.runId === runId ? claimed : r), registry.archivedSessionIds);
     submittedRuns.set(runId, claimed);
     // Release only this authorized dispatch's audio, under the same registry lock.
@@ -375,7 +380,7 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
 export async function rememberSubmittedRun(
   text: string,
   result: OpenClawAgentSubmitResult,
-  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; ownerAdmitted?: boolean } = {},
+  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; dialogueGoalRef?: string; ownerAdmitted?: boolean } = {},
 ) {
   const existing = submittedRuns.get(result.runId)
     || (await findStoredRun(result.runId).catch(() => null));
@@ -391,8 +396,9 @@ export async function rememberSubmittedRun(
     attachments: options.attachments && options.attachments.length > 0 ? options.attachments : existing?.attachments,
     decision: options.decision || existing?.decision,
     clarificationState: String(options.decision?.type || existing?.decision?.type || "") === "CLARIFY" ? (existing?.clarificationState || "pending") : existing?.clarificationState,
-    clarificationExpiresAt: String(options.decision?.type || existing?.decision?.type || "") === "CLARIFY" ? (existing?.clarificationExpiresAt || Date.now() + 10 * 60 * 1000) : existing?.clarificationExpiresAt,
+    clarificationExpiresAt: String(options.decision?.type || existing?.decision?.type || "") === "CLARIFY" ? (existing?.clarificationExpiresAt || Date.now() + CLARIFICATION_PROJECTION_MS) : existing?.clarificationExpiresAt,
     parentClarificationRunId: options.parentClarificationRunId || existing?.parentClarificationRunId,
+    dialogueGoalRef: dialogueGoalRefOf(options.dialogueGoalRef) || existing?.dialogueGoalRef,
     acceptedAt: existing?.acceptedAt || result.acceptedAt || Date.now(),
     updatedAt: Date.now(),
     state: "running" as const,
@@ -715,31 +721,26 @@ export async function listRuns(options: { limit?: number } = {}): Promise<Compan
   );
 }
 
-export async function findPendingClarificationRun(sessionId: string): Promise<{
-  runId: string; text: string; userText: string; decision: Record<string, unknown>; expiresAt: number; ownerAdmitted: boolean;
-} | null> {
-  const normalizedSessionId = normalizeCompanionSessionId(sessionId || "default");
-  const runs = await readStoredRuns();
-  const latest = runs.find((run) => run.sessionId === normalizedSessionId && run.modality !== "voice");
-  if (!latest || latest.clarificationState !== "pending" || !latest.decision || String(latest.decision.type || "") !== "CLARIFY") {
-    return null;
-  }
-  const expiresAt = Number(latest.clarificationExpiresAt || 0);
-  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-    await markClarificationRun(latest.runId, "abandoned");
-    return null;
-  }
-  return {
-    runId: latest.runId,
-    text: latest.text,
-    userText: latest.userText || latest.text,
-    decision: latest.decision,
-    expiresAt,
-    ownerAdmitted: latest.ownerAdmitted === true,
-  };
+/**
+ * SAM-MIG V2.2: the run registry is no longer an authority of clarification. A run only PROJECTS the question
+ * owned by the dialogue coordinator (display, comprehension metrics). These helpers link and update that
+ * projection; nothing reads it to decide (INV-01).
+ */
+export const CLARIFICATION_PROJECTION_MS = 30 * 60 * 1000; // D-D: question 30 min
+const DIALOGUE_GOAL_RE = /^goal-[a-f0-9]{20}$/;
+export function dialogueGoalRefOf(value: unknown): string | undefined {
+  return typeof value === "string" && DIALOGUE_GOAL_RE.test(value) ? value : undefined;
 }
 
-export async function markClarificationRun(
+export async function findClarificationProjectionRun(sessionId: string, goalRef: unknown): Promise<string | undefined> {
+  const goal = dialogueGoalRefOf(goalRef);
+  if (!goal) return undefined;
+  const normalizedSessionId = normalizeCompanionSessionId(sessionId || "default");
+  const runs = await readStoredRuns();
+  return runs.find((run) => run.sessionId === normalizedSessionId && run.dialogueGoalRef === goal && run.clarificationState === "pending")?.runId;
+}
+
+export async function projectClarificationRun(
   runId: string, state: "resolved" | "abandoned",
 ): Promise<void> {
   const existing = submittedRuns.get(runId) || (await findStoredRun(runId).catch(() => null));
@@ -2086,11 +2087,14 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       decision: run.decision && typeof run.decision === "object" && Number(run.decision.version) === 2
         ? run.decision
         : undefined,
+      // D-C at cutover: a legacy pending question (no coordinator goal) or an expired one is shown abandoned.
       clarificationState: ["pending", "resolved", "abandoned"].includes(String(run.clarificationState || ""))
-        ? run.clarificationState
+        ? (run.clarificationState === "pending" && (!dialogueGoalRefOf(run.dialogueGoalRef) ||
+            (typeof run.clarificationExpiresAt === "number" && run.clarificationExpiresAt <= Date.now())) ? "abandoned" : run.clarificationState)
         : undefined,
       clarificationExpiresAt: typeof run.clarificationExpiresAt === "number" ? run.clarificationExpiresAt : undefined,
       parentClarificationRunId: typeof run.parentClarificationRunId === "string" ? run.parentClarificationRunId : undefined,
+      dialogueGoalRef: dialogueGoalRefOf(run.dialogueGoalRef),
       sessionId: normalizeCompanionSessionId(String(run.sessionId || "default")),
       sessionKey: typeof run.sessionKey === "string" ? run.sessionKey : undefined,
       text: typeof run.text === "string" ? run.text : "",

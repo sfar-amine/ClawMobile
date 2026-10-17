@@ -15,11 +15,11 @@ agent.submitToOpenClawAgent=async()=>{gateway++;throw Error('financial capabilit
 require('../dist/companion/openclawGatewayClient').getGatewayStatus=async()=>{gateway++;throw Error('no Gateway for capability');};
 const original='  recharge Orange 7 DT\n';
 const fast=require('../dist/modelFastPath');
-fast.runModelFastPath=async(text,opts)=>{
+fast.runModelFastPath=require('./lib/legacy-fast-path-as-dialogue.cjs')(async(text,opts)=>{
  assert.equal(text,original,'verbatim transcript reaches the canonical resolver/executor');
  if(opts.checkOnly){checks++;return {status:'eligible',decision:{version:2,type:'EXECUTE',risk:'transaction',confirmationRequired:true,capability:'telecom.orange.topup_own_number'}};}
  effects++;assert.equal(opts.preparedDecision.risk,'transaction');return {status:'hit',text:'Synthetic guarded handoff'};
-};
+});
 const api=require('../dist/companion/intent'),runs=require('../dist/companion/runs');
 const {route}=require('../dist/companion/server');
 const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}');}));
@@ -63,7 +63,7 @@ const until=async(test)=>{for(let i=0;i<100;i++){if(await test())return;await ne
  assert.equal((await api.submitIntent('text', 'bad',[audio],{authority:'owner'})).accepted,false);
  // The ordinary model handoff also keeps the audio identity after source changes.
  const modelText='Décris le paysage';
- fast.runModelFastPath=async(text,opts)=>{assert.equal(text,modelText);assert.equal(opts.checkOnly,true);checks++;return {status:'miss'};};
+ fast.runModelFastPath=require('./lib/legacy-fast-path-as-dialogue.cjs')(async(text,opts)=>{assert.equal(text,modelText);assert.equal(opts.checkOnly,true);checks++;return {status:'miss'};});
  require('../dist/companion/openclawGatewayClient').getGatewayStatus=async()=>{gateway++;return {reachable:true};};
  agent.submitToOpenClawAgent=async(text,runId,sessionId,opts)=>{gateway++;assert.equal(opts.authority,'owner');assert.ok(text.includes(modelText));assert.ok(!text.includes('synthetic_audio'));return {success:true,accepted:true,runId,sessionId,acceptedAt:Date.now()};};
  const model=await submit('model-handoff','model-session');assert.equal(stt,5);

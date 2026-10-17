@@ -48,6 +48,8 @@ jobs:
         run: python3 ../installer/termux-lite/test-pulse-room.py
       - name: Fast path shows any deterministic result as readable text (Amine 12/10)
         run: python3 ../installer/termux-lite/test-model-fast-path-generic-display.py
+      - name: SAM-MIG V2.2 dialogue coordinator in model-fast-path, maintenance lock writer, S24 runs inventory
+        run: python3 ../installer/termux-lite/test-model-fast-path-dialogue.py
       - name: Health manager never repairs the Companion during a deploy
         run: |
           python3 ../installer/termux-lite/test-runtime-mode.py
@@ -370,8 +372,10 @@ jobs:
         run: |
           node scripts/test-agent-capability-guard.cjs
           python3 ../installer/termux-lite/test-claw-capability-agent-policy.py
-      - name: E3 CLARIFY and resolve-clarification on WhatsApp, voice relay and Gemini Live (T5)
+      - name: E3 surfaces on the dialogue coordinator (WhatsApp, voice relay, Gemini Live) and INV-01 static removal (SAM-MIG V2.2)
         run: node scripts/test-e3-surfaces.cjs
+      - name: MCP stateless on the dialogue coordinator (claw_resolve preview, maintenance refusal of claw_execute)
+        run: node scripts/test-mcp-dialogue-gate.cjs
       - name: PR template section regression tests
         run: python3 -m unittest discover -s ../tests -p test_pr_template.py
       - name: PR description follows repository template

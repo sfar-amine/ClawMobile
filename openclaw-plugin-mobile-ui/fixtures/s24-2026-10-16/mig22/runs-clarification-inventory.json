@@ -1,0 +1,352 @@
+{
+ "source": {
+  "device": "S24",
+  "path": "~/.openclaw/clawmobile-companion/runs.json",
+  "captured": "2026-10-16",
+  "action_key": "sammig-v22-L3-coord-20261016",
+  "step_key": "runs-clarif",
+  "mode": "read-only"
+ },
+ "sanitization": "run and session ids replaced by sha256[:12]; texts, user texts, decisions and results omitted; only clarification projection fields kept",
+ "top_keys": [
+  "archivedSessionIds",
+  "ownerConfirmations",
+  "paymentRequests",
+  "runDeletions",
+  "runs",
+  "version"
+ ],
+ "count": 33,
+ "runs": [
+  {
+   "runId": "run-7a84b2bd5799",
+   "sessionId": "s-9896715f93e5",
+   "executionSource": null,
+   "decisionType": null,
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": null,
+   "updatedAt": 1792102279623
+  },
+  {
+   "runId": "run-893ee4c48217",
+   "sessionId": "s-9896715f93e5",
+   "executionSource": null,
+   "decisionType": null,
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": null,
+   "updatedAt": 1792099739516
+  },
+  {
+   "runId": "run-5bd76dd685db",
+   "sessionId": "s-9896715f93e5",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1792099667376
+  },
+  {
+   "runId": "run-262c8f14effb",
+   "sessionId": "s-9896715f93e5",
+   "executionSource": null,
+   "decisionType": null,
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": null,
+   "updatedAt": 1792099650053
+  },
+  {
+   "runId": "run-7e888af2158a",
+   "sessionId": "s-9896715f93e5",
+   "executionSource": null,
+   "decisionType": null,
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": null,
+   "updatedAt": 1792099591033
+  },
+  {
+   "runId": "run-44ecfba952b8",
+   "sessionId": "s-9896715f93e5",
+   "executionSource": null,
+   "decisionType": null,
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": null,
+   "updatedAt": 1792099494868
+  },
+  {
+   "runId": "run-45781a8ab7f7",
+   "sessionId": "s-9896715f93e5",
+   "executionSource": null,
+   "decisionType": null,
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": null,
+   "updatedAt": 1792099464511
+  },
+  {
+   "runId": "run-7d45be4b2727",
+   "sessionId": "s-9896715f93e5",
+   "executionSource": null,
+   "decisionType": null,
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": null,
+   "updatedAt": 1792099421373
+  },
+  {
+   "runId": "run-efe441217f47",
+   "sessionId": "s-9896715f93e5",
+   "executionSource": null,
+   "decisionType": null,
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": null,
+   "updatedAt": 1792099395883
+  },
+  {
+   "runId": "run-014068ff9f2f",
+   "sessionId": "s-34b5ce9a97d4",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791989004630
+  },
+  {
+   "runId": "run-43ca6b40d1f0",
+   "sessionId": "s-34b5ce9a97d4",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791988944981
+  },
+  {
+   "runId": "run-c9e759d5fd5d",
+   "sessionId": "s-34b5ce9a97d4",
+   "executionSource": "gateway",
+   "decisionType": "REASON",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791988894680
+  },
+  {
+   "runId": "run-434187f3cde2",
+   "sessionId": "s-16efb7296533",
+   "executionSource": "gateway",
+   "decisionType": "REASON",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791909052523
+  },
+  {
+   "runId": "run-ca5923a74bce",
+   "sessionId": "s-9251f3839f35",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791908856790
+  },
+  {
+   "runId": "run-9289ae2a14da",
+   "sessionId": "s-9896715f93e5",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791908784352
+  },
+  {
+   "runId": "run-d6df4937c8e9",
+   "sessionId": "s-85d922a520bf",
+   "executionSource": "gateway",
+   "decisionType": null,
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791891451759
+  },
+  {
+   "runId": "run-1d893c468d1a",
+   "sessionId": "s-85d922a520bf",
+   "executionSource": "capability_first",
+   "decisionType": "CLARIFY",
+   "clarificationState": "resolved",
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791891404575
+  },
+  {
+   "runId": "run-c05455565dc5",
+   "sessionId": "s-85d922a520bf",
+   "executionSource": "gateway",
+   "decisionType": "REASON",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791891367266
+  },
+  {
+   "runId": "run-8a3ebb246147",
+   "sessionId": "s-396989c05493",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791890960707
+  },
+  {
+   "runId": "run-3d666351b79c",
+   "sessionId": "s-4df6803997b9",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791886969754
+  },
+  {
+   "runId": "run-c74195eb9a99",
+   "sessionId": "s-4df6803997b9",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791886100212
+  },
+  {
+   "runId": "run-db03c609a7c4",
+   "sessionId": "s-4df6803997b9",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791843198558
+  },
+  {
+   "runId": "run-aaa6f9bb13b8",
+   "sessionId": "s-4df6803997b9",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791828894592
+  },
+  {
+   "runId": "run-98d0bbe965ed",
+   "sessionId": "s-4df6803997b9",
+   "executionSource": "capability_first",
+   "decisionType": null,
+   "clarificationState": null,
+   "parentClarificationRunId": "run-1858e85a576c",
+   "ownerAdmitted": true,
+   "updatedAt": 1791814943915
+  },
+  {
+   "runId": "run-1858e85a576c",
+   "sessionId": "s-4df6803997b9",
+   "executionSource": "capability_first",
+   "decisionType": "CLARIFY",
+   "clarificationState": "resolved",
+   "parentClarificationRunId": "run-121ca7592bc2",
+   "ownerAdmitted": true,
+   "updatedAt": 1791814943861
+  },
+  {
+   "runId": "run-121ca7592bc2",
+   "sessionId": "s-4df6803997b9",
+   "executionSource": "capability_first",
+   "decisionType": "CLARIFY",
+   "clarificationState": "resolved",
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791814935083
+  },
+  {
+   "runId": "run-15be2dbc0fe6",
+   "sessionId": "s-996adfca5364",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791759452631
+  },
+  {
+   "runId": "run-6c91fa645120",
+   "sessionId": "s-7725ef4a73fc",
+   "executionSource": "capability_first",
+   "decisionType": "EXECUTE",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791753989399
+  },
+  {
+   "runId": "run-0d3f4968c3c2",
+   "sessionId": "s-14c3bbf8571b",
+   "executionSource": "gateway",
+   "decisionType": "REASON",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791753487786
+  },
+  {
+   "runId": "run-dcfe6837111e",
+   "sessionId": "s-14c3bbf8571b",
+   "executionSource": "gateway",
+   "decisionType": "REASON",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791753249714
+  },
+  {
+   "runId": "run-fac036b8b45c",
+   "sessionId": "s-14c3bbf8571b",
+   "executionSource": "gateway",
+   "decisionType": "REASON",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791753209744
+  },
+  {
+   "runId": "run-4f4f1fdf2964",
+   "sessionId": "s-14c3bbf8571b",
+   "executionSource": "gateway",
+   "decisionType": "REASON",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791753101412
+  },
+  {
+   "runId": "run-9e4ce7acf17f",
+   "sessionId": "s-437e9468d984",
+   "executionSource": "gateway",
+   "decisionType": "REASON",
+   "clarificationState": null,
+   "parentClarificationRunId": null,
+   "ownerAdmitted": true,
+   "updatedAt": 1791753058890
+  }
+ ]
+}

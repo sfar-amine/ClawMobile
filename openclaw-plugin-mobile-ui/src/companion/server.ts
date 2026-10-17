@@ -46,7 +46,7 @@ import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { SurfaceClarifications } from "../capabilityClarification";
+import { dialogueConversationId } from "../dialogueSurface";
 import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
 import { clawLiveCapability, clawLiveDecision } from "./clawLiveUnderstanding";
@@ -914,7 +914,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       if (!turnAdmission.isCurrent(admission.ticket, binding)) throw new HttpError(403,"owner_admission_required");
     };
     assertCurrent();
-    const clarificationId = SurfaceClarifications.idFor("claw-live:" + sessionId);
+    const clarificationId = dialogueConversationId("claw_live", "claw-live:" + sessionId);
     if (body.clarificationId !== undefined && body.clarificationId !== clarificationId) {
       writeJson(res,400,{success:false,error:"clarification_session_mismatch"}); return;
     }

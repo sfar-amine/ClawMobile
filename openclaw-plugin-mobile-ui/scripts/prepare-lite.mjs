@@ -13,6 +13,9 @@ const removeTargets = [
   path.join(distDir, "internal", "droidrun"),
   path.join(distDir, "pyexec"),
   path.join(distDir, legacyRuntimeMarker),
+  // SAM-MIG V2.2 (L5): the former clarification authority is removed; a stale build copy must never be loaded.
+  path.join(distDir, "capabilityClarification.js"),
+  path.join(distDir, "capabilityClarification.d.ts"),
 ];
 
 for (const target of removeTargets) {
