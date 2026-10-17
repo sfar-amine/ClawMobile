@@ -68,7 +68,9 @@ class ProjectRoomTests(unittest.TestCase):
     def test_provision_adds_a_read_only_workspace_confined_agent_once(self):
         self.assertEqual(self.run_room('provision')['agent'], 'provisioned')
         entry = json.loads(self.state.read_text())['agents']['entries']['contacts-projet']
-        self.assertEqual(entry['workspace'], str(self.target)); self.assertEqual(entry['tools']['allow'], ['web_search', 'read'])
+        self.assertEqual(entry['workspace'], str(self.target)); self.assertEqual(entry['tools']['allow'], ['web_search', 'read', 'transmettre_a_amine', 'noter_contact'])
+        base = json.loads(self.state.read_text())['agents']['entries']['contacts']
+        self.assertEqual(base['tools']['allow'], ['web_search', 'transmettre_a_amine', 'noter_contact'])
         self.assertTrue(entry['tools']['fs']['workspaceOnly']); self.assertNotIn('read', entry['tools']['deny']); self.assertIn('exec', entry['tools']['deny'])
         log = [json.loads(l) for l in Path(str(self.state) + '.log').read_text().splitlines()]
         self.assertEqual([args for args, _ in log], [['--stdin', '--dry-run'], ['--stdin']])

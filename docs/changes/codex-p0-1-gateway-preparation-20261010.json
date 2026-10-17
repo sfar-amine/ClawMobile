@@ -1,0 +1,87 @@
+{
+  "version": 2,
+  "id": "codex-p0-1-gateway-preparation-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Use the official persistent Gateway owner for Control RPCs while preserving canonical CLI scopes for host turns",
+  "reason": "Real S24 PR #82 fixtures retained, runtime363a6b8e merged. Agent/chat.send stay exclusively on the canonical CLI before any admin WS initialization; no owner propagation is enabled. Current Node20 build and three Gateway suites passed, with a synthetic canonical C1 bootstrap for the submit wrapper.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/persistentGatewayTransport.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-persistent-gateway-transport.cjs",
+    "docs/work/samantha-runtime/contracts/p0-1.md",
+    "docs/changes/codex-p0-1-gateway-preparation-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/officialGatewayOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-official-gateway-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-gateway-entrypoint.cjs"
+  ],
+  "tests": [
+    {
+      "name": "persistent-gateway-owner-preparation",
+      "status": "passed",
+      "evidence": "Node20 npm ci/build and all three Gateway suites passed after the CLI scope correction. SDK/CLI spy checks ordinary/reset/chat before and after Control pool, no WS initialization/dispatch for host turns, unchanged params/idempotency/expectFinal/budgets and no CLI credentials added. Canonical C1 bootstrap is synthetic; real S24 payload/refusal captures unchanged."
+    },
+    {
+      "name": "complete-current-ci-workflow",
+      "status": "pending",
+      "evidence": "Full ci.yml replay follows this note commit. Exact final SHA and N/N will be reported in PR #68; old67/67 on f2f0b429 is historical only."
+    },
+    {
+      "name": "r20-merged-read-limits",
+      "status": "pending",
+      "evidence": "Historique seulement pour les têtes précédentes. Prévention P1 préparée : agent/chat.send CLI canonique avant WS ; nouveau SHA à valider par ciblés puis CI entière, aucun résultat courant revendiqué."
+    },
+    {
+      "name": "cli-structured-refusal-parity",
+      "status": "passed",
+      "evidence": "Node20 npm ci/build and all three Gateway suites passed after the CLI scope correction. SDK/CLI spy checks ordinary/reset/chat before and after Control pool, no WS initialization/dispatch for host turns, unchanged params/idempotency/expectFinal/budgets and no CLI credentials added. Canonical C1 bootstrap is synthetic; real S24 payload/refusal captures unchanged."
+    },
+    {
+      "name": "deployed-acceptance-source-union",
+      "status": "pending",
+      "evidence": "Historique seulement pour les têtes précédentes. Prévention P1 préparée : agent/chat.send CLI canonique avant WS ; nouveau SHA à valider par ciblés puis CI entière, aucun résultat courant revendiqué."
+    },
+    {
+      "name": "host-turn-cli-scope-preservation",
+      "status": "passed",
+      "evidence": "Node20 npm ci/build and all three Gateway suites passed after the CLI scope correction. SDK/CLI spy checks ordinary/reset/chat before and after Control pool, no WS initialization/dispatch for host turns, unchanged params/idempotency/expectFinal/budgets and no CLI credentials added. Canonical C1 bootstrap is synthetic; real S24 payload/refusal captures unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/p0-1.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Infrastructure de transport sans nouvelle route ni action agent/voix ; capabilities existantes inchangées."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Canonical GatewayClient owner reused; no new store, scheduler, protocol owner or retry engine."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP owner entrypoints and six primitives unchanged; infrastructure Gateway client in Companion only."
+  },
+  "rollback": "Revert this PR restores CLI owner; activation/rollback by Claude only through companion-deploy.sh and its acceptance/receipt.",
+  "limitations": [
+    "Raccordement Git now present; not deployed to S24.",
+    "Real CLI capture 2.4-7.7s and SDK health import/connect/call910ms, handshake16ms and RPC9ms: different methods, no same-method production speedup claimed.",
+    "Supported local shared-auth SDK2026.9.6; remote/TLS/explicit URL and other SDK versions fail closed pending canonical bootstrap extension.",
+    "Captured handshake requested operator.read; persistent union admin/read/write/approvals requires Claude review before activation.",
+    "CAS error forms come from exact public OpenClaw handler source, actual stale-hash capture remains Claude recipe.",
+    "Identité owner des tours app : contrat séparé ; aucun texte ni nom de session ne crée une autorité dans le transport P0-1.",
+    "Host turns agent/chat.send stay CLI; WS host identity remains deferred pending Claude validation of playbooks #87 and S24 qualification. This PR prepares Control transport only; no native owner correction is enabled."
+  ]
+}

@@ -11,6 +11,8 @@ BASE = "http://127.0.0.1:8765/v1"
 READS = [
     ("/catalog", 0.3), # HS2: warm reads from memory; one HS1 generation is ≈ 360 ms on the S24, so the cold first read uses the retry.
     ("/health", 2.0),
+    # R22 real non-sensitive Context Sync job (fixture PR82); absent jobs are skipped.
+    ("/automations/d1d0e51c-6815-4e7a-8eda-c7302bab8118/runs?limit=20", 6.0),
     ("/control/health?contract=2", 2.0),
     # R20 file reads (owner Gateway, deferred while warming; settle() judges them).
     ("/files?scope=agent", 1.5),

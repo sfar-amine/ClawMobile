@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -49,6 +50,29 @@ class RuntimeModeTests(unittest.TestCase):
                         self.assertEqual(runtime_mode.current_mode(home), "deployment")
             finally:
                 os.close(fd)
+
+    def test_deployment_guard_refuses_a_foreign_holder_after_a_bounded_wait(self):
+        # Bascule 17/10: older parent deploy held the lock without SAMANTHA_DEPLOY_LOCK_FD -> promote waited forever.
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td)
+            lock = home / "deploys/companion-deploy.lock"
+            lock.parent.mkdir(parents=True)
+            holder = subprocess.Popen([sys.executable, "-c",
+                "import fcntl,sys,time;f=open(sys.argv[1],'a');fcntl.flock(f,fcntl.LOCK_EX);print('held',flush=True);time.sleep(30)",
+                str(lock)], stdout=subprocess.PIPE, text=True)
+            try:
+                self.assertEqual(holder.stdout.readline().strip(), "held")
+                with patch.dict(os.environ, {"SAMANTHA_DEPLOY_LOCK_FD": ""}):
+                    began = time.monotonic()
+                    with self.assertRaises(runtime_mode.DeploymentLockBusy) as caught:
+                        with runtime_mode.deployment_guard(home, wait_seconds=0.5):
+                            self.fail("guard must not be entered")
+                    self.assertLess(time.monotonic() - began, 3)
+                    self.assertIn("SAMANTHA_DEPLOY_LOCK_FD", str(caught.exception))
+            finally:
+                holder.kill(); holder.wait()
+            with runtime_mode.deployment_guard(home, wait_seconds=0.5) as fd:
+                self.assertIsInstance(fd, int)
 
     def test_all_i4_owners_read_the_canonical_module(self):
         readers = {

@@ -14,6 +14,24 @@ class NightlyTests(unittest.TestCase):
    closed=m.closed_acceptance(sample['acceptance']);self.assertTrue(closed['accepted']);self.assertEqual(len(closed['checks']),44)
    self.assertFalse(any('body' in row for row in closed['checks']))
   self.assertNotIn('@',json.dumps(CAPTURE));self.assertIn('read-only',CAPTURE['capture']['source'])
+ def test_real_s24_auxiliary_prewarm_and_voice_rows_are_closed_not_unavailable(self):
+  # Real S24 receipt 17/10 (release 636becf5): prewarm and voice_runs_terminal_state rows have no budget.
+  aux=json.loads((ROOT.parents[1]/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-17/h8/acceptance-with-auxiliary-checks.json').read_text())['acceptance']
+  closed=m.closed_acceptance(aux)
+  self.assertEqual(len(closed['checks'])+len(closed['auxiliary']),len(aux['checks']))
+  self.assertEqual({row['check'] for row in closed['auxiliary']},{'prewarm','voice_runs_terminal_state'})
+  self.assertTrue(all('budget' in row for row in closed['checks']))
+  self.assertFalse(any(row['route']=='/catalog' and row['seconds']==1.93 for row in closed['checks']))
+  with tempfile.TemporaryDirectory() as td:
+   state=Path(td);result,code=self.execute(state,aux)
+   receipt=m.read_receipt(state/'nightly-20261011.json')
+   self.assertIn(result['state'],('ok','attention'));self.assertNotIn('reason',receipt)
+   self.assertFalse(any(row['route']=='/catalog' and row['seconds']==1.93 for row in receipt['drift']))
+  for bad in ({'route':'/catalog','check':'Prewarm!','status':'ok'},{'route':'/catalog','check':'prewarm','status':'maybe'}):
+   with self.assertRaises(ValueError):m.closed_acceptance({'accepted':True,'checks':[bad]})
+  failed=copy.deepcopy(aux);failed['accepted']=False;failed['checks'][0]['status']='fail'
+  with tempfile.TemporaryDirectory() as td:
+   result,code=self.execute(Path(td),failed);self.assertEqual((result['state'],code),('failed',1))
  def test_full_checkout_acceptance_under_deployment_lock_and_daily_idempotence(self):
   calls=[];notifications=[]
   with tempfile.TemporaryDirectory() as td:

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { contactRoomSession } from "./contactRoomProfile";
 import { admittedAtMs, dialogueTurn, transportEventRef } from "./dialogueSurface";
 import { runModelFastPath, type FastPathResult, type RunnerOptions } from "./modelFastPath";
 
@@ -14,7 +15,6 @@ import { runModelFastPath, type FastPathResult, type RunnerOptions } from "./mod
  */
 export const PULSE_ROOM_AGENTS = new Set(["contacts-pulse", "contacts-projet-pulse"]);
 const MAX_MESSAGE_CHARS = 4000;
-const SESSION = /^agent:(contacts-pulse|contacts-projet-pulse):whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
 export const PULSE_ROOM_REFUSAL = "Ici je ne traite que Pulse : projets, offres, congés de l'équipe et solde de congés. Pour le reste, vois directement avec Amine.";
 const LEAVE_REQUEST_REFUSAL = "Une demande de congé se fait uniquement par Amine.";
 export const PULSE_ROOM_HELP = "Je n'ai pas compris la demande Pulse et je ne réponds qu'avec les données de Pulse. Donne le numéro ou le nom du projet ou de l'offre, et ce que tu veux : état, équipe, consommation, forecast, congés de l'équipe.";
@@ -31,7 +31,7 @@ const SAMANTHA_WORDS = /\b(samantha|claw|companion|code|app|application|android|
 const fold = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export function pulseRoomMayUseModel(agent: string, message: string): boolean {
-  if (agent !== "contacts-projet-pulse") return false;
+  if (!contactRoomSession(`agent:${agent}:whatsapp:direct:+21610000000`)?.rooms.has("projet")) return false;
   const text = fold(message);
   return SAMANTHA_WORDS.test(text) || !PULSE_WORDS.test(text);
 }
@@ -44,18 +44,18 @@ type InboundContext = { runId?: string; agentId?: string; sessionKey?: string; c
 type Runner = (message: string, options?: RunnerOptions) => Promise<FastPathResult>;
 
 function roomAgent(event: InboundEvent, ctx: InboundContext): string {
-  return SESSION.exec(String(ctx.sessionKey ?? event.sessionKey ?? ""))?.[1] ?? "";
+  return contactRoomSession(ctx.sessionKey ?? event.sessionKey)?.agent ?? "";
 }
 
 /** The room's contact from the host session key, or null when this turn is not a Pulse room DM. */
 export function pulseRoomContact(event: InboundEvent, ctx: InboundContext): string | null {
   if (event.isGroup === true || event.senderIsOwner === true) return null;
   const key = String(ctx.sessionKey ?? event.sessionKey ?? "");
-  const match = SESSION.exec(key);
-  if (!match || (ctx.agentId !== undefined && ctx.agentId !== match[1])) return null;
+  const match = contactRoomSession(key);
+  if (!match || !match.rooms.has("pulse") || (ctx.agentId !== undefined && ctx.agentId !== match.agent)) return null;
   const channel = String(ctx.channel || ctx.messageProvider || "whatsapp").toLowerCase();
   if (channel !== "whatsapp") return null;
-  const e164 = match[2].startsWith("+") ? match[2] : "+" + match[2];
+  const e164 = match.e164;
   return "wa-" + crypto.createHash("sha256").update(e164).digest("hex").slice(0, 16);
 }
 

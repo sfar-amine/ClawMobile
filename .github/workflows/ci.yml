@@ -37,6 +37,9 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: Test long Remote Bridge receipt response budget
+        run: node scripts/test-bridge-long.cjs
+
       - name: WhatsApp survives extended network outages without retry storms
         run: |
           python3 ../installer/termux-lite/test-whatsapp-network-recovery.py
@@ -190,6 +193,7 @@ jobs:
           python3 scripts/test-composed-read-result.py
           node scripts/test-model-fast-path.cjs
           node scripts/test-pulse-room-fast-path.cjs
+          node scripts/test-contact-room-fast-path.cjs
 
       - name: Qualify Companion M1 contracts and telemetry offline
         run: |
@@ -255,6 +259,8 @@ jobs:
       - name: Run read-only diagnostic export contract
         run: node scripts/test-diagnostic.cjs
 
+      - name: Test persistent Gateway owner transport preparation
+        run: node scripts/test-persistent-gateway-transport.cjs && node scripts/test-gateway-entrypoint.cjs && node scripts/test-official-gateway-owner.cjs
       - name: Test automation SQLite revision latency and cache
         run: node scripts/test-control-automations-latency.cjs
 
@@ -299,6 +305,7 @@ jobs:
           node scripts/test-whatsapp-allowlist.cjs
           node scripts/test-whatsapp-allowlist-paired.cjs
           node scripts/test-whatsapp-rooms-paired.cjs
+          node scripts/test-whatsapp-contact-tools.cjs
 
       - name: Run skill detail and owner controls contract
         run: node scripts/test-skill-control.cjs
@@ -357,6 +364,8 @@ jobs:
           python3 ../installer/termux-lite/test-context-native-fixtures.py
           python3 ../installer/termux-lite/test-context-scale.py
           python3 ../installer/termux-lite/test-context-import.py
+      - name: Run M5 memory evaluation scorer (50 real questions, synthetic db)
+        run: python3 ../installer/termux-lite/test-memory-eval.py
       - name: Verify memory curator cron description reconciliation
         run: python3 ../installer/termux-lite/test-memory-curator-cron.py
       - name: Test health manager resource restart policy
@@ -439,6 +448,8 @@ jobs:
           python3 ../installer/termux-lite/test-consultation-fastpath.py
       - name: Orange 4G et Wi-Fi (décision 17/10) — garanties paiement du garde partagé
         run: python3 ../installer/termux-lite/test-payment-guard-invariance.py
+      - name: Incident Orange vocal 15/10 — voix en direct, Wi-Fi jamais coupé (--keep-wifi)
+        run: python3 ../installer/termux-lite/test-consultation-voice-keep-wifi.py
       - name: O8 baseline model efficiency and Gemini client regression
         run: |
           python3 ../installer/termux-lite/test-model-efficiency.py
@@ -493,6 +504,9 @@ jobs:
         run: node scripts/test-payment-pattern-boundary.cjs
       - name: Check Context Guardian SQLite read-only owner
         run: python3 ../installer/termux-lite/test-context-guardian-sqlite.py
+
+      - name: Test R22 automation history and scheduler HTTP contracts
+        run: node scripts/test-automation-runs-preparation.cjs && node scripts/test-automation-runs-http.cjs
 
       - name: Reversible conversation archive and retained pagination contract
         run: node scripts/test-conversation-archive.cjs

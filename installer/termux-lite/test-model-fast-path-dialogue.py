@@ -12,13 +12,16 @@
 from __future__ import annotations
 
 import base64
+import fcntl
 import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -169,6 +172,30 @@ class MaintenanceMarkerTests(unittest.TestCase):
             self.assertTrue(receipts)
             self.assertNotEqual(self.deploy(home, "close", "--allow", "+21600000000").returncode, 0)
             self.assertNotEqual(self.deploy(home, "reopen").returncode, 0)
+
+    def test_maintenance_lock_works_with_toybox_flock_and_stays_bounded(self):
+        # S24 17/10: the toybox flock (no -w) shadowed util-linux in the claw_exec PATH.
+        with tempfile.TemporaryDirectory() as home:
+            shim = Path(home) / "bin"; shim.mkdir()
+            real = shutil.which("flock")
+            (shim / "flock").write_text("#!/bin/bash\nfor a in \"$@\"; do [ \"$a\" = -w ] && { echo 'flock: Unknown option w' >&2; exit 1; }; done\n"
+                                        f"exec {real} \"$@\"\n")
+            (shim / "flock").chmod(0o755)
+            env = {**os.environ, "HOME": home, "PATH": f"{shim}:{os.environ['PATH']}",
+                   "CLAW_DIALOGUE_HOME": os.path.join(home, ".openclaw", "samantha-dialogue"),
+                   "COMPANION_MAINTENANCE_LOCK_WAIT_S": "1"}
+            run = lambda *a: subprocess.run(["bash", str(DEPLOY), "--maintenance", *a], env=env, capture_output=True,
+                                            text=True, timeout=30)
+            closed = run("close")
+            self.assertEqual(closed.returncode, 0, closed.stderr)
+            self.assertEqual(json.loads(run("open").stdout)["state"], "open")
+            lock = Path(home) / ".openclaw/samantha-dialogue/maintenance.lock"
+            with lock.open("w") as held:
+                fcntl.flock(held, fcntl.LOCK_EX)
+                began = time.monotonic(); busy = run("close")
+                self.assertEqual((busy.returncode, busy.stderr.strip()), (3, "maintenance_marker_busy"))
+                self.assertLess(time.monotonic() - began, 5)
+            self.assertEqual(json.loads(run("status").stdout)["state"], "open")
 
     def test_marker_has_a_single_writer_and_never_stops_whatsapp(self):
         writers = []

@@ -33,9 +33,17 @@ for path in src.iterdir():
 class Companion(http.server.BaseHTTPRequestHandler):
     calls = []
     order_log = None
+    healthz_failures = 0
+    healthz_logged = False
     def log_message(self, *a): pass
     def answer(self):
         Companion.calls.append((self.command, self.path))
+        if self.path == "/healthz":
+            if Companion.healthz_failures > 0:
+                Companion.healthz_failures -= 1
+                self.send_response(503); self.end_headers(); return
+            if Companion.order_log and Companion.healthz_logged:
+                with open(Companion.order_log, "a") as f: f.write("gateway-ready\n")
         if self.path == "/v1/runtime/restart" and Companion.order_log:
             with open(Companion.order_log, "a") as f: f.write("gateway-restart\n")
         self.send_response(200); self.end_headers(); self.wfile.write(b"{}")
@@ -53,7 +61,7 @@ class RuntimeSync(unittest.TestCase):
         cls.server.shutdown()
 
     def setUp(self):
-        Companion.calls.clear()
+        Companion.calls.clear(); Companion.healthz_failures = 0; Companion.healthz_logged = False
         self.tmp = pathlib.Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.tmp)
         repo = self.tmp / "repo"; self.root = repo / "installer/termux-lite"; self.root.mkdir(parents=True)
         for name in ("runtime-sync.sh", "lib.sh", "companion-deploy.sh", "companion-acceptance.py", "project-room.py", "pulse-room.py", "contacts-agent.md"):
@@ -94,7 +102,8 @@ class RuntimeSync(unittest.TestCase):
         (bin_ / "rsync").write_text(RSYNC_STUB); (bin_ / "rsync").chmod(0o755)
         self.env = dict(os.environ, HOME=str(self.home), PATH=f"{bin_}:{os.environ['PATH']}", RUNTIME_SYNC_POLL_S="0", RUNTIME_SYNC_OPENCLAW_DIST=str(self.dist),
                         CLAW_PROJECT_ROOM_DIR=str(self.rooms["project"]), CLAW_PULSE_ROOM_DIR=str(self.rooms["pulse"]),
-                        RUNTIME_SYNC_COMPANION_URL=f"http://127.0.0.1:{self.server.server_address[1]}")
+                        RUNTIME_SYNC_COMPANION_URL=f"http://127.0.0.1:{self.server.server_address[1]}",
+                        RUNTIME_SYNC_GATEWAY_HEALTHZ_URL=f"http://127.0.0.1:{self.server.server_address[1]}/healthz")
         self.env.pop("OPENCLAW_STATE_DIR", None)
 
     def sync(self, commit=None, check=False, **env):
@@ -123,6 +132,20 @@ class RuntimeSync(unittest.TestCase):
         self.assertEqual((self.root / "companion-deploy.sh").read_text(), (self.home / ".openclaw/tools/companion-deploy.sh").read_text())
         self.assertEqual(("POST", "/v1/runtime/restart"), Companion.calls[0])
         self.assertIn(("GET", "/v1/control/health?contract=2"), Companion.calls)
+
+    def test_promotion_waits_for_gateway_readiness_not_only_control_http(self):
+        # S24 16/10: Control answered 200 while the Gateway was still restarting; the soak consumed that sample.
+        Companion.healthz_failures = 2; Companion.healthz_logged = True
+        code, out, err = self.sync()
+        self.assertEqual(0, code, err); self.assertEqual("restarted", out["gateway"])
+        self.assertEqual(["gateway-restart", "gateway-ready", "--apply", "prune --keep 5 --apply"], self.tier0_log())
+        self.assertEqual(3, sum(1 for c in Companion.calls if c[1] == "/healthz"))
+
+    def test_gateway_never_ready_fails_before_promotion(self):
+        Companion.healthz_failures = 10**6
+        code, out, err = self.sync()
+        self.assertEqual(1, code); self.assertEqual("gateway_not_ready", out["reason"])
+        self.assertEqual(["gateway-restart"], self.tier0_log())
 
     def test_a_second_sync_changes_nothing_and_keeps_the_gateway_running(self):
         self.sync(); Companion.calls.clear(); before = self.tier0_log()
