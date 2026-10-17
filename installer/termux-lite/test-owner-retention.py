@@ -3,6 +3,7 @@ import argparse
 import datetime as dt
 import importlib.util
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -103,6 +104,20 @@ class OwnerRetentionTests(unittest.TestCase):
             result=subprocess.run(['python3',str(HERE/'bounded-log.py'),str(log),'--stream'],input=data,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(log.read_bytes(),data)
+
+    def test_stream_timestamp_prefixes_each_line_once(self):
+        # F3 (doc 62): stamped at line start only; a record split by the bounded read is not stamped twice.
+        with tempfile.TemporaryDirectory() as directory:
+            log=Path(directory)/'stream.log'
+            data=b'one\n'+b'x'*70000+b'\nthree'
+            result=subprocess.run(['python3',str(HERE/'bounded-log.py'),str(log),'--stream','--timestamp'],input=data,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            lines=log.read_bytes().split(b'\n')
+            stamp=re.compile(rb'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}[+-]\d\d:\d\d ')
+            self.assertEqual(len(lines),3)
+            self.assertTrue(all(stamp.match(line) for line in lines))
+            self.assertTrue(lines[0].endswith(b' one'));self.assertTrue(lines[2].endswith(b' three'))
+            self.assertEqual(lines[1].count(b'x'),70000)
 
     def test_600_deployment_logs_bound_without_removing_receipts_or_uncertain_logs(self):
         with tempfile.TemporaryDirectory() as directory:
