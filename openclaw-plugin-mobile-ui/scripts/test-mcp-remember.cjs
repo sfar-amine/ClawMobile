@@ -123,7 +123,7 @@ const remember = (clientId, actionKey, args, profile = "chat-owner", requestId) 
 
     // 6. Secret-like text is refused by the canonical filter: nothing written, nothing echoed.
     let before = sql("SELECT COUNT(*) FROM events")[0][0];
-    for (const [key, secret] of [["m2-otp", "Mon OTP Maxit est 482913"], ["m2-card", "Carte 4168 4377 0028 8503"], ["m2-bearer", "Authorization: Bearer abcdefghijklmnop"], ["m2-password", "le password du wifi est hunter2"]]) {
+    for (const [key, secret] of [["m2-otp", "Mon OTP Maxit est 482913"], ["m2-card", "Carte 4111 1111 1111 1111"], ["m2-bearer", "Authorization: Bearer abcdefghijklmnop"], ["m2-password", "le password du wifi est hunter2"]]) {
       const refused = await remember("claude-chat", key, { text: secret, kind: "learning" });
       assert.equal(refused.state, "refused", key);
       assert.equal(refused.reason, "secret_like_text");
