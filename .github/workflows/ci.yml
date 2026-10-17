@@ -496,6 +496,9 @@ jobs:
       - name: Check Context Guardian SQLite read-only owner
         run: python3 ../installer/termux-lite/test-context-guardian-sqlite.py
 
+      - name: Test R22 automation history and scheduler HTTP contracts
+        run: node scripts/test-automation-runs-preparation.cjs && node scripts/test-automation-runs-http.cjs
+
       - name: Reversible conversation archive and retained pagination contract
         run: node scripts/test-conversation-archive.cjs
 

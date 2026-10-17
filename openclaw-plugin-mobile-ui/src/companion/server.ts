@@ -1,3 +1,4 @@
+import {readAutomationRuns,invalidateAutomationViews} from "./automationRunsPreparation";
 import {changeConversationArchive} from "./conversationArchive";
 import {serverLanguage,localizedRoute,localizeServerPresentation,ServerLanguage} from "./serverLocale";
 import {conditionalRead} from "./readEtag";
@@ -390,10 +391,14 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       writeJson(res,403,{success:false,error:"native_owner_flow_required"}); return;
     }
     try {
-      const match=/^\/automations\/([^/]+)(?:\/(enable|disable|run))?$/.exec(routePath);
+      const match=/^\/automations\/([^/]+)(?:\/(enable|disable|run|runs))?$/.exec(routePath);
       if(!match)throw Object.assign(new Error("invalid_automation_route"),{statusCode:404});
       let id:string;try{id=decodeURIComponent(match[1]);}catch{throw Object.assign(new Error("invalid_automation_id"),{statusCode:400});}
       res.setHeader("Cache-Control","no-store");
+      if(method==="GET"&&match[2]==="runs"){
+        const abort=new AbortController();const cancel=()=>{if(!res.writableEnded)abort.abort();};res.once("close",cancel);
+        try{writeJson(res,200,await readAutomationRuns(id,requestUrl.searchParams,abort.signal));}finally{res.removeListener("close",cancel);}return;
+      }
       if(method==="GET"&&!match[2]){writeJson(res,200,await automationDetail(id));return;}
       if(method==="PATCH"&&!match[2]){
         // R23 / E1: payment and validation refusals precede any owner read; CAS via If-Match (native configRevision).
@@ -407,11 +412,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         }
         writeJson(res,result.state==="needs_confirmation"?403:result.state==="refused"||result.state==="blocked"?409:result.state==="completed"?200:503,result);return;
       }
-      if((method==="POST"&&match[2])||(method==="DELETE"&&!match[2])){
+      if((method==="POST"&&match[2]&&match[2]!=="runs")||(method==="DELETE"&&!match[2])){
         const result=await changeAutomation(id,match[2]||"delete",await readJsonBody(req,1024));
+        if(result.success)invalidateAutomationViews();
         writeJson(res,result.state==="blocked"?409:result.state==="not_found"?404:result.state==="failed"?503:result.state==="refused"?403:200,result);return;
       }
-      res.setHeader("Allow",match[2]?"POST":"GET, PATCH, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
+      res.setHeader("Allow",match[2]==="runs"?"GET":match[2]?"POST":"GET, PATCH, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
     } catch(error:any) {
       const code=[400,404,409].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,error:code===400?"invalid_automation_request":code===404?"automation_not_found":code===409?"operation_conflict":"automation_unavailable"});
