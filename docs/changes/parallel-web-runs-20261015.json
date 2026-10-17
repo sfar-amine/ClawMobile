@@ -15,6 +15,7 @@
     "installer/termux-lite/model-fast-path.py",
     "installer/termux-lite/test-model-fast-path-web.py",
     "installer/termux-lite/test-runtime-sync.py",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-run-web-agent.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-run-web-mcp.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-run-web-voice.cjs",

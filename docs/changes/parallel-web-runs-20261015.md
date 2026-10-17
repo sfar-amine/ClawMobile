@@ -28,6 +28,8 @@ La première version de W4 faisait passer les décisions Web par `SurfaceClarifi
 
 Tests ajoutés : `WebDialoguePorts` dans `test-model-fast-path-web.py` (gate vocale avant dispatch, contexte hôte, rendu des sources, échéance expirée, appelant non owner) ; `test-run-web.cjs` et `test-run-web-voice.cjs` passent désormais par le coordinateur (READY puis passation différée).
 
+Robustesse de test (17/10) : `test-owner-turn-admission.cjs` ouvre une connexion par requête (`agent:false`). Sous Node 20, la réutilisation keep-alive tombait sur un socket fermé par le serveur pendant la longue section synchrone 4 (ECONNRESET, 2 échecs sur 6 aussi sur la base `636becf5`) ; aucune assertion n'est retirée.
+
 ## Tests et provenance
 
 Les nouveaux contrats Web sont des fixtures synthétiques explicitement identifiées. La compatibilité du registre est testée avec la capture nettoyée existante `fixtures/s24-2026-10-11c/hs5-runs-shapes.json`, source S24 `~/.openclaw/clawmobile-companion/runs.json`, version 1. L’autorité native s’appuie sur la fixture SDK 2026.9.6 `fixtures/protocol/openclaw-2026.9.6/tool-context-excerpts.d.ts`. Aucun nouveau chemin ou table S24 n’est supposé.
