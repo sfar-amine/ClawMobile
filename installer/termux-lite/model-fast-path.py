@@ -912,7 +912,7 @@ def try_fast_path(
             if (caller != "owner" or not request_id or request_id != decision.get("requestId") or
                 decision.get("caller") != caller or decision.get("surface") != surface or
                 session_id is not None and not re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}",session_id) or
-                type(remaining_budget_ms) is not int or not 0 < remaining_budget_ms <= 12000 or
+                type(remaining_budget_ms) is not int or not 0 < remaining_budget_ms <= PUBLIC_WEB_BUDGET_MS or
                 type(deadline_epoch_ms) is not int or deadline_epoch_ms <= int(time.time()*1000)):
                 return {"status":"known_error","reason":"invalid_web_execution_context","execution_state":"not_started","model_bypassed":True}
             remaining = min(remaining_budget_ms-int((time.monotonic()-started)*1000),deadline_epoch_ms-int(time.time()*1000))
@@ -934,6 +934,8 @@ def try_fast_path(
 
 
 PUBLIC_WEB_CAPABILITIES = {"samantha.app.web.search", "samantha.app.web.answer"}
+# Total public Web budget (search + one free synthesis); same value as PUBLIC_WEB_BUDGET_MS in runWeb.ts.
+PUBLIC_WEB_BUDGET_MS = 20000
 WEB_VOICE_MESSAGES = {
     "fr": "La recherche Web vocale attend sa recette audio ; utilise la conversation écrite.",
     "en": "Voice Web search is awaiting its audio acceptance test; use the text conversation.",
@@ -1173,12 +1175,12 @@ class FastPathPorts:
         self.caller = caller
         self.timeout = timeout
         self._resolutions: dict[str, dict[str, Any]] = {}
-        # W4: host-only Web metadata (CLI from the Companion): run/session correlation, 12 s deadline, voice bit.
+        # W4: host-only Web metadata (CLI from the Companion): run/session correlation, 20 s deadline, voice bit.
         # Never dialogue state; the coordinator stays the single owner of questions and hand-offs.
         host = dict(web_host or {})
         now_ms = int(time.time() * 1000)
         deadline = host.get("deadline_epoch_ms")
-        self.web_deadline_epoch_ms = deadline if type(deadline) is int and now_ms < deadline <= now_ms + 12000 else now_ms + 12000
+        self.web_deadline_epoch_ms = deadline if type(deadline) is int and now_ms < deadline <= now_ms + PUBLIC_WEB_BUDGET_MS else now_ms + PUBLIC_WEB_BUDGET_MS
         self.web_run_id = host.get("run_id") if isinstance(host.get("run_id"), str) and WEB_HOST_ID.fullmatch(host["run_id"]) else None
         self.web_session_id = host.get("session_id") if isinstance(host.get("session_id"), str) and WEB_HOST_ID.fullmatch(host["session_id"]) else None
         self.web_voice = host.get("voice_delegation") is True
@@ -1187,7 +1189,7 @@ class FastPathPorts:
         request_id = decision.get("requestId")
         if not isinstance(request_id, str) or not request_id:
             return None
-        remaining = min(12000, self.web_deadline_epoch_ms - int(time.time() * 1000))
+        remaining = min(PUBLIC_WEB_BUDGET_MS, self.web_deadline_epoch_ms - int(time.time() * 1000))
         return {"request_id": request_id, "run_id": self.web_run_id, "session_id": self.web_session_id,
                 "remaining_budget_ms": remaining, "deadline_epoch_ms": self.web_deadline_epoch_ms}
 

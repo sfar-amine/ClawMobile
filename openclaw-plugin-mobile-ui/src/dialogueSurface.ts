@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { readReceiptPresentation, publicReceiptMetadata } from "./companion/receiptPresentation";
 import type { DialogueMode, DialogueWebContext, FastPathResult, RunnerOptions } from "./modelFastPath";
-import { readRunWebResult, webResultText, webRunState, type RunWebResult } from "./companion/runWeb";
+import { PUBLIC_WEB_BUDGET_MS, readRunWebResult, webResultText, webRunState, type RunWebResult } from "./companion/runWeb";
 
 /**
  * SAM-MIG-CC-001 V2.2 — surface adapter of the dialogue coordinator (ADR-DIALOGUE, programme doc 57).
@@ -179,7 +179,7 @@ export class DialogueSurface {
               private host: { voice?: boolean } = {}) {}
 
   async turn(text: string, options: { id?: string; originId: string; admittedAt?: number; timeoutSeconds?: number; assertCurrent?: () => void; caller?: "owner" | "trusted" | "other"; sessionId?: string; runId?: string }): Promise<SurfaceTurn> {
-    const webDeadlineEpochMs = Date.now() + 12000;
+    const webDeadlineEpochMs = Date.now() + PUBLIC_WEB_BUDGET_MS;
     options.assertCurrent?.();
     const original = String(text || "").trim();
     const conversationId = isDialogueConversationId(options.id) ? options.id : dialogueConversationId(this.surface, "turn:" + options.originId);

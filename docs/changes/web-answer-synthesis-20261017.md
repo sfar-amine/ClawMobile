@@ -17,7 +17,7 @@ Retour d'Amine (17/10, 16:01) : « est-ce que thibo depen ai fera un reset aujou
 - L'app (`RuntimeUi.kt`) affiche déjà chaque claim avec `[s1, s2]` puis les sources : aucun changement d'APK.
 
 ## Routes et budget
-Aucune route nouvelle. Budget Web inchangé (12 s, recherche + synthèse) ; sonde S24 : recherche 4,3 s, synthèse 5,9 s.
+Aucune route nouvelle. Budget public total porté de 12 à 20 s (`PUBLIC_WEB_BUDGET_MS`, `runWeb.ts`, repris par `capabilityTool`, `capabilityBridge`, `dialogueSurface`, `modelFastPath`, `remoteBridge`, `mcpBridge`, `model-fast-path.py`, `claw-capability.py`, `gemini-request.py` et `skill_intelligence/public_web.py` côté playbooks) ; l'étape de recherche garde sa borne de 12 s (`openclaw-web-request.mjs` inchangé). Sonde S24 du 17/10 : recherche 4,3–6,8 s puis synthèse 5,9 s, soit 10,5–12,1 s : à 12 s la synthèse était systématiquement coupée (`deadline_exceeded`).
 
 ## Tests (inscrits en CI, job O8 et P1)
 `test-gemini-public-synthesis.py` (20), `test-gemini-public-synthesis.mjs` (18, dont fixture S24), `test-gemini-request.py`, `scripts/test-run-web*.cjs`, `test-gemini-public-native.mjs` (SDK réel épinglé).

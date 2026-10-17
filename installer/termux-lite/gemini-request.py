@@ -476,7 +476,7 @@ def validate_public_input(value: object) -> dict:
     if not isinstance(value["correlationId"], str) or not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", value["correlationId"]):
         raise PolicyError("invalid_correlation")
     budget = value["remainingBudgetMs"]
-    if type(budget) is not int or not 1 <= budget <= 12000:
+    if type(budget) is not int or not 1 <= budget <= 20000:  # PUBLIC_WEB_BUDGET_MS (runWeb.ts)
         raise PolicyError("invalid_budget")
     sources = value["sources"]
     if not isinstance(sources, list) or not 1 <= len(sources) <= 5:

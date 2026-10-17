@@ -22,6 +22,11 @@ export type RunWebResult = {
   degradations: string[];
 };
 
+/** Total public Web budget (search + one synthesis), shared by every host entry. S24 17/10: search alone
+ * takes 4–7 s and the free synthesis 5–6 s (SDK load + generation), so the former 12 s cap always cut the
+ * answer. The search step itself stays bounded to 12 s by its own runtime. */
+export const PUBLIC_WEB_BUDGET_MS = 20000;
+
 const ID = /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/;
 const CODE = /^[a-z][a-z0-9_]{0,79}$/;
 const STAGES = new Set(["search", "fetch", "synthesis", "policy", "transport", "normalization"]);
