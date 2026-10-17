@@ -157,8 +157,9 @@ export function validateGroundedClaims(claims,sources,{query="",today=todayUtc()
       typeof support.quote==="string"&&support.quote.trim()&&support.quote.length<=1500&&
       observed.get(support.sourceId).excerpt.includes(support.quote));
     if(!exact||supported.size!==c.sourceIds.length)continue;
-    const cited=c.sourceIds.map(id=>observed.get(id));
-    if(!groundedText(c.text,{quotes:c.support.map(s=>s.quote),titles:cited.map(s=>s.title+" "+(s.publishedAt||"")),query,today}))continue;
+    // Titles and publication dates of every displayed source count as observed evidence: they are
+    // shown next to the answer, so a date or name taken from them is verifiable by the reader.
+    if(!groundedText(c.text,{quotes:c.support.map(s=>s.quote),titles:sources.map(s=>s.title+" "+(s.publishedAt||"")),query,today}))continue;
     if(chars+c.text.length+(admitted.length?1:0)>1200)break;
     chars+=c.text.length+(admitted.length?1:0);
     ids.add(c.id);

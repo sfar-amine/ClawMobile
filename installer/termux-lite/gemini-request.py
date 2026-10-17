@@ -590,8 +590,9 @@ def validate_public_result(value: object, request: dict, today: str | None = Non
         # d'Amine 17/10 : une vraie réponse rédigée et sourcée plutôt que des extraits bruts).
         if re.search(r"\[\s*s?\d+\s*\]|[<>]", claim["text"], re.I):
             raise PolicyError("synthesis_review_required")
+        # Titles and publication dates of every displayed source are observed evidence (shown with the answer).
         evidence = [item["quote"] for item in support] + [
-            sources[sid]["title"] + " " + str(sources[sid].get("publishedAt") or "") for sid in referenced]
+            source["title"] + " " + str(source.get("publishedAt") or "") for source in sources.values()]
         evidence += [request["query"], today or public_today()]
         if not grounded_text(claim["text"], evidence):
             raise PolicyError("synthesis_review_required")
