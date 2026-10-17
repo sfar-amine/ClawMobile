@@ -83,6 +83,28 @@ class AcceptanceSettle(unittest.TestCase):
         self.assertGreaterEqual(seen["/catalog"], 2)
         self.assertEqual(out["checks"][0]["check"], "prewarm")
 
+    def test_short_cache_reads_are_prewarmed_untimed(self):
+        # S24 17/10 (companion-20261017T040904, rolled back): automations 4.48 s cold / 1 s, learning 0.75 s / 0.5 s,
+        # then 0.01 s once warm. Their cache is shorter than RETRY_PAUSE_S, so the timed retry was cold as well.
+        call, seen = server(first_slow=tuple(acceptance.PREWARM))
+        rc, out, _ = self.run_main(call)
+        self.assertEqual(rc, 0, [c for c in out["checks"] if c["status"] == "fail"])
+        for path in acceptance.PREWARM:
+            self.assertEqual(seen[path], 2)
+            prewarm = [c for c in out["checks"] if c["route"] == path and c.get("check") == "prewarm"]
+            timed = [c for c in out["checks"] if c["route"] == path and not c.get("check")]
+            self.assertEqual((len(prewarm), prewarm[0]["status"], timed[0]["status"]), (1, "ok", "ok"))
+        # The budget itself is unchanged: a warm read still over budget twice fails.
+        slow, _ = server(always_slow=("/learning/associations?limit=20",))
+        rc, out, _ = self.run_main(slow)
+        self.assertEqual(rc, 1)
+        # A prewarm that cannot read at all is a failure, never a silent pass.
+        broken, _ = server(first_503=("/control/automations",))
+        rc, out, _ = self.run_main(broken)
+        self.assertTrue(any(c["route"] == "/control/automations?contract=2" and c.get("check") == "prewarm"
+                            and c["status"] == "fail" for c in out["checks"]))
+        self.assertEqual(rc, 1)
+
     def test_deploy_waits_for_calm_and_gateway_before_judging(self):
         text = (HERE / "companion-deploy.sh").read_text()
         self.assertIn("gateway_ready ||", text)
