@@ -141,11 +141,13 @@ export const todayUtc=(now=Date.now())=>new Date(now).toISOString().slice(0,10);
 export function validateGroundedClaims(claims,sources,{query="",today=todayUtc()}={}) {
   if(!Array.isArray(claims)||!claims.length||claims.length>12)fail("synthesis_review_required");
   const observed=new Map(sources.map(s=>[s.id,s]));
-  const ids=new Set(),admitted=[];
+  const admitted=[];
   let chars=0;
   for(const c of claims) {
+    // The model's own id carries no meaning (it sometimes numbers them); claims are renumbered c1…cN
+    // in reading order and the citations are rebuilt from the admitted list.
     if(!c||typeof c!=="object"||Object.keys(c).sort().join()!=="id,sourceIds,support,text"||
-      typeof c.id!=="string"||!/^[A-Za-z0-9_-]{1,24}$/.test(c.id)||ids.has(c.id)||
+      !["string","number"].includes(typeof c.id)||
       typeof c.text!=="string"||!c.text.trim()||c.text.length>1000||/https?:\/\/|www\.|[<>]/i.test(c.text)||
       /\[\s*s?\d+\s*\]/i.test(c.text)||
       !Array.isArray(c.sourceIds)||!c.sourceIds.length||c.sourceIds.length>5||
@@ -162,8 +164,7 @@ export function validateGroundedClaims(claims,sources,{query="",today=todayUtc()
     if(!groundedText(c.text,{quotes:c.support.map(s=>s.quote),titles:sources.map(s=>s.title+" "+(s.publishedAt||"")),query,today}))continue;
     if(chars+c.text.length+(admitted.length?1:0)>1200)break;
     chars+=c.text.length+(admitted.length?1:0);
-    ids.add(c.id);
-    admitted.push({id:c.id,text:c.text,sourceIds:[...c.sourceIds],support:c.support.map(p=>({sourceId:p.sourceId,quote:p.quote}))});
+    admitted.push({id:"c"+(admitted.length+1),text:c.text,sourceIds:[...c.sourceIds],support:c.support.map(p=>({sourceId:p.sourceId,quote:p.quote}))});
   }
   if(!admitted.length)fail("synthesis_review_required");
   return {claims:admitted,spokenText:admitted.map(c=>c.text).join(" ")};
