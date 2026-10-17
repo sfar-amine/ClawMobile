@@ -6,6 +6,10 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge";
 import { runModelFastPath } from "../modelFastPath";
+import { readMaintenanceGate } from "./maintenanceMarker";
+
+const MCP_MAINTENANCE_TEXT = "Samantha est en maintenance pour quelques minutes : la demande n'a pas été traitée et ne le sera pas plus tard. Renvoie-la après la maintenance.";
+const MCP_MARKER_INVALID_TEXT = "Le verrou de maintenance de Samantha est illisible : par sécurité, aucune demande n'est exécutée.";
 import { REMEMBER_KINDS, validateRemember } from "./memoryControl";
 import {
   getRemoteBridgeRequest,
@@ -332,12 +336,23 @@ async function executeCapability(
   if (requestId !== expectedRequestId) throw new Error("action_request_id_mismatch");
 
   const taskId = actionTaskId(clientId, actionKey);
-  // SAM-MIG V2.2 §12.1: a stateless surface is refused deterministically during maintenance (T-M01); nothing is kept
-  // to resume and the action_key stays the replay protection of its owner.
+  // SAM-MIG V2.2 §12.1, fail-closed: the durable marker is read directly (no coordinator in the path), so a broken
+  // or unreachable coordinator never opens the lock. Nothing is kept to resume; the action_key stays the owner's
+  // replay protection (T-M01, T-X05).
+  const lock = readMaintenanceGate(clientId);
+  if (lock.state === "closed") {
+    return { state: "refused", request_id: requestId, task_id: taskId, retry_allowed: false, reason: lock.reason,
+      outcome: "MAINTENANCE", text: lock.reason === "maintenance" ? MCP_MAINTENANCE_TEXT : MCP_MARKER_INVALID_TEXT };
+  }
   const gate = await dialoguePreview(request, clientId);
   if (gate.outcome === "MAINTENANCE") {
     return { state: "refused", request_id: requestId, task_id: taskId, retry_allowed: false, reason: "maintenance",
-      text: (gate as any).text, outcome: "MAINTENANCE" };
+      text: (gate as any).text || MCP_MAINTENANCE_TEXT, outcome: "MAINTENANCE" };
+  }
+  if (gate.outcome === "TECHNICAL_FAILURE" && gate.reasonCode === "coordinator_unavailable") {
+    // Bounded error for an execution (missions and effects); claw_resolve keeps its stateless preview.
+    return { state: "failed", request_id: requestId, task_id: taskId, retry_allowed: false,
+      reason: "coordinator_unavailable", outcome: "TECHNICAL_FAILURE" };
   }
   const method = profile === "chat-owner" ? "mcp_capability_execute_owner" : "mcp_capability_execute_readonly";
   const suppliedDecision = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision)

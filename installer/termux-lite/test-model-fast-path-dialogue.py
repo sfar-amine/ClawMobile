@@ -174,11 +174,15 @@ class MaintenanceMarkerTests(unittest.TestCase):
         writers = []
         for path in REPO.rglob("*"):
             if path.is_file() and path.suffix in {".sh", ".py", ".ts", ".mjs", ".cjs"} and "node_modules" not in path.parts \
-                    and "dist" not in path.parts and path.name != Path(__file__).name:
+                    and "dist" not in path.parts and not path.name.startswith("test-"):
                 text = path.read_text(errors="ignore")
                 if "maintenance.json" in text:
                     writers.append(path.relative_to(REPO).as_posix())
-        self.assertEqual(writers, ["installer/termux-lite/companion-deploy.sh"])
+        # One writer (companion-deploy.sh); one read-only adapter for the stateless MCP surface (fail-closed lock).
+        self.assertEqual(sorted(writers), ["installer/termux-lite/companion-deploy.sh",
+                                           "openclaw-plugin-mobile-ui/src/companion/maintenanceMarker.ts"])
+        reader = (REPO / "openclaw-plugin-mobile-ui/src/companion/maintenanceMarker.ts").read_text()
+        self.assertNotRegex(reader, r"writeFile|appendFile|rename|unlink|rmSync|mkdir")
         section = DEPLOY.read_text().split('if [ "${1:-}" = "--maintenance" ]; then', 1)[1].split("\nfi\n", 1)[0]
         self.assertNotRegex(section, r"pkill|openclaw\s+(channels|gateway)|whatsapp.*(stop|logout)")
 

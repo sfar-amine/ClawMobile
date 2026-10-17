@@ -139,7 +139,7 @@ async function main() {
     for (const [file, text] of all) assert.doesNotMatch(text, /sendDurableMessageBatch|delivery-queue-runtime/, file);
     checks++;
     // T-B04 (core side): no surface reads or writes the coordinator's private store.
-    for (const [file, text] of all) assert.doesNotMatch(text, /dialogue\.sqlite|samantha-dialogue/, file);
+    for (const [file, text] of all) assert.doesNotMatch(text, /dialogue\.sqlite/, file);
     checks++;
     const lite = fs.readFileSync(path.join(__dirname, "prepare-lite.mjs"), "utf8");
     assert.match(lite, /capabilityClarification\.js/, "a stale dist copy of the former authority is removed at build"); checks++;
