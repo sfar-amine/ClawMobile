@@ -132,11 +132,12 @@ def run_ci(repo_arg, sha, pr, output):
         if not pr.isdecimal() or not shutil.which("gh"):
             raise LocalCIError("gh CLI and numeric PR required to verify exact head")
         refs = json.loads(command(
-            ["gh", "pr", "view", pr, "-R", identity(repo), "--json", "headRefOid,baseRefOid"], repo))
+            ["gh", "pr", "view", pr, "-R", identity(repo), "--json", "headRefOid,baseRefOid,body,number"], repo))
         if refs.get("headRefOid") != sha or not SHA.fullmatch(refs.get("baseRefOid") or ""):
             raise LocalCIError("GitHub PR head SHA mismatch")
         base = refs["baseRefOid"]
     else:
+        refs = {}
         base = command(["git", "rev-parse", sha + "^"], repo)
     path = WORKFLOWS[repo.name]
     workflow = yaml.safe_load(command(["git", "show", f"{sha}:{path}"], repo))
@@ -174,6 +175,15 @@ def run_ci(repo_arg, sha, pr, output):
                             "GITHUB_BASE_REF": base})
                 runner = space / ".localci"
                 runner.mkdir()
+                # GitHub Actions supplies the PR event file; local replay must
+                # reproduce that contract for mandatory PR-template checks.
+                event = {"pull_request": {
+                    "number": int(pr), "body": refs.get("body") or "",
+                    "base": {"sha": base}, "head": {"sha": sha}
+                }} if pr != "-" else {}
+                event_path = runner / "github-event.json"
+                event_path.write_text(json.dumps(event), encoding="utf-8")
+                env["GITHUB_EVENT_PATH"] = str(event_path)
                 env["GITHUB_ENV"] = str(runner / "env")
                 env["GITHUB_OUTPUT"] = str(runner / "output")
                 env["RUNNER_TEMP"] = str(runner)
