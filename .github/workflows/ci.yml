@@ -140,8 +140,10 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
-      - name: HS8 SDK export proof and memo transcript boundary (inactive)
+      - name: HS8 memo STT qualification receipt (S24 17/10), owner and transcript boundary
         run: node scripts/test-memo-stt-boundary.cjs && node scripts/test-memo-stt-owner.cjs && node scripts/test-memo-sdk-resolution.cjs && node scripts/test-memo-audio-duration.cjs
+      - name: HS8 acceptance line for the composer microphone (catalog inputs.voiceMemo)
+        run: python3 ../installer/termux-lite/test-companion-acceptance-memo.py
       - name: Run edit-and-replay contract (édition d'un message envoyé, audit sans suppression)
         run: node scripts/test-edit-replay.cjs
 

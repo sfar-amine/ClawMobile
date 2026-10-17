@@ -19,7 +19,9 @@ function fixture(name,version='2026.9.6',omitAuth=false){
 }
 (async()=>{
  // Product admission remains closed before any SDK resolution/import, npm or file access.
- const {MEMO_STT_QUALIFICATION}=require('../dist/companion/memoSttBoundary');
+ const boundary=require('../dist/companion/memoSttBoundary');const qualified=boundary.MEMO_STT_QUALIFICATION;
+ assert.equal(qualified.success,true);const MEMO_STT_QUALIFICATION=Object.freeze({success:false,state:'refused',receipt:null,error:'memo_stt_not_qualified'});
+ boundary.MEMO_STT_QUALIFICATION=MEMO_STT_QUALIFICATION; // closed admission (receipt mismatch) must stop before any SDK/file access
  const child=require('node:child_process');const Module=require('node:module');
  const originals={execFile:child.execFile,resolve:Module._resolveFilename};
  const ioNames=['readFileSync','statSync','realpathSync','openSync','closeSync'];
@@ -30,7 +32,7 @@ function fixture(name,version='2026.9.6',omitAuth=false){
   for(const name of ioNames)fs[name]=()=>{forbidden++;throw Error('no file access under closed admission');};
   assert.deepEqual(await transcribeMemoAttachment('synthetic-owned-audio'),MEMO_STT_QUALIFICATION);
   assert.equal(forbidden,0);
- }finally{child.execFile=originals.execFile;Module._resolveFilename=originals.resolve;Object.assign(fs,originalIo);}
+ }finally{child.execFile=originals.execFile;Module._resolveFilename=originals.resolve;Object.assign(fs,originalIo);boundary.MEMO_STT_QUALIFICATION=qualified;}
  const local=fixture('local');let discoveries=0;
  const localEntries=await resolveMemoSdkEntries(local.resolve,async()=>{discoveries++;throw Error('must not discover');});
  assert.equal(discoveries,0);assert.equal(localEntries.length,3);
