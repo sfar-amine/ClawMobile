@@ -37,6 +37,9 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: Test long Remote Bridge receipt response budget
+        run: node scripts/test-bridge-long.cjs
+
       - name: WhatsApp survives extended network outages without retry storms
         run: |
           python3 ../installer/termux-lite/test-whatsapp-network-recovery.py

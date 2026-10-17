@@ -913,6 +913,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   };
   writeReceipt(receipt);
 
+  const completion = (async () => {
   try {
     const rawResult = await dispatch(request,bounds);
     const result = compactResult(request.requestId, rawResult);
@@ -933,6 +934,22 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   }
   writeReceipt(receipt);
   return receipt;
+  })();
+  if (request.method !== "exec_wait") return completion;
+  // The relay stops waiting after 28 seconds. Keep execution owned by this
+  // receipt, but acknowledge within the public 15-second response budget.
+  // Polling the existing status route never dispatches the command again.
+  let responseTimer: ReturnType<typeof setTimeout>;
+  try {
+    return await Promise.race([
+      completion,
+      new Promise<RemoteBridgeReceipt>((resolve) => {
+        responseTimer = setTimeout(() => resolve(receipt), 12_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(responseTimer);
+  }
 }export function getRemoteBridgeRequest(
   requestId: string,
 ): RemoteBridgeReceipt | null {
