@@ -41,11 +41,20 @@ def nightly_files(state):
 def closed_acceptance(raw):
  if not isinstance(raw,dict) or not isinstance(raw.get('accepted'),bool) or not isinstance(raw.get('checks'),list) or len(raw['checks'])>MAX_CHECKS:
   raise ValueError('invalid_acceptance_receipt')
- checks=[]
+ checks=[];auxiliary=[]
  for c in raw['checks']:
   if not isinstance(c,dict):raise ValueError('invalid_acceptance_check')
   route=c.get('route')
   if not isinstance(route,str) or not re.fullmatch(r'[A-Za-z0-9_{}?=:/ .()&-]{1,240}',route):raise ValueError('invalid_acceptance_route')
+  if 'check' in c:
+   # Auxiliary rows of the same acceptance (untimed prewarm read, voice runs terminal state): no budget,
+   # never a latency baseline. Their failure is already carried by `accepted`. S24 12-17/10: these rows
+   # made every nightly receipt `acceptance_unavailable`.
+   if not isinstance(c['check'],str) or not re.fullmatch(r'[a-z0-9_]{1,64}',c['check']) or c.get('status') not in ('ok','fail','skipped'):raise ValueError('invalid_acceptance_check')
+   out={'route':route,'check':c['check'],'status':c['status']}
+   if number(c.get('seconds')):out['seconds']=c['seconds']
+   if isinstance(c.get('code'),int) and not isinstance(c['code'],bool) and 0<=c['code']<=599:out['code']=c['code']
+   auxiliary.append(out);continue
   if c.get('status') not in ('ok','fail','skipped') or not number(c.get('seconds')) or not number(c.get('budget')) or c['budget']==0:raise ValueError('invalid_acceptance_check')
   out={k:c[k] for k in ('route','status','seconds','budget')}
   if isinstance(c.get('code'),int) and not isinstance(c['code'],bool) and 0<=c['code']<=599:out['code']=c['code']
@@ -61,7 +70,7 @@ def closed_acceptance(raw):
    route=warning.get('route')
    if warning.get('warning')!='email_address_in_response' or not isinstance(route,str) or not re.fullmatch(r'[A-Za-z0-9_{}?=:/ .()&-]{1,240}',route):continue
    warnings.append({'route':route,'warning':'email_address_in_response'})
- return {'accepted':raw['accepted'],'checks':checks,'warnings':warnings}
+ return {'accepted':raw['accepted'],'checks':checks,'auxiliary':auxiliary,'warnings':warnings}
 
 def route_key(row):return row['route'],row.get('read'),row['budget']
 
