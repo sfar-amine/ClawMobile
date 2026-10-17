@@ -5,9 +5,15 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge";
+import { runModelFastPath } from "../modelFastPath";
+import { readMaintenanceGate } from "./maintenanceMarker";
+
+const MCP_MAINTENANCE_TEXT = "Samantha est en maintenance pour quelques minutes : la demande n'a pas été traitée et ne le sera pas plus tard. Renvoie-la après la maintenance.";
+const MCP_MARKER_INVALID_TEXT = "Le verrou de maintenance de Samantha est illisible : par sécurité, aucune demande n'est exécutée.";
 import { REMEMBER_KINDS, validateRemember } from "./memoryControl";
 import {
   getRemoteBridgeRequest,
+  hasContinuumTask,
   submitAuthenticatedMcpRequest,
 } from "./remoteBridge";
 
@@ -29,6 +35,11 @@ const REQUEST_CONTEXT = path.join(
   "tools",
   "request_context.py",
 );
+function memoryOwner(){
+  const candidates=[process.env.SAMANTHA_MEMORY_OWNER,
+    path.join(os.homedir(),'.openclaw','releases','current','termux-lite','context-store.py')].filter(Boolean) as string[];
+  return candidates.find(candidate=>fs.existsSync(candidate));
+}
 
 type McpRelayMessage = {
   requestId?: unknown;
@@ -208,7 +219,9 @@ function contextScopes(value:unknown) {
 
 async function contextBundle(args: Record<string, unknown>,clientId:string) {
   const query = requiredString(args.query, "query", 2000);
-  const argv = [REQUEST_CONTEXT, "--query", query, '--surface', contextSurface(clientId)];
+  const surface=contextSurface(clientId);
+  const session=`mcp-${clientId}`;
+  const argv = [REQUEST_CONTEXT, "--query", query, '--surface', surface,'--session',session];
   const scopes=contextScopes(args.scopes);
   if(scopes.length)argv.push('--scopes',scopes.join(','));
 
@@ -276,6 +289,29 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
     }
   }
 
+  const owner=memoryOwner();
+  const context=raw?.context && typeof raw.context==='object'?raw.context:{};
+  const revision=Number(context.truncated?context.lastReturnedRevision:context.toRevision);
+  if(owner&&raw?.readiness?.state!=='blocked'&&Number.isInteger(revision)&&revision>=0){
+    const knownContracts=Object.fromEntries((Array.isArray(raw.contracts)?raw.contracts:[])
+      .filter((row:any)=>typeof row?.key==='string'&&/^[a-f0-9]{64}$/.test(String(row?.sha256||'')))
+      .map((row:any)=>[row.key,row.sha256]));
+    const globalBaseline=raw?.global?.baseline_after_verified_read||{};
+    const state=JSON.stringify({knownContracts,globalBaseline});
+    try{
+      await execFileAsync('python3',[owner,'cursor-ack',session,surface,String(revision),state],{
+        cwd:path.dirname(owner),timeout:4000,maxBuffer:128*1024,env:{...process.env},
+      });
+      raw.cursor_advanced=true;
+      if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=true;
+    }catch{
+      // Context is already complete. Cursor optimization must fail open without
+      // leaking helper stderr or claiming an acknowledgement that did not occur.
+      raw.cursor_advanced=false;
+      raw.cursor_error='cursor_ack_unavailable';
+      if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=false;
+    }
+  }
   return {
     state: "context",
     bundle: sanitizeRequestContext(raw),
@@ -286,16 +322,34 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
   };
 }
 
-async function resolveCapability(args: Record<string, unknown>) {
+/** SAM-MIG V2.2 §5.5: MCP keeps no server-side dialogue state. `claw_resolve` is the coordinator's
+ * preview_resolution (no dialogue state read or written, no effect); its normalized outcome comes from the single
+ * status table, alongside the unchanged resolution. The client answers a question with a completed request and a
+ * new action_key. */
+export async function dialoguePreview(request: string, clientId?: string, runner = runModelFastPath) {
+  try {
+    const out: any = await runner(request, { surface: "external_mcp", caller: "owner", originId: "mcp-preview",
+      timeoutSeconds: 15, checkOnly: true,
+      dialogue: { mode: "preview", ...(clientId ? { event: { conversationKey: clientId } } : {}) } });
+    if (out && typeof out.outcome === "string") {
+      return { outcome: out.outcome, reasonCode: out.reasonCode, statusTable: out.statusTable, ...(out.text ? { text: out.text } : {}),
+        ...(out.question ? { question: out.question } : {}), ...(out.klass ? { klass: out.klass } : {}) };
+    }
+  } catch {}
+  return { outcome: "TECHNICAL_FAILURE", reasonCode: "coordinator_unavailable" };
+}
+
+async function resolveCapability(args: Record<string, unknown>, clientId?: string) {
   const request = requiredString(args.request, "request", 12000);
   const targetHint = optionalString(args.target_hint, "target_hint", 128, /^[A-Za-z0-9._-]+$/);
-  return capabilityBridge(request, {
+  const [resolved, dialogue] = await Promise.all([capabilityBridge(request, {
     execute: false,
     surface: "external_mcp",
     caller: "owner",
     timeoutSeconds: 20,
     targetHint,
-  });
+  }), dialoguePreview(request, clientId)]);
+  return { ...resolved, dialogue };
 }
 
 async function executeCapability(
@@ -312,6 +366,24 @@ async function executeCapability(
   if (requestId !== expectedRequestId) throw new Error("action_request_id_mismatch");
 
   const taskId = actionTaskId(clientId, actionKey);
+  // SAM-MIG V2.2 §12.1, fail-closed: the durable marker is read directly (no coordinator in the path), so a broken
+  // or unreachable coordinator never opens the lock. Nothing is kept to resume; the action_key stays the owner's
+  // replay protection (T-M01, T-X05).
+  const lock = readMaintenanceGate(clientId);
+  if (lock.state === "closed") {
+    return { state: "refused", request_id: requestId, task_id: taskId, retry_allowed: false, reason: lock.reason,
+      outcome: "MAINTENANCE", text: lock.reason === "maintenance" ? MCP_MAINTENANCE_TEXT : MCP_MARKER_INVALID_TEXT };
+  }
+  const gate = await dialoguePreview(request, clientId);
+  if (gate.outcome === "MAINTENANCE") {
+    return { state: "refused", request_id: requestId, task_id: taskId, retry_allowed: false, reason: "maintenance",
+      text: (gate as any).text || MCP_MAINTENANCE_TEXT, outcome: "MAINTENANCE" };
+  }
+  if (gate.outcome === "TECHNICAL_FAILURE" && gate.reasonCode === "coordinator_unavailable") {
+    // Bounded error for an execution (missions and effects); claw_resolve keeps its stateless preview.
+    return { state: "failed", request_id: requestId, task_id: taskId, retry_allowed: false,
+      reason: "coordinator_unavailable", outcome: "TECHNICAL_FAILURE" };
+  }
   const method = profile === "chat-owner" ? "mcp_capability_execute_owner" : "mcp_capability_execute_readonly";
   const suppliedDecision = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision)
     ? args.decision as Record<string, unknown>
@@ -420,12 +492,17 @@ async function executeCapability(
   return { ...projected, continuum: continuumState };
 }
 
-async function executeRawCommand(
+export async function executeRawCommand(
   requestId: string,
   clientId: string,
   profile: string,
   args: Record<string, unknown>,
+  dependencies: {hasTask?:typeof hasContinuumTask;ingress?:typeof continuumIngress;submit?:typeof submitAuthenticatedMcpRequest;getRequest?:typeof getRemoteBridgeRequest} = {},
 ) {
+  const hasTask=dependencies.hasTask || hasContinuumTask;
+  const ingress=dependencies.ingress || continuumIngress;
+  const submit=dependencies.submit || submitAuthenticatedMcpRequest;
+  const getRequest=dependencies.getRequest || getRemoteBridgeRequest;
   if (profile !== "chat-owner") throw new Error("owner_profile_required");
   const command = requiredString(args.command, "command", 32768);
   const actionKey = requiredString(args.action_key, "action_key", 40, ACTION_ID_RE);
@@ -439,21 +516,54 @@ async function executeRawCommand(
     throw new Error("invalid_timeout_ms");
   }
 
-  const receipt = await submitAuthenticatedMcpRequest({
-    requestId,
-    taskId: actionTaskId(clientId, actionKey),
-    stepId: stepKey,
-    sessionId: `external_mcp:${clientId}`,
-      _claw_access: accessMetadata(clientId,profile),
-    method: "exec_wait",
-    params: {
-      command,
-      ...(cwd ? { cwd } : {}),
-      timeoutMs,
-    },
+  const taskId = actionTaskId(clientId, actionKey);
+  const method = "exec_wait";
+  const params = { command, ...(cwd ? { cwd } : {}), timeoutMs };
+  const paramsHash = bridgeParamsHash(method, params);
+  const observed = hasTask(taskId) ? await ingress(["status", "--task-id", taskId]) : {state:"not_found"};
+  if (!observed || typeof observed.state !== "string" || !observed.state) throw new Error("continuum_status_invalid");
+  let wireStepId = stepKey;
+  let continuumFence: any;
+  const durable = observed?.state && observed.state !== "not_found";
+  if (durable) {
+    // Metadata comes only from the canonical task projection, never tool arguments.
+    const capability = String(observed.capability || "");
+    if (!/^[A-Za-z0-9._-]{1,128}$/.test(capability)) {
+      return {state:"blocked",error:"continuum_capability_unavailable",request_id:requestId,task_id:taskId,
+        retry_allowed:false,continuum:observed};
+    }
+    const existing = getRequest(requestId);
+    if (existing && (existing.requestId !== requestId || existing.taskId !== taskId || existing.method !== method || existing.paramsHash !== paramsHash)) {
+      throw new Error("request_id_conflict");
+    }
+    if (existing) return {...projectReceipt(existing),continuum:observed};
+    const prepared = await ingress([
+      "prepare", "--task-id", taskId, "--step-id", stepKey, "--request-id", requestId,
+      "--method", method, "--params-hash", paramsHash, "--capability", capability,
+      "--risk", "write", "--owner-id", `mcp-${clientId}`,
+    ]);
+    if (prepared.state !== "ready" || prepared.dispatch_allowed !== true) {
+      return {state:prepared.mission_state || prepared.state || "blocked",request_id:requestId,task_id:taskId,
+        retry_allowed:false,continuum:prepared};
+    }
+    wireStepId = requiredString(prepared.wire_step_id, "wire_step_id", 128, REQUEST_ID_RE);
+    continuumFence = prepared.continuum_fence;
+    // No fabricated fence or read classification: the Bridge validates the canonical armed effect.
+    if (!continuumFence) throw new Error("continuum_fence_required");
+  }
+  const receipt = await submit({
+    requestId, taskId, stepId:wireStepId, sessionId:`external_mcp:${clientId}`,
+    _claw_access:accessMetadata(clientId,profile), method, params,
+    ...(continuumFence ? {continuumFence} : {}),
   });
-
-  return projectReceipt(receipt);
+  const projected = projectReceipt(receipt);
+  if (!durable) return projected;
+  let continuum: any;
+  try {
+    await ingress(["settle", "--task-id", taskId, "--request-id", requestId]);
+    continuum = await ingress(["status", "--task-id", taskId]);
+  } catch { continuum = {state:"verification_required",retry_allowed:false}; }
+  return {...projected,continuum};
 }
 
 async function rememberFact(
@@ -565,7 +675,7 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
     case "claw_context":
       return contextBundle(args,clientId);
     case "claw_resolve":
-      return { state: "resolved", result: await resolveCapability(args) };
+      return { state: "resolved", result: await resolveCapability(args, clientId) };
     case "claw_execute":
       return executeCapability(requestId, clientId, profile, args);
     case "claw_exec":

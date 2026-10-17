@@ -13,7 +13,7 @@ const enroll=()=>fs.writeFileSync(path.join(state,'owner-turn-admission.json'),J
 const storage=require('../dist/companion/attachmentStorage'),sdk=require('../dist/companion/memoSttOwner');
 let providerCalls=0,effects=0,resolve,verifications=0;
 sdk.transcribeMemoAttachment=async()=>{providerCalls++;return new Promise(r=>resolve=r);};
-require('../dist/modelFastPath').runModelFastPath=async(text,opts)=>{assert.equal(text,'9addech batterie');if(opts.checkOnly)return{status:'eligible',decision:{version:2,type:'EXECUTE',risk:'read',confirmationRequired:false,capability:'device.assistance'}};effects++;return{status:'hit',text:'Synthetic read receipt'};};
+require('../dist/modelFastPath').runModelFastPath=require('./lib/legacy-fast-path-as-dialogue.cjs')(async(text,opts)=>{assert.equal(text,'9addech batterie');if(opts.checkOnly)return{status:'eligible',decision:{version:2,type:'EXECUTE',risk:'read',confirmationRequired:false,capability:'device.assistance'}};effects++;return{status:'hit',text:'Synthetic read receipt'};});
 const verify=owner.verifyRequest;owner.verifyRequest=request=>{verifications++;return verify(request);};
 const {route}=require('../dist/companion/server');
 const server=http.createServer((req,res)=>route(req,res).catch(e=>{res.writeHead(500);res.end(JSON.stringify({error:String(e.message)}));}));

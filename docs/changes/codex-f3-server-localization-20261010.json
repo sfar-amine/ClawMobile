@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "codex-f3-server-localization-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Localize known server presentation with Accept-Language without translating user content",
+  "reason": "Fichier 35 F3 : présentation FR/EN sur champs serveur prouvés, préparation partielle sans traduction de contenu libre.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/serverLocale.ts",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-server-localization.cjs",
+    "docs/work/samantha-runtime/contracts/f3.md",
+    "docs/changes/codex-f3-server-localization-20261010.md",
+    "docs/changes/codex-f3-server-localization-20261010.json",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-detail.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs"
+  ],
+  "tests": [
+    {
+      "name": "captured-localization-etag-and-http-refusal-targets",
+      "status": "passed",
+      "evidence": "Node20 npmci/build and test-server-localization.cjs passed under EX. Actual cleaned S24 fixture:3healthcomponents,7automationrows; cached source unchanged, zero realGatewaycalls. Existing ETag owner verifies stable-body same-language304/cross-language200 with distincttags; realHTTP invalidControlquery preserves ContentLanguage/Vary and avoidsownerreads. Projection1000rows stays below existing100ms assertion. Freshbase8ae69384 merged normally; workflowunion main74steps/head75steps has zero omissions. Entire final-head CI proof published separately in PR; historical34/34 not claimed."
+    },
+    {
+      "name": "f6-current-base-owner-proc-bound-regression",
+      "status": "passed",
+      "evidence": "First full530c0b59 archived72/73: onlyF6 abandoned18instead17. Isolated owner correctiondc5cc696 imported normally: >4096PIDinventory nowunknown beforepartialscan; fixturechildren remainalive via stdin andfinallycleanup, realcmdline proof, freshmodule4097overflowtest. Node20 build+F3+F6 rerununderEX passed:50020receipts,17abandoned,sweep474ms<10000,overflowunknown. No bounds/assertions/budgets changed. Whole finalSHA rerun published separately in PR."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/f3.md",
+    "docs/changes/codex-f3-server-localization-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Route R6 existante seulement ; aucun nouvel endpoint, propriétaire ou routage agent."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP tools and execution contracts unchanged."
+  },
+  "rollback": "Revert F3 ; aucune mutation runtime.",
+  "limitations": [
+    "Présentation serveur partielle : descriptions/résumés libres inchangés faute de provenance structurée ; consommation intégrée des champs additifs et recette S24 restent à qualifier.",
+    "Signal Accept-Language maintenant implémenté dans core#169 sourcebbb03c3743db7273a8f35dd1fe7c8b1a72b5bfab (RuntimeClient+LocaleSettings, menus selon téléphone). APK signé/installé et recette FR/EN pas encore attestés ici.",
+    "Base runtime8ae69384 fraîche ; aucune CI34/34 historique revendiquée pour cette tête. Replay entier au SHA final publié séparément avant ready.",
+    "ETag304 démontré seulement pour corps projeté stable ; envelopes Control live peuvent changer remainingFreshMs/deliveryMode et renvoyer200 normalement."
+  ]
+}

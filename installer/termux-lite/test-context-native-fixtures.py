@@ -3,6 +3,8 @@ import datetime,json,sqlite3,tempfile,unittest
 from pathlib import Path
 from context_native_metrics import read_native_metrics
 from context_digest import close_supersessions,bridge_digest
+from context_curator import apply_actions
+from context_memory import COLUMNS,event
 ROOT=Path(__file__).resolve().parents[2]/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/c10'
 class NativeFixtures(unittest.TestCase):
  def test_real_schema_window_rows_and_reconstructed_zero_control(self):
@@ -59,6 +61,8 @@ class NativeFixtures(unittest.TestCase):
   fixture=json.loads((ROOT/'memory-events-200.json').read_text());now=datetime.datetime(2026,10,10,12,5,tzinfo=datetime.timezone.utc)
   with tempfile.TemporaryDirectory() as root,sqlite3.connect(':memory:') as conn:
    for schema in fixture['schema'].values():conn.execute(schema)
+   conn.execute("CREATE TABLE curated_facts(event_id TEXT PRIMARY KEY,root_event_id TEXT NOT NULL,valid_from TEXT NOT NULL,valid_to TEXT,observed_at TEXT NOT NULL,state TEXT NOT NULL,invalidated_by TEXT)")
+   conn.execute("CREATE TABLE curator_audit(audit_id TEXT PRIMARY KEY,run_id TEXT NOT NULL,action TEXT NOT NULL,event_id TEXT NOT NULL,prior_event_id TEXT,valid_from TEXT NOT NULL,valid_to TEXT,observed_at TEXT NOT NULL)")
    for row in fixture['events']:
     keys=('id','surface','kind','text','created_at','ingested_at','supersedes','revision','session_id')
     conn.execute('INSERT INTO events VALUES(?,?,?,?,?,?,?,?,?)',[row[k] for k in keys])
@@ -67,6 +71,7 @@ class NativeFixtures(unittest.TestCase):
     values=[json.dumps(row[k]) if k in ('source_ids','payload') else row[k] for k in keys]
     conn.execute('INSERT INTO dream_proposals VALUES(?,?,?,?,?,?,?,?)',values)
    count=conn.execute("SELECT count(*) FROM dream_proposals WHERE action='confirm_supersession'").fetchone()[0]
+   apply_actions(conn,[event(row) for row in conn.execute(f'SELECT {COLUMNS} FROM events e ORDER BY revision')],'fixture',now)
    self.assertGreater(count,0);self.assertEqual(close_supersessions(conn,now),count);self.assertEqual(close_supersessions(conn,now),0)
    result=bridge_digest(conn,Path(root)/'workspace',now)
    self.assertIn(result['state'],('bridged','no_digest'))

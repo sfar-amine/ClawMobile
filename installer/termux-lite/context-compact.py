@@ -24,11 +24,22 @@ def main():
     con = store.connect(); store.migrate(con)
     marker = con.execute("SELECT value FROM memory_meta WHERE key='processed_reconciled_v1'").fetchone()
     pending = sorted(Q.glob('*.json'))
-    # A fresh/restored DB reconstructs all accepted events. Routine compaction
-    # never reopens every processed JSON file on each user turn.
+    # A fresh/restored DB reconstructs from the append-only history. Legacy
+    # processed files are reconciled once, then removed only after DB/history match.
     reconcile = marker is None or '--reconcile-history' in sys.argv
-    sources = (sorted(P.glob('*.json')) if reconcile else []) + pending
     invalid = []; accepted = 0
+    if reconcile:
+        for archive in sorted(A.glob('*.jsonl')):
+            try:
+                with archive.open() as stream:
+                    for number,line in enumerate(stream,1):
+                        if line.strip():
+                            result=store.ingest_event(con,json.loads(line),replay_history=True)
+                            accepted += int(result['inserted'])
+            except Exception as exc:
+                invalid.append((f'{archive}:{number if "number" in locals() else 0}',str(exc)))
+                break
+    sources = (sorted(P.glob('*.json')) if reconcile else []) + pending
     for p in sources:
         try:
             result = store.ingest_file(con, p)

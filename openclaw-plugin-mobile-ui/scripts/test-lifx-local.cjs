@@ -15,14 +15,15 @@ native.nativeOperation=async(id,action,target,effect)=>{
 os.networkInterfaces=()=>({wlan0:[{address:"192.168.1.75",netmask:"255.255.255.0",family:"IPv4",internal:false}]});
 const fixture=require("../fixtures/lifx-a19-s24-20261013.json");
 let wire={...fixture.state.raw_hsbk,power:fixture.state.power,label:fixture.state.label};
-let writes=0,dropSetReply=false,dropReads=false;
+let writes=0,dropSetReply=false,dropReads=false,noLamp=false;
+const emptyDiscovery=require("../fixtures/lifx-discover-s24-20261017.json");
 function light(){const p=Buffer.alloc(52);p.writeUInt16LE(wire.hue,0);p.writeUInt16LE(wire.saturation,2);p.writeUInt16LE(wire.brightness,4);p.writeUInt16LE(wire.kelvin,6);p.writeUInt16LE(wire.power==="on"?65535:0,10);p.write(wire.label,12);return p;}
 class Socket extends EventEmitter{
  bind(_port,_local,cb){setImmediate(cb);}
  setBroadcast(){}
  close(){this.removeAllListeners();}
  send(d,port,ip,cb){
-  cb?.(null);const t=d.readUInt16LE(32);let type,payload;const before=light();
+  cb?.(null);if(noLamp)return;const t=d.readUInt16LE(32);let type,payload;const before=light();
   if(t===2){type=3;payload=Buffer.alloc(5);payload[0]=1;payload.writeUInt32LE(56700,1);}
   else if(t===101){if(dropReads)return;type=107;payload=light();}
   else if(t===32){type=33;payload=Buffer.alloc(12);payload.writeUInt32LE(1,0);payload.writeUInt32LE(27,4);}
@@ -56,5 +57,11 @@ const body=(id,desired)=>({contract_version:"0.1",request_id:id,device_id:"d073d
  assert.throws(()=>lifx.validateLifxSet(body("invalid",{brightness_percent:101})),/INVALID_ARGUMENT/);
  await assert.rejects(()=>lifx.setLifx({...body("expired",{power:"on"}),expires_at:new Date(Date.now()-1).toISOString()}),/REQUEST_EXPIRED/);
  dropReads=true;const failed=await lifx.readLifx("d073d5225b23");assert.equal(failed.status,"failed");assert.equal(failed.state,null);
- assert.equal(effects,4);console.log("LIFX local: packet, read, preserve fields, verified readback, dedup, conflict, expiry, ACK-loss, off-state and unreachable tests passed.");
+ // Real S24 capture of 17/10: GetService broadcast on wlan0 answered by no LIFX device (lamp off or off-LAN).
+ noLamp=true;assert.deepEqual(emptyDiscovery.devices,[]);
+ assert.deepEqual(await lifx.discoverLifx(),emptyDiscovery.devices);
+ const gone=await lifx.readLifx("d073d5225b23");assert.equal(gone.status,"failed");assert.equal(gone.state,null);
+ assert.equal(gone.error.code,"DEVICE_NOT_FOUND");assert.ok(gone.elapsed_ms<2500,gone.elapsed_ms);
+ const blind=await lifx.setLifx(body("on-absent",{power:"on"}));assert.equal(blind.artifact.status,"failed");assert.equal(blind.artifact.error.retryable,true);
+ assert.equal(effects,5);console.log("LIFX local: packet, read, preserve fields, verified readback, dedup, conflict, expiry, ACK-loss, off-state, unreachable and real empty-discovery tests passed.");
 })().catch(e=>{console.error(e);process.exitCode=1;});

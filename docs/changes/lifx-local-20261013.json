@@ -3,20 +3,18 @@
   "id": "lifx-local-20261013",
   "origin": "work",
   "kind": "capability",
-  "merge_eligibility": "blocked",
+  "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "summary": "LIFX exclusivement local, runtime",
   "reason": "Go Amine après validation maquette et parcours voix/texte avec clarification.",
   "files": [
     ".github/workflows/ci.yml",
-    "CAPABILITIES.md",
     "docs/08-decisions/ADR-20261013-lifx-local.md",
     "docs/changes/lifx-local-20261013.json",
     "docs/changes/lifx-local-20261013.md",
-    "docs/work/samantha-convergence/53_LIFX_Local.md",
-    "docs/work/samantha-convergence/README.md",
     "installer/termux-lite/companion-acceptance.py",
     "openclaw-plugin-mobile-ui/fixtures/lifx-a19-s24-20261013.json",
+    "openclaw-plugin-mobile-ui/fixtures/lifx-discover-s24-20261017.json",
     "openclaw-plugin-mobile-ui/package.json",
     "openclaw-plugin-mobile-ui/scripts/test-lifx-local.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-lifx-route.cjs",
@@ -43,8 +41,6 @@
   ],
   "documentation": [
     "docs/changes/lifx-local-20261013.md",
-    "docs/work/samantha-convergence/53_LIFX_Local.md",
-    "CAPABILITIES.md",
     "docs/08-decisions/ADR-20261013-lifx-local.md"
   ],
   "capabilities": {
@@ -94,9 +90,7 @@
   },
   "rollback": "Revert puis déploiement des versions antérieures par les scripts existants. Aucun firmware ou Wi-Fi modifié.",
   "limitations": [
-    "Aucune mutation réelle testée.",
-    "Aucun déploiement ni installation Android.",
-    "Compilation Android et suite JVM CI nécessaires.",
-    "Branches sources uniquement ; revue et activation coordonnées requises."
+    "Aucune mutation réelle de lampe : Lif8x injoignable sur le LAN le 17/10 (sonde lecture seule).",
+    "Recette live avec Amine après déploiement coordonné (playbooks doc 58)."
   ]
 }
