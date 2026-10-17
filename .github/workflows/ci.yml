@@ -357,6 +357,8 @@ jobs:
           python3 ../installer/termux-lite/test-context-native-fixtures.py
           python3 ../installer/termux-lite/test-context-scale.py
           python3 ../installer/termux-lite/test-context-import.py
+      - name: Run M5 memory evaluation scorer (50 real questions, synthetic db)
+        run: python3 ../installer/termux-lite/test-memory-eval.py
       - name: Verify memory curator cron description reconciliation
         run: python3 ../installer/termux-lite/test-memory-curator-cron.py
       - name: Test health manager resource restart policy

@@ -1,0 +1,13 @@
+{
+  "measured_at": "2026-10-12T00:06+02:00",
+  "source": "S24 read-only: memory.db copied by sqlite backup to ~/.cache/tmp/m5 (deleted after run); memory revision 2024; 2024 events",
+  "questions_sha256": "bc942c6b09fd7e300d33b1421cdd9c94e0ccacbfa4e9b0ede230313a3fef2dc9",
+  "runs": {
+    "materialized_hybrid": {"context": "~/.openclaw/workspace/context/HYBRID_CONTEXT.md (24134 B)", "found": 33, "total": 50,
+      "missing": ["M5-017","M5-022","M5-023","M5-027","M5-028","M5-029","M5-030","M5-031","M5-032","M5-040","M5-041","M5-042","M5-043","M5-044","M5-045","M5-046","M5-047"]},
+    "hybrid_plus_all_rules": {"context": "HYBRID + SOUL, AGENTS, USER, OPERATING_RULES, context/rules/*.md (107888 B)", "found": 34, "total": 50},
+    "rebuilt_view_release_current_63717bb3": {"context": "build_view from releases/current context_memory.py (24082 B, coverage BLOCKED)", "found": 10, "total": 50},
+    "rebuilt_view_branch_5770dbc1": {"context": "build_view from runtime/samantha-companion-private (24143 B, coverage complete)", "found": 33, "total": 50},
+    "full_event_store_upper_bound": {"context": "all 2024 event texts", "found": 50, "total": 50, "stale_present": ["M5-046"]}
+  }
+}
