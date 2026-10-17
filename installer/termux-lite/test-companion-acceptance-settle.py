@@ -2,7 +2,7 @@
 """Retro 12/10: a load spike or the Gateway warming up after a restart is not a regression.
 Real S24 receipts: companion-20261011T224926 (/agent/config 9.44 s > 9 s), companion-20261011T234147
 (metadata 503 cold and warm right after restart), companion-20261011T234815 (/notifications/sources 6.51 s, 503)."""
-import importlib.util, json, pathlib, unittest
+import importlib.util, json, pathlib, tempfile, unittest
 from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -31,11 +31,18 @@ def server(first_slow=(), first_503=(), always_slow=()):
 
 
 class AcceptanceSettle(unittest.TestCase):
-    def run_main(self, call):
+    def run_main(self, call, baseline=None):
         with mock.patch.object(acceptance, "call", side_effect=call), mock.patch.object(acceptance.time, "sleep") as slept, \
              mock.patch("builtins.print") as printed:
-            rc = acceptance.main()
+            rc = acceptance.main(baseline_path=baseline)
         return rc, json.loads(printed.call_args.args[0]), slept
+
+    def baseline(self, seconds):
+        handle = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump({"state": "deployed", "acceptance": {"checks": [
+            {"route": path, "seconds": value, "status": "ok"} for path, value in seconds.items()
+        ]}}, handle); handle.close(); self.addCleanup(pathlib.Path(handle.name).unlink)
+        return handle.name
 
     def test_one_slow_reading_is_read_again_after_a_pause(self):
         call, seen = server(first_slow=("/agent/config",))
@@ -54,6 +61,49 @@ class AcceptanceSettle(unittest.TestCase):
         rc, out, _ = self.run_main(call)
         self.assertEqual(rc, 1)
         self.assertTrue(any(c["route"] == "/agent/config" and c["status"] == "fail" for c in out["checks"]))
+
+    def test_previous_release_separates_variance_from_a_gateway_regression(self):
+        jitter, _ = server(always_slow=("/agent/config",))
+        rc, out, _ = self.run_main(jitter, self.baseline({"/agent/config": 9.0}))
+        row = next(c for c in out["checks"] if c["route"] == "/agent/config" and not c.get("check"))
+        self.assertEqual((rc, row["previousSeconds"], row["regression"], row["status"]), (0, 9.0, False, "ok"))
+
+        slow, _ = server()
+        def two_to_ten(method, path, timeout, headers=None):
+            code, body, took = slow(method, path, timeout, headers)
+            return (code, body, 10.0) if path == "/agent/config" else (code, body, took)
+        rc, out, _ = self.run_main(two_to_ten, self.baseline({"/agent/config": 2.0}))
+        row = next(c for c in out["checks"] if c["route"] == "/agent/config" and not c.get("check"))
+        self.assertEqual((rc, row["regression"], row["status"]), (1, True, "fail"))
+
+    def test_catalog_is_prewarmed_before_its_timed_read(self):
+        call, seen = server()
+        rc, out, _ = self.run_main(call)
+        self.assertEqual(rc, 0)
+        self.assertGreaterEqual(seen["/catalog"], 2)
+        self.assertEqual(out["checks"][0]["check"], "prewarm")
+
+    def test_short_cache_reads_are_prewarmed_untimed(self):
+        # S24 17/10 (companion-20261017T040904, rolled back): automations 4.48 s cold / 1 s, learning 0.75 s / 0.5 s,
+        # then 0.01 s once warm. Their cache is shorter than RETRY_PAUSE_S, so the timed retry was cold as well.
+        call, seen = server(first_slow=tuple(acceptance.PREWARM))
+        rc, out, _ = self.run_main(call)
+        self.assertEqual(rc, 0, [c for c in out["checks"] if c["status"] == "fail"])
+        for path in acceptance.PREWARM:
+            self.assertEqual(seen[path], 2)
+            prewarm = [c for c in out["checks"] if c["route"] == path and c.get("check") == "prewarm"]
+            timed = [c for c in out["checks"] if c["route"] == path and not c.get("check")]
+            self.assertEqual((len(prewarm), prewarm[0]["status"], timed[0]["status"]), (1, "ok", "ok"))
+        # The budget itself is unchanged: a warm read still over budget twice fails.
+        slow, _ = server(always_slow=("/learning/associations?limit=20",))
+        rc, out, _ = self.run_main(slow)
+        self.assertEqual(rc, 1)
+        # A prewarm that cannot read at all is a failure, never a silent pass.
+        broken, _ = server(first_503=("/control/automations",))
+        rc, out, _ = self.run_main(broken)
+        self.assertTrue(any(c["route"] == "/control/automations?contract=2" and c.get("check") == "prewarm"
+                            and c["status"] == "fail" for c in out["checks"]))
+        self.assertEqual(rc, 1)
 
     def test_deploy_waits_for_calm_and_gateway_before_judging(self):
         text = (HERE / "companion-deploy.sh").read_text()

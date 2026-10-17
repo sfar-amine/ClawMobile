@@ -12,8 +12,7 @@ import {
 } from "./voiceUnderstanding";
 import { captureVoiceRound, type RoundCaptureRunner } from "./voiceRoundLearning";
 import { readReceiptPresentation } from "./receiptPresentation";
-import type { SurfaceTurn } from "../capabilityClarification";
-import { SurfaceClarifications } from "../capabilityClarification";
+import { DialogueSurface, type SurfaceTurn } from "../dialogueSurface";
 import { runModelFastPath } from "../modelFastPath";
 export { reconnectDelay } from "./reconnectPolicy";
 import {
@@ -74,9 +73,10 @@ let lastPongAt = 0;
 let lastError = "";
 
 const recent = new Map<string, { hash: string; at: number; response: any }>();
-// 38 E3: canonical CLARIFY (decision v2) first, answered by resolve-clarification.
-let voiceClarifications = new SurfaceClarifications(runModelFastPath);
 const VOICE_SURFACE = "bixby_claw";
+// SAM-MIG V2.2: the dialogue coordinator owns the pending question; `conversations` below keeps only the relay's
+// transport binding (conversationId -> coordinator conversation id), never a question nor a decision.
+let voiceDialogue = new DialogueSurface(runModelFastPath, "voice", VOICE_SURFACE);
 const conversations = new Map<string, PendingConversation>();
 // Lot 41 V2: last deterministic voice turn (bounded projection, no transcript), 2-minute window.
 let lastRelayTurn: VoiceTurnContext | null = null;
@@ -499,7 +499,7 @@ async function runVoiceRequest(requestId: string, request: string) {
     const learning = payload ? await roundCapture(payload) : { state: "skipped", reason: "no_target_intent" };
     return realignmentResponse(previous, learning);
   }
-  const turn = await voiceClarifications.turn(request, { surface: VOICE_SURFACE, originId: requestId });
+  const turn = await voiceDialogue.turn(request, { originId: requestId });
   if (turn.state !== "continue") lastRelayTurn = voiceTurnContext(surfaceVoiceReceipt(turn), request, { locale: "fr", scope: "bixby_claw" });
   if (turn.state === "needs_clarification") {
     const conversationId = newConversationId();
@@ -531,7 +531,7 @@ function spokenCapabilityText(turn: SurfaceTurn) {
 }
 
 async function runVoiceCapabilityContinuation(requestId: string, conversationId: string, pending: PendingConversation, answer: string) {
-  const turn = await voiceClarifications.turn(answer, { surface: VOICE_SURFACE, id: pending.clarificationId, originId: requestId });
+  const turn = await voiceDialogue.turn(answer, { id: pending.clarificationId, originId: requestId });
   if (turn.state !== "continue") lastRelayTurn = voiceTurnContext(surfaceVoiceReceipt(turn), answer, { locale: "fr", scope: "bixby_claw" });
   if (turn.state === "needs_clarification") {
     pending.clarificationId = turn.clarificationId;
@@ -950,7 +950,7 @@ function connect() {
 
 /** Test seam: canonical voice turns with an injected fast-path runner (no relay socket). */
 export const voiceRelayTurnsForTest = {
-  useClarifications(value: SurfaceClarifications) { voiceClarifications = value; },
+  useDialogue(value: DialogueSurface) { voiceDialogue = value; },
   request: (requestId: string, request: string) => runVoiceRequest(requestId, request),
   continuation: (requestId: string, conversationId: string, answer: string) => runVoiceContinuation(requestId, conversationId, answer),
 };

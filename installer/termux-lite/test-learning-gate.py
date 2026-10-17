@@ -1,9 +1,11 @@
 #!/data/data/com.termux/files/usr/bin/python3
-import contextlib, importlib.util, io, json, os, shutil, subprocess, tempfile, unittest
+import contextlib, datetime as dt, importlib.util, io, json, os, shutil, subprocess, tempfile, unittest
 from pathlib import Path
 from types import SimpleNamespace
 
 ROOT=Path(__file__).resolve().parent
+import sys; sys.path.insert(0,str(ROOT))
+from host_test_support import adapt_shebangs, host_cmd
 P=ROOT/"learning-gate.py"
 spec=importlib.util.spec_from_file_location("learning_gate",P)
 lg=importlib.util.module_from_spec(spec); spec.loader.exec_module(lg)
@@ -85,6 +87,19 @@ class LearningGateTests(unittest.TestCase):
         self.assertTrue(out["context_text"].startswith("LEARNING_GATE_V1:"))
         self.assertFalse(out["howto_updated"])
 
+    def test_development_journal_rotates_on_month_boundary(self):
+        journal=lg.JOURNAL
+        journal.write_text('# Development Journal\n\nold month\n')
+        old=dt.datetime(2026,9,30,12,tzinfo=dt.timezone.utc).timestamp()
+        os.utime(journal,(old,old))
+        archive=lg.rotate_monthly_journal(journal,dt.datetime(2026,10,1,tzinfo=dt.timezone.utc))
+        self.assertEqual(archive,journal.with_name('DEVELOPMENT_JOURNAL.2026-09.md'))
+        self.assertFalse(journal.exists())
+        self.assertIn('old month',archive.read_text())
+        self.run_close(closure_id='october')
+        self.assertTrue(journal.exists())
+        self.assertIn('learning-gate:',journal.read_text())
+
     def make_runtime_root(self):
         runtime=self.base/"runtime"; runtime.mkdir(exist_ok=True)
         for name in ("learning-gate.py","learning-gate-close.sh"):
@@ -94,6 +109,7 @@ class LearningGateTests(unittest.TestCase):
         context.chmod(0o755)
         wa=runtime/"whatsapp-owner-send.sh"; wa.write_text("#!/bin/sh\nexit 0\n"); wa.chmod(0o755)
         mail=runtime/"incident-email.sh"; mail.write_text("#!/bin/sh\nexit 1\n"); mail.chmod(0o755)
+        adapt_shebangs(runtime)  # copies seulement : shebangs Termux adaptés hors Termux
         return runtime
 
     def subprocess_env(self, runtime):
@@ -105,7 +121,7 @@ class LearningGateTests(unittest.TestCase):
         runtime=self.make_runtime_root()
         learning=self.base/"engineering.json"
         learning.write_text(json.dumps({"reusable_learning":"complex RPC payloads use B64 envelope","how_to":["prefer CLAW_RPC_V1_B64 for complex payloads"],"confidence":"validated"}))
-        proc=subprocess.run([str(ROOT/"autonomous-engineering-close.sh"),"recovered","slack_bridge","fixed",str(learning)],
+        proc=subprocess.run([*host_cmd(ROOT/"autonomous-engineering-close.sh"),"recovered","slack_bridge","fixed",str(learning)],
                             env=self.subprocess_env(runtime),text=True,capture_output=True)
         self.assertEqual(proc.returncode,0,proc.stdout+proc.stderr)
         closure=(self.base/".openclaw"/"autonomous-engineering"/"closure.log").read_text()
@@ -118,7 +134,7 @@ class LearningGateTests(unittest.TestCase):
         queue.mkdir(parents=True)
         (queue/"status").write_text("pending")
         (queue/"message").write_text("slack_bridge down")
-        proc=subprocess.run([str(ROOT/"incident-close.sh"),"slack_bridge","verified recovery"],
+        proc=subprocess.run([*host_cmd(ROOT/"incident-close.sh"),"slack_bridge","verified recovery"],
                             env=self.subprocess_env(runtime),text=True,capture_output=True)
         self.assertEqual(proc.returncode,0,proc.stdout+proc.stderr)
         self.assertEqual((queue/"status").read_text(),"closed")
@@ -136,7 +152,7 @@ class LearningGateTests(unittest.TestCase):
         queue.mkdir(parents=True)
         (queue/"status").write_text("pending")
         (queue/"message").write_text("slack_bridge down")
-        subprocess.run([str(ROOT/"incident-close.sh"),"slack_bridge","verified recovery"],
+        subprocess.run([*host_cmd(ROOT/"incident-close.sh"),"slack_bridge","verified recovery"],
                        env=self.subprocess_env(runtime),text=True,capture_output=True)
         self.assertEqual((queue/"status").read_text(),"recovered")
         self.assertFalse((queue/"closed").exists())

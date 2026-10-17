@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "id": "codex-b42-agent-config-flight-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Terminer R02 : cache court complet de /agent/config, recette comparative, préchauffage catalogue et préflight deferred sur batterie avec RAM saturée.",
+  "reason": "Fichier 52 R02, en reprenant exclusivement la PR #167 et ses lectures simultanées déjà qualifiées.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-config-flight.cjs",
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-b42-agent-config-flight-20261011.json",
+    "docs/changes/codex-b42-agent-config-flight-20261011.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/agent-config/agent-config-budget-before.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/agent-config/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/agent-config/agent-config-budget-pr173-before.json",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-remote-bridge-abandoned.cjs",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/companion-deploy.sh",
+    "installer/termux-lite/test-companion-acceptance-settle.py",
+    "installer/termux-lite/test-companion-deploy-preflight.py",
+    "openclaw-plugin-mobile-ui/scripts/test-agent-config.cjs"
+  ],
+  "tests": [
+    {
+      "name": "agent-config-flight",
+      "status": "passed",
+      "evidence": "Node20 npm run build, test-agent-config-flight.cjs, test-agent-config.cjs et test-remote-bridge-abandoned.cjs verts sur c5a3dd7e5b64841fc431d5d4f15c6d2c0deea2a0, sous verrou exclusif ; journal /workspace/artifacts/b42/agent-config-46-targeted-final.log. Douze lecteurs, récupération après erreur et TTL inchangés. F6 : 50020 reçus, 17 abandons, 435 ms sous 10000 ms ; inventaire /proc >4096 reste inconnu. Suite CI entière requise au SHA final."
+    },
+    {
+      "name": "r02-targeted",
+      "status": "passed",
+      "evidence": "Build TypeScript, contrats agent-config, 12 lecteurs, recette comparative avec latences injectées 2–10 s, préchauffage /catalog, préflight batterie/RAM deferred, syntaxe shell et compilation Python verts. Suite entière en attente du GO."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-b42-agent-config-flight-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Routes et capabilities existantes conservées ; qualification canonique checkOnly avant effet."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Cache mémoire borné de 5 s dans le propriétaire agentConfig existant et logique de recette dans les scripts de déploiement existants ; aucun store, service, ordonnanceur ou routeur ajouté."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Lecture et validation de mutation inchangées ; aucune exposition de paramètres runtime.",
+    "evidence": [
+      "openclaw-plugin-mobile-ui/scripts/test-agent-config-flight.cjs"
+    ]
+  },
+  "rollback": "Revert de cette PR ; aucun déploiement par Codex.",
+  "limitations": [
+    "Aucune mesure S24 post-correctif revendiquée.",
+    "Le débit concurrent sera qualifié sur S24 par Claude avant activation.",
+    "PR173 avant #167 seulement : authStatus 9,809 s et charge 13,08 ; mesure après déploiement requise avant conclusion de performance."
+  ]
+}

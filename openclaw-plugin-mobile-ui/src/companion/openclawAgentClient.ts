@@ -5,6 +5,7 @@ import {opendirSync,readFileSync} from "fs";
 import {compactOwnerAgentContext} from "./clawLive";
 import {turnAdmission,type AdmissionTicket} from "./ownerTurnAdmission";
 import {submitOwnerTurn} from "./ownerTurnGateway";
+import type {ResponseLanguage} from "./receiptPresentation";
 
 export type OpenClawAgentSubmitResult = {
   runId: string;
@@ -22,11 +23,21 @@ const DEFAULT_SUBMIT_TIMEOUT_MS = 15_000;
 const DEFAULT_FINAL_TIMEOUT_MS = 120_000;
 const DEFAULT_GATEWAY_CALL_TIMEOUT_MS = 10_000;
 
+export function responseLanguageInstruction(language:ResponseLanguage|undefined):string {
+  return language==='en'
+    ? "Answer this turn in English. This is the request language, independent of the phone UI language."
+    : language==='tn'
+      ? "Answer this turn in Tunisian derja written in arabizi (Latin letters and digits). Do not switch to the phone UI language."
+      : language==='fr'
+        ? "Réponds à ce tour en français. Cette langue vient de la demande et non de la langue d’interface du téléphone."
+        : "";
+}
+
 export async function submitToOpenClawAgent(
   text: string,
   runId: string,
   sessionId = "default",
-  options: {authority?:"owner"; admission?:AdmissionTicket; clientRunId?:string; voiceDelegation?:true} = {},
+  options: {authority?:"owner"; admission?:AdmissionTicket; clientRunId?:string; voiceDelegation?:true; responseLanguage?:ResponseLanguage} = {},
 ): Promise<OpenClawAgentSubmitResult> {
   const waitedForFinal = shouldWaitForFinal();
   const timeoutMs = configuredTimeoutMs(waitedForFinal);
@@ -34,6 +45,8 @@ export async function submitToOpenClawAgent(
   const sessionKey = companionSessionKey(normalizedSessionId);
   const agentId = options.voiceDelegation === true ? "main" : (process.env.CLAWMOBILE_AGENT_ID || "").trim();
   const canonical=compactOwnerAgentContext(options);
+  const languagePrompt=responseLanguageInstruction(options.responseLanguage);
+  const responseContext=[canonical,languagePrompt].filter(Boolean).join("\n\n");
   const params = {
     sessionKey,
     ...(agentId ? { agentId } : {}),
@@ -42,7 +55,7 @@ export async function submitToOpenClawAgent(
     message: text.trimStart().startsWith("/") ? text : `[companion-session:${normalizedSessionId}]\n${text}`,
     deliver: false,
     bootstrapContextMode: "lightweight",
-    ...(canonical?{extraSystemPrompt:canonical}:{}),
+    ...(responseContext?{extraSystemPrompt:responseContext}:{}),
     idempotencyKey: runId,
   };
 

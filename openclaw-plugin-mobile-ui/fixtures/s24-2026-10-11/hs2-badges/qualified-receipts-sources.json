@@ -1,0 +1,205 @@
+{
+ "_capture": {
+  "capturedAt": "2026-10-11T10:58Z",
+  "host": "Samsung S24 / Termux",
+  "runtimeCore": "363a6b8ef08cd95905c1264ce4b4feee928185e4",
+  "playbooksPinned": "c7f3e7939591a6637149d7f026761de11e9ace20",
+  "mode": "code (playbooks c7f3e79) + lecture de fichiers du S24 : noms de champs, types, valeurs d'énumération, décomptes et âges ; aucune valeur métier (montant, référence, numéro, carte, titre), aucun identifiant de reçu",
+  "sanitized": true
+ },
+ "candidates": {
+  "billing.utility.fast_path": {
+   "owner": "ui-playbooks billing/live_service.py (check → record_metrics), entrée `python3 -m billing.cli check --json`",
+   "files": {
+    "~/.openclaw/billing/last-status.json": {
+     "format": "JSON, 0600, remplacement atomique (.last-status-<pid>.json → os.replace)",
+     "bytes": 1228,
+     "ageAtCapture_s": 425507,
+     "schema": {
+      "run_id": "str",
+      "checked_at": "str",
+      "status": "str",
+      "process_wall_ms": "int",
+      "providers": [
+       {
+        "provider": "str",
+        "route_id": "str",
+        "status": "str",
+        "coverage_complete": "bool",
+        "reason_code": "str|null",
+        "latency_ms": "int",
+        "request_count": "int",
+        "pages_read": "int|null",
+        "references_checked": "int",
+        "read_retries": "int",
+        "coverage_basis": "str"
+       }
+      ]
+     },
+     "missing": "aucun compteur métier : has_pending / pending_count / identified_invoice_count ne sont PAS écrits dans ce reçu"
+    },
+    "~/.openclaw/billing/route-learning.jsonl": {
+     "format": "JSONL (RouteLearning), 0600",
+     "bytes": 30340,
+     "ageAtCapture_s": 425507
+    }
+   },
+   "bridgeReceipt": {
+    "path": "~/.openclaw/remote-bridge/requests/<requestId>.json",
+    "count": 1,
+    "method": "mcp_capability_execute_owner",
+    "ageAtCapture_s": 425527,
+    "executionResultFields": [
+     "schema_version=2",
+     "business_rule",
+     "status=ok",
+     "coverage_complete",
+     "checked_at",
+     "live",
+     "providers_requested",
+     "providers_checked",
+     "has_pending",
+     "pending_count",
+     "identified_invoice_count",
+     "reference_balances_count",
+     "total_pending (montant, exclu)",
+     "providers[].{provider,status,has_pending,coverage_complete,reason_code,route_id,checked_at,coverage_basis,references_available,references_checked,identified_invoice_count}"
+    ],
+    "note": "seul reçu portant un compteur structuré complet ; il n'existe que pour les exécutions passées par le pont MCP"
+   },
+   "routeHealth": {
+    "path": "~/.openclaw/skill-intelligence/route-health.json (clé cible|intention|route)",
+    "utility-billing.unpaid.direct.v2": {
+     "state": "healthy",
+     "lastSuccessAge_s": 425548,
+     "lastVerifiedAge_s": 596747
+    },
+    "steg.unpaid.direct.v2": {
+     "state": "healthy",
+     "lastVerifiedAge_s": 508359
+    },
+    "topnet.unpaid.direct.v2": {
+     "state": "healthy",
+     "lastVerifiedAge_s": 508359
+    },
+    "sonede.unpaid.direct.v2": {
+     "state": "degraded",
+     "consecutiveFailures": 2,
+     "lastSuccess": null
+    }
+   }
+  },
+  "telecom.orange.consultation": {
+   "owner": "entrée canonique `python -m telecom.maxit_guarded_service <intention> --mode auto` ; journal telecom/cli.py",
+   "files": {
+    "~/.openclaw/telecom/runs.jsonl": {
+     "format": "JSONL, 0600",
+     "lines": 219,
+     "bytes": 46947,
+     "ageAtCapture_s": 49002,
+     "schema": {
+      "run_id": "str",
+      "provider": "str",
+      "workflow": "str",
+      "ok": "bool",
+      "state": "str|null",
+      "source": "str",
+      "transport": "str",
+      "latency_ms": "int",
+      "recorded_at": "float"
+     },
+     "missing": "aucun compteur ni lien de capability ; pas de champ verified"
+    }
+   },
+   "bridgeReceipt": {
+    "count": 1,
+    "method": "mcp_capability_execute_owner",
+    "ageAtCapture_s": 121196,
+    "executionResultFields": [
+     "ok",
+     "provider",
+     "workflow",
+     "source",
+     "transport",
+     "data.cards[].{kind,section,days_remaining} (titres/valeurs exclus)",
+     "observed_at",
+     "blocked_by",
+     "route_id",
+     "coverage",
+     "run_id"
+    ],
+    "routeHealthHistoryVerified": false
+   },
+   "routeHealth": {
+    "orange.usage.maxit.v1 (telecom.usage)": {
+     "state": "healthy",
+     "lastVerifiedAge_s": 94572
+    },
+    "orange.summary.maxit.v1 (telecom.summary)": {
+     "state": "degraded",
+     "lastVerifiedAge_s": 389523
+    },
+    "note": "les routes maxit-tunisie|telecom.balance* n'ont jamais last_verified_at"
+   }
+  },
+  "qa.test_campaign": {
+   "owner": "ui-playbooks qa_testing (pont Remote Bridge propriétaire des reçus d'exécution) ; artefacts ~/.openclaw/remote-bridge/artifacts/qa-campaigns (CLAW_QA_ARTIFACT_ROOT)",
+   "bridgeReceipt": {
+    "count": 2,
+    "ageAtCapture_s": 36998,
+    "states": {
+     "completed/ok": 1,
+     "execution failed (exit 1, error.code)": 1
+    },
+    "executionResultFields": [
+     "ok",
+     "capability_id",
+     "operation",
+     "result.documents[].{document_id,available,size_bytes,sha256,version}",
+     "error.{code}"
+    ],
+    "note": "aucun compteur structuré utilisable pour un badge"
+   }
+  }
+ },
+ "bridgeStore": {
+  "path": "~/.openclaw/remote-bridge/requests/",
+  "files": 7654,
+  "bytes": 27864968,
+  "methods": {
+   "exec_wait": 6087,
+   "ping": 1133,
+   "read_file": 158,
+   "patch_file": 65,
+   "mcp_capability_execute_owner": 18,
+   "mcp_capability_execute_readonly": 6
+  },
+  "states": {
+   "completed": 7619,
+   "failed": 16,
+   "abandoned": 16,
+   "running": 3
+  },
+  "fields": [
+   "requestId",
+   "taskId",
+   "stepId",
+   "sessionId",
+   "method",
+   "paramsHash",
+   "state",
+   "instanceId",
+   "receivedAt",
+   "startedAt",
+   "mutationRisk",
+   "result"
+  ]
+ },
+ "findings": [
+  "Il n'existe pas aujourd'hui de source unique de « reçus qualifiés » : le compteur structuré complet n'existe que dans le reçu du pont (remote-bridge/requests), et seulement pour les exécutions passées par MCP (1 facture, 1 Orange, 2 QA sur 7 654 reçus).",
+  "Le reçu propre au domaine (billing/last-status.json, telecom/runs.jsonl) ne porte ni compteur métier ni lien de capability ; billing/last-status.json a ~4,9 jours.",
+  "Liaison à la capability : présente dans le reçu du pont (result.capability) ; absente des reçus de domaine.",
+  "Succès vérifié : seul route-health.json porte last_verified_at, par route et non par reçu ; plusieurs routes Orange n'ont jamais de vérification.",
+  "Fraîcheur/invalidation : aucune expiration attestée dans aucune source ; seules des horodatages (checked_at, observed_at, recorded_at) existent."
+ ]
+}
