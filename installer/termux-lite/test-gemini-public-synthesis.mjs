@@ -73,6 +73,14 @@ test("JSON wrapped in a markdown fence is still parsed and validated",async()=>{
   fenced.complete=async(...args)=>{const out=await original(...args);return {...out,content:[{type:"text",text:"```json\n"+out.content[0].text+"\n```"}]};};
   assert.equal((await synthesizePublic(request(),fenced,{env:{}})).outcome,"complete");
 });
+test("numeric claim ids from the free model are renumbered, not refused (S24 17/10)",async()=>{
+  const native=owner();const original=native.complete;
+  native.complete=async(...args)=>{const out=await original(...args);
+    const body=JSON.parse(out.content[0].text);body.claims=body.claims.map(c=>({...c,id:1}));
+    return {...out,content:[{type:"text",text:JSON.stringify(body)}]};};
+  const result=await synthesizePublic(request(),native,{env:{}});
+  assert.equal(result.outcome,"complete");assert.deepEqual(result.claims.map(c=>c.id),["c1"]);
+});
 test("markdown fence and bare claim list from the free model are still validated",async()=>{
   for(const wrap of [t=>"```json\n"+t+"\n```", t=>JSON.stringify(JSON.parse(t).claims)]) {
     const native=owner();const original=native.complete;
