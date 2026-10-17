@@ -23,3 +23,13 @@ Les cinq suites réseau sont inscrites dans la CI conservée par union : garde78
 La promotion reste NO-GO avant intégration des trois propriétaires, recette contrôlée S24 (réseau réellement sélectionné, restauration effective, app, texte/voix), mesures A/B froid/chaud avec p50/p95 qualifiés et cleanup physique. Les mesures inertes ne sont pas des performances Maxit. La preuve physique du canal Android et ses permissions/API restent à Claude ; aucun nouveau droit téléphone n’est demandé ici.
 
 Retour arrière : ancienne release par Claude et son mécanisme canonique ; garder le propriétaire de récupération des baux ouverts, ne jamais effacer un bail pour masquer une dette de cleanup. Le parcours paiement `with_wifi_off` et sa surveillance sont identiques à la source S24 core344b2fd ; aucune règle de paiement, biométrie ou3DS n’est modifiée.
+
+## Intégration du 17/10 (Claude) — décision d'Amine « 4G et Wi-Fi »
+
+Amine a tranché le 17/10 : les parcours Orange/Maxit sont admis en 4G et en Wi-Fi. Cette décision remplace la règle « 4G gardée » de l'audit « mon solde orange » du 10/10 et le point 5 des décisions ouvertes du fichier 52. `AGENTS.md` (règle 9) est mis à jour. Le reçu atteste le chemin réellement utilisé (`cellular_default`, `cellular_bound_wifi_unchanged`, `guarded_fallback`) ; le Wi-Fi n'ouvre aucun contournement d'authentification.
+
+Garanties paiement prouvées par `installer/termux-lite/test-payment-guard-invariance.py` (inscrit dans `ci.yml`) :
+- les fonctions du parcours de recharge (`with_wifi_off`, `_run_without_mutation`, `run_while_wifi_stays_off`, `wifi_toggle_decision`, `restore_state`, restaurateur…) sont identiques octet pour octet à la base runtime `636becf5` (empreintes sous `openclaw-plugin-mobile-ui/fixtures/payment-guard/`) ;
+- `adb`, `set_wifi`, `create_lease`, `mutation_lock`, `restore_lease` et `run_restorer`, modifiés pour la consultation, gardent hors consultation leur comportement historique (délais, bail sans champ de consultation, verrou sans délégation) ;
+- une recharge exécute sa commande exactement une fois en Wi-Fi comme en 4G, sans forward ADB ni broadcast ajouté ;
+- un bail de recharge n'est jamais admis comme canal de consultation : refus `maxit_guard_required` sans aucun appel ADB.

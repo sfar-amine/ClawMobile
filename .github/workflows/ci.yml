@@ -427,6 +427,8 @@ jobs:
           python3 ../installer/termux-lite/test-consultation-process-safety.py
           python3 ../installer/termux-lite/test-consultation-total-bound.py
           python3 ../installer/termux-lite/test-consultation-fastpath.py
+      - name: Orange 4G et Wi-Fi (décision 17/10) — garanties paiement du garde partagé
+        run: python3 ../installer/termux-lite/test-payment-guard-invariance.py
       - name: O8 baseline model efficiency and Gemini client regression
         run: |
           python3 ../installer/termux-lite/test-model-efficiency.py
