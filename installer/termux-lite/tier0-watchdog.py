@@ -16,8 +16,8 @@ def deploying():
             fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB);fcntl.flock(f,fcntl.LOCK_UN)
         return False
     except OSError: return True
-def bad_caps(s):
-    caps=load(HEALTH).get('capabilities',{})
+def bad_caps(s,health=None):
+    caps=(load(HEALTH) if health is None else health).get('capabilities',{})
     return [c for c in s.get('critical_capabilities',[]) if str(caps.get(c,{}).get('state','')).lower() not in OK]
 def hold(s):
     """Stable release waiting to become LKG: any bad sample restarts the clean window; a newer promotion drops it."""
@@ -48,7 +48,12 @@ def tick():
         s['soak_bad_samples']=0;save(s);return
     if int(time.time()) < int(s.get('soak_grace_until_epoch',0)):
         s['soak_bad_samples']=0;save(s);return
-    bad=bad_caps(s)
+    health=load(HEALTH);generated=health.get('generated_at')
+    if isinstance(generated,(int,float)) and not isinstance(generated,bool) and generated<int(s.get('soak_grace_until_epoch',0)):
+        # A health sample generated before the end of the startup grace describes the restart (Gateway restart by
+        # runtime-sync, 16/10: rollback on such a sample), not the release: wait for a fresh one, count nothing.
+        return
+    bad=bad_caps(s,health)
     if bad:s['soak_bad_samples']=int(s.get('soak_bad_samples',0))+1;s['last_bad']=bad
     else:s['soak_bad_samples']=0;s.pop('last_bad',None)
     if s.get('soak_bad_samples',0)>=2 and not STOP.exists():

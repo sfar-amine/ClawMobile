@@ -43,6 +43,8 @@ Le S24 reste la source de vérité opérationnelle (`claw_context`). Une copie G
    - ses fixtures et leur provenance ;
    - le retour arrière.
 
+11. **CI locale, définitive** (décision d'Amine du 17/10/2026). GitHub Actions n'est pas réactivé pour ce dépôt. La CI de `.github/workflows/ci.yml` est rejouée **en local** par Claude, sur le tree exact du head : toutes les étapes `run:`, aucune sautée. GitHub reste la référence de synchronisation. Tout est commité, poussé, puis fusionné par PR. La PR porte un commentaire de preuve : SHA testé, nombre d'étapes vertes, et égalité entre tree testé et tree fusionné (`git merge-tree`). On n'attend pas de check GitHub vert, et un check rouge faute de minutes Actions ne bloque pas une fusion prouvée en local.
+
 ## Déploiement (Claude)
 - Uniquement par `installer/termux-lite/companion-deploy.sh <commit>`, qui fait dans l'ordre :
   - le préflight (refus si un job lourd tourne, si la mémoire est sous 1 200 Mo ou si la charge dépasse 7) ;
@@ -53,7 +55,7 @@ Le S24 reste la source de vérité opérationnelle (`claw_context`). Une copie G
   - les consignes des agents (pièces Projet et Pulse, contacts `contacts-agent.md`) suivent le même commit. Toutes les 30 min, le gestionnaire de santé lance `runtime-sync.sh --check`. Ce contrôle prouve que chaque copie, chaque consigne, les règles des playbooks et le contrat `before_dispatch` d'OpenClaw sont toujours alignés, et il alerte sinon ;
   - l'écriture du reçu dans `~/.openclaw/deploys/`.
 - Playbooks : `activate-ui-playbooks.sh <sha>`, qui réinstalle aussi les règles globales (`install_interaction_rules.py --apply`).
-- L'app Android est compilée par GitHub Actions et installée par `android/samantha/tools/install-from-ci.sh`, qui vérifie le checksum et la clé du S24. **Pas de Gradle sur le téléphone.**
+- L'app Android est compilée **hors du téléphone**, en local (`./gradlew --no-daemon testDebugUnitTest assembleOptimized`, puis `android/samantha/tools/build-apk-offphone.sh --publish`), et non par GitHub Actions (décision d'Amine du 17/10). L'installation vérifie le checksum et la clé du S24. **Pas de Gradle sur le téléphone.**
 - **Un seul job lourd à la fois** sur le S24.
 - Toute route à plus de 80 % de son budget dans un reçu devient une tâche d'optimisation.
 
