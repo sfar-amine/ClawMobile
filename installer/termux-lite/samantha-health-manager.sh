@@ -96,7 +96,12 @@ wait_supervisor_lock(){
    sleep 1 9>&-
  done
 }
-check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_on_current_root "$pat" "$script"; then healthy "$n"; return; fi; unstable "$n"; due "$n" || return; restart_gate "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else log "service=$n action=start"; fi; start "$n" "$script"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" && healthy "$n" || fail "$n"; }
+# Un superviseur VIVANT sur une release précédente n'est pas en panne : un déploiement a changé la release.
+# Le réaligner ne consomme pas le budget de relances et n'est pas bloqué par human_required (S24 17/10 :
+# 4 déploiements en 17 min ont épuisé 3/3, déclenché un rollback Tier0 puis 4 incidents human_required,
+# et ~490 restart_refused par superviseur, sans fin, sur des processus qui tournaient). Un superviseur
+# ABSENT reste une panne et passe par restart_gate.
+check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_on_current_root "$pat" "$script"; then healthy "$n"; return; fi; unstable "$n"; due "$n" || return; if proc "$pat"; then log "service=$n state=stale_runtime action=replace expected=$script budget=exempt"; stop_supervisor "$pat"; wait_supervisor_lock "$n" || { fail "$n"; return; }; else restart_gate "$n" || return; log "service=$n action=start"; fi; start "$n" "$script"; sleep 3 9>&-; proc "$pat" && supervisor_on_current_root "$pat" "$script" && healthy "$n" || fail "$n"; }
 # A Companion deploy stops and restarts the server itself: never "repair" it meanwhile (S24 11/10: EADDRINUSE,
 # 15 concurrent repairs a day, each one cutting the Remote Bridge). The canonical mode also closes the race
 # between the outer loop and this repair boundary.
@@ -237,16 +242,19 @@ check_slack_bridge(){
  fi
  unstable slack_bridge
  due slack_bridge || return
- restart_gate slack_bridge || return
- if proc '[c]law-slack-bridge.mjs'; then
-   if slack_bridge_on_current_root; then
-     log 'service=slack_bridge state=degraded action=restart'
-   else
-     log "service=slack_bridge state=stale_runtime action=replace expected_root=$ROOT"
-   fi
+ # Même règle que check_supervisor : réaligner un pont vivant sur la nouvelle release est gratuit ; un pont
+ # absent ou dégradé sur la release courante est une panne et passe par le budget.
+ if proc '[c]law-slack-bridge.mjs' && ! slack_bridge_on_current_root; then
+   log "service=slack_bridge state=stale_runtime action=replace expected_root=$ROOT budget=exempt"
    stop_slack_bridge
  else
-   log 'service=slack_bridge action=start'
+   restart_gate slack_bridge || return
+   if proc '[c]law-slack-bridge.mjs'; then
+     log 'service=slack_bridge state=degraded action=restart'
+     stop_slack_bridge
+   else
+     log 'service=slack_bridge action=start'
+   fi
  fi
  start slack_bridge "$ROOT/claw-slack-bridge.sh"
  sleep 3 9>&-

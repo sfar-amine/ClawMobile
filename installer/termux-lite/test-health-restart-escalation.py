@@ -69,6 +69,39 @@ class RestartEscalationTests(unittest.TestCase):
                         pass
             return result, files
 
+    def test_aligning_a_live_supervisor_after_deploy_is_free(self):
+        """S24 17/10 : quatre déploiements rapprochés ne doivent ni épuiser le budget ni rester en human_required."""
+        result, files = self.run_probe(
+            """
+CLOCK=100; now(){ echo "$CLOCK"; }; log(){ echo "$*" >>"$LOG"; }
+ALIVE=1; ONROOT=0
+proc(){ [ "$ALIVE" = 1 ]; }; supervisor_on_current_root(){ [ "$ONROOT" = 1 ]; }
+stop_supervisor(){ :; }; wait_supervisor_lock(){ return 0; }; sleep(){ :; }
+start(){ ONROOT=1; echo "$1" >>"$HOME/starts"; }
+put adb_watchdog escalation human_required; put adb_watchdog status human_required
+for i in 1 2 3 4 5; do ONROOT=0; put adb_watchdog next 0; check_supervisor adb_watchdog pat "$ROOT/x.sh"; done
+[ "$(get adb_watchdog status none)" = healthy ]
+[ ! -s "$(sf adb_watchdog restart_attempts)" ]
+"""
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(files["starts"].count("adb_watchdog"), 5)
+        self.assertNotIn("rollback.calls", files)
+        self.assertNotIn("restart_refused", files.get(".openclaw/health/health.log", ""))
+        self.assertIn("budget=exempt", files[".openclaw/health/health.log"])
+
+    def test_an_absent_supervisor_still_uses_the_budget(self):
+        result, files = self.run_probe(
+            """
+CLOCK=100; now(){ echo "$CLOCK"; }; log(){ echo "$*" >>"$LOG"; }
+proc(){ return 1; }; supervisor_on_current_root(){ return 1; }; sleep(){ :; }; start(){ :; }
+put adb_watchdog escalation human_required
+check_supervisor adb_watchdog pat "$ROOT/x.sh" || true
+"""
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("restart_refused reason=human_required", files[".openclaw/health/health.log"])
+
     def test_budget_then_one_rollback_then_one_human_required(self):
         result, files = self.run_probe(
             """
