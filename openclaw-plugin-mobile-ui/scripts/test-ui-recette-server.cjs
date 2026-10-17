@@ -80,7 +80,14 @@ const RAW_PROFILE=/@(?:openai|google|github-copilot|custom-po-zapro-su):/;
   confirmationApi.status=async()=>({intent:{presentation:{title:'Repli',subtitle:'Agent',description:'Nouveau compte'},origin:{channel:'samantha',id:'owner'}}});
   confirmationApi.consume=async(id,intent)=>{assert.equal(id,'bio-fixture');consumedHash=intent.action.payloadHash;return {consumed:true};};
   const expanded={provider:'openai',model:'gpt-5.6-sol',thinking:'medium',revision:hash,fallbacks:['openai/gpt-5.6-luna','google/gemini-3.5-flash-lite@'+googleAlias]};
-  assert.equal((await request('/v1/agent/config','POST',{...expanded,operationId:'ui-recette-bio-missing'},owner)).status,409,'a new @account fallback still needs the biometric confirmation');
+  const patchesBeforeChallenge=patches.length;
+  const missingBio=await request('/v1/agent/config','POST',{...expanded,operationId:'ui-recette-bio-missing'},owner);
+  assert.equal(missingBio.status,403,'a new @account fallback still needs the biometric confirmation');
+  assert.equal(missingBio.body.error,'confirmation_required');
+  assert.equal(missingBio.body.scope,'agent.config.expand_fallbacks');
+  assert.equal(missingBio.body.reference,'main');
+  assert.equal(missingBio.body.payloadHash,crypto.createHash('sha256').update(JSON.stringify(expanded)).digest('hex'));
+  assert.equal(patches.length,patchesBeforeChallenge,'the challenge must not dispatch a Gateway write');
   const bio=await request('/v1/agent/config','POST',{...expanded,operationId:'ui-recette-bio',confirmationId:'bio-fixture'},owner);assert.equal(bio.body.state,'completed',bio.text);
   // AgentConfig.desiredJson (app): {provider,model,thinking,revision,fallbacks} as sent, handles included.
   assert.equal(consumedHash,crypto.createHash('sha256').update(JSON.stringify(expanded)).digest('hex'));

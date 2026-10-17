@@ -19,8 +19,22 @@ def proc(p):return bool(run(f"pgrep -f '{p}'"))
 def age(p):
  try:return max(0,NOW-p.stat().st_mtime)
  except:return None
-def item(state,critical=True,reason='',evidence='',freshness=None):
- return {'state':state,'critical':critical,'reason':reason or None,'evidence':evidence or None,'freshness_s':round(freshness,1) if freshness is not None else None,'checked_at':int(NOW)}
+def item(state,critical=True,reason='',evidence='',freshness=None,probe_kind='readiness'):
+ # I6/R07: keep the backwards-compatible effective state while identifying
+ # whether the evidence proves that a local process is alive or that a
+ # component/dependency is ready to serve. Readiness must never be used as
+ # evidence that a process should be restarted.
+ if probe_kind not in ('liveness','readiness'):
+  raise ValueError('invalid_probe_kind')
+ return {'state':state,'critical':critical,'probe_kind':probe_kind,'reason':reason or None,'evidence':evidence or None,'freshness_s':round(freshness,1) if freshness is not None else None,'checked_at':int(NOW)}
+def external_readiness(state,critical=False,reason='',evidence='',freshness=None):
+ # Provider/channel/network availability is not local process liveness. Keep
+ # the verdict degraded (never down) and publish the no-restart policy so
+ # consumers cannot turn a provider outage into a local restart loop.
+ effective='degraded' if state=='down' else state
+ row=item(effective,critical,reason,evidence,freshness,probe_kind='readiness')
+ row['dependency']='external';row['restart_allowed']=False
+ return row
 def repeated_failures(td):
  # Même règle que le propriétaire : count>=2 ET dernier échec dans la fenêtre de 3600 s.
  try:ref=float(td.get('checked_at') or NOW)
@@ -57,10 +71,10 @@ def whatsapp_health(raw,last_outbound=''):
  terminal=('health:logged-out' in status or 'status=401 unauthorized' in status or 'session logged out' in raw.lower())
  failed='state=failed' in last_outbound.lower()
  connected=', connected' in status and 'stopped' not in status
- if terminal:return 'down','terminal_auth_logout'
+ if terminal:return 'degraded','terminal_auth_logout'
  if connected and failed:return 'degraded','latest_outbound_failed'
  if connected:return 'healthy','channel_connected'
- return 'down','channel_not_connected'
+ return 'degraded','channel_not_connected'
 def latest_channel_event(path,channel):
  if not path.exists():return ''
  rows=[z for z in path.read_text(errors='ignore').splitlines() if f'channel={channel} state=' in z]
@@ -116,7 +130,7 @@ def live():
  for k,(pat,log,ttl) in checks.items():
   a=age(log); up=proc(pat)
   st='healthy' if up and a is not None and a<=ttl else ('stale' if up else 'down')
-  x[k]=item(st,True,'process and loop evidence healthy' if st=='healthy' else ('loop evidence stale' if up else 'process missing'),str(log),a)
+  x[k]=item(st,True,'process and loop evidence healthy' if st=='healthy' else ('loop evidence stale' if up else 'process missing'),str(log),a,probe_kind='liveness')
  try:
   spec=importlib.util.spec_from_file_location('rdc_control',Path(__file__).with_name('remote-desktop-control.py'))
   rdc=importlib.util.module_from_spec(spec); spec.loader.exec_module(rdc); rd=rdc.health()
@@ -132,9 +146,9 @@ def live():
   if lines:lastwa=lines[-1]
  if not lastwa:lastwa=latest_channel_event(ev,'whatsapp')
  wastate,wareason=whatsapp_health(wa,lastwa)
- x['notification.whatsapp']=item(wastate,False,reason=wareason,evidence='channel status + latest canonical outbound evidence')
+ x['notification.whatsapp']=external_readiness(wastate,False,reason=wareason,evidence='channel status + latest canonical outbound evidence')
  smstate,smreason,smfresh=smtp_health(OC/'health/smtp-probe.json',ev)
- x['notification.smtp']=item(smstate,False,reason=smreason,evidence='live SMTP probe + latest delivery evidence',freshness=smfresh)
+ x['notification.smtp']=external_readiness(smstate,False,reason=smreason,evidence='live SMTP probe + latest delivery evidence',freshness=smfresh)
  tx=OC/'health/transaction-health.json'
  try:
   td=json.loads(tx.read_text()); ta=NOW-float(td.get('checked_at',0)); ts=td.get('status','unverified')

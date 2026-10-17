@@ -10,6 +10,12 @@ const fs=require("fs"),os=require("os"),path=require("path"),http=require("http"
 const root=fs.mkdtempSync(path.join(os.tmpdir(),"voice-understanding-"));
 os.homedir=()=>root;process.env.OPENCLAW_STATE_DIR=path.join(root,"state");
 process.env.CLAW_VOICE_RELAY_CONFIG=path.join(root,"missing-relay.json");
+// SAM-MIG V2.2: every voice / Claw Live turn first goes to the dialogue coordinator (model-fast-path.py --dialogue).
+// These tests are about the rendering of the existing executors' envelopes: the stand-in coordinator answers
+// UNRESOLVED (no question pending, model policy allowed), so each turn continues on its existing executor.
+const dialogueHelper=path.join(root,"dialogue-helper.py");
+fs.writeFileSync(dialogueHelper,"import json\nprint(json.dumps({'outcome':'UNRESOLVED','reasonCode':'model_allowed','modelAllowed':True,'handled':False}))\n");
+process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=dialogueHelper;
 
 const fx=(name)=>JSON.parse(fs.readFileSync(path.join(__dirname,"..","fixtures","s24-2026-10-11",name),"utf8"));
 const RES=fx("hs3-resolution-slots-shortlist.json");
@@ -335,18 +341,18 @@ test("Contradictory submission evidence never acquires non-debit reassurance",()
 });
 
 test("Canonical clarification owner retains decision and HS3 without a second warm admission",async()=>{
-  const {SurfaceClarifications}=require("../dist/capabilityClarification");
+  // SAM-MIG V2.2: the dialogue coordinator owns the turn; its reply carries the decision and HS3 metadata.
+  const {DialogueSurface}=require("../dist/dialogueSurface");
   const {clawLiveCapabilityTurn}=require("../dist/companion/clawLive");
   const calls=[];
-  const c=new SurfaceClarifications(async(text,options)=>{
+  const c=new DialogueSurface(async(text,options)=>{
     calls.push({text,options});
-    if(options.checkOnly)return {status:"eligible",decision:RES.resolutions.r11.decision};
-    return {status:"hit",text:"Ta confirmation est attendue.",decision:RES.resolutions.r11.decision,presentation:HS3.topup_fr,result:{private:"not forwarded"}};
-  });
+    return {outcome:"COMPLETED",text:"Ta confirmation est attendue.",handled:true,decision:RES.resolutions.r11.decision,metadata:{presentation:HS3.topup_fr},result:{private:"not forwarded"}};
+  },"claw_live","claw_live");
   const o=owner();let admissions=0;o.executeVoiceCapability=async(meta,text,run)=>{admissions++;return run();};
   const body={request:"Recharge mon numéro Orange de 5 dinars",voiceTurn:{turnId:"canonical-t1",sessionEpoch:7}};
   const out=await clawLiveCapability(o,body,(request)=>clawLiveCapabilityTurn({request,originId:"claw-live-canonical-t1"},()=>{throw new Error("must use prepared owner");},c));
-  assert.equal(admissions,1);assert.equal(calls.length,2);assert.equal(calls[0].options.originId,"claw-live-canonical-t1");
+  assert.equal(admissions,1);assert.equal(calls.length,1);assert.equal(calls[0].options.dialogue.event.eventRef,"claw-live-canonical-t1");
   assert.equal(out.voice.verbatim,"J'ai compris : Recharger mon numéro · Orange · 5 DT · ta ligne.");
   assert.equal(out.decision.risk,"transaction");assert.equal(JSON.stringify(out).includes("not forwarded"),false);
 });

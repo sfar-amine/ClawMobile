@@ -5,7 +5,8 @@ from context_import import preview as import_preview, selection as import_select
 H=pathlib.Path.home()
 D=pathlib.Path(os.environ.get("SAMANTHA_CONTEXT_ROOT",H/".openclaw/context-sync"))
 DB=D/"memory.db"
-SCHEMA_VERSION=4
+# 6: M3 curated_facts/curator_audit (#256) and M6 cursor state (#262), both additive and idempotent.
+SCHEMA_VERSION=6
 
 def connect():
     D.mkdir(parents=True,exist_ok=True); os.chmod(D,0o700)
@@ -25,7 +26,23 @@ def migrate(c):
         c.execute("CREATE TABLE IF NOT EXISTS memory_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
         c.execute("""CREATE TABLE IF NOT EXISTS session_cursors(
             session_id TEXT PRIMARY KEY,surface TEXT NOT NULL,last_seen_revision INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL)""")
+            updated_at TEXT NOT NULL,known_contracts TEXT NOT NULL DEFAULT '{}',
+            global_baseline TEXT NOT NULL DEFAULT '{}')""")
+        cursor_cols={r[1] for r in c.execute("PRAGMA table_info(session_cursors)")}
+        if 'known_contracts' not in cursor_cols:c.execute("ALTER TABLE session_cursors ADD COLUMN known_contracts TEXT NOT NULL DEFAULT '{}'")
+        if 'global_baseline' not in cursor_cols:c.execute("ALTER TABLE session_cursors ADD COLUMN global_baseline TEXT NOT NULL DEFAULT '{}'")
+        # M3 keeps the immutable events as the source of truth.  These two tables are a
+        # rebuildable curator projection and its append-only audit, in the same owner DB.
+        c.execute("""CREATE TABLE IF NOT EXISTS curated_facts(
+            event_id TEXT PRIMARY KEY,root_event_id TEXT NOT NULL,valid_from TEXT NOT NULL,
+            valid_to TEXT,observed_at TEXT NOT NULL,state TEXT NOT NULL,
+            invalidated_by TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_curated_facts_active ON curated_facts(state,valid_to)")
+        c.execute("""CREATE TABLE IF NOT EXISTS curator_audit(
+            audit_id TEXT PRIMARY KEY,run_id TEXT NOT NULL,action TEXT NOT NULL,
+            event_id TEXT NOT NULL,prior_event_id TEXT,valid_from TEXT NOT NULL,
+            valid_to TEXT,observed_at TEXT NOT NULL)""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_curator_audit_observed ON curator_audit(observed_at,audit_id)")
         c.execute("""CREATE TABLE IF NOT EXISTS dream_proposals(
             proposal_id TEXT PRIMARY KEY,run_id TEXT NOT NULL,action TEXT NOT NULL,
             source_ids TEXT NOT NULL,payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'proposed',
@@ -61,23 +78,37 @@ def delta(c,after,limit=500):
         {"id":r[0],"revision":r[1],"surface":r[2],"kind":r[3],"text":r[4],"createdAt":r[5],"supersedes":r[6]}
         for r in rows],"lastReturnedRevision":rows[-1][1] if rows else after,"truncated": bool(rows and rows[-1][1] < h)}
 
-def ingest_file(c,path,require_active=None):
-    p=pathlib.Path(path)
-    # Another writer can move a pending event to processed between a path
-    # existence check and the read. Open the candidates directly so that an
-    # already-open file remains readable across rename, and retry the canonical
-    # processed location when the pending path has already moved.
-    candidates=(p,D/'processed'/p.name)
-    missing=None
-    for candidate in candidates:
+def _history_path():
+    return D/'history'/(datetime.datetime.now().astimezone().strftime('%Y-%m')+'.jsonl')
+
+def _same_event(row,e,revision):
+    return bool(row and row[0]==revision and row[1]==e['surface'] and row[2]==e['kind']
+                and row[3]==' '.join(str(e['text']).split()) and row[5]==e.get('supersedes'))
+
+def _history_has(e,revision):
+    for path in sorted((D/'history').glob('*.jsonl')):
+        if path.is_symlink():continue
         try:
-            with candidate.open() as stream:e=json.load(stream)
-            p=candidate
-            break
-        except FileNotFoundError as error:
-            missing=error
-    else:
-        raise missing if missing is not None else FileNotFoundError(path)
+            with path.open() as stream:
+                for line in stream:
+                    item=json.loads(line)
+                    if item.get('id')==e['id']:
+                        normalized={**item,'text':' '.join(str(item.get('text','')).split())}
+                        return (normalized.get('revision')==revision and normalized.get('surface')==e['surface']
+                                and normalized.get('kind')==e['kind'] and normalized.get('text')==' '.join(str(e['text']).split())
+                                and normalized.get('supersedes')==e.get('supersedes'))
+        except (OSError,ValueError,json.JSONDecodeError): return False
+    return False
+
+def _archive(e,revision):
+    history=D/'history'; history.mkdir(parents=True,exist_ok=True)
+    ap=_history_path(); payload={**e,'revision':revision}
+    fd=os.open(ap,os.O_WRONLY|os.O_APPEND|os.O_CREAT|os.O_NOFOLLOW,0o600)
+    with os.fdopen(fd,'w') as stream:
+        stream.write(json.dumps(payload,ensure_ascii=False,separators=(',',':'))+'\n')
+        stream.flush(); os.fsync(stream.fileno())
+
+def ingest_event(c,e,replay_history=False,accepted_legacy=False,require_active=None):
     if not all(e.get(k) for k in ('id','surface','kind','text','createdAt')): raise ValueError('missing required field')
     if e['surface'] not in ('chat','work','voice','openclaw','claude','codex','app'): raise ValueError('bad surface')
     if e['kind'] not in ('decision','learning','open_thread','completed_action','constraint','checkpoint'): raise ValueError('bad kind')
@@ -86,6 +117,7 @@ def ingest_file(c,path,require_active=None):
         raise ValueError('invalid_companion_session')
     migrate(c); c.execute('BEGIN IMMEDIATE')
     try:
+        if require_active and c.execute('SELECT 1 FROM events WHERE supersedes=?',(require_active,)).fetchone():raise ValueError('memory_already_superseded')
         if session is not None and e.get('supersedes'):
             prior=e['supersedes']; seen=set()
             for _ in range(64):
@@ -97,52 +129,78 @@ def ingest_file(c,path,require_active=None):
                 if not origin[1]: break
                 prior=origin[1]
             else: raise ValueError('event_origin_chain_invalid')
-        row=c.execute('SELECT revision,session_id FROM events WHERE id=?',(e['id'],)).fetchone()
+        row=c.execute('SELECT revision,session_id,surface,kind,text,created_at,supersedes FROM events WHERE id=?',(e['id'],)).fetchone()
         if row:
             if row[1]!=session: raise ValueError('event_session_conflict')
+            if (row[2],row[3],row[4],row[6])!=(e['surface'],e['kind'],' '.join(str(e['text']).split()),e.get('supersedes')):
+                raise ValueError('event_identity_conflict')
             rev=row[0]; inserted=False
         else:
-            if require_active and c.execute('SELECT 1 FROM events WHERE supersedes=?',(require_active,)).fetchone():raise ValueError('memory_already_superseded')
-            # M3: machine telemetry belongs to its owner (deploy receipts, learning gate, situations).
-            # Replaying an already-accepted processed/ file (DB rebuild) stays possible.
-            if refused_telemetry(e['text']) and p.parent.resolve()!=(D/'processed').resolve():raise ValueError('machine_telemetry_refused')
+            # History replay is trusted only after the JSON shape checks above. New ingress
+            # still rejects telemetry owned by its dedicated receipt/ledger.
+            if not replay_history and not accepted_legacy and refused_telemetry(e['text']):raise ValueError('machine_telemetry_refused')
             h=int(c.execute("SELECT value FROM memory_meta WHERE key='current_revision'").fetchone()[0]); rev=h+1
+            if replay_history:
+                expected=int(e.get('revision',0))
+                if expected<=0 or expected!=rev: raise ValueError('history_revision_gap')
+                rev=expected
             now=datetime.datetime.now(datetime.timezone.utc).isoformat()
             c.execute('INSERT INTO events(id,surface,kind,text,created_at,ingested_at,supersedes,revision,session_id) VALUES(?,?,?,?,?,?,?,?,?)',(e['id'],e['surface'],e['kind'],' '.join(str(e['text']).split()),e['createdAt'],now,e.get('supersedes'),rev,session))
             c.execute("UPDATE memory_meta SET value=? WHERE key='current_revision'",(str(rev),)); inserted=True
         c.execute('COMMIT')
     except Exception:
         c.execute('ROLLBACK'); raise
-    processed=D/'processed'; history=D/'history'; processed.mkdir(parents=True,exist_ok=True); history.mkdir(parents=True,exist_ok=True)
-    if inserted:
-        e['revision']=rev; ap=history/(datetime.datetime.now().astimezone().strftime('%Y-%m')+'.jsonl')
-        with ap.open('a') as f: f.write(json.dumps(e,ensure_ascii=False,separators=(',',':'))+'\n')
-        os.chmod(ap,0o600)
-    dest=processed/p.name
-    if p!=dest:
-        try:
-            os.replace(p,dest)
-        except FileNotFoundError:
-            # A concurrent ingest of this same event may have committed and
-            # moved the shared pending file after our transaction committed.
-            # Treat only that fully materialized, DB-validated state as the
-            # idempotent winner; every other missing source remains an error.
-            durable=c.execute('SELECT revision,session_id FROM events WHERE id=?',(e['id'],)).fetchone()
-            if not dest.is_file() or durable!=(rev,session):raise
-    return {'id':e['id'],'revision':rev,'inserted':inserted}
+    history_verified=replay_history
+    if not replay_history:
+        if inserted:_archive(e,rev);history_verified=True
+        else:
+            history_verified=_history_has(e,rev)
+            if not history_verified:_archive(e,rev);history_verified=True
+    return {'id':e['id'],'revision':rev,'inserted':inserted,'historyVerified':history_verified}
 
-def cursor(c,sid,surface=None,advance=None):
+def ingest_file(c,path,require_active=None):
+    p=pathlib.Path(path)
+    # Open directly (#238): another worker can durably commit, archive and remove the same pending
+    # file between an existence check and the read. An already-open file stays readable.
+    try:
+        with p.open() as stream:e=json.load(stream)
+    except FileNotFoundError:
+        # Concurrent identical producers can observe the pending file after another
+        # worker has durably committed, archived and removed it.
+        if re.fullmatch(r'[a-f0-9]{64}\.json',p.name):
+            migrate(c); row=c.execute('SELECT revision,supersedes FROM events WHERE id=?',(p.stem,)).fetchone()
+            if row and (require_active is None or row[1]==require_active):return {'id':p.stem,'revision':row[0],'inserted':False}
+        raise
+    result=ingest_event(c,e,accepted_legacy=p.parent.resolve()==(D/'processed').resolve(),require_active=require_active)
+    row=c.execute('SELECT revision,surface,kind,text,created_at,supersedes FROM events WHERE id=?',(e['id'],)).fetchone()
+    # Delete the transient copy only after both durable truths independently match.
+    if _same_event(row,e,result['revision']) and result['historyVerified']:p.unlink(missing_ok=True)
+    return result
+
+def cursor(c,sid,surface=None,advance=None,state=None):
     migrate(c); now=datetime.datetime.now(datetime.timezone.utc).isoformat()
-    row=c.execute("SELECT surface,last_seen_revision,updated_at FROM session_cursors WHERE session_id=?",(sid,)).fetchone()
+    row=c.execute("SELECT surface,last_seen_revision,updated_at,known_contracts,global_baseline FROM session_cursors WHERE session_id=?",(sid,)).fetchone()
     if advance is not None:
         rev=int(advance); h=head(c)
         if rev<0 or rev>h: raise ValueError("cursor revision outside memory head")
         sf=surface or (row[0] if row else "chat")
-        c.execute("""INSERT INTO session_cursors(session_id,surface,last_seen_revision,updated_at) VALUES(?,?,?,?)
-                     ON CONFLICT(session_id) DO UPDATE SET surface=excluded.surface,last_seen_revision=excluded.last_seen_revision,updated_at=excluded.updated_at""",
-                  (sid,sf,rev,now))
-        row=(sf,rev,now)
-    return {"sessionId":sid,"surface":row[0],"lastSeenRevision":row[1],"updatedAt":row[2]} if row else None
+        known,baseline=(row[3],row[4]) if row else ('{}','{}')
+        if state is not None:
+            if not isinstance(state,dict) or set(state)-{'knownContracts','globalBaseline'}:raise ValueError('invalid_cursor_state')
+            known_value=state.get('knownContracts',{});baseline_value=state.get('globalBaseline',{})
+            if (not isinstance(known_value,dict) or len(known_value)>32
+                    or any(not isinstance(k,str) or len(k)>200 or not isinstance(v,str) or not re.fullmatch(r'[a-f0-9]{64}',v) for k,v in known_value.items())
+                    or not isinstance(baseline_value,dict) or len(baseline_value)>8):raise ValueError('invalid_cursor_state')
+            known=json.dumps(known_value,sort_keys=True,separators=(',',':'))
+            baseline=json.dumps(baseline_value,sort_keys=True,separators=(',',':'))
+        c.execute("""INSERT INTO session_cursors(session_id,surface,last_seen_revision,updated_at,known_contracts,global_baseline) VALUES(?,?,?,?,?,?)
+                     ON CONFLICT(session_id) DO UPDATE SET surface=excluded.surface,last_seen_revision=excluded.last_seen_revision,
+                     updated_at=excluded.updated_at,known_contracts=excluded.known_contracts,global_baseline=excluded.global_baseline""",
+                  (sid,sf,rev,now,known,baseline))
+        row=(sf,rev,now,known,baseline)
+    if not row:return None
+    return {"sessionId":sid,"surface":row[0],"lastSeenRevision":row[1],"updatedAt":row[2],
+            "knownContracts":json.loads(row[3]),"globalBaseline":json.loads(row[4])}
 
 def control_read():
     if DB.is_symlink() or not DB.is_file() or D.is_symlink(): raise ValueError('memory_source_unavailable')
@@ -292,5 +350,8 @@ def main():
     elif cmd=="cursor-set":
         if len(sys.argv)<5: raise SystemExit("usage: context-store.py cursor-set SESSION_ID SURFACE REVISION")
         print(json.dumps(cursor(c,sys.argv[2],sys.argv[3],sys.argv[4]),separators=(",",":")))
+    elif cmd=="cursor-ack":
+        if len(sys.argv)<6: raise SystemExit("usage: context-store.py cursor-ack SESSION_ID SURFACE REVISION STATE_JSON")
+        print(json.dumps(cursor(c,sys.argv[2],sys.argv[3],sys.argv[4],json.loads(sys.argv[5])),separators=(",",":")))
     else: raise SystemExit(f"unknown command: {cmd}")
 if __name__=="__main__": raise SystemExit(main())

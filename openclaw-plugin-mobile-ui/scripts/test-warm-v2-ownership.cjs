@@ -1,7 +1,10 @@
 const assert=require('node:assert/strict');
 const {EventEmitter}=require('node:events');
+const fs=require('node:fs');
+const path=require('node:path');
 const {ClawLiveWarmCore}=require('../dist/companion/clawLiveWarm.js');
 const {validateVoicePlayback}=require('../dist/companion/voicePlaybackMetadata.js');
+const contract=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/protocol/voice-v2-app-companion.json'),'utf8'));
 class Provider extends EventEmitter {
  static OPEN=1;static instances=[];
  constructor(){super();this.readyState=0;this.sent=[];Provider.instances.push(this);setTimeout(()=>{this.readyState=1;this.emit('open')},1);}
@@ -18,6 +21,7 @@ class Local extends EventEmitter {
  const meta={locale:'fr',client:'samantha_android',sessionId:'owner-a',protocol:2,sessionEpoch:'epoch-a'};
  const a=new Local();await core.attach(a,meta);
  const ready=a.messages.find(v=>v.warmReady).warmReady;assert.equal(ready.protocolVersion,2);assert.equal(ready.sessionEpoch,'epoch-a');
+ for(const field of Object.keys(contract.warmReady))assert(field in ready,`warmReady.${field}`);
  const second=new Local();await core.attach(second,{...meta,sessionId:'other',sessionEpoch:'epoch-b'});
  assert.equal(second.closeCode,1008);assert.equal(core.status().clients,1);
  assert(!second.messages.some(v=>v.warmEvent));

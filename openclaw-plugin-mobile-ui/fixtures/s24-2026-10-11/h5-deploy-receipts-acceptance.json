@@ -1,0 +1,381 @@
+{
+ "_capture": {
+  "source": "S24 ~/.openclaw/deploys/companion-*.json (acceptance.checks), écrits par companion-deploy.sh",
+  "capturedAt": "2026-10-11T07:05:00Z",
+  "capturedBy": "Claude, claw_exec lecture seule (action_key hlots-h5-receipts)",
+  "selection": "10 derniers reçus companion ; seules les lignes /control/engineering?limit=20, /updates, /agent/config et POST /agent/config (no owner header) sont conservées",
+  "sanitized": "champs route, code, seconds, budget, status ; cible tronquée à 12 caractères ; aucun corps de réponse, en-tête, chemin privé ni secret"
+ },
+ "receipts": [
+  {
+   "receipt": "companion-20261010T205754.json",
+   "state": "deployed",
+   "target": "c1ff5e76f767",
+   "at": "2026-10-10T19:59:11.688140+00:00",
+   "accepted": true,
+   "checks": [
+    {
+     "route": "/control/engineering?limit=20",
+     "code": 200,
+     "seconds": 0.21,
+     "budget": 2.0,
+     "status": "ok"
+    },
+    {
+     "route": "/updates",
+     "code": 200,
+     "seconds": 0.47,
+     "budget": 4.0,
+     "status": "ok"
+    },
+    {
+     "route": "/agent/config",
+     "code": 200,
+     "seconds": 7.01,
+     "budget": 9.0,
+     "status": "ok"
+    },
+    {
+     "route": "POST /agent/config (no owner header)",
+     "code": 403,
+     "seconds": 0.01,
+     "budget": 10.0,
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "receipt": "companion-20261010T210633.json",
+   "state": "deployed",
+   "target": "f95be8d71ae8",
+   "at": "2026-10-10T20:08:06.398531+00:00",
+   "accepted": true,
+   "checks": [
+    {
+     "route": "/control/engineering?limit=20",
+     "code": 200,
+     "seconds": 0.34,
+     "budget": 2.0,
+     "status": "ok"
+    },
+    {
+     "route": "/updates",
+     "code": 200,
+     "seconds": 0.66,
+     "budget": 4.0,
+     "status": "ok"
+    },
+    {
+     "route": "/agent/config",
+     "code": 200,
+     "seconds": 7.65,
+     "budget": 9.0,
+     "status": "ok"
+    },
+    {
+     "route": "POST /agent/config (no owner header)",
+     "code": 403,
+     "seconds": 0.01,
+     "budget": 10.0,
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "receipt": "companion-20261010T233348.json",
+   "state": "deployed",
+   "target": "5de1c492fe4a",
+   "at": "2026-10-10T22:35:06.034083+00:00",
+   "accepted": true,
+   "checks": [
+    {
+     "route": "/control/engineering?limit=20",
+     "code": 200,
+     "seconds": 0.67,
+     "budget": 2.0,
+     "status": "ok"
+    },
+    {
+     "route": "/updates",
+     "code": 200,
+     "seconds": 0.94,
+     "budget": 4.0,
+     "status": "ok"
+    },
+    {
+     "route": "/agent/config",
+     "code": 200,
+     "seconds": 7.1,
+     "budget": 9.0,
+     "status": "ok"
+    },
+    {
+     "route": "POST /agent/config (no owner header)",
+     "code": 403,
+     "seconds": 0.01,
+     "budget": 10.0,
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "receipt": "companion-20261011T015049.json",
+   "state": "deployed",
+   "target": "507851b58bbb",
+   "at": "2026-10-11T00:51:52.420609+00:00",
+   "accepted": true,
+   "checks": [
+    {
+     "route": "/control/engineering?limit=20",
+     "code": 200,
+     "seconds": 0.27,
+     "budget": 2.0,
+     "status": "ok"
+    },
+    {
+     "route": "/updates",
+     "code": 200,
+     "seconds": 0.65,
+     "budget": 4.0,
+     "status": "ok"
+    },
+    {
+     "route": "/agent/config",
+     "code": 200,
+     "seconds": 5.57,
+     "budget": 9.0,
+     "status": "ok"
+    },
+    {
+     "route": "POST /agent/config (no owner header)",
+     "code": 403,
+     "seconds": 0.0,
+     "budget": 10.0,
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "receipt": "companion-20261011T022723.json",
+   "state": "deployed",
+   "target": "e7afceb9669a",
+   "at": "2026-10-11T01:28:45.168640+00:00",
+   "accepted": true,
+   "checks": [
+    {
+     "route": "/control/engineering?limit=20",
+     "code": 200,
+     "seconds": 0.28,
+     "budget": 2.0,
+     "status": "ok"
+    },
+    {
+     "route": "/updates",
+     "code": 200,
+     "seconds": 0.61,
+     "budget": 4.0,
+     "status": "ok"
+    },
+    {
+     "route": "/agent/config",
+     "code": 200,
+     "seconds": 6.85,
+     "budget": 9.0,
+     "status": "ok"
+    },
+    {
+     "route": "POST /agent/config (no owner header)",
+     "code": 403,
+     "seconds": 0.0,
+     "budget": 10.0,
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "receipt": "companion-20261011T024525.json",
+   "state": "deployed",
+   "target": "7210959cde60",
+   "at": "2026-10-11T01:46:35.574707+00:00",
+   "accepted": true,
+   "checks": [
+    {
+     "route": "/control/engineering?limit=20",
+     "code": 200,
+     "seconds": 0.12,
+     "budget": 2.0,
+     "status": "ok"
+    },
+    {
+     "route": "/updates",
+     "code": 200,
+     "seconds": 0.5,
+     "budget": 4.0,
+     "status": "ok"
+    },
+    {
+     "route": "/agent/config",
+     "code": 200,
+     "seconds": 5.59,
+     "budget": 9.0,
+     "status": "ok"
+    },
+    {
+     "route": "POST /agent/config (no owner header)",
+     "code": 403,
+     "seconds": 0.0,
+     "budget": 10.0,
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "receipt": "companion-20261011T034317.json",
+   "state": "deployed",
+   "target": "352a8b97f723",
+   "at": "2026-10-11T02:44:42.581589+00:00",
+   "accepted": true,
+   "checks": [
+    {
+     "route": "/control/engineering?limit=20",
+     "code": 200,
+     "seconds": 0.15,
+     "budget": 2.0,
+     "status": "ok"
+    },
+    {
+     "route": "/updates",
+     "code": 200,
+     "seconds": 0.39,
+     "budget": 4.0,
+     "status": "ok"
+    },
+    {
+     "route": "/agent/config",
+     "code": 200,
+     "seconds": 5.53,
+     "budget": 9.0,
+     "status": "ok"
+    },
+    {
+     "route": "POST /agent/config (no owner header)",
+     "code": 403,
+     "seconds": 0.01,
+     "budget": 10.0,
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "receipt": "companion-20261011T051729.json",
+   "state": "deployed",
+   "target": "4d57e911a9dd",
+   "at": "2026-10-11T04:18:36.272387+00:00",
+   "accepted": true,
+   "checks": [
+    {
+     "route": "/control/engineering?limit=20",
+     "code": 200,
+     "seconds": 0.18,
+     "budget": 2.0,
+     "status": "ok"
+    },
+    {
+     "route": "/updates",
+     "code": 200,
+     "seconds": 0.52,
+     "budget": 4.0,
+     "status": "ok"
+    },
+    {
+     "route": "/agent/config",
+     "code": 200,
+     "seconds": 5.0,
+     "budget": 9.0,
+     "status": "ok"
+    },
+    {
+     "route": "POST /agent/config (no owner header)",
+     "code": 403,
+     "seconds": 0.0,
+     "budget": 10.0,
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "receipt": "companion-20261011T064639.json",
+   "state": "deployed",
+   "target": "59227f0e1c8f",
+   "at": "2026-10-11T05:47:56.470033+00:00",
+   "accepted": true,
+   "checks": [
+    {
+     "route": "/control/engineering?limit=20",
+     "code": 200,
+     "seconds": 0.15,
+     "budget": 2.0,
+     "status": "ok"
+    },
+    {
+     "route": "/updates",
+     "code": 200,
+     "seconds": 0.4,
+     "budget": 4.0,
+     "status": "ok"
+    },
+    {
+     "route": "/agent/config",
+     "code": 200,
+     "seconds": 4.52,
+     "budget": 9.0,
+     "status": "ok"
+    },
+    {
+     "route": "POST /agent/config (no owner header)",
+     "code": 403,
+     "seconds": 0.01,
+     "budget": 10.0,
+     "status": "ok"
+    }
+   ]
+  },
+  {
+   "receipt": "companion-20261011T075256.json",
+   "state": "deployed",
+   "target": "fe5e5b113183",
+   "at": "2026-10-11T06:54:23.432538+00:00",
+   "accepted": true,
+   "checks": [
+    {
+     "route": "/control/engineering?limit=20",
+     "code": 200,
+     "seconds": 0.34,
+     "budget": 2.0,
+     "status": "ok"
+    },
+    {
+     "route": "/updates",
+     "code": 200,
+     "seconds": 0.63,
+     "budget": 4.0,
+     "status": "ok"
+    },
+    {
+     "route": "/agent/config",
+     "code": 200,
+     "seconds": 5.82,
+     "budget": 9.0,
+     "status": "ok"
+    },
+    {
+     "route": "POST /agent/config (no owner header)",
+     "code": 403,
+     "seconds": 0.02,
+     "budget": 10.0,
+     "status": "ok"
+    }
+   ]
+  }
+ ]
+}

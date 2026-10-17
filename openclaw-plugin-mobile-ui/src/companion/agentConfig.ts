@@ -51,18 +51,30 @@ function modelList(value:any,config:any,auth:any,defaults:any=null){
  * while four other CLI reads ran in parallel. A failed read keeps the last observed defaults up to [DEFAULTS_KEEP_MS].
  */
 const DEFAULTS_SERVE_MS=300000,DEFAULTS_KEEP_MS=1800000;
+let sessionDefaultsFlight:Promise<any>|null=null;
 async function sessionDefaults(){
  const cached=peekSessionDefaults(DEFAULTS_SERVE_MS);if(cached)return cached;
- try{const value=await callOpenClawGateway('sessions.list',{limit:1},{timeoutMs:10000,hardTimeoutMs:10000});observeSessionDefaults(value?.defaults);}catch{/* last observed defaults below */}
- return peekSessionDefaults(DEFAULTS_KEEP_MS);
+ if(sessionDefaultsFlight)return sessionDefaultsFlight;
+ const read=(async()=>{
+  try{const value=await callOpenClawGateway('sessions.list',{limit:1},{timeoutMs:10000,hardTimeoutMs:10000});observeSessionDefaults(value?.defaults);}catch{/* last observed defaults below */}
+  return peekSessionDefaults(DEFAULTS_KEEP_MS);
+ })();
+ sessionDefaultsFlight=read;
+ try{return await read;}finally{if(sessionDefaultsFlight===read)sessionDefaultsFlight=null;}
 }
 /** `sessions.usage` only feeds the informative usage line: bounded like the other owner reads and kept 60 s. */
 const SESSIONS_USAGE_MS=60000;
 let sessionsUsage:{value:any,at:number}|null=null;
+let sessionsUsageFlight:Promise<any>|null=null;
 async function readSessionsUsage(){
  if(sessionsUsage&&Date.now()-sessionsUsage.at<SESSIONS_USAGE_MS)return sessionsUsage.value;
- try{const value=await callOpenClawGateway('sessions.usage',{limit:100},{timeoutMs:5500,hardTimeoutMs:5500});sessionsUsage={value:value?.totals&&typeof value.totals==='object'?{totals:{...value.totals}}:null,at:Date.now()};return sessionsUsage.value;}
- catch{return null;}
+ if(sessionsUsageFlight)return sessionsUsageFlight;
+ const read=(async()=>{
+  try{const value=await callOpenClawGateway('sessions.usage',{limit:100},{timeoutMs:5500,hardTimeoutMs:5500});sessionsUsage={value:value?.totals&&typeof value.totals==='object'?{totals:{...value.totals}}:null,at:Date.now()};return sessionsUsage.value;}
+  catch{return null;}
+ })();
+ sessionsUsageFlight=read;
+ try{return await read;}finally{if(sessionsUsageFlight===read)sessionsUsageFlight=null;}
 }
 function validProvider(auth:any,provider:string,profile?:string){
  if(auth?.unavailable||!Array.isArray(auth?.providers))return false;
@@ -70,7 +82,14 @@ function validProvider(auth:any,provider:string,profile?:string){
  return !!row&&['ok','static','expiring'].includes(row.status)&&(!profile||row.profiles?.some((x:any)=>x.profileId===profile&&['ok','static','expiring'].includes(x.status)));
 }
 const count=(value:any)=>typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null;
-export async function readAgentConfig(){
+// The complete public projection is immutable for a short window. This is the HTTP read cache for
+// /agent/config: simultaneous requests share the whole computation, rather than only two of its five
+// Gateway calls. Configuration mutations bypass it and invalidate it once the Gateway proves the effect.
+const AGENT_CONFIG_SERVE_MS=5000;
+let agentConfigCache:{value:any,at:number}|null=null;
+let agentConfigFlight:Promise<any>|null=null;
+function invalidateAgentConfigCache(){agentConfigCache=null;}
+async function buildAgentConfig(){
  const [{raw,catalog,auth},usage,defaults]=await Promise.all([readModelOwnerFresh(),readSessionsUsage(),sessionDefaults()]);
  const config=configObject(raw),id=modelId(config);
  const chosen=selection(config).value;
@@ -85,6 +104,13 @@ export async function readAgentConfig(){
   fallbacks:fallbacks?fallbacks.map(ref=>publicModelRef(ref)!):null,accounts,tools:{global:toolPolicy(config.tools),agent:toolPolicy(chosen.tools),effective:null,reason:'effective_tool_catalog_unavailable'},
   thinking:level(config),thinkingLevels,models,writeAvailable:selection(config).writeAvailable&&models.length>0,issues:[...(models.length?[]:['model_authentication_proof_unavailable']),...(defaults?[]:['session_thinking_defaults_unavailable'])],
   usage:usage?{scope:'sessions_usage_limit_100',inputTokens:count(usage.totals?.inputTokens),outputTokens:count(usage.totals?.outputTokens),totalTokens:count(usage.totals?.totalTokens),costUsd:count(usage.totals?.totalCost)}:null};
+}
+export async function readAgentConfig(){
+ if(agentConfigCache&&Date.now()-agentConfigCache.at<AGENT_CONFIG_SERVE_MS)return agentConfigCache.value;
+ if(agentConfigFlight)return agentConfigFlight;
+ const read=buildAgentConfig();agentConfigFlight=read;
+ try{const value=await read;if(value.usage&&!(value.issues||[]).includes('session_thinking_defaults_unavailable'))agentConfigCache={value,at:Date.now()};return value;}
+ finally{if(agentConfigFlight===read)agentConfigFlight=null;}
 }
 async function protectedActivity(){
  const [payments,confirmations]=await Promise.all([readPaymentRequests(),readOwnerConfirmations()]);
@@ -137,9 +163,10 @@ async function changeAgentConfigOnce(body:any){
  const oldFallbacks=selection(config).value.model?.fallbacks||[];
  const expanded=fallbacks?.some((ref:string)=>!oldFallbacks.includes(ref)&&ref.split('/')[0]!==id.split('/')[0]||ref.includes('@')&&!oldFallbacks.includes(ref));
  if(expanded){
-  if(typeof body.confirmationId!=='string')throw nativeError('fallback_confirmation_required',409);
+  const confirmation={scope:'agent.config.expand_fallbacks',reference:'main',payloadHash:crypto.createHash('sha256').update(JSON.stringify(desired)).digest('hex')};
+  if(typeof body.confirmationId!=='string')throw Object.assign(nativeError('confirmation_required',403),{confirmation});
   const record=await confirmations.status(body.confirmationId);
-  await confirmations.consume(body.confirmationId,{audience:'confirmation',action:{type:'agent.config.expand_fallbacks',reference:'main',payloadHash:crypto.createHash('sha256').update(JSON.stringify(desired)).digest('hex')},presentation:record.intent.presentation,origin:record.intent.origin});
+  await confirmations.consume(body.confirmationId,{audience:'confirmation',action:{type:confirmation.scope,reference:confirmation.reference,payloadHash:confirmation.payloadHash},presentation:record.intent.presentation,origin:record.intent.origin});
  }
  const reserved=await reserveSubmittedRun(identity,sessionId,clientId,{requestText:identity,executionSource:'capability_first',decision:{version:2,type:'EXECUTE',capability:'agent.config'}});
  if(!reserved.created&&stored(reserved.status).state!=='failed')return stored(reserved.status);
@@ -158,7 +185,7 @@ async function changeAgentConfigOnce(body:any){
     for(let attempt=0;attempt<3;attempt++){try{verified=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:2000});break;}catch{if(attempt<2)await new Promise(resolve=>setTimeout(resolve,200));}}
 
    const effective=configObject(verified),effectiveModel=selection(effective).value.model??effective.agents?.defaults?.model;
-   if(modelId(effective)===id&&level(effective)===body.thinking&&(!fallbacks||JSON.stringify(effectiveModel?.fallbacks)===JSON.stringify(fallbacks))){state='completed';invalidateSessionDefaults();artifact={configurationRevision:verified.hash,agentId:'main'};}
+   if(modelId(effective)===id&&level(effective)===body.thinking&&(!fallbacks||JSON.stringify(effectiveModel?.fallbacks)===JSON.stringify(fallbacks))){state='completed';invalidateSessionDefaults();invalidateAgentConfigCache();artifact={configurationRevision:verified.hash,agentId:'main'};}
    }
   }
  }catch{/* No proof: never repeat a possible configuration effect. */}

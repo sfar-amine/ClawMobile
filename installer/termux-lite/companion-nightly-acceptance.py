@@ -7,6 +7,7 @@ job in the existing scheduler; receipts extend ~/.openclaw/deploys only.
 import importlib.util
 import argparse,datetime as dt,fcntl,heapq,json,math,os,re,selectors,signal,statistics,subprocess,sys,tempfile,time,stat
 from pathlib import Path
+import runtime_mode
 
 NIGHTLY=re.compile(r'nightly-[0-9]{8}\.json\Z')
 MAX_RECEIPT_BYTES=2*1024*1024
@@ -161,6 +162,9 @@ def execute(state,root,now=None,runner=bounded_command,notifier=None,preflight=d
  now=now or dt.datetime.now(dt.timezone.utc)
  if now.tzinfo is None:raise ValueError('timezone_required')
  now=now.astimezone(dt.timezone.utc);stamp=now.isoformat();day=now.strftime('%Y%m%d');path=state/('nightly-'+day+'.json')
+ mode=runtime_mode.current_mode(state.parent)
+ if mode=='emergency_stop':return {'state':'refused','reason':'emergency_stop_active'},3
+ if mode=='unknown':return {'state':'refused','reason':'canonical_mode_unknown'},3
  state.mkdir(parents=True,exist_ok=True,mode=0o700)
  fd=os.open(state/'companion-deploy.lock',os.O_CREAT|os.O_WRONLY|os.O_NOFOLLOW|os.O_NONBLOCK,0o600)
  with os.fdopen(fd,'w') as lock:

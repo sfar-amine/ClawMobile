@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "codex-b42-ci-consumption-core-20261011",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applicable",
+  "summary": "Avoid duplicate branch CI and cancel obsolete executions while preserving all job steps.",
+  "reason": "Backlog 42 lot 6 CI quota reduction; workflow-specific trigger filtering only.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/codex-b42-ci-consumption-core-20261011.md",
+    "docs/changes/codex-b42-ci-consumption-core-20261011.json"
+  ],
+  "tests": [
+    {
+      "name": "static-jobs-identity",
+      "status": "passed",
+      "evidence": "jobs block byte-identical to base 363a6b8e; SHA256 0afc1bf69e7d9f87860ebc0039f544e166a89a61ea43acc8a24e354e9f62f2eb"
+    },
+    {
+      "name": "complete-final-head-local-ci",
+      "status": "pending",
+      "evidence": "Preparation only during exclusive P0 CI; no build or signing executed."
+    }
+  ],
+  "documentation": [
+    "docs/changes/codex-b42-ci-consumption-core-20261011.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Facade or offline tooling; canonical owners retained."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No new canonical persistence, scheduler or daemon."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Native projection or offline tooling; MCP execution contracts unchanged."
+  },
+  "rollback": "Revert this workflow-only lot; no runtime migration.",
+  "limitations": [
+    "Full final-head local CI pending; no readiness claimed."
+  ]
+}
