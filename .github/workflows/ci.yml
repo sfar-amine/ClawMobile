@@ -1,11 +1,15 @@
 name: CI
 
+# La CI de référence est LOCALE (décision d'Amine, 17/10) : les étapes ci-dessous sont rejouées sur le tree
+# exact du head par wt/close-core-tools/localci.py, et c'est ce fichier qui en est la source. localci.py ne lit
+# que la clé `jobs` et ignore entièrement ce bloc `on:`.
+# Les déclencheurs automatiques sont retirés parce que, depuis le 13/10/2026 14:41 UTC, aucune exécution
+# GitHub ne démarre : chaque job est refusé avant lancement (« The job was not started because recent account
+# payments have failed… »). Les exécutions produisaient donc un rouge trompeur à chaque poussée, sans jamais
+# exécuter une seule étape. Ne RIEN supprimer de ce fichier : le vider casserait la CI locale.
+# workflow_dispatch reste, pour une exécution manuelle si Actions redevient disponible.
 on:
-  push:
-    branches:
-      - runtime/samantha-companion-private
-  pull_request:
-    types: [opened, synchronize, reopened, edited, ready_for_review]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
