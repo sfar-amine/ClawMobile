@@ -163,9 +163,10 @@ async function changeAgentConfigOnce(body:any){
  const oldFallbacks=selection(config).value.model?.fallbacks||[];
  const expanded=fallbacks?.some((ref:string)=>!oldFallbacks.includes(ref)&&ref.split('/')[0]!==id.split('/')[0]||ref.includes('@')&&!oldFallbacks.includes(ref));
  if(expanded){
-  if(typeof body.confirmationId!=='string')throw nativeError('fallback_confirmation_required',409);
+  const confirmation={scope:'agent.config.expand_fallbacks',reference:'main',payloadHash:crypto.createHash('sha256').update(JSON.stringify(desired)).digest('hex')};
+  if(typeof body.confirmationId!=='string')throw Object.assign(nativeError('confirmation_required',403),{confirmation});
   const record=await confirmations.status(body.confirmationId);
-  await confirmations.consume(body.confirmationId,{audience:'confirmation',action:{type:'agent.config.expand_fallbacks',reference:'main',payloadHash:crypto.createHash('sha256').update(JSON.stringify(desired)).digest('hex')},presentation:record.intent.presentation,origin:record.intent.origin});
+  await confirmations.consume(body.confirmationId,{audience:'confirmation',action:{type:confirmation.scope,reference:confirmation.reference,payloadHash:confirmation.payloadHash},presentation:record.intent.presentation,origin:record.intent.origin});
  }
  const reserved=await reserveSubmittedRun(identity,sessionId,clientId,{requestText:identity,executionSource:'capability_first',decision:{version:2,type:'EXECUTE',capability:'agent.config'}});
  if(!reserved.created&&stored(reserved.status).state!=='failed')return stored(reserved.status);

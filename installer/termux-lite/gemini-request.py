@@ -9,6 +9,9 @@ import subprocess
 import sys
 import tempfile
 import time
+import ipaddress
+import signal
+from urllib.parse import urlsplit
 
 HOME = Path.home()
 CONFIG = HOME / ".openclaw/openclaw.json"
@@ -34,6 +37,11 @@ SECRET_PATTERNS = (
     re.compile(r"\b(?:otp|cvc|cvv)\s*[:=]\s*\d{3,8}\b", re.I),
 )
 class PolicyError(RuntimeError):
+    pass
+
+
+class PublicSynthesisCancelled(Exception):
+    """Cancellation must not be mistaken for retryable EINTR by selectors."""
     pass
 
 
@@ -328,6 +336,8 @@ def compact_success(raw: str, revision: int, provider_attempts: int = 1) -> dict
         "usage": {k: usage.get(k) for k in ("input", "output", "total")},
     }
 def main() -> int:
+    if sys.argv[1:] == ["--public-synthesis"]:
+        return public_synthesis_main()
     parser = argparse.ArgumentParser(description="Free-only Claw Gemini request entrypoint")
     parser.add_argument("--session", default="default")
     parser.add_argument("--timeout", type=int, default=60)
@@ -442,6 +452,191 @@ def main() -> int:
         }))
         return 78
     print(json.dumps(out, ensure_ascii=False))
+    return 0
+
+
+PUBLIC_MAX_BYTES = 65536
+PUBLIC_INPUT_KEYS = {"version", "query", "responseLanguage", "sources", "remainingBudgetMs", "correlationId"}
+
+
+def public_string(value, limit: int, name: str) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value) > limit or "\0" in value:
+        raise PolicyError("invalid_" + name)
+    return value
+
+
+def validate_public_input(value: object) -> dict:
+    if not isinstance(value, dict) or set(value) != PUBLIC_INPUT_KEYS or type(value["version"]) is not int or value["version"] != 1:
+        raise PolicyError("invalid_public_input")
+    public_string(value["query"], 1000, "query")
+    if not isinstance(value["responseLanguage"], str) or value["responseLanguage"] not in {"fr", "en", "ar", "aeb", "aeb-Latn"}:
+        raise PolicyError("invalid_response_language")
+    if not isinstance(value["correlationId"], str) or not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", value["correlationId"]):
+        raise PolicyError("invalid_correlation")
+    budget = value["remainingBudgetMs"]
+    if type(budget) is not int or not 1 <= budget <= 12000:
+        raise PolicyError("invalid_budget")
+    sources = value["sources"]
+    if not isinstance(sources, list) or not 1 <= len(sources) <= 5:
+        raise PolicyError("invalid_sources")
+    ids = set()
+    for source in sources:
+        if not isinstance(source, dict) or set(source) != {"id", "title", "url", "excerpt"}:
+            raise PolicyError("invalid_source")
+        sid = public_string(source["id"], 24, "source_id")
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", sid) or sid in ids:
+            raise PolicyError("invalid_source_id")
+        ids.add(sid)
+        public_string(source["title"], 300, "source_title")
+        public_string(source["excerpt"], 1500, "source_excerpt")
+        url = urlsplit(public_string(source["url"], 2048, "source_url"))
+        if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password or url.fragment:
+            raise PolicyError("invalid_source_url")
+        hostname = url.hostname.rstrip(".").lower()
+        if hostname in {"localhost", "localhost.localdomain", "metadata.google.internal"} or hostname.endswith((".localhost", ".local", ".internal")):
+            raise PolicyError("invalid_source_url")
+        try:
+            if not ipaddress.ip_address(hostname).is_global:
+                raise PolicyError("invalid_source_url")
+        except ValueError:
+            if re.fullmatch(r"(?:0[xX][0-9a-fA-F]+|[0-9.]+)", hostname):
+                raise PolicyError("invalid_source_url")
+    if secret_like(json.dumps(value, ensure_ascii=False)):
+        raise PolicyError("secret_like_payload_refused")
+    return value
+
+
+def public_degradation(code: str, stage="synthesis", attempts=0, elapsed=None) -> dict:
+    return {"version": 1, "outcome": "partial", "model": None, "profile": None,
+            "claims": [], "spokenText": "", "metrics": {"synthesisMs": elapsed,
+                "providerAttempts": attempts, "reportedCostUsd": None},
+            "error": {"code": code, "stage": stage}}
+
+
+def validate_public_result(value: object, request: dict) -> dict:
+    if not isinstance(value, dict) or set(value) != {"version", "outcome", "model", "profile", "claims", "spokenText", "metrics", "error"}:
+        raise PolicyError("invalid_synthesis_result")
+    if type(value["version"]) is not int or value["version"] != 1 or value["outcome"] != "complete" or value["model"] != MODEL or value["profile"] != PROFILE or value["error"] is not None:
+        raise PolicyError("invalid_synthesis_result")
+    claims = value["claims"]
+    if not isinstance(claims, list) or not 1 <= len(claims) <= 12:
+        raise PolicyError("invalid_claims")
+    sources = {s["id"]: s for s in request["sources"]}
+    ids = set()
+    for claim in claims:
+        if not isinstance(claim, dict) or set(claim) != {"id", "text", "sourceIds", "support"}:
+            raise PolicyError("invalid_claim")
+        cid = public_string(claim["id"], 24, "claim_id")
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", cid) or cid in ids:
+            raise PolicyError("invalid_claim_id")
+        ids.add(cid)
+        public_string(claim["text"], 1000, "claim_text")
+        if re.search(r"(?:https?://|www\.)", claim["text"], re.I):
+            raise PolicyError("url_in_claim_refused")
+        referenced = claim["sourceIds"]
+        if not isinstance(referenced, list) or not referenced or len(referenced) > 5 or any(not isinstance(s, str) or s not in sources for s in referenced) or len(set(referenced)) != len(referenced):
+            raise PolicyError("invalid_citations")
+        support = claim["support"]
+        if not isinstance(support, list) or not 1 <= len(support) <= 5:
+            raise PolicyError("invalid_support")
+        supported = set()
+        for item in support:
+            if not isinstance(item, dict) or set(item) != {"sourceId", "quote"} or not isinstance(item["sourceId"], str) or item["sourceId"] not in referenced:
+                raise PolicyError("invalid_support")
+            quote = public_string(item["quote"], 1500, "quote")
+            if quote not in sources[item["sourceId"]]["excerpt"]:
+                raise PolicyError("unsupported_quote")
+            supported.add(item["sourceId"])
+        if supported != set(referenced):
+            raise PolicyError("unsupported_citation")
+        if not all(item["quote"] == claim["text"] for item in support):
+            raise PolicyError("synthesis_review_required")
+    # Deterministic oral rendering: no independent model-authored assertions.
+    expected_spoken = " ".join(c["text"] for c in claims)
+    if len(expected_spoken) > 1200 or value["spokenText"] != expected_spoken or secret_like(expected_spoken):
+        raise PolicyError("invalid_spoken_text")
+    metrics = value["metrics"]
+    if not isinstance(metrics, dict) or set(metrics) != {"synthesisMs", "providerAttempts", "reportedCostUsd"} or type(metrics.get("providerAttempts")) is not int or metrics.get("providerAttempts") != 1 or metrics.get("reportedCostUsd") is not None:
+        raise PolicyError("invalid_synthesis_metrics")
+    return value
+
+
+def strict_public_json(raw):
+    def pairs(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise PolicyError("duplicate_json_key")
+            value[key] = item
+        return value
+    return json.loads(raw, object_pairs_hook=pairs, parse_constant=lambda _: (_ for _ in ()).throw(PolicyError("invalid_json_number")))
+
+
+def run_public_provider(request: dict, deadline: float):
+    helper = Path(__file__).resolve().with_name("gemini-public-synthesis.mjs")
+    # Own the child process group, including npm metadata lookup. Cancellation
+    # and timeout must not leave a detached provider generation running locally.
+    proc = subprocess.Popen(["node", str(helper)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, text=True, start_new_session=True)
+    previous = {}
+    def cancelled(_signum, _frame):
+        try: os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError: pass
+        raise PublicSynthesisCancelled("public_synthesis_cancelled")
+    try:
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            previous[signum] = signal.signal(signum, cancelled)
+        stdout, _ = proc.communicate(json.dumps(request), timeout=max(0.001, deadline - time.monotonic()))
+        return subprocess.CompletedProcess(proc.args, proc.returncode, stdout, "")
+    finally:
+        for signum, handler in previous.items(): signal.signal(signum, handler)
+        try: os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError: pass
+        proc.wait()
+
+
+def public_synthesis_main() -> int:
+    started = time.monotonic()
+    attempts = 0
+    try:
+        raw = sys.stdin.buffer.read(PUBLIC_MAX_BYTES + 1)
+        if len(raw) > PUBLIC_MAX_BYTES:
+            raise PolicyError("public_input_too_large")
+        request = validate_public_input(strict_public_json(raw))
+        deadline = started + request["remainingBudgetMs"] / 1000
+        ensure_free_policy()
+        ensure_efficiency_policy()
+        remaining = int((deadline - time.monotonic()) * 1000)
+        if remaining <= 0:
+            raise PolicyError("deadline_exceeded")
+        request = {**request, "remainingBudgetMs": remaining}
+        attempts = None  # Child may begin generation before a transport timeout.
+        result = run_public_provider(request, deadline)
+        if time.monotonic() >= deadline:
+            raise PolicyError("deadline_exceeded")
+        if result.returncode or len(result.stdout.encode()) > PUBLIC_MAX_BYTES:
+            raise PolicyError("public_provider_unavailable")
+        value = strict_public_json(result.stdout)
+        if isinstance(value, dict) and value.get("outcome") == "partial":
+            # Project only bounded machine codes; never trust raw provider errors.
+            error = value.get("error")
+            metrics = value.get("metrics")
+            code = error.get("code") if isinstance(error, dict) else None
+            allowed = {"sdk_unavailable", "profile_unavailable", "policy_refused", "model_unavailable", "quota_exhausted", "provider_unavailable", "deadline_exceeded", "cancelled", "invalid_provider_response", "synthesis_review_required"}
+            value = public_degradation(code if code in allowed else "public_provider_unavailable",
+                attempts=metrics.get("providerAttempts") if isinstance(metrics, dict) and type(metrics.get("providerAttempts")) is int and metrics.get("providerAttempts") in (0, 1) else None)
+        else:
+            value = validate_public_result(value, request)
+    except subprocess.TimeoutExpired:
+        value = public_degradation("deadline_exceeded", attempts=attempts)
+    except PublicSynthesisCancelled:
+        value = public_degradation("cancelled", attempts=attempts)
+    except PolicyError as exc:
+        value = public_degradation("synthesis_review_required" if str(exc) == "synthesis_review_required" else "public_synthesis_refused", attempts=attempts)
+    except (ValueError, OSError, TypeError, KeyError):
+        value = public_degradation("public_synthesis_refused", attempts=attempts)
+    value["metrics"]["synthesisMs"] = round((time.monotonic() - started) * 1000)
+    print(json.dumps(value, ensure_ascii=False))
     return 0
 
 

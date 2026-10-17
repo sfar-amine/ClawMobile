@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "id": "codex-h2-inactivity-tests-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Rendre le test inactivity déterministe : horloge et barrières, attente du settlement single-flight.",
+  "reason": "H2 backlog34 : supprimer sleeps/polling sans retirer les assertions de non-régression.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-run-inactivity.cjs",
+    "docs/work/samantha-runtime/contracts/h2.md",
+    "docs/changes/codex-h2-inactivity-tests-20261010.json",
+    "docs/changes/codex-h2-inactivity-tests-20261010.md"
+  ],
+  "tests": [
+    {
+      "name": "H2-deterministic-inactivity",
+      "status": "passed",
+      "evidence": "Build + test inactivity (~1.8 s), puis 4 processus concurrents verts. Les six commandes du step CI lifecycle passent, dont payment-core 58/58."
+    },
+    {
+      "name": "current-base-inactivity-regression",
+      "status": "passed",
+      "evidence": "TypeScript build and test-run-inactivity.cjs passed after normal merge bfa210c; four required regressions and explicit settlement still pass."
+    },
+    {
+      "name": "b42-lot3-current-base-targeted",
+      "status": "passed",
+      "evidence": "Base5631fe9d merged normally. Node20 npm ci/build, test-run-inactivity.cjs (R2-v2 required+single-flight+deadline+SQLite+concurrent mutations), test-conversation-backfill-races.cjs and test-companion-runs.cjs passed. Log /workspace/artifacts/b42/h2-lot3-targeted.log. Entire workflow publication requires green replay on exact frozen SHA."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/h2.md",
+    "docs/changes/codex-h2-inactivity-tests-20261010.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Aucune route ou capability ; test et frontière interne uniquement."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Single-flight et propriétaire SQLite/CLI existants ; aucun nouveau store/scheduler."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Aucune primitive MCP ni route ; horloge et observation interne du pass existant.",
+    "evidence": [
+      "openclaw-plugin-mobile-ui/scripts/test-run-inactivity.cjs",
+      "docs/work/samantha-runtime/contracts/h2.md"
+    ]
+  },
+  "rollback": "Revert du lot H2, aucun changement S24.",
+  "limitations": [
+    "Aucun déploiement ni qualification S24 dans H2.",
+    "Latences owner injectées ; transport CLI SQLite réel, timeout physique non simulé comme une capture.",
+    "Base5631fe9d integrated normally; all CI commands preserved. CI replay is a local qualification, not S24 deployment or receipt. Publication requires the full workflow green on the exact SHA recorded in the PR."
+  ]
+}

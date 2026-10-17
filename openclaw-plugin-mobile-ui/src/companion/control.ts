@@ -1,3 +1,4 @@
+import {serverLanguage,localizedRoute,localizeServerPresentation} from "./serverLocale";
 import {conditionalRead} from "./readEtag";
 import {completeUsageAttention} from './usageControl';
 import {allJobs} from "./automations";
@@ -364,9 +365,14 @@ export async function handleControl(req: IncomingMessage, res: ServerResponse, r
       }
       value=result;
     }
-    if(!res.destroyed){const body=JSON.stringify(value);res.setHeader("Content-Type","application/json; charset=utf-8");res.setHeader("Cache-Control","no-store");if(!conditionalRead(req,res,200,value,body)){res.statusCode=200;res.end(body);}}
+    if(!res.destroyed){
+      res.setHeader("Content-Type","application/json; charset=utf-8");res.setHeader("Cache-Control","no-store");
+      if(localizedRoute(routeOnly)){const language=serverLanguage(req.headers["accept-language"]);value=localizeServerPresentation(value,language);res.setHeader("Content-Language",language);res.setHeader("Vary","Accept-Language");}
+      const body=JSON.stringify(value);if(!conditionalRead(req,res,200,value,body)){res.statusCode=200;res.end(body);}
+    }
   }catch(error:any){
     if(!res.destroyed){const code=[400,404,429,499,504].includes(error?.statusCode)?error.statusCode:503;
+      if(localizedRoute(routeOnly)){res.setHeader("Content-Language",serverLanguage(req.headers["accept-language"]));res.setHeader("Vary","Accept-Language");}
       res.writeHead(code,{"Content-Type":"application/json","Cache-Control":"no-store"});res.end(JSON.stringify({error:code===400?"invalid_control_request":code===429?"control_read_busy":"control_unavailable"}));}
   }finally{res.removeListener("close",cancel);}
   return true;

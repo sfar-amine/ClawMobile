@@ -177,6 +177,8 @@ function submissionRequestHash(
   })).digest("hex");
 }
 
+/** Optional admission runs under the existing registry writer before any reservation. */
+export type RunReservationAdmission=(run:Readonly<StoredRun>,existing:readonly StoredRun[],canRetain:(rows:StoredRun[])=>boolean)=>void;
 export async function reserveSubmittedRun(
   text: string,
   sessionId: string,
@@ -189,6 +191,7 @@ export async function reserveSubmittedRun(
     decision?: Record<string, unknown>;
     parentClarificationRunId?: string;
     dialogueGoalRef?: string;
+    admission?: RunReservationAdmission;
     memoAttachmentId?: string;
     replayOf?: {sessionId: string; runId: string};
     ownerAdmitted?: boolean;
@@ -251,6 +254,12 @@ export async function reserveSubmittedRun(
     const link: ReplayLink | undefined = source ? {version: 1, sessionId: normalizedSessionId, runId: newRunId, at: now} : undefined;
     const marked = source && link ? registry.runs.map(run => run.sessionId === source.sessionId && compareRuns(run, source) >= 0 && !run.supersededBy
       ? {...run, supersededBy: link} : run) : registry.runs;
+    options.admission?.(stored,marked,(rows)=>{
+      const retained=retainStoredRuns(rows);
+      return retained.length===rows.length&&rows.every(row=>retained.some(candidate=>candidate.runId===row.runId))&&
+        Buffer.byteLength(JSON.stringify({version:1,...registry,runs:rows},null,2),'utf8')+512<=MAX_PERSISTED_RUN_BYTES;
+    });
+    // E4 admission runs before any cache update: a refused reservation leaves no superseded mark behind.
     if (link) for (const run of marked) if (run.supersededBy === link && submittedRuns.has(run.runId)) submittedRuns.set(run.runId, run);
     const next = retainStoredRuns([stored, ...marked]);
     const archivedSessionIds = registry.archivedSessionIds.filter((id) => id !== normalizedSessionId);
@@ -455,6 +464,32 @@ export async function markSubmittedRunFailed(runId: string, message: string) {
   };
   submittedRuns.set(runId, stored);
   await saveStoredRun(stored).catch(() => undefined);
+}
+
+/** Local retained-history archive owner. No Gateway transcript deletion. */
+export async function conversationArchiveState(sessionId:string):Promise<boolean|null>{
+  requireConversationId(sessionId);await registryWrite;
+  const registry=await registryOrEmpty();
+  if(registry.runs.some(run=>run.sessionId===sessionId&&['accepted','running'].includes(run.state||'')))
+    throw Object.assign(new Error('protected_owner_activity'),{statusCode:409});
+  return registry.runs.some(run=>run.sessionId===sessionId)?registry.archivedSessionIds.includes(sessionId):null;
+}
+export async function setConversationArchived(sessionId:string,archived:boolean){
+  requireConversationId(sessionId);
+  return mutateRegistry(async()=>{
+    const registry=await registryOrEmpty();
+    if(!registry.runs.some(run=>run.sessionId===sessionId))throw Object.assign(new Error('conversation_not_found'),{statusCode:404,effectNotStarted:true});
+    if(sessionId==='native-owner-actions'||registry.runs.some(run=>run.sessionId===sessionId&&['accepted','running'].includes(run.state||''))||
+      registry.paymentRequests.some(row=>['awaiting_owner','executing','effect_unknown','requires_bank_action'].includes(row.state))||
+      registry.ownerConfirmations.some(row=>row.state==='awaiting_owner'&&row.expiresAt>Date.now()))
+      throw Object.assign(new Error('protected_owner_activity'),{statusCode:409,effectNotStarted:true});
+    const before=registry.archivedSessionIds.includes(sessionId);
+    if(before!==archived){
+      const next=archived?[...registry.archivedSessionIds,sessionId]:registry.archivedSessionIds.filter(id=>id!==sessionId);
+      await writeCompanionRunRegistry(registry.runs,next,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
+    }
+    return {sessionId,archived,changed:before!==archived};
+  });
 }
 
 export async function archiveSession(sessionId: string) {
@@ -1858,19 +1893,23 @@ function validInactivityReceipt(value: any, runId: string): InactivityReceipt | 
     at: value.at, evidenceAt: value.evidenceAt};
 }
 
+/** Injectable inactivity clock boundary; production defaults to the system clock. */
+export const runInactivityClock={now:()=>Date.now()};
 let inactivityRead: Promise<void> | undefined;
+/** Wait only for an already-started owner pass, including its persisted settlement. No new read. */
+export async function awaitRunInactivity():Promise<void>{await inactivityRead;}
 let inactivityCursor = 0;
 const INACTIVITY_READ_BUDGET_MS = 10000;
 /** Read snapshots never await reconciliation. One bounded owner pass at a time. */
 function reconcileInactiveRuns(targetRunId?:string):void {
   if(inactivityRead)return;
-  inactivityRead=reconcileInactiveRunsOnce(targetRunId,Date.now()+INACTIVITY_READ_BUDGET_MS)
+  inactivityRead=reconcileInactiveRunsOnce(targetRunId,runInactivityClock.now()+INACTIVITY_READ_BUDGET_MS)
     .catch(()=>undefined).finally(()=>{inactivityRead=undefined;});
 }
 
 async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadline: number): Promise<void> {
   await registryWrite;
-  const initial = await registryOrEmpty(), now = Date.now();
+  const initial = await registryOrEmpty(), now = runInactivityClock.now();
   const eligible = (run: StoredRun, registry: CompanionRunRegistry) => run.modality !== "voice" &&
     (!run.memo || run.memo.phase === "dispatched") &&
     !run.result && (!run.state || run.state === "running" || run.error === "run_inactivity_expired") &&
@@ -1886,7 +1925,7 @@ async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadli
   if (!candidates.length) return;
   // The owner API works across SQLite migrations; absent legacy files prove nothing.
   const ownerRead = (method: string, params: Record<string, unknown>) => {
-    const remaining = deadline - Date.now();
+    const remaining = deadline - runInactivityClock.now();
     if (remaining <= 0) return Promise.reject(new Error("inactivity_read_budget_exceeded"));
     return callOpenClawGateway(method, params, {timeoutMs: remaining, hardTimeoutMs: remaining});
   };
@@ -1901,7 +1940,7 @@ async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadli
   for (const run of [...candidates,...revived]) {
     const key = run.sessionKey || expectedCompanionSessionKey(run.sessionId);
     const session = sessions.find((row: any) => row?.key === key || row?.sessionKey === key);
-    if (!session || Date.now() >= deadline) continue;
+    if (!session || runInactivityClock.now() >= deadline) continue;
     const active = session.hasActiveRun === true || session.status === "running" || (Array.isArray(session.activeRunIds) && session.activeRunIds.length > 0);
     if (active) {
       if (run.error === "run_inactivity_expired" && Array.isArray(session.activeRunIds) && session.activeRunIds.includes(run.runId)) changes.set(run.runId, {before: run, after: {
@@ -2309,13 +2348,14 @@ export async function mutateOwnerConfirmations<T>(operation:(records:Confirmatio
 }
 
 // Presentation-only retained-history contract. No new durable store or wider retention.
-type PageOptions={limit?:number;cursor?:string;query?:string};
+type PageOptions={limit?:number;cursor?:string;query?:string;archived?:boolean};
 const pageSecret=randomBytes(32);
 const pageEpoch=randomUUID();
 const digest=(value:unknown)=>createHash("sha256").update(JSON.stringify(value)).digest("hex");
 function pageError(message:string,statusCode=409){return Object.assign(new Error(message),{statusCode});}
 function normalizedPageOptions(options:PageOptions){
   const limit=options.limit??20,query=options.query??"";
+  if(options.archived!==undefined&&typeof options.archived!=="boolean")throw pageError("invalid_pagination",400);
   if(!Number.isSafeInteger(limit)||limit<1||limit>40||query.length>512||(options.cursor?.length??0)>2048)throw pageError("invalid_pagination",400);
   return {limit,query,cursor:options.cursor};
 }
@@ -2335,11 +2375,11 @@ function cursorAnchor(cursor:string|undefined,scope:string,revision:string):stri
     throw pageError("pagination_invalidated");
   return value.anchor;
 }
-async function retainedRuns():Promise<StoredRun[]> {
+async function retainedRuns(archiveScope:boolean|null=false):Promise<StoredRun[]> {
   reconcileInactiveRuns();
   await registryWrite;
   const registry=await registryOrEmpty(),archived=new Set(registry.archivedSessionIds);
-  return registry.runs.filter(x=>!archived.has(x.sessionId)).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
+  return registry.runs.filter(x=>archiveScope===null||archived.has(x.sessionId)===archiveScope).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
 }
 
 /** The Companion's own retained view of one conversation (no Gateway read). */
@@ -2381,7 +2421,8 @@ export function readablePreview(raw:string,max=140):string{
 
 export async function conversationSummariesPage(options:PageOptions={}){
   const {limit,query,cursor}=normalizedPageOptions(options);
-  const runs=await retainedRuns();const grouped=new Map<string,StoredRun[]>();
+  const archiveScope=options.archived===true;
+  const runs=await retainedRuns(archiveScope);const grouped=new Map<string,StoredRun[]>();
   // Background single-flight refresh; pagination never waits on a Gateway process.
   const ownerIndex=runs.length?conversationOwnerIndex():{rows:new Map<string,any>(),state:'pending'};
   const metadata=ownerIndex.rows;
@@ -2394,13 +2435,13 @@ export async function conversationSummariesPage(options:PageOptions={}){
       // First retained authentic request; routed prompt, assistant text and catalogue labels are not title evidence.
       const original=[...rows].reverse().find(row=>typeof row.userText==='string'&&row.userText.trim().length>0);
       const titlePreview=(original?.userText||'').slice(0,160);
-      return {sessionId,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview,
+      return {sessionId,archived:archiveScope,title,pinned,metadataSource:owner?'gateway_sessions_list':null,lastRunId:latest.runId,titlePreview,
         lastResultPreview:readablePreview(latest.result||""),lastRunState:status.state,
         lastActivityAt:latest.updatedAt||latest.acceptedAt,sortAt:latest.acceptedAt,
         modality:latest.modality||"text",transcriptState:latest.transcriptState||"",
         availableTurnCount:rows.length,previewTruncated:(!/^\s*[{\[]/.test(latest.result||"")&&(latest.result?.length||0)>140)||(original?.userText||"").length>160};
     }).sort((a,b)=>b.sortAt-a.sortAt||a.sessionId.localeCompare(b.sessionId));
-  const revision=digest({items,retainedRunCount:runs.length,availableConversations:grouped.size}),scope=pageScope("conversations",query,limit),anchor=cursorAnchor(cursor,scope,revision);
+  const revision=digest({archived:archiveScope,items,retainedRunCount:runs.length,availableConversations:grouped.size}),scope=pageScope("conversations:"+(archiveScope?"archived":"active"),query,limit),anchor=cursorAnchor(cursor,scope,revision);
   const index=anchor?items.findIndex(x=>x.sessionId===anchor):-1;
   if(anchor&&index<0)throw pageError("pagination_invalidated");
   const start=index+1,page=items.slice(start,start+limit),more=start+page.length<items.length;
@@ -2411,11 +2452,11 @@ export async function conversationSummariesPage(options:PageOptions={}){
 }
 export async function conversationTurnsPage(sessionId:string,options:PageOptions={}){
   requireConversationId(sessionId);const {limit,cursor}=normalizedPageOptions(options);
-  if(options.query)throw pageError("unsupported_turn_query",400);
+  if(options.query||options.archived!==undefined)throw pageError("unsupported_turn_query",400);
   // Keep the canonical full preparation path separate from this UI page.
   let partial=false;
   if(!cursor)try{await getConversationTurns(sessionId);}catch{partial=true;}
-  const all=(await retainedRuns()).filter(x=>x.sessionId===sessionId).sort((a,b)=>a.acceptedAt-b.acceptedAt||a.runId.localeCompare(b.runId));
+  const all=(await retainedRuns(null)).filter(x=>x.sessionId===sessionId).sort((a,b)=>a.acceptedAt-b.acceptedAt||a.runId.localeCompare(b.runId));
   const revision=digest(all.map(statusFromStoredRun));
   const scope=pageScope("turns:"+sessionId,"",limit),anchor=cursorAnchor(cursor,scope,revision);
   const end=anchor?all.findIndex(x=>x.runId===anchor):all.length;
