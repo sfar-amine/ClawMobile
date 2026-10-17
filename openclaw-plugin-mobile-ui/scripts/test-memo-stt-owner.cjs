@@ -58,16 +58,23 @@ function container(brand,handler='soun'){
  assert.equal((await runMemoAudioOwner({...owner,loadConfig:()=>entryHeader('X-Transport-Tag')},'synthetic.m4a')).success,true);
  assert.deepEqual(await runMemoAudioOwner({...owner,runMediaUnderstandingFile:async()=>({text:'x'.repeat(12001)})},'synthetic.m4a'),memoSttOwnerFailure());
  assert.deepEqual(await runMemoAudioOwner({...owner,runMediaUnderstandingFile:async()=>{throw Error('synthetic private error');}},'synthetic.m4a'),memoSttOwnerFailure());
- assert.deepEqual(await transcribeMemoAttachment('../synthetic-unowned'),MEMO_STT_QUALIFICATION);
+ assert.equal(MEMO_STT_QUALIFICATION.success,true);
+ assert.deepEqual(await transcribeMemoAttachment('../synthetic-unowned'),memoSttOwnerFailure());
+ const boundary=require('../dist/companion/memoSttBoundary'),closed=Object.freeze({success:false,state:'refused',receipt:null,error:'memo_stt_not_qualified'});
  const real=fs.readFileSync(path.join(fixture,'hs8-captures/bonjour-samantha.m4a'));assert.equal(isM4aContainer(real),true);
  assert.equal(require('node:crypto').createHash('sha256').update(real).digest('hex'),capture.sttViaCore138Code.memo.sha256);
  for(const brand of ['M4A ','mp42','isom']){assert.equal(isM4aContainer(container(brand)),true);assert.equal(isM4aContainer(container(brand,'vide')),false);}
  const headerOnly=container('mp42').subarray(0,24);assert.equal(isM4aContainer(headerOnly),false);
  assert.equal(isM4aContainer(Buffer.concat([headerOnly,box('mdat',Buffer.from('soun'))])),false);
  for(const malformed of [container('mp42').subarray(0,-1),Buffer.alloc(24),Buffer.concat([headerOnly,Buffer.from([0,0,0,4,109,111,111,118])]),Buffer.concat([headerOnly,...Array.from({length:1025},()=>box('free'))])])assert.equal(isM4aContainer(malformed),false);
- assert.throws(()=>validateAttachment(real,'audio/mp4'),/memo_stt_not_qualified/);
+ assert.doesNotThrow(()=>validateAttachment(real,'audio/mp4'));
+ boundary.MEMO_STT_QUALIFICATION=closed;
+ try{assert.throws(()=>validateAttachment(real,'audio/mp4'),/memo_stt_not_qualified/);assert.deepEqual(await transcribeMemoAttachment('../synthetic-unowned'),closed);}
+ finally{boundary.MEMO_STT_QUALIFICATION=MEMO_STT_QUALIFICATION;}
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'memo-owner-')),prev=process.env.CLAWMOBILE_ATTACHMENT_DIR;
- try{process.env.CLAWMOBILE_ATTACHMENT_DIR=dir;fs.writeFileSync(path.join(dir,'synthetic.m4a'),real);assert.throws(()=>attachmentContent('synthetic'),/attachment_not_found/);}finally{if(prev===undefined)delete process.env.CLAWMOBILE_ATTACHMENT_DIR;else process.env.CLAWMOBILE_ATTACHMENT_DIR=prev;fs.rmSync(dir,{recursive:true,force:true});}
+ try{process.env.CLAWMOBILE_ATTACHMENT_DIR=dir;fs.writeFileSync(path.join(dir,'synthetic.m4a'),real);
+  const owned=attachmentContent('synthetic');try{assert.equal(owned.mime,'audio/mp4');assert.equal(owned.size,real.length);}finally{fs.closeSync(owned.fd);}
+  boundary.MEMO_STT_QUALIFICATION=closed;try{assert.throws(()=>attachmentContent('synthetic'),/attachment_not_found/);}finally{boundary.MEMO_STT_QUALIFICATION=MEMO_STT_QUALIFICATION;}}finally{if(prev===undefined)delete process.env.CLAWMOBILE_ATTACHMENT_DIR;else process.env.CLAWMOBILE_ATTACHMENT_DIR=prev;fs.rmSync(dir,{recursive:true,force:true});}
  assert.ok(fs.readFileSync(path.resolve(__dirname,'../../.github/workflows/ci.yml'),'utf8').includes('test-memo-stt-owner.cjs'));
  console.log('HS8: qualified Gemini-only model/profile, derja arabizi, refusal of alternate auth, bounded audio-track parser and cleaned synthetic S24 memo provenance; zero live provider calls');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,0 +1,28 @@
+// Qualification HS8 en lecture : propriétaire canonique installé (dist Companion), aucun run, aucune écriture runtime.
+const fs=require('fs'),crypto=require('crypto'),path=require('path');
+const dist=path.join(process.env.HOME,'ClawMobile/openclaw-plugin-mobile-ui/dist/companion');
+const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
+const owner=require(path.join(dist,'memoSttOwner.js')),att=require(path.join(dist,'attachmentStorage.js')),bnd=require(path.join(dist,'memoSttBoundary.js'));
+(async()=>{
+ const out={node:process.version,deployedGuard:bnd.MEMO_STT_QUALIFICATION,distSha256:{},files:[],runs:[]};
+ for(const f of ['memoSttOwner.js','memoSttBoundary.js','attachmentStorage.js'])out.distSha256[f]=sha(fs.readFileSync(path.join(dist,f)));
+ const envNames=Object.keys(process.env);
+ out.primaryBlockedEnvNames=envNames.filter(n=>/^(?:OPENCLAW_LIVE_GEMINI_KEY|GOOGLE_API_KEY|GEMINI_API_KEYS?|GEMINI_API_KEY_.+)$/.test(n)).length;
+ let t=Date.now();const media=await owner.loadMemoMediaOwner();out.sdkLoadMs=Date.now()-t;
+ const cfg=media.loadConfig();const prof=cfg?.auth?.profiles?.['google:claw-gemini-free'];
+ out.config={freeProfile:{present:!!prof,provider:prof?.provider,mode:prof?.mode},mediaModelsOnDisk:Array.isArray(cfg?.tools?.media?.models)?cfg.tools.media.models.length:null,
+  audioExplicitlyDisabled:cfg?.tools?.media?.audio?.enabled===false,providersGoogleHasApiKey:!!(cfg?.models?.providers?.google&&Object.prototype.hasOwnProperty.call(cfg.models.providers.google,'apiKey'))};
+ const proj=owner.memoAudioConfig(cfg);
+ out.projection={model:proj.tools.media.models[0].model,profile:proj.tools.media.models[0].profile,preferredModel:proj.tools.media.audio.preferredModel,
+  googleApiKeyExcluded:!Object.prototype.hasOwnProperty.call(proj.models?.providers?.google||{},'apiKey'),globalUnchanged:out.config.providersGoogleHasApiKey===!!(cfg?.models?.providers?.google&&Object.prototype.hasOwnProperty.call(cfg.models.providers.google,'apiKey'))};
+ t=Date.now();const auth=await media.resolveApiKeyForProvider({provider:'google',cfg:proj,profileId:'google:claw-gemini-free',lockedProfile:true});
+ out.authPreflight={ms:Date.now()-t,profileId:auth?.profileId,mode:auth?.mode,source:auth?.source};
+ const Q=path.join(process.env.HOME,'.openclaw/tmp/memo-qual-20261017');
+ const files=[['synthetic_mp42_aac16k',path.join(Q,'memo-fr-synthetic.m4a'),'Bonjour Samantha, ceci est un test.'],
+  ['fixture_hs8_174',path.join(process.env.HOME,'ClawMobile/openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11/hs8-captures/bonjour-samantha.m4a'),null]];
+ for(const [id,file,expected] of files){const b=fs.readFileSync(file);
+  out.files.push({id,bytes:b.length,sha256:sha(b),majorBrand:b.subarray(8,12).toString('latin1'),isM4aContainer:att.isM4aContainer(b),durationWithinLimit:att.memoAudioDurationWithinLimit(b)});
+  for(const attempt of (id.startsWith('synthetic')?[1,2]:[1])){t=Date.now();const r=await owner.runMemoAudioOwner(media,file);
+   out.runs.push({file:id,attempt,ms:Date.now()-t,success:r.success,state:r.state,error:r.error,text:r.success?r.text:undefined,expected});}}
+ console.log(JSON.stringify(out,null,1));
+})().catch(e=>{console.log(JSON.stringify({fatal:String(e&&e.message||e).slice(0,200)}));process.exit(2);});
