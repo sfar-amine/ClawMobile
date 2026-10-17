@@ -63,7 +63,9 @@ class PrTemplateTests(unittest.TestCase):
         text=(m.TEMPLATE.parents[1]/'.github/workflows/ci.yml').read_text()
         self.assertNotIn('pull_request_target',text)
         self.assertNotIn('contents: write',text)
-        self.assertIn('types: [opened, synchronize, reopened, edited, ready_for_review]',text)
+        # Déclencheurs automatiques retirés le 17/10 (CI locale, PR #304) : seule l'exécution manuelle reste.
+        self.assertIn('workflow_dispatch:',text)
+        self.assertNotIn('\n  pull_request:',text)
         self.assertIn('python3 ../tools/check_pr_template.py',text)
         self.assertIn('python3 -m unittest discover -s ../tests -p test_pr_template.py',text)
 
