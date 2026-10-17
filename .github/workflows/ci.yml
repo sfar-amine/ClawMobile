@@ -193,6 +193,7 @@ jobs:
           python3 scripts/test-composed-read-result.py
           node scripts/test-model-fast-path.cjs
           node scripts/test-pulse-room-fast-path.cjs
+          node scripts/test-contact-room-fast-path.cjs
 
       - name: Qualify Companion M1 contracts and telemetry offline
         run: |
@@ -304,6 +305,7 @@ jobs:
           node scripts/test-whatsapp-allowlist.cjs
           node scripts/test-whatsapp-allowlist-paired.cjs
           node scripts/test-whatsapp-rooms-paired.cjs
+          node scripts/test-whatsapp-contact-tools.cjs
 
       - name: Run skill detail and owner controls contract
         run: node scripts/test-skill-control.cjs

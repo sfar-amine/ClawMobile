@@ -9,6 +9,8 @@
   "contracts": {
     "tools": [
       "clawmobile_capability",
+      "transmettre_a_amine",
+      "noter_contact",
       "android_health",
       "android_screenshot",
       "android_tap",
