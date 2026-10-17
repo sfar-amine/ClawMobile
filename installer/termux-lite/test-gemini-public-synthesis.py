@@ -52,7 +52,7 @@ class PublicSynthesis(unittest.TestCase):
         with self.assertRaises(m.PolicyError): m.validate_public_input(value)
 
     def test_invalid_limits_and_types(self):
-        for key, value in (("query", "x"*1001), ("remainingBudgetMs", True), ("remainingBudgetMs", 12001),
+        for key, value in (("query", "x"*1001), ("remainingBudgetMs", True), ("remainingBudgetMs", 20001),
                            ("sources", []), ("sources", request()["sources"]*6), ("responseLanguage", "xx"),
                            ("correlationId", "owner@example.org")):
             req = request(); req[key] = value
@@ -89,6 +89,33 @@ class PublicSynthesis(unittest.TestCase):
         output["spokenText"] = output["claims"][0]["text"]
         with self.assertRaisesRegex(m.PolicyError, "synthesis_review_required"):
             m.validate_public_result(output, request())
+        output = result(); output["claims"][0]["text"] = "Selon le site, Samsung lance un produit bleu."
+        output["spokenText"] = output["claims"][0]["text"]
+        with self.assertRaisesRegex(m.PolicyError, "synthesis_review_required"):
+            m.validate_public_result(output, request())
+
+    def test_grounded_written_answer_is_admitted(self):
+        """Décision d'Amine 17/10 : réponse rédigée (traduite/paraphrasée) quand elle reste ancrée."""
+        req = request()
+        req["sources"] = [{"id": "s1", "title": "Tibo on X", "url": "https://x.com/thsottiaux/status/2107676072871600470",
+                           "excerpt": "Therefore ... the reset has been processed. Enjoy!", "publishedAt": "2026-10-07"}]
+        self.assertEqual(m.validate_public_input(req), req)
+        output = result()
+        output["claims"] = [
+            {"id": "c1", "text": "Aucune source ne confirme un reset le 17 octobre.", "sourceIds": ["s1"],
+             "support": [{"sourceId": "s1", "quote": "the reset has been processed"}]},
+            {"id": "c2", "text": "Le dernier reset annoncé par Tibo date du 7 octobre.", "sourceIds": ["s1"],
+             "support": [{"sourceId": "s1", "quote": "the reset has been processed"}]}]
+        output["spokenText"] = " ".join(c["text"] for c in output["claims"])
+        self.assertEqual(m.validate_public_result(output, req, today="2026-10-17"), output)
+        output["claims"][1]["text"] = "Le dernier reset annoncé par Tibo date du 9 octobre."
+        output["spokenText"] = " ".join(c["text"] for c in output["claims"])
+        with self.assertRaisesRegex(m.PolicyError, "synthesis_review_required"):
+            m.validate_public_result(output, req, today="2026-10-17")
+        output["claims"][1]["text"] = "Le dernier reset date du 7 octobre [s1]."
+        output["spokenText"] = " ".join(c["text"] for c in output["claims"])
+        with self.assertRaisesRegex(m.PolicyError, "synthesis_review_required"):
+            m.validate_public_result(output, req, today="2026-10-17")
 
     def test_model_profile_retry_and_unknown_cost_contract(self):
         for field, value in (("model", "other"), ("profile", "google:paid")):
@@ -191,13 +218,15 @@ class PublicSynthesis(unittest.TestCase):
         self.assertEqual(output["metrics"]["providerAttempts"], 1)
         self.assertEqual(output["claims"], [])
 
-    def test_every_cited_support_must_equal_extractive_claim(self):
+    def test_every_cited_source_needs_its_own_exact_quote(self):
         req = request()
         req["sources"].append({"id": "s2", "title": "Other", "url": "https://example.org/other", "excerpt": "Autre passage sans rapport."})
         output = result()
         output["claims"][0]["sourceIds"].append("s2")
-        output["claims"][0]["support"].append({"sourceId": "s2", "quote": "Autre passage sans rapport."})
-        with self.assertRaisesRegex(m.PolicyError, "synthesis_review_required"):
+        with self.assertRaisesRegex(m.PolicyError, "unsupported_citation"):
+            m.validate_public_result(output, req)
+        output["claims"][0]["support"].append({"sourceId": "s2", "quote": "Passage inventé."})
+        with self.assertRaisesRegex(m.PolicyError, "unsupported_quote"):
             m.validate_public_result(output, req)
 
     def test_bad_input_never_launches_provider(self):

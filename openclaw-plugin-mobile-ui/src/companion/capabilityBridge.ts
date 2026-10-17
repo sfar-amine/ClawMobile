@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import {PUBLIC_WEB_BUDGET_MS} from "./runWeb";
 
 const execFileAsync = promisify(execFile);
 
@@ -81,7 +82,7 @@ export async function capabilityBridge(
   const checkBounded=options.checkBudgetMs!==undefined;
   if(checkBounded&&(execute||!Number.isSafeInteger(options.checkBudgetMs)||options.checkBudgetMs!<1||options.checkBudgetMs!>12000))return {success:false,error:"invalid_check_budget"};
   const started = performance.now();
-  if (bounded && (!Number.isSafeInteger(options.remainingBudgetMs) || options.remainingBudgetMs! < 1 || options.remainingBudgetMs! > 12000 ||
+  if (bounded && (!Number.isSafeInteger(options.remainingBudgetMs) || options.remainingBudgetMs! < 1 || options.remainingBudgetMs! > PUBLIC_WEB_BUDGET_MS ||
       !Number.isSafeInteger(options.deadlineEpochMs) || options.deadlineEpochMs! <= Date.now() || !options.requestId ||
       options.decision && options.decision.requestId !== options.requestId)) return {success:false,error:"invalid_web_execution_context"};
   if(options.signal?.aborted)return {success:false,error:"execution_cancelled",execution:{state:"cancelled"}};

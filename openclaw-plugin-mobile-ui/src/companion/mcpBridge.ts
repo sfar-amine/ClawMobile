@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge";
 import { runModelFastPath } from "../modelFastPath";
 import { readMaintenanceGate } from "./maintenanceMarker";
+import { PUBLIC_WEB_BUDGET_MS } from "./runWeb";
 
 const MCP_MAINTENANCE_TEXT = "Samantha est en maintenance pour quelques minutes : la demande n'a pas été traitée et ne le sera pas plus tard. Renvoie-la après la maintenance.";
 const MCP_MARKER_INVALID_TEXT = "Le verrou de maintenance de Samantha est illisible : par sécurité, aucune demande n'est exécutée.";
@@ -358,7 +359,7 @@ async function executeCapability(
   profile: string,
   args: Record<string, unknown>,
 ) {
-  const webBounds={startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+12000};
+  const webBounds={startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+PUBLIC_WEB_BUDGET_MS};
   const request = requiredString(args.request, "request", 12000);
   const actionKey = requiredString(args.action_key, "action_key", 40, ACTION_ID_RE);
   const stepKey = optionalString(args.step_key, "step_key", 24, STEP_ID_RE) || "execute";

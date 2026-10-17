@@ -1,6 +1,6 @@
 import {createHash} from "node:crypto";
 import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
-import {readRunWebResult} from "./companion/runWeb";
+import {PUBLIC_WEB_BUDGET_MS, readRunWebResult} from "./companion/runWeb";
 import os from "node:os";
 import path from "node:path";
 
@@ -82,7 +82,7 @@ export async function clawmobile_capability(
   }
   const execute = args.execute !== false;
   const timeout = Math.max(2, Math.min(Number(args.timeoutSeconds || 30), 120));
-  const started=performance.now(),deadlineEpochMs=Date.now()+12000;
+  const started=performance.now(),deadlineEpochMs=Date.now()+PUBLIC_WEB_BUDGET_MS;
   const nativeChannel=options.turnContext?.nativeChannelId,invocation=options.turnContext?.invocationId;
   const nativeIdentity=typeof nativeChannel==="string"&&nativeChannel.length>0&&nativeChannel.length<=512&&typeof invocation==="string"&&/^[A-Za-z0-9_.:-]{1,160}$/.test(invocation);
   const opaque=(kind:string,value:string)=>{
@@ -106,7 +106,7 @@ export async function clawmobile_capability(
         "--caller", caller,
       ];
       if (execute) argv.push("--timeout", String(timeout));
-      const remaining=Math.floor(Math.min(12000-(performance.now()-started),deadlineEpochMs-Date.now()));
+      const remaining=Math.floor(Math.min(PUBLIC_WEB_BUDGET_MS-(performance.now()-started),deadlineEpochMs-Date.now()));
       if(execute&&nativeIdentity){
         if(remaining<1)return {status:"error",reason:"web_deadline_exceeded"};
         argv.push("--request-id",requestId!,"--run-id",requestId!,"--session-id",sessionId!,"--remaining-budget-ms",String(remaining),"--deadline-epoch-ms",String(deadlineEpochMs));
@@ -126,7 +126,7 @@ export async function clawmobile_capability(
       if(parsed?.execution?.result?.web!==undefined){
         const web=readRunWebResult(parsed.execution.result.web);
         if(!web)return {status:"error",reason:"invalid_web_result"};
-        if(execute&&nativeIdentity&&(performance.now()-started>=12000||Date.now()>=deadlineEpochMs))return {status:"error",reason:"web_deadline_exceeded"};
+        if(execute&&nativeIdentity&&(performance.now()-started>=PUBLIC_WEB_BUDGET_MS||Date.now()>=deadlineEpochMs))return {status:"error",reason:"web_deadline_exceeded"};
         return {status:"ok",...parsed,execution:{...parsed.execution,result:{web}}};
       }
       if (parsed?.execution?.reason === AGENT_CAPABILITY_REFUSAL) {

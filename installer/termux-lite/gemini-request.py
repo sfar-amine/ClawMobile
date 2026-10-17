@@ -11,6 +11,8 @@ import tempfile
 import time
 import ipaddress
 import signal
+import unicodedata
+from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 HOME = Path.home()
@@ -474,14 +476,17 @@ def validate_public_input(value: object) -> dict:
     if not isinstance(value["correlationId"], str) or not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", value["correlationId"]):
         raise PolicyError("invalid_correlation")
     budget = value["remainingBudgetMs"]
-    if type(budget) is not int or not 1 <= budget <= 12000:
+    if type(budget) is not int or not 1 <= budget <= 20000:  # PUBLIC_WEB_BUDGET_MS (runWeb.ts)
         raise PolicyError("invalid_budget")
     sources = value["sources"]
     if not isinstance(sources, list) or not 1 <= len(sources) <= 5:
         raise PolicyError("invalid_sources")
     ids = set()
     for source in sources:
-        if not isinstance(source, dict) or set(source) != {"id", "title", "url", "excerpt"}:
+        if not isinstance(source, dict) or not {"id", "title", "url", "excerpt"} <= set(source) <= {"id", "title", "url", "excerpt", "publishedAt"}:
+            raise PolicyError("invalid_source")
+        published = source.get("publishedAt")
+        if published is not None and (not isinstance(published, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}(?:T[0-9:.+Z-]{1,30})?", published)):
             raise PolicyError("invalid_source")
         sid = public_string(source["id"], 24, "source_id")
         if not re.fullmatch(r"[A-Za-z0-9_-]+", sid) or sid in ids:
@@ -513,7 +518,38 @@ def public_degradation(code: str, stage="synthesis", attempts=0, elapsed=None) -
             "error": {"code": code, "stage": stage}}
 
 
-def validate_public_result(value: object, request: dict) -> dict:
+def _fold(value: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", value) if not unicodedata.combining(c)).lower()
+
+
+CALENDAR_WORDS = frozenset(("january february march april may june july august september october november december "
+                            "monday tuesday wednesday thursday friday saturday sunday").split())
+
+
+def proper_names(text: str) -> list[str]:
+    """Capitalized Latin words that are not sentence-initial nor calendar words (same rule as gemini-public-synthesis.mjs)."""
+    names = []
+    for match in re.finditer(r"(?<![^\W_])[A-Z][\w'’-]{2,}", text):
+        before = text[:match.start()].rstrip()
+        if before and before[-1] not in ".!?:" and match.group(0).lower() not in CALENDAR_WORDS:
+            names.append(match.group(0))
+    return names
+
+
+def grounded_text(text: str, evidence_parts) -> bool:
+    """Every number and proper name of a written claim is observed in its own evidence."""
+    evidence = _fold(" \n ".join(evidence_parts))
+    numbers = {str(int(n)) for n in re.findall(r"\d+", evidence)}
+    if any(str(int(n)) not in numbers for n in re.findall(r"\d+", text)):
+        return False
+    return all(_fold(name) in evidence for name in proper_names(text))
+
+
+def public_today() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def validate_public_result(value: object, request: dict, today: str | None = None) -> dict:
     if not isinstance(value, dict) or set(value) != {"version", "outcome", "model", "profile", "claims", "spokenText", "metrics", "error"}:
         raise PolicyError("invalid_synthesis_result")
     if type(value["version"]) is not int or value["version"] != 1 or value["outcome"] != "complete" or value["model"] != MODEL or value["profile"] != PROFILE or value["error"] is not None:
@@ -547,9 +583,18 @@ def validate_public_result(value: object, request: dict) -> dict:
             if quote not in sources[item["sourceId"]]["excerpt"]:
                 raise PolicyError("unsupported_quote")
             supported.add(item["sourceId"])
-        if supported != set(referenced):
+        if supported != set(referenced) or len(support) != len(referenced):
             raise PolicyError("unsupported_citation")
-        if not all(item["quote"] == claim["text"] for item in support):
+        # Written (translated/paraphrased) claims are admitted only when grounded: exact quotes for
+        # every cited source, and every number/proper name observed in that evidence (decision
+        # d'Amine 17/10 : une vraie réponse rédigée et sourcée plutôt que des extraits bruts).
+        if re.search(r"\[\s*s?\d+\s*\]|[<>]", claim["text"], re.I):
+            raise PolicyError("synthesis_review_required")
+        # Titles and publication dates of every displayed source are observed evidence (shown with the answer).
+        evidence = [item["quote"] for item in support] + [
+            source["title"] + " " + str(source.get("publishedAt") or "") for source in sources.values()]
+        evidence += [request["query"], today or public_today()]
+        if not grounded_text(claim["text"], evidence):
             raise PolicyError("synthesis_review_required")
     # Deterministic oral rendering: no independent model-authored assertions.
     expected_spoken = " ".join(c["text"] for c in claims)

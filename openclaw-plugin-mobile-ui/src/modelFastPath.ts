@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { admittedAtMs, dialogueTurn, transportEventRef } from "./dialogueSurface";
+import { PUBLIC_WEB_BUDGET_MS } from "./companion/runWeb";
 
 const MAX_MESSAGE_CHARS = 12000;
 const LOCAL_COMPANION_SESSION = /^agent:main:companion-chat-[A-Za-z0-9-]{1,96}$/;
@@ -157,7 +158,7 @@ export async function runModelFastPath(
 ): Promise<FastPathResult> {
   if(options.checkBudgetMs!==undefined&&(!options.checkOnly||!Number.isSafeInteger(options.checkBudgetMs)||options.checkBudgetMs<1||options.checkBudgetMs>10000))return {status:"error",reason:"invalid_check_budget"};
   const bounded = options.remainingBudgetMs !== undefined;
-  if (bounded && (!Number.isSafeInteger(options.remainingBudgetMs) || options.remainingBudgetMs! < 1 || options.remainingBudgetMs! > 12000 ||
+  if (bounded && (!Number.isSafeInteger(options.remainingBudgetMs) || options.remainingBudgetMs! < 1 || options.remainingBudgetMs! > PUBLIC_WEB_BUDGET_MS ||
       !Number.isSafeInteger(options.deadlineEpochMs) || options.deadlineEpochMs! <= Date.now() || !options.requestId ||
       options.preparedDecision && options.preparedDecision.requestId !== options.requestId)) return {status:"known_error",reason:"invalid_web_execution_context"};
   if (options.signal?.aborted) return {status:"known_error",reason:"execution_cancelled",execution_state:"cancelled"};

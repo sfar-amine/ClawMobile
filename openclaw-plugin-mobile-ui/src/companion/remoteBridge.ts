@@ -1,4 +1,4 @@
-import {readRunWebResult} from "./runWeb";
+import {PUBLIC_WEB_BUDGET_MS, readRunWebResult} from "./runWeb";
 import crypto from "crypto";
 import fs from "fs";
 import os from "os";
@@ -723,8 +723,8 @@ async function runCapabilityAtSurface(
   if (decision && Number(decision.version) !== 2) throw new Error("invalid_capability_decision");
   const capability = String(decision?.capability || (decision?.selected as any)?.capability || "");
   const isWeb = ["samantha.app.web.search","samantha.app.web.answer"].includes(capability);
-  const bounds = webBounds || {startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+12000};
-  const remaining = Math.floor(Math.min(12000-(performance.now()-bounds.startedMonotonic),bounds.deadlineEpochMs-Date.now()));
+  const bounds = webBounds || {startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+PUBLIC_WEB_BUDGET_MS};
+  const remaining = Math.floor(Math.min(PUBLIC_WEB_BUDGET_MS-(performance.now()-bounds.startedMonotonic),bounds.deadlineEpochMs-Date.now()));
   if(isWeb && (!decision?.requestId || remaining<1))return {success:false,execution:{state:"failed",reason:"web_execution_context_unavailable"}};
   const result: any = await capabilityBridge(request, {
     execute: true,
@@ -859,7 +859,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   body: RemoteBridgeRequest,
   webBounds?: {startedMonotonic:number;deadlineEpochMs:number},
 ): Promise<RemoteBridgeReceipt> {
-  const bounds=webBounds || {startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+12000};
+  const bounds=webBounds || {startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+PUBLIC_WEB_BUDGET_MS};
   ensureDirs();
   const request = normalizeRequest(body);
   const params = (request.params || {}) as Record<string, unknown>;
