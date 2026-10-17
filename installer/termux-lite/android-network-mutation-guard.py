@@ -1603,7 +1603,7 @@ def consultation_child_budget(deadline: float, now: float | None = None) -> floa
     return max(1.0, min(CONSULTATION_TOTAL_S - CONSULTATION_RESTORE_RESERVE_S, deadline - CONSULTATION_RESTORE_RESERVE_S - now))
 
 
-def with_consultation_receipt(command: list[str], *, allow_cellular_channel: bool = True) -> int:
+def with_consultation_receipt(command: list[str], *, allow_cellular_channel: bool = True, keep_wifi: bool = False) -> int:
     # Serialize snapshot -> mutation -> child cleanup -> exact restore using the existing owner lock.
     # The total bound starts before the lock wait: a busy guard consumes the same 60 s.
     global _CONSULTATION_DEADLINE
@@ -1612,7 +1612,7 @@ def with_consultation_receipt(command: list[str], *, allow_cellular_channel: boo
     _CONSULTATION_DEADLINE=deadline
     try:
         with mutation_lock() as lock_fd:
-            return _with_consultation_receipt_locked(command, deadline,lock_fd,allow_cellular_channel=allow_cellular_channel)
+            return _with_consultation_receipt_locked(command, deadline,lock_fd,allow_cellular_channel=allow_cellular_channel,keep_wifi=keep_wifi)
     except RuntimeError as exc:
         if str(exc) != "network_mutation_guard_busy":
             raise
@@ -1652,7 +1652,7 @@ def consultation_postcondition(row: dict, *, wait: bool = False) -> bool:
         time.sleep(min(.25,max(0,end-time.monotonic())))
 
 
-def _with_consultation_receipt_locked(command: list[str], deadline: float | None = None, lock_fd: int | None = None, *, allow_cellular_channel: bool = True) -> int:
+def _with_consultation_receipt_locked(command: list[str], deadline: float | None = None, lock_fd: int | None = None, *, allow_cellular_channel: bool = True, keep_wifi: bool = False) -> int:
     """Consultation-only admission/cleanup; generic and payment with-wifi-off stay untouched."""
     deadline = time.monotonic()+CONSULTATION_TOTAL_S if deadline is None else deadline
     if len(command)<4 or command[:3] != [sys.executable,'-m','telecom.maxit_guarded_service']:
@@ -1669,6 +1669,14 @@ def _with_consultation_receipt_locked(command: list[str], deadline: float | None
     decision = snapshot['decision']
     if not allow_cellular_channel and decision['route']=='cellular_bound_wifi_unchanged':
         decision={'route':'guarded_fallback','reason':'channel_disabled_for_canonical_consultation','wifi_enabled':snapshot['wifi_enabled']}
+    if keep_wifi and decision['route']=='guarded_fallback':
+        # Incident 15/10 : couper le Wi-Fi pendant un appel vocal coupe la session vocale (réponse jamais dite,
+        # chargement infini). Décision du 17/10 « 4G et Wi-Fi » : sans chemin cellulaire attesté, on le dit, sans mutation.
+        print(json.dumps({'ok':False,'source':'maxit_network_guard','state':'orange_cellular_required_wifi_kept',
+                          'reason':decision.get('reason'),
+                          'network_guard':{'path':'blocked','wifi_initial':snapshot['wifi_enabled'],'wifi_disabled':False,
+                                           'dns_ready_ms':None,'restored':True,'lease_id':None}}))
+        return 4
     if decision['route']=='blocked':
         print(json.dumps({'ok':False,'source':'maxit_network_guard','state':decision['reason'],
                           'network_guard':{'path':'blocked','wifi_initial':snapshot['wifi_enabled'],'wifi_disabled':False,
@@ -1988,6 +1996,7 @@ def main() -> int:
     channel_verify.add_argument("--session", required=True)
     consult = sub.add_parser("with-consultation-receipt")
     consult.add_argument("--no-cellular-channel",action="store_true")
+    consult.add_argument("--keep-wifi",action="store_true",help="never toggle Wi-Fi (live voice): refuse the Wi-Fi-off corridor with its reason")
     consult.add_argument("command", nargs="+")
     wf = sub.add_parser("with-wifi-off")
     wf.add_argument("--purpose", default="temporary-wifi-off")
@@ -2067,7 +2076,7 @@ def main() -> int:
     if not command:
         raise SystemExit(f"{args.cmd} requires a command")
     if args.cmd == "with-consultation-receipt":
-        return with_consultation_receipt(command,allow_cellular_channel=not args.no_cellular_channel)
+        return with_consultation_receipt(command,allow_cellular_channel=not args.no_cellular_channel,keep_wifi=args.keep_wifi)
     if args.cmd == "with-wifi-off":
         return with_wifi_off(args.purpose, command)
     return with_global_proxy(args.endpoint, args.purpose, command)

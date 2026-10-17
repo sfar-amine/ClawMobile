@@ -429,6 +429,8 @@ jobs:
           python3 ../installer/termux-lite/test-consultation-fastpath.py
       - name: Orange 4G et Wi-Fi (décision 17/10) — garanties paiement du garde partagé
         run: python3 ../installer/termux-lite/test-payment-guard-invariance.py
+      - name: Incident Orange vocal 15/10 — voix en direct, Wi-Fi jamais coupé (--keep-wifi)
+        run: python3 ../installer/termux-lite/test-consultation-voice-keep-wifi.py
       - name: O8 baseline model efficiency and Gemini client regression
         run: |
           python3 ../installer/termux-lite/test-model-efficiency.py
