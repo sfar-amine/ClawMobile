@@ -1,7 +1,6 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {createContactTool,contactToolCaller}=require('../dist/contactTools.js');
-const {handleWhatsAppAccessBeforeDispatch}=require('../dist/whatsappAccessFastPath.js');
 
 (async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'contact-tools-'));
@@ -16,14 +15,7 @@ const {handleWhatsAppAccessBeforeDispatch}=require('../dist/whatsappAccessFastPa
  out=await createContactTool('noter_contact',{agentId:'main',sessionKey:'agent:main:whatsapp:direct:+21612345678'}).execute('call',{text:'secret'});
  assert.equal(JSON.parse(out.content[0].text).reason,'contact_tool_not_allowed');
 
- const item={contactId:'wa-1234567890abcdef',name:'Mehdi',owner:false,state:'active',rooms:['conversation','projet']};
- const deps={owners:()=>new Set(['+21611111111']),read:async()=>({items:[item]}),change:async(kind,id,input)=>({value:{success:true},kind,id,input})};
- const event={messageId:'x1',content:'liste mes contacts WhatsApp',channel:'whatsapp',sessionKey:'agent:main:whatsapp:direct:+21611111111'};
- let result=await handleWhatsAppAccessBeforeDispatch(event,{},deps);assert.equal(result.handled,true);assert.match(result.text,/Mehdi : conversation, projet/);
- event.content="retire le projet à Mehdi";let called;deps.change=async(...args)=>(called=args,{value:{success:true}});
- result=await handleWhatsAppAccessBeforeDispatch(event,{},deps);assert.equal(result.handled,true);assert.deepEqual(called[2].rooms,['conversation']);
- event.content="donne à Mehdi la pièce maison";deps.change=async()=>{let e=Error('confirmation_required');e.statusCode=403;throw e};
- result=await handleWhatsAppAccessBeforeDispatch(event,{},deps);assert.match(result.text,/biométrie/);
- event.content='raconte une blague';result=await handleWhatsAppAccessBeforeDispatch(event,{},deps);assert.equal(result.handled,false);
+ // The owner WhatsApp access commands (regex pre-router) are not shipped: AGENTS.md rule 8 (17/10 review of #261).
+ assert.equal(fs.existsSync(path.join(__dirname,'../dist/whatsappAccessFastPath.js')),false);
  console.log('whatsapp contact tools: PASS');
 })().catch(e=>{console.error(e);process.exit(1)});

@@ -12,24 +12,35 @@ fs.writeFileSync(path.join(state,'runs.json'),JSON.stringify({version:1,runs:[],
 // Clé owner-confirmation (biométrique dans l'app) épinglée par installation contrôlée, comme sur le S24.
 const biometric=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'});
 fs.writeFileSync(path.join(state,'owner-confirmation-public.pem'),biometric.publicKey.export({type:'spki',format:'pem'}));
-// Pré-routeur capability : toujours « miss », le tour part vers le Gateway.
-// « ambigu » ouvre une CLARIFY ; une résolution renvoie un texte dérivé de la clarification (marqueur ATTACKER_DERIVED).
+// SAM-MIG V2.2 : stand-in de `model-fast-path.py --dialogue` (le coordinateur lui-même est testé dans samantha-ui-playbooks).
+// Toujours « UNRESOLVED » (le tour part vers le Gateway), sauf « ambigu » qui ouvre une question dans SA conversation
+// (clé de conversation = session + bit d'admission), et « p1-write » : décision engagée puis remise différée.
 const helper=path.join(root,'fast-path.py'),helperLog=path.join(root,'fast-path.log');
-fs.writeFileSync(helper,['import json,sys','m=sys.argv[-1]','mode="resolve" if "--resolve-clarification" in sys.argv else "check"',
+fs.writeFileSync(helper,['import base64,json,os,sys','m=sys.argv[-1]','dm=sys.argv[sys.argv.index("--dialogue")+1]',
  'caller=sys.argv[sys.argv.index("--caller")+1]',
- 'open('+JSON.stringify(helperLog)+',"a").write(json.dumps({"mode":mode,"message":m,"caller":caller,"executing":"--execute-decision" in sys.argv})+"\\n")',
- 'd=lambda k,i:{"version":2,"type":k,"decisionId":i,"requestId":i,"textHash":"x","capabilityRevision":"rev","contractHash":"hash"}',
- 'if "p1-write" in m:',
- ' if "revoke-resolution" in m and "--check" in sys.argv:',
- '  import time,os',
+ 'ev=json.loads(base64.b64decode(os.environ.get("CLAW_DIALOGUE_EVENT_B64","e30=")))',
+ 'sp='+JSON.stringify(path.join(root,'dialogue-state'))+'+"-"+base64.b16encode(ev.get("conversationKey","").encode()).decode()',
+ 'st={ev.get("conversationKey",""):open(sp).read()} if os.path.exists(sp) else {}',
+ 'conv=ev.get("conversationKey","")',
+ 'mode="execute" if dm=="handoff" else dm if dm=="abort" else ("resolve" if conv in st else "check")',
+ 'open('+JSON.stringify(helperLog)+',"a").write(json.dumps({"mode":mode,"message":m,"caller":caller,"executing":dm=="handoff","conversation":conv})+"\\n")',
+ 'd=lambda k,i:{"version":2,"type":k,"decisionId":i}',
+ 'G="goal-"+("%020x"%(abs(hash(conv+m))%(16**20)))',
+ 'if dm=="abort": out={"outcome":"DENIED","reasonCode":"admission_revoked","handled":True}',
+ 'elif dm=="handoff": out={"outcome":"COMPLETED","text":"synthetic result; no real effect","handled":True} if caller=="owner" else {"outcome":"FAILED","text":"synthetic write refused for caller other","handled":True}',
+ 'elif "p1-write" in m:',
+ ' if "revoke-resolution" in m:',
+ '  import time',
  '  for _ in range(300):',
  '   if os.path.exists('+JSON.stringify(path.join(root,'resolution-release'))+'): break',
  '   time.sleep(.01)',
- ' status="eligible" if "--check" in sys.argv else "hit" if caller=="owner" else "known_error"',
- ' print(json.dumps({"status":status,"text":"synthetic result; no real effect","decision":{**d("EXECUTE","synthetic-write"),"risk":"write","caller":caller,"capability":"synthetic.offline.write"}}))',
- 'elif mode=="resolve": print(json.dumps({"status":"miss","resolution":{"text":"ATTACKER_DERIVED "+m}}))',
- 'elif "ambigu" in m: print(json.dumps({"status":"clarification","text":"Tu veux consulter ou agir ?","model_bypassed":True,"decision":{**d("CLARIFY","c-"+m[-8:]),"clarification":{"question":"Tu veux consulter ou agir ?","choices":[{"intent":"read","label":"consulter"},{"intent":"act","label":"agir"}]}}}))',
- 'else: print(json.dumps({"status":"miss","reason":"fixture"}))',''].join('\n'));process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
+ ' out={"outcome":"READY","handled":True,"goalRef":G,"pendingHandoff":{"goalRef":G,"klass":"FAST"},"decision":{**d("EXECUTE","synthetic-write"),"risk":"write","capability":"synthetic.offline.write"}}',
+ 'elif conv in st: out={"outcome":"UNRESOLVED","text":"Je n\'ai pas compris ta réponse. Tu veux consulter ou agir ?","handled":True,"modelAllowed":False,"goalRef":st[conv],"question":{"version":1,"kind":"choice","text":"Tu veux consulter ou agir ?"}}',
+ 'elif "ambigu" in m:',
+ ' st[conv]=G',
+ ' out={"outcome":"NEEDS_CHOICE","text":"Tu veux consulter ou agir ?","handled":True,"goalRef":G,"decision":d("CLARIFY","c-"+m[-8:]),"question":{"version":1,"kind":"choice","text":"Tu veux consulter ou agir ?","choices":[{"label":"consulter"},{"label":"agir"}]}}',
+ 'else: out={"outcome":"UNRESOLVED","reasonCode":"fixture","modelAllowed":True,"handled":False}',
+ 'conv in st and open(sp,"w").write(st[conv])','print(json.dumps(out))',''].join('\n'));process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
 // Connexion write (CLI canonique) factice.
 const cliLog=path.join(root,'cli.jsonl'),cli=path.join(root,'openclaw-cli.py');
 fs.writeFileSync(cli,'#!/usr/bin/env python3\nimport json,sys\np=json.loads(sys.argv[sys.argv.index("--params")+1])\nopen('+JSON.stringify(cliLog)+',"a").write(json.dumps({"transport":"cli_write","method":sys.argv[3] if sys.argv[3]!="--expect-final" else sys.argv[4],"sessionKey":p["sessionKey"],"id":p["idempotencyKey"],"extra":"extraSystemPrompt" in p})+"\\n")\nprint(json.dumps({"runId":p["idempotencyKey"],"status":"accepted"}))\n');
@@ -214,24 +225,30 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    const signed=JSON.stringify({instruction:'Édité',displayText:'Édité',sessionId:'replay-dst-2',clientRunId:'p1-replay-proof',replayOf:{sessionId:'replay-src',runId:src.runId}});
    x=await request('POST','/v1/runs',signed,proof({body:signed,clientRunId:'p1-replay-proof',sessionId:'replay-dst-2'}));assert.equal(x.status,200);assert.deepEqual(x.body.ownerAdmission,{owner:true});
    assert.equal((await settled(x.body.runId)).transport,'admin');count('replay_without_proof_403');count('replay_with_proof_admin');}
-  // --- 6c. CLARIFY : un tour admis ne reprend jamais une clarification ouverte par un tour non admis (confused deputy).
+  // --- 6c. CLARIFY (SAM-MIG V2.2) : la question appartient à la conversation du coordinateur, séparée par le bit
+  // d'admission. Un tour admis ne reprend jamais une question ouverte par un tour non admis (confused deputy), et
+  // un tour non admis ne touche jamais celle d'Amine.
   {const helperCalls=()=>readLines(helperLog);
    const rogue1=await submit({sessionId:'clarify-1',sign:false,text:'ambigu rogue-01'});assert.equal(rogue1.response.body.state,'done');
    const before=helperCalls().length;
    const own=await submit({sessionId:'clarify-1',text:'oui agis'});assert.deepEqual(own.response.body.ownerAdmission,{owner:true});
-   const t=await settled(own.runId);assert.equal(t.transport,'admin');assert.ok(!t.message.includes('ATTACKER_DERIVED')&&t.message.endsWith('oui agis'));
-   assert.ok(!helperCalls().slice(before).some(c=>c.mode==='resolve'),'aucune résolution de la clarification tierce');
+   const t=await settled(own.runId);assert.equal(t.transport,'admin');assert.ok(t.message.endsWith('oui agis'));
+   const ownCalls=helperCalls().slice(before);
+   assert.ok(!ownCalls.some(c=>c.mode==='resolve'),'aucune résolution de la clarification tierce');
+   assert.ok(ownCalls.every(c=>c.conversation==='app:clarify-1:owner'),'conversation admise distincte');
    assert.equal((await request('GET','/v1/runs/'+rogue1.runId)).body.ownerAdmitted,undefined);
-   const parent=JSON.parse(fs.readFileSync(path.join(state,'runs.json'))).runs.find(x=>x.runId===rogue1.runId);assert.equal(parent.clarificationState,'abandoned');
    assert.equal((await request('GET','/v1/runs/'+own.runId)).body.ownerAdmitted,true);count('clarify_admitted_ignores_unadmitted');
    // Inverse : une clarification ouverte par Amine n'est ni reprise ni annulée par un tour non admis.
    const own2=await submit({sessionId:'clarify-2',text:'ambigu owner-02'});assert.equal(own2.response.body.state,'done');
    const b2=helperCalls().length;const rogue2=await submit({sessionId:'clarify-2',sign:false,text:'agir'});
    assert.ok(!helperCalls().slice(b2).some(c=>c.mode==='resolve'));assert.equal((await settled(rogue2.runId)).transport,'cli_write');
    assert.equal(JSON.parse(fs.readFileSync(path.join(state,'runs.json'))).runs.find(x=>x.runId===own2.runId).clarificationState,'pending');
-   // Propriétaire existant : seule la clarification du dernier run de la session est reprise ; le tour tiers la masque (refus fermé, aucun texte tiers).
-   const b3=helperCalls().length;const own3=await submit({sessionId:'clarify-2',text:'agir'});assert.ok(!helperCalls().slice(b3).some(c=>c.mode==='resolve'));
-   await settled(own3.runId);count('clarify_unadmitted_cannot_touch_admitted');}
+   // Amine répond ensuite à SA question, que le tour tiers n'a pas masquée ; aucun texte tiers n'y entre.
+   const b3=helperCalls().length;const own3=await submit({sessionId:'clarify-2',text:'agir'});
+   const own3Calls=helperCalls().slice(b3);assert.ok(own3Calls.some(c=>c.mode==='resolve'&&c.caller==='owner'&&c.conversation==='app:clarify-2:owner'));
+   // The pending question is answered by the coordinator itself (no model, no Gateway dispatch: T-C10).
+   const own3Run=JSON.parse(fs.readFileSync(path.join(state,'runs.json'))).runs.find(x=>x.runId===own3.runId);assert.equal(own3Run.executionSource,'capability_first');
+   assert.equal([...readLines(cliLog),...sdkCalls].some(x=>x.id===own3.runId),false);count('clarify_unadmitted_cannot_touch_admitted');}
 
   // Voice option A: the marker is signed data, not admission or an arbitrary agent selector.
   {const client=require('../dist/companion/openclawAgentClient');

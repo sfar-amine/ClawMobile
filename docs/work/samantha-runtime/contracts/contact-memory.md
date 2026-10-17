@@ -1,0 +1,11 @@
+# Mémoire WhatsApp par contact — fichier 52 §5.6
+
+`people-trusted.py` reste le propriétaire unique des fiches privées. À chaque passage du curateur existant, il ouvre en lecture seule les SQLite des agents `contacts*` et reprend chaque contact depuis les curseurs `contactMemory.cursors` conservés dans les métadonnées de sa fiche. La lecture est limitée à 200 événements par agent et par contact, 16 agents et 20 contacts par passage, avec une attente SQLite d'une seconde et un budget de requête de deux secondes. Le schéma utilisé est celui de la capture nettoyée `openclaw-plugin-mobile-ui/fixtures/s24-2026-10-10/r17/inbound-schema.json` ; une base, un canal, une pièce ou un pair inattendu est ignoré ou fermé en erreur sans avancer le curseur.
+
+La projection ne conserve aucun transcript. Elle produit seulement des catégories de sujets sur liste fermée et des préférences ou engagements explicitement formulés, limités en nombre et en taille. Une ligne qui ressemble à un secret, une authentification, une carte, une adresse électronique ou un numéro est entièrement écartée. Le bloc compact est limité à 2 Kio ; le `systemPrompt` résultant à 4 Kio. Le bloc se déclare non fiable pour les autorisations et les actions.
+
+Le consommateur réutilise `gateway_mutate_whatsapp` : `config.get`, `baseHash`, `config.patch`, puis vérification de la configuration retournée. Il préserve le prompt de portée et les autres champs directs déjà présents. La fiche et son curseur ne sont écrits qu'après la publication du bloc. Un échec laisse donc le delta rejouable.
+
+Les préférences et engagements utiles rejoignent le propriétaire `memory.db` via `context-event.sh`, sous la forme bornée `CONTACT_MEMORY_V1`, avec `source: contact <contactId>`. L'identité du texte rend la réinsertion idempotente. Le déclenchement est ajouté au passage de `context-dream.py` déjà planifié ; aucun store, cron, scheduler ou démon n'est créé.
+
+Ce lot ne change ni `dmScope`, ni `session.resetByChannel.whatsapp`, ni la rétention après expiration, ni les pièces encore soumises à une décision. Il n'ajoute aucune route ou capability exposée à l'app ou à l'agent. Retour arrière : retirer l'appel du curateur et les helpers de compaction ; les anciennes métadonnées restent lisibles, et le bloc marqué peut être retiré au prochain patch de configuration.
