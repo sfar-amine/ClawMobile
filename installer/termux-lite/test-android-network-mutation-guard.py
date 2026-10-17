@@ -1229,10 +1229,13 @@ class LocalFilesystemForwardTests(unittest.TestCase):
     def test_socket_inode_change_is_preserved_with_mapping(self):
         self.acquire()
         original = self.local_path.lstat().st_ino
-        self.local_path.unlink()
+        # Bind the replacement while the original still exists, then rename it over the path:
+        # both inodes coexist, so the filesystem cannot hand the freed inode number back (flaky on a full disk).
+        staged = self.local_path.with_name("staged-" + self.local_path.name)
         replacement = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        replacement.bind(str(self.local_path))
+        replacement.bind(str(staged))
         replacement.close()
+        os.replace(staged, self.local_path)
         self.assertNotEqual(original, self.local_path.lstat().st_ino)
         inspected = guard.inspect_adb_forward(self.LEASE)
         self.assertEqual(inspected["state"], "VERIFY_REQUIRED")
