@@ -16,6 +16,8 @@ Retour d'Amine (17/10, 16:01) : « est-ce que thibo depen ai fera un reset aujou
 - `runWeb.ts` : la projection n'exige plus `quote === text` (chaque preuve reste une citation exacte de l'extrait) ; sans claim admis, le texte du run donne d'abord la cause puis la liste des sources.
 - L'app (`RuntimeUi.kt`) affiche déjà chaque claim avec `[s1, s2]` puis les sources : aucun changement d'APK.
 
+- `openclaw-web-request.mjs` : les extraits et titres sont bornés en unités UTF-16 comme chez leurs consommateurs (projection TypeScript, app Kotlin). Un extrait de 1 500 points de code contenant un emoji faisait 1 501 unités et toute la réponse était refusée (`invalid_web_result`, constaté le 17/10 sur la question Samsung).
+
 ## Routes et budget
 Aucune route nouvelle. Budget public total porté de 12 à 20 s (`PUBLIC_WEB_BUDGET_MS`, `runWeb.ts`, repris par `capabilityTool`, `capabilityBridge`, `dialogueSurface`, `modelFastPath`, `remoteBridge`, `mcpBridge`, `model-fast-path.py`, `claw-capability.py`, `gemini-request.py` et `skill_intelligence/public_web.py` côté playbooks) ; l'étape de recherche garde sa borne de 12 s (`openclaw-web-request.mjs` inchangé). Sonde S24 du 17/10 : recherche 4,3–6,8 s puis synthèse 5,9 s, soit 10,5–12,1 s : à 12 s la synthèse était systématiquement coupée (`deadline_exceeded`).
 
