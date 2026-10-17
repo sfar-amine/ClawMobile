@@ -2158,11 +2158,15 @@ function requireConversationId(value: string) {
 }
 
 /** Transcript upsert only. Never executes an intent or accepts audio. Uses the existing runs registry. */
+// Android v2 names Samantha's opening greeting `voice-greeting-<uuid>` (no user input, output only).
+// Refusing it left that turn in the app's pending queue and blocked every later voice start (17/10).
+export const VOICE_TURN_ID_RE = /^voice-(?:greeting-)?[a-f0-9-]{36}$/;
+
 export async function saveVoiceTurn(sessionId: string, value: any) {
   requireConversationId(sessionId);
   const allowed = new Set(["runId", "revision", "input", "output", "state", "playback"]);
   if (!value || Object.keys(value).some(key => !allowed.has(key)) ||
-      !/^voice-[a-f0-9-]{36}$/.test(value.runId || "") || !Number.isSafeInteger(value.revision) || value.revision < 1 ||
+      !VOICE_TURN_ID_RE.test(value.runId || "") || !Number.isSafeInteger(value.revision) || value.revision < 1 ||
       typeof value.input !== "string" || typeof value.output !== "string" ||
       value.input.length > 12000 || value.output.length > 24000 ||
       !["partial", "completed", "interrupted"].includes(value.state)) {
