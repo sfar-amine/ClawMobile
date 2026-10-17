@@ -112,7 +112,7 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
                 localci.run_ci(str(self.repo), head, "5", str(self.log))
         self.assertFalse(self.log.exists())
 
-    def test_versioned_python_gets_a_setup_python_shim(self):
+    def test_versioned_python_gets_a_setup_python_environment(self):
         # Stock images often ship python3 = another minor version and python3.12 beside it.
         folder = localci.bin_for("python", "3.12") if shutil.which("python3.12") else None
         if folder is None:

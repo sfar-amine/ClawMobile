@@ -91,11 +91,13 @@ def bin_for(kind, version):
         if probe.returncode == 0 and probe.stdout.strip() == str(version):
             if kind == "node":
                 return str(folder)
-            # Like actions/setup-python: `python` and `python3` both resolve to the requested version.
-            shim = Path(tempfile.mkdtemp(prefix="localci-python-", dir=os.getenv("LOCALCI_TMP_ROOT") or None))
-            for name in ("python", "python3"):
-                (shim / name).symlink_to(executable.resolve())
-            return str(shim)
+            # Like actions/setup-python: a private interpreter where `python`, `python3` and `pip install` work
+            # (a distribution's system Python refuses pip installs, PEP 668).
+            venv = Path(tempfile.mkdtemp(prefix="localci-python-", dir=os.getenv("LOCALCI_TMP_ROOT") or None))
+            created = subprocess.run([str(executable), "-m", "venv", str(venv)], capture_output=True, text=True)
+            if created.returncode or not (venv / "bin" / "python").is_file():
+                raise LocalCIError(f"Cannot create a Python {version} environment: {created.stderr[:200]}")
+            return str(venv / "bin")
     raise LocalCIError(f"Missing {kind} {version}: configure {var}; no CI step may be skipped")
 
 
