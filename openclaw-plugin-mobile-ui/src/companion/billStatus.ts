@@ -108,6 +108,10 @@ const SCAN_BUDGET_MS=1500;
 const STAT_BATCH=64;
 const REUSE_MS=5000;
 const memo=new Map<string,unknown|null>();
+/** lstat results kept across passes: without it, every pass re-stats every unread name before reading any, and on a
+ * large directory the stat phase alone eats the whole budget, so no pass ever progresses (CI 17/10: 50 000 receipts,
+ * 60 passes, zero read). */
+const statMemo=new Map<string,{mtimeMs:number;size:number}>();
 let inFlight:Promise<QualifiedReceipt[]>|undefined;
 let last:{at:number;dir:string;value:(QualifiedReceipt|null)[]}|undefined;
 const TERMINAL=new Set(['completed','failed','abandoned']);
@@ -117,12 +121,16 @@ export function bridgeRequestDir(){return path.join(process.env.OPENCLAW_STATE_D
 export async function scanQualifiedReceipts(dir:string,budgetMs=SCAN_BUDGET_MS,nowMs=Date.now()):Promise<QualifiedReceipt[]>{
   const started=Date.now(),left=()=>budgetMs-(Date.now()-started);let names:string[];
   try{names=(await readdir(dir)).filter(n=>NAME.test(n)).slice(0,MAX_NAMES);}catch{names=[];}
-  const present=new Set(names);for(const k of Array.from(memo.keys()))if(!present.has(k))memo.delete(k);
-  const unseen=names.filter(n=>!memo.has(n));const stats:{name:string;mtimeMs:number;size:number}[]=[];
-  for(let i=0;i<unseen.length&&left()>0;i+=STAT_BATCH){
-    const batch=await Promise.all(unseen.slice(i,i+STAT_BATCH).map(name=>lstat(path.join(dir,name)).then(s=>s.isFile()&&s.nlink===1?{name,mtimeMs:s.mtimeMs,size:s.size}:null,()=>null)));
-    for(const [k,row] of batch.entries()){if(row)stats.push(row);else memo.set(unseen[i+k],null);}
+  const present=new Set(names);
+  for(const k of Array.from(memo.keys()))if(!present.has(k))memo.delete(k);
+  for(const k of Array.from(statMemo.keys()))if(!present.has(k)||memo.has(k))statMemo.delete(k);
+  const unseen=names.filter(n=>!memo.has(n));const toStat=unseen.filter(n=>!statMemo.has(n));
+  for(let i=0;i<toStat.length&&left()>0;i+=STAT_BATCH){
+    const batch=await Promise.all(toStat.slice(i,i+STAT_BATCH).map(name=>lstat(path.join(dir,name)).then(s=>s.isFile()&&s.nlink===1?{mtimeMs:s.mtimeMs,size:s.size}:null,()=>null)));
+    for(const [k,row] of batch.entries()){const name=toStat[i+k];if(row)statMemo.set(name,row);else memo.set(name,null);}
   }
+  const stats:{name:string;mtimeMs:number;size:number}[]=[];
+  for(const name of unseen){const row=statMemo.get(name);if(row)stats.push({name,...row});}
   stats.sort((a,b)=>b.mtimeMs-a.mtimeMs);
   for(const s of stats){
     if(left()<=0)break;
@@ -145,4 +153,4 @@ export function readQualifiedReceipts(dir=bridgeRequestDir(),budgetMs=SCAN_BUDGE
   if(!inFlight)inFlight=scanQualifiedReceipts(dir,budgetMs,nowMs).then(value=>{last={at:Date.now(),dir,value};return value;}).finally(()=>{inFlight=undefined;});
   return inFlight;
 }
-export function resetQualifiedReceiptMemo(){memo.clear();last=undefined;}
+export function resetQualifiedReceiptMemo(){memo.clear();statMemo.clear();last=undefined;}
