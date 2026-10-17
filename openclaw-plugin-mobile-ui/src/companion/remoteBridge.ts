@@ -203,6 +203,12 @@ function readContinuumState(taskId: string): any | null {
   return state;
 }
 
+/** Use the Bridge's canonical validated journal reader; absence alone preserves standalone exec. */
+export function hasContinuumTask(taskId: string): boolean {
+  if (!/^[A-Za-z0-9._:-]{1,160}$/.test(taskId)) throw statusError(409, "invalid_continuum_task_id");
+  return readContinuumState(taskId) !== null;
+}
+
 function normalizeContinuumFence(value: any): ContinuumFence {
   if (!value || typeof value !== "object" || value.version !== 1) {
     throw statusError(409, "continuum_fence_required");

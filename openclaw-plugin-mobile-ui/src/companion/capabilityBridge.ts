@@ -42,7 +42,6 @@ function helpers(home = os.homedir()): string[] {
   return [
     configured,
     path.join(home, ".openclaw/releases/current/termux-lite/claw-capability.py"),
-    path.join(home, "ClawMobile/installer/termux-lite/claw-capability.py"),
   ].filter(Boolean);
 }
 

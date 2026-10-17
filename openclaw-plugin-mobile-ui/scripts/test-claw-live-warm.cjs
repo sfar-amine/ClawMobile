@@ -27,7 +27,7 @@ class FakeLocal extends EventEmitter {
   static OPEN=1;
   constructor(){super();this.readyState=1;this.sent=[]}
   send(v){this.sent.push(String(v));return true}
-  close(){this.readyState=3;this.emit("close")}
+  close(code=1000){this.readyState=3;this.emit("close",code)}
 }
 class FlakyProvider extends EventEmitter {
   static OPEN=1;
@@ -54,7 +54,7 @@ const tokenFactory=async()=>({token:"ephemeral",setup:{model:"models/gemini-3.8-
 const wait=(ms=8)=>new Promise(r=>setTimeout(r,ms));
 
 (async()=>{
-  const core=new ClawLiveWarmCore({tokenFactory,WebSocketImpl:FakeProvider,idleMs:60000});
+  const core=new ClawLiveWarmCore({tokenFactory,WebSocketImpl:FakeProvider,idleMs:60000,ownerHandoffWaitMs:10});
   const meta={locale:"fr",client:"samantha_android",sessionId:"session-a"};
   const st=await core.prewarmDefault("fr");
   assert.equal(st.state,"warm");
@@ -94,8 +94,9 @@ const wait=(ms=8)=>new Promise(r=>setTimeout(r,ms));
 
   await assert.rejects(core.prewarm({...meta,sessionId:"session-b"}),/voice_owner_busy/);
   assert.equal(FakeProvider.instances.length,2);
-  local2.close();
-  await core.prewarm({...meta,sessionId:"session-b"});
+  const guardedHandoff=core.prewarm({...meta,sessionId:"session-b"});
+  setTimeout(()=>local2.close(),1);
+  await guardedHandoff;
   assert.equal(FakeProvider.instances.length,3);
   assert.equal(core.status().historyLoaded,false);
   core.shutdown();

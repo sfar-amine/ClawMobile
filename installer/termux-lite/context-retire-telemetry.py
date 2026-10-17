@@ -24,8 +24,8 @@ then supersession; compaction runs once at the end (best effort, like context-ev
 
 Reverse (``--restore MANIFEST``): supersession cannot be undone in the immutable store, so the
 reversal restores the pre-run backup, only if nothing but this run's receipts was written since
-(otherwise refused). The current DB is backed up first and this run's receipt files are moved out
-of ``processed/`` so a history reconciliation never replays them.
+(otherwise refused). The current DB is backed up first and this run's receipt records are parked
+out of the append-only history so a reconciliation never replays them.
 """
 from __future__ import annotations
 
@@ -182,6 +182,23 @@ def write_json(path, value):
     os.replace(tmp, path)
 
 
+def park_history_receipts(receipts, parked):
+    moved=0
+    for archive in sorted((store.D/'history').glob('*.jsonl')):
+        kept=[];removed=[]
+        for line in archive.read_text().splitlines(keepends=True):
+            try:item=json.loads(line)
+            except json.JSONDecodeError:kept.append(line);continue
+            (removed if item.get('id') in receipts else kept).append(line)
+        if not removed:continue
+        destination=parked/(archive.name+'.removed')
+        destination.write_text(''.join(removed));os.chmod(destination,0o600)
+        tmp=archive.with_name(archive.name+'.tmp-restore')
+        tmp.write_text(''.join(kept));os.chmod(tmp,0o600);os.replace(tmp,archive)
+        moved+=len(removed)
+    return moved
+
+
 def compact(skip):
     if skip:
         return 'skipped'
@@ -274,6 +291,7 @@ def restore(args):
             candidate = store.D / folder / (identity + '.json')
             if candidate.exists():
                 shutil.move(str(candidate), str(parked / candidate.name)); moved += 1
+    moved += park_history_receipts(receipts,parked)
     manifest.update(state='restored', restoredAt=datetime.datetime.now(datetime.timezone.utc).isoformat(), preRestoreBackup=str(safety))
     write_json(manifest_path, manifest)
     return {**plan, 'state': 'restored', 'preRestoreBackup': str(safety), 'receiptFilesParked': moved,

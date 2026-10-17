@@ -1,6 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/python3
+import pathlib,sys
+sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent)); from host_test_support import host_runtime_copy
 import concurrent.futures,json,os,pathlib,shutil,sqlite3,subprocess,tempfile,time
 SRC=pathlib.Path(__file__).resolve().parent; tmp=pathlib.Path(tempfile.mkdtemp(prefix='samantha-integration.')); home=tmp/'home'; home.mkdir()
+# Hors Termux, copie temporaire dont seuls les shebangs Termux sont adaptés (scripts appelés entre eux).
+SRC=host_runtime_copy(SRC,tmp/'runtime')
 root=home/'.openclaw/context-sync'; hybrid=home/'.openclaw/workspace/context/HYBRID_CONTEXT.md'; hybrid.parent.mkdir(parents=True); hybrid.write_text('# Integration Hybrid\n')
 env=os.environ.copy(); env.update(HOME=str(home),SAMANTHA_CONTEXT_ROOT=str(root),SAMANTHA_HYBRID_PATH=str(hybrid))
 def run(name,*args,ok=(0,)):
@@ -45,7 +49,10 @@ def i06():
     assert all(x['state']=='open' for x in got)
 test('I06 multiple AMINE-REQ references resolve in one turn',i06)
 def r01():
- eid=ev('chat','decision','R01 event-driven durable processing'); assert (root/'processed'/f'{eid}.json').exists(); assert int(run('context-head.sh').stdout.strip())>0
+ eid=ev('chat','decision','R01 event-driven durable processing')
+ assert not (root/'pending'/f'{eid}.json').exists() and not (root/'processed'/f'{eid}.json').exists()
+ assert eid in ''.join(p.read_text() for p in (root/'history').glob('*.jsonl'))
+ assert int(run('context-head.sh').stdout.strip())>0
 test('R01 event becomes durable immediately',r01)
 def r02():
  def one(i): return ev(('chat','work','voice','openclaw')[i%4],'learning',f'R02 concurrent event {i:03d}')

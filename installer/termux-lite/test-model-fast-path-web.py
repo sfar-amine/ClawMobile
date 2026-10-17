@@ -45,4 +45,50 @@ class WebFastPath(unittest.TestCase):
    out=m.try_fast_path('public query',ROOT,prepared_decision=r['decision'],**self.context())
   self.assertEqual(out['execution_state'],'verification_required');execute.assert_not_called()
 
+class WebDialoguePorts(unittest.TestCase):
+ """V2.2: the Web hand-off runs through the coordinator's execute port; no parallel clarification authority."""
+ def ports(self,**host):
+  return m.FastPathPorts(ROOT,surface='claw_live',caller='owner',timeout=30,web_host=host)
+ def decision(self):
+  d=resolution()['decision'];d['decisionId']='dec-1';return d
+ def test_voice_surface_closed_before_dispatch(self):
+  for host,ctx in [({'voice_delegation':True},{'surface':'claw_live'}),({},{'surface':'voice'})]:
+   with self.subTest(host=host),patch.dict(m.os.environ,{},clear=False),patch.object(m,'execute_capability_decision') as execute,patch.object(m,'try_fast_path') as fast:
+    m.os.environ.pop('CLAW_PUBLIC_WEB_VOICE_RECIPE',None)
+    out=self.ports(**host).execute('Search online',self.decision(),'dlg1:'+'a'*40,'fast',{**ctx,'caller':'owner'})
+   execute.assert_not_called();fast.assert_not_called()
+   self.assertEqual(out['status'],'known_error');self.assertEqual(out['web']['error']['code'],'voice_recipe_required');self.assertEqual(out['web']['metrics']['providerAttempts'],0)
+ def test_recipe_flag_is_strict(self):
+  for value in ('true','yes','0'):
+   with self.subTest(value=value),patch.dict(m.os.environ,{'CLAW_PUBLIC_WEB_VOICE_RECIPE':value}):
+    self.assertFalse(m.public_web_voice_recipe_enabled())
+  with patch.dict(m.os.environ,{'CLAW_PUBLIC_WEB_VOICE_RECIPE':'1'}):self.assertTrue(m.public_web_voice_recipe_enabled())
+ def test_app_handoff_binds_host_context_and_renders_sources(self):
+  ports=self.ports(run_id='run_1_abcd',session_id='companion-chat-1',deadline_epoch_ms=int(time.time()*1000)+5000)
+  r=resolution();d=self.decision();ports._resolutions['dec-1']=r
+  web={'outcome':'partial','sources':[{'title':'Annonce officielle','url':'https://news.example.org/a'}],'claims':[],'error':{'message':'La synthèse est temporairement indisponible.'}}
+  calls=[]
+  def run(message,decision,ui_root,**kw):
+   calls.append(kw);return {'execution':{'state':'completed','result':{'web':web}},'selected':{'capability':'samantha.app.web.search'}}
+  with patch.object(m,'execute_capability_decision',side_effect=run):
+   out=ports.execute('Recherche sur Internet les annonces',d,'dlg1:'+'b'*40,'fast',{'surface':'app','caller':'owner'})
+  self.assertEqual(out['status'],'hit');self.assertEqual(out['web'],web);ctx=calls[0]['execution_context']
+  self.assertEqual((ctx['request_id'],ctx['run_id'],ctx['session_id']),('admitted-request','run_1_abcd','companion-chat-1'))
+  self.assertTrue(0<ctx['remaining_budget_ms']<=5000)
+  self.assertIn('Annonce officielle — https://news.example.org/a',out['text']);self.assertIn('synthèse',out['text'])
+ def test_forged_host_values_are_ignored_and_budget_capped(self):
+  ports=self.ports(run_id='bad id;rm',session_id='x'*200,deadline_epoch_ms=int(time.time()*1000)+60000)
+  ctx=ports._web_context(self.decision())
+  self.assertIsNone(ctx['run_id']);self.assertIsNone(ctx['session_id']);self.assertLessEqual(ctx['remaining_budget_ms'],12000)
+ def test_expired_deadline_never_dispatches(self):
+  ports=self.ports();ports.web_deadline_epoch_ms=int(time.time()*1000)-1;ports._resolutions['dec-1']=resolution()
+  with patch.object(m,'execute_capability_decision') as execute:
+   out=ports.execute('q',self.decision(),'dlg1:'+'c'*40,'fast',{'surface':'app','caller':'owner'})
+  execute.assert_not_called();self.assertEqual(out['reason'],'web_deadline_exceeded')
+ def test_non_owner_never_dispatches(self):
+  ports=self.ports();ports._resolutions['dec-1']=resolution()
+  with patch.object(m,'execute_capability_decision') as execute:
+   out=ports.execute('q',self.decision(),'dlg1:'+'d'*40,'fast',{'surface':'app','caller':'other'})
+  execute.assert_not_called();self.assertEqual(out['reason'],'public_owner_required')
+
 if __name__=='__main__':unittest.main()

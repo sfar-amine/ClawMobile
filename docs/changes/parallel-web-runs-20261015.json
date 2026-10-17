@@ -19,7 +19,6 @@
     "openclaw-plugin-mobile-ui/scripts/test-run-web-mcp.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-run-web-voice.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-run-web.cjs",
-    "openclaw-plugin-mobile-ui/src/capabilityClarification.ts",
     "openclaw-plugin-mobile-ui/src/capabilityTool.ts",
     "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
     "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
@@ -30,8 +29,10 @@
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts",
     "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
     "openclaw-plugin-mobile-ui/src/companion/voiceUnderstanding.ts",
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
     "openclaw-plugin-mobile-ui/src/modelFastPath.ts"
   ],
   "tests": [
@@ -92,7 +93,8 @@
   },
   "architecture": {
     "changed": false,
-    "reason": "Reuse existing run registry, Graph helper, authenticated MCP/agent and voice owners; additive optional projection, no additional store, service or routing layer."
+    "reason": "Reuse existing run registry, Graph helper, authenticated MCP/agent and voice owners; additive optional projection, no additional store, service or routing layer.",
+    "dialogue_v22": "Web hand-off executed only through the V2.2 dialogue coordinator execute port (FastPathPorts/execute_resolved); no SurfaceClarifications, no pending state outside the coordinator; G6 voice gate before dispatch in the port; web projection carried in coordinator reply metadata and revalidated by Companion."
   },
   "limitations": [
     "Runtime activation and real Parallel/Gemini searches not performed.",

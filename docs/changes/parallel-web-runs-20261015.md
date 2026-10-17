@@ -16,6 +16,18 @@ Le sous-processus borné possède un groupe de processus, reçoit TERM puis KILL
 
 La voix reçoit seulement les claims admis ou une phrase neutre déterministe dans la langue de la demande. Le retour vers Gemini Live ne contient ni pages, ni extraits, ni URL. La phase de lecture interdit un nouvel appel outil et le contrôle de transcription compare le texte complet, pas seulement un préfixe. **Ce contrôle intervient après génération audio : il ne garantit pas le son avant diffusion.** La gate acoustique G6 est effectivement fermée par défaut : après résolution canonique, les entrées Live et délégation vocale refusent le Web avant tout dispatch fournisseur. Seul le réglage hôte explicite `CLAW_PUBLIC_WEB_VOICE_RECIPE=1` ouvre ce trajet pour la recette ; aucun champ du corps, argument outil ou surface ne peut l’ouvrir. La qualification réelle du protocole, du coût et du modèle Live reste nécessaire ; ce lot ne change aucune clé, aucun modèle global ni moteur TTS. Sans langue ni claim dans un résultat historique, la lecture Web reste fermée.
 
+## Rebranchement sur le coordinateur de dialogue V2.2 (17/10/2026)
+
+La première version de W4 faisait passer les décisions Web par `SurfaceClarifications` (`capabilityClarification.ts`), une des trois autorités de clarification supprimées par SAM-MIG-CC-001 V2.2. Ce lot est rebranché sur le coordinateur unique, sans autorité parallèle :
+
+- l'app (`POST /v1/runs`), Claw Live et le relais vocal envoient un seul événement admis au coordinateur (`model-fast-path.py --dialogue`). L'exécution Web a lieu dans le port `execute` du coordinateur (`FastPathPorts`), via le chemin canonique `execute_resolved` ; aucune question, aucun état en attente et aucune reprise ne sont gérés hors du coordinateur ;
+- les métadonnées hôte de la passation (`--run-id`, `--session-id`, `--deadline-epoch-ms`, `--voice-delegation`) viennent du Companion, jamais du corps ni du modèle. Sans échéance hôte valide, le port borne lui-même à douze secondes ; le `requestId` est celui de la décision gelée par le coordinateur ;
+- la gate G6 est appliquée dans ce port, **avant tout dispatch** : surface `voice`, Claw Live ou délégation vocale signée sans `CLAW_PUBLIC_WEB_VOICE_RECIPE=1` sur l'hôte = refus `voice_recipe_required`, zéro appel fournisseur ;
+- la projection `web` voyage dans `metadata` de la réponse du coordinateur (clé ajoutée à la liste fermée côté playbooks, PR #163) ; le Companion la revalide (`readRunWebResult`) avant de la persister dans le run ou de l'afficher, et reconstruit le texte depuis les claims/sources admis. WhatsApp, sans rendu structuré, reçoit un texte avec titres et URL des sources ;
+- MCP et l'outil agent restent sans état de dialogue, comme le prévoit la V2.2 ; l'exécution MCP reste gardée par l'aperçu sans état du coordinateur.
+
+Tests ajoutés : `WebDialoguePorts` dans `test-model-fast-path-web.py` (gate vocale avant dispatch, contexte hôte, rendu des sources, échéance expirée, appelant non owner) ; `test-run-web.cjs` et `test-run-web-voice.cjs` passent désormais par le coordinateur (READY puis passation différée).
+
 ## Tests et provenance
 
 Les nouveaux contrats Web sont des fixtures synthétiques explicitement identifiées. La compatibilité du registre est testée avec la capture nettoyée existante `fixtures/s24-2026-10-11c/hs5-runs-shapes.json`, source S24 `~/.openclaw/clawmobile-companion/runs.json`, version 1. L’autorité native s’appuie sur la fixture SDK 2026.9.6 `fixtures/protocol/openclaw-2026.9.6/tool-context-excerpts.d.ts`. Aucun nouveau chemin ou table S24 n’est supposé.

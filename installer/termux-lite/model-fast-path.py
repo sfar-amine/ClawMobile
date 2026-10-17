@@ -271,6 +271,10 @@ def _presentation_metadata(value):
 def _understood_prefix(metadata, text):
     understood = (metadata.get("presentation") or {}).get("understood") if metadata else None
     line = understood.get("text") if isinstance(understood, dict) and understood.get("capability") else None
+    # The Graph's internal fallback label is not a statement understood by a person.  It was observed
+    # verbatim on the S24 Pulse read receipt on 12/10; omit it instead of inventing a business label.
+    if line == "Compris : Pulse backend-first runtime":
+        line = None
     return f"{line}\n{text}" if line and text else (text or line or "")
 
 
@@ -288,7 +292,7 @@ _display_privacy_spec.loader.exec_module(_display_privacy_owner)
 _DISPLAY_SENSITIVE = _display_privacy_owner.SENSITIVE
 
 
-def _plain_display(value: Any, maximum: int = 120, bracket_text: bool = False) -> str:
+def _plain_display(value: Any, maximum: int | None = 120, bracket_text: bool = False) -> str:
     if not isinstance(value, str):
         return ""
     if _DISPLAY_SENSITIVE.search(value):
@@ -354,12 +358,13 @@ def _execution_provenance(selected: dict[str, Any], execution: dict[str, Any]) -
     return result
 
 
-def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None) -> str:
+def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None, card: bool = True) -> str:
     remaining = [128] if remaining is None else remaining
     remaining[0] -= 1
     if depth >= 4 or remaining[0] < 0:
         return "Résultat disponible auprès de Claw ; détails non affichables en texte."
-    if depth == 0:
+    # A successful read shows its own result, never the opaque receipt card (« Résultat à vérifier », R18).
+    if depth == 0 and card:
         presented = _presentation_display(value)
         if presented:
             return presented
@@ -412,7 +417,45 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
 _GENERIC_HIDDEN = {"ok", "route", "route_id", "query", "request_count", "latency_ms", "duration_ms", "state", "intent", "path", "filters",
                    "provider", "workflow", "ui_used", "observed_at", "run_id", "schema_version", "business_rule", "coverage_complete",
                    "live", "providers_requested", "providers_checked", "capability", "operation", "verified",
-                   "source", "version", "fallback_from", "route_selection_reason", "reason_code"}
+                   "source", "version", "fallback_from", "route_selection_reason", "reason_code", "presentation"}
+
+
+# Amine 12/10 : noms de champs lisibles en français. Dictionnaire borné et générique (clé normalisée
+# → libellé) ; un champ inconnu garde le rendu historique (« custom_field » → « Custom field »).
+_FIELD_LABELS = {
+    "id": "N°", "project_id": "N° de projet", "project_label": "Projet", "offer_id": "N° d'offre",
+    "offer": "Offre", "label": "Libellé",
+    "created_at": "Créé le", "updated_at": "Mis à jour le", "nature": "Nature", "type": "Type",
+    "project_manager": "Chef de projet", "progress_to_date": "Avancement", "progress": "Avancement",
+    "cumulative_progress": "Avancement cumulé", "status": "Statut", "priority": "Priorité",
+    "sold": "Vendu (JH)", "raf": "Reste à faire (JH)", "att": "Atterrissage (JH)", "drift": "Dérive",
+    "consumption_current_week": "Consommation de la semaine (JH)",
+    "consumption_current_month": "Consommation du mois (JH)",
+    "consumption_current_year": "Consommation de l'année (JH)",
+    "consumption_total": "Consommation totale (JH)", "consumed_jh": "Consommé (JH)", "total_jh": "Total (JH)",
+    "forecast_jh": "Prévision (JH)", "charges": "Charges", "period": "Période", "month": "Mois", "year": "Année",
+    "monthly": "Par mois", "start_date": "Début", "end_date": "Fin", "balance": "Solde",
+    "solde_a_date_jours": "Solde à date (jours)", "ytd_jours": "Cumul de l'année (jours)",
+    "requests": "Demandes", "projects": "Projets", "offers": "Offres", "tables": "Tableaux", "summary": "Synthèse",
+    "project_count": "Projets", "offer_count": "Offres", "leave_count": "Congés", "team_count": "Équipe",
+    "row_count": "Lignes", "data": "Données",
+}
+
+
+def _field_label(key: Any, capitalize: bool = True) -> str:
+    known = _FIELD_LABELS.get(str(key).strip().lower())
+    if known:
+        return known
+    text = str(key).replace("_", " ").strip()
+    return text.capitalize() if capitalize else text
+
+
+def _public_reason_class(value: Any) -> str | None:
+    """Copy only the runner's bounded machine class; never promote free-form details."""
+    if not isinstance(value, dict):
+        return None
+    candidate = value.get("reason_class")
+    return candidate if isinstance(candidate, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,95}", candidate) else None
 
 
 def _generic_value(value: Any, depth: int = 0) -> str:
@@ -426,62 +469,70 @@ def _generic_value(value: Any, depth: int = 0) -> str:
             return " ".join(x for x in (_generic_value(value.get("value"), depth + 1), _plain_display(value.get("unit") or value.get("currency"), 20)) if x)
         if "displayed" in value:
             return _generic_value(value.get("displayed"), depth + 1)
-        parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v, depth + 1)}" for k, v in list(value.items())[:8]
+        parts = [f"{_field_label(k, False)} : {_generic_value(v, depth + 1)}" for k, v in value.items()
                  if str(k) not in _GENERIC_HIDDEN and _generic_value(v, depth + 1)]
         return " ; ".join(parts)
     if isinstance(value, str) and value.startswith("[") and not value.startswith(("[{", '["', "[[")):
-        return _plain_display(value, 160, bracket_text=True)  # « [Offre] : … » is text, not JSON
-    return _plain_display(value, 160)
+        return _plain_display(value, None, bracket_text=True)  # « [Offre] : … » is text, not JSON
+    return _plain_display(value, None)
 
 
-def _generic_display(value: dict[str, Any], limit: int = 24) -> str:
-    """Readable lines for any executor result: scalar fields, one level of nested scalars, list sizes with
-    their first rows. Bookkeeping keys and anything sensitive (_plain_display) are left out; bounded."""
+def _generic_display(value: dict[str, Any]) -> str:
+    """Readable lines for any executor result: scalar fields, one level of nested scalars, every list row and
+    table row in full. Bookkeeping keys and anything sensitive (_plain_display) are left out. Never truncated
+    (Amine 16/10 : « quand c'est long il devient tronqué, il ne faut pas avoir de limite ») — the executor
+    already bounds what it returns."""
     if value.get("ok") is False:
         return ""
     lines: list[str] = []
-    label = lambda key: str(key).replace("_", " ").strip().capitalize()
+    label = _field_label
+    # « project_count : 1 » repeats the size of its sibling list (« projects »), already shown by that list.
+    sizes = {len(v) for v in value.values() if isinstance(v, list)}
+    counters = {str(k): v for k, v in value.items() if str(k).endswith("_count") and type(v) is int}
     for key, item in value.items():
-        if len(lines) >= limit or str(key) in _GENERIC_HIDDEN or str(key).endswith("_ms"):
+        if str(key) in _GENERIC_HIDDEN or str(key).endswith("_ms"):
+            continue
+        if str(key).endswith("_count") and type(item) is int and item in sizes:
             continue
         if isinstance(item, dict):
-            parts = [f"{str(k).replace('_', ' ')} : {_generic_value(v)}" for k, v in list(item.items())[:12]
+            parts = [f"{_field_label(k, False)} : {_generic_value(v)}" for k, v in item.items()
                      if not isinstance(v, list) and _generic_value(v) and str(k) not in _GENERIC_HIDDEN]
             if parts:
                 lines.append(f"{label(key)} : " + " ; ".join(parts))
         elif isinstance(item, list) and item and all(isinstance(t, dict) and isinstance(t.get("headers"), list) and isinstance(t.get("rows"), list) for t in item):
-            # Tables (CRA, évaluations…) : each row as « en-tête : valeur » cells, bounded.
-            for table in item[:3]:
-                headers = [_plain_display(h, 40) or "" for h in table["headers"]]
+            # Tables (CRA, évaluations…) : each row as « en-tête : valeur » cells, every row.
+            for table in item:
+                headers = [_plain_display(h, None) or "" for h in table["headers"]]
                 rows = [r for r in table["rows"] if isinstance(r, list)]
                 lines.append(f"{label(key)} : {len(rows)} ligne(s)")
-                for row in rows[:8]:
+                for row in rows:
                     cells = [(f"{headers[i]} : " if i < len(headers) and headers[i] else "") + _generic_value(v)
-                             for i, v in enumerate(row[:6]) if _generic_value(v)]
+                             for i, v in enumerate(row) if _generic_value(v)]
                     if cells:
                         lines.append("- " + " · ".join(cells))
-                if len(rows) > 8:
-                    lines.append("- …")
-        elif isinstance(item, list) and len(item) == 1 and isinstance(item[0], dict):
+        elif (
+            isinstance(item, list) and len(item) == 1 and isinstance(item[0], dict)
+            and (not counters or counters.get(str(key)[:-1] + "_count") == 1)
+        ):
             # One result (« état du projet 20495 ») : its whole record, one field per line.
-            for k, v in list(item[0].items())[:limit]:
+            for k, v in item[0].items():
                 if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list) and _generic_value(v):
-                    lines.append(f"{str(k).replace('_', ' ').capitalize()} : {_generic_value(v)}")
+                    lines.append(f"{label(k)} : {_generic_value(v)}")
         elif isinstance(item, list):
             rows = []
-            for row in item[:5]:
+            for row in item:
                 if isinstance(row, dict):
                     cells = [_generic_value(v) for k, v in row.items() if str(k) not in _GENERIC_HIDDEN and not isinstance(v, list)]
-                    cells = [c for c in cells if c][:4]
+                    cells = [c for c in cells if c]
                     if cells:
                         rows.append(" · ".join(cells))
                 elif _generic_value(row):
                     rows.append(_generic_value(row))
             head = f"{label(key)} : {len(item)}" if item else f"{label(key)} : aucun"
-            lines.append(head + ("" if not rows else "\n" + "\n".join("- " + r for r in rows) + ("\n- …" if len(item) > 5 else "")))
+            lines.append(head + ("" if not rows else "\n" + "\n".join("- " + r for r in rows)))
         elif _generic_value(item):
             lines.append(f"{label(key)} : {_generic_value(item)}")
-    return "\n".join(lines)[:4000]
+    return "\n".join(lines)
 
 
 def _handoff_contract(resolution: dict[str, Any]) -> dict[str, Any] | None:
@@ -657,7 +708,7 @@ def _continuum_call(ui_root: Path, args: list[str], timeout: int = 15) -> dict[s
 def _bridge_cli(home: Path = HOME) -> Path:
     for path in (
         home / ".openclaw/releases/current/termux-lite/claw-bridge-cli.py",
-        home / "ClawMobile/installer/termux-lite/claw-bridge-cli.py",
+        Path(__file__).resolve().parent / "claw-bridge-cli.py",
     ):
         if path.is_file():
             return path
@@ -855,9 +906,8 @@ def try_fast_path(
                 "decision": decision or None, "model_bypassed": True,
             }
 
-        web_capability = (resolution.get("selected") or {}).get("capability") in {"samantha.app.web.search", "samantha.app.web.answer"}
         execution_context = None
-        if web_capability:
+        if _is_web_capability(resolution, decision):
             # Only explicit host metadata can authorize correlation/egress. Default origin/session strings are not identities.
             if (caller != "owner" or not request_id or request_id != decision.get("requestId") or
                 decision.get("caller") != caller or decision.get("surface") != surface or
@@ -871,96 +921,10 @@ def try_fast_path(
             execution_context={"request_id":request_id,"run_id":run_id,"session_id":session_id,
                                "remaining_budget_ms":remaining,"deadline_epoch_ms":deadline_epoch_ms}
 
-        if resolution.get("confirmation_required") is True:
-            return _execute_declared_handoff(
-                resolution, message, ui_root=ui_root, surface=surface, caller=caller,
-                origin_id=origin_id, timeout=timeout,
-            ) | {"decision": decision or None}
-
-        continuum = resolution.get("continuum") if isinstance(resolution.get("continuum"), dict) else {}
-        # Read execution only (the confirmed handoff above keeps its own budget): O6 guarded wait.
-        execution_timeout = guarded_execution_timeout(
-            timeout, resolution.get("selected"), decision.get("selected") if isinstance(decision, dict) else None,
+        return execute_resolved(
+            message, resolution, decision, ui_root, surface=surface, caller=caller, origin_id=origin_id,
+            timeout=timeout, execution_context=execution_context,
         )
-        if web_capability and continuum.get("mode") == "durable":
-            return {"status":"known_error","reason":"web_durable_contract_unqualified","execution_state":"verification_required","model_bypassed":True}
-        if continuum.get("mode") == "durable":
-            executed = _durable_capability_execute(
-                resolution, message, ui_root=ui_root, surface=surface, caller=caller,
-                origin_id=origin_id, timeout=execution_timeout, decision=decision or None,
-            )
-        else:
-            executed = (
-                execute_capability_decision(message, decision, ui_root, timeout=execution_timeout,
-                                            **({"execution_context":execution_context} if execution_context else {}))
-                if decision
-                else execute_capability(message, ui_root, surface=surface, caller=caller, timeout=execution_timeout)
-            )
-        execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
-        state = str(execution.get("state") or "")
-        selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
-        metadata = _presentation_metadata(executed)
-        if web_capability:
-            payload = execution.get("result")
-            web = payload.get("web") if isinstance(payload,dict) else None
-            # The Graph owns validation; Companion applies its own closed projection before persisting/rendering.
-            # Do not run the legacy generic renderer over public pages, IDs, URLs or provider error objects.
-            return {"status":"hit" if state in SAFE_EXECUTION_STATES or state == "partial" else "known_error",
-                    "source":"capability","text":"Résultat de recherche disponible." if isinstance(web,dict) else "Le résultat de la recherche reste à vérifier.",
-                    "web":web,"result":{"web":web},"execution_state":state,
-                    "decision":executed.get("decision") or decision,"model_bypassed":True,**metadata}
-        if state in SAFE_EXECUTION_STATES:
-            payload = execution.get("result")
-            return {
-                # Business rendering of the owner result (O7 cards…), preceded by the HS3 « Compris » line.
-                "status": "hit", "source": "capability", "text": _understood_prefix(metadata, _display_text(payload)),
-                **metadata,
-                "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
-                "route": selected.get("route"), "capability": selected.get("capability"),
-                "execution_state": state, "decision": executed.get("decision") or decision or None,
-                "provenance": _execution_provenance(selected, execution),
-                "model_bypassed": True,
-            }
-        if state == "needs_clarification" and isinstance(executed.get("decision"), dict) and executed["decision"].get("type") == "CLARIFY":
-            # Amine 12/10 : several matches → one question listing them; nothing was executed.
-            choices = [c for c in (execution.get("choices") or []) if isinstance(c, dict) and _plain_display(c.get("label"), 120)]
-            question = _plain_display(execution.get("question"), 300) or "Lequel veux-tu ?"
-            return {
-                "status": "clarification", "reason": "choice_required",
-                "text": question + "".join("\n- " + _plain_display(c.get("label"), 120) for c in choices),
-                "clarification": {"question": question, "choices": choices},
-                "decision": executed["decision"], "model_bypassed": True,
-            }
-        if state in ASSISTED_EXECUTION_STATES:
-            return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None, **metadata}
-        if state == "confirmation_required":
-            handed = _execute_declared_handoff(
-                executed, message, ui_root=ui_root, surface=surface, caller=caller,
-                origin_id=origin_id, timeout=timeout,
-            ) | {"decision": executed.get("decision") or decision or None}
-            # The Graph metadata describes the pending confirmation (« Compris : … ») only
-            # when the handoff opened; a failed handoff keeps the generic error fallback.
-            return handed | metadata if handed.get("status") == "hit" else handed
-        payload = execution.get("result")
-        composed = (selected.get("execution_contract") or {}).get("strategy") == "composed_read"
-        error_result = {
-            "status": "known_error", "reason": state or "known_execution_failed",
-            **metadata,
-            "text": "Claw a identifié la capacité mais son exécution n'a pas atteint un état terminal vérifié.",
-            "resolution": executed, "decision": executed.get("decision") or decision or None,
-            "model_bypassed": True,
-            "provenance": _execution_provenance(selected, execution),
-        }
-        if composed and isinstance(payload, dict):
-            error_result.update(text=_display_text(payload), result=payload, execution_state=state)
-        if metadata:
-            error_result["text"] = _display_text(executed)
-        # Amine 12/10 : a service closed (declared hours) or not answering says so in one fixed sentence from the
-        # Graph, never a generic error and never the model. Last: the receipt card must not cover it (S24, 19:52).
-        message = _plain_display(execution.get("message"), 400) if isinstance(execution.get("message"), str) else ""
-        if message:
-            error_result.update(text=message, execution_state=state)
-        return error_result
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         if remaining_budget_ms is not None:
             return {"status":"known_error","reason":"web_deadline_exceeded" if isinstance(exc,subprocess.TimeoutExpired) else "web_execution_failed",
@@ -968,11 +932,390 @@ def try_fast_path(
         return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}
 
 
+
+PUBLIC_WEB_CAPABILITIES = {"samantha.app.web.search", "samantha.app.web.answer"}
+WEB_VOICE_MESSAGES = {
+    "fr": "La recherche Web vocale attend sa recette audio ; utilise la conversation écrite.",
+    "en": "Voice Web search is awaiting its audio acceptance test; use the text conversation.",
+    "ar": "البحث الصوتي على الويب ينتظر اختبار الصوت؛ استخدم المحادثة النصية.",
+    "aeb": "البحث بالصوت في الويب يستنّى تجربة الصوت؛ استعمل المحادثة المكتوبة.",
+}
+
+
+def _web_capability_id(*values: Any) -> str:
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        selected = value.get("selected") if isinstance(value.get("selected"), dict) else {}
+        for candidate in (selected.get("capability"), value.get("capability")):
+            if candidate in PUBLIC_WEB_CAPABILITIES:
+                return str(candidate)
+    return ""
+
+
+def _is_web_capability(*values: Any) -> bool:
+    return bool(_web_capability_id(*values))
+
+
+def public_web_voice_recipe_enabled() -> bool:
+    """Host-only, explicit G6 recipe switch; never read from a body, the model or a tool result."""
+    return os.environ.get("CLAW_PUBLIC_WEB_VOICE_RECIPE") == "1"
+
+
+def voice_web_recipe_refusal(decision: dict[str, Any]) -> dict[str, Any]:
+    """A canonical Web decision on a voice surface, before any dispatch: G6 has not qualified Live audio."""
+    plan = decision.get("plan") if isinstance(decision.get("plan"), dict) else {}
+    params = plan.get("parameters") if isinstance(plan.get("parameters"), dict) else {}
+    language = params.get("responseLanguage") if params.get("responseLanguage") in WEB_VOICE_MESSAGES else None
+    message = WEB_VOICE_MESSAGES[language or "fr"]
+    web = {"version": 1, "operation": "search" if _web_capability_id(decision) == "samantha.app.web.search" else "answer",
+           **({"responseLanguage": language} if language else {}), "outcome": "failed", "provider": "parallel-free",
+           "providerAuth": "anonymous", "model": None, "profile": None, "sources": [], "claims": [], "citations": [],
+           "metrics": {"logicalSearchCalls": 0, "httpRequests": 0, "transportPosts": 0, "providerAttempts": 0,
+                       "reportedCostUsd": None},
+           "error": {"code": "voice_recipe_required", "stage": "policy", "message": message, "retryable": False},
+           "degradations": ["voice_recipe_required"]}
+    return {"status": "known_error", "reason": "voice_recipe_required", "execution_state": "not_started",
+            "source": "capability", "text": message, "web": web, "result": {"web": web}, "decision": decision or None,
+            "model_bypassed": True}
+
+
+def _web_plain(value: Any, limit: int) -> str:
+    return " ".join(value.split())[:limit] if isinstance(value, str) else ""
+
+
+def _web_text(web: Any) -> str:
+    """Readable text built only from the typed Graph projection (claims, source titles/URLs, error message).
+    Surfaces without a structured renderer (WhatsApp) still show the sources; the app re-validates `web` itself."""
+    if not isinstance(web, dict):
+        return "Le résultat de la recherche n'a pas pu être validé ; aucune synthèse non vérifiée n'est affichée."
+    error = web.get("error") if isinstance(web.get("error"), dict) else {}
+    if web.get("outcome") == "cancelled":
+        return _web_plain(error.get("message"), 500) or "Recherche annulée."
+    lines = [_web_plain(c.get("text"), 1200) for c in (web.get("claims") or [])[:12] if isinstance(c, dict)]
+    lines = [line for line in lines if line]
+    sources = []
+    for item in (web.get("sources") or [])[:5]:
+        if not isinstance(item, dict):
+            continue
+        title, url = _web_plain(item.get("title"), 300), _web_plain(item.get("url"), 2048)
+        if title and re.match(r"^https?://", url):
+            sources.append(f"- {title} — {url}")
+    if sources:
+        lines.append("Sources :\n" + "\n".join(sources))
+    message = _web_plain(error.get("message"), 500)
+    if message:
+        lines.append(message)
+    return ("\n\n".join(lines) or "Aucune source suffisamment probante n'a été trouvée.")[:4000]
+
+
+def _execute_web_resolved(message: str, resolution: dict[str, Any], decision: dict[str, Any], ui_root: Path, *,
+                          caller: str, timeout: int, execution_context: dict[str, Any] | None) -> dict[str, Any]:
+    """Parallel Free (W4): one bounded read through the Graph's own public runtime, never a generic renderer."""
+    continuum = resolution.get("continuum") if isinstance(resolution.get("continuum"), dict) else {}
+    if caller != "owner":
+        return {"status": "known_error", "reason": "public_owner_required", "execution_state": "not_started",
+                "decision": decision or None, "model_bypassed": True}
+    context = dict(execution_context or {})
+    if not context or not context.get("request_id") or context.get("request_id") != (decision or {}).get("requestId"):
+        return {"status": "known_error", "reason": "invalid_web_execution_context", "execution_state": "not_started",
+                "decision": decision or None, "model_bypassed": True}
+    if continuum.get("mode") == "durable":
+        return {"status": "known_error", "reason": "web_durable_contract_unqualified",
+                "execution_state": "verification_required", "model_bypassed": True}
+    deadline = context.get("deadline_epoch_ms")
+    remaining = int(context.get("remaining_budget_ms") or 0)
+    if type(deadline) is int:
+        remaining = min(remaining, deadline - int(time.time() * 1000))
+    if remaining <= 0:
+        return {"status": "known_error", "reason": "web_deadline_exceeded", "execution_state": "not_started",
+                "decision": decision or None, "model_bypassed": True}
+    context["remaining_budget_ms"] = remaining
+    executed = execute_capability_decision(message, decision, ui_root, timeout=timeout, execution_context=context)
+    execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
+    state = str(execution.get("state") or "")
+    payload = execution.get("result")
+    web = payload.get("web") if isinstance(payload, dict) else None
+    metadata = _presentation_metadata(executed)
+    # The Graph owns validation; Companion applies its own closed projection before persisting/rendering.
+    # Do not run the legacy generic renderer over public pages, IDs, URLs or provider error objects.
+    return {"status": "hit" if state in SAFE_EXECUTION_STATES or state == "partial" else "known_error",
+            "source": "capability", "text": _web_text(web), "web": web, "result": {"web": web},
+            "execution_state": state, "capability": _web_capability_id(resolution, decision),
+            "decision": executed.get("decision") or decision, "model_bypassed": True, **metadata}
+
+
+def execute_resolved(
+    message: str,
+    resolution: dict[str, Any],
+    decision: dict[str, Any],
+    ui_root: Path = UI_ROOT,
+    *,
+    surface: str = "claw_live",
+    caller: str = "owner",
+    origin_id: str = "capability-first",
+    timeout: int = 30,
+    execution_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Execution stage of the canonical fast path for an already resolved decision (unchanged behaviour: confirmed
+    handoff, durable Continuum execution with identity derived from origin_id, or read execution)."""
+    if resolution.get("confirmation_required") is True:
+        return _execute_declared_handoff(
+            resolution, message, ui_root=ui_root, surface=surface, caller=caller,
+            origin_id=origin_id, timeout=timeout,
+        ) | {"decision": decision or None}
+
+    if _is_web_capability(resolution, decision):
+        return _execute_web_resolved(message, resolution, decision, ui_root, caller=caller,
+                                     timeout=guarded_execution_timeout(timeout, resolution.get("selected")),
+                                     execution_context=execution_context)
+
+    continuum = resolution.get("continuum") if isinstance(resolution.get("continuum"), dict) else {}
+    # Read execution only (the confirmed handoff above keeps its own budget): O6 guarded wait.
+    execution_timeout = guarded_execution_timeout(
+        timeout, resolution.get("selected"), decision.get("selected") if isinstance(decision, dict) else None,
+    )
+    if continuum.get("mode") == "durable":
+        executed = _durable_capability_execute(
+            resolution, message, ui_root=ui_root, surface=surface, caller=caller,
+            origin_id=origin_id, timeout=execution_timeout, decision=decision or None,
+        )
+    else:
+        executed = (
+            execute_capability_decision(message, decision, ui_root, timeout=execution_timeout)
+            if decision
+            else execute_capability(message, ui_root, surface=surface, caller=caller, timeout=execution_timeout)
+        )
+    execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
+    state = str(execution.get("state") or "")
+    selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
+    metadata = _presentation_metadata(executed)
+    if state in SAFE_EXECUTION_STATES:
+        payload = execution.get("result")
+        reason_class = _public_reason_class(payload)
+        executed_decision = executed.get("decision") if isinstance(executed.get("decision"), dict) else {}
+        decision_selected = executed_decision.get("selected") if isinstance(executed_decision.get("selected"), dict) else {}
+        resolved_risk = selected.get("risk") or decision_selected.get("risk")
+        return {
+            # A proven read renders its business result instead of an opaque receipt card.  For every other
+            # risk (including missing metadata), the explicit owner presentation remains authoritative.
+            "status": "hit", "source": "capability",
+            "text": _understood_prefix(metadata, _display_text(payload, card=resolved_risk != "read")),
+            **metadata,
+            "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
+            "route": selected.get("route"), "capability": selected.get("capability"),
+            "execution_state": state, "decision": executed.get("decision") or decision or None,
+            "provenance": _execution_provenance(selected, execution),
+            **({"reason_class": reason_class} if reason_class else {}),
+            "model_bypassed": True,
+        }
+    if state == "needs_clarification" and isinstance(executed.get("decision"), dict) and executed["decision"].get("type") == "CLARIFY":
+        # Amine 12/10 : several matches → one question listing them; nothing was executed.
+        choices = [c for c in (execution.get("choices") or []) if isinstance(c, dict) and _plain_display(c.get("label"), 120)]
+        question = _plain_display(execution.get("question"), 300) or "Lequel veux-tu ?"
+        return {
+            "status": "clarification", "reason": "choice_required",
+            "text": question + "".join("\n- " + _plain_display(c.get("label"), 120) for c in choices),
+            "clarification": {"question": question, "choices": choices},
+            "decision": executed["decision"], "model_bypassed": True,
+        }
+    if state in ASSISTED_EXECUTION_STATES:
+        return {"status": "assist", "reason": state, "resolution": executed, "decision": decision or None, **metadata}
+    if state == "confirmation_required":
+        handed = _execute_declared_handoff(
+            executed, message, ui_root=ui_root, surface=surface, caller=caller,
+            origin_id=origin_id, timeout=timeout,
+        ) | {"decision": executed.get("decision") or decision or None}
+        # The Graph metadata describes the pending confirmation (« Compris : … ») only
+        # when the handoff opened; a failed handoff keeps the generic error fallback.
+        return handed | metadata if handed.get("status") == "hit" else handed
+    payload = execution.get("result")
+    reason_class = _public_reason_class(payload)
+    composed = (selected.get("execution_contract") or {}).get("strategy") == "composed_read"
+    error_result = {
+        "status": "known_error", "reason": state or "known_execution_failed",
+        **metadata,
+        "text": "Claw a identifié la capacité mais son exécution n'a pas atteint un état terminal vérifié.",
+        "resolution": executed, "decision": executed.get("decision") or decision or None,
+        "model_bypassed": True,
+        "provenance": _execution_provenance(selected, execution),
+        **({"reason_class": reason_class} if reason_class else {}),
+    }
+    if composed and isinstance(payload, dict):
+        error_result.update(text=_display_text(payload), result=payload, execution_state=state)
+    if metadata:
+        error_result["text"] = _display_text(executed)
+    # Amine 12/10 : a service closed (declared hours) or not answering says so in one fixed sentence from the
+    # Graph, never a generic error and never the model. Last: the receipt card must not cover it (S24, 19:52).
+    message = _plain_display(execution.get("message"), 400) if isinstance(execution.get("message"), str) else ""
+    if message:
+        error_result.update(text=message, execution_state=state)
+    return error_result
+# ---------------------------------------------------------------------------------------------------------------
+# SAM-MIG-CC-001 V2.2, option B (ADR-DIALOGUE, programme doc 57): the dialogue coordinator of the pinned playbook
+# runs IN THIS PROCESS. These ports are the canonical fast path unchanged; the coordinator owns no route,
+# no executor and no retry engine. Continuum is observed with status() only during recovery.
+DIALOGUE_UNAVAILABLE = {
+    "outcome": "TECHNICAL_FAILURE", "reasonCode": "coordinator_unavailable", "handled": True, "modelAllowed": False,
+    "text": "Je ne peux pas traiter ta demande pour le moment : le suivi de conversation de Samantha est "
+            "indisponible. Rien n'a été exécuté ; réessaie dans un instant.",
+}
+
+
+WEB_HOST_ID = re.compile(r"[A-Za-z0-9_.:-]{1,160}")
+
+
+class FastPathPorts:
+    def __init__(self, ui_root: Path, *, surface: str, caller: str, timeout: int,
+                 web_host: dict[str, Any] | None = None) -> None:
+        self.ui_root = ui_root
+        self.surface = surface
+        self.caller = caller
+        self.timeout = timeout
+        self._resolutions: dict[str, dict[str, Any]] = {}
+        # W4: host-only Web metadata (CLI from the Companion): run/session correlation, 12 s deadline, voice bit.
+        # Never dialogue state; the coordinator stays the single owner of questions and hand-offs.
+        host = dict(web_host or {})
+        now_ms = int(time.time() * 1000)
+        deadline = host.get("deadline_epoch_ms")
+        self.web_deadline_epoch_ms = deadline if type(deadline) is int and now_ms < deadline <= now_ms + 12000 else now_ms + 12000
+        self.web_run_id = host.get("run_id") if isinstance(host.get("run_id"), str) and WEB_HOST_ID.fullmatch(host["run_id"]) else None
+        self.web_session_id = host.get("session_id") if isinstance(host.get("session_id"), str) and WEB_HOST_ID.fullmatch(host["session_id"]) else None
+        self.web_voice = host.get("voice_delegation") is True
+
+    def _web_context(self, decision: dict[str, Any]) -> dict[str, Any] | None:
+        request_id = decision.get("requestId")
+        if not isinstance(request_id, str) or not request_id:
+            return None
+        remaining = min(12000, self.web_deadline_epoch_ms - int(time.time() * 1000))
+        return {"request_id": request_id, "run_id": self.web_run_id, "session_id": self.web_session_id,
+                "remaining_budget_ms": remaining, "deadline_epoch_ms": self.web_deadline_epoch_ms}
+
+    def _caller(self, ctx: dict[str, Any]) -> str:
+        value = str((ctx or {}).get("caller") or self.caller)
+        return value if value in {"owner", "trusted", "other"} else "other"
+
+    def _origin(self, ctx: dict[str, Any]) -> str:
+        return str((ctx or {}).get("eventKey") or (ctx or {}).get("conversationRef") or "dialogue")[:120]
+
+    def _remember(self, out: dict[str, Any]) -> dict[str, Any]:
+        decision = out.get("decision") if isinstance(out.get("decision"), dict) else None
+        if out.get("status") == "eligible" and decision and isinstance(out.get("resolution"), dict):
+            self._resolutions[str(decision.get("decisionId"))] = out["resolution"]
+        return out
+
+    def resolve(self, text: str, ctx: dict[str, Any]) -> dict[str, Any]:
+        return self._remember(try_fast_path(
+            text, self.ui_root, execute=False, surface=self.surface, caller=self._caller(ctx),
+            origin_id=self._origin(ctx), timeout=min(self.timeout, 15)))
+
+    def resolve_answer(self, answer: str, original_text: str, decision: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
+        return self._remember(try_fast_path(
+            answer, self.ui_root, execute=False, surface=self.surface, caller=self._caller(ctx),
+            origin_id=self._origin(ctx), timeout=min(self.timeout, 15),
+            clarification_decision=decision, clarification_original_text=original_text))
+
+    def execute(self, text: str, decision: dict[str, Any] | None, origin_id: str, klass: str, ctx: dict[str, Any]) -> dict[str, Any]:
+        decision = decision if isinstance(decision, dict) else {}
+        resolution = self._resolutions.get(str(decision.get("decisionId")))
+        if _is_web_capability(decision, resolution):
+            return self._execute_web(text, decision, resolution, origin_id, ctx)
+        if resolution is None:
+            # Another process committed the decision (recovery of a read): revalidated by the Graph first.
+            return try_fast_path(text, self.ui_root, execute=True, surface=self.surface, caller=self._caller(ctx),
+                                 origin_id=origin_id, timeout=self.timeout, prepared_decision=decision)
+        try:
+            return execute_resolved(text, resolution, decision, self.ui_root, surface=self.surface,
+                                    caller=self._caller(ctx), origin_id=origin_id, timeout=self.timeout)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}
+
+    def _execute_web(self, text: str, decision: dict[str, Any], resolution: dict[str, Any] | None, origin_id: str,
+                     ctx: dict[str, Any]) -> dict[str, Any]:
+        # G6: closed by default on voice surfaces (voice relay, Claw Live, signed voice delegation), before dispatch.
+        if (self.web_voice or str((ctx or {}).get("surface") or "") == "voice") and not public_web_voice_recipe_enabled():
+            return voice_web_recipe_refusal(decision)
+        context = self._web_context(decision)
+        if context is None:
+            return {"status": "known_error", "reason": "invalid_web_execution_context", "execution_state": "not_started",
+                    "decision": decision or None, "model_bypassed": True}
+        if context["remaining_budget_ms"] <= 0:
+            return {"status": "known_error", "reason": "web_deadline_exceeded", "execution_state": "not_started",
+                    "decision": decision or None, "model_bypassed": True}
+        if resolution is None:
+            # Recovery of a decision committed by another process: revalidated by the Graph first.
+            return try_fast_path(text, self.ui_root, execute=True, surface=self.surface, caller=self._caller(ctx),
+                                 origin_id=origin_id, timeout=self.timeout, prepared_decision=decision,
+                                 request_id=context["request_id"], run_id=context["run_id"],
+                                 session_id=context["session_id"], remaining_budget_ms=context["remaining_budget_ms"],
+                                 deadline_epoch_ms=context["deadline_epoch_ms"])
+        try:
+            return execute_resolved(text, resolution, decision, self.ui_root, surface=self.surface,
+                                    caller=self._caller(ctx), origin_id=origin_id, timeout=self.timeout,
+                                    execution_context=context)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            return {"status": "known_error", "reason": "web_deadline_exceeded" if isinstance(exc, subprocess.TimeoutExpired)
+                    else "web_execution_failed", "execution_state": "timeout" if isinstance(exc, subprocess.TimeoutExpired)
+                    else "failed", "decision": decision or None, "model_bypassed": True}
+
+    def mission_status(self, task_id: str) -> dict[str, Any]:
+        return _continuum_call(self.ui_root, ["status", "--task-id", task_id])
+
+
+def _dialogue_coordinator(ui_root: Path):
+    root = str(ui_root)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from skill_intelligence.dialogue import coordinator  # pinned playbook, same process
+    return coordinator
+
+
+def run_dialogue(message: str, *, mode: str, ui_root: Path, surface: str, caller: str, timeout: int,
+                 event: dict[str, Any] | None = None, policy: dict[str, Any] | None = None,
+                 goal_ref: str | None = None, web_host: dict[str, Any] | None = None) -> dict[str, Any]:
+    ports = FastPathPorts(ui_root, surface=surface, caller=caller, timeout=timeout, web_host=web_host)
+    try:
+        coordinator = _dialogue_coordinator(ui_root)
+    except Exception:  # an older pinned playbook or a broken install: fail closed (T-X05)
+        return dict(DIALOGUE_UNAVAILABLE)
+    if mode == "preview":
+        key = (event or {}).get("conversationKey")
+        return coordinator.preview_resolution(message, ports, surface=surface, caller=caller,
+                                              conversation_key=str(key) if key else None)
+    event = {**(event or {}), "text": message, "caller": caller}
+    if mode == "turn":
+        return coordinator.handle_admitted_event(event, ports, policy=policy or {})
+    worker = coordinator.Coordinator(ports)
+    try:
+        return worker.continue_handoff(event, str(goal_ref or ""), policy or {}, abort=(mode == "abort"))
+    finally:
+        if worker.store is not None:
+            worker.store.close()
+
+
+def _b64_json(name: str) -> dict[str, Any]:
+    raw = os.environ.get(name, "")
+    if not raw:
+        return {}
+    try:
+        value = json.loads(base64.b64decode(raw.encode("ascii"), validate=True).decode("utf-8"))
+    except Exception:
+        raise SystemExit("invalid_" + name.lower())
+    if not isinstance(value, dict):
+        raise SystemExit("invalid_" + name.lower())
+    return value
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
     parser.add_argument("--check", action="store_true", help="Resolve only; do not execute or open a human boundary.")
     parser.add_argument("--execute-decision", action="store_true", help="Execute the prepared decision from CLAW_PREPARED_DECISION_B64 without re-resolving.")
     parser.add_argument("--resolve-clarification", action="store_true", help="Resolve the reply against the pending clarification decision.")
+    parser.add_argument("--dialogue", choices=("turn", "handoff", "abort", "preview"),
+                        help="Dialogue coordinator (SAM-MIG V2.2): event in CLAW_DIALOGUE_EVENT_B64, policy in CLAW_DIALOGUE_POLICY_B64.")
+    parser.add_argument("--goal-ref", default="", help="With --dialogue handoff|abort: the goal committed at T1.")
+    parser.add_argument("--voice-delegation", action="store_true",
+                        help="With --dialogue: host bit of a voice surface; a Web hand-off stays closed (G6) unless the host recipe is set.")
     parser.add_argument("--ui-root", type=Path, default=UI_ROOT)
     parser.add_argument("--surface", default="claw_live")
     parser.add_argument("--caller", choices=("owner", "trusted", "other"), default="owner")
@@ -990,6 +1333,14 @@ def main() -> int:
         message = sys.stdin.read().strip()
     if not message:
         raise SystemExit("message_required")
+    if args.dialogue:
+        out = run_dialogue(message, mode=args.dialogue, ui_root=args.ui_root, surface=args.surface, caller=args.caller,
+                           timeout=max(2, min(args.timeout, 120)), event=_b64_json("CLAW_DIALOGUE_EVENT_B64"),
+                           policy=_b64_json("CLAW_DIALOGUE_POLICY_B64"), goal_ref=args.goal_ref,
+                           web_host={"run_id": args.run_id, "session_id": args.session_id,
+                                     "deadline_epoch_ms": args.deadline_epoch_ms, "voice_delegation": args.voice_delegation})
+        print(json.dumps(out, ensure_ascii=False))
+        return 0
     prepared = None
     clarification_decision = None
     clarification_original = None

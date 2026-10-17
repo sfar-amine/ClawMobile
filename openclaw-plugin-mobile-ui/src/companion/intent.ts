@@ -1,19 +1,21 @@
-import {readRunWebResult, webResultText, webRunState, publicWebVoiceRecipeEnabled, voiceWebRecipeRequired, type RunWebResult} from "./runWeb";
-import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision} from "./receiptPresentation";
+import {readRunWebResult, webResultText, webRunState, type RunWebResult} from "./runWeb";
+import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
 import crypto from "crypto";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
 import {transcribeMemoAttachment} from "./memoSttOwner";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { appendReplayContext, appendVoiceConversationContext, findPendingClarificationRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, markClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch, deferMemoTranscription } from "./runs";
+import { appendReplayContext, appendVoiceConversationContext, findClarificationProjectionRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, projectClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch, deferMemoTranscription, publicReasonClass } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
 import { runModelFastPath, type FastPathResult } from "../modelFastPath";
+import { dialogueHandoff, dialogueTurn, isDoneReply, isQuestionReply, transportEventRef, type DialogueInput, type DialogueReply } from "../dialogueSurface";
 import { turnAdmission, type AdmissionTicket } from "./ownerTurnAdmission";
+import {phoneDateTimeDecision} from "./phoneDateTime";
 
-type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; admission?: AdmissionTicket; voiceDelegation?: true; replayOf?: {sessionId: string; runId: string}};
+type SubmissionOptions = {userText?: string; clientRunId?: string; learningOnly?: true; authority?: "owner"; admission?: AdmissionTicket; voiceDelegation?: true; replayOf?: {sessionId: string; runId: string};phoneDateTime?:unknown};
 
 function currentMemoOwner(admission: unknown, clientRunId: string | undefined, sessionId: string): boolean {
   try { return require("./ownerTurnAdmission").turnAdmission.isCurrent(admission, {clientRunId, sessionId}) === true; }
@@ -87,7 +89,7 @@ async function submitTextIntent(
 ): Promise<IntentSubmitResponse> {
   if (reservedMemoRunId && !currentMemoOwner(options.admission, options.clientRunId, sessionId))
     return notSubmitted(sessionId, options.clientRunId, "Une nouvelle validation du propriétaire est nécessaire.");
-  const webStarted = performance.now();
+  // W4: one 12 s Web budget per admitted turn, created by the host (never from the body or the model).
   const webDeadlineEpochMs = Date.now() + 12000;
   const normalized = reservedMemoRunId ? text : text.trim();
   const visibleUserText = reservedMemoRunId ? text : (options.userText || normalized).trim();
@@ -131,66 +133,55 @@ async function submitTextIntent(
   // n'est jamais reprise par un tour admis (aucun texte dérivé d'un tiers sur la connexion admin).
   const ownerAdmitted = currentOwner();
   const caller = ownerAdmitted ? "owner" as const : "other" as const;
-  let routingText = normalized;
-  let parentClarificationRunId: string | undefined;
-  let fastPathCheck: FastPathResult = { status: "miss", reason: "attachments_require_model" };
+  const phoneAnswer=ownerAdmitted?phoneDateTimeDecision(normalized,options.phoneDateTime):null;
+  if(phoneAnswer){
+    // SAM-MIG V2.2: the dialogue coordinator owns any pending question (it expires there, D-D); nothing to touch here.
+    return executePhoneDateTimeFirst(normalizedSessionId,visibleUserText,attachments,clientRunId,phoneAnswer,options.admission,options.voiceDelegation,ownerAdmitted);
+  }
+  // SAM-MIG V2.2: one admitted event for the dialogue coordinator, the only owner of the pending question. The
+  // conversation is split by admission bit (P1): a question opened by a non-admitted turn is never answered by an
+  // admitted one, and conversely. The hand-off is deferred so the ticket is revalidated before any effect.
+  let dialogue: DialogueReply | undefined;
+  let dialogueInput: DialogueInput | undefined;
   if (attachments.length === 0 && !learningOnly) {
-    let pending = await findPendingClarificationRun(normalizedSessionId);
-    if (pending && pending.ownerAdmitted !== ownerAdmitted) {
-      // Admis face à une clarification non admise : abandonnée. Non admis face à une clarification admise : ignorée
-      // (un tiers ne peut ni la reprendre ni l'annuler).
-      if (ownerAdmitted) await markClarificationRun(pending.runId, "abandoned");
-      pending = null;
-    }
-    if (pending) {
-      const clarified = await runModelFastPath(normalized, {
-        surface: "claw_live", caller, originId: clientRunId || normalizedSessionId,
-        timeoutSeconds: 12, checkOnly: true,checkBudgetMs:Math.max(1,Math.min(10000,Math.floor(webDeadlineEpochMs-Date.now()))),
-        clarificationDecision: pending.decision, clarificationOriginalText: pending.text,
-      });
-      if (clarified.status === "clarification_unrelated") {
-        await markClarificationRun(pending.runId, "abandoned");
-      } else {
-        parentClarificationRunId = pending.runId;
-        fastPathCheck = clarified;
-        routingText = String((clarified.resolution as any)?.text || normalized);
-      }
-    }
-    if (!parentClarificationRunId) {
-      fastPathCheck = await runModelFastPath(normalized, {
-        surface: "claw_live", caller, originId: clientRunId || normalizedSessionId,
-        timeoutSeconds: 12, checkOnly: true,checkBudgetMs:Math.max(1,Math.min(10000,Math.floor(webDeadlineEpochMs-Date.now()))),
-      });
-    }
+    dialogueInput = {
+      surface: "app", graphSurface: "claw_live",
+      conversationKey: `app:${normalizedSessionId}:${ownerAdmitted ? "owner" : "other"}`,
+      eventRef: transportEventRef(clientRunId, reservedMemoRunId), text: normalized, caller,
+      admittedAt: Date.now(), policy: { modelAllowed: true, deferHandoff: true }, timeoutSeconds: 75,
+      web: { sessionId: normalizedSessionId, deadlineEpochMs: webDeadlineEpochMs, voiceDelegation: options.voiceDelegation === true },
+    };
+    dialogue = await dialogueTurn(runModelFastPath, dialogueInput);
   }
 
-  if (ownerAdmitted && !currentOwner()) return notSubmitted(normalizedSessionId, clientRunId, "owner_admission_expired");
+  if (ownerAdmitted && !currentOwner()) {
+    if (dialogue?.pendingHandoff && dialogueInput) await dialogueHandoff(runModelFastPath, dialogueInput, dialogue.pendingHandoff.goalRef, true);
+    return notSubmitted(normalizedSessionId, clientRunId, "owner_admission_expired");
+  }
 
-  if (["eligible", "clarification", "known_error"].includes(String(fastPathCheck.status || ""))) {
-    if (options.voiceDelegation === true && !currentOwner()) return notSubmitted(normalizedSessionId, clientRunId, "owner_required");
+  if (dialogue?.outcome === "TECHNICAL_FAILURE" && dialogue.reasonCode === "coordinator_unavailable") {
+    // N1: nothing was admitted by the coordinator; the turn is not submitted (retry-safe), with a readable cause.
+    const presentation=fastPathFailurePresentation({status:"error",reason:dialogue.source} as FastPathResult,'resolution');
+    return {...notSubmitted(normalizedSessionId,clientRunId,presentation.spoken),...publicReceiptMetadata(presentation)};
+  }
+  if (dialogue && dialogueInput && dialogue.handled) {
+    if (options.voiceDelegation === true && !currentOwner()) {
+      if (dialogue.pendingHandoff) await dialogueHandoff(runModelFastPath, dialogueInput, dialogue.pendingHandoff.goalRef, true);
+      return notSubmitted(normalizedSessionId, clientRunId, "owner_required");
+    }
     return executeCapabilityFirst(
-      routingText, normalizedSessionId, visibleUserText, attachments, clientRunId, fastPathCheck,
-      parentClarificationRunId, replayOf, reservedMemoRunId, options.admission, ownerAdmitted,
-      {started:webStarted,deadlineEpochMs:webDeadlineEpochMs}, options.voiceDelegation,
+      normalized, normalizedSessionId, visibleUserText, attachments, clientRunId, dialogue, dialogueInput,
+      replayOf, reservedMemoRunId, options.admission, ownerAdmitted,
     );
   }
-  if (fastPathCheck.status === "error") {
-    return notSubmitted(
-      normalizedSessionId, clientRunId,
-      "Claw capability routing is temporarily unavailable.",
-    );
-  }
-
-  if (parentClarificationRunId) {
-    await markClarificationRun(parentClarificationRunId, "resolved");
-  }
-
+  const fastPathCheck: FastPathResult = { status: "miss", reason: dialogue ? "dialogue_unresolved" : "attachments_require_model", decision: dialogue?.decision || undefined };
   const gateway = await getGatewayStatus();
   if (!gateway.reachable) {
     return notSubmitted(normalizedSessionId, clientRunId, gateway.message);
   }
 
-  const promptWithAttachments = appendAttachmentContext(parentClarificationRunId ? routingText : normalized, attachments);
+  const responseLanguage=publicDecision(fastPathCheck.decision)?.responseLanguage;
+  const promptWithAttachments = appendAttachmentContext(normalized, attachments);
   const routed = learningOnly ? null : buildAutoSkillContextForIntent(promptWithAttachments);
   const contextualPrompt = learningOnly ? promptWithAttachments : await appendVoiceConversationContext(routed?.prompt || promptWithAttachments, normalizedSessionId);
   const submittedPrompt = replay ? appendReplayContext(contextualPrompt, replay.seed) : contextualPrompt;
@@ -216,7 +207,7 @@ async function submitTextIntent(
     await rememberSubmittedRun(submittedPrompt, accepted, { userText: visibleUserText, attachments, decision: fastPathCheck.decision, ownerAdmitted });
   }
   void submitIntentInBackground(submittedPrompt, runId, normalizedSessionId, visibleUserText, attachments, options.authority,
-    learningOnly ? undefined : options.admission, clientRunId, options.voiceDelegation);
+    learningOnly ? undefined : options.admission, clientRunId, options.voiceDelegation, responseLanguage);
 
   const message = describeOpenClawResult(accepted);
   return {
@@ -239,104 +230,98 @@ async function submitTextIntent(
   };
 }
 
+async function executePhoneDateTimeFirst(sessionId:string,userText:string,attachments:IntentAttachment[],clientRunId:string|undefined,
+  answer:NonNullable<ReturnType<typeof phoneDateTimeDecision>>,admission?:AdmissionTicket,voiceDelegation?:true,ownerAdmitted=false):Promise<IntentSubmitResponse>{
+  if(!ownerAdmitted||!turnAdmission.isCurrent(admission,{clientRunId,sessionId}))return notSubmitted(sessionId,clientRunId,"owner_admission_expired");
+  let runId=`run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,duplicate=false;
+  if(clientRunId){
+    const reservation=await reserveSubmittedRun(userText,sessionId,clientRunId,{userText,attachments,requestText:userText,
+      executionSource:"capability_first",decision:answer.decision,ownerAdmitted});
+    runId=reservation.status.runId;duplicate=!reservation.created;
+    if(duplicate)return responseFromExisting(reservation.status,userText);
+  }else await rememberSubmittedRun(userText,acceptedRun(runId,sessionId,voiceDelegation),{userText,attachments,
+    executionSource:"capability_first",decision:answer.decision,ownerAdmitted});
+  if(!turnAdmission.isCurrent(admission,{clientRunId,sessionId})){
+    await markSubmittedRunFailed(runId,"owner_admission_expired");return notSubmitted(sessionId,clientRunId,"owner_admission_expired");
+  }
+  const state=answer.state==="done"?"done" as const:"failed" as const,decision=publicDecision(answer.decision);
+  await settleSubmittedRun(runId,state,answer.text,{});
+  return{success:true,accepted:true,submissionState:"accepted",retrySafe:false,duplicate,...(decision?{decision}:{}),
+    runId,clientRunId,sessionId,state,result:answer.text,message:answer.text,userText,canvas:intentCanvas(userText,answer.text),attachments};
+}
+
 async function executeCapabilityFirst(
   text: string,
   sessionId: string,
   userText: string,
   attachments: IntentAttachment[],
   clientRunId: string | undefined,
-  check: FastPathResult,
-  parentClarificationRunId?: string,
+  first: DialogueReply,
+  input: DialogueInput,
   replayOf?: {sessionId: string; runId: string},
   reservedMemoRunId?: string,
   admission?: AdmissionTicket,
   ownerAdmitted = false,
-  webBudget?: {started:number;deadlineEpochMs:number},
-  voiceDelegation?: true,
 ): Promise<IntentSubmitResponse> {
+  // Projection links only (display, comprehension metrics): the coordinator decided, the run records.
+  const parentClarificationRunId = await findClarificationProjectionRun(sessionId, first.goalRef);
+  const replacedRunId = await findClarificationProjectionRun(sessionId, (first as any).replacedGoalRef);
+  const goalRef = first.goalRef || undefined;
   let runId = reservedMemoRunId || `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   let duplicate = false;
+  const abort = async () => { if (first.pendingHandoff) await dialogueHandoff(runModelFastPath, input, first.pendingHandoff.goalRef, true); };
   if (reservedMemoRunId) {
-    if (!await claimMemoDispatch(runId, userText, "capability_first", check.decision, parentClarificationRunId, () => currentMemoOwner(admission, clientRunId, sessionId), ownerAdmitted)) return notSubmitted(sessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
+    if (!await claimMemoDispatch(runId, userText, "capability_first", first.decision || undefined, parentClarificationRunId, () => currentMemoOwner(admission, clientRunId, sessionId), ownerAdmitted, goalRef)) {
+      await abort();
+      return notSubmitted(sessionId, clientRunId, "Mémo annulé ou déjà pris en charge.");
+    }
   } else if (clientRunId) {
     const reservation = await reserveSubmittedRun(text, sessionId, clientRunId, {
       userText, attachments, requestText: text, executionSource: "capability_first",
-      decision: check.decision, parentClarificationRunId, replayOf, ownerAdmitted,
+      decision: first.decision || undefined, parentClarificationRunId, dialogueGoalRef: goalRef, replayOf, ownerAdmitted,
     });
     runId = reservation.status.runId;
     duplicate = !reservation.created;
     if (duplicate) return responseFromExisting(reservation.status, userText);
   } else {
     await rememberSubmittedRun(text, acceptedRun(runId, sessionId), {
-      userText, attachments, executionSource: "capability_first", decision: check.decision, parentClarificationRunId, ownerAdmitted,
+      userText, attachments, executionSource: "capability_first", decision: first.decision || undefined, parentClarificationRunId, dialogueGoalRef: goalRef, ownerAdmitted,
     });
   }
-  if (parentClarificationRunId) {
-    await markClarificationRun(parentClarificationRunId, "resolved");
-  }
+  if (parentClarificationRunId) await projectClarificationRun(parentClarificationRunId, "resolved");
+  if (replacedRunId) await projectClarificationRun(replacedRunId, "abandoned");
 
   if (reservedMemoRunId && !currentMemoOwner(admission, clientRunId, sessionId)) {
+    await abort();
     await markSubmittedRunFailed(runId, "Validation du propriétaire expirée.");
     return notSubmitted(sessionId, clientRunId, "Une nouvelle validation du propriétaire est nécessaire.");
   }
-  let presentation = readReceiptPresentation(check);
-  let provenance: FastPathResult["provenance"];
-  let web: RunWebResult | undefined;
-  let state: "done" | "failed" | "unknown";
-  let message: string;
-  if (check.status === "clarification") {
-    state = "done";
-    message = String(check.text || "Précise ce que tu veux faire.");
-  } else if (check.status === "known_error") {
-    state = "failed";
-    message = String(check.text || "Claw identified this capability but did not authorize its execution.");
-  } else {
+  let reply = first;
+  if (first.outcome === "READY" && first.pendingHandoff) {
     if (ownerAdmitted && !turnAdmission.isCurrent(admission, {clientRunId, sessionId})) {
+      await abort();
       await markSubmittedRunFailed(runId, "owner_admission_expired");
       return notSubmitted(sessionId, clientRunId, "owner_admission_expired");
     }
-    const webCapability = String(check.decision?.capability || (check.decision?.selected as any)?.capability || "");
-    const isWeb = ["samantha.app.web.search","samantha.app.web.answer"].includes(webCapability);
-    const remainingBudgetMs = webBudget ? Math.floor(Math.min(12000-(performance.now()-webBudget.started),webBudget.deadlineEpochMs-Date.now())) : 0;
-    const requestId = typeof check.decision?.requestId === "string" ? check.decision.requestId : undefined;
-    const result = isWeb && voiceDelegation === true && !publicWebVoiceRecipeEnabled()
-      ? {status:"known_error",execution_state:"failed",web:voiceWebRecipeRequired(check.decision!)} as FastPathResult
-      : isWeb && (!ownerAdmitted || !requestId || !webBudget || remainingBudgetMs < 1)
-      ? {status:"known_error",execution_state:"not_started",reason:"web_execution_context_unavailable"} as FastPathResult
-      : await runModelFastPath(text, {
-      surface: "claw_live",
-      caller: ownerAdmitted ? "owner" : "other",
-      originId: clientRunId || runId,
-      timeoutSeconds: 75,
-      preparedDecision: check.decision,
-      ...(isWeb ? {requestId,runId,sessionId,remainingBudgetMs,deadlineEpochMs:webBudget!.deadlineEpochMs} : {}),
-    });
-    presentation = readReceiptPresentation(result);
-    provenance = result.provenance;
-    if (isWeb) {
-      const rawWeb = result.web ?? (result.result as any)?.web;
-      web = readRunWebResult(rawWeb);
-      if(web && ["complete","partial"].includes(web.outcome) && !["completed","partial"].includes(String(result.execution_state)))web=undefined;
-      const uncertain = ["indeterminate","verification_required","unknown","running"].includes(String(result.execution_state || ""));
-      state = uncertain ? "unknown" : web ? webRunState(web) : "failed";
-      message = uncertain ? "Le résultat de la recherche reste à vérifier ; aucune relance automatique." : web ? webResultText(web) :
-        result.reason === "web_deadline_exceeded" ? "La recherche a dépassé le délai disponible." :
-        result.reason === "execution_cancelled" ? "Recherche annulée." :
-        "Le résultat de la recherche n’a pas pu être validé ; aucune synthèse non vérifiée n’est affichée.";
-    } else if (result.status === "hit") {
-      state = "done";
-      message = String(result.text || "Claw completed the capability.");
-    } else if (result.status === "known_error") {
-      state = "failed";
-      message = String(result.text || "Claw could not complete the known capability.");
-    } else {
-      state = "failed";
-      message = "Claw capability state changed before deterministic execution; no model fallback was used.";
-    }
+    // W4: the run id joins the host Web context of the hand-off (correlation only; the coordinator decides).
+    reply = await dialogueHandoff(runModelFastPath, input.web ? {...input, web: {...input.web, runId}} : input, first.pendingHandoff.goalRef);
   }
-
+  const metadata = (reply.metadata || {}) as FastPathResult;
+  let presentation = readReceiptPresentation(metadata);
+  const provenance: FastPathResult["provenance"] = metadata.provenance;
+  // W4: the closed `run.web` projection travels in the coordinator metadata; the visible text is rebuilt from the
+  // admitted claims/sources only (never a second, unverified synthesis).
+  const web: RunWebResult | undefined = readRunWebResult((metadata as any).web);
+  const state: "done" | "failed" = web && (isDoneReply(reply) || reply.outcome === "FAILED")
+    ? (isDoneReply(reply) ? webRunState(web) : "failed")
+    : isQuestionReply(reply) || isDoneReply(reply) ? "done" : "failed";
+  let message = web ? webResultText(web) : String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
+  if (!presentation && state === "failed" && reply.outcome === "TECHNICAL_FAILURE") presentation = fastPathFailurePresentation({status: "error", reason: reply.source || reply.reasonCode} as FastPathResult, "execution");
+  const spoken = !reply.metadata && reply.reasonCode === "coordinator_unavailable" && presentation ? presentation.spoken : undefined;
   presentation ||= fallbackReceiptPresentation(state === "failed");
-  await settleSubmittedRun(runId, state, message, {provenance, presentation, web});
+  if (spoken) message = spoken;
+  const reasonClass=publicReasonClass((metadata as any).reasonClass ?? (metadata as any).reason_class);
+  await settleSubmittedRun(runId, state, message, {provenance, presentation, reasonClass, web});
   return {
     success: true,
     accepted: true,
@@ -344,7 +329,8 @@ async function executeCapabilityFirst(
     retrySafe: false,
     duplicate,
     ...publicReceiptMetadata(presentation),
-    ...(publicDecision(check.decision) ? {decision: publicDecision(check.decision)} : {}),
+    ...(publicDecision(reply.decision || first.decision || undefined) ? {decision: publicDecision(reply.decision || first.decision || undefined)} : {}),
+    ...(publicDecision(reply.decision || first.decision || undefined)?.responseLanguage ? {responseLanguage: publicDecision(reply.decision || first.decision || undefined)!.responseLanguage} : {}),
     runId,
     clientRunId,
     sessionId,
@@ -355,6 +341,7 @@ async function executeCapabilityFirst(
     userText,
     canvas: intentCanvas(userText, message),
     attachments,
+    ...(reasonClass ? {reasonClass} : {}),
   };
 }
 
@@ -401,6 +388,7 @@ function responseFromExisting(
     userText,
     canvas: intentCanvas(userText, message),
     attachments: status.attachments,
+    ...(status.reasonClass ? {reasonClass: status.reasonClass} : {}),
   };
 }
 
@@ -414,12 +402,13 @@ async function submitIntentInBackground(
   admission?: AdmissionTicket,
   clientRunId?: string,
   voiceDelegation?: true,
+  responseLanguage?: ResponseLanguage,
 ) {
   try {
     if (admission !== undefined && !currentMemoOwner(admission, clientRunId, sessionId)) {
       await markSubmittedRunFailed(runId, "Validation du propriétaire expirée."); return;
     }
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId, voiceDelegation});
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId, voiceDelegation, responseLanguage});
     if (admission) console.log(`[companion] P1 turn ${runId}: transport=${openclaw.ownerTransport}`);
     await rememberSubmittedRun(text, {
       ...openclaw,
