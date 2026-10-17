@@ -74,4 +74,4 @@ require('../dist/companion/openclawAgentClient').callOpenClawGateway=()=>{forbid
   const warm=[];for(let i=0;i<20;i++)warm.push((await get()).ms);const p95=warm.sort((a,b)=>a-b)[Math.ceil(warm.length*.95)-1];assert.ok(p95<300,`warm p95 ${p95}`);assert.equal(forbidden,0);
   console.log(JSON.stringify({suite:'catalog-qualified-status',targeted: true,receipts:50002,passes,slowestPassMs:Math.round(slowest),warmP95Ms:Math.round(p95)}));
  }finally{await new Promise(r=>server.close(r));fs.rmSync(state,{recursive:true,force:true});}
-})().catch(error=>{console.error(error);process.exit(1)});
+})().catch(error=>{console.error(error);fs.rmSync(state,{recursive:true,force:true});process.exit(1)}); // 200 Mo par échec, jamais laissés dans /tmp
