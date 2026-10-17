@@ -5,6 +5,8 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parent
+import sys; sys.path.insert(0,str(ROOT))
+from host_test_support import adapt_shebangs
 
 def load(name,path):
     spec=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
@@ -32,13 +34,14 @@ class RuntimeBridgeTests(unittest.TestCase):
         self.assertEqual(m.show(row['id'])['incident']['state'],'diagnosing')
     def test_live_worker_routes_catalog_profile_to_existing_result_handler(self):
         runtime=self.home/'runtime';runtime.mkdir()
-        for name in ['incident-orchestrator-worker.sh','incident-orchestrator.py','engineering-incident-result.py']:
+        for name in ['incident-orchestrator-worker.sh','incident-orchestrator.py','engineering-incident-result.py','runtime_mode.py']:
             shutil.copy2(ROOT/name,runtime/name)
         stub=runtime/'engineering-repair.sh'
         stub.write_text('#!/data/data/com.termux/files/usr/bin/bash\nif [ "$1" = supports ]; then [ "$2" = reporting-incident-source ]; exit; fi\nprintf "run\\n" >>"$HOME/repair-calls"\necho \'{"status":"recovered"}\'\n')
         stub.chmod(0o755)
         for name in ['incident-continuation.py','learning-gate-close.sh']:
             f=runtime/name;f.write_text('#!/data/data/com.termux/files/usr/bin/bash\necho \'{"receipt_id":"fixture"}\'\n');f.chmod(0o755)
+        adapt_shebangs(runtime)  # copie temporaire : shebangs Termux adaptés hors Termux
         (self.home/'.openclaw/health').mkdir(parents=True)
         env=dict(os.environ,HOME=str(self.home),CLAW_RUNTIME_ROOT=str(runtime))
         opened=subprocess.run([str(runtime/'incident-orchestrator.py'),'open','reporting-incident-source','acceptance-fixture','--source','engineering-code-monitor','--summary','isolated fixture'],env=env,capture_output=True,text=True,check=True)

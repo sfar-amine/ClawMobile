@@ -27,17 +27,19 @@ const cli=path.join(root,'openclaw');
 fs.writeFileSync(cli,'#!/usr/bin/env node\nconst fs=require("node:fs");const a=process.argv.slice(2),p=JSON.parse(a[a.indexOf("--params")+1]);fs.appendFileSync(process.env.EDIT_REPLAY_CAPTURE,JSON.stringify({method:a[2],params:p})+"\\n");process.stdout.write(JSON.stringify({runId:p.idempotencyKey,sessionKey:"agent:main:"+p.sessionKey,status:"accepted"}));\n',{mode:0o700});
 process.env.CLAWMOBILE_OPENCLAW_BIN=cli;process.env.EDIT_REPLAY_CAPTURE=capture;
 const helper=path.join(root,'fast-path.py');
+// SAM-MIG V2.2: stand-in of `model-fast-path.py --dialogue` (turn, then deferred hand-off for a decision).
 fs.writeFileSync(helper,[
  'import json, os, sys',
  'message = sys.argv[-1]',
- "mode = 'execute_decision' if '--execute-decision' in sys.argv else 'check' if '--check' in sys.argv else 'execute'",
+ "dm = sys.argv[sys.argv.index('--dialogue') + 1]",
+ "mode = 'execute_decision' if dm == 'handoff' else 'check' if dm == 'turn' else dm",
  "open(os.environ['EDIT_REPLAY_FAST_PATH_LOG'],'a').write(json.dumps({'mode':mode,'message':message})+'\\n')",
  "if 'payer' in message and mode == 'check':",
- " print(json.dumps({'status':'eligible','model_bypassed':True,'decision':{'version':2,'type':'EXECUTE','risk':'transaction','capability':'payment.owner_native','confirmationRequired':True,'decisionId':'d','requestId':'r','textHash':'x','capabilityRevision':'rev','contractHash':'h'}}))",
+ " print(json.dumps({'outcome':'READY','handled':True,'goalRef':'goal-cccccccccccccccccccc','pendingHandoff':{'goalRef':'goal-cccccccccccccccccccc','klass':'DURABLE'},'decision':{'version':2,'type':'EXECUTE','risk':'transaction','capability':'payment.owner_native','confirmationRequired':True,'decisionId':'d'}}))",
  "elif mode == 'execute_decision':",
- " print(json.dumps({'status':'known_error','text':'Confirmation biométrique requise.','model_bypassed':True}))",
+ " print(json.dumps({'outcome':'FAILED','text':'Confirmation biométrique requise.','handled':True}))",
  'else:',
- " print(json.dumps({'status':'miss','reason':'no_capability'}))",
+ " print(json.dumps({'outcome':'UNRESOLVED','reasonCode':'no_capability','modelAllowed':True,'handled':False}))",
  ''].join('\n'));
 process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;process.env.EDIT_REPLAY_FAST_PATH_LOG=helperLog;
 

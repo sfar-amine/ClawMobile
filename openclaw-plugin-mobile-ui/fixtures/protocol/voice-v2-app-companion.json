@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "warmReady": {
+    "protocolVersion": 2,
+    "connectionEpoch": 7,
+    "sessionEpoch": "session-1"
+  },
+  "controls": {
+    "speakFirst": ["operationId", "sessionEpoch", "turnId"],
+    "turnStart": ["operationId", "sessionEpoch", "turnId", "firstSample"],
+    "turnEnd": ["operationId", "sessionEpoch", "turnId", "lastSampleExclusive"],
+    "transcriptFinal": ["operationId", "sessionEpoch", "turnId", "source", "text"],
+    "interrupt": ["operationId", "sessionEpoch", "turnId", "outputGenerationId"],
+    "receiptReply": ["turnId"]
+  },
+  "audio": ["sessionEpoch", "turnId", "firstSample", "samples", "sampleRate", "data"],
+  "warmEvent": ["version", "connectionEpoch", "sessionEpoch", "sequence", "turnId", "outputGenerationId", "correlation", "payload"]
+}

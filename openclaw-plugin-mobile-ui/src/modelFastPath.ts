@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { SurfaceClarifications } from "./capabilityClarification";
+import { admittedAtMs, dialogueTurn, transportEventRef } from "./dialogueSurface";
 
 const execFileAsync = promisify(execFile);
 const MAX_MESSAGE_CHARS = 12000;
@@ -12,6 +13,9 @@ export type FastPathResult = {
   status?: string;
   text?: string;
   reason?: string;
+  /** Sanitized machine class emitted by the deterministic runner. */
+  reason_class?: string;
+  reasonClass?: string;
   target?: string;
   intent?: string;
   route?: string;
@@ -62,13 +66,21 @@ export type RunnerOptions = {
   preparedDecision?: Record<string, unknown>;
   clarificationDecision?: Record<string, unknown>;
   clarificationOriginalText?: string;
+  /** SAM-MIG V2.2: run the dialogue coordinator in the helper process (`--dialogue <mode>`). */
+  dialogue?: DialogueMode;
+};
+
+export type DialogueMode = {
+  mode: "turn" | "handoff" | "abort" | "preview";
+  event?: Record<string, unknown>;
+  policy?: Record<string, unknown>;
+  goalRef?: string;
 };
 
 function helperCandidates(home = os.homedir()): string[] {
   return [
     process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER || "",
     path.join(home, ".openclaw/releases/current/termux-lite/model-fast-path.py"),
-    path.join(home, "ClawMobile/installer/termux-lite/model-fast-path.py"),
   ].filter(Boolean);
 }
 
@@ -108,18 +120,6 @@ function surfaceFor(ctx: InboundContext): string {
   return channel === "whatsapp" ? "whatsapp" : "claw_live";
 }
 
-function originId(event: InboundEvent, ctx: InboundContext): string {
-  return String(
-    ctx.runId ||
-    event.runId ||
-    event.idempotencyKey ||
-    event.id ||
-    ctx.sessionKey ||
-    event.sessionKey ||
-    "capability-first",
-  ).slice(0, 120);
-}
-
 /** O6 (fichier 37) : a guarded operator read holds Wi-Fi off for at most 60 s; the helper waits up to 70 s for it.
  * An executing call is never killed before that wait (+ 15 s for resolution and process start). Other routes stay
  * bounded by the helper's own budget; a check-only call keeps its short budget. */
@@ -142,7 +142,16 @@ export async function runModelFastPath(
     const remaining=deadline===undefined?undefined:deadline-Date.now();
     if(remaining!==undefined&&remaining<=0)return {status:"error",reason:"check_budget_exceeded"};
     try {
-      const argv = [
+      const dialogue = options.dialogue;
+      const argv = dialogue ? [
+        "--dialogue", dialogue.mode,
+        ...(dialogue.goalRef ? ["--goal-ref", dialogue.goalRef] : []),
+        "--surface", options.surface || "claw_live",
+        "--caller", options.caller || "owner",
+        "--origin-id", options.originId || "capability-first",
+        "--timeout", String(Math.max(2, Math.min(options.timeoutSeconds || 30, 120))),
+        message,
+      ] : [
         ...(options.clarificationDecision ? ["--resolve-clarification"] : options.preparedDecision ? ["--execute-decision"] : []),
         ...(options.checkOnly ? ["--check"] : []),
         "--surface", options.surface || "claw_live",
@@ -163,6 +172,10 @@ export async function runModelFastPath(
             ...process.env,
             ...((options.preparedDecision || options.clarificationDecision) ? {
               CLAW_PREPARED_DECISION_B64: Buffer.from(JSON.stringify(options.preparedDecision || options.clarificationDecision), "utf8").toString("base64"),
+            } : {}),
+            ...(dialogue ? {
+              CLAW_DIALOGUE_EVENT_B64: Buffer.from(JSON.stringify(dialogue.event || {}), "utf8").toString("base64"),
+              CLAW_DIALOGUE_POLICY_B64: Buffer.from(JSON.stringify(dialogue.policy || {}), "utf8").toString("base64"),
             } : {}),
             ...(options.clarificationDecision ? {
               CLAW_CLARIFICATION_ORIGINAL_B64: Buffer.from(String(options.clarificationOriginalText || ""), "utf8").toString("base64"),
@@ -193,53 +206,76 @@ export async function runModelFastPath(
   return { status: "error", reason: lastError };
 }
 
-let whatsappClarifications: SurfaceClarifications | null = null;
-
-/** Exposed for tests: the bounded pending CLARIFY questions of inbound (WhatsApp) conversations. */
-export function inboundClarifications(runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath) {
-  if (!whatsappClarifications) whatsappClarifications = new SurfaceClarifications(runner);
-  return whatsappClarifications;
-}
-
 function conversationKey(event: InboundEvent, ctx: InboundContext): string {
   return String(ctx.sessionKey || event.sessionKey || ctx.channel || "inbound").slice(0, 240);
 }
 
+const OWNER_WHATSAPP_SESSION = /^agent:main:whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
+
+/** Owner WhatsApp numbers from the Gateway's canonical config (commands.ownerAllowFrom « whatsapp:+… »). */
+export function ownerWhatsAppNumbers(configPath = path.join(process.env.OPENCLAW_STATE_DIR || path.join(os.homedir(), ".openclaw"), "openclaw.json")): Set<string> {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const values: unknown[] = config?.commands?.ownerAllowFrom ?? [];
+    return new Set(values.filter((v): v is string => typeof v === "string" && /^whatsapp:\+[1-9][0-9]{7,14}$/.test(v)).map((v) => v.slice(9)));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * S24 12/10: the Gateway runs inbound_claim only for plugin-bound conversations, so the owner's WhatsApp turns
+ * never reached the capability-first path (Amine: « même pour moi il ne faut pas passer par le modèle »).
+ * before_dispatch runs for every inbound message but carries no senderIsOwner: the owner is proved by the routed
+ * main session key AND the number listed in commands.ownerAllowFrom. WhatsApp only: app turns already run the
+ * fast path in the Companion and must never execute twice.
+ */
+export async function handleOwnerBeforeDispatch(
+  event: { messageId?: string; content?: string; body?: string; channel?: string; sessionKey?: string; isGroup?: boolean; timestamp?: number },
+  ctx: { messageId?: string; channelId?: string; sessionKey?: string },
+  runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
+  owners: () => Set<string> = ownerWhatsAppNumbers,
+): Promise<{ handled: boolean; text?: string }> {
+  const sessionKey = String(ctx?.sessionKey ?? event?.sessionKey ?? "");
+  const channel = String(event?.channel ?? ctx?.channelId ?? "").toLowerCase();
+  const match = OWNER_WHATSAPP_SESSION.exec(sessionKey);
+  if (channel !== "whatsapp" || !match || event?.isGroup === true) return { handled: false };
+  const number = match[1].startsWith("+") ? match[1] : "+" + match[1];
+  if (!owners().has(number)) return { handled: false };
+  const out = await handleOwnerFastPath(
+    // content is the sender's text; body may carry the channel envelope.
+    { content: event?.content || event?.body, senderIsOwner: true, isGroup: false, sessionKey, timestamp: event?.timestamp },
+    { agentId: "main", sessionKey, channel: "whatsapp", runId: event?.messageId ?? ctx?.messageId },
+    runner,
+  );
+  return out.handled ? { handled: true, text: out.reply?.text } : { handled: false };
+}
+
+/**
+ * Owner WhatsApp / plugin-bound turn (SAM-MIG V2.2): one admitted event for the dialogue coordinator, which owns
+ * the pending question (no in-process copy here). The reply text goes back as the hook `text`, which OpenClaw
+ * delivers through its durable queue (L0: outbound-prepared-v1) — never a direct send from the plugin.
+ * Not handled (UNRESOLVED outside a question, D-G): the agent continues as before.
+ */
 export async function handleOwnerFastPath(
-  event: InboundEvent,
+  event: InboundEvent & { timestamp?: number },
   ctx: InboundContext,
   runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
-  clarifications: SurfaceClarifications = runner === runModelFastPath ? inboundClarifications() : new SurfaceClarifications(runner),
 ): Promise<{ handled: boolean; reply?: { text: string } }> {
   if (!isOwnerFastPathEligible(event, ctx)) return { handled: false };
   const message = (event.bodyForAgent ?? event.content ?? "").trim();
-  try {
-    const id = SurfaceClarifications.idFor(conversationKey(event, ctx));
-    // 38 E3: a pending CLARIFY of this conversation is answered through resolve-clarification.
-    if (clarifications.hasPending(id)) {
-      const turn = await clarifications.turn(message, { surface: surfaceFor(ctx), id, originId: originId(event, ctx), timeoutSeconds: 30 });
-      if (turn.state === "needs_clarification") return { handled: true, reply: { text: turn.question } };
-      if (turn.state === "done" || turn.state === "failed") return { handled: true, reply: { text: turn.text } };
-      // Resolved but not deterministic: the agent continues in the same session (question + answer).
-      return { handled: false };
-    }
-    const result = await runner(message, {
-      surface: surfaceFor(ctx),
-      caller: "owner",
-      originId: originId(event, ctx),
-      timeoutSeconds: 30,
-    });
-    const text = typeof result.text === "string" ? result.text.trim() : "";
-    if ((result.status === "hit" || result.status === "known_error") && text) {
-      return { handled: true, reply: { text } };
-    }
-    if (result.status === "clarification" && result.decision) {
-      // Same question on every surface; the answer comes back through resolve-clarification.
-      const question = text || String((result.clarification as any)?.question || "Précise ce que tu veux faire.");
-      if (clarifications.hold(id, message, result.decision, surfaceFor(ctx))) return { handled: true, reply: { text: question } };
-    }
-    return { handled: false };
-  } catch {
-    return { handled: false };
-  }
+  const graphSurface = surfaceFor(ctx);
+  const reply = await dialogueTurn(runner, {
+    surface: graphSurface === "whatsapp" ? "whatsapp" : "claw_live",
+    graphSurface,
+    conversationKey: conversationKey(event, ctx),
+    eventRef: transportEventRef(ctx.runId, event.runId, event.idempotencyKey, event.id),
+    text: message,
+    caller: "owner",
+    admittedAt: admittedAtMs(event.timestamp),
+    policy: { modelAllowed: true },
+    timeoutSeconds: 75,
+  });
+  if (!reply.handled) return { handled: false };
+  return { handled: true, reply: { text: String(reply.text || "").trim() || "Claw n'a pas pu traiter la demande." } };
 }

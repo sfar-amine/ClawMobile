@@ -16,14 +16,14 @@ OWNER='+21610000001';OTHER='+21610000002';NEW='+21610000003'
 class AllowlistTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.now=1800000000
-        self.old=(m.ROOT,m.DB,m.CONTACTS,m.CONFIG,m.SESSION_DB)
-        m.ROOT=self.root/'people';m.DB=m.ROOT/'directory.db';m.CONTACTS=self.root/'contacts';m.CONFIG=self.root/'config.json';m.SESSION_DB=self.root/'sessions.sqlite'
+        self.old=(m.ROOT,m.DB,m.CONTACTS,m.CONFIG,m.SESSION_DB,m.WORKSPACE)
+        m.WORKSPACE=self.root/'workspace';m.ROOT=self.root/'people';m.DB=m.ROOT/'directory.db';m.CONTACTS=self.root/'contacts';m.CONFIG=self.root/'config.json';m.SESSION_DB=self.root/'sessions.sqlite'
         self.cfg={'commands':{'ownerAllowFrom':['whatsapp:'+OWNER]},'channels':{'whatsapp':{'allowFrom':[OTHER,OWNER],'direct':{OTHER:{'systemPrompt':'KEEP','other':'stay'},'*':{'systemPrompt':'BASE'}}}},'unrelated':{'stay':True}}
         self.save();self.calls=[];self.service=m.Contacts(m._ExistingPeopleOwner(),clock=lambda:self.now,state_dir=self.root,owner_sender=lambda message,key: 'accepted')
         self.gw=patch.object(m,'gateway_call',side_effect=self.gateway);self.gw.start()
         self.send=patch.object(m,'whatsapp_send',return_value='safe-message-id');self.sender=self.send.start()
     def tearDown(self):
-        self.gw.stop();self.send.stop();m.ROOT,m.DB,m.CONTACTS,m.CONFIG,m.SESSION_DB=self.old;self.tmp.cleanup()
+        self.gw.stop();self.send.stop();m.ROOT,m.DB,m.CONTACTS,m.CONFIG,m.SESSION_DB,m.WORKSPACE=self.old;self.tmp.cleanup()
     def save(self):m.CONFIG.write_text(json.dumps(self.cfg))
     def gateway(self, method, params=None, timeout_ms=7000):
         self.calls.append((method,params))
@@ -109,6 +109,19 @@ class AllowlistTests(unittest.TestCase):
         with self.assertRaises(m.Refused) as e:self.service.call('rooms',self.body('rooms',operationId='rooms-owner',contactId=m.contact_id(OWNER),rooms=['projet']))
         self.assertEqual(e.exception.code,'owner_contact_protected')
         self.assertFalse(any(method=='config.patch' for method,_ in self.calls[calls:]))
+    def test_pulse_room_picks_its_agent_alone_or_with_projet(self):
+        self.add();self.with_rooms_config()
+        self.cfg['agents']['entries'].update({'contacts-pulse':{},'contacts-projet-pulse':{}});self.save()
+        peer=lambda:[b['agentId'] for b in self.cfg['bindings'] if b['match'].get('peer',{}).get('id')==NEW]
+        out=self.rooms(['pulse'],'rooms-pulse');self.assertEqual(out['receipt']['rooms'],['conversation','pulse']);self.assertEqual(peer(),['contacts-pulse'])
+        both=self.rooms(['pulse','projet'],'rooms-both');self.assertEqual(both['receipt']['rooms'],['conversation','projet','pulse']);self.assertEqual(peer(),['contacts-projet-pulse'])
+        self.rooms(['projet'],'rooms-back-to-projet',confirm=False);self.assertEqual(peer(),[m.PROJECT_AGENT])
+        self.rooms(['conversation'],'rooms-none',confirm=False);self.assertEqual(peer(),[])
+    def test_pulse_room_requires_its_provisioned_agent(self):
+        self.add();self.with_rooms_config()
+        with self.assertRaises(m.Refused) as e:self.rooms(['pulse'],'rooms-pulse-unprovisioned')
+        self.assertEqual(e.exception.code,'pulse_room_unavailable')
+        self.assertNotIn(NEW,[b['match'].get('peer',{}).get('id') for b in self.cfg['bindings']])
     def test_project_room_requires_its_provisioned_agent(self):
         self.add();self.with_rooms_config();del self.cfg['agents']['entries'][m.PROJECT_AGENT];self.save()
         with self.assertRaises(m.Refused) as e:self.rooms(['projet'],'rooms-unprovisioned')
@@ -417,5 +430,82 @@ class AllowlistTests(unittest.TestCase):
         self.assertFalse(result['success']);self.assertEqual(result['state'],'failed');self.assertEqual(result['statusCode'],503)
         self.assertTrue(self.service.call('operation',{'operationId':body['operationId'],'requestHash':body['requestHash']})['retryable'])
         retried=self.service.call('expiry',body);self.assertEqual(retried['state'],'updated');self.assertEqual(retried['receipt']['action'],'shortened')
+
+    # M4: forget contact material 30 days after access ended (expiry or removal).
+    def inbox(self, *senders):
+        real=self.root/'private'/'whatsapp'/'inbox';real.mkdir(parents=True,exist_ok=True)
+        link=m.WORKSPACE/'memory'/'amine-inbox.md';link.parent.mkdir(parents=True,exist_ok=True)
+        # Shape of the S24 capture (fixtures/s24-2026-10-12/m4/private-layout.json); content is synthetic.
+        layout=json.loads((MODULE.parents[2]/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-12/m4/private-layout.json').read_text())
+        entries=[layout['inboxEntryTemplate'].format(at='2026-09-25 14:0'+str(i)+' UTC',name='Contact'+str(i),number=n.lstrip('+') if i%2 else n,message='message '+str(i),status='DELIVERED') for i,n in enumerate(senders)]
+        (real/'amine-inbox.md').write_text(layout['inboxHeader']+''.join(entries));link.symlink_to(real/'amine-inbox.md')
+        return real/'amine-inbox.md'
+    def removed(self, number, days_ago):
+        c=m.connect();op='synthetic-remove:'+number
+        c.execute("INSERT INTO send_receipts VALUES(?,?,?,'removed',?,?,?)",('r17:'+m.digest(op),m.contact_id(number),'0'*64,m.canonical({'success':True,'state':'removed','receipt':{'action':'removed','contactId':m.contact_id(number),'state':'removed','at':m.utc(self.now)}}),self.now-days_ago*86400,self.now-days_ago*86400));c.commit();c.close()
+    def forgotten(self):
+        c=sqlite3.connect(m.DB);rows=[json.loads(r[0]) for r in c.execute("SELECT message_id FROM send_receipts WHERE state='forgotten'")];c.close();return rows
+    def test_forget_removed_contact_after_30_days_file_and_inbox_with_receipt(self):
+        self.add();identity=m.contact_id(NEW);self.service.call('note',self.body('note',contactId=identity,text='Private note'))
+        remove=self.body('remove',contactId=identity);self.confirmed(remove,'remove');self.service.call('remove',remove)
+        inbox=self.inbox(NEW,OTHER,NEW);self.assertTrue(self.service.path(NEW).exists())
+        self.now+=30*86400-1;out=self.service.call('sweep',{})
+        self.assertEqual(out['forget']['state'],'idle');self.assertTrue(self.service.path(NEW).exists());self.assertEqual(inbox.read_text().count('- Date/time'),3)
+        self.now+=2;calls=len(self.calls);out=self.service.call('sweep',{})
+        self.assertEqual(out['forget'],{'state':'completed','forgotten':1,'remaining':0,'protected':0,'contactFiles':1,'inboxEntries':2})
+        self.assertFalse(self.service.path(NEW).exists());text=inbox.read_text()
+        self.assertEqual(text.count('- Date/time'),1);self.assertIn(OTHER[1:],text);self.assertNotIn(NEW[4:],text);self.assertTrue(text.startswith('# Amine Inbox'))
+        self.assertEqual([c[0] for c in self.calls[calls:]],['config.get']);self.assertNotIn(NEW,self.cfg['channels']['whatsapp']['allowFrom'])
+        receipts=self.forgotten();self.assertEqual(len(receipts),1);receipt=receipts[0]['receipt']
+        self.assertEqual((receipt['action'],receipt['contactId'],receipt['retentionDays'],receipt['purged']),('forgotten',identity,30,{'contactFile':True,'inboxEntries':2}))
+        blob=json.dumps(out)+json.dumps(receipts);self.assertNotIn(NEW,blob);self.assertNotIn(NEW[1:],blob);self.assertNotIn('Private note',blob)
+        # Idempotent: nothing left, no Gateway call, no second receipt, history unchanged.
+        calls=len(self.calls);again=self.service.call('sweep',{})
+        self.assertEqual(again['forget']['state'],'idle');self.assertEqual(len(self.calls),calls);self.assertEqual(len(self.forgotten()),1)
+        self.assertNotIn('forgotten',[e['action'] for e in self.service.call('history',{})['items']])
+    def test_forget_after_expiry_sweep(self):
+        self.add(durationDays=1);self.now+=86401;self.assertTrue(self.service.call('sweep',{})['success'])
+        self.assertTrue(self.service.path(NEW).exists())
+        self.now+=30*86400+1;out=self.service.call('sweep',{})
+        self.assertEqual(out['forget']['forgotten'],1);self.assertFalse(self.service.path(NEW).exists())
+        self.assertEqual(out['forget']['inboxEntries'],0)
+    def test_forget_protects_owner_allowlisted_and_readded_contacts(self):
+        m.CONTACTS.mkdir()
+        for number in (OWNER,OTHER):(m.CONTACTS/('wa_'+number[1:]+'.md')).write_text('# private\n');self.removed(number,40)
+        self.inbox(OWNER,OTHER)
+        out=self.service.call('sweep',{})
+        self.assertEqual(out['forget']['forgotten'],0);self.assertEqual(out['forget']['protected'],2)
+        self.assertTrue(all((m.CONTACTS/('wa_'+n[1:]+'.md')).exists() for n in (OWNER,OTHER)))
+        # Removed then re-added: the latest grant wins, nothing is forgotten.
+        self.add();identity=m.contact_id(NEW);remove=self.body('remove',contactId=identity);self.confirmed(remove,'remove');self.service.call('remove',remove)
+        self.now+=86400;readd=self.body('add',operationId='readd',e164=NEW,contactId=identity,scope='standard',scopeText=None,durationDays=None,notify=False)
+        self.confirmed(readd,'add');self.assertEqual(self.service.call('add',readd)['state'],'added')
+        self.now+=40*86400;self.assertEqual(self.service.call('sweep',{})['forget']['forgotten'],0);self.assertTrue(self.service.path(NEW).exists())
+        self.assertEqual(self.forgotten(),[])
+    def test_forget_crash_after_delete_is_completed_once_next_pass(self):
+        self.add();identity=m.contact_id(NEW);remove=self.body('remove',contactId=identity);self.confirmed(remove,'remove');self.service.call('remove',remove)
+        inbox=self.inbox(NEW);self.now+=31*86400
+        real=m.os.replace
+        def crash(src,dst):
+            if str(src).endswith('.m4.tmp'):raise OSError('disk')
+            return real(src,dst)
+        with patch.object(m.os,'replace',side_effect=crash):out=self.service.call('sweep',{})
+        self.assertEqual(out['forget']['state'],'unavailable');self.assertTrue(out['success'])
+        self.assertFalse(self.service.path(NEW).exists());self.assertIn(NEW[1:],inbox.read_text())
+        c=sqlite3.connect(m.DB);self.assertEqual(c.execute("SELECT state FROM send_receipts WHERE target=? ORDER BY updated_at DESC,rowid DESC LIMIT 1",(identity,)).fetchone()[0],'pending');c.close()
+        out=self.service.call('sweep',{});self.assertEqual(out['forget']['inboxEntries'],1);self.assertNotIn(NEW[1:],inbox.read_text())
+        self.assertEqual(len(self.forgotten()),1);self.assertFalse(list(inbox.parent.glob('*.tmp')))
+    def test_forget_is_bounded_per_pass(self):
+        m.CONTACTS.mkdir()
+        numbers=['+2161100'+str(i).zfill(4) for i in range(m.FORGET_BATCH+5)]
+        for number in numbers:(m.CONTACTS/('wa_'+number[1:]+'.md')).write_text('# private\n');self.removed(number,31)
+        first=self.service.call('sweep',{})['forget'];self.assertEqual((first['state'],first['forgotten'],first['remaining']),('partial',m.FORGET_BATCH,5))
+        second=self.service.call('sweep',{})['forget'];self.assertEqual((second['forgotten'],second['remaining']),(5,0))
+        self.assertEqual(list(m.CONTACTS.glob('*.md')),[]);self.assertEqual(len(self.forgotten()),len(numbers))
+    def test_forget_gateway_unavailable_never_fails_expiry_sweep(self):
+        m.CONTACTS.mkdir();(m.CONTACTS/('wa_'+NEW[1:]+'.md')).write_text('# private\n');self.removed(NEW,31)
+        def gw(method,params=None,timeout_ms=7000):raise RuntimeError('offline')
+        with patch.object(m,'gateway_call',side_effect=gw):out=self.service.call('sweep',{})
+        self.assertTrue(out['success']);self.assertEqual(out['forget'],{'state':'unavailable'});self.assertTrue(self.service.path(NEW).exists())
 
 if __name__=='__main__':unittest.main()

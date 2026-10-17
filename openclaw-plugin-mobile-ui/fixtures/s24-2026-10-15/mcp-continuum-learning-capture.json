@@ -1,0 +1,62 @@
+{
+  "provenance": {
+    "source": "admitted owner MCP S24 responses",
+    "captured_at": "2026-10-15",
+    "sanitized": true,
+    "business_writes": 0
+  },
+  "capture_status": {
+    "request_id": "mcp-codex-cloud-pulse-collaborator-monthly-20261015-learn-latency-scope-33",
+    "task_id": "mcp:codex-cloud:pulse-collaborator-monthly-20261015",
+    "step_id": "continuum-59e4da68b53533476a2177e899b57542e5063807c3d6f15134175063856cb44c",
+    "retry_allowed": false,
+    "state": "completed",
+    "capability": "engineering.learning_gate",
+    "route": null,
+    "result": {
+      "capture_ms": 32.21,
+      "created_at": "2026-10-15T12:53:03.963061+00:00",
+      "duplicate": false,
+      "durable": true,
+      "learning_outcome": "candidate_pending",
+      "promotion": "not_performed",
+      "receipt_id": "afac9ede338cf36c798ceac42218fbd6",
+      "state": "pending",
+      "worker": {
+        "pid": 18684,
+        "state": "started"
+      }
+    },
+    "continuum": {
+      "state": "verification_required",
+      "step": "learn-latency-scope-33",
+      "revision": 6,
+      "attempt_id": "mcp-85a9e14f8b73671c172890b7",
+      "attempt_state": "indeterminate",
+      "wait": null,
+      "next_action": {
+        "action": "observe-existing-attempt",
+        "preconditions": {
+          "attempt_id": "mcp-85a9e14f8b73671c172890b7"
+        }
+      },
+      "terminal_reason": null
+    },
+    "_claw_access": {
+      "client_id": "codex-cloud",
+      "profile": "chat-owner",
+      "owner": true,
+      "read_only": false
+    }
+  },
+  "raw_diagnostic": {
+    "state": "failed",
+    "error": "continuum_fence_required",
+    "_claw_access": {
+      "client_id": "codex-cloud",
+      "profile": "chat-owner",
+      "owner": true,
+      "read_only": false
+    }
+  }
+}

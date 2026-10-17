@@ -15,6 +15,29 @@ const ids=p=>p.steps.map(s=>s.id+':'+s.state);
 // Capability-first EXECUTE done (Orange balance run of 10/10).
 let p=runProgressSteps(find(r=>r.executionSource==='capability_first'&&r.state==='done'&&r.decision?.type==='EXECUTE'));
 assert.deepEqual(ids(p),['accepted:done','understood:done','execute:done']);assert.equal(p.steps[2].at,T0+6533);assert.equal(p.failedStep,undefined);
+// File 52 E: a real S24 billing receipt, augmented only with the paired Graph
+// contract, publishes business stages instead of agent tool calls.
+const terminalReceipts=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/hs3-terminal-receipts.json'),'utf8'));
+const billingReceipt=terminalReceipts.families.factures.receipt.envelope;
+const billingDecision={...billingReceipt,type:'EXECUTE',selected:{...billingReceipt.selected,execution_contract:{
+  published_steps:['provider_selection','provider_read','verified_aggregation'],
+  published_steps_scope:'business_only_no_agent_tool_calls',
+}}};
+p=runProgressSteps({executionSource:'capability_first',state:'done',acceptedAt:T0,updatedAt:T0+5510,decision:billingDecision});
+assert.deepEqual(ids(p),['accepted:done','understood:done','business-provider_selection:done','business-provider_read:done','business-verified_aggregation:done']);
+assert.deepEqual(p.steps.slice(2).map(s=>s.label),['Sélection des fournisseurs','Lecture des factures','Synthèse vérifiée']);
+assert.ok(!JSON.stringify(p).includes('claw.skill_route'));
+// Unknown or tool-shaped contract entries cannot become public progress labels.
+const unsafeDecision={...billingDecision,selected:{...billingDecision.selected,execution_contract:{
+  published_steps:['provider_selection','agent.tool_call','{"raw":1}'],
+  published_steps_scope:'business_only_no_agent_tool_calls',
+}}};
+p=runProgressSteps({executionSource:'capability_first',state:'running',acceptedAt:T0,decision:unsafeDecision});
+assert.deepEqual(ids(p),['accepted:done','understood:done','business-provider_selection:running']);
+const gatewayBusiness=runProgressSteps({executionSource:'gateway',state:'running',acceptedAt:T0,decision:billingDecision,
+  events:[{type:'tool',label:'claw.skill_route',at:T0+10,seq:1}]});
+assert.deepEqual(ids(gatewayBusiness),['accepted:done','business-provider_selection:running','business-provider_read:pending','business-verified_aggregation:pending']);
+assert.ok(!JSON.stringify(gatewayBusiness).includes('claw.skill_route'));
 // Failed run: failed step visible, raw error never used as cause, effect unknown.
 p=runProgressSteps(find(r=>r.state==='failed'));
 assert.deepEqual(ids(p),['accepted:done','understood:done','execute:failed']);assert.equal(p.failedStep,'Exécution');
@@ -38,7 +61,7 @@ assert.equal(p.failedStep,'Exécution du paiement');assert.equal(p.cause,failedP
 assert.equal(runProgressSteps({...find(r=>r.state==='failed'),presentation:{...failedPayment,locale:'en'}}).steps[0].label,'Request received');
 
 // Existing route GET /v1/runs/{id}: steps derived on read, never persisted.
-const helper=path.join(root,'helper.py');fs.writeFileSync(helper,`import sys,json\np=json.loads(${JSON.stringify(JSON.stringify(failedPayment))})\nprint(json.dumps({'status':'eligible'} if '--check' in sys.argv else {'status':'known_error','text':p['spoken'],'presentation':p}))\n`);process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
+const helper=path.join(root,'helper.py');fs.writeFileSync(helper,`import sys,json\np=json.loads(${JSON.stringify(JSON.stringify(failedPayment))})\nm=sys.argv[sys.argv.index('--dialogue')+1]\nprint(json.dumps({'outcome':'READY','handled':True,'goalRef':'goal-eeeeeeeeeeeeeeeeeeee','pendingHandoff':{'goalRef':'goal-eeeeeeeeeeeeeeeeeeee','klass':'DURABLE'}} if m=='turn' else {'outcome':'FAILED','text':p['spoken'],'handled':True,'metadata':{'presentation':p}}))\n`);process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
 const {submitIntent}=require('../dist/companion/intent'),{route}=require('../dist/companion/server');
 const request=(port,runId)=>new Promise((resolve,reject)=>{http.get({host:'127.0.0.1',port,path:'/v1/runs/'+runId},res=>{let body='';res.on('data',c=>body+=c);res.on('end',()=>{try{resolve({status:res.statusCode,body:JSON.parse(body)})}catch(e){reject(e)}})}).on('error',reject)});
 (async()=>{const server=http.createServer((req,res)=>route(req,res).catch(()=>{res.writeHead(500);res.end('{}')}));await new Promise(r=>server.listen(0,'127.0.0.1',r));try{

@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 import { capabilityBridge } from "./capabilityBridge";
 import { delegateMcpOwnerRequest } from "./mcpOwnerDelegate";
+import { memoryRemember } from "./memoryControl";
 
 const ROOT = process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR || path.join(os.homedir(), ".openclaw", "remote-bridge");
 const REQUEST_DIR = path.join(ROOT, "requests");
@@ -199,6 +200,12 @@ function readContinuumState(taskId: string): any | null {
     throw statusError(409, "continuum_journal_invalid");
   }
   return state;
+}
+
+/** Use the Bridge's canonical validated journal reader; absence alone preserves standalone exec. */
+export function hasContinuumTask(taskId: string): boolean {
+  if (!/^[A-Za-z0-9._:-]{1,160}$/.test(taskId)) throw statusError(409, "invalid_continuum_task_id");
+  return readContinuumState(taskId) !== null;
 }
 
 function normalizeContinuumFence(value: any): ContinuumFence {
@@ -488,7 +495,7 @@ export function getRemoteBridgeTask(taskId: string, rawLimit = 50) {
 
 function mutationRisk(method: string, params?: Record<string, unknown>): "read" | "write" | "unknown" {
   if (["ping", "request_status", "task_status", "read_file", "read_binary_file", "artifact_read", "process_status", "mcp_capability_execute_readonly", "capability_execute_readonly"].includes(method)) return "read";
-  if (["write_file", "patch_file", "write_binary_file", "process_input", "process_stop"].includes(method)) return "write";
+  if (["write_file", "patch_file", "write_binary_file", "process_input", "process_stop", "context_remember"].includes(method)) return "write";
   if (["mcp_capability_execute_owner", "capability_execute_owner"].includes(method)) {
     const decision = params?.decision && typeof params.decision === "object" ? params.decision as Record<string, unknown> : undefined;
     const risk = String(decision?.risk || "").trim();
@@ -776,6 +783,12 @@ async function dispatch(request: RemoteBridgeRequest) {
       return bridgeProcessInput(params);
     case "process_stop":
       return bridgeProcessStop(params);
+    case "context_remember":
+      // M2: only an admitted MCP owner identity may write shared memory through the bridge.
+      if (request._claw_access?.owner !== true || request._claw_access.profile !== "chat-owner") {
+        throw new Error("owner_mcp_access_required");
+      }
+      return memoryRemember(params);
     default:
       throw new Error(`unsupported_method:${request.method}`);
   }

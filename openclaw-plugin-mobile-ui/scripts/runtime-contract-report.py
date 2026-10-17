@@ -4,6 +4,7 @@ import argparse
 import ast
 import hashlib
 import json
+import math
 import re
 import time
 import urllib.error
@@ -148,22 +149,46 @@ def fetch_json(opener, url, timeout):
 ACCEPTANCE = Path(__file__).resolve().parents[2] / "installer/termux-lite/companion-acceptance.py"
 
 def read_budgets(source=ACCEPTANCE):
-    """Read the literal recipe table without executing the acceptance program."""
-    tree = ast.parse(source.read_text(encoding="utf-8"))
-    reads = next(ast.literal_eval(node.value) for node in tree.body
-                 if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "READS" for target in node.targets))
-    budgets = {}
-    for path, seconds in reads:
-        route = "/v1" + path.split("?")[0]
-        budgets[route] = max(budgets.get(route, 0), seconds)
-    return budgets
+    """Extract the literal canonical READS table; never import or execute a recipe."""
+    try:
+        text = Path(source).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise ContractError('budget_source_missing') from None
+    except (OSError, UnicodeError):
+        raise ContractError('budget_source_unreadable') from None
+    try:
+        tree = ast.parse(text)
+        tables = [node.value for node in tree.body
+                  if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "READS" for target in node.targets)]
+        if len(tables) != 1:
+            raise ValueError()
+        reads = ast.literal_eval(tables[0])
+        if not isinstance(reads, list) or not reads:
+            raise ValueError()
+        budgets = {}
+        for row in reads:
+            if not isinstance(row, (tuple, list)) or len(row) != 2:
+                raise ValueError()
+            path, seconds = row
+            if (not isinstance(path, str) or not path.startswith('/') or
+                    isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or
+                    not math.isfinite(seconds) or seconds <= 0):
+                raise ValueError()
+            route = "/v1" + path.split("?")[0]
+            budgets[route] = max(budgets.get(route, 0), seconds)
+        return budgets
+    except (SyntaxError, ValueError, TypeError, OverflowError, RecursionError):
+        raise ContractError('budget_source_invalid') from None
 
-READ_BUDGET_SECONDS = read_budgets()
+def request_timeout(path, override, budgets=None):
+    if override is not None:
+        return override
+    return (read_budgets() if budgets is None else budgets).get(path.split("?")[0], 1) + 2
 
-def request_timeout(path, override):
-    return override if override is not None else READ_BUDGET_SECONDS.get(path.split("?")[0], 1) + 2
+def report(base, manifest, bindings=None, timeout=None, fixture=False, acceptance=ACCEPTANCE):
+    return _report(base, manifest, bindings, timeout, fixture, read_budgets(acceptance))
 
-def report(base, manifest, bindings=None, timeout=None, fixture=False):
+def _report(base, manifest, bindings, timeout, fixture, budgets):
     base = base_url(base)
     validate_manifest(manifest)
     if not fixture and manifest != json.loads(CANONICAL.read_text()):
@@ -182,7 +207,7 @@ def report(base, manifest, bindings=None, timeout=None, fixture=False):
             if path is None:
                 row.update(verdict='unqualified', reason='fixture_binding_required')
             else:
-                data, status, error, elapsed = fetch_json(opener, base + path, request_timeout(path, timeout))
+                data, status, error, elapsed = fetch_json(opener, base + path, request_timeout(path, timeout, budgets))
                 row.update(attempts=1, httpStatus=status, elapsedMs=round(elapsed * 1000))
                 if error: row.update(verdict='failed', reason=error)
                 elif secret_present(data): row.update(verdict='failed', reason='secret_detected')
@@ -190,7 +215,7 @@ def report(base, manifest, bindings=None, timeout=None, fixture=False):
                 else: row.update(verdict='passed')
         rows.append(row)
     # Inventory is drift evidence only, never the completeness authority.
-    inventory, status, error, _ = fetch_json(opener, base + '/v1', request_timeout('/v1', timeout))
+    inventory, status, error, _ = fetch_json(opener, base + '/v1', request_timeout('/v1', timeout, budgets))
     advertised = inventory.get('endpoints') if isinstance(inventory, dict) else None
     templates = {c['template'].split('?')[0] for c in manifest['cases']}
     drift = isinstance(advertised, list) and any(not isinstance(p, str) or p not in templates for p in advertised)
@@ -207,14 +232,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base-url', default='http://127.0.0.1:8765')
     parser.add_argument('--bindings', type=Path)
+    parser.add_argument('--acceptance', type=Path, default=ACCEPTANCE, help='Path to the canonical acceptance recipe; only its literal READS table is parsed')
     parser.add_argument('--timeout', type=float, help='Explicit timeout override; default uses per-route measured read budgets plus 2 seconds')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     try:
+        budgets = read_budgets(args.acceptance)
         manifest = json.loads(CANONICAL.read_text())
         bindings = json.loads(args.bindings.read_text()) if args.bindings else {}
-        result = report(args.base_url, manifest, bindings, args.timeout)
-    except (ContractError, ValueError, OSError):
+        result = _report(args.base_url, manifest, bindings, args.timeout, False, budgets)
+    except ContractError as error:
+        reason = str(error) if str(error) in {'budget_source_missing', 'budget_source_unreadable', 'budget_source_invalid'} else 'configuration_rejected'
+        result = {'schema': 'samantha.runtime.contract-report.v2', 'state': 'invalid_configuration', 'complete': False, 'reason': reason}
+    except (ValueError, OSError):
         result = {'schema': 'samantha.runtime.contract-report.v2', 'state': 'invalid_configuration', 'complete': False, 'reason': 'configuration_rejected'}
     # No response body, URL, parameter value, owner header, operation id or exception text.
     args.output.write_text(json.dumps(result, indent=2) + '\n')
