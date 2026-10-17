@@ -101,11 +101,13 @@ export const SYSTEM = "Answer the user's question using ONLY the supplied PUBLIC
   "(fr = French, en = English, ar = Arabic, aeb = Tunisian Arabic), as 1 to 6 short sentences: the first sentence " +
   "answers the question directly (yes, no, or not confirmed by the sources), the next ones give the supporting facts " +
   "with their dates. today is the current date: use it to judge words like today, latest or recent, and say plainly " +
-  "when no source covers today. Return ONLY JSON with key claims: a list of objects " +
+  "when no source covers today. Return ONLY the JSON object {\"claims\":[ \u2026 ]}, never a bare list, each item " +
   "{id,text,sourceIds,support:[{sourceId,quote}]}, one object per sentence, in reading order. text is your sentence " +
   "(translation and paraphrase allowed, no URL, no source ID inside text). Every sourceId listed must have one support " +
   "item whose quote is an exact, short substring copied from that source's excerpt and which states the fact. " +
   "Every number and every proper name in text must appear in its quotes, in its source titles or in the query. " +
+  "Every sentence MUST cite at least one source id and carry its exact quote: when the excerpts do not cover the question, " +
+  "say so in text and cite the closest relevant source with the quote that shows it. " +
   "Omit anything the excerpts do not state. Total text <=1200 characters. Never invent dates, quantities, URLs or source IDs.";
 
 const DIGITS=/\d+/g;
@@ -245,7 +247,9 @@ export async function synthesizePublic(request, owner, {signal,env=process.env,c
     }
     const raw=result.content.map(x=>x.text).join("");
     if(Buffer.byteLength(raw)>32768)fail("invalid_provider_response");
-    const parsed=JSON.parse(raw.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/,"$1"));
+    // A bare list is the same content without its wrapper; the claim contract below is unchanged.
+    const decoded=JSON.parse(raw.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/,"$1"));
+    const parsed=Array.isArray(decoded)?{claims:decoded}:decoded;
     if(!parsed||Object.keys(parsed).join()!=="claims"||!Array.isArray(parsed.claims))fail("invalid_provider_response");
     // The Python boundary validates exact quotes, every citation, IDs and sizes.
     const {claims,spokenText}=validateGroundedClaims(parsed.claims,request.sources,{query:request.query,today});
