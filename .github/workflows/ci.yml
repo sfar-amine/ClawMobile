@@ -245,6 +245,9 @@ jobs:
       - name: Run read-only diagnostic export contract
         run: node scripts/test-diagnostic.cjs
 
+      - name: Test automation SQLite revision latency and cache
+        run: node scripts/test-control-automations-latency.cjs
+
       - name: Run agent configuration owner contract
         run: node scripts/test-agent-config.cjs
       - name: Agent config concurrent owner reads

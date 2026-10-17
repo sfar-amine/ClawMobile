@@ -87,6 +87,8 @@ OWNER_GUARDS = [
     ("POST", "/payments/" + "1" * 8 + "-1111-4111-8111-" + "1" * 12 + "/bank-return"),
 ]
 OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0, "/payments/local-handoffs": 2.0, "/payments/local-start": 2.0, "/conversations/acceptance-probe/archive": 2.0, "/conversations/acceptance-probe/unarchive": 2.0}  # admission/refusal budget, no effect without owner proof
+# Short-cache reads (cache shorter than RETRY_PAUSE_S, so the retry is cold too): prewarmed untimed, like /catalog.
+PREWARM = {"/control/automations?contract=2", "/learning/associations?limit=20"}
 SETTLE_SECONDS = 15
 # O9 (fichier 37): a voice run whose transcript is final (completed/interrupted) is never state=unknown.
 VOICE_TERMINAL_ROUTE = "/runs?limit=50"
@@ -237,6 +239,14 @@ def main(session_id=None, baseline_path=None):
     if session_id is not None:
         metadata_checks(session_id)
     for path, budget in READS:
+        if path in PREWARM:
+            # Same rule as /catalog: one untimed read right before the timed row, so a cold restart (empty short
+            # cache, first collection) is not judged as a code regression. S24 17/10: rolled back on these two rows.
+            warm_code, _, warm_seconds = call("GET", path, budget + 10)
+            warm_status = "ok" if warm_code == 200 else ("skipped" if warm_code == 404 else "fail")
+            failed |= warm_status == "fail"
+            results.append({"route": path, "check": "prewarm", "code": warm_code,
+                            "seconds": round(warm_seconds, 2), "status": warm_status})
         for attempt in (1, 2):
             code, body, took = call("GET", path, budget + 5)
             timing_ok, previous_seconds, regression = timing_result(path, took, budget, baseline)
