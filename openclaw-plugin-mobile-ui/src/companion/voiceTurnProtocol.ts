@@ -49,7 +49,7 @@ export class VoiceTurnProtocol {
         else if(kind==="turnEnd")this.end(body);
         else if(kind==="transcriptFinal")this.transcriptFinal(body);
         else if(kind==="speakFirst")this.speakFirst(body);
-        else if(kind==="speakResult")this.speakResult(body);
+        else if(kind==="speakResult")state=this.speakResult(body);
         else this.interrupt(body);
         const reply={warmAck:{version:2,operationId:op,state,connectionEpoch:this.connectionEpoch,sessionEpoch:this.sessionEpoch}};
         this.operations.set(op,{hash,reply});this.emit(reply);return;
@@ -76,19 +76,23 @@ export class VoiceTurnProtocol {
    * (résultat du run, borné) ; il est lu tel quel, sans outil, comme la relecture public_web. Admise seulement
    * quand personne ne parle et que rien n'est dit ; toute nouvelle parole d'Amine l'interrompt (start()).
    */
-  private speakResult(body:any) {
+  private speakResult(body:any):string {
     const id=this.requireId(body.turnId);
     const text=typeof body.text==="string"?body.text.trim():"";
     if(!text||text.length>READBACK_MAX_CHARS)throw new Error("invalid_readback_text");
+    if(this.turns.has(id))throw new Error("turn_identity_conflict");
     const active=this.outputOwner?this.turns.get(this.outputOwner):null;
-    if(this.closed||this.asrOwner||this.waiting||this.nextOutput||(active&&!active.outputEnded)||this.turns.has(id))
-      throw new Error("readback_not_admissible");
-    if(this.turns.size>=64)throw new Error("session_turn_budget");
+    // Une course (Amine reprend la parole, sortie interrompue pas encore close par le fournisseur) n'est pas une
+    // faute de protocole : refus explicite, sans rendre la session ambiguë ; l'app garde la relecture et retente.
+    if(this.closed||this.asrOwner||this.waiting||this.nextOutput||(active&&!active.outputEnded)||this.turns.size>=64) {
+      this.event({readbackRefused:{reason:"not_admissible"}},id,null);return "refused";
+    }
     const t:Turn={id,end:0,inputEnded:true,asrFinished:true,outputEnded:false,interrupted:false,
       generation:"out-"+id,audio:new Map(),input:"",readback:true};
     this.turns.set(id,t);this.outputOwner=id;
     this.event({readbackAdmitted:{}},id,t.generation);
     this.forward({clientContent:{turns:[{role:"user",parts:[{text:VERBATIM_READBACK+JSON.stringify(text)}]}],turnComplete:true}});
+    return "accepted";
   }
   private start(body:any):string {
     const id=this.requireId(body.turnId);const first=body.firstSample;
