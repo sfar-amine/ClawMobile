@@ -255,6 +255,8 @@ jobs:
       - name: Run read-only diagnostic export contract
         run: node scripts/test-diagnostic.cjs
 
+      - name: Test persistent Gateway owner transport preparation
+        run: node scripts/test-persistent-gateway-transport.cjs && node scripts/test-gateway-entrypoint.cjs && node scripts/test-official-gateway-owner.cjs
       - name: Test automation SQLite revision latency and cache
         run: node scripts/test-control-automations-latency.cjs
 

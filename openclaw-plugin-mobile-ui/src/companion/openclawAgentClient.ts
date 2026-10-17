@@ -1,4 +1,6 @@
 import { spawn } from "child_process";
+import { PersistentGatewayTransport } from "./persistentGatewayTransport";
+import { createOfficialGatewayOwner } from "./officialGatewayOwner";
 import {opendirSync,readFileSync} from "fs";
 import {compactOwnerAgentContext} from "./clawLive";
 import {turnAdmission,type AdmissionTicket} from "./ownerTurnAdmission";
@@ -98,13 +100,48 @@ export async function callOpenClawGateway(
   params: Record<string, any> = {},
   options: { expectFinal?: boolean; timeoutMs?: number; hardTimeoutMs?: number; strictOutput?: {stdoutMaxBytes:number;stderrMaxBytes:number;killGraceMs:number} } = {},
 ): Promise<any> {
-  const timeoutMs = options.timeoutMs || DEFAULT_GATEWAY_CALL_TIMEOUT_MS;
-  const args = ["gateway", "call", method, "--json", "--timeout", String(timeoutMs), "--params", JSON.stringify(params)];
-  if (options.expectFinal) {
-    args.splice(3, 0, "--expect-final");
+  // Host turns retain the canonical CLI least-privilege policy until P1 admission is qualified.
+  // This is the sole dispatch path for these methods, never a replay after a WS request.
+  // R20 strict reads (bounded stdout/stderr, hard deadline, process-group kill, cleanupState) keep the
+  // canonical strict CLI owner: the persistent transport does not carry the cleanupState contract.
+  if (method === "agent" || method === "chat.send" || options.strictOutput) return callOpenClawGatewayCli(method, params, {
+    ...options, timeoutMs: options.timeoutMs ?? DEFAULT_GATEWAY_CALL_TIMEOUT_MS,
+  });
+  if (!gatewayTransport) {
+    gatewayTransport = new PersistentGatewayTransport(createOfficialGatewayOwner, callOpenClawGatewayCli);
   }
-  const hard=Math.min(timeoutMs + 5_000, options.hardTimeoutMs ?? Infinity);
-  return options.strictOutput ? runStrictOpenClaw(args,hard,options.strictOutput) : runOpenClaw(args,hard);
+  return gatewayTransport.call(method, params, {
+    ...options, timeoutMs: options.timeoutMs ?? DEFAULT_GATEWAY_CALL_TIMEOUT_MS,
+  });
+}
+
+let gatewayTransport: PersistentGatewayTransport | undefined;
+export function closeOpenClawGateway() {
+  gatewayTransport?.close(); gatewayTransport = undefined;
+}
+process.once("exit", closeOpenClawGateway);
+
+/** Original CLI owner retained solely for confirmed pre-dispatch unavailability. */
+async function callOpenClawGatewayCli(method: string, params: Record<string, any>,
+  options: {expectFinal?: boolean; timeoutMs?: number; hardTimeoutMs?: number; strictOutput?: {stdoutMaxBytes:number;stderrMaxBytes:number;killGraceMs:number}}) {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_GATEWAY_CALL_TIMEOUT_MS;
+  const args = ["gateway", "call", method, "--json", "--timeout", String(timeoutMs), "--params", JSON.stringify(params)];
+  if (options.expectFinal) args.splice(3, 0, "--expect-final");
+  try {
+    const hard = Math.min(timeoutMs + 5_000, options.hardTimeoutMs ?? Infinity);
+    return await (options.strictOutput ? runStrictOpenClaw(args, hard, options.strictOutput) : runOpenClaw(args, hard));
+  } catch (cause: any) {
+    const cas = ["config base hash unavailable; re-run config.get and retry",
+      "config base hash required; re-run config.get and retry",
+      "config changed since last load; re-run config.get and retry"];
+    if (method === "config.patch" && cas.some(message => String(cause?.message).trim() === message)) {
+      throw Object.assign(new Error("config baseHash conflict"), {
+        code: "gateway_config_revision_conflict", effectNotStarted: true, requestSent: true,
+      });
+    }
+    throw cause;
+  }
+
 }
 
 export function describeOpenClawResult(result: OpenClawAgentSubmitResult) {
@@ -152,6 +189,19 @@ function runOpenClaw(args: string[], hardTimeoutMs: number): Promise<any> {
       const out = Buffer.concat(stdout).toString("utf8").trim();
       const err = Buffer.concat(stderr).toString("utf8").trim();
       if (code !== 0) {
+        // The official --json CLI error formatter keeps refusal metadata machine-readable.
+        try {
+          const failure = JSON.parse(out);
+          if (failure?.ok === false && failure.error?.type === "gateway_request_error" &&
+            typeof failure.error.code === "string" && typeof failure.error.message === "string") {
+            reject(Object.assign(new Error(failure.error.message), {
+              name: "GatewayClientRequestError", gatewayCode: failure.error.code,
+              ...(["CRON_JOB_NOT_FOUND", "MISSING_SCOPE"].includes(failure.error.details?.code)
+                ? {details: {code: failure.error.details.code}} : {}),
+            }));
+            return;
+          }
+        } catch { /* Unrecognized stderr/stdout is normalized by the transport boundary. */ }
         reject(new Error(err || out || `OpenClaw gateway call exited with code ${code}.`));
         return;
       }

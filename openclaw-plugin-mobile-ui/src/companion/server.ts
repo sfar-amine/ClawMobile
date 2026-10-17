@@ -1,4 +1,5 @@
 import {readAutomationRuns,invalidateAutomationViews} from "./automationRunsPreparation";
+import { closeOpenClawGateway } from "./openclawAgentClient";
 import {changeConversationArchive} from "./conversationArchive";
 import {serverLanguage,localizedRoute,localizeServerPresentation,ServerLanguage} from "./serverLocale";
 import {conditionalRead} from "./readEtag";
@@ -129,6 +130,7 @@ export function startCompanionServer() {
     console.log("[companion] shutting down companion server");
     stopTerminalShellSession();
     stopVoiceRelay();
+    closeOpenClawGateway();
     clawLiveWarmCore.shutdown();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 1500).unref();
