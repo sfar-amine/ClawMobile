@@ -71,12 +71,17 @@ def bin_for(kind, version):
     var = f"LOCALCI_{kind.upper()}{label}_BIN"
     configured = os.getenv(var)
     fallback = Path(f"/opt/node{version}/bin") if kind == "node" and version in (20, 22) else None
-    binary = "node" if kind == "node" else "python3"
+    # A versioned interpreter (python3.12) is accepted too: on a stock image `python3` is often another minor version.
+    binaries = ["node"] if kind == "node" else ["python3", f"python{version}"]
     paths = [Path(configured).expanduser()] if configured else ([fallback] if fallback else [])
-    paths.append(Path(shutil.which(binary) or "/not-found").parent)
+    for binary in binaries:
+        paths.append(Path(shutil.which(binary) or "/not-found").parent)
+    candidates = []
     for path in paths:
         folder = path if path.is_dir() else path.parent
-        executable = folder / binary
+        candidates += [folder / binary for binary in binaries]
+    for executable in candidates:
+        folder = executable.parent
         if not executable.is_file():
             continue
         probe = subprocess.run(
@@ -84,7 +89,15 @@ def bin_for(kind, version):
             else [str(executable), "-c", "import sys; print('%s.%s'%sys.version_info[:2])"],
             capture_output=True, text=True)
         if probe.returncode == 0 and probe.stdout.strip() == str(version):
-            return str(folder)
+            if kind == "node":
+                return str(folder)
+            # Like actions/setup-python: a private interpreter where `python`, `python3` and `pip install` work
+            # (a distribution's system Python refuses pip installs, PEP 668).
+            venv = Path(tempfile.mkdtemp(prefix="localci-python-", dir=os.getenv("LOCALCI_TMP_ROOT") or None))
+            created = subprocess.run([str(executable), "-m", "venv", str(venv)], capture_output=True, text=True)
+            if created.returncode or not (venv / "bin" / "python").is_file():
+                raise LocalCIError(f"Cannot create a Python {version} environment: {created.stderr[:200]}")
+            return str(venv / "bin")
     raise LocalCIError(f"Missing {kind} {version}: configure {var}; no CI step may be skipped")
 
 
@@ -131,11 +144,15 @@ def run_ci(repo_arg, sha, pr, output):
     if pr != "-":
         if not pr.isdecimal() or not shutil.which("gh"):
             raise LocalCIError("gh CLI and numeric PR required to verify exact head")
-        refs = json.loads(command(
-            ["gh", "pr", "view", pr, "-R", identity(repo), "--json", "headRefOid,baseRefOid,body,number"], repo))
+        # REST, not GraphQL: `gh pr view` is refused in agent containers (HTTP 403, 17/10).
+        raw = json.loads(command(["gh", "api", f"repos/{identity(repo)}/pulls/{pr}"], repo))
+        refs = {"headRefOid": (raw.get("head") or {}).get("sha"), "baseRefOid": (raw.get("base") or {}).get("sha"),
+                "body": raw.get("body") or "", "number": raw.get("number")}
         if refs.get("headRefOid") != sha or not SHA.fullmatch(refs.get("baseRefOid") or ""):
             raise LocalCIError("GitHub PR head SHA mismatch")
         base = refs["baseRefOid"]
+        if command(["git", "cat-file", "-t", base], repo) != "commit":
+            raise LocalCIError("Fetch the exact GitHub PR base before running")
     else:
         refs = {}
         base = command(["git", "rev-parse", sha + "^"], repo)
