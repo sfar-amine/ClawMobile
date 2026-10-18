@@ -27,7 +27,7 @@ def release_root(home: Path | None = None) -> Path:
 
 def runtime_root(fallback: Path | None = None, home: Path | None = None) -> Path:
     """Read Tier0's termux-lite root without sanitizing the caller environment."""
-    configured = os.environ.get("CLAW_RUNTIME_ROOT", "").strip()
+    configured = os.environ.get("CLAW_RUNTIME_ROOT", "")
     if configured:
         root = Path(configured)
         if not root.is_absolute():
@@ -37,7 +37,7 @@ def runtime_root(fallback: Path | None = None, home: Path | None = None) -> Path
 
 
 
-def contract_drift(core: Path, playbooks: Path, app_contract: Path) -> list[str]:
+def contract_drift(core: Path, playbooks: Path, app_contract: Path | None = None) -> list[str]:
     """Read static owner contracts only. Never import/execute the inspected source."""
     import ast
     import re
@@ -69,6 +69,8 @@ def contract_drift(core: Path, playbooks: Path, app_contract: Path) -> list[str]
             drift.append("budget:web_fast_path")
     except (OSError, ValueError, SyntaxError, TypeError):
         drift.append("budget:web_contract_unavailable")
+    if app_contract is None:
+        return drift
     try:
         original = (core / "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json").read_bytes()
         contract = json.loads(original)
@@ -191,10 +193,11 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--openclaw-home", type=Path)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--check-web-parity", nargs=2, type=Path, metavar=("CORE", "PLAYBOOKS"))
     parser.add_argument("--check-parity", nargs=3, type=Path, metavar=("CORE", "PLAYBOOKS", "APP_CONTRACT"))
     args = parser.parse_args(argv)
-    if args.check_parity:
-        drift = contract_drift(*args.check_parity)
+    if args.check_parity or args.check_web_parity:
+        drift = contract_drift(*(args.check_parity or args.check_web_parity))
         print(json.dumps({"ok": not drift, "drift": drift}))
         return 1 if drift else 0
     mode = current_mode(args.openclaw_home)

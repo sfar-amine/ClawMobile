@@ -44,6 +44,16 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: F1 web budget matches the current capability owner
+        run: |
+          peer_sha=$(gh api repos/sfar-amine/samantha-ui-playbooks/git/ref/heads/main --jq .object.sha)
+          [[ "$peer_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "F1_PLAYBOOKS_OWNER_SHA=$peer_sha"
+          peer="$RUNNER_TEMP/f1-playbooks"
+          mkdir -p "$peer/skill_intelligence"
+          gh api "repos/sfar-amine/samantha-ui-playbooks/contents/skill_intelligence/public_web.py?ref=$peer_sha" --jq .content | base64 --decode > "$peer/skill_intelligence/public_web.py"
+          python3 ../installer/termux-lite/runtime_mode.py --check-web-parity "$GITHUB_WORKSPACE" "$peer"
+
       - name: Test long Remote Bridge receipt response budget
         run: node scripts/test-bridge-long.cjs
 
