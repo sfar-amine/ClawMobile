@@ -14,6 +14,21 @@ clawmobile_lite_repo_root() {
   cd "${script_dir}/../.." && pwd
 }
 
+# The gateway start command belongs to the root this script runs from. An inherited value naming another
+# termux-lite/gateway-start.sh is a previous instance's default carried through a supervisor's or the bridge's
+# environment, not an operator override: the S24 lost its gateway on 18/10 at 00:47 because that inherited path
+# pointed at a release the retention had just pruned. Keep a real override only while it is still executable.
+clawmobile_runtime_start_command() {
+  local own="$1/gateway-start.sh" inherited="${CLAWMOBILE_RUNTIME_START_COMMAND:-}"
+  case "$inherited" in
+    "" | "$own") printf '%s\n' "$own"; return 0 ;;
+    */termux-lite/gateway-start.sh) echo "[lite] runtime_start_command_inherited_ignored path=$inherited" >&2 ;;
+    *) if [ -x "$inherited" ]; then printf '%s\n' "$inherited"; return 0; fi
+       echo "[lite] runtime_start_command_missing path=$inherited" >&2 ;;
+  esac
+  printf '%s\n' "$own"
+}
+
 clawmobile_lite_env() {
   local openclaw_android_home="${CLAWMOBILE_OPENCLAW_ANDROID_HOME:-$HOME/.openclaw-android}"
   local openclaw_android_bin="$openclaw_android_home/bin"
