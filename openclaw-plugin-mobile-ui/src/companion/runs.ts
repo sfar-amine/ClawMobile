@@ -70,7 +70,7 @@ export function publicReasonClass(value: unknown): string | undefined {
   return typeof value === "string" && REASON_CLASS_RE.test(value) ? value : undefined;
 }
 
-/** F3: project only this owner's fixed diagnostic codes into the existing stderr sink.
+/** F3: project only this owner's fixed diagnostic codes into the existing process output sink.
  * bounded-log.py --timestamp owns the wall clock and rotation; no second logger or file owner.
  * No Error/message, request, result, attachment path or arbitrary metadata may enter this projection.
  */
@@ -91,7 +91,8 @@ function runDiagnostic(
   if (typeof count === "number" && Number.isSafeInteger(count) && count >= 0) fields.count = count;
   // Fixed component, level, bounded correlation fields and code. Never interpolate free strings.
   // A broken diagnostic sink cannot change the result of the existing registry mutation.
-  try { console.error("runs " + level + " " + JSON.stringify(fields) + " " + code); } catch {}
+  const suffix = Object.entries(fields).map(([key, value]) => key + "=" + value).join(" ");
+  try { console.log("component=runs level=" + level + " event=" + code + (suffix ? " " + suffix : "")); } catch {}
 }
 
 /** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */

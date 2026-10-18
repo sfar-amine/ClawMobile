@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const ts = require('typescript');
+const {spawnSync} = require('node:child_process');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'samantha-run-diagnostics-'));
 process.env.OPENCLAW_STATE_DIR = root;
 const folder = path.join(root, 'clawmobile-companion');
@@ -14,8 +15,9 @@ const api = require('../dist/companion/runs');
 const attachmentOwner = require('../dist/companion/attachmentStorage');
 const originalRemove = attachmentOwner.removeAttachments;
 const originalError = console.error;
+const originalLog = console.log;
 const lines = [];
-console.error = (...values) => lines.push(values.join(' '));
+console.log = (...values) => lines.push(values.join(' '));
 let passed = 0;
 async function check(body) { await body(); passed++; }
 const PRIVATE = 'PRIVATE_ACCOUNT@example.invalid Bearer PRIVATE_TOKEN request=PRIVATE_REQUEST';
@@ -29,9 +31,11 @@ function record(id, extra = {}) {
     acceptedAt: Date.now(), updatedAt: Date.now(), text: PRIVATE, userText: PRIVATE, ...extra};
 }
 function decoded(line) {
-  const match = /^runs (warn|error) (\{.*\}) ([a-z_]+)$/.exec(line);
-  assert.ok(match, 'fixed component/level/correlation/code line expected');
-  return {level: match[1], fields: JSON.parse(match[2]), code: match[3]};
+  assert.match(line, /^component=runs level=(?:warn|error) event=[a-z_]+(?: [A-Za-z]+=[A-Za-z0-9_-]+)*$/);
+  const tokens = Object.fromEntries(line.split(' ').map(field => field.split('=')));
+  const {component,level,event,...fields} = tokens;
+  if (fields.count !== undefined) fields.count=Number(fields.count);
+  return {level,fields,code:event};
 }
 (async () => {
   await check(async () => {
@@ -90,9 +94,9 @@ function decoded(line) {
   });
   await check(async () => {
     write([record('run_sink_unavailable')]);
-    console.error = () => { throw Error('sink unavailable'); };
+    console.log = () => { throw Error('sink unavailable'); };
     try { await api.markSubmittedRunFailed('run_sink_unavailable', PRIVATE); }
-    finally { console.error = (...values) => lines.push(values.join(' ')); }
+    finally { console.log = (...values) => lines.push(values.join(' ')); }
     assert.equal(JSON.parse(fs.readFileSync(file)).runs[0].state, 'failed');
   });
   await check(() => {
@@ -104,19 +108,35 @@ function decoded(line) {
       function visit(node) {
         if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
             && node.expression.expression.getText(source)==='console'
-            && ['warn','error'].includes(node.expression.name.text)) {
+            && (['warn','error'].includes(node.expression.name.text) || name==='runs.ts' && node.expression.name.text==='log')) {
           calls++;
           let owner = node.parent;
           while (owner && !ts.isFunctionDeclaration(owner)) owner=owner.parent;
-          assert.equal(owner?.name?.text,'runDiagnostic',name+' must not introduce free console.warn/error');
+          assert.equal(owner?.name?.text,'runDiagnostic',name+' must not introduce free diagnostic console calls');
+          assert.equal(node.expression.name.text,'log');
         }
         ts.forEachChild(node,visit);
       }
       visit(source);assert.equal(calls,name==='runs.ts'?1:0);
     }
   });
-  console.log(JSON.stringify({suite:'run-owner-diagnostics',passed,total:8,voiceScope:'excluded'}));
+  await check(() => {
+    // Replay a line ACTUALLY emitted above through the existing trace reader, not a reconstructed lookalike.
+    const home=path.join(root,'trace-home'),health=path.join(home,'.openclaw/health');
+    fs.mkdirSync(health,{recursive:true});
+    const emitted=lines.find(line=>decoded(line).code==='submitted_run_failed');
+    assert.ok(emitted);
+    fs.writeFileSync(path.join(health,'companion.stderr.log'),'2026-10-18T10:00:00Z '+emitted+'\n');
+    const done=spawnSync('python3',[path.join(__dirname,'../../installer/termux-lite/claw-trace.py'),
+      '--since','2026-10-18T09:59:00Z','--until','2026-10-18T10:01:00Z','--no-app','--json'],
+      {env:{...process.env,HOME:home},encoding:'utf8'});
+    assert.equal(done.status,0,done.stderr);
+    const events=done.stdout.trim().split('\n').map(line=>JSON.parse(line));
+    assert.equal(events.length,1);assert.equal(events[0].source,'companion');
+    assert.equal(events[0].text,emitted);
+  });
+  originalLog(JSON.stringify({suite:'run-owner-diagnostics',passed,total:9,voiceScope:'excluded'}));
 })().catch(error => { originalError(error); process.exitCode=1; }).finally(() => {
-  console.error=originalError;attachmentOwner.removeAttachments=originalRemove;
+  console.error=originalError;console.log=originalLog;attachmentOwner.removeAttachments=originalRemove;
   fs.rmSync(root,{recursive:true,force:true});
 });
