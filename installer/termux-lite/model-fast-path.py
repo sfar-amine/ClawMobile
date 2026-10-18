@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 from runpy import run_path
-runtime_root = run_path(str(Path(__file__).with_name("runtime_mode.py")))["runtime_root"]
 import re
 import shlex
 import subprocess
@@ -708,6 +707,7 @@ def _continuum_call(ui_root: Path, args: list[str], timeout: int = 15) -> dict[s
 
 
 def _bridge_cli(home: Path = HOME) -> Path:
+    runtime_root = run_path(str(Path(__file__).with_name("runtime_mode.py")))["runtime_root"]
     for path in (
         runtime_root(home=home) / "claw-bridge-cli.py",
         Path(__file__).resolve().parent / "claw-bridge-cli.py",
