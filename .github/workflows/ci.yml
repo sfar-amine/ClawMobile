@@ -47,6 +47,9 @@ jobs:
       - name: Build Termux runtime plugin
         run: npm run build
 
+      - name: Q8 closed QA notification producer and click script
+        run: node scripts/test-qa-campaign-notification.cjs
+
       - name: F1 web budget matches the current capability owner
         run: |
           peer_sha=$(gh api repos/sfar-amine/samantha-ui-playbooks/git/ref/heads/main --jq .object.sha)
