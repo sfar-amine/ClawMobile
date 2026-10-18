@@ -9,6 +9,8 @@
   "reason": "Q13 du doc64 : autorité courante par application, pièces privées, reçus et anti-doublon dans les propriétaires existants.",
   "files": [
     ".github/workflows/ci.yml",
+    "docs/changes/qa13-contact-renderer-tests-20261018.json",
+    "docs/changes/qa13-contact-renderer-tests-20261018.md",
     "docs/changes/qa64-q13-inert-media-host-20261018.md",
     "docs/changes/qa64-q13-media-owner-hook-20261018.md",
     "docs/changes/qa64-q13-media-stage-20261018.json",
@@ -25,6 +27,7 @@
     "installer/termux-lite/samantha-health-manager.sh",
     "installer/termux-lite/test-health-qa-queue.py",
     "installer/termux-lite/test-qa-attachment-pipe.py",
+    "installer/termux-lite/test-qa-contact-renderer.py",
     "installer/termux-lite/test-qa-private-graph-pipe.py",
     "installer/termux-lite/test-qa-room-access.py",
     "installer/termux-lite/test-whatsapp-owner-send.sh",
@@ -64,7 +67,7 @@
     {
       "name": "Autorité People et formulaire périmé",
       "status": "passed",
-      "evidence": "37/37 tests Python, vrais fichiers/SQLite synthétiques et annulation réelle du groupe SDK ; HTTP Node allowlist et refus des formulaires QA périmés verts."
+      "evidence": "38/38 tests Python, vrais fichiers/SQLite synthétiques et annulation réelle du groupe SDK ; HTTP Node allowlist et refus des formulaires QA périmés verts."
     },
     {
       "name": "Pièces privées et volume",
@@ -80,6 +83,11 @@
       "name": "Annulation privée du transport et de ses descendants",
       "status": "passed",
       "evidence": "11/11 contrats shell dont timeout réel20s et annulation du groupe People ; test People/SDK avec descendant réel et contrôle négatif sans handler."
+    },
+    {
+      "name": "Vrai CLI QA privé et renderer Core",
+      "status": "passed",
+      "evidence": "5/5 tests cross-repos réels, modes carte et texte ; Q1/Q12/Q2/file/rapport et causes fermées, absence de champs techniques et contrôle négatif sans texte privé. Le producteur appartient uniquement à la PR212 playbooks."
     }
   ],
   "documentation": [

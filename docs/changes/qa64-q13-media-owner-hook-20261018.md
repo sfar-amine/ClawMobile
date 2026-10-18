@@ -40,7 +40,7 @@ n'est journalisé par le hook.
   Python héritée ; HOME du shell reste inchangé. Seuls le SDK de fichiers externe
   et le checkpoint externe de création de la fixture sont remplacés. Aucun
   propriétaire métier n'est simulé. PB est épinglé au commit
-  `30026d94b18b4679405fa9c7a08fa7608578b105` (head final Q13 playbooks de la PR212, poussé et épinglé pour la qualification commune).
+  `d420259483ef4f8eaabaff77a972f6334f9c7769` (head final Q13 playbooks de la PR212, poussé et épinglé pour la qualification commune).
 
 Les nouveaux scripts sont inscrits dans la CI. Ces fixtures ne prouvent aucun
 transfert ni réception sur le S24. L’entrée générique PB est raccordée dans la PR212 avec les gardes privées et les phases automatiques. Les recettes physiques restent à effectuer après revue. Aucune activation ou déploiement n'a été effectué.

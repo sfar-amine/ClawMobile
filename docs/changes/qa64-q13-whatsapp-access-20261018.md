@@ -56,4 +56,6 @@ La recette physique reste réservée à Claude après revue, fusion et épinglag
 Retour arrière : revenir au commit précédent du lot dans les deux propriétaires ;
 les anciens lecteurs refusent les métadonnées QA inconnues, sans élargir l'accès.
 
-Le rapport peut imposer un budget inférieur au wrapper : SIGTERM est relayé au groupe People, dont le handler privé déroule le nettoyage du groupe SDK. La réserve de fermeture reste dans le budget appelant. Les tests réels (37/37 People et11/11 contrats shell) vérifient aussi les descendants ; une interruption après admission reste UNKNOWN et ne déclenche aucun rejeu. Une requête Gateway déjà acceptée ne constitue jamais une absence d’effet prouvée.
+Le rapport peut imposer un budget inférieur au wrapper : SIGTERM est relayé au groupe People, dont le handler privé déroule le nettoyage du groupe SDK. La réserve de fermeture reste dans le budget appelant. Les tests réels (38/38 People et11/11 contrats shell) vérifient aussi les descendants ; une interruption après admission reste UNKNOWN et ne déclenche aucun rejeu. Une requête Gateway déjà acceptée ne constitue jamais une absence d’effet prouvée.
+
+Le handler privé couvre également `qa-queue-tick` : le SIGTERM du timeout du cycle de santé déroule le nettoyage des enfants privés avant la fin du processus. Les entrées historiques et le paiement conservent leur comportement. Le cas négatif sans ce handler confirme la régression ; aucun processus envoi n’est laissé en attente d’une relance.
