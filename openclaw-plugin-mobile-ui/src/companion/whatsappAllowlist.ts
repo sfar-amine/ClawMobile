@@ -1,10 +1,10 @@
 import {spawn} from "child_process";
-import path from "path";
 import {createHash} from "crypto";
 import {confirmations} from "./confirmations";
 import {nativeError} from "./nativeOperation";
 import {ownerUuid,type OwnerIntent} from "./ownerConfirmationProtocol";
 import type {IncomingMessage} from "http";
+import {runtimeFile} from "../runtimeRoot";
 
 const contactPattern=/^wa-[a-f0-9]{16}$/;
 const operationPattern=/^[A-Za-z0-9_.:-]{1,128}$/;
@@ -67,18 +67,56 @@ function boundOutcome(value:any,body:any,action:string){const result=outcome(val
 function statusFor(value:any){if(value.success||value.state==="indeterminate")return 200;const reason=value.reason;if(reason==='unknown_contact'||value.state==='not_found')return 404;if(reason==='owner_contact_protected'||reason==='operation_conflict')return 409;if(reason?.startsWith('confirmation_'))return 403;if(value.state==='failed')return 503;return 400;}
 
 /** Existing people-trusted owner; neither argv nor diagnostics contain private request fields. */
-export async function allowlistOwner(action:string,body:any={},mutation=false,privateQaRead=false):Promise<any>{
+function peopleIpc(args:string[],input:Buffer[],options:{timeoutMs:number;maxOutput:number;mutation:boolean;
+ signal?:AbortSignal;privateAttachment?:boolean;validate:(value:any)=>boolean}):Promise<any>{
  return new Promise((resolve,reject)=>{
-  const helper=process.env.SAMANTHA_PEOPLE_TRUSTED||path.resolve(__dirname,"../../../installer/termux-lite/people-trusted.py");
-  if(privateQaRead&&action!=='qa-ingress-read')return reject(nativeError('qa_scope_unavailable',403));
-  const child=spawn("python3",privateQaRead?[helper,action]:[helper,"allowlist",action],{stdio:["pipe","pipe","pipe"]});let output="",size=0,settled=false,started=false;
-  function done(error?:any,value?:any){if(settled)return;settled=true;clearTimeout(timer);error?reject(error):resolve(value);}
-  const timer=setTimeout(()=>{child.kill();done(Object.assign(nativeError("allowlist_unavailable",503),{uncertain:mutation&&started}));},privateQaRead?3000:mutation?20000:10000);
-  child.stderr.resume();child.on("spawn",()=>{started=true;});child.on("error",()=>done(Object.assign(nativeError("allowlist_unavailable",503),{uncertain:false})));
-  child.stdout.on("data",chunk=>{size+=chunk.length;if(size>131072){child.kill();done(Object.assign(nativeError("allowlist_unavailable",503),{uncertain:mutation&&started}));}else output+=chunk;});
-  child.on("close",code=>{try{if(code!==0)throw Error();const v=JSON.parse(output);if(!plain(v)||(privateQaRead?typeof v.ok!=='boolean':typeof v.success!=="boolean"||typeof v.state!=="string"))throw Error();done(undefined,v);}catch{done(Object.assign(nativeError("allowlist_unavailable",503),{uncertain:mutation&&started}));}});
-  child.stdin.on("error",()=>done(Object.assign(nativeError("allowlist_unavailable",503),{uncertain:mutation&&started})));child.stdin.end(JSON.stringify(body));
+  if(options.signal?.aborted)return reject(Object.assign(nativeError("allowlist_unavailable",503),{uncertain:false}));
+  const helper=process.env.SAMANTHA_PEOPLE_TRUSTED||runtimeFile("people-trusted.py");
+  const child=spawn("python3",[helper,...args],{stdio:["pipe","pipe","pipe"],detached:options.privateAttachment===true});
+  const output:Buffer[]=[];let size=0,settled=false,started=false,wrote=false;
+  const uncertain=()=>options.mutation&&(options.privateAttachment?wrote:started);
+  const kill=()=>{try{if(options.privateAttachment&&child.pid)process.kill(-child.pid,"SIGKILL");else child.kill();}catch{/* Already gone. */}};
+  const unavailable=()=>Object.assign(nativeError("allowlist_unavailable",503),{uncertain:uncertain()});
+  function done(error?:any,value?:any){if(settled)return;settled=true;clearTimeout(timer);options.signal?.removeEventListener("abort",abort);error?reject(error):resolve(value);}
+  const abort=()=>{kill();done(unavailable());};
+  const timer=setTimeout(abort,options.timeoutMs);
+  options.signal?.addEventListener("abort",abort,{once:true});
+  child.stderr.resume();child.on("spawn",()=>{started=true;});child.on("error",()=>{kill();done(Object.assign(nativeError("allowlist_unavailable",503),{uncertain:false}));});
+  child.stdout.on("data",chunk=>{if(settled)return;size+=chunk.length;if(size>options.maxOutput){kill();done(unavailable());}else output.push(Buffer.from(chunk));});
+  child.on("close",code=>{try{if(code!==0)throw Error();const v=JSON.parse(Buffer.concat(output,size).toString("utf8"));if(!plain(v)||!options.validate(v))throw Error();done(undefined,v);}catch{done(unavailable());}});
+  child.stdin.on("error",()=>{kill();done(unavailable());});
+  if(options.signal?.aborted){abort();return;}
+  try{for(const chunk of input){wrote=true;child.stdin.write(chunk);}child.stdin.end();}catch{kill();done(unavailable());}
  });
+}
+export async function allowlistOwner(action:string,body:any={},mutation=false,privateQaRead=false):Promise<any>{
+ if(privateQaRead&&action!=="qa-ingress-read")throw nativeError("qa_scope_unavailable",403);
+ return peopleIpc(privateQaRead?[action]:["allowlist",action],[Buffer.from(JSON.stringify(body))],{
+  timeoutMs:privateQaRead?3000:mutation?20000:10000,maxOutput:131072,mutation,
+  validate:v=>privateQaRead?typeof v.ok==="boolean":typeof v.success==="boolean"&&typeof v.state==="string"});
+}
+
+/** Private attachment modes of the same People owner. Never exposed as tool arguments. */
+export async function qaAttachmentOwner(mode:"admit"|"consume",body:any,
+ options:{signal:AbortSignal;remaining_ms:number;content?:Buffer}):Promise<any>{
+ const fallback=()=>mode==="admit"?{ok:false}:{state:"blocked",reason:"qa_scope_unavailable"};
+ if(!options||!Number.isInteger(options.remaining_ms)||options.remaining_ms<1||options.remaining_ms>10000||
+  !options.signal||options.signal.aborted||!plain(body)||!["admit","consume"].includes(mode))return fallback();
+ let header:Buffer;
+ try{
+  const keys=Object.keys(body).sort().join(",");
+  if(mode==="admit"?(keys!=="context"&&keys!=="context,run_id"):keys!=="admission,metadata")return fallback();
+  if(mode==="admit"?options.content!==undefined:!Buffer.isBuffer(options.content)||options.content.length<1||options.content.length>20*1024*1024)return fallback();
+  header=Buffer.from(JSON.stringify(body)+(mode==="consume"?"\n":""));
+  if(header.length>(mode==="consume"?16385:16384))return fallback();
+ }catch{return fallback();}
+ try{
+  const result=await peopleIpc([mode==="admit"?"qa-attachment-admit":"qa-attachment-consume"],
+   mode==="admit"?[header]:[header,options.content!],{timeoutMs:Math.min(options.remaining_ms,mode==="admit"?3000:10000),
+    maxOutput:32768,mutation:mode==="consume",signal:options.signal,privateAttachment:true,
+    validate:v=>mode==="admit"?typeof v.ok==="boolean":["imported","blocked","unknown"].includes(v.state)});
+  return result;
+ }catch(error:any){return mode==="admit"?{ok:false}:{state:error?.uncertain?"unknown":"blocked",reason:"qa_attachment_owner_unavailable"};}
 }
 async function getContact(contactId:string){const result=await allowlistOwner('get',{contactId});if(!result.success)fail(result.reason==='unknown_contact'||result.error==='unknown_contact'?'unknown_contact':'allowlist_unavailable',result.reason==='unknown_contact'||result.error==='unknown_contact'?404:503);return {raw:result.contact,item:contact(result.contact),historyCount:Number.isSafeInteger(result.historyCount)?result.historyCount:0};}
 export async function allowlistRead(kind:'list'|'get'|'history'|'note-get',contactId?:string,parameters:any={}){

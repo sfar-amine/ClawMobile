@@ -1,0 +1,658 @@
+{
+  "contract": "qa13-public-sdk-inbound-types",
+  "file": "dist/hook-runner-global-CDmmGFJp.d.ts",
+  "sha256": "d066e0a30921eb05d79f7ef6b7f425b7e1628b912634b660b13ac324e6bb7c1d",
+  "bytes": 79494,
+  "blocks": [
+    {
+      "name": "PluginHookMessageReceivedEvent",
+      "start": 557,
+      "end": 584,
+      "truncated": false,
+      "source": [
+        {
+          "line": 557,
+          "text": "type PluginHookMessageReceivedEvent = {"
+        },
+        {
+          "line": 558,
+          "text": "  from: string;"
+        },
+        {
+          "line": 559,
+          "text": "  content: string;"
+        },
+        {
+          "line": 560,
+          "text": "  timestamp?: number;"
+        },
+        {
+          "line": 561,
+          "text": "  threadId?: string | number;"
+        },
+        {
+          "line": 562,
+          "text": "  messageId?: string;"
+        },
+        {
+          "line": 563,
+          "text": "  senderId?: string;"
+        },
+        {
+          "line": 564,
+          "text": "  replyToId?: string;"
+        },
+        {
+          "line": 565,
+          "text": "  replyToIdFull?: string;"
+        },
+        {
+          "line": 566,
+          "text": "  replyToBody?: string;"
+        },
+        {
+          "line": 567,
+          "text": "  replyToSender?: string;"
+        },
+        {
+          "line": 568,
+          "text": "  replyToIsQuote?: boolean;"
+        },
+        {
+          "line": 569,
+          "text": "  sessionKey?: string;"
+        },
+        {
+          "line": 570,
+          "text": "  runId?: string;"
+        },
+        {
+          "line": 571,
+          "text": "  trace?: DiagnosticTraceContext;"
+        },
+        {
+          "line": 572,
+          "text": "  traceId?: string;"
+        },
+        {
+          "line": 573,
+          "text": "  spanId?: string;"
+        },
+        {
+          "line": 574,
+          "text": "  parentSpanId?: string;"
+        },
+        {
+          "line": 575,
+          "text": "  location?: PluginHookLocation;"
+        },
+        {
+          "line": 576,
+          "text": "  providerUpdate?: PluginHookProviderUpdate;"
+        },
+        {
+          "line": 577,
+          "text": "  /** Staged, locally usable attachments in stable source order. */"
+        },
+        {
+          "line": 578,
+          "text": "  media?: PluginHookMediaFact[];"
+        },
+        {
+          "line": 579,
+          "text": "  /** Original attachment facts when local staging has not completed yet. */"
+        },
+        {
+          "line": 580,
+          "text": "  originalMedia?: PluginHookMediaFact[];"
+        },
+        {
+          "line": 581,
+          "text": "  /** True when `originalMedia` is present but `media` is intentionally withheld pending staging. */"
+        },
+        {
+          "line": 582,
+          "text": "  mediaStagingPending?: boolean;"
+        },
+        {
+          "line": 583,
+          "text": "  metadata?: PluginHookInboundMessageMetadata;"
+        },
+        {
+          "line": 584,
+          "text": "};"
+        }
+      ]
+    },
+    {
+      "name": "PluginHookMessageContext",
+      "start": 455,
+      "end": 508,
+      "truncated": false,
+      "source": [
+        {
+          "line": 455,
+          "text": "type PluginHookMessageContext = {"
+        },
+        {
+          "line": 456,
+          "text": "  channelId: string;"
+        },
+        {
+          "line": 457,
+          "text": "  accountId?: string;"
+        },
+        {
+          "line": 458,
+          "text": "  conversationId?: string;"
+        },
+        {
+          "line": 459,
+          "text": "  /**"
+        },
+        {
+          "line": 460,
+          "text": "   * Canonical session key for this conversation — the same value the agent"
+        },
+        {
+          "line": 461,
+          "text": "   * runtime sees as `params.sessionKey` for the run that produced the"
+        },
+        {
+          "line": 462,
+          "text": "   * outbound payload, and the same value `agent_end`/`llm_input`/`llm_output`"
+        },
+        {
+          "line": 463,
+          "text": "   * fire with. Plugins correlating per-turn state across `agent_end` and"
+        },
+        {
+          "line": 464,
+          "text": "   * `message_sending` rely on this equality."
+        },
+        {
+          "line": 465,
+          "text": "   *"
+        },
+        {
+          "line": 466,
+          "text": "   * For inbound message hooks (`inbound_claim` etc.), this is the canonical"
+        },
+        {
+          "line": 467,
+          "text": "   * session for the inbound conversation as resolved by `resolveSessionKey`"
+        },
+        {
+          "line": 468,
+          "text": "   * / `deriveInboundMessageHookContext`."
+        },
+        {
+          "line": 469,
+          "text": "   *"
+        },
+        {
+          "line": 470,
+          "text": "   * For outbound delivery hooks (`message_sending` and `message_sent`),"
+        },
+        {
+          "line": 471,
+          "text": "   * this mirrors `OutboundSessionContext.key` from the dispatch path when"
+        },
+        {
+          "line": 472,
+          "text": "   * delivery has a session attached. When the outbound path has no"
+        },
+        {
+          "line": 473,
+          "text": "   * resolvable session (e.g. internal smoke runs without"
+        },
+        {
+          "line": 474,
+          "text": "   * `OutboundSessionContext`), this field is omitted; plugins must treat"
+        },
+        {
+          "line": 475,
+          "text": "   * it as optional."
+        },
+        {
+          "line": 476,
+          "text": "   */"
+        },
+        {
+          "line": 477,
+          "text": "  sessionKey?: string;"
+        },
+        {
+          "line": 478,
+          "text": "  /**"
+        },
+        {
+          "line": 479,
+          "text": "   * Per-turn run identifier (UUID), unique to one end-to-end agent turn:"
+        },
+        {
+          "line": 480,
+          "text": "   * stable across all LLM-call iterations, retry attempts (compaction,"
+        },
+        {
+          "line": 481,
+          "text": "   * empty-response, planning-only, etc.), and multi-payload reply chunks"
+        },
+        {
+          "line": 482,
+          "text": "   * within that turn; distinct for each new inbound user message and for"
+        },
+        {
+          "line": 483,
+          "text": "   * each cron/heartbeat/followup-triggered run."
+        },
+        {
+          "line": 484,
+          "text": "   *"
+        },
+        {
+          "line": 485,
+          "text": "   * Generated once in `agent-runner-execution.ts`/`followup-runner.ts` via"
+        },
+        {
+          "line": 486,
+          "text": "   * `crypto.randomUUID()`. Currently populated for inbound message hooks"
+        },
+        {
+          "line": 487,
+          "text": "   * (`inbound_claim`, `message_received`) and for agent-runtime hooks that"
+        },
+        {
+          "line": 488,
+          "text": "   * already receive the run id (e.g. `agent_end`, `llm_input`, `llm_output`)."
+        },
+        {
+          "line": 489,
+          "text": "   * It is **not yet** plumbed through the outbound delivery path, so"
+        },
+        {
+          "line": 490,
+          "text": "   * plugins observing `message_sending` / `message_sent` should not rely"
+        },
+        {
+          "line": 491,
+          "text": "   * on `runId` to correlate against `agent_end`; use `sessionKey` for"
+        },
+        {
+          "line": 492,
+          "text": "   * outbound→inbound correlation today (with the caveat that it cannot"
+        },
+        {
+          "line": 493,
+          "text": "   * disambiguate concurrent turns in the same session)."
+        },
+        {
+          "line": 494,
+          "text": "   */"
+        },
+        {
+          "line": 495,
+          "text": "  runId?: string;"
+        },
+        {
+          "line": 496,
+          "text": "  messageId?: string;"
+        },
+        {
+          "line": 497,
+          "text": "  senderId?: string;"
+        },
+        {
+          "line": 498,
+          "text": "  replyToId?: string;"
+        },
+        {
+          "line": 499,
+          "text": "  replyToIdFull?: string;"
+        },
+        {
+          "line": 500,
+          "text": "  replyToBody?: string;"
+        },
+        {
+          "line": 501,
+          "text": "  replyToSender?: string;"
+        },
+        {
+          "line": 502,
+          "text": "  replyToIsQuote?: boolean;"
+        },
+        {
+          "line": 503,
+          "text": "  trace?: DiagnosticTraceContext;"
+        },
+        {
+          "line": 504,
+          "text": "  traceId?: string;"
+        },
+        {
+          "line": 505,
+          "text": "  spanId?: string;"
+        },
+        {
+          "line": 506,
+          "text": "  parentSpanId?: string;"
+        },
+        {
+          "line": 507,
+          "text": "  callDepth?: number;"
+        },
+        {
+          "line": 508,
+          "text": "};"
+        }
+      ]
+    },
+    {
+      "name": "PluginHookInboundClaimEvent",
+      "start": 517,
+      "end": 556,
+      "truncated": false,
+      "source": [
+        {
+          "line": 517,
+          "text": "type PluginHookInboundClaimEvent = {"
+        },
+        {
+          "line": 518,
+          "text": "  content: string;"
+        },
+        {
+          "line": 519,
+          "text": "  body?: string;"
+        },
+        {
+          "line": 520,
+          "text": "  bodyForAgent?: string;"
+        },
+        {
+          "line": 521,
+          "text": "  transcript?: string;"
+        },
+        {
+          "line": 522,
+          "text": "  timestamp?: number;"
+        },
+        {
+          "line": 523,
+          "text": "  channel: string;"
+        },
+        {
+          "line": 524,
+          "text": "  accountId?: string;"
+        },
+        {
+          "line": 525,
+          "text": "  conversationId?: string;"
+        },
+        {
+          "line": 526,
+          "text": "  parentConversationId?: string;"
+        },
+        {
+          "line": 527,
+          "text": "  senderId?: string;"
+        },
+        {
+          "line": 528,
+          "text": "  senderName?: string;"
+        },
+        {
+          "line": 529,
+          "text": "  senderUsername?: string;"
+        },
+        {
+          "line": 530,
+          "text": "  replyToId?: string;"
+        },
+        {
+          "line": 531,
+          "text": "  replyToIdFull?: string;"
+        },
+        {
+          "line": 532,
+          "text": "  replyToBody?: string;"
+        },
+        {
+          "line": 533,
+          "text": "  replyToSender?: string;"
+        },
+        {
+          "line": 534,
+          "text": "  replyToIsQuote?: boolean;"
+        },
+        {
+          "line": 535,
+          "text": "  threadId?: string | number;"
+        },
+        {
+          "line": 536,
+          "text": "  messageId?: string;"
+        },
+        {
+          "line": 537,
+          "text": "  sessionKey?: string;"
+        },
+        {
+          "line": 538,
+          "text": "  runId?: string;"
+        },
+        {
+          "line": 539,
+          "text": "  trace?: DiagnosticTraceContext;"
+        },
+        {
+          "line": 540,
+          "text": "  traceId?: string;"
+        },
+        {
+          "line": 541,
+          "text": "  spanId?: string;"
+        },
+        {
+          "line": 542,
+          "text": "  parentSpanId?: string;"
+        },
+        {
+          "line": 543,
+          "text": "  isGroup: boolean;"
+        },
+        {
+          "line": 544,
+          "text": "  commandAuthorized?: boolean;"
+        },
+        {
+          "line": 545,
+          "text": "  senderIsOwner?: boolean;"
+        },
+        {
+          "line": 546,
+          "text": "  wasMentioned?: boolean;"
+        },
+        {
+          "line": 547,
+          "text": "  location?: PluginHookLocation;"
+        },
+        {
+          "line": 548,
+          "text": "  providerUpdate?: PluginHookProviderUpdate;"
+        },
+        {
+          "line": 549,
+          "text": "  /** Staged, locally usable attachments in stable source order. */"
+        },
+        {
+          "line": 550,
+          "text": "  media?: PluginHookMediaFact[];"
+        },
+        {
+          "line": 551,
+          "text": "  /** Original attachment facts when local staging has not completed yet. */"
+        },
+        {
+          "line": 552,
+          "text": "  originalMedia?: PluginHookMediaFact[];"
+        },
+        {
+          "line": 553,
+          "text": "  /** True when `originalMedia` is present but `media` is intentionally withheld pending staging. */"
+        },
+        {
+          "line": 554,
+          "text": "  mediaStagingPending?: boolean;"
+        },
+        {
+          "line": 555,
+          "text": "  metadata?: PluginHookInboundMessageMetadata;"
+        },
+        {
+          "line": 556,
+          "text": "};"
+        }
+      ]
+    },
+    {
+      "name": "PluginHookInboundClaimContext",
+      "start": 509,
+      "end": 516,
+      "truncated": false,
+      "source": [
+        {
+          "line": 509,
+          "text": "type PluginHookInboundClaimContext = PluginHookMessageContext & {"
+        },
+        {
+          "line": 510,
+          "text": "  /** Resolved owner for session scopes whose canonical key does not encode an agent id. */"
+        },
+        {
+          "line": 511,
+          "text": "  agentId?: string;"
+        },
+        {
+          "line": 512,
+          "text": "  parentConversationId?: string;"
+        },
+        {
+          "line": 513,
+          "text": "  senderId?: string;"
+        },
+        {
+          "line": 514,
+          "text": "  messageId?: string;"
+        },
+        {
+          "line": 515,
+          "text": "  pluginBinding?: PluginConversationBinding;"
+        },
+        {
+          "line": 516,
+          "text": "};"
+        }
+      ]
+    },
+    {
+      "name": "MessageHookMediaFact",
+      "start": 393,
+      "end": 404,
+      "truncated": false,
+      "source": [
+        {
+          "line": 393,
+          "text": "type MessageHookMediaFact = {"
+        },
+        {
+          "line": 394,
+          "text": "  path?: string;"
+        },
+        {
+          "line": 395,
+          "text": "  url?: string;"
+        },
+        {
+          "line": 396,
+          "text": "  contentType?: string;"
+        },
+        {
+          "line": 397,
+          "text": "  kind?: MediaFact[\"kind\"];"
+        },
+        {
+          "line": 398,
+          "text": "  transcribed?: boolean;"
+        },
+        {
+          "line": 399,
+          "text": "  messageId?: string;"
+        },
+        {
+          "line": 400,
+          "text": "  workspaceDir?: string;"
+        },
+        {
+          "line": 401,
+          "text": "};"
+        },
+        {
+          "line": 402,
+          "text": "//#endregion"
+        },
+        {
+          "line": 403,
+          "text": "//#region src/plugins/hook-message.types.d.ts"
+        },
+        {
+          "line": 404,
+          "text": "/** Ordered media fact exposed by inbound message hooks. */"
+        }
+      ]
+    }
+  ],
+  "mapper_provenance": {
+    "path": "dist/message-hook-mappers-RPSrPEKP.mjs",
+    "sha256": "0b0f0e8301fe3472a3b08a9ab1e457040f6c437ba8ba9f9e8535b81efd5856b8",
+    "source": [
+      {
+        "line": 84,
+        "text": "\t\tsenderE164: ctx.SenderE164,"
+      },
+      {
+        "line": 246,
+        "text": "\t\tmetadata: {"
+      },
+      {
+        "line": 253,
+        "text": "\t\t\tsenderE164: canonical.senderE164,"
+      },
+      {
+        "line": 282,
+        "text": "function toPluginMessageReceivedEvent(canonical) {"
+      },
+      {
+        "line": 296,
+        "text": "\t\tmetadata: {"
+      },
+      {
+        "line": 307,
+        "text": "\t\t\tsenderE164: canonical.senderE164,"
+      },
+      {
+        "line": 351,
+        "text": "\t\tmetadata: {"
+      },
+      {
+        "line": 359,
+        "text": "\t\t\tsenderE164: canonical.senderE164,"
+      },
+      {
+        "line": 425,
+        "text": "export { toInternalMessageReceivedContext as a, toPluginInboundClaimPair as c, toPluginMessageSentEvent as d, toInternalMessagePreprocessedContext as i, toPluginMessageContext as l, deriveInboundMessageHookContext as n, toInternalMessageSentContext as o, resolveInboundReplyHookTarget as r, toInternalMessageTranscribedContext as s, buildCanonicalSentMessageHookContext as t, toPluginMessageReceivedEvent as u };"
+      }
+    ]
+  }
+}
