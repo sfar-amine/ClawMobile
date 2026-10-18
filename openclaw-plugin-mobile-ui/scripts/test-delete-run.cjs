@@ -63,15 +63,15 @@ const request=(port,url,body,headers={})=>new Promise((resolve,reject)=>{
   await assert.rejects(api.deleteRun('capability-pay','deny-capability-pay'),e=>e.message==='protected_run');
   bounded.runDeletions.push(fixture('expired',timestamp-31*86400000),{operationId:'malformed',secret:'must-not-log'},null);
   fs.writeFileSync(file,JSON.stringify(bounded));
-  const warnings=[];const originalWarn=console.warn;console.warn=(...args)=>warnings.push(args.join(' '));
+  const warnings=[];const originalLog=console.log;console.log=(...args)=>warnings.push(args.join(' '));
   try {
     assert.deepEqual(await api.deleteRun('capacity-next','capacity-next-op'),next);
     assert.equal((await api.deleteRun('expired','new-expired-op')).state,'not_found');
-    assert.ok(warnings.some(x=>x.includes('invalid_run_deletion_receipts_ignored')));
+    assert.ok(warnings.some(x=>/^component=runs level=warn event=invalid_run_deletion_receipts_ignored count=2$/.test(x)));
     assert.ok(!warnings.join('').includes('must-not-log'));
     const registry=JSON.parse(fs.readFileSync(file));
     assert.deepEqual(registry.paymentRequests,payment);assert.deepEqual(registry.ownerConfirmations,confirmation);
-  } finally {console.warn=originalWarn;}
+  } finally {console.log=originalLog;}
   console.log('delete-run: HTTP owner boundary, idempotence, conflict, guards, persistence, concurrency and anti-resurrection passed');
  } finally {server.closeAllConnections();await new Promise(r=>server.close(r));fs.rmSync(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1});
