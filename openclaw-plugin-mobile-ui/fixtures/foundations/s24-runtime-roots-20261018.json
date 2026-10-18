@@ -5,7 +5,8 @@
     "captured_by": "Claude via claw_exec",
     "observed_at": "2026-10-18T10:35:00+01:00",
     "source": "https://github.com/sfar-amine/samantha-ui-playbooks/pull/189#issuecomment-6248307144",
-    "source_kind": "sanitized observations reported by Claude, not a Codex direct capture"
+    "source_kind": "sanitized observations reported by Claude, not a Codex direct capture",
+    "review_source": "https://github.com/sfar-amine/samantha-core/pull/320#issuecomment-6254431719"
   },
   "root_unit": "termux-lite",
   "tier0_producer": "tier0-bootstrap.sh: export CLAW_RUNTIME_ROOT=\"$ROOT\"",
@@ -24,9 +25,16 @@
     "processes": [
       "companion-server.sh",
       "dist/companion/server.js"
-    ]
+    ],
+    "root_semantics": "Observed process script directory; not the inherited CLAW_RUNTIME_ROOT value."
   },
   "current_release": "20261018T020755-d3beb769",
   "last_known_good": "20261018T020755-d3beb769",
-  "interpretation": "Two process-specific roots are intentional; no global environment reset is authorized."
+  "interpretation": "Pinned Tier0 daemons retain their own root. Companion/Gateway helper paths follow releases/current across promotion and retention, irrespective of inherited CLAW_RUNTIME_ROOT. No environment mutation.",
+  "inherited_environment": {
+    "variable": "CLAW_RUNTIME_ROOT",
+    "producer": "tier0-bootstrap.sh",
+    "semantics": "Pinned Tier0 release inherited by Gateway and Companion, not a helper override.",
+    "confirmed_by": "Claude PR320#6254431719"
+  }
 }

@@ -24,8 +24,10 @@ export type RunWebResult = {
 
 /** Total public Web budget (search + one synthesis), shared by every host entry. S24 17/10: search alone
  * takes 4–7 s and the free synthesis 5–6 s (SDK load + generation), so the former 12 s cap always cut the
- * answer. The search step itself stays bounded to 12 s by its own runtime. */
-export const PUBLIC_WEB_BUDGET_MS = 20000;
+ * answer. The search step itself stays bounded to 12 s by its own runtime. S24 18/10: search up to 8.1 s, synthesis
+ * ≈ 6 s and the turn's own path exceeded 20 s (web_deadline_exceeded twice in a row on « la météo à Tunis demain »).
+ * Activation order: playbooks first (they accept up to 30 s), then this core. */
+export const PUBLIC_WEB_BUDGET_MS = 30000;
 
 const ID = /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/;
 const CODE = /^[a-z][a-z0-9_]{0,79}$/;

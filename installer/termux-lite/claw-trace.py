@@ -3,6 +3,8 @@
 
     claw-trace.py [--minutes 15 | --since 23:30 [--until 23:40]] [--no-app] [--json]
 
+    claw-trace.py <correlation> | --turn ID | --run ID | --client-run ID
+
 Reads only what the existing owners already write — no daemon, no new store:
   companion  ~/.openclaw/health/companion.stderr.log*   (lines stamped by bounded-log.py --timestamp)
   health     ~/.openclaw/health/health.log*
@@ -15,6 +17,7 @@ import datetime as dt
 import json
 import os
 import re
+import runpy
 import sqlite3
 import subprocess
 import sys
@@ -26,6 +29,8 @@ APP = os.environ.get("SAMANTHA_APP_PACKAGE", "ai.samantha.android.dev")
 DEVICE = os.environ.get("SAMANTHA_ADB_DEVICE", "127.0.0.1:5556")
 STAMP = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:[+-]\d\d:\d\d|Z)?)\s+(.*)$")
 LOCAL = dt.datetime.now().astimezone().tzinfo
+# Reuse the existing sink's ID bounds, rather than introducing another Python definition.
+CORRELATION_VALUE = runpy.run_path(str(Path(__file__).with_name("bounded-log.py")))["CORRELATION_VALUE"]
 
 
 def instant(text):
@@ -129,8 +134,12 @@ def runs(since_ms, until_ms):
         for key, label in (("acceptedAt", "accepted"), ("updatedAt", run.get("state"))):
             at = run.get(key)
             if isinstance(at, int) and since_ms <= at <= until_ms:
-                error = str(run.get("error") or "")[:80]
-                out.append((from_ms(at), "runs", f"{label} {run.get('runId')} source={run.get('executionSource')} capability={capability} {error}".strip()))
+                # Existing run owner fields, not a new correlation index. Never copy a free error string.
+                fields = " ".join(f"{key}={run[key]}" for key in ("runId", "clientRunId", "turnId")
+                                  if isinstance(run.get(key), str) and CORRELATION_VALUE.fullmatch(run[key]))
+                reason = run.get("reasonClass") or ""
+                reason = reason if isinstance(reason, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,95}", reason) else ""
+                out.append((from_ms(at), "runs", f"{label} {fields} source={run.get('executionSource')} capability={capability} {reason}".strip()))
     return out
 
 
@@ -145,14 +154,44 @@ def window(args):
     return since, until
 
 
+CORRELATION_KEYS = {
+    "turn": ("turnId", "turn_id", "turn"),
+    "run": ("runId", "run_id", "run"),
+    "client_run": ("clientRunId", "client_run_id"),
+}
+
+
+def has_correlation(text, value, keys):
+    # Exact named fields only: run_1 never matches run_10, message text or a timestamp.
+    for key in keys:
+        pattern = r'(?<![A-Za-z0-9_])"?' + re.escape(key) + r'"?\s*[:=]\s*"?' + re.escape(value) + r'(?=["\s,}]|$)'
+        if re.search(pattern, text):
+            return True
+    return False
+
+
+def correlated(text, args):
+    if args.correlation and not has_correlation(text, args.correlation, sum(CORRELATION_KEYS.values(), ())):
+        return False
+    return all(not getattr(args, name) or has_correlation(text, getattr(args, name), keys)
+               for name, keys in CORRELATION_KEYS.items())
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("correlation", nargs="?")
+    parser.add_argument("--turn")
+    parser.add_argument("--run")
+    parser.add_argument("--client-run", dest="client_run")
     parser.add_argument("--minutes", type=int, default=15)
     parser.add_argument("--since")
     parser.add_argument("--until")
     parser.add_argument("--no-app", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
+    for value in (args.correlation, args.turn, args.run, args.client_run):
+        if value is not None and not CORRELATION_VALUE.fullmatch(value):
+            parser.error("invalid_trace_correlation")
     since, until = window(args)
     s_ms, u_ms = int(since.timestamp() * 1000), int(until.timestamp() * 1000)
     rows = []
@@ -162,7 +201,7 @@ def main(argv=None):
         rows += app_trace()
     rows += dialogue(s_ms, u_ms)
     rows += runs(s_ms, u_ms)
-    rows = sorted((r for r in rows if since <= r[0] <= until), key=lambda r: r[0])
+    rows = sorted((r for r in rows if since <= r[0] <= until and correlated(r[2], args)), key=lambda r: r[0])
     for at, source, text in rows:
         if args.json:
             print(json.dumps({"at": at.isoformat(timespec="milliseconds"), "source": source, "text": text}, ensure_ascii=False))
