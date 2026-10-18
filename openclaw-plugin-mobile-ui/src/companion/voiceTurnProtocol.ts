@@ -318,7 +318,14 @@ export class VoiceTurnProtocol {
   }
   receiptReply(turnId:string) {
     const t=this.turns.get(turnId),entry=this.executions.get(turnId);
-    if(!t||t.interrupted||!t.outputEnded||!entry?.result)throw new Error("receipt_reply_not_admissible");
+    // No receipt to read (execution never admitted, turn interrupted, or its output still open): an explicit refusal for
+    // this turn, never a session-wide protocol error (banc voix S24 18/10 19:45: one refused execution closed the call
+    // « la réponse est arrivée incomplète »). The app answers the refusal on that turn and keeps listening.
+    if(!t||t.interrupted||!t.outputEnded||!entry?.result) {
+      const reason=!t?"unknown_turn":t.interrupted?"interrupted":!t.outputEnded?"output_open":"no_execution";
+      this.event({receiptRefused:{reason}},turnId,t?.generation||null);
+      return;
+    }
     const imposed=imposedVoiceText(entry.result);
     const publicWeb=entry.result?.voice?.mode==="public_web";
     if(publicWeb&&!imposed)throw new Error("public_web_readback_language_required");
