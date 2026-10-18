@@ -18,7 +18,7 @@ function ready(s){s.p.receive(ctrl('turnStart',{firstSample:0}));s.p.receive({wa
   if(d.mode==='turn')return {outcome:'READY',goalRef:'goal-web',pendingHandoff:{goalRef:'goal-web',klass:'fast'},decision:{capability:'samantha.app.web.answer',risk:'read'},handled:true};
   if(d.mode==='abort')return {outcome:'FAILED',handled:true};
   assert.equal(d.mode,'handoff');assert.equal(d.web.voiceDelegation,true);assert.equal(d.web.runId,'native-client');assert.equal(d.web.sessionId,'native-session');
-  assert(d.web.deadlineEpochMs>Date.now()&&d.web.deadlineEpochMs<=Date.now()+20000);
+  assert(d.web.deadlineEpochMs>Date.now()&&d.web.deadlineEpochMs<=Date.now()+30000);
   if(process.env.CLAW_PUBLIC_WEB_VOICE_RECIPE!=='1')return {outcome:'FAILED',reasonCode:'voice_recipe_required',text:'refus',handled:true,metadata:{web:refusal}};
   return {outcome:'COMPLETED',text:'RAW_UNVERIFIED',handled:true,metadata:{web}};};
  const priorRecipe=process.env.CLAW_PUBLIC_WEB_VOICE_RECIPE;

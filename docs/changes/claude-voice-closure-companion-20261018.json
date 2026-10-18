@@ -1,0 +1,80 @@
+{
+  "version": 2,
+  "id": "claude-voice-closure-companion-20261018",
+  "origin": "chat",
+  "kind": "incident",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Clôture voix côté Companion : la voix lit la forme parlée du propriétaire (factures nommées par fournisseur), demande de reformuler quand rien n'est compris, refuse une relecture sans exécution pour ce tour seulement, et le budget web public passe à 30 s.",
+  "reason": "Banc voix S24 du 18/10 (micro injecté, app propriétaire) et essais d'Amine : « 0,985 TND » sans STEG puis « c'est quel fournisseur ? » sans réponse ; « J'ai compris : Demande. Ça n'a pas abouti à l'étape « Compréhension de la demande » : la cause n'est pas établie par le reçu » pour une phrase mal transcrite ; une exécution non admise fermait l'appel (receipt_reply_not_admissible, « la réponse est arrivée incomplète ») ; « la météo à Tunis demain » en web_deadline_exceeded deux fois (17,2 s).",
+  "files": [
+    "docs/changes/claude-voice-closure-companion-20261018.json",
+    "docs/changes/claude-voice-closure-companion-20261018.md",
+    "installer/termux-lite/claw-capability.py",
+    "installer/termux-lite/gemini-request.py",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-fast-path-web.py",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-agent.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-mcp.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-voice.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-turn-protocol.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-understanding.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/runWeb.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceUnderstanding.ts"
+  ],
+  "tests": [
+    {
+      "name": "test-voice-understanding.cjs",
+      "status": "passed",
+      "evidence": "23/23 ; nouveaux cas : forme parlée du propriétaire imposée mot pour mot (jamais sur échec, transaction ou texte invalide) ; « rien compris » → « Je n'ai pas bien compris. Tu peux reformuler ? » ; un échec à raison établie ou à une autre étape garde son rapport."
+    },
+    {
+      "name": "test-voice-turn-protocol.cjs",
+      "status": "passed",
+      "evidence": "29/29 ; relecture sans exécution admise → receiptRefused(no_execution) pour ce tour, aucune protocolError, le tour suivant est admis. Ancien code : protocolError receipt_reply_not_admissible."
+    },
+    {
+      "name": "test-run-web*.cjs, test-model-fast-path-web.py, test-claw-capability-agent-policy.py",
+      "status": "passed",
+      "evidence": "run-web 18/18, run-web-voice 10/10, run-web-agent 5/5, run-web-mcp 5/5, fast-path web OK, politique E3 28 ; bornes portées de 20 000 à 30 000 ms."
+    }
+  ],
+  "documentation": [
+    "docs/changes/claude-voice-closure-companion-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Aucune route ni capability ; rendu vocal, protocole voix et budget de temps."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise planVoiceSpeech, VoiceTurnProtocol et PUBLIC_WEB_BUDGET_MS ; aucun propriétaire, store ni démon ajouté."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Le budget web partagé s'applique aussi à claw_execute (même PUBLIC_WEB_BUDGET_MS) ; aucun schéma ni outil MCP modifié."
+    ]
+  },
+  "rollback": "Revert de la PR puis redéploiement du runtime précédent (companion-deploy.sh) ; les playbooks à 30 s acceptent un core à 20 s.",
+  "limitations": [
+    "Activation : playbooks #218 épinglés d'abord (acceptent 30 s), puis ce core, puis l'APK avec receiptRefused ; recette par la grille du banc voix sur le S24."
+  ]
+}
