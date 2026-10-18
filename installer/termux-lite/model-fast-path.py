@@ -1401,9 +1401,15 @@ def main() -> int:
             # Older playbooks fail closed rather than putting credentials into Graph/model/logs.
             from qa_testing.contact_input import ingest_contact_input
             admitted=ingest_contact_input(_QA_INGRESS_CONTEXT,private_input.pop('user_input'))
-            if (not isinstance(admitted,dict) or set(admitted)-{'state','public_text','graph_text','dataset_ref','reason'}
+            if (not isinstance(admitted,dict) or set(admitted)-{'state','public_text','graph_text','dataset_ref','reason','selected_app_id'}
                     or admitted.get('state') not in {'answered','prepared','blocked'}
                     or not isinstance(admitted.get('public_text'),str) or len(admitted['public_text'])>4000):raise ValueError()
+            if 'selected_app_id' in admitted:
+                # A private choice narrows the fresh grants; it adds no grant.
+                # The Graph child receives it only through its separate pipe.
+                _QA_INGRESS_CONTEXT=validate_private_ingress({**_QA_INGRESS_CONTEXT,
+                    'selected_app_id':admitted['selected_app_id']})
+                if _QA_INGRESS_CONTEXT is None:raise ValueError()
             if 'graph_text' not in admitted:
                 print(json.dumps({'outcome':'COMPLETED' if admitted['state']!='blocked' else 'DENIED',
                     'text':admitted['public_text'],'handled':True,'modelAllowed':False,
