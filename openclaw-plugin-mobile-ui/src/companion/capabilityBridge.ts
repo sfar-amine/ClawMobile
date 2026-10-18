@@ -9,8 +9,11 @@ const execFileAsync = promisify(execFile);
 /** Existing helper transport, with optional bounded read cancellation. A process group includes Python/Graph children. */
 export async function runCapabilityHelperProcess(args: string[], options: {
   timeoutMs:number;maxBuffer:number;env:NodeJS.ProcessEnv;signal?:AbortSignal;killGroup?:boolean;
+  /** Private host-owned metadata pipe, never a model/public request argument. */
+  privateInput?:string;
 }): Promise<any> {
   if (options.signal?.aborted) throw Object.assign(new Error("capability_cancelled"),{code:"ABORT_ERR"});
+  if(options.privateInput!==undefined&&Buffer.byteLength(options.privateInput)>32768)throw new Error('private_input_limit');
   // Also establish the group in the Python leader: hosted launchers may strip Node's detached flag.
   const groupLeader = "import os,sys; os.getpgrp()==os.getpid() or os.setsid(); os.execv(sys.executable,[sys.executable,*sys.argv[1:]])";
   const commandArgs = options.killGroup ? ["-c",groupLeader,...args] : args;
@@ -19,6 +22,10 @@ export async function runCapabilityHelperProcess(args: string[], options: {
     ...(options.killGroup?{detached:true,killSignal:"SIGTERM" as const}:options.signal?{signal:options.signal}:{}),
   });
   const child = promise.child;
+  if(options.privateInput!==undefined){
+    child.stdin?.on('error',()=>{});
+    child.stdin?.end(options.privateInput);
+  }
   let shutdown:Promise<void>|undefined;
   const stop = () => {
     if (!options.killGroup || !child?.pid || shutdown) return;

@@ -13,9 +13,33 @@ import shlex
 import subprocess
 import sys
 import time
+import threading
+import select
+import stat
 from typing import Any
 
 HOME = Path.home()
+_QA_INGRESS_CONTEXT = None
+
+def _read_qa_input():
+    """Host's private input pipe. Raw contact text never becomes a CLI argument."""
+    raw_fd=os.environ.pop('SAMANTHA_QA_INPUT_FD',None)
+    if raw_fd!='0':raise ValueError('qa_scope_unavailable')
+    info=os.fstat(0)
+    if not stat.S_ISFIFO(info.st_mode) or info.st_uid!=os.getuid():raise ValueError('qa_scope_unavailable')
+    data=bytearray();deadline=time.monotonic()+2
+    try:
+        while True:
+            remaining=deadline-time.monotonic()
+            if remaining<=0 or not select.select([0],[],[],remaining)[0]:raise ValueError('qa_scope_unavailable')
+            chunk=os.read(0,min(4096,32769-len(data)))
+            if not chunk:break
+            data.extend(chunk)
+            if len(data)>32768:raise ValueError('qa_scope_unavailable')
+        result=json.loads(data)
+        if not isinstance(result,dict) or set(result)!={'context','user_input'} or not isinstance(result['user_input'],str) or not 0<len(result['user_input'])<=4000:raise ValueError('qa_scope_unavailable')
+        return result
+    finally:os.close(0)
 def _ui_root() -> Path:
     # Same order as claw-capability.py: explicit root, pinned runtime snapshot, then the mutable workspace.
     configured = os.environ.get("CLAW_UI_PLAYBOOKS_ROOT")
@@ -71,7 +95,30 @@ def _run_json(
     env: dict[str, str] | None = None,
     input_text: str | None = None,
 ) -> tuple[int, dict[str, Any], str]:
-    run = subprocess.run(
+    # Only the existing Graph receives the host's context. Decision stdin remains independent.
+    private_fd = private_write = None
+    writer = None
+    kwargs = {}
+    if _QA_INGRESS_CONTEXT is not None:
+        if len(cmd)<3 or cmd[1:3]!=['-m','skill_intelligence.capability_graph']:
+            raise RuntimeError('qa_scope_unavailable')
+        payload=json.dumps(_QA_INGRESS_CONTEXT,separators=(',',':')).encode()
+        if len(payload)>32768:raise RuntimeError('qa_scope_unavailable')
+        private_fd,private_write=os.pipe()
+        env={**(env or os.environ),'SAMANTHA_QA_CONTEXT_FD':str(private_fd)}
+        kwargs['pass_fds']=(private_fd,)
+        def send_context():
+            try:
+                remaining=memoryview(payload)
+                while remaining:
+                    written=os.write(private_write,remaining)
+                    remaining=remaining[written:]
+            except OSError:pass
+            finally:os.close(private_write)
+        writer=threading.Thread(target=send_context,name='qa-private-ingress')
+        writer.start()
+    try:
+        run = subprocess.run(
         cmd,
         cwd=cwd,
         env=env,
@@ -79,7 +126,11 @@ def _run_json(
         text=True,
         timeout=timeout,
         input=input_text,
+        **kwargs,
     )
+    finally:
+        if private_fd is not None:os.close(private_fd)
+        if writer is not None:writer.join(timeout=1)
     try:
         value = json.loads(run.stdout or "{}")
     except ValueError as exc:
@@ -1194,6 +1245,7 @@ class FastPathPorts:
                 "remaining_budget_ms": remaining, "deadline_epoch_ms": self.web_deadline_epoch_ms}
 
     def _caller(self, ctx: dict[str, Any]) -> str:
+        if _QA_INGRESS_CONTEXT is not None:return 'trusted'
         value = str((ctx or {}).get("caller") or self.caller)
         return value if value in {"owner", "trusted", "other"} else "other"
 
@@ -1309,6 +1361,7 @@ def _b64_json(name: str) -> dict[str, Any]:
 
 
 def main() -> int:
+    global _QA_INGRESS_CONTEXT
     parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
     parser.add_argument("--check", action="store_true", help="Resolve only; do not execute or open a human boundary.")
     parser.add_argument("--execute-decision", action="store_true", help="Execute the prepared decision from CLAW_PREPARED_DECISION_B64 without re-resolving.")
@@ -1330,6 +1383,34 @@ def main() -> int:
     parser.add_argument("--deadline-epoch-ms",type=int)
     parser.add_argument("message", nargs="*")
     args = parser.parse_args()
+    if 'SAMANTHA_QA_CONTEXT_FD' in os.environ:
+        # This descriptor is reserved to the Graph child, never an owner-default helper ingress.
+        print(json.dumps({'status':'known_error','reason':'qa_scope_unavailable','execution_state':'not_started','model_bypassed':True}))
+        return 1
+    if 'SAMANTHA_QA_INPUT_FD' in os.environ:
+        try:
+            sys.path.insert(0,str(args.ui_root))
+            from qa_testing.access_scope import validate_private_ingress
+            private_input=_read_qa_input()
+            _QA_INGRESS_CONTEXT=validate_private_ingress(private_input['context'])
+            if _QA_INGRESS_CONTEXT is None:raise ValueError()
+            if args.surface!='whatsapp' or not args.dialogue:raise ValueError()
+            args.caller='trusted'
+            # Older playbooks fail closed rather than putting credentials into Graph/model/logs.
+            from qa_testing.contact_input import ingest_contact_input
+            admitted=ingest_contact_input(_QA_INGRESS_CONTEXT,private_input.pop('user_input'))
+            if (not isinstance(admitted,dict) or set(admitted)-{'state','public_text','graph_text','dataset_ref','reason'}
+                    or admitted.get('state') not in {'answered','prepared','blocked'}
+                    or not isinstance(admitted.get('public_text'),str) or len(admitted['public_text'])>4000):raise ValueError()
+            if 'graph_text' not in admitted:
+                print(json.dumps({'outcome':'COMPLETED' if admitted['state']!='blocked' else 'DENIED',
+                    'text':admitted['public_text'],'handled':True,'modelAllowed':False,
+                    **({'reasonCode':admitted['reason']} if admitted.get('reason') in {'qa_scope_integration_pending','qa_scope_unavailable'} else {})},ensure_ascii=False));return 0
+            if not isinstance(admitted['graph_text'],str) or not 0<len(admitted['graph_text'])<=4000:raise ValueError()
+            args.message=[admitted['graph_text']]
+        except Exception:
+            print(json.dumps({'status':'known_error','reason':'qa_scope_unavailable','execution_state':'not_started','model_bypassed':True}))
+            return 1
     message = " ".join(args.message).strip()
     if not message and not sys.stdin.isatty():
         message = sys.stdin.read().strip()

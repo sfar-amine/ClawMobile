@@ -308,6 +308,9 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-people-trusted.py
           python3 ../installer/termux-lite/test-whatsapp-allowlist.py
+          python3 ../installer/termux-lite/test-qa-room-access.py
+          python3 ../installer/termux-lite/test-qa-private-graph-pipe.py
+          node scripts/test-qa-private-ingress.cjs
           python3 ../installer/termux-lite/test-whatsapp-contact-memory.py
           python3 ../installer/termux-lite/test-whatsapp-allowlist-manager.py
           python3 ../installer/termux-lite/test-whatsapp-allowlist-acceptance.py

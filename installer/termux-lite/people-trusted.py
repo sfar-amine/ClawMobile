@@ -511,14 +511,14 @@ EVENTS = {'add':'added', 'remove':'removed', 'scope':'scope_changed', 'suspend':
           'rooms':'rooms_changed'}
 # Access "rooms" (decision d'Amine 11/10). Enforced by agent routing, never by prompt: plain conversation is the
 # wildcard `contacts` agent, `projet` a read-only project snapshot agent, `maison` the owner's main agent.
-ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'maison')
+ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'qa', 'maison')
 # Rooms are enforced by the concrete-peer binding. Agenda/actions/messages additionally pass through the
 # capability-first contact boundary, which checks the canonical decision before executing it.
-ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'agenda', 'actions', 'messages', 'maison'}
+ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'agenda', 'actions', 'messages', 'qa', 'maison'}
 PROJECT_AGENT = 'contacts-projet'
 # Pièce Pulse (fichier 52 §5): the agent only names the room; the plugin's pulse-room ingress executes Pulse alone.
 PULSE_AGENTS = {'pulse': 'contacts-pulse', 'projet+pulse': 'contacts-projet-pulse'}
-CAPABILITY_ROOMS = {'agenda', 'actions', 'messages'}
+CAPABILITY_ROOMS = {'agenda', 'actions', 'messages', 'qa'}
 ROOM_TAG = 'r17-rooms:'
 # M4 (décision d'Amine 12/10): contact material stays in the private context repo and is
 # forgotten 30 days after access ended (expiry or removal). Bounded per 60s sweep pass.
@@ -530,6 +530,9 @@ INBOX_SENDER = re.compile(r'^\s+- Sender:.*?(\+?[0-9][0-9 ]{6,}[0-9])', re.M)
 CONTACT_TOOL_OP = re.compile(r'[A-Za-z0-9_.:-]{1,128}\Z')
 CONTACT_TOOL_RECEIPTS = 5000
 CONTACT_MEMORY_FIELD = 'contactMemory'
+QA_APPS_FIELD = 'qaApps'
+QA_APPS_LIMIT = 12
+CONTACT_HEADER_BYTES = 16384
 CONTACT_MEMORY_START = '<!-- CONTACT_MEMORY_START -->'
 CONTACT_MEMORY_END = '<!-- CONTACT_MEMORY_END -->'
 CONTACT_MEMORY_NOTE_START = '<!-- CONTACT_MEMORY_SUMMARY_V1 '
@@ -615,6 +618,32 @@ def stamp(value):
 def safe_text(value, limit, empty=True):
     if not isinstance(value, str) or len(value) > limit or (not empty and not value) or any(ord(c)<32 or ord(c)==127 for c in value): fail('invalid_request')
     return value
+
+def normalize_qa_apps(value):
+    """Owner-controlled app grants in the existing private contact header, never a new registry."""
+    if not isinstance(value,list) or len(value)>QA_APPS_LIMIT: fail('invalid_qa_apps')
+    result=[];seen=set()
+    for grant in value:
+        if not isinstance(grant,dict) or set(grant)!={'app_id','app_name','package','environment','allow_writes'}: fail('invalid_qa_apps')
+        identity=grant['app_id']
+        if not isinstance(identity,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,63}',identity) or identity in seen: fail('invalid_qa_apps')
+        if not isinstance(grant['package'],str) or len(grant['package'])>200 or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+',grant['package']): fail('invalid_qa_apps')
+        if grant['package'].startswith(('android.','com.android.','ai.samantha.')) or grant['package']=='android': fail('invalid_qa_apps')
+        for key in ('app_name','environment'):
+            safe_text(grant[key],80,False)
+            if any(unicodedata.category(ch) in ('Cc','Cf','Cs','Co','Cn','Zl','Zp') for ch in grant[key]) or SECRET_LIKE.search(grant[key]) or re.search(r'https?://|\+?\d[\d ()-]{6,}\d',grant[key]): fail('invalid_qa_apps')
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:@-]{0,79}',grant['environment']):fail('invalid_qa_apps')
+        if type(grant['allow_writes']) is not bool: fail('invalid_qa_apps')
+        seen.add(identity);result.append(dict(grant))
+    return sorted(result,key=lambda row:row['app_id'])
+
+def qa_authority_revision(metadata):
+    return digest(canonical({'qaApps':normalize_qa_apps(metadata.get(QA_APPS_FIELD,[])),
+        'rooms':metadata.get('rooms') or ['conversation'],'expiresAt':metadata['expiresAt'],
+        'state':metadata['state'],'addedAt':metadata['addedAt']}))
+
+def qa_rooms_confirmation_hash(number, rooms, apps):
+    return digest(canonical({'number':number,'rooms':rooms,'qaApps':normalize_qa_apps(apps)}))
 
 def request_hash(action, body):
     return digest(canonical({'action':action, **{k:v for k,v in body.items() if k not in ('requestHash','expectedAuthority')}}))
@@ -758,14 +787,15 @@ class Contacts:
         path=self.path(number)
         try:
             if path.is_symlink(): fail('contact_state_invalid', 503)
-            with path.open('rb') as file: prefix=file.read(2048)
+            with path.open('rb') as file: prefix=file.read(CONTACT_HEADER_BYTES)
         except FileNotFoundError: return None
         except OSError: fail('contact_state_invalid', 503)
         if not prefix.startswith((MARKER+'\n').encode()): return None
         try:
             line=prefix.split(b'\n',2)[1]; value=json.loads(line)
             if not prefix.split(b'\n',2)[2].startswith(END.encode()): raise ValueError()
-            if set(value)-{'rooms',CONTACT_MEMORY_FIELD}!=FIELDS or value['state'] not in ('active','suspended') or value['scope'] not in ('standard','claw','custom'): raise ValueError()
+            if set(value)-{'rooms',CONTACT_MEMORY_FIELD,QA_APPS_FIELD}!=FIELDS or value['state'] not in ('active','suspended') or value['scope'] not in ('standard','claw','custom'): raise ValueError()
+            if QA_APPS_FIELD in value: value[QA_APPS_FIELD]=normalize_qa_apps(value[QA_APPS_FIELD])
             if 'rooms' in value and (not isinstance(value['rooms'],list) or not value['rooms'] or any(r not in ROOMS for r in value['rooms'])): raise ValueError()
             if CONTACT_MEMORY_FIELD in value:
                 memory=value[CONTACT_MEMORY_FIELD]
@@ -786,6 +816,54 @@ class Contacts:
             return path.read_text(encoding='utf-8')
         except FileNotFoundError: return ''
         except (OSError,UnicodeDecodeError): fail('contact_state_invalid',503)
+
+    def qa_scope_read(self, body, *, config=None):
+        """Private current-authority read. A persisted campaign binding is never a grant."""
+        unavailable={'ok':False,'error':{'code':'qa_scope_unavailable'}}
+        try:
+            if not isinstance(body,dict) or set(body)!={'schema_version','requester_hash','app_id'} or type(body['schema_version']) is not int or body['schema_version']!=1: return unavailable
+            identity=body['requester_hash'];app_id=body['app_id']
+            if not isinstance(identity,str) or not CID.fullmatch(identity) or not isinstance(app_id,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,63}',app_id): return unavailable
+            config=self.local_config() if config is None else config;allow,_=self.people.whatsapp_state(config)
+            if not isinstance(allow,list) or len(allow)>5000: return unavailable
+            numbers=[number for number in allow if isinstance(number,str) and E164.fullmatch(number) and contact_id(number)==identity]
+            if len(numbers)!=1: return unavailable
+            number=numbers[0];metadata=self.metadata(number)
+            if not metadata or metadata['state']!='active' or 'qa' not in metadata.get('rooms',[]): return unavailable
+            expiry=metadata['expiresAt']
+            if expiry is not None and stamp(expiry)<=self.clock(): return unavailable
+            grants=normalize_qa_apps(metadata.get(QA_APPS_FIELD,[]))
+            grant=next((item for item in grants if item['app_id']==app_id),None)
+            if grant is None: return unavailable
+            # Require the exact canonical concrete-peer binding, not a caller-created room/session string.
+            matches=[binding for binding in (config.get('bindings') or []) if isinstance(binding,dict) and binding.get('comment')==ROOM_TAG+identity]
+            expected_agent=room_agent(metadata['rooms'])
+            if len(matches)!=1 or matches[0].get('agentId')!=expected_agent or not expected_agent or 'qa' not in expected_agent.split('-'): return unavailable
+            match=matches[0].get('match') or {}
+            if match.get('channel')!='whatsapp' or match.get('peer')!={'kind':'direct','id':number}: return unavailable
+            scope={key:grant[key] for key in ('app_id','package','environment','allow_writes')}
+            scope.update(schema_version=1,requester_hash=identity,grant_revision=qa_authority_revision(metadata),expires_at=expiry)
+            return {'ok':True,'scope':scope}
+        except (Refused,OSError,ValueError,TypeError,KeyError):
+            return unavailable
+
+    def qa_ingress_read(self, body):
+        unavailable={'ok':False,'error':{'code':'qa_scope_unavailable'}}
+        try:
+            if not isinstance(body,dict) or set(body)!={'requester_hash'} or not isinstance(body['requester_hash'],str) or not CID.fullmatch(body['requester_hash']): return unavailable
+            config=self.local_config();allow,_=self.people.whatsapp_state(config)
+            if not isinstance(allow,list) or len(allow)>5000: return unavailable
+            numbers=[number for number in allow if isinstance(number,str) and E164.fullmatch(number) and contact_id(number)==body['requester_hash']]
+            if len(numbers)!=1:return unavailable
+            metadata=self.metadata(numbers[0])
+            if not metadata:return unavailable
+            grants=[]
+            for app in normalize_qa_apps(metadata.get(QA_APPS_FIELD,[])):
+                current=self.qa_scope_read({'schema_version':1,'requester_hash':body['requester_hash'],'app_id':app['app_id']},config=config)
+                if current.get('ok') is not True:return unavailable
+                scope=current['scope'];grants.append({key:scope[key] for key in ('app_id','package','environment','allow_writes','grant_revision','expires_at')}|{'app_name':app['app_name']})
+            return {'ok':True,'grants':grants} if grants else unavailable
+        except (Refused,OSError,ValueError,TypeError,KeyError):return unavailable
     def note(self, number):
         text=self.context(number)
         if text.startswith(MARKER+'\n'):
@@ -870,6 +948,8 @@ class Contacts:
             out.append({'contactId':contact_id(number),'e164':number,'name':directory.get(number,{}).get('name') or None,'owner':number in owners,
                         'scope':metadata['scope'],'scopeText':metadata['scopeText'],'state':state,
                         'rooms':['maison'] if number in owners else (metadata.get('rooms') or ['conversation']),
+                        'qaApps':normalize_qa_apps(metadata.get(QA_APPS_FIELD,[])),
+                        'qaRevision':qa_authority_revision(metadata),
                         'expiresAt':metadata['expiresAt'],'addedAt':metadata['addedAt'],'personId':metadata['personId'],
                         'lastActivityAt':utc(activity[number]['timestamp']/1000) if activity.get(number,{}).get('timestamp') and not activity[number]['reason'] else None,
                         **({'reason':'archived_history'} if activity.get(number,{}).get('reason')=='archived_history' else {})})
@@ -1196,6 +1276,7 @@ class Contacts:
         expected=body.get('expectedAuthority')
         if expected is not None:
             current={'present':number in allow,'owner':number in owners,'scope':row['scope'] if row else None,'scopeText':row['scopeText'] if row else None,'state':row['state'] if row and 'state' in row else None,'expiresAt':row['expiresAt'] if row and 'expiresAt' in row else None}
+            if 'qaRevision' in expected: current['qaRevision']=qa_authority_revision(metadata)
             if expected!=current: fail('operation_conflict',409)
         if action=='add' and metadata['personId'] is None: metadata['personId']=self.directory()[0].get(number,{}).get('personId')
         original=copy.deepcopy(metadata);after=copy.deepcopy(before);wa=after.setdefault('channels',{}).setdefault('whatsapp',{})
@@ -1225,9 +1306,17 @@ class Contacts:
         elif action=='rooms':
             if number in owners: fail('owner_contact_protected',409)
             rooms=normalize_rooms(body.get('rooms'));current=metadata.get('rooms') or ['conversation']
-            if any(r not in current for r in rooms) and current!=['maison']: self.confirmation(body,'rooms',identity,digest('|'.join([number]+rooms)),retry=retry)
+            old_apps=normalize_qa_apps(metadata.get(QA_APPS_FIELD,[]))
+            apps=normalize_qa_apps(body.get('qaApps',old_apps)) if 'qa' in rooms else []
+            if 'qa' in rooms and not apps: fail('invalid_qa_apps')
+            # Changing a package, environment or write permission is an authority change even in an existing room.
+            changed_apps=apps!=old_apps
+            adding_apps=any(app not in old_apps for app in apps)
+            payload=qa_rooms_confirmation_hash(number,rooms,apps) if ('qa' in rooms or old_apps) else digest('|'.join([number]+rooms))
+            if (any(r not in current for r in rooms) and current!=['maison']) or adding_apps: self.confirmation(body,'rooms',identity,payload,retry=retry)
+            if apps or QA_APPS_FIELD in metadata: metadata[QA_APPS_FIELD]=apps
             metadata['rooms']=rooms;route_rooms(after,number,rooms,identity)
-            if after.get('bindings')==before.get('bindings') and current==rooms:
+            if after.get('bindings')==before.get('bindings') and current==rooms and not changed_apps:
                 if phase=='preflight': return {'success':True,'state':'already_present','receipt':None}
                 return self.noop(operation,identity,wanted,'already_present')
         elif action in ('remove','suspend','sweep'):
@@ -1254,8 +1343,8 @@ class Contacts:
         elif action=='note':
             if isinstance(body.get('text'),str) and len(body['text'])>2000: fail('note_too_long')
             note=safe_text(body.get('text'),2000)
-        if len((MARKER+'\n'+canonical(metadata)+'\n'+END+'\n').encode())>2048: fail('invalid_scope')
-        owner_change=(action=='add' or (action=='rooms' and any(r not in (original.get('rooms') or ['conversation']) for r in metadata['rooms'])) or
+        if len((MARKER+'\n'+canonical(metadata)+'\n'+END+'\n').encode())>(CONTACT_HEADER_BYTES if QA_APPS_FIELD in metadata else 2048): fail('invalid_scope')
+        owner_change=(action=='add' or (action=='rooms' and (metadata.get(QA_APPS_FIELD,[])!=original.get(QA_APPS_FIELD,[]) or any(r not in (original.get('rooms') or ['conversation']) for r in metadata['rooms']))) or
             (action=='expiry' and event=='extended' and original['expiresAt'] is not None and metadata['expiresAt']!=original['expiresAt']) or
             action in ('remove','sweep'))
         if phase=='preflight': return {'success':True,'state':'validated','receipt':None}
@@ -1520,7 +1609,7 @@ class Contacts:
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}
-        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'memory-compact':set(),'contact-tool':{'action','operationId','e164','text'},'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms'}}
+        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'memory-compact':set(),'contact-tool':{'action','operationId','e164','text'},'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms','qaApps'}}
         if action not in allowed or set(body)-allowed[action]: fail('invalid_request')
         if action=='list': return {'success':True,'state':'partial' if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else 'ok','receipt':None,'items':self.rows(),'issues':['contact_scan_partial'] if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else []}
         if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId')),'historyCount':self.history_count(body.get('contactId'))}
@@ -1548,6 +1637,16 @@ class Contacts:
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1] in ('qa-scope-read','qa-ingress-read'):
+        try:
+            if len(sys.argv)!=2: raise ValueError()
+            data=sys.stdin.buffer.read(1025)
+            if len(data)>1024: raise ValueError()
+            service=Contacts(_ExistingPeopleOwner())
+            result=(service.qa_scope_read if sys.argv[1]=='qa-scope-read' else service.qa_ingress_read)(json.loads(data or b'{}'))
+        except Exception:
+            result={'ok':False,'error':{'code':'qa_scope_unavailable'}}
+        print(canonical(result));return
     if len(sys.argv)>1 and sys.argv[1]=='allowlist':
         try:
             if len(sys.argv)!=3: fail('invalid_request')

@@ -56,6 +56,8 @@ type InboundContext = {
 };
 
 export type RunnerOptions = {
+  /** Only the contact ingress owner creates this context; it travels on a private pipe. */
+  qaContext?:Record<string,unknown>;
   helperPath?: string;
   home?: string;
   surface?: string;
@@ -173,6 +175,7 @@ export async function runModelFastPath(
     if(remaining!==undefined&&remaining<=0)return {status:bounded?"known_error":"error",reason:bounded?"web_deadline_exceeded":"check_budget_exceeded",...(bounded?{execution_state:"timeout"}:{})};
     try {
       const dialogue = options.dialogue;
+      const helperMessage=options.qaContext?'Demande privée de tests auto.':message;
       const argv = dialogue ? [
         "--dialogue", dialogue.mode,
         ...(dialogue.goalRef ? ["--goal-ref", dialogue.goalRef] : []),
@@ -181,7 +184,7 @@ export async function runModelFastPath(
         "--caller", options.caller || "owner",
         "--origin-id", options.originId || "capability-first",
         "--timeout", String(Math.max(2, Math.min(options.timeoutSeconds || 30, 120))),
-        message,
+        helperMessage,
       ] : [
         ...(options.clarificationDecision ? ["--resolve-clarification"] : options.preparedDecision ? ["--execute-decision"] : []),
         ...(options.checkOnly ? ["--check"] : []),
@@ -193,17 +196,20 @@ export async function runModelFastPath(
         ...(options.runId ? ["--run-id",options.runId] : []),
         ...(options.sessionId ? ["--session-id",options.sessionId] : []),
         ...(bounded ? ["--remaining-budget-ms",String(remaining),"--deadline-epoch-ms",String(options.deadlineEpochMs)] : []),
-        message,
+        helperMessage,
       ];
       const timeoutSeconds = Math.max(2, Math.min(options.timeoutSeconds || 30, 120));
       const raw: any = await runCapabilityHelperProcess(
         [helper, ...argv],
         {
-          timeoutMs: Math.min(fastPathProcessTimeoutMs(timeoutSeconds, !!options.checkOnly),remaining ?? Infinity),
-          killGroup:bounded||options.checkBudgetMs!==undefined,signal:options.signal,
+          timeoutMs: Math.min(fastPathProcessTimeoutMs(timeoutSeconds, !!options.checkOnly),remaining ?? Infinity,options.qaContext?12000:Infinity),
+          killGroup:bounded||options.checkBudgetMs!==undefined||!!options.qaContext,signal:options.signal,
           maxBuffer: bounded ? 128 * 1024 : 2 * 1024 * 1024,
+          ...(options.qaContext?{privateInput:JSON.stringify({context:options.qaContext,user_input:message})}:{}),
           env: {
             ...process.env,
+            SAMANTHA_QA_CONTEXT_FD:undefined,
+            SAMANTHA_QA_INPUT_FD:options.qaContext?'0':undefined,
             ...((options.preparedDecision || options.clarificationDecision) ? {
               CLAW_PREPARED_DECISION_B64: Buffer.from(JSON.stringify(options.preparedDecision || options.clarificationDecision), "utf8").toString("base64"),
             } : {}),
