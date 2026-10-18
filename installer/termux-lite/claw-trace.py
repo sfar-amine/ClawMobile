@@ -17,6 +17,7 @@ import datetime as dt
 import json
 import os
 import re
+import runpy
 import sqlite3
 import subprocess
 import sys
@@ -28,6 +29,8 @@ APP = os.environ.get("SAMANTHA_APP_PACKAGE", "ai.samantha.android.dev")
 DEVICE = os.environ.get("SAMANTHA_ADB_DEVICE", "127.0.0.1:5556")
 STAMP = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:[+-]\d\d:\d\d|Z)?)\s+(.*)$")
 LOCAL = dt.datetime.now().astimezone().tzinfo
+# Reuse the existing sink's ID bounds, rather than introducing another Python definition.
+CORRELATION_VALUE = runpy.run_path(str(Path(__file__).with_name("bounded-log.py")))["CORRELATION_VALUE"]
 
 
 def instant(text):
@@ -133,7 +136,7 @@ def runs(since_ms, until_ms):
             if isinstance(at, int) and since_ms <= at <= until_ms:
                 # Existing run owner fields, not a new correlation index. Never copy a free error string.
                 fields = " ".join(f"{key}={run[key]}" for key in ("runId", "clientRunId", "turnId")
-                                  if isinstance(run.get(key), str) and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run[key]))
+                                  if isinstance(run.get(key), str) and CORRELATION_VALUE.fullmatch(run[key]))
                 reason = run.get("reasonClass") or ""
                 reason = reason if isinstance(reason, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,95}", reason) else ""
                 out.append((from_ms(at), "runs", f"{label} {fields} source={run.get('executionSource')} capability={capability} {reason}".strip()))
@@ -187,7 +190,7 @@ def main(argv=None):
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     for value in (args.correlation, args.turn, args.run, args.client_run):
-        if value is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
+        if value is not None and not CORRELATION_VALUE.fullmatch(value):
             parser.error("invalid_trace_correlation")
     since, until = window(args)
     s_ms, u_ms = int(since.timestamp() * 1000), int(until.timestamp() * 1000)

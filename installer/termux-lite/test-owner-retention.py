@@ -144,11 +144,20 @@ class OwnerRetentionTests(unittest.TestCase):
             self.assertTrue(all(p.stat().st_size<=128 for p in Path(directory).iterdir()))
             self.assertTrue(log.read_text().startswith('turnId=turn_1 '))
 
+    def test_maximum_canonical_correlation_length_is_accepted(self):
+        # runs.ts permits IDs up to 160 characters; the diagnostic writer must preserve them.
+        with tempfile.TemporaryDirectory() as directory:
+            log=Path(directory)/'maximum.log';value='r'*160
+            done=subprocess.run(['python3',str(HERE/'bounded-log.py'),str(log),'--correlation','runId='+value,
+                                 '--append','event_code'],capture_output=True,text=True)
+            self.assertEqual(done.returncode,0,done.stderr)
+            self.assertEqual(log.read_text(),'runId='+value+' event_code\n')
+
     def test_invalid_correlation_is_refused_without_leaking_value(self):
         with tempfile.TemporaryDirectory() as directory:
             log=Path(directory)/'correlated.log'
             for value in ('email=private@example.invalid','runId=private@example.invalid',
-                          'runId=sk-private-secret','turnId=unsafe\nline','runId='+('x'*129)):
+                          'runId=sk-private-secret','turnId=unsafe\nline','runId='+('x'*161)):
                 done=subprocess.run(['python3',str(HERE/'bounded-log.py'),str(log),'--correlation',value,
                                      '--append','event_code'],capture_output=True,text=True)
                 self.assertNotEqual(done.returncode,0)

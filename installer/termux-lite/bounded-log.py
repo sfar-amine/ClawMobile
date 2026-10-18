@@ -50,7 +50,8 @@ def rotate(path, max_bytes=1024*1024, keep=3):
 
 
 CORRELATION_KEYS = frozenset(("turnId", "runId", "clientRunId"))
-CORRELATION_VALUE = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
+# Same maximum as runs.ts CLIENT_RUN_ID_RE; this stricter diagnostic projection excludes punctuation.
+CORRELATION_VALUE = re.compile(r"[A-Za-z0-9_-]{1,160}\Z")
 
 
 def correlation_prefix(values):

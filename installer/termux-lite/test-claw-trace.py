@@ -86,6 +86,22 @@ class ClawTraceTests(unittest.TestCase):
             for other in records[1:]:self.assertNotIn(other['runId'],done.stdout)
             self.assertNotIn('PRIVATE',done.stdout);self.assertNotIn('secret-private-value',done.stdout)
 
+    def test_canonical_maximum_id_is_searchable_and_oversize_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp);logs=home/'.openclaw/health';logs.mkdir(parents=True)
+            value='r'*160
+            (logs/'companion.stderr.log').write_text(
+                '2026-10-17T22:30:00Z runs error {"runId":"'+value+'"} submitted_run_failed\n'
+                '2026-10-17T22:30:01Z runId='+value+'x different_code\n')
+            done=self.trace(home,'--run',value)
+            self.assertEqual(done.returncode,0,done.stderr)
+            self.assertEqual(len(done.stdout.splitlines()),1)
+            self.assertIn('submitted_run_failed',done.stdout)
+            rejected=self.trace(home,'--run',value+'x')
+            self.assertNotEqual(rejected.returncode,0)
+            self.assertIn('invalid_trace_correlation',rejected.stderr)
+            self.assertNotIn(value,rejected.stderr)
+
     def test_json_metadata_and_invalid_filter(self):
         with tempfile.TemporaryDirectory() as tmp:
             home=Path(tmp);logs=home/'.openclaw/health';logs.mkdir(parents=True)
