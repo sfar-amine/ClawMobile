@@ -50,6 +50,12 @@ jobs:
       - name: Q8 closed QA notification producer and click script
         run: node scripts/test-qa-campaign-notification.cjs
 
+      - name: Q13 inert host attachment provenance and private input gates
+        run: node scripts/test-qa-contact-media.cjs
+
+      - name: Q13 existing People private attachment IPC
+        run: node scripts/test-qa-attachment-owner.cjs
+
       - name: F1 web budget matches the current capability owner
         run: |
           peer_sha=$(gh api repos/sfar-amine/samantha-ui-playbooks/git/ref/heads/main --jq .object.sha)
