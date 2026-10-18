@@ -148,9 +148,13 @@ export class VoiceTurnProtocol {
     if(!t||t.id!==this.asrOwner||!t.inputEnded||t.asrFinished)throw new Error("invalid_transcript_final");
     if(body.source!=="android_speech_service"||typeof body.text!=="string")throw new Error("invalid_transcript_source");
     const text=body.text.trim();
-    if(!text||text.length>12000)throw new Error("invalid_transcript_text");
-    t.input=text;t.asrFinished=true;this.asrOwner=null;
-    this.event({inputFinal:{text:t.input,source:"android_speech_service"}},t.id,t.generation);
+    // A window the on-device recognizer heard no speech in (noise, echo, a cough) closes as an empty input: the turn can
+    // never execute (execute() needs the request to match t.input) and the app drops its output, but the next turn is
+    // admitted instead of waiting forever on this transcription boundary (S24 18/10 12:35).
+    const noSpeech=body.noSpeech===true;
+    if(noSpeech?text!=="":(!text||text.length>12000))throw new Error("invalid_transcript_text");
+    t.input=text;t.asrFinished=true;this.asrOwner=null;if(noSpeech)t.interrupted=true;
+    this.event({inputFinal:noSpeech?{text:"",source:"android_speech_service",noSpeech:true}:{text:t.input,source:"android_speech_service"}},t.id,t.generation);
     if(!t.interrupted)for(const calls of this.pendingTools.get(t.id)||[])this.event({toolCall:{functionCalls:calls}},t.id,t.generation);
     this.pendingTools.delete(t.id);
     if(this.waiting&&!this.nextOutput&&!this.ambiguous) {

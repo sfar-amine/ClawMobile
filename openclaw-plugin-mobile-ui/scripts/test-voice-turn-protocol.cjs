@@ -37,6 +37,25 @@ function error(s){return s.events.flatMap(x=>x.warmEvent?.payload?.protocolError
  await test('conflicting audio retry is never forwarded',()=>{const s=setup();start(s);audio(s);audio(s,'voice-a',0,320,1);assert(error(s).includes('audio_identity_conflict'));assert.equal(s.sent.length,2);});
  await test('next input waits for on-device final transcript and output boundary',()=>{const s=setup();start(s);audio(s);end(s);start(s,'voice-b',4800);assert.equal(s.sent.filter(v=>v.realtimeInput?.activityStart).length,1);s.p.provider({serverContent:{inputTranscription:{text:'provider only',finished:true}}});assert.equal(s.sent.filter(v=>v.realtimeInput?.activityStart).length,1);finishAsr(s,'Bonjour');assert.equal(s.sent.filter(v=>v.realtimeInput?.activityStart).length,2);assert(s.events.some(x=>x.warmEvent?.payload?.turnPending?.turnId==='voice-b'));assert(!s.events.some(x=>x.warmEvent?.payload?.turnAdmitted?.turnId==='voice-b'));s.p.provider({serverContent:{interrupted:true}});assert(s.events.some(x=>x.warmEvent?.payload?.turnAdmitted?.turnId==='voice-b'));});
  await test('provider transcript cannot authorize execution',()=>{const s=setup();start(s);audio(s);end(s);s.p.provider({serverContent:{inputTranscription:{text:'Bonjour',finished:true}}});assert(s.p.snapshot().asrPending);assert.throws(()=>s.p.execute('voice-a','Bonjour',async()=>1));assert.deepEqual(error(s),[]);});
+ await test('a window with no speech closes as empty input and admits the next turn',()=>{
+  // S24 18/10 12:35: a VAD blip opened a turn, the recognizer heard nothing, and nothing could close the turn.
+  const noSpeech=(s,id='voice-a')=>s.p.receive(control('transcriptFinal',id,{source:'android_speech_service',text:'',noSpeech:true}));
+  const s=setup();start(s);audio(s);end(s);s.p.provider({toolCall:{functionCalls:[{id:'fc1',name:'clawmobile_capability',args:{request:'paye'}}]}});
+  start(s,'voice-b',4800);assert(!s.events.some(x=>x.warmEvent?.payload?.turnAdmitted?.turnId==='voice-b'));
+  noSpeech(s);
+  const final=s.events.find(x=>x.warmEvent?.payload?.inputFinal);assert.deepEqual(final.warmEvent.payload.inputFinal,{text:'',source:'android_speech_service',noSpeech:true});
+  assert(!s.events.some(x=>x.warmEvent?.payload?.toolCall),'a held tool call of a silent window is never released');
+  assert.throws(()=>s.p.execute('voice-a','',async()=>1));assert.throws(()=>s.p.execute('voice-a','paye',async()=>1));
+  assert(!s.p.snapshot().asrPending);assert.deepEqual(error(s),[]);
+  s.p.provider({serverContent:{interrupted:true}});assert(s.events.some(x=>x.warmEvent?.payload?.turnAdmitted?.turnId==='voice-b'));
+  audio(s,'voice-b',4800);end(s,'voice-b',5120);finishAsr(s,'Bonjour','voice-b');assert.deepEqual(error(s),[]);
+ });
+ await test('an empty transcript needs the explicit no-speech flag, and the flag never carries text',()=>{
+  const a=setup();start(a);audio(a);end(a);finishAsr(a,'  ');assert(error(a).includes('invalid_transcript_text'));
+  const b=setup();start(b);audio(b);end(b);b.p.receive(control('transcriptFinal','voice-a',{source:'android_speech_service',text:'paye',noSpeech:true}));assert(error(b).includes('invalid_transcript_text'));
+  const c=setup();start(c);audio(c);end(c);c.p.receive(control('transcriptFinal','voice-a',{source:'android_speech_service',text:'',noSpeech:'true'}));assert(error(c).includes('invalid_transcript_text'));
+  assert.deepEqual(contract.optionalControlFields.transcriptFinal,['noSpeech']);
+ });
  await test('tools await on-device final transcript',()=>{const s=setup();start(s);audio(s);end(s);s.p.provider({toolCall:{functionCalls:[{id:'fc1',name:'clawmobile_capability',args:{request:'Bonjour'}}]}});assert(!s.events.some(x=>x.warmEvent?.payload?.toolCall));finishAsr(s);assert(s.events.some(x=>x.warmEvent?.payload?.toolCall));});
  await test('execution is exactly once for the admitted turn',async()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);let count=0;const run=()=>{count++;return Promise.resolve({ok:true});};const a=s.p.execute('voice-a','Bonjour',run),b=s.p.execute('voice-a','Bonjour',run);assert.equal(a,b);await a;assert.equal(count,1);assert.throws(()=>s.p.execute('voice-a','Other',run));});
  await test('receipt reply is accepted only after the correlated execution and generation end',async()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);await s.p.execute('voice-a','Bonjour',async()=>({execution:{state:'completed'}}));s.p.receive({warmControl:{receiptReply:{turnId:'voice-a'}}});assert(error(s).includes('receipt_reply_not_admissible'));const t=setup();start(t);audio(t);end(t);finishAsr(t);await t.p.execute('voice-a','Bonjour',async()=>({execution:{state:'completed'}}));t.p.provider({serverContent:{turnComplete:true}});t.p.receive({warmControl:{receiptReply:{turnId:'voice-a'}}});assert(t.events.some(x=>x.warmEvent?.payload?.outputResumed));assert.equal(t.sent.filter(x=>x.clientContent?.turnComplete).length,1);});
