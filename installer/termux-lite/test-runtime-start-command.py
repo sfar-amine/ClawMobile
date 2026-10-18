@@ -57,6 +57,12 @@ class RuntimeStartCommandTests(unittest.TestCase):
         self.assertIn('CLAWMOBILE_RUNTIME_START_COMMAND="$(clawmobile_runtime_start_command "$SCRIPT_DIR")"', text)
         self.assertNotIn("${CLAWMOBILE_RUNTIME_START_COMMAND:-", text)
 
+    def test_the_deploy_lock_descriptor_does_not_outlive_the_deploy(self):
+        # The Companion (and the Remote Bridge inside it) must not hand a dead lock fd to later commands.
+        lines = [l.strip() for l in (LIB.parent / "companion-server.sh").read_text().splitlines()]
+        self.assertIn("unset SAMANTHA_DEPLOY_LOCK_FD", lines)
+        self.assertLess(lines.index("unset SAMANTHA_DEPLOY_LOCK_FD"), lines.index("cd \"$REPO_ROOT\""))
+
 
 if __name__ == "__main__":
     unittest.main()
