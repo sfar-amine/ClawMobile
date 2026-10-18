@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('fast_path_display', Path(__file__).with_name('model-fast-path.py'))
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
@@ -11,6 +12,35 @@ FALLBACK = "Résultat disponible auprès de Claw ; détails non affichables en t
 
 
 class GenericDisplayTests(unittest.TestCase):
+    def test_only_generic_reads_report_their_capability_once_per_execution(self):
+        decision = {'type': 'EXECUTE', 'selected': {'capability': 'runtime.inventory', 'risk': 'read'}}
+        execution = {'execution': {'state': 'completed', 'result': {'ok': True, 'count': 2}},
+                     'selected': decision['selected'], 'decision': decision}
+        with patch.object(m, 'execute_capability_decision', return_value=execution):
+            out = m.execute_resolved('synthetic diagnostic read', {}, decision)
+        self.assertEqual(out['presentationDiagnostics'], {'genericDisplayByCapability': [{'capability': 'runtime.inventory', 'renders': 1}]})
+        execution['execution']['result']['text'] = 'Installation observée, qualification non établie.'
+        with patch.object(m, 'execute_capability_decision', return_value=execution):
+            out = m.execute_resolved('synthetic diagnostic read', {}, decision)
+        self.assertNotIn('presentationDiagnostics', out)
+
+    def test_diagnostic_signal_survives_coordinator_projection_without_private_text(self):
+        class Coordinator:
+            @staticmethod
+            def handle_admitted_event(event, ports, policy):
+                ports._track_execution({'presentationDiagnostics': {'genericDisplayByCapability': [{'capability': 'runtime.inventory', 'renders': 1}]}})
+                return {'outcome': 'COMPLETED', 'text': 'Fixture'}
+        with patch.object(m, '_dialogue_coordinator', return_value=Coordinator):
+            out = m.run_dialogue('synthetic diagnostic read', mode='turn', ui_root=Path('.'), surface='app', caller='owner', timeout=30)
+        self.assertEqual(out['presentationDiagnostics']['genericDisplayByCapability'][0]['renders'], 1)
+
+    def test_owner_text_and_nested_generic_results_are_counted_at_rendering(self):
+        count = [0]
+        self.assertEqual(m._display_text({'text':'Texte propriétaire'}, generic_renders=count), 'Texte propriétaire')
+        self.assertEqual(count, [0])
+        m._display_text({'strategy':'composed_read','results':[{'state':'completed','label':'Lecture','result':{'ok':True,'count':2}}]}, generic_renders=count)
+        self.assertEqual(count, [1])
+
     def test_leave_balance_and_rows(self):
         text = m._display_text({"ok": True, "balance": {"solde_a_date_jours": 16.427, "ytd_jours": 21},
                                 "requests": [{"id": 15150, "type": "Congé Annuel", "start": "15/10/2026 09:00"}] * 7,

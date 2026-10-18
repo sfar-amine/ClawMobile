@@ -1,5 +1,5 @@
 /** Closed HS3 metadata. No routing, owner I/O or payment-effect inference. */
-export type ReceiptPresentation = {version:1;locale:'fr'|'en';status:'info'|'error';label:string;title:string;rows:[];spoken:string;primary:{label:string;action:'done'};effect:{debited:'unknown';source:'receipt'};meta:{capability:string|null};understood:{capability:string|null;label:string;slots:ReceiptSlots;text?:string};alternatives:{capability:string;label:string}[];payment?:PaymentOutcome;failure?:{step:string;reason:string;stepId?:string;reasonCode?:string;notDone?:{code:'unknown'}|{code:'payment_not_submitted'|'not_started';text:string}}};
+export type ReceiptPresentation = {version:1;locale:'fr'|'en';status:'info'|'error';label:string;title:string;rows:[string,string][];spoken:string;primary:{label:string;action:'done'};effect:{debited:'unknown';source:'receipt'};meta:{capability:string|null};understood:{capability:string|null;label:string;slots:ReceiptSlots;text?:string};alternatives:{capability:string;label:string}[];payment?:PaymentOutcome;failure?:{step:string;reason:string;stepId?:string;reasonCode?:string;notDone?:{code:'unknown'}|{code:'payment_not_submitted'|'not_started';text:string}}};
 /** Read-time state of the payment request a run handed off to (runPaymentPresentation.ts); never persisted by the run. */
 export type InitialPaymentFailure={stepId:'execution_error';reasonCode:string;at:number|null};
 export type PaymentHandoff={runState:'done';runUpdatedAt:number;paymentCreatedAt:number;runUpdatedBeforePaymentCreated:boolean};
@@ -37,7 +37,9 @@ function text(v:unknown,max:number):v is string{return typeof v==='string'&&v.le
 function id(v:unknown):v is string{return typeof v==='string'&&/^[a-z][a-z0-9_.-]{0,159}$/.test(v)&&!secret.test(v);}
 export function readReceiptPresentation(raw:unknown):ReceiptPresentation|undefined{
  if(!obj(raw))return undefined;const p=obj(raw.presentation)?raw.presentation:raw;
- if(p.version!==1||(p.locale!=='fr'&&p.locale!=='en')||(p.status!=='info'&&p.status!=='error')||!text(p.label,200)||!text(p.title,200)||!text(p.spoken,240)||!Array.isArray(p.rows)||p.rows.length!==0||!obj(p.primary)||p.primary.action!=='done'||!text(p.primary.label,200)||!obj(p.effect)||p.effect.debited!=='unknown'||p.effect.source!=='receipt'||!obj(p.understood)||!text(p.understood.label,200)||!obj(p.understood.slots)||!obj(p.meta)||!Array.isArray(p.alternatives)||p.alternatives.length>3)return undefined;
+ if(p.version!==1||(p.locale!=='fr'&&p.locale!=='en')||(p.status!=='info'&&p.status!=='error')||!text(p.label,200)||!text(p.title,200)||!text(p.spoken,240)||!Array.isArray(p.rows)||p.rows.length>8||!obj(p.primary)||p.primary.action!=='done'||!text(p.primary.label,200)||!obj(p.effect)||p.effect.debited!=='unknown'||p.effect.source!=='receipt'||!obj(p.understood)||!text(p.understood.label,200)||!obj(p.understood.slots)||!obj(p.meta)||!Array.isArray(p.alternatives)||p.alternatives.length>3)return undefined;
+ const rows:ReceiptPresentation['rows']=[];
+ for(const row of p.rows){if(!Array.isArray(row)||row.length!==2||!text(row[0],100)||!text(row[1],240))return undefined;rows.push([row[0],row[1]]);}
  const cid=p.understood.capability;if(cid!==null&&!id(cid))return undefined;if(p.meta.capability!==cid)return undefined;
  const slots=closedSlots(p.understood.slots);const summary=text(p.understood.text,240)?p.understood.text:undefined;
  const alternatives:ReceiptPresentation['alternatives']=[],seen=new Set([cid]);
@@ -47,25 +49,80 @@ export function readReceiptPresentation(raw:unknown):ReceiptPresentation|undefin
   if(id(p.failure.reasonCode))failure.reasonCode=p.failure.reasonCode;
   const done=p.failure.notDone;if(obj(done)&&done.code==='unknown')failure.notDone={code:'unknown'};else if(obj(done)&&(done.code==='payment_not_submitted'||done.code==='not_started')&&text(done.text,200))failure.notDone={code:done.code,text:done.text};}
   const po=p.payment;const payment:PaymentOutcome|undefined=obj(po)&&typeof po.state==='string'&&PAYMENT_STATES.has(po.state)&&(po.reasonCode===null||id(po.reasonCode))&&typeof po.stepId==='string'&&(po.stepId==='unknown'||STEP_IDS.has(po.stepId))?{state:po.state,reasonCode:po.reasonCode as string|null,stepId:po.stepId,...(publicInitialPaymentFailure(po.initialFailure)?{initialFailure:publicInitialPaymentFailure(po.initialFailure)}:{}),...(publicPaymentHandoff(po.handoff)?{handoff:publicPaymentHandoff(po.handoff)}:{})}:undefined;
- return {version:1,locale:p.locale as 'fr'|'en',status:p.status as 'info'|'error',label:p.label,title:p.title,rows:[],spoken:p.spoken,primary:{label:p.primary.label,action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:cid as string|null},understood:{capability:cid as string|null,label:p.understood.label,slots,...(summary?{text:summary}:{})},alternatives,...(payment?{payment}:{}),...(failure?{failure}:{})};
+ return {version:1,locale:p.locale as 'fr'|'en',status:p.status as 'info'|'error',label:p.label,title:p.title,rows,spoken:p.spoken,primary:{label:p.primary.label,action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:cid as string|null},understood:{capability:cid as string|null,label:p.understood.label,slots,...(summary?{text:summary}:{})},alternatives,...(payment?{payment}:{}),...(failure?{failure}:{})};
 }
-export function fallbackReceiptPresentation(failed=false):ReceiptPresentation{return {version:1,locale:'fr',status:failed?'error':'info',label:'Demande',title:'Résultat à vérifier',rows:[],spoken:failed?'La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.':'Le résultat de la demande reste à vérifier.',primary:{label:'Terminer',action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:null},understood:{capability:null,label:'Demande',slots:{}},alternatives:[],...(failed?{failure:{step:'Étape non établie',reason:'La cause n’est pas établie par le reçu.'}}:{})};}
-/** Public helper failures describe the observed transport boundary, never a business/financial outcome. */
-export function fastPathFailurePresentation(raw:unknown,stage:'resolution'|'execution'):ReceiptPresentation {
- const receipt=readReceiptPresentation(raw);if(receipt?.status==='error')return receipt;
- const p=fallbackReceiptPresentation(true);
- const reasons:Record<string,string>={
+/** Renderer-owned phrases. Producers and relays carry codes, never translations. */
+export const FAILURE_PHRASES = {
+ fr: {
   helper_missing:'Le service de traitement est introuvable.',
   helper_failed:'Le service de traitement n’a pas renvoyé de résultat exploitable.',
   invalid_result:'Le service de traitement a renvoyé un résultat invalide.',
   invalid_check_budget:'Le budget de résolution est invalide.',
   check_budget_exceeded:'Le délai de résolution a été dépassé.',
   web_deadline_exceeded:'La recherche web n’a pas abouti dans le délai imparti.',
- };
- const code=obj(raw)&&raw.status==='error'&&typeof raw.reason==='string'&&Object.prototype.hasOwnProperty.call(reasons,raw.reason)?raw.reason:undefined;
- const reason=code?reasons[code]:p.failure!.reason;
- const step=stage==='resolution'?'Résolution de la demande':'Lecture du résultat d’exécution';
- return {...p,title:'Demande interrompue',spoken:reason,failure:{step,reason,stepId:stage,...(code?{reasonCode:code}:{}),notDone:{code:'unknown'}}};
+  invalid_web_execution_context:'Le contexte de la recherche web est invalide.',
+  execution_cancelled:'Le traitement a été interrompu.',
+  coordinator_unavailable:'Le suivi de conversation est indisponible.',
+ },
+ en: {
+  helper_missing:'The processing service could not be found.',
+  helper_failed:'The processing service did not return a usable result.',
+  invalid_result:'The processing service returned an invalid result.',
+  invalid_check_budget:'The resolution time budget is invalid.',
+  check_budget_exceeded:'The request resolution exceeded its time limit.',
+  web_deadline_exceeded:'The web search exceeded its time limit.',
+  invalid_web_execution_context:'The web search context is invalid.',
+  execution_cancelled:'Processing was interrupted.',
+  coordinator_unavailable:'Conversation tracking is unavailable.',
+ },
+} as const;
+/** Only these renderer-owned causes may replace an existing producer sentence. */
+export function hasFailurePhrase(code:unknown,locale:'fr'|'en'='fr'):code is string {
+ return typeof code==='string'&&Object.prototype.hasOwnProperty.call(FAILURE_PHRASES[locale],code);
+}
+// One saturating process-local scalar, owned by this renderer, with no retained text or identifiers.
+let missingFailureCauseRenders=0;
+let genericDisplayRenders=0,otherGenericDisplayRenders=0;
+const genericByCapability=new Map<string,number>();
+const addCounter=(left:number,right:number)=>Math.min(Number.MAX_SAFE_INTEGER,left+right);
+/** Consume once at the helper transport boundary, never on receipt reads/polling. */
+export function recordPresentationDiagnostics(raw:unknown){
+ if(!obj(raw)||!Array.isArray(raw.genericDisplayByCapability)||raw.genericDisplayByCapability.length>32)return;
+ for(const row of raw.genericDisplayByCapability){
+  if(!obj(row)||!id(row.capability)||!Number.isSafeInteger(row.renders)||Number(row.renders)<1||Number(row.renders)>1024)continue;
+  const count=Number(row.renders);genericDisplayRenders=addCounter(genericDisplayRenders,count);
+  if(genericByCapability.has(row.capability)||genericByCapability.size<64)genericByCapability.set(row.capability,addCounter(genericByCapability.get(row.capability)||0,count));
+  else otherGenericDisplayRenders=addCounter(otherGenericDisplayRenders,count);
+ }
+}
+export function receiptPresentationCounters(){return {missingFailureCauseRenders,genericDisplayRenders,
+ genericDisplayByCapability:[...genericByCapability].map(([capability,renders])=>({capability,renders})),
+ otherGenericDisplayRenders,scope:'companion_process' as const};}
+function failurePhrase(code:string|undefined,locale:'fr'|'en'):string {
+ if(!code){missingFailureCauseRenders=Math.min(Number.MAX_SAFE_INTEGER,missingFailureCauseRenders+1);
+  return locale==='en'?'The receipt does not establish the cause.':'La cause n’est pas établie par le reçu.';}
+ const phrases:Record<string,string>=FAILURE_PHRASES[locale];
+ // Keep an unknown cause structured, never interpolate its internal code into speech.
+ return hasFailurePhrase(code,locale)?phrases[code]:locale==='en'?'The receipt reports a failure; its details need checking.':'Le reçu signale un échec ; son détail doit être vérifié.';
+}
+export function fallbackReceiptPresentation(failed=false,ownerText?:unknown):ReceiptPresentation{
+ const ownerReason=failed&&text(ownerText,240)&&text(ownerText.trim(),240)?ownerText:undefined;
+ return {version:1,locale:'fr',status:failed?'error':'info',label:'Demande',title:'Résultat à vérifier',rows:[],
+  spoken:ownerReason||(failed?'La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.':'Le résultat de la demande reste à vérifier.'),
+  primary:{label:'Terminer',action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:null},understood:{capability:null,label:'Demande',slots:{}},alternatives:[],
+  ...(failed?{failure:{step:'Étape non établie',reason:ownerReason||failurePhrase(undefined,'fr')}}:{})};
+}
+/** Public helper failures describe the observed transport boundary, never a business/financial outcome. */
+export function fastPathFailurePresentation(raw:unknown,stage:'resolution'|'execution',locale:'fr'|'en'='fr'):ReceiptPresentation {
+ const receipt=readReceiptPresentation(raw);if(receipt?.status==='error')return receipt;
+ // Do not build a failed fallback before inspecting the code: that would count every known error.
+ const p=fallbackReceiptPresentation(false);
+ const explicit=obj(raw)&&id(raw.reasonCode)?raw.reasonCode:undefined;
+ const transport=obj(raw)&&(raw.status==='error'||raw.status==='known_error')&&typeof raw.reason==='string'&&Object.prototype.hasOwnProperty.call(FAILURE_PHRASES.fr,raw.reason)?raw.reason:undefined;
+ const code=explicit||transport;
+ const reason=failurePhrase(code,locale);
+ const step=locale==='en'?(stage==='resolution'?'Resolving the request':'Reading the execution result'):(stage==='resolution'?'Résolution de la demande':'Lecture du résultat d’exécution');
+ return {...p,locale,status:'error',label:locale==='en'?'Request':p.label,title:locale==='en'?'Request interrupted':'Demande interrompue',spoken:reason,primary:{label:locale==='en'?'Done':'Terminer',action:'done'},understood:{...p.understood,label:locale==='en'?'Request':p.understood.label},failure:{step,reason,stepId:stage,...(code?{reasonCode:code}:{}),notDone:{code:'unknown'}}};
 }
 export function publicReceiptMetadata(p:ReceiptPresentation|undefined){return p?{presentation:p,understood:p.understood,alternatives:p.alternatives,...(p.failure?{failure:p.failure}:{})}:{};}
 /** Closed public projection of the stored v2 decision (no recalculation, no raw payload):

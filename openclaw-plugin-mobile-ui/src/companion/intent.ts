@@ -1,5 +1,5 @@
 import {PUBLIC_WEB_BUDGET_MS, readRunWebResult, webResultText, webRunState, type RunWebResult} from "./runWeb";
-import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
+import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,hasFailurePhrase,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
 import crypto from "crypto";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
 import {transcribeMemoAttachment} from "./memoSttOwner";
@@ -164,7 +164,7 @@ async function submitTextIntent(
 
   if (dialogue?.outcome === "TECHNICAL_FAILURE" && dialogue.reasonCode === "coordinator_unavailable") {
     // N1: nothing was admitted by the coordinator; the turn is not submitted (retry-safe), with a readable cause.
-    const presentation=fastPathFailurePresentation({status:"error",reason:dialogue.source} as FastPathResult,'resolution');
+    const presentation=fastPathFailurePresentation({status:"error",reason:dialogue.source || dialogue.reasonCode} as FastPathResult,'resolution',dialogue.decision?.responseLanguage === 'en' ? 'en' : 'fr');
     return {...notSubmitted(normalizedSessionId,clientRunId,presentation.spoken),...publicReceiptMetadata(presentation)};
   }
   if (dialogue && dialogueInput && dialogue.handled) {
@@ -319,12 +319,19 @@ async function executeCapabilityFirst(
     ? (isDoneReply(reply) ? webRunState(web) : "failed")
     : isQuestionReply(reply) || isDoneReply(reply) ? "done" : "failed";
   let message = web ? webResultText(web) : String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
-  if (!presentation && state === "failed" && reply.outcome === "TECHNICAL_FAILURE") presentation = fastPathFailurePresentation({status: "error", reason: reply.source || reply.reasonCode} as FastPathResult, "execution");
-  // Un délai Web dépassé est une cause connue : la dire, plutôt que « la cause n'est pas établie par le reçu ».
-  if (!presentation && state === "failed" && reply.reasonCode === "web_deadline_exceeded") presentation = fastPathFailurePresentation({status: "error", reason: reply.reasonCode} as FastPathResult, "execution");
-  const spoken = !reply.metadata && reply.reasonCode === "coordinator_unavailable" && presentation ? presentation.spoken : undefined;
-  presentation ||= fallbackReceiptPresentation(state === "failed");
-  if (spoken) message = spoken;
+  const presentationLocale = reply.decision?.responseLanguage === 'en' ? 'en' : 'fr';
+  // Helper transport causes have a closed translation here; every other producer
+  // keeps its own sentence/question. A Web result already owns error + sources.
+  const failureCode = reply.outcome === "TECHNICAL_FAILURE" && reply.reasonCode === "coordinator_unavailable"
+    ? reply.source || reply.reasonCode : reply.reasonCode || web?.error?.code;
+  if (!presentation && state === "failed" && hasFailurePhrase(failureCode, presentationLocale)) {
+    presentation = fastPathFailurePresentation({status: "error", reasonCode: failureCode}, "execution", presentationLocale);
+    if (!web) message = presentation.spoken;
+  }
+  if (!presentation) {
+    presentation = fallbackReceiptPresentation(state === "failed", web ? undefined : reply.text);
+    if (state === "failed" && !web) message = presentation.spoken;
+  }
   const reasonClass=publicReasonClass((metadata as any).reasonClass ?? (metadata as any).reason_class);
   await settleSubmittedRun(runId, state, message, {provenance, presentation, reasonClass, web});
   return {
