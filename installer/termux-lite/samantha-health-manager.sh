@@ -351,6 +351,36 @@ check_allowlist_expiry(){
  [ "$processed" -gt 0 ] && put whatsapp_allowlist last_sweep "$tick"
  return 0
 }
+# Q13 cooperates with this existing cycle. No separate timer, scheduler or worker loop.
+# The private people-trusted owner resolves the pinned PB root and keeps pending closed.
+check_qa_queue(){
+ local result summary state dispatched waiting signature previous
+ [ "$(canonical_mode)" = normal ] || return 0
+ # 14s + at most 1s kill grace; one bounded admission per existing cycle.
+ # The bounded pipe never retains an arbitrary helper response in shell memory.
+ result=$(set -o pipefail; timeout --kill-after=1 14 python3 "$ROOT/people-trusted.py" qa-queue-tick 9>&- 2>/dev/null | head -c 4097) || result=''
+ summary=$(printf '%s' "$result" | python3 -c '
+import json,sys
+try:
+ raw=sys.stdin.buffer.read(4097)
+ if len(raw)>4096:raise ValueError()
+ value=json.loads(raw)
+ if not isinstance(value,dict) or set(value)!={"state","dispatched","waiting"}:raise ValueError()
+ state=value["state"];dispatched=value["dispatched"];waiting=value["waiting"]
+ if state not in {"NOT_READY","IDLE","WAITING","STARTED","VERIFY_REQUIRED","UNAVAILABLE"}:raise ValueError()
+ if type(dispatched) is not int or dispatched not in (0,1) or type(waiting) is not int or not 0<=waiting<=500:raise ValueError()
+ if (state=="STARTED") != (dispatched==1):raise ValueError()
+ print(state,dispatched,waiting)
+except Exception:print("UNAVAILABLE 0 0")
+' 9>&- 2>/dev/null) || summary='UNAVAILABLE 0 0'
+ read -r state dispatched waiting <<<"$summary"
+ signature="$state:$dispatched:$waiting";previous=$(get qa_queue status unknown)
+ if [ "$signature" != "$previous" ]; then
+  put qa_queue status "$signature"
+  log "service=qa_queue state=$state dispatched=$dispatched waiting=$waiting"
+ fi
+ return 0
+}
 log 'event=start result=ok state=persistent_backoff'
 while :; do
  printf '%s' "$(date +%s)" >"$D/health-manager.heartbeat"
@@ -399,6 +429,7 @@ while :; do
  check_http companion http://127.0.0.1:8765/ 'dist/companion/[s]erver.js' "$ROOT/companion-server.sh" 12 20
  check_allowlist_expiry
  check_slack_bridge
+ check_qa_queue
  check_runtime_drift
  sleep 15 9>&-
 done

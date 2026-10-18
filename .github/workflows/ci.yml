@@ -28,6 +28,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Q13 existing health-cycle queue hook (private, closed)
+        run: python3 ../installer/termux-lite/test-health-qa-queue.py
+
       - name: Canonical off-device CI contract regression (K)
         run: python3 ../tools/test_localci.py
 
