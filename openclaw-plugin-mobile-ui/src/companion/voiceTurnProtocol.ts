@@ -13,6 +13,7 @@ export class VoiceTurnProtocol {
   private ambiguous=false;
   private closed=false;
   private pendingTools=new Map<string,any[]>();
+  private refusedProviderTools=0;
   private executions=new Map<string,{request:string;promise:Promise<any>;result?:any}>();
   constructor(readonly connectionEpoch:number, readonly sessionEpoch:string,
     private readonly forward:(value:any)=>void, private readonly emit:(value:any)=>void,
@@ -27,6 +28,21 @@ export class VoiceTurnProtocol {
       sequence:++this.sequence,turnId,outputGenerationId,correlation,payload}});
   }
   private error(code:string) {this.event({protocolError:{code}},null,null,"ambiguous");}
+  /**
+   * The provider asked for a tool where none is admissible (greeting, readback, no turn owning the output). The model's
+   * own choice is not a protocol fault of the app: the call is answered as refused to the provider, never exposed to the
+   * app nor executed, and the session goes on (S24 18/10 13:09: the greeting saw a pending request in the history and
+   * reached for a tool, which used to end the call). A runaway of refusals is still fatal.
+   */
+  private refuseProviderTools(calls:any,reason:string,turnId:string|null) {
+    if(!Array.isArray(calls)||calls.length>16){this.error("tool_call_budget");return;}
+    this.refusedProviderTools+=calls.length;
+    if(this.refusedProviderTools>16){this.error("provider_tool_refusal_budget");return;}
+    const responses=calls.filter((call:any)=>typeof call?.id==="string"&&call.id.length<=160)
+      .map((call:any)=>({id:call.id,name:typeof call.name==="string"?call.name:"",response:{error:"not_admissible",reason}}));
+    if(responses.length)this.forward({toolResponse:{functionResponses:responses}});
+    this.observe("provider_tool_refused",turnId??"none",{count:calls.length});
+  }
   private requireId(v:any):string {
     if(typeof v!=="string"||!ID.test(v))throw new Error("invalid_identifier");return v;
   }
@@ -69,7 +85,7 @@ export class VoiceTurnProtocol {
     this.turns.set(id,t);this.outputOwner=id;
     this.event({greetingAdmitted:{}},id,t.generation);
     this.forward({clientContent:{turns:[{role:"user",parts:[{text:
-      "[session_start] The owner just opened a voice conversation. Speak first: greet them in one short, warm sentence, in French unless the conversation history shows another language, then stop and listen. Do not call any tool."}]}],turnComplete:true}});
+      "[session_start] The owner just opened a voice conversation. Speak first: greet them in one short, warm sentence, in French unless the conversation history shows another language, then stop and listen. Do not call any tool and do not act on any earlier request from the history: wait for what the owner says now."}]}],turnComplete:true}});
   }
   /**
    * A1 (doc 60 § 3.1) : relecture, en séance, du résultat d'un run différé. Le texte est déjà vérifié par l'app
@@ -202,10 +218,10 @@ export class VoiceTurnProtocol {
     }
     const id=this.outputOwner,t=id?this.turns.get(id):null;
     if(value.toolCall?.functionCalls) {
-      if(t && t.generation.endsWith("-receipt") && this.executions.get(t.id)?.result?.voice?.mode==="public_web") {this.error("public_web_readback_tool_forbidden");return;}
-      if(!t) {this.error("unowned_tool_call");return;}
-      if(t.greeting) {this.error("greeting_tool_not_admissible");return;}
-      if(t.readback) {this.error("readback_tool_not_admissible");return;}
+      if(t && t.generation.endsWith("-receipt") && this.executions.get(t.id)?.result?.voice?.mode==="public_web") {this.refuseProviderTools(value.toolCall.functionCalls,"public_web_readback",t.id);return;}
+      if(!t) {this.refuseProviderTools(value.toolCall.functionCalls,"no_active_turn",null);return;}
+      if(t.greeting) {this.refuseProviderTools(value.toolCall.functionCalls,"greeting",t.id);return;}
+      if(t.readback) {this.refuseProviderTools(value.toolCall.functionCalls,"readback",t.id);return;}
       const calls=value.toolCall.functionCalls;
       if(!Array.isArray(calls)||calls.length>16) {this.error("tool_call_budget");return;}
       for(const call of calls) {if(typeof call.id!=="string"||this.toolOwners.size>=128){this.error("tool_call_budget");return;}this.toolOwners.set(call.id,t.id);}
@@ -222,7 +238,8 @@ export class VoiceTurnProtocol {
     if(content) {
       const output={...content};delete output.inputTranscription;
       if(Object.keys(output).length) {
-        if(!t) {this.error("unowned_provider_output");return;}
+        // Output nobody owns any more (a late tail after a closed or refused generation) is dropped, never attributed.
+        if(!t) {this.observe("provider_output_unowned","none");return;}
         if(output.modelTurn?.parts?.some((part:any)=>part.inlineData?.mimeType?.startsWith("audio/")&&part.inlineData?.data)&&!t.audioGenerations?.has(t.generation)){
           (t.audioGenerations??=new Set()).add(t.generation);
           const now=this.now(),receipt=t.generation.endsWith("-receipt");
