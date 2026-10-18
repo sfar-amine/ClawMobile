@@ -1,3 +1,4 @@
+import {recordPresentationDiagnostics} from "./companion/receiptPresentation";
 import {runtimeFile} from "./runtimeRoot";
 import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
 import fs from "node:fs";
@@ -223,6 +224,7 @@ export async function runModelFastPath(
       if(options.signal?.aborted)return {status:"known_error",reason:"execution_cancelled",execution_state:"cancelled"};
       if(options.checkBudgetMs!==undefined&&performance.now()-started>=options.checkBudgetMs)return {status:"error",reason:"check_budget_exceeded"};
       if(bounded&&(Date.now()>=options.deadlineEpochMs!||performance.now()-started>=options.remainingBudgetMs!))return {status:"known_error",reason:"web_deadline_exceeded",execution_state:"timeout"};
+      if(typeof parsed === "object" && parsed !== null)recordPresentationDiagnostics(parsed.presentationDiagnostics);
       return typeof parsed === "object" && parsed !== null
         ? parsed as FastPathResult
         : { status: "error", reason: "invalid_result" };

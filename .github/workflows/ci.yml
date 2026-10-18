@@ -199,6 +199,7 @@ jobs:
         run: |
           python3 scripts/test-receipt-presentation-read.py
           node scripts/test-receipt-presentation.cjs
+          node scripts/test-typed-failure-presentation.cjs
           node scripts/test-n1-factual-failure.cjs
           node scripts/test-reason-class-conversation-cause.cjs
 
