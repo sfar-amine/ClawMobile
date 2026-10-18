@@ -40,8 +40,7 @@ n'est journalisé par le hook.
   Python héritée ; HOME du shell reste inchangé. Seuls le SDK de fichiers externe
   et le checkpoint externe de création de la fixture sont remplacés. Aucun
   propriétaire métier n'est simulé. PB est épinglé au commit
-  `25bea28f032caabd9b07e0326c3bf9cbfd162d80` (fixture de raccord, à réaligner sur
-  le head final Q13 avant qualification CI finale commune).
+  `30026d94b18b4679405fa9c7a08fa7608578b105` (head final Q13 playbooks de la PR212, poussé et épinglé pour la qualification commune).
 
 Les nouveaux scripts sont inscrits dans la CI. Ces fixtures ne prouvent aucun
 transfert ni réception sur le S24. L'entrée générique PB reste fermée tant que la

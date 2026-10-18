@@ -62,7 +62,7 @@ jobs:
           peer="$RUNNER_TEMP/q13-media-playbooks"
           git init "$peer"
           git -C "$peer" remote add origin https://github.com/sfar-amine/samantha-ui-playbooks.git
-          git -C "$peer" fetch --depth 1 origin 25bea28f032caabd9b07e0326c3bf9cbfd162d80
+          git -C "$peer" fetch --depth 1 origin 30026d94b18b4679405fa9c7a08fa7608578b105
           git -C "$peer" checkout --detach FETCH_HEAD
           python3 -m pip install --disable-pip-version-check --target "$peer/.qa-fixture-deps" -r "$peer/qa_testing/requirements.txt"
           CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" node scripts/test-qa-contact-media-paired.cjs "$peer"
