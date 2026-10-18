@@ -745,13 +745,18 @@ function runtimeEnv(): NodeJS.ProcessEnv {
     `${TERMUX_PREFIX}/bin`,
   ].join(":");
 
-  return {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     HOME: home,
     PREFIX: process.env.PREFIX || TERMUX_PREFIX,
     TMPDIR: process.env.TMPDIR || TERMUX_TMPDIR,
     PATH: currentPath ? `${requiredPath}:${currentPath}` : requiredPath,
   };
+  // A deploy lock fd number is private to the process that inherited it (deploy
+  // --deploy-restart). The relaunched Gateway and other runtime children must never
+  // read it as their own authority; the lease helper sets its own value explicitly.
+  delete env.SAMANTHA_DEPLOY_LOCK_FD;
+  return env;
 }
 
 function runtimeStartWaitMs() {

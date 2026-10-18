@@ -81,3 +81,13 @@ Test : `test-qa-runtime-repair-lease.cjs` pointe `current` sur le helper du S24 
 Le merge local normal de F1 `064a66e95649bf6362232bb69201edf57d24e321` a été repris au head propre `995cdf4846588bccb8e3f30e416b66fddee8bf51` après interruption de l’agent précédent, sans rejouer le merge ni écraser le lien node_modules préexistant. Les correctifs de verrou #338 et du runtime/voix #359 restent conservés ; l’union des commandes workflow des deux parents est vérifiée.
 
 Ciblés hors téléphone :15/15 restart,9/9 lease (vrai flock Linux), redémarrage Gateway par le vrai owner sous EX hérité vers fixture TCP et refus sans autorité,30/30 contrat voix déterministe et build TypeScript verts. Cela ne constitue ni une recette acoustique ni un effet S24. La CI complète du nouveau head n’a pas été lancée et attend le créneau root ; les anciens reçus restent historiques, PR en brouillon. Aucun changement du bail playbooks ou du runner isolé.
+
+## Relecture Claude du 18 octobre (soir) — corrections locales
+
+Base `runtime/samantha-companion-private` `b8c3fdf2` fusionnée (#320, #321, #325, #360) : à l'étape 2 de `runtime-sync.sh`, le redémarrage sous verrou hérité de #338 remplace la seule ligne `curl`, puis l'attente de disponibilité de la base s'applique (redémarrage ou promotion en attente, `healthz` non vide). `ci.yml` garde l'union des étapes.
+
+- `test-gateway-maintenance-recovery.cjs`, inscrit en CI par cette PR, passait sans rien tester : depuis #320 le helper était cherché sous le vrai homedir, le bail était refusé et un minuteur `unref()` laissait Node sortir avec le code 0 en ~34 ms. Il simule maintenant le homedir et le lien `current`, échoue s'il n'atteint pas sa dernière assertion, et remplace le cas « racine relative » par un cas de refus (helper absent).
+- Retour arrière Tier0 : voir la section « Retour arrière » (helper du checkout).
+- Le Gateway relancé par `--deploy-restart` n'hérite plus de `SAMANTHA_DEPLOY_LOCK_FD` : `runtimeEnv()` retire cette variable de l'environnement de tout processus runtime (Gateway, doctor, `ps`) ; le helper de bail reçoit toujours sa valeur explicite. `test-qa-deploy-gateway-restart.cjs` le vérifie dans le Gateway TCP relancé par le vrai CLI.
+
+Chaque nouveau test échoue sur le code non corrigé. Aucune route, capability, store ou démon ajouté ; parcours de paiement inchangé. CI canonique complète non rejouée sur ce head (aucun `tools/localci.py` lancé), aucun effet S24.

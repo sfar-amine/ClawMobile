@@ -28,7 +28,7 @@
     {
       "name": "Contrats réels verrou/CLI/synchronisation",
       "status": "passed",
-      "evidence": "15 tests helper,16 runtime-sync,4 health,9 Nodelease et vrai restartCLI GatewayTCP verts ; tests inscritsworkflow, aucune recette physique."
+      "evidence": "Après fusion de b8c3fdf2 : 15 tests helper, 19 runtime-sync, 4 health, bail Node 10/10 (dont release current antérieure à Q12 et current absent), maintenance recovery qui échoue sans ses assertions, vrai restartCLI Gateway TCP sans SAMANTHA_DEPLOY_LOCK_FD hérité ; tests inscrits au workflow, aucune recette physique."
     },
     {
       "name": "CI canonique exacte338",
