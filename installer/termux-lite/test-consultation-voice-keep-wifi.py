@@ -120,6 +120,23 @@ class VoiceKeepWifiTests(unittest.TestCase):
         self.assertEqual(toggles, [False])
         self.assertIs(json.loads(out.getvalue().strip().splitlines()[-1])["network_guard"]["wifi_disabled"], True)
 
+    def test_the_real_voice_command_line_is_the_guard_owner(self):
+        # S24 18/10 14:53: canonical_consultation_owner was patched to True everywhere, so nobody saw that it refused
+        # `--keep-wifi`: every voice Orange consultation stopped at guard_unavailable. Exact argv built by
+        # telecom/maxit_guarded_service.run_with_wifi_off_guard (playbooks), no mock of the owner check.
+        guard = str(Path(g.__file__).resolve())
+        for options in ([], ["--no-cellular-channel"], ["--keep-wifi"], ["--no-cellular-channel", "--keep-wifi"],
+                        ["--keep-wifi", "--no-cellular-channel"]):
+            argv = [sys.executable, guard, "with-consultation-receipt", *options, "--", *COMMAND]
+            self.assertTrue(g.canonical_consultation_argv(argv, sys.executable), options)
+        for bad in (["--keep-wifi", "--keep-wifi"], ["--other"]):
+            self.assertFalse(g.canonical_consultation_argv(
+                [sys.executable, guard, "with-consultation-receipt", *bad, "--", *COMMAND], sys.executable), bad)
+        self.assertFalse(g.canonical_consultation_argv(
+            [sys.executable, guard, "with-consultation-receipt", "--keep-wifi", "--", sys.executable, "-m", "other", "x"], sys.executable))
+        self.assertFalse(g.canonical_consultation_argv(
+            [sys.executable, "/tmp/guard.py", "with-consultation-receipt", "--keep-wifi", "--", *COMMAND], sys.executable))
+
     def test_cli_exposes_keep_wifi_only_on_consultation(self):
         seen = {}
         def consult(command, *, allow_cellular_channel=True, keep_wifi=False):
