@@ -59,3 +59,11 @@ les anciens lecteurs refusent les métadonnées QA inconnues, sans élargir l'ac
 Le rapport peut imposer un budget inférieur au wrapper : SIGTERM est relayé au groupe People, dont le handler privé déroule le nettoyage du groupe SDK. La réserve de fermeture reste dans le budget appelant. Les tests réels (38/38 People et11/11 contrats shell) vérifient aussi les descendants ; une interruption après admission reste UNKNOWN et ne déclenche aucun rejeu. Une requête Gateway déjà acceptée ne constitue jamais une absence d’effet prouvée.
 
 Le handler privé couvre également `qa-queue-tick` : le SIGTERM du timeout du cycle de santé déroule le nettoyage des enfants privés avant la fin du processus. Les entrées historiques et le paiement conservent leur comportement. Le cas négatif sans ce handler confirme la régression ; aucun processus envoi n’est laissé en attente d’une relance.
+
+## Propagation de Q12 FINAL après relecture
+
+Merge normal du head Q12 exact `dd80d6928330b008512d1195111d8cbf19951409` dans cette branche Q13, sans réécriture. Le protocole de file/autorité Q13, ses tests et toutes les commandes héritées des deux parents sont conservés, y compris les deux tests de rétention et trace de la clôture voix. Les protections Q12 de réparation/redémarrage, le bail partagé/exclusif et la racine current proviennent exclusivement de leur propriétaire existant ; aucun nouveau verrou ni store n’est ajouté ici.
+
+Ciblés de propagation : construction TypeScript verte ;15/15 tests Python de protection redémarrage (1,202s),9/9 tests du bail de réparation avec vrais flock/current/promotion, et test propriétaire du redémarrage Gateway sous EX vert. Les cinq tests CLI privé→renderer Core sont rejoués avec le producteur Playbooks exact `d420259483ef4f8eaabaff77a972f6334f9c7769` :5/5 verts en2,948s, modes carte et texte. Ce sont des fixtures hors téléphone ; aucun démarrage, envoi ou geste S24 n’est revendiqué.
+
+Ce nouveau head attend la CI canonique complète PR350 dans le créneau root. L’ancienne preuve142/142 au head7dad7206 reste historique et ne le qualifie pas. Aucun changement du runner isolé canonique, du parcours de paiement ou de la voix en direct n’est réalisé par cette propagation.

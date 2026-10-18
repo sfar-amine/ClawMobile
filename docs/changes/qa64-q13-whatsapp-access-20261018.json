@@ -88,6 +88,12 @@
       "name": "Vrai CLI QA privé et renderer Core",
       "status": "passed",
       "evidence": "5/5 tests cross-repos réels, modes carte et texte ; Q1/Q12/Q2/file/rapport et causes fermées, absence de champs techniques et contrôle négatif sans texte privé. Le producteur appartient uniquement à la PR212 playbooks."
+    },
+    {
+      "name": "Propagation Q12 FINAL vers Q13",
+      "status": "passed",
+      "command": "python3 installer/termux-lite/test-qa-restart-protection.py ; node scripts/test-qa-deploy-gateway-restart.cjs ; node scripts/test-qa-runtime-repair-lease.cjs ; python3 installer/termux-lite/test-qa-contact-renderer.py EXPLICIT_PLAYBOOKS_ROOT",
+      "evidence": "TypeScript vert ;15/15 protectionredémarrage, propriétaireGatewayEX vert,9/9 bailréparation,current/promotion,5/5 CLI→renderer en2,948s avecPBd4202594. Unionworkflow/testshérités conservée. AucuneCIcomplète du nouveauhead encore."
     }
   ],
   "documentation": [
@@ -110,6 +116,7 @@
   "limitations": [
     "CI canonique complète à exécuter sur le head final exact et le numéro réel de PR.",
     "Aucune fusion, activation, recette téléphone, livraison WhatsApp ni clic de notification réel exécuté.",
-    "Écriture SDK physique de20Mio et recette des pièces entrantes attendent Claude ; aucun quota global ni nettoyage automatique ne sont revendiqués."
+    "Écriture SDK physique de20Mio et recette des pièces entrantes attendent Claude ; aucun quota global ni nettoyage automatique ne sont revendiqués.",
+    "Après merge normal Q12 FINALdd80d692 : nouveau headPR350 à qualifier complètement ; vert142/142 de7dad7206 historique."
   ]
 }
