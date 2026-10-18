@@ -1,5 +1,5 @@
 import {PUBLIC_WEB_BUDGET_MS, readRunWebResult, webResultText, webRunState, type RunWebResult} from "./runWeb";
-import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
+import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,hasFailurePhrase,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
 import crypto from "crypto";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
 import {transcribeMemoAttachment} from "./memoSttOwner";
@@ -320,19 +320,18 @@ async function executeCapabilityFirst(
     : isQuestionReply(reply) || isDoneReply(reply) ? "done" : "failed";
   let message = web ? webResultText(web) : String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
   const presentationLocale = reply.decision?.responseLanguage === 'en' ? 'en' : 'fr';
-  if (!presentation && state === "failed" && reply.outcome === "TECHNICAL_FAILURE") {
-    // For an unavailable coordinator, source is the original helper producer's cause.
-    const reasonCode = reply.reasonCode === "coordinator_unavailable" ? reply.source || reply.reasonCode : reply.reasonCode;
-    presentation = fastPathFailurePresentation({status: "error", reasonCode}, "execution", presentationLocale);
+  // Helper transport causes have a closed translation here; every other producer
+  // keeps its own sentence/question. A Web result already owns error + sources.
+  const failureCode = reply.outcome === "TECHNICAL_FAILURE" && reply.reasonCode === "coordinator_unavailable"
+    ? reply.source || reply.reasonCode : reply.reasonCode || web?.error?.code;
+  if (!presentation && state === "failed" && hasFailurePhrase(failureCode, presentationLocale)) {
+    presentation = fastPathFailurePresentation({status: "error", reasonCode: failureCode}, "execution", presentationLocale);
+    if (!web) message = presentation.spoken;
   }
-  // Keep any established producer cause through settlement, not just the first Web timeout encountered.
-  if (!presentation && state === "failed" && (reply.reasonCode || web?.error?.code)) {
-    presentation = fastPathFailurePresentation({status: "error", reasonCode: reply.reasonCode || web?.error?.code}, "execution", presentationLocale);
+  if (!presentation) {
+    presentation = fallbackReceiptPresentation(state === "failed", web ? undefined : reply.text);
+    if (state === "failed" && !web) message = presentation.spoken;
   }
-  if (!readReceiptPresentation(metadata) && state === "failed" && presentation?.failure?.reasonCode) message=presentation.spoken;
-  const spoken = !reply.metadata && reply.reasonCode === "coordinator_unavailable" && presentation ? presentation.spoken : undefined;
-  presentation ||= fallbackReceiptPresentation(state === "failed");
-  if (spoken) message = spoken;
   const reasonClass=publicReasonClass((metadata as any).reasonClass ?? (metadata as any).reason_class);
   await settleSubmittedRun(runId, state, message, {provenance, presentation, reasonClass, web});
   return {

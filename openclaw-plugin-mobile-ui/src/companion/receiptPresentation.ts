@@ -76,6 +76,10 @@ export const FAILURE_PHRASES = {
   coordinator_unavailable:'Conversation tracking is unavailable.',
  },
 } as const;
+/** Only these renderer-owned causes may replace an existing producer sentence. */
+export function hasFailurePhrase(code:unknown,locale:'fr'|'en'='fr'):code is string {
+ return typeof code==='string'&&Object.prototype.hasOwnProperty.call(FAILURE_PHRASES[locale],code);
+}
 // One saturating process-local scalar, owned by this renderer, with no retained text or identifiers.
 let missingFailureCauseRenders=0;
 let genericDisplayRenders=0,otherGenericDisplayRenders=0;
@@ -98,10 +102,16 @@ function failurePhrase(code:string|undefined,locale:'fr'|'en'):string {
  if(!code){missingFailureCauseRenders=Math.min(Number.MAX_SAFE_INTEGER,missingFailureCauseRenders+1);
   return locale==='en'?'The receipt does not establish the cause.':'La cause n’est pas établie par le reçu.';}
  const phrases:Record<string,string>=FAILURE_PHRASES[locale];
- // A future valid producer code is never discarded or labelled as an absent cause.
- return Object.prototype.hasOwnProperty.call(phrases,code)?phrases[code]:locale==='en'?`Reported failure: ${code}.`:`Échec signalé : ${code}.`;
+ // Keep an unknown cause structured, never interpolate its internal code into speech.
+ return hasFailurePhrase(code,locale)?phrases[code]:locale==='en'?'The receipt reports a failure; its details need checking.':'Le reçu signale un échec ; son détail doit être vérifié.';
 }
-export function fallbackReceiptPresentation(failed=false):ReceiptPresentation{return {version:1,locale:'fr',status:failed?'error':'info',label:'Demande',title:'Résultat à vérifier',rows:[],spoken:failed?'La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.':'Le résultat de la demande reste à vérifier.',primary:{label:'Terminer',action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:null},understood:{capability:null,label:'Demande',slots:{}},alternatives:[],...(failed?{failure:{step:'Étape non établie',reason:failurePhrase(undefined,'fr')}}:{})};}
+export function fallbackReceiptPresentation(failed=false,ownerText?:unknown):ReceiptPresentation{
+ const ownerReason=failed&&text(ownerText,240)&&text(ownerText.trim(),240)?ownerText:undefined;
+ return {version:1,locale:'fr',status:failed?'error':'info',label:'Demande',title:'Résultat à vérifier',rows:[],
+  spoken:ownerReason||(failed?'La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.':'Le résultat de la demande reste à vérifier.'),
+  primary:{label:'Terminer',action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:null},understood:{capability:null,label:'Demande',slots:{}},alternatives:[],
+  ...(failed?{failure:{step:'Étape non établie',reason:ownerReason||failurePhrase(undefined,'fr')}}:{})};
+}
 /** Public helper failures describe the observed transport boundary, never a business/financial outcome. */
 export function fastPathFailurePresentation(raw:unknown,stage:'resolution'|'execution',locale:'fr'|'en'='fr'):ReceiptPresentation {
  const receipt=readReceiptPresentation(raw);if(receipt?.status==='error')return receipt;

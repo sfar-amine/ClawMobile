@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "id": "f2-typed-failure-presentation-20261018",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Préserver la phrase propriétaire pour les causes sans traduction et garder les sources Web lors d’un échec.",
+  "reason": "Deux écarts bloquants de relecture Claude325#6254434027 : écrasement de relance et perte des sources.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-failure-presentation.cjs",
+    "docs/changes/f2-typed-failure-presentation-20261018.md",
+    "docs/changes/f2-typed-failure-presentation-20261018.json"
+  ],
+  "tests": [
+    {
+      "name": "Typed failure owner preservation",
+      "status": "passed",
+      "command": "node scripts/test-typed-failure-presentation.cjs",
+      "evidence": "57/57 contrôles verts ; vrai helper/coordinator/submit/settlement, causes inconnues et Web failed avec source existante. Gardes sensibles/JSON/longueur vérifiées dans message/canvas et reçu relu."
+    },
+    {
+      "name": "Existing N1, HS3, Web and spoken form regressions",
+      "status": "passed",
+      "command": "node scripts/test-n1-factual-failure.cjs ; node scripts/test-receipt-presentation.cjs ; node scripts/test-run-web.cjs ; node scripts/test-voice-understanding.cjs",
+      "evidence": "N1 21/21 ; transportHS3 vert ; Web18/18 ; forme parlée23/23. TypeScript compilé."
+    }
+  ],
+  "documentation": [
+    "docs/changes/f2-typed-failure-presentation-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Rendu et clôture des reçus existants, aucune route ni capacité nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Propriétaires existants receiptPresentation et Web ; aucun store, routeur, service ou retry."
+  },
+  "rollback": "Revert du correctif de présentation sur la ligne runtime ; aucune migration.",
+  "limitations": [
+    "CI canonique complète du head final PR325 encore attendue ; les anciens reçus CI sont historiques.",
+    "Les phrases de panne sont synthétiques ; la source Web réutilise la capture publique cloud du15/10, pas une qualification S24 de ce correctif.",
+    "Aucun déploiement, installation, voix directe ou paiement exécuté."
+  ]
+}
