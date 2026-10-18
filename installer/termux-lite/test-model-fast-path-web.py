@@ -25,7 +25,7 @@ class WebFastPath(unittest.TestCase):
   self.assertLessEqual(int(args[args.index('--remaining-budget-ms')+1]),1200);self.assertLessEqual(kw['timeout'],1.2)
   self.assertNotIn('actual-session',out.get('text',''))
  def test_missing_or_forged_context_never_dispatches(self):
-  for change in [{'request_id':None},{'request_id':'other'},{'remaining_budget_ms':20001},{'remaining_budget_ms':0},{'deadline_epoch_ms':0},{'caller':'other'}]:
+  for change in [{'request_id':None},{'request_id':'other'},{'remaining_budget_ms':30001},{'remaining_budget_ms':0},{'deadline_epoch_ms':0},{'caller':'other'}]:
    context=self.context();context.update(change)
    with self.subTest(change=change),patch.object(m,'validate_prepared_decision',return_value={'state':'valid','decision':resolution()['decision'],'resolution':resolution()}),patch.object(m,'execute_capability_decision') as execute:
     out=m.try_fast_path('find public announcements',ROOT,prepared_decision=resolution()['decision'],**context)
@@ -79,7 +79,7 @@ class WebDialoguePorts(unittest.TestCase):
  def test_forged_host_values_are_ignored_and_budget_capped(self):
   ports=self.ports(run_id='bad id;rm',session_id='x'*200,deadline_epoch_ms=int(time.time()*1000)+60000)
   ctx=ports._web_context(self.decision())
-  self.assertIsNone(ctx['run_id']);self.assertIsNone(ctx['session_id']);self.assertLessEqual(ctx['remaining_budget_ms'],20000)
+  self.assertIsNone(ctx['run_id']);self.assertIsNone(ctx['session_id']);self.assertLessEqual(ctx['remaining_budget_ms'],30000)
  def test_expired_deadline_never_dispatches(self):
   ports=self.ports();ports.web_deadline_epoch_ms=int(time.time()*1000)-1;ports._resolutions['dec-1']=resolution()
   with patch.object(m,'execute_capability_decision') as execute:

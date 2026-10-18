@@ -263,10 +263,17 @@ function tokenHelperPath() {
 
 /** Bounded, credential-free description of a failed token helper run: exit code, signal, timeout, duration, first stderr line. */
 export function tokenHelperFailure(e: any, elapsedMs: number): string {
+  // Long credential-like runs are masked; a lowercase snake_case cause code (gemini_live_token_failed) is kept.
+  const bound = (text: string) => text.replace(/[A-Za-z0-9_\-]{24,}/g, (run) => /^[a-z_]+$/.test(run) ? run : "<redacted>")
+    .replace(/[^\x20-\x7e]/g, "?").slice(0, 120);
   const stderr = String(e?.stderr ?? "").split("\n").map((line) => line.trim()).find(Boolean) ?? "";
-  const safe = stderr.replace(/[A-Za-z0-9_\-]{24,}/g, "<redacted>").replace(/[^\x20-\x7e]/g, "?").slice(0, 120);
+  // The helper reports its own cause on stdout as {"status":"error","reason":…} with exit 75 (S24 18/10 14:03, 15:15:
+  // three "exit=75 stderr=empty" in a row, then the prewarm answered 502 with no cause).
+  let reason = "";
+  try { reason = String(JSON.parse(String(e?.stdout ?? "").trim().split("\n").pop() || "{}")?.reason ?? ""); } catch {}
   const exit = e?.code ?? "none", signal = e?.signal ?? "none", killed = e?.killed === true;
-  return `gemini_live_token_helper_failed exit=${exit} signal=${signal} killed=${killed} ms=${Math.max(0, Math.round(elapsedMs))} stderr=${safe || "empty"}`;
+  return `gemini_live_token_helper_failed exit=${exit} signal=${signal} killed=${killed} ms=${Math.max(0, Math.round(elapsedMs))}`
+    + (reason ? ` reason=${bound(reason)}` : "") + ` stderr=${bound(stderr) || "empty"}`;
 }
 
 async function mintViaHelper(helperPath = tokenHelperPath(), observe?: (event:"t02"|"t03")=>void) {
