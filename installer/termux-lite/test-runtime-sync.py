@@ -35,10 +35,13 @@ class Companion(http.server.BaseHTTPRequestHandler):
     order_log = None
     healthz_failures = 0
     healthz_logged = False
+    empty_healthz = False
     def log_message(self, *a): pass
     def answer(self):
         Companion.calls.append((self.command, self.path))
         if self.path == "/healthz":
+            if Companion.empty_healthz:
+                self.send_response(200); self.end_headers(); return
             if Companion.healthz_failures > 0:
                 Companion.healthz_failures -= 1
                 self.send_response(503); self.end_headers(); return
@@ -61,7 +64,7 @@ class RuntimeSync(unittest.TestCase):
         cls.server.shutdown()
 
     def setUp(self):
-        Companion.calls.clear(); Companion.healthz_failures = 0; Companion.healthz_logged = False
+        Companion.calls.clear(); Companion.healthz_failures = 0; Companion.healthz_logged = False; Companion.empty_healthz = False
         self.tmp = pathlib.Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.tmp)
         repo = self.tmp / "repo"; self.root = repo / "installer/termux-lite"; self.root.mkdir(parents=True)
         for name in ("runtime-sync.sh", "runtime_mode.py", "lib.sh", "companion-deploy.sh", "companion-acceptance.py", "project-room.py", "pulse-room.py", "contacts-agent.md"):
@@ -162,6 +165,39 @@ class RuntimeSync(unittest.TestCase):
         self.assertEqual((self.root / "companion-deploy.sh").read_text(), (self.home / ".openclaw/tools/companion-deploy.sh").read_text())
         self.assertEqual(("POST", "/v1/runtime/restart"), Companion.calls[0])
         self.assertIn(("GET", "/v1/control/health?contract=2"), Companion.calls)
+
+    def test_unchanged_plugin_still_waits_for_gateway_before_promotion(self):
+        self.assertEqual(self.sync()[0], 0)
+        manifest = self.home / ".openclaw/releases/current/manifest.json"
+        manifest.write_text('{"source_commit":"older-release"}')
+        Companion.calls.clear(); Companion.healthz_failures = 2; Companion.healthz_logged = True
+        (self.home/'tier0.log').unlink()
+        code, out, err = self.sync()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out['gateway'], 'unchanged')
+        self.assertNotIn(("POST", "/v1/runtime/restart"), Companion.calls)
+        self.assertEqual(self.tier0_log(), ["gateway-ready", "--apply", "prune --keep 5 --apply"])
+
+    def test_unchanged_plugin_is_not_promoted_if_gateway_stays_unready(self):
+        self.assertEqual(self.sync()[0], 0)
+        manifest = self.home / ".openclaw/releases/current/manifest.json"
+        manifest.write_text('{"source_commit":"older-release"}')
+        (self.home/'tier0.log').unlink(); Companion.healthz_failures = 100
+        code, out, err = self.sync()
+        self.assertEqual(code, 1, err)
+        self.assertEqual(out['reason'], 'gateway_not_ready')
+        self.assertEqual(json.loads(manifest.read_text())['source_commit'], 'older-release')
+        self.assertNotIn('--apply', self.tier0_log())
+
+    def test_empty_healthz_is_not_readiness_even_with_http_200(self):
+        self.assertEqual(self.sync()[0], 0)
+        manifest = self.home / ".openclaw/releases/current/manifest.json"
+        manifest.write_text('{"source_commit":"older-release"}')
+        (self.home/'tier0.log').unlink(); Companion.empty_healthz = True
+        code, out, err = self.sync()
+        self.assertEqual(code, 1, err)
+        self.assertEqual(out['reason'], 'gateway_not_ready')
+        self.assertNotIn('--apply', self.tier0_log())
 
     def test_promotion_waits_for_gateway_readiness_not_only_control_http(self):
         # S24 16/10: Control answered 200 while the Gateway was still restarting; the soak consumed that sample.

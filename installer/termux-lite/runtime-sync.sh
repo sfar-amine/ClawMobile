@@ -93,16 +93,23 @@ fi
 # release 5631a6aa rolled back to the 11/10 release after one bad sample).
 if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]]; then
   curl -fsS -m 240 -X POST "$COMPANION/v1/runtime/restart" >/dev/null 2>&1 || fail gateway_restart_failed
+  gateway=restarted
+fi
+
+# A promotion also requires readiness when no plugin copy changed: the Gateway
+# may already be restarting (S24 18/10). Never infer readiness from "unchanged".
+if [ "$gateway" = restarted ] || [ "$(release_commit)" != "$commit" ]; then
+  # Match health-verdict.py: HTTP success with a nonempty healthz body, bounded to 3s.
   ready=0
   # Control HTTP 200 alone is not Gateway readiness: on 16/10 (release 20261016T112943) the soak then consumed a
   # Gateway shutdown sample and rolled back. Wait for the Gateway's own readiness probe as well.
   for _ in $(seq 1 30); do
     [ "$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$COMPANION/v1/control/health?contract=2" 2>/dev/null)" = 200 ] \
-      && [ "$(curl -s -o /dev/null -w '%{http_code}' -m 5 "$GATEWAY_HEALTHZ" 2>/dev/null)" = 200 ] && { ready=1; break; }
+      && gateway_health="$(curl -fsS --max-filesize 65536 -m 3 "$GATEWAY_HEALTHZ" 2>/dev/null)" \
+      && [ -n "$gateway_health" ] && { ready=1; break; }
     sleep "${RUNTIME_SYNC_POLL_S:-4}"
   done
   [ "$ready" = 1 ] || fail gateway_not_ready
-  gateway=restarted
 fi
 
 # 3. Tier0 release (serves model-fast-path.py to the Gateway). Same commit already current: nothing to do.
