@@ -117,16 +117,26 @@ process.on("exit", (code) => {
   );
   assert(after.success === true && secondCalls === 1, "runtime mutation lock must release after completion");
 
-  // Tier0 current link absent (not installed yet, or pruned): no helper, no mutation.
+  // The lease helper ships with this checkout: a Tier0 current link that is
+  // absent (not installed yet, or pruned) does not block a runtime mutation...
   fs.unlinkSync(current);
+  const withoutCurrent = await gateway.runSerializedRuntimeOperation("restart", async () => (
+    { success: true, state: "running", message: "done", gateway: up }
+  ), async () => down);
+  assert(withoutCurrent.success === true, "absent current must not block the checkout lease helper");
+  fs.symlinkSync(root, current, "dir");
+  // ...while a checkout without its helper fails closed: the compiled module
+  // copied alone, with no installer/termux-lite next to it.
+  const orphanDist = path.join(testHome, "orphan-checkout/openclaw-plugin-mobile-ui/dist");
+  fs.cpSync(path.resolve(__dirname, "../dist"), orphanDist, { recursive: true });
+  const orphan = require(path.join(orphanDist, "companion/openclawGatewayClient.js"));
   let unguarded = 0;
-  const unavailable = await gateway.runSerializedRuntimeOperation("restart", async () => {
+  const unavailable = await orphan.runSerializedRuntimeOperation("restart", async () => {
     unguarded += 1;
     return { success: true, state: "running", message: "unexpected", gateway: up };
   }, async () => down);
   assert(unguarded === 0, "mutation must not execute without the lease helper");
-  assert(!unavailable.success && unavailable.message.includes("could not be verified"), "absent current must fail closed");
-  fs.symlinkSync(root, current, "dir");
+  assert(!unavailable.success && unavailable.message.includes("could not be verified"), "missing checkout helper must fail closed");
 
   let doctors = 0;
   let waits = 0;

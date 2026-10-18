@@ -1,7 +1,7 @@
 import fs from "fs";
 import net from "net";
 import path from "path";
-import { runtimeFile } from "../runtimeRoot";
+import { checkoutFile } from "../runtimeRoot";
 import { spawn } from "child_process";
 import { ensureLogsDir } from "../tools/workspace";
 import type { GatewayStatus, RuntimeCommandResponse, RuntimeLogResponse } from "./types";
@@ -42,16 +42,18 @@ let runtimeOperationInFlight: RuntimeOperationInFlight | null = null;
 
 class RuntimeRepairGuardError extends Error {}
 
-// The deploy caller alone supplies its in-checkout owner: Tier0 promotion occurs
-// after this restart, so the previous release may not implement this contract.
-// HTTP imports never receive this private CLI context or reuse a deploy fd.
+// The --repair-lease protocol is versioned with this checkout, not with Tier0's
+// current release: promotion happens after a deploy restart, and a Tier0 rollback
+// may restore a release whose runtime_mode.py predates the lease. Both the deploy
+// CLI and the Companion therefore use the helper shipped with this code; the lock
+// path is unchanged. HTTP imports never receive the private CLI context or a deploy fd.
 const deployRestartOwner = require.main===module && process.argv.length===4 &&
   process.argv[2]==="--deploy-restart" && path.isAbsolute(process.argv[3]) &&
   path.basename(process.argv[3])==="runtime_mode.py" ? process.argv[3] : null;
 type RuntimeRepairLease = { release: () => Promise<void> };
 async function acquireRuntimeRepairLease(): Promise<RuntimeRepairLease> {
   let helper: string;
-  try { helper = deployRestartOwner || runtimeFile("runtime_mode.py"); }
+  try { helper = deployRestartOwner || checkoutFile("runtime_mode.py"); }
   catch { throw new RuntimeRepairGuardError("runtime_guard_unavailable"); }
   // The owner retains the same open file description locked by Python. A
   // helper crash cannot release EX while a stop/start is still in progress.
