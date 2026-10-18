@@ -22,15 +22,31 @@ def answer(state, reason=None, message_id=None):
 
 
 def cleanup(process):
+    if process is None:
+        return
     try:
         os.killpg(process.pid, signal.SIGTERM)
-        process.wait(timeout=1)
+        process.wait(timeout=.3)
     except (ProcessLookupError, subprocess.TimeoutExpired):
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        process.wait(timeout=1)
+        try:
+            process.wait(timeout=.2)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+process = None
+def cancelled(_signum, _frame):
+    # The private caller may have a tighter budget than the wrapper. Propagate
+    # cancellation into the separately owned People session before exiting.
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    cleanup(process)
+    raise SystemExit(143)
+
+signal.signal(signal.SIGTERM, cancelled)
 
 
 payload = bytearray()

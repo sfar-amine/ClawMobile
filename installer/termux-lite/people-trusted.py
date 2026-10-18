@@ -2023,6 +2023,11 @@ def main():
             result={'state':'blocked','reason':'qa_attachment_invalid'} if consume else {'ok':False,'error':{'code':'qa_scope_unavailable'}}
         print(canonical(result));return
     if len(sys.argv)>1 and sys.argv[1]=='qa-deliver':
+        def delivery_cancelled(_signum,_frame):
+            # Unwind the SDK owner's finally/exception cleanup on a private
+            # wrapper cancellation. Pending receipts remain non-replayable.
+            raise SystemExit(143)
+        signal.signal(signal.SIGTERM,delivery_cancelled)
         try:
             if sys.argv[1:]!=['qa-deliver','--request-stdin']:raise ValueError()
             raw=sys.stdin.buffer.read(4097)
