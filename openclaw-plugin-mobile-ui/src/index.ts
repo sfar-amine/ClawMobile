@@ -53,6 +53,7 @@ import { createCapabilityTool } from "./capabilityTool";
 import { agentCapabilityHook } from "./capabilityAgentGuard";
 import { createContactTool } from "./contactTools";
 import { handleContactRoomBeforeDispatch } from "./contactRoomFastPath";
+import { handleQaContactMediaReceived } from "./qaContactMediaOwner";
 
 type JsonSchema = Record<string, any>;
 
@@ -184,6 +185,12 @@ function register(api: any) {
   // mobile runtime implementation below.
 
   api.on("before_tool_call", agentCapabilityHook);
+
+  // SDK 2026.9.6 emits this accepted-turn observation without awaiting it.
+  // Private QA owners admit an existing DRAFT before any staged bytes are read.
+  api.on("message_received", async (event:any,ctx:any) => {
+    await handleQaContactMediaReceived(event,ctx);
+  });
 
   api.on("inbound_claim", async (event: any, ctx: any) => {
     const result = await handleOwnerFastPath(event, ctx);

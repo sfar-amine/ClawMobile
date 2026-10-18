@@ -63,6 +63,13 @@ for byte in encoded:os.write(1,bytes([byte]))
   check(()=>assert.equal(r.state,'unknown'));
   await new Promise(resolve=>setTimeout(resolve,650));
   await assert.rejects(fs.stat(effect),e=>e.code==='ENOENT');checks++;
+  process.env.QA_TEST_SCENARIO='sleep';
+  const started=Date.now();
+  await assert.rejects(allowlistOwner('qa-ingress-read',{requester_hash:'wa-fixture'},false,true,{signal:signal(),remaining_ms:80}));checks++;
+  check(()=>assert(Date.now()-started<500));
+  await new Promise(resolve=>setTimeout(resolve,650));
+  await assert.rejects(fs.stat(effect),e=>e.code==='ENOENT');checks++;
+  await assert.rejects(allowlistOwner('list',{},false,false,{signal:signal(),remaining_ms:100}));checks++;
   process.env.QA_TEST_SCENARIO='';
   delete process.env.SAMANTHA_PEOPLE_TRUSTED;
   const original=runtime.runtimeFile;let calls=0;

@@ -89,10 +89,13 @@ function peopleIpc(args:string[],input:Buffer[],options:{timeoutMs:number;maxOut
   try{for(const chunk of input){wrote=true;child.stdin.write(chunk);}child.stdin.end();}catch{kill();done(unavailable());}
  });
 }
-export async function allowlistOwner(action:string,body:any={},mutation=false,privateQaRead=false):Promise<any>{
+export async function allowlistOwner(action:string,body:any={},mutation=false,privateQaRead=false,
+ controls?:{signal:AbortSignal;remaining_ms:number}):Promise<any>{
  if(privateQaRead&&action!=="qa-ingress-read")throw nativeError("qa_scope_unavailable",403);
+ if(controls&&(!privateQaRead||!Number.isInteger(controls.remaining_ms)||controls.remaining_ms<1||controls.remaining_ms>10000||!controls.signal))throw nativeError("qa_scope_unavailable",403);
  return peopleIpc(privateQaRead?[action]:["allowlist",action],[Buffer.from(JSON.stringify(body))],{
-  timeoutMs:privateQaRead?3000:mutation?20000:10000,maxOutput:131072,mutation,
+  timeoutMs:privateQaRead?Math.min(3000,controls?.remaining_ms??3000):mutation?20000:10000,maxOutput:controls?32768:131072,mutation,
+  ...(controls?{signal:controls.signal,privateAttachment:true}:{}),
   validate:v=>privateQaRead?typeof v.ok==="boolean":typeof v.success==="boolean"&&typeof v.state==="string"});
 }
 
