@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "id": "qa64-q13-queue-maintenance-20261018",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Raccorder le tick privé de file QA au cycle health-manager existant avec budget et sortie fermés.",
+  "reason": "Q13 : reprise événementielle via maintenance existante, sans scheduler supplémentaire ni exposition privée.",
+  "files": [
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-qa-queue.py",
+    ".github/workflows/ci.yml",
+    "docs/changes/qa64-q13-queue-maintenance-20261018.md",
+    "docs/changes/qa64-q13-queue-maintenance-20261018.json"
+  ],
+  "tests": [
+    {
+      "name": "health queue tick",
+      "status": "passed",
+      "command": "python3 installer/termux-lite/test-health-qa-queue.py",
+      "evidence": "Six contrats shell offline dont timeout14s réel, borne4096B et modes emergency_stop/unknown ; aucun S24/réseau."
+    }
+  ],
+  "documentation": [
+    "docs/changes/qa64-q13-queue-maintenance-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Entrée privée fixe du propriétaire existant, aucune route publique ni capability supplémentaire."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Cycle health-manager, runtime_mode, People et journal/état santé existants ; aucun nouveau scheduler, store, route, démon ou résolveur."
+  },
+  "rollback": "Revert du raccord du cycle santé.",
+  "limitations": [
+    "People/PB queue_tick distinct, intégration déléguée pending : aucune activation.",
+    "CI canonique complète du head Q13 intégré requise avec numéro de PR.",
+    "Aucune recette physique ni déploiement."
+  ]
+}
