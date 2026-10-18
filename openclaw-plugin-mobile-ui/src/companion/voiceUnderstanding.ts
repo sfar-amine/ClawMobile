@@ -31,6 +31,8 @@ export type VoiceSpeech = {
   understood?: string;
   failure?: string;
   noDebit?: string;
+  /** Owner-rendered speech of a verified read (e.g. billing `speech`), appended to the imposed text. */
+  ownerSpeech?: string;
   /** Text the spoken answer must start with, word for word. Null when nothing is imposed. */
   verbatim: string | null;
 };
@@ -205,12 +207,12 @@ export function receiptProvesNoDebit(envelope: unknown): boolean {
   return rows.some((row) => row.reasonCode === "payment_not_submitted");
 }
 
-function failureOf(envelope: Record<string, any>, locale: VoiceLocale): { step: string; reason: string } | null {
+function failureOf(envelope: Record<string, any>, locale: VoiceLocale): { step: string; reason: string; stepId?: string } | null {
   const p = presentationOf(envelope);
   const declared = p?.status === "error" ? p.failure : null;
   if (declared && speakable(declared.step) && speakable(declared.reason, 240)) {
     const unknownStep = declared.stepId === "unknown" || /non établie|not established/i.test(declared.step);
-    return { step: unknownStep ? "" : declared.step.trim(), reason: declared.reason.trim() };
+    return { step: unknownStep ? "" : declared.step.trim(), reason: declared.reason.trim(), stepId: typeof declared.stepId === "string" ? declared.stepId : undefined };
   }
   const { execution, result } = resultOf(envelope);
   const paymentRow = obj(result.payment) ? result.payment : obj(envelope.payment) ? envelope.payment : {};
@@ -266,6 +268,17 @@ export function planVoiceSpeech(envelope: unknown, options: { locale?: unknown; 
   const phase: VoiceSpeech["phase"] = fail ? "failure" : transaction ? "transaction" : clarify ? "clarify" : lowConfidence ? "read_low_confidence" : "none";
   const understood = announce ? readVoiceUnderstood(envelope, locale) : null;
   const out: VoiceSpeech = { version: 1, locale, phase, verbatim: null };
+  // Nothing was understood (resolution step, no established cause): ask to rephrase instead of reading a failure
+  // report (S24 18/10 19:26, « on se dérange » for « mon solde orange » : « J'ai compris : Demande. Ça n'a pas abouti
+  // à l'étape « Compréhension de la demande » : la cause n'est pas établie par le reçu. »). Nothing was launched.
+  const notUnderstood = !!fail && fail.stepId === "resolution" && !d.capability && !transaction
+    && /pas établie|non établie|not establish/i.test(fail.reason);
+  if (notUnderstood) {
+    out.phase = "clarify";
+    out.failure = locale === "fr" ? "Je n'ai pas bien compris. Tu peux reformuler ?" : "I didn't quite get that. Could you rephrase?";
+    out.verbatim = out.failure;
+    return out;
+  }
   if (understood) out.understood = sentence((locale === "fr" ? "J'ai compris : " : "I understood: ") + understood.label);
   if (fail) {
     const reason = fail.reason.replace(/[.。]+$/u, "");
@@ -275,7 +288,15 @@ export function planVoiceSpeech(envelope: unknown, options: { locale?: unknown; 
       : sentence(fail.step ? `It did not go through at the “${fail.step}” step: ${lower}` : `It did not go through: ${lower}`);
     if (receiptProvesNoDebit(envelope)) out.noDebit = locale === "fr" ? "Rien n'a été débité." : "Nothing was charged.";
   }
-  const parts = [out.understood, out.failure, out.noDebit].filter(Boolean) as string[];
+  // Owner-rendered speech of a verified read (billing: one sentence per provider). Read word for word, so the answer
+  // names what the receipt proves (S24 18/10 18:58: « 0,985 TND » without « STEG », then « c'est quel fournisseur ? »
+  // was answered « pas dans le reçu »). Never on a failure, a clarification or a transaction.
+  if (!fail && !clarify && !transaction) {
+    const { result } = resultOf(envelope);
+    const owner = result.speech;
+    if (typeof owner === "string" && owner.trim() && owner.length <= 600 && !/[\u0000-\u001f]/.test(owner)) out.ownerSpeech = owner.trim();
+  }
+  const parts = [out.understood, out.failure, out.noDebit, out.ownerSpeech].filter(Boolean) as string[];
   out.verbatim = parts.length ? parts.join(" ") : null;
   return out;
 }

@@ -143,8 +143,15 @@ def call(method, path, timeout, headers=None):
         return 0, b"", time.monotonic() - began
 
 
-# Pause before the single second reading of a failed check (budget overrun or 5xx).
+# Pause between readings of a failed check (budget overrun, 5xx or timeout). #355: at most three readings (about
+# 30 s with the pauses), so a single sample taken during the gateway restart never decides a rollback.
 RETRY_PAUSE_S = float(__import__("os").environ.get("COMPANION_ACCEPT_RETRY_PAUSE_S", "8"))
+ATTEMPTS = 3
+
+
+def transient(code):
+    """A reading that a restart or a load spike explains: timeout (0) or 5xx. Anything else is a verdict."""
+    return code == 0 or 500 <= code <= 599
 
 
 def load_baseline(path):
@@ -245,20 +252,31 @@ def main(session_id=None, baseline_path=None):
         if path in PREWARM:
             # Same rule as /catalog: one untimed read right before the timed row, so a cold restart (empty short
             # cache, first collection) is not judged as a code regression. S24 17/10: rolled back on these two rows.
-            warm_code, _, warm_seconds = call("GET", path, budget + 10)
+            # #355 (S24 18/10 17:59): a prewarm 504 right after the gateway restart rolled back a text-only release.
+            # A 5xx or a timeout is read again (bounded); only a repeated one, or any other code, fails.
+            warm_samples = []
+            for warm_attempt in range(1, ATTEMPTS + 1):
+                warm_code, _, warm_seconds = call("GET", path, budget + 10)
+                warm_samples.append({"code": warm_code, "seconds": round(warm_seconds, 2)})
+                if not transient(warm_code) or warm_attempt == ATTEMPTS:
+                    break
+                time.sleep(RETRY_PAUSE_S)
             warm_status = "ok" if warm_code == 200 else ("skipped" if warm_code == 404 else "fail")
             failed |= warm_status == "fail"
             results.append({"route": path, "check": "prewarm", "code": warm_code,
-                            "seconds": round(warm_seconds, 2), "status": warm_status})
-        for attempt in (1, 2):
+                            "seconds": round(warm_seconds, 2), "samples": warm_samples, "status": warm_status})
+        samples = []
+        for attempt in range(1, ATTEMPTS + 1):
             code, body, took = call("GET", path, budget + 5)
             timing_ok, previous_seconds, regression = timing_result(path, took, budget, baseline)
             ok = code == 200 and timing_ok
-            if ok or code == 404 or attempt == 2:
+            leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
+            samples.append({"code": code, "seconds": round(took, 2)})
+            # A leak is never re-read; a slow or 5xx reading is, after a pause (retro 12/10, #355: up to three
+            # readings, the decision is taken on the repeated result, budgets unchanged).
+            if ok or leak or code == 404 or attempt == ATTEMPTS or not (transient(code) or (code == 200 and not timing_ok)):
                 break
-            # A second reading after a pause, not back to back: a load spike is not a regression (retro 12/10).
             time.sleep(RETRY_PAUSE_S)
-        leak = bool(LEAK.search(body.decode("utf-8", "replace"))) if code == 200 else False
         settled = settle(path, body) if code == 200 else True
         if code == 200 and EMAIL.search(body.decode("utf-8", "replace")):
             warnings.append({"route": path, "warning": "email_address_in_response"})
@@ -266,7 +284,7 @@ def main(session_id=None, baseline_path=None):
         failed |= status == "fail"
         results.append({"route": path, "code": code, "seconds": round(took, 2), "budget": budget,
                         "previousSeconds": previous_seconds, "regression": regression,
-                        "leak": leak, "settled": settled, "status": status})
+                        "leak": leak, "settled": settled, "samples": samples, "status": status})
         if path == "/catalog" and code == 200:
             memo = voice_memo_input(body)
             # Malformed = regression; a closed (qualification refused) microphone is reported, never a rollback by itself.
