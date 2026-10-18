@@ -59,7 +59,8 @@ jobs:
       - name: Q13 accepted-turn media factory and actual private owner coupling
         run: |
           node scripts/test-qa-contact-media-owner.cjs
-          peer="$RUNNER_TEMP/q13-media-playbooks"
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/q13-media-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
           git init "$peer"
           git -C "$peer" remote add origin https://github.com/sfar-amine/samantha-ui-playbooks.git
           git -C "$peer" fetch --depth 1 origin d420259483ef4f8eaabaff77a972f6334f9c7769
