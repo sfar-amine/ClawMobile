@@ -6,6 +6,7 @@
 # Runs detached: restarting the Companion drops the Claw link, so the caller polls the receipt file.
 #   companion-deploy.sh <commit>        deploy that commit of samantha-private/runtime/samantha-companion-private
 #   COMPANION_DEPLOY_WAIT_CALM_S=1200   wait up to that long for a calm phone instead of refusing at once
+#   COMPANION_DEPLOY_LOCK_WAIT_S=10     wait 0..600 s for the existing deploy/campaign lock
 #   companion-deploy.sh --status        print the last receipt
 #   companion-deploy.sh --resolve       print the resolved runtime root and checkout, change nothing
 #   companion-deploy.sh --maintenance close|open|status   maintenance lock of SAM-MIG V2.2 (see below)
@@ -96,7 +97,37 @@ PY
 fi
 target="${1:-}"; [[ "$target" =~ ^[0-9a-f]{7,40}$ ]] || { echo "usage: $0 <commit>|--status|--maintenance close|open|status" >&2; exit 2; }
 
-exec 9>"$STATE/companion-deploy.lock"; flock -n 9 || { echo "deploy_already_running" >&2; exit 3; }
+# Q12: a QA campaign holds this SAME lock shared, from dispatch until cleanup.
+# Never fetch/build/restart while either a campaign or another deploy owns it.
+# Use -n (available on the S24), not flock -w; never replay a deployment later.
+deploy_lock_wait="${COMPANION_DEPLOY_LOCK_WAIT_S-10}"
+if ! [[ "$deploy_lock_wait" =~ ^(0|[1-9][0-9]{0,2})$ ]] || [ "$deploy_lock_wait" -gt 600 ]; then
+  echo "deploy_lock_wait_invalid: expected integer seconds 0..600" >&2; exit 2
+fi
+exec 9>"$STATE/companion-deploy.lock" || { echo "deploy_lock_unavailable: cannot open existing lock" >&2; exit 3; }
+if [ "$deploy_lock_wait" -eq 0 ]; then
+  flock -n 9; deploy_lock_result=$?
+else
+  # The deadline covers flock itself too; counting sleeps would exceed the budget
+  # when a loaded phone takes time to start each command. FD 9 refers to the same
+  # open-file description in parent and children, so a successful flock stays held.
+  timeout "${deploy_lock_wait}s" bash -c '
+    while true; do
+      flock -n 9; result=$?
+      [ "$result" -eq 0 ] && exit 0
+      [ "$result" -eq 1 ] || exit 2
+      sleep 0.2
+    done'
+  deploy_lock_result=$?
+fi
+if [ "$deploy_lock_result" -ne 0 ]; then
+  if [ "$deploy_lock_result" -eq 1 ] || [ "$deploy_lock_result" -eq 124 ]; then
+    echo "deploy_already_running: deploy_lock_busy (deployment or protected campaign); wait_budget=${deploy_lock_wait}s" >&2
+  else
+    echo "deploy_lock_unavailable: flock or bounded wait failed" >&2
+  fi
+  exit 3
+fi
 export SAMANTHA_DEPLOY_LOCK_FD=9
 stamp="$(date +%Y%m%dT%H%M%S)"; receipt="$STATE/companion-$stamp.json"; log="$STATE/companion-$stamp.log"
 # The latest successful receipt is the measured previous release. Refused and rollback receipts do not

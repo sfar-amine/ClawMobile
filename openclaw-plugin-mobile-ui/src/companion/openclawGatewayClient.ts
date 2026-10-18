@@ -1,6 +1,7 @@
 import fs from "fs";
 import net from "net";
 import path from "path";
+import { checkoutFile } from "../runtimeRoot";
 import { spawn } from "child_process";
 import { ensureLogsDir } from "../tools/workspace";
 import type { GatewayStatus, RuntimeCommandResponse, RuntimeLogResponse } from "./types";
@@ -39,6 +40,94 @@ type RuntimeOperationInFlight = {
 
 let runtimeOperationInFlight: RuntimeOperationInFlight | null = null;
 
+class RuntimeRepairGuardError extends Error {}
+
+// The --repair-lease protocol is versioned with this checkout, not with Tier0's
+// current release: promotion happens after a deploy restart, and a Tier0 rollback
+// may restore a release whose runtime_mode.py predates the lease. Both the deploy
+// CLI and the Companion therefore use the helper shipped with this code; the lock
+// path is unchanged. HTTP imports never receive the private CLI context or a deploy fd.
+const deployRestartOwner = require.main===module && process.argv.length===4 &&
+  process.argv[2]==="--deploy-restart" && path.isAbsolute(process.argv[3]) &&
+  path.basename(process.argv[3])==="runtime_mode.py" ? process.argv[3] : null;
+type RuntimeRepairLease = { release: () => Promise<void> };
+async function acquireRuntimeRepairLease(): Promise<RuntimeRepairLease> {
+  let helper: string;
+  try { helper = deployRestartOwner || checkoutFile("runtime_mode.py"); }
+  catch { throw new RuntimeRepairGuardError("runtime_guard_unavailable"); }
+  // The owner retains the same open file description locked by Python. A
+  // helper crash cannot release EX while a stop/start is still in progress.
+  const openclawHome = process.env.OPENCLAW_HOME !== undefined
+    ? process.env.OPENCLAW_HOME : process.env.HOME ? path.join(process.env.HOME, ".openclaw") : undefined;
+  if (!openclawHome || !path.isAbsolute(openclawHome)) throw new RuntimeRepairGuardError("runtime_guard_unavailable");
+  const lockPath = path.join(openclawHome, "deploys", "companion-deploy.lock");
+  let lockFd: number;
+  try {
+    const directory=path.dirname(lockPath);
+    fs.mkdirSync(directory,{recursive:true,mode:0o700});
+    const parent=fs.lstatSync(directory);
+    if(!parent.isDirectory()||parent.uid!==process.getuid?.()||(parent.mode&0o022)!==0)throw new Error("invalid_lock_parent");
+    if(deployRestartOwner){
+      const raw=process.env.SAMANTHA_DEPLOY_LOCK_FD||"";
+      if(!/^[0-9]{1,4}$/.test(raw)||Number(raw)<3)throw new Error("missing_deploy_fd");
+      lockFd=Number(raw);
+    }else lockFd = fs.openSync(lockPath, fs.constants.O_CREAT | fs.constants.O_RDWR | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,0o600);
+    const actual=fs.fstatSync(lockFd),current=fs.lstatSync(lockPath);
+    if (!actual.isFile()||actual.uid!==process.getuid?.()||actual.nlink!==1||(actual.mode&0o022)!==0||
+      !current.isFile()||current.ino!==actual.ino||current.dev!==actual.dev)throw new Error("invalid_lock");
+  } catch {
+    if (lockFd !== undefined) fs.closeSync(lockFd);
+    throw new RuntimeRepairGuardError("runtime_guard_unavailable");
+  }
+  const child = (() => {
+    try {
+      return spawn("python3", [helper, "--repair-lease",...(deployRestartOwner?["--require-existing-exclusive"]:[])],
+        { env: { ...runtimeEnv(), SAMANTHA_DEPLOY_LOCK_FD: "3" }, stdio: ["pipe", "pipe", "ignore", lockFd] });
+    } catch {
+      fs.closeSync(lockFd);
+      throw new RuntimeRepairGuardError("runtime_guard_unavailable");
+    }
+  })();
+  child.stdin.on("error", () => {}); // A refused lease may exit before its stdin is closed.
+  let exited = false;
+  const closed = new Promise<void>(resolve => child.once("close", () => { exited = true; resolve(); }));
+  try {
+    await new Promise<void>((resolve, reject) => {
+      let settled = false, received = "";
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true; clearTimeout(timer);
+        error ? reject(error) : resolve();
+      };
+      const timer = setTimeout(() => finish(new RuntimeRepairGuardError("runtime_guard_unavailable")), 3000);
+      child.once("error", () => finish(new RuntimeRepairGuardError("runtime_guard_unavailable")));
+      child.once("close", () => finish(new RuntimeRepairGuardError("runtime_guard_unavailable")));
+      child.stdout.on("data", (data: Buffer) => {
+        if (settled) return; // Drain subsequent output without retaining it.
+        received += data.toString("utf8");
+        if (received.length > 256) { finish(new RuntimeRepairGuardError("runtime_guard_unavailable")); return; }
+        if (!received.includes("\n")) return;
+        // Closed, exact protocol. Any refusal, additional field or malformed ACK refuses mutation.
+        if (received !== '{"version":1,"state":"acquired"}\n') {
+          const cause = ["lock_busy", "emergency_stop", "unavailable"].find(value =>
+            received === `{"version":1,"state":"refused","cause":"${value}"}\n`);
+          finish(new RuntimeRepairGuardError(cause ? `runtime_guard_${cause}` : "runtime_guard_unavailable")); return;
+        }
+        finish();
+      });
+    });
+  } catch (error) {
+    child.stdin.end(); child.kill("SIGKILL"); fs.closeSync(lockFd);
+    throw error;
+  }
+  if (exited) { fs.closeSync(lockFd); throw new RuntimeRepairGuardError("runtime_guard_unavailable"); }
+  return { release: async () => {
+    child.stdin.end();
+    const timer = setTimeout(() => child.kill("SIGKILL"), 1000);
+    try { if (!exited) await closed; } finally { clearTimeout(timer); fs.closeSync(lockFd); }
+  } };
+}
+
 export async function runSerializedRuntimeOperation(
   kind: RuntimeOperationKind,
   operation: () => Promise<RuntimeCommandResponse>,
@@ -55,7 +144,20 @@ export async function runSerializedRuntimeOperation(
     };
   }
 
-  const promise = Promise.resolve().then(operation);
+  const promise = Promise.resolve().then(async () => {
+    let lease: RuntimeRepairLease;
+    try { lease = await acquireRuntimeRepairLease(); }
+    catch (error) {
+      const gateway = await status();
+      return { success: false, state: gateway.reachable ? "running" as const : "not_started" as const,
+        message: error instanceof RuntimeRepairGuardError && error.message === "runtime_guard_lock_busy"
+          ? "Runtime lock is held by another operation (deployment, repair or test campaign). No runtime change was performed."
+          : error instanceof RuntimeRepairGuardError && error.message === "runtime_guard_emergency_stop"
+            ? "The runtime emergency stop is active. No runtime change was performed."
+            : "Runtime protection could not be verified. No runtime change was performed.", gateway };
+    }
+    try { return await operation(); } finally { await lease.release(); }
+  });
   const owned: RuntimeOperationInFlight = {
     kind,
     startedAt: Date.now(),
@@ -643,13 +745,18 @@ function runtimeEnv(): NodeJS.ProcessEnv {
     `${TERMUX_PREFIX}/bin`,
   ].join(":");
 
-  return {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     HOME: home,
     PREFIX: process.env.PREFIX || TERMUX_PREFIX,
     TMPDIR: process.env.TMPDIR || TERMUX_TMPDIR,
     PATH: currentPath ? `${requiredPath}:${currentPath}` : requiredPath,
   };
+  // A deploy lock fd number is private to the process that inherited it (deploy
+  // --deploy-restart). The relaunched Gateway and other runtime children must never
+  // read it as their own authority; the lease helper sets its own value explicitly.
+  delete env.SAMANTHA_DEPLOY_LOCK_FD;
+  return env;
 }
 
 function runtimeStartWaitMs() {
@@ -668,4 +775,13 @@ function gatewayLogPath() {
 
 function gatewayPidPath() {
   return path.join(ensureLogsDir(), GATEWAY_PID_FILE);
+}
+
+// Fixed private deploy action; no public tool, HTTP option or caller command.
+if(require.main===module){
+  if(!deployRestartOwner){process.stdout.write('{"success":false}\n');process.exitCode=2;}
+  else void restartRuntime().then(result=>{
+    process.stdout.write(JSON.stringify({success:result.success})+"\n");
+    if(!result.success)process.exitCode=75;
+  }).catch(()=>{process.stdout.write('{"success":false}\n');process.exitCode=75;});
 }

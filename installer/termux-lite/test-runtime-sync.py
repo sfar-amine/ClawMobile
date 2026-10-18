@@ -2,6 +2,7 @@
 """S24 12/10: the Companion was deployed (1d7676ca) but the WhatsApp Gateway still loaded its 11/10 plugin copy and
 the 10:34 Tier0 release: Sadok's Pulse room was answered by the model, which invented a project status.
 runtime-sync.sh brings every runtime copy to the deployed commit and proves it; the deploy fails otherwise."""
+import fcntl
 import http.server, json, os, pathlib, shutil, subprocess, tempfile, threading, unittest
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -118,10 +119,10 @@ class RuntimeSync(unittest.TestCase):
                         RUNTIME_SYNC_GATEWAY_HEALTHZ_URL=f"http://127.0.0.1:{self.server.server_address[1]}/healthz")
         self.env.pop("OPENCLAW_STATE_DIR", None)
 
-    def sync(self, commit=None, check=False, **env):
+    def sync(self, commit=None, check=False, inherited=None, **env):
         args = ["--check"] if check else []
         out = subprocess.run(["bash", str(self.root / "runtime-sync.sh"), *args, commit or self.commit], env={**self.env, **env},
-                             capture_output=True, text=True, timeout=60)
+                             capture_output=True, text=True, timeout=60, pass_fds=(() if inherited is None else (inherited,)))
         return out.returncode, json.loads(out.stdout.strip().splitlines()[-1]), out.stderr
 
     def tier0_log(self):
@@ -148,6 +149,30 @@ class RuntimeSync(unittest.TestCase):
         rc, out, err = self.sync(check=True, RUNTIME_SYNC_APP_CONTRACT=str(app))
         self.assertEqual(rc, 1, err)
         self.assertIn('voice:app_contract_differs', out['drift'])
+
+    def test_deployment_sync_restarts_under_its_inherited_lock_without_http(self):
+        lock = self.home / '.openclaw/deploys/companion-deploy.lock'
+        lock.parent.mkdir(); lock.touch(mode=0o600)
+        node = self.tmp / 'bin/node'
+        # Invocation-boundary double only; the separate Node test runs actual
+        # Gateway stop/start over a TCP fixture with this same real flock proof.
+        node.write_text('#!/usr/bin/env python3\nimport json,os,subprocess,sys\n'
+            'assert len(sys.argv)==4 and sys.argv[2]=="--deploy-restart"\n'
+            'fd=int(os.environ["SAMANTHA_DEPLOY_LOCK_FD"])\n'
+            'p=subprocess.run([sys.executable,sys.argv[3],"--repair-lease","--require-existing-exclusive"],'
+            'input=b"",capture_output=True,pass_fds=(fd,))\n'
+            'assert p.returncode==0 and json.loads(p.stdout)["state"]=="acquired"\n'
+            + 'open('+repr(str(self.home / 'tier0.log'))+',"a").write("gateway-restart\\n")\n'
+            + "print(json.dumps({'success':True}))\n")
+        node.chmod(0o700)
+        with lock.open() as deployed:
+            fcntl.flock(deployed,fcntl.LOCK_EX)
+            code,out,err=self.sync(inherited=deployed.fileno(),SAMANTHA_DEPLOY_LOCK_FD=str(deployed.fileno()))
+            self.assertEqual(code,0,err); self.assertEqual(out['gateway'],'restarted')
+            with lock.open() as probe:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(probe,fcntl.LOCK_SH|fcntl.LOCK_NB)
+        self.assertNotIn(('POST','/v1/runtime/restart'),Companion.calls)
 
     def test_stale_gateway_plugin_and_release_are_brought_to_the_commit(self):
         rc, out, err = self.sync()

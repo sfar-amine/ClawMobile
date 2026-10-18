@@ -73,6 +73,10 @@ jobs:
       - name: Health manager never repairs the Companion during a deploy
         run: |
           python3 ../installer/termux-lite/test-runtime-mode.py
+          python3 ../installer/termux-lite/test-qa-restart-protection.py
+          node scripts/test-qa-runtime-repair-lease.cjs
+          node scripts/test-qa-deploy-gateway-restart.cjs
+          node scripts/test-gateway-maintenance-recovery.cjs
           python3 ../installer/termux-lite/test-health-deploy-lock.py
       - name: I5 bounded restart escalation, Tier0 rollback and notification dedupe
         run: python3 ../installer/termux-lite/test-health-restart-escalation.py
@@ -129,6 +133,7 @@ jobs:
           python3 ../installer/termux-lite/test-companion-acceptance-web-recipe.py
           python3 ../installer/termux-lite/test-companion-deploy-preflight.py
           python3 ../installer/termux-lite/test-companion-deploy-root.py
+          python3 ../installer/termux-lite/test-qa-deploy-protection.py
           python3 ../installer/termux-lite/test-runtime-sync.py
           python3 ../installer/termux-lite/test-runtime-foundations.py
           node scripts/test-runtime-root.cjs

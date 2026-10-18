@@ -12,6 +12,7 @@ import fcntl
 import json
 import os
 import stat
+import sys
 import time
 from pathlib import Path
 
@@ -103,6 +104,26 @@ def _stop_state(root: Path) -> str | None:
     return "emergency_stop" if isinstance(row, dict) and row.get("enabled") is True else "unknown"
 
 
+def deployment_lock_fd(root: Path | None = None) -> int:
+    """Create only the existing lock, without following a substituted file/directory."""
+    path = Path(root or openclaw_home()) / "deploys" / "companion-deploy.lock"
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    parent = path.parent.lstat()
+    if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.getuid() or parent.st_mode & 0o022:
+        raise OSError("deployment_lock_parent_invalid")
+    fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        actual, current = os.fstat(fd), path.lstat()
+        if (not stat.S_ISREG(actual.st_mode) or actual.st_uid != os.getuid() or actual.st_nlink != 1
+                or actual.st_mode & 0o022 or not stat.S_ISREG(current.st_mode)
+                or (actual.st_dev, actual.st_ino) != (current.st_dev, current.st_ino)):
+            raise OSError("deployment_lock_invalid")
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
 def current_mode(root: Path | None = None) -> str:
     root = Path(root or openclaw_home())
     stopped = _stop_state(root)
@@ -120,7 +141,7 @@ def current_mode(root: Path | None = None) -> str:
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
-            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             fcntl.flock(fd, fcntl.LOCK_UN)
             return "normal"
         except BlockingIOError:
@@ -131,7 +152,7 @@ def current_mode(root: Path | None = None) -> str:
         return "unknown"
 
 
-def _inherited_lock_fd(path: Path) -> int | None:
+def _inherited_lock_fd(path: Path, *, busy_raises: bool = False, exclusive_held: bool = False) -> int | None:
     raw = os.environ.get("SAMANTHA_DEPLOY_LOCK_FD", "")
     if not raw.isdigit():
         return None
@@ -139,15 +160,36 @@ def _inherited_lock_fd(path: Path) -> int | None:
     try:
         opened = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
         try:
-            same = os.fstat(fd).st_dev == os.fstat(opened).st_dev and os.fstat(fd).st_ino == os.fstat(opened).st_ino
+            actual, expected = os.fstat(fd), os.fstat(opened)
+            same = (stat.S_ISREG(actual.st_mode) and stat.S_ISREG(expected.st_mode)
+                    and actual.st_dev == expected.st_dev and actual.st_ino == expected.st_ino)
         finally:
             os.close(opened)
         if not same:
             return None
+        if exclusive_held:
+            # An independent shared probe must be refused. Together with EX on
+            # the inherited description below this proves it was already EX,
+            # rather than granting a deployment exemption to an unlocked/SH fd.
+            probe = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                try:
+                    fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    pass
+                else:
+                    fcntl.flock(probe, fcntl.LOCK_UN)
+                    return None
+            finally:
+                os.close(probe)
         # The inherited open-file description already owns the exclusive flock.
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return fd
-    except (OSError, BlockingIOError):
+    except BlockingIOError:
+        if busy_raises:
+            raise DeploymentLockBusy("deployment_lock_busy") from None
+        return None
+    except OSError:
         return None
 
 
@@ -156,16 +198,20 @@ class DeploymentLockBusy(OSError):
 
 
 @contextlib.contextmanager
-def deployment_guard(root: Path | None = None, wait_seconds: float | None = None):
+def deployment_guard(root: Path | None = None, wait_seconds: float | None = None, *, require_inherited: bool = False):
     """Hold the existing deployment lock, reusing a verified inherited fd."""
     root = Path(root or openclaw_home())
     path = root / "deploys" / "companion-deploy.lock"
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    inherited = _inherited_lock_fd(path) if path.exists() else None
+    # Validate/create through the same lock owner before inspecting inherited authority.
+    checked = deployment_lock_fd(root)
+    os.close(checked)
+    inherited = _inherited_lock_fd(path, busy_raises=require_inherited)
+    if require_inherited and inherited is None:
+        raise OSError("deployment_lock_inherited_invalid")
     if inherited is not None:
         yield inherited
         return
-    fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    fd = deployment_lock_fd(root)
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise OSError("deployment_lock_invalid")
@@ -191,13 +237,58 @@ def deployment_guard(root: Path | None = None, wait_seconds: float | None = None
         os.close(fd)
 
 
+def repair_lease(root: Path | None = None, *, require_exclusive: bool = False) -> int:
+    """Transient EOF-owned lease over the existing lock; never execute a command.
+
+    Only the owner process retains the stdin pipe. It is not inherited by a
+    repaired daemon. EOF (including owner death) releases the exclusive lock.
+    """
+    root = Path(root or openclaw_home())
+
+    def refused(cause: str) -> int:
+        # Closed causes, never paths, exception details or credentials.
+        print(json.dumps({"version": 1, "state": "refused", "cause": cause}, separators=(",", ":")), flush=True)
+        return 75
+
+    try:
+        stopped = _stop_state(root)
+        if stopped:
+            return refused("emergency_stop" if stopped == "emergency_stop" else "unavailable")
+        if require_exclusive and _inherited_lock_fd(root / "deploys" / "companion-deploy.lock",
+                busy_raises=True, exclusive_held=True) is None:
+            return refused("unavailable")
+        with deployment_guard(root, wait_seconds=0, require_inherited=bool(os.environ.get("SAMANTHA_DEPLOY_LOCK_FD"))):
+            stopped = _stop_state(root)
+            if stopped:
+                return refused("emergency_stop" if stopped == "emergency_stop" else "unavailable")
+            print(json.dumps({"version": 1, "state": "acquired"}, separators=(",", ":")), flush=True)
+            while sys.stdin.buffer.read(4096):
+                pass  # No commands, payload, buffering or secondary owner.
+        return 0
+    except DeploymentLockBusy:
+        return refused("lock_busy")
+    except (OSError, ValueError):
+        return refused("unavailable")
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--openclaw-home", type=Path)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--repair-lease", action="store_true")
+    parser.add_argument("--ensure-deployment-lock", action="store_true")
+    parser.add_argument("--require-existing-exclusive", action="store_true")
     parser.add_argument("--check-runtime-parity", nargs=2, type=Path, metavar=("CORE", "PLAYBOOKS"))
     parser.add_argument("--check-parity", nargs=3, type=Path, metavar=("CORE", "PLAYBOOKS", "APP_CONTRACT"))
     args = parser.parse_args(argv)
+    if args.ensure_deployment_lock:
+        try:
+            os.close(deployment_lock_fd(args.openclaw_home))
+            return 0
+        except (OSError, ValueError):
+            return 75
+    if args.repair_lease:
+        return repair_lease(args.openclaw_home, require_exclusive=args.require_existing_exclusive)
     if args.check_parity or args.check_runtime_parity:
         drift = contract_drift(*(args.check_parity or args.check_runtime_parity))
         print(json.dumps({"ok": not drift, "drift": drift}))
