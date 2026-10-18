@@ -214,7 +214,7 @@ def main() -> int:
         budget=getattr(args,"remaining_budget_ms",None)
         if budget is not None:
             deadline=getattr(args,"deadline_epoch_ms",None)
-            if type(budget) is not int or not 0<budget<=20000 or type(deadline) is not int or not args.request_id:  # PUBLIC_WEB_BUDGET_MS
+            if type(budget) is not int or not 0<budget<=30000 or type(deadline) is not int or not args.request_id:  # PUBLIC_WEB_BUDGET_MS
                 raise SystemExit("invalid_web_execution_context")
             remaining=min(budget-int((time.monotonic()-started)*1000),deadline-int(time.time()*1000))
             if remaining<=0:raise SystemExit("web_deadline_exceeded")

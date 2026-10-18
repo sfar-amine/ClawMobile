@@ -105,7 +105,7 @@ class RuntimeSync(unittest.TestCase):
         bin_ = self.tmp / "bin"; bin_.mkdir(); (bin_ / "openclaw").write_text(OPENCLAW_STUB); (bin_ / "openclaw").chmod(0o755)
         owner = oc / "runtime-ui-playbooks/current/skill_intelligence/public_web.py"
         owner.parent.mkdir(parents=True, exist_ok=True)
-        owner.write_text("BUDGET_MS=20000\nSEARCH_BUDGET_MS=12000\n")
+        owner.write_text("BUDGET_MS=30000\nSEARCH_BUDGET_MS=12000\n")
         # rsync is installed on Termux but optional on generic Ubuntu hosts.
         # The double preserves the --delete contract and the node_modules exclusion.
         (bin_ / "rsync").write_text(RSYNC_STUB); (bin_ / "rsync").chmod(0o755)

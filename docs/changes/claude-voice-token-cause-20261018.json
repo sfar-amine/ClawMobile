@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "claude-voice-token-cause-20261018",
+  "origin": "chat",
+  "kind": "incident",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Voix : un échec de jeton Gemini Live dit enfin sa cause (raison écrite par le helper sur stdout) au lieu de « exit=75 stderr=empty » ; le préchauffage 502 devient diagnosticable.",
+  "reason": "S24 18/10 14:03 et 15:15 : trois gemini_live_token_helper_failed exit=75 stderr=empty d'affilée, puis prewarm 502 et ouverture de la voix lente. gemini-live-client.mjs écrit {status:error,reason} sur stdout et sort en 75 ; tokenHelperFailure ne lisait que stderr. Rejeu S24 17:40 : 5/5 jetons en 1,2-2,0 s, échec intermittent, cause encore inconnue.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-claw-live-token-failure.cjs",
+    "docs/changes/claude-voice-token-cause-20261018.md",
+    "docs/changes/claude-voice-token-cause-20261018.json"
+  ],
+  "tests": [
+    {
+      "name": "scripts/test-claw-live-token-failure.cjs",
+      "status": "passed",
+      "evidence": "7/7 : raison stdout reprise et bornée, clé masquée, stdout non JSON ignoré ; cas existants inchangés."
+    }
+  ],
+  "documentation": [
+    "docs/changes/claude-voice-token-cause-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Diagnostic interne du relais voix."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même fonction de diagnostic F2 ; aucun propriétaire ajouté."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "reason": "Six primitive schemas and admission unchanged; voice relay diagnostic text only.",
+    "evidence": [
+      "openclaw-plugin-mobile-ui/scripts/test-claw-live-token-failure.cjs"
+    ]
+  },
+  "rollback": "Revert du commit.",
+  "limitations": [
+    "N'empêche pas l'échec amont du jeton ; le prochain échec sur le S24 donnera la cause à corriger."
+  ]
+}

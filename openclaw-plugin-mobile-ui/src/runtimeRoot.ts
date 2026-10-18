@@ -1,11 +1,12 @@
 import os from "node:os";
 import path from "node:path";
 
-/** Tier0 exports the termux-lite directory, not the Git checkout. No environment mutation. */
+/** Companion/Gateway helpers follow Tier0's current link, including after promotion.
+ * CLAW_RUNTIME_ROOT is inherited from the pinned Tier0 daemon; it is not a helper override.
+ * Keep the link spelling (no realpath/cache) and never mutate the caller environment.
+ */
 export function runtimeRoot(home = os.homedir()): string {
-  const configured = process.env.CLAW_RUNTIME_ROOT;
-  if (configured && !path.isAbsolute(configured)) throw new Error("runtime_root_not_absolute");
-  return configured || path.join(home, ".openclaw", "releases", "current", "termux-lite");
+  return path.join(home, ".openclaw", "releases", "current", "termux-lite");
 }
 
 export function runtimeFile(name: string, home = os.homedir()): string {

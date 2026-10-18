@@ -41,6 +41,79 @@ class ClawTraceTests(unittest.TestCase):
             self.assertNotIn("outside window", out)
             self.assertNotIn("unstamped", out)
 
+    def trace(self, home, *filters):
+        return subprocess.run(['python3',str(HERE/'claw-trace.py'),'--since','2026-10-17T22:00:00Z',
+                               '--until','2026-10-17T23:00:00Z','--no-app','--json',*filters],
+                              env=dict(os.environ,HOME=str(home)),capture_output=True,text=True)
+
+    def test_correlation_is_exact_named_and_intersects_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp);logs=home/'.openclaw/health';logs.mkdir(parents=True)
+            (logs/'companion.stderr.log').write_text(
+                '2026-10-17T22:30:00Z execution warn runId=run_1 clientRunId=client_2 failed_code\n'
+                '2026-10-17T22:31:00Z execution warn runId=run_10 different_code\n'
+                '2026-10-17T22:32:00Z execution warn message_mentions_run_1\n'
+                '2026-10-17T23:30:00Z execution warn runId=run_1 outside_window\n')
+            (logs/'companion.stderr.log.1').write_text(
+                '2026-10-17T22:29:00Z turnId=turn_3 runId=run_1 accepted_code\n')
+            done=self.trace(home,'--run','run_1');self.assertEqual(done.returncode,0,done.stderr)
+            rows=[json.loads(line) for line in done.stdout.splitlines()]
+            self.assertEqual(len(rows),2);self.assertIn('accepted_code',rows[0]['text'])
+            for bad in ('different_code','mentions','outside_window'):self.assertNotIn(bad,done.stdout)
+            narrowed=self.trace(home,'--run','run_1','--client-run','client_2')
+            self.assertEqual(len(narrowed.stdout.splitlines()),1)
+            self.assertEqual(self.trace(home,'run_1').stdout,done.stdout)
+            self.assertEqual(len(self.trace(home,'--turn','turn_3').stdout.splitlines()),1)
+
+    def test_runs_use_real_s24_shapes_and_never_copy_free_errors(self):
+        fixture=HERE.parents[1]/'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-11c/hs5-runs-shapes.json'
+        captured=json.loads(fixture.read_text());self.assertIn('S24',captured['provenance']['device'])
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp);store=home/'.openclaw/clawmobile-companion';store.mkdir(parents=True)
+            # Capture retained relative durations and presence only. Replay at the explicit synthetic test clock.
+            base=1792276200000
+            records=[]
+            for record in captured['runs']:
+                row=dict(record,acceptedAt=base,updatedAt=base+record['updatedAtOffsetMs'])
+                row['error']='PRIVATE_ACCOUNT@example.invalid token=secret-private-value'
+                row['userText']='PRIVATE_USER_TEXT'
+                records.append(row)
+            (store/'runs.json').write_text(json.dumps({'runs':records}))
+            selected=records[0]['runId'];done=self.trace(home,'--run',selected)
+            self.assertEqual(done.returncode,0,done.stderr)
+            self.assertEqual(len(done.stdout.splitlines()),2)
+            self.assertIn('runId='+selected,done.stdout)
+            for other in records[1:]:self.assertNotIn(other['runId'],done.stdout)
+            self.assertNotIn('PRIVATE',done.stdout);self.assertNotIn('secret-private-value',done.stdout)
+
+    def test_canonical_maximum_id_is_searchable_and_oversize_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp);logs=home/'.openclaw/health';logs.mkdir(parents=True)
+            value='r'*160
+            (logs/'companion.stderr.log').write_text(
+                '2026-10-17T22:30:00Z runs error {"runId":"'+value+'"} submitted_run_failed\n'
+                '2026-10-17T22:30:01Z runId='+value+'x different_code\n')
+            done=self.trace(home,'--run',value)
+            self.assertEqual(done.returncode,0,done.stderr)
+            self.assertEqual(len(done.stdout.splitlines()),1)
+            self.assertIn('submitted_run_failed',done.stdout)
+            rejected=self.trace(home,'--run',value+'x')
+            self.assertNotEqual(rejected.returncode,0)
+            self.assertIn('invalid_trace_correlation',rejected.stderr)
+            self.assertNotIn(value,rejected.stderr)
+
+    def test_json_metadata_and_invalid_filter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp);logs=home/'.openclaw/health';logs.mkdir(parents=True)
+            (logs/'companion.stderr.log').write_text(
+                '2026-10-17T22:30:00Z {"runId":"run_1","event":"failed_code"}\n'
+                '2026-10-17T22:30:01Z {"runId":"run_10","event":"other_code"}\n')
+            self.assertEqual(len(self.trace(home,'--run','run_1').stdout.splitlines()),1)
+            failed=self.trace(home,'--turn','private@example.invalid')
+            self.assertNotEqual(failed.returncode,0)
+            self.assertIn('invalid_trace_correlation',failed.stderr)
+            self.assertNotIn('private@example.invalid',failed.stderr)
+
     def test_a_release_apk_is_read_through_its_voice_log(self):
         # run-as is refused on the optimized APK; the voice owner's logcat lines carry the dated cause.
         with tempfile.TemporaryDirectory() as tmp:

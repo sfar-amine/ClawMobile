@@ -26,13 +26,12 @@ def release_root(home: Path | None = None) -> Path:
 
 
 def runtime_root(fallback: Path | None = None, home: Path | None = None) -> Path:
-    """Read Tier0's termux-lite root without sanitizing the caller environment."""
-    configured = os.environ.get("CLAW_RUNTIME_ROOT", "")
-    if configured:
-        root = Path(configured)
-        if not root.is_absolute():
-            raise ValueError("runtime_root_not_absolute")
-        return root
+    """Companion/Gateway helpers follow current, never an inherited daemon pin.
+
+    Preserve the link spelling across promotions and leave the environment
+    untouched. Pinned Tier0 daemons keep their existing shell owner in lib.sh.
+    An explicitly supplied local fallback retains its existing caller contract.
+    """
     return Path(fallback) if fallback is not None else release_root(home) / "termux-lite"
 
 

@@ -1066,6 +1066,29 @@ def run_while_wifi_stays_off(command: list[str], *, interval_s: float = WIFI_WAT
     finally:
         _stop_child(child)
 
+CONSULTATION_OPTIONS = ("--no-cellular-channel", "--keep-wifi")
+
+
+def canonical_consultation_argv(argv: list[str], exe: str) -> bool:
+    """The exact guard command line, each consultation option at most once and in any order.
+    S24 18/10 14:53: the live-voice `--keep-wifi` (17/10) was missing here, so every voice Orange
+    consultation stopped at guard_unavailable before any network action."""
+    try:
+        options = []
+        rest = argv[3:]
+        while rest and rest[0] in CONSULTATION_OPTIONS and rest[0] not in options:
+            options.append(rest[0]); rest = rest[1:]
+        argv = argv[:3] + rest
+        return (len(argv) >= 8 and Path(argv[1]).is_absolute()
+                and Path(argv[1]).resolve() == Path(__file__).resolve()
+                and Path(exe).resolve() == Path(sys.executable).resolve()
+                and argv[2:4] == ["with-consultation-receipt", "--"]
+                and Path(argv[4]).resolve() == Path(sys.executable).resolve()
+                and argv[5:7] == ["-m", "telecom.maxit_guarded_service"])
+    except (OSError, ValueError, IndexError):
+        return False
+
+
 def canonical_consultation_owner(pid: int) -> bool:
     """A birth identity alone cannot turn an ordinary Python process into the guard."""
     try:
@@ -1074,15 +1097,7 @@ def canonical_consultation_owner(pid: int) -> bool:
         if len(raw) > 8192:
             return False
         argv = [v.decode() for v in raw.rstrip(b"\0").split(b"\0")]
-        expected = Path(__file__).resolve()
-        if argv[2:4] == ["with-consultation-receipt","--no-cellular-channel"]:
-            argv=argv[:3]+argv[4:]
-        return (len(argv) >= 8 and Path(argv[1]).is_absolute()
-                and Path(argv[1]).resolve() == expected
-                and Path(os.readlink(proc / "exe")).resolve() == Path(sys.executable).resolve()
-                and argv[2:4] == ["with-consultation-receipt", "--"]
-                and Path(argv[4]).resolve() == Path(sys.executable).resolve()
-                and argv[5:7] == ["-m", "telecom.maxit_guarded_service"])
+        return canonical_consultation_argv(argv, os.readlink(proc / "exe"))
     except (OSError, ValueError, IndexError, UnicodeError):
         return False
 

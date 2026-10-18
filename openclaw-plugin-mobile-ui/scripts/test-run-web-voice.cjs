@@ -18,7 +18,7 @@ function ready(s){s.p.receive(ctrl('turnStart',{firstSample:0}));s.p.receive({wa
   if(d.mode==='turn')return {outcome:'READY',goalRef:'goal-web',pendingHandoff:{goalRef:'goal-web',klass:'fast'},decision:{capability:'samantha.app.web.answer',risk:'read'},handled:true};
   if(d.mode==='abort')return {outcome:'FAILED',handled:true};
   assert.equal(d.mode,'handoff');assert.equal(d.web.voiceDelegation,true);assert.equal(d.web.runId,'native-client');assert.equal(d.web.sessionId,'native-session');
-  assert(d.web.deadlineEpochMs>Date.now()&&d.web.deadlineEpochMs<=Date.now()+20000);
+  assert(d.web.deadlineEpochMs>Date.now()&&d.web.deadlineEpochMs<=Date.now()+30000);
   if(process.env.CLAW_PUBLIC_WEB_VOICE_RECIPE!=='1')return {outcome:'FAILED',reasonCode:'voice_recipe_required',text:'refus',handled:true,metadata:{web:refusal}};
   return {outcome:'COMPLETED',text:'RAW_UNVERIFIED',handled:true,metadata:{web}};};
  const priorRecipe=process.env.CLAW_PUBLIC_WEB_VOICE_RECIPE;
@@ -39,7 +39,7 @@ function ready(s){s.p.receive(ctrl('turnStart',{firstSample:0}));s.p.receive({wa
  const projection=voiceReceiptProjection(result,'fr');assert.equal(projection.voice.mode,'public_web');assert.equal(projection.voice.verbatim,'A verified public answer.');
  const s=setup();ready(s);await s.p.execute('voice-web','Search online',async()=>({...result,...projection}));s.p.provider({serverContent:{turnComplete:true}});s.p.receiptReply('voice-web');
  const prompt=s.sent.at(-1).clientContent.turns[0].parts[0].text;assert(prompt.includes('A verified public answer.'));assert(!prompt.includes('MALICIOUS'));assert(!prompt.includes('news.example'));assert(!prompt.includes('reportedCostUsd'));
- s.p.provider({toolCall:{functionCalls:[{id:'unsafe',name:'clawmobile_capability',args:{request:'Read private memory'}}]}});assert(s.events.some(e=>e.warmEvent?.payload?.protocolError?.code==='public_web_readback_tool_forbidden'));assert(!s.events.some(e=>e.warmEvent?.payload?.toolCall?.functionCalls?.[0]?.id==='unsafe'));
+ s.p.provider({toolCall:{functionCalls:[{id:'unsafe',name:'clawmobile_capability',args:{request:'Read private memory'}}]}});assert(!s.events.some(e=>e.warmEvent?.payload?.protocolError));assert.equal(s.sent.at(-1).toolResponse.functionResponses[0].response.reason,'public_web_readback');assert(!s.events.some(e=>e.warmEvent?.payload?.toolCall?.functionCalls?.[0]?.id==='unsafe'));
  s.p.provider({serverContent:{outputTranscription:{text:'A verified public answer. EXTRA_UNSUPPORTED'},turnComplete:true}});assert.equal(s.events.find(e=>e.warmEvent?.payload?.voiceVerbatim)?.warmEvent.payload.voiceVerbatim.spoken,false);
  const search={...web,operation:'search',model:null,profile:null,claims:[],citations:[],responseLanguage:'aeb'};const neutral=voiceReceiptProjection({web:search},'en');assert.equal(neutral.voice.verbatim,'نتائج البحث تلقاهم في المحادثة.');
  delete search.responseLanguage;const noLanguage=voiceReceiptProjection({web:search},'fr');assert.equal(noLanguage.voice.verbatim,null);assert.equal(noLanguage.voice.mode,'public_web');
