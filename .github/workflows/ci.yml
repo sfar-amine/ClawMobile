@@ -221,6 +221,7 @@ jobs:
           python3 scripts/test-voice-latency-report.py
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
+          node scripts/test-run-diagnostics.cjs
 
       - name: Test attachment storage
         run: node scripts/test-attachment-storage.cjs
