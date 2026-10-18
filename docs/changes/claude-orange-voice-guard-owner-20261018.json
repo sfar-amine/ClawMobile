@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "id": "claude-orange-voice-guard-owner-20261018",
+  "origin": "chat",
+  "kind": "incident",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Consultation Orange en voix : le contrôle d'identité du garde accepte enfin --keep-wifi ; chaque solde Orange demandé à la voix s'arrêtait en guard_unavailable.",
+  "reason": "S24 18/10 14:53 : route orange.summary.maxit.v1 en preferred_route_failure, état guard_unavailable sans bloc network_guard (refus avant toute action réseau). canonical_consultation_owner ne normalisait que --no-cellular-channel ; la ligne vocale porte --keep-wifi depuis le 17/10.",
+  "files": [
+    "installer/termux-lite/android-network-mutation-guard.py",
+    "installer/termux-lite/test-consultation-voice-keep-wifi.py",
+    "docs/changes/claude-orange-voice-guard-owner-20261018.md",
+    "docs/changes/claude-orange-voice-guard-owner-20261018.json"
+  ],
+  "tests": [
+    {
+      "name": "test-consultation-voice-keep-wifi.py",
+      "status": "passed",
+      "evidence": "6/6 ; nouveau cas sans substitution du contrôle : ligne de commande exacte de telecom/maxit_guarded_service (playbooks), 5 combinaisons d'options acceptées, doublon, option inconnue, autre module et autre chemin de garde refusés. Ancien code : ligne vocale refusée (reproduit)."
+    },
+    {
+      "name": "test-consultation-network-receipt.py",
+      "status": "passed",
+      "evidence": "inchangé, vert."
+    },
+    {
+      "name": "test-consultation-total-bound.py",
+      "status": "passed",
+      "evidence": "inchangé, vert."
+    }
+  ],
+  "documentation": [
+    "docs/changes/claude-orange-voice-guard-owner-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Aucune route ni capability ; contrôle interne du garde de consultation."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise le garde existant ; aucun propriétaire, store ni démon ajouté."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "updated",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "reason": "Six primitive schemas/admission unchanged; existing execution/status carry one closed final receipt. No direct raw-provider ingress or new tool is introduced. Live owner surface parity is a separate activation gate.",
+    "evidence": [
+      "installer/termux-lite/test-consultation-fastpath.py",
+      "docs/work/samantha-runtime/contracts/o1.md",
+      "docs/changes/codex-o1-network-receipt-20261010.md"
+    ]
+  },
+  "rollback": "Revert du commit et de la PR jumelle playbooks.",
+  "limitations": [
+    "Recette vocale live après déploiement : « mon solde Orange » à la voix."
+  ]
+}

@@ -988,7 +988,7 @@ def try_fast_path(
 
 PUBLIC_WEB_CAPABILITIES = {"samantha.app.web.search", "samantha.app.web.answer"}
 # Total public Web budget (search + one free synthesis); same value as PUBLIC_WEB_BUDGET_MS in runWeb.ts.
-PUBLIC_WEB_BUDGET_MS = 20000
+PUBLIC_WEB_BUDGET_MS = 30000
 WEB_VOICE_MESSAGES = {
     "fr": "La recherche Web vocale attend sa recette audio ; utilise la conversation écrite.",
     "en": "Voice Web search is awaiting its audio acceptance test; use the text conversation.",

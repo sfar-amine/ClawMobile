@@ -100,6 +100,7 @@ jobs:
           python3 ../installer/termux-lite/test-runtime-mode.py
           python3 ../installer/termux-lite/test-qa-restart-protection.py
           node scripts/test-qa-runtime-repair-lease.cjs
+          node scripts/test-qa-deploy-gateway-restart.cjs
           node scripts/test-gateway-maintenance-recovery.cjs
           python3 ../installer/termux-lite/test-health-deploy-lock.py
       - name: I5 bounded restart escalation, Tier0 rollback and notification dedupe

@@ -122,6 +122,29 @@ CLOCK=162; if restart_gate companion; then exit 24; fi
         self.assertEqual(files["orchestrator.calls"].count(" human_required "), 1)
         self.assertEqual(files[".openclaw/incidents/events.log"].count("event=queued"), 1)
 
+    def test_adb_budget_never_rolls_tier0_back(self):
+        """S24 18/10 16:24-16:27 : Wi-Fi coupé, ADB sans fil perdu, budget adb épuisé → rollback Tier0 qui a
+        redémarré gateway et companion pendant « mon solde Orange ». L'ADB est un service de l'appareil."""
+        result, files = self.run_probe(
+            """
+CLOCK=100; now(){ echo "$CLOCK"; }; log(){ echo "$*" >>"$LOG"; }
+restart_gate adb
+restart_gate adb
+if restart_gate adb; then exit 41; fi
+[ "$(get adb escalation none)" = human_required ]
+CLOCK=200; if restart_gate adb; then exit 42; fi
+"""
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertNotIn("rollback.calls", files)
+        log = files[".openclaw/health/health.log"]
+        self.assertIn("service=adb action=tier0_rollback_skipped reason=device_scope budget=2/2", log)
+        self.assertIn("reason=restart_budget_exhausted_device_scope", log)
+        self.assertNotIn("action=tier0_rollback reason=", log)
+        self.assertEqual(files["orchestrator.calls"].count(" human_required "), 1)
+        self.assertIn("Tier0 rollback cannot repair device-scoped adb", files["orchestrator.calls"])
+        self.assertEqual(files[".openclaw/incidents/events.log"].count("event=queued"), 1)
+
     def test_failed_rollback_escalates_without_retrying_or_duplicating(self):
         result, files = self.run_probe(
             """

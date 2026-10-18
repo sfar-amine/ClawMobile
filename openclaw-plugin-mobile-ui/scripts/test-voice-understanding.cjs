@@ -404,3 +404,37 @@ test("Real #176 owner #180 projection cannot claim non-debit after dropping its 
     assert.equal(m.receiptProvesNoDebit({presentation,payment:chain.payment}),false);
   }
 });
+
+test("Owner speech of a verified read is imposed word for word, never on failure or transaction (S24 18/10 18:58)",()=>{
+  // Real S24 read of 18/10 19:19 (Topnet down), reference replaced; `speech` is the playbooks billing owner's voice form.
+  const speech="STEG : 0,985 dinar à payer. SONEDE : rien à payer. Topnet : impossible de vérifier pour le moment. Total non établi tant que Topnet n'a pas répondu.";
+  const read={success:true,capability:"billing.utility.fast_path",decision:{type:"EXECUTE",capability:"billing.utility.fast_path",risk:"read",confidence:0.99},
+    execution:{state:"partial",result:{status:"partial",coverage_complete:false,known_total_pending:"0.985",speech}}};
+  const s=m.planVoiceSpeech(read,{locale:"fr"});
+  assert.equal(s.phase,"none");
+  assert.equal(s.verbatim,speech);
+  // Low confidence keeps « J'ai compris » first, then the owner's words.
+  const low=m.planVoiceSpeech({...read,decision:{...read.decision,confidence:0.5}},{locale:"fr"});
+  assert.ok(low.verbatim.startsWith("J'ai compris"));
+  assert.ok(low.verbatim.endsWith(speech));
+  // A failed read never speaks owner speech, and a control character or an oversized text is never imposed.
+  assert.ok(!String(m.planVoiceSpeech({...read,execution:{state:"failed",result:{speech}}}).verbatim||"").includes("STEG"));
+  assert.equal(m.planVoiceSpeech({...read,execution:{state:"completed",result:{speech:"a\u0007b"}}}).verbatim,null);
+  assert.equal(m.planVoiceSpeech({...read,execution:{state:"completed",result:{speech:"x".repeat(601)}}}).verbatim,null);
+});
+
+test("Nothing understood: ask to rephrase, never read a resolution failure report (S24 18/10 19:26)",()=>{
+  // Shape of the 19:26 receipt: « on se dérange » (heard for « mon solde orange ») resolved to no capability.
+  const presentation={version:1,locale:"fr",status:"error",label:"Demande",title:"Résultat à vérifier",rows:[],spoken:"La demande n’a pas abouti.",
+    primary:{label:"Terminer",action:"done"},effect:{debited:"unknown",source:"receipt"},meta:{capability:null},understood:{capability:null,label:"Demande",slots:{},text:"Compris : Demande"},alternatives:[],
+    failure:{step:"Compréhension de la demande",stepId:"resolution",reason:"La cause n’est pas établie par le reçu.",notDone:{code:"not_started",text:"Aucune action n’a été lancée."}}};
+  const fr=m.planVoiceSpeech({success:false,presentation,decision:{type:"REASON",reason:"conversation_or_unknown"}},{locale:"fr"});
+  assert.equal(fr.verbatim,"Je n'ai pas bien compris. Tu peux reformuler ?");
+  assert.equal(fr.phase,"clarify");
+  assert.ok(!fr.verbatim.includes("Demande"));
+  // A resolution failure with an established reason, or a later step, is still reported as before.
+  const known=m.planVoiceSpeech({success:false,presentation:{...presentation,failure:{...presentation.failure,reason:"Le service est fermé."}}},{locale:"fr"});
+  assert.ok(known.verbatim.includes("Compréhension de la demande"));
+  const exec=m.planVoiceSpeech({success:false,presentation:{...presentation,failure:{...presentation.failure,stepId:"execution",step:"Exécution"}}},{locale:"fr"});
+  assert.ok(exec.verbatim.includes("Exécution"));
+});

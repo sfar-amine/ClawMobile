@@ -19,13 +19,49 @@ Le propriétaire `runtime_mode.deployment_guard` fournit aussi un bail éphémè
 
 Le contrôle final HTTP et les effets restent dans la même section exclusive. Les sondes de mode et d’inactivité essaient maintenant EX, ce qui détecte aussi les campagnes SH. Les refus exposent une cause fermée (verrou occupé, arrêt d’urgence ou protection indisponible), sans détails privés. Les réparations annexes SSH/Slack/ADB ne sont pas couvertes par ce nouveau bail ; aucune protection universelle n’est annoncée.
 
-La localisation Node importe `runtimeFile` du propriétaire unique F1 (`src/runtimeRoot.ts`, core #320). Il honore la racine absolue déclarée et le repli Tier0 déjà qualifié par F1 ; une racine relative ou un helper indisponible refuse toute mutation. #320 doit être fusionnée avant #338 ; la présente branche intègre son head par merge normal, sans copier son propriétaire ni modifier l’environnement hérité (décision D).
+La localisation Node importe `runtimeFile` du propriétaire unique F1 (`src/runtimeRoot.ts`, core #320). Il résout la release courante attestée par Tier0 et ignore l'ancienne racine héritée ; un propriétaire indisponible refuse toute mutation. #320 doit être fusionnée avant #338 ; la présente branche intègre son head par merge normal, sans copier son propriétaire ni modifier l’environnement hérité (décision D).
 
 Claude a confirmé en lecture seule le 18/10 à 12:53Z l’export effectif `CLAW_RUNTIME_ROOT=/data/data/com.termux/files/home/ClawMobile/installer/termux-lite`, ainsi que le helper présent (4 899 octets, mode 0700, SHA256 `110e5507…`). Le runtime installé est `145339bb` ; `edb62384` en est un ancêtre et les cinq sources qualifiées sont inchangées. La fixture liste uniquement ce champ autorisé et ses preuves : [réponse Claude #338](https://github.com/sfar-amine/samantha-core/pull/338#issuecomment-6250165935). Aucune lecture globale ni modification d’environnement n’a eu lieu.
 
-Les trois appelants installés de `POST /v1/runtime/restart` sont la récupération WhatsApp et la garde mémoire du health-manager, ainsi que `runtime-sync.sh`. Le bail est acquis à leur point commun `runSerializedRuntimeOperation`, couvrant l’ensemble du stop/start pour chacun. Aucune route `/runtime/restart/proof` n’existe ou n’est ajoutée. Ce contrat est confirmé par la [réponse Claude #201](https://github.com/sfar-amine/samantha-ui-playbooks/pull/201#issuecomment-6250168400) et destiné au document 64 Q12 dans la PR playbooks #201.
+Les trois appelants historiques installés de `POST /v1/runtime/restart` sont la récupération WhatsApp et la garde mémoire du health-manager, ainsi que `runtime-sync.sh`. Le bail est acquis à leur point commun `runSerializedRuntimeOperation`, couvrant l’ensemble du stop/start pour chacun. Aucune route `/runtime/restart/proof` n’existe ou n’est ajoutée. Ce contrat est confirmé par la [réponse Claude #201](https://github.com/sfar-amine/samantha-ui-playbooks/pull/201#issuecomment-6250168400) et destiné au document 64 Q12 dans la PR playbooks #201.
 
 Les cinq propriétaires installés ont été confirmés par leur empreinte SHA256 sur le S24, identique au checkout de base ; leur liste blanche est versionnée dans `restart-source-s24-20261018.json`. Il n’existe pas de route `/runtime/restart/proof` dans ces sources. Les nouveaux tests de bail exercent les vrais verrous Linux, le refus SH, la conservation EX après arrêt du helper, la libération sur EOF et l’absence d’héritage par un démon ; ils restent entièrement locaux et sous le budget QA de 60 secondes avec les tests de déploiement.
+
+## Correction de la relecture bloquante du 18 octobre
+
+La [relecture Claude #338](https://github.com/sfar-amine/samantha-core/pull/338#issuecomment-6254432983)
+a identifié le redémarrage pendant un déploiement qui tient déjà EX sur FD9. Un
+appel HTTP ne peut hériter de cette description : il doit donc rester refusé.
+`runtime-sync.sh` appelle désormais le même propriétaire Node stop/start comme
+CLI privé fermé `--deploy-restart`, dans l'arbre de processus du déploiement.
+Le helper Python du checkout est explicite à cette frontière de déploiement :
+la précédente release Tier0 n'est promue qu'après le redémarrage et peut ignorer
+ce nouveau contrat. Cela n'ajoute aucun repli au résolveur runtime F1 ni option HTTP.
+Le helper vérifie le même inode et une EX préexistante : une sonde SH indépendante
+doit être refusée, puis EX doit réussir sur la description héritée elle-même.
+Un descripteur simplement ouvert, partagé, étranger ou absent ne constitue pas
+une exemption. La fin du helper et du CLI ne déverrouille pas le parent ; le
+démon Gateway ne reçoit aucun descripteur du bail.
+
+Un verrou absent est créé au même chemin, en0600, par les propriétaires existants.
+Node et Python refusent les parents non sûrs, liens, fichiers non réguliers,
+liens physiques multiples et changements d'inode. La réparation health-manager
+utilise cette création propriétaire avant d'ouvrir son descripteur, puis revalide
+avec le helper ; aucun verrou existant n'est supprimé ou remplacé.
+
+Les tests utilisent de vrais flock, processus et un Gateway TCP synthétique :
+15 tests du helper, 16 de synchronisation (dont absence de POST pendant EX),
+4 du health-manager, 9 contrats Node et le vrai CLI de redémarrage. La fixture de
+budget web du test runtime-sync est alignée sur les30000ms du runtime intégré ;
+aucun budget de production n'est modifié par cette correction. Les tests figurent
+dans la CI, sans exécution sur le téléphone.
+
+Le bail SH de campagne reste détenu par `qa_testing.common.campaign_deployment_lease`
+dans playbooks. Son suivi de durée et son cleanup sont un changement de ce
+propriétaire distinct ; ils ne sont pas remplacés par une réparation qui ignorerait
+un SH vivant. La présente correction core ne prétend pas encore borner ce bail.
+La CI canonique complète doit être rejouée au head final de cette PR après le
+merge normal du correctif F1 final. Les anciens reçus CI ne qualifient pas ce head.
 
 ## Recette après fusion et épinglage par Claude
 
