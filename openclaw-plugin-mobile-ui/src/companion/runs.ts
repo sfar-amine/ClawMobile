@@ -70,6 +70,31 @@ export function publicReasonClass(value: unknown): string | undefined {
   return typeof value === "string" && REASON_CLASS_RE.test(value) ? value : undefined;
 }
 
+/** F3: project only this owner's fixed diagnostic codes into the existing process output sink.
+ * bounded-log.py --timestamp owns the wall clock and rotation; no second logger or file owner.
+ * No Error/message, request, result, attachment path or arbitrary metadata may enter this projection.
+ */
+function runDiagnostic(
+  level: "warn" | "error",
+  code: "memo_attachment_cleanup_unavailable" | "invalid_run_deletion_receipts_ignored" | "submitted_run_failed",
+  run?: Pick<StoredRun, "runId" | "clientRunId" | "reasonClass">,
+  count?: number,
+) {
+  const fields: Record<string, string | number> = {};
+  for (const key of ["runId", "clientRunId"] as const) {
+    const value = run?.[key];
+    if (typeof value === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(value)
+        && !/^(?:sk-|ghp_|github_pat_|bearer)/i.test(value)) fields[key] = value;
+  }
+  const reasonClass = publicReasonClass(run?.reasonClass);
+  if (reasonClass) fields.reasonClass = reasonClass;
+  if (typeof count === "number" && Number.isSafeInteger(count) && count >= 0) fields.count = count;
+  // Fixed component, level, bounded correlation fields and code. Never interpolate free strings.
+  // A broken diagnostic sink cannot change the result of the existing registry mutation.
+  const suffix = Object.entries(fields).map(([key, value]) => key + "=" + value).join(" ");
+  try { console.log("component=runs level=" + level + " event=" + code + (suffix ? " " + suffix : "")); } catch {}
+}
+
 /** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */
 export type RunCorrection = {version: 1; operationId: string; at: number; neutralized: number;
   counterExample: "recorded" | "not_stored" | "none"; roundSignal: "pending" | "not_captured" | "none"};
@@ -374,7 +399,7 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
     // Release only this authorized dispatch's audio, under the same registry lock.
     const protectedPaths = new Set(registry.runs.filter(r => r.runId !== runId).flatMap(r => (r.attachments || []).map(a => a.serverPath || a.path || "")));
     try { removeAttachments((row.attachments || []).map(a => a.serverPath || a.path || ""), protectedPaths); }
-    catch { console.error("[memo] attachment cleanup unavailable"); }
+    catch { runDiagnostic("error", "memo_attachment_cleanup_unavailable", row); }
     return true;
   });
 }
@@ -466,7 +491,9 @@ export async function markSubmittedRunFailed(runId: string, message: string) {
     updatedAt: Date.now(),
   };
   submittedRuns.set(runId, stored);
-  await saveStoredRun(stored).catch(() => undefined);
+  await saveStoredRun(stored).then(() => {
+    if (submittedRuns.has(runId)) runDiagnostic("error", "submitted_run_failed", stored);
+  }).catch(() => undefined);
 }
 
 /** Local retained-history archive owner. No Gateway transcript deletion. */
@@ -589,7 +616,7 @@ function parseRunDeletions(value: unknown): RunDeletionReceipt[] {
     }
     operations.add(row.operationId); valid.push(row);
   }
-  if (invalid) console.warn("companion: invalid_run_deletion_receipts_ignored count=" + invalid);
+  if (invalid) runDiagnostic("warn", "invalid_run_deletion_receipts_ignored", undefined, invalid);
   return retainedRunDeletions(valid);
 }
 
