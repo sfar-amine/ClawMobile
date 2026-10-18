@@ -70,3 +70,10 @@ Dans la recette Q12 bornée (3 cas × 15 étapes, 10 minutes, une relance d'envi
 ## Retour arrière
 
 Revenir sur ce changement rétablit le refus immédiat du déploiement en cas de verrou occupé. Le chemin, le format des reçus et le propriétaire du verrou ne changent pas. La protection partagée de QA reste compatible avec le refus immédiat antérieur.
+
+
+## Propagation du F1 final avec diagnostics — 18 octobre
+
+Le merge local normal de F1 `064a66e95649bf6362232bb69201edf57d24e321` a été repris au head propre `995cdf4846588bccb8e3f30e416b66fddee8bf51` après interruption de l’agent précédent, sans rejouer le merge ni écraser le lien node_modules préexistant. Les correctifs de verrou #338 et du runtime/voix #359 restent conservés ; l’union des commandes workflow des deux parents est vérifiée.
+
+Ciblés hors téléphone :15/15 restart,9/9 lease (vrai flock Linux), redémarrage Gateway par le vrai owner sous EX hérité vers fixture TCP et refus sans autorité,30/30 contrat voix déterministe et build TypeScript verts. Cela ne constitue ni une recette acoustique ni un effet S24. La CI complète du nouveau head n’a pas été lancée et attend le créneau root ; les anciens reçus restent historiques, PR en brouillon. Aucun changement du bail playbooks ou du runner isolé.

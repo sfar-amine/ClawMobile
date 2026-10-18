@@ -1,0 +1,24 @@
+{
+  "sourceCommit": "6592da8ed400b819c21cd712a12f2ff7c177e41f",
+  "sourceKind": "code-scope invariance fixture, not an S24 capture",
+  "regions": [
+    {
+      "name": "payment",
+      "start": "  void payments.startBankTimeoutReconciler()",
+      "end": "  // Bounded provider prewarm",
+      "sha256": "b1e49d6b84c3b17e91e6a5153e3ec2eefc58b3a9fbfd09edbe7ae10d25418261"
+    },
+    {
+      "name": "voice",
+      "start": "  // Bounded provider prewarm",
+      "end": "  // F6: one bounded pass",
+      "sha256": "ed4003081b819a472936e9825b4241446deb71e5bc1c71e96023b1962f61654d"
+    },
+    {
+      "name": "whatsapp_watchdog",
+      "start": "function startWhatsAppListenerWatchdog()",
+      "end": "\nfunction ",
+      "sha256": "ffc75281da01aa1222f6dc53930e75173f282c0d2510fe8238bb9911fc84fb0a"
+    }
+  ]
+}
