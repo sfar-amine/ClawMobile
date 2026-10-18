@@ -37,7 +37,7 @@
   },
   "rollback": "Revert du helper privé et du raccord People propriétaire.",
   "limitations": [
-    "Helper non activé ; transactionSQLite propriétaire, borne snapshot, replay et cleanupACCEPTED requis. Pas de quotaFS global ni cleanupautomatique.",
+    "Raccordé à People sous transaction SQLite existante pour staging et cleanup ; bornes et replay testés hors téléphone. Pas de quotaFS global ni cleanup automatique.",
     "CI canonique complète à head exact de la PR Q13 intégrée requise.",
     "Aucune recette physique, livraison WhatsApp ou déploiement.",
     "Écriture physique SDK20MiB pas encore qualifiée ; limite interne writeSavedMediaBuffer à confirmer."

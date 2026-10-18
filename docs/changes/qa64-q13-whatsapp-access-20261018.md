@@ -55,3 +55,5 @@ Le formulaire Accès WhatsApp transmet `expectedQaRevision` : une vue ancienne o
 La recette physique reste réservée à Claude après revue, fusion et épinglage.
 Retour arrière : revenir au commit précédent du lot dans les deux propriétaires ;
 les anciens lecteurs refusent les métadonnées QA inconnues, sans élargir l'accès.
+
+Le rapport peut imposer un budget inférieur au wrapper : SIGTERM est relayé au groupe People, dont le handler privé déroule le nettoyage du groupe SDK. La réserve de fermeture reste dans le budget appelant. Les tests réels (37/37 People et11/11 contrats shell) vérifient aussi les descendants ; une interruption après admission reste UNKNOWN et ne déclenche aucun rejeu. Une requête Gateway déjà acceptée ne constitue jamais une absence d’effet prouvée.

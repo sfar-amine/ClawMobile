@@ -64,7 +64,7 @@
     {
       "name": "Autorité People et formulaire périmé",
       "status": "passed",
-      "evidence": "36/36 tests Python, vrais fichiers/SQLite synthétiques ; HTTP Node allowlist et refus des formulaires QA périmés verts."
+      "evidence": "37/37 tests Python, vrais fichiers/SQLite synthétiques et annulation réelle du groupe SDK ; HTTP Node allowlist et refus des formulaires QA périmés verts."
     },
     {
       "name": "Pièces privées et volume",
@@ -75,6 +75,11 @@
       "name": "Raccord réel des pièces privées",
       "status": "passed",
       "evidence": "Paire TS→IPC→People→PB file.put/Q2 avec autorité courante et révocation, données synthétiques ; contre-revue indépendante sur ba98bf33, factory28/28 et IPC34/34."
+    },
+    {
+      "name": "Annulation privée du transport et de ses descendants",
+      "status": "passed",
+      "evidence": "11/11 contrats shell dont timeout réel20s et annulation du groupe People ; test People/SDK avec descendant réel et contrôle négatif sans handler."
     }
   ],
   "documentation": [

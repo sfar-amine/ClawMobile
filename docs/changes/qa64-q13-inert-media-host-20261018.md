@@ -1,6 +1,6 @@
 # Q13 — préparation du propriétaire host des pièces entrantes
 
-`receiveQaContactMedia` prépare l'ingestion privée d'une pièce WhatsApp dans le propriétaire QA existant. **Ce module est inerte** : aucun abonnement `message_received`, aucune route, aucun appelant public et aucune activation ne sont ajoutés. Le raccord attend la fermeture conjointe des propriétaires d'admission, du pipe privé et d'ingestion PB. Il complète la PR core Q13, sans nouvelle PR.
+`receiveQaContactMedia` traite les pièces privées dans le propriétaire QA existant. Le module initialement préparé ici est désormais raccordé par `qaContactMediaOwner` au seul hook `message_received` dans cette PR Q13 ; aucun schéma public, route ou déploiement n’est ajouté. Admission, pipe privé et ingestion PB conservent leurs gardes. Aucun transfert réel sur le S24 n’est revendiqué.
 
 ## Source qualifiée
 
@@ -26,7 +26,7 @@ L'app/DRAFT et l'autorité sont confirmés avant la lecture, puis relus avant ch
 
 Build TypeScript passé et52/52 vérifications ciblées vertes (dont expiration réelle10s) dans `scripts/test-qa-contact-media.cjs`, inscrites au workflow. Elles utilisent des identités et contenus synthétiques, les types SDK publics, de vrais fichiers locaux, symlinks/hardlinks, une limite de volume et une véritable expiration10s. Elles ne qualifient ni un événement réel d'un contact, ni une ingestion ou un accès sur S24. La CI canonique du head exact de la PR core reste requise après intégration.
 
-Retour arrière : retirer ce module inerte et son test ; aucun état existant, média reçu ou campagne n'est supprimé. Le raccord ne peut être déclaré disponible avant recette Q13 et confirmation des interfaces privées propriétaires.
+Retour arrière : retirer le hook média, son adaptateur privé et ses tests ; aucun état existant, média reçu ou campagne n'est supprimé. Le raccord ne peut être déclaré disponible avant recette Q13 et confirmation des interfaces privées propriétaires.
 
 ## IPC People privé (même propriétaire)
 
