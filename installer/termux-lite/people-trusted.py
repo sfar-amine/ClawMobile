@@ -401,7 +401,12 @@ def restore_context(path,old):
 def send_digest(target,message):
     return hashlib.sha256((target+"\0"+message).encode()).hexdigest()
 
-def reserve_send(key,target,digest):
+QA_DELIVERY_RECEIPT_LIMIT=50000
+
+class QaDeliveryCapacityReached(RuntimeError):
+    pass
+
+def reserve_send(key,target,digest,*,qa_delivery=False):
     if not key or len(key)>256: raise RuntimeError("invalid_idempotency_key")
     c=connect(); now=int(time.time()); c.execute("BEGIN IMMEDIATE")
     row=c.execute("""SELECT target,message_sha256,state,message_id FROM send_receipts
@@ -413,6 +418,14 @@ def reserve_send(key,target,digest):
         if row["state"]=="accepted" and row["message_id"]:
             return {"state":"accepted","messageId":row["message_id"],"replay":True}
         raise RuntimeError("send_state_uncertain_no_retry")
+    if qa_delivery:
+        if not re.fullmatch(r'qa-delivery-[a-f0-9]{64}',key):
+            c.rollback();c.close();raise RuntimeError('invalid_idempotency_key')
+        count=c.execute("""SELECT COUNT(*) FROM (SELECT 1 FROM send_receipts
+            WHERE idempotency_key >= 'qa-delivery-' AND idempotency_key < 'qa-delivery.' LIMIT ?)""",
+            (QA_DELIVERY_RECEIPT_LIMIT,)).fetchone()[0]
+        if count>=QA_DELIVERY_RECEIPT_LIMIT:
+            c.rollback();c.close();raise QaDeliveryCapacityReached()
     c.execute("""INSERT INTO send_receipts(idempotency_key,target,message_sha256,state,message_id,created_at,updated_at)
                  VALUES(?,?,?,'pending',NULL,?,?)""",(key,target,digest,now,now))
     c.commit(); c.close(); return {"state":"reserved","replay":False}
@@ -423,11 +436,11 @@ def finish_send(key,state,message_id=None):
               (state,message_id,now,key))
     c.commit(); c.close()
 
-def whatsapp_send(target,message,key):
+def whatsapp_send(target,message,key,*,qa_delivery=False):
     allow,_=whatsapp_state()
     if target not in allow: raise RuntimeError("target_not_allowlisted")
     digest=send_digest(target,message)
-    reservation=reserve_send(key,target,digest)
+    reservation=reserve_send(key,target,digest,qa_delivery=qa_delivery)
     if reservation["state"]=="accepted": return reservation["messageId"]
     params={"to":target,"message":message,"channel":"whatsapp","accountId":"default","idempotencyKey":key}
     try:
@@ -692,6 +705,69 @@ def qa_queue_tick():
             if result['state'] in {'NOT_READY','IDLE','WAITING','UNAVAILABLE'} and result['dispatched']!=0:return uncertain
             return result
     except (Exception,SystemExit):return uncertain if entered else not_ready
+
+def qa_deliver(request):
+    """Private requester delivery; the QA owner supplies content, never the caller.
+
+    Document delivery stays refused before reservation until the installed SDK
+    contract is qualified. An entered sender with no receipt is UNKNOWN, never
+    an invitation to retry. The existing people ledger owns idempotency.
+    """
+    def refused(code='qa_delivery_input_invalid'):
+        return {'state':'NOT_SENT','reason':code}
+    def current_binding(grant,scope):
+        return (isinstance(scope,dict) and set(scope)==set(grant)
+                and type(scope.get('allow_writes')) is bool
+                and (scope['allow_writes'] is False or grant['allow_writes'] is True)
+                and all(scope[key]==grant[key] for key in grant if key!='allow_writes'))
+    entered=False
+    try:
+        required={'schema_version','run_id','requester_hash','app_id','event'}
+        if (not isinstance(request,dict) or not required<=set(request)
+                or set(request)-required-{'artifact_id'}
+                or type(request['schema_version']) is not int or request['schema_version']!=1
+                or not isinstance(request['run_id'],str)
+                or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,95}',request['run_id'])
+                or request['event'] not in ('started','human_wait','finished')
+                or ('artifact_id' in request and (request['event']!='finished' or request['artifact_id'] not in ('report','bundle')))):
+            return refused()
+        service=Contacts(_ExistingPeopleOwner())
+        binding={key:request[key] for key in ('schema_version','requester_hash','app_id')}
+        initial=service.qa_scope_read(binding)
+        if initial.get('ok') is not True:return refused('qa_scope_unavailable')
+        with qa_owner_read_lease():
+            owner=qa_owner_module('qa_testing.notifications')
+            callback=getattr(owner,'requester_payload',None)
+            if callback is None:return refused('qa_delivery_integration_pending')
+            payload=callback(request)
+            if (not isinstance(payload,dict) or set(payload)-{'scope','message','delivery_key','artifact'}
+                    or not {'scope','message','delivery_key'}<=set(payload)
+                    or not current_binding(initial['scope'],payload['scope'])
+                    or not isinstance(payload['message'],str) or not 1<=len(payload['message'])<=2000
+                    or any(ord(c)<32 and c!='\n' for c in payload['message'])
+                    or not isinstance(payload['delivery_key'],str)
+                    or not re.fullmatch(r'qa-delivery-[a-f0-9]{64}',payload['delivery_key'])):
+                return refused('qa_delivery_owner_unavailable')
+            # No document field is guessed from another SDK version. In
+            # particular this refusal has not reserved or sent a text message.
+            if 'artifact_id' in request or 'artifact' in payload:
+                return refused('qa_document_contract_unqualified')
+            config=service.local_config()
+            current=service.qa_scope_read(binding,config=config)
+            if current.get('ok') is not True or not current_binding(current['scope'],payload['scope']):
+                return refused('qa_scope_unavailable')
+            allow,_=whatsapp_state(config)
+            recipients=[n for n in allow if isinstance(n,str) and E164.fullmatch(n) and contact_id(n)==request['requester_hash']]
+            if len(recipients)!=1:return refused('qa_scope_unavailable')
+            entered=True
+            mid=whatsapp_send(recipients[0],payload['message'],payload['delivery_key'],qa_delivery=True)
+            if not isinstance(mid,str) or not re.fullmatch(r'[A-Za-z0-9_.:@-]{1,300}',mid):
+                return {'state':'UNKNOWN','reason':'qa_delivery_receipt_unconfirmed'}
+            return {'state':'ACCEPTED','message_id':mid}
+    except QaDeliveryCapacityReached:
+        return refused('qa_delivery_capacity_reached')
+    except (Exception,SystemExit):
+        return {'state':'UNKNOWN','reason':'qa_delivery_receipt_unconfirmed'} if entered else refused('qa_delivery_owner_unavailable')
 
 def request_hash(action, body):
     return digest(canonical({'action':action, **{k:v for k,v in body.items() if k not in ('requestHash','expectedAuthority')}}))
@@ -1685,6 +1761,15 @@ class Contacts:
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='qa-deliver':
+        try:
+            if sys.argv[1:]!=['qa-deliver','--request-stdin']:raise ValueError()
+            raw=sys.stdin.buffer.read(4097)
+            if len(raw)>4096:raise ValueError()
+            result=qa_deliver(json.loads(raw or b'{}'))
+        except Exception:
+            result={'state':'NOT_SENT','reason':'qa_delivery_input_invalid'}
+        print(canonical(result));return
     if len(sys.argv)>1 and sys.argv[1]=='qa-queue-tick':
         result=qa_queue_tick() if len(sys.argv)==2 else {'state':'NOT_READY','dispatched':0,'waiting':0}
         print(canonical(result));return

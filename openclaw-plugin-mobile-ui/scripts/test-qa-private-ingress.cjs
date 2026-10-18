@@ -47,6 +47,19 @@ const secret='SYNTHETIC_CREDENTIAL_SENTINEL_Q13';
      return {outcome:'UNRESOLVED',modelAllowed:true,handled:false};
     });
    assert.equal(calls,1);assert.equal(blocked.handled,true);assert.match(blocked.text,/pas autorisée/);
+   // Actual subprocess latency: a 2 s authority read plus an unresponsive
+   // helper must stay below the complete 15 s ingress budget, without retry.
+   fs.writeFileSync(authorityHelper,fs.readFileSync(authorityHelper,'utf8').replace('import json,sys','import json,sys,time\ntime.sleep(2)'));
+   const slowHelper=path.join(directory,'slow.py');
+   fs.writeFileSync(slowHelper,'import time\ntime.sleep(30)\n');
+   const started=performance.now();let helperCalls=0;
+   const timed=await handleContactRoomBeforeDispatch({sessionKey:key,channel:'whatsapp',content:'Un smoke',messageId:'fixture-budget'},
+    {sessionKey:key,agentId:'contacts-qa'},async(message,options)=>{
+     helperCalls++;return runModelFastPath(message,{...options,helperPath:slowHelper});
+    });
+   const elapsed=performance.now()-started;
+   assert.equal(helperCalls,1);assert.equal(timed.handled,true);
+   assert.ok(elapsed>=12500&&elapsed<15000,`QA ingress budget ${Math.round(elapsed)} ms`);
   }finally{if(previousAuthority===undefined)delete process.env.SAMANTHA_PEOPLE_TRUSTED;else process.env.SAMANTHA_PEOPLE_TRUSTED=previousAuthority;}
   console.log('QA private ingress: raw credential only in host stdin, closed grants, public acknowledgement only');
  }finally{fs.rmSync(directory,{recursive:true,force:true});}

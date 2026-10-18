@@ -173,4 +173,80 @@ class QaRoomAccessTests(unittest.TestCase):
     def test_private_import_cannot_select_an_arbitrary_module(self):
         with self.assertRaises(ValueError):m.qa_owner_module('subprocess')
 
+    def delivery_request(self,**changes):
+        return {'schema_version':1,'run_id':'qa_fixture','requester_hash':self.identity,
+                'app_id':'demo','event':'started',**changes}
+
+    def delivery_payload(self):
+        return {'scope':self.read()['scope'],'message':'La campagne de tests a commencé.',
+                'delivery_key':'qa-delivery-'+'a'*64}
+
+    def deliver(self,request=None,payload=None):
+        callback=payload if callable(payload) else lambda request:payload or self.delivery_payload()
+        with (patch.object(m,'Contacts',return_value=self.service),
+              patch.object(m,'qa_owner_read_lease',return_value=nullcontext()),
+              patch.object(m,'qa_owner_module',return_value=SimpleNamespace(requester_payload=callback))):
+            return m.qa_deliver(request or self.delivery_request())
+
+    def test_requester_delivery_uses_current_recipient_and_existing_idempotency(self):
+        with patch.object(m,'gateway_call',return_value={'channel':'whatsapp','messageId':'SYNTHETIC_MID'}) as send:
+            first=self.deliver();second=self.deliver()
+        self.assertEqual(first,{'state':'ACCEPTED','message_id':'SYNTHETIC_MID'})
+        self.assertEqual(first,second);self.assertEqual(send.call_count,1)
+        method,params=send.call_args.args;self.assertEqual(method,'send');self.assertEqual(params['to'],NUMBER)
+        self.assertNotIn(NUMBER,json.dumps(first));self.assertNotIn('campagne',json.dumps(first))
+
+    def test_delivery_rereads_revocation_after_owner_preparation(self):
+        payload=self.delivery_payload()
+        def revoke(request):
+            self.metadata['state']='suspended';self.persist();return payload
+        with patch.object(m,'whatsapp_send') as send:
+            result=self.deliver(payload=revoke)
+        self.assertEqual(result,{'state':'NOT_SENT','reason':'qa_scope_unavailable'});send.assert_not_called()
+
+    def test_delivery_document_is_refused_before_reservation_until_qualified(self):
+        with patch.object(m,'reserve_send') as reserve,patch.object(m,'whatsapp_send') as send:
+            result=self.deliver(self.delivery_request(event='finished',artifact_id='report'))
+        self.assertEqual(result,{'state':'NOT_SENT','reason':'qa_document_contract_unqualified'})
+        reserve.assert_not_called();send.assert_not_called();self.assertFalse(m.DB.exists())
+
+    def test_delivery_unknown_is_not_retried_and_exception_is_not_reflected(self):
+        with patch.object(m,'gateway_call',side_effect=RuntimeError('SYNTHETIC_PRIVATE_FAILURE')) as send:
+            first=self.deliver();second=self.deliver()
+        self.assertEqual(first,{'state':'UNKNOWN','reason':'qa_delivery_receipt_unconfirmed'})
+        self.assertEqual(first,second);self.assertEqual(send.call_count,1)
+        self.assertNotIn('SYNTHETIC_PRIVATE_FAILURE',json.dumps(first))
+
+    def test_delivery_caller_cannot_choose_content_recipient_or_path(self):
+        with patch.object(m,'whatsapp_send') as send:
+            for extra in ({'to':NUMBER},{'message':'arbitrary'},{'path':'/private'},
+                          {'schema_version':True},{'artifact_id':'report'}):
+                result=self.deliver(self.delivery_request(**extra))
+                self.assertEqual(result['state'],'NOT_SENT')
+            payload=self.delivery_payload();payload['scope']={**payload['scope'],'requester_hash':'wa-'+'0'*16}
+            self.assertEqual(self.deliver(payload=payload)['state'],'NOT_SENT')
+        send.assert_not_called()
+
+    def test_delivery_receipts_are_bounded_without_forgetting_uncertain_sends(self):
+        connection=m.connect();limit=m.QA_DELIVERY_RECEIPT_LIMIT
+        connection.executemany('INSERT INTO send_receipts VALUES(?,?,?,?,?,?,?)',
+            [('qa-delivery-'+format(i,'064x'),NUMBER,'fixture','uncertain',None,1,1) for i in range(limit)])
+        connection.commit();connection.close()
+        with patch.object(m,'gateway_call') as send:
+            result=self.deliver()
+        self.assertEqual(result,{'state':'NOT_SENT','reason':'qa_delivery_capacity_reached'})
+        send.assert_not_called()
+        connection=m.connect()
+        self.assertEqual(connection.execute('SELECT COUNT(*) FROM send_receipts').fetchone()[0],limit)
+        connection.close()
+
+    def test_delivery_accepts_a_narrower_campaign_binding_but_never_broader(self):
+        payload=self.delivery_payload();payload['scope']['allow_writes']=True
+        with patch.object(m,'whatsapp_send') as send:
+            self.assertEqual(self.deliver(payload=payload)['state'],'NOT_SENT');send.assert_not_called()
+        self.metadata['qaApps'][0]['allow_writes']=True;self.persist()
+        payload=self.delivery_payload();payload['scope']['allow_writes']=False
+        with patch.object(m,'whatsapp_send',return_value='SYNTHETIC_MID') as send:
+            self.assertEqual(self.deliver(payload=payload)['state'],'ACCEPTED');send.assert_called_once()
+
 if __name__=='__main__':unittest.main()

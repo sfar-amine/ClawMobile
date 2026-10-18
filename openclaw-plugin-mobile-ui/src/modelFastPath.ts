@@ -166,12 +166,17 @@ export async function runModelFastPath(
       options.preparedDecision && options.preparedDecision.requestId !== options.requestId)) return {status:"known_error",reason:"invalid_web_execution_context"};
   if (options.signal?.aborted) return {status:"known_error",reason:"execution_cancelled",execution_state:"cancelled"};
   const started = performance.now();
+  // Private QA ingress has already spent up to 3 s reading current authority.
+  // All helper candidates share the remaining 11 s, including failed launches.
+  const qaDeadline=options.qaContext?started+11000:undefined;
   const deadline=options.checkBudgetMs===undefined?undefined:Date.now()+options.checkBudgetMs;
   const helpers = options.helperPath
     ? [options.helperPath]
     : helperCandidates(options.home);
   let lastError = "helper_missing";
   for (const helper of helpers) {
+    const qaRemaining=qaDeadline===undefined?Infinity:Math.floor(qaDeadline-performance.now());
+    if(qaRemaining<=0)return {status:"error",reason:"qa_ingress_deadline_exceeded"};
     const remaining = bounded ? Math.floor(Math.min(options.remainingBudgetMs! - (performance.now()-started), options.deadlineEpochMs! - Date.now())) : deadline===undefined?undefined:deadline-Date.now();
     if(remaining!==undefined&&remaining<=0)return {status:bounded?"known_error":"error",reason:bounded?"web_deadline_exceeded":"check_budget_exceeded",...(bounded?{execution_state:"timeout"}:{})};
     try {
@@ -203,9 +208,9 @@ export async function runModelFastPath(
       const raw: any = await runCapabilityHelperProcess(
         [helper, ...argv],
         {
-          timeoutMs: Math.min(fastPathProcessTimeoutMs(timeoutSeconds, !!options.checkOnly),remaining ?? Infinity,options.qaContext?12000:Infinity),
+          timeoutMs: Math.min(fastPathProcessTimeoutMs(timeoutSeconds, !!options.checkOnly),remaining ?? Infinity,qaRemaining),
           killGroup:bounded||options.checkBudgetMs!==undefined||!!options.qaContext,signal:options.signal,
-          maxBuffer: bounded ? 128 * 1024 : 2 * 1024 * 1024,
+          maxBuffer: options.qaContext?64*1024:bounded ? 128 * 1024 : 2 * 1024 * 1024,
           ...(options.qaContext?{privateInput:JSON.stringify({context:options.qaContext,user_input:message})}:{}),
           env: {
             ...process.env,
@@ -226,6 +231,7 @@ export async function runModelFastPath(
       );
       const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
       const parsed = JSON.parse(stdout || "{}");
+      if(qaDeadline!==undefined&&performance.now()>=qaDeadline)return {status:"error",reason:"qa_ingress_deadline_exceeded"};
       if(options.signal?.aborted)return {status:"known_error",reason:"execution_cancelled",execution_state:"cancelled"};
       if(options.checkBudgetMs!==undefined&&performance.now()-started>=options.checkBudgetMs)return {status:"error",reason:"check_budget_exceeded"};
       if(bounded&&(Date.now()>=options.deadlineEpochMs!||performance.now()-started>=options.remainingBudgetMs!))return {status:"known_error",reason:"web_deadline_exceeded",execution_state:"timeout"};
@@ -233,6 +239,7 @@ export async function runModelFastPath(
         ? parsed as FastPathResult
         : { status: "error", reason: "invalid_result" };
     } catch (error: any) {
+      if(qaDeadline!==undefined&&(performance.now()>=qaDeadline||error?.killed))return {status:"error",reason:"qa_ingress_deadline_exceeded"};
       if (options.signal?.aborted) return {status:"known_error",reason:"execution_cancelled",execution_state:"cancelled"};
       if (bounded && (error?.killed || Date.now()>=options.deadlineEpochMs! || performance.now()-started>=options.remainingBudgetMs!)) return {status:"known_error",reason:"web_deadline_exceeded",execution_state:"timeout"};
       if(deadline!==undefined&&(Date.now()>=deadline||error?.killed))return {status:"error",reason:"check_budget_exceeded"};

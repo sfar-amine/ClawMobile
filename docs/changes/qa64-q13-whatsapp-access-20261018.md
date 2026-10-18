@@ -20,7 +20,10 @@ refusée. Seul un texte structuré généré par QA atteint ensuite le Graph, av
 un second pipe privé indépendant du stdin de sa décision. Les autres capabilities
 conservent leur admission. Aucun changement au paiement, à la voix directe ou
 à l'environnement D. Budget de l'entrée : 15 s, dont lecture locale d'autorité
-3 s au plus et helper borné ; aucune boucle de réessai d'effet.
+3 s au plus et une enveloppe monotone partagée de 11 s pour les helpers,
+y compris les candidats absents ; aucune boucle de réessai d'effet. Un test
+de vrais sous-processus (autorité lente de 2 s puis helper bloqué) vérifie
+la réponse en moins de 15 s et l'absence de deuxième invocation.
 
 Sources : signatures des cinq propriétaires installés relevées en lecture seule
 par Claw sur le S24, checkout `145339bbae88ffd66fb7475fcbf275b379d9cb6a`, fixture
@@ -31,6 +34,23 @@ grant QA. Les nouvelles autorisations sont des fixtures synthétiques explicites
 Les tests de lecture courante, absence/révocation/expiry, autre app/contact,
 fausse autorité, biométrie dans une pièce existante, révision périmée, parité
 du hash et séparation des deux pipes sont inscrits dans la CI existante.
+
+La commande privée `qa-deliver --request-stdin` ne reçoit que la référence de
+campagne, le demandeur pseudonymisé, l'app et la phase. Le propriétaire QA
+compose le texte ; People retrouve le numéro dans son autorité courante et
+relit les droits après cette préparation. Le registre d'envoi existant conserve
+les reçus : un état incertain n'est jamais rejoué. Les nouvelles réservations
+QA sont refusées atomiquement à 50 000 reçus, sans effacer les incertains.
+Les campagnes peuvent conserver des droits plus étroits que le grant courant.
+Une pièce jointe reste `NOT_SENT` avant toute réservation tant que son raccord
+au propriétaire média et au schéma réellement installé n'est pas qualifié.
+
+Le cycle de santé existant appelle `qa-queue-tick`, sortie fermée et budget de
+14 s ; un propriétaire absent reste `NOT_READY`. Une exception après entrée du
+propriétaire est `VERIFY_REQUIRED`, jamais une preuve d'absence d'effet. Le
+chargement de playbooks passe par `claw-capability.py:ui_root()` et conserve
+le verrou partagé de déploiement Q12. Le relevé réel de ce résolveur est dans
+`q13-playbooks-root-owner-20261018.json`. Aucun nouveau verrou, store ou timer.
 
 Restent avant livraison : admission/fences complètes dans playbooks, pièces
 jointes entrantes qualifiées, restitution au demandeur et schéma document du
