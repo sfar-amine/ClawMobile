@@ -1,3 +1,4 @@
+import {runtimeFile} from "./runtimeRoot";
 import {createHash} from "node:crypto";
 import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
 import {PUBLIC_WEB_BUDGET_MS, readRunWebResult} from "./companion/runWeb";
@@ -59,7 +60,7 @@ export function createCapabilityTool(context: CapabilityTurnContext, options: Om
 
 function helperCandidates(home = os.homedir()): string[] {
   return [
-    path.join(home, ".openclaw/releases/current/termux-lite/claw-capability.py"),
+    runtimeFile("claw-capability.py", home),
   ];
 }
 

@@ -1,3 +1,4 @@
+import {runtimeFile} from "../runtimeRoot";
 import { execFile } from "child_process";
 import fs from "fs";
 import os from "os";
@@ -265,14 +266,7 @@ export function buildClawLiveSetup(
 }
 
 function tokenHelperPath() {
-  return path.join(
-    os.homedir(),
-    ".openclaw",
-    "releases",
-    "current",
-    "termux-lite",
-    "gemini-live-client.mjs",
-  );
+  return runtimeFile("gemini-live-client.mjs");
 }
 
 /** Bounded, credential-free description of a failed token helper run: exit code, signal, timeout, duration, first stderr line. */

@@ -1,3 +1,4 @@
+import {runtimeFile} from "./runtimeRoot";
 import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -13,7 +14,7 @@ function caller(ctx: any) {
 }
 
 function helper(home = os.homedir()) {
-  return process.env.SAMANTHA_PEOPLE_TRUSTED || path.join(home, ".openclaw/releases/current/termux-lite/people-trusted.py");
+  return process.env.SAMANTHA_PEOPLE_TRUSTED || runtimeFile("people-trusted.py", home);
 }
 
 async function invoke(kind: ToolKind, ctx: any, args: any): Promise<any> {
