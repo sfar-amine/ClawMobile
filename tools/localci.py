@@ -254,12 +254,14 @@ def run_ci(repo_arg, sha, pr, output):
     logpath = Path(output).expanduser().resolve()
     disk_preflight([os.getenv("LOCALCI_TMP_ROOT") or tempfile.gettempdir(), logpath.parent], app=app)
     logpath.parent.mkdir(parents=True, exist_ok=True)
-    if app:
-        return run_app_ci(repo, sha, pr, base, logpath)
     workflow = yaml.safe_load(command(["git", "show", f"{sha}:{path}"], repo))
     jobs = workflow.get("jobs") if isinstance(workflow, dict) else None
     if not isinstance(jobs, dict) or not jobs:
         raise LocalCIError("Missing workflow jobs")
+    if app:
+        if set(jobs) != {"apk"} or not isinstance(jobs["apk"], dict) or not jobs["apk"].get("steps"):
+            raise LocalCIError("Unsupported Android workflow job layout; update the versioned build owner contract")
+        return run_app_ci(repo, sha, pr, base, logpath)
     context = {
         "github.sha": sha, "github.event.pull_request.head.sha": sha,
         "github.event.pull_request.base.sha": base, "github.event.before": base,

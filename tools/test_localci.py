@@ -145,7 +145,7 @@ class LocalCiAndroidReplayTests(unittest.TestCase):
         gh = self.bin / "gh"
         gh.write_text(gh.read_text().replace("samantha-context-private", "samantha-core"))
         self.workflow = self.repo / localci.APP_WORKFLOW
-        self.workflow.write_text("jobs: {android: {steps: [{run: owner-is-not-reimplemented}]}}\n")
+        self.workflow.write_text("jobs: {apk: {steps: [{run: owner-is-not-reimplemented}]}}\n")
         owner = self.repo / localci.APP_BUILDER
         owner.parent.mkdir(parents=True)
         owner.write_text("""#!/bin/bash
@@ -234,6 +234,19 @@ PYOWNER
         self.head = self.git("rev-parse", "HEAD")
         with self.assertRaisesRegex(localci.LocalCIError, "Missing versioned Android"):
             self.run_owner()
+        self.assertFalse(self.log.exists())
+
+    def test_empty_or_extended_app_workflow_is_not_silently_ignored(self):
+        for workflow,reason in (("jobs: {}", "Missing workflow jobs"),
+                                ("jobs: {apk: {steps: []}}", "Unsupported Android"),
+                                ("jobs: {apk: {steps: [{run: test}]}, added: {steps: [{run: additional}]}}", "Unsupported Android")):
+            with self.subTest(workflow=workflow):
+                self.workflow.write_text(workflow)
+                self.git("add", ".")
+                self.git("commit", "-qm", "workflow change")
+                self.head=self.git("rev-parse", "HEAD")
+                with self.assertRaisesRegex(localci.LocalCIError, reason):
+                    self.run_owner()
         self.assertFalse(self.log.exists())
 
     def test_stale_artifacts_are_refused(self):
