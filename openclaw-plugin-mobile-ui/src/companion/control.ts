@@ -1,3 +1,4 @@
+import {runtimeFile} from "../runtimeRoot";
 import {completeAutomationScheduler} from "./automationRunsPreparation";
 import {serverLanguage,localizedRoute,localizeServerPresentation} from "./serverLocale";
 import {conditionalRead} from "./readEtag";
@@ -21,7 +22,7 @@ export function controlPaths() {
   const pinned=path.join(os.homedir(), ".openclaw/runtime-ui-playbooks/current");
   return {
     playbooks: process.env.SAMANTHA_CONTROL_PLAYBOOKS || process.env.CLAW_UI_PLAYBOOKS_ROOT || (existsSync(path.join(pinned,"reporting/control_snapshot.py")) ? pinned : path.join(os.homedir(), ".openclaw/workspace/ui-playbooks")),
-    live: process.env.SAMANTHA_CONTROL_LIVE || path.join(os.homedir(), ".openclaw/releases/current/termux-lite/claw-live.py"),
+    live: process.env.SAMANTHA_CONTROL_LIVE || runtimeFile("claw-live.py"),
   };
 }
 

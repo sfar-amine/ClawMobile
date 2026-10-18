@@ -113,11 +113,16 @@ class NoHardcodedWorkingCopyTests(unittest.TestCase):
             if path.name == SELF:
                 continue
             for match in re.finditer(r"CLAW_RUNTIME_ROOT:-([^}\n]*)", text):
+                if not match.group(1): continue  # Presence checks are not a default root.
                 self.assertIn("dirname", match.group(1), f"{path.name}: {match.group(0)}")
 
     def test_generated_cron_points_current_release(self):
         setup = (ROOT / "claw-slack-purge-setup.sh").read_text()
-        self.assertIn(f'RELEASE_ROOT="{RELEASE_LINK}"', setup)
+        self.assertIn('RELEASE_ROOT="$(clawmobile_release_root)/termux-lite"', setup)
+        with tempfile.TemporaryDirectory() as home:
+            env = dict(os.environ, HOME=home, CLAW_RUNTIME_ROOT="/previous/termux-lite")
+            out = subprocess.run(["bash", "-c", 'source "$1"; printf "%s/termux-lite" "$(clawmobile_release_root)"', "_", str(ROOT / "lib.sh")], env=env, capture_output=True, text=True, check=True)
+            self.assertEqual(out.stdout, str(Path(home) / ".openclaw/releases/current/termux-lite"))
         self.assertIn('\\"$JOB_ROOT/claw-slack-purge.mjs\\"', setup)
         self.assertNotIn('\\"$ROOT/claw-slack-purge.mjs\\"', setup)
 
