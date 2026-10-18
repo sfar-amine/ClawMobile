@@ -20,7 +20,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=r
   assert.equal((await request('export','GET',{}, {Referer:'https://example.invalid'})).status,403);
   assert.equal((await request('logs/agent?offset=-1')).status,400);
   assert.equal((await request('export?includeMessages=true')).status,400);
-  const page=await request('logs/agent');assert.equal(page.status,200);assert.equal(page.body.items.length,1);assert.ok(!JSON.stringify(page).includes(marker));assert.equal(page.body.receipt,null);assert.deepEqual(page.body.presentationCounters,{missingFailureCauseRenders:1,scope:'companion_process'});
+  const page=await request('logs/agent');assert.equal(page.status,200);assert.equal(page.body.items.length,1);assert.ok(!JSON.stringify(page).includes(marker));assert.equal(page.body.receipt,null);assert.deepEqual(page.body.presentationCounters,{missingFailureCauseRenders:1,genericDisplayRenders:0,genericDisplayByCapability:[],otherGenericDisplayRenders:0,scope:'companion_process'});
   const first=await request('export');assert.equal(first.status,200);assert.equal(first.body.state,'ok');assert.equal(first.body.receipt,null);assert.equal(first.body.artifact.mime,'application/zip');assert.equal(first.body.artifact.presentationCounters.missingFailureCauseRenders,1);
   const data=Buffer.from(first.body.artifact.data,'base64');assert.equal(crypto.createHash('sha256').update(data).digest('hex'),first.body.artifact.sha256);
   const unpack=cp.spawnSync('python3',['-c','import sys,io,zipfile;z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read()));print("\\n".join(z.read(n).decode() for n in z.namelist()))'],{input:data,encoding:'utf8'});assert.equal(unpack.status,0);assert.ok(!unpack.stdout.includes(marker));

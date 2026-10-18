@@ -78,7 +78,22 @@ export const FAILURE_PHRASES = {
 } as const;
 // One saturating process-local scalar, owned by this renderer, with no retained text or identifiers.
 let missingFailureCauseRenders=0;
-export function receiptPresentationCounters(){return {missingFailureCauseRenders,scope:'companion_process' as const};}
+let genericDisplayRenders=0,otherGenericDisplayRenders=0;
+const genericByCapability=new Map<string,number>();
+const addCounter=(left:number,right:number)=>Math.min(Number.MAX_SAFE_INTEGER,left+right);
+/** Consume once at the helper transport boundary, never on receipt reads/polling. */
+export function recordPresentationDiagnostics(raw:unknown){
+ if(!obj(raw)||!Array.isArray(raw.genericDisplayByCapability)||raw.genericDisplayByCapability.length>32)return;
+ for(const row of raw.genericDisplayByCapability){
+  if(!obj(row)||!id(row.capability)||!Number.isSafeInteger(row.renders)||Number(row.renders)<1||Number(row.renders)>1024)continue;
+  const count=Number(row.renders);genericDisplayRenders=addCounter(genericDisplayRenders,count);
+  if(genericByCapability.has(row.capability)||genericByCapability.size<64)genericByCapability.set(row.capability,addCounter(genericByCapability.get(row.capability)||0,count));
+  else otherGenericDisplayRenders=addCounter(otherGenericDisplayRenders,count);
+ }
+}
+export function receiptPresentationCounters(){return {missingFailureCauseRenders,genericDisplayRenders,
+ genericDisplayByCapability:[...genericByCapability].map(([capability,renders])=>({capability,renders})),
+ otherGenericDisplayRenders,scope:'companion_process' as const};}
 function failurePhrase(code:string|undefined,locale:'fr'|'en'):string {
  if(!code){missingFailureCauseRenders=Math.min(Number.MAX_SAFE_INTEGER,missingFailureCauseRenders+1);
   return locale==='en'?'The receipt does not establish the cause.':'La cause n’est pas établie par le reçu.';}

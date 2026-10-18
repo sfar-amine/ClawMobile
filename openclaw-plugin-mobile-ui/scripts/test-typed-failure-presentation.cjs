@@ -37,11 +37,19 @@ let checks=0;
  for(const rows of [[['STEG','Bearer private']],Array(9).fill(['Total','0 DT']),[{label:'STEG',value:'0 DT'}]]){assert.equal(render.readReceiptPresentation({...card,rows}),undefined);checks++;}
  assert.equal(render.receiptPresentationCounters().missingFailureCauseRenders,before+3);checks++;
  // Fault injection at the existing transport; verifies cause persistence, not merely a renderer helper.
- const helper=path.join(root,'helper.py');fs.writeFileSync(helper,`import json\nprint(json.dumps({'outcome':'FAILED','reasonCode':'execution_cancelled','text':'Interrupted','handled':True}))\n`);
+ const helper=path.join(root,'helper.py');fs.writeFileSync(helper,`import json\nprint(json.dumps({'outcome':'FAILED','reasonCode':'execution_cancelled','text':'Interrupted','handled':True,'presentationDiagnostics':{'genericDisplayByCapability':[{'capability':'runtime.inventory','renders':2}]}}))\n`);
  process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER=helper;
  const {submitIntent}=require('../dist/companion/intent'),runs=require('../dist/companion/runs');
  const result=await submitIntent('test transport cause','f2-test',[],{clientRunId:'f2-propagation'});
  assert.equal(result.state,'failed');assert.equal(result.failure.reasonCode,'execution_cancelled');checks++;
+ assert.equal(render.receiptPresentationCounters().genericDisplayRenders,2);checks++;
  const stored=await runs.getRunStatus(result.runId);assert.equal(stored.failure.reasonCode,'execution_cancelled');assert.equal(stored.failure.reason,render.FAILURE_PHRASES.fr.execution_cancelled);checks++;
+ await runs.getRunStatus(result.runId);await runs.getRunStatus(result.runId);
+ assert.equal(render.receiptPresentationCounters().genericDisplayRenders,2);checks++;
+ for(const bad of [null,{genericDisplayByCapability:[{capability:'access_token',renders:5}]},{genericDisplayByCapability:[{capability:'test',renders:-1}]},{genericDisplayByCapability:[{capability:'test',renders:1.5}]}])render.recordPresentationDiagnostics(bad);
+ assert.equal(render.receiptPresentationCounters().genericDisplayRenders,2);checks++;
+ render.recordPresentationDiagnostics({genericDisplayByCapability:Array.from({length:32},(_,i)=>({capability:'cap.test'+i,renders:1}))});
+ render.recordPresentationDiagnostics({genericDisplayByCapability:Array.from({length:32},(_,i)=>({capability:'cap.more'+i,renders:1}))});
+ assert.equal(render.receiptPresentationCounters().genericDisplayByCapability.length,64);assert.equal(render.receiptPresentationCounters().otherGenericDisplayRenders,1);checks++;
  console.log(JSON.stringify({suite:'typed-failure-presentation',checks,producerCodes:emitted.size,locales:2,persisted:true}));
 }finally{fs.rmSync(root,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1});

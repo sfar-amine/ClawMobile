@@ -358,7 +358,7 @@ def _execution_provenance(selected: dict[str, Any], execution: dict[str, Any]) -
     return result
 
 
-def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None, card: bool = True) -> str:
+def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None, card: bool = True, generic_renders: list[int] | None = None) -> str:
     remaining = [128] if remaining is None else remaining
     remaining[0] -= 1
     if depth >= 4 or remaining[0] < 0:
@@ -369,6 +369,10 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
         if presented:
             return presented
     if isinstance(value, dict):
+        # The business owner renders new read results. Cards below remain compatibility for older receipts.
+        owner_text = value.get("text")
+        if isinstance(owner_text, str) and _plain_display(owner_text, 4000):
+            return _plain_display(owner_text, 4000)
         cards = _telecom_cards(value)
         if cards:
             return cards
@@ -380,7 +384,7 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
                 label = _plain_display(row.get("label") or row.get("target"), 80) or "Lecture"
                 payload = row.get("result")
                 if row.get("state") == "completed" and isinstance(payload, dict) and payload.get("ok") is True:
-                    text = _display_text(payload, depth + 1, remaining)
+                    text = _display_text(payload, depth + 1, remaining, generic_renders=generic_renders)
                 elif row.get("state") == "indeterminate":
                     text = "Résultat à vérifier ; lecture non rejouée."
                 elif row.get("state") == "not_started":
@@ -407,8 +411,12 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
             question = value.get("question")
             if isinstance(question, str) and _plain_display(question, 4000):
                 return _plain_display(question, 4000)
+        if generic_renders is not None:
+            generic_renders[0] = min(1024, generic_renders[0] + 1)
         return _generic_display(value) or "Résultat disponible auprès de Claw ; détails non affichables en texte."
     if isinstance(value, list):
+        if generic_renders is not None:
+            generic_renders[0] = min(1024, generic_renders[0] + 1)
         return _generic_display({"résultats": value}) or "Résultat disponible auprès de Claw ; détails non affichables en texte."
     return _plain_display(value, 4000) or "Résultat disponible auprès de Claw."
 
@@ -1098,11 +1106,16 @@ def execute_resolved(
         executed_decision = executed.get("decision") if isinstance(executed.get("decision"), dict) else {}
         decision_selected = executed_decision.get("selected") if isinstance(executed_decision.get("selected"), dict) else {}
         resolved_risk = selected.get("risk") or decision_selected.get("risk")
+        generic_renders = [0]
+        rendered = _display_text(payload, card=resolved_risk != "read", generic_renders=generic_renders)
+        capability = selected.get("capability")
+        diagnostics = {"genericDisplayByCapability": [{"capability": capability, "renders": generic_renders[0]}]} if generic_renders[0] and isinstance(capability, str) and re.fullmatch(r"[a-z][a-z0-9_.-]{0,159}", capability) else None
         return {
             # A proven read renders its business result instead of an opaque receipt card.  For every other
             # risk (including missing metadata), the explicit owner presentation remains authoritative.
             "status": "hit", "source": "capability",
-            "text": _understood_prefix(metadata, _display_text(payload, card=resolved_risk != "read")),
+            "text": _understood_prefix(metadata, rendered),
+            **({"presentationDiagnostics": diagnostics} if diagnostics else {}),
             **metadata,
             "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
             "route": selected.get("route"), "capability": selected.get("capability"),
@@ -1217,6 +1230,12 @@ class FastPathPorts:
             origin_id=self._origin(ctx), timeout=min(self.timeout, 15),
             clarification_decision=decision, clarification_original_text=original_text))
 
+    def _track_execution(self, out):
+        diagnostic = out.get("presentationDiagnostics") if isinstance(out, dict) else None
+        if isinstance(diagnostic, dict):
+            self.presentation_diagnostics = diagnostic
+        return out
+
     def execute(self, text: str, decision: dict[str, Any] | None, origin_id: str, klass: str, ctx: dict[str, Any]) -> dict[str, Any]:
         decision = decision if isinstance(decision, dict) else {}
         resolution = self._resolutions.get(str(decision.get("decisionId")))
@@ -1224,11 +1243,11 @@ class FastPathPorts:
             return self._execute_web(text, decision, resolution, origin_id, ctx)
         if resolution is None:
             # Another process committed the decision (recovery of a read): revalidated by the Graph first.
-            return try_fast_path(text, self.ui_root, execute=True, surface=self.surface, caller=self._caller(ctx),
-                                 origin_id=origin_id, timeout=self.timeout, prepared_decision=decision)
+            return self._track_execution(try_fast_path(text, self.ui_root, execute=True, surface=self.surface, caller=self._caller(ctx),
+                                 origin_id=origin_id, timeout=self.timeout, prepared_decision=decision))
         try:
-            return execute_resolved(text, resolution, decision, self.ui_root, surface=self.surface,
-                                    caller=self._caller(ctx), origin_id=origin_id, timeout=self.timeout)
+            return self._track_execution(execute_resolved(text, resolution, decision, self.ui_root, surface=self.surface,
+                                    caller=self._caller(ctx), origin_id=origin_id, timeout=self.timeout))
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
             return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}
 
@@ -1286,10 +1305,12 @@ def run_dialogue(message: str, *, mode: str, ui_root: Path, surface: str, caller
                                               conversation_key=str(key) if key else None)
     event = {**(event or {}), "text": message, "caller": caller}
     if mode == "turn":
-        return coordinator.handle_admitted_event(event, ports, policy=policy or {})
+        out = coordinator.handle_admitted_event(event, ports, policy=policy or {})
+        return {**out, **({"presentationDiagnostics": ports.presentation_diagnostics} if hasattr(ports, "presentation_diagnostics") else {})}
     worker = coordinator.Coordinator(ports)
     try:
-        return worker.continue_handoff(event, str(goal_ref or ""), policy or {}, abort=(mode == "abort"))
+        out = worker.continue_handoff(event, str(goal_ref or ""), policy or {}, abort=(mode == "abort"))
+        return {**out, **({"presentationDiagnostics": ports.presentation_diagnostics} if hasattr(ports, "presentation_diagnostics") else {})}
     finally:
         if worker.store is not None:
             worker.store.close()
