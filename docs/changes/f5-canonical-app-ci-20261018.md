@@ -15,3 +15,11 @@ job non couvert fait échouer le contrôle. Le rejeu conserve les XML des tests,
 en échec, avant de retirer le checkout jetable (256 fichiers, 1 Mio/fichier, 8 Mio au total,
 sans suivre les liens symboliques). La pile d’erreur reste ainsi consultable hors S24.
 Tests ciblés finaux du propriétaire CI : 20/20 verts.
+
+## Propagation de F1 et du runtime qualifié
+
+La branche F5 intègre par merge normal le head F1 exact `3cfa1bcbb6a0e3251685f7b27209a37a3c4b1318`, qui contient le runtime `cc4d26c3` et les correctifs Claude #359. Le blob propriétaire `tools/localci.py` reste strictement celui de `db458aefbab6ea25c20f801c67765d44c3d787de` ; aucun deuxième runner n’est créé. Le checkout détaché utilisé pour les qualifications courantes reste gelé et distinct de ce worktree de développement.
+
+Union des workflows confirmée par comparaison des commandes des deux parents : aucune étape supprimée. Les deux tests hérités `test-owner-retention.py` et `test-claw-trace.py` restent inscrits. Ciblés hors téléphone :20/20 contrats du runner (3,292s),11/11 fondations runtime (0,157s),12/12 rétention propriétaire (0,576s) et6/6 trace (0,485s), sans exécution d’une suite complète. Les repositories et builders Android utilisés par les tests du runner sont synthétiques et locaux ; ces sorties ne constituent ni une construction app physique ni une CI complète de cette PR.
+
+Le nouveau head impose une qualification canonique PR323 avant de repasser prêt à relire. Les anciens reçus, même verts, restent historiques et ne qualifient pas ce nouveau commit. Paiement, voix directe et décision D ne sont pas modifiés par F5 ; les changements hérités de Claude sont conservés. Retour arrière : retirer le lot F5 avec ses propriétaires existants, sans annuler les corrections runtime héritées de #320/#359.
