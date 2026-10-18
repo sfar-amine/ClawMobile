@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+from runpy import run_path
 import shutil
 import subprocess
 import tempfile
@@ -24,7 +25,7 @@ class RuntimeFoundations(unittest.TestCase):
             dest = self.core/rel; dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(HERE.parent.parent/rel, dest)
         owner = self.pb/'skill_intelligence/public_web.py'; owner.parent.mkdir(parents=True)
-        owner.write_text('BUDGET_MS = 20000\nSEARCH_BUDGET_MS = 12000\n')
+        owner.write_text('BUDGET_MS = 30000\nSEARCH_BUDGET_MS = 12000\n')
         reader=self.pb/'tools/request_context.py'; reader.parent.mkdir(parents=True)
         # Static unit sandbox; real peer source is fetched at an exact SHA in CI.
         import ast
@@ -106,25 +107,52 @@ class RuntimeFoundations(unittest.TestCase):
         reader.write_text(reader.read_text()+'raise AssertionError("must not execute reader")\n')
         self.assertEqual(mode.contract_drift(self.core,self.pb),[])
 
-    def test_python_and_shell_read_the_same_tier0_root_without_mutating_it(self):
-        selected = str(self.root/'release/termux-lite')
-        with patch.dict(os.environ, {'CLAW_RUNTIME_ROOT': selected}):
-            self.assertEqual(str(mode.runtime_root()), selected)
-            before = dict(os.environ)
-            out = subprocess.run(['bash', '-c', 'source "$1"; clawmobile_runtime_root', '_', str(HERE/'lib.sh')], capture_output=True, text=True, check=True)
-            self.assertEqual(out.stdout.strip(), selected)
-            self.assertEqual(dict(os.environ), before)
+    def test_companion_helpers_follow_promotions_but_tier0_shell_remains_pinned(self):
+        home=self.root/'phone-home';releases=home/'.openclaw/releases'
+        current=releases/'current'
+        def promote(number):
+            root=releases/f'release-{number}'/'termux-lite'
+            root.mkdir(parents=True)
+            for name in ('claw-bridge-cli.py','context-head.sh'):
+                (root/name).write_text(f'synthetic-release-{number}')
+            if current.is_symlink():current.unlink()
+            current.symlink_to(f'release-{number}')
+            return root
+        pinned=promote(0)
+        # Existing real helper consumers, loaded once before promotion.
+        bridge=run_path(str(HERE/'model-fast-path.py'))['_bridge_cli']
+        gemini=run_path(str(HERE/'gemini-request.py'))['runtime_script']
+        gemini.__globals__['HOME']=home
+        with patch.dict(os.environ,{'CLAW_RUNTIME_ROOT':str(pinned)}):
+            before=dict(os.environ)
+            cached=bridge(home)
+            self.assertEqual(cached,current/'termux-lite/claw-bridge-cli.py')
+            self.assertEqual(cached.read_text(),'synthetic-release-0')
+            self.assertEqual(gemini('context-head.sh').read_text(),'synthetic-release-0')
+            promote(1)
+            self.assertEqual(cached.read_text(),'synthetic-release-1')
+            self.assertEqual(bridge(home).read_text(),'synthetic-release-1')
+            self.assertEqual(gemini('context-head.sh').read_text(),'synthetic-release-1')
+            # Genuine pinned-daemon owner is deliberately unchanged.
+            daemon=subprocess.run(['bash','-c','source "$1"; clawmobile_runtime_root','_',str(HERE/'lib.sh')],capture_output=True,text=True,check=True)
+            self.assertEqual(daemon.stdout.strip(),str(pinned))
+            for number in range(2,7):promote(number)
+            shutil.rmtree(pinned.parent)
+            self.assertFalse(pinned.exists())
+            self.assertEqual(cached.read_text(),'synthetic-release-6')
+            self.assertEqual(bridge(home).read_text(),'synthetic-release-6')
+            self.assertEqual(gemini('context-head.sh').read_text(),'synthetic-release-6')
+            self.assertEqual(dict(os.environ),before)
 
-    def test_both_observed_process_roots_remain_distinct(self):
-        capture = json.loads((HERE.parent.parent/'openclaw-plugin-mobile-ui/fixtures/foundations/s24-runtime-roots-20261018.json').read_text())
+    def test_capture_process_directory_is_not_an_environment_override(self):
+        capture=json.loads((HERE.parent.parent/'openclaw-plugin-mobile-ui/fixtures/foundations/s24-runtime-roots-20261018.json').read_text())
         self.assertTrue(capture['sanitized'])
-        self.assertEqual(capture['root_unit'], 'termux-lite')
-        values = []
-        for role in ('supervisors', 'companion'):
-            observed = capture[role]['root'].replace('~', str(self.root/'phone-home'), 1)
-            with patch.dict(os.environ, {'CLAW_RUNTIME_ROOT': observed}):
-                values.append(mode.runtime_root())
-        self.assertNotEqual(*values)
+        self.assertEqual(capture['root_unit'],'termux-lite')
+        self.assertNotEqual(capture['supervisors']['root'],capture['companion']['root'])
+        inherited=capture['supervisors']['root'].replace('~',str(self.root/'phone-home'),1)
+        with patch.dict(os.environ,{'CLAW_RUNTIME_ROOT':inherited}):
+            self.assertEqual(mode.runtime_root(home=self.root),mode.release_root(self.root)/'termux-lite')
+            self.assertEqual(os.environ['CLAW_RUNTIME_ROOT'],inherited)
 
     def test_helper_consumers_do_not_reconstruct_current_link(self):
         repo = HERE.parent.parent
@@ -135,11 +163,12 @@ class RuntimeFoundations(unittest.TestCase):
         for name in ('model-fast-path.py', 'gemini-request.py', 'claw-slack-purge-setup.sh'):
             self.assertNotIn('releases/current', (HERE/name).read_text(), name)
 
-    def test_relative_root_is_refused_instead_of_following_cwd(self):
+    def test_relative_inherited_pin_is_ignored_by_helpers_but_refused_by_daemon_owner(self):
         with patch.dict(os.environ, {'CLAW_RUNTIME_ROOT': '../old-release'}):
-            with self.assertRaisesRegex(ValueError, 'runtime_root_not_absolute'): mode.runtime_root()
-            out = subprocess.run(['bash','-c','source "$1"; clawmobile_runtime_root','_',str(HERE/'lib.sh')],capture_output=True,text=True)
-            self.assertNotEqual(out.returncode, 0)
+            self.assertEqual(mode.runtime_root(home=self.root),mode.release_root(self.root)/'termux-lite')
+            out=subprocess.run(['bash','-c','source "$1"; clawmobile_runtime_root','_',str(HERE/'lib.sh')],capture_output=True,text=True)
+            self.assertNotEqual(out.returncode,0)
+            self.assertEqual(os.environ['CLAW_RUNTIME_ROOT'],'../old-release')
 
 
 if __name__ == '__main__': unittest.main()

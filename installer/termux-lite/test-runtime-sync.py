@@ -105,7 +105,7 @@ class RuntimeSync(unittest.TestCase):
         bin_ = self.tmp / "bin"; bin_.mkdir(); (bin_ / "openclaw").write_text(OPENCLAW_STUB); (bin_ / "openclaw").chmod(0o755)
         owner = oc / "runtime-ui-playbooks/current/skill_intelligence/public_web.py"
         owner.parent.mkdir(parents=True, exist_ok=True)
-        owner.write_text("BUDGET_MS=20000\nSEARCH_BUDGET_MS=12000\n")
+        owner.write_text("BUDGET_MS=30000\nSEARCH_BUDGET_MS=12000\n")
         import ast
         contracts={item.targets[0].id:ast.literal_eval(item.value)
                    for item in ast.parse((HERE/'context_memory.py').read_text()).body
