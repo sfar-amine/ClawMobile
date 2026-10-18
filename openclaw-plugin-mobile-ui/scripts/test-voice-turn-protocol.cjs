@@ -4,8 +4,9 @@ const path=require('node:path');
 const {VoiceTurnProtocol}=require('../dist/companion/voiceTurnProtocol.js');
 const contract=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/protocol/voice-v2-app-companion.json'),'utf8'));
 let passed=0;
+const observedCorrelations=new Set();
 function test(name,run){return Promise.resolve().then(run).then(()=>{passed++;console.log('PASS '+name);});}
-function setup(){const sent=[],events=[];return {sent,events,p:new VoiceTurnProtocol(1,'session-1',v=>sent.push(v),v=>events.push(v))};}
+function setup(){const sent=[],events=[];return {sent,events,p:new VoiceTurnProtocol(1,'session-1',v=>sent.push(v),v=>{if(v.warmEvent)observedCorrelations.add(v.warmEvent.correlation);events.push(v);})};}
 function control(kind,turn,extra={}){return {warmControl:{[kind]:{operationId:kind+'-'+turn,sessionEpoch:'session-1',turnId:turn,...extra}}};}
 function start(s,id='voice-a',first=0){s.p.receive(control('turnStart',id,{firstSample:first}));}
 function audio(s,id='voice-a',first=0,n=320,value=0){s.p.receive({warmInput:{audio:{turnId:id,sessionEpoch:'session-1',firstSample:first,samples:n,sampleRate:16000,data:Buffer.alloc(n*2,value).toString('base64')}}});}
@@ -94,6 +95,11 @@ function error(s){return s.events.flatMap(x=>x.warmEvent?.payload?.protocolError
  await test('new provider generation cannot be opened by raw client content',()=>{const s=setup();s.p.receive({clientContent:{turnComplete:true,turns:[]}});assert.equal(s.sent.length,0);assert(error(s).includes('unsupported_v2_message'));});
  await test('provider finished marker before input end does not close local ASR',()=>{const s=setup();start(s);s.p.provider({serverContent:{inputTranscription:{text:'oui',finished:true}}});assert(s.p.snapshot().asrPending);assert.deepEqual(error(s),[]);});
  await test('transcript final must follow turn end',()=>{const s=setup();start(s);finishAsr(s);assert(error(s).includes('invalid_transcript_final'));});
+ await test('every emitted correlation is declared by the shared contract',()=>{
+  const s=setup();s.p.provider({serverContent:{inputTranscription:{text:'Synthetic late input'}}});
+  assert.equal(contract.correlation.unknown,'fatal');
+  assert.deepEqual([...observedCorrelations].sort(),[...contract.correlation.values].sort());
+ });
  await test('a receipt reply without admitted execution is refused for its turn, never a session error (banc voix 18/10)',()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);s.p.provider({serverContent:{turnComplete:true}});s.p.receive({warmControl:{receiptReply:{turnId:'voice-a'}}});assert.deepEqual(error(s),[]);const refused=s.events.find(x=>x.warmEvent?.payload?.receiptRefused);assert.equal(refused.warmEvent.payload.receiptRefused.reason,'no_execution');assert.equal(refused.warmEvent.turnId,'voice-a');assert(!s.sent.some(x=>x.clientContent?.turns?.[0]?.parts?.[0]?.text?.includes('Verified receipt')));start(s,'voice-b',320);audio(s,'voice-b',320);assert.deepEqual(error(s),[]);assert(s.events.some(x=>x.warmEvent?.payload?.turnAdmitted&&x.warmEvent.turnId==='voice-b'));});
  console.log(JSON.stringify({passed,failed:0,scope:'deterministic_protocol_not_acoustic',boundary:'android_on_device_final'}));
 })().catch(e=>{console.error(e);process.exitCode=1});

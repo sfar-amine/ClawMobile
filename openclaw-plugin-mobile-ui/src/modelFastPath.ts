@@ -1,4 +1,5 @@
 import {recordPresentationDiagnostics} from "./companion/receiptPresentation";
+import {runtimeFile} from "./runtimeRoot";
 import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
 import fs from "node:fs";
 import os from "node:os";
@@ -105,7 +106,7 @@ function dialogueWebArgs(web?: DialogueWebContext): string[] {
 function helperCandidates(home = os.homedir()): string[] {
   return [
     process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER || "",
-    path.join(home, ".openclaw/releases/current/termux-lite/model-fast-path.py"),
+    runtimeFile("model-fast-path.py", home),
   ].filter(Boolean);
 }
 

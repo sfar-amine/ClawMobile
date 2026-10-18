@@ -18,5 +18,6 @@
     "transcriptFinal": ["noSpeech"]
   },
   "audio": ["sessionEpoch", "turnId", "firstSample", "samples", "sampleRate", "data"],
+  "correlation": {"values": ["exact", "stale_ignored", "ambiguous"], "unknown": "fatal"},
   "warmEvent": ["version", "connectionEpoch", "sessionEpoch", "sequence", "turnId", "outputGenerationId", "correlation", "payload"]
 }

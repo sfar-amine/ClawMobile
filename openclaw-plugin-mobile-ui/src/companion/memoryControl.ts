@@ -1,9 +1,10 @@
+import {runtimeFile} from "../runtimeRoot";
 import {execFile} from "child_process";
 import path from "path";
 import os from "os";
 import fs from "fs";
 const nativeError=(code:string,statusCode=400)=>Object.assign(new Error(code),{statusCode});
-const owner=()=>process.env.SAMANTHA_MEMORY_OWNER||path.join(os.homedir(),".openclaw/releases/current/termux-lite/context-store.py");
+const owner=()=>process.env.SAMANTHA_MEMORY_OWNER||runtimeFile("context-store.py");
 async function callOwner(args:string[],body?:any):Promise<any>{
  return new Promise((resolve,reject)=>{
   const child=execFile("python3",[owner(),...args],{timeout:5000,maxBuffer:2*1024*1024},(error,stdout)=>{
@@ -60,7 +61,7 @@ export const REMEMBER_KINDS=["decision","learning","constraint","open_thread","c
 export const REMEMBER_MAX_CHARS=1000;
 const contextEventWriters=(home=os.homedir())=>[
  String(process.env.SAMANTHA_CONTEXT_EVENT||"").trim(),
- path.join(home,".openclaw/releases/current/termux-lite/context-event.sh"),
+ runtimeFile("context-event.sh", home),
 ].filter(Boolean);
 const TRANSCRIPT_ROLE=/^\s*(?:user|assistant|human|system|ai|claude|chatgpt|codex|amine|samantha)\s*:/gim;
 export function validateRemember(params:Record<string,unknown>){

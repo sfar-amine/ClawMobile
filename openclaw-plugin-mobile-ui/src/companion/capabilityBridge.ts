@@ -1,3 +1,4 @@
+import {runtimeFile} from "../runtimeRoot";
 import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -42,7 +43,7 @@ function helpers(home = os.homedir()): string[] {
   const configured = String(process.env.CLAW_CAPABILITY_HELPER || "").trim();
   return [
     configured,
-    path.join(home, ".openclaw/releases/current/termux-lite/claw-capability.py"),
+    runtimeFile("claw-capability.py", home),
   ].filter(Boolean);
 }
 

@@ -64,7 +64,7 @@ class RuntimeSync(unittest.TestCase):
         Companion.calls.clear(); Companion.healthz_failures = 0; Companion.healthz_logged = False
         self.tmp = pathlib.Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.tmp)
         repo = self.tmp / "repo"; self.root = repo / "installer/termux-lite"; self.root.mkdir(parents=True)
-        for name in ("runtime-sync.sh", "lib.sh", "companion-deploy.sh", "companion-acceptance.py", "project-room.py", "pulse-room.py", "contacts-agent.md"):
+        for name in ("runtime-sync.sh", "runtime_mode.py", "lib.sh", "companion-deploy.sh", "companion-acceptance.py", "project-room.py", "pulse-room.py", "contacts-agent.md"):
             shutil.copy2(HERE / name, self.root / name)
         compat = self.root / "openclaw-compat"; compat.mkdir()
         (compat / "whatsapp-network-recovery.py").write_text('import json,os,sys\nstate=os.environ.get("STUB_WA_PATCH","unchanged")\nprint(json.dumps({"ok":state!="refused","state":state}))\nsys.exit(1 if state=="refused" else 0)\n')
@@ -74,6 +74,12 @@ class RuntimeSync(unittest.TestCase):
         (plugin / "openclaw.plugin.json").write_text('{"id":"openclaw-plugin-mobile-ui"}')
         (plugin / "dist/index.js").write_text("require('./pulseRoomFastPath')\n")
         (plugin / "dist/pulseRoomFastPath.js").write_text("// room\n")
+        # Public source contracts only; no synthetic account/runtime payload.
+        for rel in ("installer/termux-lite/model-fast-path.py", "openclaw-plugin-mobile-ui/src/companion/runWeb.ts", "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json"):
+            dest = repo / rel; dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(HERE.parent.parent / rel, dest)
+        app = repo / "android/samantha/app/src/test/resources/voice-v2/app-companion-envelope-contract.json"
+        app.parent.mkdir(parents=True); shutil.copy2(plugin / "fixtures/protocol/voice-v2-app-companion.json", app)
         git = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True, text=True).stdout.strip()
         git("init", "-q"); git("add", "-A")
         git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "fixture"); self.commit = git("rev-parse", "HEAD")
@@ -97,6 +103,9 @@ class RuntimeSync(unittest.TestCase):
         self.dist = self.tmp / "openclaw-dist"; self.dist.mkdir()
         (self.dist / "dispatch-from-config-X.mjs").write_text("hookRunner.runBeforeDispatch(event)")
         bin_ = self.tmp / "bin"; bin_.mkdir(); (bin_ / "openclaw").write_text(OPENCLAW_STUB); (bin_ / "openclaw").chmod(0o755)
+        owner = oc / "runtime-ui-playbooks/current/skill_intelligence/public_web.py"
+        owner.parent.mkdir(parents=True, exist_ok=True)
+        owner.write_text("BUDGET_MS=30000\nSEARCH_BUDGET_MS=12000\n")
         # rsync is installed on Termux but optional on generic Ubuntu hosts.
         # The double preserves the --delete contract and the node_modules exclusion.
         (bin_ / "rsync").write_text(RSYNC_STUB); (bin_ / "rsync").chmod(0o755)
@@ -115,6 +124,27 @@ class RuntimeSync(unittest.TestCase):
     def tier0_log(self):
         path = self.home / "tier0.log"
         return path.read_text().splitlines() if path.exists() else []
+
+    def test_check_without_app_source_has_no_phantom_app_drift(self):
+        self.assertEqual(self.sync()[0], 0)
+        shutil.rmtree(self.root.parent.parent / "android")
+        rc, out, err = self.sync(check=True)
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(out['drift'], [])
+
+    def test_explicit_missing_app_source_is_a_named_drift(self):
+        self.assertEqual(self.sync()[0], 0)
+        rc, out, err = self.sync(check=True, RUNTIME_SYNC_APP_CONTRACT=str(self.tmp/'missing-app.json'))
+        self.assertEqual(rc, 1, err)
+        self.assertIn('voice:app_contract_unavailable', out['drift'])
+
+    def test_explicit_app_source_is_compared_byte_for_byte(self):
+        self.assertEqual(self.sync()[0], 0)
+        app = self.root.parent.parent/'android/samantha/app/src/test/resources/voice-v2/app-companion-envelope-contract.json'
+        app.write_bytes(app.read_bytes()+b'\n')
+        rc, out, err = self.sync(check=True, RUNTIME_SYNC_APP_CONTRACT=str(app))
+        self.assertEqual(rc, 1, err)
+        self.assertIn('voice:app_contract_differs', out['drift'])
 
     def test_stale_gateway_plugin_and_release_are_brought_to_the_commit(self):
         rc, out, err = self.sync()
