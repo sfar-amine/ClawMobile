@@ -119,7 +119,8 @@ class QaRoomAccessTests(unittest.TestCase):
 
     def test_new_app_and_write_raise_in_existing_room_require_biometrics(self):
         for apps in ([{**APP,'allow_writes':True}], [APP,{**APP,'app_id':'second','package':'test.claw.qa.other'}]):
-            body={'operationId':'qa-grant-fixture','contactId':self.identity,'rooms':['conversation','qa'],'qaApps':apps}
+            body={'operationId':'qa-grant-fixture','contactId':self.identity,'rooms':['conversation','qa'],'qaApps':apps,
+                  'expectedQaRevision':self.read()['scope']['grant_revision']}
             body['requestHash']=m.request_hash('rooms',body)
             with self.subTest(apps=apps),self.assertRaises(m.Refused) as raised:
                 self.service.mutate('rooms',body,phase='prepare')
@@ -135,6 +136,31 @@ class QaRoomAccessTests(unittest.TestCase):
               self.assertRaises(m.Refused) as raised):
             self.service.mutate('rooms',body,phase='prepare')
         self.assertEqual(raised.exception.code,'operation_conflict');self.assertFalse(m.DB.exists())
+
+    def test_stale_or_legacy_form_cannot_erase_unseen_qa_grants(self):
+        revision=self.read()['scope']['grant_revision']
+        for supplied in (None,'0'*64,revision):
+            self.metadata['qaApps'][0]['allow_writes']=True;self.persist()
+            body={'operationId':'qa-form-fixture','contactId':self.identity,'rooms':['conversation']}
+            if supplied is not None:body['expectedQaRevision']=supplied
+            body['requestHash']=m.request_hash('rooms',body)
+            before=self.service.path(NUMBER).read_bytes()
+            with (self.subTest(revision=supplied),
+                  patch.object(self.service,'confirmation',side_effect=AssertionError('before confirmation')),
+                  self.assertRaises(m.Refused) as raised):
+                self.service.mutate('rooms',body,phase='prepare')
+            self.assertEqual(raised.exception.code,'operation_conflict')
+            self.assertEqual(self.service.path(NUMBER).read_bytes(),before)
+            self.assertFalse(m.DB.exists())
+
+    def test_current_form_may_prepare_explicit_qa_removal(self):
+        body={'operationId':'qa-remove-fixture','contactId':self.identity,'rooms':['conversation'],
+              'expectedQaRevision':self.read()['scope']['grant_revision']}
+        body['requestHash']=m.request_hash('rooms',body)
+        result=self.service.mutate('rooms',body,phase='preflight')
+        self.assertTrue(result['success'])
+        self.assertEqual(self.service.metadata(NUMBER)['qaApps'],[APP])
+        self.assertFalse(m.DB.exists())
 
     def test_normalization_is_bounded_closed_and_deterministic(self):
         self.assertEqual(m.normalize_qa_apps([{**APP,'app_id':'z'},APP]),[APP,{**APP,'app_id':'z'}])

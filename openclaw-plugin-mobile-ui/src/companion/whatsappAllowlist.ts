@@ -142,13 +142,14 @@ async function confirmationView(confirmationId:any,type:string,reference:string,
 }
 const flights=new Map<string,{hash:string;promise:Promise<any>}>();
 export async function allowlistChange(kind:'add'|'patch'|'remove'|'note',id:string|undefined,input:any){
- const fields=kind==='add'?['operationId','confirmationId','e164','displayName','scope','scopeText','durationDays','notify']:kind==='patch'?['operationId','confirmationId','scope','scopeText','state','durationDays','rooms','qaApps']:kind==='remove'?['operationId','confirmationId']:['operationId','text'];
+ const fields=kind==='add'?['operationId','confirmationId','e164','displayName','scope','scopeText','durationDays','notify']:kind==='patch'?['operationId','confirmationId','scope','scopeText','state','durationDays','rooms','qaApps','expectedQaRevision']:kind==='remove'?['operationId','confirmationId']:['operationId','text'];
  const required=kind==='add'?['operationId','e164','scope','durationDays','notify']:kind==='note'?['operationId','text']:['operationId'];exact(input,fields,required);
  if(!operationPattern.test(input.operationId||''))fail('invalid_operation');if(id&&!contactPattern.test(id))fail('unknown_contact',404);
  let action:string=kind,body:any={...input};
  if(kind==='add'){body.e164=e164(input.e164);id=identity(body.e164);scope(input.scope,input.scopeText);duration(input.durationDays);if(typeof input.notify!=='boolean'||input.displayName!==undefined&&!text(input.displayName,80))fail('invalid_request');}
  if(kind==='note'&&!text(input.text,2000,true))fail('note_too_long');
  if(kind==='patch'){
+  if(has(input,'expectedQaRevision')&&(!has(input,'rooms')||typeof input.expectedQaRevision!=='string'||!/^[a-f0-9]{64}$/.test(input.expectedQaRevision)))fail('invalid_request');
   const groups=[has(input,'scope')||has(input,'scopeText'),has(input,'state'),has(input,'durationDays'),has(input,'rooms')].filter(Boolean).length;if(groups!==1)fail('invalid_request');
   if(has(input,'rooms')){body.rooms=normalizeRooms(input.rooms);if(has(input,'qaApps'))body.qaApps=normalizeQaApps(input.qaApps);if(body.rooms.includes('qa')&&body.qaApps?.length===0)fail('invalid_qa_apps');action='rooms';}else if(has(input,'qaApps'))fail('invalid_request');
   else if(has(input,'state')){if(!['active','suspended'].includes(input.state))fail('invalid_request');action=input.state==='active'?'reactivate':'suspend';}
@@ -177,6 +178,10 @@ async function perform(action:string,body:any,kind:string){
   if(current.owner)fail('owner_contact_protected',409);
   const before:string[]=current.rooms||['conversation'];
   const oldApps=normalizeQaApps(current.qaApps||[]);const apps=body.rooms.includes('qa')?normalizeQaApps(body.qaApps??oldApps):[];
+  // A legacy form must not erase a QA grant it never displayed. A current form
+  // binds the owner's exact read version, including a concurrent grant change.
+  if((body.expectedQaRevision!==undefined||before.includes('qa')||oldApps.length||body.rooms.includes('qa'))&&
+     (!body.expectedQaRevision||body.expectedQaRevision!==current.qaRevision))fail('operation_conflict',409);
   if(body.rooms.includes('qa')&&(!apps.length||!current.qaRevision))fail('invalid_qa_apps');
   if(before[0]!=='maison'&&body.rooms.some((r:string)=>!before.includes(r))||apps.some((app:any)=>!oldApps.some((old:any)=>JSON.stringify(stable(old))===JSON.stringify(stable(app))))){confirmationType='rooms';payloadHash=(body.rooms.includes('qa')||oldApps.length)?qaRoomsConfirmationHash(current.e164,body.rooms,apps):hash([current.e164,...body.rooms].join('|'));}
  }

@@ -1,0 +1,91 @@
+{
+  "version": 2,
+  "id": "qa64-q13-whatsapp-access-20261018",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Raccorder les propriétaires privés des tests Android à l’accès WhatsApp existant, sans élargissement des permissions.",
+  "reason": "Q13 du doc64 : autorité courante par application, pièces privées, reçus et anti-doublon dans les propriétaires existants.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/qa64-q13-inert-media-host-20261018.md",
+    "docs/changes/qa64-q13-media-stage-20261018.json",
+    "docs/changes/qa64-q13-media-stage-20261018.md",
+    "docs/changes/qa64-q13-queue-maintenance-20261018.json",
+    "docs/changes/qa64-q13-queue-maintenance-20261018.md",
+    "docs/changes/qa64-q13-whatsapp-access-20261018.json",
+    "docs/changes/qa64-q13-whatsapp-access-20261018.md",
+    "docs/changes/qa64-q8-private-notification-owner-20261018.md",
+    "docs/changes/voice-provider-tool-containment-20261018.json",
+    "docs/changes/voice-provider-tool-containment-20261018.md",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-qa-queue.py",
+    "installer/termux-lite/test-qa-attachment-pipe.py",
+    "installer/termux-lite/test-qa-private-graph-pipe.py",
+    "installer/termux-lite/test-qa-room-access.py",
+    "installer/termux-lite/test-whatsapp-owner-send.sh",
+    "installer/termux-lite/whatsapp-owner-send.sh",
+    "openclaw-plugin-mobile-ui/fixtures/qa-notification-s24-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/message-received-sdk-public-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/q13-existing-owner-source-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/q13-playbooks-root-owner-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/sdk-media-store-implementation-public-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/sdk-media-store-public-20261018.json",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-attachment-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-campaign-notification.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-contact-media.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-media-stage.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-private-ingress.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-voice.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-turn-protocol.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-allowlist.cjs",
+    "openclaw-plugin-mobile-ui/src/backends/qaCampaignNotificationAction.ts",
+    "openclaw-plugin-mobile-ui/src/backends/qaCampaignNotificationCli.ts",
+    "openclaw-plugin-mobile-ui/src/backends/termux.ts",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/officialGatewayOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+    "openclaw-plugin-mobile-ui/src/companion/whatsappAllowlist.ts",
+    "openclaw-plugin-mobile-ui/src/contactRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/contactRoomProfile.ts",
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/qaContactMediaIngress.ts"
+  ],
+  "tests": [
+    {
+      "name": "Autorité People et formulaire périmé",
+      "status": "passed",
+      "evidence": "36/36 tests Python, vrais fichiers/SQLite synthétiques ; HTTP Node allowlist et refus des formulaires QA périmés verts."
+    },
+    {
+      "name": "Pièces privées et volume",
+      "status": "passed",
+      "evidence": "13/13 tests de framing Python, 52/52 host et30/30 IPC Node ; vrais fichiers et20Mio privés, aucune recette S24."
+    }
+  ],
+  "documentation": [
+    "docs/changes/qa64-q13-whatsapp-access-20261018.md",
+    "docs/changes/qa64-q13-inert-media-host-20261018.md",
+    "docs/changes/qa64-q13-media-stage-20261018.md",
+    "docs/changes/qa64-q13-queue-maintenance-20261018.md",
+    "docs/changes/qa64-q8-private-notification-owner-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Adaptateurs privés sous les propriétaires QA et People existants ; registre canonique et contrats QA modifiés uniquement dans la PR Q13 playbooks."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilisation People, SDK média, registre d’envoi, file QA, cycle de santé, CLI Termux et verrou Q12 existants."
+  },
+  "rollback": "Revenir au commit runtime précédent ; retirer les raccords privés avec la PR playbooks, sans supprimer les reçus incertains.",
+  "limitations": [
+    "CI canonique complète à exécuter sur le head final exact et le numéro réel de PR.",
+    "Aucune fusion, activation, recette téléphone, livraison WhatsApp ni clic de notification réel exécuté.",
+    "Écriture SDK physique de20Mio et recette des pièces entrantes attendent Claude ; aucun quota global ni nettoyage automatique ne sont revendiqués."
+  ]
+}

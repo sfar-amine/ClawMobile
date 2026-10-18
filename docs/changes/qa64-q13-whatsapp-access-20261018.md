@@ -1,6 +1,6 @@
 # Q13 — accès WhatsApp aux tests Android, par application
 
-Travail en cours, non activé. La commande privée `people-trusted.py qa-scope-read`
+Lot préparé hors téléphone, non déployé. La commande privée `people-trusted.py qa-scope-read`
 relit l'autorité du contact avant chaque usage asynchrone. Les grants restent
 dans l'en-tête privé existant du contact ; aucune nouvelle base d'autorisation.
 Une session ou un DTO ne constitue jamais, seul, une autorisation.
@@ -42,8 +42,7 @@ relit les droits après cette préparation. Le registre d'envoi existant conserv
 les reçus : un état incertain n'est jamais rejoué. Les nouvelles réservations
 QA sont refusées atomiquement à 50 000 reçus, sans effacer les incertains.
 Les campagnes peuvent conserver des droits plus étroits que le grant courant.
-Une pièce jointe reste `NOT_SENT` avant toute réservation tant que son raccord
-au propriétaire média et au schéma réellement installé n'est pas qualifié.
+Les documents passent par le propriétaire média SDK installé : octets privés sur stdin, staging dans son stockage existant, puis `mediaUrl` dans le schéma Gateway confirmé. Le reçu accepté est persisté avant nettoyage ; un envoi incertain conserve sa référence privée et ne se rejoue pas. Le propriétaire réauthentifie après staging et avant envoi. Le contenu est vérifié contre le manifeste expurgé du propriétaire QA, sans modifier son original privé. Budget global18s ; wrapper20s. Le staging reste borné à500 entrées/200Mio, sans nouveau stockage ni collecteur.
 
 Le cycle de santé existant appelle `qa-queue-tick`, sortie fermée et budget de
 14 s ; un propriétaire absent reste `NOT_READY`. Une exception après entrée du
@@ -52,9 +51,7 @@ chargement de playbooks passe par `claw-capability.py:ui_root()` et conserve
 le verrou partagé de déploiement Q12. Le relevé réel de ce résolveur est dans
 `q13-playbooks-root-owner-20261018.json`. Aucun nouveau verrou, store ou timer.
 
-Restent avant livraison : admission/fences complètes dans playbooks, pièces
-jointes entrantes qualifiées, restitution au demandeur et schéma document du
-Gateway confirmé par Claude. Ne pas déclarer cette préparation prête à fusionner.
+Le formulaire Accès WhatsApp transmet `expectedQaRevision` : une vue ancienne ou une ancienne version de l'app ne peut pas effacer des grants QA invisibles. Les deux propriétaires refusent la divergence avant confirmation ou réservation. Le retrait explicitement préparé sur une vue courante reste possible. Le raccord final est livré avec la PR Q13 playbooks et la correction app R17 ; aucun envoi réel ou accès S24 n'est qualifié par ces fixtures.
 La recette physique reste réservée à Claude après revue, fusion et épinglage.
 Retour arrière : revenir au commit précédent du lot dans les deux propriétaires ;
 les anciens lecteurs refusent les métadonnées QA inconnues, sans élargir l'accès.

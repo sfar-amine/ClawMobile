@@ -1648,6 +1648,12 @@ class Contacts:
             current={'present':number in allow,'owner':number in owners,'scope':row['scope'] if row else None,'scopeText':row['scopeText'] if row else None,'state':row['state'] if row and 'state' in row else None,'expiresAt':row['expiresAt'] if row and 'expiresAt' in row else None}
             if 'qaRevision' in expected: current['qaRevision']=qa_authority_revision(metadata)
             if expected!=current: fail('operation_conflict',409)
+        if action=='rooms':
+            ui_revision=body.get('expectedQaRevision')
+            qa_sensitive=('qa' in (metadata.get('rooms') or []) or bool(metadata.get(QA_APPS_FIELD))
+                          or 'qa' in (body.get('rooms') or []))
+            if (ui_revision is not None and (not isinstance(ui_revision,str) or not re.fullmatch(r'[a-f0-9]{64}',ui_revision))):fail('invalid_request')
+            if (ui_revision is not None or qa_sensitive) and ui_revision!=qa_authority_revision(metadata):fail('operation_conflict',409)
         if action=='add' and metadata['personId'] is None: metadata['personId']=self.directory()[0].get(number,{}).get('personId')
         original=copy.deepcopy(metadata);after=copy.deepcopy(before);wa=after.setdefault('channels',{}).setdefault('whatsapp',{})
         wa.setdefault('allowFrom',[]);wa.setdefault('direct',{})
@@ -1979,7 +1985,7 @@ class Contacts:
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}
-        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'memory-compact':set(),'contact-tool':{'action','operationId','e164','text'},'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms','qaApps'}}
+        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'memory-compact':set(),'contact-tool':{'action','operationId','e164','text'},'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms','qaApps','expectedQaRevision'}}
         if action not in allowed or set(body)-allowed[action]: fail('invalid_request')
         if action=='list': return {'success':True,'state':'partial' if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else 'ok','receipt':None,'items':self.rows(),'issues':['contact_scan_partial'] if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else []}
         if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId')),'historyCount':self.history_count(body.get('contactId'))}
