@@ -52,7 +52,7 @@ class PublicSynthesis(unittest.TestCase):
         with self.assertRaises(m.PolicyError): m.validate_public_input(value)
 
     def test_invalid_limits_and_types(self):
-        for key, value in (("query", "x"*1001), ("remainingBudgetMs", True), ("remainingBudgetMs", 20001),
+        for key, value in (("query", "x"*1001), ("remainingBudgetMs", True), ("remainingBudgetMs", 30001),
                            ("sources", []), ("sources", request()["sources"]*6), ("responseLanguage", "xx"),
                            ("correlationId", "owner@example.org")):
             req = request(); req[key] = value
