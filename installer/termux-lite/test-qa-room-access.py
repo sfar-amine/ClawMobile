@@ -10,6 +10,10 @@ from contextlib import nullcontext
 from types import SimpleNamespace
 import fcntl
 import os
+import hashlib
+import sqlite3
+import sys
+import time
 
 spec=importlib.util.spec_from_file_location('qa_people',Path(__file__).with_name('people-trusted.py'))
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -98,6 +102,16 @@ class QaRoomAccessTests(unittest.TestCase):
         self.assertEqual({g['grant_revision'] for g in result['grants']},{self.read()['scope']['grant_revision']})
         self.assertNotIn(NUMBER,json.dumps(result));self.assertNotIn('app_name',self.read()['scope'])
 
+    def test_actual_contact_writer_retains_all_twelve_bounded_app_grants(self):
+        self.metadata['qaApps']=[{**APP,'app_id':f'app{i}','app_name':f'Application de recette numéro {i}',
+            'package':f'test.claw.qa.fixture.a{i}'} for i in range(12)]
+        self.assertGreater(len(json.dumps(self.metadata).encode()),2048)
+        self.service.write_context(NUMBER,self.metadata)
+        observed=self.service.metadata(NUMBER)
+        self.assertEqual(len(observed['qaApps']),12)
+        self.assertLess(len(self.service.context(NUMBER).encode()),m.CONTACT_HEADER_BYTES)
+        self.assertTrue(self.service.qa_scope_read({'schema_version':1,'requester_hash':self.identity,'app_id':'app11'})['ok'])
+
     def test_changed_grant_changes_revision_even_in_same_room(self):
         previous=self.read()['scope']['grant_revision']
         self.metadata['qaApps'][0]['allow_writes']=True;self.persist()
@@ -183,9 +197,12 @@ class QaRoomAccessTests(unittest.TestCase):
 
     def deliver(self,request=None,payload=None):
         callback=payload if callable(payload) else lambda request:payload or self.delivery_payload()
+        def owner(name):
+            return SimpleNamespace(requester_payload=callback) if name=='qa_testing.notifications' else SimpleNamespace(run_path=lambda run_id:self.root/'campaign')
         with (patch.object(m,'Contacts',return_value=self.service),
               patch.object(m,'qa_owner_read_lease',return_value=nullcontext()),
-              patch.object(m,'qa_owner_module',return_value=SimpleNamespace(requester_payload=callback))):
+              patch.object(m,'qa_owner_module',side_effect=owner),
+              patch.dict(os.environ,{'OPENCLAW_STATE_DIR':str(self.root/'installed')})):
             return m.qa_deliver(request or self.delivery_request())
 
     def test_requester_delivery_uses_current_recipient_and_existing_idempotency(self):
@@ -204,10 +221,10 @@ class QaRoomAccessTests(unittest.TestCase):
             result=self.deliver(payload=revoke)
         self.assertEqual(result,{'state':'NOT_SENT','reason':'qa_scope_unavailable'});send.assert_not_called()
 
-    def test_delivery_document_is_refused_before_reservation_until_qualified(self):
+    def test_delivery_document_missing_owner_manifest_is_refused_before_reservation(self):
         with patch.object(m,'reserve_send') as reserve,patch.object(m,'whatsapp_send') as send:
             result=self.deliver(self.delivery_request(event='finished',artifact_id='report'))
-        self.assertEqual(result,{'state':'NOT_SENT','reason':'qa_document_contract_unqualified'})
+        self.assertEqual(result,{'state':'NOT_SENT','reason':'qa_delivery_owner_unavailable'})
         reserve.assert_not_called();send.assert_not_called();self.assertFalse(m.DB.exists())
 
     def test_delivery_unknown_is_not_retried_and_exception_is_not_reflected(self):
@@ -248,5 +265,128 @@ class QaRoomAccessTests(unittest.TestCase):
         payload=self.delivery_payload();payload['scope']['allow_writes']=False
         with patch.object(m,'whatsapp_send',return_value='SYNTHETIC_MID') as send:
             self.assertEqual(self.deliver(payload=payload)['state'],'ACCEPTED');send.assert_called_once()
+
+    def document_payload(self):
+        # Synthetic already-audited bytes exercise the People integrity boundary;
+        # real XLSX/ZIP redaction is covered by the QA producer's own fixtures.
+        content=b'PK-SYNTHETIC-OWNER-AUDITED-REPORT'
+        directory=self.root/'campaign';directory.mkdir(exist_ok=True)
+        path=directory/'Claw_QA_Rapport.xlsx';path.write_bytes(content)
+        payload=self.delivery_payload();payload['artifact']={'artifact_id':'report','path':str(path),
+            'filename':path.name,'mime_type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'sha256':hashlib.sha256(content).hexdigest(),'size_bytes':len(content),'report_version':1}
+        helper=self.root/'installed/extensions/openclaw-plugin-mobile-ui/dist/companion/officialGatewayOwner.js'
+        helper.parent.mkdir(parents=True,exist_ok=True);helper.touch()
+        return payload,content
+
+    def test_document_delivery_serializes_staging_and_cleans_only_after_acceptance(self):
+        payload,content=self.document_payload();request=self.delivery_request(event='finished',artifact_id='report')
+        operations=[]
+        def sdk(operation,document,**options):
+            operations.append(operation);self.assertEqual(document['content'],content)
+            # The same existing SQLite transaction protects materialization and
+            # cleanup, while a second connection proves the write lock is held.
+            other=sqlite3.connect(m.DB,timeout=0)
+            try:
+                with self.assertRaises(sqlite3.OperationalError):other.execute('BEGIN IMMEDIATE')
+            finally:other.close()
+            if operation=='cleanup':return {'state':'REMOVED','id':document['id'],'sha256':document['sha256']}
+            return {'state':'STAGED','id':'SYNTHETIC_REPORT.xlsx','path':str(self.root/'SYNTHETIC_REPORT.xlsx'),
+                    'size':len(content),'sha256':document['sha256'],'contentType':document['contentType']}
+        def gateway(method,params,**options):
+            other=sqlite3.connect(m.DB,timeout=0);other.execute('BEGIN IMMEDIATE');other.rollback();other.close()
+            self.assertTrue(params['forceDocument']);self.assertEqual(params['filename'],'Claw_QA_Rapport.xlsx')
+            self.assertIn('mediaUrl',params);self.assertNotIn('buffer',params)
+            return {'channel':'whatsapp','messageId':'SYNTHETIC_DOCUMENT_MID'}
+        with patch.object(m,'qa_document_sdk',side_effect=sdk),patch.object(m,'gateway_call',side_effect=gateway) as send:
+            first=self.deliver(request,payload);second=self.deliver(request,payload)
+        self.assertEqual(first,second);self.assertEqual(first['state'],'ACCEPTED')
+        self.assertEqual(operations,['stage','cleanup']);self.assertEqual(send.call_count,1)
+        self.assertNotIn(str(self.root),json.dumps(first))
+
+    def test_changed_report_bytes_or_foreign_path_cannot_reach_reservation(self):
+        payload,content=self.document_payload();request=self.delivery_request(event='finished',artifact_id='report')
+        Path(payload['artifact']['path']).write_bytes(content+b'changed')
+        with patch.object(m,'reserve_send') as reserve:
+            self.assertEqual(self.deliver(request,payload)['state'],'NOT_SENT');reserve.assert_not_called()
+        payload,content=self.document_payload()
+        foreign=self.root/'outside.xlsx';foreign.write_bytes(content)
+        payload['artifact'].update(path=str(foreign),filename=foreign.name)
+        with patch.object(m,'reserve_send') as reserve:
+            self.assertEqual(self.deliver(request,payload)['state'],'NOT_SENT');reserve.assert_not_called()
+
+    def test_unknown_document_is_retained_and_never_staged_or_sent_again(self):
+        payload,content=self.document_payload();request=self.delivery_request(event='finished',artifact_id='report')
+        staged={'state':'STAGED','id':'SYNTHETIC_REPORT.xlsx','path':str(self.root/'SYNTHETIC_REPORT.xlsx'),
+                'size':len(content),'sha256':payload['artifact']['sha256'],'contentType':payload['artifact']['mime_type']}
+        with patch.object(m,'qa_document_sdk',return_value=staged) as sdk,patch.object(m,'gateway_call',side_effect=TimeoutError()) as send:
+            first=self.deliver(request,payload);second=self.deliver(request,payload)
+        self.assertEqual(first,second);self.assertEqual(first['state'],'UNKNOWN')
+        self.assertEqual(sdk.call_count,1);self.assertEqual(sdk.call_args.args[0],'stage');self.assertEqual(send.call_count,1)
+
+    def test_real_sdk_helper_pipe_keeps_document_bytes_out_of_argv(self):
+        payload,content=self.document_payload()
+        node=self.root/'.openclaw-android/bin/node';node.parent.mkdir(parents=True);node.symlink_to(sys.executable)
+        helper=self.root/'installed/extensions/openclaw-plugin-mobile-ui/dist/companion/officialGatewayOwner.js'
+        helper.write_text('''import hashlib,json,sys
+meta=json.loads(sys.stdin.buffer.readline(2049));body=sys.stdin.buffer.read()
+assert len(sys.argv)==2
+assert 'PK-SYNTHETIC' not in json.dumps(sys.argv)
+assert len(body)==meta['size'] and hashlib.sha256(body).hexdigest()==meta['sha256']
+print(json.dumps({'state':'STAGED','id':'fixture.xlsx','path':'/synthetic-sdk-outbound/fixture.xlsx','size':meta['size'],'sha256':meta['sha256'],'contentType':meta['contentType']}))
+''')
+        with (patch.object(m,'HOME',self.root),patch.dict(os.environ,{'OPENCLAW_STATE_DIR':str(self.root/'installed')}),
+              patch.object(m,'qa_owner_module',return_value=SimpleNamespace(run_path=lambda rid:self.root/'campaign'))):
+            document=m.qa_document_read(payload['artifact'],'qa_fixture')
+            value=m.qa_document_sdk('stage',document,timeout=1)
+        self.assertEqual(value['state'],'STAGED');self.assertEqual(value['sha256'],payload['artifact']['sha256'])
+
+    def test_sdk_helper_output_and_time_are_bounded_before_json_collection(self):
+        payload,content=self.document_payload()
+        node=self.root/'.openclaw-android/bin/node';node.parent.mkdir(parents=True);node.symlink_to(sys.executable)
+        helper=self.root/'installed/extensions/openclaw-plugin-mobile-ui/dist/companion/officialGatewayOwner.js'
+        document={'filename':'Claw_QA_Rapport.xlsx','contentType':payload['artifact']['mime_type'],
+                  'sha256':payload['artifact']['sha256'],'size':len(content),'content':content}
+        with patch.object(m,'HOME',self.root),patch.dict(os.environ,{'OPENCLAW_STATE_DIR':str(self.root/'installed')}):
+            helper.write_text('import sys\nsys.stdout.write("X"*1000000)\nsys.stdout.flush()\n')
+            with self.assertRaises(ValueError):m.qa_document_sdk('stage',document,timeout=1)
+            helper.write_text('import time\ntime.sleep(5)\n')
+            start=time.monotonic()
+            with self.assertRaises(TimeoutError):m.qa_document_sdk('stage',document,timeout=.05)
+            self.assertLess(time.monotonic()-start,1)
+
+    def test_authority_is_reread_after_document_staging_before_the_gateway_effect(self):
+        payload,content=self.document_payload();request=self.delivery_request(event='finished',artifact_id='report')
+        def sdk(operation,document,**options):
+            self.metadata['state']='suspended';self.persist()
+            return {'state':'STAGED','id':'fixture.xlsx','path':str(self.root/'fixture.xlsx'),
+                    'size':len(content),'sha256':document['sha256'],'contentType':document['contentType']}
+        with patch.object(m,'qa_document_sdk',side_effect=sdk),patch.object(m,'gateway_call') as send:
+            result=self.deliver(request,payload)
+        self.assertEqual(result,{'state':'NOT_SENT','reason':'qa_scope_unavailable'});send.assert_not_called()
+
+    def test_slow_payload_does_not_start_a_sender_after_the_shared_deadline(self):
+        clock=[0.0];payload=self.delivery_payload()
+        def delayed(request):clock[0]=19.;return payload
+        with (patch.object(m.time,'monotonic',side_effect=lambda:clock[0]),
+              patch.object(m,'reserve_send') as reserve,patch.object(m,'gateway_call') as send):
+            result=self.deliver(payload=delayed)
+        self.assertEqual(result,{'state':'NOT_SENT','reason':'qa_delivery_deadline_exceeded'})
+        reserve.assert_not_called();send.assert_not_called()
+
+    def test_only_a_proved_pre_stage_refusal_allows_an_explicit_retry(self):
+        payload,content=self.document_payload();request=self.delivery_request(event='finished',artifact_id='report')
+        calls=[]
+        def sdk(operation,document,**options):
+            calls.append(operation)
+            if len(calls)==1:raise m.QaDeliveryNotSent('qa_document_sdk_unavailable')
+            if operation=='cleanup':return {'state':'REMOVED','id':document['id'],'sha256':document['sha256']}
+            return {'state':'STAGED','id':'fixture.xlsx','path':str(self.root/'fixture.xlsx'),
+                    'size':len(content),'sha256':document['sha256'],'contentType':document['contentType']}
+        with patch.object(m,'qa_document_sdk',side_effect=sdk),patch.object(m,'gateway_call',return_value={'channel':'whatsapp','messageId':'SYNTHETIC_MID'}) as send:
+            first=self.deliver(request,payload);second=self.deliver(request,payload)
+        self.assertEqual(first,{'state':'NOT_SENT','reason':'qa_document_sdk_unavailable'})
+        self.assertEqual(second['state'],'ACCEPTED');self.assertEqual(send.call_count,1)
+        self.assertEqual(calls,['stage','stage','cleanup'])
 
 if __name__=='__main__':unittest.main()

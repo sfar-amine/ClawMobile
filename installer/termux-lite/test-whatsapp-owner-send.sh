@@ -38,6 +38,7 @@ if mode=='large': print('PRIVATE_DO_NOT_RELAY'*400)
 elif mode=='invalid': print('PRIVATE_DO_NOT_RELAY');sys.exit(9)
 elif mode=='unknown': print(json.dumps({'state':'UNKNOWN','reason':'PRIVATE_DO_NOT_RELAY'}))
 elif mode=='not_sent': print(json.dumps({'state':'NOT_SENT','reason':'PRIVATE_DO_NOT_RELAY'}))
+elif mode=='capacity': print(json.dumps({'state':'NOT_SENT','reason':'qa_document_capacity_refused'}))
 elif mode=='timeout': time.sleep(60)
 else: print(json.dumps({'state':'ACCEPTED','message_id':'opaque-fixture-receipt'}))
 PY
@@ -55,6 +56,7 @@ def invoke(body,args=(),timeout=25):
 
 accepted=invoke(json.dumps(payload).encode())
 assert accepted=={'state':'ACCEPTED','message_id':'opaque-fixture-receipt'},accepted
+assert invoke(json.dumps({**payload,'fixture_mode':'capacity'}).encode())=={'state':'NOT_SENT','reason':'qa_document_capacity_refused'}
 for mode,expected in [('unknown','UNKNOWN'),('not_sent','NOT_SENT'),('invalid','UNKNOWN'),('large','UNKNOWN')]:
     result=invoke(json.dumps({**payload,'fixture_mode':mode}).encode())
     assert result['state']==expected,(mode,result)
@@ -69,7 +71,7 @@ result=invoke(json.dumps({**payload,'fixture_mode':'timeout'}).encode())
 assert result['state']=='UNKNOWN',result
 assert 19<=time.monotonic()-started<24
 rows=[json.loads(line) for line in (pathlib.Path(os.environ['HOME'])/'private-invocations.jsonl').read_text().splitlines()]
-assert len(rows)==6,rows # Once per accepted input, never an automatic retry.
+assert len(rows)==7,rows # Once per accepted input, never an automatic retry.
 assert all(row['argv']==['qa-deliver','--request-stdin'] for row in rows)
-print('whatsapp QA private delegation: 9/9 contracts OK')
+print('whatsapp QA private delegation: 10/10 contracts OK')
 PY

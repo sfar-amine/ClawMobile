@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/python3
-import argparse, hashlib, json, os, re, sqlite3, subprocess, sys, time, unicodedata
+import argparse, hashlib, json, os, re, sqlite3, subprocess, sys, time, unicodedata, signal, select
 from pathlib import Path
 from contextlib import closing, contextmanager
 import fcntl
@@ -21,9 +21,9 @@ def run(args, timeout=20, check=True):
     if check and p.returncode:
         raise RuntimeError(f"{' '.join(args[:4])}: {p.stderr.strip() or p.stdout.strip()}")
     return p
-def connect():
+def connect(timeout=30):
     ROOT.mkdir(parents=True,exist_ok=True)
-    c=sqlite3.connect(DB,timeout=30)
+    c=sqlite3.connect(DB,timeout=timeout)
     c.row_factory=sqlite3.Row
     c.executescript("""CREATE TABLE IF NOT EXISTS people(
       person_id TEXT PRIMARY KEY,source_contact_id TEXT UNIQUE,display_name TEXT,
@@ -406,15 +406,25 @@ QA_DELIVERY_RECEIPT_LIMIT=50000
 class QaDeliveryCapacityReached(RuntimeError):
     pass
 
+class QaDeliveryNotSent(RuntimeError):
+    pass
+
 def reserve_send(key,target,digest,*,qa_delivery=False):
     if not key or len(key)>256: raise RuntimeError("invalid_idempotency_key")
-    c=connect(); now=int(time.time()); c.execute("BEGIN IMMEDIATE")
+    c=connect(timeout=1) if qa_delivery else connect()
+    now=int(time.time()); c.execute("BEGIN IMMEDIATE")
     row=c.execute("""SELECT target,message_sha256,state,message_id FROM send_receipts
                      WHERE idempotency_key=?""",(key,)).fetchone()
     if row:
-        c.commit(); c.close()
         if row["target"]!=target or row["message_sha256"]!=digest:
+            c.commit();c.close()
             raise RuntimeError("idempotency_key_conflict")
+        # A proved pre-send refusal with no staged object may be explicitly
+        # retried. Pending, uncertain, or retained staging is never reset.
+        if qa_delivery and row['state']=='qa_not_sent' and row['message_id'] is None:
+            c.execute("UPDATE send_receipts SET state='pending',updated_at=? WHERE idempotency_key=?",(now,key))
+            c.commit();c.close();return {'state':'reserved','replay':False}
+        c.commit(); c.close()
         if row["state"]=="accepted" and row["message_id"]:
             return {"state":"accepted","messageId":row["message_id"],"replay":True}
         raise RuntimeError("send_state_uncertain_no_retry")
@@ -430,27 +440,75 @@ def reserve_send(key,target,digest,*,qa_delivery=False):
                  VALUES(?,?,?,'pending',NULL,?,?)""",(key,target,digest,now,now))
     c.commit(); c.close(); return {"state":"reserved","replay":False}
 
-def finish_send(key,state,message_id=None):
-    c=connect(); now=int(time.time())
+def finish_send(key,state,message_id=None,*,qa_delivery=False):
+    c=connect(timeout=1) if qa_delivery else connect()
+    now=int(time.time())
     c.execute("UPDATE send_receipts SET state=?,message_id=?,updated_at=? WHERE idempotency_key=?",
               (state,message_id,now,key))
     c.commit(); c.close()
 
-def whatsapp_send(target,message,key,*,qa_delivery=False):
+def whatsapp_send(target,message,key,*,qa_delivery=False,document=None,reauthorize=None,qa_deadline=None):
     allow,_=whatsapp_state()
     if target not in allow: raise RuntimeError("target_not_allowlisted")
-    digest=send_digest(target,message)
+    if document is not None and not qa_delivery:raise RuntimeError('qa_document_private_only')
+    digest=send_digest(target,message if document is None else canonical({'message':message,
+        'sha256':document['sha256'],'filename':document['filename'],'contentType':document['contentType']}))
     reservation=reserve_send(key,target,digest,qa_delivery=qa_delivery)
     if reservation["state"]=="accepted": return reservation["messageId"]
     params={"to":target,"message":message,"channel":"whatsapp","accountId":"default","idempotencyKey":key}
+    staged=None
     try:
-        out=gateway_call("send",params,timeout_ms=10000)
+        if document is not None:
+            # The existing ledger also serializes QA materialization. Never
+            # hold this transaction over the Gateway request.
+            c=connect(timeout=1)
+            try:
+                c.execute('BEGIN IMMEDIATE')
+                row=c.execute('SELECT state,target,message_sha256 FROM send_receipts WHERE idempotency_key=?',(key,)).fetchone()
+                if not row or row['state']!='pending' or row['target']!=target or row['message_sha256']!=digest:
+                    raise RuntimeError('qa_delivery_receipt_unconfirmed')
+                budget=5 if qa_deadline is None else min(5,qa_deadline-time.monotonic()-6)
+                if budget<=0:raise QaDeliveryNotSent('qa_delivery_deadline_exceeded')
+                staged=qa_document_sdk('stage',document,timeout=budget)
+                c.execute('UPDATE send_receipts SET message_id=?,updated_at=? WHERE idempotency_key=?',
+                    (canonical({'qa_stage':{k:v for k,v in staged.items() if k!='path'}}),int(time.time()),key))
+                c.commit()
+            except BaseException:
+                c.rollback();raise
+            finally:c.close()
+            params.update(mediaUrl=staged['path'],filename=document['filename'],contentType=document['contentType'],forceDocument=True)
+        if reauthorize is not None and reauthorize() is not True:
+            raise QaDeliveryNotSent('qa_scope_unavailable')
+        timeout_ms=10000
+        if qa_deadline is not None:
+            remaining=qa_deadline-time.monotonic()
+            if remaining<=6:raise QaDeliveryNotSent('qa_delivery_deadline_exceeded')
+            # gateway_call's existing CLI allowance is its request budget +5 s.
+            timeout_ms=min(10000,int((remaining-5.5)*1000))
+        out=gateway_call("send",params,timeout_ms=timeout_ms)
         mid=out.get("messageId")
         if out.get("channel")!="whatsapp" or not mid: raise RuntimeError("invalid_send_response")
-    except Exception:
-        finish_send(key,"uncertain")
+    except QaDeliveryNotSent:
+        finish_send(key,'qa_not_sent',canonical({'qa_stage':{k:v for k,v in staged.items() if k!='path'}}) if staged else None,qa_delivery=qa_delivery)
         raise
-    finish_send(key,"accepted",mid)
+    except Exception:
+        finish_send(key,"uncertain",canonical({'qa_stage':{k:v for k,v in staged.items() if k!='path'}}) if staged else None,qa_delivery=qa_delivery)
+        raise
+    finish_send(key,"accepted",mid,qa_delivery=qa_delivery)
+    if staged is not None:
+        # Transport acceptance proves consumption, not that a person read it.
+        # Failure to remove our exact copy cannot revoke a real send receipt.
+        try:
+            c=connect(timeout=1)
+            try:
+                c.execute('BEGIN IMMEDIATE')
+                budget=2 if qa_deadline is None else min(2,qa_deadline-time.monotonic()-.3)
+                if budget<=0:raise RuntimeError('qa_document_cleanup_pending')
+                qa_document_sdk('cleanup',{**document,'id':staged['id']},timeout=budget)
+                c.commit()
+            except BaseException:c.rollback();raise
+            finally:c.close()
+        except Exception:pass
     return mid
 
 def local_plan(person,target,args):
@@ -673,7 +731,7 @@ def qa_owner_read_lease():
 
 def qa_owner_module(name):
     """Load only a fixed QA owner through the existing capability root resolver."""
-    if name not in {'qa_testing.core','qa_testing.notifications'}:raise ValueError('qa_owner_unavailable')
+    if name not in {'qa_testing.core','qa_testing.notifications','qa_testing.contact_input'}:raise ValueError('qa_owner_unavailable')
     helper=Path(__file__).with_name('claw-capability.py')
     spec=importlib.util.spec_from_file_location('people_qa_capability_owner',helper)
     owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
@@ -706,11 +764,181 @@ def qa_queue_tick():
             return result
     except (Exception,SystemExit):return uncertain if entered else not_ready
 
+def qa_attachment_admit(request,*,deadline=None):
+    """Read-only admission of an existing DRAFT; no media path or creation."""
+    unavailable={'ok':False,'error':{'code':'qa_scope_unavailable'}}
+    try:
+        if deadline is not None and time.monotonic()>=deadline:return unavailable
+        if (not isinstance(request,dict) or 'context' not in request or set(request)-{'context','run_id'}
+                or not isinstance(request['context'],dict)):return unavailable
+        with qa_owner_read_lease():
+            owner=qa_owner_module('qa_testing.contact_input')
+            if deadline is not None and time.monotonic()>=deadline:return unavailable
+            value=owner.contact_attachment_admission(request['context'],run_id=request.get('run_id'),
+                deadline_monotonic=deadline if deadline is not None else time.monotonic()+2.7)
+            fields={'context','run_id','selected_app_id','state','plan_version'}
+            if (not isinstance(value,dict) or not fields<=set(value) or set(value)-fields-{'dossier_version'}
+                    or value['state']!='DRAFT' or type(value['plan_version']) is not int or value['plan_version']<0
+                    or not isinstance(value['context'],dict) or value['context'].get('owner') is not False
+                    or value['context'].get('requester_hash')!=request['context'].get('requester_hash')
+                    or value['context'].get('transport_event_id')!=request['context'].get('transport_event_id')
+                    or value['context'].get('thread_ref')!=request['context'].get('thread_ref')
+                    or value['context'].get('selected_app_id')!=value['selected_app_id']):return unavailable
+            if deadline is not None and time.monotonic()>=deadline:return unavailable
+            return {'ok':True,'admission':value}
+    except (Exception,SystemExit):return unavailable
+
+def qa_attachment_consume(admission,metadata,content,*,deadline=None):
+    """Only the private input owner may turn the host's correlated bytes into Q2."""
+    entered=False
+    try:
+        if deadline is not None and time.monotonic()>=deadline:return {'state':'blocked','reason':'qa_attachment_deadline_exceeded'}
+        if not isinstance(admission,dict) or not isinstance(metadata,dict) or type(content) is not bytes or not 0<len(content)<=20*1024*1024:
+            return {'state':'blocked','reason':'qa_attachment_invalid'}
+        with qa_owner_read_lease():
+            owner=qa_owner_module('qa_testing.contact_input')
+            if deadline is not None and time.monotonic()>=deadline:return {'state':'blocked','reason':'qa_attachment_deadline_exceeded'}
+            entered=True
+            value=owner.ingest_contact_attachment(admission,metadata,content,
+                deadline_monotonic=deadline if deadline is not None else time.monotonic()+9)
+            if (not isinstance(value,dict) or set(value)-{'state','reason'}
+                    or value.get('state') not in {'imported','blocked','unknown'}):raise ValueError()
+            if deadline is not None and time.monotonic()>=deadline:raise TimeoutError()
+            # Never reflect a provider exception, source name, path, or content.
+            reasons={'qa_scope_unavailable','qa_attachment_invalid','qa_attachment_plan_changed',
+                'qa_private_dataset_required','qa_attachment_result_unknown','qa_attachment_unavailable',
+                'queue_deadline_exceeded','private_scope_deadline_exceeded'}
+            return {'state':value['state'],**({'reason':value['reason'] if value['reason'] in reasons else 'qa_attachment_unavailable'} if 'reason' in value else {})}
+    except (Exception,SystemExit):
+        return {'state':'unknown','reason':'qa_attachment_result_unknown'} if entered else {'state':'blocked','reason':'qa_attachment_unavailable'}
+
+def qa_attachment_frame(stream,*,consume=False,deadline=None):
+    """Bounded private stdin: one JSON line and optional exact raw bytes."""
+    deadline=time.monotonic()+(9 if consume else 2.7) if deadline is None else deadline
+    data=bytearray();header=None;body=bytearray();size=None
+    while True:
+        remaining=deadline-time.monotonic()
+        if remaining<=0 or not select.select([stream.fileno()],[],[],remaining)[0]:raise TimeoutError()
+        if time.monotonic()>=deadline:raise TimeoutError()
+        part=os.read(stream.fileno(),65536 if header is not None else 16385-len(data))
+        if not part:break
+        if header is None:
+            data.extend(part)
+            if consume and b'\n' in data:
+                line,tail=data.split(b'\n',1)
+                if len(line)>16384:raise ValueError()
+                header=json.loads(line)
+                if not isinstance(header,dict) or set(header)!={'admission','metadata'} or not isinstance(header['metadata'],dict):raise ValueError()
+                size=header['metadata'].get('size_bytes')
+                if type(size) is not int or not 0<size<=20*1024*1024:raise ValueError()
+                body.extend(tail);data.clear()
+            elif len(data)>16384:raise ValueError()
+        else:body.extend(part)
+        if size is not None and len(body)>size:raise ValueError()
+    if time.monotonic()>=deadline:raise TimeoutError()
+    if consume:
+        if header is None or len(body)!=size:raise ValueError()
+        return header,bytes(body)
+    if len(data)>16384:raise ValueError()
+    value=json.loads(data)
+    if not isinstance(value,dict):raise ValueError()
+    return value,None
+
+def qa_document_read(artifact,run_id):
+    """Read only the manifest-bound bytes approved by the private QA owner."""
+    required={'artifact_id','path','filename','mime_type','sha256','size_bytes','report_version'}
+    if (not isinstance(artifact,dict) or set(artifact)!=required or artifact['artifact_id'] not in ('report','bundle')
+            or type(artifact['size_bytes']) is not int or not 0<artifact['size_bytes']<=20*1024*1024
+            or type(artifact['report_version']) is not int or artifact['report_version']<1
+            or not isinstance(artifact['sha256'],str) or not re.fullmatch(r'[a-f0-9]{64}',artifact['sha256'])
+            or not isinstance(artifact['path'],str) or len(artifact['path'])>4096):raise ValueError()
+    expected='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' if artifact['artifact_id']=='report' else 'application/zip'
+    if artifact['mime_type']!=expected:raise ValueError()
+    root=qa_owner_module('qa_testing.core').run_path(run_id).resolve(strict=True)
+    path=Path(artifact['path'])
+    if not path.is_absolute() or path.name!=artifact['filename'] or path.is_symlink():raise ValueError()
+    path=path.resolve(strict=True)
+    if not path.is_relative_to(root):raise ValueError()
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        before=os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_size!=artifact['size_bytes']:raise ValueError()
+        chunks=[];size=0
+        while size<=artifact['size_bytes']:
+            part=os.read(fd,min(65536,artifact['size_bytes']+1-size))
+            if not part:break
+            chunks.append(part);size+=len(part)
+        after=os.fstat(fd);content=b''.join(chunks)
+        if (size!=artifact['size_bytes'] or before.st_mtime_ns!=after.st_mtime_ns
+                or before.st_ctime_ns!=after.st_ctime_ns or before.st_size!=after.st_size
+                or hashlib.sha256(content).hexdigest()!=artifact['sha256']):raise ValueError()
+    finally:os.close(fd)
+    return {'filename':'Claw_QA_Rapport.xlsx' if artifact['artifact_id']=='report' else 'Claw_QA_Livrables.zip',
+            'contentType':expected,'size':size,'sha256':artifact['sha256'],'content':content}
+
+def qa_document_sdk(operation,document,*,timeout=5):
+    """Fixed private modes of the existing installed SDK owner, never an RPC."""
+    if operation not in ('stage','cleanup') or not 0<timeout<=5:raise ValueError()
+    state=Path(os.environ.get('OPENCLAW_STATE_DIR',HOME/'.openclaw'))
+    if not state.is_absolute():raise ValueError()
+    helper=state/'extensions/openclaw-plugin-mobile-ui/dist/companion/officialGatewayOwner.js'
+    if not helper.is_file():raise ValueError()
+    metadata={key:document[key] for key in ('filename','contentType','size','sha256')}
+    if operation=='cleanup':metadata['id']=document['id']
+    raw=canonical(metadata).encode()+b'\n'+(document['content'] if operation=='stage' else b'')
+    if len(raw)>20*1024*1024+2049:raise ValueError()
+    process=subprocess.Popen([str(HOME/'.openclaw-android/bin/node'),str(helper),
+        '--qa-stage-document-stdin' if operation=='stage' else '--qa-cleanup-document-stdin'],
+        stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,start_new_session=True)
+    deadline=time.monotonic()+timeout;output=bytearray();sent=0;input_open=output_open=True
+    os.set_blocking(process.stdin.fileno(),False);os.set_blocking(process.stdout.fileno(),False)
+    try:
+        while input_open or output_open or process.poll() is None:
+            remaining=deadline-time.monotonic()
+            if remaining<=0:raise TimeoutError()
+            readable,writable,_=select.select([process.stdout.fileno()] if output_open else [],
+                [process.stdin.fileno()] if input_open else [],[],min(remaining,.1))
+            if time.monotonic()>=deadline:raise TimeoutError()
+            if writable:
+                try:sent+=os.write(process.stdin.fileno(),raw[sent:sent+65536])
+                except BrokenPipeError:input_open=False
+                if sent==len(raw) or not input_open:process.stdin.close();input_open=False
+            if readable:
+                part=os.read(process.stdout.fileno(),4097-len(output))
+                if not part:process.stdout.close();output_open=False
+                else:
+                    output.extend(part)
+                    if len(output)>4096:raise ValueError()
+    except BaseException:
+        try:os.killpg(process.pid,signal.SIGKILL)
+        except ProcessLookupError:pass
+        process.wait(timeout=.3);raise
+    finally:
+        for stream in (process.stdin,process.stdout):
+            if stream and not stream.closed:stream.close()
+    if time.monotonic()>=deadline:raise TimeoutError()
+    value=json.loads(output)
+    before_effect_codes={'qa_document_header_refused','qa_document_size_refused','qa_document_hash_refused',
+        'qa_document_capacity_refused','qa_document_sdk_unavailable','gateway_sdk_version_unsupported','ENOENT'}
+    if (process.returncode!=0 and isinstance(value,dict) and set(value)=={'state','code'}
+            and value['state']=='REFUSED' and value['code'] in before_effect_codes):
+        raise QaDeliveryNotSent('qa_document_sdk_unavailable' if value['code']=='ENOENT' else value['code'])
+    if process.returncode!=0:raise ValueError()
+    if operation=='cleanup':
+        if value!={'state':'REMOVED','id':document['id'],'sha256':document['sha256']}:raise ValueError()
+    elif (not isinstance(value,dict) or set(value)!={'state','id','path','size','sha256','contentType'}
+            or value['state']!='STAGED' or type(value['size']) is not int or value['size']!=document['size'] or value['sha256']!=document['sha256']
+            or value['contentType']!=document['contentType'] or not isinstance(value['id'],str)
+            or not re.fullmatch(r'[A-Za-z0-9_.-]{1,256}',value['id']) or value['id'] in ('.','..')
+            or not isinstance(value['path'],str) or not Path(value['path']).is_absolute()
+            or Path(value['path']).name!=value['id']):raise ValueError()
+    return value
+
 def qa_deliver(request):
     """Private requester delivery; the QA owner supplies content, never the caller.
 
-    Document delivery stays refused before reservation until the installed SDK
-    contract is qualified. An entered sender with no receipt is UNKNOWN, never
+    The installed SDK owns staging and the existing sender owns delivery.
+    An entered sender with no receipt is UNKNOWN, never
     an invitation to retry. The existing people ledger owns idempotency.
     """
     def refused(code='qa_delivery_input_invalid'):
@@ -721,13 +949,14 @@ def qa_deliver(request):
                 and (scope['allow_writes'] is False or grant['allow_writes'] is True)
                 and all(scope[key]==grant[key] for key in grant if key!='allow_writes'))
     entered=False
+    deadline=time.monotonic()+18
     try:
         required={'schema_version','run_id','requester_hash','app_id','event'}
         if (not isinstance(request,dict) or not required<=set(request)
                 or set(request)-required-{'artifact_id'}
                 or type(request['schema_version']) is not int or request['schema_version']!=1
                 or not isinstance(request['run_id'],str)
-                or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,95}',request['run_id'])
+                or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,95}',request['run_id'])
                 or request['event'] not in ('started','human_wait','finished')
                 or ('artifact_id' in request and (request['event']!='finished' or request['artifact_id'] not in ('report','bundle')))):
             return refused()
@@ -748,10 +977,15 @@ def qa_deliver(request):
                     or not isinstance(payload['delivery_key'],str)
                     or not re.fullmatch(r'qa-delivery-[a-f0-9]{64}',payload['delivery_key'])):
                 return refused('qa_delivery_owner_unavailable')
-            # No document field is guessed from another SDK version. In
-            # particular this refusal has not reserved or sent a text message.
-            if 'artifact_id' in request or 'artifact' in payload:
-                return refused('qa_document_contract_unqualified')
+            document=None
+            if ('artifact_id' in request)!=('artifact' in payload):return refused('qa_delivery_owner_unavailable')
+            if 'artifact' in payload:
+                if payload['artifact'].get('artifact_id')!=request['artifact_id']:return refused('qa_delivery_owner_unavailable')
+                document=qa_document_read(payload['artifact'],request['run_id'])
+                # Refuse a missing deployment before reserving an intent.
+                state=Path(os.environ.get('OPENCLAW_STATE_DIR',HOME/'.openclaw'))
+                if not (state/'extensions/openclaw-plugin-mobile-ui/dist/companion/officialGatewayOwner.js').is_file():
+                    return refused('qa_delivery_integration_pending')
             config=service.local_config()
             current=service.qa_scope_read(binding,config=config)
             if current.get('ok') is not True or not current_binding(current['scope'],payload['scope']):
@@ -759,13 +993,22 @@ def qa_deliver(request):
             allow,_=whatsapp_state(config)
             recipients=[n for n in allow if isinstance(n,str) and E164.fullmatch(n) and contact_id(n)==request['requester_hash']]
             if len(recipients)!=1:return refused('qa_scope_unavailable')
+            if deadline-time.monotonic()<=6:return refused('qa_delivery_deadline_exceeded')
+            def reauthorize():
+                latest=service.qa_scope_read(binding)
+                return latest.get('ok') is True and current_binding(latest['scope'],payload['scope'])
             entered=True
-            mid=whatsapp_send(recipients[0],payload['message'],payload['delivery_key'],qa_delivery=True)
+            mid=whatsapp_send(recipients[0],payload['message'],payload['delivery_key'],qa_delivery=True,
+                document=document,reauthorize=reauthorize,qa_deadline=deadline)
             if not isinstance(mid,str) or not re.fullmatch(r'[A-Za-z0-9_.:@-]{1,300}',mid):
                 return {'state':'UNKNOWN','reason':'qa_delivery_receipt_unconfirmed'}
             return {'state':'ACCEPTED','message_id':mid}
     except QaDeliveryCapacityReached:
         return refused('qa_delivery_capacity_reached')
+    except QaDeliveryNotSent as error:
+        return refused(str(error) if str(error) in {'qa_scope_unavailable','qa_delivery_deadline_exceeded',
+            'qa_document_header_refused','qa_document_size_refused','qa_document_hash_refused',
+            'qa_document_capacity_refused','qa_document_sdk_unavailable','gateway_sdk_version_unsupported'} else 'qa_delivery_not_sent')
     except (Exception,SystemExit):
         return {'state':'UNKNOWN','reason':'qa_delivery_receipt_unconfirmed'} if entered else refused('qa_delivery_owner_unavailable')
 
@@ -1009,7 +1252,8 @@ class Contacts:
             old=re.sub(r'^- Suggested display name: .*\n?', '', old, flags=re.M)
             old+='\n- Suggested display name: '+json.dumps(display_name,ensure_ascii=False)+'\n'
         head='' if removed else MARKER+'\n'+canonical(metadata)+'\n'+END+'\n'
-        if len(head.encode())>2048 or len((head+old).encode())>1024*1024: fail('contact_state_invalid',503)
+        header_limit=CONTACT_HEADER_BYTES if isinstance(metadata,dict) and QA_APPS_FIELD in metadata else 2048
+        if len(head.encode())>header_limit or len((head+old).encode())>1024*1024: fail('contact_state_invalid',503)
         path=self.path(number); path.parent.mkdir(parents=True,exist_ok=True)
         # S24: the contacts directory is an owner-configured symlink to the
         # private context repo. Write in its resolved real directory; the
@@ -1072,7 +1316,9 @@ class Contacts:
             out.append({'contactId':contact_id(number),'e164':number,'name':directory.get(number,{}).get('name') or None,'owner':number in owners,
                         'scope':metadata['scope'],'scopeText':metadata['scopeText'],'state':state,
                         'rooms':['maison'] if number in owners else (metadata.get('rooms') or ['conversation']),
-                        'qaApps':normalize_qa_apps(metadata.get(QA_APPS_FIELD,[])),
+                        # Full per-app grants belong to the selected contact,
+                        # not every row of the existing allowlist snapshot.
+                        **({'qaApps':normalize_qa_apps(metadata.get(QA_APPS_FIELD,[]))} if target is not None else {}),
                         'qaRevision':qa_authority_revision(metadata),
                         'expiresAt':metadata['expiresAt'],'addedAt':metadata['addedAt'],'personId':metadata['personId'],
                         'lastActivityAt':utc(activity[number]['timestamp']/1000) if activity.get(number,{}).get('timestamp') and not activity[number]['reason'] else None,
@@ -1761,6 +2007,15 @@ class Contacts:
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1] in ('qa-attachment-admit','qa-attachment-consume'):
+        consume=sys.argv[1]=='qa-attachment-consume';deadline=time.monotonic()+(9 if consume else 2.7)
+        try:
+            if len(sys.argv)!=2:raise ValueError()
+            header,content=qa_attachment_frame(sys.stdin.buffer,consume=consume,deadline=deadline)
+            result=qa_attachment_consume(header['admission'],header['metadata'],content,deadline=deadline) if consume else qa_attachment_admit(header,deadline=deadline)
+        except (Exception,SystemExit):
+            result={'state':'blocked','reason':'qa_attachment_invalid'} if consume else {'ok':False,'error':{'code':'qa_scope_unavailable'}}
+        print(canonical(result));return
     if len(sys.argv)>1 and sys.argv[1]=='qa-deliver':
         try:
             if sys.argv[1:]!=['qa-deliver','--request-stdin']:raise ValueError()

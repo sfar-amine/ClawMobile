@@ -107,7 +107,13 @@ try:
         answer("ACCEPTED", message_id=mid)
     else:
         # Reasons are closed wrapper codes; never reflect an owner exception/body.
-        answer(state, "qa_delivery_not_sent" if state == "NOT_SENT" else "qa_delivery_receipt_unconfirmed")
+        reasons = {"qa_scope_unavailable", "qa_delivery_input_invalid", "qa_delivery_owner_unavailable",
+            "qa_delivery_integration_pending", "qa_delivery_capacity_reached", "qa_delivery_deadline_exceeded",
+            "qa_document_header_refused", "qa_document_size_refused", "qa_document_hash_refused",
+            "qa_document_capacity_refused", "qa_document_sdk_unavailable", "gateway_sdk_version_unsupported"}
+        reason = result.get("reason")
+        answer(state, reason if state == "NOT_SENT" and isinstance(reason, str) and reason in reasons
+            else "qa_delivery_not_sent" if state == "NOT_SENT" else "qa_delivery_receipt_unconfirmed")
 except (OSError, ValueError, TimeoutError, subprocess.SubprocessError):
     cleanup(process)
     answer("UNKNOWN", "qa_delivery_receipt_unconfirmed")
