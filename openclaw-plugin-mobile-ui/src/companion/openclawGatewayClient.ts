@@ -1,6 +1,7 @@
 import fs from "fs";
 import net from "net";
 import path from "path";
+import { runtimeFile } from "../runtimeRoot";
 import { spawn } from "child_process";
 import { ensureLogsDir } from "../tools/workspace";
 import type { GatewayStatus, RuntimeCommandResponse, RuntimeLogResponse } from "./types";
@@ -39,6 +40,76 @@ type RuntimeOperationInFlight = {
 
 let runtimeOperationInFlight: RuntimeOperationInFlight | null = null;
 
+class RuntimeRepairGuardError extends Error {}
+
+type RuntimeRepairLease = { release: () => Promise<void> };
+async function acquireRuntimeRepairLease(): Promise<RuntimeRepairLease> {
+  let helper: string;
+  try { helper = runtimeFile("runtime_mode.py"); }
+  catch { throw new RuntimeRepairGuardError("runtime_guard_unavailable"); }
+  // The owner retains the same open file description locked by Python. A
+  // helper crash cannot release EX while a stop/start is still in progress.
+  const openclawHome = process.env.OPENCLAW_HOME !== undefined
+    ? process.env.OPENCLAW_HOME : process.env.HOME ? path.join(process.env.HOME, ".openclaw") : undefined;
+  if (!openclawHome || !path.isAbsolute(openclawHome)) throw new RuntimeRepairGuardError("runtime_guard_unavailable");
+  const lockPath = path.join(openclawHome, "deploys", "companion-deploy.lock");
+  let lockFd: number;
+  try {
+    lockFd = fs.openSync(lockPath, fs.constants.O_RDWR | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+    if (!fs.fstatSync(lockFd).isFile()) throw new Error("invalid_lock");
+  } catch {
+    if (lockFd !== undefined) fs.closeSync(lockFd);
+    throw new RuntimeRepairGuardError("runtime_guard_unavailable");
+  }
+  const child = (() => {
+    try {
+      return spawn("python3", [helper, "--repair-lease"],
+        { env: { ...runtimeEnv(), SAMANTHA_DEPLOY_LOCK_FD: "3" }, stdio: ["pipe", "pipe", "ignore", lockFd] });
+    } catch {
+      fs.closeSync(lockFd);
+      throw new RuntimeRepairGuardError("runtime_guard_unavailable");
+    }
+  })();
+  child.stdin.on("error", () => {}); // A refused lease may exit before its stdin is closed.
+  let exited = false;
+  const closed = new Promise<void>(resolve => child.once("close", () => { exited = true; resolve(); }));
+  try {
+    await new Promise<void>((resolve, reject) => {
+      let settled = false, received = "";
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true; clearTimeout(timer);
+        error ? reject(error) : resolve();
+      };
+      const timer = setTimeout(() => finish(new RuntimeRepairGuardError("runtime_guard_unavailable")), 3000);
+      child.once("error", () => finish(new RuntimeRepairGuardError("runtime_guard_unavailable")));
+      child.once("close", () => finish(new RuntimeRepairGuardError("runtime_guard_unavailable")));
+      child.stdout.on("data", (data: Buffer) => {
+        if (settled) return; // Drain subsequent output without retaining it.
+        received += data.toString("utf8");
+        if (received.length > 256) { finish(new RuntimeRepairGuardError("runtime_guard_unavailable")); return; }
+        if (!received.includes("\n")) return;
+        // Closed, exact protocol. Any refusal, additional field or malformed ACK refuses mutation.
+        if (received !== '{"version":1,"state":"acquired"}\n') {
+          const cause = ["lock_busy", "emergency_stop", "unavailable"].find(value =>
+            received === `{"version":1,"state":"refused","cause":"${value}"}\n`);
+          finish(new RuntimeRepairGuardError(cause ? `runtime_guard_${cause}` : "runtime_guard_unavailable")); return;
+        }
+        finish();
+      });
+    });
+  } catch (error) {
+    child.stdin.end(); child.kill("SIGKILL"); fs.closeSync(lockFd);
+    throw error;
+  }
+  if (exited) { fs.closeSync(lockFd); throw new RuntimeRepairGuardError("runtime_guard_unavailable"); }
+  return { release: async () => {
+    child.stdin.end();
+    const timer = setTimeout(() => child.kill("SIGKILL"), 1000);
+    try { if (!exited) await closed; } finally { clearTimeout(timer); fs.closeSync(lockFd); }
+  } };
+}
+
 export async function runSerializedRuntimeOperation(
   kind: RuntimeOperationKind,
   operation: () => Promise<RuntimeCommandResponse>,
@@ -55,7 +126,20 @@ export async function runSerializedRuntimeOperation(
     };
   }
 
-  const promise = Promise.resolve().then(operation);
+  const promise = Promise.resolve().then(async () => {
+    let lease: RuntimeRepairLease;
+    try { lease = await acquireRuntimeRepairLease(); }
+    catch (error) {
+      const gateway = await status();
+      return { success: false, state: gateway.reachable ? "running" as const : "not_started" as const,
+        message: error instanceof RuntimeRepairGuardError && error.message === "runtime_guard_lock_busy"
+          ? "Runtime lock is held by another operation (deployment, repair or test campaign). No runtime change was performed."
+          : error instanceof RuntimeRepairGuardError && error.message === "runtime_guard_emergency_stop"
+            ? "The runtime emergency stop is active. No runtime change was performed."
+            : "Runtime protection could not be verified. No runtime change was performed.", gateway };
+    }
+    try { return await operation(); } finally { await lease.release(); }
+  });
   const owned: RuntimeOperationInFlight = {
     kind,
     startedAt: Date.now(),

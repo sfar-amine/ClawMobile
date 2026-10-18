@@ -1,0 +1,20 @@
+{
+  "contract": "qa64-q12-existing-deploy-lock",
+  "lock_exists": true,
+  "lock_relative": ".openclaw/deploys/companion-deploy.lock",
+  "mode": "0o600",
+  "source_sha256": "155916d33c1759935dc83dfa3d0646c8c903250452d5d143471e33c7e954ec4e",
+  "source_lock_lines": [
+    "STATE=\"$HOME/.openclaw/deploys\"; BACKUPS=\"$HOME/.openclaw/backups\"",
+    "exec 9>\"$STATE/companion-deploy.lock\"; flock -n 9 || { echo \"deploy_already_running\" >&2; exit 3; }"
+  ],
+  "runtime_commit": "edb6238449bf8754e94fa2b91de78edd52ccbc19",
+  "flock_shared_documented": true,
+  "flock_help_excerpt": " -s, --shared             get a shared lock\n -n, --nb, --nonblocking  fail rather than wait\n -F, --no-fork            execute command without forking\n     --start <offset>     starting offset for lock (implies --fcntl)",
+  "provenance": {
+    "device": "S24",
+    "captured_on": "2026-10-18",
+    "method": "claw_exec readonly path/stat/source/help whitelist; no lock acquired, no UI or deployment",
+    "request_id": "mcp-codex-cloud-qa64-q12-contract-20261018-deploy-lock-metadata"
+  }
+}

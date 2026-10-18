@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "sanitized": true,
+  "provenance": {
+    "captured_by": "Claude via claw_exec",
+    "observed_at": "2026-10-18T10:35:00+01:00",
+    "source": "https://github.com/sfar-amine/samantha-ui-playbooks/pull/189#issuecomment-6248307144",
+    "source_kind": "sanitized observations reported by Claude, not a Codex direct capture"
+  },
+  "root_unit": "termux-lite",
+  "tier0_producer": "tier0-bootstrap.sh: export CLAW_RUNTIME_ROOT=\"$ROOT\"",
+  "supervisors": {
+    "root": "~/.openclaw/releases/20261018T020755-d3beb769/termux-lite",
+    "processes": [
+      "samantha-root-guardian.sh",
+      "samantha-health-manager.sh",
+      "incident-orchestrator-worker.sh",
+      "claw-slack-bridge.mjs"
+    ]
+  },
+  "companion": {
+    "root": "~/ClawMobile/installer/termux-lite",
+    "checkout": "355248ca",
+    "processes": [
+      "companion-server.sh",
+      "dist/companion/server.js"
+    ]
+  },
+  "current_release": "20261018T020755-d3beb769",
+  "last_known_good": "20261018T020755-d3beb769",
+  "interpretation": "Two process-specific roots are intentional; no global environment reset is authorized."
+}

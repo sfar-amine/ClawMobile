@@ -1,5 +1,22 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
+clawmobile_release_root() {
+  printf '%s\n' "$HOME/.openclaw/releases/current"
+}
+
+clawmobile_runtime_root() {
+  if [ -n "${CLAW_RUNTIME_ROOT:-}" ]; then
+    case "$CLAW_RUNTIME_ROOT" in
+      /*) printf '%s\n' "$CLAW_RUNTIME_ROOT" ;;
+      *) echo runtime_root_not_absolute >&2; return 2 ;;
+    esac
+  elif [ -n "${1:-}" ]; then
+    printf '%s\n' "$1"
+  else
+    printf '%s/termux-lite\n' "$(clawmobile_release_root)"
+  fi
+}
+
 clawmobile_lite_repo_root() {
   local script_dir
   if [ -n "${CLAWMOBILE_REPO_ROOT:-}" ] && [ -d "${CLAWMOBILE_REPO_ROOT}/openclaw-plugin-mobile-ui" ]; then
