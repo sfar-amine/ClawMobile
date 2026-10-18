@@ -23,8 +23,13 @@ class WebGestureRecipe(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.home = pathlib.Path(self.tmp.name); self.pb = self.home/'playbooks'
         (self.pb/'skill_intelligence').mkdir(parents=True)
-        # Explicit synthetic peer source; actual cross-repository parity is F1's integration check.
-        (self.pb/'skill_intelligence/public_web.py').write_text('BUDGET_MS=20000\nSEARCH_BUDGET_MS=12000\n')
+        # Explicit synthetic peer; total comes from the same core owner as production.
+        # Search remains the 12 s peer contract confirmed in playbooks main.
+        self.total_budget_ms = a.web_static_constants(
+            HERE/'model-fast-path.py', {'PUBLIC_WEB_BUDGET_MS'})['PUBLIC_WEB_BUDGET_MS']
+        self.search_budget_ms = 12000
+        (self.pb/'skill_intelligence/public_web.py').write_text(
+            f'BUDGET_MS={self.total_budget_ms}\nSEARCH_BUDGET_MS={self.search_budget_ms}\n')
         self.capture = json.loads(FIXTURE.read_text()); self.observed = self.capture['runs'][0]
         self.now = millis(self.observed['endedAt'])+1000; self.calls=[]
         self.contract,self.validator=a.web_recipe_contract(CORE,self.pb)
@@ -97,9 +102,9 @@ class WebGestureRecipe(unittest.TestCase):
             self.assertEqual(self.judge({**self.run,key:value})['reason'],'web_run_outside_prepared_window')
         self.assertEqual(self.judge({**self.run,'state':'running'})['reason'],'web_run_not_terminal')
     def test_total_search_and_missing_metric_budgets_fail_closed(self):
-        late={**self.run,'submittedAt':self.now-21001,'updatedAt':self.now}
+        late={**self.run,'submittedAt':self.now-self.total_budget_ms-1,'updatedAt':self.now}
         self.assertEqual(self.judge(late,{**self.prepared,'preparedAtMs':late['submittedAt']-1})['reason'],'web_deadline_exceeded')
-        for value,reason in ((12001,'web_deadline_exceeded'),(None,'web_timing_unavailable')):
+        for value,reason in ((self.search_budget_ms+1,'web_deadline_exceeded'),(None,'web_timing_unavailable')):
             run=copy.deepcopy(self.run);run['web']['metrics']['searchMs']=value
             self.assertEqual(self.judge(run)['reason'],reason)
     def test_owner_validator_rejects_broken_sources_and_citations(self):
@@ -111,9 +116,9 @@ class WebGestureRecipe(unittest.TestCase):
         self.assertEqual(result['reason'],'web_contract_invalid');self.assertEqual(result['reasonClass'],'transport_timeout')
     def test_budget_mismatch_change_and_missing_sources_refuse(self):
         prepared=self.prepare();owner=self.pb/'skill_intelligence/public_web.py'
-        owner.write_text('BUDGET_MS=21000\nSEARCH_BUDGET_MS=12000\n')
+        owner.write_text(f'BUDGET_MS={self.total_budget_ms+1000}\nSEARCH_BUDGET_MS={self.search_budget_ms}\n')
         with self.assertRaisesRegex(ValueError,'web_budget_contract_differs'):self.exercise(prepared)
-        owner.write_text('BUDGET_MS=20000\nSEARCH_BUDGET_MS=11000\n')
+        owner.write_text(f'BUDGET_MS={self.total_budget_ms}\nSEARCH_BUDGET_MS={self.search_budget_ms-1000}\n')
         with self.assertRaisesRegex(ValueError,'web_budget_contract_changed'):self.exercise(prepared)
         owner.unlink()
         with self.assertRaisesRegex(ValueError,'web_budget_contract_unavailable'):self.prepare()
