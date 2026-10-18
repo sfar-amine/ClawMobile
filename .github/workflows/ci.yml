@@ -117,6 +117,7 @@ jobs:
           python3 ../installer/termux-lite/test-companion-acceptance-settle.py
           python3 ../installer/termux-lite/test-companion-deploy-preflight.py
           python3 ../installer/termux-lite/test-companion-deploy-root.py
+          python3 ../installer/termux-lite/test-qa-deploy-protection.py
           python3 ../installer/termux-lite/test-runtime-sync.py
           python3 ../installer/termux-lite/test-companion-rollback-identity.py
           python3 ../installer/termux-lite/test-context-review-plan.py
