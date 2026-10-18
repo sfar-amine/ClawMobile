@@ -13,3 +13,5 @@
 - `PUBLIC_WEB_BUDGET_MS` et ses bornes Python passent de 20 000 à 30 000 ms.
 
 **Activation.** Playbooks d'abord (ils acceptent 30 s), puis ce core, puis l'APK. Recette : grille du banc voix sur le S24.
+
+**Recette de déploiement (#355).** Les deux annulations du 18/10 (17:59 et 18:04) ont été décidées sur un seul échantillon pris pendant le redémarrage du gateway : un préchauffage en 504, une lecture en timeout, `/notifications/sources` en 503. Une lecture en 5xx, en timeout ou hors budget est maintenant relue, 3 lectures au plus avec une pause de 8 s entre chacune. L'annulation n'est décidée que sur un échec répété. Une fuite ou un code inattendu reste un échec immédiat. Les budgets ne changent pas, et chaque échantillon (code, durée) est gardé dans le reçu.

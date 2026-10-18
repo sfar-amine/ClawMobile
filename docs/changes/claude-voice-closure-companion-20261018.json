@@ -5,14 +5,16 @@
   "kind": "incident",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Clôture voix côté Companion : la voix lit la forme parlée du propriétaire (factures nommées par fournisseur), demande de reformuler quand rien n'est compris, refuse une relecture sans exécution pour ce tour seulement, et le budget web public passe à 30 s.",
+  "summary": "Clôture voix côté Companion : la voix lit la forme parlée du propriétaire (factures nommées par fournisseur), demande de reformuler quand rien n'est compris, refuse une relecture sans exécution pour ce tour seulement, et le budget web public passe à 30 s. La recette de déploiement relit (3 fois au plus) une route lente ou en 5xx avant d'annuler (#355).",
   "reason": "Banc voix S24 du 18/10 (micro injecté, app propriétaire) et essais d'Amine : « 0,985 TND » sans STEG puis « c'est quel fournisseur ? » sans réponse ; « J'ai compris : Demande. Ça n'a pas abouti à l'étape « Compréhension de la demande » : la cause n'est pas établie par le reçu » pour une phrase mal transcrite ; une exécution non admise fermait l'appel (receipt_reply_not_admissible, « la réponse est arrivée incomplète ») ; « la météo à Tunis demain » en web_deadline_exceeded deux fois (17,2 s).",
   "files": [
     "docs/changes/claude-voice-closure-companion-20261018.json",
     "docs/changes/claude-voice-closure-companion-20261018.md",
     "installer/termux-lite/claw-capability.py",
+    "installer/termux-lite/companion-acceptance.py",
     "installer/termux-lite/gemini-request.py",
     "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-companion-acceptance-settle.py",
     "installer/termux-lite/test-model-fast-path-web.py",
     "openclaw-plugin-mobile-ui/scripts/test-run-web-agent.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-run-web-mcp.cjs",
@@ -39,6 +41,11 @@
       "name": "test-run-web*.cjs, test-model-fast-path-web.py, test-claw-capability-agent-policy.py",
       "status": "passed",
       "evidence": "run-web 18/18, run-web-voice 10/10, run-web-agent 5/5, run-web-mcp 5/5, fast-path web OK, politique E3 28 ; bornes portées de 20 000 à 30 000 ms."
+    },
+    {
+      "name": "test-companion-acceptance-settle.py (+ memo, owner-transport, voice)",
+      "status": "passed",
+      "evidence": "9/9 ; reçus réels du 18/10 (companion-20261018T175912 : préchauffage 504 puis lecture en timeout ; T180459 : /notifications/sources 503) → acceptés à la relecture ; trois lectures lentes → refus ; fuite → refus dès la première lecture, sans relecture. Les échantillons sont gardés dans le reçu."
     }
   ],
   "documentation": [

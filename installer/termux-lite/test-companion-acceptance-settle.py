@@ -11,13 +11,17 @@ acceptance = importlib.util.module_from_spec(spec); spec.loader.exec_module(acce
 CONV = json.dumps({"items": [{"sessionId": "samantha-743dbdff-db5b"}]}).encode()
 
 
-def server(first_slow=(), first_503=(), always_slow=()):
+def server(first_slow=(), first_503=(), always_slow=(), always_503=(), scripted=None):
     seen = {}
     def call(method, path, timeout, headers=None):
         if method != "GET":
             return (403, b"{}", 0.01)
         n = seen[path] = seen.get(path, 0) + 1
         budget = dict(acceptance.READS).get(path, 6.0)
+        if scripted and path in scripted and n <= len(scripted[path]):
+            return scripted[path][n - 1]
+        if any(path.startswith(p) for p in always_503):
+            return (503, b"{}", 0.01)
         if path in always_slow:
             return (200, b"{}", budget + 0.5)
         if n == 1 and path in first_slow:
@@ -98,12 +102,39 @@ class AcceptanceSettle(unittest.TestCase):
         slow, _ = server(always_slow=("/learning/associations?limit=20",))
         rc, out, _ = self.run_main(slow)
         self.assertEqual(rc, 1)
-        # A prewarm that cannot read at all is a failure, never a silent pass.
-        broken, _ = server(first_503=("/control/automations",))
+        # A prewarm that cannot read at all (5xx on every bounded reading) is a failure, never a silent pass.
+        broken, _ = server(always_503=("/control/automations",))
         rc, out, _ = self.run_main(broken)
         self.assertTrue(any(c["route"] == "/control/automations?contract=2" and c.get("check") == "prewarm"
                             and c["status"] == "fail" for c in out["checks"]))
         self.assertEqual(rc, 1)
+
+    def test_a_single_sample_during_the_gateway_restart_never_rolls_back(self):
+        # #355, real S24 receipts of 18/10 (text-only release #353, rolled back twice):
+        # companion-20261018T175912: automations prewarm 504 at 7.18 s, timed read timeout (0) at 6.02 s for 1.0 s;
+        # companion-20261018T180459: /notifications/sources 503 at 6.52 s for 6.0 s. Then the routes answered normally.
+        automations, sources = "/control/automations?contract=2", "/notifications/sources"
+        restart = {automations: [(504, b"{}", 7.18), (200, b'{"items": []}', 0.4), (0, b"", 6.02), (200, b'{"items": []}', 0.3)],
+                   sources: [(503, b"{}", 6.52), (200, b'{"items": []}', 0.5)]}
+        call, seen = server(scripted=restart)
+        rc, out, _ = self.run_main(call)
+        self.assertEqual(rc, 0, [c for c in out["checks"] if c["status"] == "fail"])
+        prewarm = next(c for c in out["checks"] if c["route"] == automations and c.get("check") == "prewarm")
+        timed = next(c for c in out["checks"] if c["route"] == automations and not c.get("check"))
+        self.assertEqual([x["code"] for x in prewarm["samples"]], [504, 200])
+        self.assertEqual([x["code"] for x in timed["samples"]], [0, 200])
+        self.assertEqual([x["code"] for x in next(c for c in out["checks"] if c["route"] == sources)["samples"]], [503, 200])
+
+    def test_three_bad_readings_still_roll_back_and_a_leak_never_waits(self):
+        call, seen = server(always_slow=("/agent/config",))
+        rc, out, _ = self.run_main(call)
+        row = next(c for c in out["checks"] if c["route"] == "/agent/config" and not c.get("check"))
+        self.assertEqual((rc, row["status"], len(row["samples"])), (1, "fail", acceptance.ATTEMPTS))
+        leaky, seen = server(scripted={"/agent/config": [(200, b'{"refresh_token": "fixture"}', 0.1)]})
+        rc, out, _ = self.run_main(leaky)
+        row = next(c for c in out["checks"] if c["route"] == "/agent/config" and not c.get("check"))
+        self.assertEqual(seen["/agent/config"], 1)
+        self.assertEqual((rc, row["leak"], row["status"]), (1, True, "fail"))
 
     def test_deploy_waits_for_calm_and_gateway_before_judging(self):
         text = (HERE / "companion-deploy.sh").read_text()
