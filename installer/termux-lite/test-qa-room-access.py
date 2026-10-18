@@ -6,6 +6,10 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from contextlib import nullcontext
+from types import SimpleNamespace
+import fcntl
+import os
 
 spec=importlib.util.spec_from_file_location('qa_people',Path(__file__).with_name('people-trusted.py'))
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -132,5 +136,41 @@ class QaRoomAccessTests(unittest.TestCase):
         self.assertEqual(observed['_capture']['route'],'/v1/whatsapp/allowlist')
         self.assertTrue(all(not row.get('qaApps') for row in observed['response']['items']))
         self.metadata.pop('qaApps');self.metadata['rooms']=['conversation'];self.persist();self.denied(self.read())
+
+    def test_queue_tick_missing_owner_remains_not_ready_without_dispatch(self):
+        with patch.object(m,'qa_owner_read_lease',return_value=nullcontext()),patch.object(m,'qa_owner_module',return_value=SimpleNamespace()):
+            self.assertEqual(m.qa_queue_tick(),{'state':'NOT_READY','dispatched':0,'waiting':0})
+
+    def test_queue_tick_never_calls_owner_without_deployment_lease(self):
+        with patch.object(m,'qa_owner_read_lease',side_effect=BlockingIOError()),patch.object(m,'qa_owner_module') as owner:
+            self.assertEqual(m.qa_queue_tick()['state'],'NOT_READY');owner.assert_not_called()
+
+    def test_queue_tick_uncertain_callback_has_no_false_no_effect_receipt(self):
+        callback=lambda: (_ for _ in ()).throw(RuntimeError('synthetic-private-exception'))
+        with patch.object(m,'qa_owner_read_lease',return_value=nullcontext()),patch.object(m,'qa_owner_module',return_value=SimpleNamespace(queue_tick=callback)):
+            value=m.qa_queue_tick()
+        self.assertEqual(value['state'],'VERIFY_REQUIRED')
+        self.assertNotIn('synthetic-private-exception',json.dumps(value))
+
+    def test_queue_tick_closed_receipt_rejects_bool_count_and_extra_data(self):
+        for result in ({'state':'STARTED','dispatched':True,'waiting':0},
+                       {'state':'IDLE','dispatched':1,'waiting':0},
+                       {'state':'STARTED','dispatched':1,'waiting':0,'private':'omitted'}):
+            with self.subTest(result=result),patch.object(m,'qa_owner_read_lease',return_value=nullcontext()),patch.object(m,'qa_owner_module',return_value=SimpleNamespace(queue_tick=lambda:result)):
+                self.assertEqual(m.qa_queue_tick()['state'],'VERIFY_REQUIRED')
+
+    def test_owner_loading_holds_the_existing_q12_shared_lock(self):
+        home=self.root/'home';lock=home/'.openclaw/deploys/companion-deploy.lock'
+        lock.parent.mkdir(parents=True);lock.touch(mode=0o600)
+        with patch.object(m,'HOME',home):
+            other=os.open(lock,os.O_RDONLY)
+            try:
+                with m.qa_owner_read_lease():
+                    with self.assertRaises(BlockingIOError):fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            finally:os.close(other)
+
+    def test_private_import_cannot_select_an_arbitrary_module(self):
+        with self.assertRaises(ValueError):m.qa_owner_module('subprocess')
 
 if __name__=='__main__':unittest.main()

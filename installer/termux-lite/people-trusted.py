@@ -1,7 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/python3
 import argparse, hashlib, json, os, re, sqlite3, subprocess, sys, time, unicodedata
 from pathlib import Path
-from contextlib import closing
+from contextlib import closing, contextmanager
+import fcntl
 
 HOME=Path.home()
 ROOT=Path(os.environ.get("SAMANTHA_PEOPLE_ROOT", HOME/".openclaw"/"people"))
@@ -644,6 +645,53 @@ def qa_authority_revision(metadata):
 
 def qa_rooms_confirmation_hash(number, rooms, apps):
     return digest(canonical({'number':number,'rooms':rooms,'qaApps':normalize_qa_apps(apps)}))
+
+@contextmanager
+def qa_owner_read_lease():
+    """The existing Q12 lock protects loading the pinned owner as well as its call."""
+    path=HOME/'.openclaw/deploys/companion-deploy.lock'
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+    try:
+        info=os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid():raise ValueError('qa_owner_unavailable')
+        fcntl.flock(fd,fcntl.LOCK_SH|fcntl.LOCK_NB)
+        yield
+    finally:os.close(fd)
+
+def qa_owner_module(name):
+    """Load only a fixed QA owner through the existing capability root resolver."""
+    if name not in {'qa_testing.core','qa_testing.notifications'}:raise ValueError('qa_owner_unavailable')
+    helper=Path(__file__).with_name('claw-capability.py')
+    spec=importlib.util.spec_from_file_location('people_qa_capability_owner',helper)
+    owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+    root=owner.ui_root()
+    if not root.is_absolute():raise ValueError('qa_owner_unavailable')
+    root=root.resolve(strict=True)
+    sys.path.insert(0,str(root))
+    module=importlib.import_module(name)
+    expected=root.joinpath(*name.split('.')).with_suffix('.py')
+    if Path(module.__file__).resolve()!=expected:raise ValueError('qa_owner_unavailable')
+    return module
+
+def qa_queue_tick():
+    not_ready={'state':'NOT_READY','dispatched':0,'waiting':0}
+    uncertain={'state':'VERIFY_REQUIRED','dispatched':0,'waiting':0}
+    entered=False
+    try:
+        with qa_owner_read_lease():
+            owner=qa_owner_module('qa_testing.core')
+            callback=getattr(owner,'queue_tick',None)
+            if callback is None:return not_ready
+            entered=True
+            result=callback()
+            if (not isinstance(result,dict) or set(result)!={'state','dispatched','waiting'}
+                    or result['state'] not in {'NOT_READY','IDLE','WAITING','STARTED','VERIFY_REQUIRED','UNAVAILABLE'}
+                    or type(result['dispatched']) is not int or result['dispatched'] not in (0,1)
+                    or type(result['waiting']) is not int or not 0<=result['waiting']<=500):return uncertain
+            if result['state']=='STARTED' and result['dispatched']!=1:return uncertain
+            if result['state'] in {'NOT_READY','IDLE','WAITING','UNAVAILABLE'} and result['dispatched']!=0:return uncertain
+            return result
+    except (Exception,SystemExit):return uncertain if entered else not_ready
 
 def request_hash(action, body):
     return digest(canonical({'action':action, **{k:v for k,v in body.items() if k not in ('requestHash','expectedAuthority')}}))
@@ -1637,6 +1685,9 @@ class Contacts:
 
 
 def main():
+    if len(sys.argv)>1 and sys.argv[1]=='qa-queue-tick':
+        result=qa_queue_tick() if len(sys.argv)==2 else {'state':'NOT_READY','dispatched':0,'waiting':0}
+        print(canonical(result));return
     if len(sys.argv)>1 and sys.argv[1] in ('qa-scope-read','qa-ingress-read'):
         try:
             if len(sys.argv)!=2: raise ValueError()
