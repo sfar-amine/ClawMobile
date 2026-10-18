@@ -111,6 +111,7 @@ jobs:
       - name: Run immune I1/I2/I3/I8 contracts (deterministic recovery, handler gate, LKG hold, ingress root)
         run: |
           python3 ../installer/termux-lite/test-tier0-lkg-hold.py
+          python3 ../installer/termux-lite/test-tier0-distinct-health.py
           python3 ../installer/termux-lite/test-incident-orchestrator.py
           python3 ../installer/termux-lite/test-incident-deterministic-recovery.py
           python3 ../installer/termux-lite/test-incident-ingress.py
