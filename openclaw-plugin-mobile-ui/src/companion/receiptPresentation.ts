@@ -49,23 +49,53 @@ export function readReceiptPresentation(raw:unknown):ReceiptPresentation|undefin
   const po=p.payment;const payment:PaymentOutcome|undefined=obj(po)&&typeof po.state==='string'&&PAYMENT_STATES.has(po.state)&&(po.reasonCode===null||id(po.reasonCode))&&typeof po.stepId==='string'&&(po.stepId==='unknown'||STEP_IDS.has(po.stepId))?{state:po.state,reasonCode:po.reasonCode as string|null,stepId:po.stepId,...(publicInitialPaymentFailure(po.initialFailure)?{initialFailure:publicInitialPaymentFailure(po.initialFailure)}:{}),...(publicPaymentHandoff(po.handoff)?{handoff:publicPaymentHandoff(po.handoff)}:{})}:undefined;
  return {version:1,locale:p.locale as 'fr'|'en',status:p.status as 'info'|'error',label:p.label,title:p.title,rows:[],spoken:p.spoken,primary:{label:p.primary.label,action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:cid as string|null},understood:{capability:cid as string|null,label:p.understood.label,slots,...(summary?{text:summary}:{})},alternatives,...(payment?{payment}:{}),...(failure?{failure}:{})};
 }
-export function fallbackReceiptPresentation(failed=false):ReceiptPresentation{return {version:1,locale:'fr',status:failed?'error':'info',label:'Demande',title:'Résultat à vérifier',rows:[],spoken:failed?'La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.':'Le résultat de la demande reste à vérifier.',primary:{label:'Terminer',action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:null},understood:{capability:null,label:'Demande',slots:{}},alternatives:[],...(failed?{failure:{step:'Étape non établie',reason:'La cause n’est pas établie par le reçu.'}}:{})};}
-/** Public helper failures describe the observed transport boundary, never a business/financial outcome. */
-export function fastPathFailurePresentation(raw:unknown,stage:'resolution'|'execution'):ReceiptPresentation {
- const receipt=readReceiptPresentation(raw);if(receipt?.status==='error')return receipt;
- const p=fallbackReceiptPresentation(true);
- const reasons:Record<string,string>={
+/** Renderer-owned phrases. Producers and relays carry codes, never translations. */
+export const FAILURE_PHRASES = {
+ fr: {
   helper_missing:'Le service de traitement est introuvable.',
   helper_failed:'Le service de traitement n’a pas renvoyé de résultat exploitable.',
   invalid_result:'Le service de traitement a renvoyé un résultat invalide.',
   invalid_check_budget:'Le budget de résolution est invalide.',
   check_budget_exceeded:'Le délai de résolution a été dépassé.',
   web_deadline_exceeded:'La recherche web n’a pas abouti dans le délai imparti.',
- };
- const code=obj(raw)&&raw.status==='error'&&typeof raw.reason==='string'&&Object.prototype.hasOwnProperty.call(reasons,raw.reason)?raw.reason:undefined;
- const reason=code?reasons[code]:p.failure!.reason;
- const step=stage==='resolution'?'Résolution de la demande':'Lecture du résultat d’exécution';
- return {...p,title:'Demande interrompue',spoken:reason,failure:{step,reason,stepId:stage,...(code?{reasonCode:code}:{}),notDone:{code:'unknown'}}};
+  invalid_web_execution_context:'Le contexte de la recherche web est invalide.',
+  execution_cancelled:'Le traitement a été interrompu.',
+  coordinator_unavailable:'Le suivi de conversation est indisponible.',
+ },
+ en: {
+  helper_missing:'The processing service could not be found.',
+  helper_failed:'The processing service did not return a usable result.',
+  invalid_result:'The processing service returned an invalid result.',
+  invalid_check_budget:'The resolution time budget is invalid.',
+  check_budget_exceeded:'The request resolution exceeded its time limit.',
+  web_deadline_exceeded:'The web search exceeded its time limit.',
+  invalid_web_execution_context:'The web search context is invalid.',
+  execution_cancelled:'Processing was interrupted.',
+  coordinator_unavailable:'Conversation tracking is unavailable.',
+ },
+} as const;
+// One saturating process-local scalar, owned by this renderer, with no retained text or identifiers.
+let missingFailureCauseRenders=0;
+export function receiptPresentationCounters(){return {missingFailureCauseRenders,scope:'companion_process' as const};}
+function failurePhrase(code:string|undefined,locale:'fr'|'en'):string {
+ if(!code){missingFailureCauseRenders=Math.min(Number.MAX_SAFE_INTEGER,missingFailureCauseRenders+1);
+  return locale==='en'?'The receipt does not establish the cause.':'La cause n’est pas établie par le reçu.';}
+ const phrases:Record<string,string>=FAILURE_PHRASES[locale];
+ // A future valid producer code is never discarded or labelled as an absent cause.
+ return Object.prototype.hasOwnProperty.call(phrases,code)?phrases[code]:locale==='en'?`Reported failure: ${code}.`:`Échec signalé : ${code}.`;
+}
+export function fallbackReceiptPresentation(failed=false):ReceiptPresentation{return {version:1,locale:'fr',status:failed?'error':'info',label:'Demande',title:'Résultat à vérifier',rows:[],spoken:failed?'La demande n’a pas abouti. Consulte le détail avant toute nouvelle action.':'Le résultat de la demande reste à vérifier.',primary:{label:'Terminer',action:'done'},effect:{debited:'unknown',source:'receipt'},meta:{capability:null},understood:{capability:null,label:'Demande',slots:{}},alternatives:[],...(failed?{failure:{step:'Étape non établie',reason:failurePhrase(undefined,'fr')}}:{})};}
+/** Public helper failures describe the observed transport boundary, never a business/financial outcome. */
+export function fastPathFailurePresentation(raw:unknown,stage:'resolution'|'execution',locale:'fr'|'en'='fr'):ReceiptPresentation {
+ const receipt=readReceiptPresentation(raw);if(receipt?.status==='error')return receipt;
+ // Do not build a failed fallback before inspecting the code: that would count every known error.
+ const p=fallbackReceiptPresentation(false);
+ const explicit=obj(raw)&&id(raw.reasonCode)?raw.reasonCode:undefined;
+ const transport=obj(raw)&&(raw.status==='error'||raw.status==='known_error')&&typeof raw.reason==='string'&&Object.prototype.hasOwnProperty.call(FAILURE_PHRASES.fr,raw.reason)?raw.reason:undefined;
+ const code=explicit||transport;
+ const reason=failurePhrase(code,locale);
+ const step=locale==='en'?(stage==='resolution'?'Resolving the request':'Reading the execution result'):(stage==='resolution'?'Résolution de la demande':'Lecture du résultat d’exécution');
+ return {...p,locale,status:'error',label:locale==='en'?'Request':p.label,title:locale==='en'?'Request interrupted':'Demande interrompue',spoken:reason,primary:{label:locale==='en'?'Done':'Terminer',action:'done'},understood:{...p.understood,label:locale==='en'?'Request':p.understood.label},failure:{step,reason,stepId:stage,...(code?{reasonCode:code}:{}),notDone:{code:'unknown'}}};
 }
 export function publicReceiptMetadata(p:ReceiptPresentation|undefined){return p?{presentation:p,understood:p.understood,alternatives:p.alternatives,...(p.failure?{failure:p.failure}:{})}:{};}
 /** Closed public projection of the stored v2 decision (no recalculation, no raw payload):

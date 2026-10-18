@@ -164,7 +164,7 @@ async function submitTextIntent(
 
   if (dialogue?.outcome === "TECHNICAL_FAILURE" && dialogue.reasonCode === "coordinator_unavailable") {
     // N1: nothing was admitted by the coordinator; the turn is not submitted (retry-safe), with a readable cause.
-    const presentation=fastPathFailurePresentation({status:"error",reason:dialogue.source} as FastPathResult,'resolution');
+    const presentation=fastPathFailurePresentation({status:"error",reason:dialogue.source || dialogue.reasonCode} as FastPathResult,'resolution',dialogue.decision?.responseLanguage === 'en' ? 'en' : 'fr');
     return {...notSubmitted(normalizedSessionId,clientRunId,presentation.spoken),...publicReceiptMetadata(presentation)};
   }
   if (dialogue && dialogueInput && dialogue.handled) {
@@ -319,9 +319,17 @@ async function executeCapabilityFirst(
     ? (isDoneReply(reply) ? webRunState(web) : "failed")
     : isQuestionReply(reply) || isDoneReply(reply) ? "done" : "failed";
   let message = web ? webResultText(web) : String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
-  if (!presentation && state === "failed" && reply.outcome === "TECHNICAL_FAILURE") presentation = fastPathFailurePresentation({status: "error", reason: reply.source || reply.reasonCode} as FastPathResult, "execution");
-  // Un délai Web dépassé est une cause connue : la dire, plutôt que « la cause n'est pas établie par le reçu ».
-  if (!presentation && state === "failed" && reply.reasonCode === "web_deadline_exceeded") presentation = fastPathFailurePresentation({status: "error", reason: reply.reasonCode} as FastPathResult, "execution");
+  const presentationLocale = reply.decision?.responseLanguage === 'en' ? 'en' : 'fr';
+  if (!presentation && state === "failed" && reply.outcome === "TECHNICAL_FAILURE") {
+    // For an unavailable coordinator, source is the original helper producer's cause.
+    const reasonCode = reply.reasonCode === "coordinator_unavailable" ? reply.source || reply.reasonCode : reply.reasonCode;
+    presentation = fastPathFailurePresentation({status: "error", reasonCode}, "execution", presentationLocale);
+  }
+  // Keep any established producer cause through settlement, not just the first Web timeout encountered.
+  if (!presentation && state === "failed" && (reply.reasonCode || web?.error?.code)) {
+    presentation = fastPathFailurePresentation({status: "error", reasonCode: reply.reasonCode || web?.error?.code}, "execution", presentationLocale);
+  }
+  if (!readReceiptPresentation(metadata) && state === "failed" && presentation?.failure?.reasonCode) message=presentation.spoken;
   const spoken = !reply.metadata && reply.reasonCode === "coordinator_unavailable" && presentation ? presentation.spoken : undefined;
   presentation ||= fallbackReceiptPresentation(state === "failed");
   if (spoken) message = spoken;
