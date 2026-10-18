@@ -41,6 +41,29 @@ class ClawTraceTests(unittest.TestCase):
             self.assertNotIn("outside window", out)
             self.assertNotIn("unstamped", out)
 
+    def test_a_release_apk_is_read_through_its_voice_log(self):
+        # run-as is refused on the optimized APK; the voice owner's logcat lines carry the dated cause.
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp); (home / ".openclaw").mkdir(); bin_dir = home / "bin"; bin_dir.mkdir()
+            adb = bin_dir / "adb"
+            adb.write_text("#!/bin/sh\n"
+                           "case \"$*\" in\n"
+                           "  *run-as*) echo 'run-as: package not debuggable: ai.samantha.android.dev' >&2; exit 1;;\n"
+                           "  *logcat*) printf '%s\\n' '     1792314356.251  9986  9986 I SamanthaVoice: voice_start'"
+                           " '     1792314366.471  9986  9986 W SamanthaVoice: voice_fail:voice_error_incomplete_reply:correlation:stale_ignored'"
+                           " '     1792300000.000  9986  9986 I SamanthaVoice: outside window';;\n"
+                           "esac\n")
+            adb.chmod(0o755)
+            env = dict(os.environ, HOME=str(home), TZ="Africa/Tunis", PATH=f"{bin_dir}:{os.environ['PATH']}")
+            out = subprocess.run(["python3", str(HERE / "claw-trace.py"), "--since", "2026-10-18T10:05:00+01:00",
+                                  "--until", "2026-10-18T10:07:00+01:00", "--json"],
+                                 env=env, capture_output=True, text=True, check=True).stdout
+            rows = [json.loads(line) for line in out.splitlines()]
+            self.assertEqual([r["source"] for r in rows], ["app", "app"])
+            self.assertIn("voice_start", rows[0]["text"])
+            self.assertIn("correlation:stale_ignored", rows[1]["text"])
+            self.assertNotIn("outside window", out)
+
 
 if __name__ == "__main__":
     unittest.main()

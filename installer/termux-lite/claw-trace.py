@@ -56,14 +56,37 @@ def stamped_lines(source, path):
                     continue
 
 
+LOGCAT = re.compile(r"^\s*(\d+\.\d+)\s+\d+\s+\d+\s+([VDIWEF])\s+(SamanthaVoiceT?)\s*:\s?(.*)$")
+
+
+def app_logcat():
+    # The installed APK is an optimized, non-debuggable build: run-as is refused there (S24 18/10 10:06), so the
+    # voice owner's own log lines (voice_start, voice_fail:<message>:<cause>) are the trace that is always readable.
+    try:
+        out = subprocess.run(["adb", "-s", DEVICE, "logcat", "-d", "-v", "epoch", "-s", "SamanthaVoice:V", "SamanthaVoiceT:V"],
+                             capture_output=True, text=True, timeout=20).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    rows = []
+    for line in out.splitlines():
+        match = LOGCAT.match(line)
+        if match:
+            at = dt.datetime.fromtimestamp(float(match.group(1)), LOCAL)
+            rows.append((at, "app", f"{match.group(3)} {match.group(2)} {match.group(4)[:200]}"))
+    return rows
+
+
 def app_trace():
     rows = []
     for name in ("files/voice-trace.jsonl.1", "files/voice-trace.jsonl"):
         try:
-            out = subprocess.run(["adb", "-s", DEVICE, "shell", "run-as", APP, "cat", name],
-                                 capture_output=True, text=True, timeout=15).stdout
+            done = subprocess.run(["adb", "-s", DEVICE, "shell", "run-as", APP, "cat", name],
+                                  capture_output=True, text=True, timeout=15)
+            out = done.stdout
         except (OSError, subprocess.SubprocessError):
             return rows
+        if "not debuggable" in done.stdout + done.stderr:
+            return app_logcat()
         for line in out.splitlines():
             try:
                 row = json.loads(line)
