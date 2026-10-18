@@ -4,6 +4,8 @@ import argparse
 import json
 import os
 from pathlib import Path
+from runpy import run_path
+runtime_root = run_path(str(Path(__file__).with_name("runtime_mode.py")))["runtime_root"]
 import re
 import subprocess
 import sys
@@ -131,7 +133,7 @@ def ensure_efficiency_policy(
 
 
 def runtime_script(name: str) -> Path:
-    current = HOME / ".openclaw/releases/current/termux-lite" / name
+    current = runtime_root(home=HOME) / name
     if current.exists():
         return current
     # R10 : repli sur la racine de ce script (release Tier0 ou copie de travail), jamais un chemin en dur.

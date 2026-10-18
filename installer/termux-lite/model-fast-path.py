@@ -8,6 +8,8 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+from runpy import run_path
+runtime_root = run_path(str(Path(__file__).with_name("runtime_mode.py")))["runtime_root"]
 import re
 import shlex
 import subprocess
@@ -707,7 +709,7 @@ def _continuum_call(ui_root: Path, args: list[str], timeout: int = 15) -> dict[s
 
 def _bridge_cli(home: Path = HOME) -> Path:
     for path in (
-        home / ".openclaw/releases/current/termux-lite/claw-bridge-cli.py",
+        runtime_root(home=home) / "claw-bridge-cli.py",
         Path(__file__).resolve().parent / "claw-bridge-cli.py",
     ):
         if path.is_file():

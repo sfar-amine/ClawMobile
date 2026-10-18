@@ -1,0 +1,5 @@
+# F1 — one owner for runtime paths, web budgets and voice-contract parity
+
+Generic helper paths used the Tier0 current link even when the Companion had an explicit checkout runtime root. Existing shell/Python ownership and a shared TypeScript helper now preserve the root of each process. `runtime-sync.sh --check` detects web-budget drift against the existing playbooks owner and byte differences in the app/Companion voice contract; missing source is a named failure, never equality.
+
+No new route, capability, store, registry, router, scheduler or daemon. No global environment sanitation, live voice behavior, payment implementation or `monitorMs:1` change. S24 provenance, test scope, counterpart dependency and rollback are documented in [the F1 contract](../work/samantha-runtime/contracts/f1-runtime-contract-parity.md). Claude owns the app-copy/test follow-up on its delivery line and all runtime acceptance. The core PR must cite the completed `tools/localci.py` output at its exact head and PR number; targeted tests are not a substitute.

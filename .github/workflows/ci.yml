@@ -118,6 +118,8 @@ jobs:
           python3 ../installer/termux-lite/test-companion-deploy-preflight.py
           python3 ../installer/termux-lite/test-companion-deploy-root.py
           python3 ../installer/termux-lite/test-runtime-sync.py
+          python3 ../installer/termux-lite/test-runtime-foundations.py
+          node scripts/test-runtime-root.cjs
           python3 ../installer/termux-lite/test-companion-rollback-identity.py
           python3 ../installer/termux-lite/test-context-review-plan.py
       - name: Playbooks activation links ignored runtime dependencies
