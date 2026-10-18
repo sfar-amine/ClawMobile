@@ -104,6 +104,27 @@ class CampaignDeployProtection(unittest.TestCase):
         self.assertIn('preflight', receipt['detail'])
         self.check_no_effect()
 
+    def test_parent_keeps_exclusive_lock_after_timeout_child_returns(self):
+        ready = self.base / 'preflight-entered'
+        self.stub('git', 'if [ "$#" = 4 ] && [ "$1" = -C ] && [ "$2" = "$QA_TEST_REPO" ] && [ "$3" = rev-parse ] && [ "$4" = HEAD ]; then\n'
+                  'touch "' + str(ready) + '"\nsleep 0.6\nexit 0\nfi\n'
+                  'echo git >> "$QA_TEST_EFFECTS"\nexit 99\n')
+        process = self.start(COMPANION_DEPLOY_LOCK_WAIT_S='1')
+        try:
+            deadline = time.monotonic() + 2
+            while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(ready.exists(), 'fixture never reached existing preflight')
+            with self.assertRaises(BlockingIOError):
+                fcntl.flock(self.lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            _, stderr = process.communicate(timeout=5)
+            self.assertEqual(process.returncode, 0, stderr)
+            self.check_no_effect()
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate()
+
     def test_wait_budget_expires_without_fetch_or_retry_later(self):
         fcntl.flock(self.lock, fcntl.LOCK_SH)
         process = self.start(COMPANION_DEPLOY_LOCK_WAIT_S='1')

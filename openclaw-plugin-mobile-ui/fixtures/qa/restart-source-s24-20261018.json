@@ -1,0 +1,61 @@
+{
+  "contract": "qa64-q12-installed-restart-source",
+  "files": [
+    {
+      "path": "installer/termux-lite/runtime_mode.py",
+      "exists": true,
+      "sha256": "110e55072867f24a1232afd9fac7696a31768eca24e5babd3937723b9bca7d84",
+      "has_restart_route": false,
+      "has_restart_proof_route": false,
+      "symbols": [
+        "current_mode",
+        "deployment_guard"
+      ]
+    },
+    {
+      "path": "installer/termux-lite/gateway-memory-guard.py",
+      "exists": true,
+      "sha256": "4a6db3a20dacbff29947a94bb04e8a96f7d04f4a74d4b60e4e180652a3c2a624",
+      "has_restart_route": true,
+      "has_restart_proof_route": false,
+      "symbols": [
+        "idle_proof"
+      ]
+    },
+    {
+      "path": "installer/termux-lite/samantha-health-manager.sh",
+      "exists": true,
+      "sha256": "7224b1ac6e18e5ed6f10ff66c0ca819fae0a43bd341d3f420eca6be3e39b77cb",
+      "has_restart_route": true,
+      "has_restart_proof_route": false,
+      "symbols": []
+    },
+    {
+      "path": "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts",
+      "exists": true,
+      "sha256": "03ad4171299d1172639af48556fd5ac805dbeafa32930e95c1ff720651066532",
+      "has_restart_route": false,
+      "has_restart_proof_route": false,
+      "symbols": [
+        "runSerializedRuntimeOperation",
+        "stopRuntimeInternal",
+        "restartRuntime"
+      ]
+    },
+    {
+      "path": "openclaw-plugin-mobile-ui/src/companion/server.ts",
+      "exists": true,
+      "sha256": "74469df64ae56652e2bc2ca1b3f4c3bf942e276a668aae48049485a695d9f7cf",
+      "has_restart_route": true,
+      "has_restart_proof_route": false,
+      "symbols": []
+    }
+  ],
+  "provenance": {
+    "device": "S24",
+    "captured_on": "2026-10-18",
+    "method": "claw_exec readonly source hashes and fixed symbol/route presence, no code or private state emitted",
+    "runtime_commit": "edb6238449bf8754e94fa2b91de78edd52ccbc19",
+    "request_id": "mcp-codex-cloud-qa64-q12-source-20261018-restart-source-metadata"
+  }
+}
