@@ -92,8 +92,30 @@ export function runSubmissionStatusCode(result: { success?: boolean; submissionS
   return result.submissionState === "not_submitted" ? 503 : 400;
 }
 
+/** F3: private projection into companion-server.sh's bounded, timestamped process-output sink. */
+function serverDiagnostic(
+  level: "info" | "warn" | "error",
+  event: "attachment_maintenance_unavailable" | "server_listening" | "server_start_failed" | "server_shutdown"
+    | "remote_bridge_abandon_sweep" | "remote_bridge_abandon_sweep_unavailable",
+  metadata: {port?: unknown; errno?: unknown; state?: unknown; scanned?: unknown; abandoned?: unknown; uncertain?: unknown} = {},
+) {
+  const fields: Record<string, string | number> = {};
+  for (const key of ["port", "scanned", "abandoned", "uncertain"] as const) {
+    const value = metadata[key];
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+        && (key !== "port" || value <= 65535)) fields[key] = value;
+  }
+  if (metadata.state === "complete" || metadata.state === "partial") fields.state = metadata.state;
+  if (event === "server_start_failed" || metadata.errno !== undefined) {
+    const codes = new Set(["EADDRINUSE", "EACCES", "EADDRNOTAVAIL", "ENOTFOUND", "EMFILE", "ENFILE", "ENOMEM", "ENOBUFS", "EPIPE", "ENOENT", "EINVAL", "EIO"]);
+    fields.errno = typeof metadata.errno === "string" && codes.has(metadata.errno) ? metadata.errno : "unknown";
+  }
+  const suffix = Object.entries(fields).map(([key, value]) => key + "=" + value).join(" ");
+  try { console.log("component=companion level=" + level + " event=" + event + (suffix ? " " + suffix : "")); } catch {}
+}
+
 export function startCompanionServer() {
-  withAttachmentReferences(paths=>purgeAttachments(paths)).catch(()=>console.error("[companion] attachment maintenance unavailable"));
+  withAttachmentReferences(paths=>purgeAttachments(paths)).catch(()=>serverDiagnostic("error", "attachment_maintenance_unavailable"));
   const configuredHost = (process.env.CLAWMOBILE_COMPANION_HOST || DEFAULT_HOST).trim();
   const host = listenHost(configuredHost);
   const port = parsePort(process.env.CLAWMOBILE_COMPANION_PORT, DEFAULT_PORT);
@@ -114,7 +136,7 @@ export function startCompanionServer() {
   const onListening = () => {
     const address = server.address();
     const resolvedHost = typeof address === "object" && address ? address.address : configuredHost || "::";
-    console.log(`[companion] ClawMobile companion server listening on ${resolvedHost}:${port}`);
+    serverDiagnostic("info", "server_listening", {port});
   };
   if (host) {
     server.listen(port, host, onListening);
@@ -122,12 +144,12 @@ export function startCompanionServer() {
     server.listen(port, onListening);
   }
   server.once("error", (error: any) => {
-    console.error(`[companion] unable to start companion server: ${error?.message || error}`);
+    serverDiagnostic("error", "server_start_failed", {errno: error?.code});
     process.exit(1);
   });
 
   const shutdown = () => {
-    console.log("[companion] shutting down companion server");
+    serverDiagnostic("info", "server_shutdown");
     stopTerminalShellSession();
     stopVoiceRelay();
     closeOpenClawGateway();
@@ -162,9 +184,9 @@ export function startCompanionServer() {
   setTimeout(() => {
     try {
       const sweep = abandonStaleRemoteBridgeReceipts({ budgetMs: 3_000 });
-      console.log(`[remote-bridge] abandon sweep state=${sweep.state} scanned=${sweep.scanned} abandoned=${sweep.abandoned} uncertain=${sweep.effectUncertain}`);
+      serverDiagnostic("info", "remote_bridge_abandon_sweep", {state: sweep.state, scanned: sweep.scanned, abandoned: sweep.abandoned, uncertain: sweep.effectUncertain});
     } catch (error: any) {
-      console.warn("[remote-bridge] abandon sweep unavailable: " + String(error?.message || error).slice(0, 160));
+      serverDiagnostic("warn", "remote_bridge_abandon_sweep_unavailable", {errno: error?.code});
     }
   }, Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_SWEEP_DELAY_MS || 30_000)).unref();
 

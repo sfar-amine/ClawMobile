@@ -3,6 +3,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const ts = require('typescript');
+const vm = require('node:vm');
+const {createHash}=require('node:crypto');
 const {spawnSync} = require('node:child_process');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'samantha-run-diagnostics-'));
 process.env.OPENCLAW_STATE_DIR = root;
@@ -135,7 +137,50 @@ function decoded(line) {
     assert.equal(events.length,1);assert.equal(events[0].source,'companion');
     assert.equal(events[0].text,emitted);
   });
-  originalLog(JSON.stringify({suite:'run-owner-diagnostics',passed,total:9,voiceScope:'excluded'}));
+  let serverLines=[];
+  await check(() => {
+    // Extract the PRIVATE pure projection without importing server.ts and starting its runtime owners.
+    const text=fs.readFileSync(path.join(__dirname,'../src/companion/server.ts'),'utf8');
+    const source=ts.createSourceFile('server.ts',text,ts.ScriptTarget.Latest,true);
+    const helper=source.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='serverDiagnostic');
+    assert.ok(helper);
+    const js=ts.transpileModule(helper.getText(source),{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText;
+    const context={console:{log:(line)=>serverLines.push(line)},module:{exports:{}}};
+    vm.runInNewContext(js+'\nmodule.exports=serverDiagnostic;',context);
+    const project=context.module.exports;
+    project('error','server_start_failed',{errno:'EADDRINUSE',message:PRIVATE,port:8765});
+    project('warn','remote_bridge_abandon_sweep_unavailable',{errno:PRIVATE,message:PRIVATE});
+    project('info','remote_bridge_abandon_sweep',{state:'complete',scanned:100,abandoned:2,uncertain:1});
+    project('info','server_listening',{port:'PRIVATE',state:PRIVATE,scanned:-1,abandoned:Infinity,uncertain:Number.MAX_SAFE_INTEGER+1});
+    assert.match(serverLines[0],/^component=companion level=error event=server_start_failed port=8765 errno=EADDRINUSE$/);
+    assert.match(serverLines[1],/errno=unknown$/);
+    assert.match(serverLines[2],/scanned=100 abandoned=2 uncertain=1 state=complete$/);
+    assert.equal(serverLines[3],'component=companion level=info event=server_listening');
+    assert.doesNotMatch(serverLines.join('\n'),/PRIVATE|Bearer|@|Infinity/);
+    assert.ok(serverLines.every(line=>Buffer.byteLength(line)<=512));
+    context.console.log=()=>{throw Error('sink unavailable')};assert.doesNotThrow(()=>project('info','server_shutdown'));
+  });
+  await check(() => {
+    const home=path.join(root,'server-trace-home'),health=path.join(home,'.openclaw/health');
+    fs.mkdirSync(health,{recursive:true});
+    fs.writeFileSync(path.join(health,'companion.stderr.log'),serverLines.map(line=>'2026-10-18T10:00:00Z '+line).join('\n')+'\n');
+    const done=spawnSync('python3',[path.join(__dirname,'../../installer/termux-lite/claw-trace.py'),
+      '--since','2026-10-18T09:59:00Z','--until','2026-10-18T10:01:00Z','--no-app','--json'],
+      {env:{...process.env,HOME:home},encoding:'utf8'});
+    assert.equal(done.status,0,done.stderr);
+    assert.deepEqual(done.stdout.trim().split('\n').map(line=>JSON.parse(line).text),serverLines);
+  });
+  await check(() => {
+    const text=fs.readFileSync(path.join(__dirname,'../src/companion/server.ts'),'utf8');
+    const fixture=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/foundations/f3-excluded-server-regions.json')));
+    for (const region of fixture.regions) {
+      const start=text.indexOf(region.start),end=text.indexOf(region.end,start+region.start.length);
+      assert.ok(start>=0&&end>start);
+      assert.equal(createHash('sha256').update(text.slice(start,end)).digest('hex'),region.sha256,
+        region.name+' must remain byte-identical to the explicitly excluded source scope');
+    }
+  });
+  originalLog(JSON.stringify({suite:'run-owner-diagnostics',passed,total:12,voiceScope:'excluded'}));
 })().catch(error => { originalError(error); process.exitCode=1; }).finally(() => {
   console.error=originalError;console.log=originalLog;attachmentOwner.removeAttachments=originalRemove;
   fs.rmSync(root,{recursive:true,force:true});
