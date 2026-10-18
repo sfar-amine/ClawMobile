@@ -92,7 +92,15 @@ async function refusal() {
     fs.symlinkSync(path.join(home, 'foreign'), lock);
     await refusal();
     assert.equal(fs.existsSync(path.join(home, 'foreign')), false);
-    console.log('qa runtime repair lease: 8/8 passed (real flock, helper crash, stop, canonical root/fallback, malformed ACK, deadline, symlink)');
+    fs.unlinkSync(lock); // A reinstallation may have no deployment lock yet.
+    const recreated = await gateway.runSerializedRuntimeOperation('restart', async () => {
+      assert.notEqual(probe().status,0,'new canonical lock is held EX during repair');
+      return {success:true,state:'not_started',message:'fixture repair after reinstall',gateway:down};
+    },async()=>down);
+    assert.equal(recreated.success,true);
+    assert.equal(fs.statSync(lock).mode&0o777,0o600);
+    assert.equal(probe().status,0,'repair releases recreated lock');
+    console.log('qa runtime repair lease: 9/9 passed (missing lock creation, real flock, helper crash, stop, canonical root/fallback, malformed ACK, deadline, symlink)');
   } finally {
     if (holder) holder.kill('SIGKILL');
     childProcess.spawn = originalSpawn;

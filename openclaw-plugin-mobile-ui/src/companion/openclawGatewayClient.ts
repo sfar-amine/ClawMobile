@@ -42,10 +42,16 @@ let runtimeOperationInFlight: RuntimeOperationInFlight | null = null;
 
 class RuntimeRepairGuardError extends Error {}
 
+// The deploy caller alone supplies its in-checkout owner: Tier0 promotion occurs
+// after this restart, so the previous release may not implement this contract.
+// HTTP imports never receive this private CLI context or reuse a deploy fd.
+const deployRestartOwner = require.main===module && process.argv.length===4 &&
+  process.argv[2]==="--deploy-restart" && path.isAbsolute(process.argv[3]) &&
+  path.basename(process.argv[3])==="runtime_mode.py" ? process.argv[3] : null;
 type RuntimeRepairLease = { release: () => Promise<void> };
 async function acquireRuntimeRepairLease(): Promise<RuntimeRepairLease> {
   let helper: string;
-  try { helper = runtimeFile("runtime_mode.py"); }
+  try { helper = deployRestartOwner || runtimeFile("runtime_mode.py"); }
   catch { throw new RuntimeRepairGuardError("runtime_guard_unavailable"); }
   // The owner retains the same open file description locked by Python. A
   // helper crash cannot release EX while a stop/start is still in progress.
@@ -55,15 +61,25 @@ async function acquireRuntimeRepairLease(): Promise<RuntimeRepairLease> {
   const lockPath = path.join(openclawHome, "deploys", "companion-deploy.lock");
   let lockFd: number;
   try {
-    lockFd = fs.openSync(lockPath, fs.constants.O_RDWR | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
-    if (!fs.fstatSync(lockFd).isFile()) throw new Error("invalid_lock");
+    const directory=path.dirname(lockPath);
+    fs.mkdirSync(directory,{recursive:true,mode:0o700});
+    const parent=fs.lstatSync(directory);
+    if(!parent.isDirectory()||parent.uid!==process.getuid?.()||(parent.mode&0o022)!==0)throw new Error("invalid_lock_parent");
+    if(deployRestartOwner){
+      const raw=process.env.SAMANTHA_DEPLOY_LOCK_FD||"";
+      if(!/^[0-9]{1,4}$/.test(raw)||Number(raw)<3)throw new Error("missing_deploy_fd");
+      lockFd=Number(raw);
+    }else lockFd = fs.openSync(lockPath, fs.constants.O_CREAT | fs.constants.O_RDWR | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK,0o600);
+    const actual=fs.fstatSync(lockFd),current=fs.lstatSync(lockPath);
+    if (!actual.isFile()||actual.uid!==process.getuid?.()||actual.nlink!==1||(actual.mode&0o022)!==0||
+      !current.isFile()||current.ino!==actual.ino||current.dev!==actual.dev)throw new Error("invalid_lock");
   } catch {
     if (lockFd !== undefined) fs.closeSync(lockFd);
     throw new RuntimeRepairGuardError("runtime_guard_unavailable");
   }
   const child = (() => {
     try {
-      return spawn("python3", [helper, "--repair-lease"],
+      return spawn("python3", [helper, "--repair-lease",...(deployRestartOwner?["--require-existing-exclusive"]:[])],
         { env: { ...runtimeEnv(), SAMANTHA_DEPLOY_LOCK_FD: "3" }, stdio: ["pipe", "pipe", "ignore", lockFd] });
     } catch {
       fs.closeSync(lockFd);
@@ -752,4 +768,13 @@ function gatewayLogPath() {
 
 function gatewayPidPath() {
   return path.join(ensureLogsDir(), GATEWAY_PID_FILE);
+}
+
+// Fixed private deploy action; no public tool, HTTP option or caller command.
+if(require.main===module){
+  if(!deployRestartOwner){process.stdout.write('{"success":false}\n');process.exitCode=2;}
+  else void restartRuntime().then(result=>{
+    process.stdout.write(JSON.stringify({success:result.success})+"\n");
+    if(!result.success)process.exitCode=75;
+  }).catch(()=>{process.stdout.write('{"success":false}\n');process.exitCode=75;});
 }

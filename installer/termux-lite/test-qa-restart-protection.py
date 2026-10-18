@@ -25,10 +25,10 @@ class RestartProtection(unittest.TestCase):
         self.lock.parent.mkdir()
         self.lock.touch(mode=0o600)
 
-    def start_lease(self, inherited=None):
+    def start_lease(self, inherited=None, *, deployment=False):
         env = {**os.environ, "SAMANTHA_DEPLOY_LOCK_FD": str(inherited) if inherited is not None else ""}
         child = subprocess.Popen([sys.executable, str(ROOT / "runtime_mode.py"),
-            "--openclaw-home", str(self.home), "--repair-lease"],
+            "--openclaw-home", str(self.home), "--repair-lease", *( ["--require-existing-exclusive"] if deployment else [] )],
             env=env, pass_fds=(() if inherited is None else (inherited,)),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         def cleanup():
@@ -44,6 +44,54 @@ class RestartProtection(unittest.TestCase):
     def assert_lock_free(self):
         with self.lock.open() as f:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_absent_lock_is_created_securely_and_existing_inode_is_preserved(self):
+        self.lock.unlink()
+        child, ack = self.start_lease()
+        self.assertEqual(ack, {"version": 1, "state": "acquired"})
+        self.assertEqual(self.lock.stat().st_mode & 0o777, 0o600)
+        inode = self.lock.stat().st_ino
+        child.stdin.close(); self.assertEqual(child.wait(timeout=2), 0)
+        result = subprocess.run([sys.executable, str(ROOT / "runtime_mode.py"),
+            "--openclaw-home", str(self.home), "--ensure-deployment-lock"], timeout=3)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(self.lock.stat().st_ino, inode)
+        self.assert_lock_free()
+
+    def test_missing_lock_does_not_follow_a_parent_symlink_or_accept_a_hardlink(self):
+        self.lock.unlink(); self.lock.parent.rmdir()
+        foreign = self.home / "foreign"; foreign.mkdir()
+        self.lock.parent.symlink_to(foreign, target_is_directory=True)
+        child, ack = self.start_lease()
+        self.assertEqual(ack['cause'], 'unavailable'); self.assertEqual(child.wait(timeout=2), 75)
+        self.assertFalse((foreign / self.lock.name).exists())
+        self.lock.parent.unlink(); self.lock.parent.mkdir()
+        source = self.home / "source"; source.write_text('fixture')
+        os.link(source, self.lock)
+        child, ack = self.start_lease()
+        self.assertEqual(ack['cause'], 'unavailable'); self.assertEqual(child.wait(timeout=2), 75)
+        self.assertEqual(source.read_text(), 'fixture')
+
+    def test_deployment_restart_requires_and_preserves_the_same_exclusive_description(self):
+        fd = os.open(self.lock, os.O_RDWR)
+        try:
+            # Merely naming the correct, open inode must not exempt a restart.
+            child, ack = self.start_lease(fd, deployment=True)
+            self.assertEqual(ack['cause'], 'unavailable'); self.assertEqual(child.wait(timeout=2), 75)
+            fcntl.flock(fd, fcntl.LOCK_SH)
+            child, ack = self.start_lease(fd, deployment=True)
+            self.assertEqual(ack['cause'], 'unavailable'); self.assertEqual(child.wait(timeout=2), 75)
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            child, ack = self.start_lease(fd, deployment=True)
+            self.assertEqual(ack, {"version": 1, "state": "acquired"})
+            child.stdin.close(); self.assertEqual(child.wait(timeout=2), 0)
+            with self.lock.open() as independent:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(independent, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            # The deployment still holds EX after its restart helper exits.
+        finally:
+            os.close(fd)
+        self.assert_lock_free()
 
     def test_campaign_shared_lock_refuses_lease_and_mode(self):
         with self.lock.open() as f:

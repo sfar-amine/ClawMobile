@@ -125,10 +125,11 @@ check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_
 with_repair_lease() (
  local lease_pid lease_in lease_out lease_lock ack rc cause
  # Preserve the helper's open file description in the repair owner as well:
- # even a killed helper cannot drop EX during stop/start. Never create a new
- # lock inode here; the installed deployment owner supplies the existing one.
+ # even a killed helper cannot drop EX during stop/start. The canonical owner
+ # safely creates a missing lock; it never replaces an existing inode.
  local lock_path="${OPENCLAW_HOME:-$HOME/.openclaw}/deploys/companion-deploy.lock"
- if [ ! -f "$lock_path" ] || [ -L "$lock_path" ] || ! exec {lease_lock}<>"$lock_path"; then
+ if ! python3 "$ROOT/runtime_mode.py" --ensure-deployment-lock 9>&- ||
+    [ ! -f "$lock_path" ] || [ -L "$lock_path" ] || ! exec {lease_lock}<>"$lock_path"; then
   log "service=$2 state=runtime_protection_unavailable action=skip_repair"; return 75
  fi
  coproc REPAIR_LEASE { SAMANTHA_DEPLOY_LOCK_FD="$lease_lock" exec python3 "$ROOT/runtime_mode.py" --repair-lease 9>&-; }
