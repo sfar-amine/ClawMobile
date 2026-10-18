@@ -29,7 +29,7 @@ class LkgHold(unittest.TestCase):
     def health(self, ok, cap='gateway', generated_at=None):
         caps = {c: {'state': 'healthy'} for c in ('immune.health_manager', 'gateway', 'companion')}
         if not ok: caps[cap] = {'state': 'degraded'}
-        value = {'capabilities': caps}
+        value = {'capabilities': caps, 'generated_at': time.time()}
         if generated_at is not None: value['generated_at'] = generated_at
         (self.home / '.openclaw/health/current.json').write_text(json.dumps(value))
 

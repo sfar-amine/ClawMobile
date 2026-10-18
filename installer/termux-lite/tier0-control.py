@@ -129,7 +129,7 @@ def cmd_promote(a):
     # A release still in its LKG hold never becomes the rollback target; the confirmed LKG stays.
     if old and old!=target.resolve() and not (LKG.exists() and s.get('lkg_candidate')==old.name): link_atomic(LKG,old)
     link_atomic(CURRENT,target)
-    for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad','lkg_candidate','lkg_due_epoch'):
+    for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad','lkg_candidate','lkg_due_epoch','soak_last_health_generated_at','soak_last_health_sample','soak_sample_log_unavailable'):
         s.pop(key,None)
     epoch=int(dt.datetime.now().timestamp())
     s.update({'current':a.release_id,'last_known_good':LKG.resolve().name if LKG.exists() else None,
