@@ -152,6 +152,14 @@ export function compactVoiceOperatingRules(raw: string, maxChars = 12000) {
 // SAM-MIG V2.2: Gemini Live is one surface of the dialogue coordinator (single owner of the pending question).
 export const clawLiveDialogue = new DialogueSurface(runModelFastPath, "claw_live", "claw_live", { modelAllowed: true }, { voice: true });
 
+/** Public decision plus the Graph confidence (0..1). The receipt speaker says « J'ai compris : … » only below the trust
+ * threshold; without it every confident read was announced (banc voix S24 18/10, « mon solde Orange »). */
+function liveDecision(raw: unknown) {
+  const d = publicDecision(raw);
+  const confidence = raw && typeof raw === "object" ? (raw as { confidence?: unknown }).confidence : undefined;
+  return d && typeof confidence === "number" && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? { ...d, confidence } : d;
+}
+
 /** One Gemini Live tool turn. `request` is the user's original transcription for this turn
  * (Android v2 already enforces request == ASR final; the browser page sends its input transcription).
  * A CLARIFY question is returned with a `clarificationId`; the answer comes back with it and is
@@ -171,13 +179,13 @@ export async function clawLiveCapabilityTurn(
     return {
       success: true, state: "needs_clarification", source: "capability",
       clarificationId: turn.clarificationId, question: turn.question, choices: turn.choices,
-      decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)),
+      decision: liveDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)),
       execution: { state: "needs_clarification", question: turn.question, choices: turn.choices },
       instruction: "Read the question aloud verbatim. Send the user's spoken answer verbatim with this clarificationId.",
     };
   }
   if (turn.state === "done" || turn.state === "failed") {
-    return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), ...(turn.web?{web:turn.web}:{}), execution: { state: turn.state === "done" ? "completed" : "failed",...(turn.web?{result:{web:turn.web}}:{}) } };
+    return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: liveDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), ...(turn.web?{web:turn.web}:{}), execution: { state: turn.state === "done" ? "completed" : "failed",...(turn.web?{result:{web:turn.web}}:{}) } };
   }
   body.assertCurrent?.();
   return execute(turn.text);

@@ -1,3 +1,4 @@
+import {receiptPresentationCounters} from "./receiptPresentation";
 import {runtimeFile} from "../runtimeRoot";
 import {completeAutomationScheduler} from "./automationRunsPreparation";
 import {serverLanguage,localizedRoute,localizeServerPresentation} from "./serverLocale";
@@ -299,6 +300,7 @@ export async function readControlV2(selected:string[],detailId:string|undefined,
         const requestItems=[requestData?.item,...(Array.isArray(requestData?.items)?requestData.items:[])];
         if(requestItems.some(requestItem=>requestItem?.sessionId!=null && (typeof requestItem.sessionId!=="string" || !/^[A-Za-z0-9_-]{1,80}$/.test(requestItem.sessionId))))
           throw controlError("control_invalid_request_origin");
+        if(value.sections?.diagnostic?.data) value.sections.diagnostic.data.presentationCounters=receiptPresentationCounters();
         if(value.sections?.diagnostic?.data?.components) {
           const component=value.sections.diagnostic.data.components.find((row:any)=>row.id==="companion");
           if(component){component.version=companionBuildVersion();component.endpoint="/v1";}

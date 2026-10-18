@@ -357,6 +357,25 @@ test("Canonical clarification owner retains decision and HS3 without a second wa
   assert.equal(out.decision.risk,"transaction");assert.equal(JSON.stringify(out).includes("not forwarded"),false);
 });
 
+test("Claw Live keeps the coordinator confidence: a confident read is not announced, a doubtful one still is",async()=>{
+  // S24 18/10 banc voix: « J'ai compris : Solde et compteurs · Orange. » before every balance, the public projection
+  // dropped the confidence. Real Orange decision (confidence 1), as the coordinator reply carries it since playbooks #220.
+  const {DialogueSurface}=require("../dist/dialogueSurface");
+  const {clawLiveCapabilityTurn}=require("../dist/companion/clawLive");
+  const run=async(confidence)=>{
+    const c=new DialogueSurface(async()=>({outcome:"COMPLETED",text:"Il te reste 19,040 DT.",handled:true,
+      decision:{...ORANGE.decision_envelope,confidence}}),"claw_live","claw_live");
+    const o=owner();o.executeVoiceCapability=async(meta,text,run)=>run();
+    return clawLiveCapability(o,{request:"quel est mon solde orange",voiceTurn:{turnId:"conf-t1",sessionEpoch:7}},
+      (request)=>clawLiveCapabilityTurn({request,originId:"claw-live-conf-t1"},()=>{throw new Error("must use prepared owner");},c));
+  };
+  const sure=await run(1);
+  assert.equal(sure.decision.confidence,1);assert.equal(sure.voice,undefined,"no imposed « J'ai compris » on a confident read");
+  const doubtful=await run(0.5);
+  assert.equal(doubtful.decision.confidence,0.5);assert.match(doubtful.voice.verbatim,/^J'ai compris : /);
+  for(const bad of [Number.NaN,2,"1"]){const out=await run(bad);assert.equal("confidence" in out.decision,false);assert.match(out.voice.verbatim,/^J'ai compris : /);}
+});
+
 test("Real S24 #176 dispatch trace wins even when the attempt boolean is absent or inconsistent",()=>{
   // Exact capture bytes from core #176 f036943cc63af9401e7d5e242ba3b379d61056ea.
   // The masked decision.type is deliberately never decoded or used for execution.
