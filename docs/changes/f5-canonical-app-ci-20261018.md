@@ -9,3 +9,9 @@ F5 disk preflight now checks temporary and output volumes before creating worktr
 `tools/test_localci.py` remains registered in `ci.yml`. Offline disposable Git repositories and a versioned fake Android builder test exact-PR-head enforcement, delegation arguments and key removal, valid retained evidence, nonzero owner exit, checkout restoration, missing owner, malformed/missing/wrong-SHA/checksum/toolchain receipts, nonpositive/boolean test counts, failed/skipped tests, stale artifacts and low disk without cleanup. These are CI contract fixtures, not invented S24 observations; no runtime data is read.
 
 No route, capability, store, registry, router, scheduler or daemon is added. Payment, live voice and inherited runtime environment sanitation are unchanged. Rollback is to revert this commit; the app owner remains independently usable as confirmed by Claude. Full local CI must be cited on this PR's exact head before it is marked ready; Android PRs must additionally cite their own canonical runner log and retained `build.json`.
+
+Le workflow Android est aussi validé avant délégation : une définition vide ou un nouveau
+job non couvert fait échouer le contrôle. Le rejeu conserve les XML des tests, y compris
+en échec, avant de retirer le checkout jetable (256 fichiers, 1 Mio/fichier, 8 Mio au total,
+sans suivre les liens symboliques). La pile d’erreur reste ainsi consultable hors S24.
+Tests ciblés finaux du propriétaire CI : 20/20 verts.

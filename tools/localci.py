@@ -178,6 +178,26 @@ def app_receipt(folder, sha):
         raise LocalCIError(f"android_receipt_invalid: {exc}") from exc
 
 
+def preserve_app_test_reports(space, artifacts):
+    """Keep bounded failure evidence before the disposable checkout is removed."""
+    source = space / "android/samantha/app/build/test-results/testDebugUnitTest"
+    count = size = 0
+    truncated = False
+    for report in sorted(source.glob("TEST-*.xml")):
+        if report.is_symlink() or not report.is_file():
+            continue
+        length = report.stat().st_size
+        if count >= 256 or length > 1024 * 1024 or size + length > 8 * 1024 * 1024:
+            truncated = True
+            break
+        destination = artifacts / "test-results"
+        destination.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(report, destination / report.name)
+        count += 1
+        size += length
+    return count, size, truncated
+
+
 def run_app_ci(repo, sha, pr, base, logpath):
     artifacts = logpath.with_name(logpath.stem + "-android")
     if artifacts.exists():
@@ -204,6 +224,8 @@ def run_app_ci(repo, sha, pr, base, logpath):
                 log.write(line)
             result = proc.wait()
             proc.stdout.close()
+            count, size, truncated = preserve_app_test_reports(space, artifacts)
+            note(f"ANDROID_TEST_REPORTS files={count} bytes={size} truncated={str(truncated).lower()} path={artifacts / 'test-results'}")
             if result:
                 note(f"LOCALCI_RESULT exit={result} sha={sha} job=android owner=build-apk-offphone")
                 return result

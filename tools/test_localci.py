@@ -10,6 +10,24 @@ from unittest.mock import patch
 import localci
 
 class LocalCiUnitTests(unittest.TestCase):
+    def test_android_failure_reports_survive_disposable_checkout_without_following_links(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            reports = root / "tree/android/samantha/app/build/test-results/testDebugUnitTest"
+            reports.mkdir(parents=True)
+            (reports / "TEST-failed.xml").write_text('<testsuite failures="1"><failure>fixture stack</failure></testsuite>')
+            outside = root / "outside.xml"
+            outside.write_text("not a test report")
+            (reports / "TEST-link.xml").symlink_to(outside)
+            artifacts = root / "proof"
+            count, size, truncated = localci.preserve_app_test_reports(root / "tree", artifacts)
+            shutil.rmtree(root / "tree")
+            self.assertEqual(count, 1)
+            self.assertGreater(size, 0)
+            self.assertFalse(truncated)
+            self.assertIn("fixture stack", (artifacts / "test-results/TEST-failed.xml").read_text())
+            self.assertFalse((artifacts / "test-results/TEST-link.xml").exists())
+
     def test_sha_must_be_full(self):
         with self.assertRaisesRegex(localci.LocalCIError, "SHA"):
             localci.run_ci("samantha-core", "a" * 8, "-", "/dev/null")
