@@ -7,6 +7,7 @@ Overrides: LOCALCI_NODE20_BIN, LOCALCI_NODE22_BIN, LOCALCI_NODE26_BIN,
 LOCALCI_PYTHON312_BIN; each specifies a toolchain bin directory.
 """
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -131,6 +132,115 @@ def apply_github_env(path, env):
     path.write_text("", encoding="utf-8")
 
 
+APP_WORKFLOW = ".github/workflows/android-app.yml"
+APP_BUILDER = "android/samantha/tools/build-apk-offphone.sh"
+
+
+def disk_preflight(paths, app=False):
+    """A conservative floor, not a build-space promise; never delete caller data."""
+    minimum = (2 if app else 1) * 1024 ** 3
+    for path in paths:
+        folder = Path(path).resolve()
+        while not folder.exists():
+            folder = folder.parent
+        free = shutil.disk_usage(folder).free
+        if free < minimum:
+            raise LocalCIError(f"disk_space_insufficient path={folder} free_bytes={free} minimum_bytes={minimum}")
+
+
+def app_receipt(folder, sha):
+    """Judge the existing Android owner's evidence without duplicating its steps."""
+    try:
+        receipt = json.loads((folder / "build.json").read_text(encoding="utf-8"))
+        tests = receipt["tests"]
+        valid_count = lambda value: type(value) is int and value >= 0
+        if receipt.get("version") != 1 or receipt.get("commit") != sha:
+            raise ValueError("receipt commit/version mismatch")
+        if not all(valid_count(tests.get(k)) for k in ("suites", "tests", "failures", "errors", "skipped")):
+            raise ValueError("invalid test counters")
+        if tests["suites"] < 1 or tests["tests"] < 1 or any(tests[k] for k in ("failures", "errors", "skipped")):
+            raise ValueError("tests missing, failed or skipped")
+        if receipt.get("apk") != "app-optimized.apk":
+            raise ValueError("unexpected APK filename")
+        apk = folder / "app-optimized.apk"
+        digest = hashlib.sha256(apk.read_bytes()).hexdigest()
+        checksum = (folder / "app-optimized.apk.sha256").read_text(encoding="utf-8").split()
+        if apk.stat().st_size < 1 or receipt.get("sha256") != digest or checksum != [digest, "app-optimized.apk"]:
+            raise ValueError("APK checksum mismatch")
+        if not isinstance(receipt.get("command"), list) or not receipt["command"]:
+            raise ValueError("missing owner commands")
+        versions = receipt.get("versions") or {}
+        if not all(isinstance(versions.get(k), str) and versions[k].strip()
+                   for k in ("jdk", "agp", "build_tools", "platform")):
+            raise ValueError("missing toolchain versions")
+        return tests
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+        raise LocalCIError(f"android_receipt_invalid: {exc}") from exc
+
+
+def preserve_app_test_reports(space, artifacts):
+    """Keep bounded failure evidence before the disposable checkout is removed."""
+    source = space / "android/samantha/app/build/test-results/testDebugUnitTest"
+    count = size = 0
+    truncated = False
+    for report in sorted(source.glob("TEST-*.xml")):
+        if report.is_symlink() or not report.is_file():
+            continue
+        length = report.stat().st_size
+        if count >= 256 or length > 1024 * 1024 or size + length > 8 * 1024 * 1024:
+            truncated = True
+            break
+        destination = artifacts / "test-results"
+        destination.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(report, destination / report.name)
+        count += 1
+        size += length
+    return count, size, truncated
+
+
+def run_app_ci(repo, sha, pr, base, logpath):
+    artifacts = logpath.with_name(logpath.stem + "-android")
+    if artifacts.exists():
+        raise LocalCIError("Android artifact directory already exists; use a new output log to avoid stale evidence")
+    space = Path(tempfile.mkdtemp(prefix="localci-samantha-android-",
+                                 dir=os.getenv("LOCALCI_TMP_ROOT") or None)).resolve()
+    attached = False
+    try:
+        command(["git", "worktree", "add", "--detach", str(space), sha], repo)
+        attached = True
+        with logpath.open("w", encoding="utf-8", buffering=1) as log:
+            def note(value):
+                print(value, file=log, flush=True)
+                print(value, flush=True)
+            note(f"LOCALCI_START repo={repo.name} sha={sha} pr={pr} base={base} jobs=1 delivery=android")
+            note(f"ANDROID_OWNER {APP_BUILDER} publication=not_requested signing=local_debug artifacts={artifacts}")
+            env = dict(os.environ)
+            env.pop("SAMANTHA_DEBUG_KEYSTORE", None)
+            env.update({"CI": "true", "GITHUB_SHA": sha})
+            proc = subprocess.Popen(["bash", str(space / APP_BUILDER), "--out", str(artifacts)],
+                                    cwd=space, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, errors="replace")
+            for line in proc.stdout:
+                log.write(line)
+            result = proc.wait()
+            proc.stdout.close()
+            count, size, truncated = preserve_app_test_reports(space, artifacts)
+            note(f"ANDROID_TEST_REPORTS files={count} bytes={size} truncated={str(truncated).lower()} path={artifacts / 'test-results'}")
+            if result:
+                note(f"LOCALCI_RESULT exit={result} sha={sha} job=android owner=build-apk-offphone")
+                return result
+            if command(["git", "status", "--porcelain", "--untracked-files=no"], space):
+                raise LocalCIError("Android owner did not restore the tracked checkout")
+            tests = app_receipt(artifacts, sha)
+            note(f"ANDROID_TESTS suites={tests['suites']} tests={tests['tests']} failures=0 errors=0 skipped=0")
+            note(f"LOCALCI_RESULT exit=0 sha={sha} jobs=1 steps=1 tests={tests['tests']} delivery=android")
+        return 0
+    finally:
+        if attached:
+            subprocess.run(["git", "worktree", "remove", "--force", str(space)], cwd=repo, capture_output=True)
+        shutil.rmtree(space, ignore_errors=True)
+
+
 def run_ci(repo_arg, sha, pr, output):
     if not SHA.fullmatch(sha):
         raise LocalCIError("Full exact 40-character head SHA required")
@@ -157,17 +267,28 @@ def run_ci(repo_arg, sha, pr, output):
         refs = {}
         base = command(["git", "rev-parse", sha + "^"], repo)
     path = WORKFLOWS[repo.name]
+    tracked = set(command(["git", "ls-tree", "-r", "--name-only", sha], repo).splitlines())
+    app = repo.name == "samantha-core" and path not in tracked and APP_WORKFLOW in tracked
+    if app:
+        if APP_BUILDER not in tracked:
+            raise LocalCIError("Missing versioned Android build owner")
+        path = APP_WORKFLOW
+    logpath = Path(output).expanduser().resolve()
+    disk_preflight([os.getenv("LOCALCI_TMP_ROOT") or tempfile.gettempdir(), logpath.parent], app=app)
+    logpath.parent.mkdir(parents=True, exist_ok=True)
     workflow = yaml.safe_load(command(["git", "show", f"{sha}:{path}"], repo))
     jobs = workflow.get("jobs") if isinstance(workflow, dict) else None
     if not isinstance(jobs, dict) or not jobs:
         raise LocalCIError("Missing workflow jobs")
+    if app:
+        if set(jobs) != {"apk"} or not isinstance(jobs["apk"], dict) or not jobs["apk"].get("steps"):
+            raise LocalCIError("Unsupported Android workflow job layout; update the versioned build owner contract")
+        return run_app_ci(repo, sha, pr, base, logpath)
     context = {
         "github.sha": sha, "github.event.pull_request.head.sha": sha,
         "github.event.pull_request.base.sha": base, "github.event.before": base,
         "github.event_name": "pull_request" if pr != "-" else "push",
     }
-    logpath = Path(output).expanduser().resolve()
-    logpath.parent.mkdir(parents=True, exist_ok=True)
     passed = 0
     with logpath.open("w", encoding="utf-8", buffering=1) as log:
         def note(text):
