@@ -11,3 +11,5 @@ Aucune nouvelle route, capability, source runtime, base, journal ni service. Auc
 Tests ciblés : construction TypeScript ; couverture des codes, langues, sécurité, compteur et persistance du run ; régression N1 ; diagnostic ; recherche web ; transport des reçus. Le rejeu CI complet avec PR et SHA exact reste obligatoire avant revue de fusion.
 
 Retour arrière : revenir au commit précédent sur la ligne runtime ; aucun format persistant ni migration n'est ajouté. Ne pas confondre ce lot avec les phrases de la voix en direct, réservées à Claude, ni avec les cartes métier playbooks, livrées séparément.
+
+Le lecteur de reçus accepte aussi jusqu’à huit lignes en paires `[libellé, valeur]`, format déjà lu par l’app, avec les mêmes gardes de contenu. Cela prépare les cartes métier rendues par leur propriétaire playbooks ; objets libres, lignes malformées et secrets restent refusés.

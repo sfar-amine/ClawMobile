@@ -32,6 +32,9 @@ let checks=0;
  const cases=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11c/hs3-presentations-from-captures.json'))).cases;
  const captured=cases.payment_effect_unknown_fr.presentation;
  assert.deepEqual(render.fastPathFailurePresentation({presentation:captured},'execution'),render.readReceiptPresentation(captured));checks++;
+ const card={...captured,rows:[['STEG','0,985 DT'],['Total','0,985 DT']]};
+ assert.deepEqual(render.readReceiptPresentation(card).rows,card.rows);checks++;
+ for(const rows of [[['STEG','Bearer private']],Array(9).fill(['Total','0 DT']),[{label:'STEG',value:'0 DT'}]]){assert.equal(render.readReceiptPresentation({...card,rows}),undefined);checks++;}
  assert.equal(render.receiptPresentationCounters().missingFailureCauseRenders,before+3);checks++;
  // Fault injection at the existing transport; verifies cause persistence, not merely a renderer helper.
  const helper=path.join(root,'helper.py');fs.writeFileSync(helper,`import json\nprint(json.dumps({'outcome':'FAILED','reasonCode':'execution_cancelled','text':'Interrupted','handled':True}))\n`);
