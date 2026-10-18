@@ -67,3 +67,10 @@ Merge normal du head Q12 exact `dd80d6928330b008512d1195111d8cbf19951409` dans c
 Ciblés de propagation : construction TypeScript verte ;15/15 tests Python de protection redémarrage (1,202s),9/9 tests du bail de réparation avec vrais flock/current/promotion, et test propriétaire du redémarrage Gateway sous EX vert. Les cinq tests CLI privé→renderer Core sont rejoués avec le producteur Playbooks exact `d420259483ef4f8eaabaff77a972f6334f9c7769` :5/5 verts en2,948s, modes carte et texte. Ce sont des fixtures hors téléphone ; aucun démarrage, envoi ou geste S24 n’est revendiqué.
 
 Ce nouveau head attend la CI canonique complète PR350 dans le créneau root. L’ancienne preuve142/142 au head7dad7206 reste historique et ne le qualifie pas. Aucun changement du runner isolé canonique, du parcours de paiement ou de la voix en direct n’est réalisé par cette propagation.
+
+
+## Propagation du Q12 final intégrant F1/diagnostics — 18 octobre
+
+Merge local normal du head Q12 `d29619e58827310759934485222806214462c8ba`, lui-même issu du F1 final `064a66e95649bf6362232bb69201edf57d24e321`. Aucun conflit ; union des commandes workflow des deux parents et ancêtre runtime/voix359 vérifiés. La chaîne de tests Gateway est conservée et prolongée par le test Q13 de staging média, pas remplacée. Autorité People, queue, transport privé et frontière Q13 restent aux propriétaires existants ; aucun bail playbooks ou runner isolé modifié.
+
+Ciblés hors téléphone :38/38 accès QA People,13/13 pièces par le canal privé,4/4 pipe Graph privé, ingress privé,12/12 diagnostics propriétaire et compilation TypeScript verts. Ces contrats/captures/fixtures ne revendiquent aucun envoi, redémarrage, geste ou recette S24. La CI complète du nouveau head n’a pas été lancée. L’ancienne142/142 sur7dad7206 est historique ; les têtes intermédiaires75f8 et le nouveau head ne sont pas qualifiés par elle. PR en brouillon, intégration/publication playbooks et CI complète encore attendues.
