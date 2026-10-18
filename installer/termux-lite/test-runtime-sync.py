@@ -125,6 +125,27 @@ class RuntimeSync(unittest.TestCase):
         path = self.home / "tier0.log"
         return path.read_text().splitlines() if path.exists() else []
 
+    def test_check_without_app_source_has_no_phantom_app_drift(self):
+        self.assertEqual(self.sync()[0], 0)
+        shutil.rmtree(self.root.parent.parent / "android")
+        rc, out, err = self.sync(check=True)
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(out['drift'], [])
+
+    def test_explicit_missing_app_source_is_a_named_drift(self):
+        self.assertEqual(self.sync()[0], 0)
+        rc, out, err = self.sync(check=True, RUNTIME_SYNC_APP_CONTRACT=str(self.tmp/'missing-app.json'))
+        self.assertEqual(rc, 1, err)
+        self.assertIn('voice:app_contract_unavailable', out['drift'])
+
+    def test_explicit_app_source_is_compared_byte_for_byte(self):
+        self.assertEqual(self.sync()[0], 0)
+        app = self.root.parent.parent/'android/samantha/app/src/test/resources/voice-v2/app-companion-envelope-contract.json'
+        app.write_bytes(app.read_bytes()+b'\n')
+        rc, out, err = self.sync(check=True, RUNTIME_SYNC_APP_CONTRACT=str(app))
+        self.assertEqual(rc, 1, err)
+        self.assertIn('voice:app_contract_differs', out['drift'])
+
     def test_stale_gateway_plugin_and_release_are_brought_to_the_commit(self):
         rc, out, err = self.sync()
         self.assertEqual(0, rc, err)

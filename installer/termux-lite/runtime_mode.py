@@ -69,18 +69,21 @@ def contract_drift(core: Path, playbooks: Path, app_contract: Path | None = None
             drift.append("budget:web_fast_path")
     except (OSError, ValueError, SyntaxError, TypeError):
         drift.append("budget:web_contract_unavailable")
-    if app_contract is None:
-        return drift
     try:
         original = (core / "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json").read_bytes()
         contract = json.loads(original)
         correlation = contract.get("correlation")
-        if not isinstance(correlation, dict) or not isinstance(correlation.get("values"), list) or not correlation["values"] or any(not isinstance(v, str) or not v for v in correlation["values"]) or len(set(correlation["values"])) != len(correlation["values"]) or correlation.get("unknown") != "fatal":
+        if contract.get("version") != 2 or not isinstance(correlation, dict) or not isinstance(correlation.get("values"), list) or not correlation["values"] or any(not isinstance(v, str) or not v for v in correlation["values"]) or len(set(correlation["values"])) != len(correlation["values"]) or correlation.get("unknown") != "fatal":
             drift.append("voice:correlation_contract")
-        if original != app_contract.read_bytes():
-            drift.append("voice:app_contract_differs")
     except (OSError, ValueError, AttributeError):
-        drift.append("voice:app_contract_unavailable")
+        drift.append("voice:runtime_contract_unavailable")
+    else:
+        if app_contract is not None:
+            try:
+                if original != app_contract.read_bytes():
+                    drift.append("voice:app_contract_differs")
+            except OSError:
+                drift.append("voice:app_contract_unavailable")
     return drift
 
 
@@ -193,11 +196,11 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--openclaw-home", type=Path)
     parser.add_argument("--json", action="store_true")
-    parser.add_argument("--check-web-parity", nargs=2, type=Path, metavar=("CORE", "PLAYBOOKS"))
+    parser.add_argument("--check-runtime-parity", nargs=2, type=Path, metavar=("CORE", "PLAYBOOKS"))
     parser.add_argument("--check-parity", nargs=3, type=Path, metavar=("CORE", "PLAYBOOKS", "APP_CONTRACT"))
     args = parser.parse_args(argv)
-    if args.check_parity or args.check_web_parity:
-        drift = contract_drift(*(args.check_parity or args.check_web_parity))
+    if args.check_parity or args.check_runtime_parity:
+        drift = contract_drift(*(args.check_parity or args.check_runtime_parity))
         print(json.dumps({"ok": not drift, "drift": drift}))
         return 1 if drift else 0
     mode = current_mode(args.openclaw_home)

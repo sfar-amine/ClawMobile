@@ -22,7 +22,7 @@ EXT="$STATE_DIR/extensions/openclaw-plugin-mobile-ui"
 source "$SRC/lib.sh"
 CURRENT="$(clawmobile_release_root)"
 PLAYBOOKS="${CLAW_UI_PLAYBOOKS_ROOT:-$HOME/.openclaw/runtime-ui-playbooks/current}"
-APP_CONTRACT="${RUNTIME_SYNC_APP_CONTRACT:-$REPO/android/samantha/app/src/test/resources/voice-v2/app-companion-envelope-contract.json}"
+APP_CONTRACT="${RUNTIME_SYNC_APP_CONTRACT:-}"
 TOOLS="$STATE_DIR/tools"
 CONTACTS="$STATE_DIR/workspace-contacts"
 PLAYBOOK_RULES="${RUNTIME_SYNC_PLAYBOOK_RULES:-$HOME/.openclaw/runtime-ui-playbooks/current/tools/install_interaction_rules.py}"
@@ -47,7 +47,11 @@ dispatch_contract(){ [ -d "$OPENCLAW_DIST" ] || return 0; grep -lq "runBeforeDis
 
 if [ "$mode" = check ]; then
   drift=()
-  parity=$(python3 "$SRC/runtime_mode.py" --check-parity "$REPO" "$PLAYBOOKS" "$APP_CONTRACT")
+  if [ "${RUNTIME_SYNC_APP_CONTRACT+x}" = x ]; then
+    parity=$(python3 "$SRC/runtime_mode.py" --check-parity "$REPO" "$PLAYBOOKS" "$APP_CONTRACT")
+  else
+    parity=$(python3 "$SRC/runtime_mode.py" --check-runtime-parity "$REPO" "$PLAYBOOKS")
+  fi
   parity_rc=$?
   if [ "$parity_rc" -ne 0 ]; then
     if reasons=$(python3 -c 'import json,sys; d=json.loads(sys.argv[1])["drift"]; assert isinstance(d,list) and d and all(isinstance(v,str) and v for v in d); print("\n".join(d))' "$parity" 2>/dev/null); then

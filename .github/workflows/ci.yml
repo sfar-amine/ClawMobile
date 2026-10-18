@@ -52,7 +52,7 @@ jobs:
           peer="$RUNNER_TEMP/f1-playbooks"
           mkdir -p "$peer/skill_intelligence"
           gh api "repos/sfar-amine/samantha-ui-playbooks/contents/skill_intelligence/public_web.py?ref=$peer_sha" --jq .content | base64 --decode > "$peer/skill_intelligence/public_web.py"
-          python3 ../installer/termux-lite/runtime_mode.py --check-web-parity "$GITHUB_WORKSPACE" "$peer"
+          python3 ../installer/termux-lite/runtime_mode.py --check-runtime-parity "$GITHUB_WORKSPACE" "$peer"
 
       - name: Test long Remote Bridge receipt response budget
         run: node scripts/test-bridge-long.cjs

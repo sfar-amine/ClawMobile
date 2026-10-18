@@ -32,6 +32,19 @@ class RuntimeFoundations(unittest.TestCase):
     def test_static_contracts_match(self):
         self.assertEqual(mode.contract_drift(self.core, self.pb, self.app), [])
 
+    def test_without_app_source_the_runtime_contract_is_still_checked(self):
+        self.app.unlink()
+        self.assertEqual(mode.contract_drift(self.core, self.pb), [])
+        value = json.loads(self.contract.read_text()); value.pop('correlation')
+        self.contract.write_text(json.dumps(value))
+        self.assertIn('voice:correlation_contract', mode.contract_drift(self.core, self.pb))
+
+    def test_missing_runtime_contract_is_distinct_from_missing_app_copy(self):
+        self.contract.unlink()
+        drift = mode.contract_drift(self.core, self.pb)
+        self.assertIn('voice:runtime_contract_unavailable', drift)
+        self.assertNotIn('voice:app_contract_unavailable', drift)
+
     def test_owner_budget_change_refuses_both_copies(self):
         (self.pb/'skill_intelligence/public_web.py').write_text('BUDGET_MS=25000\nSEARCH_BUDGET_MS=12000\n')
         self.assertCountEqual(mode.contract_drift(self.core, self.pb, self.app), ['budget:web_companion', 'budget:web_fast_path'])
