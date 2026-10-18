@@ -16,12 +16,12 @@ Runtime acceptance and deployment stay with Claude. Codex Cloud received `device
 
 ## Couverture de la mémoire — complément F1 du 18/10
 
-Le producteur `context_memory.py` possède `COVERAGE_INDEX_COMPLETE` et la transition nommée
-`COVERAGE_LEGACY_COMPLETE`. La copie de `tools/request_context.py` (playbooks #198) est comparée par AST par le même
+Le producteur `context_memory.py` possède `COVERAGE_COMPLETE` et la transition nommée
+`COVERAGE_COMPLETE_LEGACY`. La copie de `tools/request_context.py` (playbooks #197, main `35108646`) est comparée par AST par le même
 `contract_drift`, sans exécution du lecteur et sans lecture de données privées. Les dérives sont
 `context:coverage_index_contract`, `context:coverage_legacy_contract` ou `context:coverage_contract_unavailable`.
 Le workflow F1 récupère aussi le vrai lecteur au SHA exact de main, déjà journalisé pour la parité des budgets.
 
-Ordre : fusion et activation du lecteur playbooks #198 d'abord ; cette contrepartie core attend main pour sa CI.
+Le lecteur playbooks #197 est fusionné et activé ; sa vraie copie main est maintenant la référence de CI.
 La complétude concerne les index, pas la lecture intégrale des contraintes. Le consommateur doit récupérer les sources
 EVT/REQ avant application. `BLOCKED`, une déclaration inconnue ou contradictoire continue de fermer la barrière.

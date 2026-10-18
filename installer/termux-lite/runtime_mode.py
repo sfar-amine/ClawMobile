@@ -70,7 +70,7 @@ def contract_drift(core: Path, playbooks: Path, app_contract: Path | None = None
     except (OSError, ValueError, SyntaxError, TypeError):
         drift.append("budget:web_contract_unavailable")
     def coverage_constants(path):
-        names={"COVERAGE_INDEX_COMPLETE", "COVERAGE_LEGACY_COMPLETE"}
+        names={"COVERAGE_COMPLETE", "COVERAGE_COMPLETE_LEGACY"}
         values={}
         for item in ast.parse(path.read_text()).body:
             if isinstance(item, ast.Assign):
@@ -86,9 +86,9 @@ def contract_drift(core: Path, playbooks: Path, app_contract: Path | None = None
     try:
         owner=coverage_constants(core / "installer/termux-lite/context_memory.py")
         reader=coverage_constants(playbooks / "tools/request_context.py")
-        if owner["COVERAGE_INDEX_COMPLETE"]!=reader["COVERAGE_INDEX_COMPLETE"]:
+        if owner["COVERAGE_COMPLETE"]!=reader["COVERAGE_COMPLETE"]:
             drift.append("context:coverage_index_contract")
-        if owner["COVERAGE_LEGACY_COMPLETE"]!=reader["COVERAGE_LEGACY_COMPLETE"]:
+        if owner["COVERAGE_COMPLETE_LEGACY"]!=reader["COVERAGE_COMPLETE_LEGACY"]:
             drift.append("context:coverage_legacy_contract")
     except (OSError, ValueError, SyntaxError, TypeError):
         drift.append("context:coverage_contract_unavailable")

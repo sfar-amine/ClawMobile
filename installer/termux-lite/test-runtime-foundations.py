@@ -81,7 +81,7 @@ class RuntimeFoundations(unittest.TestCase):
             c.execute('CREATE TABLE events(id TEXT,revision INTEGER,surface TEXT,kind TEXT,text TEXT,created_at TEXT,supersedes TEXT)')
             body,meta=owner.build_view(c,4)
             self.assertIn(capture['coverage_line'],body.splitlines())
-            self.assertIn('> Coverage: '+owner.COVERAGE_INDEX_COMPLETE,body.splitlines())
+            self.assertIn('> Coverage: '+owner.COVERAGE_COMPLETE,body.splitlines())
             self.assertTrue(meta['coverage_complete'])
             blocked,meta=owner.build_view(c,4,foundation_bytes=5000,budget_bytes=4096)
             self.assertIn('> Coverage: BLOCKED',blocked)
