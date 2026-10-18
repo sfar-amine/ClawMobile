@@ -5,6 +5,7 @@ refuse what it must refuse, and never return secret-shaped content. Reads and no
 Exit 0 = accepted, 1 = regression (the deploy script rolls back), 2 = usage error.
 A route that is not present in this build (404) is skipped, so the same check serves every release."""
 import json, pathlib, re, sys, time, urllib.error, urllib.request
+import ast, fcntl, hashlib, heapq, math, os, stat, subprocess, tempfile, uuid
 
 BASE = "http://127.0.0.1:8765/v1"
 # (path, budget seconds). Existing budgets were measured on S24; R8 user28 targets are locally tested and still require live qualification. A cold first read gets one retry.
@@ -339,10 +340,220 @@ def main(session_id=None, baseline_path=None):
     return 1 if failed else 0
 
 
+# F5.3: optional, explicit human-gesture receipt in the existing deployment owner.
+# Default route acceptance above, including every payment refusal probe, is unchanged.
+WEB_RECIPE_ID = re.compile(r"[0-9]{13}-[a-f0-9]{16}\Z")
+WEB_OPAQUE_ID = re.compile(r"[A-Za-z0-9_-]{1,160}\Z")
+WEB_RECIPE_LIMIT = 64 * 1024
+WEB_RECIPE_KEEP = 30
+
+
+def web_static_constants(path, names):
+    tree = ast.parse(path.read_text())
+    found = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id in names:
+                    value = ast.literal_eval(node.value)
+                    if type(value) is not int or value <= 0 or target.id in found:
+                        raise ValueError("web_budget_contract_invalid")
+                    found[target.id] = value
+    if set(found) != set(names):
+        raise ValueError("web_budget_contract_unavailable")
+    return found
+
+
+def web_recipe_contract(core, playbooks):
+    # Explicit owner roots: never guess a release, install a copy or execute inspected Python.
+    core, playbooks = pathlib.Path(core).resolve(), pathlib.Path(playbooks).resolve()
+    helper = core / "installer/termux-lite/model-fast-path.py"
+    owner = playbooks / "skill_intelligence/public_web.py"
+    validator = core / "openclaw-plugin-mobile-ui/dist/companion/runWeb.js"
+    try:
+        total = web_static_constants(helper, {"PUBLIC_WEB_BUDGET_MS"})["PUBLIC_WEB_BUDGET_MS"]
+        values = web_static_constants(owner, {"BUDGET_MS", "SEARCH_BUDGET_MS"})
+        if total != values["BUDGET_MS"] or values["SEARCH_BUDGET_MS"] > total:
+            raise ValueError("web_budget_contract_differs")
+        digests = {name: hashlib.sha256(path.read_bytes()).hexdigest()
+                   for name, path in (("core", helper), ("playbooks", owner), ("validator", validator))}
+        return {"totalMs": total, "searchMs": values["SEARCH_BUDGET_MS"], "digests": digests}, validator
+    except (OSError, SyntaxError, TypeError):
+        raise ValueError("web_budget_contract_unavailable") from None
+
+
+def web_contract_valid(web, validator):
+    # The existing TypeScript owner validates claims/sources/citations; no duplicate schema here.
+    script = "const fs=require('fs');const v=require(process.argv[1]);let ok=false;try{ok=!!v.readRunWebResult(JSON.parse(fs.readFileSync(0,'utf8')))}catch{};process.stdout.write(ok?'valid':'invalid');"
+    try:
+        result = subprocess.run(["node", "-e", script, str(validator)], input=json.dumps(web, allow_nan=False),
+                                text=True, capture_output=True, timeout=3, check=False)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        raise ValueError("web_contract_validator_unavailable") from None
+    if result.returncode != 0:
+        raise ValueError("web_contract_validator_unavailable")
+    return result.stdout == "valid"
+
+
+def web_recipe_read(path):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd) as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > WEB_RECIPE_LIMIT:
+            raise ValueError("web_recipe_invalid")
+        row = json.load(stream)
+    if not isinstance(row, dict) or row.get("kind") != "web_gesture_acceptance" or row.get("version") != 1:
+        raise ValueError("web_recipe_invalid")
+    return row
+
+
+def web_recipe_write(path, row):
+    data = (json.dumps(row, separators=(",", ":"), allow_nan=False) + "\n").encode()
+    if len(data) > WEB_RECIPE_LIMIT or path.is_symlink():
+        raise ValueError("web_recipe_invalid")
+    fd, tmp = tempfile.mkstemp(prefix=".web-recipe-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data); stream.flush(); os.fsync(stream.fileno())
+        os.chmod(tmp, 0o600); os.replace(tmp, path)
+    finally:
+        pathlib.Path(tmp).unlink(missing_ok=True)
+    # Only this optional acceptance's receipts, never deploy/rollback/payment proof or unknown files.
+    def receipts():
+        for candidate in path.parent.glob("web-recipe-*.json"):
+            if not WEB_RECIPE_ID.fullmatch(candidate.name[len("web-recipe-"):-5]) or candidate.is_symlink() or not candidate.is_file():
+                continue
+            try:
+                web_recipe_read(candidate)
+                yield candidate
+            except (OSError, ValueError):
+                continue
+    keep = {p.name for p in heapq.nlargest(WEB_RECIPE_KEEP, receipts(), key=lambda p: p.name)}
+    for old in receipts():
+        if old.name not in keep:
+            old.unlink(missing_ok=True)
+
+
+def web_recipe_judgment(prepared, run, run_id, now, contract, validator):
+    result = {"runId": run_id, "state": "failed", "reason": "web_run_unavailable"}
+    if not isinstance(run, dict):
+        return result
+    reason = run.get("reasonClass")
+    if isinstance(reason, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,95}", reason):
+        result["reasonClass"] = reason
+    if run.get("runId") != run_id or run.get("sessionId") != prepared.get("sessionId"):
+        return {**result, "reason": "web_run_identity_mismatch"}
+    client = run.get("clientRunId")
+    if not isinstance(client, str) or not WEB_OPAQUE_ID.fullmatch(client) or (prepared.get("clientRunId") and client != prepared["clientRunId"]):
+        return {**result, "reason": "web_run_identity_mismatch"}
+    result["clientRunId"] = client
+    start, end = run.get("submittedAt"), run.get("updatedAt")
+    if (type(start) is not int or type(end) is not int or not prepared["preparedAtMs"] <= start <= end <= now):
+        return {**result, "reason": "web_run_outside_prepared_window"}
+    if run.get("state") not in ("done", "failed"):
+        return {**result, "reason": "web_run_not_terminal"}
+    web = run.get("web")
+    if not isinstance(web, dict) or not web_contract_valid(web, validator):
+        return {**result, "reason": "web_contract_invalid"}
+    if web.get("operation") != prepared["operation"]:
+        return {**result, "reason": "web_operation_mismatch"}
+    metrics = web.get("metrics") or {}
+    measured = {"elapsedMs": end - start}
+    for key in ("searchMs", "fetchMs", "synthesisMs", "totalMs", "logicalSearchCalls", "fetchCount", "providerAttempts"):
+        value = metrics.get(key)
+        if type(value) in (int, float) and math.isfinite(value) and value >= 0:
+            measured[key] = value
+    result.update({"operation": web["operation"], "outcome": web["outcome"], "metrics": measured,
+                   "sourceCount": len(web["sources"]), "claimCount": len(web["claims"]), "citationCount": len(web["citations"])})
+    error = web.get("error")
+    if error:
+        return {**result, "reason": error["code"], "stage": error["stage"]}
+    if web["outcome"] != "complete" or run["state"] != "done":
+        return {**result, "reason": "web_run_incomplete"}
+    if "searchMs" not in measured:
+        return {**result, "reason": "web_timing_unavailable"}
+    if measured["searchMs"] > contract["searchMs"] or max(measured["elapsedMs"], measured.get("totalMs", 0)) > contract["totalMs"]:
+        return {**result, "reason": "web_deadline_exceeded"}
+    return {**result, "state": "passed", "reason": "web_run_verified"}
+
+
+def web_recipe(mode, session_id, core_root, playbooks_root, recipe_id=None, run_id=None,
+               operation="answer", client_run_id=None, home=None, clock=None, reader=None):
+    """Prepare before Amine's gesture; judge one explicitly identified existing run, with GET only."""
+    now = int((clock or time.time)() * 1000)
+    if not core_root or not playbooks_root:
+        raise ValueError("web_owner_roots_required")
+    if mode == "prepare" and (not isinstance(session_id, str) or not WEB_OPAQUE_ID.fullmatch(session_id)
+        or operation not in ("search", "answer") or client_run_id is not None and not WEB_OPAQUE_ID.fullmatch(client_run_id)):
+        raise ValueError("web_recipe_identity_invalid")
+    if mode == "judge" and (not isinstance(recipe_id, str) or not WEB_RECIPE_ID.fullmatch(recipe_id)
+        or not isinstance(run_id, str) or not WEB_OPAQUE_ID.fullmatch(run_id)):
+        raise ValueError("web_recipe_identity_invalid")
+    contract, validator = web_recipe_contract(core_root, playbooks_root)
+    directory = pathlib.Path(home or pathlib.Path.home()) / ".openclaw/deploys"
+    directory.mkdir(parents=True, exist_ok=True)
+    # Same existing deployment lock; held only for this bounded preparation or reading, never during the gesture.
+    with open(directory / "companion-deploy.lock", "a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError("web_recipe_deployment_busy") from None
+        if mode == "prepare":
+            recipe_id = str(now) + "-" + uuid.uuid4().hex[:16]
+            row = {"version": 1, "kind": "web_gesture_acceptance", "state": "prepared", "recipeId": recipe_id,
+                   "preparedAtMs": now, "sessionId": session_id, "operation": operation, "contract": contract}
+            if client_run_id is not None:
+                row["clientRunId"] = client_run_id
+        elif mode == "judge":
+            row = web_recipe_read(directory / ("web-recipe-" + recipe_id + ".json"))
+            if row.get("recipeId") != recipe_id or row.get("state") not in ("prepared", "passed", "failed"):
+                raise ValueError("web_recipe_invalid")
+            if row["state"] != "prepared":
+                if row.get("judgment", {}).get("runId") != run_id:
+                    raise ValueError("web_recipe_already_judged")
+                return {"recipeId": recipe_id, "state": row["state"], "judgment": row["judgment"]}, 0 if row["state"] == "passed" else 1
+            if row.get("contract") != contract:
+                raise ValueError("web_budget_contract_changed")
+            code, body, _ = (reader or call)("GET", "/runs/" + run_id, dict(READS)["/runs?limit=50"])
+            if code != 200:
+                judgment = {"runId": run_id, "state": "failed", "reason": "web_run_http_unavailable",
+                            "httpStatus": code if type(code) is int and 0 <= code <= 599 else 0}
+            else:
+                try:
+                    run = json.loads(body)
+                    judgment = web_recipe_judgment(row, run, run_id, now, contract, validator)
+                except (ValueError, TypeError) as error:
+                    if str(error).startswith("web_contract_validator_"):
+                        raise
+                    judgment = {"runId": run_id, "state": "failed", "reason": "web_run_response_invalid"}
+            row.update({"state": judgment["state"], "judgedAtMs": now, "judgment": judgment})
+        else:
+            raise ValueError("web_recipe_mode_invalid")
+        path = directory / ("web-recipe-" + recipe_id + ".json")
+        web_recipe_write(path, row)
+        return {"recipeId": recipe_id, "state": row["state"], "receipt": path.name,
+                **({"judgment": row["judgment"]} if "judgment" in row else {})}, 0 if row["state"] in ("prepared", "passed") else 1
+
+
 if __name__ == "__main__":
     import argparse
     parser=argparse.ArgumentParser(description="Read-only Companion acceptance; session supplied by Claude for metadata budgets")
     parser.add_argument("--session-id")
     parser.add_argument("--baseline", help="previous deployment receipt whose acceptance timings are the comparison")
+    parser.add_argument("--web-recipe", choices=("prepare", "judge"))
+    parser.add_argument("--web-core-root")
+    parser.add_argument("--playbooks-root")
+    parser.add_argument("--web-recipe-id")
+    parser.add_argument("--web-run-id")
+    parser.add_argument("--web-client-run-id")
+    parser.add_argument("--web-operation", choices=("search", "answer"), default="answer")
     args=parser.parse_args()
+    if args.web_recipe:
+        try:
+            output, code = web_recipe(args.web_recipe, args.session_id, args.web_core_root, args.playbooks_root,
+                                      args.web_recipe_id, args.web_run_id, args.web_operation, args.web_client_run_id)
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            reason = str(error) if isinstance(error, ValueError) and re.fullmatch(r"web_[a-z_]+", str(error)) else "web_recipe_unavailable"
+            output, code = {"state": "failed", "reason": reason}, 2
+        print(json.dumps(output)); sys.exit(code)
     sys.exit(main(args.session_id, args.baseline))
