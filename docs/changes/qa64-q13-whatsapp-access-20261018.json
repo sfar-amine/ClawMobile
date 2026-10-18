@@ -10,6 +10,7 @@
   "files": [
     ".github/workflows/ci.yml",
     "docs/changes/qa64-q13-inert-media-host-20261018.md",
+    "docs/changes/qa64-q13-media-owner-hook-20261018.md",
     "docs/changes/qa64-q13-media-stage-20261018.json",
     "docs/changes/qa64-q13-media-stage-20261018.md",
     "docs/changes/qa64-q13-queue-maintenance-20261018.json",
@@ -36,6 +37,8 @@
     "openclaw-plugin-mobile-ui/fixtures/qa/sdk-media-store-public-20261018.json",
     "openclaw-plugin-mobile-ui/scripts/test-qa-attachment-owner.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-qa-campaign-notification.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-contact-media-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-contact-media-paired.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-qa-contact-media.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-qa-media-stage.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-qa-private-ingress.cjs",
@@ -52,8 +55,10 @@
     "openclaw-plugin-mobile-ui/src/contactRoomFastPath.ts",
     "openclaw-plugin-mobile-ui/src/contactRoomProfile.ts",
     "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
     "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
-    "openclaw-plugin-mobile-ui/src/qaContactMediaIngress.ts"
+    "openclaw-plugin-mobile-ui/src/qaContactMediaIngress.ts",
+    "openclaw-plugin-mobile-ui/src/qaContactMediaOwner.ts"
   ],
   "tests": [
     {
@@ -65,6 +70,11 @@
       "name": "Pièces privées et volume",
       "status": "passed",
       "evidence": "13/13 tests de framing Python, 52/52 host et30/30 IPC Node ; vrais fichiers et20Mio privés, aucune recette S24."
+    },
+    {
+      "name": "Raccord réel des pièces privées",
+      "status": "passed",
+      "evidence": "Paire TS→IPC→People→PB file.put/Q2 avec autorité courante et révocation, données synthétiques ; contre-revue indépendante sur ba98bf33, factory28/28 et IPC34/34."
     }
   ],
   "documentation": [
@@ -72,7 +82,8 @@
     "docs/changes/qa64-q13-inert-media-host-20261018.md",
     "docs/changes/qa64-q13-media-stage-20261018.md",
     "docs/changes/qa64-q13-queue-maintenance-20261018.md",
-    "docs/changes/qa64-q8-private-notification-owner-20261018.md"
+    "docs/changes/qa64-q8-private-notification-owner-20261018.md",
+    "docs/changes/qa64-q13-media-owner-hook-20261018.md"
   ],
   "capabilities": {
     "impact": "none",
