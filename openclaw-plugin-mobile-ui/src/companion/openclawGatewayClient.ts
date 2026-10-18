@@ -1,6 +1,7 @@
 import fs from "fs";
 import net from "net";
 import path from "path";
+import { runtimeFile } from "../runtimeRoot";
 import { spawn } from "child_process";
 import { ensureLogsDir } from "../tools/workspace";
 import type { GatewayStatus, RuntimeCommandResponse, RuntimeLogResponse } from "./types";
@@ -43,8 +44,9 @@ class RuntimeRepairGuardError extends Error {}
 
 type RuntimeRepairLease = { release: () => Promise<void> };
 async function acquireRuntimeRepairLease(): Promise<RuntimeRepairLease> {
-  const root = process.env.CLAW_RUNTIME_ROOT;
-  if (!root || !path.isAbsolute(root)) throw new RuntimeRepairGuardError("runtime_guard_unavailable");
+  let helper: string;
+  try { helper = runtimeFile("runtime_mode.py"); }
+  catch { throw new RuntimeRepairGuardError("runtime_guard_unavailable"); }
   // The owner retains the same open file description locked by Python. A
   // helper crash cannot release EX while a stop/start is still in progress.
   const openclawHome = process.env.OPENCLAW_HOME !== undefined
@@ -61,7 +63,7 @@ async function acquireRuntimeRepairLease(): Promise<RuntimeRepairLease> {
   }
   const child = (() => {
     try {
-      return spawn("python3", [path.join(root, "runtime_mode.py"), "--repair-lease"],
+      return spawn("python3", [helper, "--repair-lease"],
         { env: { ...runtimeEnv(), SAMANTHA_DEPLOY_LOCK_FD: "3" }, stdio: ["pipe", "pipe", "ignore", lockFd] });
     } catch {
       fs.closeSync(lockFd);

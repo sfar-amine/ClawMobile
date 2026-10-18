@@ -18,6 +18,13 @@ childProcess.spawn = (...args) => {
   if (args[1]?.includes('--repair-lease')) lastHelper = child;
   return child;
 };
+const { runtimeFile } = require('../dist/runtimeRoot.js');
+const sourceCapture = require('../fixtures/qa/restart-source-s24-20261018.json');
+process.env.CLAW_RUNTIME_ROOT = sourceCapture.companion_runtime_root.value;
+assert.equal(runtimeFile('runtime_mode.py'), path.join(sourceCapture.companion_runtime_root.value, 'runtime_mode.py'));
+assert.equal(sourceCapture.companion_runtime_root.absolute, true);
+assert.equal(sourceCapture.restart_callers.sources.length, 3);
+process.env.CLAW_RUNTIME_ROOT = root;
 const gateway = require('../dist/companion/openclawGatewayClient.js');
 const down = { host: '127.0.0.1', port: 18789, reachable: false, message: 'fixture' };
 const probe = () => childProcess.spawnSync('python3', ['-c',
@@ -57,8 +64,20 @@ async function refusal() {
     await refusal();
     assert.equal(probe().status, 0, 'refused lease does not leak fd/lock');
     fs.unlinkSync(path.join(home, 'tier0/emergency-stop.json'));
+    process.env.CLAW_RUNTIME_ROOT = 'relative-root';
+    await refusal(); // The canonical F1 owner rejects relative roots.
+    const savedHome = process.env.HOME;
+    process.env.HOME = path.join(home, 'fallback-home');
     delete process.env.CLAW_RUNTIME_ROOT;
-    await refusal(); // No environment fallback guesses the runtime root.
+    const fallback = path.join(process.env.HOME, '.openclaw/releases/current/termux-lite');
+    fs.mkdirSync(fallback, { recursive: true });
+    fs.copyFileSync(path.join(root, 'runtime_mode.py'), path.join(fallback, 'runtime_mode.py'));
+    const fallbackResult = await gateway.runSerializedRuntimeOperation('restart', async () => {
+      assert.notEqual(probe().status, 0, 'canonical fallback still holds EX');
+      return { success: true, state: 'not_started', message: 'fixture fallback', gateway: down };
+    }, async () => down);
+    assert.equal(fallbackResult.success, true, 'F1 current-release fallback supplies the helper');
+    if (savedHome === undefined) delete process.env.HOME; else process.env.HOME = savedHome;
     process.env.CLAW_RUNTIME_ROOT = root;
     const badRoot = path.join(home, 'bad-helper'); fs.mkdirSync(badRoot);
     fs.writeFileSync(path.join(badRoot, 'runtime_mode.py'), 'print("{bad", flush=True)\n');
@@ -73,7 +92,7 @@ async function refusal() {
     fs.symlinkSync(path.join(home, 'foreign'), lock);
     await refusal();
     assert.equal(fs.existsSync(path.join(home, 'foreign')), false);
-    console.log('qa runtime repair lease: 7/7 passed (real flock, helper crash, stop, root, malformed ACK, deadline, symlink)');
+    console.log('qa runtime repair lease: 8/8 passed (real flock, helper crash, stop, canonical root/fallback, malformed ACK, deadline, symlink)');
   } finally {
     if (holder) holder.kill('SIGKILL');
     childProcess.spawn = originalSpawn;

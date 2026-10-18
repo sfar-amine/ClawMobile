@@ -21,6 +21,73 @@ def openclaw_home() -> Path:
     return Path(os.environ.get("OPENCLAW_HOME", str(Path.home() / ".openclaw")))
 
 
+def release_root(home: Path | None = None) -> Path:
+    """Tier0 owns the current link; readers must not spell it independently."""
+    return Path(home or Path.home()) / ".openclaw" / "releases" / "current"
+
+
+def runtime_root(fallback: Path | None = None, home: Path | None = None) -> Path:
+    """Read Tier0's termux-lite root without sanitizing the caller environment."""
+    configured = os.environ.get("CLAW_RUNTIME_ROOT", "")
+    if configured:
+        root = Path(configured)
+        if not root.is_absolute():
+            raise ValueError("runtime_root_not_absolute")
+        return root
+    return Path(fallback) if fallback is not None else release_root(home) / "termux-lite"
+
+
+
+def contract_drift(core: Path, playbooks: Path, app_contract: Path | None = None) -> list[str]:
+    """Read static owner contracts only. Never import/execute the inspected source."""
+    import ast
+    import re
+    drift = []
+    def constants(path, names):
+        tree = ast.parse(path.read_text())
+        values = {}
+        for item in tree.body:
+            if isinstance(item, ast.Assign):
+                for target in item.targets:
+                    if isinstance(target, ast.Name) and target.id in names:
+                        value = ast.literal_eval(item.value)
+                        if type(value) is not int or value <= 0 or target.id in values:
+                            raise ValueError("invalid_budget")
+                        values[target.id] = value
+        if set(values) != set(names):
+            raise ValueError("missing_budget")
+        return values
+    try:
+        owner = constants(playbooks / "skill_intelligence/public_web.py", {"BUDGET_MS", "SEARCH_BUDGET_MS"})
+        if owner["SEARCH_BUDGET_MS"] > owner["BUDGET_MS"]:
+            drift.append("budget:web_owner_invalid")
+        runner = constants(core / "installer/termux-lite/model-fast-path.py", {"PUBLIC_WEB_BUDGET_MS"})
+        source = (core / "openclaw-plugin-mobile-ui/src/companion/runWeb.ts").read_text()
+        copies = re.findall(r"export const PUBLIC_WEB_BUDGET_MS\s*=\s*([0-9_]+)\s*;", source)
+        if len(copies) != 1 or int(copies[0].replace("_", "")) != owner["BUDGET_MS"]:
+            drift.append("budget:web_companion")
+        if runner["PUBLIC_WEB_BUDGET_MS"] != owner["BUDGET_MS"]:
+            drift.append("budget:web_fast_path")
+    except (OSError, ValueError, SyntaxError, TypeError):
+        drift.append("budget:web_contract_unavailable")
+    try:
+        original = (core / "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json").read_bytes()
+        contract = json.loads(original)
+        correlation = contract.get("correlation")
+        if contract.get("version") != 2 or not isinstance(correlation, dict) or not isinstance(correlation.get("values"), list) or not correlation["values"] or any(not isinstance(v, str) or not v for v in correlation["values"]) or len(set(correlation["values"])) != len(correlation["values"]) or correlation.get("unknown") != "fatal":
+            drift.append("voice:correlation_contract")
+    except (OSError, ValueError, AttributeError):
+        drift.append("voice:runtime_contract_unavailable")
+    else:
+        if app_contract is not None:
+            try:
+                if original != app_contract.read_bytes():
+                    drift.append("voice:app_contract_differs")
+            except OSError:
+                drift.append("voice:app_contract_unavailable")
+    return drift
+
+
 def _stop_state(root: Path) -> str | None:
     path = root / "tier0" / "emergency-stop.json"
     try:
@@ -170,9 +237,15 @@ def main(argv=None) -> int:
     parser.add_argument("--openclaw-home", type=Path)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--repair-lease", action="store_true")
+    parser.add_argument("--check-runtime-parity", nargs=2, type=Path, metavar=("CORE", "PLAYBOOKS"))
+    parser.add_argument("--check-parity", nargs=3, type=Path, metavar=("CORE", "PLAYBOOKS", "APP_CONTRACT"))
     args = parser.parse_args(argv)
     if args.repair_lease:
         return repair_lease(args.openclaw_home)
+    if args.check_parity or args.check_runtime_parity:
+        drift = contract_drift(*(args.check_parity or args.check_runtime_parity))
+        print(json.dumps({"ok": not drift, "drift": drift}))
+        return 1 if drift else 0
     mode = current_mode(args.openclaw_home)
     print(json.dumps({"mode": mode}) if args.json else mode)
     return 0 if mode == "normal" else 75

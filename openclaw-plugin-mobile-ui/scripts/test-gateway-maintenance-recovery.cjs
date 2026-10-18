@@ -89,11 +89,11 @@ function assert(condition, message) {
   assert(after.success === true && secondCalls === 1, "runtime mutation lock must release after completion");
 
   const savedRoot = process.env.CLAW_RUNTIME_ROOT;
-  delete process.env.CLAW_RUNTIME_ROOT;
+  process.env.CLAW_RUNTIME_ROOT = "relative-root";
   const unavailable = await gateway.runSerializedRuntimeOperation("restart", async () => {
-    throw new Error("mutation must not execute without canonical root");
+    throw new Error("mutation must not execute with invalid canonical root");
   }, async () => down);
-  assert(!unavailable.success && unavailable.message.includes("could not be verified"), "missing root must fail closed");
+  assert(!unavailable.success && unavailable.message.includes("could not be verified"), "relative root must fail closed");
   process.env.CLAW_RUNTIME_ROOT = savedRoot;
 
   let doctors = 0;

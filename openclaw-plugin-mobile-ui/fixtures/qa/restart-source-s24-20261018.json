@@ -57,5 +57,41 @@
     "method": "claw_exec readonly source hashes and fixed symbol/route presence, no code or private state emitted",
     "runtime_commit": "edb6238449bf8754e94fa2b91de78edd52ccbc19",
     "request_id": "mcp-codex-cloud-qa64-q12-source-20261018-restart-source-metadata"
+  },
+  "companion_runtime_root": {
+    "name": "CLAW_RUNTIME_ROOT",
+    "value": "/data/data/com.termux/files/home/ClawMobile/installer/termux-lite",
+    "absolute": true,
+    "runtime_mode_exists": true,
+    "runtime_mode_size_bytes": 4899,
+    "runtime_mode_mode": "0700",
+    "runtime_mode_sha256": "110e55072867f24a1232afd9fac7696a31768eca24e5babd3937723b9bca7d84",
+    "observed_at": "2026-10-18T12:53:00Z",
+    "installed_commit_short": "145339bb",
+    "prior_commit_ancestor": true,
+    "five_owner_files_unchanged": true,
+    "provenance": "https://github.com/sfar-amine/samantha-core/pull/338#issuecomment-6250165935"
+  },
+  "restart_callers": {
+    "route": "POST /v1/runtime/restart",
+    "common_owner": "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts:runSerializedRuntimeOperation",
+    "sources": [
+      {
+        "path": "installer/termux-lite/samantha-health-manager.sh",
+        "line": 155,
+        "purpose": "whatsapp_lock_recovery"
+      },
+      {
+        "path": "installer/termux-lite/samantha-health-manager.sh",
+        "line": 176,
+        "purpose": "gateway_memory_guard"
+      },
+      {
+        "path": "installer/termux-lite/runtime-sync.sh",
+        "line": 79,
+        "purpose": "runtime_sync"
+      }
+    ],
+    "provenance": "https://github.com/sfar-amine/samantha-ui-playbooks/pull/201#issuecomment-6250168400"
   }
 }
