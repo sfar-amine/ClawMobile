@@ -12,6 +12,17 @@ Capture en lecture seule du S24 du 18/10/2026, runtime `edb6238449bf8754e94fa2b9
 
 Aucune nouvelle route ni capability : ce point étend le propriétaire de déploiement existant, réservé à Claude. Pas de changement du paiement, de la voix ni de l'assainissement de l'environnement hérité (décision D).
 
+
+## Redémarrages Companion et Gateway
+
+Le propriétaire `runtime_mode.deployment_guard` fournit aussi un bail éphémère pour les opérations start/stop/restart du Gateway et la réparation HTTP du Companion. Il ne lance aucune commande et ne crée aucun état : il confirme l’acquisition du verrou canonique et reste lié au pipe de son appelant. Le parent conserve la même description de fichier ouverte jusqu’à la fin de son opération ; même un helper tué ne relâche pas EX pendant la mutation. Aucun descripteur de ce verrou ne passe au démon réparé.
+
+Le contrôle final HTTP et les effets restent dans la même section exclusive. Les sondes de mode et d’inactivité essaient maintenant EX, ce qui détecte aussi les campagnes SH. Les refus exposent une cause fermée (verrou occupé, arrêt d’urgence ou protection indisponible), sans détails privés. Les réparations annexes SSH/Slack/ADB ne sont pas couvertes par ce nouveau bail ; aucune protection universelle n’est annoncée.
+
+La localisation Node réutilise exclusivement `CLAW_RUNTIME_ROOT` déclarée ; son absence ou un helper indisponible refuse toute mutation. Aucun second résolveur ni assainissement de l’environnement hérité n’est introduit. La confirmation de cet export dans le processus Companion effectif est demandée à Claude avant activation : les observations filtrées Codex n’ont pas identifié ce processus et ne prouvent pas que l’export soit absent.
+
+Les cinq propriétaires installés ont été confirmés par leur empreinte SHA256 sur le S24, identique au checkout de base ; leur liste blanche est versionnée dans `restart-source-s24-20261018.json`. Il n’existe pas de route `/runtime/restart/proof` dans ces sources. Les nouveaux tests de bail exercent les vrais verrous Linux, le refus SH, la conservation EX après arrêt du helper, la libération sur EOF et l’absence d’héritage par un démon ; ils restent entièrement locaux et sous le budget QA de 60 secondes avec les tests de déploiement.
+
 ## Recette après fusion et épinglage par Claude
 
 Dans la recette Q12 bornée (3 cas × 15 étapes, 10 minutes, une relance d'environnement au plus), montrer qu'une campagne détenant le verrou partagé empêche le déploiement, puis que sa fin de nettoyage libère l'exclusif. Un appareil verrouillé, occupé ou injoignable donne BLOCKED et sa cause, sans boucle d'essais. Cette PR ne revendique aucune recette physique.

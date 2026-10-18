@@ -3,6 +3,15 @@ function assert(condition, message) {
 }
 
 (async () => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const testHome = fs.mkdtempSync(path.join(os.tmpdir(), "samantha-runtime-lease-"));
+  fs.mkdirSync(path.join(testHome, "deploys"));
+  fs.writeFileSync(path.join(testHome, "deploys/companion-deploy.lock"), "", { mode: 0o600 });
+  process.env.OPENCLAW_HOME = testHome;
+  process.env.CLAW_RUNTIME_ROOT = path.resolve(__dirname, "../../installer/termux-lite");
+  process.on("exit", () => fs.rmSync(testHome, { recursive: true, force: true }));
   const gateway = require("../dist/companion/openclawGatewayClient.js");
 
   assert(
@@ -41,17 +50,20 @@ function assert(condition, message) {
 
   const down = { host: "127.0.0.1", port: 18789, reachable: false, message: "down" };
   const up = { host: "127.0.0.1", port: 18789, reachable: true, message: "up" };
+  let firstStarted;
+  const started = new Promise(resolve => { firstStarted = resolve; });
   let releaseFirst;
   let firstCalls = 0;
   const first = gateway.runSerializedRuntimeOperation(
     "restart",
     () => new Promise((resolve) => {
       firstCalls += 1;
+      firstStarted();
       releaseFirst = () => resolve({ success: true, state: "running", message: "done", gateway: up });
     }),
     async () => down,
   );
-  await new Promise((resolve) => setImmediate(resolve));
+  await Promise.race([started, new Promise((_, reject) => setTimeout(() => reject(new Error("lease did not start")), 4000).unref())]);
   let secondCalls = 0;
   const busy = await gateway.runSerializedRuntimeOperation(
     "start",
@@ -75,6 +87,14 @@ function assert(condition, message) {
     async () => down,
   );
   assert(after.success === true && secondCalls === 1, "runtime mutation lock must release after completion");
+
+  const savedRoot = process.env.CLAW_RUNTIME_ROOT;
+  delete process.env.CLAW_RUNTIME_ROOT;
+  const unavailable = await gateway.runSerializedRuntimeOperation("restart", async () => {
+    throw new Error("mutation must not execute without canonical root");
+  }, async () => down);
+  assert(!unavailable.success && unavailable.message.includes("could not be verified"), "missing root must fail closed");
+  process.env.CLAW_RUNTIME_ROOT = savedRoot;
 
   let doctors = 0;
   let waits = 0;

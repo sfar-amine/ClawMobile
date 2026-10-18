@@ -12,6 +12,7 @@ import fcntl
 import json
 import os
 import stat
+import sys
 import time
 from pathlib import Path
 
@@ -54,7 +55,7 @@ def current_mode(root: Path | None = None) -> str:
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
-            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             fcntl.flock(fd, fcntl.LOCK_UN)
             return "normal"
         except BlockingIOError:
@@ -65,7 +66,7 @@ def current_mode(root: Path | None = None) -> str:
         return "unknown"
 
 
-def _inherited_lock_fd(path: Path) -> int | None:
+def _inherited_lock_fd(path: Path, *, busy_raises: bool = False) -> int | None:
     raw = os.environ.get("SAMANTHA_DEPLOY_LOCK_FD", "")
     if not raw.isdigit():
         return None
@@ -73,7 +74,9 @@ def _inherited_lock_fd(path: Path) -> int | None:
     try:
         opened = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
         try:
-            same = os.fstat(fd).st_dev == os.fstat(opened).st_dev and os.fstat(fd).st_ino == os.fstat(opened).st_ino
+            actual, expected = os.fstat(fd), os.fstat(opened)
+            same = (stat.S_ISREG(actual.st_mode) and stat.S_ISREG(expected.st_mode)
+                    and actual.st_dev == expected.st_dev and actual.st_ino == expected.st_ino)
         finally:
             os.close(opened)
         if not same:
@@ -81,7 +84,11 @@ def _inherited_lock_fd(path: Path) -> int | None:
         # The inherited open-file description already owns the exclusive flock.
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return fd
-    except (OSError, BlockingIOError):
+    except BlockingIOError:
+        if busy_raises:
+            raise DeploymentLockBusy("deployment_lock_busy") from None
+        return None
+    except OSError:
         return None
 
 
@@ -90,12 +97,14 @@ class DeploymentLockBusy(OSError):
 
 
 @contextlib.contextmanager
-def deployment_guard(root: Path | None = None, wait_seconds: float | None = None):
+def deployment_guard(root: Path | None = None, wait_seconds: float | None = None, *, require_inherited: bool = False):
     """Hold the existing deployment lock, reusing a verified inherited fd."""
     root = Path(root or openclaw_home())
     path = root / "deploys" / "companion-deploy.lock"
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    inherited = _inherited_lock_fd(path) if path.exists() else None
+    inherited = _inherited_lock_fd(path, busy_raises=require_inherited) if path.exists() else None
+    if require_inherited and inherited is None:
+        raise OSError("deployment_lock_inherited_invalid")
     if inherited is not None:
         yield inherited
         return
@@ -125,11 +134,45 @@ def deployment_guard(root: Path | None = None, wait_seconds: float | None = None
         os.close(fd)
 
 
+def repair_lease(root: Path | None = None) -> int:
+    """Transient EOF-owned lease over the existing lock; never execute a command.
+
+    Only the owner process retains the stdin pipe. It is not inherited by a
+    repaired daemon. EOF (including owner death) releases the exclusive lock.
+    """
+    root = Path(root or openclaw_home())
+
+    def refused(cause: str) -> int:
+        # Closed causes, never paths, exception details or credentials.
+        print(json.dumps({"version": 1, "state": "refused", "cause": cause}, separators=(",", ":")), flush=True)
+        return 75
+
+    try:
+        stopped = _stop_state(root)
+        if stopped:
+            return refused("emergency_stop" if stopped == "emergency_stop" else "unavailable")
+        with deployment_guard(root, wait_seconds=0, require_inherited=bool(os.environ.get("SAMANTHA_DEPLOY_LOCK_FD"))):
+            stopped = _stop_state(root)
+            if stopped:
+                return refused("emergency_stop" if stopped == "emergency_stop" else "unavailable")
+            print(json.dumps({"version": 1, "state": "acquired"}, separators=(",", ":")), flush=True)
+            while sys.stdin.buffer.read(4096):
+                pass  # No commands, payload, buffering or secondary owner.
+        return 0
+    except DeploymentLockBusy:
+        return refused("lock_busy")
+    except (OSError, ValueError):
+        return refused("unavailable")
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--openclaw-home", type=Path)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--repair-lease", action="store_true")
     args = parser.parse_args(argv)
+    if args.repair_lease:
+        return repair_lease(args.openclaw_home)
     mode = current_mode(args.openclaw_home)
     print(json.dumps({"mode": mode}) if args.json else mode)
     return 0 if mode == "normal" else 75
