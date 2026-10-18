@@ -38,12 +38,21 @@ scope(){ if [ "$1" = adb ]; then printf "boot-%s" "$(cat /proc/sys/kernel/random
 incident_open(){ n="$1"; correlation_id="$2"; summary="${3:-$n persistent health failure}"; "$ROOT/incident-orchestrator.py" open "$n" "$(scope "$n")" --source health-manager --summary "$summary" --correlation-id "$correlation_id" --observation-kind probe 2>/dev/null | python3 -c 'import sys,json; row=json.load(sys.stdin); print(row["id"]+"|"+row["correlation_id"])'; }
 shadow(){ n="$1"; c="$2"; iid="$3"; nohup "$ROOT/autonomous-engineering-shadow.sh" "$n" "$c" "$iid" 9>&- >>"$D/autonomous-engineering-shadow.stderr.log" 2>&1 </dev/null & }
 human_escalate(){
- n="$1"; probe_correlation="probe-$(now)-$$-$n"; opened=$(incident_open "$n" "$probe_correlation") || return 1; IFS='|' read -r iid correlation_id <<EOF
+ n="$1"; why="${2:-rollback}"; probe_correlation="probe-$(now)-$$-$n"; opened=$(incident_open "$n" "$probe_correlation") || return 1; IFS='|' read -r iid correlation_id <<EOF
 $opened
 EOF
- "$ROOT/incident-orchestrator.py" transition "$iid" human_required --source health-manager --reason "Tier0 rollback did not restore $n after the hourly restart budget" --human-boundary >/dev/null 2>&1 || true
- "$ROOT/incident-notify.sh" human_required "Samantha — $n reste indisponible après le budget de relances et le retour arrière Tier0 (incident $iid)." "Vérifier le composant $n et l'incident $iid ; aucune nouvelle relance automatique ne sera tentée avant 10 minutes de stabilité vérifiée." || true
- put "$n" escalation human_required; put "$n" status human_required; log "service=$n state=human_required incident_id=$iid correlation_id=$correlation_id reason=restart_budget_and_rollback_exhausted"
+ if [ "$why" = device_scope ]; then
+  reason="Tier0 rollback cannot repair device-scoped $n; hourly restart budget exhausted"; code=restart_budget_exhausted_device_scope
+  text="Samantha — $n reste indisponible après le budget de relances ; un retour arrière Tier0 ne peut pas le réparer (incident $iid)."
+  action="Sur le S24 : vérifier le Wi-Fi puis Options développeur > Débogage sans fil. Aucune nouvelle relance automatique avant 10 minutes de stabilité vérifiée."
+ else
+  reason="Tier0 rollback did not restore $n after the hourly restart budget"; code=restart_budget_and_rollback_exhausted
+  text="Samantha — $n reste indisponible après le budget de relances et le retour arrière Tier0 (incident $iid)."
+  action="Vérifier le composant $n et l'incident $iid ; aucune nouvelle relance automatique ne sera tentée avant 10 minutes de stabilité vérifiée."
+ fi
+ "$ROOT/incident-orchestrator.py" transition "$iid" human_required --source health-manager --reason "$reason" --human-boundary >/dev/null 2>&1 || true
+ "$ROOT/incident-notify.sh" human_required "$text" "$action" || true
+ put "$n" escalation human_required; put "$n" status human_required; log "service=$n state=human_required incident_id=$iid correlation_id=$correlation_id reason=$code"
 }
 restart_gate(){
  n="$1"; t=$(now); state=$(get "$n" escalation none); attempts=$(sf "$n" restart_attempts); tmp="$attempts.tmp.$$"
@@ -59,7 +68,12 @@ restart_gate(){
   while IFS= read -r stamp; do case "$stamp" in ''|*[!0-9]*) continue;; esac; [ $((t-stamp)) -lt "$RESTART_WINDOW_S" ] || continue; printf '%s\n' "$stamp" >>"$tmp"; count=$((count+1)); done <"$attempts"
  fi
  if [ "$count" -lt "$RESTART_BUDGET_N" ]; then printf '%s\n' "$t" >>"$tmp"; mv "$tmp" "$attempts"; log "service=$n action=restart_authorized budget=$((count+1))/$RESTART_BUDGET_N window_s=$RESTART_WINDOW_S"; return 0; fi
- rm -f "$tmp"; log "service=$n action=tier0_rollback reason=restart_budget_exhausted budget=$count/$RESTART_BUDGET_N"
+ rm -f "$tmp"
+ # Un service de l'appareil (scope boot-*, aujourd'hui l'ADB) ne dépend pas de la release : un retour arrière Tier0
+ # ne le répare pas et redémarre gateway et companion pour rien (S24 18/10 16:27 : Wi-Fi coupé, ADB sans fil perdu,
+ # rollback pendant « mon solde Orange » → service_unavailable). Escalade humaine directe, sans rollback.
+ case "$(scope "$n")" in runtime) ;; *) log "service=$n action=tier0_rollback_skipped reason=device_scope budget=$count/$RESTART_BUDGET_N"; human_escalate "$n" device_scope; return 1;; esac
+ log "service=$n action=tier0_rollback reason=restart_budget_exhausted budget=$count/$RESTART_BUDGET_N"
  if "$HOME/.openclaw/tier0/bin/tier0-control.py" rollback --reason "health_restart_budget_exhausted:$n" 9>&- >/dev/null 2>&1; then
   put "$n" escalation rolled_back; put "$n" rollback_at "$t"; put "$n" next $((t+ROLLBACK_GRACE_S)); return 1
  fi
