@@ -12,6 +12,7 @@ process.env.CLAW_MOBILE_TERMUX_BIN=temporary;
 const action = require('../dist/backends/qaCampaignNotificationAction.js');
 const backend = require('../dist/backends/termux.js');
 const producer = require('../dist/backends/qaCampaignNotificationCli.js');
+const source = JSON.parse(fs.readFileSync(path.resolve(__dirname,'../fixtures/qa-notification-s24-20261018.json')));
 let checks=0;
 function check(fn){fn();checks++;}
 (async()=>{
@@ -22,10 +23,13 @@ function check(fn){fn();checks++;}
   const runId='qa-20261018.1';
   const expected=['start','-n','ai.samantha.android.dev/ai.samantha.android.MainActivity',
     '-a','ai.samantha.android.OPEN_QA_CAMPAIGN','--ei','qa_version','1','--es','qa_run_id',runId];
+  check(()=>assert.deepEqual(source.resolved_component,[expected[2]]));
   check(()=>assert.deepEqual(action.qaCampaignOpenArgs(runId),expected));
   const receipt=await producer.notifyQaCampaign([runId]);
   check(()=>assert.deepEqual(receipt,{state:'ACCEPTED',display_verified:false,click_verified:false}));
   const args=JSON.parse(fs.readFileSync(captured));
+  check(()=>assert(args.filter(x=>x.startsWith('--')).every(x=>source.notification_flags.includes(x))));
+  check(()=>assert(source.openclaw_wrapper.source.includes('"'+source.node_executable+'"')));
   check(()=>assert.equal(args[args.indexOf('--id')+1],'qa-campaign:'+runId));
   check(()=>assert(args.includes('--alert-once')));
   const shell=args[args.indexOf('--action')+1];
