@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "claude-tier0-adb-device-scope-20261018",
+  "origin": "chat",
+  "kind": "incident",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Santé : un budget de relances ADB épuisé n'entraîne plus de retour arrière Tier0 ; l'ADB est un service de l'appareil, l'escalade va directement à Amine.",
+  "reason": "S24 18/10 : Wi-Fi coupé à 15:51 sans bail, ADB sans fil perdu ; à 16:24-16:27 budget adb 3/3 épuisé → rollback Tier0 (health_restart_budget_exhausted:adb) qui a redémarré gateway et companion. « mon solde Orange » à 16:28:27 est tombé pendant ce redémarrage (service_unavailable à « Choix de l'exécuteur »). Le rollback ne pouvait pas réparer l'ADB.",
+  "files": [
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-restart-escalation.py",
+    "docs/changes/claude-tier0-adb-device-scope-20261018.md",
+    "docs/changes/claude-tier0-adb-device-scope-20261018.json"
+  ],
+  "tests": [
+    {
+      "name": "test-health-restart-escalation.py",
+      "status": "passed",
+      "evidence": "9/9 ; nouveau cas test_adb_budget_never_rolls_tier0_back : budget adb épuisé → aucun appel tier0-control rollback, une seule escalade human_required, une seule notification. Ancien code : échec (rollback appelé)."
+    }
+  ],
+  "documentation": [
+    "docs/changes/claude-tier0-adb-device-scope-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Aucune route ni capability ; politique interne du gestionnaire de santé."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise restart_gate, scope() et human_escalate existants ; aucun propriétaire, store ni démon ajouté."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "reason": "Six primitive schemas and admission unchanged; health-manager escalation policy only.",
+    "evidence": [
+      "installer/termux-lite/test-health-restart-escalation.py"
+    ]
+  },
+  "rollback": "Revert du commit.",
+  "limitations": [
+    "Le Wi-Fi coupé par Amine n'est jamais réactivé automatiquement (règle existante) ; le Débogage sans fil reste une action humaine quand il a été désactivé par Android."
+  ]
+}

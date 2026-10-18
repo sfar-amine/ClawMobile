@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "id": "voice-no-speech-turn-20261018",
+  "origin": "voice",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Voice v2 relay: transcriptFinal accepts noSpeech=true with an empty text to close a turn whose window held no speech; the turn is marked interrupted, can never execute, releases no held tool call and the next turn is admitted instead of waiting forever on the transcription boundary.",
+  "reason": "S24 18/10 12:35: a VAD blip after a clarification question opened a turn, the on-device recognizer returned NO_SPEECH_DETECTED and the app cut the whole live session (voice_error_exchange_cut:local_asr_failed); the relay had no way to close a turn without text.",
+  "rollback": "Revert this commit; a silent window would again end the live session.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-turn-protocol.cjs",
+    "docs/changes/voice-no-speech-turn-20261018.md",
+    "docs/changes/voice-no-speech-turn-20261018.json"
+  ],
+  "tests": [
+    {
+      "name": "voice turn protocol",
+      "status": "passed",
+      "evidence": "node scripts/test-voice-turn-protocol.cjs: 25 passed, 0 failed, including the two no-speech cases; node scripts/test-warm-v2-ownership.cjs ok."
+    }
+  ],
+  "documentation": [
+    "docs/changes/voice-no-speech-turn-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Voice transport protocol only; no capability route changes.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same relay owner and same control; one optional field."
+  },
+  "limitations": [
+    "The false voice-activity start itself (noise or echo interrupting Samantha's answer) is not addressed here; this change only stops it from ending the session."
+  ]
+}

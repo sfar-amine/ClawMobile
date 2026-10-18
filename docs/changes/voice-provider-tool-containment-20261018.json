@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "id": "voice-provider-tool-containment-20261018",
+  "origin": "voice",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Voice v2 relay: a provider tool call where no tool is admissible (greeting, readback, public_web readback, no active turn) is now answered as refused to the provider, never exposed nor executed, and the session continues; more than 16 refusals per session stays fatal; provider output with no owning turn is dropped instead of ending the session; the greeting instruction forbids acting on earlier requests from the history.",
+  "reason": "S24 18/10 13:09: the greeting saw a pending request in the loaded history, the model reached for a tool and the relay turned that model choice into a fatal protocol error, ending the live call before the owner spoke.",
+  "rollback": "Revert this commit; such provider tool calls would again end the live session.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-turn-protocol.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-voice.cjs",
+    "docs/changes/voice-provider-tool-containment-20261018.md",
+    "docs/changes/voice-provider-tool-containment-20261018.json"
+  ],
+  "tests": [
+    {
+      "name": "voice relay suites",
+      "status": "passed",
+      "evidence": "test-voice-turn-protocol 26/26, test-run-web-voice 10/10, test-warm-v2-ownership ok, and the other voice and warm scripts (claw-live, warm, detach, cancellation, latency, M1 contracts/telemetry/disturbances, E3 surfaces, capability and owner admission, voice understanding 21/21) green."
+    }
+  ],
+  "documentation": [
+    "docs/changes/voice-provider-tool-containment-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Voice transport only; no tool is ever executed outside an admitted, transcribed turn.",
+    "ids": []
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same relay owner; provider anomalies are contained instead of propagated as client protocol faults."
+  },
+  "limitations": [
+    "Repeated warm prewarm closures (closed_before_ready, 118 occurrences in the retained companion logs) are not addressed here."
+  ]
+}
