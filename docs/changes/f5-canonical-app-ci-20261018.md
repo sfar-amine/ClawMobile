@@ -23,3 +23,12 @@ La branche F5 intègre par merge normal le head F1 exact `3cfa1bcbb6a0e3251685f7
 Union des workflows confirmée par comparaison des commandes des deux parents : aucune étape supprimée. Les deux tests hérités `test-owner-retention.py` et `test-claw-trace.py` restent inscrits. Ciblés hors téléphone :20/20 contrats du runner (3,292s),11/11 fondations runtime (0,157s),12/12 rétention propriétaire (0,576s) et6/6 trace (0,485s), sans exécution d’une suite complète. Les repositories et builders Android utilisés par les tests du runner sont synthétiques et locaux ; ces sorties ne constituent ni une construction app physique ni une CI complète de cette PR.
 
 Le nouveau head impose une qualification canonique PR323 avant de repasser prêt à relire. Les anciens reçus, même verts, restent historiques et ne qualifient pas ce nouveau commit. Paiement, voix directe et décision D ne sont pas modifiés par F5 ; les changements hérités de Claude sont conservés. Retour arrière : retirer le lot F5 avec ses propriétaires existants, sans annuler les corrections runtime héritées de #320/#359.
+
+
+## Propagation du head F1 final — 18 octobre
+
+Merge local normal de F1 `064a66e95649bf6362232bb69201edf57d24e321`, incluant les diagnostics propriétaire `e873` et les correctifs runtime/voix #359 hérités. Aucun conflit ; l’union des lignes de commandes `run:` des deux parents est vérifiée, dont la nouvelle étape de diagnostics. Le blob `tools/localci.py` reste exactement `bca06e29ce6eb7e92718427eb88082539d61ac72` : aucune modification du runner source et aucun accès au runner isolé de qualification.
+
+Ciblés hors téléphone :20/20 contrats unitaires du runner,11/11 fondations runtime,12/12 diagnostics propriétaire, suppression de run et compilation TypeScript verts. Les sorties LOCALCI des tests unitaires sont des fixtures synthétiques courtes avec builder simulé, pas un lancement canonique complet de cette PR. Le checkout n’avait pas ses dépendances TypeScript : installation du lockfile existant avec scripts désactivés, puis compilation réussie ; aucun garde ou source ajusté pour obtenir du vert.
+
+Le head source est gelé pour une nouvelle CI complète exacte avec le numéro323 quand son créneau sera accordé. Toutes les preuves des anciens heads restent historiques ; cette propagation n’est pas une qualification complète ni un déploiement. PR conservée en brouillon.
