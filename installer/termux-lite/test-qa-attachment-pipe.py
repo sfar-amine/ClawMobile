@@ -129,6 +129,17 @@ class QaAttachmentPipeTests(unittest.TestCase):
             entered.assert_not_called()
             self.assertEqual(result['state'],'blocked')
 
+    def test_deadline_after_entered_callback_is_unknown_not_safe_to_retry(self):
+        with patch.object(m.time,'monotonic',return_value=100) as clock:
+            def callback(*args,**kwargs):
+                clock.return_value=102
+                return {'state':'imported'}
+            entered=Mock(side_effect=callback)
+            with patch.object(m,'qa_owner_read_lease',return_value=nullcontext()),patch.object(m,'qa_owner_module',return_value=SimpleNamespace(ingest_contact_attachment=entered)):
+                result=m.qa_attachment_consume(admission(),{},b'x',deadline=101)
+        self.assertEqual(entered.call_count,1)
+        self.assertEqual(result,{'state':'unknown','reason':'qa_attachment_result_unknown'})
+
     def test_read_admission_deadline_never_enters_callback_after_owner_loading(self):
         entered=Mock(return_value=admission())
         with patch.object(m.time,'monotonic',return_value=100) as clock:
