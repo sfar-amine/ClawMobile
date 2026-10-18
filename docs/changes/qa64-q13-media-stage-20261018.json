@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "id": "qa64-q13-media-stage-20261018",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Préparer le staging privé borné des documents QA via le propriétaire SDK média OpenClaw existant.",
+  "reason": "Q13 : éviter les documents dans argv et les grosses trames Gateway, sans transport parallèle.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/companion/officialGatewayOwner.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-media-stage.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/qa/sdk-media-store-public-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/sdk-media-store-implementation-public-20261018.json",
+    ".github/workflows/ci.yml",
+    "docs/changes/qa64-q13-media-stage-20261018.md",
+    "docs/changes/qa64-q13-media-stage-20261018.json"
+  ],
+  "tests": [
+    {
+      "name": "QA media staging offline",
+      "status": "passed",
+      "command": "node scripts/test-qa-media-stage.cjs && node scripts/test-official-gateway-owner.cjs",
+      "evidence": "0,20s ; vrai processus CLI/fichiers, sparse200MiB/500entrées, fake SDK ESM, captures source S24. Aucun envoi ni écriture SDK réelle20MiB qualifiée."
+    }
+  ],
+  "documentation": [
+    "docs/changes/qa64-q13-media-stage-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Mode privé fixe, aucune route publique ni capability agent."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même résolveur package et media-store SDK existants, aucun transport, store, GC ou service ajouté."
+  },
+  "rollback": "Revert du helper privé et du raccord People propriétaire.",
+  "limitations": [
+    "Helper non activé ; transactionSQLite propriétaire, borne snapshot, replay et cleanupACCEPTED requis. Pas de quotaFS global ni cleanupautomatique.",
+    "CI canonique complète à head exact de la PR Q13 intégrée requise.",
+    "Aucune recette physique, livraison WhatsApp ou déploiement.",
+    "Écriture physique SDK20MiB pas encore qualifiée ; limite interne writeSavedMediaBuffer à confirmer."
+  ]
+}
