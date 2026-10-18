@@ -14,6 +14,8 @@ import hashlib
 import sqlite3
 import sys
 import time
+import signal
+import subprocess
 
 spec=importlib.util.spec_from_file_location('qa_people',Path(__file__).with_name('people-trusted.py'))
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -380,6 +382,67 @@ print(json.dumps({'state':'STAGED','id':'fixture.xlsx','path':'/synthetic-sdk-ou
             start=time.monotonic()
             with self.assertRaises(TimeoutError):m.qa_document_sdk('stage',document,timeout=.05)
             self.assertLess(time.monotonic()-start,1)
+
+    def test_main_sigterm_unwinds_and_kills_the_separate_sdk_process_group(self):
+        # Actual main installs its handler; actual qa_document_sdk owns its child
+        # session. Only the Node program and qa_deliver business work are fixtures.
+        payload, content = self.document_payload()
+        node = self.root/'.openclaw-android/bin/node'
+        node.parent.mkdir(parents=True); node.symlink_to(sys.executable)
+        helper = self.root/'installed/extensions/openclaw-plugin-mobile-ui/dist/companion/officialGatewayOwner.js'
+        pids = self.root/'sdk-pids.json'; effect = self.root/'unexpected-sdk-effect'
+        helper.write_text("import json,os,subprocess,sys,time\n"
+            "sys.stdin.buffer.read()\n"
+            "child=subprocess.Popen([sys.executable,'-c',"
+            + repr("import pathlib,time;time.sleep(.8);pathlib.Path("+repr(str(effect))+").write_text('unexpected')")
+            + "])\n"
+            + "open("+repr(str(pids))+",'w').write(json.dumps([os.getpid(),child.pid]))\n"
+            + "time.sleep(5)\n")
+        source = str(Path(__file__).with_name('people-trusted.py'))
+        runner = self.root/'actual-main-fixture.py'
+        runner.write_text("import importlib.util,sys\nfrom pathlib import Path\n"
+            + "spec=importlib.util.spec_from_file_location('actual_people',"+repr(source)+")\n"
+            + "m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\n"
+            + "m.HOME=Path("+repr(str(self.root))+")\n"
+            + "def fixture_deliver(_request):\n"
+            + " m.qa_document_sdk('stage',"+repr({'filename':'Claw_QA_Rapport.xlsx',
+                'contentType':payload['artifact']['mime_type'],'sha256':payload['artifact']['sha256'],
+                'size':len(content),'content':content})+",timeout=5)\n"
+            + "m.qa_deliver=fixture_deliver\nm.main()\n")
+        env = {**os.environ,'OPENCLAW_STATE_DIR':str(self.root/'installed')}
+        process = subprocess.Popen([sys.executable,str(runner),'qa-deliver','--request-stdin'],
+            stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env)
+        sdk_pids = []
+        def running(pid):
+            try:
+                # A killed orphan may await its init reaper: Z has no effects.
+                state = Path(f'/proc/{pid}/stat').read_text().rsplit(')',1)[1].split()[0]
+                return state not in ('Z','X')
+            except FileNotFoundError:
+                return False
+        try:
+            process.stdin.write(b'{}'); process.stdin.close()
+            deadline = time.monotonic()+2
+            while not pids.exists() and time.monotonic()<deadline:
+                self.assertIsNone(process.poll()); time.sleep(.005)
+            self.assertTrue(pids.exists(),'SDK fixture must actually be running before cancellation')
+            sdk_pids = json.loads(pids.read_text())
+            self.assertTrue(all(running(pid) for pid in sdk_pids))
+            started = time.monotonic(); process.terminate()
+            self.assertEqual(process.wait(timeout=1),143)
+            while any(running(pid) for pid in sdk_pids) and time.monotonic()-started<.5:
+                time.sleep(.005)
+            self.assertFalse(any(running(pid) for pid in sdk_pids),'separate SDK group survived People SIGTERM')
+            self.assertLess(time.monotonic()-started,1)
+            time.sleep(.85)
+            self.assertFalse(effect.exists(),'SDK descendant performed a delayed effect after cancellation')
+        finally:
+            if process.poll() is None:
+                process.kill(); process.wait(timeout=1)
+            if sdk_pids:
+                try: os.killpg(sdk_pids[0],signal.SIGKILL)
+                except ProcessLookupError: pass
+            for stream in (process.stdout,process.stderr): stream.close()
 
     def test_authority_is_reread_after_document_staging_before_the_gateway_effect(self):
         payload,content=self.document_payload();request=self.delivery_request(event='finished',artifact_id='report')
