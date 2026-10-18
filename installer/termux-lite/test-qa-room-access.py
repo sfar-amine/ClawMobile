@@ -384,8 +384,14 @@ print(json.dumps({'state':'STAGED','id':'fixture.xlsx','path':'/synthetic-sdk-ou
             self.assertLess(time.monotonic()-start,1)
 
     def test_main_sigterm_unwinds_and_kills_the_separate_sdk_process_group(self):
+        self.assert_private_main_cancelled('qa-deliver')
+
+    def test_main_queue_tick_sigterm_unwinds_and_kills_its_separate_child_group(self):
+        self.assert_private_main_cancelled('qa-queue-tick')
+
+    def assert_private_main_cancelled(self, entry):
         # Actual main installs its handler; actual qa_document_sdk owns its child
-        # session. Only the Node program and qa_deliver business work are fixtures.
+        # session. Only the child program and business callback are fixtures.
         payload, content = self.document_payload()
         node = self.root/'.openclaw-android/bin/node'
         node.parent.mkdir(parents=True); node.symlink_to(sys.executable)
@@ -408,9 +414,10 @@ print(json.dumps({'state':'STAGED','id':'fixture.xlsx','path':'/synthetic-sdk-ou
             + " m.qa_document_sdk('stage',"+repr({'filename':'Claw_QA_Rapport.xlsx',
                 'contentType':payload['artifact']['mime_type'],'sha256':payload['artifact']['sha256'],
                 'size':len(content),'content':content})+",timeout=5)\n"
-            + "m.qa_deliver=fixture_deliver\nm.main()\n")
+            + "m.qa_deliver=fixture_deliver\nm.qa_queue_tick=lambda:fixture_deliver({})\nm.main()\n")
         env = {**os.environ,'OPENCLAW_STATE_DIR':str(self.root/'installed')}
-        process = subprocess.Popen([sys.executable,str(runner),'qa-deliver','--request-stdin'],
+        args = ['--request-stdin'] if entry == 'qa-deliver' else []
+        process = subprocess.Popen([sys.executable,str(runner),entry,*args],
             stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env)
         sdk_pids = []
         def running(pid):
