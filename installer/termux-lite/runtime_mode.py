@@ -69,6 +69,29 @@ def contract_drift(core: Path, playbooks: Path, app_contract: Path | None = None
             drift.append("budget:web_fast_path")
     except (OSError, ValueError, SyntaxError, TypeError):
         drift.append("budget:web_contract_unavailable")
+    def coverage_constants(path):
+        names={"COVERAGE_INDEX_COMPLETE", "COVERAGE_LEGACY_COMPLETE"}
+        values={}
+        for item in ast.parse(path.read_text()).body:
+            if isinstance(item, ast.Assign):
+                for target in item.targets:
+                    if isinstance(target, ast.Name) and target.id in names:
+                        value=ast.literal_eval(item.value)
+                        if type(value) is not str or not value or len(value)>160 or "\n" in value or target.id in values:
+                            raise ValueError("invalid_context_coverage_contract")
+                        values[target.id]=value
+        if set(values)!=names or len(set(values.values()))!=2:
+            raise ValueError("missing_context_coverage_contract")
+        return values
+    try:
+        owner=coverage_constants(core / "installer/termux-lite/context_memory.py")
+        reader=coverage_constants(playbooks / "tools/request_context.py")
+        if owner["COVERAGE_INDEX_COMPLETE"]!=reader["COVERAGE_INDEX_COMPLETE"]:
+            drift.append("context:coverage_index_contract")
+        if owner["COVERAGE_LEGACY_COMPLETE"]!=reader["COVERAGE_LEGACY_COMPLETE"]:
+            drift.append("context:coverage_legacy_contract")
+    except (OSError, ValueError, SyntaxError, TypeError):
+        drift.append("context:coverage_contract_unavailable")
     try:
         original = (core / "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json").read_bytes()
         contract = json.loads(original)

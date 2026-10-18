@@ -13,3 +13,15 @@ On the S24, `RUNTIME_SYNC_APP_CONTRACT` requests comparison with an explicitly s
 Tests cover owner-budget mutation, app absence, byte drift, a new correlation without a matching copy, nonexecution of source under inspection, distinct S24-observed roots, relative-root refusal and unchanged caller environment. They are registered in the existing CI. The existing runtime-sync suite still exercises gateway readiness and promotion ordering. No new HTTP route/capability is exposed.
 
 Runtime acceptance and deployment stay with Claude. Codex Cloud received `device_timeout` twice on context reads; no S24 effect was issued. Five-deployment and live parity receipts are **not tested** by this source PR. Revert this PR to restore previous helper selection/check behavior; no data migration, secret, scheduler or payment-state change is involved. Environment sanitation D remains unapproved.
+
+## Couverture de la mémoire — complément F1 du 18/10
+
+Le producteur `context_memory.py` possède `COVERAGE_INDEX_COMPLETE` et la transition nommée
+`COVERAGE_LEGACY_COMPLETE`. La copie de `tools/request_context.py` (playbooks #198) est comparée par AST par le même
+`contract_drift`, sans exécution du lecteur et sans lecture de données privées. Les dérives sont
+`context:coverage_index_contract`, `context:coverage_legacy_contract` ou `context:coverage_contract_unavailable`.
+Le workflow F1 récupère aussi le vrai lecteur au SHA exact de main, déjà journalisé pour la parité des budgets.
+
+Ordre : fusion et activation du lecteur playbooks #198 d'abord ; cette contrepartie core attend main pour sa CI.
+La complétude concerne les index, pas la lecture intégrale des contraintes. Le consommateur doit récupérer les sources
+EVT/REQ avant application. `BLOCKED`, une déclaration inconnue ou contradictoire continue de fermer la barrière.
