@@ -1,0 +1,20 @@
+{
+  "provenance": "S24 (claw_exec, action_key lifx-discover-ro-20261017), read-only LIFX LAN probe: GetService (2) broadcast on wlan0 192.168.1.0/24 plus unicast sweep; Get* only, no Set*, no lamp state change. Cleaned: SSID, BSSID and neighbour MACs removed.",
+  "contract_version": "0.1",
+  "observed_at": "2026-10-17T08:36:17Z",
+  "transport": "lifx_lan_udp",
+  "probe": "lifx_lan_get_only",
+  "messages": [2, 14, 16, 32, 34, 101],
+  "network": {
+    "interface": "wlan0",
+    "subnet": "192.168.1.0/24",
+    "route_source": "adb shell ip route (Termux netlink refused)",
+    "adb_ip_route_ms": [125, 135, 190, 164, 137],
+    "udp_lan_sanity": "DNS query to the gateway answered in 63 ms (UDP egress on wlan0 works)"
+  },
+  "discovery_elapsed_ms": 1604,
+  "unicast_sweep_elapsed_ms": 3047,
+  "lifx_neighbours": 0,
+  "devices": [],
+  "interpretation": "Lif8x (d073d5225b23) did not answer GetService on 17/10 at 08:36Z: lamp powered off or off the LAN. Read route must return status failed / DEVICE_NOT_FOUND, never a stale success."
+}

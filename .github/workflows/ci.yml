@@ -593,6 +593,8 @@ jobs:
         run: npm ci
       - name: Build integration plugin
         run: npm run build
+      - name: Local LIFX transport and idempotent owner receipt
+        run: node scripts/test-lifx-local.cjs && node scripts/test-lifx-route.cjs
       - name: Install pinned public OpenClaw SDK without lifecycle scripts
         run: |
           curl --fail --silent --show-error --location https://registry.npmjs.org/openclaw/-/openclaw-2026.9.6.tgz --output "$RUNNER_TEMP/p1-openclaw-2026.9.6.tgz"

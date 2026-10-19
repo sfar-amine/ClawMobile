@@ -37,6 +37,7 @@
     "test:continuum-capability-bridge": "node scripts/test-continuum-capability-bridge.cjs",
     "test:model-fast-path-durable": "python3 scripts/test-model-fast-path-durable.py",
     "test:submit-reconciliation": "node scripts/test-submit-reconciliation.cjs",
+    "test:lifx-local": "node scripts/test-lifx-local.cjs && node scripts/test-lifx-route.cjs",
     "test:native-provider-fallback": "node scripts/test-native-provider-fallback.cjs"
   },
   "dependencies": {
