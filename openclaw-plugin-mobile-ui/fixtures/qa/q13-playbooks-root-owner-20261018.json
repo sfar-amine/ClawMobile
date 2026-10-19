@@ -1,0 +1,28 @@
+{
+  "contract": "qa64-existing-playbook-root-owner",
+  "files": [
+    {
+      "path": "installer/termux-lite/claw-capability.py",
+      "sha256": "d4e10a665742cdc503ab0d61146265892c1cc21e24a260686317e20b4dd3f00d",
+      "symbol": "ui_root",
+      "source": "def ui_root() -> Path:\n    configured = os.environ.get(\"CLAW_UI_PLAYBOOKS_ROOT\")\n    candidates = [\n        Path(configured).expanduser() if configured else None,\n        PINNED_UI,\n        DEFAULT_UI,\n    ]\n    for path in candidates:\n        if path and (path / \"skill_intelligence/capability_graph.py\").is_file():\n            return path\n    raise SystemExit(\"capability_graph_unavailable\")"
+    },
+    {
+      "path": "installer/termux-lite/model-fast-path.py",
+      "sha256": "edbc5b751b9848b199146f6d778d98e4f5034383ea121192c71ba9f6248b1bf1",
+      "symbol": "_ui_root",
+      "source": "def _ui_root() -> Path:\n    # Same order as claw-capability.py: explicit root, pinned runtime snapshot, then the mutable workspace.\n    configured = os.environ.get(\"CLAW_UI_PLAYBOOKS_ROOT\")\n    if configured:\n        return Path(configured).expanduser()\n    pinned = HOME / \".openclaw/runtime-ui-playbooks/current\"\n    if (pinned / \"skill_intelligence/capability_graph.py\").is_file():\n        return pinned\n    return HOME / \".openclaw/workspace/ui-playbooks\""
+    },
+    {
+      "path": "~/.openclaw/runtime-ui-playbooks/current",
+      "is_symlink": true,
+      "exists": true,
+      "qa_common_exists": true
+    }
+  ],
+  "provenance": {
+    "request_id": "mcp-codex-cloud-qa64-q13-source-20261018-playbooks-root-owner",
+    "method": "read-only AST and source hashes, no environment or private QA contents",
+    "captured_at": "2026-10-18"
+  }
+}

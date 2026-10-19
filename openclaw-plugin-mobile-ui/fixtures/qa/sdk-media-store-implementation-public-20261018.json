@@ -1,0 +1,769 @@
+{
+  "contract": "qa64-installed-media-store-exact-body",
+  "files": [
+    {
+      "path": "dist/store-Bg4FPBgJ.mjs",
+      "sha256": "27a6307934ff1d9a846341b9d505acbc4a6fa321e5a159f233f24414f4dace41",
+      "source": [
+        {
+          "line": 350,
+          "text": "\t\tif (err instanceof FsSafeError) throw toSaveMediaSourceError(err, maxBytes);"
+        },
+        {
+          "line": 351,
+          "text": "\t\tthrow err;"
+        },
+        {
+          "line": 352,
+          "text": "\t}"
+        },
+        {
+          "line": 353,
+          "text": "}"
+        },
+        {
+          "line": 354,
+          "text": "/** Saves an in-memory media buffer under a UUID-backed media ID. */"
+        },
+        {
+          "line": 355,
+          "text": "async function saveMediaBuffer(buffer, contentType, subdir = \"inbound\", maxBytes = MAX_BYTES, originalFilename, detectionFilePathHint) {"
+        },
+        {
+          "line": 356,
+          "text": "\tif (buffer.byteLength > maxBytes) throw SaveMediaSourceError.tooLarge(maxBytes);"
+        },
+        {
+          "line": 357,
+          "text": "\tconst dir = resolveMediaScopedDir(subdir, \"saveMediaBuffer\");"
+        },
+        {
+          "line": 358,
+          "text": "\tawait fs.mkdir(dir, {"
+        },
+        {
+          "line": 359,
+          "text": "\t\trecursive: true,"
+        },
+        {
+          "line": 360,
+          "text": "\t\tmode: 448"
+        },
+        {
+          "line": 361,
+          "text": "\t});"
+        },
+        {
+          "line": 362,
+          "text": "\tconst uuid = crypto.randomUUID();"
+        },
+        {
+          "line": 363,
+          "text": "\tconst headerExt = extensionForAuthoritativeHeaderMime(contentType);"
+        },
+        {
+          "line": 364,
+          "text": "\tconst mime = await detectMime({"
+        },
+        {
+          "line": 365,
+          "text": "\t\tbuffer,"
+        },
+        {
+          "line": 366,
+          "text": "\t\theaderMime: contentType,"
+        },
+        {
+          "line": 367,
+          "text": "\t\tfilePath: originalFilename ?? detectionFilePathHint"
+        },
+        {
+          "line": 368,
+          "text": "\t});"
+        },
+        {
+          "line": 369,
+          "text": "\tconst id = buildSavedMediaId({"
+        },
+        {
+          "line": 370,
+          "text": "\t\tbaseId: uuid,"
+        },
+        {
+          "line": 371,
+          "text": "\t\text: resolveSavedMediaExtension({"
+        },
+        {
+          "line": 372,
+          "text": "\t\t\tdetectedMime: mime,"
+        },
+        {
+          "line": 373,
+          "text": "\t\t\theaderExt,"
+        },
+        {
+          "line": 374,
+          "text": "\t\t\tcontentType,"
+        },
+        {
+          "line": 375,
+          "text": "\t\t\toriginalFilename,"
+        },
+        {
+          "line": 376,
+          "text": "\t\t\tdetectionFilePathHint"
+        },
+        {
+          "line": 377,
+          "text": "\t\t}),"
+        },
+        {
+          "line": 378,
+          "text": "\t\toriginalFilename"
+        },
+        {
+          "line": 379,
+          "text": "\t});"
+        },
+        {
+          "line": 380,
+          "text": "\tawait writeSavedMediaBuffer({"
+        },
+        {
+          "line": 381,
+          "text": "\t\tsubdir,"
+        },
+        {
+          "line": 382,
+          "text": "\t\tid,"
+        },
+        {
+          "line": 383,
+          "text": "\t\tbuffer"
+        },
+        {
+          "line": 384,
+          "text": "\t});"
+        },
+        {
+          "line": 385,
+          "text": "\treturn buildSavedMediaResult({"
+        },
+        {
+          "line": 386,
+          "text": "\t\tdir,"
+        },
+        {
+          "line": 387,
+          "text": "\t\tid,"
+        },
+        {
+          "line": 388,
+          "text": "\t\tsize: buffer.byteLength,"
+        },
+        {
+          "line": 389,
+          "text": "\t\tcontentType: mime"
+        },
+        {
+          "line": 390,
+          "text": "\t});"
+        },
+        {
+          "line": 391,
+          "text": "}"
+        },
+        {
+          "line": 392,
+          "text": "/** Streams media into a sibling temp file before atomically publishing the final media ID. */"
+        },
+        {
+          "line": 393,
+          "text": "async function saveMediaStream(stream, contentType, subdir = \"inbound\", maxBytes = MAX_BYTES, originalFilename, detectionFilePathHint) {"
+        },
+        {
+          "line": 394,
+          "text": "\tconst readScope = captureChannelReadScope();"
+        },
+        {
+          "line": 395,
+          "text": "\treadScope?.assertCurrent();"
+        },
+        {
+          "line": 396,
+          "text": "\tconst dir = resolveMediaScopedDir(subdir, \"saveMediaStream\");"
+        },
+        {
+          "line": 397,
+          "text": "\tawait fs.mkdir(dir, {"
+        },
+        {
+          "line": 398,
+          "text": "\t\trecursive: true,"
+        },
+        {
+          "line": 399,
+          "text": "\t\tmode: 448"
+        },
+        {
+          "line": 400,
+          "text": "\t});"
+        },
+        {
+          "line": 401,
+          "text": "\tconst baseId = crypto.randomUUID();"
+        },
+        {
+          "line": 402,
+          "text": "\tconst headerExt = extensionForAuthoritativeHeaderMime(contentType);"
+        },
+        {
+          "line": 403,
+          "text": "\tlet consumptionStarted = false;"
+        },
+        {
+          "line": 404,
+          "text": "\tconst mediaStream = (async function* () {"
+        },
+        {
+          "line": 405,
+          "text": "\t\tconsumptionStarted = true;"
+        },
+        {
+          "line": 406,
+          "text": "\t\tyield* stream;"
+        },
+        {
+          "line": 407,
+          "text": "\t})();"
+        },
+        {
+          "line": 408,
+          "text": "\tconst write = async (handle) => {"
+        },
+        {
+          "line": 409,
+          "text": "\t\treadScope?.assertCurrent();"
+        },
+        {
+          "line": 410,
+          "text": "\t\tconst { sniffBuffer, size } = await writeMediaStreamToFile({"
+        },
+        {
+          "line": 411,
+          "text": "\t\t\tstream: mediaStream,"
+        },
+        {
+          "line": 412,
+          "text": "\t\t\thandle,"
+        },
+        {
+          "line": 413,
+          "text": "\t\t\tmaxBytes,"
+        },
+        {
+          "line": 414,
+          "text": "\t\t\tassertCurrent: readScope?.assertCurrent"
+        },
+        {
+          "line": 415,
+          "text": "\t\t});"
+        },
+        {
+          "line": 416,
+          "text": "\t\tconst mime = await detectMime({"
+        },
+        {
+          "line": 417,
+          "text": "\t\t\tbuffer: sniffBuffer,"
+        },
+        {
+          "line": 418,
+          "text": "\t\t\theaderMime: contentType,"
+        },
+        {
+          "line": 419,
+          "text": "\t\t\tfilePath: originalFilename ?? detectionFilePathHint"
+        },
+        {
+          "line": 420,
+          "text": "\t\t});"
+        },
+        {
+          "line": 421,
+          "text": "\t\tconst ext = resolveSavedMediaExtension({"
+        },
+        {
+          "line": 422,
+          "text": "\t\t\tdetectedMime: mime,"
+        },
+        {
+          "line": 423,
+          "text": "\t\t\theaderExt,"
+        },
+        {
+          "line": 424,
+          "text": "\t\t\tcontentType,"
+        },
+        {
+          "line": 425,
+          "text": "\t\t\toriginalFilename,"
+        },
+        {
+          "line": 426,
+          "text": "\t\t\tdetectionFilePathHint"
+        },
+        {
+          "line": 427,
+          "text": "\t\t});"
+        },
+        {
+          "line": 428,
+          "text": "\t\treturn {"
+        },
+        {
+          "line": 429,
+          "text": "\t\t\tid: buildSavedMediaId({"
+        },
+        {
+          "line": 430,
+          "text": "\t\t\t\tbaseId,"
+        },
+        {
+          "line": 431,
+          "text": "\t\t\t\text,"
+        },
+        {
+          "line": 432,
+          "text": "\t\t\t\toriginalFilename"
+        },
+        {
+          "line": 433,
+          "text": "\t\t\t}),"
+        },
+        {
+          "line": 434,
+          "text": "\t\t\tsize,"
+        },
+        {
+          "line": 435,
+          "text": "\t\t\tcontentType: mime"
+        },
+        {
+          "line": 436,
+          "text": "\t\t};"
+        },
+        {
+          "line": 437,
+          "text": "\t};"
+        },
+        {
+          "line": 438,
+          "text": "\treturn buildSavedMediaResult({"
+        },
+        {
+          "line": 439,
+          "text": "\t\tdir,"
+        },
+        {
+          "line": 440,
+          "text": "\t\t...await retryAfterRecreatingDir(dir, async () => {"
+        },
+        {
+          "line": 74,
+          "text": "\tconst match = path.basename(basename, ext).match(/^(.+)---[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i);"
+        },
+        {
+          "line": 75,
+          "text": "\tif (match?.[1]) return `${match[1]}${ext}`;"
+        },
+        {
+          "line": 76,
+          "text": "\treturn basename;"
+        },
+        {
+          "line": 77,
+          "text": "}"
+        },
+        {
+          "line": 78,
+          "text": "/** Returns the configured absolute media-store root without creating it. */"
+        },
+        {
+          "line": 79,
+          "text": "function getMediaDir() {"
+        },
+        {
+          "line": 80,
+          "text": "\treturn resolveMediaDir();"
+        },
+        {
+          "line": 81,
+          "text": "}"
+        },
+        {
+          "line": 82,
+          "text": "/** Creates the configured media-store root with private directory permissions. */"
+        },
+        {
+          "line": 83,
+          "text": "async function ensureMediaDir() {"
+        },
+        {
+          "line": 84,
+          "text": "\tconst mediaDir = resolveMediaDir();"
+        },
+        {
+          "line": 85,
+          "text": "\tawait fs.mkdir(mediaDir, {"
+        },
+        {
+          "line": 86,
+          "text": "\t\trecursive: true,"
+        },
+        {
+          "line": 87,
+          "text": "\t\tmode: 448"
+        },
+        {
+          "line": 88,
+          "text": "\t});"
+        },
+        {
+          "line": 89,
+          "text": "\treturn mediaDir;"
+        },
+        {
+          "line": 90,
+          "text": "}"
+        }
+      ]
+    },
+    {
+      "path": "dist/local-roots-CfRBR4Iu.mjs",
+      "sha256": "e43b4503d8201f71003d39ecb6ed31650d77853040b0e38af7d5967b7c6990b4",
+      "source": [
+        {
+          "line": 1,
+          "text": "import { l as normalizeOptionalString } from \"./string-coerce-CIXf7egm.mjs\";"
+        },
+        {
+          "line": 2,
+          "text": "import { y as uniqueStrings } from \"./string-normalization-_gRhJUDw.mjs\";"
+        },
+        {
+          "line": 3,
+          "text": "import { n as resolvePathViaExistingAncestorSync } from \"./boundary-path-BzetEUdq.mjs\";"
+        },
+        {
+          "line": 4,
+          "text": "import { _ as resolveConfigDir } from \"./utils-aKqR_F_U.mjs\";"
+        },
+        {
+          "line": 5,
+          "text": "import { r as isPathInside } from \"./path-guards-D5kuI0Tv.mjs\";"
+        },
+        {
+          "line": 6,
+          "text": "import { l as resolveAgentWorkspaceDir } from \"./agent-scope-config-IQKOEtZ4.mjs\";"
+        },
+        {
+          "line": 7,
+          "text": "import { E as resolveStateDir, g as resolveDeliveryQueueMediaDir } from \"./paths-DehQwyE0.mjs\";"
+        },
+        {
+          "line": 8,
+          "text": "import { n as resolvePreferredOpenClawTmpDir } from \"./tmp-openclaw-dir-BSb3HetY.mjs\";"
+        },
+        {
+          "line": 9,
+          "text": "import \"./agent-scope-CTuYDtny.mjs\";"
+        },
+        {
+          "line": 10,
+          "text": "import { t as resolveEffectiveToolFsRootExpansionAllowed } from \"./tool-fs-policy-DkN5in9o.mjs\";"
+        },
+        {
+          "line": 11,
+          "text": "import { t as resolveLocalMediaPath } from \"./local-media-path-Buj_gOGY.mjs\";"
+        },
+        {
+          "line": 12,
+          "text": "import path from \"node:path\";"
+        },
+        {
+          "line": 13,
+          "text": "//#region src/media/local-roots.ts"
+        },
+        {
+          "line": 14,
+          "text": "let cachedPreferredTmpDir;"
+        },
+        {
+          "line": 15,
+          "text": "function resolveCanonicalRoot(root) {"
+        },
+        {
+          "line": 16,
+          "text": "\treturn resolvePathViaExistingAncestorSync(path.resolve(root));"
+        },
+        {
+          "line": 17,
+          "text": "}"
+        },
+        {
+          "line": 18,
+          "text": "function resolveCachedPreferredTmpDir() {"
+        },
+        {
+          "line": 19,
+          "text": "\tif (!cachedPreferredTmpDir) cachedPreferredTmpDir = resolvePreferredOpenClawTmpDir();"
+        },
+        {
+          "line": 20,
+          "text": "\treturn cachedPreferredTmpDir;"
+        },
+        {
+          "line": 21,
+          "text": "}"
+        },
+        {
+          "line": 22,
+          "text": "/** Builds the baseline local media root allowlist from state/config directories. */"
+        },
+        {
+          "line": 23,
+          "text": "function buildMediaLocalRoots(stateDir, configDir, options = {}) {"
+        },
+        {
+          "line": 24,
+          "text": "\tconst resolvedStateDir = path.resolve(stateDir);"
+        },
+        {
+          "line": 25,
+          "text": "\tconst resolvedConfigDir = path.resolve(configDir);"
+        },
+        {
+          "line": 26,
+          "text": "\tconst preferredTmpDir = options.preferredTmpDir ?? resolveCachedPreferredTmpDir();"
+        },
+        {
+          "line": 27,
+          "text": "\treturn Array.from(/* @__PURE__ */ new Set(["
+        },
+        {
+          "line": 28,
+          "text": "\t\tpreferredTmpDir,"
+        },
+        {
+          "line": 29,
+          "text": "\t\tpath.join(resolvedConfigDir, \"media\"),"
+        },
+        {
+          "line": 30,
+          "text": "\t\tpath.join(resolvedStateDir, \"media\"),"
+        },
+        {
+          "line": 31,
+          "text": "\t\tresolveDeliveryQueueMediaDir(resolvedStateDir),"
+        },
+        {
+          "line": 32,
+          "text": "\t\tpath.join(resolvedStateDir, \"canvas\"),"
+        },
+        {
+          "line": 33,
+          "text": "\t\tpath.join(resolvedStateDir, \"workspace\"),"
+        },
+        {
+          "line": 34,
+          "text": "\t\tpath.join(resolvedStateDir, \"sandboxes\")"
+        },
+        {
+          "line": 35,
+          "text": "\t]));"
+        },
+        {
+          "line": 36,
+          "text": "}"
+        },
+        {
+          "line": 37,
+          "text": "/** Returns the process default roots where local media reads may resolve generated/cache files. */"
+        },
+        {
+          "line": 38,
+          "text": "function getDefaultMediaLocalRoots() {"
+        },
+        {
+          "line": 39,
+          "text": "\treturn buildMediaLocalRoots(resolveStateDir(), resolveConfigDir());"
+        },
+        {
+          "line": 40,
+          "text": "}"
+        },
+        {
+          "line": 41,
+          "text": "/**"
+        },
+        {
+          "line": 42,
+          "text": "* Drops shared isolation parents from a media root list."
+        },
+        {
+          "line": 43,
+          "text": "*"
+        },
+        {
+          "line": 44,
+          "text": "* Roots overlapping the shared `<state>/sandboxes` parent are removed unless they live inside the"
+        },
+        {
+          "line": 45,
+          "text": "* supplied session workspace, so sibling sandboxes and the shared parent itself never re-enter the"
+        },
+        {
+          "line": 46,
+          "text": "* allowlist through base construction or source-parent expansion. The shared `<state>/workspace`"
+        },
+        {
+          "line": 47,
+          "text": "* parent is removed only when the caller supplies a session workspace outside it (a sandboxed"
+        },
+        {
+          "line": 48,
+          "text": "* session); callers without session context keep the legacy shared-workspace grant."
+        },
+        {
+          "line": 49,
+          "text": "*/"
+        },
+        {
+          "line": 50,
+          "text": "function filterSharedMediaLocalRoots(roots, context) {"
+        },
+        {
+          "line": 51,
+          "text": "\tconst sandboxesDir = resolveCanonicalRoot(path.join(context.resolvedStateDir, \"sandboxes\"));"
+        },
+        {
+          "line": 52,
+          "text": "\tconst workspaceDir = resolveCanonicalRoot(path.join(context.resolvedStateDir, \"workspace\"));"
+        },
+        {
+          "line": 53,
+          "text": "\tconst sessionWorkspaceDir = context.sessionWorkspaceDir ? resolveCanonicalRoot(context.sessionWorkspaceDir) : void 0;"
+        },
+        {
+          "line": 54,
+          "text": "\tconst isInsideOrEqual = (parent, child) => child === parent || isPathInside(parent, child);"
+        },
+        {
+          "line": 55,
+          "text": "\tconst validSessionWorkspaceDir = sessionWorkspaceDir !== void 0 && !isInsideOrEqual(sessionWorkspaceDir, sandboxesDir) ? sessionWorkspaceDir : void 0;"
+        },
+        {
+          "line": 56,
+          "text": "\tconst overlaps = (sharedDir, root) => isInsideOrEqual(sharedDir, root) || isInsideOrEqual(root, sharedDir);"
+        },
+        {
+          "line": 57,
+          "text": "\tconst filtered = [];"
+        },
+        {
+          "line": 58,
+          "text": "\tfor (const root of roots) {"
+        },
+        {
+          "line": 59,
+          "text": "\t\tconst resolvedRoot = resolveCanonicalRoot(root);"
+        },
+        {
+          "line": 60,
+          "text": "\t\tconst withinSessionWorkspace = validSessionWorkspaceDir !== void 0 && isInsideOrEqual(validSessionWorkspaceDir, resolvedRoot);"
+        },
+        {
+          "line": 61,
+          "text": "\t\tif (overlaps(sandboxesDir, resolvedRoot) && !withinSessionWorkspace) continue;"
+        },
+        {
+          "line": 62,
+          "text": "\t\tif (sessionWorkspaceDir !== void 0 && overlaps(workspaceDir, resolvedRoot) && !withinSessionWorkspace) continue;"
+        },
+        {
+          "line": 63,
+          "text": "\t\tfiltered.push(resolvedRoot);"
+        },
+        {
+          "line": 64,
+          "text": "\t}"
+        },
+        {
+          "line": 65,
+          "text": "\treturn filtered;"
+        },
+        {
+          "line": 66,
+          "text": "}"
+        },
+        {
+          "line": 67,
+          "text": "/**"
+        },
+        {
+          "line": 68,
+          "text": "* Default local media roots with shared isolation parents removed."
+        },
+        {
+          "line": 69,
+          "text": "*"
+        },
+        {
+          "line": 70,
+          "text": "* Inbound attachment processing must not inherit sibling-sandbox grants from the process default"
+        },
+        {
+          "line": 71,
+          "text": "* list; callers re-add their own session/agent workspace explicitly when one applies."
+        },
+        {
+          "line": 72,
+          "text": "*/"
+        },
+        {
+          "line": 73,
+          "text": "function getSessionSafeDefaultMediaLocalRoots(sessionWorkspaceDir) {"
+        },
+        {
+          "line": 74,
+          "text": "\treturn filterSharedMediaLocalRoots(getDefaultMediaLocalRoots(), {"
+        },
+        {
+          "line": 75,
+          "text": "\t\tresolvedStateDir: path.resolve(resolveStateDir()),"
+        },
+        {
+          "line": 76,
+          "text": "\t\tsessionWorkspaceDir"
+        },
+        {
+          "line": 77,
+          "text": "\t});"
+        },
+        {
+          "line": 78,
+          "text": "}"
+        },
+        {
+          "line": 79,
+          "text": "/**"
+        },
+        {
+          "line": 80,
+          "text": "* Adds exact agent/session workspaces without exposing shared agent or sandbox roots."
+        }
+      ]
+    }
+  ]
+}

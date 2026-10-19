@@ -1,0 +1,128 @@
+{
+  "version": 2,
+  "id": "qa64-q13-whatsapp-access-20261018",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Raccorder les propriétaires privés des tests Android à l’accès WhatsApp existant, sans élargissement des permissions.",
+  "reason": "Q13 du doc64 : autorité courante par application, pièces privées, reçus et anti-doublon dans les propriétaires existants.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/qa13-contact-renderer-tests-20261018.json",
+    "docs/changes/qa13-contact-renderer-tests-20261018.md",
+    "docs/changes/qa64-q13-inert-media-host-20261018.md",
+    "docs/changes/qa64-q13-media-owner-hook-20261018.md",
+    "docs/changes/qa64-q13-media-stage-20261018.json",
+    "docs/changes/qa64-q13-media-stage-20261018.md",
+    "docs/changes/qa64-q13-queue-maintenance-20261018.json",
+    "docs/changes/qa64-q13-queue-maintenance-20261018.md",
+    "docs/changes/qa64-q13-whatsapp-access-20261018.json",
+    "docs/changes/qa64-q13-whatsapp-access-20261018.md",
+    "docs/changes/qa64-q8-private-notification-owner-20261018.md",
+    "docs/changes/voice-provider-tool-containment-20261018.json",
+    "docs/changes/voice-provider-tool-containment-20261018.md",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/samantha-health-manager.sh",
+    "installer/termux-lite/test-health-qa-queue.py",
+    "installer/termux-lite/test-qa-attachment-pipe.py",
+    "installer/termux-lite/test-qa-contact-renderer.py",
+    "installer/termux-lite/test-qa-private-graph-pipe.py",
+    "installer/termux-lite/test-qa-room-access.py",
+    "installer/termux-lite/test-whatsapp-owner-send.sh",
+    "installer/termux-lite/whatsapp-owner-send.sh",
+    "openclaw-plugin-mobile-ui/fixtures/qa-notification-s24-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/message-received-sdk-public-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/q13-existing-owner-source-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/q13-playbooks-root-owner-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/sdk-media-store-implementation-public-20261018.json",
+    "openclaw-plugin-mobile-ui/fixtures/qa/sdk-media-store-public-20261018.json",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-attachment-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-campaign-notification.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-contact-media-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-contact-media-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-contact-media.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-media-stage.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-qa-private-ingress.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-web-voice.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-turn-protocol.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-allowlist.cjs",
+    "openclaw-plugin-mobile-ui/src/backends/qaCampaignNotificationAction.ts",
+    "openclaw-plugin-mobile-ui/src/backends/qaCampaignNotificationCli.ts",
+    "openclaw-plugin-mobile-ui/src/backends/termux.ts",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/officialGatewayOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+    "openclaw-plugin-mobile-ui/src/companion/whatsappAllowlist.ts",
+    "openclaw-plugin-mobile-ui/src/contactRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/contactRoomProfile.ts",
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/qaContactMediaIngress.ts",
+    "openclaw-plugin-mobile-ui/src/qaContactMediaOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts"
+  ],
+  "tests": [
+    {
+      "name": "Autorité People et formulaire périmé",
+      "status": "passed",
+      "evidence": "38/38 tests Python, vrais fichiers/SQLite synthétiques et annulation réelle du groupe SDK ; HTTP Node allowlist et refus des formulaires QA périmés verts."
+    },
+    {
+      "name": "Pièces privées et volume",
+      "status": "passed",
+      "evidence": "13/13 tests de framing Python, 52/52 host et30/30 IPC Node ; vrais fichiers et20Mio privés, aucune recette S24."
+    },
+    {
+      "name": "Raccord réel des pièces privées",
+      "status": "passed",
+      "evidence": "Paire TS→IPC→People→PB file.put/Q2 avec autorité courante et révocation, données synthétiques ; contre-revue indépendante sur ba98bf33, factory28/28 et IPC34/34."
+    },
+    {
+      "name": "Annulation privée du transport et de ses descendants",
+      "status": "passed",
+      "evidence": "11/11 contrats shell dont timeout réel20s et annulation du groupe People ; test People/SDK avec descendant réel et contrôle négatif sans handler."
+    },
+    {
+      "name": "Vrai CLI QA privé et renderer Core",
+      "status": "passed",
+      "evidence": "5/5 tests cross-repos réels, modes carte et texte ; Q1/Q12/Q2/file/rapport et causes fermées, absence de champs techniques et contrôle négatif sans texte privé. Le producteur appartient uniquement à la PR212 playbooks."
+    },
+    {
+      "name": "Propagation Q12 FINAL vers Q13",
+      "status": "passed",
+      "command": "python3 installer/termux-lite/test-qa-restart-protection.py ; node scripts/test-qa-deploy-gateway-restart.cjs ; node scripts/test-qa-runtime-repair-lease.cjs ; python3 installer/termux-lite/test-qa-contact-renderer.py EXPLICIT_PLAYBOOKS_ROOT",
+      "evidence": "TypeScript vert ;15/15 protectionredémarrage, propriétaireGatewayEX vert,9/9 bailréparation,current/promotion,5/5 CLI→renderer en2,948s avecPBd4202594. Unionworkflow/testshérités conservée. AucuneCIcomplète du nouveauhead encore."
+    },
+    {
+      "name": "node scripts/test-typed-failure-presentation.cjs (after merging runtime with #325)",
+      "status": "passed",
+      "evidence": "Claude 19/10: the canonical CI of 6f1cc973 failed at mobile-ui-plugin step 44 because #325 requires a rendered phrase for every producer code and Q13 adds qa_ingress_deadline_exceeded. FR/EN phrases added in the existing FAILURE_PHRASES owner; the test passes 60 checks over 10 producer codes."
+    }
+  ],
+  "documentation": [
+    "docs/changes/qa64-q13-whatsapp-access-20261018.md",
+    "docs/changes/qa64-q13-inert-media-host-20261018.md",
+    "docs/changes/qa64-q13-media-stage-20261018.md",
+    "docs/changes/qa64-q13-queue-maintenance-20261018.md",
+    "docs/changes/qa64-q8-private-notification-owner-20261018.md",
+    "docs/changes/qa64-q13-media-owner-hook-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Adaptateurs privés sous les propriétaires QA et People existants ; registre canonique et contrats QA modifiés uniquement dans la PR Q13 playbooks."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilisation People, SDK média, registre d’envoi, file QA, cycle de santé, CLI Termux et verrou Q12 existants."
+  },
+  "rollback": "Revenir au commit runtime précédent ; retirer les raccords privés avec la PR playbooks, sans supprimer les reçus incertains.",
+  "limitations": [
+    "CI canonique complète à exécuter sur le head final exact et le numéro réel de PR.",
+    "Aucune fusion, activation, recette téléphone, livraison WhatsApp ni clic de notification réel exécuté.",
+    "Écriture SDK physique de20Mio et recette des pièces entrantes attendent Claude ; aucun quota global ni nettoyage automatique ne sont revendiqués.",
+    "Après merge normal Q12 FINALdd80d692 : nouveau headPR350 à qualifier complètement ; vert142/142 de7dad7206 historique."
+  ]
+}

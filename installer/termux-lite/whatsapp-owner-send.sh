@@ -1,5 +1,141 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -euo pipefail
+# Private QA extension delegates authorization and delivery to the existing people
+# owner. Payloads stay on stdin; no recipient or content is added to argv/logs.
+if [ "${1:-}" = "--qa-delivery-stdin" ]; then
+  if [ "$#" -ne 1 ]; then
+    printf '%s\n' '{"state":"NOT_SENT","reason":"qa_delivery_input_invalid"}'
+    exit 0
+  fi
+  qa_owner="$(cd "$(dirname "$0")" && pwd)/people-trusted.py"
+  exec python3 - "$qa_owner" 3<&0 <<'QA_TRANSPORT'
+import json, os, select, signal, subprocess, sys, time
+
+
+def answer(state, reason=None, message_id=None):
+    value = {"state": state}
+    if reason:
+        value["reason"] = reason
+    if message_id:
+        value["message_id"] = message_id
+    print(json.dumps(value, separators=(",", ":")))
+
+
+def cleanup(process):
+    if process is None:
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+        process.wait(timeout=.3)
+    except (ProcessLookupError, subprocess.TimeoutExpired):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=.2)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+process = None
+def cancelled(_signum, _frame):
+    # The private caller may have a tighter budget than the wrapper. Propagate
+    # cancellation into the separately owned People session before exiting.
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    cleanup(process)
+    raise SystemExit(143)
+
+signal.signal(signal.SIGTERM, cancelled)
+
+
+payload = bytearray()
+deadline = time.monotonic() + 2
+while True:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0 or not select.select([3], [], [], remaining)[0]:
+        answer("NOT_SENT", "qa_delivery_input_invalid")
+        sys.exit(0)
+    part = os.read(3, min(8192, 65537 - len(payload)))
+    if not part:
+        break
+    payload.extend(part)
+    if len(payload) > 65536:
+        answer("NOT_SENT", "qa_delivery_input_invalid")
+        sys.exit(0)
+os.close(3)
+if not payload or not os.path.isfile(sys.argv[1]):
+    answer("NOT_SENT", "qa_delivery_owner_unavailable" if payload else "qa_delivery_input_invalid")
+    sys.exit(0)
+try:
+    process = subprocess.Popen([sys.executable, sys.argv[1], "qa-deliver", "--request-stdin"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        start_new_session=True, close_fds=True)
+except OSError:
+    answer("NOT_SENT", "qa_delivery_owner_unavailable")
+    sys.exit(0)
+
+# Nonblocking bounded pipe IO prevents either a blocked child or an oversized
+# response from defeating the one-invocation budget. No raw output is relayed.
+os.set_blocking(process.stdin.fileno(), False)
+os.set_blocking(process.stdout.fileno(), False)
+response = bytearray()
+sent = 0
+input_open = True
+output_open = True
+deadline = time.monotonic() + 20
+try:
+    while input_open or output_open or process.poll() is None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError()
+        readable, writable, _ = select.select(
+            [process.stdout.fileno()] if output_open else [],
+            [process.stdin.fileno()] if input_open else [], [], min(remaining, 0.1))
+        if writable:
+            try:
+                sent += os.write(process.stdin.fileno(), payload[sent:])
+            except BrokenPipeError:
+                input_open = False
+            if sent == len(payload) or not input_open:
+                process.stdin.close()
+                input_open = False
+        if readable:
+            part = os.read(process.stdout.fileno(), 4097 - len(response))
+            if not part:
+                process.stdout.close()
+                output_open = False
+            else:
+                response.extend(part)
+                if len(response) > 4096:
+                    raise ValueError("response_limit")
+    if process.returncode != 0:
+        raise ValueError("child_result_unknown")
+    result = json.loads(response)
+    if not isinstance(result, dict) or result.get("state") not in {"ACCEPTED", "NOT_SENT", "UNKNOWN"}:
+        raise ValueError("receipt_invalid")
+    state = result["state"]
+    if state == "ACCEPTED":
+        import re
+        mid = result.get("message_id")
+        if not isinstance(mid, str) or not re.fullmatch(r"[A-Za-z0-9_.:@-]{1,300}", mid):
+            raise ValueError("receipt_invalid")
+        answer("ACCEPTED", message_id=mid)
+    else:
+        # Reasons are closed wrapper codes; never reflect an owner exception/body.
+        reasons = {"qa_scope_unavailable", "qa_delivery_input_invalid", "qa_delivery_owner_unavailable",
+            "qa_delivery_integration_pending", "qa_delivery_capacity_reached", "qa_delivery_deadline_exceeded",
+            "qa_document_header_refused", "qa_document_size_refused", "qa_document_hash_refused",
+            "qa_document_capacity_refused", "qa_document_sdk_unavailable", "gateway_sdk_version_unsupported"}
+        reason = result.get("reason")
+        answer(state, reason if state == "NOT_SENT" and isinstance(reason, str) and reason in reasons
+            else "qa_delivery_not_sent" if state == "NOT_SENT" else "qa_delivery_receipt_unconfirmed")
+except (OSError, ValueError, TimeoutError, subprocess.SubprocessError):
+    cleanup(process)
+    answer("UNKNOWN", "qa_delivery_receipt_unconfirmed")
+QA_TRANSPORT
+fi
+
 STATE_DIR="$HOME/.openclaw/health"
 STATE_LOG="$STATE_DIR/whatsapp-outbound.log"
 mkdir -p "$STATE_DIR"

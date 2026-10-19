@@ -28,6 +28,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Q13 existing health-cycle queue hook (private, closed)
+        run: python3 ../installer/termux-lite/test-health-qa-queue.py
+
       - name: Canonical off-device CI contract regression (K)
         run: python3 ../tools/test_localci.py
 
@@ -43,6 +46,28 @@ jobs:
 
       - name: Build Termux runtime plugin
         run: npm run build
+
+      - name: Q8 closed QA notification producer and click script
+        run: node scripts/test-qa-campaign-notification.cjs
+
+      - name: Q13 inert host attachment provenance and private input gates
+        run: node scripts/test-qa-contact-media.cjs
+
+      - name: Q13 existing People private attachment IPC
+        run: node scripts/test-qa-attachment-owner.cjs
+
+      - name: Q13 accepted-turn media factory and actual private owner coupling
+        run: |
+          node scripts/test-qa-contact-media-owner.cjs
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/q13-media-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" remote add origin https://github.com/sfar-amine/samantha-ui-playbooks.git
+          git -C "$peer" fetch --depth 1 origin d420259483ef4f8eaabaff77a972f6334f9c7769
+          git -C "$peer" checkout --detach FETCH_HEAD
+          python3 -m pip install --disable-pip-version-check --target "$peer/.qa-fixture-deps" -r "$peer/qa_testing/requirements.txt"
+          CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" node scripts/test-qa-contact-media-paired.cjs "$peer"
+          CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" python3 ../installer/termux-lite/test-qa-contact-renderer.py "$peer"
 
       - name: F1 web budget and context coverage match the current owners
         run: |
@@ -291,7 +316,7 @@ jobs:
         run: node scripts/test-diagnostic.cjs
 
       - name: Test persistent Gateway owner transport preparation
-        run: node scripts/test-persistent-gateway-transport.cjs && node scripts/test-gateway-entrypoint.cjs && node scripts/test-official-gateway-owner.cjs
+        run: node scripts/test-persistent-gateway-transport.cjs && node scripts/test-gateway-entrypoint.cjs && node scripts/test-official-gateway-owner.cjs && node scripts/test-qa-media-stage.cjs
       - name: Test automation SQLite revision latency and cache
         run: node scripts/test-control-automations-latency.cjs
 
@@ -330,6 +355,10 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-people-trusted.py
           python3 ../installer/termux-lite/test-whatsapp-allowlist.py
+          python3 ../installer/termux-lite/test-qa-room-access.py
+          python3 ../installer/termux-lite/test-qa-attachment-pipe.py
+          python3 ../installer/termux-lite/test-qa-private-graph-pipe.py
+          node scripts/test-qa-private-ingress.cjs
           python3 ../installer/termux-lite/test-whatsapp-contact-memory.py
           python3 ../installer/termux-lite/test-whatsapp-allowlist-manager.py
           python3 ../installer/termux-lite/test-whatsapp-allowlist-acceptance.py
