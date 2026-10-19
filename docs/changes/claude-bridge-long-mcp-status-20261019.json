@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "id": "claude-bridge-long-mcp-status-20261019",
+  "origin": "work",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applicable",
+  "summary": "Strengthen test-bridge-long.cjs through the real MCP relay entry: long claw_exec returns running within 15 s with retry_allowed false, claw_status returns the retained completion without private stderr, no second execution.",
+  "reason": "Codex left this coverage unqualified on codex/wip-bridge-long-20261018-e0a0f7d5; the existing test only exercised remoteBridge directly.",
+  "files": [
+    "openclaw-plugin-mobile-ui/scripts/test-bridge-long.cjs",
+    "docs/changes/claude-bridge-long-mcp-status-20261019.md",
+    "docs/changes/claude-bridge-long-mcp-status-20261019.json"
+  ],
+  "tests": [
+    {
+      "name": "build",
+      "status": "passed",
+      "evidence": "npm run build on runtime/samantha-companion-private"
+    },
+    {
+      "name": "bridge-long",
+      "status": "passed",
+      "evidence": "node scripts/test-bridge-long.cjs: bridge long: response <15s, completion retained, deduplication, failure and real orphan pass"
+    }
+  ],
+  "documentation": [
+    "docs/changes/claude-bridge-long-mcp-status-20261019.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Test only; existing device.remote_bridge and MCP relay contract."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No runtime code change."
+  },
+  "rollback": "Revert the PR.",
+  "limitations": [
+    "Local controlled exec double; no S24 execution."
+  ]
+}
