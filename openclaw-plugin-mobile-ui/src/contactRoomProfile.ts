@@ -1,4 +1,4 @@
-const ORDER = ["projet", "pulse", "agenda", "actions", "messages"] as const;
+const ORDER = ["projet", "pulse", "agenda", "actions", "messages", "qa"] as const;
 export type ContactRoom = typeof ORDER[number];
 const SESSION = /^agent:(contacts(?:-[a-z]+)*):whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
 

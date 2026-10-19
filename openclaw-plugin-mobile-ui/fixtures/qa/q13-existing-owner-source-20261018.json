@@ -1,0 +1,38 @@
+{
+  "contract": "qa64-q13-existing-owners",
+  "files": [
+    {
+      "path": "installer/termux-lite/people-trusted.py",
+      "exists": true,
+      "sha256": "e5d2b76c8d83bd0570af14a7a78564e8884cfe8eab4e12144acf5d7f2b9c26ba"
+    },
+    {
+      "path": "openclaw-plugin-mobile-ui/src/contactRoomFastPath.ts",
+      "exists": true,
+      "sha256": "6b7f85c79d75548f3e0a8ba6847637b06c1e37f6373a6acb44a8e00dde4b82c2"
+    },
+    {
+      "path": "openclaw-plugin-mobile-ui/src/contactRoomProfile.ts",
+      "exists": true,
+      "sha256": "d149d000c03a2af36bd1b0b3dfd76ea01d5b3dcebb53a9feba04baffa09b290b"
+    },
+    {
+      "path": "openclaw-plugin-mobile-ui/src/companion/whatsappAllowlist.ts",
+      "exists": true,
+      "sha256": "d15036b029da557111f4d15a19231cf0a24c29951231c999b90a7ad39c0c9d87"
+    },
+    {
+      "path": "installer/termux-lite/whatsapp-owner-send.sh",
+      "exists": true,
+      "sha256": "5814a8d31929523ba9097d80e493b1f1362d9773942d2dd80f46e7b48138a7c3"
+    }
+  ],
+  "head": "145339bbae88ffd66fb7475fcbf275b379d9cb6a",
+  "provenance": {
+    "captured_at": "2026-10-18",
+    "method": "claw_exec readonly sha256 of five public source files",
+    "request_id": "mcp-codex-cloud-qa64-q13-source-20261018-owner-source-hashes",
+    "private_data_read": false,
+    "scope": "source signatures only; qaApps is a new explicitly synthetic extension"
+  }
+}

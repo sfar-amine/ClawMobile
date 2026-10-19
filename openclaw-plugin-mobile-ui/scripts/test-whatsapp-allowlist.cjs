@@ -78,6 +78,18 @@ out(result)
  assert.equal((await request('PUT',base+'/'+contactId+'/note',{operationId:'unicode-note',text:'😀'.repeat(2000)})).status,200);const escaped='{'+'\"operationId\":\"escaped-unicode-note\",\"text\":\"'+String.raw`\uD83D\uDE00`.repeat(2000)+'\"}';assert.equal((await request('PUT',base+'/'+contactId+'/note',{},headers,escaped)).status,200);assert.equal((await request('PUT',base+'/'+contactId+'/note',{operationId:'too-many-codepoints',text:'😀'.repeat(2001)})).body.reason,'note_too_long');assert.equal((await request('PUT',base+'/'+contactId+'/note',{},headers,' '.repeat(32769))).status,400);
  const uncertain=await request('PUT',base+'/'+contactId+'/note',{operationId:'uncertain-note',text:'Second private note'});assert.equal(uncertain.status,200);assert.equal(uncertain.body.state,'updated');const count=effect();assert.deepEqual((await request('PUT',base+'/'+contactId+'/note',{operationId:'uncertain-note',text:'Second private note'})).body,uncertain.body);assert.equal(effect(),count);
  const history=await request('GET',base+'/history');assert.ok(!JSON.stringify(history).includes(number));assert.ok(!JSON.stringify(history).includes('Private Name'));assert.ok(!JSON.stringify(history).includes('private note'));assert.ok(history.body.items.every(row=>row.name===null&&!('text' in row)));
+ // An old or stale edit cannot remove QA rights it did not display.
+ const qaState=JSON.parse(fs.readFileSync(file));const qaContact=qaState.items.find(row=>row.contactId===contactId);
+ qaContact.rooms=['conversation','qa'];qaContact.qaRevision='a'.repeat(64);qaContact.qaApps=[{app_id:'demo',app_name:'Demo QA',package:'test.claw.qa.fixture',environment:'recette',allow_writes:false}];
+ fs.writeFileSync(file,JSON.stringify(qaState));const effectsBeforeQa=effect();const opsBeforeQa=Object.keys(qaState.operations).length;
+ for(const [label,extra] of [['legacy',{}],['stale',{expectedQaRevision:'b'.repeat(64)}]]){
+  const refused=await request('PATCH',base+'/'+contactId,{operationId:'qa-form-'+label,rooms:['conversation'],...extra});
+  assert.equal(refused.status,409);assert.equal(refused.body.reason,'operation_conflict');
+ }
+ const afterQa=JSON.parse(fs.readFileSync(file));assert.equal(effect(),effectsBeforeQa);assert.equal(Object.keys(afterQa.operations).length,opsBeforeQa);
+ assert.deepEqual(afterQa.items.find(row=>row.contactId===contactId).qaApps,qaContact.qaApps);
+ const malformedQa=await request('PATCH',base+'/'+contactId,{operationId:'qa-invalid-revision',rooms:['conversation'],expectedQaRevision:true});assert.equal(malformedQa.status,400);
+ delete qaContact.qaApps;delete qaContact.qaRevision;qaContact.rooms=['conversation'];fs.writeFileSync(file,JSON.stringify(qaState));
  const removal=await approve('remove',contactId,hash(number));assert.equal((await request('DELETE',base+'/'+contactId,{operationId:'remove',confirmationId:removal})).body.state,'removed');assert.equal((await request('DELETE',base+'/'+contactId,{operationId:'remove-again',confirmationId:removal})).body.state,'already_absent');
  const registry=JSON.parse(fs.readFileSync(path.join(stateDir,'runs.json')));assert.deepEqual(registry.paymentRequests,paymentFixture);assert.equal(registry.runs.length,0);assert.equal((await request('GET',base)).body.items.length,1);
  console.log('R17: owner HTTP, strict numbers, complete biometric matrix, linked/expired proofs, single-flight/replay/conflict, private notes/history, uncertain readback, and untouched payment/history passed');
