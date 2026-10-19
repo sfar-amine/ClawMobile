@@ -61,7 +61,8 @@
     "openclaw-plugin-mobile-ui/src/index.ts",
     "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
     "openclaw-plugin-mobile-ui/src/qaContactMediaIngress.ts",
-    "openclaw-plugin-mobile-ui/src/qaContactMediaOwner.ts"
+    "openclaw-plugin-mobile-ui/src/qaContactMediaOwner.ts",
+    "openclaw-plugin-mobile-ui/src/companion/receiptPresentation.ts"
   ],
   "tests": [
     {
@@ -94,6 +95,11 @@
       "status": "passed",
       "command": "python3 installer/termux-lite/test-qa-restart-protection.py ; node scripts/test-qa-deploy-gateway-restart.cjs ; node scripts/test-qa-runtime-repair-lease.cjs ; python3 installer/termux-lite/test-qa-contact-renderer.py EXPLICIT_PLAYBOOKS_ROOT",
       "evidence": "TypeScript vert ;15/15 protectionredémarrage, propriétaireGatewayEX vert,9/9 bailréparation,current/promotion,5/5 CLI→renderer en2,948s avecPBd4202594. Unionworkflow/testshérités conservée. AucuneCIcomplète du nouveauhead encore."
+    },
+    {
+      "name": "node scripts/test-typed-failure-presentation.cjs (after merging runtime with #325)",
+      "status": "passed",
+      "evidence": "Claude 19/10: the canonical CI of 6f1cc973 failed at mobile-ui-plugin step 44 because #325 requires a rendered phrase for every producer code and Q13 adds qa_ingress_deadline_exceeded. FR/EN phrases added in the existing FAILURE_PHRASES owner; the test passes 60 checks over 10 producer codes."
     }
   ],
   "documentation": [

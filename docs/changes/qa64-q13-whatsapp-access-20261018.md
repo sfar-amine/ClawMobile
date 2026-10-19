@@ -74,3 +74,7 @@ Ce nouveau head attend la CI canonique complète PR350 dans le créneau root. L�
 Merge local normal du head Q12 `d29619e58827310759934485222806214462c8ba`, lui-même issu du F1 final `064a66e95649bf6362232bb69201edf57d24e321`. Aucun conflit ; union des commandes workflow des deux parents et ancêtre runtime/voix359 vérifiés. La chaîne de tests Gateway est conservée et prolongée par le test Q13 de staging média, pas remplacée. Autorité People, queue, transport privé et frontière Q13 restent aux propriétaires existants ; aucun bail playbooks ou runner isolé modifié.
 
 Ciblés hors téléphone :38/38 accès QA People,13/13 pièces par le canal privé,4/4 pipe Graph privé, ingress privé,12/12 diagnostics propriétaire et compilation TypeScript verts. Ces contrats/captures/fixtures ne revendiquent aucun envoi, redémarrage, geste ou recette S24. La CI complète du nouveau head n’a pas été lancée. L’ancienne142/142 sur7dad7206 est historique ; les têtes intermédiaires75f8 et le nouveau head ne sont pas qualifiés par elle. PR en brouillon, intégration/publication playbooks et CI complète encore attendues.
+
+## Phrase de cause Q13 (relecture Claude du 19/10)
+
+Après la fusion de la ligne runtime, qui contient #325, la CI canonique de `6f1cc973` a échoué à l'étape 44 du job `mobile-ui-plugin`. Le contrôle des causes typées exige une phrase rendue pour chaque code produit, et Q13 émet `qa_ingress_deadline_exceeded`. Les phrases FR/EN sont ajoutées dans le propriétaire existant `FAILURE_PHRASES`. Aucun changement de budget ni de comportement.
