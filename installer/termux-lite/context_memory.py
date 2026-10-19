@@ -16,6 +16,11 @@ KINDS = ('constraint', 'open_thread', 'decision', 'learning', 'completed_action'
 COLUMNS = 'e.id,e.revision,e.surface,e.kind,e.text,e.created_at,e.supersedes'
 ACTIVE = "NOT EXISTS (SELECT 1 FROM events n WHERE n.supersedes=e.id)"
 VIEW_BUDGET_BYTES = 16384
+# Wire contract owned by this producer; playbooks carry a CI-checked copy.
+# Complete source indexes never mean that full constraint bodies were read.
+COVERAGE_COMPLETE = 'constraint_index_complete; open_thread_index_complete'
+# Named reader transition for pre-b760d368 materialized views only.
+COVERAGE_COMPLETE_LEGACY = 'constraints_complete; open_thread_index_complete'
 RECENT_CAPS = {'decision': 12, 'learning': 8, 'completed_action': 5, 'checkpoint': 3}
 # M1 has three explicit shares. They are maxima and scale down with a caller's
 # smaller custom budget; unused bytes remain available to the other sections.
@@ -305,7 +310,7 @@ def build_view(connection, head, *, foundation_bytes=0, budget_bytes=VIEW_BUDGET
     for item, line, cut in activity:
         lines.append(line); rendered_ids.append(item['id']); excerpts += int(cut)
     blocked = bool(critical_overflow or thread_overflow or foundation_bytes > budget_bytes)
-    lines += ['', '> Coverage: ' + ('BLOCKED — budget insuffisant ; récupérer les éléments manquants ou augmenter le budget avant démarrage.' if blocked else 'constraint_index_complete; open_thread_index_complete')]
+    lines += ['', '> Coverage: ' + ('BLOCKED — budget insuffisant ; récupérer les éléments manquants ou augmenter le budget avant démarrage.' if blocked else COVERAGE_COMPLETE)]
     body = '\n'.join(lines)
     if foundation_bytes + framing_bytes <= budget_bytes and foundation_bytes + len(body.encode()) > budget_bytes:
         raise AssertionError('hybrid_view_budget_exceeded')

@@ -79,7 +79,7 @@ class RuntimeSync(unittest.TestCase):
         (plugin / "dist/index.js").write_text("require('./pulseRoomFastPath')\n")
         (plugin / "dist/pulseRoomFastPath.js").write_text("// room\n")
         # Public source contracts only; no synthetic account/runtime payload.
-        for rel in ("installer/termux-lite/model-fast-path.py", "openclaw-plugin-mobile-ui/src/companion/runWeb.ts", "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json"):
+        for rel in ("installer/termux-lite/context_memory.py", "installer/termux-lite/model-fast-path.py", "openclaw-plugin-mobile-ui/src/companion/runWeb.ts", "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json"):
             dest = repo / rel; dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(HERE.parent.parent / rel, dest)
         app = repo / "android/samantha/app/src/test/resources/voice-v2/app-companion-envelope-contract.json"
@@ -110,6 +110,12 @@ class RuntimeSync(unittest.TestCase):
         owner = oc / "runtime-ui-playbooks/current/skill_intelligence/public_web.py"
         owner.parent.mkdir(parents=True, exist_ok=True)
         owner.write_text("BUDGET_MS=30000\nSEARCH_BUDGET_MS=12000\n")
+        import ast
+        contracts={item.targets[0].id:ast.literal_eval(item.value)
+                   for item in ast.parse((HERE/'context_memory.py').read_text()).body
+                   if isinstance(item,ast.Assign) and isinstance(item.targets[0],ast.Name) and item.targets[0].id.startswith('COVERAGE_')}
+        (pb/'request_context.py').write_text(''.join(f'{key} = {value!r}\n' for key,value in contracts.items()))
+
         # rsync is installed on Termux but optional on generic Ubuntu hosts.
         # The double preserves the --delete contract and the node_modules exclusion.
         (bin_ / "rsync").write_text(RSYNC_STUB); (bin_ / "rsync").chmod(0o755)
@@ -128,6 +134,14 @@ class RuntimeSync(unittest.TestCase):
     def tier0_log(self):
         path = self.home / "tier0.log"
         return path.read_text().splitlines() if path.exists() else []
+
+    def test_context_coverage_mismatch_is_runtime_drift(self):
+        self.assertEqual(self.sync()[0],0)
+        reader=self.home/'.openclaw/runtime-ui-playbooks/current/tools/request_context.py'
+        reader.write_text(reader.read_text().replace('constraint_index_complete;', 'wrong_index;'))
+        rc,out,err=self.sync(check=True)
+        self.assertEqual(rc,1,err)
+        self.assertIn('context:coverage_index_contract',out['drift'])
 
     def test_check_without_app_source_has_no_phantom_app_drift(self):
         self.assertEqual(self.sync()[0], 0)
