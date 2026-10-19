@@ -19,7 +19,8 @@
     "openclaw-plugin-mobile-ui/scripts/test-lifx-local.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-lifx-route.cjs",
     "openclaw-plugin-mobile-ui/src/companion/lifxLocal.ts",
-    "openclaw-plugin-mobile-ui/src/companion/server.ts"
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/fixtures/foundations/f3-excluded-server-regions.json"
   ],
   "tests": [
     {
@@ -37,6 +38,11 @@
         "fixture": "openclaw-plugin-mobile-ui/fixtures/lifx-a19-s24-20261013.json",
         "read_only_live_ms": 878
       }
+    },
+    {
+      "name": "node scripts/test-run-diagnostics.cjs (F3 excluded server regions)",
+      "status": "passed",
+      "evidence": "Claude 19/10: the whatsapp_watchdog region ended at the next '\\nfunction ', which skipped 'export async function route(' and covered the whole route() handler (lines 197-1606), so any new route broke the F3 guard. The end marker now stops at route(); the watchdog function alone has the same SHA256 b7aac2e5... on the F3 source commit 6592da8e, on runtime 32b2a3ed and on this branch. 12/12 diagnostics checks pass; payment and voice regions unchanged."
     }
   ],
   "documentation": [

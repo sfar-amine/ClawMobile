@@ -17,8 +17,8 @@
     {
       "name": "whatsapp_watchdog",
       "start": "function startWhatsAppListenerWatchdog()",
-      "end": "\nfunction ",
-      "sha256": "ffc75281da01aa1222f6dc53930e75173f282c0d2510fe8238bb9911fc84fb0a"
+      "end": "\nexport async function route(",
+      "sha256": "b7aac2e5dd7274f238e186e09f8ef5f6f70f92f8765e81758e6ae2d207ac40d1"
     }
   ]
 }
