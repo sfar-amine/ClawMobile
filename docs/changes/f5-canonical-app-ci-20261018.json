@@ -1,0 +1,44 @@
+{
+  "version": 2,
+  "id": "f5-canonical-app-ci-20261018",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Propager F1 actuel dans la branche du propriétaire CI local, sans changer le runner.",
+  "reason": "La pile F5 doit conserver les racines et correctifs runtime actuels, ainsi que son propriétaire CI canonique.",
+  "files": [
+    "docs/changes/f5-canonical-app-ci-20261018.md",
+    "docs/changes/f5-canonical-app-ci-20261018.json"
+  ],
+  "tests": [
+    {
+      "name": "Canonical local CI contract",
+      "status": "passed",
+      "command": "python3 tools/test_localci.py",
+      "evidence": "20/20 verts en3,292s ; fixtures Git/builder locales, aucune CI complète ni build réel Android."
+    },
+    {
+      "name": "Inherited runtime and voice-closure owner fixtures",
+      "status": "passed",
+      "command": "python3 installer/termux-lite/test-runtime-foundations.py ; python3 installer/termux-lite/test-owner-retention.py ; python3 installer/termux-lite/test-claw-trace.py",
+      "evidence": "11/11,12/12,6/6 verts en0,157s/0,576s/0,485s. Union des commandes des parents conservée ; blobtools/localci.py identique àdb458aef."
+    }
+  ],
+  "documentation": [
+    "docs/changes/f5-canonical-app-ci-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Propagation de propriétaires et outillage CI existants, aucune route publique ou capability supplémentaire."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même runner et mêmes propriétaires racine ; aucun store, routeur, service ou copie de runner."
+  },
+  "rollback": "Retirer le lot F5 sans annuler les correctifs runtime hérités de320/359.",
+  "limitations": [
+    "CI canonique complète requise sur le nouveau head exact PR323 ; preuves précédentes historiques.",
+    "Aucune qualification physique, installation, publicationAPK, fusion dePR ou activation."
+  ]
+}

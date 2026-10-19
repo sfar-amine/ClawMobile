@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "sanitized": true,
+  "provenance": "https://github.com/sfar-amine/samantha-ui-playbooks/pull/189#issuecomment-6248307144",
+  "captured_by": "Claude via claw_exec, 2026-10-18 10:35 UTC+1",
+  "health_owner": "health-verdict.py writes health/current.json; tier0-watchdog.py reads it",
+  "soak_grace_until_epoch": 1792282959,
+  "observations": [
+    {"time": "2026-10-18T01:21:35+01:00", "event": "gateway_start"},
+    {"time": "2026-10-18T01:21:55+01:00", "event": "spawn_broker_ready"},
+    {"time": "2026-10-18T01:22:08+01:00", "event": "tier0_promoted"},
+    {"time": "2026-10-18T01:22:17+01:00", "event": "health_manager_replaced"},
+    {"time": "2026-10-18T01:22:21.7+01:00", "event": "gateway_listening"},
+    {"time": "2026-10-18T01:22:55+01:00", "event": "rollback", "reason": "soak_health_regression", "last_bad": ["gateway"]}
+  ],
+  "not_observed": ["The original health/current.json sample was overwritten", "The producer PID and both original sample timestamps were not retained"],
+  "source_reproduction_only": "Two watchdog ticks currently count one unchanged generated_at twice. This is a code reproduction, not proof of the overwritten historical sample."
+}

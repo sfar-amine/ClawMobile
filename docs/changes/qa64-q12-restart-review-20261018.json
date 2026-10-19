@@ -18,6 +18,9 @@
     "openclaw-plugin-mobile-ui/scripts/test-qa-runtime-repair-lease.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-qa-deploy-gateway-restart.cjs",
     "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts",
+    "openclaw-plugin-mobile-ui/src/runtimeRoot.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-gateway-maintenance-recovery.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/qa/runtime-mode-pre-q12-s24-20261018.py",
     "docs/changes/qa64-q12-restart-review-20261018.json",
     "docs/changes/qa64-q12-deployment-protection-20261018.md"
   ],
@@ -25,7 +28,7 @@
     {
       "name": "Contrats réels verrou/CLI/synchronisation",
       "status": "passed",
-      "evidence": "15 tests helper,16 runtime-sync,4 health,9 Nodelease et vrai restartCLI GatewayTCP verts ; tests inscritsworkflow, aucune recette physique."
+      "evidence": "Après fusion de b8c3fdf2 : 15 tests helper, 19 runtime-sync, 4 health, bail Node 10/10 (dont release current antérieure à Q12 et current absent), maintenance recovery qui échoue sans ses assertions, vrai restartCLI Gateway TCP sans SAMANTHA_DEPLOY_LOCK_FD hérité ; tests inscrits au workflow, aucune recette physique."
     },
     {
       "name": "CI canonique exacte338",
@@ -45,7 +48,7 @@
     "changed": false,
     "reason": "Même flock, runtime_mode et propriétaire Node stop/start ; pas de store/routeur/daemon supplémentaire."
   },
-  "rollback": "Revert du correctif core ; aucun nouveau format ni fichier de verrou. Ne pas désactiver la garde SH campagne.",
+  "rollback": "Revert du correctif core ; aucun nouveau format ni fichier de verrou. Ne pas désactiver la garde SH campagne. Un retour arrière Tier0 vers une release antérieure à #338 ne bloque plus le Companion : son helper de bail est celui de son checkout (checkoutFile), pas celui de releases/current.",
   "limitations": [
     "Borne du bail de campagne suivie séparément chez le propriétaire playbooks ; aucun SH vivant ignoré.",
     "Aucun déploiement, test S24 ou qualification physique."
@@ -76,7 +79,10 @@
       "installer/termux-lite/test-runtime-sync.py",
       "openclaw-plugin-mobile-ui/scripts/test-qa-runtime-repair-lease.cjs",
       "openclaw-plugin-mobile-ui/scripts/test-qa-deploy-gateway-restart.cjs",
-      "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts"
+      "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts",
+      "openclaw-plugin-mobile-ui/src/runtimeRoot.ts",
+      "openclaw-plugin-mobile-ui/scripts/test-gateway-maintenance-recovery.cjs",
+      "openclaw-plugin-mobile-ui/fixtures/qa/runtime-mode-pre-q12-s24-20261018.py"
     ]
   }
 }

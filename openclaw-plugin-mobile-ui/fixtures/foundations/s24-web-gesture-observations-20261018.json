@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "provenance": {
+    "source": "https://github.com/sfar-amine/samantha-ui-playbooks/pull/189#issuecomment-6249000362",
+    "captured_by": "Claude via claw_exec, read only",
+    "observed_at": "2026-10-18T11:55:00+01:00",
+    "owner": "~/.openclaw/clawmobile-companion/runs.json",
+    "kind": "Reported sanitized projections, not complete GET response captures",
+    "cleaning": "No user request or displayed reply. Public factual claim/source snippets retained. Session/client IDs and unreported fields are not invented."
+  },
+  "runs": [
+    {
+      "runId": "run_1792314317652_fb6eccc4",
+      "acceptedAt": "2026-10-18T09:05:17Z",
+      "endedAt": "2026-10-18T09:05:34Z",
+      "state": "done",
+      "web": {
+        "operation": "answer", "outcome": "complete", "provider": "parallel-free",
+        "profile": "google:claw-gemini-free", "model": "google/gemini-3.5-flash-lite", "responseLanguage": "fr",
+        "metrics": {"logicalSearchCalls": 1, "searchMs": 5186, "synthesisMs": 10023, "providerAttempts": 1, "cacheHit": false},
+        "error": null, "degradations": [],
+        "reportedClaim": {"id": "c1", "text": "Le dernier reset confirmé de Codex a eu lieu le 13 octobre 2026", "sourceId": "s4", "quote": "Last reset: Oct 13"},
+        "sourceCount": 5
+      }
+    },
+    {
+      "runId": "run_1792249272899_4c533f37",
+      "acceptedAt": "2026-10-17T15:01:12Z",
+      "endedAt": "2026-10-17T15:01:21Z",
+      "web": {"operation": "search", "outcome": "complete", "metrics": {"logicalSearchCalls": 1, "searchMs": 6528, "cacheHit": false}, "claimCount": 0}
+    }
+  ],
+  "limits": {
+    "failedRunAvailable": false,
+    "dictationTraceAvailable": false,
+    "completeHttpEnvelopeCaptured": false,
+    "pagesPreserved": false,
+    "interpretation": "A structurally complete answer is not proof of factual correctness; the reported Codex-reset claim requires the separate relevance/entailment work. Failure shapes use the owner's contract/tests, as Claude explicitly allowed."
+  }
+}
