@@ -63,6 +63,7 @@ export const FAILURE_PHRASES = {
   invalid_web_execution_context:'Le contexte de la recherche web est invalide.',
   execution_cancelled:'Le traitement a été interrompu.',
   coordinator_unavailable:'Le suivi de conversation est indisponible.',
+  qa_ingress_deadline_exceeded:'La demande de tests auto n’a pas abouti dans le délai imparti.',
  },
  en: {
   helper_missing:'The processing service could not be found.',
@@ -74,6 +75,7 @@ export const FAILURE_PHRASES = {
   invalid_web_execution_context:'The web search context is invalid.',
   execution_cancelled:'Processing was interrupted.',
   coordinator_unavailable:'Conversation tracking is unavailable.',
+  qa_ingress_deadline_exceeded:'The auto test request exceeded its time limit.',
  },
 } as const;
 /** Only these renderer-owned causes may replace an existing producer sentence. */

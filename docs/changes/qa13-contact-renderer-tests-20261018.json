@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "id": "qa13-contact-renderer-tests-20261018",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Vérifier les réponses privées QA au travers du vrai CLI Playbooks puis du renderer Core.",
+  "reason": "Une réponse structurée techniquement correcte ne doit pas masquer la prochaine question humaine.",
+  "files": [
+    "installer/termux-lite/test-qa-contact-renderer.py",
+    "docs/changes/qa13-contact-renderer-tests-20261018.json",
+    "docs/changes/qa13-contact-renderer-tests-20261018.md"
+  ],
+  "tests": [
+    {
+      "name": "Five real private CLI to display contracts",
+      "status": "passed",
+      "command": "python3 installer/termux-lite/test-qa-contact-renderer.py EXPLICIT_PLAYBOOKS_ROOT",
+      "evidence": "5/5 en 2,885 s avec le producteur versionné Playbooks en préparation ; vrais cli.main, FIFO et propriétaires métier, renderer card=True et False sans mock. À rejouer avec le pin final dans la CI intégrée."
+    }
+  ],
+  "documentation": [
+    "docs/changes/qa13-contact-renderer-tests-20261018.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Test inter-dépôts uniquement, aucune route ni capability ajoutée."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Réutilise les propriétaires CLI et renderer existants ; aucun store, service ou copie de code métier."
+  },
+  "rollback": "Retirer le test et son invocation CI intégrée.",
+  "limitations": [
+    "Autorité externe, métadonnées APK et transport synthétiques ; aucun accès téléphone, réseau ou livraison réelle.",
+    "CI complète exacte à effectuer sur le head intégré de la PR 350 ; le parent inscrit la commande dans le job existant."
+  ]
+}

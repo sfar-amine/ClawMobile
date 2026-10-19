@@ -38,6 +38,8 @@ export type DialogueReply = {
 export type DialogueRunner = (message: string, options?: RunnerOptions) => Promise<FastPathResult>;
 
 export type DialogueInput = {
+  /** Host-only QA room authority, excluded from the dialogue event and policy payloads. */
+  qaContext?:Record<string,unknown>;
   surface: DialogueSurfaceName;
   graphSurface: string;
   conversationKey: string;
@@ -99,6 +101,7 @@ export function admittedAtMs(value: unknown): number | undefined {
 
 function runnerOptions(input: DialogueInput, mode: DialogueMode): RunnerOptions {
   return {
+    ...(input.qaContext?{qaContext:input.qaContext}:{}),
     surface: input.graphSurface,
     caller: input.caller || "owner",
     originId: input.eventRef.slice(0, 120),

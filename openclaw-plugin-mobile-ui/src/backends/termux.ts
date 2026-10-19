@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
+import {qaRunId} from "./qaCampaignNotificationAction";
 
 export type TermuxResult = { ok: boolean; code: number; stdout: string; stderr: string };
 
@@ -63,13 +64,27 @@ export function runTermuxCommand(
   });
 }
 
-export async function tx_notify(input: { title: string; content: string }) {
+type QaNotification = {kind:"qa_campaign"; runId:string};
+const shellArg = (value:string) => "'" + value.replace(/'/g, "'\\''") + "'";
+export function qaCampaignNotificationArgs(runId: unknown): string[] {
+  const id = qaRunId(runId);
+  const action = ["/data/data/com.termux/files/home/.openclaw-android/bin/node",
+    path.join(__dirname,"qaCampaignNotificationAction.js"), id].map(shellArg).join(" ");
+  return ["--id", "qa-campaign:"+id, "--alert-once", "--action", action];
+}
+
+// The public tx_notify schema remains title/content only. This second argument
+// belongs exclusively to the private QA producer, never to tool-request fields.
+export async function tx_notify(input: { title: string; content: string }, qa?:QaNotification) {
+  if (qa && qa.kind !== "qa_campaign") throw Error("qa_notification_kind_invalid");
+  const extra = qa ? qaCampaignNotificationArgs(qa.runId) : [];
   return runTermuxCommand("termux-notification", [
     "--title",
     input?.title ?? "",
     "--content",
     input?.content ?? "",
-  ]);
+    ...extra,
+  ], qa ? 5000 : DEFAULT_TIMEOUT_MS);
 }
 
 export async function tx_tts(input: { text: string }) {

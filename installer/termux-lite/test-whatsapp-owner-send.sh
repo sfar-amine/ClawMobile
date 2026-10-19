@@ -23,3 +23,72 @@ grep -q 'state=accepted' "$T/home/.openclaw/health/whatsapp-outbound.log"
 ! grep -q '21611111111' "$T/home/.openclaw/health/whatsapp-outbound.log"
 ! grep -q 'private test body' "$T/home/.openclaw/health/whatsapp-outbound.log"
 echo 'whatsapp owner send: OK'
+
+# Q13 private mode: same transport file delegates to the existing people owner.
+# All owner implementations below are synthetic host fixtures, never a send.
+mkdir -p "$T/private-owner"
+cp "$R/whatsapp-owner-send.sh" "$T/private-owner/whatsapp-owner-send.sh"
+cat >"$T/private-owner/people-trusted.py" <<'PY'
+import hashlib,json,os,pathlib,sys,time,subprocess
+body=sys.stdin.buffer.read()
+entry={'argv':sys.argv[1:],'payload_sha256':hashlib.sha256(body).hexdigest()}
+with (pathlib.Path(os.environ['HOME'])/'private-invocations.jsonl').open('a') as f:f.write(json.dumps(entry)+'\n')
+mode=json.loads(body).get('fixture_mode','accepted')
+if mode=='large': print('PRIVATE_DO_NOT_RELAY'*400)
+elif mode=='invalid': print('PRIVATE_DO_NOT_RELAY');sys.exit(9)
+elif mode=='unknown': print(json.dumps({'state':'UNKNOWN','reason':'PRIVATE_DO_NOT_RELAY'}))
+elif mode=='not_sent': print(json.dumps({'state':'NOT_SENT','reason':'PRIVATE_DO_NOT_RELAY'}))
+elif mode=='capacity': print(json.dumps({'state':'NOT_SENT','reason':'qa_document_capacity_refused'}))
+elif mode=='timeout': time.sleep(60)
+elif mode=='cancel':
+ child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])
+ (pathlib.Path(os.environ['HOME'])/'qa-child-pids.json').write_text(json.dumps([os.getpid(),child.pid]))
+ time.sleep(60)
+else: print(json.dumps({'state':'ACCEPTED','message_id':'opaque-fixture-receipt'}))
+PY
+HOME="$T/home" python3 - "$T/private-owner/whatsapp-owner-send.sh" <<'PY'
+import json,os,pathlib,subprocess,sys,time,signal
+helper=sys.argv[1]
+payload={'contact_ref':'canonical-fixture-contact','run_id':'qa-fixture','message':'PRIVATE_DO_NOT_RELAY','fixture_mode':'accepted'}
+
+def invoke(body,args=(),timeout=25):
+    result=subprocess.run(['bash',helper,'--qa-delivery-stdin',*args],input=body,capture_output=True,timeout=timeout)
+    assert result.returncode==0,(result.returncode,result.stderr)
+    assert b'PRIVATE_DO_NOT_RELAY' not in result.stdout+result.stderr
+    assert b'canonical-fixture-contact' not in result.stdout+result.stderr
+    return json.loads(result.stdout)
+
+accepted=invoke(json.dumps(payload).encode())
+assert accepted=={'state':'ACCEPTED','message_id':'opaque-fixture-receipt'},accepted
+assert invoke(json.dumps({**payload,'fixture_mode':'capacity'}).encode())=={'state':'NOT_SENT','reason':'qa_document_capacity_refused'}
+for mode,expected in [('unknown','UNKNOWN'),('not_sent','NOT_SENT'),('invalid','UNKNOWN'),('large','UNKNOWN')]:
+    result=invoke(json.dumps({**payload,'fixture_mode':mode}).encode())
+    assert result['state']==expected,(mode,result)
+    assert 'message_id' not in result
+before=(pathlib.Path(os.environ['HOME'])/'private-invocations.jsonl').read_text().splitlines()
+for body,args in [(b'',()),(b'x'*65537,()),(b'{}',('forbidden-extra-arg',))]:
+    result=invoke(body,args)
+    assert result=={'state':'NOT_SENT','reason':'qa_delivery_input_invalid'},result
+assert len((pathlib.Path(os.environ['HOME'])/'private-invocations.jsonl').read_text().splitlines())==len(before)
+started=time.monotonic()
+result=invoke(json.dumps({**payload,'fixture_mode':'timeout'}).encode())
+assert result['state']=='UNKNOWN',result
+assert 19<=time.monotonic()-started<24
+rows=[json.loads(line) for line in (pathlib.Path(os.environ['HOME'])/'private-invocations.jsonl').read_text().splitlines()]
+assert len(rows)==7,rows # Once per accepted input, never an automatic retry.
+assert all(row['argv']==['qa-deliver','--request-stdin'] for row in rows)
+cancel=subprocess.Popen(['bash',helper,'--qa-delivery-stdin'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+cancel.stdin.write(json.dumps({**payload,'fixture_mode':'cancel'}).encode());cancel.stdin.close()
+pidfile=pathlib.Path(os.environ['HOME'])/'qa-child-pids.json'
+limit=time.monotonic()+3
+while not pidfile.exists() and time.monotonic()<limit:time.sleep(.01)
+assert pidfile.exists(),'fixture owner was not started'
+pids=json.loads(pidfile.read_text());started=time.monotonic()
+os.killpg(cancel.pid,signal.SIGTERM);cancel.wait(timeout=1)
+assert time.monotonic()-started<1
+for pid in pids:
+ path=pathlib.Path('/proc')/str(pid)/'stat'
+ assert not path.exists() or path.read_text().split()[2]=='Z',('orphaned delivery process',pid)
+cancel.stdout.close();cancel.stderr.close()
+print('whatsapp QA private delegation: 11/11 contracts OK')
+PY

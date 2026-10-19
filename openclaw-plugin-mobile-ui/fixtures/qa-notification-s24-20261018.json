@@ -1,0 +1,32 @@
+{
+  "contract": "qa64-samantha-launcher-owner-metadata",
+  "owner_path": "/data/data/com.termux/files/home/.openclaw/extensions/openclaw-plugin-mobile-ui/dist/backends/adb.js",
+  "owner_sha256": "67df58949b1eafcd06270d811c981a3784ce0a07728e667af17eeea115ed5edc",
+  "package": "ai.samantha.android.dev",
+  "ok": true,
+  "exit_code": 0,
+  "resolved_component": [
+    "ai.samantha.android.dev/ai.samantha.android.MainActivity"
+  ],
+  "stderr_present": false,
+  "source": "readonly installed public code and launcher metadata; Claude PR196#6250854589",
+  "notification_cli_sha256": "f02914d2b40c055a12e5fbc1249776539635b7511602945178d74c30c74858ce",
+  "termux_api_version": "0.53.0",
+  "action_execution": "dash -c; fresh environment; no profile/PATH inheritance",
+  "notification_flags": [
+    "--title",
+    "--content",
+    "--id",
+    "--alert-once",
+    "--action"
+  ],
+  "auto_cancel_option": false,
+  "node_executable": "/data/data/com.termux/files/home/.openclaw-android/bin/node",
+  "termux_am": "/data/data/com.termux/files/usr/bin/am",
+  "physical_notification_or_click_tested": false,
+  "openclaw_wrapper": {
+    "path": "/data/data/com.termux/files/usr/bin/openclaw",
+    "sha256": "7a183fb634095b5d6669d3c95bdfa35b51a87ebdcc81be07e16fdc44c113fa66",
+    "source": "#!/data/data/com.termux/files/usr/bin/bash\nexec \"/data/data/com.termux/files/home/.openclaw-android/bin/node\" \"/data/data/com.termux/files/usr/lib/node_modules/openclaw/openclaw.mjs\" \"$@\"\n"
+  }
+}
