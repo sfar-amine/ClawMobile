@@ -5,6 +5,14 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home" CLAW_UI_PLAYBOOKS_WORKSPACE="$tmp/ws" CLAW_NODE="$(command -v node)"
+# Surface-view compiler stub: records which snapshot was pinned when it ran (S24 17/10: stale views after a pin).
+cat > "$tmp/compile-stub.py" <<'PY'
+import os,sys
+assert sys.argv[1:]==["compile"],sys.argv
+cur=os.path.realpath(os.path.expanduser("~/.openclaw/runtime-ui-playbooks/current"))
+open(os.environ["COMPILE_LOG"],"a").write(os.path.basename(cur)+"\n")
+PY
+export CLAW_CAPABILITY_CLI="$tmp/compile-stub.py" COMPILE_LOG="$tmp/compile.log"
 mkdir -p "$HOME" "$CLAW_UI_PLAYBOOKS_WORKSPACE"
 cd "$CLAW_UI_PLAYBOOKS_WORKSPACE"
 git init -q && git config user.email t@t && git config user.name t
@@ -24,6 +32,15 @@ sha=$(git rev-parse HEAD)
 grep -q "ACTIVATED $sha" "$tmp/out"
 [ -L "$HOME/.openclaw/runtime-ui-playbooks/$sha/billing/direct-runtime/node_modules" ]
 [ -f "$HOME/.openclaw/runtime-ui-playbooks/current/billing/direct-runtime/node_modules/tough-cookie/package.json" ]
+# Views are recompiled after the switch, against the newly pinned snapshot.
+[ "$(tail -n 1 "$tmp/compile.log")" = "$sha" ] || { echo "views not recompiled for $sha" >&2; exit 1; }
+# Re-pinning the active snapshot still refreshes possibly stale views.
+bash "$here/activate-ui-playbooks.sh" HEAD > "$tmp/out-again" 2>&1
+grep -q "ALREADY_ACTIVE $sha" "$tmp/out-again"
+[ "$(wc -l < "$tmp/compile.log")" -eq 2 ]
+# A failing compiler is reported, never fatal for the pin.
+CLAW_CAPABILITY_CLI="$tmp/missing.py" bash "$here/activate-ui-playbooks.sh" HEAD > "$tmp/out-fail" 2>&1
+grep -q "capability_views_compile_failed" "$tmp/out-fail"
 
 # A declared package missing from the workspace refuses the snapshot and keeps the current one.
 echo '{"type":"module","dependencies":{"tough-cookie":"^5","undici":"^6"}}' > billing/direct-runtime/package.json
@@ -45,4 +62,5 @@ count=$(ls -1d "$HOME/.openclaw/runtime-ui-playbooks"/*/ | grep -Ec '/[0-9a-f]{4
 prev=$(readlink "$HOME/.openclaw/runtime-ui-playbooks/previous"); rm -f "$prev/billing/direct-runtime/node_modules"
 bash "$here/activate-ui-playbooks.sh" --rollback >/dev/null
 [ -L "$prev/billing/direct-runtime/node_modules" ]
-echo '{"ok":true,"linked":true,"unresolvedRefused":true,"retention":true,"rollbackLinked":true}'
+[ "$(tail -n 1 "$tmp/compile.log")" = "$(basename "$prev")" ] || { echo "views not recompiled after rollback" >&2; exit 1; }
+echo '{"ok":true,"linked":true,"unresolvedRefused":true,"retention":true,"rollbackLinked":true,"viewsRecompiled":true}'

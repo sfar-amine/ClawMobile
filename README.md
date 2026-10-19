@@ -245,3 +245,7 @@ Read the [status and limitations](docs/status-and-limitations.md) and
   url          = {https://doi.org/10.1145/3805621.3807655}
 }
 ```
+
+## Samantha private runtime branch: continuous integration
+
+For the Samantha runtime branches of this fork, CI runs **locally, permanently** (owner decision, 17 October 2026): GitHub Actions is not re-enabled. Every `run:` step of `.github/workflows/ci.yml` is replayed on the exact head tree; GitHub stays the synchronization reference (commit, push, merge by pull request) and each pull request carries a proof comment (tested SHA, steps passed, tested tree equal to merged tree). See `AGENTS.md`, rule 11.

@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "id": "codex-r22-preparation-20261010",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Wire R22 owner automation history and asynchronous scheduler header through existing ControlReadPool",
+  "reason": "Real S24 fixtures PR #82 retained; runtime 363a6b8e integrated by normal merge. The limit50 collector replays Claude measured 3343 ms (PR #79 comment 6102102903), while the sanitized limit20 response remains unchanged. Local tests do not qualify deployment.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/companion/control.ts",
+    "openclaw-plugin-mobile-ui/src/companion/automationRunsPreparation.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-runs-preparation.cjs",
+    "docs/work/samantha-runtime/contracts/r22.md",
+    "docs/changes/codex-r22-preparation-20261010.json",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/automations.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-automation-runs-http.cjs",
+    "installer/termux-lite/companion-acceptance.py"
+  ],
+  "tests": [
+    {
+      "name": "automation-runs-real-http-and-pool",
+      "status": "passed",
+      "evidence": "npm ci, Node 20 build, test-automation-runs-preparation.cjs and test-automation-runs-http.cjs passed after runtime 363a6b8e merge. Injected limit50 latency 3343 ms; real PR #82 limit20 response unchanged, not an invented limit50 capture."
+    },
+    {
+      "name": "complete-current-ci-workflow",
+      "status": "pending",
+      "evidence": "Full current .github/workflows/ci.yml replay follows this note commit; previous-head results are historical. Exact final SHA and N/N reported in PR #79."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/r22.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY temporary owner-screen view: V6 declares canonical automation/history reads after P0-1; no parallel routing or agent/voice entrypoint here."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing ControlReadPool reused, no new cache owner/store/scheduler or retry engine."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "reason": "Existing MCP owner tools unchanged, no transport activated."
+  },
+  "rollback": "Revert isolated preparation under review; any qualified activation/rollback is performed by Claude through companion-deploy.sh with known-good SHA and receipt.",
+  "limitations": [
+    "Physical S24 route deadlines and header freshness must be qualified by Claude after deployment; local fixture timings are injected, not a live activation.",
+    "Scheduler header is unknown on first cold list read, populated asynchronously on the next read; this preserves R5 list latency.",
+    "NO_CAPABILITY owner-screen view until V6 canonical registration. No merge or deployment by Codex."
+  ]
+}

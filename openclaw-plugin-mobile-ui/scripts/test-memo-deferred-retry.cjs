@@ -3,7 +3,7 @@ const admission=require('./lib/memo-admission-fixture.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'memo-retry-'));
 process.env.OPENCLAW_STATE_DIR=dir;process.env.CLAWMOBILE_ATTACHMENT_DIR=path.join(dir,'audio');
-const boundary=require('../dist/companion/memoSttBoundary');assert.equal(boundary.MEMO_STT_QUALIFICATION.success,false);boundary.MEMO_STT_QUALIFICATION={success:true};
+const boundary=require('../dist/companion/memoSttBoundary');assert.equal(boundary.MEMO_STT_QUALIFICATION.success,true);boundary.MEMO_STT_QUALIFICATION={success:true};
 const storage=require('../dist/companion/attachmentStorage'),runs=require('../dist/companion/runs'),sdk=require('../dist/companion/memoSttOwner');
 const api=require('../dist/companion/intent');
 let calls=0,effects=0,checks=0,resolve;

@@ -6,11 +6,22 @@
 # Runs detached: restarting the Companion drops the Claw link, so the caller polls the receipt file.
 #   companion-deploy.sh <commit>        deploy that commit of samantha-private/runtime/samantha-companion-private
 #   COMPANION_DEPLOY_WAIT_CALM_S=1200   wait up to that long for a calm phone instead of refusing at once
+#   COMPANION_DEPLOY_LOCK_WAIT_S=10     wait 0..600 s for the existing deploy/campaign lock
 #   companion-deploy.sh --status        print the last receipt
+#   companion-deploy.sh --resolve       print the resolved runtime root and checkout, change nothing
 #   companion-deploy.sh --maintenance close|open|status   maintenance lock of SAM-MIG V2.2 (see below)
 set -uo pipefail
+# A deploy always reads the git checkout: REPO is fetched from and fast-forwarded, so `$ROOT/../..` has to be a
+# repository. tier0-bootstrap.sh exports CLAW_RUNTIME_ROOT at the Tier0 release it pinned, by design, so that the
+# daemons it starts run that release; every process it spawns inherits it, Gateway and Claw bridge included. A
+# release copy is not a checkout, and runtime-sync.sh prunes it later, so an inherited value sends this script
+# outside any repository and the deploy dies on `fetch_failed` with nothing to point at (S24 17/10, 18:57).
+# Same fallback as runtime-sync.sh: honour the override only when it really carries a checkout.
 ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
+[ -e "$ROOT/../../.git" ] || ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REPO="$(CDPATH= cd -- "$ROOT/../.." && pwd)"
+# Fail closed and say why, rather than letting `git fetch` report a bare `fetch_failed` two steps later.
+[ -e "$REPO/.git" ] || { echo "deploy_requires_checkout: $REPO is not a git checkout" >&2; exit 2; }
 PLUGIN="$REPO/openclaw-plugin-mobile-ui"
 # The acceptance check is the one carried by the checkout being judged (target after the fast-forward,
 # previous after a rollback), so every lot's acceptance lines run. The copy next to this script is only
@@ -24,6 +35,8 @@ KEEP_BACKUPS="${COMPANION_DEPLOY_KEEP:-5}"; MIN_AVAILABLE_MB="${COMPANION_DEPLOY
 mkdir -p "$STATE" "$BACKUPS"; chmod 700 "$STATE"
 
 if [ "${1:-}" = "--status" ]; then ls -t "$STATE"/companion-*.json 2>/dev/null | head -1 | xargs -r cat; exit 0; fi
+# Read-only: lets test-companion-deploy-root.py prove the resolution above without running a deploy.
+if [ "${1:-}" = "--resolve" ]; then printf '{"root":"%s","repo":"%s"}\n' "$ROOT" "$REPO"; exit 0; fi
 # SAM-MIG V2.2 §12.1 — minimal maintenance lock. This script is the ONLY writer of the durable marker read by the
 # dialogue coordinator at admission and again at the hand-off point. A restart never lifts it (it is a file).
 #   companion-deploy.sh --maintenance close [--allow conv-…]…   new epoch, every new request refused (D-B);
@@ -36,7 +49,15 @@ if [ "${1:-}" = "--maintenance" ]; then
   shift
   DIALOGUE_HOME="${CLAW_DIALOGUE_HOME:-$HOME/.openclaw/samantha-dialogue}"
   mkdir -p "$DIALOGUE_HOME"; chmod 700 "$DIALOGUE_HOME"
-  exec 8>"$DIALOGUE_HOME/maintenance.lock"; flock -w 10 8 || { echo "maintenance_marker_busy" >&2; exit 3; }
+  # Bounded wait with `flock -n` only: the toybox flock found first on some S24 PATHs has no `-w`
+  # (bascule 17/10: `flock -w 10` failed there). Same 10 s bound, same refusal, any flock.
+  exec 8>"$DIALOGUE_HOME/maintenance.lock"
+  lock_tries=$(( ${COMPANION_MAINTENANCE_LOCK_WAIT_S:-10} * 5 ))
+  until flock -n 8; do
+    lock_tries=$((lock_tries - 1))
+    [ "$lock_tries" -gt 0 ] || { echo "maintenance_marker_busy" >&2; exit 3; }
+    sleep 0.2
+  done
   python3 - "$DIALOGUE_HOME/maintenance.json" "$STATE" "$@" <<'PY'
 import json, os, re, sys, time
 path, state_dir, args = sys.argv[1], sys.argv[2], sys.argv[3:]
@@ -76,7 +97,37 @@ PY
 fi
 target="${1:-}"; [[ "$target" =~ ^[0-9a-f]{7,40}$ ]] || { echo "usage: $0 <commit>|--status|--maintenance close|open|status" >&2; exit 2; }
 
-exec 9>"$STATE/companion-deploy.lock"; flock -n 9 || { echo "deploy_already_running" >&2; exit 3; }
+# Q12: a QA campaign holds this SAME lock shared, from dispatch until cleanup.
+# Never fetch/build/restart while either a campaign or another deploy owns it.
+# Use -n (available on the S24), not flock -w; never replay a deployment later.
+deploy_lock_wait="${COMPANION_DEPLOY_LOCK_WAIT_S-10}"
+if ! [[ "$deploy_lock_wait" =~ ^(0|[1-9][0-9]{0,2})$ ]] || [ "$deploy_lock_wait" -gt 600 ]; then
+  echo "deploy_lock_wait_invalid: expected integer seconds 0..600" >&2; exit 2
+fi
+exec 9>"$STATE/companion-deploy.lock" || { echo "deploy_lock_unavailable: cannot open existing lock" >&2; exit 3; }
+if [ "$deploy_lock_wait" -eq 0 ]; then
+  flock -n 9; deploy_lock_result=$?
+else
+  # The deadline covers flock itself too; counting sleeps would exceed the budget
+  # when a loaded phone takes time to start each command. FD 9 refers to the same
+  # open-file description in parent and children, so a successful flock stays held.
+  timeout "${deploy_lock_wait}s" bash -c '
+    while true; do
+      flock -n 9; result=$?
+      [ "$result" -eq 0 ] && exit 0
+      [ "$result" -eq 1 ] || exit 2
+      sleep 0.2
+    done'
+  deploy_lock_result=$?
+fi
+if [ "$deploy_lock_result" -ne 0 ]; then
+  if [ "$deploy_lock_result" -eq 1 ] || [ "$deploy_lock_result" -eq 124 ]; then
+    echo "deploy_already_running: deploy_lock_busy (deployment or protected campaign); wait_budget=${deploy_lock_wait}s" >&2
+  else
+    echo "deploy_lock_unavailable: flock or bounded wait failed" >&2
+  fi
+  exit 3
+fi
 export SAMANTHA_DEPLOY_LOCK_FD=9
 stamp="$(date +%Y%m%dT%H%M%S)"; receipt="$STATE/companion-$stamp.json"; log="$STATE/companion-$stamp.log"
 # The latest successful receipt is the measured previous release. Refused and rollback receipts do not

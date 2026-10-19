@@ -3,6 +3,7 @@ import argparse
 import datetime as dt
 import importlib.util
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -103,6 +104,66 @@ class OwnerRetentionTests(unittest.TestCase):
             result=subprocess.run(['python3',str(HERE/'bounded-log.py'),str(log),'--stream'],input=data,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(log.read_bytes(),data)
+
+    def test_stream_timestamp_prefixes_each_line_once(self):
+        # F3 (doc 62): stamped at line start only; a record split by the bounded read is not stamped twice.
+        with tempfile.TemporaryDirectory() as directory:
+            log=Path(directory)/'stream.log'
+            data=b'one\n'+b'x'*70000+b'\nthree'
+            result=subprocess.run(['python3',str(HERE/'bounded-log.py'),str(log),'--stream','--timestamp'],input=data,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            lines=log.read_bytes().split(b'\n')
+            stamp=re.compile(rb'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}[+-]\d\d:\d\d ')
+            self.assertEqual(len(lines),3)
+            self.assertTrue(all(stamp.match(line) for line in lines))
+            self.assertTrue(lines[0].endswith(b' one'));self.assertTrue(lines[2].endswith(b' three'))
+            self.assertEqual(lines[1].count(b'x'),70000)
+
+    def test_correlations_are_optional_and_do_not_destroy_long_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log=Path(directory)/'correlated.log'
+            data=b'one\n'+b'x'*70000+b'\nthree'
+            result=subprocess.run(['python3',str(HERE/'bounded-log.py'),str(log),'--stream','--timestamp',
+                                   '--correlation','runId=run_1','--correlation','clientRunId=client_2'],
+                                  input=data,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            lines=log.read_bytes().split(b'\n')
+            self.assertEqual(len(lines),3)
+            self.assertTrue(all(b' runId=run_1 clientRunId=client_2 ' in line for line in lines))
+            self.assertEqual(log.read_bytes().count(b'runId=run_1'),3)
+            self.assertEqual(lines[1].count(b'x'),70000)
+
+    def test_append_correlation_and_rotation_remain_bounded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log=Path(directory)/'correlated.log'
+            for i in range(6):
+                done=subprocess.run(['python3',str(HERE/'bounded-log.py'),str(log),'--max-bytes','64','--keep','2',
+                                     '--correlation','turnId=turn_1','--append','event_code_'+'x'*35],capture_output=True)
+                self.assertEqual(done.returncode,0,done.stderr)
+            self.assertEqual(len(list(Path(directory).iterdir())),3)
+            self.assertTrue(all(p.stat().st_size<=128 for p in Path(directory).iterdir()))
+            self.assertTrue(log.read_text().startswith('turnId=turn_1 '))
+
+    def test_maximum_canonical_correlation_length_is_accepted(self):
+        # runs.ts permits IDs up to 160 characters; the diagnostic writer must preserve them.
+        with tempfile.TemporaryDirectory() as directory:
+            log=Path(directory)/'maximum.log';value='r'*160
+            done=subprocess.run(['python3',str(HERE/'bounded-log.py'),str(log),'--correlation','runId='+value,
+                                 '--append','event_code'],capture_output=True,text=True)
+            self.assertEqual(done.returncode,0,done.stderr)
+            self.assertEqual(log.read_text(),'runId='+value+' event_code\n')
+
+    def test_invalid_correlation_is_refused_without_leaking_value(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log=Path(directory)/'correlated.log'
+            for value in ('email=private@example.invalid','runId=private@example.invalid',
+                          'runId=sk-private-secret','turnId=unsafe\nline','runId='+('x'*161)):
+                done=subprocess.run(['python3',str(HERE/'bounded-log.py'),str(log),'--correlation',value,
+                                     '--append','event_code'],capture_output=True,text=True)
+                self.assertNotEqual(done.returncode,0)
+                self.assertNotIn(value,done.stderr)
+                self.assertIn('invalid_log_correlation',done.stderr)
+                self.assertFalse(log.exists())
 
     def test_600_deployment_logs_bound_without_removing_receipts_or_uncertain_logs(self):
         with tempfile.TemporaryDirectory() as directory:

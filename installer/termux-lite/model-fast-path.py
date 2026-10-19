@@ -8,10 +8,12 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+from runpy import run_path
 import re
 import shlex
 import subprocess
 import sys
+import time
 from typing import Any
 
 HOME = Path.home()
@@ -129,6 +131,7 @@ def _graph_decision_cmd(
     ui_root: Path,
     timeout: int = 30,
     read_only: bool = False,
+    execution_context: dict[str, Any] | None = None,
 ) -> tuple[int, dict[str, Any], str]:
     if action not in {"validate-decision", "execute-decision"}:
         raise ValueError("invalid_decision_action")
@@ -137,8 +140,14 @@ def _graph_decision_cmd(
         args.extend(["--timeout", str(timeout)])
         if read_only:
             args.append("--read-only")
+    if action == "execute-decision" and execution_context:
+        for flag, key in (("--request-id","request_id"),("--run-id","run_id"),("--session-id","session_id"),
+                          ("--remaining-budget-ms","remaining_budget_ms"),("--deadline-epoch-ms","deadline_epoch_ms")):
+            if execution_context.get(key) is not None:
+                args.extend([flag,str(execution_context[key])])
+    process_timeout = min(timeout + 5, execution_context["remaining_budget_ms"] / 1000) if execution_context else timeout + 5
     return _run_json(
-        args, cwd=ui_root, timeout=timeout + 5, env=_python_env(ui_root),
+        args, cwd=ui_root, timeout=process_timeout, env=_python_env(ui_root),
         input_text=json.dumps(decision, ensure_ascii=False, separators=(",", ":")),
     )
 
@@ -157,9 +166,11 @@ def validate_prepared_decision(
 def execute_capability_decision(
     message: str, decision: dict[str, Any], ui_root: Path = UI_ROOT, *, timeout: int = 30,
     read_only: bool = False,
+    execution_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     _, value, stderr = _graph_decision_cmd(
         "execute-decision", message, decision, ui_root=ui_root, timeout=timeout, read_only=read_only,
+        **({"execution_context":execution_context} if execution_context else {}),
     )
     if stderr:
         value.setdefault("_runtime_warning", stderr[:800])
@@ -348,7 +359,7 @@ def _execution_provenance(selected: dict[str, Any], execution: dict[str, Any]) -
     return result
 
 
-def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None, card: bool = True) -> str:
+def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None, card: bool = True, generic_renders: list[int] | None = None) -> str:
     remaining = [128] if remaining is None else remaining
     remaining[0] -= 1
     if depth >= 4 or remaining[0] < 0:
@@ -359,6 +370,10 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
         if presented:
             return presented
     if isinstance(value, dict):
+        # The business owner renders new read results. Cards below remain compatibility for older receipts.
+        owner_text = value.get("text")
+        if isinstance(owner_text, str) and _plain_display(owner_text, 4000):
+            return _plain_display(owner_text, 4000)
         cards = _telecom_cards(value)
         if cards:
             return cards
@@ -370,7 +385,7 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
                 label = _plain_display(row.get("label") or row.get("target"), 80) or "Lecture"
                 payload = row.get("result")
                 if row.get("state") == "completed" and isinstance(payload, dict) and payload.get("ok") is True:
-                    text = _display_text(payload, depth + 1, remaining)
+                    text = _display_text(payload, depth + 1, remaining, generic_renders=generic_renders)
                 elif row.get("state") == "indeterminate":
                     text = "Résultat à vérifier ; lecture non rejouée."
                 elif row.get("state") == "not_started":
@@ -397,8 +412,12 @@ def _display_text(value: Any, depth: int = 0, remaining: list[int] | None = None
             question = value.get("question")
             if isinstance(question, str) and _plain_display(question, 4000):
                 return _plain_display(question, 4000)
+        if generic_renders is not None:
+            generic_renders[0] = min(1024, generic_renders[0] + 1)
         return _generic_display(value) or "Résultat disponible auprès de Claw ; détails non affichables en texte."
     if isinstance(value, list):
+        if generic_renders is not None:
+            generic_renders[0] = min(1024, generic_renders[0] + 1)
         return _generic_display({"résultats": value}) or "Résultat disponible auprès de Claw ; détails non affichables en texte."
     return _plain_display(value, 4000) or "Résultat disponible auprès de Claw."
 
@@ -696,8 +715,9 @@ def _continuum_call(ui_root: Path, args: list[str], timeout: int = 15) -> dict[s
 
 
 def _bridge_cli(home: Path = HOME) -> Path:
+    runtime_root = run_path(str(Path(__file__).with_name("runtime_mode.py")))["runtime_root"]
     for path in (
-        home / ".openclaw/releases/current/termux-lite/claw-bridge-cli.py",
+        runtime_root(home=home) / "claw-bridge-cli.py",
         Path(__file__).resolve().parent / "claw-bridge-cli.py",
     ):
         if path.is_file():
@@ -821,7 +841,13 @@ def try_fast_path(
     prepared_decision: dict[str, Any] | None = None,
     clarification_decision: dict[str, Any] | None = None,
     clarification_original_text: str | None = None,
+    request_id: str | None = None,
+    run_id: str | None = None,
+    session_id: str | None = None,
+    remaining_budget_ms: int | None = None,
+    deadline_epoch_ms: int | None = None,
 ) -> dict[str, Any]:
+    started = time.monotonic()
     try:
         if clarification_decision is not None:
             if not clarification_original_text:
@@ -861,7 +887,7 @@ def try_fast_path(
             resolution = checked.get("resolution") if isinstance(checked.get("resolution"), dict) else {}
         else:
             resolution = resolve_capability(
-                message, ui_root, surface=surface, caller=caller, request_id=origin_id,
+                message, ui_root, surface=surface, caller=caller, request_id=request_id or origin_id,
             )
             decision = resolution.get("decision") if isinstance(resolution.get("decision"), dict) else {}
 
@@ -890,13 +916,145 @@ def try_fast_path(
                 "decision": decision or None, "model_bypassed": True,
             }
 
+        execution_context = None
+        if _is_web_capability(resolution, decision):
+            # Only explicit host metadata can authorize correlation/egress. Default origin/session strings are not identities.
+            if (caller != "owner" or not request_id or request_id != decision.get("requestId") or
+                decision.get("caller") != caller or decision.get("surface") != surface or
+                session_id is not None and not re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}",session_id) or
+                type(remaining_budget_ms) is not int or not 0 < remaining_budget_ms <= PUBLIC_WEB_BUDGET_MS or
+                type(deadline_epoch_ms) is not int or deadline_epoch_ms <= int(time.time()*1000)):
+                return {"status":"known_error","reason":"invalid_web_execution_context","execution_state":"not_started","model_bypassed":True}
+            remaining = min(remaining_budget_ms-int((time.monotonic()-started)*1000),deadline_epoch_ms-int(time.time()*1000))
+            if remaining <= 0:
+                return {"status":"known_error","reason":"web_deadline_exceeded","execution_state":"not_started","model_bypassed":True}
+            execution_context={"request_id":request_id,"run_id":run_id,"session_id":session_id,
+                               "remaining_budget_ms":remaining,"deadline_epoch_ms":deadline_epoch_ms}
+
         return execute_resolved(
             message, resolution, decision, ui_root, surface=surface, caller=caller, origin_id=origin_id,
-            timeout=timeout,
+            timeout=timeout, execution_context=execution_context,
         )
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        if remaining_budget_ms is not None:
+            return {"status":"known_error","reason":"web_deadline_exceeded" if isinstance(exc,subprocess.TimeoutExpired) else "web_execution_failed",
+                    "execution_state":"timeout" if isinstance(exc,subprocess.TimeoutExpired) else "failed","model_bypassed":True}
         return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}
 
+
+
+PUBLIC_WEB_CAPABILITIES = {"samantha.app.web.search", "samantha.app.web.answer"}
+# Total public Web budget (search + one free synthesis); same value as PUBLIC_WEB_BUDGET_MS in runWeb.ts.
+PUBLIC_WEB_BUDGET_MS = 30000
+WEB_VOICE_MESSAGES = {
+    "fr": "La recherche Web vocale attend sa recette audio ; utilise la conversation écrite.",
+    "en": "Voice Web search is awaiting its audio acceptance test; use the text conversation.",
+    "ar": "البحث الصوتي على الويب ينتظر اختبار الصوت؛ استخدم المحادثة النصية.",
+    "aeb": "البحث بالصوت في الويب يستنّى تجربة الصوت؛ استعمل المحادثة المكتوبة.",
+}
+
+
+def _web_capability_id(*values: Any) -> str:
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        selected = value.get("selected") if isinstance(value.get("selected"), dict) else {}
+        for candidate in (selected.get("capability"), value.get("capability")):
+            if candidate in PUBLIC_WEB_CAPABILITIES:
+                return str(candidate)
+    return ""
+
+
+def _is_web_capability(*values: Any) -> bool:
+    return bool(_web_capability_id(*values))
+
+
+def public_web_voice_recipe_enabled() -> bool:
+    """Host-only, explicit G6 recipe switch; never read from a body, the model or a tool result."""
+    return os.environ.get("CLAW_PUBLIC_WEB_VOICE_RECIPE") == "1"
+
+
+def voice_web_recipe_refusal(decision: dict[str, Any]) -> dict[str, Any]:
+    """A canonical Web decision on a voice surface, before any dispatch: G6 has not qualified Live audio."""
+    plan = decision.get("plan") if isinstance(decision.get("plan"), dict) else {}
+    params = plan.get("parameters") if isinstance(plan.get("parameters"), dict) else {}
+    language = params.get("responseLanguage") if params.get("responseLanguage") in WEB_VOICE_MESSAGES else None
+    message = WEB_VOICE_MESSAGES[language or "fr"]
+    web = {"version": 1, "operation": "search" if _web_capability_id(decision) == "samantha.app.web.search" else "answer",
+           **({"responseLanguage": language} if language else {}), "outcome": "failed", "provider": "parallel-free",
+           "providerAuth": "anonymous", "model": None, "profile": None, "sources": [], "claims": [], "citations": [],
+           "metrics": {"logicalSearchCalls": 0, "httpRequests": 0, "transportPosts": 0, "providerAttempts": 0,
+                       "reportedCostUsd": None},
+           "error": {"code": "voice_recipe_required", "stage": "policy", "message": message, "retryable": False},
+           "degradations": ["voice_recipe_required"]}
+    return {"status": "known_error", "reason": "voice_recipe_required", "execution_state": "not_started",
+            "source": "capability", "text": message, "web": web, "result": {"web": web}, "decision": decision or None,
+            "model_bypassed": True}
+
+
+def _web_plain(value: Any, limit: int) -> str:
+    return " ".join(value.split())[:limit] if isinstance(value, str) else ""
+
+
+def _web_text(web: Any) -> str:
+    """Readable text built only from the typed Graph projection (claims, source titles/URLs, error message).
+    Surfaces without a structured renderer (WhatsApp) still show the sources; the app re-validates `web` itself."""
+    if not isinstance(web, dict):
+        return "Le résultat de la recherche n'a pas pu être validé ; aucune synthèse non vérifiée n'est affichée."
+    error = web.get("error") if isinstance(web.get("error"), dict) else {}
+    if web.get("outcome") == "cancelled":
+        return _web_plain(error.get("message"), 500) or "Recherche annulée."
+    lines = [_web_plain(c.get("text"), 1200) for c in (web.get("claims") or [])[:12] if isinstance(c, dict)]
+    lines = [line for line in lines if line]
+    sources = []
+    for item in (web.get("sources") or [])[:5]:
+        if not isinstance(item, dict):
+            continue
+        title, url = _web_plain(item.get("title"), 300), _web_plain(item.get("url"), 2048)
+        if title and re.match(r"^https?://", url):
+            sources.append(f"- {title} — {url}")
+    if sources:
+        lines.append("Sources :\n" + "\n".join(sources))
+    message = _web_plain(error.get("message"), 500)
+    if message:
+        lines.append(message)
+    return ("\n\n".join(lines) or "Aucune source suffisamment probante n'a été trouvée.")[:4000]
+
+
+def _execute_web_resolved(message: str, resolution: dict[str, Any], decision: dict[str, Any], ui_root: Path, *,
+                          caller: str, timeout: int, execution_context: dict[str, Any] | None) -> dict[str, Any]:
+    """Parallel Free (W4): one bounded read through the Graph's own public runtime, never a generic renderer."""
+    continuum = resolution.get("continuum") if isinstance(resolution.get("continuum"), dict) else {}
+    if caller != "owner":
+        return {"status": "known_error", "reason": "public_owner_required", "execution_state": "not_started",
+                "decision": decision or None, "model_bypassed": True}
+    context = dict(execution_context or {})
+    if not context or not context.get("request_id") or context.get("request_id") != (decision or {}).get("requestId"):
+        return {"status": "known_error", "reason": "invalid_web_execution_context", "execution_state": "not_started",
+                "decision": decision or None, "model_bypassed": True}
+    if continuum.get("mode") == "durable":
+        return {"status": "known_error", "reason": "web_durable_contract_unqualified",
+                "execution_state": "verification_required", "model_bypassed": True}
+    deadline = context.get("deadline_epoch_ms")
+    remaining = int(context.get("remaining_budget_ms") or 0)
+    if type(deadline) is int:
+        remaining = min(remaining, deadline - int(time.time() * 1000))
+    if remaining <= 0:
+        return {"status": "known_error", "reason": "web_deadline_exceeded", "execution_state": "not_started",
+                "decision": decision or None, "model_bypassed": True}
+    context["remaining_budget_ms"] = remaining
+    executed = execute_capability_decision(message, decision, ui_root, timeout=timeout, execution_context=context)
+    execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
+    state = str(execution.get("state") or "")
+    payload = execution.get("result")
+    web = payload.get("web") if isinstance(payload, dict) else None
+    metadata = _presentation_metadata(executed)
+    # The Graph owns validation; Companion applies its own closed projection before persisting/rendering.
+    # Do not run the legacy generic renderer over public pages, IDs, URLs or provider error objects.
+    return {"status": "hit" if state in SAFE_EXECUTION_STATES or state == "partial" else "known_error",
+            "source": "capability", "text": _web_text(web), "web": web, "result": {"web": web},
+            "execution_state": state, "capability": _web_capability_id(resolution, decision),
+            "decision": executed.get("decision") or decision, "model_bypassed": True, **metadata}
 
 
 def execute_resolved(
@@ -909,6 +1067,7 @@ def execute_resolved(
     caller: str = "owner",
     origin_id: str = "capability-first",
     timeout: int = 30,
+    execution_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Execution stage of the canonical fast path for an already resolved decision (unchanged behaviour: confirmed
     handoff, durable Continuum execution with identity derived from origin_id, or read execution)."""
@@ -917,6 +1076,11 @@ def execute_resolved(
             resolution, message, ui_root=ui_root, surface=surface, caller=caller,
             origin_id=origin_id, timeout=timeout,
         ) | {"decision": decision or None}
+
+    if _is_web_capability(resolution, decision):
+        return _execute_web_resolved(message, resolution, decision, ui_root, caller=caller,
+                                     timeout=guarded_execution_timeout(timeout, resolution.get("selected")),
+                                     execution_context=execution_context)
 
     continuum = resolution.get("continuum") if isinstance(resolution.get("continuum"), dict) else {}
     # Read execution only (the confirmed handoff above keeps its own budget): O6 guarded wait.
@@ -944,11 +1108,16 @@ def execute_resolved(
         executed_decision = executed.get("decision") if isinstance(executed.get("decision"), dict) else {}
         decision_selected = executed_decision.get("selected") if isinstance(executed_decision.get("selected"), dict) else {}
         resolved_risk = selected.get("risk") or decision_selected.get("risk")
+        generic_renders = [0]
+        rendered = _display_text(payload, card=resolved_risk != "read", generic_renders=generic_renders)
+        capability = selected.get("capability")
+        diagnostics = {"genericDisplayByCapability": [{"capability": capability, "renders": generic_renders[0]}]} if generic_renders[0] and isinstance(capability, str) and re.fullmatch(r"[a-z][a-z0-9_.-]{0,159}", capability) else None
         return {
             # A proven read renders its business result instead of an opaque receipt card.  For every other
             # risk (including missing metadata), the explicit owner presentation remains authoritative.
             "status": "hit", "source": "capability",
-            "text": _understood_prefix(metadata, _display_text(payload, card=resolved_risk != "read")),
+            "text": _understood_prefix(metadata, rendered),
+            **({"presentationDiagnostics": diagnostics} if diagnostics else {}),
             **metadata,
             "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
             "route": selected.get("route"), "capability": selected.get("capability"),
@@ -1010,13 +1179,34 @@ DIALOGUE_UNAVAILABLE = {
 }
 
 
+WEB_HOST_ID = re.compile(r"[A-Za-z0-9_.:-]{1,160}")
+
+
 class FastPathPorts:
-    def __init__(self, ui_root: Path, *, surface: str, caller: str, timeout: int) -> None:
+    def __init__(self, ui_root: Path, *, surface: str, caller: str, timeout: int,
+                 web_host: dict[str, Any] | None = None) -> None:
         self.ui_root = ui_root
         self.surface = surface
         self.caller = caller
         self.timeout = timeout
         self._resolutions: dict[str, dict[str, Any]] = {}
+        # W4: host-only Web metadata (CLI from the Companion): run/session correlation, 20 s deadline, voice bit.
+        # Never dialogue state; the coordinator stays the single owner of questions and hand-offs.
+        host = dict(web_host or {})
+        now_ms = int(time.time() * 1000)
+        deadline = host.get("deadline_epoch_ms")
+        self.web_deadline_epoch_ms = deadline if type(deadline) is int and now_ms < deadline <= now_ms + PUBLIC_WEB_BUDGET_MS else now_ms + PUBLIC_WEB_BUDGET_MS
+        self.web_run_id = host.get("run_id") if isinstance(host.get("run_id"), str) and WEB_HOST_ID.fullmatch(host["run_id"]) else None
+        self.web_session_id = host.get("session_id") if isinstance(host.get("session_id"), str) and WEB_HOST_ID.fullmatch(host["session_id"]) else None
+        self.web_voice = host.get("voice_delegation") is True
+
+    def _web_context(self, decision: dict[str, Any]) -> dict[str, Any] | None:
+        request_id = decision.get("requestId")
+        if not isinstance(request_id, str) or not request_id:
+            return None
+        remaining = min(PUBLIC_WEB_BUDGET_MS, self.web_deadline_epoch_ms - int(time.time() * 1000))
+        return {"request_id": request_id, "run_id": self.web_run_id, "session_id": self.web_session_id,
+                "remaining_budget_ms": remaining, "deadline_epoch_ms": self.web_deadline_epoch_ms}
 
     def _caller(self, ctx: dict[str, Any]) -> str:
         value = str((ctx or {}).get("caller") or self.caller)
@@ -1042,18 +1232,54 @@ class FastPathPorts:
             origin_id=self._origin(ctx), timeout=min(self.timeout, 15),
             clarification_decision=decision, clarification_original_text=original_text))
 
+    def _track_execution(self, out):
+        diagnostic = out.get("presentationDiagnostics") if isinstance(out, dict) else None
+        if isinstance(diagnostic, dict):
+            self.presentation_diagnostics = diagnostic
+        return out
+
     def execute(self, text: str, decision: dict[str, Any] | None, origin_id: str, klass: str, ctx: dict[str, Any]) -> dict[str, Any]:
         decision = decision if isinstance(decision, dict) else {}
         resolution = self._resolutions.get(str(decision.get("decisionId")))
+        if _is_web_capability(decision, resolution):
+            return self._execute_web(text, decision, resolution, origin_id, ctx)
         if resolution is None:
             # Another process committed the decision (recovery of a read): revalidated by the Graph first.
-            return try_fast_path(text, self.ui_root, execute=True, surface=self.surface, caller=self._caller(ctx),
-                                 origin_id=origin_id, timeout=self.timeout, prepared_decision=decision)
+            return self._track_execution(try_fast_path(text, self.ui_root, execute=True, surface=self.surface, caller=self._caller(ctx),
+                                 origin_id=origin_id, timeout=self.timeout, prepared_decision=decision))
         try:
-            return execute_resolved(text, resolution, decision, self.ui_root, surface=self.surface,
-                                    caller=self._caller(ctx), origin_id=origin_id, timeout=self.timeout)
+            return self._track_execution(execute_resolved(text, resolution, decision, self.ui_root, surface=self.surface,
+                                    caller=self._caller(ctx), origin_id=origin_id, timeout=self.timeout))
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
             return {"status": "error", "reason": type(exc).__name__, "detail": str(exc)[:800]}
+
+    def _execute_web(self, text: str, decision: dict[str, Any], resolution: dict[str, Any] | None, origin_id: str,
+                     ctx: dict[str, Any]) -> dict[str, Any]:
+        # G6: closed by default on voice surfaces (voice relay, Claw Live, signed voice delegation), before dispatch.
+        if (self.web_voice or str((ctx or {}).get("surface") or "") == "voice") and not public_web_voice_recipe_enabled():
+            return voice_web_recipe_refusal(decision)
+        context = self._web_context(decision)
+        if context is None:
+            return {"status": "known_error", "reason": "invalid_web_execution_context", "execution_state": "not_started",
+                    "decision": decision or None, "model_bypassed": True}
+        if context["remaining_budget_ms"] <= 0:
+            return {"status": "known_error", "reason": "web_deadline_exceeded", "execution_state": "not_started",
+                    "decision": decision or None, "model_bypassed": True}
+        if resolution is None:
+            # Recovery of a decision committed by another process: revalidated by the Graph first.
+            return try_fast_path(text, self.ui_root, execute=True, surface=self.surface, caller=self._caller(ctx),
+                                 origin_id=origin_id, timeout=self.timeout, prepared_decision=decision,
+                                 request_id=context["request_id"], run_id=context["run_id"],
+                                 session_id=context["session_id"], remaining_budget_ms=context["remaining_budget_ms"],
+                                 deadline_epoch_ms=context["deadline_epoch_ms"])
+        try:
+            return execute_resolved(text, resolution, decision, self.ui_root, surface=self.surface,
+                                    caller=self._caller(ctx), origin_id=origin_id, timeout=self.timeout,
+                                    execution_context=context)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            return {"status": "known_error", "reason": "web_deadline_exceeded" if isinstance(exc, subprocess.TimeoutExpired)
+                    else "web_execution_failed", "execution_state": "timeout" if isinstance(exc, subprocess.TimeoutExpired)
+                    else "failed", "decision": decision or None, "model_bypassed": True}
 
     def mission_status(self, task_id: str) -> dict[str, Any]:
         return _continuum_call(self.ui_root, ["status", "--task-id", task_id])
@@ -1069,8 +1295,8 @@ def _dialogue_coordinator(ui_root: Path):
 
 def run_dialogue(message: str, *, mode: str, ui_root: Path, surface: str, caller: str, timeout: int,
                  event: dict[str, Any] | None = None, policy: dict[str, Any] | None = None,
-                 goal_ref: str | None = None) -> dict[str, Any]:
-    ports = FastPathPorts(ui_root, surface=surface, caller=caller, timeout=timeout)
+                 goal_ref: str | None = None, web_host: dict[str, Any] | None = None) -> dict[str, Any]:
+    ports = FastPathPorts(ui_root, surface=surface, caller=caller, timeout=timeout, web_host=web_host)
     try:
         coordinator = _dialogue_coordinator(ui_root)
     except Exception:  # an older pinned playbook or a broken install: fail closed (T-X05)
@@ -1081,10 +1307,12 @@ def run_dialogue(message: str, *, mode: str, ui_root: Path, surface: str, caller
                                               conversation_key=str(key) if key else None)
     event = {**(event or {}), "text": message, "caller": caller}
     if mode == "turn":
-        return coordinator.handle_admitted_event(event, ports, policy=policy or {})
+        out = coordinator.handle_admitted_event(event, ports, policy=policy or {})
+        return {**out, **({"presentationDiagnostics": ports.presentation_diagnostics} if hasattr(ports, "presentation_diagnostics") else {})}
     worker = coordinator.Coordinator(ports)
     try:
-        return worker.continue_handoff(event, str(goal_ref or ""), policy or {}, abort=(mode == "abort"))
+        out = worker.continue_handoff(event, str(goal_ref or ""), policy or {}, abort=(mode == "abort"))
+        return {**out, **({"presentationDiagnostics": ports.presentation_diagnostics} if hasattr(ports, "presentation_diagnostics") else {})}
     finally:
         if worker.store is not None:
             worker.store.close()
@@ -1111,11 +1339,18 @@ def main() -> int:
     parser.add_argument("--dialogue", choices=("turn", "handoff", "abort", "preview"),
                         help="Dialogue coordinator (SAM-MIG V2.2): event in CLAW_DIALOGUE_EVENT_B64, policy in CLAW_DIALOGUE_POLICY_B64.")
     parser.add_argument("--goal-ref", default="", help="With --dialogue handoff|abort: the goal committed at T1.")
+    parser.add_argument("--voice-delegation", action="store_true",
+                        help="With --dialogue: host bit of a voice surface; a Web hand-off stays closed (G6) unless the host recipe is set.")
     parser.add_argument("--ui-root", type=Path, default=UI_ROOT)
     parser.add_argument("--surface", default="claw_live")
     parser.add_argument("--caller", choices=("owner", "trusted", "other"), default="owner")
     parser.add_argument("--origin-id", default="capability-first")
     parser.add_argument("--timeout", type=int, default=30)
+    parser.add_argument("--request-id")
+    parser.add_argument("--run-id")
+    parser.add_argument("--session-id")
+    parser.add_argument("--remaining-budget-ms",type=int)
+    parser.add_argument("--deadline-epoch-ms",type=int)
     parser.add_argument("message", nargs="*")
     args = parser.parse_args()
     message = " ".join(args.message).strip()
@@ -1126,7 +1361,9 @@ def main() -> int:
     if args.dialogue:
         out = run_dialogue(message, mode=args.dialogue, ui_root=args.ui_root, surface=args.surface, caller=args.caller,
                            timeout=max(2, min(args.timeout, 120)), event=_b64_json("CLAW_DIALOGUE_EVENT_B64"),
-                           policy=_b64_json("CLAW_DIALOGUE_POLICY_B64"), goal_ref=args.goal_ref)
+                           policy=_b64_json("CLAW_DIALOGUE_POLICY_B64"), goal_ref=args.goal_ref,
+                           web_host={"run_id": args.run_id, "session_id": args.session_id,
+                                     "deadline_epoch_ms": args.deadline_epoch_ms, "voice_delegation": args.voice_delegation})
         print(json.dumps(out, ensure_ascii=False))
         return 0
     prepared = None
@@ -1153,6 +1390,8 @@ def main() -> int:
         message, args.ui_root, execute=not args.check, surface=args.surface, caller=args.caller,
         origin_id=args.origin_id, timeout=max(2, min(args.timeout, 120)), prepared_decision=prepared,
         clarification_decision=clarification_decision, clarification_original_text=clarification_original,
+        request_id=args.request_id,run_id=args.run_id,session_id=args.session_id,
+        remaining_budget_ms=args.remaining_budget_ms,deadline_epoch_ms=args.deadline_epoch_ms,
     )
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result.get("status") in {"hit", "eligible", "miss", "assist", "clarification", "known_error"} else 75

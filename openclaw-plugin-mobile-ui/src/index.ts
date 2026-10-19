@@ -51,6 +51,8 @@ import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath"
 import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
 import { createCapabilityTool } from "./capabilityTool";
 import { agentCapabilityHook } from "./capabilityAgentGuard";
+import { createContactTool } from "./contactTools";
+import { handleContactRoomBeforeDispatch } from "./contactRoomFastPath";
 
 type JsonSchema = Record<string, any>;
 
@@ -201,6 +203,8 @@ function register(api: any) {
       api.logger?.debug?.("[capability-first] owner capability handled before model");
       return owner;
     }
+    const contactRoom = await handleContactRoomBeforeDispatch(event, ctx);
+    if (contactRoom.handled) return contactRoom;
     const room = await handlePulseRoomBeforeDispatch(event, ctx);
     if (room.handled) api.logger?.debug?.("[capability-first] pulse room handled before model");
     return room.handled ? room : undefined;
@@ -212,6 +216,8 @@ function register(api: any) {
     (ctx: any) => createCapabilityTool(ctx),
     { name: "clawmobile_capability" },
   );
+  api.registerTool((ctx: any) => createContactTool("transmettre_a_amine", ctx), { name: "transmettre_a_amine" });
+  api.registerTool((ctx: any) => createContactTool("noter_contact", ctx), { name: "noter_contact" });
 
   // ---- composite mobile runtime tools ----
   api.registerTool(

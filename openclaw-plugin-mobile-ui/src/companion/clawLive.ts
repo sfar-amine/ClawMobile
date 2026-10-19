@@ -1,3 +1,4 @@
+import {runtimeFile} from "../runtimeRoot";
 import { execFile } from "child_process";
 import fs from "fs";
 import os from "os";
@@ -149,7 +150,15 @@ export function compactVoiceOperatingRules(raw: string, maxChars = 12000) {
 }
 
 // SAM-MIG V2.2: Gemini Live is one surface of the dialogue coordinator (single owner of the pending question).
-export const clawLiveDialogue = new DialogueSurface(runModelFastPath, "claw_live", "claw_live");
+export const clawLiveDialogue = new DialogueSurface(runModelFastPath, "claw_live", "claw_live", { modelAllowed: true }, { voice: true });
+
+/** Public decision plus the Graph confidence (0..1). The receipt speaker says « J'ai compris : … » only below the trust
+ * threshold; without it every confident read was announced (banc voix S24 18/10, « mon solde Orange »). */
+function liveDecision(raw: unknown) {
+  const d = publicDecision(raw);
+  const confidence = raw && typeof raw === "object" ? (raw as { confidence?: unknown }).confidence : undefined;
+  return d && typeof confidence === "number" && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? { ...d, confidence } : d;
+}
 
 /** One Gemini Live tool turn. `request` is the user's original transcription for this turn
  * (Android v2 already enforces request == ASR final; the browser page sends its input transcription).
@@ -157,25 +166,26 @@ export const clawLiveDialogue = new DialogueSurface(runModelFastPath, "claw_live
  * resolved by resolve-clarification. Otherwise the existing executor runs on the original/resolved text.
  */
 export async function clawLiveCapabilityTurn(
-  body: { request?: unknown; clarificationId?: unknown; originId?: string; assertCurrent?: () => void },
+  body: { request?: unknown; clarificationId?: unknown; originId?: string; sessionId?: string; assertCurrent?: () => void },
   execute: (text: string) => Promise<any>,
   dialogue: DialogueSurface = clawLiveDialogue,
 ) {
   const request = String(body?.request || "").trim();
   if (!request || request.length > 12000) return { success: false, error: "request_required" };
   const id = isDialogueConversationId(body?.clarificationId) ? body.clarificationId : undefined;
-  const turn = await dialogue.turn(request, { id, originId: String(body?.originId || "claw-live").slice(0, 120), assertCurrent: body.assertCurrent });
+  // W4: host-only session/run identities for a Web hand-off; the G6 voice gate is enforced before dispatch.
+  const turn = await dialogue.turn(request, { id, originId: String(body?.originId || "claw-live").slice(0, 120), sessionId: body.sessionId, runId: body.originId, assertCurrent: body.assertCurrent });
   if (turn.state === "needs_clarification") {
     return {
       success: true, state: "needs_clarification", source: "capability",
       clarificationId: turn.clarificationId, question: turn.question, choices: turn.choices,
-      decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)),
+      decision: liveDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)),
       execution: { state: "needs_clarification", question: turn.question, choices: turn.choices },
       instruction: "Read the question aloud verbatim. Send the user's spoken answer verbatim with this clarificationId.",
     };
   }
   if (turn.state === "done" || turn.state === "failed") {
-    return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: publicDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), execution: { state: turn.state === "done" ? "completed" : "failed" } };
+    return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: liveDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), ...(turn.web?{web:turn.web}:{}), execution: { state: turn.state === "done" ? "completed" : "failed",...(turn.web?{result:{web:turn.web}}:{}) } };
   }
   body.assertCurrent?.();
   return execute(turn.text);
@@ -256,25 +266,41 @@ export function buildClawLiveSetup(
 }
 
 function tokenHelperPath() {
-  return path.join(
-    os.homedir(),
-    ".openclaw",
-    "releases",
-    "current",
-    "termux-lite",
-    "gemini-live-client.mjs",
-  );
+  return runtimeFile("gemini-live-client.mjs");
+}
+
+/** Bounded, credential-free description of a failed token helper run: exit code, signal, timeout, duration, first stderr line. */
+export function tokenHelperFailure(e: any, elapsedMs: number): string {
+  // Long credential-like runs are masked; a lowercase snake_case cause code (gemini_live_token_failed) is kept.
+  const bound = (text: string) => text.replace(/[A-Za-z0-9_\-]{24,}/g, (run) => /^[a-z_]+$/.test(run) ? run : "<redacted>")
+    .replace(/[^\x20-\x7e]/g, "?").slice(0, 120);
+  const stderr = String(e?.stderr ?? "").split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+  // The helper reports its own cause on stdout as {"status":"error","reason":…} with exit 75 (S24 18/10 14:03, 15:15:
+  // three "exit=75 stderr=empty" in a row, then the prewarm answered 502 with no cause).
+  let reason = "";
+  try { reason = String(JSON.parse(String(e?.stdout ?? "").trim().split("\n").pop() || "{}")?.reason ?? ""); } catch {}
+  const exit = e?.code ?? "none", signal = e?.signal ?? "none", killed = e?.killed === true;
+  return `gemini_live_token_helper_failed exit=${exit} signal=${signal} killed=${killed} ms=${Math.max(0, Math.round(elapsedMs))}`
+    + (reason ? ` reason=${bound(reason)}` : "") + ` stderr=${bound(stderr) || "empty"}`;
 }
 
 async function mintViaHelper(helperPath = tokenHelperPath(), observe?: (event:"t02"|"t03")=>void) {
   const trace=(event:"t02"|"t03")=>{try{observe?.(event);}catch{}};
   const node = path.join(os.homedir(), ".openclaw-android", "bin", "node");
   trace("t02");
-  const raw: any = await execFileAsync(node, [helperPath, "--mint-token"], {
-    timeout: 15_000,
-    maxBuffer: 256 * 1024,
-    env: { ...process.env },
-  });
+  const started = Date.now();
+  let raw: any;
+  try {
+    raw = await execFileAsync(node, [helperPath, "--mint-token"], {
+      timeout: 15_000,
+      maxBuffer: 256 * 1024,
+      env: { ...process.env },
+    });
+  } catch (e: any) {
+    // F2 (doc 62): the cause first, bounded, never the command line nor a credential. S24 17/10: the former
+    // "Command failed: <long node path>…" was cut at 160 characters before any cause appeared.
+    throw new Error(tokenHelperFailure(e, Date.now() - started));
+  }
   const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
   const value = JSON.parse(stdout || "{}");
   if (typeof value?.token !== "string" || !value.token) {

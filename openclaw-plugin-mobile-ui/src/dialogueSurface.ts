@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { readReceiptPresentation, publicReceiptMetadata } from "./companion/receiptPresentation";
-import type { DialogueMode, FastPathResult, RunnerOptions } from "./modelFastPath";
+import type { DialogueMode, DialogueWebContext, FastPathResult, RunnerOptions } from "./modelFastPath";
+import { PUBLIC_WEB_BUDGET_MS, readRunWebResult, webResultText, webRunState, type RunWebResult } from "./companion/runWeb";
 
 /**
  * SAM-MIG-CC-001 V2.2 — surface adapter of the dialogue coordinator (ADR-DIALOGUE, programme doc 57).
@@ -46,6 +47,8 @@ export type DialogueInput = {
   admittedAt?: number;
   policy?: Record<string, unknown>;
   timeoutSeconds?: number;
+  /** Parallel Free (W4): host-only run/session/deadline metadata for a Web hand-off; never dialogue state. */
+  web?: DialogueWebContext;
 };
 
 export const DIALOGUE_UNAVAILABLE_TEXT =
@@ -100,7 +103,7 @@ function runnerOptions(input: DialogueInput, mode: DialogueMode): RunnerOptions 
     caller: input.caller || "owner",
     originId: input.eventRef.slice(0, 120),
     timeoutSeconds: input.timeoutSeconds ?? 75,
-    dialogue: mode,
+    dialogue: input.web ? { ...mode, web: input.web } : mode,
   };
 }
 
@@ -138,8 +141,13 @@ export function isDoneReply(reply: DialogueReply): boolean {
 
 export type SurfaceTurn =
   | { state: "needs_clarification"; clarificationId: string; question: string; choices: unknown[]; decision?: Record<string, unknown>; presentation?: unknown }
-  | { state: "done" | "failed"; text: string; source: "capability"; result?: unknown; decision?: Record<string, unknown>; presentation?: unknown }
+  | { state: "done" | "failed"; text: string; source: "capability"; result?: unknown; web?: RunWebResult; decision?: Record<string, unknown>; presentation?: unknown }
   | { state: "continue"; text: string; resolvedFrom?: string; decision?: Record<string, unknown>; presentation?: unknown };
+
+/** Closed `run.web` projection carried by the coordinator reply metadata (W4); anything malformed is dropped. */
+export function dialogueWebOf(reply: DialogueReply): RunWebResult | undefined {
+  return readRunWebResult((reply.metadata as Record<string, unknown> | null | undefined)?.web);
+}
 
 function metadataOf(reply: DialogueReply) {
   return publicReceiptMetadata(readReceiptPresentation((reply.metadata || {}) as any));
@@ -153,6 +161,11 @@ export function surfaceTurnOf(reply: DialogueReply, conversationId: string, orig
       question: String(reply.text || reply.question?.text || "Précise ce que tu veux faire."),
       choices: Array.isArray(reply.question?.choices) ? reply.question!.choices! : [], decision, ...metadataOf(reply) };
   }
+  const web = dialogueWebOf(reply);
+  if (web && (isDoneReply(reply) || reply.outcome === "FAILED")) {
+    // The text is rebuilt from admitted claims/sources only; no second, unverified answer reaches the surface.
+    return { state: isDoneReply(reply) ? webRunState(web) : "failed", source: "capability", text: webResultText(web), web, result: { web }, decision, ...metadataOf(reply) };
+  }
   if (isDoneReply(reply)) return { state: "done", source: "capability", text: String(reply.text || "Claw a terminé la capacité."), decision, ...metadataOf(reply) };
   if (reply.outcome === "UNRESOLVED" && reply.modelAllowed && !reply.handled) return { state: "continue", text: originalText, decision, ...metadataOf(reply) };
   return { state: "failed", source: "capability", text: String(reply.text || DIALOGUE_UNAVAILABLE_TEXT), decision, ...metadataOf(reply) };
@@ -161,9 +174,12 @@ export function surfaceTurnOf(reply: DialogueReply, conversationId: string, orig
 /** Turn-based surfaces: the conversation id IS the coordinator's conversation key (no local pending state). */
 export class DialogueSurface {
   constructor(private runner: DialogueRunner, private surface: DialogueSurfaceName, private graphSurface: string,
-              private policy: Record<string, unknown> = { modelAllowed: true }) {}
+              private policy: Record<string, unknown> = { modelAllowed: true },
+              /** Voice surfaces (voice relay, Claw Live): a Web hand-off stays closed by default (G6, host recipe only). */
+              private host: { voice?: boolean } = {}) {}
 
-  async turn(text: string, options: { id?: string; originId: string; admittedAt?: number; timeoutSeconds?: number; assertCurrent?: () => void; caller?: "owner" | "trusted" | "other" }): Promise<SurfaceTurn> {
+  async turn(text: string, options: { id?: string; originId: string; admittedAt?: number; timeoutSeconds?: number; assertCurrent?: () => void; caller?: "owner" | "trusted" | "other"; sessionId?: string; runId?: string }): Promise<SurfaceTurn> {
+    const webDeadlineEpochMs = Date.now() + PUBLIC_WEB_BUDGET_MS;
     options.assertCurrent?.();
     const original = String(text || "").trim();
     const conversationId = isDialogueConversationId(options.id) ? options.id : dialogueConversationId(this.surface, "turn:" + options.originId);
@@ -174,6 +190,7 @@ export class DialogueSurface {
       eventRef: transportEventRef(options.originId), text: original, caller: options.caller || "owner",
       admittedAt: options.admittedAt ?? Date.now(), policy: { ...this.policy, ...(deferred ? { deferHandoff: true } : {}) },
       timeoutSeconds: options.timeoutSeconds ?? 75,
+      web: { runId: options.runId, sessionId: options.sessionId, deadlineEpochMs: webDeadlineEpochMs, voiceDelegation: this.host.voice === true },
     };
     let reply = await dialogueTurn(this.runner, input);
     if (reply.outcome === "READY" && reply.pendingHandoff?.goalRef) {

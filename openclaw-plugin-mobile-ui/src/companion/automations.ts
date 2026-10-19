@@ -10,8 +10,8 @@ function safe(value:any,limit=320):string|null{
 }
 function iso(value:any){return typeof value==="number"&&Number.isFinite(value)&&value>=0&&value<=8640000000000000?new Date(value).toISOString():null;}
 function status(value:any){return ["ok","error","skipped"].includes(value)?value:"unknown";}
-export async function allJobs(){
- const response=await callOpenClawGateway("cron.list",{includeDisabled:true});
+export async function allJobs(timeoutMs?:number){
+ const response=await callOpenClawGateway("cron.list",{includeDisabled:true},timeoutMs?{timeoutMs,hardTimeoutMs:timeoutMs+200}:undefined);
  if(!Array.isArray(response?.jobs)||response.hasMore===true||response.jobs.length>1000||response.jobs.some((job:any)=>!job||!idPattern.test(job.id)))throw nativeError("scheduler_unavailable",503);
  return response.jobs;
 }

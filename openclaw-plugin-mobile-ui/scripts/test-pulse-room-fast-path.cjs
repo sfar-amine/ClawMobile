@@ -21,6 +21,7 @@ async function main() {
   // Eligibility comes from the host session (room binding), never from the message.
   assert.equal(mod.pulseRoomContact(ev("x"), ctx()), CONTACT);
   assert.equal(mod.pulseRoomContact(ev("x"), ctx({ agentId: "contacts-projet-pulse", sessionKey: KEY.replace("contacts-pulse", "contacts-projet-pulse") })), CONTACT);
+  assert.equal(mod.pulseRoomContact(ev("x", { sessionKey: KEY.replace("contacts-pulse", "contacts-pulse-agenda") }), ctx({ agentId: "contacts-pulse-agenda", sessionKey: KEY.replace("contacts-pulse", "contacts-pulse-agenda") })), CONTACT);
   for (const [e, c] of [
     [ev("x", { isGroup: true }), ctx()],
     [ev("x", { senderIsOwner: true }), ctx()],
@@ -106,7 +107,7 @@ async function main() {
   assert.deepEqual(await mod.handlePulseRoomBeforeDispatch({ content: "x", channel: "whatsapp", sessionKey: fourthKey, isGroup: true }, { sessionKey: fourthKey }, r), { handled: false });
   assert.equal(r.calls.length, 0);
   const index = require("node:fs").readFileSync(require("node:path").join(__dirname, "../src/index.ts"), "utf8");
-  assert.match(index, /api\.on\("before_dispatch"[\s\S]{0,500}handlePulseRoomBeforeDispatch/);
+  assert.match(index, /api\.on\("before_dispatch"[\s\S]{0,800}handlePulseRoomBeforeDispatch/);
 
   // Helper failure or coordinator unavailable: a clear message, never a model guess.
   for (const broken of [() => ({ status: "error", reason: "helper_failed" }), () => ({ outcome: "TECHNICAL_FAILURE", reasonCode: "coordinator_unavailable", handled: true })]) {

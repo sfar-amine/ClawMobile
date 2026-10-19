@@ -48,7 +48,8 @@ echo "Running purge dry-run..."
 # R10 : le job planifié pointe la release Tier0 courante (lien « current », résolu à chaque exécution),
 # pas la copie de travail d'où ce script est lancé. Repli sur ROOT si Tier0 n'est pas installé.
 JOB_ROOT="$ROOT"
-RELEASE_ROOT="$HOME/.openclaw/releases/current/termux-lite"
+source "$ROOT/lib.sh"
+RELEASE_ROOT="$(clawmobile_release_root)/termux-lite"
 [ -f "$RELEASE_ROOT/claw-slack-purge.mjs" ] && JOB_ROOT="$RELEASE_ROOT"
 
 export PATH="$HOME/.openclaw-android/bin:$PATH"

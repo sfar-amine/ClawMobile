@@ -1,3 +1,5 @@
+import {readAutomationRuns,invalidateAutomationViews} from "./automationRunsPreparation";
+import { closeOpenClawGateway } from "./openclawAgentClient";
 import {discoverLifx,readLifx,setLifx} from "./lifxLocal";
 import {changeConversationArchive} from "./conversationArchive";
 import {serverLanguage,localizedRoute,localizeServerPresentation,ServerLanguage} from "./serverLocale";
@@ -91,8 +93,30 @@ export function runSubmissionStatusCode(result: { success?: boolean; submissionS
   return result.submissionState === "not_submitted" ? 503 : 400;
 }
 
+/** F3: private projection into companion-server.sh's bounded, timestamped process-output sink. */
+function serverDiagnostic(
+  level: "info" | "warn" | "error",
+  event: "attachment_maintenance_unavailable" | "server_listening" | "server_start_failed" | "server_shutdown"
+    | "remote_bridge_abandon_sweep" | "remote_bridge_abandon_sweep_unavailable",
+  metadata: {port?: unknown; errno?: unknown; state?: unknown; scanned?: unknown; abandoned?: unknown; uncertain?: unknown} = {},
+) {
+  const fields: Record<string, string | number> = {};
+  for (const key of ["port", "scanned", "abandoned", "uncertain"] as const) {
+    const value = metadata[key];
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+        && (key !== "port" || value <= 65535)) fields[key] = value;
+  }
+  if (metadata.state === "complete" || metadata.state === "partial") fields.state = metadata.state;
+  if (event === "server_start_failed" || metadata.errno !== undefined) {
+    const codes = new Set(["EADDRINUSE", "EACCES", "EADDRNOTAVAIL", "ENOTFOUND", "EMFILE", "ENFILE", "ENOMEM", "ENOBUFS", "EPIPE", "ENOENT", "EINVAL", "EIO"]);
+    fields.errno = typeof metadata.errno === "string" && codes.has(metadata.errno) ? metadata.errno : "unknown";
+  }
+  const suffix = Object.entries(fields).map(([key, value]) => key + "=" + value).join(" ");
+  try { console.log("component=companion level=" + level + " event=" + event + (suffix ? " " + suffix : "")); } catch {}
+}
+
 export function startCompanionServer() {
-  withAttachmentReferences(paths=>purgeAttachments(paths)).catch(()=>console.error("[companion] attachment maintenance unavailable"));
+  withAttachmentReferences(paths=>purgeAttachments(paths)).catch(()=>serverDiagnostic("error", "attachment_maintenance_unavailable"));
   const configuredHost = (process.env.CLAWMOBILE_COMPANION_HOST || DEFAULT_HOST).trim();
   const host = listenHost(configuredHost);
   const port = parsePort(process.env.CLAWMOBILE_COMPANION_PORT, DEFAULT_PORT);
@@ -113,7 +137,7 @@ export function startCompanionServer() {
   const onListening = () => {
     const address = server.address();
     const resolvedHost = typeof address === "object" && address ? address.address : configuredHost || "::";
-    console.log(`[companion] ClawMobile companion server listening on ${resolvedHost}:${port}`);
+    serverDiagnostic("info", "server_listening", {port});
   };
   if (host) {
     server.listen(port, host, onListening);
@@ -121,14 +145,15 @@ export function startCompanionServer() {
     server.listen(port, onListening);
   }
   server.once("error", (error: any) => {
-    console.error(`[companion] unable to start companion server: ${error?.message || error}`);
+    serverDiagnostic("error", "server_start_failed", {errno: error?.code});
     process.exit(1);
   });
 
   const shutdown = () => {
-    console.log("[companion] shutting down companion server");
+    serverDiagnostic("info", "server_shutdown");
     stopTerminalShellSession();
     stopVoiceRelay();
+    closeOpenClawGateway();
     clawLiveWarmCore.shutdown();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 1500).unref();
@@ -160,9 +185,9 @@ export function startCompanionServer() {
   setTimeout(() => {
     try {
       const sweep = abandonStaleRemoteBridgeReceipts({ budgetMs: 3_000 });
-      console.log(`[remote-bridge] abandon sweep state=${sweep.state} scanned=${sweep.scanned} abandoned=${sweep.abandoned} uncertain=${sweep.effectUncertain}`);
+      serverDiagnostic("info", "remote_bridge_abandon_sweep", {state: sweep.state, scanned: sweep.scanned, abandoned: sweep.abandoned, uncertain: sweep.effectUncertain});
     } catch (error: any) {
-      console.warn("[remote-bridge] abandon sweep unavailable: " + String(error?.message || error).slice(0, 160));
+      serverDiagnostic("warn", "remote_bridge_abandon_sweep_unavailable", {errno: error?.code});
     }
   }, Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_SWEEP_DELAY_MS || 30_000)).unref();
 
@@ -411,10 +436,14 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       writeJson(res,403,{success:false,error:"native_owner_flow_required"}); return;
     }
     try {
-      const match=/^\/automations\/([^/]+)(?:\/(enable|disable|run))?$/.exec(routePath);
+      const match=/^\/automations\/([^/]+)(?:\/(enable|disable|run|runs))?$/.exec(routePath);
       if(!match)throw Object.assign(new Error("invalid_automation_route"),{statusCode:404});
       let id:string;try{id=decodeURIComponent(match[1]);}catch{throw Object.assign(new Error("invalid_automation_id"),{statusCode:400});}
       res.setHeader("Cache-Control","no-store");
+      if(method==="GET"&&match[2]==="runs"){
+        const abort=new AbortController();const cancel=()=>{if(!res.writableEnded)abort.abort();};res.once("close",cancel);
+        try{writeJson(res,200,await readAutomationRuns(id,requestUrl.searchParams,abort.signal));}finally{res.removeListener("close",cancel);}return;
+      }
       if(method==="GET"&&!match[2]){writeJson(res,200,await automationDetail(id));return;}
       if(method==="PATCH"&&!match[2]){
         // R23 / E1: payment and validation refusals precede any owner read; CAS via If-Match (native configRevision).
@@ -428,11 +457,12 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         }
         writeJson(res,result.state==="needs_confirmation"?403:result.state==="refused"||result.state==="blocked"?409:result.state==="completed"?200:503,result);return;
       }
-      if((method==="POST"&&match[2])||(method==="DELETE"&&!match[2])){
+      if((method==="POST"&&match[2]&&match[2]!=="runs")||(method==="DELETE"&&!match[2])){
         const result=await changeAutomation(id,match[2]||"delete",await readJsonBody(req,1024));
+        if(result.success)invalidateAutomationViews();
         writeJson(res,result.state==="blocked"?409:result.state==="not_found"?404:result.state==="failed"?503:result.state==="refused"?403:200,result);return;
       }
-      res.setHeader("Allow",match[2]?"POST":"GET, PATCH, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
+      res.setHeader("Allow",match[2]==="runs"?"GET":match[2]?"POST":"GET, PATCH, DELETE");writeJson(res,405,{success:false,error:"method_not_allowed"});
     } catch(error:any) {
       const code=[400,404,409].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,code,{success:false,error:code===400?"invalid_automation_request":code===404?"automation_not_found":code===409?"operation_conflict":"automation_unavailable"});
@@ -942,7 +972,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     // The same ephemeral ticket guards resolution, prepared execution and the final bridge.
     // A stored clarification never grants admission to a following request.
     const execute = (request: string) => clawLiveCapabilityTurn(
-      {request, clarificationId, originId: body.clientRunId, assertCurrent},
+      {request, clarificationId, originId: body.clientRunId,sessionId, assertCurrent},
       (text) => {
         assertCurrent();
         return capabilityBridge(text, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35});

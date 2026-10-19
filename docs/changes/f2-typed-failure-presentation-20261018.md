@@ -1,0 +1,33 @@
+# F2 — Conserver la cause jusque dans le reçu
+
+Le rendu des erreurs du transport et du web utilise une table française et une table anglaise, dans le propriétaire existant `receiptPresentation.ts`. Les codes émis par les producteurs TypeScript sont relevés par un test de couverture, inscrit dans la CI. Un code futur explicite reste dans le champ structuré de cause ; il n’est jamais interpolé dans une phrase publique. Seuls les codes réellement présents dans les tables de phrases peuvent remplacer la phrase de leur producteur. Les présentations déjà qualifiées par leur propriétaire sont préservées.
+
+La clôture d’un run conserve toutes les causes établies. Une cause de transport connue dans `FAILURE_PHRASES` peut produire le message typé quand aucune présentation propriétaire n’est disponible. Pour les autres codes, `reply.text` et sa relance restent le message ; une phrase propriétaire courte validée par les gardes existantes est conservée dans le message, la carte, sa cause et sa forme parlée. Une phrase trop longue, JSON (même précédée d’espaces) ou contenant une donnée protégée est remplacée par le fallback fermé avant canvas, persistance et réponse, sans changer le garde partagé des autres cartes. L'absence de code incrémente un scalaire saturant, sans contenu personnel ni identifiant. Ce compteur décrit la vie du processus Companion ; il ne prétend pas mesurer des journées comprenant un redémarrage.
+
+Le diagnostic existant expose `presentationCounters.missingFailureCauseRenders` et `scope: companion_process` dans ses pages de journaux, son enveloppe d'export et sa section de contrôle. L'affichage Android est une contrepartie distincte : ce changement serveur seul ne le qualifie pas.
+
+Aucune nouvelle route, capability, source runtime, base, journal ni service. Aucun appel Gateway. Les budgets des routes existantes ne changent pas (diagnostic Python 5 s, snapshot 6,5 s) : ajout constant en mémoire après leur lecture. Les fixtures de reçus proviennent des captures S24 `s24-2026-10-11c/hs3-presentations-from-captures.json` déjà versionnées ; la panne du transport est injectée hors téléphone et identifiée comme telle.
+
+Tests ciblés : construction TypeScript ; couverture des codes, langues, sécurité, compteur et persistance du run ; régression N1 ; diagnostic ; recherche web ; transport des reçus. Le rejeu CI complet avec PR et SHA exact reste obligatoire avant revue de fusion.
+
+Retour arrière : revenir au commit précédent sur la ligne runtime ; aucun format persistant ni migration n'est ajouté. Ne pas confondre ce lot avec les phrases de la voix en direct, réservées à Claude, ni avec les cartes métier playbooks, livrées séparément.
+
+Le lecteur de reçus accepte aussi jusqu’à huit lignes en paires `[libellé, valeur]`, format déjà lu par l’app, avec les mêmes gardes de contenu. Cela prépare les cartes métier rendues par leur propriétaire playbooks ; objets libres, lignes malformées et secrets restent refusés.
+
+Le rendu générique Python émet aussi un signal typé borné par capability. Le port d’exécution le transporte jusqu’à la sortie du processus helper, même lorsque le coordinateur ne recopie pas ce champ dans son reçu. Le transport TypeScript le consomme une fois ; relire/poller un reçu ne l’incrémente pas. Diagnostic expose séparément `genericDisplayRenders`, `genericDisplayByCapability` (64 identifiants au maximum) et `otherGenericDisplayRenders` si cette borne est atteinte. Ce sont des scalaires de présentation en mémoire, pas un registre d’exécution ni un historique persistant.
+
+## Correction après relecture Claude #325
+
+La relecture [6254434027](https://github.com/sfar-amine/samantha-core/pull/325#issuecomment-6254434027) a relevé deux écrasements de texte : maintenance/relance/refus/sans progression par un code inconnu, et recherche Web en échec avec sources par une phrase générique. Le remplacement est désormais limité aux causes de la table propriétaire. La cause inconnue n’est jamais rendue comme un label brut ; la phrase fournie par son propriétaire reste affichée et, si elle passe la garde bornée, portée dans la présentation. Aucun code de routage ni traitement métier n’est ajouté.
+
+Pour le Web, `webResultText` reste la source de l’erreur et de la liste des sources admises, y compris si les lignes objets de la présentation Graph ne sont pas des paires HS3. Le garde de la carte n’est pas relâché pour contourner cette différence : aucune source ou URL n’est recopiée dans un champ HS3 non admis. La projection Web structurée est conservée dans le reçu.
+
+La branche intègre par merge normal le runtime exact `cc4d26c3533ec213b2085faecb3258e53a318c3d`, sans s’appuyer sur la référence locale origin/runtime périmée. Les changements de Claude #359 et tous les tests/workflows hérités sont conservés ; aucun fichier voix ou paiement n’est modifié par le correctif.
+
+Régressions ciblées :57/57 contrôles typés, dont neuf causes de transport et deux langues, quatre codes propriétaires inconnus à travers le vrai processus helper→coordinateur→submit→persistance/relecture, contrôle de la phrase parlée existante, recherche en échec avec une source de la capture cloud publique déjà versionnée, et rejets de phrases sensibles/JSON/trop longues à travers le vrai processus helper et la relecture du run. N1 :21/21 ; transportHS3 existant vert ; forme parlée #359 :23/23. L’erreur de transport et les codes inconnus sont injectés de façon synthétique, pas présentés comme captures S24. Aucune recherche réelle, envoi, exécution financière, session vocale ou recette téléphone. CI canonique complète sur le head final de la PR325 encore requise avant revue de fusion.
+
+## Intégration du runtime réel après #326/#327/#331
+
+Le head runtime exact `e8738f6d501bfc1cf0b7f831b8eccab15a12fbb2` est intégré par merge normal, après vérification directe de la ref GitHub et sans se fier au base.sha périmé des objets PR. Les changements hérités sont la documentation326, le budget relatif de fixture327 et les diagnostics bornés runs/server331 avec leur test inscrit. La logique de présentation325 n’a pas de chevauchement de source avec runs/server ; les deux commandes héritées et toutes les autres étapes du workflow sont conservées.
+
+Ciblés du résultat intégré : TypeScript compilé,57/57 contrôles de phrases typées et12/12 diagnostics du propriétaire run verts, sans intervention sur la voix directe. Ce nouveau head attend une CI canonique complète PR325 ; la qualification de c3b9eb5c et les reçus antérieurs ne peuvent pas être utilisés pour l’attester. Aucun effet S24, changement de store ou logique de retry.

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 HOME = Path.home()
 DEFAULT_UI = HOME / ".openclaw/workspace/ui-playbooks"
@@ -37,7 +38,7 @@ def _graph(args: list[str], timeout_s: int = 35, input_text: str | None = None) 
         [sys.executable, "-m", "skill_intelligence.capability_graph", *args],
         cwd=root,
         env=env,
-        timeout=max(2, min(timeout_s, 125)),
+        timeout=max(0.001, min(timeout_s, 125)),
         text=True,
         capture_output=True,
         input=input_text,
@@ -97,9 +98,12 @@ def agent_policy(resolution: dict, families: dict[str, str]) -> dict:
     }
 
 
-def agent_execute(text: str, surface: str, caller: str, timeout_s: int) -> int:
+def agent_execute(text: str, surface: str, caller: str, timeout_s: int, execution_context: dict | None = None) -> int:
     """Resolve once, check the E3 policy, then execute exactly that decision in read-only mode."""
-    resolved = _graph(["resolve", text, "--surface", surface, "--caller", caller], timeout_s=20)
+    started=time.monotonic()
+    resolve_args=["resolve",text,"--surface",surface,"--caller",caller]
+    if execution_context:resolve_args.extend(["--request-id",execution_context["request_id"]])
+    resolved = _graph(resolve_args, timeout_s=min(10,execution_context["remaining_budget_ms"]/1000) if execution_context else 20)
     try:
         resolution = json.loads(resolved.stdout or "{}")
         if not isinstance(resolution, dict):
@@ -119,10 +123,19 @@ def agent_execute(text: str, surface: str, caller: str, timeout_s: int) -> int:
             "execution": {"state": "blocked", "reason": "capability_first_required", "executed": False},
         }, ensure_ascii=False))
         return 0
-    executed = _graph(
-        ["execute-decision", text, "--decision-stdin", "--timeout", str(timeout_s), "--read-only"],
-        timeout_s=timeout_s + 5, input_text=json.dumps(decision, ensure_ascii=False),
-    )
+    execute_args=["execute-decision",text,"--decision-stdin","--timeout",str(timeout_s),"--read-only"]
+    web_capability=resolution.get("capability") in {"samantha.app.web.search","samantha.app.web.answer"}
+    process_timeout=timeout_s+5
+    if web_capability:
+        if not execution_context or caller!="owner" or execution_context["request_id"]!=(decision or {}).get("requestId"):
+            print(json.dumps({"execution":{"state":"blocked","reason":"invalid_web_execution_context"}}));return 0
+        remaining=min(execution_context["remaining_budget_ms"]-int((time.monotonic()-started)*1000),execution_context["deadline_epoch_ms"]-int(time.time()*1000))
+        if remaining<=0:
+            print(json.dumps({"execution":{"state":"failed","reason":"web_deadline_exceeded"}}));return 0
+        for flag,key in (("--request-id","request_id"),("--run-id","run_id"),("--session-id","session_id"),("--deadline-epoch-ms","deadline_epoch_ms")):
+            if execution_context.get(key):execute_args.extend([flag,str(execution_context[key])])
+        execute_args.extend(["--remaining-budget-ms",str(remaining)]);process_timeout=remaining/1000
+    executed = _graph(execute_args,timeout_s=process_timeout,input_text=json.dumps(decision, ensure_ascii=False))
     try:
         result = json.loads(executed.stdout or "{}")
         if not isinstance(result, dict):
@@ -155,6 +168,12 @@ def main() -> int:
     e.add_argument("--timeout", type=int, default=30)
     e.add_argument("--target")
     e.add_argument("--read-only", action="store_true")
+    for command in (e,):
+        command.add_argument("--request-id")
+        command.add_argument("--run-id")
+        command.add_argument("--session-id")
+        command.add_argument("--remaining-budget-ms",type=int)
+        command.add_argument("--deadline-epoch-ms",type=int)
 
     ae = sub.add_parser("agent-execute")
     ae.add_argument("text")
@@ -167,6 +186,12 @@ def main() -> int:
     ed.add_argument("--decision-b64", required=True)
     ed.add_argument("--timeout", type=int, default=30)
     ed.add_argument("--read-only", action="store_true")
+    for command in (ed,ae):
+        command.add_argument("--request-id")
+        command.add_argument("--run-id")
+        command.add_argument("--session-id")
+        command.add_argument("--remaining-budget-ms",type=int)
+        command.add_argument("--deadline-epoch-ms",type=int)
 
     vd = sub.add_parser("validate-decision")
     vd.add_argument("text")
@@ -181,7 +206,22 @@ def main() -> int:
     c = sub.add_parser("compile")
     c.add_argument("--output-dir", default=str(HOME / ".openclaw/capability-views"))
 
+    started=time.monotonic()
     args = parser.parse_args()
+    context_args=[]
+    context_timeout=None
+    if args.cmd in {"execute","execute-decision","agent-execute"}:
+        budget=getattr(args,"remaining_budget_ms",None)
+        if budget is not None:
+            deadline=getattr(args,"deadline_epoch_ms",None)
+            if type(budget) is not int or not 0<budget<=30000 or type(deadline) is not int or not args.request_id:  # PUBLIC_WEB_BUDGET_MS
+                raise SystemExit("invalid_web_execution_context")
+            remaining=min(budget-int((time.monotonic()-started)*1000),deadline-int(time.time()*1000))
+            if remaining<=0:raise SystemExit("web_deadline_exceeded")
+            context_timeout=remaining/1000
+            context_args=["--remaining-budget-ms",str(remaining),"--deadline-epoch-ms",str(deadline)]
+        for flag,key in (("--request-id","request_id"),("--run-id","run_id"),("--session-id","session_id")):
+            if getattr(args,key,None):context_args.extend([flag,str(getattr(args,key))])
     if args.cmd == "resolve":
         forwarded = ["resolve", args.text, "--surface", args.surface, "--caller", args.caller]
         if args.target:
@@ -198,9 +238,10 @@ def main() -> int:
             forwarded.extend(["--target", args.target])
         if args.read_only:
             forwarded.append("--read-only")
-        return call(forwarded, timeout_s=args.timeout + 5)
+        return call(forwarded+context_args, timeout_s=context_timeout if context_timeout is not None else args.timeout + 5)
     if args.cmd == "agent-execute":
-        return agent_execute(args.text, args.surface, args.caller, max(2, min(args.timeout, 120)))
+        return agent_execute(args.text, args.surface, args.caller, max(2, min(args.timeout, 120)),
+                             {"request_id":args.request_id,"run_id":args.run_id,"session_id":args.session_id,"remaining_budget_ms":args.remaining_budget_ms,"deadline_epoch_ms":args.deadline_epoch_ms} if args.remaining_budget_ms is not None else None)
     if args.cmd == "execute-decision":
         try:
             raw = base64.b64decode(args.decision_b64.encode("ascii"), validate=True).decode("utf-8")
@@ -212,7 +253,9 @@ def main() -> int:
         forwarded = ["execute-decision", args.text, "--decision-stdin", "--timeout", str(args.timeout)]
         if args.read_only:
             forwarded.append("--read-only")
-        return call(forwarded, timeout_s=args.timeout + 5, input_text=json.dumps(parsed, ensure_ascii=False))
+        if args.request_id and args.request_id != parsed.get("requestId"):
+            raise SystemExit("web_request_identity_mismatch")
+        return call(forwarded+context_args, timeout_s=context_timeout if context_timeout is not None else args.timeout + 5, input_text=json.dumps(parsed, ensure_ascii=False))
     if args.cmd == "validate-decision":
         try:
             raw = base64.b64decode(args.decision_b64.encode("ascii"), validate=True).decode("utf-8")

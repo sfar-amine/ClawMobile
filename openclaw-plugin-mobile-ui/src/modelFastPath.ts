@@ -1,16 +1,20 @@
-import { execFile } from "node:child_process";
+import {recordPresentationDiagnostics} from "./companion/receiptPresentation";
+import {runtimeFile} from "./runtimeRoot";
+import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import { admittedAtMs, dialogueTurn, transportEventRef } from "./dialogueSurface";
+import { PUBLIC_WEB_BUDGET_MS } from "./companion/runWeb";
 
-const execFileAsync = promisify(execFile);
 const MAX_MESSAGE_CHARS = 12000;
 const LOCAL_COMPANION_SESSION = /^agent:main:companion-chat-[A-Za-z0-9-]{1,96}$/;
 
 export type FastPathResult = {
   status?: string;
+  web?: unknown;
+  result?: unknown;
+  execution_state?: string;
   text?: string;
   reason?: string;
   /** Sanitized machine class emitted by the deterministic runner. */
@@ -60,6 +64,13 @@ export type RunnerOptions = {
   caller?: "owner" | "trusted" | "other";
   originId?: string;
   timeoutSeconds?: number;
+  /** Host-created transport context. Never sourced from model/public request metadata. */
+  requestId?: string;
+  runId?: string;
+  sessionId?: string;
+  remainingBudgetMs?: number;
+  deadlineEpochMs?: number;
+  signal?: AbortSignal;
   checkOnly?: boolean;
   /** Optional total budget for read-only checks; never valid for dispatch. */
   checkBudgetMs?: number;
@@ -75,12 +86,27 @@ export type DialogueMode = {
   event?: Record<string, unknown>;
   policy?: Record<string, unknown>;
   goalRef?: string;
+  /** Host-created Web context for the hand-off (run, session, 12 s deadline, signed voice delegation). Never from the
+   * model or a request body; the coordinator stays the only dialogue owner and receives it as CLI metadata only. */
+  web?: DialogueWebContext;
 };
+
+export type DialogueWebContext = { runId?: string; sessionId?: string; deadlineEpochMs?: number; voiceDelegation?: boolean };
+const WEB_HOST_ID = /^[A-Za-z0-9_.:-]{1,160}$/;
+function dialogueWebArgs(web?: DialogueWebContext): string[] {
+  if (!web) return [];
+  return [
+    ...(web.runId && WEB_HOST_ID.test(web.runId) ? ["--run-id", web.runId] : []),
+    ...(web.sessionId && WEB_HOST_ID.test(web.sessionId) ? ["--session-id", web.sessionId] : []),
+    ...(Number.isSafeInteger(web.deadlineEpochMs) && web.deadlineEpochMs! > Date.now() ? ["--deadline-epoch-ms", String(web.deadlineEpochMs)] : []),
+    ...(web.voiceDelegation === true ? ["--voice-delegation"] : []),
+  ];
+}
 
 function helperCandidates(home = os.homedir()): string[] {
   return [
     process.env.CLAWMOBILE_MODEL_FAST_PATH_HELPER || "",
-    path.join(home, ".openclaw/releases/current/termux-lite/model-fast-path.py"),
+    runtimeFile("model-fast-path.py", home),
   ].filter(Boolean);
 }
 
@@ -133,19 +159,26 @@ export async function runModelFastPath(
   options: RunnerOptions = {},
 ): Promise<FastPathResult> {
   if(options.checkBudgetMs!==undefined&&(!options.checkOnly||!Number.isSafeInteger(options.checkBudgetMs)||options.checkBudgetMs<1||options.checkBudgetMs>10000))return {status:"error",reason:"invalid_check_budget"};
+  const bounded = options.remainingBudgetMs !== undefined;
+  if (bounded && (!Number.isSafeInteger(options.remainingBudgetMs) || options.remainingBudgetMs! < 1 || options.remainingBudgetMs! > PUBLIC_WEB_BUDGET_MS ||
+      !Number.isSafeInteger(options.deadlineEpochMs) || options.deadlineEpochMs! <= Date.now() || !options.requestId ||
+      options.preparedDecision && options.preparedDecision.requestId !== options.requestId)) return {status:"known_error",reason:"invalid_web_execution_context"};
+  if (options.signal?.aborted) return {status:"known_error",reason:"execution_cancelled",execution_state:"cancelled"};
+  const started = performance.now();
   const deadline=options.checkBudgetMs===undefined?undefined:Date.now()+options.checkBudgetMs;
   const helpers = options.helperPath
     ? [options.helperPath]
     : helperCandidates(options.home);
   let lastError = "helper_missing";
   for (const helper of helpers) {
-    const remaining=deadline===undefined?undefined:deadline-Date.now();
-    if(remaining!==undefined&&remaining<=0)return {status:"error",reason:"check_budget_exceeded"};
+    const remaining = bounded ? Math.floor(Math.min(options.remainingBudgetMs! - (performance.now()-started), options.deadlineEpochMs! - Date.now())) : deadline===undefined?undefined:deadline-Date.now();
+    if(remaining!==undefined&&remaining<=0)return {status:bounded?"known_error":"error",reason:bounded?"web_deadline_exceeded":"check_budget_exceeded",...(bounded?{execution_state:"timeout"}:{})};
     try {
       const dialogue = options.dialogue;
       const argv = dialogue ? [
         "--dialogue", dialogue.mode,
         ...(dialogue.goalRef ? ["--goal-ref", dialogue.goalRef] : []),
+        ...dialogueWebArgs(dialogue.web),
         "--surface", options.surface || "claw_live",
         "--caller", options.caller || "owner",
         "--origin-id", options.originId || "capability-first",
@@ -158,16 +191,19 @@ export async function runModelFastPath(
         "--caller", options.caller || "owner",
         "--origin-id", options.originId || "capability-first",
         "--timeout", String(Math.max(2, Math.min(options.timeoutSeconds || 30, 120))),
+        ...(options.requestId ? ["--request-id",options.requestId] : []),
+        ...(options.runId ? ["--run-id",options.runId] : []),
+        ...(options.sessionId ? ["--session-id",options.sessionId] : []),
+        ...(bounded ? ["--remaining-budget-ms",String(remaining),"--deadline-epoch-ms",String(options.deadlineEpochMs)] : []),
         message,
       ];
       const timeoutSeconds = Math.max(2, Math.min(options.timeoutSeconds || 30, 120));
-      const raw: any = await execFileAsync(
-        "python3",
+      const raw: any = await runCapabilityHelperProcess(
         [helper, ...argv],
         {
-          timeout: Math.min(fastPathProcessTimeoutMs(timeoutSeconds, !!options.checkOnly),remaining ?? Infinity),
-          ...(remaining!==undefined?{killSignal:"SIGKILL" as const}:{}),
-          maxBuffer: 2 * 1024 * 1024,
+          timeoutMs: Math.min(fastPathProcessTimeoutMs(timeoutSeconds, !!options.checkOnly),remaining ?? Infinity),
+          killGroup:bounded||options.checkBudgetMs!==undefined,signal:options.signal,
+          maxBuffer: bounded ? 128 * 1024 : 2 * 1024 * 1024,
           env: {
             ...process.env,
             ...((options.preparedDecision || options.clarificationDecision) ? {
@@ -185,10 +221,16 @@ export async function runModelFastPath(
       );
       const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
       const parsed = JSON.parse(stdout || "{}");
+      if(options.signal?.aborted)return {status:"known_error",reason:"execution_cancelled",execution_state:"cancelled"};
+      if(options.checkBudgetMs!==undefined&&performance.now()-started>=options.checkBudgetMs)return {status:"error",reason:"check_budget_exceeded"};
+      if(bounded&&(Date.now()>=options.deadlineEpochMs!||performance.now()-started>=options.remainingBudgetMs!))return {status:"known_error",reason:"web_deadline_exceeded",execution_state:"timeout"};
+      if(typeof parsed === "object" && parsed !== null)recordPresentationDiagnostics(parsed.presentationDiagnostics);
       return typeof parsed === "object" && parsed !== null
         ? parsed as FastPathResult
         : { status: "error", reason: "invalid_result" };
     } catch (error: any) {
+      if (options.signal?.aborted) return {status:"known_error",reason:"execution_cancelled",execution_state:"cancelled"};
+      if (bounded && (error?.killed || Date.now()>=options.deadlineEpochMs! || performance.now()-started>=options.remainingBudgetMs!)) return {status:"known_error",reason:"web_deadline_exceeded",execution_state:"timeout"};
       if(deadline!==undefined&&(Date.now()>=deadline||error?.killed))return {status:"error",reason:"check_budget_exceeded"};
       if (error?.code === "ENOENT") {
         lastError = "helper_missing";

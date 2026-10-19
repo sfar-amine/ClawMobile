@@ -69,6 +69,39 @@ class RestartEscalationTests(unittest.TestCase):
                         pass
             return result, files
 
+    def test_aligning_a_live_supervisor_after_deploy_is_free(self):
+        """S24 17/10 : quatre déploiements rapprochés ne doivent ni épuiser le budget ni rester en human_required."""
+        result, files = self.run_probe(
+            """
+CLOCK=100; now(){ echo "$CLOCK"; }; log(){ echo "$*" >>"$LOG"; }
+ALIVE=1; ONROOT=0
+proc(){ [ "$ALIVE" = 1 ]; }; supervisor_on_current_root(){ [ "$ONROOT" = 1 ]; }
+stop_supervisor(){ :; }; wait_supervisor_lock(){ return 0; }; sleep(){ :; }
+start(){ ONROOT=1; echo "$1" >>"$HOME/starts"; }
+put adb_watchdog escalation human_required; put adb_watchdog status human_required
+for i in 1 2 3 4 5; do ONROOT=0; put adb_watchdog next 0; check_supervisor adb_watchdog pat "$ROOT/x.sh"; done
+[ "$(get adb_watchdog status none)" = healthy ]
+[ ! -s "$(sf adb_watchdog restart_attempts)" ]
+"""
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(files["starts"].count("adb_watchdog"), 5)
+        self.assertNotIn("rollback.calls", files)
+        self.assertNotIn("restart_refused", files.get(".openclaw/health/health.log", ""))
+        self.assertIn("budget=exempt", files[".openclaw/health/health.log"])
+
+    def test_an_absent_supervisor_still_uses_the_budget(self):
+        result, files = self.run_probe(
+            """
+CLOCK=100; now(){ echo "$CLOCK"; }; log(){ echo "$*" >>"$LOG"; }
+proc(){ return 1; }; supervisor_on_current_root(){ return 1; }; sleep(){ :; }; start(){ :; }
+put adb_watchdog escalation human_required
+check_supervisor adb_watchdog pat "$ROOT/x.sh" || true
+"""
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("restart_refused reason=human_required", files[".openclaw/health/health.log"])
+
     def test_budget_then_one_rollback_then_one_human_required(self):
         result, files = self.run_probe(
             """
@@ -87,6 +120,29 @@ CLOCK=162; if restart_gate companion; then exit 24; fi
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         self.assertEqual(files["rollback.calls"].count("rollback --reason health_restart_budget_exhausted:companion"), 1)
         self.assertEqual(files["orchestrator.calls"].count(" human_required "), 1)
+        self.assertEqual(files[".openclaw/incidents/events.log"].count("event=queued"), 1)
+
+    def test_adb_budget_never_rolls_tier0_back(self):
+        """S24 18/10 16:24-16:27 : Wi-Fi coupé, ADB sans fil perdu, budget adb épuisé → rollback Tier0 qui a
+        redémarré gateway et companion pendant « mon solde Orange ». L'ADB est un service de l'appareil."""
+        result, files = self.run_probe(
+            """
+CLOCK=100; now(){ echo "$CLOCK"; }; log(){ echo "$*" >>"$LOG"; }
+restart_gate adb
+restart_gate adb
+if restart_gate adb; then exit 41; fi
+[ "$(get adb escalation none)" = human_required ]
+CLOCK=200; if restart_gate adb; then exit 42; fi
+"""
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertNotIn("rollback.calls", files)
+        log = files[".openclaw/health/health.log"]
+        self.assertIn("service=adb action=tier0_rollback_skipped reason=device_scope budget=2/2", log)
+        self.assertIn("reason=restart_budget_exhausted_device_scope", log)
+        self.assertNotIn("action=tier0_rollback reason=", log)
+        self.assertEqual(files["orchestrator.calls"].count(" human_required "), 1)
+        self.assertIn("Tier0 rollback cannot repair device-scoped adb", files["orchestrator.calls"])
         self.assertEqual(files[".openclaw/incidents/events.log"].count("event=queued"), 1)
 
     def test_failed_rollback_escalates_without_retrying_or_duplicating(self):

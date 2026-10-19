@@ -23,12 +23,18 @@ while IFS= read -r rel; do
     || { echo "runtime_dependencies_unresolved $(dirname "$rel")" >&2; return 3; }
 done < <(cd "$W" && find . -maxdepth 4 -path ./.git -prune -o -type d -name node_modules -print -prune | sed 's|^\./||')
 }
+# Surface views (~/.openclaw/capability-views) are derived from the pinned registry: recompile them on every
+# switch (S24 17/10: playbooks 96453dd9 pinned, views still at the previous revision, so the catalogue greyed
+# samantha.app.web.search as capability_unreachable). Never fatal for the switch, always reported.
+CAPABILITY_CLI="${CLAW_CAPABILITY_CLI:-$(dirname "$0")/claw-capability.py}"
+compile_views(){ python3 "$CAPABILITY_CLI" compile >/dev/null 2>&1 || { echo "capability_views_compile_failed" >&2; return 0; }; }
 mkdir -p "$D"
 if [ "${1:-}" = "--rollback" ]; then
   prev=$(readlink "$D/previous" 2>/dev/null) || { echo "no_previous_snapshot" >&2; exit 2; }
   cur=$(readlink "$D/current")
   link_deps "$prev" || exit 3
   swap current "$prev"; swap previous "$cur"
+  compile_views
   echo "ROLLED_BACK current=$(basename "$prev")"; exit 0
 fi
 [ -n "${1:-}" ] || { echo "usage: $0 <commit>|--rollback" >&2; exit 2; }
@@ -42,9 +48,10 @@ if [ -f "$D/$sha/tools/install_interaction_rules.py" ]; then
   python3 "$D/$sha/tools/install_interaction_rules.py" --apply >/dev/null 2>&1 || { echo "interaction_rules_install_failed" >&2; rules_rc=4; }
 fi
 cur=$(readlink "$D/current" 2>/dev/null || true)
-if [ "$cur" = "$D/$sha" ]; then echo "ALREADY_ACTIVE $sha"; exit "$rules_rc"; fi
+if [ "$cur" = "$D/$sha" ]; then compile_views; echo "ALREADY_ACTIVE $sha"; exit "$rules_rc"; fi
 [ -n "$cur" ] && swap previous "$cur"
 swap current "$D/$sha"
+compile_views
 echo "ACTIVATED $sha previous=$(basename "${cur:-none}")"
 # « Projet Samantha » WhatsApp room: refresh its read-only snapshot when the room exists (never fatal).
 [ -d "$HOME/.openclaw/workspace-projet" ] && { python3 "$(dirname "$0")/project-room.py" build >/dev/null 2>&1 || echo "project_room_refresh_failed" >&2; }

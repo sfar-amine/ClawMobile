@@ -512,11 +512,13 @@ EVENTS = {'add':'added', 'remove':'removed', 'scope':'scope_changed', 'suspend':
 # Access "rooms" (decision d'Amine 11/10). Enforced by agent routing, never by prompt: plain conversation is the
 # wildcard `contacts` agent, `projet` a read-only project snapshot agent, `maison` the owner's main agent.
 ROOMS = ('conversation', 'projet', 'pulse', 'agenda', 'taches', 'lignes', 'memoire', 'actions', 'messages', 'maison')
-# The other rooms need per-contact capability filtering in the harness first: refused, never granted by prompt.
-ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'maison'}
+# Rooms are enforced by the concrete-peer binding. Agenda/actions/messages additionally pass through the
+# capability-first contact boundary, which checks the canonical decision before executing it.
+ENFORCED_ROOMS = {'conversation', 'projet', 'pulse', 'agenda', 'actions', 'messages', 'maison'}
 PROJECT_AGENT = 'contacts-projet'
 # Pièce Pulse (fichier 52 §5): the agent only names the room; the plugin's pulse-room ingress executes Pulse alone.
 PULSE_AGENTS = {'pulse': 'contacts-pulse', 'projet+pulse': 'contacts-projet-pulse'}
+CAPABILITY_ROOMS = {'agenda', 'actions', 'messages'}
 ROOM_TAG = 'r17-rooms:'
 # M4 (décision d'Amine 12/10): contact material stays in the private context repo and is
 # forgotten 30 days after access ended (expiry or removal). Bounded per 60s sweep pass.
@@ -525,6 +527,8 @@ FORGET_BATCH = 20
 INBOX_LIMIT = 1024*1024
 INBOX_ENTRY = re.compile(r'^- ', re.M)
 INBOX_SENDER = re.compile(r'^\s+- Sender:.*?(\+?[0-9][0-9 ]{6,}[0-9])', re.M)
+CONTACT_TOOL_OP = re.compile(r'[A-Za-z0-9_.:-]{1,128}\Z')
+CONTACT_TOOL_RECEIPTS = 5000
 CONTACT_MEMORY_FIELD = 'contactMemory'
 CONTACT_MEMORY_START = '<!-- CONTACT_MEMORY_START -->'
 CONTACT_MEMORY_END = '<!-- CONTACT_MEMORY_END -->'
@@ -559,8 +563,28 @@ def normalize_rooms(value):
 def room_agent(rooms):
     rooms=rooms or ()
     if 'maison' in rooms: return 'main'
+    if CAPABILITY_ROOMS.intersection(rooms):
+        return 'contacts-'+'-'.join(r for r in ROOMS if r!='conversation' and r in rooms)
     if 'pulse' in rooms: return PULSE_AGENTS['projet+pulse' if 'projet' in rooms else 'pulse']
     return PROJECT_AGENT if 'projet' in rooms else None
+
+def ensure_room_profile(cfg, agent, rooms):
+    """Create only the concrete profile required by this grant, from the existing closed contact owners."""
+    entries=(cfg.get('agents') or {}).get('entries')
+    if not isinstance(entries,dict): fail('room_profile_unavailable',503)
+    if agent in entries: return
+    source=(PULSE_AGENTS['projet+pulse'] if 'pulse' in rooms and 'projet' in rooms else
+            PULSE_AGENTS['pulse'] if 'pulse' in rooms else PROJECT_AGENT if 'projet' in rooms else 'contacts')
+    base=entries.get(source)
+    if not isinstance(base,dict): fail('room_profile_unavailable',503)
+    tools=base.get('tools') or {}
+    denied=set(tools.get('deny') or [])
+    # Capabilities are executed before the model by the room boundary. The profile itself remains closed.
+    if 'clawmobile_capability' not in denied or 'exec' not in denied: fail('room_agent_tools_not_closed',503)
+    entry=copy.deepcopy(base)
+    entry.update(name=agent,agentDir=str(HOME/'.openclaw'/'agents'/agent/'agent'),
+                 identity={'emoji':'✨','name':'Samantha','theme':"Amine's contacts — "+', '.join(r for r in rooms if r!='conversation')})
+    entries[agent]=entry
 
 def route_rooms(cfg, number, rooms, identity):
     """One concrete-peer binding per contact with rooms; plain conversation needs none (wildcard → contacts)."""
@@ -568,6 +592,7 @@ def route_rooms(cfg, number, rooms, identity):
     agent=room_agent(rooms)
     if agent:
         entries=(cfg.get('agents') or {}).get('entries') or {}
+        if CAPABILITY_ROOMS.intersection(rooms): ensure_room_profile(cfg,agent,rooms);entries=(cfg.get('agents') or {}).get('entries') or {}
         if agent==PROJECT_AGENT and PROJECT_AGENT not in entries: fail('project_room_unavailable',503)
         if agent in PULSE_AGENTS.values() and agent not in entries: fail('pulse_room_unavailable',503)
         entry={'agentId':agent,'comment':ROOM_TAG+identity,'match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':number}}}
@@ -926,6 +951,65 @@ class Contacts:
         if result.returncode==0: return 'accepted'
         if result.returncode in (64,66): return 'failed_before_effect'
         return 'indeterminate'
+    def contact_tool_receipt(self, action, body):
+        """Two narrow contact tools, persisted in the existing R17 receipt store.
+
+        The caller identity is supplied by the trusted OpenClaw turn context, never
+        by model arguments. A reserved/uncertain operation is not replayed: this is
+        the same at-most-once rule as outbound WhatsApp delivery.
+        """
+        if not isinstance(body,dict) or set(body)!={'operationId','e164','text'}: fail('invalid_request')
+        operation=body.get('operationId');number=body.get('e164');text=body.get('text')
+        if not isinstance(operation,str) or not CONTACT_TOOL_OP.fullmatch(operation): fail('invalid_request')
+        if not isinstance(number,str) or not E164.fullmatch(number): fail('invalid_request')
+        safe_text(text,2000,False)
+        identity=contact_id(number);config=self.local_config();owners=self.owners(config)
+        allow,_=self.people.whatsapp_state(config)
+        if number in owners or number not in allow: fail('contact_tool_not_allowed',403)
+        row=self.find(identity)
+        if row.get('e164')!=number: fail('contact_tool_not_allowed',403)
+        key='contact-tool:'+digest(operation);wanted=digest(canonical({'action':action,'contactId':identity,'text':text}))
+        c=self.people.connect();c.execute('BEGIN IMMEDIATE')
+        old=c.execute('SELECT target,message_sha256,state,message_id FROM send_receipts WHERE idempotency_key=?',(key,)).fetchone()
+        if old:
+            c.commit();c.close()
+            if old['target']!=identity or old['message_sha256']!=wanted: fail('operation_conflict',409)
+            try:return json.loads(old['message_id'])
+            except (TypeError,ValueError): fail('contact_tool_indeterminate',503)
+        now=int(self.clock());pending={'success':False,'state':'indeterminate','receipt':None}
+        c.execute('INSERT INTO send_receipts VALUES(?,?,?,\'pending\',?,?,?)',(key,identity,wanted,canonical(pending),now,now))
+        c.execute("""DELETE FROM send_receipts WHERE idempotency_key LIKE 'contact-tool:%' AND rowid NOT IN
+                     (SELECT rowid FROM send_receipts WHERE idempotency_key LIKE 'contact-tool:%'
+                      ORDER BY updated_at DESC,rowid DESC LIMIT ?)""",(CONTACT_TOOL_RECEIPTS,))
+        c.commit();c.close()
+        try:
+            if action=='noter_contact':
+                metadata=self.metadata(number)
+                if metadata is None: fail('contact_state_invalid',503)
+                self.write_context(number,metadata,note=text)
+                delivery=None
+            elif action=='transmettre_a_amine':
+                inbox=Path(os.environ.get('SAMANTHA_AMINE_INBOX',self.people.WORKSPACE/'memory'/'amine-inbox.md'))
+                try: real=inbox.resolve(strict=True)
+                except (OSError,RuntimeError): fail('contact_inbox_unavailable',503)
+                if not real.is_file() or real.is_symlink() or real.stat().st_size>INBOX_LIMIT: fail('contact_inbox_unavailable',503)
+                entry=(f"\n- {utc(self.clock())} — Message transmis\n"
+                       f"  - Sender: {identity}\n  - Message: {json.dumps(text,ensure_ascii=False)}\n")
+                if real.stat().st_size+len(entry.encode())>INBOX_LIMIT: fail('contact_inbox_full',503)
+                fd=os.open(real,os.O_WRONLY|os.O_APPEND|os.O_NOFOLLOW)
+                try:
+                    with os.fdopen(fd,'a',encoding='utf-8') as file:file.write(entry);file.flush();os.fsync(file.fileno())
+                except Exception: raise
+                delivery=self.owner_sender('Nouveau message transmis par '+identity+'.','contact-tool-k2:'+digest(operation))
+                if delivery not in ('accepted','failed_before_effect','indeterminate'): delivery='indeterminate'
+            else: fail('invalid_action')
+            receipt={'version':1,'operationId':operation,'action':action,'contactId':identity,'state':'completed','at':utc(self.clock())}
+            if delivery is not None:receipt['ownerMessage']={'state':delivery}
+            result={'success':True,'state':'completed','receipt':receipt}
+        except Refused: raise
+        except Exception: fail('contact_tool_indeterminate',503)
+        c=self.people.connect();c.execute('UPDATE send_receipts SET state=?,message_id=?,updated_at=? WHERE idempotency_key=?',('completed',canonical(result),int(self.clock()),key));c.commit();c.close()
+        return result
     def deliver_owner_change(self):
         if not self.people.DB.exists(): return {'state':'idle'}
         # A single atomic claim per existing 60s sweep. An uncertain send is
@@ -1038,7 +1122,8 @@ class Contacts:
         except Exception:
             return self.legacy_patch(before,after)
         current=snap.get('config')
-        if not isinstance(current,dict) or self.people.whatsapp_state(current)!=self.people.whatsapp_state(before) or self.owners(current)!=self.owners(before) or current.get('bindings')!=before.get('bindings'): fail('config_changed',409)
+        before_agents=(before.get('agents') or {}).get('entries') or {};current_agents=((current.get('agents') or {}).get('entries') or {}) if isinstance(current,dict) else {}
+        if not isinstance(current,dict) or self.people.whatsapp_state(current)!=self.people.whatsapp_state(before) or self.owners(current)!=self.owners(before) or current.get('bindings')!=before.get('bindings') or current_agents!=before_agents: fail('config_changed',409)
         a,d=self.people.whatsapp_state(after); olda,oldd=self.people.whatsapp_state(before)
         patch={'channels':{'whatsapp':{}}}; replacements=[]
         if a!=olda: patch['channels']['whatsapp']['allowFrom']=a;replacements.append('channels.whatsapp.allowFrom')
@@ -1046,13 +1131,18 @@ class Contacts:
             # Replace exact direct map under CAS: JSON merge cannot remove a property safely.
             patch['channels']['whatsapp']['direct']=d;replacements.append('channels.whatsapp.direct')
         if after.get('bindings')!=before.get('bindings'): patch['bindings']=after.get('bindings') or [];replacements.append('bindings')
+        after_agents=(after.get('agents') or {}).get('entries') or {}
+        if after_agents!=before_agents:
+            added={key:value for key,value in after_agents.items() if key not in before_agents}
+            if not added or any(key not in after_agents or after_agents[key]!=value for key,value in before_agents.items()): fail('config_changed',409)
+            patch['agents']={'entries':added}
         params={'raw':canonical(patch),'baseHash':snap.get('hash'),'replacePaths':replacements,'note':'whatsapp allowlist owner operation'}
         try: self.people.gateway_call('config.patch',params,timeout_ms=5000)
         except Exception: pass
         # One verification after success or uncertainty, never redispatch.
         try: verified=self.people.gateway_call('config.get',{},timeout_ms=5000).get('config')
         except Exception: return False
-        return isinstance(verified,dict) and self.people.whatsapp_state(verified)==self.people.whatsapp_state(after) and self.owners(verified)==self.owners(after) and verified.get('bindings')==after.get('bindings')
+        return isinstance(verified,dict) and self.people.whatsapp_state(verified)==self.people.whatsapp_state(after) and self.owners(verified)==self.owners(after) and verified.get('bindings')==after.get('bindings') and ((verified.get('agents') or {}).get('entries') or {})==after_agents
     def legacy_patch(self,before,after):
         olda,oldd=self.people.whatsapp_state(before);a,d=self.people.whatsapp_state(after)
         try:
@@ -1062,6 +1152,8 @@ class Contacts:
             if adding and d!=oldd: self.people.legacy_cfg_set('channels.whatsapp.direct',d,oldd,timeout=5)
             if a!=olda: self.people.legacy_cfg_set('channels.whatsapp.allowFrom',a,olda,timeout=5)
             if not adding and d!=oldd: self.people.legacy_cfg_set('channels.whatsapp.direct',d,oldd,timeout=5)
+            before_agents=(before.get('agents') or {}).get('entries') or {};after_agents=(after.get('agents') or {}).get('entries') or {}
+            if after_agents!=before_agents:self.people.legacy_cfg_set('agents.entries',after_agents,before_agents,timeout=5)
             if after.get('bindings')!=before.get('bindings'): self.people.legacy_cfg_set('bindings',after.get('bindings') or [],before.get('bindings') or [],timeout=5)
         except Exception: return False
         try: return self.local_config()==after
@@ -1428,7 +1520,7 @@ class Contacts:
     def call(self,action,body):
         if not isinstance(body,dict): fail('invalid_request')
         common={'operationId','requestHash','confirmationId','expectedAuthority','contactId'}
-        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'memory-compact':set(),'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms'}}
+        allowed={'list':set(),'get':{'contactId'},'operation':{'operationId','requestHash'},'history':{'limit','before'},'note-get':{'contactId'},'sweep':set(),'memory-compact':set(),'contact-tool':{'action','operationId','e164','text'},'preflight':{'action','body'},'prepare':{'action','body'},'add':common|{'e164','displayName','scope','scopeText','durationDays','notify'},'remove':common,'scope':common|{'scope','scopeText'},'suspend':common|{'state'},'reactivate':common|{'state'},'expiry':common|{'durationDays'},'note':common|{'text'},'rooms':common|{'rooms'}}
         if action not in allowed or set(body)-allowed[action]: fail('invalid_request')
         if action=='list': return {'success':True,'state':'partial' if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else 'ok','receipt':None,'items':self.rows(),'issues':['contact_scan_partial'] if self.people.CONTACTS.exists() and sum(1 for _ in self.people.CONTACTS.glob('wa_*.md'))>200 else []}
         if action=='get': return {'success':True,'state':'ok','receipt':None,'contact':self.find(body.get('contactId')),'historyCount':self.history_count(body.get('contactId'))}
@@ -1441,6 +1533,10 @@ class Contacts:
             changed=next((r['at'] for r in history if r['action']=='note_updated'),None)
             value=self.note(row['e164'])
             return {'success':True,'state':'partial' if len(value)>2000 else 'ok','receipt':None,'text':value[:2000],'truncated':len(value)>2000,'updatedAt':changed}
+        if action=='contact-tool':
+            target=body.pop('action',None)
+            if target not in ('transmettre_a_amine','noter_contact'): fail('invalid_action')
+            return self.contact_tool_receipt(target,body)
         if action=='memory-compact': return self.compact_contacts()
         if action in ('preflight','prepare'):
             target=body.get('action');request=body.get('body')

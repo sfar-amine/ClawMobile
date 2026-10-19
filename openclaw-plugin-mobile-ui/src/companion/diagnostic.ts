@@ -1,3 +1,4 @@
+import {receiptPresentationCounters} from "./receiptPresentation";
 import {execFile} from "child_process";
 import os from "os";
 import crypto from "crypto";
@@ -22,7 +23,7 @@ export function diagnosticRead(command:"logs"|"export",source?:string,parameters
     const data=typeof value.data==="string"?Buffer.from(value.data,"base64"):Buffer.alloc(0);
     if(value.mime!=="application/zip"||value.name!=="samantha-diagnostic.zip"||value.metadataOnly!==true||data.length!==value.bytes||data.length>131072||crypto.createHash("sha256").update(data).digest("hex")!==value.sha256)throw Error();
    }else if(!Array.isArray(value.items)||value.items.length>100||typeof value.available!=="boolean")throw Error();
-   resolve(value);
+   resolve({...value,presentationCounters:receiptPresentationCounters()});
   }catch{reject(nativeError("diagnostic_source_unavailable",503));}
  }));
 }

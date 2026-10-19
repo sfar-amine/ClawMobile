@@ -160,7 +160,7 @@ def idle_proof(now, oc=None, deadline_s=3.0):
         if lock.exists():
             fd = os.open(lock, os.O_RDONLY)
             try:
-                fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 fcntl.flock(fd, fcntl.LOCK_UN)
                 busy["deploy"] = 0
             except BlockingIOError:

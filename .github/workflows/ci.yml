@@ -1,11 +1,15 @@
 name: CI
 
+# La CI de référence est LOCALE (décision d'Amine, 17/10) : les étapes ci-dessous sont rejouées sur le tree
+# exact du head par samantha-core/tools/localci.py, et c'est ce fichier qui en est la source. localci.py ne lit
+# que la clé `jobs` et ignore entièrement ce bloc `on:`.
+# Les déclencheurs automatiques sont retirés parce que, depuis le 13/10/2026 14:41 UTC, aucune exécution
+# GitHub ne démarre : chaque job est refusé avant lancement (« The job was not started because recent account
+# payments have failed… »). Les exécutions produisaient donc un rouge trompeur à chaque poussée, sans jamais
+# exécuter une seule étape. Ne RIEN supprimer de ce fichier : le vider casserait la CI locale.
+# workflow_dispatch reste, pour une exécution manuelle si Actions redevient disponible.
 on:
-  push:
-    branches:
-      - runtime/samantha-companion-private
-  pull_request:
-    types: [opened, synchronize, reopened, edited, ready_for_review]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -24,6 +28,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Canonical off-device CI contract regression (K)
+        run: python3 ../tools/test_localci.py
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -36,6 +43,19 @@ jobs:
 
       - name: Build Termux runtime plugin
         run: npm run build
+
+      - name: F1 web budget matches the current capability owner
+        run: |
+          peer_sha=$(gh api repos/sfar-amine/samantha-ui-playbooks/git/ref/heads/main --jq .object.sha)
+          [[ "$peer_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "F1_PLAYBOOKS_OWNER_SHA=$peer_sha"
+          peer="$RUNNER_TEMP/f1-playbooks"
+          mkdir -p "$peer/skill_intelligence"
+          gh api "repos/sfar-amine/samantha-ui-playbooks/contents/skill_intelligence/public_web.py?ref=$peer_sha" --jq .content | base64 --decode > "$peer/skill_intelligence/public_web.py"
+          python3 ../installer/termux-lite/runtime_mode.py --check-runtime-parity "$GITHUB_WORKSPACE" "$peer"
+
+      - name: Test long Remote Bridge receipt response budget
+        run: node scripts/test-bridge-long.cjs
 
       - name: WhatsApp survives extended network outages without retry storms
         run: |
@@ -53,6 +73,10 @@ jobs:
       - name: Health manager never repairs the Companion during a deploy
         run: |
           python3 ../installer/termux-lite/test-runtime-mode.py
+          python3 ../installer/termux-lite/test-qa-restart-protection.py
+          node scripts/test-qa-runtime-repair-lease.cjs
+          node scripts/test-qa-deploy-gateway-restart.cjs
+          node scripts/test-gateway-maintenance-recovery.cjs
           python3 ../installer/termux-lite/test-health-deploy-lock.py
       - name: I5 bounded restart escalation, Tier0 rollback and notification dedupe
         run: python3 ../installer/termux-lite/test-health-restart-escalation.py
@@ -101,12 +125,18 @@ jobs:
       - name: Run immune I1/I2/I3/I8 contracts (deterministic recovery, handler gate, LKG hold, ingress root)
         run: |
           python3 ../installer/termux-lite/test-tier0-lkg-hold.py
+          python3 ../installer/termux-lite/test-tier0-distinct-health.py
           python3 ../installer/termux-lite/test-incident-orchestrator.py
           python3 ../installer/termux-lite/test-incident-deterministic-recovery.py
           python3 ../installer/termux-lite/test-incident-ingress.py
           python3 ../installer/termux-lite/test-companion-acceptance-settle.py
+          python3 ../installer/termux-lite/test-companion-acceptance-web-recipe.py
           python3 ../installer/termux-lite/test-companion-deploy-preflight.py
+          python3 ../installer/termux-lite/test-companion-deploy-root.py
+          python3 ../installer/termux-lite/test-qa-deploy-protection.py
           python3 ../installer/termux-lite/test-runtime-sync.py
+          python3 ../installer/termux-lite/test-runtime-foundations.py
+          node scripts/test-runtime-root.cjs
           python3 ../installer/termux-lite/test-companion-rollback-identity.py
           python3 ../installer/termux-lite/test-context-review-plan.py
       - name: Playbooks activation links ignored runtime dependencies
@@ -128,6 +158,14 @@ jobs:
       - name: Native OpenClaw provider fallback stays pinned to the free Gemini profile
         run: node scripts/test-native-provider-fallback.cjs
 
+      - name: Parallel Free Web run contract, MCP identity and voice readback (offline)
+        run: |
+          node scripts/test-run-web.cjs
+          node scripts/test-run-web-mcp.cjs
+          node scripts/test-run-web-voice.cjs
+          node scripts/test-run-web-agent.cjs
+          python3 ../installer/termux-lite/test-model-fast-path-web.py
+
       - name: Run trace induction tests
         run: npm run test:trace-induction
 
@@ -140,8 +178,10 @@ jobs:
       - name: Run history deletion contract
         run: node scripts/test-delete-run.cjs
 
-      - name: HS8 SDK export proof and memo transcript boundary (inactive)
+      - name: HS8 memo STT qualification receipt (S24 17/10), owner and transcript boundary
         run: node scripts/test-memo-stt-boundary.cjs && node scripts/test-memo-stt-owner.cjs && node scripts/test-memo-sdk-resolution.cjs && node scripts/test-memo-audio-duration.cjs
+      - name: HS8 acceptance line for the composer microphone (catalog inputs.voiceMemo)
+        run: python3 ../installer/termux-lite/test-companion-acceptance-memo.py
       - name: Run edit-and-replay contract (édition d'un message envoyé, audit sans suppression)
         run: node scripts/test-edit-replay.cjs
 
@@ -164,6 +204,7 @@ jobs:
         run: |
           python3 scripts/test-receipt-presentation-read.py
           node scripts/test-receipt-presentation.cjs
+          node scripts/test-typed-failure-presentation.cjs
           node scripts/test-n1-factual-failure.cjs
           node scripts/test-reason-class-conversation-cause.cjs
 
@@ -180,6 +221,7 @@ jobs:
           python3 scripts/test-composed-read-result.py
           node scripts/test-model-fast-path.cjs
           node scripts/test-pulse-room-fast-path.cjs
+          node scripts/test-contact-room-fast-path.cjs
 
       - name: Qualify Companion M1 contracts and telemetry offline
         run: |
@@ -189,6 +231,7 @@ jobs:
           node scripts/test-claw-live-warm-detach.cjs
           python3 scripts/test-voice-m1-corpus.py
           node scripts/test-voice-turn-protocol.cjs
+          node scripts/test-claw-live-token-failure.cjs
           node scripts/test-warm-v2-ownership.cjs
           node scripts/test-phone-datetime.cjs
           node scripts/test-claw-live-warm.cjs
@@ -197,6 +240,7 @@ jobs:
           python3 scripts/test-voice-latency-report.py
           TMPDIR=/tmp node scripts/test-claw-live.cjs
           node scripts/test-companion-runs.cjs
+          node scripts/test-run-diagnostics.cjs
 
       - name: Test attachment storage
         run: node scripts/test-attachment-storage.cjs
@@ -221,6 +265,8 @@ jobs:
           node scripts/test-maxit-quote-real-shape.cjs
       - name: Network mutation guard (Auto Wi-Fi lease, Wi-Fi watch, exact restore) — lot 11/10
         run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py
+      - name: Orange cellular Unix forward (private pathname, exact observation and cleanup)
+        run: python3 ../installer/termux-lite/test-android-network-mutation-guard.py LocalFilesystemForwardTests -v
       - name: Wi-Fi-off guard self-healing (detached restorer, bounded TTL, sweep, cellular default untouched) — incident 11/10 16:00
         run: |
           python3 ../installer/termux-lite/test-android-network-mutation-guard.py WifiRestorerTests DetachedRestorerProcessTest HealthManagerSweepContractTest CellularDefaultTests -v
@@ -243,6 +289,8 @@ jobs:
       - name: Run read-only diagnostic export contract
         run: node scripts/test-diagnostic.cjs
 
+      - name: Test persistent Gateway owner transport preparation
+        run: node scripts/test-persistent-gateway-transport.cjs && node scripts/test-gateway-entrypoint.cjs && node scripts/test-official-gateway-owner.cjs
       - name: Test automation SQLite revision latency and cache
         run: node scripts/test-control-automations-latency.cjs
 
@@ -287,6 +335,7 @@ jobs:
           node scripts/test-whatsapp-allowlist.cjs
           node scripts/test-whatsapp-allowlist-paired.cjs
           node scripts/test-whatsapp-rooms-paired.cjs
+          node scripts/test-whatsapp-contact-tools.cjs
 
       - name: Run skill detail and owner controls contract
         run: node scripts/test-skill-control.cjs
@@ -345,6 +394,8 @@ jobs:
           python3 ../installer/termux-lite/test-context-native-fixtures.py
           python3 ../installer/termux-lite/test-context-scale.py
           python3 ../installer/termux-lite/test-context-import.py
+      - name: Run M5 memory evaluation scorer (50 real questions, synthetic db)
+        run: python3 ../installer/termux-lite/test-memory-eval.py
       - name: Verify memory curator cron description reconciliation
         run: python3 ../installer/termux-lite/test-memory-curator-cron.py
       - name: Test health manager resource restart policy
@@ -352,6 +403,8 @@ jobs:
           python3 ../installer/termux-lite/test-health-resource-policy.py
           python3 ../installer/termux-lite/test-gateway-memory-guard.py
           python3 ../installer/termux-lite/test-owner-retention.py
+          python3 ../installer/termux-lite/test-claw-trace.py
+          python3 ../installer/termux-lite/test-runtime-start-command.py
           node scripts/test-remote-bridge-retention.cjs
       - name: MCP raw execution Continuum fence admission
         run: node scripts/test-mcp-raw-continuum.cjs
@@ -418,6 +471,17 @@ jobs:
       - name: H9 read-only UI smoke synthetic safety boundaries
         run: python3 ../installer/termux-lite/test-ui-smoke.py
 
+      - name: O1 canonical consultation guard evidence
+        run: |
+          python3 ../installer/termux-lite/test-android-network-mutation-guard.py
+          python3 ../installer/termux-lite/test-consultation-network-receipt.py
+          python3 ../installer/termux-lite/test-consultation-process-safety.py
+          python3 ../installer/termux-lite/test-consultation-total-bound.py
+          python3 ../installer/termux-lite/test-consultation-fastpath.py
+      - name: Orange 4G et Wi-Fi (décision 17/10) — garanties paiement du garde partagé
+        run: python3 ../installer/termux-lite/test-payment-guard-invariance.py
+      - name: Incident Orange vocal 15/10 — voix en direct, Wi-Fi jamais coupé (--keep-wifi)
+        run: python3 ../installer/termux-lite/test-consultation-voice-keep-wifi.py
       - name: O8 baseline model efficiency and Gemini client regression
         run: |
           python3 ../installer/termux-lite/test-model-efficiency.py
@@ -433,6 +497,7 @@ jobs:
       - name: O9 voice runs terminal state on the captured S24 runs and acceptance line
         run: |
           node scripts/test-voice-run-terminal-state.cjs
+          node scripts/test-voice-greeting-turn.cjs
           python3 ../installer/termux-lite/test-companion-acceptance-voice.py
 
       - name: O6 fast path waits for the guarded operator entry (60 s bound)
@@ -471,6 +536,9 @@ jobs:
         run: node scripts/test-payment-pattern-boundary.cjs
       - name: Check Context Guardian SQLite read-only owner
         run: python3 ../installer/termux-lite/test-context-guardian-sqlite.py
+
+      - name: Test R22 automation history and scheduler HTTP contracts
+        run: node scripts/test-automation-runs-preparation.cjs && node scripts/test-automation-runs-http.cjs
 
       - name: Reversible conversation archive and retained pagination contract
         run: node scripts/test-conversation-archive.cjs

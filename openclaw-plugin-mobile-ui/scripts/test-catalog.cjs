@@ -36,7 +36,8 @@ const actionsOf=v=>v.themes.flatMap(t=>t.groups.flatMap(g=>g.actions));
 // App contract (HomeCatalog.kt): no top-level availability/computation, voiceMemo object, usable = capability + request.
 function appAdmits(v){
   assert.equal(v.version,1);assert.equal(v.availability,undefined);assert.equal(v.computation,undefined);
-  assert.deepEqual(v.inputs.voiceMemo,{available:false,availability:'soon'});
+  // HS8 qualified by the 17/10 S24 receipt (memoSttBoundary): the composer microphone is announced.
+  assert.deepEqual(v.inputs.voiceMemo,{available:true,availability:'available'});
   for(const a of actionsOf(v)){if(a.available){assert.ok(a.capability&&a.request);assert.equal(a.availability,'available');}else{assert.equal(a.request,null);assert.ok(['soon','unavailable'].includes(a.availability));}}
   for(const t of v.themes)assert.equal(t.available,t.groups.some(g=>g.actions.some(a=>a.available)));
 }

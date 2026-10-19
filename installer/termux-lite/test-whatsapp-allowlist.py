@@ -8,6 +8,7 @@ import time
 import uuid
 import unittest
 from unittest.mock import patch
+import os
 
 MODULE=Path(__file__).with_name('people-trusted.py')
 spec=importlib.util.spec_from_file_location('r17_people',MODULE);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
@@ -31,6 +32,7 @@ class AllowlistTests(unittest.TestCase):
         if method=='config.patch':
             self.assertEqual(params['baseHash'],'HASH');raw=json.loads(params['raw']);fields=raw['channels']['whatsapp']
             self.cfg['channels']['whatsapp'].update(fields)
+            if 'agents' in raw:self.cfg.setdefault('agents',{}).setdefault('entries',{}).update(raw['agents']['entries'])
             if 'bindings' in raw:self.assertIn('bindings',params['replacePaths']);self.cfg['bindings']=raw['bindings']
             self.save();return {'config':copy.deepcopy(self.cfg)}
         raise AssertionError(method)
@@ -80,7 +82,8 @@ class AllowlistTests(unittest.TestCase):
         if confirm:self.confirmed(body,'rooms',text=','.join(m.normalize_rooms(rooms)))
         return self.service.call('rooms',body)
     def with_rooms_config(self):
-        self.cfg['agents']={'entries':{'main':{},'contacts':{},m.PROJECT_AGENT:{}}}
+        closed={'tools':{'allow':['transmettre_a_amine','noter_contact'],'deny':['exec','clawmobile_capability']},'workspace':'/contacts'}
+        self.cfg['agents']={'entries':{'main':{},'contacts':closed,m.PROJECT_AGENT:{**closed,'workspace':'/projet'}}}
         self.cfg['bindings']=[{'agentId':'main','match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':OWNER}}},
                               {'agentId':'contacts','match':{'channel':'whatsapp','accountId':'*','peer':{'kind':'direct','id':'*'}}},
                               {'agentId':'main','match':{'channel':'whatsapp','accountId':'*'}}];self.save()
@@ -103,12 +106,24 @@ class AllowlistTests(unittest.TestCase):
         self.assertNotIn(NEW,[b['match'].get('peer',{}).get('id') for b in self.cfg['bindings']])
     def test_unenforced_room_unknown_room_and_owner_are_refused_without_write(self):
         self.add();self.with_rooms_config();calls=len(self.calls)
-        for rooms,code in ((['agenda'],'room_not_available'),(['salon'],'invalid_rooms'),([],'invalid_rooms')):
+        for rooms,code in ((['taches'],'room_not_available'),(['salon'],'invalid_rooms'),([],'invalid_rooms')):
             with self.assertRaises(m.Refused) as e:self.rooms(rooms,'rooms-'+code+str(len(rooms)),confirm=False)
             self.assertEqual(e.exception.code,code)
         with self.assertRaises(m.Refused) as e:self.service.call('rooms',self.body('rooms',operationId='rooms-owner',contactId=m.contact_id(OWNER),rooms=['projet']))
         self.assertEqual(e.exception.code,'owner_contact_protected')
         self.assertFalse(any(method=='config.patch' for method,_ in self.calls[calls:]))
+    def test_capability_rooms_generate_one_closed_combination_profile(self):
+        self.add();self.with_rooms_config()
+        out=self.rooms(['agenda','actions','messages'],'rooms-capabilities')
+        self.assertEqual(out['receipt']['rooms'],['conversation','agenda','actions','messages'])
+        agent='contacts-agenda-actions-messages';entry=self.cfg['agents']['entries'][agent]
+        self.assertEqual(entry['workspace'],'/contacts');self.assertIn('clawmobile_capability',entry['tools']['deny'])
+        peer=[b for b in self.cfg['bindings'] if b['match'].get('peer',{}).get('id')==NEW]
+        self.assertEqual([b['agentId'] for b in peer],[agent])
+        # Narrowing removes the binding but keeps the inert profile for other contacts/reuse.
+        self.rooms(['conversation'],'rooms-capabilities-off',confirm=False)
+        self.assertFalse(any(b['match'].get('peer',{}).get('id')==NEW for b in self.cfg['bindings']))
+        self.assertIn(agent,self.cfg['agents']['entries'])
     def test_pulse_room_picks_its_agent_alone_or_with_projet(self):
         self.add();self.with_rooms_config()
         self.cfg['agents']['entries'].update({'contacts-pulse':{},'contacts-projet-pulse':{}});self.save()
@@ -146,6 +161,22 @@ class AllowlistTests(unittest.TestCase):
         remove=self.body('remove',contactId=identity);self.confirmed(remove,'remove');self.assertEqual(self.service.call('remove',remove)['state'],'removed')
         self.assertIn('Private note',self.service.context(NEW));self.assertNotIn(m.MARKER,self.service.context(NEW))
         again=self.body('remove',operationId='second-remove',contactId=identity);self.assertEqual(self.service.call('remove',again)['state'],'already_absent')
+    def test_narrow_contact_tools_bind_current_contact_and_are_idempotent(self):
+        self.add();inbox=self.root/'amine-inbox.md';inbox.write_text('# Inbox\n')
+        old=os.environ.get('SAMANTHA_AMINE_INBOX');os.environ['SAMANTHA_AMINE_INBOX']=str(inbox)
+        try:
+            transmit={'action':'transmettre_a_amine','operationId':'turn-1','e164':NEW,'text':'Rappelle-moi demain.'}
+            first=self.service.call('contact-tool',dict(transmit));second=self.service.call('contact-tool',dict(transmit))
+            self.assertEqual(first,second);self.assertEqual(inbox.read_text().count('Rappelle-moi demain.'),1)
+            self.assertEqual(first['receipt']['ownerMessage']['state'],'accepted')
+            note={'action':'noter_contact','operationId':'turn-2','e164':NEW,'text':'Préfère les réponses brèves.'}
+            self.assertTrue(self.service.call('contact-tool',dict(note))['success'])
+            self.assertEqual(self.service.note(NEW),'Préfère les réponses brèves.')
+            with self.assertRaises(m.Refused) as error:self.service.call('contact-tool',{**note,'operationId':'turn-3','e164':OWNER})
+            self.assertEqual(error.exception.code,'contact_tool_not_allowed')
+        finally:
+            if old is None:os.environ.pop('SAMANTHA_AMINE_INBOX',None)
+            else:os.environ['SAMANTHA_AMINE_INBOX']=old
     def test_uncertain_patch_no_fallback_or_retry(self):
         def gateway(method,params=None,timeout_ms=7000):
             if method=='config.patch':raise RuntimeError('sensitive owner output')

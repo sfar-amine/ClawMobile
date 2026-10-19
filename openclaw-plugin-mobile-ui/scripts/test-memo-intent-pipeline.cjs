@@ -1,11 +1,11 @@
 const admission=require('./lib/memo-admission-fixture.cjs');
 // HS8 offline owner contracts. Audio/transcripts/SDK outcomes below are synthetic,
-// never S24 qualification. Production MEMO_STT_QUALIFICATION remains refused.
+// never S24 qualification. Production MEMO_STT_QUALIFICATION comes from the 17/10 S24 receipt.
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),cp=require('node:child_process'),http=require('node:http');
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'hs8-pipeline-'));
 process.env.OPENCLAW_STATE_DIR=dir;
 const boundary=require('../dist/companion/memoSttBoundary');
-assert.equal(boundary.MEMO_STT_QUALIFICATION.success,false);
+assert.equal(boundary.MEMO_STT_QUALIFICATION.success,true);
 const owner=require('../dist/companion/memoSttOwner');
 let stt=0,checks=0,effects=0,gateway=0,resolveTranscript;
 owner.transcribeMemoAttachment=async()=>{stt++;return await new Promise(r=>resolveTranscript=r);};
@@ -28,7 +28,8 @@ const audio={id:'synthetic_audio',serverId:'synthetic_audio',mimeType:'audio/mp4
 const submit=(id,session='memo-test')=>api.submitIntent('',session,[audio],{clientRunId:id,authority:'owner',admission:admission.ticket(id,session)});
 const until=async(test)=>{for(let i=0;i<100;i++){if(await test())return;await new Promise(r=>setTimeout(r,5));}throw Error('owner did not settle');};
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));try{
- const refused=await submit('refused');assert.equal(refused.accepted,false);assert.equal(stt,0);assert.equal(checks,0);assert.equal(gateway,0);
+ const qualified=boundary.MEMO_STT_QUALIFICATION;boundary.MEMO_STT_QUALIFICATION=Object.freeze({success:false,state:'refused',receipt:null,error:'memo_stt_not_qualified'});
+ const refused=await submit('refused');boundary.MEMO_STT_QUALIFICATION=qualified;assert.equal(refused.accepted,false);assert.equal(stt,0);assert.equal(checks,0);assert.equal(gateway,0);
  // Offline seam replaces module exports only; no HTTP/config input can open the frozen product gate.
  boundary.MEMO_STT_QUALIFICATION={success:true};
  const started=performance.now();const [a,b]=await Promise.all([submit('same'),submit('same')]);

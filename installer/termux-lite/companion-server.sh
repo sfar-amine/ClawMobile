@@ -12,7 +12,10 @@ CLAWMOBILE_COMPANION_HOST="${CLAWMOBILE_COMPANION_HOST:-}"
 CLAWMOBILE_COMPANION_PORT="${CLAWMOBILE_COMPANION_PORT:-8765}"
 CLAWMOBILE_GATEWAY_HOST="${CLAWMOBILE_GATEWAY_HOST:-127.0.0.1}"
 CLAWMOBILE_GATEWAY_PORT="${CLAWMOBILE_GATEWAY_PORT:-${GATEWAY_PORT:-18789}}"
-CLAWMOBILE_RUNTIME_START_COMMAND="${CLAWMOBILE_RUNTIME_START_COMMAND:-$SCRIPT_DIR/gateway-start.sh}"
+CLAWMOBILE_RUNTIME_START_COMMAND="$(clawmobile_runtime_start_command "$SCRIPT_DIR")"
+# The deploy that starts the Companion exports its lock descriptor; the Companion outlives that deploy, so every
+# later bridge command inherited a dead SAMANTHA_DEPLOY_LOCK_FD=9 and Tier0 promote failed on EBADF (S24 18/10 01:25).
+unset SAMANTHA_DEPLOY_LOCK_FD
 CLAWMOBILE_RUNTIME_START_ARGS="${CLAWMOBILE_RUNTIME_START_ARGS:-}"
 SAMANTHA_CONTROL_CACHE="${SAMANTHA_CONTROL_CACHE:-1}"
 
@@ -46,4 +49,4 @@ echo "[lite] OpenClaw gateway target is ${CLAWMOBILE_GATEWAY_HOST}:${CLAWMOBILE_
 # cannot keep growing an archive forever. No extra daemon or periodic task.
 COMPANION_LOG_DIR="$HOME/.openclaw/health"
 mkdir -p "$COMPANION_LOG_DIR"
-node "$PLUGIN_DIR/dist/companion/server.js" 2>&1 | python3 "$SCRIPT_DIR/bounded-log.py" "$COMPANION_LOG_DIR/companion.stderr.log" --stream
+node "$PLUGIN_DIR/dist/companion/server.js" 2>&1 | python3 "$SCRIPT_DIR/bounded-log.py" "$COMPANION_LOG_DIR/companion.stderr.log" --stream --timestamp

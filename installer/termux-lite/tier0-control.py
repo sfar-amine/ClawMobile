@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/python3
 from __future__ import annotations
-import argparse,contextlib,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile,fcntl
+import argparse,contextlib,datetime as dt,hashlib,json,os,shutil,subprocess,tempfile,fcntl,sys
 from pathlib import Path
 import runtime_mode
 
@@ -129,7 +129,7 @@ def cmd_promote(a):
     # A release still in its LKG hold never becomes the rollback target; the confirmed LKG stays.
     if old and old!=target.resolve() and not (LKG.exists() and s.get('lkg_candidate')==old.name): link_atomic(LKG,old)
     link_atomic(CURRENT,target)
-    for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad','lkg_candidate','lkg_due_epoch'):
+    for key in ('soak_completed_at','rollback_reason','rolled_back_from','last_bad','lkg_candidate','lkg_due_epoch','soak_last_health_generated_at','soak_last_health_sample','soak_sample_log_unavailable'):
         s.pop(key,None)
     epoch=int(dt.datetime.now().timestamp())
     s.update({'current':a.release_id,'last_known_good':LKG.resolve().name if LKG.exists() else None,
@@ -218,8 +218,12 @@ def main():
     q=sp.add_parser('prune'); q.add_argument('--keep',type=int,default=5); q.add_argument('--apply',action='store_true')
     a=p.parse_args(); RELEASES.mkdir(parents=True,exist_ok=True); TIER0.mkdir(parents=True,exist_ok=True)
     guard=runtime_mode.deployment_guard() if a.cmd=='promote' else contextlib.nullcontext()
-    with guard:
-        with open(TIER0/'control.lock','a') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX)
-            return globals()['cmd_'+a.cmd.replace('-','_')](a)
+    try:
+        with guard:
+            with open(TIER0/'control.lock','a') as lock:
+                fcntl.flock(lock,fcntl.LOCK_EX)
+                return globals()['cmd_'+a.cmd.replace('-','_')](a)
+    except runtime_mode.DeploymentLockBusy as error:
+        print(json.dumps({'success':False,'state':'refused','reason':'deployment_lock_busy','detail':str(error)}),file=sys.stderr)
+        raise SystemExit(3)
 if __name__=='__main__': main()

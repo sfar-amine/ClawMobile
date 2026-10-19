@@ -1,4 +1,5 @@
-import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
+import {PUBLIC_WEB_BUDGET_MS, readRunWebResult, webResultText, webRunState, type RunWebResult} from "./runWeb";
+import {readReceiptPresentation,fallbackReceiptPresentation,fastPathFailurePresentation,hasFailurePhrase,publicReceiptMetadata,publicDecision,type ResponseLanguage} from "./receiptPresentation";
 import crypto from "crypto";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
 import {transcribeMemoAttachment} from "./memoSttOwner";
@@ -88,6 +89,11 @@ async function submitTextIntent(
 ): Promise<IntentSubmitResponse> {
   if (reservedMemoRunId && !currentMemoOwner(options.admission, options.clientRunId, sessionId))
     return notSubmitted(sessionId, options.clientRunId, "Une nouvelle validation du propriétaire est nécessaire.");
+  // W4: one Web budget per admitted turn, created by the host (never from the body or the model). The single value is
+  // PUBLIC_WEB_BUDGET_MS (search + one synthesis). S24 17/10 23:17 : ce plafond était resté à 12 s alors que le
+  // propriétaire Web était passé à 20 s ; il gagnait (min des deux) et chaque web.answer échouait sur
+  // web_deadline_exceeded, affiché « cause non établie ».
+  const webDeadlineEpochMs = Date.now() + PUBLIC_WEB_BUDGET_MS;
   const normalized = reservedMemoRunId ? text : text.trim();
   const visibleUserText = reservedMemoRunId ? text : (options.userText || normalized).trim();
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
@@ -146,6 +152,7 @@ async function submitTextIntent(
       conversationKey: `app:${normalizedSessionId}:${ownerAdmitted ? "owner" : "other"}`,
       eventRef: transportEventRef(clientRunId, reservedMemoRunId), text: normalized, caller,
       admittedAt: Date.now(), policy: { modelAllowed: true, deferHandoff: true }, timeoutSeconds: 75,
+      web: { sessionId: normalizedSessionId, deadlineEpochMs: webDeadlineEpochMs, voiceDelegation: options.voiceDelegation === true },
     };
     dialogue = await dialogueTurn(runModelFastPath, dialogueInput);
   }
@@ -157,7 +164,7 @@ async function submitTextIntent(
 
   if (dialogue?.outcome === "TECHNICAL_FAILURE" && dialogue.reasonCode === "coordinator_unavailable") {
     // N1: nothing was admitted by the coordinator; the turn is not submitted (retry-safe), with a readable cause.
-    const presentation=fastPathFailurePresentation({status:"error",reason:dialogue.source} as FastPathResult,'resolution');
+    const presentation=fastPathFailurePresentation({status:"error",reason:dialogue.source || dialogue.reasonCode} as FastPathResult,'resolution',dialogue.decision?.responseLanguage === 'en' ? 'en' : 'fr');
     return {...notSubmitted(normalizedSessionId,clientRunId,presentation.spoken),...publicReceiptMetadata(presentation)};
   }
   if (dialogue && dialogueInput && dialogue.handled) {
@@ -299,19 +306,34 @@ async function executeCapabilityFirst(
       await markSubmittedRunFailed(runId, "owner_admission_expired");
       return notSubmitted(sessionId, clientRunId, "owner_admission_expired");
     }
-    reply = await dialogueHandoff(runModelFastPath, input, first.pendingHandoff.goalRef);
+    // W4: the run id joins the host Web context of the hand-off (correlation only; the coordinator decides).
+    reply = await dialogueHandoff(runModelFastPath, input.web ? {...input, web: {...input.web, runId}} : input, first.pendingHandoff.goalRef);
   }
   const metadata = (reply.metadata || {}) as FastPathResult;
   let presentation = readReceiptPresentation(metadata);
   const provenance: FastPathResult["provenance"] = metadata.provenance;
-  const state: "done" | "failed" = isQuestionReply(reply) || isDoneReply(reply) ? "done" : "failed";
-  let message = String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
-  if (!presentation && state === "failed" && reply.outcome === "TECHNICAL_FAILURE") presentation = fastPathFailurePresentation({status: "error", reason: reply.source || reply.reasonCode} as FastPathResult, "execution");
-  const spoken = !reply.metadata && reply.reasonCode === "coordinator_unavailable" && presentation ? presentation.spoken : undefined;
-  presentation ||= fallbackReceiptPresentation(state === "failed");
-  if (spoken) message = spoken;
+  // W4: the closed `run.web` projection travels in the coordinator metadata; the visible text is rebuilt from the
+  // admitted claims/sources only (never a second, unverified synthesis).
+  const web: RunWebResult | undefined = readRunWebResult((metadata as any).web);
+  const state: "done" | "failed" = web && (isDoneReply(reply) || reply.outcome === "FAILED")
+    ? (isDoneReply(reply) ? webRunState(web) : "failed")
+    : isQuestionReply(reply) || isDoneReply(reply) ? "done" : "failed";
+  let message = web ? webResultText(web) : String(reply.text || (state === "done" ? "Claw completed the capability." : "Claw could not complete the known capability."));
+  const presentationLocale = reply.decision?.responseLanguage === 'en' ? 'en' : 'fr';
+  // Helper transport causes have a closed translation here; every other producer
+  // keeps its own sentence/question. A Web result already owns error + sources.
+  const failureCode = reply.outcome === "TECHNICAL_FAILURE" && reply.reasonCode === "coordinator_unavailable"
+    ? reply.source || reply.reasonCode : reply.reasonCode || web?.error?.code;
+  if (!presentation && state === "failed" && hasFailurePhrase(failureCode, presentationLocale)) {
+    presentation = fastPathFailurePresentation({status: "error", reasonCode: failureCode}, "execution", presentationLocale);
+    if (!web) message = presentation.spoken;
+  }
+  if (!presentation) {
+    presentation = fallbackReceiptPresentation(state === "failed", web ? undefined : reply.text);
+    if (state === "failed" && !web) message = presentation.spoken;
+  }
   const reasonClass=publicReasonClass((metadata as any).reasonClass ?? (metadata as any).reason_class);
-  await settleSubmittedRun(runId, state, message, {provenance, presentation, reasonClass});
+  await settleSubmittedRun(runId, state, message, {provenance, presentation, reasonClass, web});
   return {
     success: true,
     accepted: true,
@@ -325,6 +347,7 @@ async function executeCapabilityFirst(
     clientRunId,
     sessionId,
     state,
+    ...(web ? {web} : {}),
     result: state === "done" ? message : undefined,
     message,
     userText,
@@ -371,6 +394,7 @@ function responseFromExisting(
     clientRunId: status.clientRunId,
     sessionId: status.sessionId,
     state: status.state,
+    ...(status.web ? {web:status.web} : {}),
     result: status.result || message,
     message,
     userText,

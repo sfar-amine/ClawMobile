@@ -11,6 +11,7 @@ import sys
 import tempfile
 import json
 import re
+import datetime
 
 
 def rotate(path, max_bytes=1024*1024, keep=3):
@@ -46,6 +47,24 @@ def rotate(path, max_bytes=1024*1024, keep=3):
         finally:
             if os.path.exists(tmp):os.unlink(tmp)
     return True
+
+
+CORRELATION_KEYS = frozenset(("turnId", "runId", "clientRunId"))
+# Same maximum as runs.ts CLIENT_RUN_ID_RE; this stricter diagnostic projection excludes punctuation.
+CORRELATION_VALUE = re.compile(r"[A-Za-z0-9_-]{1,160}\Z")
+
+
+def correlation_prefix(values):
+    """Caller-owned opaque IDs only; never arbitrary metadata or message text."""
+    fields = {}
+    for item in values:
+        key, separator, value = item.partition("=")
+        if not separator or key not in CORRELATION_KEYS or key in fields or not CORRELATION_VALUE.fullmatch(value):
+            raise ValueError("invalid_log_correlation")
+        if value.lower().startswith(("sk-", "ghp_", "github_pat_", "bearer")):
+            raise ValueError("invalid_log_correlation")
+        fields[key] = value
+    return "".join(f"{key}={value} " for key, value in fields.items())
 
 
 def append_line(path, text, max_bytes=1024*1024, keep=3):
@@ -106,8 +125,18 @@ if __name__=='__main__':
     parser.add_argument('path');parser.add_argument('--max-bytes',type=int,default=1024*1024)
     parser.add_argument('--keep',type=int,default=3);parser.add_argument('--append')
     parser.add_argument('--stream',action='store_true')
+    # F3 (doc 62): a stream line without a clock cannot be correlated with the app, the relay or the health owner.
+    parser.add_argument('--timestamp',action='store_true',help='prefix each streamed line with the local ISO time')
+    parser.add_argument('--correlation',action='append',default=[],metavar='KEY=ID',
+                        help='opaque turnId, runId or clientRunId; repeat for multiple keys')
     parser.add_argument('--deployment-logs',action='store_true')
     args=parser.parse_args()
+    try:
+        correlation=correlation_prefix(args.correlation)
+    except ValueError:
+        parser.error('invalid_log_correlation')
+    if correlation and not (args.stream or args.append is not None):
+        parser.error('correlation_requires_writer')
     if args.max_bytes<1 or not 1<=args.keep<=10:
         parser.error('invalid_log_retention')
     if args.deployment_logs:
@@ -119,12 +148,28 @@ if __name__=='__main__':
             parser.error('append_and_stream_conflict')
         # One sink per existing owner process, never a daemon or scheduler.
         # Bounded reads also handle a producer with no newline.
+        at_line_start=True
         while True:
             data=sys.stdin.buffer.readline(min(65536,args.max_bytes))
             if not data:
                 break
-            append_bytes(args.path,data,args.max_bytes,args.keep)
+            ended_line=data.endswith(b'\n')
+            if at_line_start:
+                prefix=correlation
+                if args.timestamp:
+                    stamp=datetime.datetime.now().astimezone().isoformat(timespec='milliseconds')
+                    prefix=stamp+' '+prefix
+                if prefix:
+                    # Keep the producer bytes, even when a prefix crosses a rotation boundary.
+                    combined=prefix.encode('ascii')+data
+                    for offset in range(0,len(combined),args.max_bytes):
+                        append_bytes(args.path,combined[offset:offset+args.max_bytes],args.max_bytes,args.keep)
+                else:
+                    append_bytes(args.path,data,args.max_bytes,args.keep)
+            else:
+                append_bytes(args.path,data,args.max_bytes,args.keep)
+            at_line_start=ended_line
     elif args.append is None:
         rotate(args.path,args.max_bytes,args.keep)
     else:
-        append_line(args.path,args.append,args.max_bytes,args.keep)
+        append_line(args.path,correlation+args.append,args.max_bytes,args.keep)

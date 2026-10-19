@@ -1,0 +1,27 @@
+{
+  "source": "S24 (samsung e3q, Android 16), 17/10/2026 13:16-13:19 UTC, after the 13:04 UTC install of APK 5c80dd3a and core 8f739885",
+  "provenance": {
+    "logcat": "adb -s 127.0.0.1:5556 logcat -d -b main -v time | grep SamanthaVoice (device local time UTC+1, pids of ai.samantha.android.dev)",
+    "companion": "curl POST /v1/extensions/claw-live/prewarm and a WebSocket probe of /v1/extensions/claw-live/socket on the S24 Companion (pid 4678, release 20261017T135303-d3beb769)",
+    "replay": "dist/companion/runs.js saveVoiceTurn() of runtime 8f739885, run on the S24 against a COPY of ~/.openclaw/clawmobile-companion/runs.json (OPENCLAW_STATE_DIR in ~/.openclaw/tmp); the live registry was not written"
+  },
+  "logcat": [
+    "10-17 14:16:28.330 I/SamanthaVoice(31819): voice_start",
+    "10-17 14:16:28.633 W/SamanthaVoice(31819): warm_start_failure:runtime_http_400",
+    "10-17 14:17:12.325 I/SamanthaVoice(31819): voice_start",
+    "10-17 14:17:12.656 W/SamanthaVoice(31819): warm_start_failure:runtime_http_400",
+    "10-17 14:17:50.990 I/SamanthaVoice(18584): voice_start",
+    "10-17 14:17:51.362 W/SamanthaVoice(18584): warm_start_failure:runtime_http_400",
+    "10-17 14:19:05.972 I/SamanthaVoice(18584): voice_start",
+    "10-17 14:19:06.261 W/SamanthaVoice(18584): warm_start_failure:runtime_http_400"
+  ],
+  "companion": {
+    "prewarm": {"state": "warm", "stage": "ready", "providerReady": true, "protocolVersion": 2, "lastError": null},
+    "socket_protocol_2": {"warmReady": {"state": "warm", "protocolVersion": 2, "historyRequired": true}, "close": 1000}
+  },
+  "replay": [
+    {"runId_shape": "voice-greeting-<uuid>", "input_chars": 0, "state": "partial", "playback": "valid v1 metadata", "status": 400, "error": "invalid_voice_transcript"},
+    {"runId_shape": "voice-<uuid>", "input_chars": 19, "state": "partial", "playback": "valid v1 metadata", "status": 200}
+  ],
+  "reading": "runtime_http_400 without ':reason' is RuntimeHttpException from CompanionApi.json(), the only json() call in the voice prepare step is saveVoice (POST /v1/sessions/{id}/voice-turns) in RuntimeSession.flushVoice(); the queue keeps a refused item and retries it before every voice start. The Live session itself opens (warmReady) on the server."
+}

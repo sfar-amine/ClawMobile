@@ -1,3 +1,4 @@
+import {readRunWebResult, type RunWebResult} from "./runWeb";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
 import {runProgressSteps} from "./runProgress";
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ReceiptPresentation} from "./receiptPresentation";
@@ -20,6 +21,7 @@ import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSes
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment, ReplayLink } from "./types";
 
 type StoredRun = {
+  web?: RunWebResult;
   memo?: {attachmentId: string; ownerEpoch: string; phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number};
   presentation?: ReceiptPresentation;
   /** Derived on read from paymentRequests/ownerConfirmations (runPaymentPresentation.ts); stripped on write. */
@@ -66,6 +68,31 @@ const OWNER_TRANSPORTS = new Set<string>(["admin_admitted", "write_cli", "write_
 const REASON_CLASS_RE = /^[a-z][a-z0-9_]{0,95}$/;
 export function publicReasonClass(value: unknown): string | undefined {
   return typeof value === "string" && REASON_CLASS_RE.test(value) ? value : undefined;
+}
+
+/** F3: project only this owner's fixed diagnostic codes into the existing process output sink.
+ * bounded-log.py --timestamp owns the wall clock and rotation; no second logger or file owner.
+ * No Error/message, request, result, attachment path or arbitrary metadata may enter this projection.
+ */
+function runDiagnostic(
+  level: "warn" | "error",
+  code: "memo_attachment_cleanup_unavailable" | "invalid_run_deletion_receipts_ignored" | "submitted_run_failed",
+  run?: Pick<StoredRun, "runId" | "clientRunId" | "reasonClass">,
+  count?: number,
+) {
+  const fields: Record<string, string | number> = {};
+  for (const key of ["runId", "clientRunId"] as const) {
+    const value = run?.[key];
+    if (typeof value === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(value)
+        && !/^(?:sk-|ghp_|github_pat_|bearer)/i.test(value)) fields[key] = value;
+  }
+  const reasonClass = publicReasonClass(run?.reasonClass);
+  if (reasonClass) fields.reasonClass = reasonClass;
+  if (typeof count === "number" && Number.isSafeInteger(count) && count >= 0) fields.count = count;
+  // Fixed component, level, bounded correlation fields and code. Never interpolate free strings.
+  // A broken diagnostic sink cannot change the result of the existing registry mutation.
+  const suffix = Object.entries(fields).map(([key, value]) => key + "=" + value).join(" ");
+  try { console.log("component=runs level=" + level + " event=" + code + (suffix ? " " + suffix : "")); } catch {}
 }
 
 /** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */
@@ -372,7 +399,7 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
     // Release only this authorized dispatch's audio, under the same registry lock.
     const protectedPaths = new Set(registry.runs.filter(r => r.runId !== runId).flatMap(r => (r.attachments || []).map(a => a.serverPath || a.path || "")));
     try { removeAttachments((row.attachments || []).map(a => a.serverPath || a.path || ""), protectedPaths); }
-    catch { console.error("[memo] attachment cleanup unavailable"); }
+    catch { runDiagnostic("error", "memo_attachment_cleanup_unavailable", row); }
     return true;
   });
 }
@@ -412,9 +439,9 @@ export async function rememberSubmittedRun(
 
 export async function settleSubmittedRun(
   runId: string,
-  state: "done" | "failed",
+  state: "done" | "failed" | "unknown",
   result: string,
-  options: {provenance?: unknown; presentation?: unknown; reasonClass?: unknown} = {},
+  options: {provenance?: unknown; presentation?: unknown; reasonClass?: unknown; web?: unknown} = {},
 ) {
   const existing = submittedRuns.get(runId)
     || (await findStoredRun(runId).catch(() => null));
@@ -422,6 +449,7 @@ export async function settleSubmittedRun(
   const stored: StoredRun = {
     ...existing,
     provenance: capabilityProvenance(options.provenance) || existing.provenance,
+    web: readRunWebResult(options.web) || existing.web,
     reasonClass: publicReasonClass(options.reasonClass) || existing.reasonClass,
     state,
     presentation: readReceiptPresentation(options.presentation) || (existing.executionSource === "capability_first" ? fallbackReceiptPresentation(state === "failed") : existing.presentation),
@@ -430,7 +458,7 @@ export async function settleSubmittedRun(
       at: Date.now(), evidenceAt: Date.now(),
     } : existing.inactivityCorrectionReceipt,
     result: state === "done" ? result : undefined,
-    error: state === "failed" ? result : undefined,
+    error: state !== "done" ? result : undefined,
     updatedAt: Date.now(),
   };
   submittedRuns.set(runId, stored);
@@ -463,7 +491,9 @@ export async function markSubmittedRunFailed(runId: string, message: string) {
     updatedAt: Date.now(),
   };
   submittedRuns.set(runId, stored);
-  await saveStoredRun(stored).catch(() => undefined);
+  await saveStoredRun(stored).then(() => {
+    if (submittedRuns.has(runId)) runDiagnostic("error", "submitted_run_failed", stored);
+  }).catch(() => undefined);
 }
 
 /** Local retained-history archive owner. No Gateway transcript deletion. */
@@ -586,7 +616,7 @@ function parseRunDeletions(value: unknown): RunDeletionReceipt[] {
     }
     operations.add(row.operationId); valid.push(row);
   }
-  if (invalid) console.warn("companion: invalid_run_deletion_receipts_ignored count=" + invalid);
+  if (invalid) runDiagnostic("warn", "invalid_run_deletion_receipts_ignored", undefined, invalid);
   return retainedRunDeletions(valid);
 }
 
@@ -638,7 +668,8 @@ export async function listRunSummaries(options: { limit?: number } = {}): Promis
 
 // F4: the Notifications screen reads this summary list; `result` is kept verbatim.
 function withNotification(status: CompanionRunStatus): CompanionRunStatus {
-  return { ...status, notification: structuredNotification(status.result, status.userText) };
+  const {web: _detail, ...summary} = status;
+  return { ...summary, notification: structuredNotification(status.result, status.userText) };
 }
 
 const LIST_LIVE_REFRESH_MAX=3;
@@ -1037,15 +1068,17 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
   const failed = stored.state === "failed" || interruptedMemo;
   const expired = stored.error === "run_inactivity_expired";
   const done = stored.state === "done";
+  const unknown = stored.state === "unknown";
   const message = stored.memo?.phase === "ready" && !failed ? "Mémo transcrit, prêt à poursuivre." : stored.memo?.phase === "transcription_pending" && !failed ? "Transcription en attente, nouvel essai automatique." : interruptedMemo ? "Prise en charge du mémo interrompue ; aucune relance automatique." : failed
     ? expired ? "Run expired after verified inactivity. A later result can still correct this status." : stored.error || "OpenClaw did not accept this run."
-    : done
+    : unknown ? stored.error || "Le résultat de la recherche reste à vérifier ; aucune relance automatique." : done
       ? stored.result || "OpenClaw completed this run."
       : stored.memo && stored.memo.phase !== "dispatched" ? "Transcription du mémo en cours."
         : "OpenClaw is still working on this run.";
   return {
     success: !failed,
     provenance: capabilityProvenance(stored.provenance),
+    web: readRunWebResult(stored.web),
     memoTranscription: stored.memo ? {phase: stored.memo.phase, attempts: stored.memo.attempts,
       nextAttemptAt: stored.memo.nextAttemptAt, retryAllowed: stored.error === MEMO_TERMINAL_ERROR} : undefined,
     status: stored.memo && stored.memo.phase !== "dispatched" && !failed ? stored.memo.phase === "ready" ? "memo_ready_to_continue" : stored.memo.phase === "transcription_pending" ? "transcription_pending" : "transcribing"
@@ -1059,7 +1092,7 @@ function statusFromStoredRun(stored: StoredRun): CompanionRunStatus {
     ...(stored.ownerAdmitted ? {ownerAdmitted: true} : {}),
     ...(stored.ownerTransport ? {ownerTransport: stored.ownerTransport} : {}),
     ...(stored.reasonClass ? {reasonClass: stored.reasonClass} : {}),
-    state: failed ? "failed" : stored.state === "done" ? "done" : "running",
+    state: failed ? "failed" : unknown ? "unknown" : stored.state === "done" ? "done" : "running",
     message,
     progress: {
       text: failed ? expired ? "Expired after verified inactivity." : "OpenClaw submit failed." : done ? "Completed." : "Working...",
@@ -2072,6 +2105,7 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
       presentation: readReceiptPresentation(run.presentation),
       provenance: capabilityProvenance(run.provenance),
+      web: readRunWebResult(run.web),
       runId: run.runId,
       clientRunId: typeof run.clientRunId === "string" && CLIENT_RUN_ID_RE.test(run.clientRunId) ? run.clientRunId : undefined,
       memo: run.memo && /^[A-Za-z0-9_-]{1,100}$/.test(run.memo.attachmentId || "") &&
@@ -2151,11 +2185,15 @@ function requireConversationId(value: string) {
 }
 
 /** Transcript upsert only. Never executes an intent or accepts audio. Uses the existing runs registry. */
+// Android v2 names Samantha's opening greeting `voice-greeting-<uuid>` (no user input, output only).
+// Refusing it left that turn in the app's pending queue and blocked every later voice start (17/10).
+export const VOICE_TURN_ID_RE = /^voice-(?:greeting-)?[a-f0-9-]{36}$/;
+
 export async function saveVoiceTurn(sessionId: string, value: any) {
   requireConversationId(sessionId);
   const allowed = new Set(["runId", "revision", "input", "output", "state", "playback"]);
   if (!value || Object.keys(value).some(key => !allowed.has(key)) ||
-      !/^voice-[a-f0-9-]{36}$/.test(value.runId || "") || !Number.isSafeInteger(value.revision) || value.revision < 1 ||
+      !VOICE_TURN_ID_RE.test(value.runId || "") || !Number.isSafeInteger(value.revision) || value.revision < 1 ||
       typeof value.input !== "string" || typeof value.output !== "string" ||
       value.input.length > 12000 || value.output.length > 24000 ||
       !["partial", "completed", "interrupted"].includes(value.state)) {

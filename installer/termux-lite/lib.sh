@@ -1,5 +1,22 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
+clawmobile_release_root() {
+  printf '%s\n' "$HOME/.openclaw/releases/current"
+}
+
+clawmobile_runtime_root() {
+  if [ -n "${CLAW_RUNTIME_ROOT:-}" ]; then
+    case "$CLAW_RUNTIME_ROOT" in
+      /*) printf '%s\n' "$CLAW_RUNTIME_ROOT" ;;
+      *) echo runtime_root_not_absolute >&2; return 2 ;;
+    esac
+  elif [ -n "${1:-}" ]; then
+    printf '%s\n' "$1"
+  else
+    printf '%s/termux-lite\n' "$(clawmobile_release_root)"
+  fi
+}
+
 clawmobile_lite_repo_root() {
   local script_dir
   if [ -n "${CLAWMOBILE_REPO_ROOT:-}" ] && [ -d "${CLAWMOBILE_REPO_ROOT}/openclaw-plugin-mobile-ui" ]; then
@@ -12,6 +29,21 @@ clawmobile_lite_repo_root() {
   fi
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "${script_dir}/../.." && pwd
+}
+
+# The gateway start command belongs to the root this script runs from. An inherited value naming another
+# termux-lite/gateway-start.sh is a previous instance's default carried through a supervisor's or the bridge's
+# environment, not an operator override: the S24 lost its gateway on 18/10 at 00:47 because that inherited path
+# pointed at a release the retention had just pruned. Keep a real override only while it is still executable.
+clawmobile_runtime_start_command() {
+  local own="$1/gateway-start.sh" inherited="${CLAWMOBILE_RUNTIME_START_COMMAND:-}"
+  case "$inherited" in
+    "" | "$own") printf '%s\n' "$own"; return 0 ;;
+    */termux-lite/gateway-start.sh) echo "[lite] runtime_start_command_inherited_ignored path=$inherited" >&2 ;;
+    *) if [ -x "$inherited" ]; then printf '%s\n' "$inherited"; return 0; fi
+       echo "[lite] runtime_start_command_missing path=$inherited" >&2 ;;
+  esac
+  printf '%s\n' "$own"
 }
 
 clawmobile_lite_env() {
