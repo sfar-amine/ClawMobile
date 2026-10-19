@@ -1,0 +1,11 @@
+{
+  "kind": "sanitized_S24_observation",
+  "source": "https://github.com/sfar-amine/samantha-ui-playbooks/pull/189#issuecomment-6249001878",
+  "observed_on": "2026-10-18",
+  "producer_sha": "6592da8ed400b819c21cd712a12f2ff7c177e41f",
+  "memory_revision": 3147,
+  "projection_version": 1,
+  "coverage_line": "> Coverage: constraint_index_complete; open_thread_index_complete",
+  "sanitized": true,
+  "excluded": "No HYBRID body, constraints, SOUL, AGENTS, private context or credentials."
+}

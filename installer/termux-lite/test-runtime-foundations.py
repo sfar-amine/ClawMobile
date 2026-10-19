@@ -21,11 +21,17 @@ class RuntimeFoundations(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.core = self.root/'core'; self.pb = self.root/'playbooks'
-        for rel in ('installer/termux-lite/model-fast-path.py', 'openclaw-plugin-mobile-ui/src/companion/runWeb.ts', 'openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json'):
+        for rel in ('installer/termux-lite/context_memory.py', 'installer/termux-lite/model-fast-path.py', 'openclaw-plugin-mobile-ui/src/companion/runWeb.ts', 'openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json'):
             dest = self.core/rel; dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(HERE.parent.parent/rel, dest)
         owner = self.pb/'skill_intelligence/public_web.py'; owner.parent.mkdir(parents=True)
         owner.write_text('BUDGET_MS = 30000\nSEARCH_BUDGET_MS = 12000\n')
+        reader=self.pb/'tools/request_context.py'; reader.parent.mkdir(parents=True)
+        # Static unit sandbox; real peer source is fetched at an exact SHA in CI.
+        import ast
+        values={item.targets[0].id:ast.literal_eval(item.value) for item in ast.parse((HERE/'context_memory.py').read_text()).body
+                if isinstance(item,ast.Assign) and isinstance(item.targets[0],ast.Name) and item.targets[0].id.startswith('COVERAGE_')}
+        reader.write_text(''.join(f'{key} = {value!r}\n' for key,value in values.items()))
         self.app = self.root/'app-contract.json'
         self.contract = self.core/'openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json'
         shutil.copy2(self.contract, self.app)
@@ -65,6 +71,41 @@ class RuntimeFoundations(unittest.TestCase):
         with (self.pb/'skill_intelligence/public_web.py').open('a') as f:
             f.write('raise RuntimeError("must never execute owner source")\n')
         self.assertEqual(mode.contract_drift(self.core, self.pb, self.app), [])
+
+    def test_context_owner_output_matches_sanitized_s24_marker_and_blocks_budget(self):
+        import sqlite3
+        spec=importlib.util.spec_from_file_location('actual_context_owner',HERE/'context_memory.py')
+        owner=importlib.util.module_from_spec(spec); spec.loader.exec_module(owner)
+        capture=json.loads((HERE.parent.parent/'openclaw-plugin-mobile-ui/fixtures/foundations/s24-context-coverage-20261018.json').read_text())
+        self.assertTrue(capture['sanitized'])
+        with sqlite3.connect(':memory:') as c:
+            c.execute('CREATE TABLE events(id TEXT,revision INTEGER,surface TEXT,kind TEXT,text TEXT,created_at TEXT,supersedes TEXT)')
+            body,meta=owner.build_view(c,4)
+            self.assertIn(capture['coverage_line'],body.splitlines())
+            self.assertIn('> Coverage: '+owner.COVERAGE_COMPLETE,body.splitlines())
+            self.assertTrue(meta['coverage_complete'])
+            blocked,meta=owner.build_view(c,4,foundation_bytes=5000,budget_bytes=4096)
+            self.assertIn('> Coverage: BLOCKED',blocked)
+            self.assertFalse(meta['coverage_complete'])
+
+    def test_context_owner_change_without_reader_change_fails_parity(self):
+        owner=self.core/'installer/termux-lite/context_memory.py'
+        owner.write_text(owner.read_text().replace('constraint_index_complete;', 'changed_constraint_index;'))
+        self.assertIn('context:coverage_index_contract',mode.contract_drift(self.core,self.pb))
+
+    def test_context_reader_missing_duplicate_or_legacy_drift_fails_parity(self):
+        reader=self.pb/'tools/request_context.py'; original=reader.read_text()
+        reader.write_text(original.replace('constraints_complete;', 'legacy_changed;'))
+        self.assertIn('context:coverage_legacy_contract',mode.contract_drift(self.core,self.pb))
+        reader.write_text(original+original)
+        self.assertIn('context:coverage_contract_unavailable',mode.contract_drift(self.core,self.pb))
+        reader.unlink()
+        self.assertIn('context:coverage_contract_unavailable',mode.contract_drift(self.core,self.pb))
+
+    def test_context_parity_never_executes_peer_source(self):
+        reader=self.pb/'tools/request_context.py'
+        reader.write_text(reader.read_text()+'raise AssertionError("must not execute reader")\n')
+        self.assertEqual(mode.contract_drift(self.core,self.pb),[])
 
     def test_companion_helpers_follow_promotions_but_tier0_shell_remains_pinned(self):
         home=self.root/'phone-home';releases=home/'.openclaw/releases'
