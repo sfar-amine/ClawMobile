@@ -92,7 +92,14 @@ fi
 # Before the Tier0 promotion: a restart inside the soak window reads as a health regression (S24 12/10, 17:31 —
 # release 5631a6aa rolled back to the 11/10 release after one bad sample).
 if [ "$plugin" = synced ] || [[ "$wa_patch" == *'"applied"'* ]]; then
-  curl -fsS -m 240 -X POST "$COMPANION/v1/runtime/restart" >/dev/null 2>&1 || fail gateway_restart_failed
+  if [ -n "${SAMANTHA_DEPLOY_LOCK_FD:-}" ]; then
+    # Companion cannot inherit our flock over HTTP. Run its SAME stop/start
+    # owner in this process tree, with the verified inherited EX description.
+    # The in-checkout Python owner is required before the Tier0 promotion.
+    timeout 240 node "$PLUGIN/dist/companion/openclawGatewayClient.js" --deploy-restart "$SRC/runtime_mode.py" >/dev/null 2>&1 || fail gateway_restart_failed
+  else
+    curl -fsS -m 240 -X POST "$COMPANION/v1/runtime/restart" >/dev/null 2>&1 || fail gateway_restart_failed
+  fi
   gateway=restarted
 fi
 

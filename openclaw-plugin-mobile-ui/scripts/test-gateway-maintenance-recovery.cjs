@@ -1,6 +1,41 @@
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+// Bounded wait that never outlives the test: a refused lease used to leave only
+// an unref'd timer, so Node exited 0 before any assertion ran.
+function within(promise, ms, label) {
+  let timer;
+  const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(label)), ms); });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
+// Same isolation as test-qa-runtime-repair-lease.cjs: temporary OPENCLAW_HOME
+// for the canonical lock, temporary homedir for Tier0's current link. The real
+// ~/.openclaw is never read or locked.
+const root = path.resolve(__dirname, "../../installer/termux-lite");
+const testHome = fs.mkdtempSync(path.join(os.tmpdir(), "samantha-runtime-lease-"));
+fs.mkdirSync(path.join(testHome, "deploys"));
+fs.writeFileSync(path.join(testHome, "deploys/companion-deploy.lock"), "", { mode: 0o600 });
+process.env.OPENCLAW_HOME = testHome;
+const originalHomeDir = os.homedir;
+os.homedir = () => testHome;
+const current = path.join(testHome, ".openclaw/releases/current/termux-lite");
+fs.mkdirSync(path.dirname(current), { recursive: true });
+fs.symlinkSync(root, current, "dir");
+let completed = false;
+process.on("exit", (code) => {
+  os.homedir = originalHomeDir;
+  fs.rmSync(testHome, { recursive: true, force: true });
+  if (code === 0 && !completed) {
+    console.error("gateway maintenance recovery test ended before all assertions ran");
+    process.exitCode = 1;
+  }
+});
 
 (async () => {
   const gateway = require("../dist/companion/openclawGatewayClient.js");
@@ -41,17 +76,23 @@ function assert(condition, message) {
 
   const down = { host: "127.0.0.1", port: 18789, reachable: false, message: "down" };
   const up = { host: "127.0.0.1", port: 18789, reachable: true, message: "up" };
+  let firstStarted;
+  const started = new Promise(resolve => { firstStarted = resolve; });
   let releaseFirst;
   let firstCalls = 0;
   const first = gateway.runSerializedRuntimeOperation(
     "restart",
     () => new Promise((resolve) => {
       firstCalls += 1;
+      firstStarted();
       releaseFirst = () => resolve({ success: true, state: "running", message: "done", gateway: up });
     }),
     async () => down,
   );
-  await new Promise((resolve) => setImmediate(resolve));
+  await within(Promise.race([
+    started,
+    first.then((result) => { throw new Error(`runtime mutation did not start: ${result.message}`); }),
+  ]), 4000, "lease did not start");
   let secondCalls = 0;
   const busy = await gateway.runSerializedRuntimeOperation(
     "start",
@@ -75,6 +116,27 @@ function assert(condition, message) {
     async () => down,
   );
   assert(after.success === true && secondCalls === 1, "runtime mutation lock must release after completion");
+
+  // The lease helper ships with this checkout: a Tier0 current link that is
+  // absent (not installed yet, or pruned) does not block a runtime mutation...
+  fs.unlinkSync(current);
+  const withoutCurrent = await gateway.runSerializedRuntimeOperation("restart", async () => (
+    { success: true, state: "running", message: "done", gateway: up }
+  ), async () => down);
+  assert(withoutCurrent.success === true, "absent current must not block the checkout lease helper");
+  fs.symlinkSync(root, current, "dir");
+  // ...while a checkout without its helper fails closed: the compiled module
+  // copied alone, with no installer/termux-lite next to it.
+  const orphanDist = path.join(testHome, "orphan-checkout/openclaw-plugin-mobile-ui/dist");
+  fs.cpSync(path.resolve(__dirname, "../dist"), orphanDist, { recursive: true });
+  const orphan = require(path.join(orphanDist, "companion/openclawGatewayClient.js"));
+  let unguarded = 0;
+  const unavailable = await orphan.runSerializedRuntimeOperation("restart", async () => {
+    unguarded += 1;
+    return { success: true, state: "running", message: "unexpected", gateway: up };
+  }, async () => down);
+  assert(unguarded === 0, "mutation must not execute without the lease helper");
+  assert(!unavailable.success && unavailable.message.includes("could not be verified"), "missing checkout helper must fail closed");
 
   let doctors = 0;
   let waits = 0;
@@ -125,6 +187,7 @@ function assert(condition, message) {
   assert(result.success === false, "persistent failure must fail closed");
   assert(doctors === 2, "caller cannot widen the two-attempt repair budget");
 
+  completed = true;
   console.log("gateway maintenance recovery test passed");
 })().catch((error) => {
   console.error(error);

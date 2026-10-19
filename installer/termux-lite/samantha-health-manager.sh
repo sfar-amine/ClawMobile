@@ -119,7 +119,80 @@ check_supervisor(){ n="$1"; pat="$2"; script="$3"; if proc "$pat" && supervisor_
 # A Companion deploy stops and restarts the server itself: never "repair" it meanwhile (S24 11/10: EADDRINUSE,
 # 15 concurrent repairs a day, each one cutting the Remote Bridge). The canonical mode also closes the race
 # between the outer loop and this repair boundary.
-check_http(){ n="$1"; url="$2"; pat="$3"; script="$4"; grace="${5:-10}"; stop_wait="${6:-20}"; if http "$url"; then healthy "$n"; return; fi; unstable "$n"; repair_mode=$(canonical_mode); if [ "$repair_mode" != normal ]; then [ "$repair_mode" = deployment ] && repair_mode=deploy_in_progress; log "service=$n state=${repair_mode:-canonical_mode_unknown} action=skip_repair"; return; fi; due "$n" || return; if proc "$pat"; then log "service=$n state=starting_or_unhealthy grace_s=$grace"; sleep "$grace" 9>&-; if http "$url"; then healthy "$n"; return; fi; fi; if [ "$n" = companion ] && ! companion_idle_proven; then log "service=$n state=idle_unproven action=skip_repair"; put "$n" next $(( $(now)+15 )); return; fi; restart_gate "$n" || return; log "service=$n action=repair"; if proc "$pat"; then pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt "$stop_wait" ]; do sleep 2 9>&-; waited=$((waited+2)); done; if proc "$pat"; then log "service=$n state=stop_timeout waited_s=$waited action=kill_stale"; pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 2 9>&-; if proc "$pat"; then fail "$n"; return; fi; fi; fi; start "$n" "$script"; sleep "$grace" 9>&-; http "$url" && healthy "$n" || fail "$n"; }
+# The helper owns EX on the existing deployment lock until this owner closes
+# stdin. Pipes are Bash coprocess descriptors (close-on-exec); repaired daemons
+# receive /dev/null as stdin and cannot retain the lease after owner death.
+with_repair_lease() (
+ local lease_pid lease_in lease_out lease_lock ack rc cause
+ # Preserve the helper's open file description in the repair owner as well:
+ # even a killed helper cannot drop EX during stop/start. The canonical owner
+ # safely creates a missing lock; it never replaces an existing inode.
+ local lock_path="${OPENCLAW_HOME:-$HOME/.openclaw}/deploys/companion-deploy.lock"
+ if ! python3 "$ROOT/runtime_mode.py" --ensure-deployment-lock 9>&- ||
+    [ ! -f "$lock_path" ] || [ -L "$lock_path" ] || ! exec {lease_lock}<>"$lock_path"; then
+  log "service=$2 state=runtime_protection_unavailable action=skip_repair"; return 75
+ fi
+ coproc REPAIR_LEASE { SAMANTHA_DEPLOY_LOCK_FD="$lease_lock" exec python3 "$ROOT/runtime_mode.py" --repair-lease 9>&-; }
+ lease_pid=$REPAIR_LEASE_PID; lease_in=${REPAIR_LEASE[1]}; lease_out=${REPAIR_LEASE[0]}
+ cleanup_repair_lease(){
+  exec {lease_in}>&-; exec {lease_out}<&-
+  kill "$lease_pid" 2>/dev/null || true
+  wait "$lease_pid" 2>/dev/null || true
+  exec {lease_lock}<&-
+ }
+ trap cleanup_repair_lease EXIT
+ if ! IFS= read -r -t 3 ack <&"$lease_out" || [ "$ack" != '{"version":1,"state":"acquired"}' ]; then
+  case "${ack:-}" in
+   '{"version":1,"state":"refused","cause":"lock_busy"}') cause=lock_busy;;
+   '{"version":1,"state":"refused","cause":"emergency_stop"}') cause=emergency_stop;;
+   *) cause=unavailable;;
+  esac
+  log "service=$2 state=runtime_protection_unavailable reason=$cause action=skip_repair"
+  return 75
+ fi
+ "$@"; rc=$?
+ return "$rc"
+)
+repair_http_under_lease(){
+ local n="$1" url="$2" pat="$3" script="$4" grace="$5" stop_wait="$6" waited=0
+ # The check and every stop/start remain under the same EX lease. A healthy
+ # service discovered here consumes no restart budget.
+ if http "$url"; then healthy "$n"; return; fi
+ restart_gate "$n" || return
+ log "service=$n action=repair"
+ if proc "$pat"; then
+  pkill -TERM -f "$pat" 9>&- 2>/dev/null || true
+  while proc "$pat" && [ "$waited" -lt "$stop_wait" ]; do sleep 2 9>&-; waited=$((waited+2)); done
+  if proc "$pat"; then
+   log "service=$n state=stop_timeout waited_s=$waited action=kill_stale"
+   pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 2 9>&-
+   if proc "$pat"; then fail "$n"; return; fi
+  fi
+ fi
+ ( exec {lease_lock}<&-; start "$n" "$script" ); sleep "$grace" 9>&-
+ http "$url" && healthy "$n" || fail "$n"
+}
+check_http(){
+ local n="$1" url="$2" pat="$3" script="$4" grace="${5:-10}" stop_wait="${6:-20}" repair_mode
+ if http "$url"; then healthy "$n"; return; fi
+ unstable "$n"; repair_mode=$(canonical_mode)
+ if [ "$repair_mode" != normal ]; then
+  [ "$repair_mode" = deployment ] && repair_mode=deploy_in_progress
+  log "service=$n state=${repair_mode:-canonical_mode_unknown} action=skip_repair"; return
+ fi
+ due "$n" || return
+ if proc "$pat"; then
+  log "service=$n state=starting_or_unhealthy grace_s=$grace"; sleep "$grace" 9>&-
+  if http "$url"; then healthy "$n"; return; fi
+ fi
+ # Idle proof is outside EX to avoid conflicting with our own lease. A campaign
+ # starting after this observation prevents the exclusive acquisition below.
+ if [ "$n" = companion ] && ! companion_idle_proven; then
+  log "service=$n state=idle_unproven action=skip_repair"; put "$n" next $(( $(now)+15 )); return
+ fi
+ with_repair_lease repair_http_under_lease "$n" "$url" "$pat" "$script" "$grace" "$stop_wait"
+}
+
 check_adb(){ if adb_ok; then prev=$(get adb status unknown); healthy adb; [ "$prev" = healthy ] || { "$ROOT/capability-recovered.py" device.adb 9>&- >/dev/null 2>&1 || true; "$ROOT/chat-continuity-restore.sh" 9>&- >/dev/null 2>&1 || true; }; return; fi; unstable adb; due adb || return; restart_gate adb || return; log 'service=adb action=fast_reconnect'; timeout 4 adb 9>&- connect 127.0.0.1:5556 >/dev/null 2>&1||true; sleep 1 9>&-; adb_ok && healthy adb || fail adb; }
 verdict_field(){ python3 - "$D/current.json" "$1" "$2" <<'PY'
 import json,sys

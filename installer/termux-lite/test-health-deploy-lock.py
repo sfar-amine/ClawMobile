@@ -12,7 +12,7 @@ MANAGER = ROOT / "samantha-health-manager.sh"
 
 
 class HealthDeployLockTests(unittest.TestCase):
-    def run_check(self, hold_lock: bool, idle_proven: bool = True) -> str:
+    def run_check(self, hold_lock: bool, idle_proven: bool = True, missing_lock: bool = False) -> str:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             deploys = home / ".openclaw/deploys"
@@ -21,6 +21,8 @@ class HealthDeployLockTests(unittest.TestCase):
             lock = lock_path.open("w")
             if hold_lock:
                 fcntl.flock(lock, fcntl.LOCK_EX)
+            if missing_lock:
+                lock.close(); lock_path.unlink()
             prefix = MANAGER.read_text().split("log 'event=start", 1)[0]
             probe = home / "probe.sh"
             # Server down, no process: without the lock the manager starts a repair (start is stubbed).
@@ -42,6 +44,11 @@ class HealthDeployLockTests(unittest.TestCase):
 
     def test_without_deploy_lock_repair_still_happens(self):
         out = self.run_check(hold_lock=False)
+        self.assertIn("action=repair", out)
+        self.assertIn("STARTED", out)
+
+    def test_missing_lock_is_created_and_does_not_disable_repair(self):
+        out = self.run_check(hold_lock=False, missing_lock=True)
         self.assertIn("action=repair", out)
         self.assertIn("STARTED", out)
 
