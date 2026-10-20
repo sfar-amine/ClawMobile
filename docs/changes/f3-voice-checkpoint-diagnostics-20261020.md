@@ -4,6 +4,6 @@ Le checkpoint vocal accepte un résumé C1 facultatif, fermé et borné. Le regi
 
 Provenance : horodatages S24 du 18/10 déjà rejoués dans le test `claw-trace`, projetés dans une nouvelle enveloppe explicitement contractuelle. Aucun accès écran, geste, installation ou reçu physique dans cette tranche.
 
-Validation disponible : 9/9 cas Python verts, dont confidentialité, rejet fermé et absence d'appel ADB. Compilation et test CJS ciblé, puis CI locale canonique exacte, restent à exécuter dans le créneau partagé ; la PR reste en brouillon.
+Validation disponible : 9/9 cas Python verts, dont confidentialité, rejet fermé et absence d'appel ADB ; compilation TypeScript réussie au commit `fa2ad419`. Le premier ciblé CJS a échoué parce que le scénario de corruption réutilisait le cache légitime du propriétaire. Le test corrigé impose une vraie relecture dans un nouveau processus et attend son rejeu. Les régressions suivantes et la CI canonique exacte restent à exécuter ; la PR reste en brouillon.
 
 Impact capability/architecture : aucun nouveau point d'entrée ni propriétaire. Les six primitives MCP gardent leurs schémas et adaptateurs ; `claw_exec` peut lire les mêmes reçus par le script existant. Aucun secret et aucun changement du parcours de paiement. Retour arrière par revert, sans migration.

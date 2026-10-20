@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
+const {spawnSync}=require('node:child_process');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'voice-checkpoint-diagnostics-'));
 process.env.OPENCLAW_STATE_DIR=root;
 const owner=require('../dist/companion/runs.js');
@@ -73,8 +74,12 @@ async function main(){
   assert.equal(fs.readFileSync(file,'utf8'),before);
   const data=JSON.parse(before);data.runs.find(r=>r.runId===runId).voiceDiagnostics.events[1].message='PRIVATE_TRACE_CONTENT';
   fs.writeFileSync(file,JSON.stringify(data));
-  const reread=(await owner.getConversationTurns(session)).find(r=>r.runId===runId);
-  assert.equal(reread.voiceDiagnostics,undefined);assert.equal(reread.result,'PRIVATE_RESULT');
+  // A new process reopens the persisted owner file instead of reusing the legitimate in-process registry cache.
+  const probe=`const owner=require(${JSON.stringify(path.resolve(__dirname,'../dist/companion/runs.js'))});`+
+   `owner.getConversationTurns(${JSON.stringify(session)}).then(rows=>{const row=rows.find(r=>r.runId===${JSON.stringify(runId)});`+
+   `console.log(JSON.stringify({diagnosticsAbsent:row.voiceDiagnostics===undefined,resultPreserved:row.result==='PRIVATE_RESULT'}));}).catch(()=>process.exit(1));`;
+  const reread=spawnSync(process.execPath,['-e',probe],{env:process.env,encoding:'utf8',timeout:5000});
+  assert.equal(reread.status,0,reread.stderr);assert.deepEqual(JSON.parse(reread.stdout),{diagnosticsAbsent:true,resultPreserved:true});
  });
  console.log(JSON.stringify({suite:'f3-voice-checkpoint-diagnostics',tests,source:'S24 18/10 event timestamps; new envelope explicitly projected',physicalRecipe:false}));
 }

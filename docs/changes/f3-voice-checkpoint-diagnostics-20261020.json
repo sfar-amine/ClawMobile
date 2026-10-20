@@ -25,6 +25,12 @@
       "status": "passed",
       "command": "python3 installer/termux-lite/test-claw-trace.py",
       "evidence": "9/9 cas verts en 0,575 s : chronologie, corrélations, projection fermée, données privées exclues, protocole cohérent et tour résumé sans aucun appel ADB."
+    },
+    {
+      "name": "TypeScript compilation",
+      "status": "passed",
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.json",
+      "evidence": "Compilation du code runtime au commit fa2ad419 réussie ; les modifications suivantes ne concernent que le test de relecture et sa documentation."
     }
   ],
   "documentation": [
@@ -41,7 +47,7 @@
   },
   "rollback": "Revert du lot runtime, sans migration des reçus ; les checkpoints sans diagnostic restent compatibles.",
   "limitations": [
-    "Compilation TypeScript et test CJS ciblé inscrits mais encore à exécuter dans le créneau partagé.",
+    "Premier ciblé CJS en échec sur son scénario de corruption : il réutilisait le cache légitime du propriétaire. Le test corrigé rouvre le fichier dans un nouveau processus et attend son rejeu ; les régressions suivantes n'ont pas été lancées.",
     "CI locale canonique sur le head exact et numéro de PR encore à exécuter ; la PR reste en brouillon.",
     "Contrepartie app et recette S24 non qualifiées dans cette tranche ; aucun faux tour sans transcription créé."
   ]
