@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "id": "f3-voice-checkpoint-diagnostics-20261020",
+  "origin": "work",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Conserver un résumé C1 vocal fermé dans le reçu existant et le lire par corrélation sans ADB.",
+  "reason": "Le fichier de trace app ne suffit pas au diagnostic d'un tour depuis le runtime ; F3 du document 63 demande ses codes et durées dans le checkpoint.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/claw-trace.py",
+    "installer/termux-lite/test-claw-trace.py",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/voice-turn-diagnostics-v1.json",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-checkpoint-diagnostics.cjs",
+    "docs/work/samantha-runtime/contracts/f3-voice-checkpoint-diagnostics-20261020.md",
+    "docs/changes/f3-voice-checkpoint-diagnostics-20261020.md",
+    "docs/changes/f3-voice-checkpoint-diagnostics-20261020.json"
+  ],
+  "tests": [
+    {
+      "name": "Claw trace owner and checkpoint diagnostics",
+      "status": "passed",
+      "command": "python3 installer/termux-lite/test-claw-trace.py",
+      "evidence": "9/9 cas verts en 0,575 s : chronologie, corrélations, projection fermée, données privées exclues, protocole cohérent et tour résumé sans aucun appel ADB."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/f3-voice-checkpoint-diagnostics-20261020.md",
+    "docs/changes/f3-voice-checkpoint-diagnostics-20261020.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Champ facultatif du checkpoint et reçu vocal existants, aucune route ni intention nouvelle."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même propriétaire runs et lecteur claw-trace, aucun store, logger, registre, routeur, ordonnanceur ou démon supplémentaire."
+  },
+  "rollback": "Revert du lot runtime, sans migration des reçus ; les checkpoints sans diagnostic restent compatibles.",
+  "limitations": [
+    "Compilation TypeScript et test CJS ciblé inscrits mais encore à exécuter dans le créneau partagé.",
+    "CI locale canonique sur le head exact et numéro de PR encore à exécuter ; la PR reste en brouillon.",
+    "Contrepartie app et recette S24 non qualifiées dans cette tranche ; aucun faux tour sans transcription créé."
+  ]
+}
