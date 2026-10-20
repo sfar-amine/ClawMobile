@@ -3,6 +3,7 @@ import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { performance } from "perf_hooks";
 import { capabilityBridge } from "./capabilityBridge";
 import { delegateMcpOwnerRequest } from "./mcpOwnerDelegate";
 import { memoryRemember } from "./memoryControl";
@@ -29,47 +30,81 @@ export function remoteBridgeHealth() {
 }
 export function remoteBridgeReceiptDirectory() { return REQUEST_DIR; }
 
+let remoteBridgeReadRetentionBusy = false;
+
 /** Existing receipt owner only. Proofs of mutations/unknown effects never expire.
- * Not wired until Claude qualifies the directory and replay guarantee on S24.
- * Caller invokes during an existing maintenance cycle, outside request latency.
+ * The existing startup maintenance may opt in only after Claude qualifies the directory and replay guarantee.
+ * Inventory must finish before any deletion; an exhausted pass never purges an unknown prefix.
  */
-export async function pruneRemoteBridgeReadReceipts(keep = 50000) {
+export async function pruneRemoteBridgeReadReceipts(keep = 50000, options: {budgetMs?: number; now?: () => number} = {}) {
   if (!Number.isSafeInteger(keep) || keep < 1 || keep > 100000) throw new Error("invalid_receipt_retention");
+  const budgetMs = options.budgetMs ?? 15000;
+  if (!Number.isSafeInteger(budgetMs) || budgetMs < 1 || budgetMs > 60000) throw new Error("invalid_receipt_retention_budget");
+  if (remoteBridgeReadRetentionBusy) return {removed: 0, preserved: 0, scanned: 0, state: "busy"};
+  remoteBridgeReadRetentionBusy = true;
   const candidates: { file: string; at: number; hash: string }[] = [];
-  let preserved = 0, removed = 0;
-  let entries: fs.Dirent[];
+  let preserved = 0, removed = 0, scanned = 0;
+  let reason: "budget_exceeded" | "inventory_limit" | "clock_invalid" = "budget_exceeded";
+  const clock = options.now ?? (() => performance.now());
+  let started: number, previous: number;
+  const withinBudget = () => {
+    try {
+      const current = clock();
+      if (typeof current !== "number" || !Number.isFinite(current) || current < previous) {
+        reason = "clock_invalid"; return false;
+      }
+      previous = current;
+      return current - started < budgetMs;
+    } catch { reason = "clock_invalid"; return false; }
+  };
+  const incomplete = (inventory: boolean) => ({removed, preserved: inventory ? scanned : preserved,
+    scanned, state: "partial", reason, ...(inventory ? {} : {retainedRead: Math.min(keep, candidates.length)})});
   try {
+    try { started = previous = clock(); }
+    catch { started = previous = NaN; }
+    if (!Number.isFinite(started)) { reason = "clock_invalid"; return incomplete(true); }
     if (!(await fs.promises.lstat(ROOT)).isDirectory() || !(await fs.promises.lstat(REQUEST_DIR)).isDirectory() ||
         await fs.promises.realpath(REQUEST_DIR) !== path.resolve(REQUEST_DIR)) {
       return { removed: 0, preserved: 0, state: "source_unavailable" };
     }
-    entries = await fs.promises.readdir(REQUEST_DIR, { withFileTypes: true });
+    const entries = await fs.promises.opendir(REQUEST_DIR);
+    const inventoryLimit = Math.max(100000, keep * 2);
+    for await (const entry of entries) {
+      if (scanned >= inventoryLimit) { reason = "inventory_limit"; return incomplete(true); }
+      if (!withinBudget()) return incomplete(true);
+      scanned++;
+      if (!entry.isFile() || !/^[A-Za-z0-9._:-]{1,128}\.json$/.test(entry.name)) { preserved++; continue; }
+      const file = path.join(REQUEST_DIR, entry.name);
+      try {
+        const stat = await fs.promises.lstat(file);
+        if (!stat.isFile() || stat.nlink !== 1 || stat.size > 1024 * 1024) { preserved++; continue; }
+        const raw = await fs.promises.readFile(file, "utf8"), row = JSON.parse(raw);
+        if (row.requestId + ".json" !== entry.name || row.mutationRisk !== "read" ||
+            !["completed", "failed"].includes(row.state) || row.continuumFence ||
+            !Number.isSafeInteger(row.completedAt) || row.completedAt <= 0 ||
+            typeof row.method !== "string" || mutationRisk(row.method) !== "read") { preserved++; continue; }
+        candidates.push({ file, at: row.completedAt, hash: sha256(raw) });
+      } catch { preserved++; }
+    }
+    if (!withinBudget()) return incomplete(true);
+    candidates.sort((a, b) => b.at - a.at || a.file.localeCompare(b.file));
+    for (const candidate of candidates.slice(keep)) {
+      if (!withinBudget()) return incomplete(false);
+      try {
+        // Preserve a changed receipt, including an operation now active/uncertain.
+        const stat = await fs.promises.lstat(candidate.file);
+        if (!stat.isFile() || stat.nlink !== 1 || sha256(await fs.promises.readFile(candidate.file)) !== candidate.hash) { preserved++; continue; }
+        if (!withinBudget()) return incomplete(false);
+        await fs.promises.unlink(candidate.file); removed++;
+      } catch { preserved++; }
+    }
+    return { removed, preserved, scanned, retainedRead: Math.min(keep, candidates.length), state: "applied" };
+  } catch (error: any) {
+    if (error?.code === "ENOENT") return { removed: 0, preserved: 0, state: "not_present" };
+    throw error;
+  } finally {
+    remoteBridgeReadRetentionBusy = false;
   }
-  catch (error: any) { if (error?.code === "ENOENT") return { removed: 0, preserved: 0, state: "not_present" }; throw error; }
-  for (const entry of entries) {
-    if (!entry.isFile() || !/^[A-Za-z0-9._:-]{1,128}\.json$/.test(entry.name)) { preserved++; continue; }
-    const file = path.join(REQUEST_DIR, entry.name);
-    try {
-      const stat = await fs.promises.lstat(file);
-      if (!stat.isFile() || stat.nlink !== 1 || stat.size > 1024 * 1024) { preserved++; continue; }
-      const raw = await fs.promises.readFile(file, "utf8"), row = JSON.parse(raw);
-      if (row.requestId + ".json" !== entry.name || row.mutationRisk !== "read" ||
-          !["completed", "failed"].includes(row.state) || row.continuumFence ||
-          !Number.isSafeInteger(row.completedAt) || row.completedAt <= 0 ||
-          typeof row.method !== "string" || mutationRisk(row.method) !== "read") { preserved++; continue; }
-      candidates.push({ file, at: row.completedAt, hash: sha256(raw) });
-    } catch { preserved++; }
-  }
-  candidates.sort((a, b) => b.at - a.at || a.file.localeCompare(b.file));
-  for (const candidate of candidates.slice(keep)) {
-    try {
-      // Preserve a changed receipt, including an operation now active/uncertain.
-      const stat = await fs.promises.lstat(candidate.file);
-      if (!stat.isFile() || stat.nlink !== 1 || sha256(await fs.promises.readFile(candidate.file)) !== candidate.hash) { preserved++; continue; }
-      await fs.promises.unlink(candidate.file); removed++;
-    } catch { preserved++; }
-  }
-  return { removed, preserved, retainedRead: Math.min(keep, candidates.length), state: "applied" };
 }
 
 export type ClawAccess = {client_id:string;profile:"chat-owner"|"chat-owner-shadow";owner:boolean;read_only:boolean};

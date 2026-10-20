@@ -47,7 +47,7 @@ import { turnAdmission, legacyLoopbackOwnerContextEnabled, publicAdmission } fro
 import {normalizeCompanionSessionId} from "./openclawAgentClient";
 import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
-import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
+import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, pruneRemoteBridgeReadReceipts, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
 import { dialogueConversationId } from "../dialogueSurface";
 import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
@@ -97,22 +97,36 @@ export function runSubmissionStatusCode(result: { success?: boolean; submissionS
 function serverDiagnostic(
   level: "info" | "warn" | "error",
   event: "attachment_maintenance_unavailable" | "server_listening" | "server_start_failed" | "server_shutdown"
-    | "remote_bridge_abandon_sweep" | "remote_bridge_abandon_sweep_unavailable",
-  metadata: {port?: unknown; errno?: unknown; state?: unknown; scanned?: unknown; abandoned?: unknown; uncertain?: unknown} = {},
+    | "remote_bridge_abandon_sweep" | "remote_bridge_abandon_sweep_unavailable"
+    | "remote_bridge_read_retention" | "remote_bridge_read_retention_unavailable",
+  metadata: {port?: unknown; errno?: unknown; state?: unknown; reason?: unknown; scanned?: unknown; abandoned?: unknown;
+    uncertain?: unknown; removed?: unknown; preserved?: unknown; retainedRead?: unknown} = {},
 ) {
   const fields: Record<string, string | number> = {};
-  for (const key of ["port", "scanned", "abandoned", "uncertain"] as const) {
+  for (const key of ["port", "scanned", "abandoned", "uncertain", "removed", "preserved", "retainedRead"] as const) {
     const value = metadata[key];
     if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0
         && (key !== "port" || value <= 65535)) fields[key] = value;
   }
-  if (metadata.state === "complete" || metadata.state === "partial") fields.state = metadata.state;
+  if (["complete", "partial", "applied", "not_present", "source_unavailable", "busy"].includes(String(metadata.state))) fields.state = String(metadata.state);
+  if (["budget_exceeded", "inventory_limit", "clock_invalid"].includes(String(metadata.reason))) fields.reason = String(metadata.reason);
   if (event === "server_start_failed" || metadata.errno !== undefined) {
     const codes = new Set(["EADDRINUSE", "EACCES", "EADDRNOTAVAIL", "ENOTFOUND", "EMFILE", "ENFILE", "ENOMEM", "ENOBUFS", "EPIPE", "ENOENT", "EINVAL", "EIO"]);
     fields.errno = typeof metadata.errno === "string" && codes.has(metadata.errno) ? metadata.errno : "unknown";
   }
   const suffix = Object.entries(fields).map(([key, value]) => key + "=" + value).join(" ");
   try { console.log("component=companion level=" + level + " event=" + event + (suffix ? " " + suffix : "")); } catch {}
+}
+
+/** One opt-in pass in the existing startup maintenance, after qualification by Claude. No request runs this. */
+async function maintainRemoteBridgeReadReceipts() {
+  if (process.env.CLAWMOBILE_REMOTE_BRIDGE_READ_RETENTION !== "1") return;
+  try {
+    const result = await pruneRemoteBridgeReadReceipts();
+    serverDiagnostic("info", "remote_bridge_read_retention", result);
+  } catch {
+    serverDiagnostic("warn", "remote_bridge_read_retention_unavailable");
+  }
 }
 
 export function startCompanionServer() {
@@ -189,6 +203,8 @@ export function startCompanionServer() {
     } catch (error: any) {
       serverDiagnostic("warn", "remote_bridge_abandon_sweep_unavailable", {errno: error?.code});
     }
+    // Qualification is deliberately separate from deployment: unset, 0 or any value other than exact 1 does nothing.
+    void maintainRemoteBridgeReadReceipts();
   }, Number(process.env.CLAWMOBILE_REMOTE_BRIDGE_ABANDON_SWEEP_DELAY_MS || 30_000)).unref();
 
   return server;
