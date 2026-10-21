@@ -58,3 +58,10 @@ Isolated branch + dependency only. Existing production untouched. NEXT: configur
 - Canonical MCP handler now accepts an internally supplied verified OAuth identity (not client-provided JSON), and reuses the same deterministic Capability Graph, receipts and read-only profile.
 - Added RFC 9728 discovery delegation gated on the same configuration. Existing `npm test` PASS, 6 legacy routing-policy tests PASS, resource and Google claim policy suites previously PASS; Worker dry-run PASS.
 - This is a branch-only candidate, not a production OAuth acceptance. Binding, Google secret placement, owner subject, consent E2E and ChatGPT approval are still outstanding. Nothing deployed.
+
+## 2026-10-21 auth Worker deployment
+- Fixed missing `WorkerEntrypoint` import from `cloudflare:workers`, caught by actual Cloudflare deploy validation (dry-run alone had missed it).
+- Dedicated OAuth authorization Worker deployed successfully as `claw-chatgpt-oauth`, Cloudflare version `ec9d5258-e5fa-4c40-b397-8fbec1471422`, with existing isolated KV namespace bound.
+- Live `/authorize` returns HTTP 503 intentionally because Google OAuth Web credentials and authorized owner subject have not yet been injected into this distinct Worker. Do not interpret this as completed OAuth login.
+- Relay Worker NOT deployed or modified in production. Wrangler config now specifies the eventual authenticated service binding but remains branch-only. All existing relay Node tests and 14 targeted policy checks pass.
+- Required for closing: configure auth Worker `GOOGLE_OAUTH_WEB_CLIENT_ID`, `GOOGLE_OAUTH_WEB_CLIENT_SECRET`, `GOOGLE_OWNER_SUBJECT`; relay `CHATGPT_OWNER_SUBJECT` aligned with Google identity; then deploy relay and run actual ChatGPT OAuth -> S24 MCP acceptance. Never copy protected production secrets into model output.

@@ -1,3 +1,4 @@
+import { WorkerEntrypoint } from "cloudflare:workers";
 import { OAuthAuthorizationServer, authorizationErrorRedirect } from '@cloudflare/workers-oauth-provider';
 import { verifyGoogleOwnerIdToken } from './google-verify.mjs';
 import { consentPage } from './consent.mjs';

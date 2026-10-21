@@ -1,5 +1,5 @@
 {
-  "name": "claw-chatgpt-oauth-staging-check",
+  "name": "claw-chatgpt-oauth",
   "main": "auth/index.mjs",
   "compatibility_date": "2026-10-21",
   "compatibility_flags": [
