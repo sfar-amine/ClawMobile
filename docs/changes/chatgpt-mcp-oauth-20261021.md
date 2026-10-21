@@ -38,3 +38,10 @@ Isolated branch + dependency only. Existing production untouched. NEXT: configur
 - `/authorize` deliberately rejects with HTTP 503 (`owner_identity_not_configured`) until independent owner identity and explicit consent are properly implemented. It cannot issue an access token as-is. No fake OAuth login or anonymous consent.
 - `wrangler.auth-check.jsonc` dry-run build passes; no KV namespace/binding configured, no live provider deployment, and no production change. This is NOT a working OAuth authorization flow.
 - Do not use Zero Trust setup or provide a payment card. Identity decision and OAuth consent implementation remain prerequisites.
+
+## Google OIDC OAuth authorization implementation (current branch)
+- Uses upstream Google OIDC in the existing Google Cloud project with OAuth authorization-code + PKCE S256, browser-bound upstream state from the Cloudflare library, and explicit browser consent.
+- Uses `jose` remote Google JWKS for RS256 cryptographic verification, verifies issuer, audience, expiration, nonce, email verification and one configured Google subject.
+- OAuth `mcp:read` only, with dedicated resource audience and subject-bound encrypted grant props. Errors deny access; no anonymous fallback.
+- Development checks: both isolated policy suites pass (8 and 6 cases), existing relay npm tests pass, separate authorization worker dry-run compile passes.
+- Production remains unchanged. NO real Google sign-in or token exchange has been exercised. Cloudflare Workers KV namespace is not configured; Google secrets are on the existing voice-relay Worker, not on the future authorization Worker; Google owner subject is not configured; OAuth resource adapter is not mounted into the active MCP route. Activation is forbidden until these and S24/ChatGPT end-to-end tests are satisfied.
