@@ -26,3 +26,9 @@ Isolated branch + dependency only. Existing production untouched. NEXT: configur
 - Added isolated policy module and six-case security-oriented policy test.
 - Worker dry-run builds for existing relay and isolated OAuth resource module pass. Existing `npm test` passes. No identity provider is yet configured. No OAuth authorization server or MCP routing wiring has been deployed; the isolated resource module is not imported by the active Worker.
 - No OAuth login/consent or live ChatGPT verification performed. Blocker remains verified identity provider and proper authorization-server implementation.
+
+## Reuse audit / latest review
+- No Cloudflare Access setup or third-party OAuth identity-provider configuration identified in the repository's non-dependency sources. This does not prove absence in the Cloudflare account.
+- Direct Cloudflare account inspection was rejected by security controls; it was not retried through another path.
+- Candidate resource adapter uses dependency injection for the canonical MCP handler rather than an impossible function-valued Worker environment binding. Dedicated token validator binding remains mandatory and fail-closed.
+- Isolated resource module dry-run compiles; existing relay tests and six-case owner policy tests pass. No OAuth authorization server / real login / consent or deployed route is present. Nothing is activated in production.
