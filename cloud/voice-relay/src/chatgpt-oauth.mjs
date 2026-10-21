@@ -18,7 +18,7 @@ export function createChatgptOAuthResource(invokeMcp) {
     },
     handler: {
       async fetch(request, env, ctx) {
-        if (!chatgptReadAllowed(ctx?.auth, ctx?.props, env.CHATGPT_OWNER_SUBJECT)) {
+        if (!chatgptReadAllowed(ctx?.auth, ctx?.props, ctx?.props?.userId)) {
           return Response.json({error:'forbidden'}, {status:403});
         }
         return invokeMcp(request, env, {ok:true, clientId:'chatgpt', profile:'chat-owner-shadow'});

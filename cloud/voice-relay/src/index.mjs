@@ -132,7 +132,7 @@ export class VoiceRelay {
     // RFC 9728 discovery is served by the official OAuth resource handler.
     // It must be available only once the authorization Worker is bound.
     if (url.pathname.startsWith('/.well-known/oauth-protected-resource')) {
-      if (!this.env.CHATGPT_AUTH_SERVER || !this.env.CHATGPT_OWNER_SUBJECT) {
+      if (!this.env.CHATGPT_AUTH_SERVER) {
         return json({error:'oauth_not_configured'},503);
       }
       const { createChatgptOAuthResource } = await import('./chatgpt-oauth.mjs');
@@ -148,7 +148,7 @@ export class VoiceRelay {
       if (useLegacyMcpAuth(old)) return handleMcpHttp(request, this.env, invoke, old);
       // OAuth is opt-in only when the separately deployed validator is ready.
       // It cannot weaken the existing static Bearer authentication.
-      if (!this.env.CHATGPT_AUTH_SERVER || !this.env.CHATGPT_OWNER_SUBJECT) {
+      if (!this.env.CHATGPT_AUTH_SERVER) {
         return handleMcpHttp(request, this.env, invoke, old);
       }
       const { createChatgptOAuthResource } = await import('./chatgpt-oauth.mjs');

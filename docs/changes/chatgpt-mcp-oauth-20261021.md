@@ -65,3 +65,10 @@ Isolated branch + dependency only. Existing production untouched. NEXT: configur
 - Live `/authorize` returns HTTP 503 intentionally because Google OAuth Web credentials and authorized owner subject have not yet been injected into this distinct Worker. Do not interpret this as completed OAuth login.
 - Relay Worker NOT deployed or modified in production. Wrangler config now specifies the eventual authenticated service binding but remains branch-only. All existing relay Node tests and 14 targeted policy checks pass.
 - Required for closing: configure auth Worker `GOOGLE_OAUTH_WEB_CLIENT_ID`, `GOOGLE_OAUTH_WEB_CLIENT_SECRET`, `GOOGLE_OWNER_SUBJECT`; relay `CHATGPT_OWNER_SUBJECT` aligned with Google identity; then deploy relay and run actual ChatGPT OAuth -> S24 MCP acceptance. Never copy protected production secrets into model output.
+
+## Live deploy after Google credentials (2026-10-21)
+- Verified `GOOGLE_OAUTH_WEB_CLIENT_ID`, `GOOGLE_OAUTH_WEB_CLIENT_SECRET`, `GOOGLE_OWNER_IDENTITY` secret names present on dedicated auth Worker (never exposed values).
+- Relay now trusts only OAuth library validated token bound to the dedicated auth Worker (audience, scope, expiry) and verified user props; the auth Worker checks Google signature, issuer, intended audience, nonce, owner identity before issuing such a token. No separate relay-side owner secret duplicated.
+- Production relay deployed, Worker version `756f85d3-5361-4521-bf14-d819b7a1caa0`.
+- Live endpoint checks: `/.well-known/oauth-protected-resource/mcp` HTTP 200; `/mcp` unauthenticated HTTP 401; OAuth authorization metadata HTTP 200. Both Claude and Codex existing Bearer credentials list MCP tools successfully after deploy.
+- Final acceptance still requires user-driven ChatGPT OAuth consent and one genuine read invocation through ChatGPT to S24. No automatic write authorization granted.
