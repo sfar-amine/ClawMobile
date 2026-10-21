@@ -32,3 +32,9 @@ Isolated branch + dependency only. Existing production untouched. NEXT: configur
 - Direct Cloudflare account inspection was rejected by security controls; it was not retried through another path.
 - Candidate resource adapter uses dependency injection for the canonical MCP handler rather than an impossible function-valued Worker environment binding. Dedicated token validator binding remains mandatory and fail-closed.
 - Isolated resource module dry-run compiles; existing relay tests and six-case owner policy tests pass. No OAuth authorization server / real login / consent or deployed route is present. Nothing is activated in production.
+
+## Authorization foundation without Zero Trust or payment card
+- Added `cloud/voice-relay/auth/index.mjs`: official Cloudflare OAuthAuthorizationServer foundation, RFC 8414 discovery and OAuth protocol handlers, scope `mcp:read`, protected resource constrained to the canonical existing `/mcp` URL.
+- `/authorize` deliberately rejects with HTTP 503 (`owner_identity_not_configured`) until independent owner identity and explicit consent are properly implemented. It cannot issue an access token as-is. No fake OAuth login or anonymous consent.
+- `wrangler.auth-check.jsonc` dry-run build passes; no KV namespace/binding configured, no live provider deployment, and no production change. This is NOT a working OAuth authorization flow.
+- Do not use Zero Trust setup or provide a payment card. Identity decision and OAuth consent implementation remain prerequisites.
