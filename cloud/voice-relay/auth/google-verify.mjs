@@ -8,8 +8,9 @@ export async function verifyGoogleOwnerIdToken(token, expectedClientId, expected
     audience: expectedClientId,
     algorithms: ['RS256'],
   });
-  if (!googleOwnerClaimAllowed(payload,expectedClientId,expectedSubject) || payload.nonce!==nonce) {
+  const googleIdentity = expectedSubject.includes('@') ? (payload.email_verified === true && payload.email === expectedSubject) : payload.sub === expectedSubject;
+  if (!googleIdentity || !googleOwnerClaimAllowed(payload,expectedClientId,payload.sub) || payload.nonce!==nonce) {
     throw new Error('google_owner_validation_failed');
   }
-  return payload.sub;
+  return expectedSubject.includes('@') ? payload.email : payload.sub;
 }

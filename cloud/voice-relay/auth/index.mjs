@@ -13,7 +13,7 @@ export default class ChatgptOAuthServer extends WorkerEntrypoint {
     const path=new URL(request.url).pathname;
     if(path!=='/authorize' && path!=='/callback') return oauth.fetch(request,this.env,this.ctx);
     const env=this.env;
-    if(!env.OAUTH_KV||!env.GOOGLE_OAUTH_WEB_CLIENT_ID||!env.GOOGLE_OAUTH_WEB_CLIENT_SECRET||!env.GOOGLE_OWNER_SUBJECT) return deny();
+    if(!env.OAUTH_KV||!env.GOOGLE_OAUTH_WEB_CLIENT_ID||!env.GOOGLE_OAUTH_WEB_CLIENT_SECRET||!env.GOOGLE_OWNER_IDENTITY) return deny();
     const api=oauth.getOAuthApi(env);
     try {
       if(path==='/authorize' && request.method==='GET'){
@@ -47,7 +47,7 @@ export default class ChatgptOAuthServer extends WorkerEntrypoint {
         const response=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body});
         if(!response.ok)return deny(401);
         const token=await response.json();
-        const subject=await verifyGoogleOwnerIdToken(token.id_token,env.GOOGLE_OAUTH_WEB_CLIENT_ID,env.GOOGLE_OWNER_SUBJECT,data.nonce);
+        const subject=await verifyGoogleOwnerIdToken(token.id_token,env.GOOGLE_OAUTH_WEB_CLIENT_ID,env.GOOGLE_OWNER_IDENTITY,data.nonce);
         const completed=await api.completeAuthorization({request:original,userId:subject,metadata:{},scope:['mcp:read'],props:{userId:subject}});
         headers.set('Location',completed.redirectTo);return new Response(null,{status:302,headers});
       }
