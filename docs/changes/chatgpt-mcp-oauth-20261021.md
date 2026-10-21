@@ -20,3 +20,9 @@ No verified owner identity provider, callback configuration, or Cloudflare Acces
 
 ## Current delivery status
 Isolated branch + dependency only. Existing production untouched. NEXT: configure and verify owner identity provider/policy, implement authorization Worker and resource validation, write tests, then stage live acceptance before deployment.
+
+## Subsequent work, 21 October 2026
+- Added isolated `cloud/voice-relay/src/chatgpt-oauth.mjs` Resource Server module using Cloudflare's official OAuth resource validator. It requires a dedicated service binding `CHATGPT_AUTH_SERVER` and a verified configured `CHATGPT_OWNER_SUBJECT`; no anonymous fallback. Produces a `chat-owner-shadow` context only on validated owner + `mcp:read` scope.
+- Added isolated policy module and six-case security-oriented policy test.
+- Worker dry-run builds for existing relay and isolated OAuth resource module pass. Existing `npm test` passes. No identity provider is yet configured. No OAuth authorization server or MCP routing wiring has been deployed; the isolated resource module is not imported by the active Worker.
+- No OAuth login/consent or live ChatGPT verification performed. Blocker remains verified identity provider and proper authorization-server implementation.
