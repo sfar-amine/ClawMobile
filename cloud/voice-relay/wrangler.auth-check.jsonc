@@ -1,1 +1,14 @@
-{"name":"claw-chatgpt-oauth-staging-check","main":"auth/index.mjs","compatibility_date":"2026-10-21","compatibility_flags":["global_fetch_strictly_public"]}
+{
+  "name": "claw-chatgpt-oauth-staging-check",
+  "main": "auth/index.mjs",
+  "compatibility_date": "2026-10-21",
+  "compatibility_flags": [
+    "global_fetch_strictly_public"
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "OAUTH_KV",
+      "id": "8611ec4eca474e939eaf3beb6f558d94"
+    }
+  ]
+}

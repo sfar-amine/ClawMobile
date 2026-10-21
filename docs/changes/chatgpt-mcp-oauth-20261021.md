@@ -45,3 +45,9 @@ Isolated branch + dependency only. Existing production untouched. NEXT: configur
 - OAuth `mcp:read` only, with dedicated resource audience and subject-bound encrypted grant props. Errors deny access; no anonymous fallback.
 - Development checks: both isolated policy suites pass (8 and 6 cases), existing relay npm tests pass, separate authorization worker dry-run compile passes.
 - Production remains unchanged. NO real Google sign-in or token exchange has been exercised. Cloudflare Workers KV namespace is not configured; Google secrets are on the existing voice-relay Worker, not on the future authorization Worker; Google owner subject is not configured; OAuth resource adapter is not mounted into the active MCP route. Activation is forbidden until these and S24/ChatGPT end-to-end tests are satisfied.
+
+## Cloudflare KV provisioned
+- Account namespace `SAMANTHA_CHATGPT_OAUTH` created successfully, id `8611ec4eca474e939eaf3beb6f558d94` (not a secret).
+- Authorization Worker staging config maps this namespace as `OAUTH_KV`.
+- Cloudflare dry-run confirms KV binding. Google claim tests 8/8, ChatGPT owner policy tests 6/6, existing relay tests PASS.
+- No Worker deployed. OAuth secrets are still on `claw-voice-relay` rather than the future authorization Worker, and Google owner subject has not been configured. Real end-to-end approval and existing MCP route integration still required. Do not claim integration active.
