@@ -256,14 +256,14 @@ function registerTools(server, auth, invoke) {
   }, run("claw_artifact_read"));
 }
 
-export async function handleMcpHttp(request, env, invoke) {
+export async function handleMcpHttp(request, env, invoke, verifiedAuth = null) {
   if (request.method !== "POST") {
     return json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null }, 405, { allow: "POST" });
   }
 
   let auth;
   try {
-    auth = await authenticateMcpClient(request, env);
+    auth = verifiedAuth ?? await authenticateMcpClient(request, env);
   } catch (error) {
     return json({ error: String(error?.message || error) }, 500);
   }

@@ -1,3 +1,5 @@
+import { authenticateMcpClient } from './mcp.mjs';
+import { useLegacyMcpAuth } from './mcp-routing.mjs';
 import { handleMcpHttp } from "./mcp.mjs";
 
 const ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -127,10 +129,31 @@ export class VoiceRelay {
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === "/device") return this.acceptDevice(request);
+    // RFC 9728 discovery is served by the official OAuth resource handler.
+    // It must be available only once the authorization Worker is bound.
+    if (url.pathname.startsWith('/.well-known/oauth-protected-resource')) {
+      if (!this.env.CHATGPT_AUTH_SERVER || !this.env.CHATGPT_OWNER_SUBJECT) {
+        return json({error:'oauth_not_configured'},503);
+      }
+      const { createChatgptOAuthResource } = await import('./chatgpt-oauth.mjs');
+      return createChatgptOAuthResource((req, env, auth) =>
+        handleMcpHttp(req, env, (tool,args,identity,meta) =>
+          this.handleMcpTool(tool,args,identity,meta), auth)
+      ).fetch(request,this.env,this.ctx);
+    }
+
     if (url.pathname === "/mcp") {
-      return handleMcpHttp(request, this.env, (tool, args, auth, meta) =>
-        this.handleMcpTool(tool, args, auth, meta),
-      );
+      const invoke = (tool, args, auth, meta) => this.handleMcpTool(tool, args, auth, meta);
+      const old = await authenticateMcpClient(request, this.env);
+      if (useLegacyMcpAuth(old)) return handleMcpHttp(request, this.env, invoke, old);
+      // OAuth is opt-in only when the separately deployed validator is ready.
+      // It cannot weaken the existing static Bearer authentication.
+      if (!this.env.CHATGPT_AUTH_SERVER || !this.env.CHATGPT_OWNER_SUBJECT) {
+        return handleMcpHttp(request, this.env, invoke, old);
+      }
+      const { createChatgptOAuthResource } = await import('./chatgpt-oauth.mjs');
+      return createChatgptOAuthResource((req, env, auth) =>
+        handleMcpHttp(req, env, invoke, auth)).fetch(request, this.env, this.ctx);
     }
     if (url.pathname === "/health") {
       if (!this.ownerAuthorized(request)) {

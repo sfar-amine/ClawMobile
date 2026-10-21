@@ -51,3 +51,10 @@ Isolated branch + dependency only. Existing production untouched. NEXT: configur
 - Authorization Worker staging config maps this namespace as `OAUTH_KV`.
 - Cloudflare dry-run confirms KV binding. Google claim tests 8/8, ChatGPT owner policy tests 6/6, existing relay tests PASS.
 - No Worker deployed. OAuth secrets are still on `claw-voice-relay` rather than the future authorization Worker, and Google owner subject has not been configured. Real end-to-end approval and existing MCP route integration still required. Do not claim integration active.
+
+## MCP routing regression correction
+- The previous direct top-level Cloudflare OAuthResourceServer import caused Node's `ERR_UNSUPPORTED_ESM_URL_SCHEME` in legacy tests. Fixed through conditional dynamic import in the OAuth-only route.
+- Kept legacy authenticated Bearer path as first match; OAuth branch is admitted only when both dedicated validator service binding and owner subject are present. Unsupported credentials fail closed when OAuth is not configured.
+- Canonical MCP handler now accepts an internally supplied verified OAuth identity (not client-provided JSON), and reuses the same deterministic Capability Graph, receipts and read-only profile.
+- Added RFC 9728 discovery delegation gated on the same configuration. Existing `npm test` PASS, 6 legacy routing-policy tests PASS, resource and Google claim policy suites previously PASS; Worker dry-run PASS.
+- This is a branch-only candidate, not a production OAuth acceptance. Binding, Google secret placement, owner subject, consent E2E and ChatGPT approval are still outstanding. Nothing deployed.
