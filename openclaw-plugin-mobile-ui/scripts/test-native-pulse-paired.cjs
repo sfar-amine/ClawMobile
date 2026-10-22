@@ -4,10 +4,12 @@ const {spawnSync}=require('node:child_process');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'native-pulse-paired-'));
 const core=path.resolve(__dirname,'../..');
 const pb=path.resolve(process.env.C16_PLAYBOOKS_ROOT||path.join(core,'../samantha-ui-playbooks'));
-if(process.env.C16_EXPECTED_PB_SHA){
- const actual=spawnSync('git',['-C',pb,'rev-parse','HEAD'],{encoding:'utf8'});
- assert.equal(actual.status,0);assert.equal(actual.stdout.trim(),process.env.C16_EXPECTED_PB_SHA,'immutable paired owner head');
-}
+const expectedPeer=process.env.C16_EXPECTED_PB_SHA||'af122f34f446546b96ad037eb2aac581abdf6497';
+assert.match(expectedPeer,/^[a-f0-9]{40}$/,'explicit immutable paired owner head');
+const peerHead=spawnSync('git',['-C',pb,'rev-parse','HEAD'],{encoding:'utf8'});
+assert.equal(peerHead.status,0);assert.equal(peerHead.stdout.trim(),expectedPeer,'immutable paired owner head');
+const coreHead=spawnSync('git',['-C',core,'rev-parse','HEAD'],{encoding:'utf8'});
+assert.equal(coreHead.status,0);
 process.env.HOME=root;
 process.env.CLAW_UI_PLAYBOOKS_ROOT=pb;
 process.env.CLAW_DIALOGUE_HOME=path.join(root,'.openclaw','dialogue');
@@ -87,5 +89,9 @@ async function input(text,eventRef){
    if(mode==='unqualified')check(raw.reasonCode==='native_contract_unqualified'&&answer.text.includes('pas encore qualifié'),'native unqualified cause preserved through actual room hook: '+JSON.stringify({raw,answer}));
  }
  delete process.env.C16_RESULT_MODE;
+ const evidence={schema:'native-pulse-paired.v1',qualification:'MOCK_ONLY',core_sha:coreHead.stdout.trim(),
+  playbooks_sha:peerHead.stdout.trim(),checks:n,passed:n,provider_calls:0,real_business_effects:0};
+ if(process.env.C16_EVIDENCE_PATH)fs.writeFileSync(process.env.C16_EVIDENCE_PATH,JSON.stringify(evidence,null,2)+'\n');
+ console.log(JSON.stringify(evidence));
  console.log(`Native Pulse paired: ${n}/${n} probes; MOCK_ONLY, zero provider/network/business effect`);
 }finally{fs.rmSync(root,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});

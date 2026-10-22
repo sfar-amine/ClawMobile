@@ -256,7 +256,7 @@ jobs:
           git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git af122f34f446546b96ad037eb2aac581abdf6497
           git -C "$peer" checkout --detach FETCH_HEAD
           npm ci --prefix "$peer/billing/direct-runtime" --ignore-scripts --no-audit --no-fund
-          C16_PLAYBOOKS_ROOT="$peer" C16_EXPECTED_PB_SHA=af122f34f446546b96ad037eb2aac581abdf6497 node scripts/test-native-pulse-paired.cjs
+          C16_PLAYBOOKS_ROOT="$peer" C16_EXPECTED_PB_SHA=af122f34f446546b96ad037eb2aac581abdf6497 C16_EVIDENCE_PATH="$RUNNER_TEMP/c16-native-paired-result.json" node scripts/test-native-pulse-paired.cjs
 
       - name: Run composed read and model fast path contracts
         run: |
