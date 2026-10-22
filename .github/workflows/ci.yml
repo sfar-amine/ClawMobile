@@ -244,6 +244,21 @@ jobs:
       - name: HS3 payment handoff run reflects its payment request (S24 capture core 176)
         run: node scripts/test-run-payment-presentation.cjs && node scripts/test-hs3-initial-failure.cjs
 
+      - name: C16 native Pulse host admission, durable claim and private IPC (MOCK only)
+        run: |
+          node scripts/test-native-pulse-handoff.cjs
+          python3 ../installer/termux-lite/test-native-pulse-private-input.py
+
+      - name: C16 actual native room paired with immutable Pulse owners (MOCK only)
+        run: |
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/c16-native-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git dfd92662d2c9054647db584b71a5fc9356673313
+          git -C "$peer" checkout --detach FETCH_HEAD
+          npm ci --prefix "$peer/billing/direct-runtime" --ignore-scripts --no-audit --no-fund
+          C16_PLAYBOOKS_ROOT="$peer" C16_EXPECTED_PB_SHA=dfd92662d2c9054647db584b71a5fc9356673313 C16_EVIDENCE_PATH="$RUNNER_TEMP/c16-native-paired-result.json" node scripts/test-native-pulse-paired.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
