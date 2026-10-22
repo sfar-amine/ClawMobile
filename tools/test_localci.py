@@ -273,5 +273,144 @@ PYOWNER
             self.run_owner()
 
 
+
+class LocalCiPrivateProofTests(LocalCiSyntheticReplayTests):
+    """Actual canonical owner on a tiny fake workflow; no full Samantha CI."""
+    def setUp(self):
+        super().setUp()
+        import json
+        self.subject = 'qualification/report.json'
+        self.value = {'schema_version': 2, 'results': [{'id': 'synthetic-case', 'status': 'PASS'}]}
+        target = self.repo/self.subject; target.parent.mkdir(); target.write_text(json.dumps(self.value))
+        self.owner = self.repo.parent/'owner'; (self.owner/'tools').mkdir(parents=True)
+        self.owner_file = self.owner/'tools/localci.py'
+        self.owner_file.write_bytes(Path(localci.__file__).read_bytes())
+        subprocess.run(['git', 'init', '-q', str(self.owner)], check=True)
+        for args in (['config','user.name','Fixture'], ['config','user.email','fixture@example.invalid'],
+                     ['add','.'], ['commit','-qm','canonical owner fixture']):
+            subprocess.run(['git', '-C', str(self.owner), *args], check=True, capture_output=True)
+
+    def qualify(self, body=None):
+        head = self.commit(body or 'jobs:\n  contract:\n    steps:\n      - run: echo synthetic-short-workflow\n')
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)):
+            proof = localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+        return head, proof
+
+    def subject_digest(self):
+        import hashlib,json
+        return hashlib.sha256(json.dumps(self.value, ensure_ascii=True, sort_keys=True, separators=(',',':')).encode()).hexdigest()
+
+    def verify(self, head, proof):
+        subject_digest = self.subject_digest()
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)):
+            return localci.verify_ci_evidence(proof, repository='example/samantha-context-private', head=head,
+                                             pr_number=5, subject_digest=subject_digest)
+
+    def test_private_proof_from_real_short_workflow(self):
+        head, proof = self.qualify()
+        out = self.verify(head, proof)
+        self.assertEqual(out['status'], 'PASS')
+        self.assertEqual(out['base'], self.base_sha)
+        self.assertEqual(len(out['runner_revision']), 40)
+        self.assertEqual(out['proof_scope'], 'canonical_CI_and_committed_artifact_identity_only')
+
+    def test_json_log_and_reconstructed_flags_cannot_create_proof(self):
+        for value in (None, {'status':'PASS','exit_code':0,'executed':True}, 'LOCALCI_RESULT exit=0'):
+            self.assertEqual(self.verify('a'*40, value)['status'], 'NOT_IMPLEMENTED')
+        with self.assertRaises(localci.LocalCIError): localci.CanonicalCIProof({'exit_code':0})
+        _, proof = self.qualify()
+        import pickle
+        with self.assertRaises(TypeError): pickle.dumps(proof)
+
+    def test_false_success_marker_does_not_override_real_failure(self):
+        with self.assertRaisesRegex(localci.LocalCIError, 'terminal_failure'):
+            self.qualify('jobs:\n  contract:\n    steps:\n      - run: echo LOCALCI_RESULT exit=0; exit 17\n')
+
+    def test_log_tamper_and_changed_subject_rejected(self):
+        head, proof = self.qualify()
+        self.log.write_text(self.log.read_text() + 'forged evidence')
+        with self.assertRaisesRegex(localci.LocalCIError, 'artifact_or_owner_changed'):
+            self.verify(head, proof)
+        self.value = {'different':'subject'}
+        with self.assertRaisesRegex(localci.LocalCIError, 'subject_binding_changed'):
+            self.verify(head, proof)
+
+    def test_pr_changed_after_run_refused(self):
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo short\n')
+        original = localci._run_canonical_ci_process
+        def changed(*args):
+            out = original(*args)
+            os.environ['MOCK_HEAD'] = 'f'*40
+            return out
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, '_run_canonical_ci_process', changed):
+            with self.assertRaisesRegex(localci.LocalCIError, 'pr_identity_changed'):
+                localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+
+    def test_symlink_subject_and_reused_log_rejected_before_ci(self):
+        target = self.repo/self.subject; target.unlink(); target.symlink_to('/outside-grant')
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo short\n')
+        with self.fake_gh(head), self.assertRaisesRegex(localci.LocalCIError, 'regular_subject'):
+            localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+        self.assertFalse(self.log.exists())
+
+
+    def test_subject_mismatch_and_stale_output_fail_before_execution(self):
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo must-not-start\n')
+        with self.fake_gh(head), patch.object(localci, 'run_ci', side_effect=AssertionError('must not run')):
+            with self.assertRaisesRegex(localci.LocalCIError, 'subject_binding_changed'):
+                localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest='0'*64)
+        self.log.write_text('stale')
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, 'run_ci', side_effect=AssertionError('must not run')):
+            with self.assertRaisesRegex(localci.LocalCIError, 'fresh_output_required'):
+                localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+
+    def test_pr_changed_after_qualification_cannot_reuse_proof(self):
+        head, proof = self.qualify()
+        with self.fake_gh('f'*40), patch.object(localci, '__file__', str(self.owner_file)):
+            with self.assertRaisesRegex(localci.LocalCIError, 'pr_identity_changed'):
+                localci.verify_ci_evidence(proof, repository='example/samantha-context-private', head=head, pr_number=5, subject_digest=self.subject_digest())
+
+
+    def test_import_then_committed_owner_change_refused_before_run(self):
+        self.owner_file.write_text(self.owner_file.read_text() + '\n# newly committed source after import\n')
+        subprocess.run(['git', '-C', str(self.owner), 'add', '.'], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(self.owner), 'commit', '-qm', 'post-import owner change'], check=True, capture_output=True)
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo must-not-start\n')
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, 'run_ci', side_effect=AssertionError('loaded source mismatch must not execute')):
+            with self.assertRaisesRegex(localci.LocalCIError, 'loaded_owner_changed'):
+                localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+        self.assertFalse(self.log.exists())
+
+
+    def test_detached_descendant_started_then_stopped_before_proof(self):
+        import json, shlex, time
+        started = self.repo.parent/'descendant-started'
+        late = self.repo.parent/'descendant-survived'
+        child = "import pathlib,time;pathlib.Path(%r).write_text('started');time.sleep(.8);pathlib.Path(%r).write_text('survived')" % (str(started), str(late))
+        parent = "import subprocess,sys,time,pathlib;subprocess.Popen([sys.executable,'-c',%r],start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);deadline=time.monotonic()+2\nwhile not pathlib.Path(%r).exists() and time.monotonic()<deadline: time.sleep(.01)\nassert pathlib.Path(%r).exists()" % (child, str(started), str(started))
+        head, proof = self.qualify('jobs:\n  contract:\n    steps:\n      - run: ' + json.dumps('python3 -c ' + shlex.quote(parent)) + '\n')
+        if proof is None:
+            self.assertEqual(self.verify(head, proof)['status'], 'NOT_IMPLEMENTED'); return
+        self.assertEqual(self.verify(head, proof)['status'], 'PASS')
+        self.assertTrue(started.exists())
+        time.sleep(1.1)
+        self.assertFalse(late.exists(), 'a descendant must not survive proof issuance')
+
+    def test_namespace_unavailable_has_no_uncontained_fallback(self):
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo must-not-start\n')
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, '_canonical_pid_command', return_value=None), patch.object(localci, 'run_ci', side_effect=AssertionError('no uncontained run')):
+            proof = localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+        self.assertIsNone(proof)
+        self.assertEqual(self.verify(head, proof)['status'], 'NOT_IMPLEMENTED')
+        self.assertFalse(self.log.exists())
+
+    def test_fifo_owner_refused_without_blocking_read(self):
+        self.owner_file.unlink(); os.mkfifo(self.owner_file)
+        head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo must-not-start\n')
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, '_run_canonical_ci_process', side_effect=AssertionError('no run')):
+            with self.assertRaisesRegex(ValueError, 'regular_bounded_owner_required'):
+                localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
+
+
 if __name__ == "__main__":
     unittest.main()

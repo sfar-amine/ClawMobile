@@ -13,11 +13,27 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import yaml
+
+def _proof_regular_bytes(path, limit=128*1024):
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | getattr(os, 'O_NOFOLLOW', 0))
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+            raise ValueError('canonical_ci_regular_bounded_owner_required')
+        value = stream.read(limit + 1)
+        if len(value) > limit:
+            raise ValueError('canonical_ci_owner_budget_exceeded')
+        return value
+
+# Import-time identity: disk/HEAD moving later cannot relabel loaded code.
+_LOADED_RUNNER_SHA256 = hashlib.sha256(_proof_regular_bytes(__file__)).hexdigest()
 
 WORKFLOWS = {
     "samantha-core": ".github/workflows/ci.yml",
@@ -381,6 +397,186 @@ def run_ci(repo_arg, sha, pr, output):
                 shutil.rmtree(space, ignore_errors=True)
         note(f"LOCALCI_RESULT exit=0 sha={sha} jobs={len(jobs)} steps={passed}")
     return 0
+
+
+
+# In-memory evidence only. No JSON/log/sidecar constructor or durable verifier.
+_CI_PROOF_SEAL = object()
+
+
+class CanonicalCIProof:
+    """Opaque capability issued only after this owner's actual run completes.
+
+    The host process/module is trusted. This is not a signature or protection
+    against hostile Python in that process, nor a durable cross-process grant.
+    """
+    __slots__ = ("__facts", "__seal")
+
+    def __init__(self, facts, *, _seal=None):
+        if _seal is not _CI_PROOF_SEAL:
+            raise LocalCIError("canonical_ci_private_producer_required")
+        self.__facts = facts
+        self.__seal = _seal
+
+    def __reduce__(self):
+        raise TypeError("canonical_ci_proof_is_not_serializable")
+
+    def _facts(self, seal):
+        if seal is not _CI_PROOF_SEAL or self.__seal is not seal:
+            raise LocalCIError("canonical_ci_private_producer_required")
+        return self.__facts
+
+
+def _proof_pr(repo, sha, pr):
+    if not SHA.fullmatch(sha) or not isinstance(pr, str) or not pr.isdecimal() or int(pr) <= 0:
+        raise LocalCIError("canonical_ci_sha40_and_pr_required")
+    repository = identity(repo)
+    raw = json.loads(command(["gh", "api", f"repos/{repository}/pulls/{pr}"], repo))
+    head = (raw.get("head") or {}).get("sha")
+    base = (raw.get("base") or {}).get("sha")
+    if head != sha or not SHA.fullmatch(base or "") or raw.get("number") != int(pr):
+        raise LocalCIError("canonical_ci_pr_identity_changed")
+    return {"repository": repository, "head": head, "base": base, "pr_number": int(pr)}
+
+
+def _committed_json_subject(repo, sha, path):
+    if (not isinstance(path, str) or not path or path.startswith(('/', '-'))
+            or any(part in {'', '.', '..', '.git'} for part in path.split('/'))):
+        raise LocalCIError("canonical_ci_subject_path_invalid")
+    mode = command(["git", "ls-tree", sha, "--", path], repo).split()
+    if not mode or mode[0] not in {'100644', '100755'}:
+        raise LocalCIError("canonical_ci_committed_regular_subject_required")
+    size = int(command(["git", "cat-file", "-s", f"{sha}:{path}"], repo))
+    if size > 2 * 1024 * 1024:
+        raise LocalCIError("canonical_ci_subject_budget_exceeded")
+    raw = subprocess.run(["git", "cat-file", "blob", f"{sha}:{path}"], cwd=repo,
+                         capture_output=True, check=True, timeout=10).stdout
+    value = json.loads(raw)
+    canonical = json.dumps(value, ensure_ascii=True, sort_keys=True,
+                           separators=(",", ":"), allow_nan=False).encode()
+    return {"path": path, "blob_sha256": hashlib.sha256(raw).hexdigest(),
+            "subject_digest": hashlib.sha256(canonical).hexdigest()}
+
+
+def _proof_file_digest(path):
+    value = hashlib.sha256()
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | getattr(os, 'O_NOFOLLOW', 0))
+    with os.fdopen(fd, 'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise LocalCIError('canonical_ci_regular_output_required')
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            value.update(block)
+    return value.hexdigest()
+
+
+def _canonical_pid_command():
+    executable = shutil.which('bwrap')
+    if not executable:
+        return None
+    # Lifetime confinement only: retain the existing CI mounts/env/network.
+    # A private PID init tears down ALL descendants, even detached sessions.
+    return [executable, '--unshare-user', '--unshare-pid', '--die-with-parent',
+            '--new-session', '--bind', '/', '/', '--proc', '/proc', '--dev', '/dev', '--']
+
+
+def _run_canonical_ci_process(repo, sha, pr, log):
+    command_line = _canonical_pid_command()
+    if command_line is None:
+        return None
+    try:
+        probe = subprocess.run(command_line + [sys.executable, '-c', 'pass'],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        if probe.returncode != 0:
+            return None
+    except (OSError, subprocess.SubprocessError):
+        return None
+    # Exactly the same CLI owner, once; never fall back to an uncontained run.
+    process = subprocess.Popen(command_line + [sys.executable, str(Path(__file__).resolve()),
+        str(repo), sha, pr, str(log)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True)
+    try:
+        return process.wait()
+    except BaseException:
+        try: os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError: pass
+        process.wait(timeout=5)
+        raise
+
+
+def run_ci_evidence(repo_arg, sha, pr, output, *, subject_path, expected_subject_digest):
+    """Explicit one-shot API of the same canonical runner, not a second CI.
+
+    A subject must be a committed regular JSON artifact at the tested SHA. This
+    binds source/CI identity, not execution or semantic truth of that artifact.
+    No workflow markers are parsed to establish success. Real run_ci return
+    and PR metadata before/after are mandatory. Caller invokes this explicitly.
+    """
+    repo = Path(repo_arg).resolve()
+    before = _proof_pr(repo, sha, pr)
+    if repo.name not in WORKFLOWS:
+        raise LocalCIError("canonical_ci_repository_unsupported")
+    workflow_path = WORKFLOWS[repo.name]
+    workflow = subprocess.run(["git", "cat-file", "blob", f"{sha}:{workflow_path}"], cwd=repo,
+                              capture_output=True, check=True, timeout=10).stdout
+    subject = _committed_json_subject(repo, sha, subject_path)
+    if subject['subject_digest'] != expected_subject_digest:
+        raise LocalCIError('canonical_ci_subject_binding_changed')
+    runner_path = Path(__file__).resolve()
+    runner_digest = hashlib.sha256(_proof_regular_bytes(runner_path)).hexdigest()
+    if runner_digest != _LOADED_RUNNER_SHA256:
+        raise LocalCIError('canonical_ci_loaded_owner_changed')
+    runner_repo = runner_path.parents[1]
+    runner_revision = command(["git", "rev-parse", "HEAD"], runner_repo)
+    committed_runner = subprocess.run(["git", "cat-file", "blob", runner_revision + ":tools/localci.py"],
+        cwd=runner_repo, capture_output=True, check=True, timeout=10).stdout
+    if not SHA.fullmatch(runner_revision) or hashlib.sha256(committed_runner).hexdigest() != runner_digest:
+        raise LocalCIError("canonical_ci_committed_owner_required")
+    log = Path(output).resolve()
+    if log.exists() or log.is_symlink():
+        raise LocalCIError("canonical_ci_fresh_output_required")
+    result = _run_canonical_ci_process(repo, sha, pr, log)
+    if result is None:
+        return None  # No private proof: namespace unavailable, no bare fallback.
+    if type(result) is not int or result != 0:
+        raise LocalCIError("canonical_ci_terminal_failure")
+    after = _proof_pr(repo, sha, pr)
+    if before != after or runner_digest != hashlib.sha256(_proof_regular_bytes(__file__)).hexdigest():
+        raise LocalCIError("canonical_ci_source_or_pr_changed")
+    if not log.is_file() or log.is_symlink():
+        raise LocalCIError("canonical_ci_durable_output_required")
+    facts = dict(before, kind="canonical_localci", executed=True, exit_code=result,
+                 runner_digest=runner_digest, runner_revision=runner_revision, workflow_path=workflow_path,
+                 workflow_digest=hashlib.sha256(workflow).hexdigest(),
+                 subject=subject, log_path=str(log), log_digest=_proof_file_digest(log),
+                 repo_path=str(repo), proof_scope="canonical_CI_and_committed_artifact_identity_only", process_lifetime="PID_namespace_teardown")
+    return CanonicalCIProof(facts, _seal=_CI_PROOF_SEAL)
+
+
+def verify_ci_evidence(proof, *, repository, head, pr_number, subject_digest):
+    """Recheck the private producer instance; never imports PASS from a file.
+
+    Missing instance after restart is closed. Rechecking the proof never reruns
+    CI, never polls, and never grants G4/G5 or artifact semantic qualification.
+    """
+    if type(proof) is not CanonicalCIProof:
+        return {"status": "NOT_IMPLEMENTED", "reason": "canonical_ci_private_proof_unavailable"}
+    facts = proof._facts(_CI_PROOF_SEAL)
+    if (facts['repository'], facts['head'], facts['pr_number'], facts['subject']['subject_digest']) != (repository, head, pr_number, subject_digest):
+        raise LocalCIError("canonical_ci_subject_binding_changed")
+    current = _proof_pr(Path(facts['repo_path']), head, str(pr_number))
+    if current != {key: facts[key] for key in ('repository', 'head', 'base', 'pr_number')}:
+        raise LocalCIError("canonical_ci_pr_identity_changed")
+    log = Path(facts['log_path'])
+    if (not log.is_file() or log.is_symlink() or _proof_file_digest(log) != facts['log_digest']
+            or hashlib.sha256(_proof_regular_bytes(__file__)).hexdigest() != facts['runner_digest']):
+        raise LocalCIError("canonical_ci_artifact_or_owner_changed")
+    encoded = json.dumps(facts, ensure_ascii=True, sort_keys=True, separators=(',', ':')).encode()
+    return {"status": "PASS", "kind": "canonical_localci", "executed": True,
+            "head": head, "subject_digest": subject_digest, "pr_number": pr_number, "exit_code": 0,
+            "evidence_digest": hashlib.sha256(encoded).hexdigest(),
+            "base": facts['base'], "runner_digest": facts['runner_digest'], "runner_revision": facts['runner_revision'],
+            "workflow_digest": facts['workflow_digest'], "log_digest": facts['log_digest'],
+            "artifact_digest": facts['subject']['blob_sha256'], "proof_scope": facts['proof_scope']}
 
 
 def main():
