@@ -4,6 +4,8 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'mcp-input-'));
 process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR=path.join(tmp,'bridge');
 process.env.CLAW_DIALOGUE_HOME=path.join(tmp,'dialogue');
 const host=require('../dist/modelFastPath');
+// Explicitly simulate an old host for compatibility guards, even in a C4/C8 stack.
+delete host.INTENT_INPUT_PROTOCOL;delete host.INTENT_READ_PROTOCOL;
 let calls=[];
 host.runModelFastPath=async(text,options)=>{calls.push({text,options});return {intentInputProtocol:'mcp-input.v1',outcome:'NEEDS_CLARIFICATION',reasonCode:'source_needed',question:'Quelle offre ?'};};
 const {handleMcpRelayRequest,validateMcpClientContext}=require('../dist/companion/mcpBridge');
@@ -32,7 +34,7 @@ const invoke=(ctx=context,extra={},execute=false,client='claude-chat')=>handleMc
  out=await invoke();check(out.state==='resolved' && out.input_provenance==='client_reported','opt-in preview carries honest client provenance');
  check(calls.length===1 && calls[0].text===original,'one preview, exact original message');
  check(calls[0].options.intentContext.client_context.original_message.text===original,'private host envelope preserves text');
- check(calls[0].options.dialogue.mode==='preview' && calls[0].options.checkOnly===true,'preview only, no effect');
+ check(calls[0].options.surface==='mcp' && calls[0].options.dialogue.mode==='preview' && calls[0].options.checkOnly===true,'private MCP surface and preview only, no effect');
  check(calls[0].options.dialogue.event.conversationKey==='external_mcp:claude-chat:thread-a','conversation namespace uses authenticated principal and local thread');
  const other=clone(context);other.conversation_ref='thread-b';await invoke(other);
  check(calls[1].options.dialogue.event.conversationKey!==calls[0].options.dialogue.event.conversationKey,'two threads never share active context');

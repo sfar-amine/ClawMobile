@@ -12,7 +12,7 @@ let calls=0,finish,started;
 const startedPromise=new Promise(resolve=>started=resolve);
 const pending=new Promise(resolve=>finish=resolve);
 host.runModelFastPath=async(text,options)=>{
- calls++;assert.equal(options.intentReadOnly,true);assert.equal(options.intentContext.request,text);
+ calls++;assert.equal(options.surface,'mcp');assert.equal(options.intentReadOnly,true);assert.equal(options.intentContext.request,text);
  assert.equal(options.dialogue.event.eventRef,options.requestId);
  const durable=bridge.getRemoteBridgeRequest(options.requestId);
  assert.equal(durable.state,'running','canonical durable claim must precede interpretation/effect');

@@ -384,7 +384,7 @@ async function executeMigratedMcpRead(requestId:string,clientId:string,profile:s
     const remaining=Math.floor(bounds.deadlineEpochMs-Date.now());
     if(remaining<1)throw new Error("mcp_read_deadline_exceeded");
     const out:any=await runModelFastPath(args.request as string,{
-      surface:"external_mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
+      surface:"mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
       requestId,runId:requestId,sessionId:`external_mcp:${clientId}`,timeoutSeconds:15,
       remainingBudgetMs:remaining,deadlineEpochMs:bounds.deadlineEpochMs,
       intentContext:input,intentReadOnly:true,
@@ -445,7 +445,7 @@ async function migratedMcpInput(requestId:string,clientId:string,profile:string,
   const conversationKey=`external_mcp:${clientId}:${context.conversation_ref}`;
   try {
     const out:any=await runModelFastPath(args.request as string,{
-      surface:"external_mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
+      surface:"mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
       requestId,sessionId:`external_mcp:${clientId}`,timeoutSeconds:15,checkOnly:true,
       intentContext:{request:args.request,client_context:context},
       dialogue:{mode:"preview",event:{conversationKey}},
