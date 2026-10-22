@@ -442,6 +442,7 @@ jobs:
       - name: MCP context scopes and admitted client provenance
         run: |
           node scripts/test-mcp-context-provenance.cjs
+          node scripts/test-mcp-context-consumers.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
 
