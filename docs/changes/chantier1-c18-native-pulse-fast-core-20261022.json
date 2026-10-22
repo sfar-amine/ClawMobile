@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "id": "chantier1-c18-native-pulse-fast-core-20261022",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Connect native FAST read handoffs through current canonical owners with an unconfigured scoped host precondition",
+  "reason": "Read goals must not enter the mutation corridor or bypass professional native scope, current state and read-only Graph guards",
+  "files": [
+    "docs/changes/chantier1-c18-native-pulse-fast-core-20261022.md",
+    "docs/changes/chantier1-c18-native-pulse-fast-core-20261022.json",
+    "docs/work/samantha-runtime/contracts/c18-native-pulse-fast.md",
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/model-fast-path.py",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/native-fast-paired-helper.py",
+    "openclaw-plugin-mobile-ui/scripts/test-native-fast-paired.cjs"
+  ],
+  "tests": [
+    {
+      "name": "C18 real canonical owner and private IPC fixture tests",
+      "status": "passed",
+      "evidence": "7/7 PB native FAST; 23/23 paired real Node/Python IPC and actual contacts-pulse hook, MOCK_ONLY. Provider_calls=0; real_business_effects=0. Exact-head full CI pending."
+    },
+    {
+      "name": "Inherited native host/Bridge and private IPC guards",
+      "status": "passed",
+      "evidence": "33/33 Node native host/Bridge probes and 5/5 Python native private input tests; fixture-only."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c18-native-pulse-fast.md",
+    "docs/changes/chantier1-c18-native-pulse-fast-core-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing Pulse read capabilities/CLI only; no new action or execution owner"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse native event owner, DialogueStore, Coordinator and Graph; no persistence/router/executor added"
+  },
+  "rollback": "Disable native host pilot; preserve canonical dialogue results",
+  "limitations": [
+    "Production native scoped C17 admission absent: default precondition None closes before business read.",
+    "MOCK_ONLY scope callback is test-only, not a real access or source proof.",
+    "Existing native write corridor C16, MCP client consent restrictions, payment, live voice and OAuth are unchanged.",
+    "Full exact-head CI and native live qualification pending."
+  ],
+  "base_dependency": {
+    "repository": "sfar-amine/samantha-core",
+    "pr": 391,
+    "sha": "b3744cd358752d81e3eb9c2437f23824d43f4d19"
+  },
+  "paired_owner": {
+    "repository": "sfar-amine/samantha-ui-playbooks",
+    "sha": "0d26787241cf9e71a6287d6fce6f69a18263a4a0",
+    "qualification": "MOCK_ONLY"
+  }
+}

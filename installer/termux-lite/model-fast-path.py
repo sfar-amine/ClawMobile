@@ -29,6 +29,9 @@ _INTENT_PRIVATE_CHANNEL = None
 _INTENT_CHANNEL_SEAL = object()
 _NATIVE_PULSE_EVENT = None
 _NATIVE_PULSE_HANDOFF = None
+_NATIVE_FAST_READ_PRECONDITION = None
+# Private, unconfigured until C17 supplies current scoped service evidence.
+_NATIVE_FAST_READ_SCOPE_OWNER = None
 
 def _read_qa_input():
     """Host's private input pipe. Raw contact text never becomes a CLI argument."""
@@ -1383,6 +1386,7 @@ def _intent_dialogue_backend(ui_root: Path, *, surface: str, caller: str, timeou
         raise RuntimeError("intent_backend_root_mismatch")
     return intent_dialogue.make_intent_dialogue_port(ui_root, surface="pulse_room" if _NATIVE_PULSE_EVENT else surface, caller=caller, timeout=timeout,
         **({"native_handoff":_NATIVE_PULSE_HANDOFF} if _NATIVE_PULSE_HANDOFF is not None else {}),
+        **({"native_read_precondition":_NATIVE_FAST_READ_PRECONDITION} if _NATIVE_FAST_READ_PRECONDITION is not None else {}),
         **({"context_read_evidence": _INTENT_CONTEXT_READ_EVIDENCE} if _INTENT_CONTEXT_READ_EVIDENCE is not None else {}))
 
 
@@ -1598,11 +1602,39 @@ def run_intent_mcp_read(message, *, ui_root, caller, timeout, event):
             "intentReadProtocol": "mcp-read.v1"}
 
 
+def _native_fast_precondition(adapter, goal_ref):
+    """Future C17 owner port; no CLI/env/JSON value can install this callable."""
+    from skill_intelligence.dialogue.native_fast import NativePulseReadPrecondition
+    if not callable(_NATIVE_FAST_READ_SCOPE_OWNER):
+        raise ValueError('native_pulse_read_scope_unqualified')
+    try:
+        proof = _NATIVE_FAST_READ_SCOPE_OWNER(native_event=adapter.event, store=adapter.store, goal_ref=goal_ref)
+    except Exception:
+        raise ValueError('native_pulse_read_scope_unqualified') from None
+    if type(proof) is not NativePulseReadPrecondition:
+        raise ValueError('native_pulse_read_scope_unqualified')
+    return proof
+
+
 def run_native_pulse(message,*,args,event,policy):
     """Three phases of existing owners, not a new business route/executor."""
+    global _NATIVE_FAST_READ_PRECONDITION
     adapter=_NATIVE_PULSE_HANDOFF
     try:
-        if args.native_pulse_mode=='prepare':out=adapter.prepare(args.goal_ref)
+        if args.native_pulse_mode in {'prepare','fast-read'}:
+            _,snapshot=adapter.store.load(adapter.event.conversation_ref)
+            goal=(snapshot or {}).get('goals',{}).get(args.goal_ref) or {}
+            if args.native_pulse_mode=='prepare' and goal.get('pulseConfirmation') is not None:
+                # Retained/stale mutation bindings never escape the C16 owner.
+                out=adapter.prepare(args.goal_ref)
+            else:
+                from skill_intelligence.dialogue.native_fast import native_fast_envelope
+                _NATIVE_FAST_READ_PRECONDITION=_native_fast_precondition(adapter,args.goal_ref)
+                out=native_fast_envelope(adapter.store,adapter.event,args.goal_ref,_NATIVE_FAST_READ_PRECONDITION)
+                if args.native_pulse_mode=='fast-read':
+                    out=run_dialogue(message,mode='handoff',ui_root=args.ui_root,surface='whatsapp',caller='owner',
+                        timeout=max(2,min(args.timeout,120)),event=event,
+                        policy={**policy,'scope':'pulse_room','_native_pulse_event':_NATIVE_PULSE_EVENT},goal_ref=args.goal_ref)
         elif args.native_pulse_mode=='execute':
             from skill_intelligence.capability_graph import CapabilityGraph
             out=adapter.execute_claimed(CapabilityGraph(args.ui_root),args.goal_ref,
@@ -1628,7 +1660,9 @@ def run_native_pulse(message,*,args,event,policy):
     except Exception as error:
         allowed={'native_contract_unqualified','pulse_confirmation_not_current','native_pulse_phase_only',
             'native_pulse_handoff_not_current','native_pulse_bridge_claim_required','native_pulse_bridge_binding_changed',
-            'native_pulse_admission_expired','native_pulse_event_mismatch'}
+            'native_pulse_admission_expired','native_pulse_event_mismatch',
+            'native_pulse_read_scope_unqualified','native_pulse_read_scope_stale',
+            'native_pulse_read_handoff_changed','native_pulse_read_only_policy'}
         reason=str(error) if str(error) in allowed else 'native_pulse_handoff_unavailable'
         return {'nativePulseProtocol':'native-pulse.v1','outcome':'TECHNICAL_FAILURE','reasonCode':reason,
             'status':'known_error','reason':reason,'execution_state':
@@ -1652,7 +1686,7 @@ def _b64_json(name: str) -> dict[str, Any]:
 def main() -> int:
     global _QA_INGRESS_CONTEXT, _INTENT_CLIENT_CONTEXT, _INTENT_CONTEXT_READ_EVIDENCE, _NATIVE_PULSE_EVENT, _NATIVE_PULSE_HANDOFF
     parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
-    parser.add_argument("--native-pulse-mode",choices=("turn","prepare","execute","observe"))
+    parser.add_argument("--native-pulse-mode",choices=("turn","prepare","execute","observe","fast-read"))
     parser.add_argument("--intent-read-only", action="store_true",
                         help="Host-private existing MCP read owner callback, never a write entry.")
     parser.add_argument("--intent-context-stdin", action="store_true",

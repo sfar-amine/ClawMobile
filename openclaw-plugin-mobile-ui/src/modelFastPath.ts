@@ -67,7 +67,7 @@ type InboundContext = {
 export type RunnerOptions = {
   /** Opaque host admission, available only in the native contacts-pulse hook. */
   nativePulse?: NativePulseContact;
-  nativePulseMode?: "prepare"|"execute"|"observe";
+  nativePulseMode?: "prepare"|"execute"|"observe"|"fast-read";
   /** Host-private MCP envelope; all enclosed narrative remains client-reported. */
   intentContext?: { request: string; client_context: Record<string, unknown> };
   /** Only the authenticated existing MCP RemoteBridge read callback uses this. */
@@ -195,6 +195,10 @@ function privateIntentPacket(options:RunnerOptions) {
 
 async function runNativePulseHandoff(message:string,options:RunnerOptions):Promise<FastPathResult> {
   const prepared:any=await runModelFastPath(message,{...options,nativePulseMode:'prepare'});
+  // This tag selects an owner phase only. Python reloads canonical T1 and
+  // revalidates the private scoped precondition before any Graph read.
+  if(prepared.nativePulseProtocol===NATIVE_PULSE_PROTOCOL&&prepared.state==='native_fast_ready'&&prepared.handoffKind==='FAST_READ')
+    return runModelFastPath(message,{...options,nativePulseMode:'fast-read'});
   if(prepared.nativePulseProtocol!==NATIVE_PULSE_PROTOCOL||!prepared.request)
     return prepared;
   const request=prepared.request;

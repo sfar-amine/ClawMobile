@@ -259,6 +259,15 @@ jobs:
           npm ci --prefix "$peer/billing/direct-runtime" --ignore-scripts --no-audit --no-fund
           C16_PLAYBOOKS_ROOT="$peer" C16_EXPECTED_PB_SHA=dfd92662d2c9054647db584b71a5fc9356673313 C16_EVIDENCE_PATH="$RUNNER_TEMP/c16-native-paired-result.json" node scripts/test-native-pulse-paired.cjs
 
+      - name: C18 native FAST reads paired with immutable canonical owners (MOCK only)
+        run: |
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/c18-native-fast-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 0d26787241cf9e71a6287d6fce6f69a18263a4a0
+          git -C "$peer" checkout --detach FETCH_HEAD
+          C18_PLAYBOOKS_ROOT="$peer" C18_EXPECTED_PB_SHA=0d26787241cf9e71a6287d6fce6f69a18263a4a0 C18_EVIDENCE_PATH="$RUNNER_TEMP/c18-native-fast-paired-result.json" node scripts/test-native-fast-paired.cjs
+
       - name: Run composed read and model fast path contracts
         run: |
           python3 scripts/test-composed-read-result.py
