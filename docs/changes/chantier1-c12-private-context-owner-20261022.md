@@ -7,3 +7,5 @@ Sondes locales : admission Node 21/21 ; helper Python 18/18 ; reçu propriétair
 Aucune activation, recette téléphone ou CI complète n'est revendiquée. La voix en direct et le parcours de paiement ne sont pas modifiés. Retour arrière : revert, sans migration des reçus.
 
 La contre-revue a révélé que construire le backend sans preuve ouvrait sa base modèles avant le refus C9. Le helper refuse maintenant toute preuve absente avant cette construction. Le test historique C8 (quatre cas, assertions et step CI conservés) est migré sur cette branche vers PB263/C9 et le même helper de propriétaires réels ; il vérifiait auparavant un mécanisme devenu antérieur à cette admission. Aucun résultat métier, garde ou source C8 publiée n’est supprimé ou modifié.
+
+Le témoin hérité du helper réel attend désormais `SHARED_CONTEXT_ACCESS_UNVERIFIED` : C12 refuse l’absence d’admission privée avant de charger le backend volontairement manquant. Les 18 assertions restent présentes ; seules la cause attendue et sa documentation changent.

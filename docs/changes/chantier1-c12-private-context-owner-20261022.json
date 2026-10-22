@@ -22,7 +22,8 @@
     "docs/work/samantha-runtime/contracts/c12-mcp-private-context-owner.md",
     "docs/changes/chantier1-c12-private-context-owner-20261022.md",
     "docs/changes/chantier1-c12-private-context-owner-20261022.json",
-    "openclaw-plugin-mobile-ui/scripts/test-mcp-read-paired.cjs"
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-read-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path-mcp-read.cjs"
   ],
   "tests": [
     {
@@ -44,6 +45,11 @@
       "name": "Portable two-repository owner pair (MOCK only)",
       "status": "passed",
       "evidence": "Actual C9 reader and core memory owner read synthetic fixtures after private admission; two MOCK reads, unadmitted/shadow zero private reads, no other-thread import, no duplicate helper, DATA unknown closed before generation, zero provider and real effects. Separate Graph write boundary remains SYNTHETIC_BOUNDARY_ONLY."
+    },
+    {
+      "name": "Real read helper refuses before backend loading",
+      "status": "passed",
+      "evidence": "Inherited C8 read-port suite keeps all 18 assertions; the real-helper missing-admission case now expects the earlier exact C12 SHARED_CONTEXT_ACCESS_UNVERIFIED cause rather than the later missing-backend cause. No product change, fake helper cases and legacy surfaces retained."
     }
   ],
   "documentation": [
