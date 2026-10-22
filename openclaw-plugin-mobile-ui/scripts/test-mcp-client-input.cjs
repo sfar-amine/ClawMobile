@@ -4,6 +4,11 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'mcp-input-'));
 process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR=path.join(tmp,'bridge');
 process.env.CLAW_DIALOGUE_HOME=path.join(tmp,'dialogue');
 const host=require('../dist/modelFastPath');
+// This scenario deliberately represents an older runner. C4 and later export
+// these capabilities for real; isolate the legacy fixture instead of assuming
+// the current module has no protocol markers. The compatible case adds one below.
+delete host.INTENT_INPUT_PROTOCOL;
+delete host.INTENT_READ_PROTOCOL;
 let calls=[];
 host.runModelFastPath=async(text,options)=>{calls.push({text,options});return {intentInputProtocol:'mcp-input.v1',outcome:'NEEDS_CLARIFICATION',reasonCode:'source_needed',question:'Quelle offre ?'};};
 const {handleMcpRelayRequest,validateMcpClientContext}=require('../dist/companion/mcpBridge');
