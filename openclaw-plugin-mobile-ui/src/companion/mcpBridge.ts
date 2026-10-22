@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { capabilityBridge, validateCapabilityDecision } from "./capabilityBridge";
 import { runModelFastPath } from "../modelFastPath";
+import * as modelFastPathHost from "../modelFastPath";
 import { readMaintenanceGate } from "./maintenanceMarker";
 import { PUBLIC_WEB_BUDGET_MS } from "./runWeb";
 
@@ -36,12 +37,6 @@ const REQUEST_CONTEXT = path.join(
   "tools",
   "request_context.py",
 );
-function memoryOwner(){
-  const candidates=[process.env.SAMANTHA_MEMORY_OWNER,
-    path.join(os.homedir(),'.openclaw','releases','current','termux-lite','context-store.py')].filter(Boolean) as string[];
-  return candidates.find(candidate=>fs.existsSync(candidate));
-}
-
 type McpRelayMessage = {
   requestId?: unknown;
   clientId?: unknown;
@@ -221,8 +216,11 @@ function contextScopes(value:unknown) {
 async function contextBundle(args: Record<string, unknown>,clientId:string) {
   const query = requiredString(args.query, "query", 2000);
   const surface=contextSurface(clientId);
-  const session=`mcp-${clientId}`;
-  const argv = [REQUEST_CONTEXT, "--query", query, '--surface', surface,'--session',session];
+  // The authenticated client is an access principal, not a context consumer: two
+  // independent conversations may use it. Only the caller's explicitly supplied
+  // base describes what this consumer has received. Legacy callers reconstruct
+  // conservatively instead of inheriting another conversation's server cursor.
+  const argv = [REQUEST_CONTEXT, "--query", query, '--surface', surface];
   const scopes=contextScopes(args.scopes);
   if(scopes.length)argv.push('--scopes',scopes.join(','));
 
@@ -290,29 +288,12 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
     }
   }
 
-  const owner=memoryOwner();
-  const context=raw?.context && typeof raw.context==='object'?raw.context:{};
-  const revision=Number(context.truncated?context.lastReturnedRevision:context.toRevision);
-  if(owner&&raw?.readiness?.state!=='blocked'&&Number.isInteger(revision)&&revision>=0){
-    const knownContracts=Object.fromEntries((Array.isArray(raw.contracts)?raw.contracts:[])
-      .filter((row:any)=>typeof row?.key==='string'&&/^[a-f0-9]{64}$/.test(String(row?.sha256||'')))
-      .map((row:any)=>[row.key,row.sha256]));
-    const globalBaseline=raw?.global?.baseline_after_verified_read||{};
-    const state=JSON.stringify({knownContracts,globalBaseline});
-    try{
-      await execFileAsync('python3',[owner,'cursor-ack',session,surface,String(revision),state],{
-        cwd:path.dirname(owner),timeout:4000,maxBuffer:128*1024,env:{...process.env},
-      });
-      raw.cursor_advanced=true;
-      if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=true;
-    }catch{
-      // Context is already complete. Cursor optimization must fail open without
-      // leaking helper stderr or claiming an acknowledgement that did not occur.
-      raw.cursor_advanced=false;
-      raw.cursor_error='cursor_ack_unavailable';
-      if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=false;
-    }
-  }
+  // Building a response does not attest its delivery or the client's integration.
+  // A lost response is replayable from the same explicit base; no new cursor
+  // store, thread identifier, or acknowledgement endpoint is needed.
+  raw.cursor_advanced=false;
+  if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=false;
+  raw.context_consumption={state:'not_attested',basis:'caller_supplied_state',implicit_client_cursor:false};
   return {
     state: "context",
     bundle: sanitizeRequestContext(raw),
@@ -321,6 +302,105 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
       ? "Read and integrate every required_reads item before reusing its hash/baseline."
       : "No additional contract read is required for this delta.",
   };
+}
+
+// Versioned opt-in transport, not a second interpreter, dialogue owner or authorization API.
+const MCP_INPUT_PROTOCOL = "mcp-input.v1";
+const CLIENT_REF_RE = /^[A-Za-z0-9._:-]{1,128}$/;
+const CLIENT_CONTEXT_FIELDS = ["schema_version", "original_message", "conversation_ref", "local_revision", "relevant_turns",
+  "entity_references", "active_goal_ref", "pending_question_ref", "confirmation_ref", "user_reply_ref", "completeness", "missing"];
+
+function clientObject(value:unknown, keys:string[]) {
+  if(!value || typeof value!=="object" || Array.isArray(value) ||
+     Object.keys(value).length!==keys.length || Object.keys(value).some(key=>!keys.includes(key))) {
+    throw new Error("invalid_client_context");
+  }
+  return value as Record<string,any>;
+}
+function clientText(value:unknown,max:number,ref=false) {
+  if(typeof value!=="string" || !value.length || value.length>max || (ref&&!CLIENT_REF_RE.test(value))) {
+    throw new Error("invalid_client_context");
+  }
+}
+function clientRef(value:unknown) { if(value!==null)clientText(value,128,true); }
+
+/** All fields are external claims. Never upgrade a hash, client reference or narrative into server authority. */
+export function validateMcpClientContext(request:unknown,value:unknown) {
+  clientText(request,12000);
+  const context=clientObject(value,CLIENT_CONTEXT_FIELDS);
+  if(context.schema_version!==MCP_INPUT_PROTOCOL)throw new Error("invalid_client_context_version");
+  const message=clientObject(context.original_message,["text","ref"]);
+  clientText(message.text,12000);clientRef(message.ref);
+  if(message.text!==request)throw new Error("original_message_mismatch");
+  clientText(context.conversation_ref,128,true);
+  if(context.local_revision!==null && !(typeof context.local_revision==='string'&&context.local_revision.length>0&&context.local_revision.length<=128) &&
+     !(Number.isSafeInteger(context.local_revision)&&context.local_revision>=0))throw new Error("invalid_client_context");
+  if(!Array.isArray(context.relevant_turns)||context.relevant_turns.length>8)throw new Error("invalid_client_context");
+  for(const item of context.relevant_turns){
+    const turn=clientObject(item,["ref","role","text"]);clientRef(turn.ref);clientText(turn.text,2000);
+    if(!["user","assistant"].includes(turn.role))throw new Error("invalid_client_context");
+  }
+  if(!Array.isArray(context.entity_references)||context.entity_references.length>16)throw new Error("invalid_client_context");
+  for(const item of context.entity_references){
+    const reference=clientObject(item,["mention","turn_ref","server_ref"]);clientText(reference.mention,256);clientRef(reference.turn_ref);
+    if(reference.server_ref!==null){
+      const server=clientObject(reference.server_ref,["kind","request_id"]);
+      if(server.kind!=="remote_bridge_receipt")throw new Error("invalid_client_context");
+      clientText(server.request_id,128,true);
+    }
+  }
+  for(const key of ["active_goal_ref","pending_question_ref","confirmation_ref","user_reply_ref"])clientRef(context[key]);
+  if(!["complete","partial","unknown"].includes(context.completeness)||!Array.isArray(context.missing)||context.missing.length>16)throw new Error("invalid_client_context");
+  for(const item of context.missing)clientText(item,128);
+  const encoded=JSON.stringify({request,client_context:context});
+  if(Buffer.byteLength(encoded,"utf8")>32768)throw new Error("client_context_too_large");
+  // Copy data across the boundary; no caller objects or accessors survive it.
+  return JSON.parse(encoded).client_context as Record<string,any>;
+}
+
+function mcpInputFailure(reason:string,outcome="TECHNICAL_FAILURE") {
+  return {state:"failed",outcome,reason,retry_allowed:false,input_protocol:MCP_INPUT_PROTOCOL};
+}
+
+async function migratedMcpInput(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,execute:boolean) {
+  if(args.decision!==undefined||args.target_hint!==undefined)return mcpInputFailure("client_semantic_authority_not_admitted");
+  let context:Record<string,any>;
+  try {context=validateMcpClientContext(args.request,args.client_context);}
+  catch(error:any){return mcpInputFailure(error?.message||"invalid_client_context");}
+  // Never let a new envelope fall through to a runner/helper that ignores it.
+  if(process.env.SAMANTHA_INTENT_INTERPRETER!=="1" ||
+     (modelFastPathHost as any).INTENT_INPUT_PROTOCOL!==MCP_INPUT_PROTOCOL) {
+    return mcpInputFailure("INTERPRETATION_HOST_UNAVAILABLE");
+  }
+  const lock=readMaintenanceGate(clientId);
+  if(lock.state==="closed")return {state:"refused",outcome:"MAINTENANCE",reason:lock.reason,retry_allowed:false};
+  // A receipt identifier is not an entity resolver or a confirmation attestation.
+  // Its admission must come from the existing receipt/entity owner, not JSON or a checksum.
+  if(context.entity_references.some((ref:any)=>ref.server_ref!==null)) {
+    return mcpInputFailure("server_reference_admission_unavailable","CLIENT_CONTEXT_INCOMPLETE");
+  }
+  if(execute){
+    const actionKey=requiredString(args.action_key,"action_key",40,ACTION_ID_RE);
+    const stepKey=optionalString(args.step_key,"step_key",24,STEP_ID_RE)||"execute";
+    if(requestId!==actionRequestId(clientId,actionKey,stepKey))throw new Error("action_request_id_mismatch");
+    // The new in-process turn port has no RemoteBridge receipt yet. Do not bypass
+    // action-key idempotence, claw_status or the canonical confirmation owner.
+    return {...mcpInputFailure("INTERPRETATION_OWNER_RECEIPT_REQUIRED"),request_id:requestId,task_id:actionTaskId(clientId,actionKey)};
+  }
+  const conversationKey=`external_mcp:${clientId}:${context.conversation_ref}`;
+  try {
+    const out:any=await runModelFastPath(args.request as string,{
+      surface:"external_mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
+      requestId,sessionId:`external_mcp:${clientId}`,timeoutSeconds:15,checkOnly:true,
+      intentContext:{request:args.request,client_context:context},
+      dialogue:{mode:"preview",event:{conversationKey}},
+    } as any);
+    if(out?.intentInputProtocol!==MCP_INPUT_PROTOCOL)return mcpInputFailure("INTERPRETATION_HOST_UNAVAILABLE");
+    // Return the native preview/diagnostic. Nothing here produces a business success
+    // or copies client transcripts into durable Bridge params or receipts.
+    return {state:"resolved",input_protocol:MCP_INPUT_PROTOCOL,input_provenance:"client_reported",
+      context_consumption:"not_attested",result:safeValue(out)};
+  } catch {return mcpInputFailure("interpretation_transport_error");}
 }
 
 /** SAM-MIG V2.2 §5.5: MCP keeps no server-side dialogue state. `claw_resolve` is the coordinator's
@@ -681,8 +761,10 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
     case "claw_context":
       return contextBundle(args,clientId);
     case "claw_resolve":
+      if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,false);
       return { state: "resolved", result: await resolveCapability(args, clientId) };
     case "claw_execute":
+      if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,true);
       return executeCapability(requestId, clientId, profile, args);
     case "claw_exec":
       return executeRawCommand(requestId, clientId, profile, args);

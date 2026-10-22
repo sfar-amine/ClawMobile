@@ -1,0 +1,85 @@
+{
+  "version": 2,
+  "id": "chantier1-c5-mcp-input-20261022",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Add optional client-reported MCP context to existing tools, with a private preview port and closed execution until canonical receipt admission exists",
+  "reason": "External clients own their transcripts; the historical tool schema cannot supply local history or explicit provenance to the host interpreter",
+  "files": [
+    ".github/workflows/ci.yml",
+    "cloud/voice-relay/src/mcp.mjs",
+    "cloud/voice-relay/test-mcp.mjs",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-client-input.cjs",
+    "docs/work/samantha-runtime/contracts/c5-mcp-input.md",
+    "docs/changes/chantier1-c5-mcp-input-20261022.md",
+    "docs/changes/chantier1-c5-mcp-input-20261022.json"
+  ],
+  "tests": [
+    {
+      "name": "TypeScript compile",
+      "status": "passed",
+      "evidence": "tsc on the changed source: exit 0; no whole CI or phone work"
+    },
+    {
+      "name": "MCP client input synthetic boundary",
+      "status": "passed",
+      "evidence": "29/29 probes: exact text, closed schema, byte budget, independent principals/threads, no model JSON authority, compatible host required, server refs and execution refused without owners, no transcript/receipt written"
+    },
+    {
+      "name": "Relay schemas and existing MCP regressions",
+      "status": "passed",
+      "evidence": "test-mcp.mjs covers both optional schemas and seven invalid envelopes per tool before invoke; existing C6 identity, C1 14/14 consumer probes and maintenance gate pass without S24/model/effect"
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c5-mcp-input.md",
+    "docs/changes/chantier1-c5-mcp-input-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing MCP technical input only, no business route, permission or app capability added"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The current relay, Companion and C4 host own transport; no API endpoint, interpreter, store, transcript registry, router, scheduler or daemon added"
+  },
+  "rollback": "Revert this transport slice; no conversation, receipt or business data migration exists",
+  "limitations": [
+    "Canonical exact-head CI with PR number remains pending root delivery.",
+    "New context is opt-in; legacy clients remain on their previous behavior and are not declared migrated.",
+    "C4 compatible private host transport is required; without it the new entry is closed.",
+    "Server reference admission and canonical RemoteBridge receipts are not implemented by this slice; migrated execution is explicitly closed.",
+    "Fixture host responses prove transport only, not real interpretation, DATA admission, phone acceptance or end-to-end readiness."
+  ],
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "updated",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "updated",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "All historical tools and arguments remain; only optional client_context is added to resolve/execute.",
+      "Authenticated profile remains authoritative. Client context claims never become permissions, canonical decisions or consent.",
+      "Context ACK/reader behavior from C1 is unchanged; no context consumer store is added.",
+      "No owner receipt means no migrated execution, preserving claw_status/idempotence rather than simulating a success.",
+      "Changed source is not deployed or end-to-end qualified."
+    ],
+    "other_existing_tools": {
+      "claw_remember": "verified_no_impact"
+    }
+  }
+}

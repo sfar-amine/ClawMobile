@@ -1,0 +1,84 @@
+{
+  "version": 2,
+  "id": "chantier1-c1-mcp-context-consumers-20261022",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Keep MCP context consumer state explicit per conversation and never acknowledge consumption when merely assembling a response.",
+  "reason": "One implicit mcp-client cursor was shared by independent threads and advanced before the response was received. Existing reader reconstruction and explicit bases already provide the safe contract.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "cloud/voice-relay/src/mcp.mjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-context-consumers.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-context-provenance.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "docs/work/samantha-runtime/contracts/c6.md",
+    "docs/changes/chantier1-c1-mcp-context-consumers-20261022.md",
+    "docs/changes/chantier1-c1-mcp-context-consumers-20261022.json"
+  ],
+  "tests": [
+    {
+      "name": "TypeScript build and prepare-lite",
+      "status": "passed",
+      "evidence": "npm run build: exit 0 on the changed source; canonical exact-head CI remains required."
+    },
+    {
+      "name": "Existing MCP identity provenance",
+      "status": "passed",
+      "evidence": "test-mcp-context-provenance.cjs: captured S24 access provenance, all mappings, scopes and refusal assertions retained; construction now asserts no acknowledgement."
+    },
+    {
+      "name": "MCP independent context consumers",
+      "status": "passed",
+      "evidence": "test-mcp-context-consumers.cjs: 14/14 synthetic transport checks, two independent threads, lost response, pagination, explicit bases and uncertain reconstruction; no S24 or real memory access."
+    },
+    {
+      "name": "C1 transport regression witness before/after",
+      "status": "passed",
+      "evidence": "The identical new consumer test against baseline dd5078be mcpBridge.ts, transpiled in a temporary dist with the same dependencies, fails specifically at no cursor acknowledgement or owner write occurs. The candidate passes 14/14. This is a local transport proof, not a S24 incident recipe."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c6.md",
+    "docs/changes/chantier1-c1-mcp-context-consumers-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing technical claw_context transport only; no app/agent business action, capability, route or right added."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing request_context reader and its explicit consumer arguments retain ownership; no cursor store, thread registry, acknowledgement API, router or daemon is introduced."
+  },
+  "rollback": "Revert this bounded transport change; no memory data or cursor is migrated, erased or written by it.",
+  "limitations": [
+    "Targeted fixture results are not a complete canonical CI receipt or a S24 qualification.",
+    "Clients with no explicit base conservatively receive more context; a built response never attests actual consumption.",
+    "No semantic interpretation, model admission, Pulse execution or confirmation policy is changed by C1."
+  ],
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "updated",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Existing public input schema/authorization unchanged; context adapter and descriptor updated at source, not activated.",
+      "Existing C6 provenance plus14consumer checks cover separate consumers, loss/pagination/explicit baselines and no ACK; other five primitives unchanged.",
+      "A contradictory nested reader cursor flag is cleared along with outer flag; no response claims consumption.",
+      "Full exact-head CI and live activation remain distinct pending receipts."
+    ]
+  }
+}

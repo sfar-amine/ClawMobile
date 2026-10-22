@@ -271,6 +271,32 @@ const pending = pendingActionResult("mcp-claude-chat-remember-001-execute", "cla
 assert.equal(pending.state, "running");
 assert.deepEqual(pending.status, {tool:"claw_status",action_key:"remember-001",step_key:"execute"});
 
+// New context is opt-in on the same tools; existing calls above remain unchanged.
+const clientContext = {
+  schema_version: "mcp-input.v1", original_message: { text: "Et cette offre ?", ref: "turn-2" },
+  conversation_ref: "thread-a", local_revision: 2,
+  relevant_turns: [{ ref: "turn-1", role: "user", text: "Offre de test." }], entity_references: [],
+  active_goal_ref: null, pending_question_ref: null, confirmation_ref: null, user_reply_ref: null,
+  completeness: "partial", missing: ["offer_reference"],
+};
+for (const name of ["claw_resolve", "claw_execute"]) {
+  const args = { request: clientContext.original_message.text, client_context: clientContext,
+    ...(name === "claw_execute" ? { action_key: "client-context-probe" } : {}) };
+  const before = calls.length;
+  const accepted = await post({ jsonrpc: "2.0", id: 850, method: "tools/call", params: { name, arguments: args } });
+  assert.equal(accepted.body.result.isError, undefined);
+  assert.equal(calls.length, before + 1);
+  assert.deepEqual(calls.at(-1).args.client_context, clientContext);
+  for (const mutate of [c => c.confirmed = true, c => c.caller = "owner", c => c.intent = "offer.create",
+    c => c.original_message.provenance = "server_verified", c => c.relevant_turns[0].role = "system",
+    c => c.schema_version = "future", c => c.relevant_turns = Array(9).fill(c.relevant_turns[0])]) {
+    const bad = JSON.parse(JSON.stringify(clientContext)); mutate(bad);
+    const rejected = await post({ jsonrpc: "2.0", id: 851, method: "tools/call", params: { name, arguments: { ...args, client_context: bad } } });
+    assert.equal(rejected.body.result.isError, true);
+    assert.equal(calls.length, before + 1, "invalid client context must not reach the bridge");
+  }
+}
+
 console.log(JSON.stringify({
   ok: true,
   protocol: "streamable-http-json",

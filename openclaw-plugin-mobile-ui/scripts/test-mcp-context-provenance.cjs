@@ -16,13 +16,14 @@ const readCalls=()=>fs.existsSync(calls)?fs.readFileSync(calls,'utf8').trim().sp
   assert.equal(admitted.bundle.surface,'codex');assert.ok(Object.hasOwn(captured.manifest.modules,'engineering'));
   for(const [clientId,surface] of [['codex-cloud','codex'],['codex.desktop','codex'],['claude-chat','claude'],['mobile-owner','app'],['bixby-owner','voice'],['unknown-client','chat'],['notcodex','chat']]){
     const result=await invoke(clientId,{scopes:['engineering','memory','engineering'],surface:'work',clientId:'other',profile:'owner'});
-    assert.equal(result.bundle.surface,surface);assert.deepEqual(result.bundle.rule_scopes,['engineering','memory']);assert.equal(result.bundle.cursor_advanced,true);
+    assert.equal(result.bundle.surface,surface);assert.deepEqual(result.bundle.rule_scopes,['engineering','memory']);assert.equal(result.bundle.cursor_advanced,false);
+    assert.equal(result.bundle.context_consumption.state,'not_attested');
   }
   const result=await invoke('claude-chat',{scopes:'memory, engineering',after_revision:12,uncertain:true,known_contracts:{'SOUL.md':'a'.repeat(64)}});
   assert.equal(result.bundle.surface,'claude');assert.deepEqual(result.bundle.rule_scopes,['memory','engineering']);
-  const argv=readCalls().at(-1);assert.ok(argv.includes('--after'));assert.ok(argv.includes('--uncertain'));assert.ok(argv.includes('--known-contracts'));assert.ok(argv.includes('--session'));
-  const ack=fs.readFileSync(acks,'utf8').trim().split('\n').map(JSON.parse).at(-1);assert.equal(ack[0],'cursor-ack');assert.equal(ack[2],'claude');assert.equal(ack[3],'4');
-  const ackFailure=await invoke('ack-fail',{scopes:['memory']});assert.equal(ackFailure.state,'context');assert.equal(ackFailure.bundle.surface,'chat');assert.equal(ackFailure.bundle.cursor_advanced,false);assert.equal(ackFailure.bundle.cursor_error,'cursor_ack_unavailable');
+  const argv=readCalls().at(-1);assert.ok(argv.includes('--after'));assert.ok(argv.includes('--uncertain'));assert.ok(argv.includes('--known-contracts'));assert.ok(!argv.includes('--session'));
+  assert.equal(fs.existsSync(acks),false,'constructing a response must not acknowledge client consumption');
+  const ackFailure=await invoke('ack-fail',{scopes:['memory']});assert.equal(ackFailure.state,'context');assert.equal(ackFailure.bundle.surface,'chat');assert.equal(ackFailure.bundle.cursor_advanced,false);assert.equal(ackFailure.bundle.cursor_error,undefined);
   let before=readCalls().length;
   for(const scopes of [['--surface'],[['memory']],Array(17).fill('memory'),{memory:true},'x'.repeat(513)])await assert.rejects(invoke('codex-cloud',{scopes}),/invalid_scopes/);
   assert.equal(readCalls().length,before);
