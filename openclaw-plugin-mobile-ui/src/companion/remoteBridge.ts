@@ -828,7 +828,31 @@ async function dispatch(request: RemoteBridgeRequest, webBounds?: {startedMonoto
 
 // Process-local provenance cannot be supplied through HTTP or serialized JSON.
 type McpReadExecution = (bounds:{startedMonotonic:number;deadlineEpochMs:number})=>Promise<unknown>;
-const authenticatedMcpAccess = new WeakMap<object, ClawAccess & {readExecution?:McpReadExecution}>();
+const authenticatedMcpAccess = new WeakMap<object, ClawAccess & {readExecution?:McpReadExecution;
+  relayAdmission?:{requestId:string;observedAt:number;validUntil:number}}>();// existing admission owner, no second registry
+
+/** Called only for a frame on the existing authenticated device relay. Public MCP arguments never invoke this. */
+export function registerAuthenticatedMcpRelayMessage(message:Record<string,any>) {
+  if(!message || message.type!=="mcp_request" || typeof message.clientId!=="string" || !/^[A-Za-z0-9._-]{1,24}$/.test(message.clientId) ||
+     !["chat-owner","chat-owner-shadow"].includes(message.profile) || typeof message.requestId!=="string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(message.requestId)) {
+    throw new Error("invalid_authenticated_mcp_frame");
+  }
+  const now=Date.now();
+  authenticatedMcpAccess.set(message,{client_id:message.clientId,profile:message.profile,
+    owner:message.profile==="chat-owner",read_only:message.profile!=="chat-owner",
+    relayAdmission:{requestId:message.requestId,observedAt:now,validUntil:now+30000}});
+}
+
+/** Minimal projection only: no executor closure, token, new scope or client-supplied authority. */
+export function authenticatedMcpContextMetadata(message:unknown) {
+  if(!message || typeof message!=="object")return null;
+  const admitted=authenticatedMcpAccess.get(message),frame=message as Record<string,any>;
+  const relay=admitted?.relayAdmission;
+  if(!admitted||!relay||admitted.profile!=="chat-owner"||frame.clientId!==admitted.client_id||
+     frame.profile!==admitted.profile||frame.requestId!==relay.requestId||Date.now()<relay.observedAt||Date.now()>=relay.validUntil)return null;
+  return Object.freeze({client_id:admitted.client_id,authenticated_profile:admitted.profile,
+    request_id:relay.requestId,observed_at:relay.observedAt/1000,valid_until:relay.validUntil/1000});
+}
 export async function submitAuthenticatedMcpRequest(body: RemoteBridgeRequest, webBounds?: {startedMonotonic:number;deadlineEpochMs:number}, readExecution?:McpReadExecution): Promise<RemoteBridgeReceipt> {
   const access = body._claw_access;
   if (!access) throw statusError(400,"invalid_claw_access");

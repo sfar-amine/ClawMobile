@@ -448,6 +448,7 @@ jobs:
           node scripts/test-mcp-context-consumers.cjs
           node scripts/test-mcp-client-input.cjs
           node scripts/test-mcp-read-owner.cjs
+          node scripts/test-mcp-private-context.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
 
@@ -460,6 +461,15 @@ jobs:
           git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 3feb4771ba8b496c8fc3353113422bb221f051e6
           git -C "$peer" checkout --detach FETCH_HEAD
           node scripts/test-mcp-read-paired.cjs "$peer" 3feb4771ba8b496c8fc3353113422bb221f051e6 "$RUNNER_TEMP/c8-mcp-paired-result.json"
+
+      - name: MCP private owner context paired with immutable C9 owners (MOCK only)
+        run: |
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/c12-mcp-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 38ef1ad5053517e7796238854ed3daecfbf585ce
+          git -C "$peer" checkout --detach FETCH_HEAD
+          node scripts/test-mcp-context-paired.cjs "$peer" 38ef1ad5053517e7796238854ed3daecfbf585ce "$RUNNER_TEMP/c12-mcp-context-paired-result.json"
 
       - name: M2 claw_remember MCP owner capture through canonical context-event writer (200k events)
         run: node scripts/test-mcp-remember.cjs

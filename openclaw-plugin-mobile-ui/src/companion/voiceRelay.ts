@@ -5,6 +5,7 @@ import os from "os";
 import path from "path";
 import { capabilityBridge } from "./capabilityBridge";
 import { handleMcpRelayRequest } from "./mcpBridge";
+import { registerAuthenticatedMcpRelayMessage } from "./remoteBridge";
 import { reconnectDelay } from "./reconnectPolicy";
 import {
   isVoiceRealignment, planVoiceSpeech, readVoiceUnderstood, realignmentChoice, realignmentRoundPayload,
@@ -927,6 +928,7 @@ function connect() {
       }
 
       if (message.type === "mcp_request" && authenticated) {
+        registerAuthenticatedMcpRelayMessage(message);
         void handleMcpMessage(message);
         return;
       }

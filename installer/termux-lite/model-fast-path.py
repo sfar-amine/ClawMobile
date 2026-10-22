@@ -24,6 +24,9 @@ from typing import Any
 HOME = Path.home()
 _QA_INGRESS_CONTEXT = None
 _INTENT_CLIENT_CONTEXT = None
+_INTENT_CONTEXT_READ_EVIDENCE = None
+_INTENT_PRIVATE_CHANNEL = None
+_INTENT_CHANNEL_SEAL = object()
 
 def _read_qa_input():
     """Host's private input pipe. Raw contact text never becomes a CLI argument."""
@@ -75,6 +78,8 @@ def _intent_input_is_private(fd):
 
 def _read_intent_input():
     """One bounded host-private MCP envelope; its contents remain client-reported."""
+    global _INTENT_PRIVATE_CHANNEL
+    _INTENT_PRIVATE_CHANNEL = None
     raw_fd = os.environ.pop("SAMANTHA_INTENT_INPUT_FD", None)
     if raw_fd != "0":
         raise ValueError("intent_private_input_required")
@@ -94,15 +99,62 @@ def _read_intent_input():
             if len(data) > 32768:
                 raise ValueError("intent_private_input_too_large")
         value = json.loads(data)
-        if (not isinstance(value, dict) or set(value) != {"request", "client_context"} or
+        if (not isinstance(value, dict) or set(value) not in ({"request", "client_context"}, {"request", "client_context", "host_context"}) or
                 not isinstance(value["request"], str) or not 0 < len(value["request"]) <= 12000 or
                 not isinstance(value["client_context"], dict) or
                 value["client_context"].get("schema_version") != "mcp-input.v1" or
                 value["client_context"].get("original_message", {}).get("text") != value["request"]):
             raise ValueError("intent_private_input_invalid")
+        _INTENT_PRIVATE_CHANNEL = _INTENT_CHANNEL_SEAL
         return value
     finally:
         os.close(0)
+
+
+def _admit_intent_host_context(packet, args):
+    """Private transport admission only. A public/client JSON object never calls this.
+
+    The parent creates host_context only from its existing authenticated relay
+    WeakMap. This process also verifies the inherited same-UID IPC channel and
+    exact bindings before importing a context owner or opening private data.
+    """
+    if "host_context" not in packet:
+        return None  # Older packets stay unqualified for the C9 private reader.
+    host = packet["host_context"]
+    fields = {"schema_version", "client_id", "authenticated_profile", "request_id", "observed_at", "valid_until",
+              "principal_ref", "conversation_key", "verification_ref", "input_digest"}
+    now = time.time()
+    if (_INTENT_PRIVATE_CHANNEL is not _INTENT_CHANNEL_SEAL or not isinstance(host, dict) or set(host) != fields or
+            host["schema_version"] != "mcp-host-context.v1" or host["authenticated_profile"] != "chat-owner" or
+            args.surface != "mcp" or args.caller != "owner" or
+            not isinstance(host["client_id"], str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,24}", host["client_id"]) or
+            not isinstance(host["request_id"], str) or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", host["request_id"]) or
+            args.request_id != host["request_id"] or args.origin_id != host["request_id"] or
+            host["principal_ref"] != "mcp:" + host["client_id"] or
+            host["verification_ref"] != "mcp-context:" + host["request_id"] or
+            type(host["observed_at"]) not in (int, float) or type(host["valid_until"]) not in (int, float) or
+            not host["observed_at"] <= now < host["valid_until"] <= host["observed_at"] + 30):
+        raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+    expected_key = "external_mcp:" + host["client_id"] + ":" + str(packet["client_context"].get("conversation_ref", ""))
+    event = _b64_json("CLAW_DIALOGUE_EVENT_B64")
+    if (host["conversation_key"] != expected_key or event.get("conversationKey") != expected_key or
+            event.get("eventRef") != host["request_id"]):
+        raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+    raw = json.dumps({"request": packet["request"], "client_context": packet["client_context"]},
+                     sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+    if host["input_digest"] != hashlib.sha256(raw).hexdigest():
+        raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+    root = args.ui_root.resolve()
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from skill_intelligence import interpretation_context
+    if not Path(interpretation_context.__file__).resolve().is_relative_to(root / "skill_intelligence"):
+        raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+    return interpretation_context._admit_owner_context_channel(
+        authenticated_profile=host["authenticated_profile"], channel_verified=True,
+        home=Path.home(), core_owner_root=Path(__file__).resolve().parent,
+        request_id=host["request_id"], principal_ref=host["principal_ref"], verification_ref=host["verification_ref"],
+        observed_at=host["observed_at"], valid_until=host["valid_until"])
 
 
 def _ui_root() -> Path:
@@ -1306,7 +1358,8 @@ def _intent_dialogue_backend(ui_root: Path, *, surface: str, caller: str, timeou
     loaded = Path(intent_dialogue.__file__).resolve()
     if not loaded.is_relative_to(Path(root) / "skill_intelligence"):
         raise RuntimeError("intent_backend_root_mismatch")
-    return intent_dialogue.make_intent_dialogue_port(ui_root, surface=surface, caller=caller, timeout=timeout)
+    return intent_dialogue.make_intent_dialogue_port(ui_root, surface=surface, caller=caller, timeout=timeout,
+        **({"context_read_evidence": _INTENT_CONTEXT_READ_EVIDENCE} if _INTENT_CONTEXT_READ_EVIDENCE is not None else {}))
 
 
 class FastPathPorts:
@@ -1343,6 +1396,10 @@ class FastPathPorts:
     def _semantic_context(self, ctx):
         context = {**ctx, "messageProvenance":
                    "client_reported" if self.surface == "mcp" else "server_verified"}
+        if _INTENT_CONTEXT_READ_EVIDENCE is not None:
+            if context.get("requestId", _INTENT_CONTEXT_READ_EVIDENCE.request_id) != _INTENT_CONTEXT_READ_EVIDENCE.request_id:
+                raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
+            context["requestId"] = _INTENT_CONTEXT_READ_EVIDENCE.request_id
         if _INTENT_CLIENT_CONTEXT is not None:
             context["client_context"] = json.loads(json.dumps(_INTENT_CLIENT_CONTEXT))
             context["input_provenance"] = "client_reported"
@@ -1525,7 +1582,7 @@ def _b64_json(name: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    global _QA_INGRESS_CONTEXT, _INTENT_CLIENT_CONTEXT
+    global _QA_INGRESS_CONTEXT, _INTENT_CLIENT_CONTEXT, _INTENT_CONTEXT_READ_EVIDENCE
     parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
     parser.add_argument("--intent-read-only", action="store_true",
                         help="Host-private existing MCP read owner callback, never a write entry.")
@@ -1564,9 +1621,12 @@ def main() -> int:
             private = _read_intent_input()
             args.message = [private["request"]]
             _INTENT_CLIENT_CONTEXT = private["client_context"]
-        except Exception:
-            print(json.dumps({"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
-                              "execution_state": "not_started", "intentInputProtocol": "mcp-input.v1"}))
+            _INTENT_CONTEXT_READ_EVIDENCE = _admit_intent_host_context(private, args)
+        except Exception as error:
+            reason = "SHARED_CONTEXT_ACCESS_UNVERIFIED" if str(error) == "SHARED_CONTEXT_ACCESS_UNVERIFIED" else "INTERPRETATION_HOST_UNAVAILABLE"
+            print(json.dumps({"status": "known_error", "reason": reason,
+                              "execution_state": "not_started", "intentInputProtocol": "mcp-input.v1",
+                              **({"intentReadProtocol":"mcp-read.v1"} if args.intent_read_only else {})}))
             return 1
     if 'SAMANTHA_QA_CONTEXT_FD' in os.environ:
         # This descriptor is reserved to the Graph child, never an owner-default helper ingress.

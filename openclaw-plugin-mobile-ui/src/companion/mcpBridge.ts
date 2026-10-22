@@ -374,7 +374,7 @@ function stableMcpInput(value:any):any {
 function readReason(value:unknown) {
   return typeof value==="string"&&/^[A-Za-z0-9_.:-]{1,128}$/.test(value)?value:"interpretation_read_failed";
 }
-async function executeMigratedMcpRead(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,context:Record<string,any>,actionKey:string,stepKey:string) {
+async function executeMigratedMcpRead(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,context:Record<string,any>,actionKey:string,stepKey:string,admission?:object) {
   const input={request:args.request,client_context:context};
   const inputDigest=crypto.createHash("sha256").update(JSON.stringify(stableMcpInput(input))).digest("hex");
   const receipt=await submitAuthenticatedMcpRequest({
@@ -388,7 +388,7 @@ async function executeMigratedMcpRead(requestId:string,clientId:string,profile:s
       surface:"mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
       requestId,runId:requestId,sessionId:`external_mcp:${clientId}`,timeoutSeconds:15,
       remainingBudgetMs:remaining,deadlineEpochMs:bounds.deadlineEpochMs,
-      intentContext:input,intentReadOnly:true,
+      intentContext:input,intentReadOnly:true,intentContextAdmission:admission,
       dialogue:{mode:"preview",event:{conversationKey:`external_mcp:${clientId}:${context.conversation_ref}`,eventRef:requestId}},
     } as any);
     if(out?.intentInputProtocol!==MCP_INPUT_PROTOCOL || out?.intentReadProtocol!=="mcp-read.v1")throw new Error("mcp_read_protocol_required");
@@ -403,13 +403,25 @@ async function executeMigratedMcpRead(requestId:string,clientId:string,profile:s
       "conversation_ref","conversation_revision","context_digest","catalogue_digest","prompt_digest","status","model","actual_model","usage","inference_mode"];
     const interpretationReceipt=out.interpretationReceipt&&typeof out.interpretationReceipt==="object"
       ? Object.fromEntries(receiptKeys.filter(key=>out.interpretationReceipt[key]!==undefined).map(key=>[key,safeValue(out.interpretationReceipt[key])])):undefined;
+    // C9 v2 adds only bounded source metadata, never source bodies or host authority.
+    const shared=out.interpretationReceipt?.shared_source_refs;
+    const sharedDigest=out.interpretationReceipt?.shared_context_digest;
+    if(interpretationReceipt && Array.isArray(shared) && shared.length<=64 &&
+       ((shared.length===0 && sharedDigest===null) || (shared.length>0 && typeof sharedDigest==="string" && /^sha256:[0-9a-f]{64}$/.test(sharedDigest))) &&
+       shared.every(row=>row&&typeof row.ref==="string"&&row.ref.length>0&&row.ref.length<=200&&
+         typeof row.sha256==="string"&&/^sha256:[0-9a-f]{64}$/.test(row.sha256)&&
+         (row.revision===null||(Number.isSafeInteger(row.revision)&&row.revision>=0))&&
+         Number.isSafeInteger(row.bytes)&&row.bytes>=0&&row.bytes<=96000)) {
+      interpretationReceipt.shared_context_digest=sharedDigest;
+      interpretationReceipt.shared_source_refs=shared.map(({ref,sha256,revision,bytes})=>({ref,sha256,revision,bytes}));
+    }
     return {intentReadProtocol:"mcp-read.v1",execution,interpretationReceipt,capability:typeof out.capability==="string"?out.capability:undefined,
       selected:{route:typeof out.route==="string"?out.route:undefined}};
   });
   return projectReceipt(receipt);
 }
 
-async function migratedMcpInput(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,execute:boolean) {
+async function migratedMcpInput(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,execute:boolean,admission?:object) {
   if(args.decision!==undefined||args.target_hint!==undefined)return mcpInputFailure("client_semantic_authority_not_admitted");
   let context:Record<string,any>;
   try {context=validateMcpClientContext(args.request,args.client_context);}
@@ -420,7 +432,7 @@ async function migratedMcpInput(requestId:string,clientId:string,profile:string,
     if(requestId!==actionRequestId(clientId,actionKey,stepKey))throw new Error("action_request_id_mismatch");
     // A settled/uncertain receipt is not a new interpretation. Delegate all hash,
     // access and step checks to the same owner even if the model port is down.
-    if(getRemoteBridgeRequest(requestId))return executeMigratedMcpRead(requestId,clientId,profile,args,context,actionKey,stepKey);
+    if(getRemoteBridgeRequest(requestId))return executeMigratedMcpRead(requestId,clientId,profile,args,context,actionKey,stepKey,admission);
   }
   // Never let a new envelope fall through to a runner/helper that ignores it.
   if(process.env.SAMANTHA_INTENT_INTERPRETER!=="1" ||
@@ -441,15 +453,15 @@ async function migratedMcpInput(requestId:string,clientId:string,profile:string,
     if((modelFastPathHost as any).INTENT_READ_PROTOCOL!=="mcp-read.v1") {
       return {...mcpInputFailure("INTERPRETATION_OWNER_RECEIPT_REQUIRED"),request_id:requestId,task_id:actionTaskId(clientId,actionKey)};
     }
-    return executeMigratedMcpRead(requestId,clientId,profile,args,context,actionKey,stepKey);
+    return executeMigratedMcpRead(requestId,clientId,profile,args,context,actionKey,stepKey,admission);
   }
   const conversationKey=`external_mcp:${clientId}:${context.conversation_ref}`;
   try {
     const out:any=await runModelFastPath(args.request as string,{
       surface:"mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
       requestId,sessionId:`external_mcp:${clientId}`,timeoutSeconds:15,checkOnly:true,
-      intentContext:{request:args.request,client_context:context},
-      dialogue:{mode:"preview",event:{conversationKey}},
+      intentContext:{request:args.request,client_context:context},intentContextAdmission:admission,
+      dialogue:{mode:"preview",event:{conversationKey,eventRef:requestId}},
     } as any);
     if(out?.intentInputProtocol!==MCP_INPUT_PROTOCOL)return mcpInputFailure("INTERPRETATION_HOST_UNAVAILABLE");
     // Return the native preview/diagnostic. Nothing here produces a business success
@@ -817,10 +829,10 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
     case "claw_context":
       return contextBundle(args,clientId);
     case "claw_resolve":
-      if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,false);
+      if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,false,message);
       return { state: "resolved", result: await resolveCapability(args, clientId) };
     case "claw_execute":
-      if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,true);
+      if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,true,message);
       return executeCapability(requestId, clientId, profile, args);
     case "claw_exec":
       return executeRawCommand(requestId, clientId, profile, args);

@@ -1,5 +1,7 @@
 import {recordPresentationDiagnostics} from "./companion/receiptPresentation";
 import {runtimeFile} from "./runtimeRoot";
+import {createHash} from "node:crypto";
+import {authenticatedMcpContextMetadata} from "./companion/remoteBridge";
 import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
 import fs from "node:fs";
 import os from "node:os";
@@ -66,6 +68,8 @@ export type RunnerOptions = {
   intentContext?: { request: string; client_context: Record<string, unknown> };
   /** Only the authenticated existing MCP RemoteBridge read callback uses this. */
   intentReadOnly?: boolean;
+  /** Opaque admitted relay-frame identity, never serialized or built from caller arguments. */
+  intentContextAdmission?: object;
   /** Only the contact ingress owner creates this context; it travels on a private pipe. */
   qaContext?:Record<string,unknown>;
   helperPath?: string;
@@ -164,6 +168,27 @@ export function fastPathProcessTimeoutMs(timeoutSeconds: number, checkOnly: bool
   return checkOnly ? (timeoutSeconds + 8) * 1000 : (Math.max(timeoutSeconds, GUARDED_ENTRY_WAIT_S) + 15) * 1000;
 }
 
+function canonicalIntentInput(value:any):any {
+  if(Array.isArray(value))return value.map(canonicalIntentInput);
+  if(value&&typeof value==="object")return Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonicalIntentInput(value[key])]));
+  return value;
+}
+function privateIntentPacket(options:RunnerOptions) {
+  if(!options.intentContext)return undefined;
+  // Reconstruct the two public fields: JSON/extra RunnerOptions keys cannot
+  // smuggle a host_context across the otherwise authenticated child channel.
+  const input={request:options.intentContext.request,client_context:options.intentContext.client_context};
+  const admission=authenticatedMcpContextMetadata(options.intentContextAdmission);
+  if(!admission)return input;
+  const key=`external_mcp:${admission.client_id}:${options.intentContext.client_context.conversation_ref}`;
+  if(options.caller!=="owner"||options.requestId!==admission.request_id||options.dialogue?.event?.eventRef!==admission.request_id||
+     options.dialogue?.event?.conversationKey!==key)throw new Error("SHARED_CONTEXT_ACCESS_UNVERIFIED");
+  return {...input,host_context:{schema_version:"mcp-host-context.v1",...admission,
+    principal_ref:`mcp:${admission.client_id}`,conversation_key:key,
+    verification_ref:`mcp-context:${admission.request_id}`,
+    input_digest:createHash("sha256").update(JSON.stringify(canonicalIntentInput(input))).digest("hex")}};
+}
+
 export async function runModelFastPath(
   message: string,
   options: RunnerOptions = {},
@@ -174,6 +199,11 @@ export async function runModelFastPath(
       options.surface !== "mcp" || !options.dialogue || options.intentContext.request !== message ||
       options.intentContext.client_context.schema_version !== INTENT_INPUT_PROTOCOL ||
       Buffer.byteLength(JSON.stringify(options.intentContext), "utf8") > 32768))
+    return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
+  let intentPacket:Record<string,unknown>|undefined;
+  try{intentPacket=privateIntentPacket(options);}
+  catch{return {status:"known_error",reason:"SHARED_CONTEXT_ACCESS_UNVERIFIED",execution_state:"not_started"};}
+  if(intentPacket&&Buffer.byteLength(JSON.stringify(intentPacket),"utf8")>32768)
     return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
   if(options.checkBudgetMs!==undefined&&(!options.checkOnly||!Number.isSafeInteger(options.checkBudgetMs)||options.checkBudgetMs<1||options.checkBudgetMs>10000))return {status:"error",reason:"invalid_check_budget"};
   const bounded = options.remainingBudgetMs !== undefined;
@@ -220,6 +250,7 @@ export async function runModelFastPath(
         ...(bounded ? ["--remaining-budget-ms",String(remaining),"--deadline-epoch-ms",String(options.deadlineEpochMs)] : []),
         helperMessage,
       ];
+      if(options.intentContext&&options.requestId)argv.unshift("--request-id",options.requestId);
       if (options.intentContext) argv.unshift("--intent-context-stdin");
       if (options.intentReadOnly) argv.unshift("--intent-read-only");
       const timeoutSeconds = Math.max(2, Math.min(options.timeoutSeconds || 30, 120));
@@ -230,7 +261,7 @@ export async function runModelFastPath(
           killGroup:bounded||options.checkBudgetMs!==undefined||!!options.qaContext,signal:options.signal,
           maxBuffer: options.qaContext?64*1024:bounded ? 128 * 1024 : 2 * 1024 * 1024,
           ...(options.qaContext?{privateInput:JSON.stringify({context:options.qaContext,user_input:message})}:
-            options.intentContext?{privateInput:JSON.stringify(options.intentContext)}:{}),
+            options.intentContext?{privateInput:JSON.stringify(intentPacket)}:{}),
           env: {
             ...process.env,
             SAMANTHA_QA_CONTEXT_FD:undefined,

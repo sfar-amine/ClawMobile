@@ -146,6 +146,41 @@ class IntentPortTests(unittest.TestCase):
                  patch.object(m.socket,'socket',return_value=stream)):
                 self.assertFalse(m._intent_input_is_private(0))
 
+    def test_host_context_admission_rejects_unbound_metadata_before_import_or_io(self):
+        import base64,copy,hashlib,time
+        now=time.time();packet={'request':'exact','client_context':{'conversation_ref':'thread'}}
+        host={'schema_version':'mcp-host-context.v1','client_id':'fixture','authenticated_profile':'chat-owner',
+              'request_id':'request','observed_at':now-1,'valid_until':now+20,'principal_ref':'mcp:fixture',
+              'conversation_key':'external_mcp:fixture:thread','verification_ref':'mcp-context:request',
+              'input_digest':hashlib.sha256(json.dumps(packet,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
+        packet['host_context']=host
+        args=SimpleNamespace(surface='mcp',caller='owner',request_id='request',origin_id='request',ui_root=ROOT)
+        event={'conversationKey':host['conversation_key'],'eventRef':'request'}
+        env={'CLAW_DIALOGUE_EVENT_B64':base64.b64encode(json.dumps(event).encode()).decode()}
+        changes=[{'authenticated_profile':p} for p in ('chat-owner-shadow','chat-trusted','other')]+[
+            {'schema_version':'v0'},{'client_id':'other'},{'request_id':'other'},
+            {'conversation_key':'external_mcp:fixture:other'},{'input_digest':'0'*64},
+            {'observed_at':now+1},{'valid_until':now-1},{'valid_until':now+100},
+            {'observed_at':True},{'home':'/client/path'},{'verified':True}]
+        for changeset in changes:
+            changed=copy.deepcopy(packet);changed['host_context'].update(changeset)
+            with self.subTest(changeset=changeset),patch.dict(m.os.environ,env), \
+                 patch.object(m,'_INTENT_PRIVATE_CHANNEL',m._INTENT_CHANNEL_SEAL), \
+                 patch('builtins.__import__',side_effect=AssertionError('import before admission')):
+                with self.assertRaisesRegex(ValueError,'SHARED_CONTEXT_ACCESS_UNVERIFIED'):
+                    m._admit_intent_host_context(changed,args)
+        with patch.dict(m.os.environ,env),patch.object(m,'_INTENT_PRIVATE_CHANNEL',None), \
+             patch('builtins.__import__',side_effect=AssertionError('unqualified channel imported owner')):
+            with self.assertRaisesRegex(ValueError,'SHARED_CONTEXT_ACCESS_UNVERIFIED'):
+                m._admit_intent_host_context(packet,args)
+        self.assertIsNone(m._admit_intent_host_context({'request':'x','client_context':{}},args))
+
+    def test_context_proof_request_id_is_host_scoped_not_client_event(self):
+        with patch.object(m,'_INTENT_CONTEXT_READ_EVIDENCE',SimpleNamespace(request_id='host-request')):
+            self.assertEqual(self.ports('mcp')._semantic_context({'eventKey':'hashed-event'})['requestId'],'host-request')
+            with self.assertRaisesRegex(ValueError,'SHARED_CONTEXT_ACCESS_UNVERIFIED'):
+                self.ports('mcp')._semantic_context({'requestId':'forged-request'})
+
     def test_legacy_remains_exactly_on_existing_owner_when_disabled(self):
         with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'0'}),patch.object(m,'try_fast_path',return_value={'status':'miss'}) as legacy:
             self.ports().resolve('request',{})

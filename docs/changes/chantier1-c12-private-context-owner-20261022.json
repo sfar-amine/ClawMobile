@@ -1,0 +1,137 @@
+{
+  "version": 2,
+  "id": "chantier1-c12-private-context-owner-20261022",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Admit MCP private shared context only through existing server-owner provenance and private IPC",
+  "reason": "C9 typed shared-context reader must stay closed until canonical owner admission is carried across the existing host boundary",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-fast-path-intent.py",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-private-context.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-read-owner.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-context-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/mcp-context-paired-helper.py",
+    "docs/work/samantha-runtime/contracts/c12-mcp-private-context-owner.md",
+    "docs/changes/chantier1-c12-private-context-owner-20261022.md",
+    "docs/changes/chantier1-c12-private-context-owner-20261022.json"
+  ],
+  "tests": [
+    {
+      "name": "TypeScript compile",
+      "status": "passed",
+      "evidence": "tsc exits0; no full CI run"
+    },
+    {
+      "name": "Private provenance negatives",
+      "status": "passed",
+      "evidence": "Node21/21 including actual authenticated relay callback with synthetic socket; Python17/17 including fourteen bad header variants refused before import/IO"
+    },
+    {
+      "name": "Receipt and inherited regressions",
+      "status": "passed",
+      "evidence": "Owner23/23 including source-body injection omitted, C5 input29/29, readport18/18, inputport10/10, consumers14/14, relay/reconnect and Worker per-client authentication green"
+    },
+    {
+      "name": "Portable two-repository owner pair (MOCK only)",
+      "status": "passed",
+      "evidence": "Actual C9 reader and core memory owner read synthetic fixtures after private admission; two MOCK reads, unadmitted/shadow zero private reads, no other-thread import, no duplicate helper, DATA unknown closed before generation, zero provider and real effects. Separate Graph write boundary remains SYNTHETIC_BOUNDARY_ONLY."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c12-mcp-private-context-owner.md",
+    "docs/changes/chantier1-c12-private-context-owner-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing technical MCP and RemoteBridge read owner only; no new business route, API or permission"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing authenticatedMcpAccess and qualified private child channel carry typed owner evidence; no new ACL/store/route/executor/daemon"
+  },
+  "rollback": "Revert C12; C9 remains closed without host evidence, no receipt migration",
+  "limitations": [
+    "Exact-head numbered PR CI pending parent publication.",
+    "C9 immutable dependency 38ef1ad5053517e7796238854ed3daecfbf585ce is required; absent typed proof stays closed before private IO.",
+    "MOCK fixture proof only; no LIVE model, actual DATA-profile, S24 or deployment claim.",
+    "Only server chat-owner admission is qualified; shadow/other/trusted and client confirmations stay closed.",
+    "Live voice and payment remain unchanged; voiceRelay change is confined to authenticated MCP dispatch."
+  ],
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "updated",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "updated",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "other_existing_tools": {
+      "claw_remember": "verified_no_impact"
+    },
+    "evidence": [
+      "Existing Worker per-client auth owns the profile and client id, no tool argument provides them.",
+      "Existing authenticated device MCP handler marks exact object identity; public JSON/copies cannot mint context evidence.",
+      "Same private FIFO/Unix stream validates peer and bounded host linkage before C9 imports owner or reads GLOBAL.",
+      "Source integrity hashes are correlation only; context rule scopes are not access rights.",
+      "Receipts retain source metadata only, no private context bodies or proof objects."
+    ]
+  },
+  "paired_dependency": {
+    "repository": "sfar-amine/samantha-ui-playbooks",
+    "sha": "38ef1ad5053517e7796238854ed3daecfbf585ce",
+    "replay": "node openclaw-plugin-mobile-ui/scripts/test-mcp-context-paired.cjs <C9-checkout> 38ef1ad5053517e7796238854ed3daecfbf585ce <result.json>",
+    "qualification": "MOCK_ONLY",
+    "external_provider_calls": 0,
+    "real_business_effects": 0,
+    "result": {
+      "playbooks_sha": "38ef1ad5053517e7796238854ed3daecfbf585ce",
+      "qualification": "MOCK_ONLY",
+      "external_provider_calls": 0,
+      "real_business_effects": 0,
+      "canonical_claim_before_generation": true,
+      "helper_calls": 7,
+      "positive_reads": 2,
+      "positive_previews": 1,
+      "unadmitted_private_reads": 0,
+      "shadow_private_reads": 0,
+      "actual_canonical_memory_owner": true,
+      "actual_snapshot_reader": true,
+      "private_constraint_consumed": true,
+      "other_thread_absent": true,
+      "shared_source_metadata_only": true,
+      "duplicate_additional_helper_calls": 0,
+      "independent_threads": true,
+      "original_text_exact": true,
+      "client_provenance_preserved": true,
+      "canonical_write_executor_calls": 0,
+      "data_unknown_reason": "DATA_PROFILE_UNVERIFIED",
+      "fake_interpretations": 4,
+      "fake_business_read_executions": 2,
+      "separate_graph_write_boundary_probe": {
+        "qualification": "SYNTHETIC_BOUNDARY_ONLY",
+        "state": "blocked",
+        "reason": "read_only_policy",
+        "executor_calls": 0,
+        "checks": 7
+      }
+    },
+    "pr": 263
+  }
+}
