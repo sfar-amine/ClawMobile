@@ -8,12 +8,14 @@ import { admittedAtMs, dialogueTurn, transportEventRef } from "./dialogueSurface
 import { PUBLIC_WEB_BUDGET_MS } from "./companion/runWeb";
 
 export const INTENT_INPUT_PROTOCOL = "mcp-input.v1";
+export const INTENT_READ_PROTOCOL = "mcp-read.v1";
 const MAX_MESSAGE_CHARS = 12000;
 const LOCAL_COMPANION_SESSION = /^agent:main:companion-chat-[A-Za-z0-9-]{1,96}$/;
 
 export type FastPathResult = {
   status?: string;
   intentInputProtocol?: string;
+  intentReadProtocol?: string;
   web?: unknown;
   result?: unknown;
   execution_state?: string;
@@ -62,6 +64,8 @@ type InboundContext = {
 export type RunnerOptions = {
   /** Host-private MCP envelope; all enclosed narrative remains client-reported. */
   intentContext?: { request: string; client_context: Record<string, unknown> };
+  /** Only the authenticated existing MCP RemoteBridge read callback uses this. */
+  intentReadOnly?: boolean;
   /** Only the contact ingress owner creates this context; it travels on a private pipe. */
   qaContext?:Record<string,unknown>;
   helperPath?: string;
@@ -164,6 +168,8 @@ export async function runModelFastPath(
   message: string,
   options: RunnerOptions = {},
 ): Promise<FastPathResult> {
+  if (options.intentReadOnly && (!options.intentContext || options.dialogue?.mode !== "preview"))
+    return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
   if (options.intentContext && (process.env.SAMANTHA_INTENT_INTERPRETER !== "1" || options.qaContext ||
       options.surface !== "mcp" || !options.dialogue || options.intentContext.request !== message ||
       options.intentContext.client_context.schema_version !== INTENT_INPUT_PROTOCOL ||
@@ -215,6 +221,7 @@ export async function runModelFastPath(
         helperMessage,
       ];
       if (options.intentContext) argv.unshift("--intent-context-stdin");
+      if (options.intentReadOnly) argv.unshift("--intent-read-only");
       const timeoutSeconds = Math.max(2, Math.min(options.timeoutSeconds || 30, 120));
       const raw: any = await runCapabilityHelperProcess(
         [helper, ...argv],
@@ -229,6 +236,9 @@ export async function runModelFastPath(
             SAMANTHA_QA_CONTEXT_FD:undefined,
             SAMANTHA_QA_INPUT_FD:options.qaContext?'0':undefined,
             SAMANTHA_INTENT_INPUT_FD:options.intentContext?'0':undefined,
+            // Pilot admission is per host request, never a global interception
+            // of unrelated app/WhatsApp/Orange/payment requests.
+            SAMANTHA_INTENT_INTERPRETER:options.intentContext?process.env.SAMANTHA_INTENT_INTERPRETER:undefined,
             ...((options.preparedDecision || options.clarificationDecision) ? {
               CLAW_PREPARED_DECISION_B64: Buffer.from(JSON.stringify(options.preparedDecision || options.clarificationDecision), "utf8").toString("base64"),
             } : {}),
@@ -250,6 +260,8 @@ export async function runModelFastPath(
       if(bounded&&(Date.now()>=options.deadlineEpochMs!||performance.now()-started>=options.remainingBudgetMs!))return {status:"known_error",reason:"web_deadline_exceeded",execution_state:"timeout"};
       if (options.intentContext && parsed?.intentInputProtocol !== INTENT_INPUT_PROTOCOL)
         return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
+      if (options.intentReadOnly && parsed?.intentReadProtocol !== INTENT_READ_PROTOCOL)
+        return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
       if(typeof parsed === "object" && parsed !== null)recordPresentationDiagnostics(parsed.presentationDiagnostics);
       return typeof parsed === "object" && parsed !== null
         ? parsed as FastPathResult
@@ -268,6 +280,8 @@ export async function runModelFastPath(
         const parsed = JSON.parse(stdout || "{}");
         if (parsed && typeof parsed === "object") {
           if (options.intentContext && parsed.intentInputProtocol !== INTENT_INPUT_PROTOCOL)
+            return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
+          if (options.intentReadOnly && parsed.intentReadProtocol !== INTENT_READ_PROTOCOL)
             return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
           return parsed as FastPathResult;
         }

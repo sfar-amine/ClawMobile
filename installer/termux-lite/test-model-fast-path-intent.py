@@ -107,6 +107,30 @@ class IntentPortTests(unittest.TestCase):
                 env={**os.environ,'SAMANTHA_INTENT_INTERPRETER':'1','SAMANTHA_INTENT_INPUT_FD':'0'})
             self.assertEqual(json.loads(process.stdout)['reason'],'INTERPRETATION_HOST_UNAVAILABLE')
 
+    def test_stateless_mcp_read_uses_one_request_local_owner_without_dialogue_store(self):
+        seen=[]
+        model=SimpleNamespace(conversation_ref=lambda surface,key:'host:'+key,
+            event_key=lambda surface,conv,ref:'event:'+ref)
+        owner=SimpleNamespace(m=model)
+        backend=SimpleNamespace(execute_mcp_read=lambda text,ctx:seen.append((text,ctx)) or
+            {'status':'known_error','reason':'DATA_PROFILE_UNVERIFIED','execution_state':'blocked'})
+        with (patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}),patch.object(m,'_INTENT_CLIENT_CONTEXT',{'schema_version':'mcp-input.v1'}),
+             patch.object(m,'_intent_dialogue_backend',return_value=backend),patch.object(m,'_dialogue_coordinator',return_value=owner),
+             patch.object(m,'run_dialogue',side_effect=AssertionError('no dialogue state or second interpretation'))):
+            out=m.run_intent_mcp_read('  exact  ',ui_root=ROOT,caller='owner',timeout=15,
+                event={'conversationKey':'external_mcp:client:thread','eventRef':'request-id'})
+        self.assertEqual(out['intentInputProtocol'],'mcp-input.v1')
+        self.assertEqual(out['intentReadProtocol'],'mcp-read.v1')
+        self.assertEqual(len(seen),1);self.assertEqual(seen[0][0],'  exact  ')
+        self.assertEqual(seen[0][1]['conversationRef'],'host:external_mcp:client:thread')
+        self.assertEqual(seen[0][1]['messageProvenance'],'client_reported')
+
+    def test_stateless_mcp_read_refuses_missing_host_event_before_backend_call(self):
+        with (patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}),patch.object(m,'_INTENT_CLIENT_CONTEXT',{}),
+             patch.object(m,'_intent_dialogue_backend',side_effect=AssertionError('no backend'))):
+            out=m.run_intent_mcp_read('request',ui_root=ROOT,caller='owner',timeout=15,event={})
+        self.assertEqual(out['reason'],'INTERPRETATION_HOST_UNAVAILABLE')
+
     def test_legacy_remains_exactly_on_existing_owner_when_disabled(self):
         with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'0'}),patch.object(m,'try_fast_path',return_value={'status':'miss'}) as legacy:
             self.ports().resolve('request',{})
