@@ -80,3 +80,11 @@ Isolated branch + dependency only. Existing production untouched. NEXT: configur
 - Production baseline verified: version 756f85d3-5361-4521-bf14-d819b7a1caa0. Rollback: restore that Worker version. No secrets, grants, scopes, authorization Worker or legacy identities changed.
 - Architecture/capability impact: none; same service binding and canonical MCP schemas/tools. Only OAuth adapter invocation changes. MCP schemas, S24 executors, registry and permissions unchanged.
 - Live ChatGPT refresh and S24 receipt still pending at this checkpoint. Local fixture token validation is not real owner OAuth acceptance.
+
+## Real OAuth acceptance — 22 October 2026
+- After Refresh tools, the actual Samantha plugin exposes five read/shadow tools, including claw_context.
+- Direct invocation through `mcp__codex_apps__samantha_claw_context` succeeded: state=context, client_id=chatgpt, profile=chat-owner-shadow, owner=false, read_only=true, surface=chat, session=mcp-chatgpt, toRevision=3169, duration_ms=227.52. The context is paginated (partial=true); this is transport acceptance, not a claim that all memory was read.
+- Non-sensitive returned evidence is in chatgpt-mcp-oauth-rpc-20261022-evidence.json. This is the real OAuth plugin response, not the local fixture or Codex static client. claw_context itself has no action receipt ID.
+- Deployment b13f3471-ad4f-4d3b-87bd-a10f6a6ce2b4 is confirmed; static Codex live execution remains healthy. Claude/Codex static routing is covered by the local regression; their credentials were untouched.
+- Source branch exact SHA 24b6f354 was verified with git ls-remote. Historical ClawMobile main has diverged extensively: a draft comparison was closed without merge; no unrelated integration attempted.
+- No OpenAI paid API, billing enrollment, new secrets or permission expansion.
