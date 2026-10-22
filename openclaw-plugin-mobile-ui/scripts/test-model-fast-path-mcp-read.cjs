@@ -36,7 +36,9 @@ const {INTENT_READ_PROTOCOL,runModelFastPath}=require('../dist/modelFastPath.js'
     const real=await runModelFastPath(text,{...options,helperPath:path.resolve(__dirname,'../../installer/termux-lite/model-fast-path.py')});
     assert.equal(real.intentInputProtocol,'mcp-input.v1');
     assert.equal(real.intentReadProtocol,'mcp-read.v1');
-    assert.equal(real.reason,'INTERPRETATION_HOST_UNAVAILABLE');
+    // The real C12 helper rejects missing private owner admission before it
+    // attempts to load the (deliberately missing) playbooks backend.
+    assert.equal(real.reason,'SHARED_CONTEXT_ACCESS_UNVERIFIED');
   }finally{if(previousRoot===undefined)delete process.env.CLAW_UI_PLAYBOOKS_ROOT;else process.env.CLAW_UI_PLAYBOOKS_ROOT=previousRoot;}
   console.log('MCP read host port and bounded pilot: 18/18 assertions passed; no model, network or real read.');
  }finally{
