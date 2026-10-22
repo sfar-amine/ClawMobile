@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { contactRoomSession } from "./contactRoomProfile";
-import { admittedAtMs, dialogueTurn, transportEventRef } from "./dialogueSurface";
+import {admitNativePulseContact} from "./nativePulseAdmission";
+import { admittedAtMs, dialogueTurn, dialogueHandoff, transportEventRef } from "./dialogueSurface";
 import { runModelFastPath, type FastPathResult, type RunnerOptions } from "./modelFastPath";
 
 /**
@@ -20,6 +21,14 @@ const LEAVE_REQUEST_REFUSAL = "Une demande de congé se fait uniquement par Amin
 export const PULSE_ROOM_HELP = "Je n'ai pas compris la demande Pulse et je ne réponds qu'avec les données de Pulse. Donne le numéro ou le nom du projet ou de l'offre, et ce que tu veux : état, équipe, consommation, forecast, congés de l'équipe.";
 const PULSE_UNAVAILABLE = "Pulse est indisponible pour le moment. Réessaie dans un instant.";
 const TEXT_ONLY = "Ici je ne lis que les messages écrits. Écris ta demande Pulse (projet, offre, congés de l'équipe).";
+function nativeFailureText(reason:string|undefined):string {
+  if(reason?.startsWith('DATA_'))return 'La configuration de confidentialité du fournisseur n’est pas vérifiée. Rien n’a été exécuté.';
+  if(reason==='native_contract_unqualified')
+    return 'Le formulaire natif de cette phase n’est pas encore qualifié. Rien n’a été exécuté.';
+  if(reason==='pulse_preparation_required')return 'La commande de phase ne dispose pas d’une préparation native complète. Rien n’a été exécuté.';
+  if(reason==='host_interpretation_failed')return 'L’interprétation reçue n’est pas conforme à la demande admise. Rien n’a été exécuté.';
+  return 'La préparation ou la vérification de cette commande n’a pas abouti. Aucun nouvel essai automatique n’est lancé.';
+}
 
 /**
  * Amine 12/10 (« il ne faut plus inventer, c'est capital ») : the model never answers about client work. In the
@@ -96,24 +105,37 @@ export async function handlePulseRoomFastPath(
   const agent = roomAgent(event, ctx);
   const modelOr = (text: string) => (agent === "contacts-projet-pulse" ? { handled: false } : { handled: true as const, reply: { text } });
   if ((event.media?.length ?? 0) > 0 || (event.originalMedia?.length ?? 0) > 0) return modelOr(TEXT_ONLY);
-  const message = (event.bodyForAgent ?? event.content ?? "").trim();
+  const originalMessage=event.bodyForAgent ?? event.content ?? "";
+  const message = originalMessage.trim();
   if (!message || message.length > MAX_MESSAGE_CHARS) return modelOr(TEXT_ONLY);
   // The requester stays visible: the conversation is the room's host session (room, contact).
-  const reply = await dialogueTurn(runner, {
-    surface: "pulse_room", graphSurface: "whatsapp",
+  const eventRef=transportEventRef(ctx.runId,event.runId,event.id);
+  let nativePulse;
+  if(agent==='contacts-pulse'&&process.env.SAMANTHA_NATIVE_PULSE_HANDOFF==='1'){
+    try{nativePulse=await admitNativePulseContact({sessionKey:String(ctx.sessionKey??event.sessionKey??''),
+      eventRef,text:originalMessage,isGroup:event.isGroup===true});}
+    catch{return {handled:true,reply:{text:'L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté.'}};}
+  }
+  const input={
+    surface: "pulse_room" as const, graphSurface: "whatsapp",
     conversationKey: `pulse-room:${agent}:${contactId}:${String(ctx.sessionKey ?? event.sessionKey ?? "")}`,
-    eventRef: transportEventRef(ctx.runId, event.runId, event.id), text: message, caller: "owner",
+    eventRef, text: nativePulse?originalMessage:message, caller: "owner" as const,
+    ...(nativePulse?{nativePulse}:{}),
     admittedAt: admittedAtMs(event.timestamp),
-    policy: { scope: "pulse_room", modelAllowed: pulseRoomMayUseModel(agent, message) },
+    policy: { scope: "pulse_room", modelAllowed: nativePulse?false:pulseRoomMayUseModel(agent, message),
+      ...(nativePulse?{deferHandoff:true}:{}) },
     timeoutSeconds: 75,
-  });
-  if (!reply.handled) return { handled: false };
+  };
+  let reply=await dialogueTurn(runner,input);
+  if(nativePulse&&reply.pendingHandoff)reply=await dialogueHandoff(runner,input,reply.pendingHandoff.goalRef);
+  if (!reply.handled) return nativePulse?{handled:true,reply:{text:nativeFailureText(reply.reasonCode)}}:{ handled: false };
   const text = String(reply.text || "").trim();
   switch (reply.outcome) {
-    case "OUTSIDE_SCOPE": return refusal("outside");
+    case "OUTSIDE_SCOPE": return nativePulse?{handled:true,reply:{text:"Cette demande ne définit pas une commande Pulse admise. Précise le projet, la phase et l’état souhaité."}}:refusal("outside");
     case "DENIED": return refusal(reply.reasonCode === "scope_leave_request" ? "leave_request" : "outside");
     case "UNRESOLVED": return { handled: true, reply: { text: text || PULSE_ROOM_HELP } };
     case "TECHNICAL_FAILURE":
+      if(nativePulse)return {handled:true,reply:{text:nativeFailureText(reply.reasonCode)}};
       return { handled: true, reply: { text: reply.reasonCode === "coordinator_unavailable" || !text ? PULSE_UNAVAILABLE : text } };
     default: return { handled: true, reply: { text: text || PULSE_ROOM_HELP } };
   }

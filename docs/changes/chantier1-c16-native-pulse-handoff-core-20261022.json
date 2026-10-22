@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "id": "chantier1-c16-native-pulse-handoff-core-20261022",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Claim and fence the native contacts-pulse phase handoff before the existing canonical effect",
+  "reason": "Semantic writes require native admission, current host-restored confirmation and durable receipt ownership instead of a generic guard removal",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-native-pulse-private-input.py",
+    "openclaw-plugin-mobile-ui/src/nativePulseAdmission.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-handoff.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/native-pulse-paired-helper.py",
+    "docs/work/samantha-runtime/contracts/c16-native-pulse-handoff.md",
+    "docs/changes/chantier1-c16-native-pulse-handoff-core-20261022.md",
+    "docs/changes/chantier1-c16-native-pulse-handoff-core-20261022.json"
+  ],
+  "tests": [
+    {
+      "name": "Compile and inherited private owners",
+      "status": "passed",
+      "evidence": "TypeScript compiles; Node native host/Bridge25/25 and MCP owner23/23, semantic transport10/10, legacy Pulse room and Python semantic18/18 remain green. No full CI."
+    },
+    {
+      "name": "Private IPC negatives",
+      "status": "passed",
+      "evidence": "Python5/5: regular file, missing fd, public flag, MCP/QA cross-protocol, oversized/malformed body and absent pinned owner refuse before opening backend/store."
+    },
+    {
+      "name": "Real native hook paired canonical owners",
+      "status": "passed",
+      "evidence": "36/36 MOCK_ONLY paired probes: original text, distinct human events, typed grants, actual existing Store/Continuum/Bridge/Graph, one simulated native CLI write, settled T2/replay no extra inference/effect. Actual contacts-pulse hook tests DATA closed0attempts, invalid IR/unsupported/ambiguous/unqualified-native all handled terminal/question with0fallback. Providers and final business HTTP process port simulated."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/c16-native-pulse-handoff.md",
+    "docs/changes/chantier1-c16-native-pulse-handoff-core-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing Pulse phase capability, native room ingress and Bridge method retained; no new endpoint/action or MCP write right"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse canonical admission owner, existing process-private Bridge WeakMap, child channel, DialogueStore/Continuum/Graph; no new persistent owner or executor"
+  },
+  "rollback": "Disable native host pilot; retain and observe Bridge receipts/Attempts, never replay uncertain effects",
+  "limitations": [
+    "Native production preparation NOT_IMPLEMENTED until C15 capture; current owner refuses before login.",
+    "MOCK_ONLY mechanism and provider output; no actual model, account, S24, network business effect or deployment qualification.",
+    "Real end-to-end latency and native reconciliation need qualification before activation; no fixture proves 15s runtime budget.",
+    "Generic app/WhatsApp, live voice, payment and other durable paths unchanged.",
+    "Exact-head numbered canonical CI and independent review pending."
+  ],
+  "paired_dependency": {
+    "repository": "sfar-amine/samantha-ui-playbooks",
+    "sha": "af122f34f446546b96ad037eb2aac581abdf6497",
+    "qualification": "MOCK_ONLY"
+  },
+  "base_dependency": {
+    "repository": "sfar-amine/samantha-core",
+    "pr": 388,
+    "sha": "45218a5d9aa0767d37268505f2507b0c4f34e9c6"
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "MCP private read and context authorities remain separately typed; native callback cannot use MCP readonly method.",
+      "MCP narrative remains client_reported; no new consent route or serialized grant.",
+      "Existing MCP owner23/23 and private/legacy regressions retained."
+    ]
+  }
+}

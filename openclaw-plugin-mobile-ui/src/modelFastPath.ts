@@ -1,7 +1,8 @@
 import {recordPresentationDiagnostics} from "./companion/receiptPresentation";
 import {runtimeFile} from "./runtimeRoot";
 import {createHash} from "node:crypto";
-import {authenticatedMcpContextMetadata} from "./companion/remoteBridge";
+import {authenticatedMcpContextMetadata,submitNativePulseRequest,getRemoteBridgeRequest} from "./companion/remoteBridge";
+import {NativePulseContact,NATIVE_PULSE_PROTOCOL} from "./nativePulseAdmission";
 import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
 import fs from "node:fs";
 import os from "node:os";
@@ -64,6 +65,9 @@ type InboundContext = {
 };
 
 export type RunnerOptions = {
+  /** Opaque host admission, available only in the native contacts-pulse hook. */
+  nativePulse?: NativePulseContact;
+  nativePulseMode?: "prepare"|"execute"|"observe";
   /** Host-private MCP envelope; all enclosed narrative remains client-reported. */
   intentContext?: { request: string; client_context: Record<string, unknown> };
   /** Only the authenticated existing MCP RemoteBridge read callback uses this. */
@@ -189,10 +193,42 @@ function privateIntentPacket(options:RunnerOptions) {
     input_digest:createHash("sha256").update(JSON.stringify(canonicalIntentInput(input))).digest("hex")}};
 }
 
+async function runNativePulseHandoff(message:string,options:RunnerOptions):Promise<FastPathResult> {
+  const prepared:any=await runModelFastPath(message,{...options,nativePulseMode:'prepare'});
+  if(prepared.nativePulseProtocol!==NATIVE_PULSE_PROTOCOL||!prepared.request)
+    return prepared;
+  const request=prepared.request;
+  if(!prepared.dispatch_allowed){
+    // An unresolved Attempt is observe-only, even if no Bridge receipt exists yet.
+    const existing=getRemoteBridgeRequest(request.requestId);
+    if(!existing||!['completed','failed'].includes(existing.state))return {
+      outcome:'WAITING_OPERATION',reasonCode:'verification_required',handled:true,modelAllowed:false,
+      text:'La commande est en cours de vérification. Elle ne sera pas rejouée.'} as any;
+  }else{
+    await submitNativePulseRequest({...request,stepId:prepared.wire_step_id,continuumFence:prepared.continuum_fence},
+      options.nativePulse!,options.dialogue!.event!,message,
+      async()=>runModelFastPath(message,{...options,nativePulseMode:'execute'}));
+  }
+  return runModelFastPath(message,{...options,nativePulseMode:'observe'});
+}
+
 export async function runModelFastPath(
   message: string,
   options: RunnerOptions = {},
 ): Promise<FastPathResult> {
+  let nativePacket:Record<string,unknown>|undefined;
+  if(options.nativePulseMode&&!options.nativePulse)return {status:'known_error',reason:'native_pulse_admission_required',execution_state:'not_started'};
+  if(options.nativePulse){
+    try{
+      if(!(options.nativePulse instanceof NativePulseContact)||options.surface!=='whatsapp'||options.caller!=='owner'||
+         !options.dialogue||options.qaContext||options.intentContext||options.dialogue.policy?.scope!=='pulse_room'||
+         options.dialogue.web||options.preparedDecision||options.clarificationDecision||options.intentReadOnly)
+        throw Error();
+      nativePacket={request:message,admission:await options.nativePulse.packet(options.dialogue.event,message)};
+    }catch{return {outcome:'DENIED',reasonCode:'native_pulse_admission_required',handled:true,modelAllowed:false,
+      text:'L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté.'} as any;}
+    if(options.dialogue.mode==='handoff'&&!options.nativePulseMode)return runNativePulseHandoff(message,options);
+  }
   if (options.intentReadOnly && (!options.intentContext || options.dialogue?.mode !== "preview"))
     return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
   if (options.intentContext && (process.env.SAMANTHA_INTENT_INTERPRETER !== "1" || options.qaContext ||
@@ -227,7 +263,7 @@ export async function runModelFastPath(
     if(remaining!==undefined&&remaining<=0)return {status:bounded?"known_error":"error",reason:bounded?"web_deadline_exceeded":"check_budget_exceeded",...(bounded?{execution_state:"timeout"}:{})};
     try {
       const dialogue = options.dialogue;
-      const helperMessage=options.qaContext?'Demande privée de tests auto.':options.intentContext?'Demande MCP privée.':message;
+      const helperMessage=options.qaContext?'Demande privée de tests auto.':options.intentContext?'Demande MCP privée.':options.nativePulse?'Demande Pulse privée.':message;
       const argv = dialogue ? [
         "--dialogue", dialogue.mode,
         ...(dialogue.goalRef ? ["--goal-ref", dialogue.goalRef] : []),
@@ -252,6 +288,7 @@ export async function runModelFastPath(
       ];
       if(options.intentContext&&options.requestId)argv.unshift("--request-id",options.requestId);
       if (options.intentContext) argv.unshift("--intent-context-stdin");
+      if(options.nativePulse)argv.unshift("--native-pulse-mode",options.nativePulseMode||"turn");
       if (options.intentReadOnly) argv.unshift("--intent-read-only");
       const timeoutSeconds = Math.max(2, Math.min(options.timeoutSeconds || 30, 120));
       const raw: any = await runCapabilityHelperProcess(
@@ -261,15 +298,17 @@ export async function runModelFastPath(
           killGroup:bounded||options.checkBudgetMs!==undefined||!!options.qaContext,signal:options.signal,
           maxBuffer: options.qaContext?64*1024:bounded ? 128 * 1024 : 2 * 1024 * 1024,
           ...(options.qaContext?{privateInput:JSON.stringify({context:options.qaContext,user_input:message})}:
-            options.intentContext?{privateInput:JSON.stringify(intentPacket)}:{}),
+            options.intentContext?{privateInput:JSON.stringify(intentPacket)}:
+              options.nativePulse?{privateInput:JSON.stringify(nativePacket)}:{}),
           env: {
             ...process.env,
             SAMANTHA_QA_CONTEXT_FD:undefined,
             SAMANTHA_QA_INPUT_FD:options.qaContext?'0':undefined,
             SAMANTHA_INTENT_INPUT_FD:options.intentContext?'0':undefined,
+            SAMANTHA_NATIVE_PULSE_FD:options.nativePulse?'0':undefined,
             // Pilot admission is per host request, never a global interception
             // of unrelated app/WhatsApp/Orange/payment requests.
-            SAMANTHA_INTENT_INTERPRETER:options.intentContext?process.env.SAMANTHA_INTENT_INTERPRETER:undefined,
+            SAMANTHA_INTENT_INTERPRETER:options.nativePulse?"1":options.intentContext?process.env.SAMANTHA_INTENT_INTERPRETER:undefined,
             ...((options.preparedDecision || options.clarificationDecision) ? {
               CLAW_PREPARED_DECISION_B64: Buffer.from(JSON.stringify(options.preparedDecision || options.clarificationDecision), "utf8").toString("base64"),
             } : {}),
@@ -289,6 +328,8 @@ export async function runModelFastPath(
       if(options.signal?.aborted)return {status:"known_error",reason:"execution_cancelled",execution_state:"cancelled"};
       if(options.checkBudgetMs!==undefined&&performance.now()-started>=options.checkBudgetMs)return {status:"error",reason:"check_budget_exceeded"};
       if(bounded&&(Date.now()>=options.deadlineEpochMs!||performance.now()-started>=options.remainingBudgetMs!))return {status:"known_error",reason:"web_deadline_exceeded",execution_state:"timeout"};
+      if(options.nativePulse&&parsed?.nativePulseProtocol!==NATIVE_PULSE_PROTOCOL)
+        return {status:"known_error",reason:"native_pulse_protocol_required",execution_state:options.nativePulseMode==='execute'?"verification_required":"not_started"};
       if (options.intentContext && parsed?.intentInputProtocol !== INTENT_INPUT_PROTOCOL)
         return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
       if (options.intentReadOnly && parsed?.intentReadProtocol !== INTENT_READ_PROTOCOL)
@@ -310,6 +351,8 @@ export async function runModelFastPath(
       try {
         const parsed = JSON.parse(stdout || "{}");
         if (parsed && typeof parsed === "object") {
+          if(options.nativePulse&&parsed.nativePulseProtocol!==NATIVE_PULSE_PROTOCOL)
+            return {status:"known_error",reason:"native_pulse_execution_unknown",execution_state:"verification_required"};
           if (options.intentContext && parsed.intentInputProtocol !== INTENT_INPUT_PROTOCOL)
             return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
           if (options.intentReadOnly && parsed.intentReadProtocol !== INTENT_READ_PROTOCOL)

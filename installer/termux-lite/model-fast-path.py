@@ -27,6 +27,8 @@ _INTENT_CLIENT_CONTEXT = None
 _INTENT_CONTEXT_READ_EVIDENCE = None
 _INTENT_PRIVATE_CHANNEL = None
 _INTENT_CHANNEL_SEAL = object()
+_NATIVE_PULSE_EVENT = None
+_NATIVE_PULSE_HANDOFF = None
 
 def _read_qa_input():
     """Host's private input pipe. Raw contact text never becomes a CLI argument."""
@@ -74,6 +76,27 @@ def _intent_input_is_private(fd):
     finally:
         if duplicate is not None:
             os.close(duplicate)
+
+
+def _read_native_pulse_input():
+    """Inherited local stream only; native host admission never comes from argv."""
+    if os.environ.pop('SAMANTHA_NATIVE_PULSE_FD',None)!='0' or not _intent_input_is_private(0):
+        raise ValueError('native_pulse_admission_required')
+    data=bytearray();deadline=time.monotonic()+2
+    try:
+        while True:
+            remaining=deadline-time.monotonic()
+            if remaining<=0 or not select.select([0],[],[],remaining)[0]:raise ValueError('native_pulse_input_timeout')
+            chunk=os.read(0,min(4096,16385-len(data)))
+            if not chunk:break
+            data.extend(chunk)
+            if len(data)>16384:raise ValueError('native_pulse_input_capacity')
+        value=json.loads(data)
+        if (not isinstance(value,dict) or set(value)!={'request','admission'} or
+                not isinstance(value['request'],str) or not 0<len(value['request'])<=4000):
+            raise ValueError('native_pulse_admission_required')
+        return value
+    finally:os.close(0)
 
 
 def _read_intent_input():
@@ -1358,7 +1381,8 @@ def _intent_dialogue_backend(ui_root: Path, *, surface: str, caller: str, timeou
     loaded = Path(intent_dialogue.__file__).resolve()
     if not loaded.is_relative_to(Path(root) / "skill_intelligence"):
         raise RuntimeError("intent_backend_root_mismatch")
-    return intent_dialogue.make_intent_dialogue_port(ui_root, surface=surface, caller=caller, timeout=timeout,
+    return intent_dialogue.make_intent_dialogue_port(ui_root, surface="pulse_room" if _NATIVE_PULSE_EVENT else surface, caller=caller, timeout=timeout,
+        **({"native_handoff":_NATIVE_PULSE_HANDOFF} if _NATIVE_PULSE_HANDOFF is not None else {}),
         **({"context_read_evidence": _INTENT_CONTEXT_READ_EVIDENCE} if _INTENT_CONTEXT_READ_EVIDENCE is not None else {}))
 
 
@@ -1396,6 +1420,12 @@ class FastPathPorts:
     def _semantic_context(self, ctx):
         context = {**ctx, "messageProvenance":
                    "client_reported" if self.surface == "mcp" else "server_verified"}
+        if _NATIVE_PULSE_EVENT is not None:
+            if (not _NATIVE_PULSE_EVENT.current(int(time.time()*1000)) or
+                    context.get('conversationRef')!=_NATIVE_PULSE_EVENT.conversation_ref or
+                    context.get('eventKey')!=_NATIVE_PULSE_EVENT.event_key):
+                raise ValueError('native_pulse_event_mismatch')
+            context['messageProvenance']='server_verified'
         if _INTENT_CONTEXT_READ_EVIDENCE is not None:
             if context.get("requestId", _INTENT_CONTEXT_READ_EVIDENCE.request_id) != _INTENT_CONTEXT_READ_EVIDENCE.request_id:
                 raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
@@ -1568,6 +1598,41 @@ def run_intent_mcp_read(message, *, ui_root, caller, timeout, event):
             "intentReadProtocol": "mcp-read.v1"}
 
 
+def run_native_pulse(message,*,args,event,policy):
+    """Three phases of existing owners, not a new business route/executor."""
+    adapter=_NATIVE_PULSE_HANDOFF
+    try:
+        if args.native_pulse_mode=='prepare':out=adapter.prepare(args.goal_ref)
+        elif args.native_pulse_mode=='execute':
+            from skill_intelligence.capability_graph import CapabilityGraph
+            out=adapter.execute_claimed(CapabilityGraph(args.ui_root),args.goal_ref,
+                timeout=max(2,min(args.timeout,120)))
+        else:
+            if args.native_pulse_mode=='observe':
+                # A terminal Bridge receipt is necessary before T2. A missing
+                # or unknown receipt is observed, never rearmed or resubmitted.
+                settled=adapter.settle(args.goal_ref)
+                if settled.get('state')!='settled_native_pulse_phase':
+                    return {'nativePulseProtocol':'native-pulse.v1','outcome':'WAITING_OPERATION',
+                        'reasonCode':'verification_required','handled':True,'modelAllowed':False,
+                        'text':'La commande est en cours de vérification. Elle ne sera pas rejouée.'}
+            out=run_dialogue(message,mode='turn' if args.native_pulse_mode=='turn' else args.dialogue,
+                ui_root=args.ui_root,surface='whatsapp',caller='owner',timeout=max(2,min(args.timeout,120)),
+                event=event,policy={**policy,'scope':'pulse_room','deferHandoff':args.native_pulse_mode=='turn',
+                    '_native_pulse_event':_NATIVE_PULSE_EVENT},
+                goal_ref=args.goal_ref)
+        return {**out,'nativePulseProtocol':'native-pulse.v1'}
+    except Exception as error:
+        allowed={'native_contract_unqualified','pulse_confirmation_not_current','native_pulse_phase_only',
+            'native_pulse_handoff_not_current','native_pulse_bridge_claim_required','native_pulse_bridge_binding_changed',
+            'native_pulse_admission_expired','native_pulse_event_mismatch'}
+        reason=str(error) if str(error) in allowed else 'native_pulse_handoff_unavailable'
+        return {'nativePulseProtocol':'native-pulse.v1','outcome':'TECHNICAL_FAILURE','reasonCode':reason,
+            'status':'known_error','reason':reason,'execution_state':
+                'verification_required' if args.native_pulse_mode in {'execute','observe'} else 'not_started',
+            'handled':True,'modelAllowed':False,'text':'Je ne peux pas confirmer le résultat de cette commande : '+reason+'.'}
+
+
 def _b64_json(name: str) -> dict[str, Any]:
     raw = os.environ.get(name, "")
     if not raw:
@@ -1582,8 +1647,9 @@ def _b64_json(name: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    global _QA_INGRESS_CONTEXT, _INTENT_CLIENT_CONTEXT, _INTENT_CONTEXT_READ_EVIDENCE
+    global _QA_INGRESS_CONTEXT, _INTENT_CLIENT_CONTEXT, _INTENT_CONTEXT_READ_EVIDENCE, _NATIVE_PULSE_EVENT, _NATIVE_PULSE_HANDOFF
     parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
+    parser.add_argument("--native-pulse-mode",choices=("turn","prepare","execute","observe"))
     parser.add_argument("--intent-read-only", action="store_true",
                         help="Host-private existing MCP read owner callback, never a write entry.")
     parser.add_argument("--intent-context-stdin", action="store_true",
@@ -1608,6 +1674,36 @@ def main() -> int:
     parser.add_argument("--deadline-epoch-ms",type=int)
     parser.add_argument("message", nargs="*")
     args = parser.parse_args()
+    if args.native_pulse_mode or 'SAMANTHA_NATIVE_PULSE_FD' in os.environ:
+        try:
+            if (not args.native_pulse_mode or args.surface!='whatsapp' or args.caller!='owner' or
+                    not args.dialogue or args.intent_context_stdin or args.intent_read_only or
+                    args.voice_delegation or args.execute_decision or args.resolve_clarification or args.check or
+                    'SAMANTHA_INTENT_INPUT_FD' in os.environ or 'SAMANTHA_QA_INPUT_FD' in os.environ or
+                    'SAMANTHA_QA_CONTEXT_FD' in os.environ or os.environ.get('SAMANTHA_INTENT_INTERPRETER')!='1'):
+                raise ValueError('native_pulse_admission_required')
+            private=_read_native_pulse_input()
+            root=str(args.ui_root.resolve());sys.path.insert(0,root)
+            from skill_intelligence.dialogue import native_handoff
+            if not Path(native_handoff.__file__).resolve().is_relative_to(Path(root)/'skill_intelligence'):
+                raise ValueError('native_pulse_admission_required')
+            _NATIVE_PULSE_EVENT=native_handoff.admit_private_native_event(private['admission'],channel_verified=True)
+            event=_b64_json('CLAW_DIALOGUE_EVENT_B64');policy=_b64_json('CLAW_DIALOGUE_POLICY_B64')
+            if (event.get('surface')!='pulse_room' or event.get('conversationKey')!=_NATIVE_PULSE_EVENT.conversation_key or
+                    event.get('eventRef')!=_NATIVE_PULSE_EVENT.event_ref or event.get('caller')!='owner' or
+                    policy.get('scope')!='pulse_room' or args.native_pulse_mode!='turn' and not args.goal_ref or
+                    args.native_pulse_mode=='turn' and args.dialogue!='turn' or
+                    args.native_pulse_mode!='turn' and args.dialogue!='handoff'):
+                raise ValueError('native_pulse_event_mismatch')
+            _NATIVE_PULSE_HANDOFF=native_handoff.NativePulseHandoff(_NATIVE_PULSE_EVENT)
+            try:out=run_native_pulse(private['request'],args=args,event=event,policy=policy)
+            finally:_NATIVE_PULSE_HANDOFF.close()
+            print(json.dumps(out,ensure_ascii=False));return 0
+        except Exception:
+            print(json.dumps({'nativePulseProtocol':'native-pulse.v1','status':'known_error',
+                'reason':'native_pulse_admission_required','execution_state':'not_started',
+                'outcome':'DENIED','reasonCode':'native_pulse_admission_required','handled':True,'modelAllowed':False}))
+            return 1
     if args.intent_read_only and (not args.intent_context_stdin or args.dialogue != "preview"):
         print(json.dumps({"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
                           "execution_state": "not_started"}))
