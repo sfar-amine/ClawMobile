@@ -443,6 +443,7 @@ jobs:
         run: |
           node scripts/test-mcp-context-provenance.cjs
           node scripts/test-mcp-context-consumers.cjs
+          node scripts/test-mcp-client-input.cjs
           npm ci --prefix ../cloud/voice-relay --ignore-scripts --omit=dev
           node ../cloud/voice-relay/test-mcp.mjs
 

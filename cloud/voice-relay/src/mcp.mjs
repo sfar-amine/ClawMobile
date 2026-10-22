@@ -146,6 +146,25 @@ function relayRequestId(clientId, tool, args) {
   return `mcp:${clientId}:${crypto.randomUUID()}`;
 }
 
+// Additive client-owned transcript data. It never carries a caller, intent or permission.
+const clientRef = z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/);
+const clientContextSchema = z.strictObject({
+  schema_version: z.literal("mcp-input.v1"),
+  original_message: z.strictObject({ text: z.string().min(1).max(12000), ref: clientRef.nullable() }),
+  conversation_ref: clientRef,
+  local_revision: z.union([z.string().min(1).max(128), z.number().int().nonnegative()]).nullable(),
+  relevant_turns: z.array(z.strictObject({ ref: clientRef.nullable(), role: z.enum(["user", "assistant"]),
+    text: z.string().min(1).max(2000) })).max(8),
+  entity_references: z.array(z.strictObject({ mention: z.string().min(1).max(256), turn_ref: clientRef.nullable(),
+    server_ref: z.strictObject({ kind: z.literal("remote_bridge_receipt"), request_id: clientRef }).nullable() })).max(16),
+  active_goal_ref: clientRef.nullable(),
+  pending_question_ref: clientRef.nullable(),
+  confirmation_ref: clientRef.nullable(),
+  user_reply_ref: clientRef.nullable(),
+  completeness: z.enum(["complete", "partial", "unknown"]),
+  missing: z.array(z.string().min(1).max(128)).max(16),
+}).describe("Optional versioned client-reported context. No transcript, reference, JSON intent or confirmed flag grants authority; server validation remains mandatory.");
+
 function registerTools(server, auth, invoke) {
   const run = (tool) => async (args, extra) => {
     if (!toolAllowed(auth.profile, tool)) return toolError("tool_not_allowed");
@@ -183,6 +202,7 @@ function registerTools(server, auth, invoke) {
     description: "Resolve a request against the canonical Claw Capability Harness without executing it. Use only for discovery or material ambiguity; clear known requests should call claw_execute directly.",
     inputSchema: {
       request: z.string().min(1).max(12000),
+      client_context: clientContextSchema.optional(),
       target_hint: z.string().max(128).optional(),
     },
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
@@ -196,6 +216,7 @@ function registerTools(server, auth, invoke) {
       : "Execute a known Claw route in shadow/read-only mode: only deterministic read routes without confirmation are admitted. Reuse action_key for retries; use a new stable step_key only for a materially new clarification/refinement step.",
     inputSchema: {
       request: z.string().min(1).max(12000),
+      client_context: clientContextSchema.optional(),
       action_key: z.string().regex(ACTION_ID_RE),
       step_key: z.string().regex(STEP_ID_RE).optional(),
       target_hint: z.string().max(128).optional(),

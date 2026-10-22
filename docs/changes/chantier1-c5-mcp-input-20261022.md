@@ -1,0 +1,7 @@
+# C5 — contexte client MCP facultatif et sans autorité implicite
+
+Les outils MCP n'avaient aucun champ pour transmettre le message original avec les extraits du fil externe, leur complétude et leur provenance. C5 ajoute une enveloppe facultative fermée aux deux outils existants, en préservant le comportement des clients historiques. Le message reste exact ; identité, droits, interprétation et confirmation appartiennent aux propriétaires du host.
+
+Le nouveau chemin n'accepte aucune décision du client. Il reste fermé sans port IA compatible et traite les références serveur non admises comme un manque de raccord explicite. La prévisualisation utilise un seul appel au port privé C4 ; son échec ne retombe ni sur le résolveur lexical ni sur un agent. L'exécution migrée attend le raccord propriétaire des reçus RemoteBridge et de l'idempotence ; aucun succès ou consentement n'est fabriqué. Contrat et limites : [C5](../work/samantha-runtime/contracts/c5-mcp-input.md).
+
+Tests ciblés sur fixtures synthétiques : compilation TypeScript ; 29 sondes de frontière du nouveau transport ; validation relay réelle de schéma et refus avant invoke ; provenance C6, 14 consommateurs C1 et verrou de maintenance existants. Aucun modèle, téléphone, effet métier ou CI canonique complète. Les captures existantes sont réutilisées uniquement pour ce qu'elles prouvent. Retour arrière : revert du lot ; aucun store, transcript ou état métier créé. Claude garde la revue, l'épinglage et la recette.
