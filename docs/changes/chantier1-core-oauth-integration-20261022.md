@@ -1,0 +1,13 @@
+# Intégration core — source OAuth active et fondations Chantier 1
+
+La source OAuth déjà active sur le S24 est conservée avec C12, G1 et le mandat d’autonomie, par trois fusions normales depuis C12 `a42af972`. Les quatorze commits de `98e9b8f8` restent ancêtres de la composition ; aucune reprise par cherry-pick, réécriture ou modification du checkout S24.
+
+La récupération a vérifié le bundle Git de **25 232 octets**, SHA-256 `90d8ccf17dd464415c857b3aa992bf76200299bd05ee2ef53f191129e97d1d2f`, puis `bundle verify`, `list-heads` et la connectivité Git. La branche privée `codex/preserve-s24-oauth-98e9b8f-20261022` a reçu un push normal et sa référence distante exacte a été relue. L’inventaire couvre quatorze commits et quarante-quatre blobs historiques (372 175 octets). Le contrôle de signatures à forte confiance n’a pas signalé de secret ; la recherche d’e-mails non fictifs n’en a trouvé aucun. Ces contrôles bornés ne constituent pas un audit de sécurité exhaustif.
+
+Le chemin OAuth conserve le validateur RPC natif et le profil shadow en lecture. Les identités Bearer existantes restent prioritaires. C12 garde l’admission privée serveur et ses refus avant lecture ; aucun droit n’est dérivé du transport OAuth ou d’un hash. Le Worker d’autorisation, son KV et les secrets préexistaient : cette composition n’en crée ni ne modifie aucun.
+
+Le workflow garde toutes les étapes héritées, avec les tests OAuth de politique désormais inscrits. La fixture OAuth RPC lit la date de compatibilité du relay existant (`2026-09-30`) ; l’ancienne date de fixture (`2026-10-21`) faisait échouer Workerd avant les huit cas. Les configurations production restent inchangées. Le reçu OAuth historique est enveloppé en note v2 sans changer ses observations.
+
+Validation ciblée : compilation TypeScript, 21/21 sondes privées, 23/23 sondes propriétaire, 29/29 entrées client, 18/18 tests Python ; politiques OAuth 6/6 + Google 8/8 + identité/lecture 6/6 ; RPC local Workerd 8/8, Worker/MCP/long-action verts. Les deux paires réelles de propriétaires avec playbooks `38ef1ad5` restent `MOCK_ONLY` : aucune génération externe, aucun effet métier, aucune lecture privée shadow et aucune exécution après replay. Le refus initial d’un checkout playbooks au mauvais SHA est une validation du pin ; les preuves positives utilisent un checkout détaché au SHA exact.
+
+CI complète, publication de la composition et activation restent à effectuer séparément. Aucun nouveau test live, déploiement, paiement ou changement de voix directe n’est revendiqué. [Décision et retour arrière](../08-decisions/ADR-20261022-core-oauth-source-preservation.md).

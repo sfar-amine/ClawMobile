@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import * as miniflare from 'miniflare';
 import { build } from 'esbuild';
 
 // Synthetic identities exist only in this local Workerd fixture; no production
 // token, grant, Google identity or Cloudflare account is accessed.
+// Exercise the real relay compatibility contract. The local authorization
+// stub only implements RPC and does not claim Google/OAuth Worker qualification.
+const relayCompatibilityDate = JSON.parse(readFileSync(new URL('./wrangler.jsonc', import.meta.url), 'utf8')).compatibility_date;
+assert.match(relayCompatibilityDate, /^\d{4}-\d{2}-\d{2}$/);
 const resource = 'https://claw-voice-relay.claw-s24-voice-260930.workers.dev/mcp';
 const compiled = await build({ stdin: { contents: "export {default, VoiceRelay} from './src/index.mjs';", resolveDir: process.cwd() }, bundle: true,
   write: false, format: 'esm', platform: 'browser', external: ['cloudflare:workers'] });
@@ -13,11 +18,11 @@ const clients = Object.fromEntries(['claude-chat', 'codex-cloud'].map(id => [id,
   profile: 'chat-owner', enabled: true,
 }]));
 const options = { workers: [{ name: 'relay', modules: true,
-  script: compiled.outputFiles[0].text, compatibilityDate: '2026-10-21',
+  script: compiled.outputFiles[0].text, compatibilityDate: relayCompatibilityDate,
   serviceBindings: { CHATGPT_AUTH_SERVER: 'auth' },
   durableObjects: { VOICE_RELAY: { className: 'VoiceRelay', useSQLite: true } },
   bindings: { MCP_CLIENTS_JSON: JSON.stringify(clients) },
-}, { name: 'auth', modules: true, compatibilityDate: '2026-10-21', script: `
+}, { name: 'auth', modules: true, compatibilityDate: relayCompatibilityDate, script: `
   import { WorkerEntrypoint } from 'cloudflare:workers';
   export default class extends WorkerEntrypoint {
     validateToken(audience, token) {

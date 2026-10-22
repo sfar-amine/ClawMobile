@@ -476,6 +476,9 @@ jobs:
           npm ci --prefix ../cloud/voice-relay --ignore-scripts
           cd ../cloud/voice-relay
           node test-chatgpt-oauth-rpc.mjs
+          node test-mcp-routing.mjs
+          node test-google-oidc.mjs
+          node test-chatgpt-oauth.mjs
       - name: M2 claw_remember MCP owner capture through canonical context-event writer (200k events)
         run: node scripts/test-mcp-remember.cjs
 
