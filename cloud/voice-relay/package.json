@@ -8,7 +8,9 @@
     "build": "wrangler deploy --dry-run --outdir .wrangler-dry-run"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.3",
     "@modelcontextprotocol/sdk": "1.32.1",
+    "jose": "6.2.13",
     "zod": "^4.0.0"
   },
   "devDependencies": {

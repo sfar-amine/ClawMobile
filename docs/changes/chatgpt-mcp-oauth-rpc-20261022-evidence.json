@@ -1,0 +1,28 @@
+{
+  "source_commit": "24b6f354aa781f2f7af79d7cf18e76600acb6068",
+  "worker_version": "b13f3471-ad4f-4d3b-87bd-a10f6a6ce2b4",
+  "transport": "actual Samantha plugin OAuth",
+  "tool": "claw_context",
+  "result": {
+    "state": "context",
+    "access": {
+      "client_id": "chatgpt",
+      "profile": "chat-owner-shadow",
+      "owner": false,
+      "read_only": true
+    },
+    "surface": "chat",
+    "cursor": {
+      "session": "mcp-chatgpt",
+      "source": "cold",
+      "advanced": true
+    },
+    "context": {
+      "toRevision": 3169,
+      "partial": true
+    },
+    "duration_ms": 227.52,
+    "readiness": "requires_reads"
+  },
+  "secret_values_included": false
+}
