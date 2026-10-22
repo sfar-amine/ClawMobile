@@ -42,56 +42,114 @@ if [ "${1:-}" = "--resolve" ]; then printf '{"root":"%s","repo":"%s"}\n' "$ROOT"
 #   companion-deploy.sh --maintenance close [--allow conv-…]…   new epoch, every new request refused (D-B);
 #                                                               --allow: acceptance conversations (B-14)
 #   companion-deploy.sh --maintenance open                      reopen this epoch; older messages render stale
-#   companion-deploy.sh --maintenance status
+#   companion-deploy.sh --maintenance open --expected-epoch N --expected-revision HEX32  scoped CAS
+#   companion-deploy.sh --maintenance status|capabilities
 # The WhatsApp channel is never stopped: each message gets the deterministic maintenance reply and OpenClaw marks it
 # completed, so nothing is delivered late after the reopening.
 if [ "${1:-}" = "--maintenance" ]; then
   shift
   DIALOGUE_HOME="${CLAW_DIALOGUE_HOME:-$HOME/.openclaw/samantha-dialogue}"
-  mkdir -p "$DIALOGUE_HOME"; chmod 700 "$DIALOGUE_HOME"
-  # Bounded wait with `flock -n` only: the toybox flock found first on some S24 PATHs has no `-w`
-  # (bascule 17/10: `flock -w 10` failed there). Same 10 s bound, same refusal, any flock.
-  exec 8>"$DIALOGUE_HOME/maintenance.lock"
-  lock_tries=$(( ${COMPANION_MAINTENANCE_LOCK_WAIT_S:-10} * 5 ))
-  until flock -n 8; do
-    lock_tries=$((lock_tries - 1))
-    [ "$lock_tries" -gt 0 ] || { echo "maintenance_marker_busy" >&2; exit 3; }
-    sleep 0.2
-  done
-  python3 - "$DIALOGUE_HOME/maintenance.json" "$STATE" "$@" <<'PY'
-import json, os, re, sys, time
-path, state_dir, args = sys.argv[1], sys.argv[2], sys.argv[3:]
+  [ ! -L "$DIALOGUE_HOME" ] || { echo "maintenance_path_invalid" >&2; exit 2; }
+  mkdir -p "$DIALOGUE_HOME" || exit 2
+  chmod 700 "$DIALOGUE_HOME" || exit 2
+  python3 - "$DIALOGUE_HOME" "$STATE" "$@" <<'PY'
+import fcntl, json, os, re, stat, sys, time, uuid
+home, state_dir, args = sys.argv[1], sys.argv[2], sys.argv[3:]
+
+def refuse(cause, code=2):
+    print(cause, file=sys.stderr); sys.exit(code)
+
 action = args[0] if args else "status"
+allow, expected_epoch, expected_revision = [], None, None
+index = 1
+while index < len(args):
+    flag = args[index]
+    if index + 1 >= len(args): refuse("maintenance_arguments_invalid")
+    value = args[index + 1]
+    if flag == "--allow" and action == "close" and re.fullmatch(r"conv-[a-f0-9]{24}", value):
+        allow.append(value)
+    elif flag == "--expected-epoch" and action == "open" and expected_epoch is None \
+            and re.fullmatch(r"0|[1-9][0-9]{0,18}", value):
+        expected_epoch = int(value)
+    elif flag == "--expected-revision" and action == "open" and expected_revision is None \
+            and re.fullmatch(r"[a-f0-9]{32}", value):
+        expected_revision = value
+    else:
+        refuse("maintenance_arguments_invalid")
+    index += 2
+if action not in {"close", "open", "status", "capabilities"} or len(allow) > 16 \
+        or ((expected_revision is None) != (expected_epoch is None)):
+    refuse("maintenance_arguments_invalid")
+raw_wait = os.environ.get("COMPANION_MAINTENANCE_LOCK_WAIT_S", "10")
+if not re.fullmatch(r"0|[1-9][0-9]{0,2}", raw_wait) or int(raw_wait) > 600:
+    refuse("maintenance_lock_wait_invalid")
+# Same existing lock and writer. A safe open avoids truncating a substituted
+# lock/marker; no external flock option depends on the Termux PATH.
 try:
-    current = json.load(open(path))
+    directory = os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    lock = os.open("maintenance.lock", os.O_CREAT | os.O_RDWR | os.O_NONBLOCK | os.O_NOFOLLOW,
+                   0o600, dir_fd=directory)
+    info = os.fstat(lock)
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+        refuse("maintenance_lock_invalid")
+except OSError:
+    refuse("maintenance_path_invalid")
+deadline = time.monotonic() + int(raw_wait)
+while True:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB); break
+    except BlockingIOError:
+        if time.monotonic() >= deadline: refuse("maintenance_marker_busy", 3)
+        time.sleep(0.2)
+if action == "capabilities":
+    print(json.dumps({"version": 1, "owner": "companion-deploy.sh",
+                      "expected_epoch_open": True, "expected_revision_open": True})); sys.exit(0)
+try:
+    fd = os.open("maintenance.json", os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=directory)
+    with os.fdopen(fd) as source:
+        info = os.fstat(source.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > 16384 or info.st_nlink != 1:
+            raise ValueError("invalid_marker")
+        current = json.load(source)
+    if (not isinstance(current, dict) or current.get("state") not in {"open", "closed"}
+            or type(current.get("epoch")) is not int or not 0 <= current["epoch"] < 2**63
+            or ("revision" in current and not re.fullmatch(r"[a-f0-9]{32}", str(current["revision"])))):
+        raise ValueError("invalid_marker")
 except FileNotFoundError:
     current = {"state": "open", "epoch": 0, "changedAt": 0}
 except (OSError, ValueError):
     current = {"state": "closed", "epoch": None, "invalid": True}
 if action == "status":
     print(json.dumps(current, ensure_ascii=False)); sys.exit(0)
-allow = [args[i + 1] for i, a in enumerate(args) if a == "--allow" and i + 1 < len(args)]
-if action not in ("close", "open") or any(not re.fullmatch(r"conv-[a-f0-9]{24}", ref) for ref in allow) \
-        or (allow and action != "close"):
-    print("usage: --maintenance close [--allow conv-<24 hex>]... | open | status", file=sys.stderr); sys.exit(2)
-epoch = int(current.get("epoch") or 0)
 if current.get("invalid") and action == "open":
-    print("maintenance_marker_invalid: close it again before opening", file=sys.stderr); sys.exit(2)
+    refuse("maintenance_marker_invalid: close it again before opening")
+epoch = int(current.get("epoch") or 0)
+if expected_epoch is not None and (epoch != expected_epoch or
+        (expected_revision is not None and current.get("revision") != expected_revision)):
+    refuse("maintenance_epoch_mismatch", 4)
+# Repeating the same scoped open is a read, not a new maintenance transition.
+if expected_epoch is not None and current.get("state") == "open":
+    print(json.dumps({"state": "open", "epoch": epoch, "revision": current.get("revision"),
+                      "unchanged": True})); sys.exit(0)
 now = int(time.time() * 1000)
 value = {"state": "closed" if action == "close" else "open",
          "epoch": epoch + 1 if action == "close" and current.get("state") != "closed" else epoch,
+         "revision": uuid.uuid4().hex if action == "close" else current.get("revision"),
          "changedAt": now, "by": "companion-deploy.sh", "acceptance": allow}
-tmp = path + ".next"
-fd = os.open(tmp, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+# Existing legacy markers can be opened without introducing a null revision.
+if value["revision"] is None: del value["revision"]
+name = "maintenance.json.next-" + uuid.uuid4().hex
+fd = os.open(name, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600, dir_fd=directory)
 with os.fdopen(fd, "w") as out:
     json.dump(value, out); out.flush(); os.fsync(out.fileno())
-os.replace(tmp, path)
-os.chmod(path, 0o600)
+os.replace(name, "maintenance.json", src_dir_fd=directory, dst_dir_fd=directory)
 stamp = time.strftime("%Y%m%dT%H%M%S")
 receipt = os.path.join(state_dir, f"maintenance-{stamp}.json")
 with open(receipt, "w") as out:
     json.dump({"version": 1, "action": action, "previous": current, "marker": value}, out, ensure_ascii=False)
-print(json.dumps({"state": value["state"], "epoch": value["epoch"], "receipt": receipt}))
+print(json.dumps({"state": value["state"], "epoch": value["epoch"], "revision": value.get("revision"),
+                  "previous_state": current.get("state"), "previous_epoch": current.get("epoch"),
+                  "receipt": receipt}))
 PY
   exit $?
 fi
