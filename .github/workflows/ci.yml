@@ -486,6 +486,14 @@ jobs:
           git -C "$peer" checkout --detach FETCH_HEAD
           node scripts/test-mcp-context-paired.cjs "$peer" 38ef1ad5053517e7796238854ed3daecfbf585ce "$RUNNER_TEMP/c12-mcp-context-paired-result.json"
 
+      - name: ChatGPT OAuth RPC service binding regression
+        run: |
+          npm ci --prefix ../cloud/voice-relay --ignore-scripts
+          cd ../cloud/voice-relay
+          node test-chatgpt-oauth-rpc.mjs
+          node test-mcp-routing.mjs
+          node test-google-oidc.mjs
+          node test-chatgpt-oauth.mjs
       - name: M2 claw_remember MCP owner capture through canonical context-event writer (200k events)
         run: node scripts/test-mcp-remember.cjs
 

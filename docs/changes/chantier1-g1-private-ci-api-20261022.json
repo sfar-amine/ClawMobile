@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "id": "chantier1-g1-private-ci-api-20261022",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose a private in-process proof from the existing canonical CI owner after actual terminal success.",
+  "reason": "A text log or JSON status cannot establish independent CI provenance for G1; the trusted owner must retain its actual execution capability.",
+  "files": [
+    "tools/localci.py",
+    "tools/test_localci.py",
+    "docs/work/samantha-runtime/contracts/canonical-ci-private-evidence.md",
+    "docs/changes/chantier1-g1-private-ci-api-20261022.md",
+    "docs/changes/chantier1-g1-private-ci-api-20261022.json"
+  ],
+  "tests": [
+    {
+      "name": "canonical CI owner fixture suite",
+      "status": "passed",
+      "evidence": "python3 tools/test_localci.py -q: 36/36 passed in 9.383 s, only disposable fake repositories and short workflows; includes loaded/disk/Git identity drift, FIFO refusal, false success markers, PR/subject/log mismatch, namespace absence and a positively started setsid descendant killed before its late marker. No full Samantha CI."
+    },
+    {
+      "name": "independent targeted owner review after corrections",
+      "status": "passed",
+      "evidence": "Reviewer replayed detached-descendant witness 1/1 in 1.446 s and core FIFO plus namespace-unavailable closure 2/2 in 0.135 s; no full CI."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-runtime/contracts/canonical-ci-private-evidence.md",
+    "docs/changes/chantier1-g1-private-ci-api-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Off-device engineering API only; no runtime/app route."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same canonical runner and existing delivery verification port; no new durable authority or store."
+  },
+  "rollback": "Revert the scoped API and fixture tests while preserving the existing canonical CI command and workflows.",
+  "limitations": [
+    "In-process only; no proof can be restored from JSON/logs after restart.",
+    "No G4/G5, LIVE, latency, production, signature or sandbox claim.",
+    "Exact-head canonical PR CI remains pending and is not replaced by fixture tests."
+  ]
+}

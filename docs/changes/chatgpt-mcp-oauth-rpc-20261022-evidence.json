@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "id": "chatgpt-mcp-oauth-rpc-20261022-evidence",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Preserve the imported historical Samantha OAuth acceptance inside a versioned delivery note.",
+  "reason": "The source-recovery merge retains the original observation while making its record compatible with the existing versioned documentation gate.",
+  "files": [
+    "docs/changes/chatgpt-mcp-oauth-rpc-20261022-evidence.json",
+    "docs/changes/chantier1-core-oauth-integration-20261022.md"
+  ],
+  "tests": [
+    {
+      "name": "historical OAuth observation preserved",
+      "status": "passed",
+      "evidence": "historical_evidence is JSON-equal to Git blob 68f1bd73d651f730e016bfe2575b21b5d2615c19; no new live acceptance inferred."
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier1-core-oauth-integration-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Documentation wrapper only; preserved historical read-only OAuth identity."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "No source protocol or architecture change in the evidence wrapper."
+  },
+  "rollback": "Restore the historical evidence blob from the preserved Git branch if the wrapper must be superseded.",
+  "historical_source": {
+    "commit": "98e9b8f859682cd6866cf174dcb229e6a73f6217",
+    "blob": "68f1bd73d651f730e016bfe2575b21b5d2615c19"
+  },
+  "historical_evidence": {
+    "source_commit": "24b6f354aa781f2f7af79d7cf18e76600acb6068",
+    "worker_version": "b13f3471-ad4f-4d3b-87bd-a10f6a6ce2b4",
+    "transport": "actual Samantha plugin OAuth",
+    "tool": "claw_context",
+    "result": {
+      "state": "context",
+      "access": {
+        "client_id": "chatgpt",
+        "profile": "chat-owner-shadow",
+        "owner": false,
+        "read_only": true
+      },
+      "surface": "chat",
+      "cursor": {
+        "session": "mcp-chatgpt",
+        "source": "cold",
+        "advanced": true
+      },
+      "context": {
+        "toRevision": 3169,
+        "partial": true
+      },
+      "duration_ms": 227.52,
+      "readiness": "requires_reads"
+    },
+    "secret_values_included": false
+  },
+  "limitations": [
+    "Imported evidence, not a new live read or acceptance of the integrated head."
+  ]
+}

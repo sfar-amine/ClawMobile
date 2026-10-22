@@ -6,10 +6,24 @@
   "workers_dev": true,
   "durable_objects": {
     "bindings": [
-      { "name": "VOICE_RELAY", "class_name": "VoiceRelay" }
+      {
+        "name": "VOICE_RELAY",
+        "class_name": "VoiceRelay"
+      }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["VoiceRelay"] }
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "VoiceRelay"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "binding": "CHATGPT_AUTH_SERVER",
+      "service": "claw-chatgpt-oauth"
+    }
   ]
 }
