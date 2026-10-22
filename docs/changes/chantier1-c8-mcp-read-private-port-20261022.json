@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "chantier1-c8-mcp-read-private-port-20261022",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Expose the private existing MCP read callback without serializing interpretation authority and bound the pilot to qualified host requests.",
+  "reason": "MCP execution must preserve existing RemoteBridge claim/status/idempotence while typed semantic authority stays in one Python process.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-fast-path-intent.py",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-model-fast-path-mcp-read.cjs",
+    "docs/changes/chantier1-c8-mcp-read-private-port-20261022.md",
+    "docs/changes/chantier1-c8-mcp-read-private-port-20261022.json"
+  ],
+  "tests": [
+    {
+      "name": "Host read callback and private input regression",
+      "status": "passed",
+      "evidence": "13/13 Python intent port tests and 11/11 inherited Web tests; strict host event, one backend call, no dialogue persistence."
+    },
+    {
+      "name": "Private read protocol and pilot scope",
+      "status": "passed",
+      "evidence": "15/15 Node assertions, parent flag1 with legacy app/WhatsApp unchanged and child flag removed; dual protocol checks; no network/model/business effect."
+    },
+    {
+      "name": "Build and inherited private transport",
+      "status": "passed",
+      "evidence": "npm run build exit0; C4 10/10 private transport assertions and existing capability-first plugin tests pass."
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier1-c8-mcp-read-private-port-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Existing MCP read callback/Graph retained; no write action, route or right added."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing helper private pipe + request-local backend + canonical RemoteBridge owner; no store/router/scheduler/daemon/executor."
+  },
+  "rollback": "Revert additive read callback and protocol extension; no state migration or business replay.",
+  "limitations": [
+    "Requires the separate Node RemoteBridge claim/receipt callback and PB execute_mcp_read backend for a complete MCP read path.",
+    "Pilot remains MCP-only; app/WhatsApp and other domains are not migrated or qualified.",
+    "DATA evidence unknown remains blocked before inference; no activation/S24 qualification/full exact-head CI claimed."
+  ]
+}

@@ -1455,6 +1455,31 @@ def run_dialogue(message: str, *, mode: str, ui_root: Path, surface: str, caller
             worker.store.close()
 
 
+def run_intent_mcp_read(message, *, ui_root, caller, timeout, event):
+    """Existing MCP read owner callback; one interpretation, no dialogue persistence."""
+    ports = FastPathPorts(ui_root, surface="mcp", caller=caller, timeout=timeout)
+    try:
+        if not ports._semantic_enabled or _INTENT_CLIENT_CONTEXT is None:
+            raise ValueError("intent_mcp_read_not_admitted")
+        if not isinstance(event, dict) or any(not isinstance(event.get(name), str) or not event[name].strip()
+                                              for name in ("conversationKey", "eventRef")):
+            raise ValueError("intent_mcp_host_event_required")
+        owner = _dialogue_coordinator(ui_root)
+        conversation = owner.m.conversation_ref("mcp", str(event["conversationKey"]))
+        key = owner.m.event_key("mcp", conversation, str(event["eventRef"]))
+        context = ports._semantic_context({"surface": "mcp", "caller": caller,
+            "conversationRef": conversation, "conversationRevision": 0, "eventKey": key,
+            "nowMs": int(time.time() * 1000)})
+        out = ports._semantic().execute_mcp_read(message, context)
+        return {**out, "intentInputProtocol": "mcp-input.v1", "intentReadProtocol": "mcp-read.v1"}
+    except Exception:
+        # This entry is strictly read-only. The canonical RemoteBridge caller
+        # claims its request before calling us and owns the resulting receipt.
+        return {"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
+            "execution_state": "not_started", "intentInputProtocol": "mcp-input.v1",
+            "intentReadProtocol": "mcp-read.v1"}
+
+
 def _b64_json(name: str) -> dict[str, Any]:
     raw = os.environ.get(name, "")
     if not raw:
@@ -1471,6 +1496,8 @@ def _b64_json(name: str) -> dict[str, Any]:
 def main() -> int:
     global _QA_INGRESS_CONTEXT, _INTENT_CLIENT_CONTEXT
     parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
+    parser.add_argument("--intent-read-only", action="store_true",
+                        help="Host-private existing MCP read owner callback, never a write entry.")
     parser.add_argument("--intent-context-stdin", action="store_true",
                         help="Host-private MCP context pipe; text and local excerpts stay client-reported.")
     parser.add_argument("--check", action="store_true", help="Resolve only; do not execute or open a human boundary.")
@@ -1493,6 +1520,10 @@ def main() -> int:
     parser.add_argument("--deadline-epoch-ms",type=int)
     parser.add_argument("message", nargs="*")
     args = parser.parse_args()
+    if args.intent_read_only and (not args.intent_context_stdin or args.dialogue != "preview"):
+        print(json.dumps({"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
+                          "execution_state": "not_started"}))
+        return 1
     if args.intent_context_stdin or "SAMANTHA_INTENT_INPUT_FD" in os.environ:
         try:
             if (not args.intent_context_stdin or os.environ.get("SAMANTHA_INTENT_INTERPRETER") != "1" or
@@ -1548,6 +1579,11 @@ def main() -> int:
         message = raw_message if semantic_input else raw_message.strip()
     if not message:
         raise SystemExit("message_required")
+    if args.intent_read_only:
+        out = run_intent_mcp_read(message, ui_root=args.ui_root, caller=args.caller,
+            timeout=max(2, min(args.timeout, 120)), event=_b64_json("CLAW_DIALOGUE_EVENT_B64"))
+        print(json.dumps(out, ensure_ascii=False))
+        return 0
     if args.dialogue:
         out = run_dialogue(message, mode=args.dialogue, ui_root=args.ui_root, surface=args.surface, caller=args.caller,
                            timeout=max(2, min(args.timeout, 120)), event=_b64_json("CLAW_DIALOGUE_EVENT_B64"),
