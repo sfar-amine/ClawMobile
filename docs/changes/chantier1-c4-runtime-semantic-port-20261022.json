@@ -13,6 +13,7 @@
     "installer/termux-lite/test-model-fast-path-intent.py",
     "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
     "openclaw-plugin-mobile-ui/scripts/test-model-fast-path-intent.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-client-input.cjs",
     "docs/changes/chantier1-c4-runtime-semantic-port-20261022.md",
     "docs/changes/chantier1-c4-runtime-semantic-port-20261022.json"
   ],
@@ -31,6 +32,11 @@
       "name": "TypeScript and native private transport",
       "status": "passed",
       "evidence": "npm run build exit0; new test-model-fast-path-intent.cjs 10/10 assertions, including legacy helper protocol rejection."
+    },
+    {
+      "name": "Explicit legacy MCP protocol fixture",
+      "status": "passed",
+      "evidence": "The legacy scenario explicitly clears INPUT/READ capability markers before asserting refusal without a host call, then enables only INPUT for preview. The new real C4 export no longer accidentally turns the legacy fixture into a compatible runner; all existing assertions and execution refusal are retained."
     }
   ],
   "documentation": [
