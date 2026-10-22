@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 spec=importlib.util.spec_from_file_location('fast_intent',Path(__file__).with_name('model-fast-path.py'))
 m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
@@ -130,6 +130,21 @@ class IntentPortTests(unittest.TestCase):
              patch.object(m,'_intent_dialogue_backend',side_effect=AssertionError('no backend'))):
             out=m.run_intent_mcp_read('request',ui_root=ROOT,caller='owner',timeout=15,event={})
         self.assertEqual(out['reason'],'INTERPRETATION_HOST_UNAVAILABLE')
+
+    def test_private_stream_rejects_local_datagram_without_reading_it(self):
+        left,right=m.socket.socketpair(m.socket.AF_UNIX,m.socket.SOCK_DGRAM)
+        try:self.assertFalse(m._intent_input_is_private(left.fileno()))
+        finally:left.close();right.close()
+
+    def test_private_stream_rejects_non_unix_or_foreign_peer(self):
+        for family, peer_uid in ((m.socket.AF_INET,os.getuid()),(m.socket.AF_UNIX,os.getuid()+1)):
+            stream=MagicMock();stream.family=family;stream.__enter__.return_value=stream
+            stream.getsockopt.side_effect=lambda level,option,*args:(m.socket.SOCK_STREAM if option==m.socket.SO_TYPE else
+                m.struct.pack('3i',1234,peer_uid,1234))
+            with (patch.object(m.os,'fstat',return_value=SimpleNamespace(st_mode=m.stat.S_IFSOCK,st_uid=os.getuid())),
+                 patch.object(m.os,'dup',return_value=12345),patch.object(m.os,'close'),
+                 patch.object(m.socket,'socket',return_value=stream)):
+                self.assertFalse(m._intent_input_is_private(0))
 
     def test_legacy_remains_exactly_on_existing_owner_when_disabled(self):
         with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'0'}),patch.object(m,'try_fast_path',return_value={'status':'miss'}) as legacy:

@@ -20,12 +20,12 @@
     {
       "name": "Host read callback and private input regression",
       "status": "passed",
-      "evidence": "13/13 Python intent port tests and 11/11 inherited Web tests; strict host event, one backend call, no dialogue persistence."
+      "evidence": "15/15 Python intent port tests and 11/11 inherited Web tests; strict host event, one backend call, no dialogue persistence."
     },
     {
       "name": "Private read protocol and pilot scope",
       "status": "passed",
-      "evidence": "15/15 Node assertions, parent flag1 with legacy app/WhatsApp unchanged and child flag removed; dual protocol checks; no network/model/business effect."
+      "evidence": "18/18 Node assertions, parent flag1 with legacy app/WhatsApp unchanged and child flag removed; dual protocol checks; no network/model/business effect."
     },
     {
       "name": "Build and inherited private transport",
