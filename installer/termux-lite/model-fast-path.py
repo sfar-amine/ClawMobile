@@ -21,6 +21,7 @@ from typing import Any
 
 HOME = Path.home()
 _QA_INGRESS_CONTEXT = None
+_INTENT_CLIENT_CONTEXT = None
 
 def _read_qa_input():
     """Host's private input pipe. Raw contact text never becomes a CLI argument."""
@@ -41,6 +42,38 @@ def _read_qa_input():
         if not isinstance(result,dict) or set(result)!={'context','user_input'} or not isinstance(result['user_input'],str) or not 0<len(result['user_input'])<=4000:raise ValueError('qa_scope_unavailable')
         return result
     finally:os.close(0)
+def _read_intent_input():
+    """One bounded host-private MCP envelope; its contents remain client-reported."""
+    raw_fd = os.environ.pop("SAMANTHA_INTENT_INPUT_FD", None)
+    if raw_fd != "0":
+        raise ValueError("intent_private_input_required")
+    info = os.fstat(0)
+    if not stat.S_ISFIFO(info.st_mode) or info.st_uid != os.getuid():
+        raise ValueError("intent_private_input_required")
+    data = bytearray(); deadline = time.monotonic() + 2
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([0], [], [], remaining)[0]:
+                raise ValueError("intent_private_input_timeout")
+            chunk = os.read(0, min(4096, 32769 - len(data)))
+            if not chunk:
+                break
+            data.extend(chunk)
+            if len(data) > 32768:
+                raise ValueError("intent_private_input_too_large")
+        value = json.loads(data)
+        if (not isinstance(value, dict) or set(value) != {"request", "client_context"} or
+                not isinstance(value["request"], str) or not 0 < len(value["request"]) <= 12000 or
+                not isinstance(value["client_context"], dict) or
+                value["client_context"].get("schema_version") != "mcp-input.v1" or
+                value["client_context"].get("original_message", {}).get("text") != value["request"]):
+            raise ValueError("intent_private_input_invalid")
+        return value
+    finally:
+        os.close(0)
+
+
 def _ui_root() -> Path:
     # Same order as claw-capability.py: explicit root, pinned runtime snapshot, then the mutable workspace.
     configured = os.environ.get("CLAW_UI_PLAYBOOKS_ROOT")
@@ -1233,6 +1266,18 @@ DIALOGUE_UNAVAILABLE = {
 WEB_HOST_ID = re.compile(r"[A-Za-z0-9_.:-]{1,160}")
 
 
+def _intent_dialogue_backend(ui_root: Path, *, surface: str, caller: str, timeout: int):
+    """Load the pinned existing PB owner in-process; never serialize trust objects."""
+    root = str(ui_root.resolve())
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from skill_intelligence import intent_dialogue
+    loaded = Path(intent_dialogue.__file__).resolve()
+    if not loaded.is_relative_to(Path(root) / "skill_intelligence"):
+        raise RuntimeError("intent_backend_root_mismatch")
+    return intent_dialogue.make_intent_dialogue_port(ui_root, surface=surface, caller=caller, timeout=timeout)
+
+
 class FastPathPorts:
     def __init__(self, ui_root: Path, *, surface: str, caller: str, timeout: int,
                  web_host: dict[str, Any] | None = None) -> None:
@@ -1250,6 +1295,30 @@ class FastPathPorts:
         self.web_run_id = host.get("run_id") if isinstance(host.get("run_id"), str) and WEB_HOST_ID.fullmatch(host["run_id"]) else None
         self.web_session_id = host.get("session_id") if isinstance(host.get("session_id"), str) and WEB_HOST_ID.fullmatch(host["session_id"]) else None
         self.web_voice = host.get("voice_delegation") is True
+        self._semantic_backend = None
+        # Host deployment opt-in only. No natural word or client field toggles it.
+        # Claude owns direct/live voice; private QA ingress retains its own scope.
+        self._semantic_enabled = (os.environ.get("SAMANTHA_INTENT_INTERPRETER") == "1" and
+            surface not in {"voice", "claw_live"} and not self.web_voice and _QA_INGRESS_CONTEXT is None)
+        if self._semantic_enabled:
+            self.interpret_turn = self._interpret_semantic_turn
+
+    def _semantic(self):
+        if self._semantic_backend is None:
+            self._semantic_backend = _intent_dialogue_backend(self.ui_root, surface=self.surface,
+                caller=self.caller, timeout=self.timeout)
+        return self._semantic_backend
+
+    def _semantic_context(self, ctx):
+        context = {**ctx, "messageProvenance":
+                   "client_reported" if self.surface == "mcp" else "server_verified"}
+        if _INTENT_CLIENT_CONTEXT is not None:
+            context["client_context"] = json.loads(json.dumps(_INTENT_CLIENT_CONTEXT))
+            context["input_provenance"] = "client_reported"
+        return context
+
+    def _interpret_semantic_turn(self, text, state, ctx):
+        return self._semantic().interpret_turn(text, state, self._semantic_context(ctx))
 
     def _web_context(self, decision: dict[str, Any]) -> dict[str, Any] | None:
         request_id = decision.get("requestId")
@@ -1274,11 +1343,20 @@ class FastPathPorts:
         return out
 
     def resolve(self, text: str, ctx: dict[str, Any]) -> dict[str, Any]:
+        if self._semantic_enabled:
+            try:
+                return self._semantic().preview(text, self._semantic_context(ctx))
+            except Exception:
+                return {"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
+                        "execution_state": "not_started"}
         return self._remember(try_fast_path(
             text, self.ui_root, execute=False, surface=self.surface, caller=self._caller(ctx),
             origin_id=self._origin(ctx), timeout=min(self.timeout, 15)))
 
     def resolve_answer(self, answer: str, original_text: str, decision: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
+        if self._semantic_enabled:
+            # Enabled turns must arrive through the one contextual interpreter.
+            raise RuntimeError("semantic_answer_requires_admitted_turn")
         return self._remember(try_fast_path(
             answer, self.ui_root, execute=False, surface=self.surface, caller=self._caller(ctx),
             origin_id=self._origin(ctx), timeout=min(self.timeout, 15),
@@ -1292,6 +1370,13 @@ class FastPathPorts:
 
     def execute(self, text: str, decision: dict[str, Any] | None, origin_id: str, klass: str, ctx: dict[str, Any]) -> dict[str, Any]:
         decision = decision if isinstance(decision, dict) else {}
+        if self._semantic_enabled:
+            try:
+                backend = self._semantic()
+            except Exception:
+                return {"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
+                        "execution_state": "not_started"}
+            return self._track_execution(backend.execute(text, decision, origin_id, klass, ctx))
         resolution = self._resolutions.get(str(decision.get("decisionId")))
         if _is_web_capability(decision, resolution):
             return self._execute_web(text, decision, resolution, origin_id, ctx)
@@ -1384,8 +1469,10 @@ def _b64_json(name: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    global _QA_INGRESS_CONTEXT
+    global _QA_INGRESS_CONTEXT, _INTENT_CLIENT_CONTEXT
     parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
+    parser.add_argument("--intent-context-stdin", action="store_true",
+                        help="Host-private MCP context pipe; text and local excerpts stay client-reported.")
     parser.add_argument("--check", action="store_true", help="Resolve only; do not execute or open a human boundary.")
     parser.add_argument("--execute-decision", action="store_true", help="Execute the prepared decision from CLAW_PREPARED_DECISION_B64 without re-resolving.")
     parser.add_argument("--resolve-clarification", action="store_true", help="Resolve the reply against the pending clarification decision.")
@@ -1406,6 +1493,19 @@ def main() -> int:
     parser.add_argument("--deadline-epoch-ms",type=int)
     parser.add_argument("message", nargs="*")
     args = parser.parse_args()
+    if args.intent_context_stdin or "SAMANTHA_INTENT_INPUT_FD" in os.environ:
+        try:
+            if (not args.intent_context_stdin or os.environ.get("SAMANTHA_INTENT_INTERPRETER") != "1" or
+                    args.surface != "mcp" or not args.dialogue or
+                    "SAMANTHA_QA_INPUT_FD" in os.environ or "SAMANTHA_QA_CONTEXT_FD" in os.environ):
+                raise ValueError("intent_private_input_not_admitted")
+            private = _read_intent_input()
+            args.message = [private["request"]]
+            _INTENT_CLIENT_CONTEXT = private["client_context"]
+        except Exception:
+            print(json.dumps({"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
+                              "execution_state": "not_started", "intentInputProtocol": "mcp-input.v1"}))
+            return 1
     if 'SAMANTHA_QA_CONTEXT_FD' in os.environ:
         # This descriptor is reserved to the Graph child, never an owner-default helper ingress.
         print(json.dumps({'status':'known_error','reason':'qa_scope_unavailable','execution_state':'not_started','model_bypassed':True}))
@@ -1440,9 +1540,12 @@ def main() -> int:
         except Exception:
             print(json.dumps({'status':'known_error','reason':'qa_scope_unavailable','execution_state':'not_started','model_bypassed':True}))
             return 1
-    message = " ".join(args.message).strip()
+    semantic_input = (os.environ.get("SAMANTHA_INTENT_INTERPRETER") == "1" and
+        args.surface not in {"voice", "claw_live"} and _QA_INGRESS_CONTEXT is None and not args.voice_delegation)
+    message = " ".join(args.message) if semantic_input else " ".join(args.message).strip()
     if not message and not sys.stdin.isatty():
-        message = sys.stdin.read().strip()
+        raw_message = sys.stdin.read()
+        message = raw_message if semantic_input else raw_message.strip()
     if not message:
         raise SystemExit("message_required")
     if args.dialogue:
@@ -1451,6 +1554,8 @@ def main() -> int:
                            policy=_b64_json("CLAW_DIALOGUE_POLICY_B64"), goal_ref=args.goal_ref,
                            web_host={"run_id": args.run_id, "session_id": args.session_id,
                                      "deadline_epoch_ms": args.deadline_epoch_ms, "voice_delegation": args.voice_delegation})
+        if _INTENT_CLIENT_CONTEXT is not None:
+            out = {**out, "intentInputProtocol": "mcp-input.v1"}
         print(json.dumps(out, ensure_ascii=False))
         return 0
     prepared = None
