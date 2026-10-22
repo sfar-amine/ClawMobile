@@ -14,7 +14,7 @@ export function createChatgptOAuthResource(invokeMcp) {
     validateToken: (env) => async (audience, token) => {
       const validator = env.CHATGPT_AUTH_SERVER?.validateToken;
       if (typeof validator !== 'function') return null;
-      return validator.call(env.CHATGPT_AUTH_SERVER, audience, token);
+      return env.CHATGPT_AUTH_SERVER.validateToken(audience, token);
     },
     handler: {
       async fetch(request, env, ctx) {

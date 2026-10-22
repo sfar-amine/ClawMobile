@@ -72,3 +72,11 @@ Isolated branch + dependency only. Existing production untouched. NEXT: configur
 - Production relay deployed, Worker version `756f85d3-5361-4521-bf14-d819b7a1caa0`.
 - Live endpoint checks: `/.well-known/oauth-protected-resource/mcp` HTTP 200; `/mcp` unauthenticated HTTP 401; OAuth authorization metadata HTTP 200. Both Claude and Codex existing Bearer credentials list MCP tools successfully after deploy.
 - Final acceptance still requires user-driven ChatGPT OAuth consent and one genuine read invocation through ChatGPT to S24. No automatic write authorization granted.
+
+## 2026-10-22 RPC correction
+- Reproduced the active adapter in local Workerd with a real service binding: `validator.call(binding, audience, token)` returns 503 for both valid and invalid fixture tokens. Direct `binding.validateToken(audience, token)` returns 200/401 respectively. Fix is confined to this one invocation.
+- Added `test-chatgpt-oauth-rpc.mjs`, registered in CI: actual relay/Durable Object + OAuth adapter + synthetic authorization Worker. Eight cases cover anonymous, invalid, expired, wrong audience, wrong scope, valid OAuth tools/list exposing claw_context without claw_exec, and unchanged Claude/Codex static owner tool lists. Fails on old code, passes on fix.
+- Executed off-phone on Windows: above regression, npm test, legacy routing (6), owner policy (6), long-action pending test all pass. Full repository localci and independent review are not claimed.
+- Production baseline verified: version 756f85d3-5361-4521-bf14-d819b7a1caa0. Rollback: restore that Worker version. No secrets, grants, scopes, authorization Worker or legacy identities changed.
+- Architecture/capability impact: none; same service binding and canonical MCP schemas/tools. Only OAuth adapter invocation changes. MCP schemas, S24 executors, registry and permissions unchanged.
+- Live ChatGPT refresh and S24 receipt still pending at this checkpoint. Local fixture token validation is not real owner OAuth acceptance.
