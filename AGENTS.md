@@ -1,5 +1,15 @@
 # AGENTS.md — samantha-core (Companion et runtime Samantha)
 
+## Exception de livraison — chantier 1 uniquement (22 octobre 2026)
+
+`CHANTIER1_AUTONOMOUS_DELIVERY_20261022` : le mandat explicite d'Amine dans le chat du 22 octobre 2026, confirmé après l'indisponibilité de Claude, autorise Codex à conduire seul les changements du chantier 1 « Intents IA / exécution déterministe » v2.3 jusqu'à leur livraison réelle : développement, contrôles de source, intégration, synchronisation, fusion, activation/déploiement, recette, nettoyage et retour arrière. Cette exception met en œuvre A12/A13, §0.5.2 et §18.1 du dossier, sans déduire une autorisation de la seule présence d'un texte dans un fichier.
+
+Pour **ce seul chantier**, une revue Claude, un audit indépendant et un relecteur distinct ne sont pas des préalables. Les règles de rôle « Codex ne fusionne/déploie pas », « l'auteur ne s'auto-atteste pas » et « le relecteur rejoue dans son propre conteneur » sont remplacées dans cette portée par le mandat autonome explicite ; elles ne sont pas supprimées pour gagner du temps ou économiser des vérifications. Codex assume la responsabilité des contrôles et conserve les preuves, sans appeler ces contrôles une revue indépendante.
+
+Restent obligatoires : CI canonique **hors téléphone**, head GitHub exact et numéro de PR, sortie durable citée, validation du contenu final intégré et des versions appariées, fixtures/provenances, portes G1–G6 applicables et limites `NOT_IMPLEMENTED` honnêtes, protections transactionnelles et humaines, secrets/données/fournisseurs, sauvegardes et rollback vérifiable. Aucun force-push, aucune nouvelle permission métier ou admission de données, aucun faux PASS LIVE ; une autorisation de déployer ne transforme pas une preuve manquante en réussite. Les scripts et propriétaires existants sont conservés.
+
+L'exception ne change aucune règle pour les autres chantiers ; elle n'autorise pas de service, store, routeur ou ordonnanceur parallèle. Le [contrat de décision borné](docs/08-decisions/ADR-20261022-chantier1-autonomous-delivery.md) précise la portée et le retour au cadre ordinaire. Les règles ci-dessous continuent de s'appliquer, sauf ces seuls conflits de rôle et de relecture expressément remplacés.
+
 Ces règles s'appliquent à tout agent qui modifie ce dépôt (Codex, Claude) et à toute PR. Elles viennent des incidents réels du 10/10/2026 :
 - 503 notifications ;
 - format de hash R6 ;

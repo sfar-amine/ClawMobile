@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "id": "chantier1-autonomous-delivery-core-20261022",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Document the user-authorized autonomous delivery exception strictly scoped to Chantier 1.",
+  "reason": "Amine explicitly mandates autonomous Codex delivery while Claude is unavailable; conflicting author/reviewer roles must be resolved without weakening technical gates.",
+  "files": [
+    "AGENTS.md",
+    "docs/08-decisions/ADR-20261022-chantier1-autonomous-delivery.md",
+    "docs/changes/chantier1-autonomous-delivery-core-20261022.md",
+    "docs/changes/chantier1-autonomous-delivery-core-20261022.json"
+  ],
+  "tests": [
+    {
+      "name": "existing local documentation link owner",
+      "status": "passed",
+      "evidence": "tools/validate_docs.py: all local Markdown links pass in both repositories; no network access."
+    },
+    {
+      "name": "existing documentation validator regression fixtures",
+      "status": "passed",
+      "evidence": "python -m unittest tests.test_validate_docs -q in playbooks: 28/28 passed in 0.095 s. Shared parser behavior; no runtime or CI replay."
+    },
+    {
+      "name": "bounded exception preserves original AGENTS",
+      "status": "passed",
+      "evidence": "Removing exactly the added exception paragraph reproduces AGENTS byte-for-byte from base dd5078bed08be9fea2860a92af7f168124418d35; all pre-existing rules retained."
+    }
+  ],
+  "documentation": [
+    "AGENTS.md",
+    "docs/08-decisions/ADR-20261022-chantier1-autonomous-delivery.md",
+    "docs/changes/chantier1-autonomous-delivery-core-20261022.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Delivery governance documentation only; no app, runtime, capability or business change."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same canonical CI and release/rollback owners; no implementation or new authority store."
+  },
+  "rollback": "Remove this scoped governance exception by documented superseding decision, preserving runtime, historic releases and all evidence.",
+  "authority_reference": "2620cc1d2da3f09913a36821f9f0894defa446cc4bef030b8c1cb6c55be032a4",
+  "limitations": [
+    "Independent reviewer/Claude gates are explicitly replaced only for Chantier 1 by the user mandate, not to omit verification.",
+    "Canonical exact-head and final-integration CI remain mandatory; targeted documentation checks do not replace them.",
+    "No deployment, LIVE, DATA or latency qualification is claimed."
+  ]
+}
