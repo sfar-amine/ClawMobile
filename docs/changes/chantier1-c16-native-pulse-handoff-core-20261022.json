@@ -27,7 +27,7 @@
     {
       "name": "Compile and inherited private owners",
       "status": "passed",
-      "evidence": "TypeScript compiles; Node native host/Bridge25/25 and MCP owner23/23, semantic transport10/10, legacy Pulse room and Python semantic18/18 remain green. No full CI."
+      "evidence": "TypeScript compiles; Node native host/Bridge33/33 and MCP owner23/23, semantic transport10/10, legacy Pulse room and Python semantic18/18 remain green. No full CI."
     },
     {
       "name": "Private IPC negatives",
@@ -37,7 +37,7 @@
     {
       "name": "Real native hook paired canonical owners",
       "status": "passed",
-      "evidence": "36/36 MOCK_ONLY paired probes: original text, distinct human events, typed grants, actual existing Store/Continuum/Bridge/Graph, one simulated native CLI write, settled T2/replay no extra inference/effect. Actual contacts-pulse hook tests DATA closed0attempts, invalid IR/unsupported/ambiguous/unqualified-native all handled terminal/question with0fallback. Providers and final business HTTP process port simulated."
+      "evidence": "42/42 MOCK_ONLY paired probes: original text, distinct human events, typed grants, actual existing Store/Continuum/Bridge/Graph, one simulated native CLI write, settled T2/replay no extra inference/effect; native known pre-submit refusal closes failed with its cause through status/replay. Actual contacts-pulse hook tests DATA closed0attempts, invalid IR/unsupported/ambiguous/unqualified-native all handled terminal/question with0fallback. Providers and final business HTTP process port simulated."
     }
   ],
   "documentation": [
@@ -63,7 +63,7 @@
   ],
   "paired_dependency": {
     "repository": "sfar-amine/samantha-ui-playbooks",
-    "sha": "af122f34f446546b96ad037eb2aac581abdf6497",
+    "sha": "dfd92662d2c9054647db584b71a5fc9356673313",
     "qualification": "MOCK_ONLY"
   },
   "base_dependency": {

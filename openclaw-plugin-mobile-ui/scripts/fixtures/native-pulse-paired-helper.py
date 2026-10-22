@@ -68,6 +68,11 @@ def recorded_execute(graph,*args,**kwargs):
         assert (root/argv[1]).resolve()==root/'billing/direct-runtime/pulse-cli.mjs', repr(argv)
         assert '--prepared-command-stdin' in argv
         assert json.loads(opts['input'])==fixture['prepared']['prepared_command']
+        if os.environ.get('C16_RESULT_MODE')=='pre_submit_refusal':
+            record({'kind':'MOCK_NATIVE_REFUSAL','reason':'pulse_native_contract_changed'})
+            return SimpleNamespace(returncode=0,stdout=json.dumps({'ok':False,
+                'status':'confirmation_invalidated','reason_code':'pulse_native_contract_changed',
+                'write_count':0,'writes':[]}),stderr='')
         record({'kind':'MOCK_NATIVE_WRITE','read_only':kwargs.get('read_only'),
             'conversation':kwargs['runtime_context']['conversation_ref']})
         return SimpleNamespace(returncode=0,stdout=json.dumps(fixture['execution']['result']),stderr='')

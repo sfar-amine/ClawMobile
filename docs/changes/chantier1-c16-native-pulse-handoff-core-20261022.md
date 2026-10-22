@@ -7,3 +7,5 @@ La paire MOCK_ONLY couvre le vrai hook OpenClaw, le stream subprocess et les pro
 **Activation native non qualifiée** : le flag hôte est absent par défaut et la préparation C14 refuse avant login jusqu'aux captures C15. Le code ne déploie rien et ne modifie ni OAuth, voix en direct, paiement, app ni WhatsApp génériques. La CI canonique du head numéroté et les recettes réelles restent distinctes des ciblés verts.
 
 [Contrat, limites, provenance et retour arrière](../work/samantha-runtime/contracts/c16-native-pulse-handoff.md). Désactiver le pilote pour revenir en arrière ; observer les reçus sans rejouer les mutations incertaines. Aucun nouveau store, registre, routeur, ordonnanceur, démon ou exécuteur.
+
+Le callback T2 suit le reçu terminal et continue après l’acquittement anticipé. Une exception de livraison ne remplace pas le résultat, ne relance pas l’exécuteur et laisse le suivi canonique observable. Les refus natifs prouvés avant envoi conservent leur cause au statut et au replay.

@@ -4,7 +4,7 @@ const {spawnSync}=require('node:child_process');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'native-pulse-paired-'));
 const core=path.resolve(__dirname,'../..');
 const pb=path.resolve(process.env.C16_PLAYBOOKS_ROOT||path.join(core,'../samantha-ui-playbooks'));
-const expectedPeer=process.env.C16_EXPECTED_PB_SHA||'af122f34f446546b96ad037eb2aac581abdf6497';
+const expectedPeer=process.env.C16_EXPECTED_PB_SHA||'dfd92662d2c9054647db584b71a5fc9356673313';
 assert.match(expectedPeer,/^[a-f0-9]{40}$/,'explicit immutable paired owner head');
 const peerHead=spawnSync('git',['-C',pb,'rev-parse','HEAD'],{encoding:'utf8'});
 assert.equal(peerHead.status,0);assert.equal(peerHead.stdout.trim(),expectedPeer,'immutable paired owner head');
@@ -72,6 +72,26 @@ async function input(text,eventRef){
  check(hookQuestion.handled&&hookQuestion.text.includes('5309'),'actual contacts-pulse hook uses the prepared whole-command question');
  const hookDone=await hostCall(accepted.text,'hook-accepted');
  check(hookDone.handled&&hookDone.text.includes('vérifié'),'actual contacts-pulse hook completes only after settled native receipt');
+ process.env.C16_RESULT_MODE='pre_submit_refusal';
+ const refusedQuestion=await hostCall(request.text,'refused-request');
+ check(refusedQuestion.handled&&refusedQuestion.text.includes('5309'),'native refusal starts with the same whole-command consent');
+ const refusedAnswer=await hostCall(accepted.text,'refused-accepted');
+ const refusal=observed.at(-1);
+ check(refusedAnswer.handled&&refusal.outcome==='FAILED'&&refusal.reasonCode==='pulse_native_contract_changed',
+   'known native pre-effect refusal closes T2 with owner cause: '+JSON.stringify(refusal));
+ const beforeReplay=fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8');
+ const refusedReplay=await hostCall(accepted.text,'refused-accepted');
+ check(refusedReplay.handled&&observed.at(-1).replayed&&observed.at(-1).reasonCode==='pulse_native_contract_changed',
+   'native refusal replay keeps the same terminal cause');
+ check(fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8')===beforeReplay,'native refusal replay invokes neither model nor effect');
+ const refusedReceipt=fs.readdirSync(path.join(root,'.openclaw','remote-bridge','requests'))
+   .map(f=>JSON.parse(fs.readFileSync(path.join(root,'.openclaw','remote-bridge','requests',f))))
+   .find(r=>r.result?.execution?.reason==='pulse_native_contract_changed');
+ check(refusedReceipt?.state==='completed'&&refusedReceipt.result.execution.result.write_count===0,
+   'canonical terminal Bridge receipt carries native refusal and zero submission');
+ const failedStat=spawnSync('python3',['-m','skill_intelligence.continuum_ingress','status','--task-id',refusedReceipt.taskId],{cwd:pb,env:process.env,encoding:'utf8'});
+ check(failedStat.status===0&&JSON.parse(failedStat.stdout).state==='failed','known pre-effect refusal closes existing Continuum, no retry');
+ delete process.env.C16_RESULT_MODE;
  for(const mode of ['data_closed','invalid','unsupported','ambiguous','unqualified']){
    process.env.C16_RESULT_MODE=mode;
    const before=fs.readFileSync(process.env.C16_PAIRED_LOG,'utf8').trim().split('\n').map(JSON.parse);

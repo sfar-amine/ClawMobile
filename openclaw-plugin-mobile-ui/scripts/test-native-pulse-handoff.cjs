@@ -67,6 +67,36 @@ function arm(taskId,requestId,params){
  check(failed.mutationRisk==='write'&&failed.state==='failed'&&failed.error==='native_pulse_execution_unknown'&&!JSON.stringify(failed).includes('PRIVATE_CANARY'),'callback exception masks detail and retains possible write');
  await bridge.submitNativePulseRequest(uncertain,admission,event,text,execute);
  check(calls===2,'unknown write result is never replayed');
+ // Completion may outlive the public ACK. T2 must still follow the persisted
+ // receipt once, without polling/re-dispatching the native execution.
+ const delayed=arm('delayed-native-task','delayed-native-request',params);
+ let releaseLate,delivered,lateCalls=0,lateT2=0;
+ const lateDelivery=new Promise(resolve=>delivered=resolve);
+ const lateResult=new Promise(resolve=>releaseLate=resolve);
+ const originalTimeout=global.setTimeout;
+ global.setTimeout=(callback,ms,...args)=>originalTimeout(callback,ms===12000?20:ms,...args);
+ let ack;
+ try{ack=await bridge.submitNativePulseRequest(delayed,admission,event,text,async()=>{lateCalls++;return lateResult;},
+   async()=>{lateT2++;check(bridge.getRemoteBridgeRequest(delayed.requestId).state==='completed','late T2 starts AFTER durable terminal receipt');delivered();});}
+ finally{global.setTimeout=originalTimeout;}
+ check(ack.state==='running'&&lateCalls===1&&lateT2===0,'public ACK can precede terminal execution without starting T2 early');
+ releaseLate({nativePulseProtocol:NATIVE_PULSE_PROTOCOL,execution:{state:'completed',result:{ok:true}}});
+ await lateDelivery;
+ await bridge.submitNativePulseRequest(delayed,admission,event,text,async()=>{lateCalls++;},async()=>{lateT2++;});
+ check(lateCalls===1&&lateT2===1,'late result and replay never re-enter execution or duplicate callback');
+ // T2 delivery errors are separate from execution failures. The canonical
+ // terminal receipt is immutable and the pending existing handoff is recoverable.
+ const t2failed=arm('t2-failed-task','t2-failed-request',params);let t2calls=0,t2effects=0;
+ const warnings=[],oldWarn=console.warn;console.warn=(line)=>warnings.push(line);
+ let good;
+ try{good=await bridge.submitNativePulseRequest(t2failed,admission,event,text,async()=>{t2effects++;return {nativePulseProtocol:NATIVE_PULSE_PROTOCOL,execution:{state:'completed',result:{ok:true}}};},
+   async()=>{t2calls++;check(bridge.getRemoteBridgeRequest(t2failed.requestId).state==='completed','throwing callback also sees persisted terminal execution');throw Error('PRIVATE_T2_CANARY');});}
+ finally{console.warn=oldWarn;}
+ check(good.state==='completed'&&good.result.execution.state==='completed'&&!good.error,'T2 failure cannot replace a good terminal execution with failed');
+ check(warnings.length===1&&warnings[0]==='native_pulse_t2_pending:'+t2failed.requestId,'bounded pending T2 diagnostic hides arbitrary callback detail');
+ const replayGood=await bridge.submitNativePulseRequest(t2failed,admission,event,text,async()=>{t2effects++;},async()=>{t2calls++;});
+ assert.deepEqual(replayGood,good);n++;
+ check(t2calls===1&&t2effects===1,'T2 delivery failure/replay never executes or finalizes twice');
  authority={...authority,state:'suspended'};
  await assert.rejects(bridge.submitNativePulseRequest(body,admission,event,text,execute),/contact_revoked/);n++;
  console.log(`Native Pulse host/Bridge: ${n}/${n} probes passed; MOCK_ONLY, no live effect`);

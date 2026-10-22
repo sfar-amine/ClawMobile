@@ -205,9 +205,15 @@ async function runNativePulseHandoff(message:string,options:RunnerOptions):Promi
       outcome:'WAITING_OPERATION',reasonCode:'verification_required',handled:true,modelAllowed:false,
       text:'La commande est en cours de vérification. Elle ne sera pas rejouée.'} as any;
   }else{
-    await submitNativePulseRequest({...request,stepId:prepared.wire_step_id,continuumFence:prepared.continuum_fence},
+    const receipt=await submitNativePulseRequest({...request,stepId:prepared.wire_step_id,continuumFence:prepared.continuum_fence},
       options.nativePulse!,options.dialogue!.event!,message,
-      async()=>runModelFastPath(message,{...options,nativePulseMode:'execute'}));
+      async()=>runModelFastPath(message,{...options,nativePulseMode:'execute'}),
+      async()=>{const out:any=await runModelFastPath(message,{...options,nativePulseMode:'observe'});
+        if(!['COMPLETED','FAILED'].includes(out.outcome))throw new Error('native_pulse_t2_pending');
+        return out;});
+    if(!['completed','failed'].includes(receipt.state))return {
+      outcome:'WAITING_OPERATION',reasonCode:'verification_required',handled:true,modelAllowed:false,
+      text:'La commande est en cours de vérification. Elle ne sera pas rejouée.'} as any;
   }
   return runModelFastPath(message,{...options,nativePulseMode:'observe'});
 }

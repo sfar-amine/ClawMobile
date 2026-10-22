@@ -1616,6 +1616,9 @@ def run_native_pulse(message,*,args,event,policy):
                     return {'nativePulseProtocol':'native-pulse.v1','outcome':'WAITING_OPERATION',
                         'reasonCode':'verification_required','handled':True,'modelAllowed':False,
                         'text':'La commande est en cours de vérification. Elle ne sera pas rejouée.'}
+                out=adapter.observe_dialogue(_dialogue_coordinator(args.ui_root).Coordinator(None,store=adapter.store),args.goal_ref,
+                    {**policy,'scope':'pulse_room','_native_pulse_event':_NATIVE_PULSE_EVENT})
+                return {**out,'nativePulseProtocol':'native-pulse.v1'}
             out=run_dialogue(message,mode='turn' if args.native_pulse_mode=='turn' else args.dialogue,
                 ui_root=args.ui_root,surface='whatsapp',caller='owner',timeout=max(2,min(args.timeout,120)),
                 event=event,policy={**policy,'scope':'pulse_room','deferHandoff':args.native_pulse_mode=='turn',

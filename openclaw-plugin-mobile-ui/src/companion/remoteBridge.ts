@@ -844,7 +844,7 @@ async function dispatch(request: RemoteBridgeRequest, webBounds?: {startedMonoto
 type McpReadExecution = (bounds:{startedMonotonic:number;deadlineEpochMs:number})=>Promise<unknown>;
 type McpAccess=ClawAccess & {readExecution?:McpReadExecution;
   relayAdmission?:{requestId:string;observedAt:number;validUntil:number}};
-type NativeAccess={native:NativePulseContact;execute:McpReadExecution;event:Record<string,unknown>;text:string};
+type NativeAccess={native:NativePulseContact;execute:McpReadExecution;event:Record<string,unknown>;text:string;afterReceipt?:()=>Promise<unknown>};
 const authenticatedMcpAccess = new WeakMap<object, McpAccess|NativeAccess>();// existing admission owner, no second registry
 function mcpAccess(value:object):McpAccess|undefined {
   const access=authenticatedMcpAccess.get(value);return access&&!('native' in access)?access:undefined;
@@ -855,13 +855,14 @@ function nativeAccess(value:object):NativeAccess|undefined {
 
 /** Host-only native hook: the JSON body is correlation, never execution authority. */
 export async function submitNativePulseRequest(body:RemoteBridgeRequest, admission:NativePulseContact,
-  event:Record<string,unknown>,text:string,execute:McpReadExecution):Promise<RemoteBridgeReceipt> {
+  event:Record<string,unknown>,text:string,execute:McpReadExecution,afterReceipt?:()=>Promise<unknown>):Promise<RemoteBridgeReceipt> {
   if(!(admission instanceof NativePulseContact)||typeof execute!=='function'||
+     (afterReceipt!==undefined&&typeof afterReceipt!=='function')||
      body.method!=='capability_execute_owner'||body.params?.nativePulseProtocol!==NATIVE_PULSE_PROTOCOL||
      body.sessionId!=='native-pulse:'+admission.contactId||!body.taskId||!body.stepId||!body.continuumFence)
     throw statusError(403,'native_pulse_admission_required');
   await admission.packet(event,text);
-  const trusted={...body};authenticatedMcpAccess.set(trusted,{native:admission,execute,event,text});
+  const trusted={...body};authenticatedMcpAccess.set(trusted,{native:admission,execute,event,text,afterReceipt});
   return submitRemoteBridgeRequest(trusted);
 }
 
@@ -1018,6 +1019,18 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     };
   }
   writeReceipt(receipt);
+  // T2 delivery follows the durable terminal receipt. It is deliberately outside
+  // dispatch's catch: a failed observation must never overwrite the execution
+  // outcome or re-enter its executor. The existing pending DialogueStore handoff
+  // remains recoverable by the same receipt on the next observation.
+  if(native?.afterReceipt){
+    try{
+      await native.native.packet(native.event,native.text);
+      await native.afterReceipt();
+    }catch{
+      console.warn(`native_pulse_t2_pending:${request.requestId}`);
+    }
+  }
   return receipt;
   })();
   if (request.method !== "exec_wait" && !mcpAccess(request)?.readExecution && !nativeAccess(request)) return completion;
