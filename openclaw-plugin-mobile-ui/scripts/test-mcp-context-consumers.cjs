@@ -40,7 +40,7 @@ required=[] if known.get('SOUL.md')==${JSON.stringify(ruleHash)} else ['SOUL.md'
 global_read=not baseline or after is None
 if global_read:required.append('context/HYBRID_CONTEXT.md')
 print(json.dumps({'version':2,'surface':value('--surface'),'mode':'rebuild' if '--uncertain' in a else 'cold' if after is None else 'delta',
- 'read_only':True,'cursor_advanced':False,
+ 'read_only':True,'cursor_advanced':False,'cursor':{'advanced':True},
  'contracts':[{'key':'SOUL.md','path':${JSON.stringify(rule)},'sha256':${JSON.stringify(ruleHash)},'read_required':'SOUL.md' in required}],
  'context':{'fromRevision':after,'toRevision':4,'lastReturnedRevision':last,'truncated':last is not None and last<4,'events':events},
  'global':{'path':${JSON.stringify(global)},'read_required':global_read,'revision':4},
@@ -80,7 +80,7 @@ const check = (condition, message) => { assert.ok(condition, message); checks++;
   const rebuilt = await invoke({ after_revision: 4, known_contracts: { 'SOUL.md': ruleHash }, global_baseline: base, uncertain: true });
   check(rebuilt.required_reads.length === 2 && rebuilt.bundle.mode === 'rebuild', 'uncertain consumer reconstructs instead of inheriting an implicit base');
   check(!fs.existsSync(acknowledgements), 'no cursor acknowledgement or owner write occurs');
-  check([a,b,replay,next,independent,integrated,rebuilt].every(x => x.bundle.cursor_advanced === false && x.bundle.context_consumption.state === 'not_attested'), 'construction never attests consumption');
+  check([a,b,replay,next,independent,integrated,rebuilt].every(x => x.bundle.cursor_advanced === false && x.bundle.cursor.advanced === false && x.bundle.context_consumption.state === 'not_attested'), 'construction never attests consumption, including a contradictory nested reader flag');
   const argv = fs.readFileSync(calls, 'utf8').trim().split('\n').map(JSON.parse);
   check(argv.every(row => !row.includes('--session')), 'no shared authenticated-client cursor is consulted');
   const explicit = argv.at(-2);

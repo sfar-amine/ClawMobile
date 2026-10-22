@@ -291,6 +291,7 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
   // A lost response is replayable from the same explicit base; no new cursor
   // store, thread identifier, or acknowledgement endpoint is needed.
   raw.cursor_advanced=false;
+  if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=false;
   raw.context_consumption={state:'not_attested',basis:'caller_supplied_state',implicit_client_cursor:false};
   return {
     state: "context",

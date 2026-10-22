@@ -9,3 +9,5 @@ Vérifications ciblées : build TypeScript et préparation lite réussis ; test 
 Preuve avant/après locale : le même nouveau test exécuté contre le fichier `mcpBridge.ts` de `dd5078be`, compilé dans un répertoire temporaire avec les mêmes dépendances, échoue précisément sur « no cursor acknowledgement or owner write occurs ». Le candidat passe les 14 contrôles. Ce témoin de transport ne prétend pas reproduire un incident observé sur le S24.
 
 Retour arrière : revert du lot, sans migration ou effacement de curseurs. Le contexte intégré par un fil n'est jamais supposé depuis le seul client authentifié.
+
+Les six primitives MCP et leurs cinq rattachements sont évalués dans la note v2. Le schéma public et les droits ne changent pas. Même un marqueur imbriqué contradictoire du lecteur est remis à `advanced:false` : construire la réponse n’atteste aucune réception. Le runtime est modifié côté source, sans activation revendiquée.
