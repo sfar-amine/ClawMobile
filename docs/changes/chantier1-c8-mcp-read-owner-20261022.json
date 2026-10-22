@@ -15,7 +15,9 @@
     "openclaw-plugin-mobile-ui/scripts/test-mcp-read-owner.cjs",
     "docs/work/samantha-runtime/contracts/c8-mcp-read-owner.md",
     "docs/changes/chantier1-c8-mcp-read-owner-20261022.md",
-    "docs/changes/chantier1-c8-mcp-read-owner-20261022.json"
+    "docs/changes/chantier1-c8-mcp-read-owner-20261022.json",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-read-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/mcp-read-paired-helper.py"
   ],
   "tests": [
     {
@@ -36,7 +38,7 @@
     {
       "name": "Actual paired private input and read pipeline (MOCK only)",
       "status": "passed",
-      "evidence": "Against playbooks 3feb4771ba8b496c8fc3353113422bb221f051e6, actual Node/private IPC/Python/B/Graph boundaries admit two fixture reads with independent threads, exact original text and client_reported provenance; duplicate adds zero helper calls. A canonical write proposal reaches no executor. The actual governed DATA-unknown path blocks before metadata/generation and keeps DATA_PROFILE_UNVERIFIED at MCP top level. Zero external provider calls and real business effects. This does not qualify any live model or account."
+      "evidence": "Against playbooks 3feb4771ba8b496c8fc3353113422bb221f051e6, actual Node/private IPC/Python/B/Graph boundaries admit two fixture reads with independent threads, exact original text and client_reported provenance; duplicate adds zero helper calls. A canonical write proposal reaches no executor. The actual governed DATA-unknown path blocks before metadata/generation and keeps DATA_PROFILE_UNVERIFIED at MCP top level. Zero external provider calls and real business effects. This does not qualify any live model or account. The durable test fetches/checks immutable PB259 head and imports its real owners. A separately labelled SYNTHETIC_BOUNDARY_ONLY Graph probe uses write risk with sufficient/authorized/deterministic fields and confirms blocked/read_only_policy before subprocess, independently of upstream write-proposal refusal."
     }
   ],
   "documentation": [
@@ -58,7 +60,7 @@
     "C4/B private read port is a separate dependency; without its protocol the execution remains explicitly closed.",
     "No live model, DATA-profile acceptance, S24 operation or MCP end-to-end qualification is claimed.",
     "Writes, missing server-reference admission and real confirmation remain closed; no transcript is persisted by this slice.",
-    "Paired fixture inference and business read execution are MOCK; write-proposal refusal is distinct from a direct independent Graph read_only-policy counterexample."
+    "The paired chain uses Recorded/MOCK inference and fake business reads; the direct Graph write guard is independently labelled SYNTHETIC_BOUNDARY_ONLY, not a LIVE or complete write recipe."
   ],
   "mcp_owner_parity": {
     "tools": {
@@ -86,5 +88,36 @@
       "Write denial requires actual C4/B Graph read_only enforcement and remains a separate paired proof, not a claim derived from method naming.",
       "Source changes are not deployed and no real MCP/model readiness is claimed."
     ]
+  },
+  "paired_dependency": {
+    "repository": "sfar-amine/samantha-ui-playbooks",
+    "pr": 259,
+    "sha": "3feb4771ba8b496c8fc3353113422bb221f051e6",
+    "replay": "node openclaw-plugin-mobile-ui/scripts/test-mcp-read-paired.cjs <checkout-of-PB259-at-exact-SHA> 3feb4771ba8b496c8fc3353113422bb221f051e6 <result.json>",
+    "result": {
+      "playbooks_sha": "3feb4771ba8b496c8fc3353113422bb221f051e6",
+      "playbooks_pr": 259,
+      "qualification": "MOCK_ONLY",
+      "external_provider_calls": 0,
+      "real_business_effects": 0,
+      "canonical_claim_before_generation": true,
+      "helper_calls": 4,
+      "positive_reads": 2,
+      "duplicate_additional_helper_calls": 0,
+      "independent_threads": true,
+      "original_text_exact": true,
+      "client_provenance_preserved": true,
+      "canonical_write_executor_calls": 0,
+      "data_unknown_reason": "DATA_PROFILE_UNVERIFIED",
+      "fake_interpretations": 3,
+      "fake_business_read_executions": 2,
+      "separate_graph_write_boundary_probe": {
+        "qualification": "SYNTHETIC_BOUNDARY_ONLY",
+        "state": "blocked",
+        "reason": "read_only_policy",
+        "executor_calls": 0,
+        "checks": 4
+      }
+    }
   }
 }

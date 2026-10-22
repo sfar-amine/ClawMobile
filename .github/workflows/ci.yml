@@ -452,6 +452,15 @@ jobs:
           node ../cloud/voice-relay/test-mcp.mjs
 
           node ../cloud/voice-relay/test-long-action.mjs
+      - name: MCP private read paired with immutable PB259 owners (MOCK only)
+        run: |
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/c8-mcp-playbooks.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" fetch --depth 1 https://github.com/sfar-amine/samantha-ui-playbooks.git 3feb4771ba8b496c8fc3353113422bb221f051e6
+          git -C "$peer" checkout --detach FETCH_HEAD
+          node scripts/test-mcp-read-paired.cjs "$peer" 3feb4771ba8b496c8fc3353113422bb221f051e6 "$RUNNER_TEMP/c8-mcp-paired-result.json"
+
       - name: M2 claw_remember MCP owner capture through canonical context-event writer (200k events)
         run: node scripts/test-mcp-remember.cjs
 
