@@ -773,7 +773,11 @@ async function dispatch(request: RemoteBridgeRequest, webBounds?: {startedMonoto
     // The durable received/running claim already exists. Only this process-local
     // function can enter the read-only host; JSON never provides an executor.
     try{return await access.readExecution(webBounds!);}
-    catch{throw new Error("mcp_read_execution_failed");}
+    catch(error:any){
+      const code=["mcp_read_protocol_required","mcp_read_deadline_exceeded","mcp_read_execution_failed"].includes(error?.message)
+        ?error.message:"mcp_read_execution_failed";
+      throw new Error(code);
+    }
   }
   switch (request.method) {
     case "ping":

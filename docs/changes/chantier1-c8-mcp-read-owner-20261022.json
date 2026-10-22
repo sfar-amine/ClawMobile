@@ -26,7 +26,7 @@
     {
       "name": "MCP read owner boundary",
       "status": "passed",
-      "evidence": "17/17 synthetic probes: durable claim before callback, concurrent duplicate, changed context 409, canonical status, receipt replay without host, restart/uncertainty without callback replay, forged public binding and write method refusal, bounded errors and minimal metadata"
+      "evidence": "20/20 synthetic probes: durable claim before callback, concurrent duplicate, changed context 409, canonical status, receipt replay without host, restart/uncertainty without callback replay, forged public binding and write method refusal, bounded errors and minimal metadata; allowlisted protocol/deadline failures retain the same cause in MCP reply, status and replay"
     },
     {
       "name": "Existing transport/owner regressions",

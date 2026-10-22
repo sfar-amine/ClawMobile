@@ -80,7 +80,9 @@ function projectReceipt(receipt: any) {
     };
   }
   if (receipt.state !== "completed") {
-    return { ...base, state: receipt.state, error: receipt.error ? "claw_execution_failed" : undefined };
+    return { ...base, state: receipt.state, error: receipt.error ? "claw_execution_failed" : undefined,
+      ...(["mcp_read_protocol_required","mcp_read_deadline_exceeded","mcp_read_execution_failed"].includes(receipt.error)
+        ? {reason:receipt.error} : {}) };
   }
   const value = receipt.result;
   if (receipt.method === "context_remember") {
