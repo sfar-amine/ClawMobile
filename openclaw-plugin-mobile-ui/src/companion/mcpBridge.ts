@@ -115,6 +115,7 @@ function projectReceipt(receipt: any) {
       result: safeValue(domain),
       question: domain?.question,
       choices: safeValue(domain?.choices),
+      ...(value?.interpretationReceipt ? {interpretation_receipt:safeValue(value.interpretationReceipt)} : {}),
     };
   }
   return { ...base, state: "completed", result: safeValue(value) };
@@ -362,11 +363,62 @@ function mcpInputFailure(reason:string,outcome="TECHNICAL_FAILURE") {
   return {state:"failed",outcome,reason,retry_allowed:false,input_protocol:MCP_INPUT_PROTOCOL};
 }
 
+function stableMcpInput(value:any):any {
+  if(Array.isArray(value))return value.map(stableMcpInput);
+  if(value&&typeof value==="object")return Object.fromEntries(Object.keys(value).sort().map(key=>[key,stableMcpInput(value[key])]));
+  return value;
+}
+function readReason(value:unknown) {
+  return typeof value==="string"&&/^[A-Za-z0-9_.:-]{1,128}$/.test(value)?value:"interpretation_read_failed";
+}
+async function executeMigratedMcpRead(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,context:Record<string,any>,actionKey:string,stepKey:string) {
+  const input={request:args.request,client_context:context};
+  const inputDigest=crypto.createHash("sha256").update(JSON.stringify(stableMcpInput(input))).digest("hex");
+  const receipt=await submitAuthenticatedMcpRequest({
+    requestId,taskId:actionTaskId(clientId,actionKey),stepId:stepKey,sessionId:`external_mcp:${clientId}`,
+    _claw_access:accessMetadata(clientId,profile),method:"mcp_capability_execute_readonly",
+    params:{intentInputProtocol:MCP_INPUT_PROTOCOL,inputDigest},
+  },undefined,async bounds=>{
+    const remaining=Math.floor(bounds.deadlineEpochMs-Date.now());
+    if(remaining<1)throw new Error("mcp_read_deadline_exceeded");
+    const out:any=await runModelFastPath(args.request as string,{
+      surface:"external_mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
+      requestId,runId:requestId,sessionId:`external_mcp:${clientId}`,timeoutSeconds:15,
+      remainingBudgetMs:remaining,deadlineEpochMs:bounds.deadlineEpochMs,
+      intentContext:input,intentReadOnly:true,
+      dialogue:{mode:"preview",event:{conversationKey:`external_mcp:${clientId}:${context.conversation_ref}`,eventRef:requestId}},
+    } as any);
+    if(out?.intentInputProtocol!==MCP_INPUT_PROTOCOL || out?.intentReadProtocol!=="mcp-read.v1")throw new Error("mcp_read_protocol_required");
+    const completed=out.status==="hit"&&["completed","partial"].includes(out.execution_state);
+    const clarification=out.status==="clarification" && typeof out.clarification?.question==="string";
+    const execution={state:completed?out.execution_state:clarification?"low_confidence":["running","indeterminate"].includes(out.execution_state)?out.execution_state:"failed",
+      reason:completed?undefined:readReason(out.reason),
+      result:completed?safeValue(out.result):clarification?{state:"needs_clarification",question:out.clarification.question,choices:safeValue(out.clarification.choices)}:{ok:false,state:"failed",reason:readReason(out.reason)}};
+    // The host already projects this metadata; copy only its receipt fields,
+    // never a generated output, full resolution, prompt or transcript.
+    const receiptKeys=["schema_version","adapter_version","prompt_version","request_id","turn_id","generation_id",
+      "conversation_ref","conversation_revision","context_digest","catalogue_digest","prompt_digest","status","model","actual_model","usage","inference_mode"];
+    const interpretationReceipt=out.interpretationReceipt&&typeof out.interpretationReceipt==="object"
+      ? Object.fromEntries(receiptKeys.filter(key=>out.interpretationReceipt[key]!==undefined).map(key=>[key,safeValue(out.interpretationReceipt[key])])):undefined;
+    return {execution,interpretationReceipt,capability:typeof out.capability==="string"?out.capability:undefined,
+      selected:{route:typeof out.route==="string"?out.route:undefined}};
+  });
+  return projectReceipt(receipt);
+}
+
 async function migratedMcpInput(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,execute:boolean) {
   if(args.decision!==undefined||args.target_hint!==undefined)return mcpInputFailure("client_semantic_authority_not_admitted");
   let context:Record<string,any>;
   try {context=validateMcpClientContext(args.request,args.client_context);}
   catch(error:any){return mcpInputFailure(error?.message||"invalid_client_context");}
+  if(execute){
+    const actionKey=requiredString(args.action_key,"action_key",40,ACTION_ID_RE);
+    const stepKey=optionalString(args.step_key,"step_key",24,STEP_ID_RE)||"execute";
+    if(requestId!==actionRequestId(clientId,actionKey,stepKey))throw new Error("action_request_id_mismatch");
+    // A settled/uncertain receipt is not a new interpretation. Delegate all hash,
+    // access and step checks to the same owner even if the model port is down.
+    if(getRemoteBridgeRequest(requestId))return executeMigratedMcpRead(requestId,clientId,profile,args,context,actionKey,stepKey);
+  }
   // Never let a new envelope fall through to a runner/helper that ignores it.
   if(process.env.SAMANTHA_INTENT_INTERPRETER!=="1" ||
      (modelFastPathHost as any).INTENT_INPUT_PROTOCOL!==MCP_INPUT_PROTOCOL) {
@@ -383,9 +435,10 @@ async function migratedMcpInput(requestId:string,clientId:string,profile:string,
     const actionKey=requiredString(args.action_key,"action_key",40,ACTION_ID_RE);
     const stepKey=optionalString(args.step_key,"step_key",24,STEP_ID_RE)||"execute";
     if(requestId!==actionRequestId(clientId,actionKey,stepKey))throw new Error("action_request_id_mismatch");
-    // The new in-process turn port has no RemoteBridge receipt yet. Do not bypass
-    // action-key idempotence, claw_status or the canonical confirmation owner.
-    return {...mcpInputFailure("INTERPRETATION_OWNER_RECEIPT_REQUIRED"),request_id:requestId,task_id:actionTaskId(clientId,actionKey)};
+    if((modelFastPathHost as any).INTENT_READ_PROTOCOL!=="mcp-read.v1") {
+      return {...mcpInputFailure("INTERPRETATION_OWNER_RECEIPT_REQUIRED"),request_id:requestId,task_id:actionTaskId(clientId,actionKey)};
+    }
+    return executeMigratedMcpRead(requestId,clientId,profile,args,context,actionKey,stepKey);
   }
   const conversationKey=`external_mcp:${clientId}:${context.conversation_ref}`;
   try {

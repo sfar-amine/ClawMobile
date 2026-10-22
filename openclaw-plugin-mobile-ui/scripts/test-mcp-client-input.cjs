@@ -44,7 +44,7 @@ const invoke=(ctx=context,extra={},execute=false,client='claude-chat')=>handleMc
  const ref=clone(context);ref.entity_references=[{mention:'cette offre',turn_ref:'turn-1',server_ref:{kind:'remote_bridge_receipt',request_id:'other-client-receipt'}}];
  out=await invoke(ref);check(out.outcome==='CLIENT_CONTEXT_INCOMPLETE' && out.reason==='server_reference_admission_unavailable' && calls.length===before,'unverified server references never become model input or a permission');
  out=await invoke(context,{},true);check(out.reason==='INTERPRETATION_OWNER_RECEIPT_REQUIRED' && out.retry_allowed===false && calls.length===before,'execution closed before any turn without canonical receipt/idempotence port');
- check(!fs.existsSync(process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR),'no bridge store, transcript or synthetic receipt created');
+ check(!fs.existsSync(path.join(process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR,'requests')) || fs.readdirSync(path.join(process.env.CLAWMOBILE_REMOTE_BRIDGE_DIR,'requests')).length===0,'no transcript or synthetic receipt created');
  host.runModelFastPath=async()=>({outcome:'READY'});
  out=await invoke();check(out.reason==='INTERPRETATION_HOST_UNAVAILABLE','old helper output without protocol cannot be admitted');
  host.runModelFastPath=async()=>{throw Error('fixture-infrastructure-error');};

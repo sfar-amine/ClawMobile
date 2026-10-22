@@ -765,6 +765,16 @@ async function runMcpCapability(
 
 async function dispatch(request: RemoteBridgeRequest, webBounds?: {startedMonotonic:number;deadlineEpochMs:number}) {
   const params = (request.params || {}) as Record<string, unknown>;
+  if(params.intentInputProtocol!==undefined){
+    const access=authenticatedMcpAccess.get(request);
+    if(request.method!=="mcp_capability_execute_readonly" || params.intentInputProtocol!=="mcp-input.v1" ||
+       Object.keys(params).length!==2 || typeof params.inputDigest!=="string" || !/^[a-f0-9]{64}$/.test(params.inputDigest) ||
+       !access?.readExecution || !request._claw_access)throw new Error("mcp_read_owner_binding_required");
+    // The durable received/running claim already exists. Only this process-local
+    // function can enter the read-only host; JSON never provides an executor.
+    try{return await access.readExecution(webBounds!);}
+    catch{throw new Error("mcp_read_execution_failed");}
+  }
   switch (request.method) {
     case "ping":
       return { pong: true, at: Date.now(), instanceId: INSTANCE_ID };
@@ -813,12 +823,15 @@ async function dispatch(request: RemoteBridgeRequest, webBounds?: {startedMonoto
 }
 
 // Process-local provenance cannot be supplied through HTTP or serialized JSON.
-const authenticatedMcpAccess = new WeakMap<object, ClawAccess>();
-export async function submitAuthenticatedMcpRequest(body: RemoteBridgeRequest, webBounds?: {startedMonotonic:number;deadlineEpochMs:number}): Promise<RemoteBridgeReceipt> {
+type McpReadExecution = (bounds:{startedMonotonic:number;deadlineEpochMs:number})=>Promise<unknown>;
+const authenticatedMcpAccess = new WeakMap<object, ClawAccess & {readExecution?:McpReadExecution}>();
+export async function submitAuthenticatedMcpRequest(body: RemoteBridgeRequest, webBounds?: {startedMonotonic:number;deadlineEpochMs:number}, readExecution?:McpReadExecution): Promise<RemoteBridgeReceipt> {
   const access = body._claw_access;
   if (!access) throw statusError(400,"invalid_claw_access");
+  if(readExecution && (typeof readExecution!=="function" || body.method!=="mcp_capability_execute_readonly" ||
+     body.params?.intentInputProtocol!=="mcp-input.v1"))throw statusError(400,"invalid_mcp_read_binding");
   const trusted = {...body}; delete trusted._claw_access;
-  authenticatedMcpAccess.set(trusted, {...access});
+  authenticatedMcpAccess.set(trusted, {...access,...(readExecution?{readExecution}:{})});
   return submitRemoteBridgeRequest(trusted,webBounds);
 }
 function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
@@ -836,6 +849,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
     validateCorrelationId(stepId, "step");
   }
   if (body?._claw_access) throw statusError(400,"invalid_claw_access");
+  if(Object.prototype.hasOwnProperty.call(body,"readExecution") || Object.prototype.hasOwnProperty.call(body,"privateExecution"))throw statusError(400,"invalid_mcp_read_binding");
   const access = authenticatedMcpAccess.get(body);
   if (access && (!/^[A-Za-z0-9._-]{1,24}$/.test(access.client_id) ||
       !["chat-owner","chat-owner-shadow"].includes(access.profile) ||
@@ -843,7 +857,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
       access.owner !== (access.profile === "chat-owner") || access.read_only !== (access.profile !== "chat-owner"))) {
     throw statusError(400,"invalid_claw_access");
   }
-  return {
+  const normalized:RemoteBridgeRequest = {
     requestId,
     taskId,
     stepId,
@@ -855,6 +869,8 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
       : {},
     continuumFence: body?.continuumFence,
   };
+  if(access)authenticatedMcpAccess.set(normalized,access);
+  return normalized;
 }export async function submitRemoteBridgeRequest(
   body: RemoteBridgeRequest,
   webBounds?: {startedMonotonic:number;deadlineEpochMs:number},
@@ -935,7 +951,7 @@ function normalizeRequest(body: RemoteBridgeRequest): RemoteBridgeRequest {
   writeReceipt(receipt);
   return receipt;
   })();
-  if (request.method !== "exec_wait") return completion;
+  if (request.method !== "exec_wait" && !authenticatedMcpAccess.get(request)?.readExecution) return completion;
   // The relay stops waiting after 28 seconds. Keep execution owned by this
   // receipt, but acknowledge within the public 15-second response budget.
   // Polling the existing status route never dispatches the command again.
