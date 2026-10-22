@@ -17,6 +17,8 @@ import time
 import threading
 import select
 import stat
+import socket
+import struct
 from typing import Any
 
 HOME = Path.home()
@@ -42,13 +44,42 @@ def _read_qa_input():
         if not isinstance(result,dict) or set(result)!={'context','user_input'} or not isinstance(result['user_input'],str) or not 0<len(result['user_input'])<=4000:raise ValueError('qa_scope_unavailable')
         return result
     finally:os.close(0)
+def _intent_input_is_private(fd):
+    """The inherited subprocess stream only; never connect or listen anywhere."""
+    info = os.fstat(fd)
+    if info.st_uid != os.getuid():
+        return False
+    if stat.S_ISFIFO(info.st_mode):
+        return True
+    if not stat.S_ISSOCK(info.st_mode):
+        return False
+    duplicate = os.dup(fd)
+    try:
+        stream = socket.socket(fileno=duplicate)
+        duplicate = None  # The socket object owns only our duplicate.
+        with stream:
+            if stream.family != socket.AF_UNIX or stream.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE) != socket.SOCK_STREAM:
+                return False
+            if hasattr(socket, "SO_PEERCRED"):
+                credentials = stream.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
+                _, peer_uid, _ = struct.unpack("3i", credentials)
+                if peer_uid != os.getuid():
+                    return False
+            return True
+    except (OSError, ValueError, struct.error):
+        return False
+    finally:
+        if duplicate is not None:
+            os.close(duplicate)
+
+
 def _read_intent_input():
     """One bounded host-private MCP envelope; its contents remain client-reported."""
     raw_fd = os.environ.pop("SAMANTHA_INTENT_INPUT_FD", None)
     if raw_fd != "0":
         raise ValueError("intent_private_input_required")
-    info = os.fstat(0)
-    if not stat.S_ISFIFO(info.st_mode) or info.st_uid != os.getuid():
+    # libuv/Node uses an AF_UNIX stream pair; Python uses a FIFO.
+    if not _intent_input_is_private(0):
         raise ValueError("intent_private_input_required")
     data = bytearray(); deadline = time.monotonic() + 2
     try:

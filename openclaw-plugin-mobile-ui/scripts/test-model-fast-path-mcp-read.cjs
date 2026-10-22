@@ -30,7 +30,15 @@ const {INTENT_READ_PROTOCOL,runModelFastPath}=require('../dist/modelFastPath.js'
     const historical=await runModelFastPath(original,{helperPath:legacy,surface,checkOnly:true});
     assert.equal(historical.status,'miss');assert.equal(historical.text,original);
   }
-  console.log('MCP read host port and bounded pilot: 15/15 assertions passed; no model, network or real read.');
+  const previousRoot=process.env.CLAW_UI_PLAYBOOKS_ROOT;
+  try{
+    process.env.CLAW_UI_PLAYBOOKS_ROOT=path.join(tmp,'missing-playbooks');
+    const real=await runModelFastPath(text,{...options,helperPath:path.resolve(__dirname,'../../installer/termux-lite/model-fast-path.py')});
+    assert.equal(real.intentInputProtocol,'mcp-input.v1');
+    assert.equal(real.intentReadProtocol,'mcp-read.v1');
+    assert.equal(real.reason,'INTERPRETATION_HOST_UNAVAILABLE');
+  }finally{if(previousRoot===undefined)delete process.env.CLAW_UI_PLAYBOOKS_ROOT;else process.env.CLAW_UI_PLAYBOOKS_ROOT=previousRoot;}
+  console.log('MCP read host port and bounded pilot: 18/18 assertions passed; no model, network or real read.');
  }finally{
   if(previous===undefined)delete process.env.SAMANTHA_INTENT_INTERPRETER;else process.env.SAMANTHA_INTENT_INTERPRETER=previous;
   fs.rmSync(tmp,{recursive:true,force:true});
