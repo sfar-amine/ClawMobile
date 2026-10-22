@@ -113,7 +113,8 @@ function projectReceipt(receipt: any) {
       state,
       capability: value?.capability,
       route: value?.selected?.route,
-      reason: state === "blocked" ? (execution.reason || execution.state) : undefined,
+      reason: state === "blocked" ? (execution.reason || execution.state)
+        : state === "failed" && value?.intentReadProtocol === "mcp-read.v1" ? readReason(execution.reason || domain?.reason) : undefined,
       result: safeValue(domain),
       question: domain?.question,
       choices: safeValue(domain?.choices),
@@ -402,7 +403,7 @@ async function executeMigratedMcpRead(requestId:string,clientId:string,profile:s
       "conversation_ref","conversation_revision","context_digest","catalogue_digest","prompt_digest","status","model","actual_model","usage","inference_mode"];
     const interpretationReceipt=out.interpretationReceipt&&typeof out.interpretationReceipt==="object"
       ? Object.fromEntries(receiptKeys.filter(key=>out.interpretationReceipt[key]!==undefined).map(key=>[key,safeValue(out.interpretationReceipt[key])])):undefined;
-    return {execution,interpretationReceipt,capability:typeof out.capability==="string"?out.capability:undefined,
+    return {intentReadProtocol:"mcp-read.v1",execution,interpretationReceipt,capability:typeof out.capability==="string"?out.capability:undefined,
       selected:{route:typeof out.route==="string"?out.route:undefined}};
   });
   return projectReceipt(receipt);
