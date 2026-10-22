@@ -1622,6 +1622,10 @@ def main() -> int:
             args.message = [private["request"]]
             _INTENT_CLIENT_CONTEXT = private["client_context"]
             _INTENT_CONTEXT_READ_EVIDENCE = _admit_intent_host_context(private, args)
+            if _INTENT_CONTEXT_READ_EVIDENCE is None:
+                # Admission precedes even backend construction: its default
+                # ModelGovernor owns a private SQLite database.
+                raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
         except Exception as error:
             reason = "SHARED_CONTEXT_ACCESS_UNVERIFIED" if str(error) == "SHARED_CONTEXT_ACCESS_UNVERIFIED" else "INTERPRETATION_HOST_UNAVAILABLE"
             print(json.dumps({"status": "known_error", "reason": reason,

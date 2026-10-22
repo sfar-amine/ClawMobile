@@ -21,7 +21,8 @@
     "openclaw-plugin-mobile-ui/scripts/fixtures/mcp-context-paired-helper.py",
     "docs/work/samantha-runtime/contracts/c12-mcp-private-context-owner.md",
     "docs/changes/chantier1-c12-private-context-owner-20261022.md",
-    "docs/changes/chantier1-c12-private-context-owner-20261022.json"
+    "docs/changes/chantier1-c12-private-context-owner-20261022.json",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-read-paired.cjs"
   ],
   "tests": [
     {
@@ -32,7 +33,7 @@
     {
       "name": "Private provenance negatives",
       "status": "passed",
-      "evidence": "Node21/21 including actual authenticated relay callback with synthetic socket; Python17/17 including fourteen bad header variants refused before import/IO"
+      "evidence": "Node21/21 including actual authenticated relay callback with synthetic socket; Python18/18 including fourteen bad header variants refused before import/IO; missing host proof refuses in main before backend/ModelGovernor or DialogueStore construction."
     },
     {
       "name": "Receipt and inherited regressions",
@@ -64,7 +65,8 @@
     "C9 immutable dependency 38ef1ad5053517e7796238854ed3daecfbf585ce is required; absent typed proof stays closed before private IO.",
     "MOCK fixture proof only; no LIVE model, actual DATA-profile, S24 or deployment claim.",
     "Only server chat-owner admission is qualified; shadow/other/trusted and client confirmations stay closed.",
-    "Live voice and payment remain unchanged; voiceRelay change is confined to authenticated MCP dispatch."
+    "Live voice and payment remain unchanged; voiceRelay change is confined to authenticated MCP dispatch.",
+    "The historical C8 four-case mechanism fixture now uses PB263/C9 owner admission and the real shared-context helper on the C12 branch only; its cases/assertions and CI step are retained. Frozen C8 source/ref and old-client legacy behavior are unchanged."
   ],
   "mcp_owner_parity": {
     "tools": {
@@ -129,9 +131,34 @@
         "state": "blocked",
         "reason": "read_only_policy",
         "executor_calls": 0,
-        "checks": 7
+        "checks": 5
       }
     },
-    "pr": 263
+    "pr": 263,
+    "retained_c8_mechanism_probe": {
+      "playbooks_sha": "38ef1ad5053517e7796238854ed3daecfbf585ce",
+      "playbooks_pr": 263,
+      "qualification": "MOCK_ONLY",
+      "external_provider_calls": 0,
+      "real_business_effects": 0,
+      "canonical_claim_before_generation": true,
+      "helper_calls": 4,
+      "positive_reads": 2,
+      "duplicate_additional_helper_calls": 0,
+      "independent_threads": true,
+      "original_text_exact": true,
+      "client_provenance_preserved": true,
+      "canonical_write_executor_calls": 0,
+      "data_unknown_reason": "DATA_PROFILE_UNVERIFIED",
+      "fake_interpretations": 3,
+      "fake_business_read_executions": 2,
+      "separate_graph_write_boundary_probe": {
+        "qualification": "SYNTHETIC_BOUNDARY_ONLY",
+        "state": "blocked",
+        "reason": "read_only_policy",
+        "executor_calls": 0,
+        "checks": 4
+      }
+    }
   }
 }

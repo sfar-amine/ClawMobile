@@ -175,6 +175,19 @@ class IntentPortTests(unittest.TestCase):
                 m._admit_intent_host_context(packet,args)
         self.assertIsNone(m._admit_intent_host_context({'request':'x','client_context':{}},args))
 
+    def test_private_mcp_without_host_proof_refuses_before_any_backend_construction(self):
+        import io
+        payload={'request':'read','client_context':{'schema_version':'mcp-input.v1'}}
+        argv=['model-fast-path.py','--intent-context-stdin','--intent-read-only','--dialogue','preview','--surface','mcp']
+        with patch.object(sys,'argv',argv),patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}), \
+             patch.object(m,'_read_intent_input',return_value=payload), \
+             patch.object(m,'_intent_dialogue_backend',side_effect=AssertionError('private models.db construction')) as backend, \
+             patch.object(m,'_dialogue_coordinator',side_effect=AssertionError('private dialogue state')) as coordinator, \
+             patch.object(sys,'stdout',new_callable=io.StringIO) as output:
+            self.assertEqual(m.main(),1)
+            self.assertEqual(json.loads(output.getvalue())['reason'],'SHARED_CONTEXT_ACCESS_UNVERIFIED')
+            backend.assert_not_called();coordinator.assert_not_called()
+
     def test_context_proof_request_id_is_host_scoped_not_client_event(self):
         with patch.object(m,'_INTENT_CONTEXT_READ_EVIDENCE',SimpleNamespace(request_id='host-request')):
             self.assertEqual(self.ports('mcp')._semantic_context({'eventKey':'hashed-event'})['requestId'],'host-request')

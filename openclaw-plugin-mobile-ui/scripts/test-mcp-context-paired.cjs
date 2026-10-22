@@ -31,9 +31,9 @@ const rows=()=>fs.existsSync(path.join(root,'audit.jsonl'))?fs.readFileSync(path
   const text='  Lis huwaei\n';
   const forged=await invoke('unadmitted','forged',text,false);
   assert.equal(forged.state,'failed');assert.equal(forged.reason,'SHARED_CONTEXT_ACCESS_UNVERIFIED',JSON.stringify(forged));
-  assert.equal(rows().filter(row=>['mint','snapshot','memory_owner','executor','interpretation'].includes(row.kind)).length,0,'public owner JSON does not open private sources');
+  assert.equal(rows().length,0,'public owner JSON does not open private sources');
   const shadow=await invoke('shadow','shadow',text,true,'chat-owner-shadow');assert.notEqual(shadow.state,'completed');
-  assert.equal(rows().filter(row=>['mint','snapshot','memory_owner','executor','interpretation'].includes(row.kind)).length,0,'shadow does not open private sources');
+  assert.equal(rows().length,0,'shadow does not open private sources');
   const first=await invoke('pair-one','thread-one',text);
   assert.equal(first.state,'completed',JSON.stringify(first));
   assert.equal(first.result.items[0].label,'Fixture result');
@@ -66,7 +66,7 @@ const rows=()=>fs.existsSync(path.join(root,'audit.jsonl'))?fs.readFileSync(path
   assert.equal(interpretations[0].original_exact,text);
   assert.equal(interpretations[0].provenance,'client_reported');
   assert.notEqual(interpretations[0].conversation_ref,interpretations[1].conversation_ref);
-  assert.equal(log.filter(row=>row.kind==='graph_write_guard').length,7,'independent Graph guard is exercised separately from upstream write refusal');
+  assert.equal(log.filter(row=>row.kind==='graph_write_guard').length,5,'independent Graph guard is exercised separately from upstream write refusal');
   const output={core_sha:coreSha,playbooks_sha:pbSha,qualification:'MOCK_ONLY',external_provider_calls:0,real_business_effects:0,canonical_claim_before_generation:true,helper_calls:helperCalls,positive_reads:2,positive_previews:1,unadmitted_private_reads:0,shadow_private_reads:0,actual_canonical_memory_owner:true,actual_snapshot_reader:true,private_constraint_consumed:true,other_thread_absent:true,shared_source_metadata_only:true,duplicate_additional_helper_calls:0,independent_threads:true,original_text_exact:true,client_provenance_preserved:true,canonical_write_executor_calls:0,data_unknown_reason:denied.reason,fake_interpretations:interpretations.length,fake_business_read_executions:2,separate_graph_write_boundary_probe:{qualification:'SYNTHETIC_BOUNDARY_ONLY',state:'blocked',reason:'read_only_policy',executor_calls:0,checks:log.filter(row=>row.kind==='graph_write_guard').length}};
   if(outputPath)fs.writeFileSync(outputPath,JSON.stringify(output,null,2)+'\n');
   console.log(JSON.stringify(output));
