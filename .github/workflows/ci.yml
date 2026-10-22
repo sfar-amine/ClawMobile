@@ -191,6 +191,7 @@ jobs:
           node scripts/test-run-web-voice.cjs
           node scripts/test-run-web-agent.cjs
           python3 ../installer/termux-lite/test-model-fast-path-web.py
+          python3 ../installer/termux-lite/test-model-fast-path-intent.py
 
       - name: Run trace induction tests
         run: npm run test:trace-induction
@@ -246,6 +247,7 @@ jobs:
         run: |
           python3 scripts/test-composed-read-result.py
           node scripts/test-model-fast-path.cjs
+          node scripts/test-model-fast-path-intent.cjs
           node scripts/test-pulse-room-fast-path.cjs
           node scripts/test-contact-room-fast-path.cjs
 

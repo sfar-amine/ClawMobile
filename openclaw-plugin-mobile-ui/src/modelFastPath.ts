@@ -7,11 +7,13 @@ import path from "node:path";
 import { admittedAtMs, dialogueTurn, transportEventRef } from "./dialogueSurface";
 import { PUBLIC_WEB_BUDGET_MS } from "./companion/runWeb";
 
+export const INTENT_INPUT_PROTOCOL = "mcp-input.v1";
 const MAX_MESSAGE_CHARS = 12000;
 const LOCAL_COMPANION_SESSION = /^agent:main:companion-chat-[A-Za-z0-9-]{1,96}$/;
 
 export type FastPathResult = {
   status?: string;
+  intentInputProtocol?: string;
   web?: unknown;
   result?: unknown;
   execution_state?: string;
@@ -58,6 +60,8 @@ type InboundContext = {
 };
 
 export type RunnerOptions = {
+  /** Host-private MCP envelope; all enclosed narrative remains client-reported. */
+  intentContext?: { request: string; client_context: Record<string, unknown> };
   /** Only the contact ingress owner creates this context; it travels on a private pipe. */
   qaContext?:Record<string,unknown>;
   helperPath?: string;
@@ -160,6 +164,11 @@ export async function runModelFastPath(
   message: string,
   options: RunnerOptions = {},
 ): Promise<FastPathResult> {
+  if (options.intentContext && (process.env.SAMANTHA_INTENT_INTERPRETER !== "1" || options.qaContext ||
+      options.surface !== "mcp" || !options.dialogue || options.intentContext.request !== message ||
+      options.intentContext.client_context.schema_version !== INTENT_INPUT_PROTOCOL ||
+      Buffer.byteLength(JSON.stringify(options.intentContext), "utf8") > 32768))
+    return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
   if(options.checkBudgetMs!==undefined&&(!options.checkOnly||!Number.isSafeInteger(options.checkBudgetMs)||options.checkBudgetMs<1||options.checkBudgetMs>10000))return {status:"error",reason:"invalid_check_budget"};
   const bounded = options.remainingBudgetMs !== undefined;
   if (bounded && (!Number.isSafeInteger(options.remainingBudgetMs) || options.remainingBudgetMs! < 1 || options.remainingBudgetMs! > PUBLIC_WEB_BUDGET_MS ||
@@ -182,7 +191,7 @@ export async function runModelFastPath(
     if(remaining!==undefined&&remaining<=0)return {status:bounded?"known_error":"error",reason:bounded?"web_deadline_exceeded":"check_budget_exceeded",...(bounded?{execution_state:"timeout"}:{})};
     try {
       const dialogue = options.dialogue;
-      const helperMessage=options.qaContext?'Demande privée de tests auto.':message;
+      const helperMessage=options.qaContext?'Demande privée de tests auto.':options.intentContext?'Demande MCP privée.':message;
       const argv = dialogue ? [
         "--dialogue", dialogue.mode,
         ...(dialogue.goalRef ? ["--goal-ref", dialogue.goalRef] : []),
@@ -205,6 +214,7 @@ export async function runModelFastPath(
         ...(bounded ? ["--remaining-budget-ms",String(remaining),"--deadline-epoch-ms",String(options.deadlineEpochMs)] : []),
         helperMessage,
       ];
+      if (options.intentContext) argv.unshift("--intent-context-stdin");
       const timeoutSeconds = Math.max(2, Math.min(options.timeoutSeconds || 30, 120));
       const raw: any = await runCapabilityHelperProcess(
         [helper, ...argv],
@@ -212,11 +222,13 @@ export async function runModelFastPath(
           timeoutMs: Math.min(fastPathProcessTimeoutMs(timeoutSeconds, !!options.checkOnly),remaining ?? Infinity,qaRemaining),
           killGroup:bounded||options.checkBudgetMs!==undefined||!!options.qaContext,signal:options.signal,
           maxBuffer: options.qaContext?64*1024:bounded ? 128 * 1024 : 2 * 1024 * 1024,
-          ...(options.qaContext?{privateInput:JSON.stringify({context:options.qaContext,user_input:message})}:{}),
+          ...(options.qaContext?{privateInput:JSON.stringify({context:options.qaContext,user_input:message})}:
+            options.intentContext?{privateInput:JSON.stringify(options.intentContext)}:{}),
           env: {
             ...process.env,
             SAMANTHA_QA_CONTEXT_FD:undefined,
             SAMANTHA_QA_INPUT_FD:options.qaContext?'0':undefined,
+            SAMANTHA_INTENT_INPUT_FD:options.intentContext?'0':undefined,
             ...((options.preparedDecision || options.clarificationDecision) ? {
               CLAW_PREPARED_DECISION_B64: Buffer.from(JSON.stringify(options.preparedDecision || options.clarificationDecision), "utf8").toString("base64"),
             } : {}),
@@ -236,6 +248,8 @@ export async function runModelFastPath(
       if(options.signal?.aborted)return {status:"known_error",reason:"execution_cancelled",execution_state:"cancelled"};
       if(options.checkBudgetMs!==undefined&&performance.now()-started>=options.checkBudgetMs)return {status:"error",reason:"check_budget_exceeded"};
       if(bounded&&(Date.now()>=options.deadlineEpochMs!||performance.now()-started>=options.remainingBudgetMs!))return {status:"known_error",reason:"web_deadline_exceeded",execution_state:"timeout"};
+      if (options.intentContext && parsed?.intentInputProtocol !== INTENT_INPUT_PROTOCOL)
+        return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
       if(typeof parsed === "object" && parsed !== null)recordPresentationDiagnostics(parsed.presentationDiagnostics);
       return typeof parsed === "object" && parsed !== null
         ? parsed as FastPathResult
@@ -252,7 +266,11 @@ export async function runModelFastPath(
       const stdout = typeof error?.stdout === "string" ? error.stdout : "";
       try {
         const parsed = JSON.parse(stdout || "{}");
-        if (parsed && typeof parsed === "object") return parsed as FastPathResult;
+        if (parsed && typeof parsed === "object") {
+          if (options.intentContext && parsed.intentInputProtocol !== INTENT_INPUT_PROTOCOL)
+            return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
+          return parsed as FastPathResult;
+        }
       } catch {}
       lastError = "helper_failed";
       break;
