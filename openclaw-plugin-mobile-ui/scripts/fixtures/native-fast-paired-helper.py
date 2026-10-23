@@ -38,15 +38,19 @@ CapabilityGraph.execute_decision=execute
 CapabilityGraph.resolve=lambda *a,**k:(_ for _ in ()).throw(AssertionError('no second interpretation'))
 helper=Path(os.environ['C18_REAL_HELPER']);spec=importlib.util.spec_from_file_location('c18_actual',helper)
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-# Only this versioned fixture installs a MOCK scope owner. Production has none.
-if os.environ.get('C18_SCOPE_MODE')!='absent':
-    def scoped_fixture(*,native_event,store,goal_ref):
-        revision,state=store.load(native_event.conversation_ref)
-        def revalidate(**kw):
-            record({'kind':'MOCK_SCOPE_REVALIDATION','conversation':kw['native_event'].conversation_ref})
-            if os.environ.get('C18_SCOPE_MODE')=='revoked':raise ValueError('MOCK revoked')
-            if os.environ.get('C18_SCOPE_MODE')=='boolean':return True
-        return _bind_native_read_precondition(native_event,goal_ref=goal_ref,conversation_revision=revision,
-            decision=state['goals'][goal_ref]['decision'],require_current_scope=revalidate)
-    module._NATIVE_FAST_READ_SCOPE_OWNER=scoped_fixture
+# Legacy C16/C18 tests deliberately MOCK_ONLY source admission. C17's actual
+# Contacts/instruction/DATA owners are exercised by test_native_room_context.
+module._native_context_for_event=lambda *a,**k:None
+
+# This legacy fixture replaces the concrete C17 owner with a MOCK scope callback.
+def scoped_fixture(*,native_event,store,goal_ref):
+    if os.environ.get('C18_SCOPE_MODE')=='absent':raise ValueError('MOCK absent scope')
+    revision,state=store.load(native_event.conversation_ref)
+    def revalidate(**kw):
+        record({'kind':'MOCK_SCOPE_REVALIDATION','conversation':kw['native_event'].conversation_ref})
+        if os.environ.get('C18_SCOPE_MODE')=='revoked':raise ValueError('MOCK revoked')
+        if os.environ.get('C18_SCOPE_MODE')=='boolean':return True
+    return _bind_native_read_precondition(native_event,goal_ref=goal_ref,conversation_revision=revision,
+        decision=state['goals'][goal_ref]['decision'],require_current_scope=revalidate)
+module._NATIVE_FAST_READ_SCOPE_OWNER=scoped_fixture
 raise SystemExit(module.main())

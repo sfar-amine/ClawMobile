@@ -20,7 +20,7 @@ export class NativePulseContact {
        event?.eventRef!==this.eventRef||text!==this.originalText)throw Error('native_pulse_event_mismatch');
     const current=await this.#read(this.contactId);
     const profile=contactRoomSession(this.sessionKey);
-    if(!profile||profile.agent!=='contacts-pulse'||current?.success!==true||current.state!=='active'||
+    if(!profile||!['contacts-pulse','contacts-projet-pulse'].includes(profile.agent)||current?.success!==true||current.state!=='active'||
        current.owner!==false||current.contactId!==this.contactId||
        !Array.isArray(current.rooms)||!current.rooms.includes('pulse')||current.rooms.includes('maison')||
        !current.e164||'wa-'+digest(current.e164).slice(0,16)!==this.contactId||current.e164!==profile.e164||
@@ -36,11 +36,11 @@ export class NativePulseContact {
 export async function admitNativePulseContact(input:{sessionKey:string;eventRef:string;text:string;isGroup:boolean},
   read:AuthorityRead=canonicalRead):Promise<NativePulseContact> {
   const profile=contactRoomSession(input.sessionKey);
-  if(!profile||profile.agent!=='contacts-pulse'||input.isGroup||!input.eventRef||
+  if(!profile||!['contacts-pulse','contacts-projet-pulse'].includes(profile.agent)||input.isGroup||!input.eventRef||
      input.eventRef.startsWith('untracked:')||input.eventRef.length>300||
      !input.text.trim()||input.text.length>4000)throw Error('native_pulse_admission_required');
   const id='wa-'+digest(profile.e164).slice(0,16);
-  const key=`pulse-room:contacts-pulse:${id}:${input.sessionKey}`;
+  const key=`pulse-room:${profile.agent}:${id}:${input.sessionKey}`;
   const admission=new NativePulseContact(seal,id,key,input.eventRef,input.text,input.sessionKey,read);
   await admission.packet({surface:'pulse_room',conversationKey:key,eventRef:input.eventRef},input.text);
   return admission;

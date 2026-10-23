@@ -5,26 +5,32 @@
   "kind": "repair",
   "merge_eligibility": "blocked",
   "deployment_state": "not_applied",
-  "summary": "Bound owner header and Pulse instruction reads without native activation",
-  "reason": "Prepare C17 source readers while keeping missing ACL/DATA/C18 admission closed",
+  "summary": "Wire current native Contacts authority to opaque C17 context and existing C18 read owner",
+  "reason": "Native source/DATA/read seams were disconnected; preserve closed custom and private-data boundaries",
   "files": [
+    "installer/termux-lite/model-fast-path.py",
     "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/project-room.py",
     "installer/termux-lite/pulse-room.py",
-    "installer/termux-lite/test-native-room-owner-readers.py",
-    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/nativePulseAdmission.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-handoff.cjs",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/native-fast-paired-helper.py",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/native-pulse-paired-helper.py",
+    "openclaw-plugin-mobile-ui/scripts/fixtures/native-context-owner-helper.py",
     "docs/changes/chantier1-c17-owner-readers-20261023.md",
     "docs/changes/chantier1-c17-owner-readers-20261023.json"
   ],
   "tests": [
     {
-      "name": "Native owner reader boundaries",
+      "name": "Paired native source, DATA01 and read corridor",
       "status": "passed",
-      "evidence": "10/10 tests, including fixed END boundary with no separating newline and invalid END; synthetic owner files, no provider; /tmp/chantier1-c17-owner-readers-boundary-regressions-20261023.log"
+      "evidence": "112 pure PB tests + real private IPC 1/1; MOCK provider only; /tmp/chantier1-c17-final-pure.log and /tmp/chantier1-c17-real-ipc.log"
     },
     {
-      "name": "Existing owner regressions",
-      "status": "passed",
-      "evidence": "38 QA access + 47 allowlist tests rerun after fixed END boundary; /tmp/chantier1-c17-owner-readers-boundary-regressions-20261023.log"
+      "name": "Existing core owner regression suites",
+      "status": "failed",
+      "evidence": "95 attempted: 91 passed, 4 existing QA subprocess tests raised EAGAIN; no assertion failure; /tmp/chantier1-c17-final-core-pure.log"
     }
   ],
   "documentation": [
@@ -41,13 +47,13 @@
   },
   "rollback": "Revert source only; no business operation to replay",
   "limitations": [
-    "Canonical exact-head CI pending because Cloud process/thread capacity is unavailable",
-    "Reader-only milestone; C17/DATA/C18 backend remains disconnected and native activation closed",
-    "No current contact qualified; restricted custom combo audience is not widened",
-    "Synthetic tests do not attest runtime ACL, binding, source freshness or provider execution"
+    "Custom/current restricted audience remains closed; no ACL expanded",
+    "TS/Node and canonical exact-pair full CI pending; 4 QA child-process checks blocked by Cloud EAGAIN",
+    "Provider and result ports simulated; no LIVE qualification, deployment or opt-in",
+    "New IPC fixture consumes the paired PB source; old fixtures keep explicit MOCK source admission"
   ],
   "base_dependency": {
     "repository": "sfar-amine/samantha-core",
-    "sha": "f941ef18c30c43ccdf12699f68abbc6122d4cac6"
+    "sha": "db77a0d8d7ce00270d92077beeee76178d29f30f"
   }
 }

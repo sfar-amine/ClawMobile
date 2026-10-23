@@ -9,20 +9,33 @@ plugin's pulse-room ingress on the canonical Capability Graph decision, closed t
 models never receive a Pulse or capability tool. Same `openclaw config patch` path as project-room.py.
 """
 import importlib.util
+import hashlib
+import stat
 import json
 import os
-import stat
 import shutil
 import sys
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location('project_room', Path(__file__).with_name('project-room.py'))
-room = importlib.util.module_from_spec(spec); spec.loader.exec_module(room)
+room = importlib.util.module_from_spec(spec)
+# Compile the exact regular owner file, not a cached/redirected Python module.
+fd=os.open(Path(__file__).with_name('project-room.py'),os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+with os.fdopen(fd,'rb',buffering=0) as source:
+    info=os.fstat(source.fileno())
+    if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or info.st_size>524288:
+        raise ValueError('NATIVE_ROOM_SOURCE_UNVERIFIED')
+    raw=source.read(524289)
+    if len(raw)!=info.st_size:raise ValueError('NATIVE_ROOM_SOURCE_UNVERIFIED')
+room.__source_sha__=hashlib.sha256(raw).hexdigest()
+exec(compile(raw,str(spec.origin),'exec'),room.__dict__)
 HOME = room.HOME
 WORKSPACE = Path(os.environ.get('CLAW_PULSE_ROOM_DIR', str(HOME / '.openclaw/workspace-pulse')))
 AGENTS = """# AGENTS.md — contacts, pièce « Pulse »
 
 Tu parles avec un contact autorisé d'Amine, jamais avec Amine lui-même. Ce contact a accès à la pièce « Pulse ».
+
+Les consignes du répondant ci-dessous visent le repli après le parcours Pulse. L'interprète en amont suit son rôle fixe et le catalogue Pulse complet pour proposer une intention, sans outil, effet ni résultat inventé. Les demandes de code ou d'ingénierie restent hors du service d'interprétation Pulse.
 
 - Les demandes Pulse (projets, offres, équipes, phases, forecasts, congés de l'équipe, solde de congés d'Amine) sont exécutées automatiquement avant toi : si un message t'arrive, ce n'est pas une demande Pulse comprise.
 - Si le message ressemble à une demande Pulse, demande simplement ce qui manque : le numéro ou le nom du projet ou de l'offre, et ce qu'il faut faire. N'invente jamais un résultat Pulse.
@@ -36,28 +49,7 @@ USER = "# USER.md\n\nL'interlocuteur est un contact autorisé d'Amine (pièce «
 
 
 def read_native_instructions(configured_workspace):
-    """Pure bounded owner reader; no provision/repair or owner-file copies."""
-    workspace=Path(configured_workspace)
-    if workspace!=WORKSPACE or workspace.is_symlink():
-        raise ValueError('NATIVE_ROOM_SOURCE_UNVERIFIED')
-    root=workspace.resolve(strict=True)
-    if not root.is_dir():
-        raise ValueError('NATIVE_ROOM_SOURCE_UNVERIFIED')
-    result={}
-    for name,expected in (('AGENTS.md',AGENTS),('USER.md',USER)):
-        fd=os.open(root/name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
-        with os.fdopen(fd,'rb',buffering=0) as file:
-            before=os.fstat(file.fileno())
-            if (not stat.S_ISREG(before.st_mode) or before.st_uid!=os.getuid() or
-                    before.st_size>96000):
-                raise ValueError('NATIVE_ROOM_SOURCE_UNVERIFIED')
-            raw=file.read(96001)
-            after=os.fstat(file.fileno())
-        if (len(raw)!=before.st_size or raw!=expected.encode('utf-8') or
-                (before.st_ino,before.st_mtime_ns,before.st_size)!=(after.st_ino,after.st_mtime_ns,after.st_size)):
-            raise ValueError('NATIVE_ROOM_SOURCE_UNVERIFIED')
-        result[name]=raw.decode('utf-8')
-    return result
+    return room._read_native_instruction_bodies(configured_workspace,WORKSPACE,{'AGENTS.md':AGENTS,'USER.md':USER})
 
 
 def workspace():

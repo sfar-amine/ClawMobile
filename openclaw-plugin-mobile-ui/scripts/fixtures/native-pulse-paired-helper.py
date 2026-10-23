@@ -85,4 +85,8 @@ CapabilityGraph.resolve=lambda *args,**kwargs:(_ for _ in ()).throw(AssertionErr
 helper=Path(os.environ['C16_REAL_HELPER']).resolve()
 spec=importlib.util.spec_from_file_location('c16_actual_core_helper',helper)
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+# Legacy C16/C18 tests deliberately MOCK_ONLY source admission. C17's actual
+# Contacts/instruction/DATA owners are exercised by test_native_room_context.
+module._native_context_for_event=lambda *a,**k:None
+
 raise SystemExit(module.main())

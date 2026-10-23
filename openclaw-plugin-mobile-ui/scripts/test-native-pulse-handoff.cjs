@@ -36,7 +36,10 @@ function arm(taskId,requestId,params){
  for(const changes of [{state:'suspended'},{expiresAt:'2000-01-01T00:00:00Z'},{rooms:['conversation']},{owner:true},{e164:'+21610000001'}]){
   const saved=authority;authority={...authority,...changes};await assert.rejects(admission.packet(event,text),/contact_revoked/);n++;authority=saved;
  }
- for(const input of [{sessionKey:sessionKey.replace('contacts-pulse','contacts-projet-pulse'),eventRef,text,isGroup:false},
+ const comboSession=sessionKey.replace('contacts-pulse','contacts-projet-pulse');
+ const combo=await admitNativePulseContact({sessionKey:comboSession,eventRef,text,isGroup:false},read);
+ check(combo.conversationKey.includes(':contacts-projet-pulse:'),'exact combined profile admitted to private transport; Python independently requires its ACL');
+ for(const input of [{sessionKey:sessionKey.replace('contacts-pulse','contacts-pulse-qa'),eventRef,text,isGroup:false},
   {sessionKey,eventRef:'untracked:123',text,isGroup:false},{sessionKey,eventRef,text,isGroup:true}]){
   await assert.rejects(admitNativePulseContact(input,read),/admission_required/);n++;
  }

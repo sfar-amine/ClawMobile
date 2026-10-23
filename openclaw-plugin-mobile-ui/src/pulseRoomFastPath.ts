@@ -109,7 +109,7 @@ export async function handlePulseRoomFastPath(
   // The requester stays visible: the conversation is the room's host session (room, contact).
   const eventRef=transportEventRef(ctx.runId,event.runId,event.id);
   let nativePulse;
-  if(agent==='contacts-pulse'&&process.env.SAMANTHA_NATIVE_PULSE_HANDOFF==='1'){
+  if(PULSE_ROOM_AGENTS.has(agent)&&process.env.SAMANTHA_NATIVE_PULSE_HANDOFF==='1'){
     try{nativePulse=await admitNativePulseContact({sessionKey:String(ctx.sessionKey??event.sessionKey??''),
       eventRef,text:originalMessage,isGroup:event.isGroup===true});}
     catch{return {handled:true,reply:{text:'L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté.'}};}

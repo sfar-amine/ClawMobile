@@ -1204,6 +1204,75 @@ class Contacts:
         except FileNotFoundError: return ''
         except (OSError,UnicodeDecodeError): fail('contact_state_invalid',503)
 
+    def _native_pulse_context_read(self, native_event, *, pulse_owner):
+        """Private current R17 authority; no action/CLI exposes this method."""
+        from skill_intelligence.dialogue.native_handoff import NativePulseEvent
+        def denied(): raise ValueError('NATIVE_ROOM_ACCESS_UNVERIFIED')
+        if type(native_event) is not NativePulseEvent or not native_event.current(int(self.clock()*1000)):
+            denied()
+        info=self.people.CONFIG.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or info.st_size>2097152: denied()
+        config=self.local_config();allow,direct=self.people.whatsapp_state(config)
+        if not isinstance(allow,list) or len(allow)>5000 or not isinstance(direct,dict): denied()
+        numbers=[n for n in allow if isinstance(n,str) and E164.fullmatch(n) and contact_id(n)==native_event.contact_id]
+        if len(numbers)!=1 or numbers[0] in self.owners(config): denied()
+        number=numbers[0];agent=native_event.agent
+        variants={'contacts-pulse':['conversation','pulse'],
+                  'contacts-projet-pulse':['conversation','projet','pulse']}
+        if agent not in variants: denied()
+        if native_event.conversation_key!='pulse-room:'+agent+':'+native_event.contact_id+':agent:'+agent+':whatsapp:direct:'+number:
+            denied()
+        metadata=self.metadata(number)
+        if (not metadata or metadata['state']!='active' or metadata['scope']!='standard' or
+                metadata['scopeText'] is not None or metadata.get('rooms')!=variants[agent] or
+                metadata.get(CONTACT_MEMORY_FIELD) is not None or
+                metadata['expiresAt'] is not None and stamp(metadata['expiresAt'])<=self.clock()):
+            denied()
+        rule=direct.get(number,{})
+        # A restriction or contactMemory is never silently stripped into a grant.
+        if not isinstance(rule,dict) or set(rule)-{'systemPrompt'} or self.policy(rule)!=('standard',None):
+            denied()
+        bindings=config.get('bindings')
+        if not isinstance(bindings,list) or len(bindings)>5000: denied()
+        tagged=[b for b in bindings if isinstance(b,dict) and b.get('comment')==ROOM_TAG+native_event.contact_id]
+        concrete=[b for b in bindings if isinstance(b,dict) and isinstance(b.get('match'),dict) and
+                  b['match'].get('channel')=='whatsapp' and
+                  b['match'].get('peer')=={'kind':'direct','id':number}]
+        if len(tagged)!=1 or len(concrete)!=1 or tagged[0]!=concrete[0]: denied()
+        binding=tagged[0];match=binding.get('match') or {}
+        if (binding.get('agentId')!=room_agent(metadata['rooms']) or binding.get('agentId')!=agent or
+                set(match)-{'channel','accountId','peer'} or match.get('accountId','*')!='*'): denied()
+        entries=(config.get('agents') or {}).get('entries')
+        if not isinstance(entries,dict): denied()
+        entry=entries.get(agent)
+        if not isinstance(entry,dict): denied()
+        instructions_owner=pulse_owner if agent=='contacts-pulse' else pulse_owner.room
+        expected_workspace=pulse_owner.WORKSPACE if agent=='contacts-pulse' else pulse_owner.room.TARGET
+        actual_workspace=Path(entry.get('workspace','')).expanduser()
+        actual_agent=Path(entry.get('agentDir','')).expanduser()
+        if (not actual_workspace.is_absolute() or actual_workspace!=expected_workspace or
+                actual_workspace.is_symlink() or
+                actual_agent!=self.state_dir/'agents'/agent/'agent' or
+                entry.get('contextInjection')!='continuation-skip' or entry.get('skills')!=[]): denied()
+        tools=entry.get('tools')
+        forbidden={'exec','process','write','edit','apply_patch','browser','web_fetch','message',
+                   'sessions_list','sessions_history','sessions_send','sessions_spawn','session_status',
+                   'sessions_search','memory_search','memory_get','gateway','cron','nodes','clawmobile_capability'}
+        allowed={'web_search','transmettre_a_amine','noter_contact'}|({'read'} if agent=='contacts-projet-pulse' else set())
+        if (not isinstance(tools,dict) or not isinstance(tools.get('allow'),list) or
+                not isinstance(tools.get('deny'),list) or
+                any(type(v) is not str for v in tools['allow']+tools['deny']) or
+                set(tools['allow'])-allowed or not forbidden.issubset(set(tools['deny'])) or
+                agent=='contacts-pulse' and 'read' not in tools['deny'] or
+                agent=='contacts-projet-pulse' and (tools.get('fs') or {}).get('workspaceOnly') is not True): denied()
+        # Only headers and the actual service's complete AGENTS/USER, no snapshot.
+        instructions=instructions_owner.read_native_instructions(actual_workspace)
+        authority={'agent':agent,'contact_ref':native_event.contact_id,
+                   'metadata':{k:metadata[k] for k in ('state','scope','scopeText','rooms','expiresAt')},
+                   'binding':binding,'profile':entry,'workspace':str(expected_workspace)}
+        return {'instructions':instructions,
+                'authority_digest':hashlib.sha256(canonical(authority).encode()).hexdigest()}
+
     def qa_scope_read(self, body, *, config=None):
         """Private current-authority read. A persisted campaign binding is never a grant."""
         unavailable={'ok':False,'error':{'code':'qa_scope_unavailable'}}

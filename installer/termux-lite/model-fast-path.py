@@ -29,6 +29,7 @@ _INTENT_PRIVATE_CHANNEL = None
 _INTENT_CHANNEL_SEAL = object()
 _NATIVE_PULSE_EVENT = None
 _NATIVE_PULSE_HANDOFF = None
+_NATIVE_CONTEXT_READ_EVIDENCE = None
 _NATIVE_FAST_READ_PRECONDITION = None
 # Private, unconfigured until C17 supplies current scoped service evidence.
 _NATIVE_FAST_READ_SCOPE_OWNER = None
@@ -1392,6 +1393,7 @@ def _intent_dialogue_backend(ui_root: Path, *, surface: str, caller: str, timeou
         raise RuntimeError("intent_backend_root_mismatch")
     return intent_dialogue.make_intent_dialogue_port(ui_root, surface="pulse_room" if _NATIVE_PULSE_EVENT else surface, caller=caller, timeout=timeout,
         **({"native_handoff":_NATIVE_PULSE_HANDOFF} if _NATIVE_PULSE_HANDOFF is not None else {}),
+        **({"native_context_evidence":_NATIVE_CONTEXT_READ_EVIDENCE} if _NATIVE_CONTEXT_READ_EVIDENCE is not None else {}),
         **({"native_read_precondition":_NATIVE_FAST_READ_PRECONDITION} if _NATIVE_FAST_READ_PRECONDITION is not None else {}),
         **({"context_read_evidence": _INTENT_CONTEXT_READ_EVIDENCE} if _INTENT_CONTEXT_READ_EVIDENCE is not None else {}))
 
@@ -1436,6 +1438,8 @@ class FastPathPorts:
                     context.get('eventKey')!=_NATIVE_PULSE_EVENT.event_key):
                 raise ValueError('native_pulse_event_mismatch')
             context['messageProvenance']='server_verified'
+            context['requestId']=_NATIVE_PULSE_EVENT.event_key
+            context['generationId']=_NATIVE_PULSE_EVENT.event_key
         if _INTENT_CONTEXT_READ_EVIDENCE is not None:
             if context.get("requestId", _INTENT_CONTEXT_READ_EVIDENCE.request_id) != _INTENT_CONTEXT_READ_EVIDENCE.request_id:
                 raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
@@ -1608,6 +1612,24 @@ def run_intent_mcp_read(message, *, ui_root, caller, timeout, event):
             "intentReadProtocol": "mcp-read.v1"}
 
 
+def _native_context_for_event(native_event,*,store,original_text,ui_root):
+    from skill_intelligence import interpretation_native_context as native_context
+    if not Path(native_context.__file__).resolve().is_relative_to(ui_root.resolve()/'skill_intelligence'):
+        raise ValueError('NATIVE_ROOM_ACCESS_UNVERIFIED')
+    evidence=native_context._admit_native_room_context(native_event,store=store,
+        original_text=original_text,home=Path.home(),core_owner_root=Path(__file__).resolve().parent)
+    if type(evidence) is not native_context.NativeRoomContextReadEvidence:
+        raise ValueError('NATIVE_ROOM_ACCESS_UNVERIFIED')
+    return evidence
+
+
+def _native_read_scope_owner(*,native_event,store,goal_ref):
+    """Concrete current C17 owner; never installed by env or a client field."""
+    from skill_intelligence.interpretation_native_context import bind_native_read_precondition
+    return bind_native_read_precondition(_NATIVE_CONTEXT_READ_EVIDENCE,
+        native_event=native_event,store=store,goal_ref=goal_ref)
+
+
 def _native_fast_precondition(adapter, goal_ref):
     """Future C17 owner port; no CLI/env/JSON value can install this callable."""
     from skill_intelligence.dialogue.native_fast import NativePulseReadPrecondition
@@ -1691,6 +1713,7 @@ def _b64_json(name: str) -> dict[str, Any]:
 
 def main() -> int:
     global _QA_INGRESS_CONTEXT, _INTENT_CLIENT_CONTEXT, _INTENT_CONTEXT_READ_EVIDENCE, _NATIVE_PULSE_EVENT, _NATIVE_PULSE_HANDOFF
+    global _NATIVE_CONTEXT_READ_EVIDENCE, _NATIVE_FAST_READ_SCOPE_OWNER
     parser = argparse.ArgumentParser(description="Capability-first pre-model Claw ingress.")
     parser.add_argument("--native-pulse-mode",choices=("turn","prepare","execute","observe","fast-read"))
     parser.add_argument("--intent-read-only", action="store_true",
@@ -1739,7 +1762,12 @@ def main() -> int:
                     args.native_pulse_mode!='turn' and args.dialogue!='handoff'):
                 raise ValueError('native_pulse_event_mismatch')
             _NATIVE_PULSE_HANDOFF=native_handoff.NativePulseHandoff(_NATIVE_PULSE_EVENT)
-            try:out=run_native_pulse(private['request'],args=args,event=event,policy=policy)
+            try:
+                _NATIVE_CONTEXT_READ_EVIDENCE=_native_context_for_event(_NATIVE_PULSE_EVENT,
+                    store=_NATIVE_PULSE_HANDOFF.store,original_text=private['request'],ui_root=args.ui_root)
+                if _NATIVE_FAST_READ_SCOPE_OWNER is None:
+                    _NATIVE_FAST_READ_SCOPE_OWNER=_native_read_scope_owner
+                out=run_native_pulse(private['request'],args=args,event=event,policy=policy)
             finally:_NATIVE_PULSE_HANDOFF.close()
             print(json.dumps(out,ensure_ascii=False));return 0
         except Exception:

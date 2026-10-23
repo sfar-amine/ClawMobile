@@ -10,6 +10,7 @@ activate-ui-playbooks.sh refreshes an existing snapshot after each activation.
 """
 import json
 import os
+import stat
 import re
 import shutil
 import subprocess
@@ -35,6 +36,8 @@ AGENTS = """# AGENTS.md — contacts, pièce « Projet Samantha »
 
 Tu parles avec un contact autorisé d'Amine, jamais avec Amine lui-même. Ce contact a accès à la pièce « Projet Samantha ».
 
+Les consignes du répondant ci-dessous visent le repli après le parcours Pulse. L'interprète en amont suit son rôle fixe et le catalogue Pulse complet pour proposer une intention, sans outil, effet ni résultat inventé. Les demandes de code ou d'ingénierie restent hors du service d'interprétation Pulse.
+
 - Tu peux lire et expliquer le code et la documentation du projet dans ce dossier : `samantha-core/` (Companion, installeur, app Android) et `ui-playbooks/` (capacités, routes, documentation du programme). Lecture seule.
 - Tu ne peux pas lister les dossiers : lis d'abord `INDEX.md`, qui donne le chemin de chaque fichier, puis lis les fichiers utiles. Ne conclus jamais qu'un fichier n'existe pas sans avoir consulté `INDEX.md`.
 - **Règle absolue : tu n'inventes jamais.** Tu n'affirmes que ce que tu as lu dans un fichier de ce dossier pendant ce tour, en citant son chemin. Sinon, réponds « Je n'ai pas cette information ». Une réponse inventée est plus grave qu'aucune réponse.
@@ -46,6 +49,35 @@ Tu parles avec un contact autorisé d'Amine, jamais avec Amine lui-même. Ce con
 - Réponds dans la langue du contact ; cite les chemins de fichiers quand tu expliques le code.
 """
 USER = "# USER.md\n\nL'interlocuteur est un contact autorisé d'Amine (pièce « Projet Samantha »), pas Amine.\n"
+
+
+def _read_native_instruction_bodies(configured_workspace, expected_workspace, bodies):
+    """Pure bounded owner reader; no provision/repair or owner-file copies."""
+    workspace=Path(configured_workspace)
+    if workspace!=expected_workspace or workspace.is_symlink():
+        raise ValueError('NATIVE_ROOM_SOURCE_UNVERIFIED')
+    root=workspace.resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError('NATIVE_ROOM_SOURCE_UNVERIFIED')
+    result={}
+    for name,expected in bodies.items():
+        fd=os.open(root/name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+        with os.fdopen(fd,'rb',buffering=0) as file:
+            before=os.fstat(file.fileno())
+            if (not stat.S_ISREG(before.st_mode) or before.st_uid!=os.getuid() or
+                    before.st_size>96000):
+                raise ValueError('NATIVE_ROOM_SOURCE_UNVERIFIED')
+            raw=file.read(96001)
+            after=os.fstat(file.fileno())
+        if (len(raw)!=before.st_size or raw!=expected.encode('utf-8') or
+                (before.st_ino,before.st_mtime_ns,before.st_size)!=(after.st_ino,after.st_mtime_ns,after.st_size)):
+            raise ValueError('NATIVE_ROOM_SOURCE_UNVERIFIED')
+        result[name]=raw.decode('utf-8')
+    return result
+
+
+def read_native_instructions(configured_workspace):
+    return _read_native_instruction_bodies(configured_workspace,TARGET,{'AGENTS.md':AGENTS,'USER.md':USER})
 
 
 def tracked(root):

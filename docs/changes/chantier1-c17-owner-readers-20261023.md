@@ -1,34 +1,33 @@
-# C17 — jalon lecteurs propriétaires, sans activation
+# C17 — autorité native et raccord des propriétaires
 
-Contacts.metadata lit les deux lignes de l'en-tête R17 puis le marqueur de fin
-de longueur fixe, avec un
-descripteur non bufferisé : aucun octet de la note après le marqueur de fin
-n'est lu, même si la note suit immédiatement ce marqueur sans saut de ligne.
-Un marqueur incomplet ou différent est refusé. Un fichier non géré s'arrête dès
-la première ligne. Le descripteur
-O_NOFOLLOW/O_NONBLOCK est contrôlé par fstat (fichier régulier et UID courant)
-avant toute lecture, pour refuser symlink/FIFO/périphérique sans blocage.
+Le canal privé existant admet seulement les profils exacts contacts-pulse et
+contacts-projet-pulse. Le propriétaire Contacts relit allowlist, owner=false,
+metadata R17 bornée, scope standard, rooms exactes, binding unique et profil
+fermé avant les consignes. Custom, contactMemory et restrictions inconnues sont
+refusés ; aucune ACL n'est changée.
 
-Le propriétaire pulse-room expose un lecteur pur des corps AGENTS/USER complets
-de son workspace exact. Il refuse symlink, fichier non régulier, UID différent,
-capacité dépassée, corps différent ou variation du fichier pendant la lecture.
-Il n'appelle ni provision, ni workspace, ni rules et n'ouvre aucun autre fichier.
+AGENTS/USER complets viennent du propriétaire réel Pulse ou Projet selon le
+profil admis. Le lecteur ne provisionne rien et ne lit ni snapshot, INDEX,
+notes, sessions, mémoire ni GLOBAL. Le chargeur compile les octets réguliers
+bornés du propriétaire Projet avec leur digest, sans symlink ni cache Python.
+Les consignes précisent le rôle de l'interprète en amont du répondant de repli.
 
-Validation ciblée : 10 nouveaux tests ; 38 tests QA room access et 47 tests
-WhatsApp allowlist existants, tous verts. Le nouveau test figure dans ci.yml.
-Fixtures nouvelles entièrement synthétiques, construites au format des
-propriétaires existants ; elles ne prouvent aucun ACL/profil S24 actuel.
-Les corps historiques Pulse observés par root le 23/10 sont égaux aux constantes
-canoniques (AGENTS 1340 octets, USER 93 octets) ; aucun contenu privé n'est ajouté.
+Le helper construit la preuve C17 opaque du PB apparié en processus, puis passe
+le contexte natif au backend et installe le port privé C18. Ce port refait
+l'autorité courante et lie le goal complet à sa révision T1. Aucun callback ne
+provient d'env ou de JSON. Les anciennes fixtures C16/C18 conservent leurs
+mocks explicitement séparés du nouveau test IPC réel.
 
-Ce jalon ne raccorde PAS C17 au backend, DATA01 ou C18. Il ne crée aucune preuve
-d'accès native, ne modifie ni TS ni l'allowlist ni les consignes et n'active aucun
-flag. Le port _NATIVE_FAST_READ_SCOPE_OWNER demeure non configuré. L'audience
-courante contacts-projet-pulse a une restriction personnalisée et de la mémoire
-contact : elle n'est pas qualifiée par ce jalon. Aucun accès GLOBAL, modèle,
-S24, effet métier ou déploiement n'a été effectué par ce lot.
+Validation : PB 112 tests purs verts après durcissement, plus vrai IPC 1/1
+(transport et propriétaires réels, fournisseur/résultat MOCK_ONLY). Les 95 tests
+core ciblés ont 91 réussites et 4 erreurs EAGAIN dans des enfants QA existants ;
+leur log est conservé, ce n'est pas une réussite de suite complète. Le nouveau
+test est inscrit dans le workflow PB et consomme le checkout core frère.
+AST et diff-check vérifiés. TS/Node, CI complète du couple exact et LIVE restent
+à qualifier. Aucun compte, fournisseur réel, S24, effet métier ou opt-in touché.
 
-La CI canonique du head exact reste requise ; l'environnement Cloud ne permet
-pas la concurrence nécessaire au moment de cette sauvegarde. Aucun PASS CI
-complète ou LIVE n'est revendiqué. Retour arrière : revert source, sans effet
-ni rejeu métier. Aucun store, route, registre ou exécuteur ajouté.
+L'audience S24 observée est custom/restreinte et reste refusée. Les captures
+historiques attestent le format des propriétaires, pas l'admission de ce code
+ni les nouvelles consignes à déployer. Activation et qualification appartiennent
+à la livraison root après toutes les vérifications. Retour arrière : revert
+apparié des sources via les propriétaires existants ; aucun effet à rejouer.
