@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "chantier1-c17-owner-readers-20261023",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "blocked",
+  "deployment_state": "not_applied",
+  "summary": "Bound owner header and Pulse instruction reads without native activation",
+  "reason": "Prepare C17 source readers while keeping missing ACL/DATA/C18 admission closed",
+  "files": [
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/pulse-room.py",
+    "installer/termux-lite/test-native-room-owner-readers.py",
+    ".github/workflows/ci.yml",
+    "docs/changes/chantier1-c17-owner-readers-20261023.md",
+    "docs/changes/chantier1-c17-owner-readers-20261023.json"
+  ],
+  "tests": [
+    {
+      "name": "Native owner reader boundaries",
+      "status": "passed",
+      "evidence": "9/9 tests, synthetic owner files, no provider; /tmp/chantier1-c17-owner-readers-targeted.log"
+    },
+    {
+      "name": "Existing owner regressions",
+      "status": "passed",
+      "evidence": "38 QA access + 47 allowlist tests; /tmp/chantier1-c17-existing-owner-regressions.log"
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier1-c17-owner-readers-20261023.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "No route or native access admission added"
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing Contacts and Pulse owners only"
+  },
+  "rollback": "Revert source only; no business operation to replay",
+  "limitations": [
+    "Canonical exact-head CI pending because Cloud process/thread capacity is unavailable",
+    "Reader-only milestone; C17/DATA/C18 backend remains disconnected and native activation closed",
+    "No current contact qualified; restricted custom combo audience is not widened",
+    "Synthetic tests do not attest runtime ACL, binding, source freshness or provider execution"
+  ],
+  "base_dependency": {
+    "repository": "sfar-amine/samantha-core",
+    "sha": "f941ef18c30c43ccdf12699f68abbc6122d4cac6"
+  }
+}

@@ -3,6 +3,7 @@ import argparse, hashlib, json, os, re, sqlite3, subprocess, sys, time, unicoded
 from pathlib import Path
 from contextlib import closing, contextmanager
 import fcntl
+import stat
 
 HOME=Path.home()
 ROOT=Path(os.environ.get("SAMANTHA_PEOPLE_ROOT", HOME/".openclaw"/"people"))
@@ -1153,8 +1154,20 @@ class Contacts:
     def metadata(self, number):
         path=self.path(number)
         try:
-            if path.is_symlink(): fail('contact_state_invalid', 503)
-            with path.open('rb') as file: prefix=file.read(CONTACT_HEADER_BYTES)
+            # Read only the three-line owner header. O_NONBLOCK + fstat reject
+            # FIFOs/devices before any read; O_NOFOLLOW closes the symlink race.
+            fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+            with os.fdopen(fd,'rb',buffering=0) as file:
+                info=os.fstat(file.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid():
+                    fail('contact_state_invalid',503)
+                lines=[];remaining=CONTACT_HEADER_BYTES
+                for index in range(3):
+                    line=file.readline(remaining+1)
+                    if len(line)>remaining: fail('contact_state_invalid',503)
+                    if index==0 and line!=(MARKER+'\n').encode(): return None
+                    lines.append(line);remaining-=len(line)
+                prefix=b''.join(lines)
         except FileNotFoundError: return None
         except OSError: fail('contact_state_invalid', 503)
         if not prefix.startswith((MARKER+'\n').encode()): return None

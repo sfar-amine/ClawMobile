@@ -92,6 +92,8 @@ jobs:
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)
         run: python3 ../installer/termux-lite/test-pulse-room.py
+      - name: Native room owner readers stop before private notes and reject special files
+        run: python3 ../installer/termux-lite/test-native-room-owner-readers.py
       - name: Fast path shows any deterministic result as readable text (Amine 12/10)
         run: python3 ../installer/termux-lite/test-model-fast-path-generic-display.py
       - name: SAM-MIG V2.2 dialogue coordinator in model-fast-path, maintenance lock writer, S24 runs inventory
