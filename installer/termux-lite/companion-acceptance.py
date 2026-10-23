@@ -76,6 +76,7 @@ OWNER_GUARDS = [
     ("POST", "/learning/associations/" + "a" * 64 + "/forget"),
     ("POST", "/learning/not-this"),
     ("POST", "/whatsapp/allowlist"),
+    ("POST", "/intent/interpret"),  # Chantier 1 (doc 71): no model call without the loopback owner flow
     ("POST", "/skills/clawmobile-capabilities/disable"),
     ("POST", "/skills/clawmobile-capabilities/enable"),
     ("POST", "/skills/clawmobile-capabilities/try"),
@@ -93,7 +94,7 @@ OWNER_GUARDS = [
     ("POST", "/payments/local-start"),
     ("POST", "/payments/" + "1" * 8 + "-1111-4111-8111-" + "1" * 12 + "/bank-return"),
 ]
-OWNER_GUARD_BUDGETS = {"/skills/learn": 2.0, "/payments/local-handoffs": 2.0, "/payments/local-start": 2.0, "/conversations/acceptance-probe/archive": 2.0, "/conversations/acceptance-probe/unarchive": 2.0}  # admission/refusal budget, no effect without owner proof
+OWNER_GUARD_BUDGETS = {"/intent/interpret": 1.0, "/skills/learn": 2.0, "/payments/local-handoffs": 2.0, "/payments/local-start": 2.0, "/conversations/acceptance-probe/archive": 2.0, "/conversations/acceptance-probe/unarchive": 2.0}  # admission/refusal budget, no effect without owner proof
 # Short-cache reads (cache shorter than RETRY_PAUSE_S, so the retry is cold too): prewarmed untimed, like /catalog.
 PREWARM = {"/control/automations?contract=2", "/learning/associations?limit=20"}
 SETTLE_SECONDS = 15
