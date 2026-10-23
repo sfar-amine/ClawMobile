@@ -118,6 +118,22 @@ async function main() {
   r = runner(() => ({ outcome: "MAINTENANCE", text: "Samantha est en maintenance pour quelques minutes.", handled: true }));
   assert.match((await mod.handlePulseRoomFastPath(ev("état de l'offre 20447"), ctx(), r)).reply.text, /maintenance/);
 
+  // C16 native codes retain their owner cause in the actual room renderer.
+  // The authority port is MOCK_ONLY; no provider or business call is made.
+  const allowlist=require('../dist/companion/whatsappAllowlist');
+  allowlist.allowlistRead=async()=>({success:true,contactId:CONTACT,e164:NUMBER,owner:false,state:'active',rooms:['pulse'],expiresAt:null});
+  process.env.SAMANTHA_NATIVE_PULSE_HANDOFF='1';
+  const render=require('../dist/companion/receiptPresentation');
+  for(const [outcome,code] of [['TECHNICAL_FAILURE','native_pulse_protocol_required'],
+      ['FAILED','native_pulse_execution_unknown'],['FAILED','pulse_native_contract_changed'],
+      ['DENIED','native_pulse_admission_required']]){
+    r=runner(()=>({outcome,reasonCode:code,text:'UNTRUSTED_CANARY',handled:true}));
+    const out=await mod.handlePulseRoomFastPath(ev('phase du projet 20495'),ctx(),r);
+    assert.equal(out.reply.text,render.FAILURE_PHRASES.fr[code]);
+    assert(!out.reply.text.includes('UNTRUSTED_CANARY'));assert.equal(r.calls.length,1);
+  }
+  delete process.env.SAMANTHA_NATIVE_PULSE_HANDOFF;
+
   console.log("pulse room fast path OK");
 }
 
