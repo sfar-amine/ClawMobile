@@ -180,6 +180,8 @@ class RestartProtection(unittest.TestCase):
 
     def test_health_owner_holds_lock_through_final_check_and_start(self):
         body = '''
+# Explicit AI-selected port: this fixture tests lease/descriptor mechanics.
+immune_action(){ shift 2; "$@"; }; immune_observe(){ :; }
 log(){ :; }; http(){ return 1; }; proc(){ return 1; }
 restart_gate(){ python3 "$ROOT/runtime_mode.py" --openclaw-home "$OPENCLAW_HOME" || [ "$?" = 75 ]; }
 start(){ python3 "$ROOT/runtime_mode.py" --openclaw-home "$OPENCLAW_HOME"; }
@@ -208,6 +210,8 @@ with_repair_lease repair_http_under_lease companion ignored ignored ignored 0 0
         script.chmod(0o700)
         result = self.shell('''
 D="$OPENCLAW_HOME"
+# Explicit AI-selected port: this fixture tests lease/descriptor mechanics.
+immune_action(){ shift 2; "$@"; }; immune_observe(){ :; }
 log(){ :; }; http(){ return 1; }; proc(){ return 1; }
 restart_gate(){ return 0; }; sleep(){ :; }; fail(){ :; }
 with_repair_lease repair_http_under_lease companion ignored ignored "$OPENCLAW_HOME/safe-child.sh" 0 0
