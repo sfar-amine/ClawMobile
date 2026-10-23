@@ -35,12 +35,12 @@
     {
       "name": "MCP scope and existing owner regressions",
       "status": "passed",
-      "evidence": "TypeScript compile; Node120/120; Python18/18; Worker tool/provenance, routing6/6, OIDC8/8, local OAuth RPC8/8, including invalid server-config refusals. Actual two-repository owner pairs target PB4301082e: C8 four cases, C12 five admitted helper calls, no unadmitted/shadow reads; DATA_PROFILE_UNVERIFIED remains closed. Canonical numbered-PR CI pending. No model or business effects."
+      "evidence": "TypeScript compile; Node120/120; Python18/18; Worker tool/provenance, routing6/6, OIDC8/8, local OAuth RPC8/8, including invalid server-config refusals. Actual two-repository owner pairs target PB24cb837b: C8 four cases, C12 five admitted helper calls, no unadmitted/shadow reads; DATA_PROFILE_UNVERIFIED remains closed. Canonical numbered-PR CI pending. No model or business effects."
     },
     {
       "name": "Portable retained C8/C12 owner pairs",
       "status": "passed",
-      "evidence": "Replayed against immutable committed PB4301082e504992defae51fdbd6fdfc7cbb44a456; original mechanisms retained, MOCK_ONLY, source metadata only, zero provider calls and real effects. Exact core-head replay follows commit."
+      "evidence": "Replayed against immutable committed PB24cb837b9aa966af6f2ab15294179108a4f107d7; original mechanisms retained, MOCK_ONLY, source metadata only, zero provider calls and real effects. Exact core-head replay follows commit."
     }
   ],
   "documentation": [
@@ -94,9 +94,9 @@
   },
   "paired_dependency": {
     "repository": "sfar-amine/samantha-ui-playbooks",
-    "sha": "4301082e504992defae51fdbd6fdfc7cbb44a456",
+    "sha": "24cb837b9aa966af6f2ab15294179108a4f107d7",
     "qualification": "MOCK_ONLY",
-    "replay": "node openclaw-plugin-mobile-ui/scripts/test-mcp-{read,context}-paired.cjs <PB-checkout> 4301082e504992defae51fdbd6fdfc7cbb44a456 <result.json>",
+    "replay": "node openclaw-plugin-mobile-ui/scripts/test-mcp-{read,context}-paired.cjs <PB-checkout> 24cb837b9aa966af6f2ab15294179108a4f107d7 <result.json>",
     "external_provider_calls": 0,
     "real_business_effects": 0
   }
