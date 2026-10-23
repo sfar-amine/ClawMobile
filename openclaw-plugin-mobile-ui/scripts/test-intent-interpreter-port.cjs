@@ -106,11 +106,17 @@ function fake(script) {
     assert.equal(replies[1][2].code, "INVALID_REQUEST");
   }
   // Config patch: exactly the two models, owned by this plugin, no agent or profile override.
+  // OpenClaw 2026.9.6 matches the allowlist on provider/model only (the resolved ref carries no
+  // "@profile"); a suffixed entry never matches and refuses every Gemini call. The free profile
+  // stays pinned by the request ("model@profile"), which OpenClaw checks against the credential used.
   const patch = JSON.parse(fs.readFileSync(path.join(__dirname, "../../docs/runtime/config/samantha-intent-interpreter.json"), "utf8"));
   const llm = patch.plugins.entries["openclaw-plugin-mobile-ui"].llm;
+  const GEMINI_KEY = GEMINI.split("@")[0];
+  assert.equal(GEMINI, `${GEMINI_KEY}@google:claw-gemini-free`);
   assert.deepEqual(Object.keys(patch), ["plugins"]);
-  assert.deepEqual(llm.allowedModels, [GEMINI, LUNA]);
-  assert.deepEqual(llm.allowedCompletionModels, [GEMINI, LUNA]);
+  assert.deepEqual(llm.allowedModels, [GEMINI_KEY, LUNA]);
+  assert.deepEqual(llm.allowedCompletionModels, [GEMINI_KEY, LUNA]);
+  assert.ok([...llm.allowedModels, ...llm.allowedCompletionModels].every((m) => !m.includes("@")));
   assert.equal(llm.allowAgentIdOverride, undefined);
   assert.equal(llm.allowAuthProfileOverride, undefined);
   console.log(JSON.stringify({ ok: true, primary: GEMINI, fallback: LUNA, technicalFallbackOnly: true }));
