@@ -1,7 +1,7 @@
 import {recordPresentationDiagnostics} from "./companion/receiptPresentation";
 import {runtimeFile} from "./runtimeRoot";
 import {createHash} from "node:crypto";
-import {authenticatedMcpContextMetadata,submitNativePulseRequest,getRemoteBridgeRequest} from "./companion/remoteBridge";
+import {authenticatedMcpContextMetadata,mcpServiceScope,submitNativePulseRequest,getRemoteBridgeRequest} from "./companion/remoteBridge";
 import {NativePulseContact,NATIVE_PULSE_PROTOCOL} from "./nativePulseAdmission";
 import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
 import fs from "node:fs";
@@ -69,7 +69,7 @@ export type RunnerOptions = {
   nativePulse?: NativePulseContact;
   nativePulseMode?: "prepare"|"execute"|"observe";
   /** Host-private MCP envelope; all enclosed narrative remains client-reported. */
-  intentContext?: { request: string; client_context: Record<string, unknown> };
+  intentContext?: { request: string; client_context: Record<string, unknown>; service_scope?: Record<string,unknown> };
   /** Only the authenticated existing MCP RemoteBridge read callback uses this. */
   intentReadOnly?: boolean;
   /** Opaque admitted relay-frame identity, never serialized or built from caller arguments. */
@@ -179,15 +179,17 @@ function canonicalIntentInput(value:any):any {
 }
 function privateIntentPacket(options:RunnerOptions) {
   if(!options.intentContext)return undefined;
-  // Reconstruct the two public fields: JSON/extra RunnerOptions keys cannot
+  // Reconstruct only admitted public fields: JSON/extra RunnerOptions keys cannot
   // smuggle a host_context across the otherwise authenticated child channel.
-  const input={request:options.intentContext.request,client_context:options.intentContext.client_context};
+  const service=mcpServiceScope(options.intentContext.service_scope);
+  if(!service)throw new Error("MCP_INTERPRETATION_SERVICE_REQUIRED");
+  const input={request:options.intentContext.request,client_context:options.intentContext.client_context,service_scope:service};
   const admission=authenticatedMcpContextMetadata(options.intentContextAdmission);
-  if(!admission)return input;
+  if(!admission?.service_scope)throw new Error("MCP_INTERPRETATION_SERVICE_UNVERIFIED");
   const key=`external_mcp:${admission.client_id}:${options.intentContext.client_context.conversation_ref}`;
   if(options.caller!=="owner"||options.requestId!==admission.request_id||options.dialogue?.event?.eventRef!==admission.request_id||
      options.dialogue?.event?.conversationKey!==key)throw new Error("SHARED_CONTEXT_ACCESS_UNVERIFIED");
-  return {...input,host_context:{schema_version:"mcp-host-context.v1",...admission,
+  return {...input,host_context:{schema_version:"mcp-host-context.v2",...admission,
     principal_ref:`mcp:${admission.client_id}`,conversation_key:key,
     verification_ref:`mcp-context:${admission.request_id}`,
     input_digest:createHash("sha256").update(JSON.stringify(canonicalIntentInput(input))).digest("hex")}};
@@ -244,7 +246,7 @@ export async function runModelFastPath(
     return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
   let intentPacket:Record<string,unknown>|undefined;
   try{intentPacket=privateIntentPacket(options);}
-  catch{return {status:"known_error",reason:"SHARED_CONTEXT_ACCESS_UNVERIFIED",execution_state:"not_started"};}
+  catch(error){return {status:"known_error",reason:error instanceof Error&&error.message.startsWith("MCP_INTERPRETATION_SERVICE_")?error.message:"SHARED_CONTEXT_ACCESS_UNVERIFIED",execution_state:"not_started"};}
   if(intentPacket&&Buffer.byteLength(JSON.stringify(intentPacket),"utf8")>32768)
     return {status:"known_error",reason:"INTERPRETATION_HOST_UNAVAILABLE",execution_state:"not_started"};
   if(options.checkBudgetMs!==undefined&&(!options.checkOnly||!Number.isSafeInteger(options.checkBudgetMs)||options.checkBudgetMs<1||options.checkBudgetMs>10000))return {status:"error",reason:"invalid_check_budget"};

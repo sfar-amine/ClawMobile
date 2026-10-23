@@ -17,6 +17,8 @@ import {
   getRemoteBridgeRequest,
   hasContinuumTask,
   submitAuthenticatedMcpRequest,
+  authenticatedMcpContextMetadata,
+  mcpServiceScope,
 } from "./remoteBridge";
 
 const execFileAsync = promisify(execFile);
@@ -375,7 +377,7 @@ function readReason(value:unknown) {
   return typeof value==="string"&&/^[A-Za-z0-9_.:-]{1,128}$/.test(value)?value:"interpretation_read_failed";
 }
 async function executeMigratedMcpRead(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,context:Record<string,any>,actionKey:string,stepKey:string,admission?:object) {
-  const input={request:args.request,client_context:context};
+  const input={request:args.request,client_context:context,service_scope:mcpServiceScope(args.service_scope)!};
   const inputDigest=crypto.createHash("sha256").update(JSON.stringify(stableMcpInput(input))).digest("hex");
   const receipt=await submitAuthenticatedMcpRequest({
     requestId,taskId:actionTaskId(clientId,actionKey),stepId:stepKey,sessionId:`external_mcp:${clientId}`,
@@ -423,6 +425,11 @@ async function executeMigratedMcpRead(requestId:string,clientId:string,profile:s
 
 async function migratedMcpInput(requestId:string,clientId:string,profile:string,args:Record<string,unknown>,execute:boolean,admission?:object) {
   if(args.decision!==undefined||args.target_hint!==undefined)return mcpInputFailure("client_semantic_authority_not_admitted");
+  const service=mcpServiceScope(args.service_scope);
+  if(!service)return mcpInputFailure("MCP_INTERPRETATION_SERVICE_REQUIRED");
+  const host=authenticatedMcpContextMetadata(admission);
+  if(!host?.service_scope || host.client_id!==clientId || host.request_id!==requestId || profile!=="chat-owner")
+    return mcpInputFailure("MCP_INTERPRETATION_SERVICE_UNVERIFIED");
   let context:Record<string,any>;
   try {context=validateMcpClientContext(args.request,args.client_context);}
   catch(error:any){return mcpInputFailure(error?.message||"invalid_client_context");}
@@ -460,7 +467,7 @@ async function migratedMcpInput(requestId:string,clientId:string,profile:string,
     const out:any=await runModelFastPath(args.request as string,{
       surface:"mcp",caller:profile==="chat-owner"?"owner":"other",originId:requestId,
       requestId,sessionId:`external_mcp:${clientId}`,timeoutSeconds:15,checkOnly:true,
-      intentContext:{request:args.request,client_context:context},intentContextAdmission:admission,
+      intentContext:{request:args.request,client_context:context,service_scope:service},intentContextAdmission:admission,
       dialogue:{mode:"preview",event:{conversationKey,eventRef:requestId}},
     } as any);
     if(out?.intentInputProtocol!==MCP_INPUT_PROTOCOL)return mcpInputFailure("INTERPRETATION_HOST_UNAVAILABLE");
@@ -829,9 +836,11 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
     case "claw_context":
       return contextBundle(args,clientId);
     case "claw_resolve":
+      if(args.service_scope!==undefined&&!Object.prototype.hasOwnProperty.call(args,"client_context"))return mcpInputFailure("client_context_required_for_service_scope");
       if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,false,message);
       return { state: "resolved", result: await resolveCapability(args, clientId) };
     case "claw_execute":
+      if(args.service_scope!==undefined&&!Object.prototype.hasOwnProperty.call(args,"client_context"))return mcpInputFailure("client_context_required_for_service_scope");
       if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,true,message);
       return executeCapability(requestId, clientId, profile, args);
     case "claw_exec":

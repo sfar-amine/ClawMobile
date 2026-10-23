@@ -1,3 +1,4 @@
+const serviceScope={schema_version:'mcp-service.v1',domain_id:'pulse'};
 // C12 migrates this unchanged four-case mechanism probe to C9 owner admission.
 // Immutable paired repository fixture: actual owners, Recorded/MOCK inference, no provider or business effect.
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
@@ -22,7 +23,7 @@ host.runModelFastPath=async(text,options)=>{
 const mcp=require(core+'/openclaw-plugin-mobile-ui/dist/companion/mcpBridge');
 const context=(thread,text)=>({schema_version:'mcp-input.v1',original_message:{text,ref:'current'},conversation_ref:thread,local_revision:0,relevant_turns:[],entity_references:[],active_goal_ref:null,pending_question_ref:null,confirmation_ref:null,user_reply_ref:null,completeness:'complete',missing:[]});
 const invoke=(action,thread,text)=>{
- const frame={type:'mcp_request',requestId:'mcp-claude-chat-'+action+'-execute',clientId:'claude-chat',profile:'chat-owner',tool:'claw_execute',arguments:{request:text,client_context:context(thread,text),action_key:action}};
+ const frame={type:'mcp_request',interpretationService:serviceScope,requestId:'mcp-claude-chat-'+action+'-execute',clientId:'claude-chat',profile:'chat-owner',tool:'claw_execute',arguments:{request:text,service_scope:serviceScope,client_context:context(thread,text),action_key:action}};
  bridge.registerAuthenticatedMcpRelayMessage(frame);
  return mcp.handleMcpRelayRequest(frame);
 };
@@ -52,7 +53,7 @@ const invoke=(action,thread,text)=>{
   assert.equal(interpretations[0].provenance,'client_reported');
   assert.notEqual(interpretations[0].conversation_ref,interpretations[1].conversation_ref);
   assert.equal(log.filter(row=>row.kind==='graph_write_guard').length,4,'independent Graph guard is exercised separately from upstream write refusal');
-  const output={core_sha:coreSha,playbooks_sha:pbSha,playbooks_pr:263,qualification:'MOCK_ONLY',external_provider_calls:0,real_business_effects:0,canonical_claim_before_generation:true,helper_calls:helperCalls,positive_reads:2,duplicate_additional_helper_calls:0,independent_threads:true,original_text_exact:true,client_provenance_preserved:true,canonical_write_executor_calls:0,data_unknown_reason:denied.reason,fake_interpretations:interpretations.length,fake_business_read_executions:2,separate_graph_write_boundary_probe:{qualification:'SYNTHETIC_BOUNDARY_ONLY',state:'blocked',reason:'read_only_policy',executor_calls:0,checks:log.filter(row=>row.kind==='graph_write_guard').length}};
+  const output={core_sha:coreSha,playbooks_sha:pbSha,qualification:'MOCK_ONLY',external_provider_calls:0,real_business_effects:0,canonical_claim_before_generation:true,helper_calls:helperCalls,positive_reads:2,duplicate_additional_helper_calls:0,independent_threads:true,original_text_exact:true,client_provenance_preserved:true,canonical_write_executor_calls:0,data_unknown_reason:denied.reason,fake_interpretations:interpretations.length,fake_business_read_executions:2,separate_graph_write_boundary_probe:{qualification:'SYNTHETIC_BOUNDARY_ONLY',state:'blocked',reason:'read_only_policy',executor_calls:0,checks:log.filter(row=>row.kind==='graph_write_guard').length}};
   if(outputPath)fs.writeFileSync(outputPath,JSON.stringify(output,null,2)+'\n');
   console.log(JSON.stringify(output));
  }finally{fs.rmSync(root,{recursive:true,force:true});}

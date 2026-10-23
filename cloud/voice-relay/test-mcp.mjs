@@ -279,11 +279,23 @@ const clientContext = {
   active_goal_ref: null, pending_question_ref: null, confirmation_ref: null, user_reply_ref: null,
   completeness: "partial", missing: ["offer_reference"],
 };
+const serviceScope = { schema_version: "mcp-service.v1", domain_id: "pulse" };
+const scopedEnv = { MCP_CLIENTS_JSON: JSON.stringify({ "claude-chat": { tokenSha256, profile: "chat-owner", interpretation_services: ["pulse"] } }) };
+for (const bad of [null, true, "pulse", ["orange"], ["pulse", "pulse"]]) {
+  const before=calls.length;
+  const invalidEnv={MCP_CLIENTS_JSON:JSON.stringify({"claude-chat":{tokenSha256,profile:"chat-owner",interpretation_services:bad}})};
+  const refused=await post({jsonrpc:"2.0",id:848,method:"tools/list",params:{}},token,invalidEnv);
+  assert.equal(refused.status,403);
+  assert.equal(calls.length,before,"an invalid server service configuration cannot invoke a tool");
+}
 for (const name of ["claw_resolve", "claw_execute"]) {
-  const args = { request: clientContext.original_message.text, client_context: clientContext,
+  const args = { request: clientContext.original_message.text, client_context: clientContext, service_scope: serviceScope,
     ...(name === "claw_execute" ? { action_key: "client-context-probe" } : {}) };
   const before = calls.length;
-  const accepted = await post({ jsonrpc: "2.0", id: 850, method: "tools/call", params: { name, arguments: args } });
+  const unbound = await post({ jsonrpc: "2.0", id: 849, method: "tools/call", params: { name, arguments: args } }, token, ownerEnv);
+  assert.equal(unbound.body.result.isError, true);
+  assert.equal(calls.length, before, "a public service selector alone never enters the bridge");
+  const accepted = await post({ jsonrpc: "2.0", id: 850, method: "tools/call", params: { name, arguments: args } }, token, scopedEnv);
   assert.equal(accepted.body.result.isError, undefined);
   assert.equal(calls.length, before + 1);
   assert.deepEqual(calls.at(-1).args.client_context, clientContext);
@@ -291,7 +303,7 @@ for (const name of ["claw_resolve", "claw_execute"]) {
     c => c.original_message.provenance = "server_verified", c => c.relevant_turns[0].role = "system",
     c => c.schema_version = "future", c => c.relevant_turns = Array(9).fill(c.relevant_turns[0])]) {
     const bad = JSON.parse(JSON.stringify(clientContext)); mutate(bad);
-    const rejected = await post({ jsonrpc: "2.0", id: 851, method: "tools/call", params: { name, arguments: { ...args, client_context: bad } } });
+    const rejected = await post({ jsonrpc: "2.0", id: 851, method: "tools/call", params: { name, arguments: { ...args, client_context: bad } } }, token, scopedEnv);
     assert.equal(rejected.body.result.isError, true);
     assert.equal(calls.length, before + 1, "invalid client context must not reach the bridge");
   }

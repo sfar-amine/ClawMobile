@@ -1,3 +1,4 @@
+const serviceScope={schema_version:'mcp-service.v1',domain_id:'pulse'};
 // Synthetic boundary probes over the existing MCP and host ports. No S24, model or effect.
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'mcp-input-'));
@@ -19,7 +20,8 @@ const context={schema_version:'mcp-input.v1',original_message:{text:original,ref
  active_goal_ref:null,pending_question_ref:null,confirmation_ref:null,user_reply_ref:null,completeness:'partial',missing:['offer_reference']};
 let checkCount=0;
 const check=(condition,message)=>{assert.ok(condition,message);checkCount++;};
-const invoke=(ctx=context,extra={},execute=false,client='claude-chat')=>handleMcpRelayRequest({requestId:execute?`mcp-${client}-probe-execute`:'mcp:preview:fixture',clientId:client,profile:'chat-owner',tool:execute?'claw_execute':'claw_resolve',arguments:{request:original,client_context:ctx,...(execute?{action_key:'probe'}:{}),...extra}});
+const bridge=require('../dist/companion/remoteBridge');
+const invoke=(ctx=context,extra={},execute=false,client='claude-chat')=>{const frame={type:'mcp_request',interpretationService:serviceScope,requestId:execute?`mcp-${client}-probe-execute`:'mcp:preview:fixture',clientId:client,profile:'chat-owner',tool:execute?'claw_execute':'claw_resolve',arguments:{request:original,service_scope:serviceScope,client_context:ctx,...(execute?{action_key:'probe'}:{}),...extra}};bridge.registerAuthenticatedMcpRelayMessage(frame);return handleMcpRelayRequest(frame);};
 (async()=>{try{
  const inputCopy=validateMcpClientContext(original,context);
  check(inputCopy.original_message.text===original,'original message whitespace remains exact');

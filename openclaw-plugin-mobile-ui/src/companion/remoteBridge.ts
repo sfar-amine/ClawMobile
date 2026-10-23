@@ -842,8 +842,15 @@ async function dispatch(request: RemoteBridgeRequest, webBounds?: {startedMonoto
 
 // Process-local provenance cannot be supplied through HTTP or serialized JSON.
 type McpReadExecution = (bounds:{startedMonotonic:number;deadlineEpochMs:number})=>Promise<unknown>;
+export type McpServiceScope = Readonly<{schema_version:"mcp-service.v1";domain_id:"pulse"}>;
+export function mcpServiceScope(value:unknown):McpServiceScope|null {
+  if(!value || typeof value!=="object" || Array.isArray(value) || Object.keys(value).length!==2 ||
+     Object.keys(value).some(key=>!["schema_version","domain_id"].includes(key)) ||
+     (value as any).schema_version!=="mcp-service.v1" || (value as any).domain_id!=="pulse")return null;
+  return Object.freeze({schema_version:"mcp-service.v1",domain_id:"pulse"});
+}
 type McpAccess=ClawAccess & {readExecution?:McpReadExecution;
-  relayAdmission?:{requestId:string;observedAt:number;validUntil:number}};
+  relayAdmission?:{requestId:string;observedAt:number;validUntil:number;service?:McpServiceScope}};
 type NativeAccess={native:NativePulseContact;execute:McpReadExecution;event:Record<string,unknown>;text:string;afterReceipt?:()=>Promise<unknown>};
 const authenticatedMcpAccess = new WeakMap<object, McpAccess|NativeAccess>();// existing admission owner, no second registry
 function mcpAccess(value:object):McpAccess|undefined {
@@ -873,12 +880,14 @@ export function registerAuthenticatedMcpRelayMessage(message:Record<string,any>)
     throw new Error("invalid_authenticated_mcp_frame");
   }
   const now=Date.now();
+  const service=mcpServiceScope(message.interpretationService);
+  if(message.interpretationService!==undefined&&!service)throw new Error("invalid_authenticated_mcp_service");
   authenticatedMcpAccess.set(message,{client_id:message.clientId,profile:message.profile,
     owner:message.profile==="chat-owner",read_only:message.profile!=="chat-owner",
-    relayAdmission:{requestId:message.requestId,observedAt:now,validUntil:now+30000}});
+    relayAdmission:{requestId:message.requestId,observedAt:now,validUntil:now+30000,...(service?{service}:{})}});
 }
 
-/** Minimal projection only: no executor closure, token, new scope or client-supplied authority. */
+/** Minimal authenticated service metadata; no executor, token, DATA grant or client-supplied authority. */
 export function authenticatedMcpContextMetadata(message:unknown) {
   if(!message || typeof message!=="object")return null;
   const admitted=mcpAccess(message),frame=message as Record<string,any>;
@@ -886,7 +895,9 @@ export function authenticatedMcpContextMetadata(message:unknown) {
   if(!admitted||!relay||admitted.profile!=="chat-owner"||frame.clientId!==admitted.client_id||
      frame.profile!==admitted.profile||frame.requestId!==relay.requestId||Date.now()<relay.observedAt||Date.now()>=relay.validUntil)return null;
   return Object.freeze({client_id:admitted.client_id,authenticated_profile:admitted.profile,
-    request_id:relay.requestId,observed_at:relay.observedAt/1000,valid_until:relay.validUntil/1000});
+    request_id:relay.requestId,observed_at:relay.observedAt/1000,valid_until:relay.validUntil/1000,
+    ...(relay.service&&mcpServiceScope(frame.interpretationService)&&frame.interpretationService.domain_id===relay.service.domain_id
+      ?{service_scope:relay.service}:{})});
 }
 export async function submitAuthenticatedMcpRequest(body: RemoteBridgeRequest, webBounds?: {startedMonotonic:number;deadlineEpochMs:number}, readExecution?:McpReadExecution): Promise<RemoteBridgeReceipt> {
   const access = body._claw_access;
