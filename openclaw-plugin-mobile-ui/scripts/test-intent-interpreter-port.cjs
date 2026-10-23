@@ -95,7 +95,8 @@ function fake(script) {
   assert.deepEqual(port.parseDecision(JSON.stringify({ status: "selected" })), { status: "selected" });
   // Invalid requests are refused before any model call.
   assert.equal(port.validateRequest({ systemPrompt: "", message: "x" }), null);
-  assert.equal(port.validateRequest({ systemPrompt: "x", message: "y".repeat(40000) }), null);
+  assert.equal(port.validateRequest({ systemPrompt: "x", message: "y".repeat(97000) }), null);
+  assert.notEqual(port.validateRequest({ systemPrompt: "x", message: "y".repeat(40000) }), null);
   // Gateway handler: invalid request and missing runtime answer with stable codes.
   {
     const replies = [];

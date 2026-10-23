@@ -318,9 +318,9 @@ export async function runModelFastPath(
             SAMANTHA_QA_INPUT_FD:options.qaContext?'0':undefined,
             SAMANTHA_INTENT_INPUT_FD:options.intentContext?'0':undefined,
             SAMANTHA_NATIVE_PULSE_FD:options.nativePulse?'0':undefined,
-            // Pilot admission is per host request, never a global interception
-            // of unrelated app/WhatsApp/Orange/payment requests.
-            SAMANTHA_INTENT_INTERPRETER:options.nativePulse?"1":options.intentContext?process.env.SAMANTHA_INTENT_INTERPRETER:undefined,
+            // Doc 71: one entry. Every dialogue turn (app, WhatsApp, voice, MCP) reaches
+            // the same interpreter when the host enables it; helper executions do not.
+            SAMANTHA_INTENT_INTERPRETER:options.nativePulse?"1":(options.intentContext||dialogue)?process.env.SAMANTHA_INTENT_INTERPRETER:undefined,
             ...((options.preparedDecision || options.clarificationDecision) ? {
               CLAW_PREPARED_DECISION_B64: Buffer.from(JSON.stringify(options.preparedDecision || options.clarificationDecision), "utf8").toString("base64"),
             } : {}),
