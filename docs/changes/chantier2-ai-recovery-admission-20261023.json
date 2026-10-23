@@ -23,8 +23,11 @@
     "installer/termux-lite/samantha-root-guardian.sh",
     "installer/termux-lite/test-adb-recovery-readiness-watchdog.sh",
     "installer/termux-lite/test-android-phantom-headroom.py",
+    "installer/termux-lite/test-gateway-memory-guard.py",
     "installer/termux-lite/test-health-deploy-lock.py",
+    "installer/termux-lite/test-health-restart-escalation.py",
     "installer/termux-lite/test-immune-action.py",
+    "installer/termux-lite/test-qa-restart-protection.py",
     "installer/termux-lite/test-remote-desktop-watchdog.py",
     "installer/termux-lite/test-tier0-distinct-health.py",
     "installer/termux-lite/tier0-control.py",
@@ -35,6 +38,11 @@
       "name": "Native recovery adapters with controlled selected/refused model ports",
       "status": "passed",
       "evidence": "test-immune-action.py 5 PASS, HTTP deployment lock4 PASS, RDC21 PASS, Tier0 distinct proof9 PASS, phantom headroom3 PASS, ADB readiness shell PASS. Full canonical CI required."
+    },
+    {
+      "name": "Existing health workflow fixtures with explicit AI selection",
+      "status": "passed",
+      "evidence": "Restart repair lease/descriptors15 PASS, restart escalation9 PASS, memory pressure19 PASS; original safety assertions preserved with explicit selected callback fixture port. Exact CI remains required."
     }
   ],
   "documentation": [
