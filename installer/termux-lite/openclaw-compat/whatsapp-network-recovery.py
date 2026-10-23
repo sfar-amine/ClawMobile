@@ -41,12 +41,14 @@ def atomic_write(path, data):
         if os.path.exists(name):
             os.unlink(name)
 
-def reconcile(roots, mode):
-    manifest = json.loads(MANIFEST.read_text())
+def reconcile(roots, mode, manifest_path=None):
+    manifest = json.loads((manifest_path or MANIFEST).read_text())
     # Validate the entire set before the first write, including partially applied sets.
     planned = []
     for entry in manifest["files"]:
         path = roots[entry["root"]] / entry["path"]
+        if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(roots[entry["root"]].resolve()):
+            raise ValueError("patch_module_path_invalid:" + entry["path"])
         data = path.read_bytes()
         current = digest(data)
         if current not in (entry["original"], entry["patched"]):
@@ -74,27 +76,33 @@ def main():
         group.add_argument("--" + mode, dest="mode", action="store_const", const=mode)
     ap.add_argument("--openclaw-root", type=Path, default=Path(os.environ.get("PREFIX", "/data/data/com.termux/files/usr")) / "lib/node_modules/openclaw")
     ap.add_argument("--whatsapp-root", type=Path)
+    ap.add_argument("--patch-set", choices=("whatsapp-network-recovery", "agent-exec-auth-scope"), default="whatsapp-network-recovery")
     args = ap.parse_args()
     try:
+        manifest_path = MANIFEST.with_name(args.patch_set + ".json")
+        manifest = json.loads(manifest_path.read_text())
+        needs_whatsapp = any(entry["root"] == "whatsapp" for entry in manifest["files"])
         wa = args.whatsapp_root
-        if wa is None:
+        if needs_whatsapp and wa is None:
             state = Path(os.environ.get("OPENCLAW_STATE_DIR", str(Path.home() / ".openclaw")))
             candidates = list((state / "npm/projects").glob("*/node_modules/@openclaw/whatsapp"))
             if len(candidates) != 1:
                 raise ValueError("whatsapp_package_missing_or_ambiguous")
             wa = candidates[0]
-        roots = {"openclaw": args.openclaw_root.resolve(), "whatsapp": wa.resolve()}
-        expected = json.loads(MANIFEST.read_text())["package_version"]
+        roots = {"openclaw": args.openclaw_root.resolve()}
+        if needs_whatsapp:
+            roots["whatsapp"] = wa.resolve()
+        expected = manifest["package_version"]
         for root in roots.values():
             if json.loads((root / "package.json").read_text()).get("version") != expected:
                 raise ValueError("unsupported_package_version")
         if args.mode == "check":
-            result = reconcile(roots, args.mode)
+            result = reconcile(roots, args.mode, manifest_path)
         else:
             # One patch transaction, never a scheduler or runtime retry owner.
             with (roots["openclaw"] / ".samantha-wa-recovery.lock").open("a") as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX)
-                result = reconcile(roots, args.mode)
+                result = reconcile(roots, args.mode, manifest_path)
         print(json.dumps(result))
         return 0 if result["ok"] else 1
     except (OSError, ValueError) as error:

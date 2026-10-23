@@ -73,6 +73,7 @@ if [ "$mode" = check ]; then
   fi
   dispatch_contract || drift+=(openclaw:before_dispatch_missing)
   python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --check >/dev/null 2>&1 || drift+=(openclaw:whatsapp_network_recovery)
+  python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --check >/dev/null 2>&1 || drift+=(openclaw:agent_exec_auth_scope)
   list=$(printf '"%s",' "${drift[@]}"); list="[${list%,}]"; [ "${#drift[@]}" -eq 0 ] && list='[]'
   printf '{"ok":%s,"commit":"%s","drift":%s}\n' "$([ "${#drift[@]}" -eq 0 ] && echo true || echo false)" "$commit" "$list"
   [ "${#drift[@]}" -eq 0 ]; exit $?
@@ -80,6 +81,7 @@ fi
 
 dispatch_contract || fail openclaw_before_dispatch_missing
 wa_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --apply) || fail whatsapp_network_recovery_refused
+auth_patch=$(python3 "$SRC/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --apply) || fail agent_exec_auth_scope_refused
 
 # 1. Gateway plugin. Forced: after a rollback the restored dist is older than the install stamp.
 if ! same_plugin; then

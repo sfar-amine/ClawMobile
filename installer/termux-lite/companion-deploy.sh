@@ -294,6 +294,11 @@ sync_runtime(){ [ -x "$ROOT/runtime-sync.sh" ] || { echo '{"ok":true,"skipped":"
 
 rollback(){
   reason="$1"; acc="${2:-}"
+  if [ -f "$ROOT/openclaw-compat/agent-exec-auth-scope.json" ] &&
+     ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/agent-exec-auth-scope.json" 2>/dev/null; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "agent_exec_auth_scope_rollback_failed"; exit 6; }
+  fi
   # Undo this compatibility patch before returning to a revision that does not own it.
   if [ -f "$ROOT/openclaw-compat/whatsapp-network-recovery.py" ] &&
      ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py" 2>/dev/null; then

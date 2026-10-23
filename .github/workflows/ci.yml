@@ -88,6 +88,11 @@ jobs:
           python3 ../installer/termux-lite/test-whatsapp-network-recovery.py
           node ../installer/termux-lite/test-whatsapp-network-recovery.cjs
 
+      - name: Native agent exec resolves auth secrets in its existing scoped owner
+        run: |
+          python3 ../installer/termux-lite/test-agent-exec-auth-scope.py
+          node ../installer/termux-lite/test-agent-exec-auth-scope.cjs
+
       - name: WhatsApp rooms snapshot is git-tracked only and its agent read-only
         run: python3 ../installer/termux-lite/test-project-room.py
       - name: Pulse room agents (fichier 52 §5)

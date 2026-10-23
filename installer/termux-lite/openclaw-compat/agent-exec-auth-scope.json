@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "package_version": "2026.9.6",
+  "purpose": "Resolve native agent-exec auth SecretRefs in the existing scoped auth owner, while retaining isolated runtime state and explicit env precedence.",
+  "files": [
+    {
+      "root": "openclaw",
+      "path": "dist/runtime-BnnQBrxr.mjs",
+      "original": "2f3fd805d6fbb9ddc9dd15cd2c551cbebd9633c37db8f0662fca63813ea7844a",
+      "patched": "c37b355d7b49dbb928ad635715b0ff45ecc717e1ed6b40c2ab887c476e311554",
+      "replacements": [
+        [
+          "import { isDeepStrictEqual } from \"node:util\";",
+          "import { c as getScopedAuthProfileEnv } from \"./store-CGYBYVbs.mjs\";\nimport { isDeepStrictEqual } from \"node:util\";"
+        ],
+        [
+          "const runtimeEnv = mergeSecretsRuntimeEnv(params.env);",
+          "const runtimeEnv = mergeSecretsRuntimeEnv(params.env ?? getScopedAuthProfileEnv());"
+        ]
+      ]
+    }
+  ]
+}

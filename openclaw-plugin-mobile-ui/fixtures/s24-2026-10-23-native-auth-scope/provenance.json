@@ -1,0 +1,10 @@
+{
+  "source": "S24 installed PUBLIC OpenClaw dist/runtime-BnnQBrxr.mjs",
+  "observed_at": "2026-10-23",
+  "sha256": "2f3fd805d6fbb9ddc9dd15cd2c551cbebd9633c37db8f0662fca63813ea7844a",
+  "contains_credentials": false,
+  "capture": "codex-c1-gemini-repair-20261023/public-runtime-fixture",
+  "scope": "Public source only; auth/state/secret files were not read",
+  "scoped_env_export": "store-CGYBYVbs.mjs exports c=getScopedAuthProfileEnv",
+  "scoped_store_observed_sha256": "8bb2d4ba9a1a5050280c9cd4dfb3a83f54954be3bbee0edb84a673f17fa2d2b3"
+}

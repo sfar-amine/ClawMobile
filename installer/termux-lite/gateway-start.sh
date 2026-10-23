@@ -40,5 +40,17 @@ fi
 python3 "$WA_PATCH_SOURCE" "$WA_PATCH_MODE" >&2 ||
   echo "[lite] WARNING: WhatsApp network recovery patch unsupported; runtime drift requires review." >&2
 
+# Follow this patch set's checkout ownership independently of the older WhatsApp set.
+AUTH_PATCH_DIR="${CLAW_CORE_REPO:-$HOME/ClawMobile}/installer/termux-lite/openclaw-compat"
+AUTH_PATCH_MODE=--apply
+if [ ! -f "$AUTH_PATCH_DIR/agent-exec-auth-scope.json" ]; then
+  AUTH_PATCH_DIR="$SCRIPT_DIR/openclaw-compat"
+  AUTH_PATCH_MODE=--rollback
+fi
+if [ -f "$AUTH_PATCH_DIR/agent-exec-auth-scope.json" ]; then
+  python3 "$AUTH_PATCH_DIR/whatsapp-network-recovery.py" --patch-set agent-exec-auth-scope "$AUTH_PATCH_MODE" >&2 ||
+    echo "[lite] WARNING: native auth scope patch unsupported; runtime drift requires review." >&2
+fi
+
 echo "[lite] Starting OpenClaw Gateway through fast recovery path..."
 exec openclaw gateway --bind "$GATEWAY_BIND" --port "$GATEWAY_PORT" --verbose
