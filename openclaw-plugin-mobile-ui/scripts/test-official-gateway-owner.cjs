@@ -37,6 +37,11 @@ const wait=()=>new Promise(r=>setImmediate(r));
   await fs.writeFile(path.join(root,'dist/plugin-sdk/secret-ref-runtime.js'),'export const resolveSecretRefValues=async()=>new Map();\n');
   const loaded=await loadOfficialGatewaySdk(path.join(bin,'openclaw'));assert.equal(typeof loaded.GatewayClient,'function');assert.equal(loaded.resolveGatewayPort(),18789);
   await assert.rejects(loadOfficialGatewaySdk(path.join(temp,'missing-binary')),e=>e.code==='ENOENT'&&e.message==='ENOENT');
+  // S24 layout: bin/openclaw is an executable shell wrapper (not a symlink); the package is the npm prefix sibling.
+  const wrapper=path.join(bin,'openclaw-wrapper');await fs.writeFile(wrapper,'#!/bin/sh\n# Synthetic wrapper fixture; must never execute.\n',{mode:0o755});
+  const wrapped=await loadOfficialGatewaySdk(wrapper);assert.equal(typeof wrapped.GatewayClient,'function');assert.equal(wrapped.resolveGatewayPort(),18789);
+  const lone=path.join(temp,'lone/bin/openclaw');await fs.mkdir(path.dirname(lone),{recursive:true});await fs.writeFile(lone,'#!/bin/sh\n',{mode:0o755});
+  await assert.rejects(loadOfficialGatewaySdk(lone),e=>e.code==='ENOENT'&&e.message==='ENOENT');
  }finally{await fs.rm(temp,{recursive:true,force:true});}
  console.log('Official Gateway owner: synthetic global exports, canonical SDK configuration, closed local auth, reduced scopes, hello readiness, late-init shutdown and fixed errors passed; no S24 handshake qualification');
 })().catch(()=>{console.error('OFFICIAL_GATEWAY_OWNER_TEST_FAILED');process.exitCode=1});
