@@ -125,7 +125,8 @@ def _read_intent_input():
             if len(data) > 32768:
                 raise ValueError("intent_private_input_too_large")
         value = json.loads(data)
-        if (not isinstance(value, dict) or set(value) not in ({"request", "client_context"}, {"request", "client_context", "host_context"}) or
+        if (not isinstance(value, dict) or set(value) not in ({"request", "client_context"}, {"request", "client_context", "host_context"},
+                {"request", "client_context", "service_scope"}, {"request", "client_context", "service_scope", "host_context"}) or
                 not isinstance(value["request"], str) or not 0 < len(value["request"]) <= 12000 or
                 not isinstance(value["client_context"], dict) or
                 value["client_context"].get("schema_version") != "mcp-input.v1" or
@@ -144,14 +145,19 @@ def _admit_intent_host_context(packet, args):
     WeakMap. This process also verifies the inherited same-UID IPC channel and
     exact bindings before importing a context owner or opening private data.
     """
+    scope = packet.get('service_scope')
+    if (not isinstance(scope, dict) or set(scope) != {'schema_version', 'domain_id'} or
+            scope != {'schema_version': 'mcp-service.v1', 'domain_id': 'pulse'}):
+        raise ValueError('MCP_INTERPRETATION_SERVICE_REQUIRED')
     if "host_context" not in packet:
-        return None  # Older packets stay unqualified for the C9 private reader.
+        raise ValueError('MCP_INTERPRETATION_SERVICE_UNVERIFIED')
     host = packet["host_context"]
     fields = {"schema_version", "client_id", "authenticated_profile", "request_id", "observed_at", "valid_until",
-              "principal_ref", "conversation_key", "verification_ref", "input_digest"}
+              "principal_ref", "conversation_key", "verification_ref", "input_digest", "service_scope"}
     now = time.time()
     if (_INTENT_PRIVATE_CHANNEL is not _INTENT_CHANNEL_SEAL or not isinstance(host, dict) or set(host) != fields or
-            host["schema_version"] != "mcp-host-context.v1" or host["authenticated_profile"] != "chat-owner" or
+            host["schema_version"] != "mcp-host-context.v2" or host["authenticated_profile"] != "chat-owner" or
+            host.get('service_scope') != scope or
             args.surface != "mcp" or args.caller != "owner" or
             not isinstance(host["client_id"], str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,24}", host["client_id"]) or
             not isinstance(host["request_id"], str) or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", host["request_id"]) or
@@ -166,7 +172,7 @@ def _admit_intent_host_context(packet, args):
     if (host["conversation_key"] != expected_key or event.get("conversationKey") != expected_key or
             event.get("eventRef") != host["request_id"]):
         raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
-    raw = json.dumps({"request": packet["request"], "client_context": packet["client_context"]},
+    raw = json.dumps({"request": packet["request"], "client_context": packet["client_context"], "service_scope": scope},
                      sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
     if host["input_digest"] != hashlib.sha256(raw).hexdigest():
         raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
@@ -180,7 +186,7 @@ def _admit_intent_host_context(packet, args):
         authenticated_profile=host["authenticated_profile"], channel_verified=True,
         home=Path.home(), core_owner_root=Path(__file__).resolve().parent,
         request_id=host["request_id"], principal_ref=host["principal_ref"], verification_ref=host["verification_ref"],
-        observed_at=host["observed_at"], valid_until=host["valid_until"])
+        observed_at=host["observed_at"], valid_until=host["valid_until"], service_domain=scope['domain_id'])
 
 
 def _ui_root() -> Path:
@@ -1760,7 +1766,8 @@ def main() -> int:
                 # ModelGovernor owns a private SQLite database.
                 raise ValueError("SHARED_CONTEXT_ACCESS_UNVERIFIED")
         except Exception as error:
-            reason = "SHARED_CONTEXT_ACCESS_UNVERIFIED" if str(error) == "SHARED_CONTEXT_ACCESS_UNVERIFIED" else "INTERPRETATION_HOST_UNAVAILABLE"
+            reason = (str(error) if str(error) == "SHARED_CONTEXT_ACCESS_UNVERIFIED" or
+                      str(error).startswith('MCP_INTERPRETATION_SERVICE_') else "INTERPRETATION_HOST_UNAVAILABLE")
             print(json.dumps({"status": "known_error", "reason": reason,
                               "execution_state": "not_started", "intentInputProtocol": "mcp-input.v1",
                               **({"intentReadProtocol":"mcp-read.v1"} if args.intent_read_only else {})}))

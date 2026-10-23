@@ -148,8 +148,8 @@ class IntentPortTests(unittest.TestCase):
 
     def test_host_context_admission_rejects_unbound_metadata_before_import_or_io(self):
         import base64,copy,hashlib,time
-        now=time.time();packet={'request':'exact','client_context':{'conversation_ref':'thread'}}
-        host={'schema_version':'mcp-host-context.v1','client_id':'fixture','authenticated_profile':'chat-owner',
+        now=time.time();packet={'request':'exact','client_context':{'conversation_ref':'thread'},'service_scope':{'schema_version':'mcp-service.v1','domain_id':'pulse'}}
+        host={'service_scope':packet['service_scope'],'schema_version':'mcp-host-context.v2','client_id':'fixture','authenticated_profile':'chat-owner',
               'request_id':'request','observed_at':now-1,'valid_until':now+20,'principal_ref':'mcp:fixture',
               'conversation_key':'external_mcp:fixture:thread','verification_ref':'mcp-context:request',
               'input_digest':hashlib.sha256(json.dumps(packet,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
@@ -173,11 +173,12 @@ class IntentPortTests(unittest.TestCase):
              patch('builtins.__import__',side_effect=AssertionError('unqualified channel imported owner')):
             with self.assertRaisesRegex(ValueError,'SHARED_CONTEXT_ACCESS_UNVERIFIED'):
                 m._admit_intent_host_context(packet,args)
-        self.assertIsNone(m._admit_intent_host_context({'request':'x','client_context':{}},args))
+        with self.assertRaisesRegex(ValueError,'MCP_INTERPRETATION_SERVICE_REQUIRED'):
+            m._admit_intent_host_context({'request':'x','client_context':{}},args)
 
     def test_private_mcp_without_host_proof_refuses_before_any_backend_construction(self):
         import io
-        payload={'request':'read','client_context':{'schema_version':'mcp-input.v1'}}
+        payload={'request':'read','client_context':{'schema_version':'mcp-input.v1'},'service_scope':{'schema_version':'mcp-service.v1','domain_id':'pulse'}}
         argv=['model-fast-path.py','--intent-context-stdin','--intent-read-only','--dialogue','preview','--surface','mcp']
         with patch.object(sys,'argv',argv),patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}), \
              patch.object(m,'_read_intent_input',return_value=payload), \
@@ -185,7 +186,7 @@ class IntentPortTests(unittest.TestCase):
              patch.object(m,'_dialogue_coordinator',side_effect=AssertionError('private dialogue state')) as coordinator, \
              patch.object(sys,'stdout',new_callable=io.StringIO) as output:
             self.assertEqual(m.main(),1)
-            self.assertEqual(json.loads(output.getvalue())['reason'],'SHARED_CONTEXT_ACCESS_UNVERIFIED')
+            self.assertEqual(json.loads(output.getvalue())['reason'],'MCP_INTERPRETATION_SERVICE_UNVERIFIED')
             backend.assert_not_called();coordinator.assert_not_called()
 
     def test_context_proof_request_id_is_host_scoped_not_client_event(self):

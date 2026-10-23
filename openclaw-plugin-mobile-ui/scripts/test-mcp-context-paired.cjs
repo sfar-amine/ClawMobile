@@ -1,3 +1,4 @@
+const serviceScope={schema_version:'mcp-service.v1',domain_id:'pulse'};
 // Immutable paired repository fixture: actual owners, Recorded/MOCK inference, no provider or business effect.
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {execFileSync}=require('node:child_process');
@@ -21,7 +22,7 @@ host.runModelFastPath=async(text,options)=>{
 const mcp=require(core+'/openclaw-plugin-mobile-ui/dist/companion/mcpBridge');
 const context=(thread,text)=>({schema_version:'mcp-input.v1',original_message:{text,ref:'current'},conversation_ref:thread,local_revision:0,relevant_turns:[],entity_references:[],active_goal_ref:null,pending_question_ref:null,confirmation_ref:null,user_reply_ref:null,completeness:'complete',missing:[]});
 const invoke=(action,thread,text,admit=true,profile='chat-owner')=>{
- const frame={type:'mcp_request',requestId:'mcp-claude-chat-'+action+'-execute',clientId:'claude-chat',profile,tool:'claw_execute',arguments:{request:text,client_context:context(thread,text),action_key:action}};
+ const frame={type:'mcp_request',interpretationService:serviceScope,requestId:'mcp-claude-chat-'+action+'-execute',clientId:'claude-chat',profile,tool:'claw_execute',arguments:{request:text,service_scope:serviceScope,client_context:context(thread,text),action_key:action}};
  if(admit)bridge.registerAuthenticatedMcpRelayMessage(frame);
  return mcp.handleMcpRelayRequest(frame);
 };
@@ -30,7 +31,7 @@ const rows=()=>fs.existsSync(path.join(root,'audit.jsonl'))?fs.readFileSync(path
  try{
   const text='  Lis huwaei\n';
   const forged=await invoke('unadmitted','forged',text,false);
-  assert.equal(forged.state,'failed');assert.equal(forged.reason,'SHARED_CONTEXT_ACCESS_UNVERIFIED',JSON.stringify(forged));
+  assert.equal(forged.state,'failed');assert.equal(forged.reason,'MCP_INTERPRETATION_SERVICE_UNVERIFIED',JSON.stringify(forged));
   assert.equal(rows().length,0,'public owner JSON does not open private sources');
   const shadow=await invoke('shadow','shadow',text,true,'chat-owner-shadow');assert.notEqual(shadow.state,'completed');
   assert.equal(rows().length,0,'shadow does not open private sources');
@@ -41,9 +42,9 @@ const rows=()=>fs.existsSync(path.join(root,'audit.jsonl'))?fs.readFileSync(path
   assert.ok(first.interpretation_receipt.shared_source_refs.some(row=>row.ref==='EVT-3'));
   assert.ok(!JSON.stringify(first).includes('Synthetic full owner constraint'),'only source metadata reaches receipt');
   const replay=await invoke('pair-one','thread-one',text);
-  assert.equal(replay.state,'completed');assert.equal(helperCalls,3);
+  assert.equal(replay.state,'completed');assert.equal(helperCalls,1);
   const two=await invoke('pair-two','thread-two',text);assert.equal(two.state,'completed');
-  const previewFrame={type:'mcp_request',requestId:'mcp-claude-chat-preview',clientId:'claude-chat',profile:'chat-owner',tool:'claw_resolve',arguments:{request:text,client_context:context('thread-preview',text)}};
+  const previewFrame={type:'mcp_request',interpretationService:serviceScope,requestId:'mcp-claude-chat-preview',clientId:'claude-chat',profile:'chat-owner',tool:'claw_resolve',arguments:{request:text,service_scope:serviceScope,client_context:context('thread-preview',text)}};
   bridge.registerAuthenticatedMcpRelayMessage(previewFrame);
   const preview=await mcp.handleMcpRelayRequest(previewFrame);
   assert.equal(preview.state,'resolved',JSON.stringify(preview));

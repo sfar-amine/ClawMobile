@@ -261,6 +261,10 @@ export class VoiceRelay {
         requestId,
         clientId: String(auth.clientId || ""),
         profile: String(auth.profile || ""),
+        // Service metadata comes from server auth, never from arguments alone.
+        ...(auth.profile === "chat-owner" && auth.interpretationServices?.includes("pulse") &&
+            args?.client_context && args?.service_scope?.schema_version === "mcp-service.v1" && args?.service_scope?.domain_id === "pulse"
+          ? { interpretationService: { schema_version: "mcp-service.v1", domain_id: "pulse" } } : {}),
         tool: String(tool || ""),
         arguments: args || {},
       }),

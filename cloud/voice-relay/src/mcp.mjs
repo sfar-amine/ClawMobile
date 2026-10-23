@@ -91,7 +91,11 @@ export async function authenticateMcpClient(request, env) {
     if (!SUPPORTED_PROFILES.has(profile)) {
       return { ok: false, status: 403, error: "unsupported_profile" };
     }
-    return { ok: true, clientId, profile };
+    const services = config.interpretation_services === undefined ? [] : config.interpretation_services;
+    if (!Array.isArray(services) || services.length > 1 || services.some(value => value !== "pulse")) {
+      return { ok: false, status: 403, error: "invalid_interpretation_services_config" };
+    }
+    return { ok: true, clientId, profile, ...(services.length ? { interpretationServices: [...services] } : {}) };
   }
   return { ok: false, status: 401, error: "unauthorized" };
 }
@@ -148,6 +152,8 @@ function relayRequestId(clientId, tool, args) {
 
 // Additive client-owned transcript data. It never carries a caller, intent or permission.
 const clientRef = z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/);
+const serviceScopeSchema = z.strictObject({ schema_version: z.literal("mcp-service.v1"), domain_id: z.literal("pulse") })
+  .describe("Declared service selector only. Requires a matching server-configured binding; never grants DATA admission or business permission.");
 const clientContextSchema = z.strictObject({
   schema_version: z.literal("mcp-input.v1"),
   original_message: z.strictObject({ text: z.string().min(1).max(12000), ref: clientRef.nullable() }),
@@ -169,6 +175,13 @@ function registerTools(server, auth, invoke) {
   const run = (tool) => async (args, extra) => {
     if (!toolAllowed(auth.profile, tool)) return toolError("tool_not_allowed");
     try {
+      const migrated = Object.prototype.hasOwnProperty.call(args || {}, "client_context");
+      if ((tool === "claw_resolve" || tool === "claw_execute") && (migrated || args?.service_scope !== undefined)) {
+        if (!migrated) throw new Error("client_context_required_for_service_scope");
+        if (!serviceScopeSchema.safeParse(args.service_scope).success) throw new Error("MCP_INTERPRETATION_SERVICE_REQUIRED");
+        if (auth.profile !== "chat-owner" || !auth.interpretationServices?.includes("pulse"))
+          throw new Error("MCP_INTERPRETATION_SERVICE_UNVERIFIED");
+      }
       const requestId = relayRequestId(auth.clientId, tool, args);
       const value = await invoke(tool, args || {}, auth, {
         requestId,
@@ -203,6 +216,7 @@ function registerTools(server, auth, invoke) {
     inputSchema: {
       request: z.string().min(1).max(12000),
       client_context: clientContextSchema.optional(),
+      service_scope: serviceScopeSchema.optional(),
       target_hint: z.string().max(128).optional(),
     },
     annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
@@ -217,6 +231,7 @@ function registerTools(server, auth, invoke) {
     inputSchema: {
       request: z.string().min(1).max(12000),
       client_context: clientContextSchema.optional(),
+      service_scope: serviceScopeSchema.optional(),
       action_key: z.string().regex(ACTION_ID_RE),
       step_key: z.string().regex(STEP_ID_RE).optional(),
       target_hint: z.string().max(128).optional(),

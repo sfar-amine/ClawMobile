@@ -1,3 +1,4 @@
+const serviceScope={schema_version:'mcp-service.v1',domain_id:'pulse'};
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const os=require('node:os');
@@ -12,8 +13,11 @@ const {INTENT_READ_PROTOCOL,runModelFastPath}=require('../dist/modelFastPath.js'
   const helper=path.join(tmp,'helper.py');
   fs.writeFileSync(helper,`import json,sys\npayload=json.load(sys.stdin)\nassert '--intent-read-only' in sys.argv\nassert '--intent-context-stdin' in sys.argv\nprint(json.dumps({'status':'hit','execution_state':'completed','result':{'fixture':True},'intentInputProtocol':'mcp-input.v1','intentReadProtocol':'mcp-read.v1'}))\n`);
   const text='  Read exact  ';
-  const input={request:text,client_context:{schema_version:'mcp-input.v1',original_message:{text}}};
-  const options={helperPath:helper,surface:'mcp',caller:'owner',dialogue:{mode:'preview',event:{conversationKey:'external_mcp:client:thread',eventRef:'canonical-request'}},intentContext:input,intentReadOnly:true};
+  const input={request:text,service_scope:serviceScope,client_context:{schema_version:'mcp-input.v1',original_message:{text},conversation_ref:'thread'}};
+  const bridge=require('../dist/companion/remoteBridge');
+  const admission={type:'mcp_request',clientId:'client',profile:'chat-owner',requestId:'canonical-request',interpretationService:serviceScope};
+  bridge.registerAuthenticatedMcpRelayMessage(admission);
+  const options={requestId:'canonical-request',originId:'canonical-request',intentContextAdmission:admission,helperPath:helper,surface:'mcp',caller:'owner',dialogue:{mode:'preview',event:{conversationKey:'external_mcp:client:thread',eventRef:'canonical-request'}},intentContext:input,intentReadOnly:true};
   const result=await runModelFastPath(text,options);
   assert.equal(result.status,'hit');assert.equal(result.intentReadProtocol,'mcp-read.v1');
   assert.equal((await runModelFastPath(text,{...options,intentContext:undefined})).reason,'INTERPRETATION_HOST_UNAVAILABLE');
@@ -33,12 +37,12 @@ const {INTENT_READ_PROTOCOL,runModelFastPath}=require('../dist/modelFastPath.js'
   const previousRoot=process.env.CLAW_UI_PLAYBOOKS_ROOT;
   try{
     process.env.CLAW_UI_PLAYBOOKS_ROOT=path.join(tmp,'missing-playbooks');
-    const real=await runModelFastPath(text,{...options,helperPath:path.resolve(__dirname,'../../installer/termux-lite/model-fast-path.py')});
-    assert.equal(real.intentInputProtocol,'mcp-input.v1');
-    assert.equal(real.intentReadProtocol,'mcp-read.v1');
+    const real=await runModelFastPath(text,{...options,intentContextAdmission:undefined,helperPath:path.resolve(__dirname,'../../installer/termux-lite/model-fast-path.py')});
+    assert.equal(real.execution_state,'not_started');
+    assert.equal(real.status,'known_error');
     // The real C12 helper rejects missing private owner admission before it
     // attempts to load the (deliberately missing) playbooks backend.
-    assert.equal(real.reason,'SHARED_CONTEXT_ACCESS_UNVERIFIED');
+    assert.equal(real.reason,'MCP_INTERPRETATION_SERVICE_UNVERIFIED');
   }finally{if(previousRoot===undefined)delete process.env.CLAW_UI_PLAYBOOKS_ROOT;else process.env.CLAW_UI_PLAYBOOKS_ROOT=previousRoot;}
   console.log('MCP read host port and bounded pilot: 18/18 assertions passed; no model, network or real read.');
  }finally{

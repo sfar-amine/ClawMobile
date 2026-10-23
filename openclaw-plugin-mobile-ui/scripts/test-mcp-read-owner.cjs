@@ -1,3 +1,4 @@
+const serviceScope={schema_version:'mcp-service.v1',domain_id:'pulse'};
 // Synthetic in-process ownership/receipt checks. No model, live source or business effect.
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'mcp-read-owner-'));
@@ -21,7 +22,7 @@ host.runModelFastPath=async(text,options)=>{
 const {handleMcpRelayRequest}=require('../dist/companion/mcpBridge');
 const input={schema_version:'mcp-input.v1',original_message:{text:'État de cette offre',ref:'turn-1'},conversation_ref:'fixture-thread',local_revision:1,relevant_turns:[],entity_references:[],active_goal_ref:null,pending_question_ref:null,confirmation_ref:null,user_reply_ref:null,completeness:'complete',missing:[]};
 const clone=x=>JSON.parse(JSON.stringify(x));
-const invoke=(context=input,action='read-probe')=>handleMcpRelayRequest({requestId:`mcp-claude-chat-${action}-execute`,clientId:'claude-chat',profile:'chat-owner',tool:'claw_execute',arguments:{request:context.original_message.text,client_context:context,action_key:action}});
+const invoke=(context=input,action='read-probe')=>{const frame={type:'mcp_request',interpretationService:serviceScope,requestId:`mcp-claude-chat-${action}-execute`,clientId:'claude-chat',profile:'chat-owner',tool:'claw_execute',arguments:{request:context.original_message.text,service_scope:serviceScope,client_context:context,action_key:action}};bridge.registerAuthenticatedMcpRelayMessage(frame);return handleMcpRelayRequest(frame);};
 let n=0;const check=(ok,message)=>{assert.ok(ok,message);n++;};
 (async()=>{try{
  const first=invoke();await startedPromise;
