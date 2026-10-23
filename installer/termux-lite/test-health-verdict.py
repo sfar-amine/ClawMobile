@@ -12,6 +12,24 @@ class T(unittest.TestCase):
    w=x['device.network_safety.wifi_unmanaged'];self.assertEqual((w['state'],w['critical'],w['reason']),('degraded',False,'wifi_disabled_without_lease'))
    path.write_text(json.dumps({'checked_at':hv.NOW,'state':'healthy','reason':'network_settings_clean','warnings':[]}))
    self.assertNotIn('device.network_safety.wifi_unmanaged',hv.network_safety_items(path))
+ def test_oauth_health_reports_status_and_expiry_without_identity(self):
+  def raw(*profiles,warn=86400000):return json.dumps({'auth':{'oauth':{'warnAfterMs':warn,'profiles':list(profiles)}}})
+  ok={'provider':'openai','type':'oauth','status':'ok','remainingMs':9*86400000,'label':'openai:someone@example.com'}
+  self.assertEqual(hv.oauth_health(raw(ok,{'provider':'google','type':'api_key','status':'static'})),('healthy','oauth ok, 9 d left'))
+  state,reason=hv.oauth_health(raw({**ok,'remainingMs':3*3600000}))
+  self.assertEqual(state,'degraded');self.assertIn('expires in 3 h',reason);self.assertNotIn('example.com',reason)
+  self.assertEqual(hv.oauth_health(raw({**ok,'status':'expired'}))[0],'degraded')
+  self.assertEqual(hv.oauth_health(raw())[0],'unverified');self.assertEqual(hv.oauth_health('')[0],'unverified')
+  row=hv.external_readiness('degraded',False,reason='x');self.assertFalse(row['restart_allowed'])
+ def test_oauth_probe_is_cached_and_redacted(self):
+  calls=[]
+  def probe():
+   calls.append(1);return json.dumps({'auth':{'oauth':{'profiles':[{'provider':'openai','type':'oauth','status':'ok','remainingMs':5*86400000,'label':'openai:someone@example.com'}]}}})
+  with tempfile.TemporaryDirectory() as td:
+   path=Path(td)/'oauth.json'
+   self.assertEqual(hv.oauth_readiness(path,probe)[:2],('healthy','oauth ok, 5 d left'))
+   self.assertEqual(hv.oauth_readiness(path,probe)[:2],('healthy','oauth ok, 5 d left'))
+   self.assertEqual(len(calls),1);self.assertNotIn('example.com',path.read_text())
  def test_item(self):
   x=hv.item('healthy',True,evidence='x');self.assertEqual(x['state'],'healthy');self.assertTrue(x['critical'])
  def test_continuation_gap(self):
