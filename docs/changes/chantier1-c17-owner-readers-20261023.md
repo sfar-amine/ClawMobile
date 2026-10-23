@@ -31,3 +31,9 @@ historiques attestent le format des propriétaires, pas l'admission de ce code
 ni les nouvelles consignes à déployer. Activation et qualification appartiennent
 à la livraison root après toutes les vérifications. Retour arrière : revert
 apparié des sources via les propriétaires existants ; aucun effet à rejouer.
+
+Reprise dans le nouveau Cloud : les 95 tests core passent (10 lecteurs, 38 QA,
+47 allowlist), sans EAGAIN. Pipe QA privé 4/4, build TypeScript et 34/34 contrôles
+hôte natif sous Node20 passent aussi. Les 79 tests PB C17/C18/C16/A1/A2 incluent
+le vrai IPC privé sur ce core. La CI canonique numérotée et la recette LIVE
+restent ouvertes ; ce relevé ne qualifie aucun compte, ACL ou activation.
