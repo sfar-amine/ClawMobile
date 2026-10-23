@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "id": "chantier1-semantic-render-20261024",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Les exécutions terminées d'un tour interprété sont rendues par le même propriétaire que le chemin lexical (résultat métier au lieu du texte générique).",
+  "reason": "Audit du 24/10 pendant la bascule des écritures : sous l'interprète, le texte d'une exécution terminée était vide et l'app affichait « Claw completed the capability. ».",
+  "files": [
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-model-fast-path-intent.py",
+    "docs/changes/chantier1-semantic-render-20261024.md",
+    "docs/changes/chantier1-semantic-render-20261024.json"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-model-fast-path-intent.py",
+      "status": "passed",
+      "evidence": "exécution interprétée terminée rendue comme le chemin lexical ; échec, phrase du propriétaire et état partiel inchangés ; décision du dialogue conservée"
+    },
+    {
+      "name": "installer/termux-lite/test-model-fast-path-dialogue.py, test-model-fast-path-generic-display.py, test-consultation-fastpath.py, test-model-fast-path-web.py",
+      "status": "passed",
+      "evidence": "chemin lexical inchangé"
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier1-semantic-render-20261024.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Rendu seulement ; aucune route ni capacité modifiée."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Factorisation du rendu existant du helper en une fonction appelée par les deux chemins ; aucun nouveau propriétaire."
+  },
+  "rollback": "Revert de cette PR et redéploiement du SHA précédent."
+}

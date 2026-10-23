@@ -1257,6 +1257,51 @@ def _execute_web_resolved(message: str, resolution: dict[str, Any], decision: di
             "decision": executed.get("decision") or decision, "model_bypassed": True, **metadata}
 
 
+def _completed_execution(executed: dict[str, Any], decision: dict[str, Any] | None) -> dict[str, Any]:
+    """The one rendering of a completed Graph execution, for the lexical and the interpreted paths."""
+    execution = executed.get("execution") if isinstance(executed.get("execution"), dict) else {}
+    selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
+    metadata = _presentation_metadata(executed)
+    payload = execution.get("result")
+    reason_class = _public_reason_class(payload)
+    executed_decision = executed.get("decision") if isinstance(executed.get("decision"), dict) else {}
+    decision_selected = executed_decision.get("selected") if isinstance(executed_decision.get("selected"), dict) else {}
+    resolved_risk = selected.get("risk") or decision_selected.get("risk")
+    generic_renders = [0]
+    rendered = _display_text(payload, card=resolved_risk != "read", generic_renders=generic_renders)
+    capability = selected.get("capability")
+    diagnostics = {"genericDisplayByCapability": [{"capability": capability, "renders": generic_renders[0]}]} if generic_renders[0] and isinstance(capability, str) and re.fullmatch(r"[a-z][a-z0-9_.-]{0,159}", capability) else None
+    return {
+        # A proven read renders its business result instead of an opaque receipt card.  For every other
+        # risk (including missing metadata), the explicit owner presentation remains authoritative.
+        "status": "hit", "source": "capability",
+        "text": _understood_prefix(metadata, rendered),
+        **({"presentationDiagnostics": diagnostics} if diagnostics else {}),
+        **metadata,
+        "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
+        "route": selected.get("route"), "capability": selected.get("capability"),
+        "execution_state": str(execution.get("state") or ""), "decision": executed.get("decision") or decision or None,
+        "provenance": _execution_provenance(selected, execution),
+        **({"reason_class": reason_class} if reason_class else {}),
+        "model_bypassed": True,
+    }
+
+
+def _rendered_semantic_execution(out: Any) -> Any:
+    """The interpreted backend returns the Graph's own execution; render it like the lexical path.
+
+    Only a completed execution without an owner sentence is rendered; failures, waits and
+    owner-provided texts keep their existing presentation."""
+    if not isinstance(out, dict) or out.get("status") != "hit" or out.get("text"):
+        return out
+    executed = out.get("resolution")
+    execution = executed.get("execution") if isinstance(executed, dict) else None
+    if not isinstance(execution, dict) or str(execution.get("state") or "") not in SAFE_EXECUTION_STATES:
+        return out
+    # The dialogue's frozen decision stays the reply's decision.
+    return {**out, **_completed_execution(executed, out.get("decision")), "decision": out.get("decision") or executed.get("decision")}
+
+
 def execute_resolved(
     message: str,
     resolution: dict[str, Any],
@@ -1303,29 +1348,7 @@ def execute_resolved(
     selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
     metadata = _presentation_metadata(executed)
     if state in SAFE_EXECUTION_STATES:
-        payload = execution.get("result")
-        reason_class = _public_reason_class(payload)
-        executed_decision = executed.get("decision") if isinstance(executed.get("decision"), dict) else {}
-        decision_selected = executed_decision.get("selected") if isinstance(executed_decision.get("selected"), dict) else {}
-        resolved_risk = selected.get("risk") or decision_selected.get("risk")
-        generic_renders = [0]
-        rendered = _display_text(payload, card=resolved_risk != "read", generic_renders=generic_renders)
-        capability = selected.get("capability")
-        diagnostics = {"genericDisplayByCapability": [{"capability": capability, "renders": generic_renders[0]}]} if generic_renders[0] and isinstance(capability, str) and re.fullmatch(r"[a-z][a-z0-9_.-]{0,159}", capability) else None
-        return {
-            # A proven read renders its business result instead of an opaque receipt card.  For every other
-            # risk (including missing metadata), the explicit owner presentation remains authoritative.
-            "status": "hit", "source": "capability",
-            "text": _understood_prefix(metadata, rendered),
-            **({"presentationDiagnostics": diagnostics} if diagnostics else {}),
-            **metadata,
-            "result": payload, "target": selected.get("target"), "intent": selected.get("intent"),
-            "route": selected.get("route"), "capability": selected.get("capability"),
-            "execution_state": state, "decision": executed.get("decision") or decision or None,
-            "provenance": _execution_provenance(selected, execution),
-            **({"reason_class": reason_class} if reason_class else {}),
-            "model_bypassed": True,
-        }
+        return _completed_execution(executed, decision)
     if state == "needs_clarification" and isinstance(executed.get("decision"), dict) and executed["decision"].get("type") == "CLARIFY":
         # Amine 12/10 : several matches → one question listing them; nothing was executed.
         choices = [c for c in (execution.get("choices") or []) if isinstance(c, dict) and _plain_display(c.get("label"), 120)]
@@ -1509,7 +1532,7 @@ class FastPathPorts:
             except Exception:
                 return {"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
                         "execution_state": "not_started"}
-            return self._track_execution(backend.execute(text, decision, origin_id, klass, ctx))
+            return self._track_execution(_rendered_semantic_execution(backend.execute(text, decision, origin_id, klass, ctx)))
         resolution = self._resolutions.get(str(decision.get("decisionId")))
         if _is_web_capability(decision, resolution):
             return self._execute_web(text, decision, resolution, origin_id, ctx)

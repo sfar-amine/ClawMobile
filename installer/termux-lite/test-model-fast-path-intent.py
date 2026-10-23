@@ -46,6 +46,26 @@ class IntentPortTests(unittest.TestCase):
             self.assertEqual(factory.call_count,1)
             self.assertIs(calls[0],grant)
 
+    def test_interpreted_execution_is_rendered_like_the_lexical_path(self):
+        # The backend returns the Graph's execution untouched (no owner sentence). The helper
+        # renders it with the same owner as the lexical path, never "Claw completed the capability."
+        graph={'selected':{'risk':'read','capability':'telecom.orange.consultation','target':'maxit-tunisie'},
+               'decision':{'selected':{'risk':'read'}},
+               'execution':{'state':'completed','result':{'text':'Solde : 12,500 DT'}}}
+        backend=SimpleNamespace(execute=lambda *a:{'status':'hit','text':'','execution_state':'completed','resolution':graph,'decision':{'d':1}})
+        with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}), patch.object(m,'_intent_dialogue_backend',return_value=backend):
+            out=self.ports().execute('mon solde',{},'origin','FAST',{})
+        self.assertEqual(out['status'],'hit')
+        self.assertEqual(out['text'],'Solde : 12,500 DT')
+        self.assertEqual(out['result'],{'text':'Solde : 12,500 DT'})
+        self.assertEqual(out['decision'],{'d':1})
+        for kept in ({'status':'known_error','text':'','resolution':graph},
+                     {'status':'hit','text':'Phrase du propriétaire','resolution':graph},
+                     {'status':'hit','text':'','resolution':{**graph,'execution':{'state':'partial'}}}):
+            backend=SimpleNamespace(execute=lambda *a,kept=kept:dict(kept))
+            with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}), patch.object(m,'_intent_dialogue_backend',return_value=backend):
+                self.assertEqual(self.ports().execute('x',{},'o','FAST',{}),kept)
+
     def test_enabled_data_refusal_never_calls_legacy_resolver(self):
         refusal={'status':'known_error','reason':'DATA_PROFILE_UNVERIFIED','execution_state':'not_started'}
         backend=SimpleNamespace(preview=lambda text,ctx:refusal)
