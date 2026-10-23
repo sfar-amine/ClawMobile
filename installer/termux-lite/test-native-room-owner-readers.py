@@ -51,10 +51,23 @@ class OwnerReaderTests(unittest.TestCase):
             def __exit__(self,*args):
                 positions.append(os.lseek(self.file.fileno(),0,os.SEEK_CUR))
                 self.file.close()
-        with patch.object(people.os,'fdopen',Watched):
-            value=self.owner.metadata('+21620000001')
-        self.assertEqual(value,self.header)
-        self.assertEqual(positions,[len(self.prefix)])
+        prefix=self.prefix[:-1]
+        for suffix in [b'\nPRIVATE NOTE',b'PRIVATE NOTE WITHOUT NEWLINE',b'']:
+            with self.subTest(suffix=suffix):
+                positions.clear()
+                self.contact.write_bytes(prefix+suffix)
+                with patch.object(people.os,'fdopen',Watched):
+                    value=self.owner.metadata('+21620000001')
+                self.assertEqual(value,self.header)
+                self.assertEqual(positions,[len(prefix)])
+
+    def test_invalid_end_marker_refused(self):
+        prefix=(people.MARKER+'\n'+people.canonical(self.header)+'\n').encode()
+        for marker in [people.END[:-1].encode(),b'INVALID END MARKER\nPRIVATE NOTE']:
+            with self.subTest(marker=marker):
+                self.contact.write_bytes(prefix+marker)
+                with self.assertRaises(people.Refused):
+                    self.owner.metadata('+21620000001')
 
     def test_unmanaged_note_stops_after_first_line(self):
         self.contact.write_bytes(b'not an owner header\nPRIVATE NOTE')

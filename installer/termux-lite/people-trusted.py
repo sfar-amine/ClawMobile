@@ -1154,7 +1154,9 @@ class Contacts:
     def metadata(self, number):
         path=self.path(number)
         try:
-            # Read only the three-line owner header. O_NONBLOCK + fstat reject
+            # Read the two header lines and the fixed end marker only.
+            # Never scan the following note, even without a separating newline.
+            # O_NONBLOCK + fstat reject
             # FIFOs/devices before any read; O_NOFOLLOW closes the symlink race.
             fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
             with os.fdopen(fd,'rb',buffering=0) as file:
@@ -1162,11 +1164,16 @@ class Contacts:
                 if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid():
                     fail('contact_state_invalid',503)
                 lines=[];remaining=CONTACT_HEADER_BYTES
-                for index in range(3):
+                for index in range(2):
                     line=file.readline(remaining+1)
                     if len(line)>remaining: fail('contact_state_invalid',503)
                     if index==0 and line!=(MARKER+'\n').encode(): return None
                     lines.append(line);remaining-=len(line)
+                end=END.encode()
+                if len(end)>remaining: fail('contact_state_invalid',503)
+                marker=file.read(len(end))
+                if marker!=end: fail('contact_state_invalid',503)
+                lines.append(marker)
                 prefix=b''.join(lines)
         except FileNotFoundError: return None
         except OSError: fail('contact_state_invalid', 503)

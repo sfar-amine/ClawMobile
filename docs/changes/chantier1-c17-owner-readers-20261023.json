@@ -19,12 +19,12 @@
     {
       "name": "Native owner reader boundaries",
       "status": "passed",
-      "evidence": "9/9 tests, synthetic owner files, no provider; /tmp/chantier1-c17-owner-readers-targeted.log"
+      "evidence": "10/10 tests, including fixed END boundary with no separating newline and invalid END; synthetic owner files, no provider; /tmp/chantier1-c17-owner-readers-boundary-regressions-20261023.log"
     },
     {
       "name": "Existing owner regressions",
       "status": "passed",
-      "evidence": "38 QA access + 47 allowlist tests; /tmp/chantier1-c17-existing-owner-regressions.log"
+      "evidence": "38 QA access + 47 allowlist tests rerun after fixed END boundary; /tmp/chantier1-c17-owner-readers-boundary-regressions-20261023.log"
     }
   ],
   "documentation": [
