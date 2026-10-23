@@ -26,11 +26,15 @@ const options = { workers: [{ name: 'relay', modules: true,
   import { WorkerEntrypoint } from 'cloudflare:workers';
   export default class extends WorkerEntrypoint {
     validateToken(audience, token) {
-      if (!['fixture-valid','fixture-wrong-scope','fixture-expired','fixture-wrong-audience'].includes(token)) return null;
+      if (!['fixture-valid','fixture-wrong-scope','fixture-expired','fixture-wrong-audience',
+            'fixture-owner','fixture-owner-no-consent','fixture-consent-no-scope'].includes(token)) return null;
       return { audience: token === 'fixture-wrong-audience' ? 'https://other.example/mcp' : audience,
-        scope: token === 'fixture-wrong-scope' ? ['mcp:write'] : ['mcp:read'],
+        scope: token === 'fixture-wrong-scope' ? ['mcp:write'] :
+          ['fixture-owner','fixture-owner-no-consent'].includes(token) ? ['mcp:read','mcp:owner'] : ['mcp:read'],
         expiresAt: Math.floor(Date.now()/1000) + (token === 'fixture-expired' ? -60 : 600),
-        userId:'fixture-owner', props:{userId:'fixture-owner'} };
+        userId:'fixture-owner', props:{userId:'fixture-owner',
+          ...(['fixture-owner','fixture-consent-no-scope'].includes(token)
+              ? {access:'owner',ownerConsentVersion:1} : {})} };
     }
     fetch() { return new Response('local fixture'); }
   }` }] };
@@ -53,12 +57,19 @@ try {
   assert.equal(oauth.status,200);
   assert.ok(oauth.body.result.tools.some(tool => tool.name === 'claw_context'));
   assert.ok(!oauth.body.result.tools.some(tool => tool.name === 'claw_exec'));
+  const owner=await list('fixture-owner');
+  assert.equal(owner.status,200);
+  assert.ok(owner.body.result.tools.some(tool=>tool.name==='claw_exec'));
+  for (const token of ['fixture-owner-no-consent','fixture-consent-no-scope']) {
+    assert.equal((await list(token)).status,403,token);
+  }
   for (const id of ['claude-chat','codex-cloud']) {
     const result = await list('fixture-static-long-token-' + id);
     assert.equal(result.status,200,id);
     assert.ok(result.body.result.tools.some(tool => tool.name === 'claw_exec'));
   }
   console.log('OAuth RPC + tools/list: PASS (8 cases; real local Workerd service binding)');
+  console.log('OAuth owner palette and mismatched grant rejection: PASS (3 added cases)');
 } finally { await mf.dispose(); }
 
 
