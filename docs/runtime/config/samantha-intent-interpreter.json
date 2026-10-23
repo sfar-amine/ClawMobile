@@ -5,11 +5,11 @@
         "llm": {
           "allowModelOverride": true,
           "allowedModels": [
-            "google/gemini-3.5-flash-lite@google:claw-gemini-free",
+            "google/gemini-3.5-flash-lite",
             "openai/gpt-5.6-luna"
           ],
           "allowedCompletionModels": [
-            "google/gemini-3.5-flash-lite@google:claw-gemini-free",
+            "google/gemini-3.5-flash-lite",
             "openai/gpt-5.6-luna"
           ]
         }

@@ -90,6 +90,42 @@ def smtp_health(probe_path,events_path):
  if 'state=accepted' in last:return 'ready','latest_delivery_accepted',None
  if 'state=failed' in last:return 'down','latest_delivery_failed',None
  return 'unverified','no_delivery_or_probe_evidence',None
+def oauth_health(raw):
+ """Provider OAuth readiness as reported by OpenClaw (`models status --json`).
+
+ Luna is the only fallback of the intent interpreter (doc 71): an OAuth profile
+ that OpenClaw no longer reports as ok, or that expires within OpenClaw's own
+ warning window, needs a human reconnection before the fallback silently fails.
+ Only provider and status leave this function, never a label or an account.
+ """
+ try:
+  oauth=(json.loads(raw).get('auth') or {}).get('oauth') or {}
+  warn=float(oauth.get('warnAfterMs') or 86400000)
+  rows=[p for p in oauth.get('profiles') or [] if isinstance(p,dict) and p.get('type')=='oauth']
+ except (ValueError,TypeError,AttributeError):
+  return 'unverified','oauth status unreadable'
+ if not rows:return 'unverified','no oauth profile reported'
+ for p in rows:
+  provider=str(p.get('provider') or 'provider')[:40]
+  if p.get('status')!='ok':return 'degraded',f"{provider} oauth {str(p.get('status'))[:20]}: reconnect"
+  left=p.get('remainingMs')
+  if isinstance(left,(int,float)) and left<warn:return 'degraded',f"{provider} oauth expires in {max(0,int(left//3600000))} h: reconnect"
+ days=min(int(p['remainingMs']//86400000) for p in rows if isinstance(p.get('remainingMs'),(int,float))) if any(isinstance(p.get('remainingMs'),(int,float)) for p in rows) else None
+ return 'healthy','oauth ok'+(f', {days} d left' if days is not None else '')
+OAUTH_PROBE_EVERY_S=1800
+def oauth_readiness(path,probe=lambda:run('timeout 12 openclaw models status --json',14)):
+ """The verdict runs every 15 s; the OpenClaw CLI costs seconds. Probe at most every
+ 30 min and keep only the redacted state, never the raw status output."""
+ try:
+  cached=json.loads(path.read_text());fresh=NOW-float(cached['checked_at'])
+  if 0<=fresh<OAUTH_PROBE_EVERY_S:return cached['state'],cached['reason'],fresh
+ except (OSError,ValueError,TypeError,KeyError):pass
+ state,reason=oauth_health(probe())
+ try:
+  path.parent.mkdir(parents=True,exist_ok=True);tmp=path.with_suffix('.tmp')
+  tmp.write_text(json.dumps({'checked_at':NOW,'state':state,'reason':reason}));os.replace(tmp,path)
+ except OSError:pass
+ return state,reason,0.0
 def adb_recovery_readiness(path):
  try:
   row=json.loads(path.read_text()); fresh=NOW-float(row.get('checked_at',0)); state=row.get('state','unverified')
@@ -155,6 +191,8 @@ def live():
   x['transactions.runtime']=item(ts if ta<=MAINTENANCE_RECEIPT_STALE_S else 'stale',True,reason=f"pending_archives={td.get('pending_archives',0)} repeated_failures={repeated_failures(td)}",evidence=str(tx),freshness=ta)
  except (OSError,ValueError,TypeError):
   x['transactions.runtime']=item('unverified',True,reason='transaction health receipt absent or invalid',evidence=str(tx))
+ ostate,oreason,ofresh=oauth_readiness(OC/'health/provider-oauth.json')
+ x['provider.oauth']=external_readiness(ostate,False,reason=oreason,evidence='openclaw models status auth.oauth',freshness=ofresh)
  x['boot.persistence']=item('ready' if (H/'.termux/boot/start-samantha').exists() else 'down',True,evidence='Termux:Boot')
  x['chat.continuity']=item('ready' if (OC/'continuity/chatgpt-current.json').stat().st_size>0 else 'degraded',False,evidence='chat checkpoint') if (OC/'continuity/chatgpt-current.json').exists() else item('degraded',False,reason='checkpoint absent')
  return x

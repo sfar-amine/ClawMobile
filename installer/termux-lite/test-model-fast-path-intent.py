@@ -27,11 +27,11 @@ class IntentPortTests(unittest.TestCase):
         with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}):
             self.assertTrue(callable(self.ports().interpret_turn))
 
-    def test_live_voice_and_private_qa_remain_owned_by_their_existing_paths(self):
+    def test_voice_uses_the_interpreter_live_session_and_private_qa_keep_their_owners(self):
         with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}):
-            for surface in ('voice','claw_live'):
-                self.assertFalse(hasattr(self.ports(surface),'interpret_turn'))
-            self.assertFalse(hasattr(self.ports(web_host={'voice_delegation':True}),'interpret_turn'))
+            self.assertTrue(callable(self.ports('voice').interpret_turn))
+            self.assertTrue(callable(self.ports(web_host={'voice_delegation':True}).interpret_turn))
+            self.assertFalse(hasattr(self.ports('claw_live'),'interpret_turn'))
             with patch.object(m,'_QA_INGRESS_CONTEXT',object()):
                 self.assertFalse(hasattr(self.ports(),'interpret_turn'))
 

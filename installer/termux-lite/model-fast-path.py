@@ -1416,10 +1416,11 @@ class FastPathPorts:
         self.web_session_id = host.get("session_id") if isinstance(host.get("session_id"), str) and WEB_HOST_ID.fullmatch(host["session_id"]) else None
         self.web_voice = host.get("voice_delegation") is True
         self._semantic_backend = None
-        # Host deployment opt-in only. No natural word or client field toggles it.
-        # Claude owns direct/live voice; private QA ingress retains its own scope.
+        # Host deployment switch only. No natural word or client field toggles it.
+        # Doc 71: voice uses the same interpreter; Claude's own live session
+        # (claw_live) and private QA ingress keep their existing owners.
         self._semantic_enabled = (os.environ.get("SAMANTHA_INTENT_INTERPRETER") == "1" and
-            surface not in {"voice", "claw_live"} and not self.web_voice and _QA_INGRESS_CONTEXT is None)
+            surface != "claw_live" and _QA_INGRESS_CONTEXT is None)
         if self._semantic_enabled:
             self.interpret_turn = self._interpret_semantic_turn
 
@@ -1835,7 +1836,7 @@ def main() -> int:
             print(json.dumps({'status':'known_error','reason':'qa_scope_unavailable','execution_state':'not_started','model_bypassed':True}))
             return 1
     semantic_input = (os.environ.get("SAMANTHA_INTENT_INTERPRETER") == "1" and
-        args.surface not in {"voice", "claw_live"} and _QA_INGRESS_CONTEXT is None and not args.voice_delegation)
+        args.surface != "claw_live" and _QA_INGRESS_CONTEXT is None)
     message = " ".join(args.message) if semantic_input else " ".join(args.message).strip()
     if not message and not sys.stdin.isatty():
         raw_message = sys.stdin.read()

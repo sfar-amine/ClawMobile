@@ -28,9 +28,20 @@ async function selectedBinaryPath(binary:string):Promise<string>{
 async function ownerPackageRoot(start:string):Promise<string>{
  let current=path.dirname(start);
  for(let depth=0;depth<8;depth++){
-  try{const metadata=JSON.parse(await fs.readFile(path.join(current,"package.json"),"utf8"));if(metadata?.name==="openclaw")return current;}catch{}
+  if(await isOpenClawPackage(current))return current;
   const parent=path.dirname(current);if(parent===current)break;current=parent;
  }
+ throw fixedError("ENOENT");
+}
+async function isOpenClawPackage(directory:string):Promise<boolean>{
+ try{return JSON.parse(await fs.readFile(path.join(directory,"package.json"),"utf8"))?.name==="openclaw";}catch{return false;}
+}
+/** The S24 installs `bin/openclaw` as a shell wrapper, not a symlink into the package: realpath stays in `bin`.
+ *  The package is then the standard npm global prefix sibling of that executable, never a parsed script. */
+async function binaryPackageRoot(binary:string):Promise<string>{
+ try{return await ownerPackageRoot(binary);}catch{}
+ const prefixed=path.resolve(path.dirname(binary),"..","lib","node_modules","openclaw");
+ if(await isOpenClawPackage(prefixed))return prefixed;
  throw fixedError("ENOENT");
 }
 /** Discover only the installed package selected by module resolution or the existing CLI binary. */
@@ -38,7 +49,7 @@ async function officialSdkPackageRoot(binary:string):Promise<string>{
  let entry:string;
  try{entry=require.resolve("openclaw/plugin-sdk/gateway-runtime");}
  catch{
-  let root:string;try{root=await ownerPackageRoot(await selectedBinaryPath(binary));}catch(e:any){if(e?.code==="ENOENT")throw fixedError("ENOENT");throw fixedError("gateway_sdk_unavailable");}
+  let root:string;try{root=await binaryPackageRoot(await selectedBinaryPath(binary));}catch(e:any){if(e?.code==="ENOENT")throw fixedError("ENOENT");throw fixedError("gateway_sdk_unavailable");}
   try{entry=createRequire(path.join(root,"package.json")).resolve("openclaw/plugin-sdk/gateway-runtime");}catch{throw fixedError("ENOENT");}
  }
  const root=await ownerPackageRoot(entry);
