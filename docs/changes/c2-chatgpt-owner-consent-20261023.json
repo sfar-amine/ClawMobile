@@ -65,6 +65,6 @@
   "limitations": [
     "Exact numbered-PR canonical CI and local enriched Workerd RPC pending.",
     "Real ChatGPT OAuth owner grant requires reconnect and explicit browser consent after both Workers are published; old read grant is never upgraded silently.",
-    "Does not change the Cloud command sandbox or waive OTP, biometrics, banking or business confirmation gates."
+    "Does not change the Cloud command sandbox or waive human-presence, banking or business confirmation gates."
   ]
 }
