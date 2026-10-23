@@ -23,7 +23,9 @@ class TotalBound(unittest.TestCase):
         self.assertGreaterEqual(guard.CONSULTATION_RESTORE_RESERVE_S, 0.5 + 1.0 + TIMING["code_bounds"]["set_wifi_timeout_s"] + TIMING["code_bounds"]["adb_call_timeout_s"])
 
     def test_child_budget_covers_every_observed_run_with_margin(self):
-        now = time.monotonic()
+        # This exact arithmetic assertion has no elapsed-time dependency.
+        # A fractional host uptime can lose an ULP in deadline - reserve - now.
+        now = 1000.0
         budget = guard.consultation_child_budget(now + guard.CONSULTATION_TOTAL_S, now)
         self.assertEqual(budget, guard.CONSULTATION_TOTAL_S - guard.CONSULTATION_RESTORE_RESERVE_S)
         observed_max_s = TIMING["stats_ms"]["entrypoint_total"]["max"] / 1000
