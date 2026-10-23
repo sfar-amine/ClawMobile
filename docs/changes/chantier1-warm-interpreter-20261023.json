@@ -5,12 +5,14 @@
   "kind": "feature",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "Warm Gateway interpretation port for Chantier 1: Gemini free first, Luna on technical failure only, through api.runtime.llm.complete.",
+  "summary": "Warm Gateway interpretation port for Chantier 1 (Gemini free first, Luna on technical failure only) and its loopback owner route POST /v1/intent/interpret for the playbooks dialogue owner.",
   "reason": "Amine's 23/10 decision (doc 71): one interpreter for every surface and domain within 2 s; per-turn agent exec took 22 s and could not use the Gateway-owned OpenAI OAuth.",
   "files": [
     ".github/workflows/ci.yml",
     "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
     "openclaw-plugin-mobile-ui/src/index.ts",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
     "docs/runtime/config/samantha-intent-interpreter.json",
     "docs/changes/chantier1-warm-interpreter-20261023.md",
@@ -29,7 +31,7 @@
   "capabilities": {
     "impact": "none",
     "ids": [],
-    "reason": "Internal Gateway method with operator.write scope; no new capability route; no caller wired yet."
+    "reason": "Internal Gateway method (operator.write) and one loopback owner-flow Companion route refused without the owner header (acceptance guard added); no new capability route; no caller wired yet."
   },
   "architecture": {
     "changed": true,

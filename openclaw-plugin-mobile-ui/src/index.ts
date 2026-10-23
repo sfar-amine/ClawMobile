@@ -221,7 +221,8 @@ function register(api: any) {
   // Chantier 1 (doc 71): one warm interpreter for every surface, Gemini then Luna.
   api.registerGatewayMethod?.(INTERPRET_METHOD,
     createInterpretHandler(() => api.runtime?.llm?.complete?.bind(api.runtime.llm)),
-    { scope: "operator.write" });
+    // Reads and writes no durable user or session state: operator scope only.
+    { scope: "operator.write", profileAccess: "independent" });
 
   // The factory receives OpenClaw's trusted current-turn context. The first
   // execute argument is a tool-call id, not an authorization context.

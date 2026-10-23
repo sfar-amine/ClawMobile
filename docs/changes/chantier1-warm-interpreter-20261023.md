@@ -4,4 +4,5 @@
 - Gemini `gemini-3.5-flash-lite` (profil gratuit) d'abord ; Luna `gpt-5.6-luna` uniquement après une panne technique de Gemini (délai, échec, indisponibilité, sortie rejetée ou illisible), avec `requiredAuthMode: "oauth"`. Un refus d'autorisation ou une annulation n'atteint jamais Luna.
 - Sortie : décision structurée (`intent`, `ambiguous`, `no_intent`) ou code stable, avec chaque tentative et sa durée.
 - Politique de modèles du plugin dans `docs/runtime/config/samantha-intent-interpreter.json`, limitée aux deux modèles, appliquée par le propriétaire de configuration OpenClaw existant.
+- Route loopback du Companion `POST /v1/intent/interpret` (en-tête propriétaire `x-clawmobile-owner-flow: v1`, sans origine navigateur) pour le propriétaire Python du dialogue ; refusée sans en-tête, ligne ajoutée à l'acceptance du déploiement.
 - Aucun appelant n'est encore branché : l'entrée unique des surfaces est l'étape suivante.
