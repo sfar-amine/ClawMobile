@@ -55,7 +55,8 @@ function bounded(value: unknown, limit: { min: number; max: number; default: num
   return Math.min(limit.max, Math.max(limit.min, Math.floor(n)));
 }
 
-/** Strict decision parsing: one JSON object, optionally inside a single json code fence. */
+/** One JSON object, optionally inside a single json code fence. Its contract
+ *  (intent-interpretation.v1) is validated by the playbooks owner, not here. */
 export function parseDecision(text: unknown): Record<string, unknown> | null {
   if (typeof text !== "string" || !text.trim() || text.length > LIMITS.outputChars) return null;
   let body = text.trim();
@@ -64,7 +65,6 @@ export function parseDecision(text: unknown): Record<string, unknown> | null {
   try {
     const value = JSON.parse(body);
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-    if (!["intent", "ambiguous", "no_intent"].includes(String((value as any).outcome))) return null;
     return value as Record<string, unknown>;
   } catch {
     return null;

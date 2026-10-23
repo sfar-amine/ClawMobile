@@ -75,10 +75,10 @@ function fake(script) {
     assert.equal(out.ok, true);
     assert.equal(out.fallbackReason, "LLM_COMPLETION_TIMEOUT");
   }
-  // Only the three closed outcomes are decisions.
-  assert.equal(port.parseDecision(JSON.stringify({ outcome: "execute_now" })), null);
+  // Only one JSON object is a decision; its contract belongs to the playbooks owner.
   assert.equal(port.parseDecision("[1,2]"), null);
-  assert.deepEqual(port.parseDecision(JSON.stringify({ outcome: "no_intent" })), { outcome: "no_intent" });
+  assert.equal(port.parseDecision("x".repeat(9000)), null);
+  assert.deepEqual(port.parseDecision(JSON.stringify({ status: "selected" })), { status: "selected" });
   // Invalid requests are refused before any model call.
   assert.equal(port.validateRequest({ systemPrompt: "", message: "x" }), null);
   assert.equal(port.validateRequest({ systemPrompt: "x", message: "y".repeat(40000) }), null);
