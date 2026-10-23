@@ -75,6 +75,20 @@ function fake(script) {
     assert.equal(out.ok, true);
     assert.equal(out.fallbackReason, "LLM_COMPLETION_TIMEOUT");
   }
+  // A governed single-model call never falls back by itself and keeps the technical code.
+  {
+    const f = fake([failure("LLM_COMPLETION_TIMEOUT")]);
+    const single = port.validateRequest({ systemPrompt: "x", message: "y", model: GEMINI });
+    const out = await port.interpret(f.complete, single);
+    assert.equal(f.calls.length, 1);
+    assert.equal(out.ok, false);
+    assert.equal(out.code, "LLM_COMPLETION_TIMEOUT");
+    const luna = fake([{ text: JSON.stringify(decision) }]);
+    const ok = await port.interpret(luna.complete, port.validateRequest({ systemPrompt: "x", message: "y", model: LUNA }));
+    assert.equal(ok.ok, true);
+    assert.equal(luna.calls[0].requiredAuthMode, "oauth");
+    assert.equal(port.validateRequest({ systemPrompt: "x", message: "y", model: "openai/gpt-5.6-sol" }), null);
+  }
   // Only one JSON object is a decision; its contract belongs to the playbooks owner.
   assert.equal(port.parseDecision("[1,2]"), null);
   assert.equal(port.parseDecision("x".repeat(9000)), null);

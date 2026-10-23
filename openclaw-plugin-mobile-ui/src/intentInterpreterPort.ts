@@ -33,6 +33,8 @@ export type InterpretRequest = {
   primaryTimeoutMs?: number;
   totalTimeoutMs?: number;
   purpose?: string;
+  /** One governed model only: the caller's model governor owns selection and fallback. */
+  model?: string;
 };
 
 export type InterpretAttempt = {
@@ -77,6 +79,7 @@ export function validateRequest(raw: unknown): InterpretRequest | null {
   if (typeof r.systemPrompt !== "string" || !r.systemPrompt.trim() || r.systemPrompt.length > LIMITS.systemChars) return null;
   if (typeof r.message !== "string" || !r.message.trim() || r.message.length > LIMITS.userChars) return null;
   if (r.responseSchema !== undefined && (typeof r.responseSchema !== "object" || r.responseSchema === null)) return null;
+  if (r.model !== undefined && !INTERPRETER_MODELS.includes(r.model)) return null;
   return {
     systemPrompt: r.systemPrompt,
     message: r.message,
@@ -84,6 +87,7 @@ export function validateRequest(raw: unknown): InterpretRequest | null {
     primaryTimeoutMs: bounded(r.primaryTimeoutMs, LIMITS.primaryTimeoutMs),
     totalTimeoutMs: bounded(r.totalTimeoutMs, LIMITS.totalTimeoutMs),
     purpose: typeof r.purpose === "string" ? r.purpose.slice(0, 80) : undefined,
+    model: r.model,
   };
 }
 
@@ -124,7 +128,8 @@ async function attempt(complete: LlmComplete, model: string, req: InterpretReque
   }
 }
 
-/** Gemini, then Luna on a technical failure only, inside one total deadline. */
+/** Gemini, then Luna on a technical failure only, inside one total deadline;
+ *  or exactly the one model a caller's governor selected. */
 export async function interpret(complete: LlmComplete, req: InterpretRequest,
     opts: { signal?: AbortSignal; now?: () => number } = {}): Promise<InterpretResult> {
   const now = opts.now ?? Date.now;
@@ -132,10 +137,11 @@ export async function interpret(complete: LlmComplete, req: InterpretRequest,
   const total = req.totalTimeoutMs ?? LIMITS.totalTimeoutMs.default;
   const attempts: InterpretAttempt[] = [];
   let fallbackReason: string | undefined;
-  for (const model of INTERPRETER_MODELS) {
+  const models = req.model ? [req.model] : INTERPRETER_MODELS;
+  for (const model of models) {
     const left = total - (now() - started);
     if (left < LIMITS.primaryTimeoutMs.min) break;
-    const budget = model === INTERPRETER_PRIMARY ? Math.min(req.primaryTimeoutMs ?? LIMITS.primaryTimeoutMs.default, left) : left;
+    const budget = model === INTERPRETER_PRIMARY && !req.model ? Math.min(req.primaryTimeoutMs ?? LIMITS.primaryTimeoutMs.default, left) : left;
     const out = await attempt(complete, model, req, budget, opts.signal, now);
     attempts.push(out.attempt);
     if (out.attempt.outcome === "ok") {
@@ -148,7 +154,8 @@ export async function interpret(complete: LlmComplete, req: InterpretRequest,
     }
     fallbackReason = out.attempt.code;
   }
-  return { ok: false, code: "INTERPRETER_UNAVAILABLE", attempts, totalMs: now() - started };
+  return { ok: false, code: req.model ? (attempts.at(-1)?.code ?? "INTERPRETER_UNAVAILABLE") : "INTERPRETER_UNAVAILABLE",
+    attempts, totalMs: now() - started };
 }
 
 /** Gateway method body: validated request in, structured decision or stable code out. */
