@@ -1,0 +1,70 @@
+{
+  "version": 2,
+  "id": "c2-chatgpt-owner-consent-20261023",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Admit the existing ChatGPT owner profile only after a fresh explicit OAuth owner consent",
+  "reason": "Direct Amine mandate 23/10 to open technical access and remove repeated approvals; existing OAuth grants support read only.",
+  "files": [
+    "cloud/voice-relay/auth/consent.mjs",
+    "cloud/voice-relay/auth/index.mjs",
+    "cloud/voice-relay/src/chatgpt-oauth-policy.mjs",
+    "cloud/voice-relay/src/chatgpt-oauth.mjs",
+    "cloud/voice-relay/test-chatgpt-oauth-rpc.mjs",
+    "cloud/voice-relay/test-chatgpt-oauth.mjs",
+    "docs/08-decisions/ADR-20261023-chatgpt-owner-consent.md",
+    "docs/changes/c2-chatgpt-owner-consent-20261023.json",
+    "docs/changes/c2-chatgpt-owner-consent-20261023.md"
+  ],
+  "tests": [
+    {
+      "name": "OAuth owner/read policy and consent rendering",
+      "status": "passed",
+      "evidence": "22 assertions pass locally in test-chatgpt-oauth.mjs. Native Workerd RPC suite and exact-head canonical CI remain pending."
+    }
+  ],
+  "documentation": [
+    "docs/08-decisions/ADR-20261023-chatgpt-owner-consent.md",
+    "docs/changes/c2-chatgpt-owner-consent-20261023.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "No new capability, route, action or primitive. A fresh explicitly consented OAuth grant may use the existing chat-owner profile; access expansion is documented and guarded, not described as a no-op."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Extend the existing AS/RS grant contract with explicit owner scope and consent version, preserving native owners and all old grants.",
+    "documents": [
+      "docs/08-decisions/ADR-20261023-chatgpt-owner-consent.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "updated",
+      "claw_resolve": "updated",
+      "claw_execute": "updated",
+      "claw_exec": "updated",
+      "claw_status": "updated",
+      "claw_artifact_read": "updated"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Same existing owner palette and argument schemas; real local Workerd tools/list regression extended with explicit-owner and mismatched-grant cases. Live OAuth after reconnect remains unverified."
+    ]
+  },
+  "rollback": "Restore the previous relay Worker version first, then the previous AS if needed; preserve KV, existing read/static clients and receipts. Do not replay business effects.",
+  "limitations": [
+    "Exact numbered-PR canonical CI and local enriched Workerd RPC pending.",
+    "Real ChatGPT OAuth owner grant requires reconnect and explicit browser consent after both Workers are published; old read grant is never upgraded silently.",
+    "Does not change the Cloud command sandbox or waive OTP, biometrics, banking or business confirmation gates."
+  ]
+}
