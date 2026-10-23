@@ -7,11 +7,18 @@ let checks=0;
  assert.deepEqual(Object.keys(render.FAILURE_PHRASES.en).sort(),keys);checks++;
  // Collect literal failures from existing producer code, not a second manually curated code list.
  const source=fs.readFileSync(path.join(__dirname,'../src/modelFastPath.ts'),'utf8');
- const emitted=new Set([...source.matchAll(/reason\s*:\s*"([a-z_]+)"/g)].map(m=>m[1]));
- for(const m of source.matchAll(/lastError\s*=\s*"([a-z_]+)"/g))emitted.add(m[1]);
+ const emitted=new Set([...source.matchAll(/(?:reason|reasonCode)\s*:\s*["\']([a-z_]+)["\']/g)].map(m=>m[1]));
+ for(const m of source.matchAll(/lastError\s*=\s*["\']([a-z_]+)["\']/g))emitted.add(m[1]);
  for(const m of source.matchAll(/\?\s*"(web_deadline_exceeded)"\s*:\s*"([a-z_]+)"/g)){emitted.add(m[1]);emitted.add(m[2]);}
  const dialogue=fs.readFileSync(path.join(__dirname,'../src/dialogueSurface.ts'),'utf8');
- for(const m of dialogue.matchAll(/reasonCode\s*:\s*"([a-z_]+)"/g))emitted.add(m[1]);
+ for(const m of dialogue.matchAll(/reasonCode\s*:\s*["\']([a-z_]+)["\']/g))emitted.add(m[1]);
+ // The private native owner emits single-quoted codes as well as the
+ // TypeScript transport literals. Keep the real producer inventory exhaustive.
+ const admission=fs.readFileSync(path.join(__dirname,'../src/nativePulseAdmission.ts'),'utf8');
+ for(const m of admission.matchAll(/Error\(["']([a-z_]+)["']/g))emitted.add(m[1]);
+ const helperSource=fs.readFileSync(path.join(__dirname,'../../installer/termux-lite/model-fast-path.py'),'utf8');
+ const native=helperSource.split('def run_native_pulse(')[1].split('\ndef _b64_json')[0];
+ for(const m of native.matchAll(/["']((?:native_pulse_|pulse_confirmation_|native_contract_)[a-z_]+)["']/g))emitted.add(m[1]);
  assert(emitted.size>=9);
  for(const code of emitted){assert(keys.includes(code),`No rendered failure phrase for producer code ${code}`);checks++;}
  const before=render.receiptPresentationCounters().missingFailureCauseRenders;
@@ -45,6 +52,19 @@ let checks=0;
  const result=await submitIntent('test transport cause','f2-test',[],{clientRunId:'f2-propagation'});
  assert.equal(result.state,'failed');assert.equal(result.failure.reasonCode,'execution_cancelled');checks++;
  assert.equal(render.receiptPresentationCounters().genericDisplayRenders,2);checks++;
+ // Native unknown outcomes stay unknown at display/status/replay; no
+ // translation may claim a zero effect or invite another execution.
+ for(const code of ['native_pulse_protocol_required','native_pulse_execution_unknown','native_pulse_handoff_unavailable']){
+  const phrase=render.FAILURE_PHRASES.fr[code];
+  assert(!/rien n.a été exécuté|aucune.*exécut|réessaie/i.test(phrase));checks++;
+  fs.writeFileSync(mode,JSON.stringify({outcome:'FAILED',reasonCode:code,text:'INTERNAL_CANARY',handled:true}));
+  const nativeRun=await submitIntent('native failure fixture','f2-native-'+code,[],{clientRunId:'f2-native-'+code});
+  assert.equal(nativeRun.failure.reasonCode,code);assert.equal(nativeRun.message,phrase);checks++;
+  for(let repeat=0;repeat<2;repeat++){
+   const status=await runs.getRunStatus(nativeRun.runId);
+   assert.equal(status.failure.reasonCode,code);assert.equal(status.message,phrase);checks++;
+  }
+ }
  const stored=await runs.getRunStatus(result.runId);assert.equal(stored.failure.reasonCode,'execution_cancelled');assert.equal(stored.failure.reason,render.FAILURE_PHRASES.fr.execution_cancelled);checks++;
  await runs.getRunStatus(result.runId);await runs.getRunStatus(result.runId);
  assert.equal(render.receiptPresentationCounters().genericDisplayRenders,2);checks++;

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import {FAILURE_PHRASES,hasFailurePhrase} from "./companion/receiptPresentation";
 import { contactRoomSession } from "./contactRoomProfile";
 import {admitNativePulseContact} from "./nativePulseAdmission";
 import { admittedAtMs, dialogueTurn, dialogueHandoff, transportEventRef } from "./dialogueSurface";
@@ -23,10 +24,7 @@ const PULSE_UNAVAILABLE = "Pulse est indisponible pour le moment. Réessaie dans
 const TEXT_ONLY = "Ici je ne lis que les messages écrits. Écris ta demande Pulse (projet, offre, congés de l'équipe).";
 function nativeFailureText(reason:string|undefined):string {
   if(reason?.startsWith('DATA_'))return 'La configuration de confidentialité du fournisseur n’est pas vérifiée. Rien n’a été exécuté.';
-  if(reason==='native_contract_unqualified')
-    return 'Le formulaire natif de cette phase n’est pas encore qualifié. Rien n’a été exécuté.';
-  if(reason==='pulse_preparation_required')return 'La commande de phase ne dispose pas d’une préparation native complète. Rien n’a été exécuté.';
-  if(reason==='host_interpretation_failed')return 'L’interprétation reçue n’est pas conforme à la demande admise. Rien n’a été exécuté.';
+  if(hasFailurePhrase(reason))return FAILURE_PHRASES.fr[reason as keyof typeof FAILURE_PHRASES.fr];
   return 'La préparation ou la vérification de cette commande n’a pas abouti. Aucun nouvel essai automatique n’est lancé.';
 }
 
@@ -132,8 +130,13 @@ export async function handlePulseRoomFastPath(
   const text = String(reply.text || "").trim();
   switch (reply.outcome) {
     case "OUTSIDE_SCOPE": return nativePulse?{handled:true,reply:{text:"Cette demande ne définit pas une commande Pulse admise. Précise le projet, la phase et l’état souhaité."}}:refusal("outside");
-    case "DENIED": return refusal(reply.reasonCode === "scope_leave_request" ? "leave_request" : "outside");
+    case "DENIED":
+      if(nativePulse&&hasFailurePhrase(reply.reasonCode))return {handled:true,reply:{text:nativeFailureText(reply.reasonCode)}};
+      return refusal(reply.reasonCode === "scope_leave_request" ? "leave_request" : "outside");
     case "UNRESOLVED": return { handled: true, reply: { text: text || PULSE_ROOM_HELP } };
+    case "FAILED":
+      if(nativePulse&&hasFailurePhrase(reply.reasonCode))return {handled:true,reply:{text:nativeFailureText(reply.reasonCode)}};
+      return {handled:true,reply:{text:text||PULSE_ROOM_HELP}};
     case "TECHNICAL_FAILURE":
       if(nativePulse)return {handled:true,reply:{text:nativeFailureText(reply.reasonCode)}};
       return { handled: true, reply: { text: reply.reasonCode === "coordinator_unavailable" || !text ? PULSE_UNAVAILABLE : text } };
