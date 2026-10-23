@@ -20,7 +20,8 @@ const TECHNICAL_CODES = new Set([
 ]);
 const LIMITS = Object.freeze({
   systemChars: 64_000,
-  userChars: 32_000,
+  // The playbooks owner bounds the whole interpretation prompt to 80 000 chars / 96 000 bytes.
+  userChars: 96_000,
   outputChars: 8_000,
   primaryTimeoutMs: { min: 300, max: 10_000, default: 2_500 },
   totalTimeoutMs: { min: 500, max: 30_000, default: 9_000 },
