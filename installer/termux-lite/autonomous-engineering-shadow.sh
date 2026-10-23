@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="${CLAW_RUNTIME_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)}"
-UI="$HOME/.openclaw/workspace/ui-playbooks"
+UI="$HOME/.openclaw/runtime-ui-playbooks/current"
 BASE="$HOME/.openclaw/autonomous-engineering"
 SHADOW="$BASE/shadow"
 LOCKS="$BASE/locks"

@@ -14,6 +14,7 @@
     "installer/termux-lite/adb-recovery-watchdog.sh",
     "installer/termux-lite/autonomous-engineering-shadow.sh",
     "installer/termux-lite/engineering-incident-result.py",
+    "installer/termux-lite/engineering-repair.sh",
     "installer/termux-lite/immune-action.sh",
     "installer/termux-lite/immune_action.py",
     "installer/termux-lite/incident-orchestrator-worker.sh",
@@ -44,6 +45,11 @@
       "name": "Existing health workflow fixtures with explicit AI selection",
       "status": "passed",
       "evidence": "Restart repair lease/descriptors15 PASS, restart escalation9 PASS, memory pressure19 PASS; original safety assertions preserved with explicit selected callback fixture port. Exact CI remains required."
+    },
+    {
+      "name": "Pinned native engineering code and policy entrypoints",
+      "status": "passed",
+      "evidence": "Runtime bridge5 PASS; both shell entrypoints select runtime-ui-playbooks/current and cannot load stale mutable workspace policy. Prior head187441b3 canonical CI3jobs153steps PASS; new exact-head CI required."
     }
   ],
   "documentation": [
