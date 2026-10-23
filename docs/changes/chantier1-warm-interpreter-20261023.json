@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "id": "chantier1-warm-interpreter-20261023",
+  "origin": "chat",
+  "kind": "feature",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Warm Gateway interpretation port for Chantier 1: Gemini free first, Luna on technical failure only, through api.runtime.llm.complete.",
+  "reason": "Amine's 23/10 decision (doc 71): one interpreter for every surface and domain within 2 s; per-turn agent exec took 22 s and could not use the Gateway-owned OpenAI OAuth.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+    "docs/runtime/config/samantha-intent-interpreter.json",
+    "docs/changes/chantier1-warm-interpreter-20261023.md",
+    "docs/changes/chantier1-warm-interpreter-20261023.json"
+  ],
+  "tests": [
+    {
+      "name": "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+      "status": "passed",
+      "evidence": "Gemini-only success; Luna with OAuth on each technical code and on unparsable output; no Luna on authorization refusal; both-down unavailable; timeout abort hands the remaining budget to Luna; closed outcomes; request limits; handler codes; config patch limited to two models."
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier1-warm-interpreter-20261023.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Internal Gateway method with operator.write scope; no new capability route; no caller wired yet."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Adds the single interpretation port of doc 71 on the existing OpenClaw plugin LLM runtime; replaces per-turn agent exec for interpretation in later steps. No new store, registry, router, scheduler or daemon."
+  },
+  "rollback": "Revert this PR and remove plugins.entries.openclaw-plugin-mobile-ui.llm with the OpenClaw configuration owner; no durable state is owned by the port.",
+  "limitations": [
+    "Real latency p50/p95 is measured after deployment with openclaw gateway call; fake-runtime tests do not prove provider behavior.",
+    "responseFormat mapping depends on the provider transport; decisions are parsed strictly in any case."
+  ]
+}

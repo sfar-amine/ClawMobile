@@ -192,6 +192,9 @@ jobs:
       - name: Native OpenClaw provider fallback stays pinned to the free Gemini profile
         run: node scripts/test-native-provider-fallback.cjs
 
+      - name: Chantier 1 warm interpreter, Gemini then Luna on technical failure only (doc 71)
+        run: node scripts/test-intent-interpreter-port.cjs
+
       - name: Parallel Free Web run contract, MCP identity and voice readback (offline)
         run: |
           node scripts/test-run-web.cjs
