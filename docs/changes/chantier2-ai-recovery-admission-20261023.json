@@ -23,6 +23,7 @@
     "installer/termux-lite/samantha-root-guardian.sh",
     "installer/termux-lite/test-adb-recovery-readiness-watchdog.sh",
     "installer/termux-lite/test-android-phantom-headroom.py",
+    "installer/termux-lite/test-engineering-runtime-bridge.py",
     "installer/termux-lite/test-gateway-memory-guard.py",
     "installer/termux-lite/test-health-deploy-lock.py",
     "installer/termux-lite/test-health-restart-escalation.py",
