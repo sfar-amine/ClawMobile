@@ -179,6 +179,14 @@ class Controller:
             time.sleep(1)
         return False
     def repair(self):
+        current=self.probe()
+        if current['state']=='healthy':
+            return {'state':'recovered','evidence':current,'mutation':'none_already_healthy'}
+        import runpy
+        admission=runpy.run_path(str(self.root/'immune_action.py'))
+        return admission['run']('remote_desktop','bounded-rdc-stop-start-verify',current,self._repair_selected)
+
+    def _repair_selected(self):
         with self.lock('remote-desktop-repair.lock') as acquired:
             if not acquired: return {'state': 'busy', 'reason': 'repair_already_owned'}
             if self.probe()['state'] == 'healthy':

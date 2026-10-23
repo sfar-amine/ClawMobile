@@ -46,7 +46,7 @@ wifi_up(){
 }
 notify_info(){ "$RUNTIME_DIR/incident-notify.sh" info "$1"; }
 
-readiness_try_repair(){
+readiness_try_repair_effect(){
   reason="$1"
   case "$reason" in
     wifi_disabled_recovery_standby)
@@ -97,7 +97,7 @@ readiness_arm_due(){
   [ $((now-last)) -ge "$READINESS_ARM_INTERVAL" ]
 }
 
-readiness_arm_primary(){
+readiness_arm_primary_effect(){
   reason="$1"
   case "$reason" in
     wireless_debugging_disabled|wireless_debugging_disabled_primary_healthy) ;;
@@ -206,7 +206,7 @@ readiness_tick(){
   esac
 }
 
-recover_adb(){
+recover_adb_effect(){
   adb 9>&- start-server >/dev/null 2>&1 || true
   adb 9>&- connect "127.0.0.1:$STABLE_PORT" >/dev/null 2>&1 || true
   adb_up && return 0
@@ -242,6 +242,15 @@ $candidates
 EOF
   return 1
 }
+if [ -f "$RUNTIME_DIR/immune-action.sh" ]; then . "$RUNTIME_DIR/immune-action.sh"; else
+ immune_action(){ return 75; }; immune_observe(){ :; }
+fi
+recover_adb(){ immune_action adb bounded-trusted-adb-recovery recover_adb_effect "$@"; }
+readiness_try_repair(){ immune_action device.adb.recovery_readiness bounded-wireless-readiness-repair readiness_try_repair_effect "$@"; }
+readiness_arm_primary(){
+ readiness_arm_due || return 1
+ immune_action device.adb.recovery_readiness bounded-wireless-readiness-arm readiness_arm_primary_effect "$@"
+}
 prev="$(cat "$STATE" 2>/dev/null || printf unknown)"
 recovery_tries=0
 loops=0
@@ -250,6 +259,7 @@ while :; do
   loops=$((loops+1))
   printf '%s' "$(date +%s)" >"$HOME_DIR/.openclaw/health/adb-watchdog.heartbeat"
   if adb_up; then
+    immune_observe adb --healthy
     readiness_tick
     if [ "$prev" != up ]; then
       log INFO recovered ok "ADB operational"

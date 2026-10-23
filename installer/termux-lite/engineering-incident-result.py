@@ -8,7 +8,7 @@ import sys
 ROOT=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location("canonical_orchestrator",ROOT/"incident-orchestrator.py")
 O=importlib.util.module_from_spec(spec);spec.loader.exec_module(O)
-WAIT={"waiting_model","model_unavailable","rate_limit","timeout","auth_unavailable","billing","unavailable","busy","interrupted"}
+WAIT={"waiting_model","model_unavailable","rate_limit","timeout","auth_unavailable","billing","unavailable","busy","interrupted","quota_exhausted","no_eligible_model","fallback_budget_exhausted"}
 
 def apply(iid,result):
     current=O.show(iid)["incident"]
@@ -32,7 +32,7 @@ def apply(iid,result):
             retries=sum(1 for e in O.show(iid)["events"] if e["kind"]=="engineering_result" and json.loads(e["payload"]).get("status")=="interrupted")
             if retries>2:return O.transition(iid,"failed","engineering-controller","controller interruption budget exhausted; effect receipts retained")
         if status!="interrupted" and (result.get("governor") or {}).get("total_calls",0)>=4:
-            return O.transition(iid,"failed","engineering-controller","bounded model budget exhausted; repair checkpoint retained")
+            return O.transition(iid,"waiting_validation","engineering-controller","bounded model budget exhausted; same dossier and checkpoint retained for owner revalidation")
         delay=300 if reason in {"auth_unavailable","billing"} else 60
         return O.transition(iid,"waiting_model","engineering-controller",str(reason)[:100],retry_after_s=delay)
     return O.transition(iid,"failed","engineering-controller",str(status)[:100]+"; no recovery declared")

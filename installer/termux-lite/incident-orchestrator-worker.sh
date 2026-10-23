@@ -277,6 +277,17 @@ PY3
           "$ROOT/incident-orchestrator.py" recover "$component" "$scope" --source orchestrator-worker --reason "Remote Desktop singleton, local MCP ping and remote heartbeat verified" >/dev/null 2>&1 || true
           log "incident=$iid component=$component terminal=recovered handler=remote_desktop_stable_cwd"
         else
+          if python3 - "$result" <<'PY_AI_WAIT'
+import json,sys
+try:
+ row=json.load(open(sys.argv[1]));waiting=row.get('state') in {'deferred','verification_required','attention_required'}
+except (OSError,ValueError): waiting=False
+sys.exit(0 if waiting else 1)
+PY_AI_WAIT
+          then
+            "$ROOT/incident-orchestrator.py" transition "$iid" waiting_validation --source orchestrator-worker --reason "AI action admission or uncertain effect awaits native owner proof; same dossier retained" >/dev/null 2>&1 || true
+            continue
+          fi
           "$ROOT/incident-orchestrator.py" transition "$iid" failed --source orchestrator-worker --reason "managed Remote Desktop repair verification failed" >/dev/null 2>&1 || true
           log "incident=$iid component=$component terminal=failed handler=remote_desktop_stable_cwd"
         fi
