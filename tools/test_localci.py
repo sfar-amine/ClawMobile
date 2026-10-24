@@ -2,6 +2,7 @@
 """Offline fail-closed tests for canonical localci.py, including its S24 profile (synthetic, no device)."""
 import contextlib
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -149,8 +150,9 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
     def test_s24_profile_runs_with_private_home_no_credentials_and_wrapper_pr_refs(self):
         head = self.commit(
             "jobs:\n  contract:\n    steps:\n"
-            "      - run: test \"$HOME\" != /live-home && test -d \"$HOME\"\n"
+            "      - run: test \"$HOME\" != /live-home && test -d \"$HOME\" && echo \"STEP_HOME=$HOME\"\n"
             "      - run: test -z \"${CLAW_TOKEN:-}${SAMANTHA_INTENT_INTERPRETER:-}${OPENCLAW_STATE:-}\"\n"
+            "      - run: test -z \"${LOCALCI_PROFILE:-}${LOCALCI_HEAVY_LOCK:-}${LOCALCI_PR_BODY_FILE:-}\"\n"
             "      - run: python3 -c 'import json,os; e=json.load(open(os.environ[\"GITHUB_EVENT_PATH\"])); "
             "assert e[\"pull_request\"][\"body\"]==\"## Résumé\\n\"'\n")
         self.pull_refs(7, head)
@@ -164,6 +166,9 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
         self.assertIn("profile=s24", output)
         self.assertIn(f"base={self.base_sha}", output)
         self.assertIn("LOCALCI_RESULT exit=0 sha=" + head, output)
+        home = re.search(r"STEP_HOME=(\S+)", output).group(1)
+        self.assertNotIn("/com.termux/", home)
+        self.assertFalse(Path(home).exists())
 
     def test_s24_busy_lock_starts_nothing(self):
         import fcntl

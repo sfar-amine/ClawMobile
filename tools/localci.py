@@ -52,7 +52,10 @@ class LocalCIError(Exception):
 
 
 # Runtime credentials and live-service switches never reach a CI step on the S24.
-S24_STEP_ENV_DROP = re.compile(r"^(CLAW_|SAMANTHA_|OPENCLAW_|COMPANION_|GH_|GITHUB_TOKEN$|OPENAI_|GEMINI_|GOOGLE_|ANTHROPIC_)")
+# Runtime credentials and service state, plus this run's own S24 controls: a step (localci's own tests
+# included) sees what an ubuntu-latest step sees, never the outer run's profile or held lock.
+S24_STEP_ENV_DROP = re.compile(r"^(CLAW_|SAMANTHA_|OPENCLAW_|COMPANION_|GH_|GITHUB_TOKEN$|OPENAI_|GEMINI_|GOOGLE_|ANTHROPIC_"
+                               r"|LOCALCI_PROFILE$|LOCALCI_HEAVY_LOCK$|LOCALCI_PR_BODY_FILE$)")
 
 
 def s24_profile():
@@ -381,6 +384,7 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
             space = Path(tempfile.mkdtemp(prefix="localci-" + repo.name + "-" + job_name + "-",
                                           dir=os.getenv("LOCALCI_TMP_ROOT") or None)).resolve()
             attached = False
+            step_home = None
             try:
                 command(["git", "worktree", "add", "--detach", str(space), sha], repo)
                 attached = True
@@ -394,8 +398,10 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
                 if s24:
                     # Steps never see the live HOME (~/.openclaw, keys) nor runtime credentials.
                     env = {k: v for k, v in env.items() if not S24_STEP_ENV_DROP.match(k)}
-                    (runner / "home").mkdir()
-                    env["HOME"] = str(runner / "home")
+                    # In Debian's own /tmp: a HOME under the Termux tree would make a nested localci
+                    # (its own tests) take the step for raw Termux.
+                    step_home = Path(tempfile.mkdtemp(prefix="localci-home-"))
+                    env["HOME"] = str(step_home)
                     step_bin = os.getenv("LOCALCI_S24_STEP_BIN")  # the mirror-backed `gh` of the wrapper
                     if step_bin:
                         env["PATH"] = step_bin + os.pathsep + env.get("PATH", "")
@@ -465,6 +471,8 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
                     subprocess.run(["git", "worktree", "remove", "--force", str(space)], cwd=repo,
                                    capture_output=True)
                 shutil.rmtree(space, ignore_errors=True)
+                if step_home:
+                    shutil.rmtree(step_home, ignore_errors=True)
         note(f"LOCALCI_RESULT exit=0 sha={sha} jobs={len(jobs)} steps={passed}")
     return 0
 

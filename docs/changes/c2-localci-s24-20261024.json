@@ -22,7 +22,7 @@
     {
       "name": "tools/test_localci.py",
       "status": "passed",
-      "evidence": "47/47 : Termux sans profil refusé ; profil sans verrou refusé ; verrou occupé = rien ne démarre ; HOME privé et variables Samantha absentes des étapes ; refs PR du lanceur, tête différente ou refs absentes refusées ; gh des étapes S24 : ref et contenu servis depuis le miroir, tout autre appel refusé ; lanceur S24 : aucun chemin propre au Debian pour miroirs, worktrees et journaux, node sur le PATH de base"
+      "evidence": "47/47 : Termux sans profil refusé ; profil sans verrou refusé ; verrou occupé = rien ne démarre ; HOME privé et variables Samantha absentes des étapes ; refs PR du lanceur, tête différente ou refs absentes refusées ; gh des étapes S24 : ref et contenu servis depuis le miroir, tout autre appel refusé ; lanceur S24 : aucun chemin propre au Debian pour miroirs, worktrees et journaux, node sur le PATH de base ; profil, verrou et corps de PR du run absents des étapes, HOME d'étape hors de l'arborescence Termux et supprimé après le job"
     },
     {
       "name": "outillage Debian du S24",
