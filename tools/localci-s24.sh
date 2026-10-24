@@ -47,10 +47,9 @@ nice -n 10 proot-distro login debian --bind "$ci:/ci" --bind "$HOME/.openclaw/de
     LOCALCI_PROFILE=s24 LOCALCI_HEAVY_LOCK=/locks/companion-deploy.lock LOCALCI_TMP_ROOT=/ci/tmp \
     LOCALCI_NODE20_BIN=/opt/node20/bin LOCALCI_NODE22_BIN=/opt/node22/bin LOCALCI_NODE26_BIN=/opt/node26/bin \
     LOCALCI_PYTHON312_BIN=/opt/python3.12/bin LOCALCI_S24_STEP_BIN=/ci/bin LOCALCI_S24_MIRRORS=/ci/repos \
-    GIT_CONFIG_COUNT=4 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*' \
+    GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*' \
     GIT_CONFIG_KEY_1=url./ci/repos/.insteadOf GIT_CONFIG_VALUE_1=https://github.com/sfar-amine/ \
-    GIT_CONFIG_KEY_2=url./ci/repos/.insteadOf GIT_CONFIG_VALUE_2=git@github.com:sfar-amine/ \
-    GIT_CONFIG_KEY_3=uploadpack.allowAnySHA1InWant GIT_CONFIG_VALUE_3=true "${body_env[@]}" \
+    GIT_CONFIG_KEY_2=uploadpack.allowAnySHA1InWant GIT_CONFIG_VALUE_2=true "${body_env[@]}" \
     python3 /owner/tools/localci.py "/ci/repos/$name" "$sha" "$pr" "/ci/logs/$log" >/dev/null 2>"$logs/$log.stderr"
 code=$?
 set -e
