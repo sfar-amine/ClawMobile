@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "id": "app-intent-surface-billing-partial-20261024",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Use admitted app identity for AI interpretation despite the claw_live executor alias, and preserve partial billing owner cards.",
+  "reason": "S24 original billing goal lacked an interpretation receipt despite the enabled host switch; its partial provider results were lost in transport.",
+  "rollback": "Deploy previous verified Companion8b531a78 and previous playbook pin through existing owners; preserve original business receipts.",
+  "files": [
+    "docs/changes/app-intent-surface-billing-partial-20261024.json",
+    "docs/changes/app-intent-surface-billing-partial-20261024.md",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/receipt-presentation-read.py",
+    "installer/termux-lite/test-model-fast-path-intent.py",
+    "openclaw-plugin-mobile-ui/fixtures/foundations/app-intent-surface-s24-20261024.json",
+    "openclaw-plugin-mobile-ui/fixtures/foundations/billing-partial-owner-s24-20261024.json",
+    "openclaw-plugin-mobile-ui/scripts/test-receipt-presentation-read.py"
+  ],
+  "tests": [
+    {
+      "name": "Host semantic surface and closed receipt transport regressions",
+      "status": "passed",
+      "evidence": "python3 installer/termux-lite/test-model-fast-path-intent.py:22 PASS; Python closed receipt transport:10 PASS; generic rendering:19 PASS. Suites already registered in ci.yml. Canonical full CI pending exact GitHub PR head."
+    }
+  ],
+  "documentation": [
+    "docs/changes/app-intent-surface-billing-partial-20261024.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No registry or route changes; restore existing host interpreter admission and owner presentation transport."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Same dialogue coordinator, interpreter owner, Graph and release machinery; distinguish existing host identity from executor alias."
+  }
+}

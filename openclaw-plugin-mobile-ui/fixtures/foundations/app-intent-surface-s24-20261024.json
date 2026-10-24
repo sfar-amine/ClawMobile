@@ -1,0 +1,9 @@
+{
+  "provenance": {
+    "source": "S24 original billing goal goal-0208aa2ce7da74db7ce3 in samantha-dialogue/dialogue.sqlite, 2026-10-24; active Companion 8b531a78 and host adapter intent.ts",
+    "observed": "Companion process feature switch=1; conversation surface app; technical decision surface claw_live; interpretationReceipt absent",
+    "sanitization": "Conversation/event IDs replaced; user text, account data, execution result and process environment excluded"
+  },
+  "graphSurface": "claw_live",
+  "event": {"surface": "app", "conversationKey": "app:fixture:owner", "eventRef": "fixture-app-turn", "caller": "owner"}
+}

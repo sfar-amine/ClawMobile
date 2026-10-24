@@ -1290,14 +1290,26 @@ def _completed_execution(executed: dict[str, Any], decision: dict[str, Any] | No
 def _rendered_semantic_execution(out: Any) -> Any:
     """The interpreted backend returns the Graph's own execution; render it like the lexical path.
 
-    Only a completed execution without an owner sentence is rendered; failures, waits and
-    owner-provided texts keep their existing presentation."""
+    A completed execution or an explicitly presented partial billing read is rendered.
+    Failures, waits and owner-provided texts keep their existing presentation."""
     if not isinstance(out, dict) or out.get("status") != "hit" or out.get("text"):
         return out
     executed = out.get("resolution")
     execution = executed.get("execution") if isinstance(executed, dict) else None
-    if not isinstance(execution, dict) or str(execution.get("state") or "") not in SAFE_EXECUTION_STATES:
+    if not isinstance(execution, dict):
         return out
+    selected = executed.get("selected") if isinstance(executed.get("selected"), dict) else {}
+    partial_billing = (execution.get("state") == "partial" and selected.get("risk") == "read"
+        and selected.get("capability") == "billing.utility.fast_path"
+        and isinstance(executed.get("presentation"), dict) and bool(executed["presentation"].get("rows")))
+    if str(execution.get("state") or "") not in SAFE_EXECUTION_STATES and not partial_billing:
+        return out
+    if partial_billing:
+        metadata = _presentation_metadata(executed)
+        if not metadata:
+            return out
+        return {**out, **metadata, "text": _display_text(executed),
+                "result": execution.get("result"), "execution_state": "partial"}
     # The dialogue's frozen decision stays the reply's decision.
     return {**out, **_completed_execution(executed, out.get("decision")), "decision": out.get("decision") or executed.get("decision")}
 
@@ -1421,9 +1433,16 @@ def _intent_dialogue_backend(ui_root: Path, *, surface: str, caller: str, timeou
         **({"context_read_evidence": _INTENT_CONTEXT_READ_EVIDENCE} if _INTENT_CONTEXT_READ_EVIDENCE is not None else {}))
 
 
+def _intent_surface(graph_surface, event=None):
+    """Host dialogue identity is distinct from the executor's technical surface alias."""
+    actual = event.get("surface") if isinstance(event, dict) else None
+    return actual if actual in {"app", "voice", "whatsapp", "pulse_room", "claw_live", "mcp"} else graph_surface
+
+
 class FastPathPorts:
     def __init__(self, ui_root: Path, *, surface: str, caller: str, timeout: int,
-                 web_host: dict[str, Any] | None = None) -> None:
+                 web_host: dict[str, Any] | None = None, dialogue_surface: str | None = None) -> None:
+        self.intent_surface = dialogue_surface or surface
         self.ui_root = ui_root
         self.surface = surface
         self.caller = caller
@@ -1443,13 +1462,13 @@ class FastPathPorts:
         # Doc 71: voice uses the same interpreter; Claude's own live session
         # (claw_live) and private QA ingress keep their existing owners.
         self._semantic_enabled = (os.environ.get("SAMANTHA_INTENT_INTERPRETER") == "1" and
-            surface != "claw_live" and _QA_INGRESS_CONTEXT is None)
+            self.intent_surface != "claw_live" and _QA_INGRESS_CONTEXT is None)
         if self._semantic_enabled:
             self.interpret_turn = self._interpret_semantic_turn
 
     def _semantic(self):
         if self._semantic_backend is None:
-            self._semantic_backend = _intent_dialogue_backend(self.ui_root, surface=self.surface,
+            self._semantic_backend = _intent_dialogue_backend(self.ui_root, surface=self.intent_surface,
                 caller=self.caller, timeout=self.timeout)
         return self._semantic_backend
 
@@ -1589,7 +1608,8 @@ def _dialogue_coordinator(ui_root: Path):
 def run_dialogue(message: str, *, mode: str, ui_root: Path, surface: str, caller: str, timeout: int,
                  event: dict[str, Any] | None = None, policy: dict[str, Any] | None = None,
                  goal_ref: str | None = None, web_host: dict[str, Any] | None = None) -> dict[str, Any]:
-    ports = FastPathPorts(ui_root, surface=surface, caller=caller, timeout=timeout, web_host=web_host)
+    ports = FastPathPorts(ui_root, surface=surface, caller=caller, timeout=timeout, web_host=web_host,
+                          dialogue_surface=_intent_surface(surface, event))
     try:
         coordinator = _dialogue_coordinator(ui_root)
     except Exception:  # an older pinned playbook or a broken install: fail closed (T-X05)
@@ -1858,8 +1878,9 @@ def main() -> int:
         except Exception:
             print(json.dumps({'status':'known_error','reason':'qa_scope_unavailable','execution_state':'not_started','model_bypassed':True}))
             return 1
+    admitted_surface = _intent_surface(args.surface, _b64_json("CLAW_DIALOGUE_EVENT_B64")) if args.dialogue else args.surface
     semantic_input = (os.environ.get("SAMANTHA_INTENT_INTERPRETER") == "1" and
-        args.surface != "claw_live" and _QA_INGRESS_CONTEXT is None)
+        admitted_surface != "claw_live" and _QA_INGRESS_CONTEXT is None)
     message = " ".join(args.message) if semantic_input else " ".join(args.message).strip()
     if not message and not sys.stdin.isatty():
         raw_message = sys.stdin.read()
