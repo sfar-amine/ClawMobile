@@ -10,6 +10,10 @@ export const INTERPRETER_PRIMARY = "google/gemini-3.5-flash-lite@google:claw-gem
 export const INTERPRETER_FALLBACK = "openai/gpt-5.6-luna";
 export const INTERPRETER_MODELS = Object.freeze([INTERPRETER_PRIMARY, INTERPRETER_FALLBACK]);
 export const INTERPRET_METHOD = "samantha.intent.interpret";
+// Same credential owner, separate closed engineering contract. Selection and
+// Sol -> Luna fallback belong to the existing Python governor, never this port.
+export const IMMUNE_PURPOSE = "samantha.engineering.immune";
+export const IMMUNE_MODELS = Object.freeze(["openai/gpt-5.6-sol", INTERPRETER_FALLBACK]);
 
 // Codes thrown by OpenClaw's api.runtime.llm.complete (2026.9.6).
 const TECHNICAL_CODES = new Set([
@@ -60,8 +64,8 @@ function bounded(value: unknown, limit: { min: number; max: number; default: num
 
 /** One JSON object, optionally inside a single json code fence. Its contract
  *  (intent-interpretation.v1) is validated by the playbooks owner, not here. */
-export function parseDecision(text: unknown): Record<string, unknown> | null {
-  if (typeof text !== "string" || !text.trim() || text.length > LIMITS.outputChars) return null;
+export function parseDecision(text: unknown, maxChars: number = LIMITS.outputChars): Record<string, unknown> | null {
+  if (maxChars > 64_000 || typeof text !== "string" || !text.trim() || text.length > maxChars) return null;
   let body = text.trim();
   const fence = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/.exec(body);
   if (fence) body = fence[1].trim();
@@ -80,13 +84,14 @@ export function validateRequest(raw: unknown): InterpretRequest | null {
   if (typeof r.systemPrompt !== "string" || !r.systemPrompt.trim() || r.systemPrompt.length > LIMITS.systemChars) return null;
   if (typeof r.message !== "string" || !r.message.trim() || r.message.length > LIMITS.userChars) return null;
   if (r.responseSchema !== undefined && (typeof r.responseSchema !== "object" || r.responseSchema === null)) return null;
-  if (r.model !== undefined && !INTERPRETER_MODELS.includes(r.model)) return null;
+  const immune = r.purpose === IMMUNE_PURPOSE;
+  if (immune ? !IMMUNE_MODELS.includes(r.model) : (r.model !== undefined && !INTERPRETER_MODELS.includes(r.model))) return null;
   return {
     systemPrompt: r.systemPrompt,
     message: r.message,
     responseSchema: r.responseSchema,
     primaryTimeoutMs: bounded(r.primaryTimeoutMs, LIMITS.primaryTimeoutMs),
-    totalTimeoutMs: bounded(r.totalTimeoutMs, LIMITS.totalTimeoutMs),
+    totalTimeoutMs: bounded(r.totalTimeoutMs, immune ? { min: 500, max: 90_000, default: 60_000 } : LIMITS.totalTimeoutMs),
     purpose: typeof r.purpose === "string" ? r.purpose.slice(0, 80) : undefined,
     model: r.model,
   };
@@ -95,6 +100,7 @@ export function validateRequest(raw: unknown): InterpretRequest | null {
 async function attempt(complete: LlmComplete, model: string, req: InterpretRequest, timeoutMs: number,
     outer: AbortSignal | undefined, now: () => number) {
   const started = now();
+  const immune = req.purpose === IMMUNE_PURPOSE;
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   outer?.addEventListener("abort", onAbort, { once: true });
@@ -105,15 +111,15 @@ async function attempt(complete: LlmComplete, model: string, req: InterpretReque
       systemPrompt: req.systemPrompt,
       messages: [{ role: "user", content: req.message }],
       ...(req.responseSchema ? { responseFormat: { type: "json_schema", json_schema: { name: "decision", schema: req.responseSchema, strict: true } } } : {}),
-      ...(model === INTERPRETER_FALLBACK ? { requiredAuthMode: "oauth" } : {}),
+      ...(immune || model === INTERPRETER_FALLBACK ? { requiredAuthMode: "oauth" } : {}),
       // Gemini Flash Lite answers fastest without thinking; Luna keeps a minimal effort.
       reasoning: model === INTERPRETER_PRIMARY ? "off" : "minimal",
       temperature: 0,
-      maxTokens: 512,
+      maxTokens: immune ? 16_384 : 512,
       purpose: req.purpose ?? "samantha.intent.interpret",
       signal: controller.signal,
     });
-    const decision = parseDecision(result?.text);
+    const decision = parseDecision(result?.text, immune ? 64_000 : LIMITS.outputChars);
     const ms = now() - started;
     if (!decision) return { attempt: { model, outcome: "technical", code: "INVALID_DECISION_OUTPUT", ms } as InterpretAttempt };
     return { attempt: { model, outcome: "ok", ms } as InterpretAttempt, result, decision };
@@ -137,6 +143,9 @@ export async function interpret(complete: LlmComplete, req: InterpretRequest,
   const started = now();
   const total = req.totalTimeoutMs ?? LIMITS.totalTimeoutMs.default;
   const attempts: InterpretAttempt[] = [];
+  if (req.purpose === IMMUNE_PURPOSE && !IMMUNE_MODELS.includes(req.model!)) {
+    return { ok: false, code: "INVALID_REQUEST", attempts, totalMs: now() - started };
+  }
   let fallbackReason: string | undefined;
   const models = req.model ? [req.model] : INTERPRETER_MODELS;
   for (const model of models) {
