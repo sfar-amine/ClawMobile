@@ -72,10 +72,11 @@ export async function capabilityBridge(
     targetHint?: string;
     helperPath?: string;
     decision?: Record<string, unknown>;
+    dialogueReadHandoff?: Record<string, unknown>;
   } = {},
 ): Promise<Record<string, unknown>> {
-  const text = String(request || "").trim();
-  if (!text) return { success: false, error: "request_required" };
+  const text = options.dialogueReadHandoff!==undefined?String(request||""):String(request || "").trim();
+  if (!text.trim()) return { success: false, error: "request_required" };
   if (text.length > 12000) return { success: false, error: "request_too_large" };
 
   const execute = options.execute === true;
@@ -105,6 +106,10 @@ export async function capabilityBridge(
       if (!prepared && targetHint) argv.push("--target", targetHint);
       if (!prepared && execute) argv.push("--timeout", String(timeout));
       if (execute && options.readOnly === true) argv.push("--read-only");
+      if(options.dialogueReadHandoff!==undefined){
+        if(!prepared||options.readOnly!==true||caller!=="owner"||!options.dialogueReadHandoff||Array.isArray(options.dialogueReadHandoff)||typeof options.dialogueReadHandoff!=="object"||Buffer.byteLength(JSON.stringify(options.dialogueReadHandoff))>2048)return {success:false,error:"intent_read_handoff_invalid"};
+        argv.push("--dialogue-read-handoff",JSON.stringify(options.dialogueReadHandoff));
+      }
       if(options.requestId)argv.push("--request-id",options.requestId);
       if(execute&&options.runId)argv.push("--run-id",options.runId);
       if(execute&&options.sessionId)argv.push("--session-id",options.sessionId);

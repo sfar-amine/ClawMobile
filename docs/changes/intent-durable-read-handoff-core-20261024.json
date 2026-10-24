@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "id": "intent-durable-read-handoff-core-20261024",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Connect admitted interpreted durable reads to the existing Bridge/Continuum owner with private dialogue revalidation.",
+  "reason": "Real Gemini interpretation succeeded on S24, then the billing read was refused by the direct semantic port as an unqualified durable handoff.",
+  "rollback": "Restore verified Corec62c8d54 and PB23ee4dae with existing deploy and pin owners; preserve original receipts.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/changes/intent-durable-read-handoff-core-20261024.json",
+    "docs/changes/intent-durable-read-handoff-core-20261024.md",
+    "installer/termux-lite/claw-capability.py",
+    "installer/termux-lite/model-fast-path.py",
+    "installer/termux-lite/test-intent-durable-read-paired.py",
+    "openclaw-plugin-mobile-ui/scripts/test-capability-bridge.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts"
+  ],
+  "tests": [
+    {
+      "name": "Paired private read handoff and helper argument transport",
+      "status": "passed",
+      "evidence": "Paired Core/PB310 private admission, original receipt replay and helper forwarding:2 PASS. Existing semantic host suite22 PASS; TypeScript build PASS and Node capability-bridge transport PASS. Paired stage pins PB633d4516d2f658f369d18382d24793efa7172c8c."
+    }
+  ],
+  "documentation": [
+    "docs/changes/intent-durable-read-handoff-core-20261024.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No route or registry change; existing interpreted read and durable transport only."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Reuse prepared-decision validation, private DialogueStore and existing execute_resolved/Bridge/Continuum owners; no parallel executor."
+  }
+}
