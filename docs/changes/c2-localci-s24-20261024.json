@@ -22,7 +22,7 @@
     {
       "name": "tools/test_localci.py",
       "status": "passed",
-      "evidence": "47/47 : Termux sans profil refusé ; profil sans verrou refusé ; verrou occupé = rien ne démarre ; HOME privé et variables Samantha absentes des étapes ; refs PR du lanceur, tête différente ou refs absentes refusées ; gh des étapes S24 : ref et contenu servis depuis le miroir, tout autre appel refusé ; lanceur S24 : aucun chemin propre au Debian pour miroirs, worktrees et journaux, node sur le PATH de base ; profil, verrou et corps de PR du run absents des étapes, HOME d'étape hors de l'arborescence Termux et supprimé après le job"
+      "evidence": "49/49 : Termux sans profil refusé ; profil sans verrou refusé ; verrou occupé = rien ne démarre ; HOME privé et variables Samantha absentes des étapes ; refs PR du lanceur, tête différente ou refs absentes refusées ; gh des étapes S24 : ref et contenu servis depuis le miroir, tout autre appel refusé ; lanceur S24 : aucun chemin propre au Debian pour miroirs, worktrees et journaux, node sur le PATH de base ; profil, verrou et corps de PR du run absents des étapes, HOME d'étape hors de l'arborescence Termux et supprimé après le job ; sans espaces de noms, preuve privée confinée par subreaper (descendant détaché tué, process_lifetime=subreaper_teardown), démontage non prouvé ou prctl refusé = échec, aucun confinement = aucune preuve ni run"
     },
     {
       "name": "outillage Debian du S24",
@@ -53,6 +53,7 @@
     "PRoot n'est pas un bac à sable de sécurité : HOME privé et environnement vidé contre les accès accidentels seulement.",
     "Tête de PR lue par refs/pull/N/{head,merge} (pas l'API) ; une PR en conflit n'a pas de référence de fusion et est refusée.",
     "Les lectures du dépôt jumeau (gh api, git fetch https) sont servies par des miroirs git rafraîchis juste avant l'exécution.",
-    "Les étapes playbooks qui lancent bwrap (évaluateur figé de l'intent lab) échouent sur le S24 : Android bloque les espaces de noms utilisateur sans root ; elles restent exécutées et rouges, jamais sautées. Le workflow core n'utilise pas bwrap."
+    "Les étapes playbooks qui lancent bwrap (évaluateur figé de l'intent lab) échouent sur le S24 : Android bloque les espaces de noms utilisateur sans root ; elles restent exécutées et rouges, jamais sautées. Le workflow core n'utilise pas bwrap.",
+    "Le confinement subreaper de la preuve privée borne la durée de vie des processus, pas leurs accès réseau ou fichiers."
   ]
 }

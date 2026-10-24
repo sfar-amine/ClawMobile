@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -466,13 +467,43 @@ class LocalCiPrivateProofTests(LocalCiSyntheticReplayTests):
         time.sleep(1.1)
         self.assertFalse(late.exists(), 'a descendant must not survive proof issuance')
 
-    def test_namespace_unavailable_has_no_uncontained_fallback(self):
+    def test_no_containment_has_no_uncontained_fallback(self):
         head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo must-not-start\n')
-        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, '_canonical_pid_command', return_value=None), patch.object(localci, 'run_ci', side_effect=AssertionError('no uncontained run')):
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, '_canonical_pid_command', return_value=None), patch.object(localci, '_canonical_subreaper_command', return_value=None), patch.object(localci, 'run_ci', side_effect=AssertionError('no uncontained run')):
             proof = localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
         self.assertIsNone(proof)
         self.assertEqual(self.verify(head, proof)['status'], 'NOT_IMPLEMENTED')
         self.assertFalse(self.log.exists())
+
+    def test_without_namespaces_the_subreaper_contains_the_same_run(self):
+        # The S24 case: user namespaces refused, the subreaper keeps the lifetime contract.
+        import json, shlex, time
+        started = self.repo.parent/'descendant-started'
+        late = self.repo.parent/'descendant-survived'
+        child = "import pathlib,time;pathlib.Path(%r).write_text('started');time.sleep(.8);pathlib.Path(%r).write_text('survived')" % (str(started), str(late))
+        parent = "import subprocess,sys,time,pathlib;subprocess.Popen([sys.executable,'-c',%r],start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);deadline=time.monotonic()+2\nwhile not pathlib.Path(%r).exists() and time.monotonic()<deadline: time.sleep(.01)\nassert pathlib.Path(%r).exists()" % (child, str(started), str(started))
+        with patch.object(localci, '_canonical_pid_command', return_value=None):
+            head, proof = self.qualify('jobs:\n  contract:\n    steps:\n      - run: ' + json.dumps('python3 -c ' + shlex.quote(parent)) + '\n')
+        self.assertEqual(self.verify(head, proof)['status'], 'PASS')
+        self.assertEqual(proof._facts(localci._CI_PROOF_SEAL)['process_lifetime'], 'subreaper_teardown')
+        self.assertTrue(started.exists())
+        time.sleep(1.1)
+        self.assertFalse(late.exists(), 'a descendant must not survive proof issuance')
+
+    def test_subreaper_failure_paths_are_failures(self):
+        with patch.object(localci, '_canonical_pid_command', return_value=None):
+            with self.assertRaisesRegex(localci.LocalCIError, 'terminal_failure'):
+                self.qualify('jobs:\n  contract:\n    steps:\n      - run: exit 17\n')
+        sup = [sys.executable, str(Path(localci.__file__).resolve()), localci.SUBREAPER_FLAG, '--']
+        self.assertEqual(subprocess.run(sup + [sys.executable, '-c', 'raise SystemExit(5)']).returncode, 5)
+        with patch.object(localci, '_kill_all_descendants', return_value=False), \
+                patch.object(localci.subprocess, 'Popen') as popen, patch('ctypes.CDLL') as cdll:
+            cdll.return_value.prctl.return_value = 0
+            popen.return_value.wait.return_value = 0
+            self.assertEqual(localci._subreaper_main(['true']), 126, 'an unproven teardown is a failure')
+        with patch('ctypes.CDLL') as cdll:
+            cdll.return_value.prctl.return_value = -1
+            self.assertEqual(localci._subreaper_main(['true']), 125)
 
     def test_fifo_owner_refused_without_blocking_read(self):
         self.owner_file.unlink(); os.mkfifo(self.owner_file)

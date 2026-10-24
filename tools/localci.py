@@ -557,24 +557,111 @@ def _canonical_pid_command():
             '--new-session', '--bind', '/', '/', '--proc', '/proc', '--dev', '/dev', '--']
 
 
-def _run_canonical_ci_process(repo, sha, pr, log):
-    command_line = _canonical_pid_command()
-    if command_line is None:
+SUBREAPER_FLAG = "--localci-subreaper"
+
+
+def _canonical_subreaper_command():
+    # Where user namespaces are refused (Android: the S24), the same lifetime contract from a child
+    # subreaper: every orphaned descendant, detached sessions included, is reparented to it and
+    # killed before it exits. Linux only; the probe in _run_canonical_ci_process proves it works.
+    if not sys.platform.startswith("linux"):
         return None
+    return [sys.executable, str(Path(__file__).resolve()), SUBREAPER_FLAG, "--"]
+
+
+def _direct_children(pid):
+    children = []
+    for entry in os.scandir("/proc"):
+        if not entry.name.isdecimal():
+            continue
+        try:
+            stat_line = Path(entry.path, "stat").read_text()
+        except OSError:
+            continue
+        fields = stat_line[stat_line.rindex(")") + 2:].split()
+        if int(fields[1]) == pid:
+            children.append(int(entry.name))
+    return children
+
+
+def _kill_all_descendants(deadline_seconds=20):
+    """SIGKILL every child until none is left; orphans of killed children land here next round."""
+    me, deadline = os.getpid(), time.monotonic() + deadline_seconds
+    while time.monotonic() < deadline:
+        children = _direct_children(me)
+        for pid in children:
+            try: os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError: pass
+        try:
+            while os.waitpid(-1, os.WNOHANG)[0]:
+                pass
+        except ChildProcessError:
+            return True
+        if not children:
+            time.sleep(0.01)
+    return False
+
+
+def _subreaper_main(argv):
+    """Run argv as a child, then tear down everything it left behind; a failed teardown is a failure."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+        return 125
+    parent = os.getppid()
+    libc.prctl(1, signal.SIGTERM, 0, 0, 0)  # PR_SET_PDEATHSIG: losing the owner tears down too
+    if os.getppid() != parent:
+        return 125
+
+    class _Stop(Exception):
+        pass
+
+    def stop(*_):
+        raise _Stop
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    code = 143
     try:
-        probe = subprocess.run(command_line + [sys.executable, '-c', 'pass'],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-        if probe.returncode != 0:
-            return None
-    except (OSError, subprocess.SubprocessError):
+        code = subprocess.Popen(argv, start_new_session=True).wait()
+    except _Stop:
+        pass
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        if not _kill_all_descendants():
+            code = 126
+    return code
+
+
+def _run_canonical_ci_process(repo, sha, pr, log):
+    """(exit code, process lifetime) of exactly one contained owner run; None if no containment works."""
+    for command_line, lifetime in ((_canonical_pid_command(), "PID_namespace_teardown"),
+                                   (_canonical_subreaper_command(), "subreaper_teardown")):
+        if command_line is None:
+            continue
+        try:
+            probe = subprocess.run(command_line + [sys.executable, '-c', 'pass'],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if probe.returncode == 0:
+            break
+    else:
         return None
     # Exactly the same CLI owner, once; never fall back to an uncontained run.
     process = subprocess.Popen(command_line + [sys.executable, str(Path(__file__).resolve()),
         str(repo), sha, pr, str(log)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         start_new_session=True)
     try:
-        return process.wait()
+        return process.wait(), lifetime
     except BaseException:
+        if lifetime == "subreaper_teardown":
+            # The subreaper must outlive its descendants to kill them: ask first, force after.
+            try: os.kill(process.pid, signal.SIGTERM)
+            except ProcessLookupError: pass
+            try: process.wait(timeout=25)
+            except subprocess.TimeoutExpired: pass
         try: os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError: pass
         process.wait(timeout=5)
@@ -612,9 +699,10 @@ def run_ci_evidence(repo_arg, sha, pr, output, *, subject_path, expected_subject
     log = Path(output).resolve()
     if log.exists() or log.is_symlink():
         raise LocalCIError("canonical_ci_fresh_output_required")
-    result = _run_canonical_ci_process(repo, sha, pr, log)
-    if result is None:
-        return None  # No private proof: namespace unavailable, no bare fallback.
+    contained = _run_canonical_ci_process(repo, sha, pr, log)
+    if contained is None:
+        return None  # No private proof: no containment available, no bare fallback.
+    result, lifetime = contained
     if type(result) is not int or result != 0:
         raise LocalCIError("canonical_ci_terminal_failure")
     after = _proof_pr(repo, sha, pr)
@@ -626,7 +714,7 @@ def run_ci_evidence(repo_arg, sha, pr, output, *, subject_path, expected_subject
                  runner_digest=runner_digest, runner_revision=runner_revision, workflow_path=workflow_path,
                  workflow_digest=hashlib.sha256(workflow).hexdigest(),
                  subject=subject, log_path=str(log), log_digest=_proof_file_digest(log),
-                 repo_path=str(repo), proof_scope="canonical_CI_and_committed_artifact_identity_only", process_lifetime="PID_namespace_teardown")
+                 repo_path=str(repo), proof_scope="canonical_CI_and_committed_artifact_identity_only", process_lifetime=lifetime)
     return CanonicalCIProof(facts, _seal=_CI_PROOF_SEAL)
 
 
@@ -658,6 +746,8 @@ def verify_ci_evidence(proof, *, repository, head, pr_number, subject_digest):
 
 
 def main():
+    if sys.argv[1:2] == [SUBREAPER_FLAG] and sys.argv[2:3] == ["--"] and len(sys.argv) > 3:
+        return _subreaper_main(sys.argv[3:])
     parser = argparse.ArgumentParser(description=__doc__)
     for arg in ("repository", "sha", "pr", "output"):
         parser.add_argument(arg)
