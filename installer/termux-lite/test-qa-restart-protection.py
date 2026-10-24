@@ -206,7 +206,9 @@ with_repair_lease repair_http_under_lease companion ignored ignored ignored 0 0
     def test_repaired_daemon_does_not_inherit_lease(self):
         script = self.home / "safe-child.sh"
         # A real background child remains alive after the repair owner exits.
-        script.write_text('#!/bin/sh\necho "$$" > "$OPENCLAW_HOME/child.pid"\nsleep 2\n')
+        # Written then renamed: the test never reads a created-but-empty pid file.
+        script.write_text('#!/bin/sh\necho "$$" > "$OPENCLAW_HOME/child.pid.tmp"\n'
+                          'mv "$OPENCLAW_HOME/child.pid.tmp" "$OPENCLAW_HOME/child.pid"\nsleep 2\n')
         script.chmod(0o700)
         result = self.shell('''
 D="$OPENCLAW_HOME"

@@ -10,6 +10,7 @@
   "files": [
     "tools/localci.py",
     "tools/test_localci.py",
+    "installer/termux-lite/test-qa-restart-protection.py",
     "tools/localci-s24.sh",
     "tools/localci_s24_toolchain.sh",
     "tools/localci_s24_gh.py",
@@ -27,6 +28,11 @@
       "name": "outillage Debian du S24",
       "status": "passed",
       "evidence": "node v20.20.2, v22.23.4, v26.11.1, Python 3.12.15, PyYAML 6.0.2, git 2.56.0, téléchargements vérifiés SHA-256 ; git et file ajoutés après le premier passage (git de Termux vu par erreur à l'inventaire)"
+    },
+    {
+      "name": "installer/termux-lite/test-qa-restart-protection.py",
+      "status": "passed",
+      "evidence": "15/15 ; test_repaired_daemon_does_not_inherit_lease 30 passages sans échec après écriture atomique du PID (échec intermittent ValueError sur fichier vide observé en CI locale sur b723064e)"
     }
   ],
   "documentation": [
