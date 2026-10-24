@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "c2-localci-s24-20261024",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "CI sans PC : la preuve de fusion reste localci.py dans le conteneur cloud de l'agent ; sur le S24, un profil diagnostic explicite (verrou de déploiement exclusif, priorité basse, HOME privé), un lanceur Termux, un outillage Debian vérifié, et une preuve privée confinée par subreaper là où bwrap est refusé.",
+  "reason": "Décisions d'Amine du 24/10 : aucune dépendance au PC (S24 35b224a6), puis option 2 après qualification : CI canonique dans le conteneur cloud, S24 pour les recettes réelles et le diagnostic (PRoot 2 à 3 fois plus lent, budgets de test non tenus ; ni espaces de noms ni Landlock sur Android).",
+  "files": [
+    "tools/localci.py",
+    "tools/test_localci.py",
+    "installer/termux-lite/test-qa-restart-protection.py",
+    "tools/localci-s24.sh",
+    "tools/localci_s24_toolchain.sh",
+    "tools/localci_s24_gh.py",
+    "AGENTS.md",
+    "docs/changes/c2-localci-s24-20261024.md",
+    "docs/changes/c2-localci-s24-20261024.json"
+  ],
+  "tests": [
+    {
+      "name": "tools/test_localci.py",
+      "status": "passed",
+      "evidence": "49/49 : Termux sans profil refusé ; profil sans verrou refusé ; verrou occupé = rien ne démarre ; HOME privé et variables Samantha absentes des étapes ; refs PR du lanceur, tête différente ou refs absentes refusées ; gh des étapes S24 : ref et contenu servis depuis le miroir, tout autre appel refusé ; lanceur S24 : aucun chemin propre au Debian pour miroirs, worktrees et journaux, node sur le PATH de base ; profil, verrou et corps de PR du run absents des étapes, HOME d'étape hors de l'arborescence Termux et supprimé après le job ; sans espaces de noms, preuve privée confinée par subreaper (descendant détaché tué, process_lifetime=subreaper_teardown), démontage non prouvé ou prctl refusé = échec, aucun confinement = aucune preuve ni run"
+    },
+    {
+      "name": "outillage Debian du S24",
+      "status": "passed",
+      "evidence": "node v20.20.2, v22.23.4, v26.11.1, Python 3.12.15, PyYAML 6.0.2, git 2.56.0, téléchargements vérifiés SHA-256 ; git et file ajoutés après le premier passage (git de Termux vu par erreur à l'inventaire)"
+    },
+    {
+      "name": "installer/termux-lite/test-qa-restart-protection.py",
+      "status": "passed",
+      "evidence": "15/15 ; test_repaired_daemon_does_not_inherit_lease 30 passages sans échec après écriture atomique du PID (échec intermittent ValueError sur fichier vide observé en CI locale sur b723064e)"
+    }
+  ],
+  "documentation": [
+    "AGENTS.md",
+    "docs/changes/c2-localci-s24-20261024.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Outil d'ingénierie seulement ; aucune route runtime ni app."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même propriétaire unique de CI ; le verrou de déploiement existant sert de garde ; aucun service, store ni ordonnanceur."
+  },
+  "rollback": "Revert de la PR : le refus fixe sur Termux revient ; l'outillage Debian peut rester inutilisé.",
+  "limitations": [
+    "PRoot n'est pas un bac à sable de sécurité : HOME privé et environnement vidé contre les accès accidentels seulement.",
+    "Tête de PR lue par refs/pull/N/{head,merge} (pas l'API) ; une PR en conflit n'a pas de référence de fusion et est refusée.",
+    "Les lectures du dépôt jumeau (gh api, git fetch https) sont servies par des miroirs git rafraîchis juste avant l'exécution.",
+    "Les étapes playbooks qui lancent bwrap (évaluateur figé de l'intent lab) échouent sur le S24 : Android bloque les espaces de noms utilisateur sans root ; elles restent exécutées et rouges, jamais sautées. Le workflow core n'utilise pas bwrap.",
+    "Le confinement subreaper de la preuve privée borne la durée de vie des processus, pas leurs accès réseau ou fichiers.",
+    "Sur le S24, la CI est un diagnostic : sous PRoot les budgets de temps vérifiés par les tests sautent de façon variable (étape 11 du core mesurée), et les étapes bwrap des playbooks ne peuvent pas y passer."
+  ]
+}

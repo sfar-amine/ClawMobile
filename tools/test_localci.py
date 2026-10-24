@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Offline fail-closed tests for canonical localci.py; never run on S24."""
+"""Offline fail-closed tests for canonical localci.py, including its S24 profile (synthetic, no device)."""
+import contextlib
 import os
+import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -32,9 +35,16 @@ class LocalCiUnitTests(unittest.TestCase):
         with self.assertRaisesRegex(localci.LocalCIError, "SHA"):
             localci.run_ci("samantha-core", "a" * 8, "-", "/dev/null")
 
-    def test_s24_is_forbidden(self):
+    def test_s24_without_its_profile_is_refused_not_silently_allowed(self):
         with patch.dict(os.environ, {"PREFIX": "/data/data/com.termux/files/usr"}):
-            with self.assertRaisesRegex(localci.LocalCIError, "S24"):
+            os.environ.pop("LOCALCI_PROFILE", None)
+            with self.assertRaisesRegex(localci.LocalCIError, "localci-s24.sh"):
+                localci.run_ci("samantha-core", "a" * 40, "-", "/dev/null")
+
+    def test_s24_profile_requires_the_heavy_job_lock(self):
+        with patch.dict(os.environ, {"LOCALCI_PROFILE": "s24"}):
+            os.environ.pop("LOCALCI_HEAVY_LOCK", None)
+            with self.assertRaisesRegex(localci.LocalCIError, "LOCALCI_HEAVY_LOCK"):
                 localci.run_ci("samantha-core", "a" * 40, "-", "/dev/null")
 
     def test_unsupported_expression_fails_closed(self):
@@ -122,6 +132,67 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
         self.assertIn("LOCALCI_RESULT exit=0 sha=" + head, output)
         self.assertEqual(output.count("STEP_END "), 4)
         self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    def s24(self, **extra):
+        lock = Path(self.temp.name) / "companion-deploy.lock"
+        env = {"LOCALCI_PROFILE": "s24", "LOCALCI_HEAVY_LOCK": str(lock), **extra}
+        stack = contextlib.ExitStack()
+        stack.enter_context(patch.dict(os.environ, env))
+        real = shutil.which  # No gh on the S24: PR refs come from the wrapper's fetch.
+        stack.enter_context(patch.object(localci.shutil, "which", lambda name: None if name == "gh" else real(name)))
+        return lock, stack
+
+    def pull_refs(self, pr, head):
+        self.git("update-ref", f"refs/localci/pull/{pr}/head", head)
+        merge = subprocess.run(["git", "-C", str(self.repo), "commit-tree", f"{head}^{{tree}}", "-p", self.base_sha,
+                                "-p", head, "-m", "merge"], check=True, capture_output=True, text=True).stdout.strip()
+        self.git("update-ref", f"refs/localci/pull/{pr}/merge", merge)
+
+    def test_s24_profile_runs_with_private_home_no_credentials_and_wrapper_pr_refs(self):
+        head = self.commit(
+            "jobs:\n  contract:\n    steps:\n"
+            "      - run: test \"$HOME\" != /live-home && test -d \"$HOME\" && echo \"STEP_HOME=$HOME\"\n"
+            "      - run: test -z \"${CLAW_TOKEN:-}${SAMANTHA_INTENT_INTERPRETER:-}${OPENCLAW_STATE:-}\"\n"
+            "      - run: test -z \"${LOCALCI_PROFILE:-}${LOCALCI_HEAVY_LOCK:-}${LOCALCI_PR_BODY_FILE:-}\"\n"
+            "      - run: python3 -c 'import json,os; e=json.load(open(os.environ[\"GITHUB_EVENT_PATH\"])); "
+            "assert e[\"pull_request\"][\"body\"]==\"## Résumé\\n\"'\n")
+        self.pull_refs(7, head)
+        body = Path(self.temp.name) / "body.md"
+        body.write_text("## Résumé\n", encoding="utf-8")
+        lock, env = self.s24(HOME="/live-home", CLAW_TOKEN="x", SAMANTHA_INTENT_INTERPRETER="1",
+                             OPENCLAW_STATE="y", LOCALCI_PR_BODY_FILE=str(body))
+        with env:
+            self.assertEqual(localci.run_ci(str(self.repo), head, "7", str(self.log)), 0)
+        output = self.log.read_text(encoding="utf-8")
+        self.assertIn("profile=s24", output)
+        self.assertIn(f"base={self.base_sha}", output)
+        self.assertIn("LOCALCI_RESULT exit=0 sha=" + head, output)
+        home = re.search(r"STEP_HOME=(\S+)", output).group(1)
+        self.assertNotIn("/com.termux/", home)
+        self.assertFalse(Path(home).exists())
+
+    def test_s24_busy_lock_starts_nothing(self):
+        import fcntl
+        head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo no-effect\n")
+        self.pull_refs(7, head)
+        lock, env = self.s24()
+        holder = os.open(lock, os.O_RDWR | os.O_CREAT)
+        self.addCleanup(os.close, holder)
+        fcntl.flock(holder, fcntl.LOCK_EX)  # A deploy or QA campaign holds it.
+        with env, self.assertRaisesRegex(localci.LocalCIError, "heavy_job_busy"):
+            localci.run_ci(str(self.repo), head, "7", str(self.log))
+        self.assertFalse(self.log.exists())
+
+    def test_s24_pr_head_mismatch_and_missing_refs_refused(self):
+        head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo no-effect\n")
+        lock, env = self.s24()
+        with env, self.assertRaisesRegex(localci.LocalCIError, "S24 PR refs missing"):
+            localci.run_ci(str(self.repo), head, "7", str(self.log))
+        self.pull_refs(7, self.base_sha)
+        lock, env = self.s24()
+        with env, self.assertRaisesRegex(localci.LocalCIError, "GitHub PR head SHA mismatch"):
+            localci.run_ci(str(self.repo), head, "7", str(self.log))
+        self.assertFalse(self.log.exists())
 
     def test_sha_mismatch_refused_before_work(self):
         head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo no-effect\n")
@@ -396,13 +467,43 @@ class LocalCiPrivateProofTests(LocalCiSyntheticReplayTests):
         time.sleep(1.1)
         self.assertFalse(late.exists(), 'a descendant must not survive proof issuance')
 
-    def test_namespace_unavailable_has_no_uncontained_fallback(self):
+    def test_no_containment_has_no_uncontained_fallback(self):
         head = self.commit('jobs:\n  contract:\n    steps:\n      - run: echo must-not-start\n')
-        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, '_canonical_pid_command', return_value=None), patch.object(localci, 'run_ci', side_effect=AssertionError('no uncontained run')):
+        with self.fake_gh(head), patch.object(localci, '__file__', str(self.owner_file)), patch.object(localci, '_canonical_pid_command', return_value=None), patch.object(localci, '_canonical_subreaper_command', return_value=None), patch.object(localci, 'run_ci', side_effect=AssertionError('no uncontained run')):
             proof = localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
         self.assertIsNone(proof)
         self.assertEqual(self.verify(head, proof)['status'], 'NOT_IMPLEMENTED')
         self.assertFalse(self.log.exists())
+
+    def test_without_namespaces_the_subreaper_contains_the_same_run(self):
+        # The S24 case: user namespaces refused, the subreaper keeps the lifetime contract.
+        import json, shlex, time
+        started = self.repo.parent/'descendant-started'
+        late = self.repo.parent/'descendant-survived'
+        child = "import pathlib,time;pathlib.Path(%r).write_text('started');time.sleep(.8);pathlib.Path(%r).write_text('survived')" % (str(started), str(late))
+        parent = "import subprocess,sys,time,pathlib;subprocess.Popen([sys.executable,'-c',%r],start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);deadline=time.monotonic()+2\nwhile not pathlib.Path(%r).exists() and time.monotonic()<deadline: time.sleep(.01)\nassert pathlib.Path(%r).exists()" % (child, str(started), str(started))
+        with patch.object(localci, '_canonical_pid_command', return_value=None):
+            head, proof = self.qualify('jobs:\n  contract:\n    steps:\n      - run: ' + json.dumps('python3 -c ' + shlex.quote(parent)) + '\n')
+        self.assertEqual(self.verify(head, proof)['status'], 'PASS')
+        self.assertEqual(proof._facts(localci._CI_PROOF_SEAL)['process_lifetime'], 'subreaper_teardown')
+        self.assertTrue(started.exists())
+        time.sleep(1.1)
+        self.assertFalse(late.exists(), 'a descendant must not survive proof issuance')
+
+    def test_subreaper_failure_paths_are_failures(self):
+        with patch.object(localci, '_canonical_pid_command', return_value=None):
+            with self.assertRaisesRegex(localci.LocalCIError, 'terminal_failure'):
+                self.qualify('jobs:\n  contract:\n    steps:\n      - run: exit 17\n')
+        sup = [sys.executable, str(Path(localci.__file__).resolve()), localci.SUBREAPER_FLAG, '--']
+        self.assertEqual(subprocess.run(sup + [sys.executable, '-c', 'raise SystemExit(5)']).returncode, 5)
+        with patch.object(localci, '_kill_all_descendants', return_value=False), \
+                patch.object(localci.subprocess, 'Popen') as popen, patch('ctypes.CDLL') as cdll:
+            cdll.return_value.prctl.return_value = 0
+            popen.return_value.wait.return_value = 0
+            self.assertEqual(localci._subreaper_main(['true']), 126, 'an unproven teardown is a failure')
+        with patch('ctypes.CDLL') as cdll:
+            cdll.return_value.prctl.return_value = -1
+            self.assertEqual(localci._subreaper_main(['true']), 125)
 
     def test_fifo_owner_refused_without_blocking_read(self):
         self.owner_file.unlink(); os.mkfifo(self.owner_file)
@@ -411,6 +512,67 @@ class LocalCiPrivateProofTests(LocalCiSyntheticReplayTests):
             with self.assertRaisesRegex(ValueError, 'regular_bounded_owner_required'):
                 localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
 
+
+
+class LocalCiS24GhTests(unittest.TestCase):
+    """The S24 steps' `gh`: two read-only forms from local mirrors, anything else refused."""
+
+    def setUp(self):
+        import localci_s24_gh
+        self.gh = localci_s24_gh
+        self.temp = tempfile.TemporaryDirectory(prefix="ci-gh-")
+        self.addCleanup(self.temp.cleanup)
+        origin = Path(self.temp.name) / "origin"
+        origin.mkdir()
+        run = lambda repo, *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True, text=True).stdout.strip()
+        run(origin, "init", "-q", "-b", "runtime/x")
+        run(origin, "config", "user.email", "f@example.invalid"); run(origin, "config", "user.name", "F")
+        (origin / "tools").mkdir(); (origin / "tools" / "a.py").write_text("print('peer')\n")
+        run(origin, "add", "."); run(origin, "commit", "-qm", "c")
+        self.sha = run(origin, "rev-parse", "HEAD")
+        mirrors = Path(self.temp.name) / "repos"
+        subprocess.run(["git", "clone", "-q", str(origin), str(mirrors / "samantha-core")], check=True)
+        self.env = patch.dict(os.environ, {"LOCALCI_S24_MIRRORS": str(mirrors)})
+        self.env.start(); self.addCleanup(self.env.stop)
+        self.gh.MIRRORS = mirrors
+
+    def call(self, *argv):
+        import io, contextlib as cl
+        out = io.StringIO()
+        with cl.redirect_stdout(out):
+            code = self.gh.main(list(argv))
+        return code, out.getvalue()
+
+    def test_ref_and_contents_are_served_from_the_mirror(self):
+        code, out = self.call("api", "repos/sfar-amine/samantha-core/git/ref/heads/runtime/x", "--jq", ".object.sha")
+        self.assertEqual((code, out.strip()), (0, self.sha))
+        code, out = self.call("api", f"repos/sfar-amine/samantha-core/contents/tools/a.py?ref={self.sha}", "--jq", ".content")
+        import base64
+        self.assertEqual(base64.b64decode(out), b"print('peer')\n")
+
+    def test_anything_else_is_refused(self):
+        for argv in (("pr", "view", "1"), ("api", "repos/sfar-amine/samantha-core/pulls/1"),
+                     ("api", "repos/sfar-amine/other/git/ref/heads/main"),
+                     ("api", f"repos/sfar-amine/samantha-core/contents/../x?ref={self.sha}"),
+                     ("api", "repos/sfar-amine/samantha-core/git/ref/heads/runtime/x", "--jq", ".ref")):
+            with self.assertRaises(SystemExit) as raised:
+                self.call(*argv)
+            self.assertEqual(raised.exception.code, 2)
+
+
+class LocalCiS24LauncherTests(unittest.TestCase):
+    """tools/localci-s24.sh: what Termux and Debian both touch keeps one absolute path; node is on the base PATH."""
+
+    def setUp(self):
+        self.text = (Path(__file__).resolve().parent / "localci-s24.sh").read_text()
+
+    def test_no_debian_only_path_for_mirrors_worktrees_or_logs(self):
+        self.assertIn('--bind "$ci:$ci"', self.text)
+        self.assertIn('LOCALCI_TMP_ROOT="$ci/tmp"', self.text)
+        self.assertNotRegex(self.text, r"(?<![\w$])/ci/")
+
+    def test_base_path_has_node_like_the_github_runner_image(self):
+        self.assertRegex(self.text, r"env -i PATH=/opt/node22/bin:")
 
 if __name__ == "__main__":
     unittest.main()
