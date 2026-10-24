@@ -23,7 +23,7 @@
     {
       "name": "Paired private read handoff and helper argument transport",
       "status": "passed",
-      "evidence": "Paired Core/PB310 private admission, original receipt replay and helper forwarding:2 PASS. Existing semantic host suite22 PASS; TypeScript build PASS and Node capability-bridge transport PASS. Paired stage pins PB1f9c7501dacc969e36252de44b643cdf56d8f361."
+      "evidence": "Paired Core/PB310 private admission, original receipt replay and helper forwarding:2 PASS. Existing semantic host suite22 PASS; TypeScript build PASS and Node capability-bridge transport PASS. Paired stage pins PB633d4516d2f658f369d18382d24793efa7172c8c."
     }
   ],
   "documentation": [

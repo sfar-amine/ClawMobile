@@ -11,3 +11,5 @@ La recette source jumelée utilise le vrai dialogue et Graph PB310 au SHA immuab
 Mesure réelle avant ce lot : Gemini a répondu en 3649 ms pour l’interprétation (un échantillon, pas un p95 ; ne prouve pas la cible de 2 s). Aucun paiement de recette, aucun secret dans les fixtures ou journaux. Le refus réel et l’appel modèle restent préservés dans le dossier S24 billing-screen-20261024.
 
 Activation : pin playbooks310 vérifié puis companion-deploy.sh sur le head intégré et vérifié ; recette réelle nouvelle en lecture. Retour Corec62c8d54c61b6e27d1cf4e6372215d268c7a98fb et PB23ee4daeada8949da725957c399348e00c493b36 par leurs propriétaires existants. Préserver les reçus originaux.
+
+Le premier head jumelé a été remplacé avant livraison : le contrôle PB de rollback impose que le coordinateur garde seul le cycle de vie de sa base. Le workflow épingle le head corrigé PB633d4516 ; les portes restent inchangées.

@@ -214,7 +214,7 @@ jobs:
           trap 'rm -rf -- "$peer"' EXIT
           git init "$peer"
           git -C "$peer" remote add origin https://github.com/sfar-amine/samantha-ui-playbooks.git
-          git -C "$peer" fetch --depth 1 origin 1f9c7501dacc969e36252de44b643cdf56d8f361
+          git -C "$peer" fetch --depth 1 origin 633d4516d2f658f369d18382d24793efa7172c8c
           git -C "$peer" checkout --detach FETCH_HEAD
           python3 ../installer/termux-lite/test-intent-durable-read-paired.py "$peer"
 
