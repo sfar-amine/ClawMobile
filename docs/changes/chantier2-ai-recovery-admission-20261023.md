@@ -23,3 +23,8 @@ réparateurs utilisent désormais une sélection IA explicitement synthétique p
 leurs effets contrôlés ; les tests d’admission exercent aussi le refus sans IA.
 Aucune recette native n’est déduite de ces fixtures. CI canonique exacte hors S24
 avant déploiement ; recette réelle et ménage legacy suivis dans le checkpoint C2.
+
+Le raccord shell capture `BASHPID` avant la substitution de commande et transmet
+ce PID à l'admission. La preuve d'arrêt porte ainsi sur l'exécuteur du callback,
+y compris en arrière-plan. Un test distinct compare l'identité enregistrée à
+celle du callback effectivement exécuté.
