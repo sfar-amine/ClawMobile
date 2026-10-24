@@ -106,7 +106,20 @@ function fake(script) {
     assert.equal(replies[0][2].code, "UNAVAILABLE");
     assert.equal(replies[1][2].code, "INVALID_REQUEST");
   }
-  // Config patch: exactly the two models, owned by this plugin, no agent or profile override.
+  // The credential-owner port also serves C2 Sol/Luna. C1 still rejects Sol above.
+  for(const model of port.IMMUNE_MODELS){
+    const engineering=port.validateRequest({systemPrompt:'public code fixture',message:'diagnose',purpose:port.IMMUNE_PURPOSE,model,totalTimeoutMs:90000});
+    assert.ok(engineering);assert.equal(engineering.totalTimeoutMs,90000);
+    const f=fake([{text:JSON.stringify({files:[{content:'x'.repeat(9000)}]}),provider:'openai',model:model.split('/')[1]}]);
+    assert.equal((await port.interpret(f.complete,engineering)).ok,true);
+    assert.equal(f.calls.length,1);assert.equal(f.calls[0].requiredAuthMode,'oauth');
+    assert.equal(f.calls[0].agentId,undefined);assert.equal(f.calls[0].tools,undefined);
+    const down=fake([failure('LLM_COMPLETION_FAILED')]);
+    assert.equal((await port.interpret(down.complete,engineering)).ok,false);assert.equal(down.calls.length,1);
+  }
+  assert.equal(port.validateRequest({systemPrompt:'x',message:'y',purpose:port.IMMUNE_PURPOSE}),null);
+  assert.equal(port.validateRequest({systemPrompt:'x',message:'y',purpose:port.IMMUNE_PURPOSE,model:GEMINI}),null);
+  // Exact native completion allowlist; no agent or auth-profile override.
   // OpenClaw 2026.9.6 matches the allowlist on provider/model only (the resolved ref carries no
   // "@profile"); a suffixed entry never matches and refuses every Gemini call. The free profile
   // stays pinned by the request ("model@profile"), which OpenClaw checks against the credential used.
@@ -115,8 +128,8 @@ function fake(script) {
   const GEMINI_KEY = GEMINI.split("@")[0];
   assert.equal(GEMINI, `${GEMINI_KEY}@google:claw-gemini-free`);
   assert.deepEqual(Object.keys(patch), ["plugins"]);
-  assert.deepEqual(llm.allowedModels, [GEMINI_KEY, LUNA]);
-  assert.deepEqual(llm.allowedCompletionModels, [GEMINI_KEY, LUNA]);
+  assert.deepEqual(llm.allowedModels, [GEMINI_KEY, LUNA, port.IMMUNE_MODELS[0]]);
+  assert.deepEqual(llm.allowedCompletionModels, [GEMINI_KEY, LUNA, port.IMMUNE_MODELS[0]]);
   assert.ok([...llm.allowedModels, ...llm.allowedCompletionModels].every((m) => !m.includes("@")));
   assert.equal(llm.allowAgentIdOverride, undefined);
   assert.equal(llm.allowAuthProfileOverride, undefined);
