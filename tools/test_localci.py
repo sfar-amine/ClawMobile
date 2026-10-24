@@ -523,5 +523,20 @@ class LocalCiS24GhTests(unittest.TestCase):
                 self.call(*argv)
             self.assertEqual(raised.exception.code, 2)
 
+
+class LocalCiS24LauncherTests(unittest.TestCase):
+    """tools/localci-s24.sh: what Termux and Debian both touch keeps one absolute path; node is on the base PATH."""
+
+    def setUp(self):
+        self.text = (Path(__file__).resolve().parent / "localci-s24.sh").read_text()
+
+    def test_no_debian_only_path_for_mirrors_worktrees_or_logs(self):
+        self.assertIn('--bind "$ci:$ci"', self.text)
+        self.assertIn('LOCALCI_TMP_ROOT="$ci/tmp"', self.text)
+        self.assertNotRegex(self.text, r"(?<![\w$])/ci/")
+
+    def test_base_path_has_node_like_the_github_runner_image(self):
+        self.assertRegex(self.text, r"env -i PATH=/opt/node22/bin:")
+
 if __name__ == "__main__":
     unittest.main()

@@ -21,7 +21,7 @@
     {
       "name": "tools/test_localci.py",
       "status": "passed",
-      "evidence": "45/45 : Termux sans profil refusé ; profil sans verrou refusé ; verrou occupé = rien ne démarre ; HOME privé et variables Samantha absentes des étapes ; refs PR du lanceur, tête différente ou refs absentes refusées ; gh des étapes S24 : ref et contenu servis depuis le miroir, tout autre appel refusé"
+      "evidence": "47/47 : Termux sans profil refusé ; profil sans verrou refusé ; verrou occupé = rien ne démarre ; HOME privé et variables Samantha absentes des étapes ; refs PR du lanceur, tête différente ou refs absentes refusées ; gh des étapes S24 : ref et contenu servis depuis le miroir, tout autre appel refusé ; lanceur S24 : aucun chemin propre au Debian pour miroirs, worktrees et journaux, node sur le PATH de base"
     },
     {
       "name": "outillage Debian du S24",
@@ -46,6 +46,7 @@
   "limitations": [
     "PRoot n'est pas un bac à sable de sécurité : HOME privé et environnement vidé contre les accès accidentels seulement.",
     "Tête de PR lue par refs/pull/N/{head,merge} (pas l'API) ; une PR en conflit n'a pas de référence de fusion et est refusée.",
-    "Les lectures du dépôt jumeau (gh api, git fetch https) sont servies par des miroirs git rafraîchis juste avant l'exécution."
+    "Les lectures du dépôt jumeau (gh api, git fetch https) sont servies par des miroirs git rafraîchis juste avant l'exécution.",
+    "Les étapes playbooks qui lancent bwrap (évaluateur figé de l'intent lab) échouent sur le S24 : Android bloque les espaces de noms utilisateur sans root ; elles restent exécutées et rouges, jamais sautées. Le workflow core n'utilise pas bwrap."
   ]
 }

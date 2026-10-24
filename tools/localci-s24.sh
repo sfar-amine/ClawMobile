@@ -6,6 +6,9 @@
 # access, then runs THIS checkout's tools/localci.py inside the proot Debian with an empty
 # environment, the Debian toolchains (tools/localci_s24_toolchain.sh) and the deploy lock bound
 # for localci to hold exclusively. The full log and a receipt stay under ~/.cache/localci-s24/.
+# Mirrors, worktrees and logs keep the same absolute path on both sides: a worktree created in Debian
+# must stay valid for Termux git (a `git worktree prune` there removed a running job's worktree when
+# it lived under a Debian-only path).
 set -euo pipefail
 name="${1:-}"; sha="${2:-}"; pr="${3:-}"; body="${4:-}"
 case "$name" in samantha-core|samantha-ui-playbooks|samantha-context-private) ;;
@@ -39,18 +42,18 @@ git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null || git -C "$repo" fetch -
 stamp="$(date +%Y%m%dT%H%M%S)"
 log="$name-${sha:0:12}-pr$pr-$stamp.log"
 body_env=()
-if [ -n "$body" ]; then cp "$body" "$ci/tmp/pr-body-$stamp.md"; body_env=("LOCALCI_PR_BODY_FILE=/ci/tmp/pr-body-$stamp.md"); fi
+if [ -n "$body" ]; then cp "$body" "$ci/tmp/pr-body-$stamp.md"; body_env=("LOCALCI_PR_BODY_FILE=$ci/tmp/pr-body-$stamp.md"); fi
 started="$(date +%s)"
 set +e
-nice -n 10 proot-distro login debian --bind "$ci:/ci" --bind "$HOME/.openclaw/deploys:/locks" --bind "$owner:/owner" -- \
-  env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root LANG=C.UTF-8 \
-    LOCALCI_PROFILE=s24 LOCALCI_HEAVY_LOCK=/locks/companion-deploy.lock LOCALCI_TMP_ROOT=/ci/tmp \
+nice -n 10 proot-distro login debian --bind "$ci:$ci" --bind "$HOME/.openclaw/deploys:/locks" --bind "$owner:/owner" -- \
+  env -i PATH=/opt/node22/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root LANG=C.UTF-8 \
+    LOCALCI_PROFILE=s24 LOCALCI_HEAVY_LOCK=/locks/companion-deploy.lock LOCALCI_TMP_ROOT="$ci/tmp" \
     LOCALCI_NODE20_BIN=/opt/node20/bin LOCALCI_NODE22_BIN=/opt/node22/bin LOCALCI_NODE26_BIN=/opt/node26/bin \
-    LOCALCI_PYTHON312_BIN=/opt/python3.12/bin LOCALCI_S24_STEP_BIN=/ci/bin LOCALCI_S24_MIRRORS=/ci/repos \
+    LOCALCI_PYTHON312_BIN=/opt/python3.12/bin LOCALCI_S24_STEP_BIN="$ci/bin" LOCALCI_S24_MIRRORS="$ci/repos" \
     GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*' \
-    GIT_CONFIG_KEY_1=url./ci/repos/.insteadOf GIT_CONFIG_VALUE_1=https://github.com/sfar-amine/ \
+    GIT_CONFIG_KEY_1="url.$ci/repos/.insteadOf" GIT_CONFIG_VALUE_1=https://github.com/sfar-amine/ \
     GIT_CONFIG_KEY_2=uploadpack.allowAnySHA1InWant GIT_CONFIG_VALUE_2=true "${body_env[@]}" \
-    python3 /owner/tools/localci.py "/ci/repos/$name" "$sha" "$pr" "/ci/logs/$log" >/dev/null 2>"$logs/$log.stderr"
+    python3 /owner/tools/localci.py "$repo" "$sha" "$pr" "$logs/$log" >/dev/null 2>"$logs/$log.stderr"
 code=$?
 set -e
 result="$(grep -h '^LOCALCI_RESULT' "$logs/$log" "$logs/$log.stderr" 2>/dev/null | tail -1)"

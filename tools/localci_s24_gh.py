@@ -2,7 +2,7 @@
 """`gh` for CI steps on the S24 profile: the two read-only API forms the workflows use, from local mirrors.
 
 The S24 has git access but no gh token. tools/localci-s24.sh fetches every Samantha repository into
-/ci/repos/<name> just before the run; this answers, from those mirrors only:
+~/.cache/localci-s24/repos/<name> just before the run; this answers, from those mirrors only:
   gh api repos/<owner>/<repo>/git/ref/heads/<branch> [--jq .object.sha]
   gh api repos/<owner>/<repo>/contents/<path>?ref=<sha> [--jq .content]
 Anything else exits 2 with a message: a step never silently succeeds on an unsupported call.
@@ -15,7 +15,7 @@ import re
 import subprocess
 import sys
 
-MIRRORS = Path(os.environ.get("LOCALCI_S24_MIRRORS", "/ci/repos"))
+MIRRORS = Path(os.environ.get("LOCALCI_S24_MIRRORS", "/nonexistent-localci-s24-mirrors"))
 REPO = re.compile(r"^repos/[A-Za-z0-9_.-]+/(samantha-core|samantha-ui-playbooks|samantha-context-private)/(.+)$")
 
 
