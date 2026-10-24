@@ -946,6 +946,7 @@ def _durable_capability_execute(
     origin_id: str,
     timeout: int,
     decision: dict[str, Any] | None = None,
+    read_handoff: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     selected = resolution.get("selected") if isinstance(resolution.get("selected"), dict) else {}
     capability = str(selected.get("capability") or resolution.get("capability") or "").strip()
@@ -961,6 +962,10 @@ def _durable_capability_execute(
     params = {"request": message, "targetHint": "", "surface": surface, "caller": caller}
     if isinstance(decision, dict):
         params["decision"] = decision
+    if read_handoff is not None:
+        if risk != "read" or caller != "owner":
+            raise ValueError("intent_read_handoff_requires_read_only")
+        params["dialogueReadHandoff"] = read_handoff
     params = _js_json(params)
     owner_id = "capfirst-" + hashlib.sha256(origin_id.encode()).hexdigest()[:24]
     prepared = _continuum_call(ui_root, [
@@ -1325,6 +1330,7 @@ def execute_resolved(
     origin_id: str = "capability-first",
     timeout: int = 30,
     execution_context: dict[str, Any] | None = None,
+    read_handoff: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Execution stage of the canonical fast path for an already resolved decision (unchanged behaviour: confirmed
     handoff, durable Continuum execution with identity derived from origin_id, or read execution)."""
@@ -1348,6 +1354,7 @@ def execute_resolved(
         executed = _durable_capability_execute(
             resolution, message, ui_root=ui_root, surface=surface, caller=caller,
             origin_id=origin_id, timeout=execution_timeout, decision=decision or None,
+            **({"read_handoff": read_handoff} if read_handoff is not None else {}),
         )
     else:
         executed = (
@@ -1551,6 +1558,19 @@ class FastPathPorts:
             except Exception:
                 return {"status": "known_error", "reason": "INTERPRETATION_HOST_UNAVAILABLE",
                         "execution_state": "not_started"}
+            if decision.get("risk") == "read" and (klass == "DURABLE" or (decision.get("continuum") or {}).get("mode") == "durable"):
+                try:
+                    from skill_intelligence.dialogue.coordinator import read_handoff_context
+                    from skill_intelligence.decision_contract import frozen_resolution
+                    reference = {"conversationRef": ctx.get("conversation_ref"), "goalRef": ctx.get("goal_ref"),
+                        "eventKey": ctx.get("event_key"), "originId": origin_id, "revision": ctx.get("conversation_revision")}
+                    read_handoff_context(reference, decision, ctx.get("_intent_dialogue_store"))
+                    resolution = frozen_resolution(decision, text)
+                    return self._track_execution(execute_resolved(text, resolution, decision, self.ui_root,
+                        surface=self.surface, caller=self._caller(ctx), origin_id=origin_id,
+                        timeout=self.timeout, read_handoff=reference))
+                except (ImportError, ValueError, TypeError, KeyError):
+                    return {"status": "known_error", "reason": "intent_read_handoff_unqualified", "execution_state": "blocked"}
             return self._track_execution(_rendered_semantic_execution(backend.execute(text, decision, origin_id, klass, ctx)))
         resolution = self._resolutions.get(str(decision.get("decisionId")))
         if _is_web_capability(decision, resolution):

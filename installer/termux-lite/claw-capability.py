@@ -186,6 +186,7 @@ def main() -> int:
     ed.add_argument("--decision-b64", required=True)
     ed.add_argument("--timeout", type=int, default=30)
     ed.add_argument("--read-only", action="store_true")
+    ed.add_argument("--dialogue-read-handoff")
     for command in (ed,ae):
         command.add_argument("--request-id")
         command.add_argument("--run-id")
@@ -253,6 +254,9 @@ def main() -> int:
         forwarded = ["execute-decision", args.text, "--decision-stdin", "--timeout", str(args.timeout)]
         if args.read_only:
             forwarded.append("--read-only")
+        if args.dialogue_read_handoff:
+            if not args.read_only:raise SystemExit("intent_read_handoff_requires_read_only")
+            forwarded.extend(["--dialogue-read-handoff",args.dialogue_read_handoff])
         if args.request_id and args.request_id != parsed.get("requestId"):
             raise SystemExit("web_request_identity_mismatch")
         return call(forwarded+context_args, timeout_s=context_timeout if context_timeout is not None else args.timeout + 5, input_text=json.dumps(parsed, ensure_ascii=False))

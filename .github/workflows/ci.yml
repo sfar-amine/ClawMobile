@@ -207,6 +207,17 @@ jobs:
           python3 ../installer/termux-lite/test-model-fast-path-web.py
           python3 ../installer/termux-lite/test-model-fast-path-intent.py
 
+      - name: Interpreted durable read paired with immutable PB310 admission owner (offline)
+        run: |
+          node scripts/test-capability-bridge.cjs
+          peer=$(mktemp -d "${TMPDIR:-/tmp}/intent-durable-pb310.XXXXXX")
+          trap 'rm -rf -- "$peer"' EXIT
+          git init "$peer"
+          git -C "$peer" remote add origin https://github.com/sfar-amine/samantha-ui-playbooks.git
+          git -C "$peer" fetch --depth 1 origin 1f9c7501dacc969e36252de44b643cdf56d8f361
+          git -C "$peer" checkout --detach FETCH_HEAD
+          python3 ../installer/termux-lite/test-intent-durable-read-paired.py "$peer"
+
       - name: Run trace induction tests
         run: npm run test:trace-induction
 

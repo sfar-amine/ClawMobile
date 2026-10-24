@@ -14,7 +14,8 @@ async function main() {
     "mode=sys.argv[1]",
     "if mode=='execute-decision':",
     " decision=json.loads(base64.b64decode(sys.argv[sys.argv.index('--decision-b64')+1]).decode())",
-    " print(json.dumps({'mode':mode,'decisionId':decision.get('decisionId'),'execution':{'state':'completed','result':{'ok':True}}}))",
+    " ref=json.loads(sys.argv[sys.argv.index('--dialogue-read-handoff')+1]) if '--dialogue-read-handoff' in sys.argv else None",
+    " print(json.dumps({'mode':mode,'decisionId':decision.get('decisionId'),'handoff':ref,'text':sys.argv[2],'readOnly':'--read-only' in sys.argv,'execution':{'state':'completed','result':{'ok':True}}}))",
     "else:",
     " target=sys.argv[sys.argv.index('--target')+1] if '--target' in sys.argv else None",
     " print(json.dumps({'surface':sys.argv[sys.argv.index('--surface')+1],'target':target,'harness':{'tool_policy':'required','evidence_required':True,'shortlist':[{'id':'device.assistance','score':1.0}]},'selected':{'executor':'bixby.device'}}))",
@@ -43,6 +44,15 @@ async function main() {
   assert.equal(executed.mode, "execute-decision");
   assert.equal(executed.decisionId, "decision-1");
   assert.equal(executed.execution.state, "completed");
+
+  const handoff={conversationRef:'conv-fixture',goalRef:'goal-fixture',eventKey:'event-fixture',originId:'origin-fixture',revision:1};
+  const reading=await mod.capabilityBridge('  etat de mes factures  ',{helperPath:helper,execute:true,readOnly:true,caller:'owner',decision,dialogueReadHandoff:handoff});
+  assert.equal(reading.success,true);assert.deepEqual(reading.handoff,handoff);
+  assert.equal(reading.text,'  etat de mes factures  ');assert.equal(reading.readOnly,true);
+  for(const change of [{readOnly:false},{caller:'other'},{dialogueReadHandoff:[]},{dialogueReadHandoff:{x:'x'.repeat(3000)}}]){
+    const refused=await mod.capabilityBridge('read',{helperPath:helper,execute:true,readOnly:true,caller:'owner',decision,dialogueReadHandoff:handoff,...change});
+    assert.equal(refused.success,false);assert.equal(refused.error,'intent_read_handoff_invalid');
+  }
 
   const invalidTarget = await mod.capabilityBridge("test", { helperPath: helper, targetHint: "bad target" });
   assert.equal(invalidTarget.success, false);

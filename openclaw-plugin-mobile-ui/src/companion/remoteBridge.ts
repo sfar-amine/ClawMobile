@@ -707,8 +707,8 @@ async function runCapabilityAtSurface(
   trustedSessionId?: string,
   webBounds?: {startedMonotonic:number;deadlineEpochMs:number},
 ) {
-  const request = String(params.request || "").trim();
-  if (!request || request.length > 12000) throw new Error("invalid_capability_request");
+  const request = params.dialogueReadHandoff!==undefined?String(params.request||""):String(params.request || "").trim();
+  if (!request.trim() || request.length > 12000) throw new Error("invalid_capability_request");
   const rawTargetHint = String(params.targetHint || "").trim();
   if (rawTargetHint && !/^[A-Za-z0-9._-]{1,128}$/.test(rawTargetHint)) {
     throw new Error("invalid_target_hint");
@@ -736,6 +736,7 @@ async function runCapabilityAtSurface(
     timeoutSeconds: 30,
     targetHint,
     decision,
+    ...(params.dialogueReadHandoff!==undefined?{dialogueReadHandoff:params.dialogueReadHandoff as Record<string,unknown>}:{}),
     ...(isWeb ? {requestId:String(decision!.requestId),runId:requestId,sessionId:trustedSessionId,remainingBudgetMs:remaining,deadlineEpochMs:bounds.deadlineEpochMs} : {}),
   });
   if(isWeb){
