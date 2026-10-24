@@ -396,6 +396,9 @@ def _run_ci(repo_arg, sha, pr, output, s24=False):
                     env = {k: v for k, v in env.items() if not S24_STEP_ENV_DROP.match(k)}
                     (runner / "home").mkdir()
                     env["HOME"] = str(runner / "home")
+                    step_bin = os.getenv("LOCALCI_S24_STEP_BIN")  # the mirror-backed `gh` of the wrapper
+                    if step_bin:
+                        env["PATH"] = step_bin + os.pathsep + env.get("PATH", "")
                 # GitHub Actions supplies the PR event file; local replay must
                 # reproduce that contract for mandatory PR-template checks.
                 event = {"pull_request": {

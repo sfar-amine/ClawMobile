@@ -477,5 +477,51 @@ class LocalCiPrivateProofTests(LocalCiSyntheticReplayTests):
                 localci.run_ci_evidence(self.repo, head, '5', self.log, subject_path=self.subject, expected_subject_digest=self.subject_digest())
 
 
+
+class LocalCiS24GhTests(unittest.TestCase):
+    """The S24 steps' `gh`: two read-only forms from local mirrors, anything else refused."""
+
+    def setUp(self):
+        import localci_s24_gh
+        self.gh = localci_s24_gh
+        self.temp = tempfile.TemporaryDirectory(prefix="ci-gh-")
+        self.addCleanup(self.temp.cleanup)
+        origin = Path(self.temp.name) / "origin"
+        origin.mkdir()
+        run = lambda repo, *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True, text=True).stdout.strip()
+        run(origin, "init", "-q", "-b", "runtime/x")
+        run(origin, "config", "user.email", "f@example.invalid"); run(origin, "config", "user.name", "F")
+        (origin / "tools").mkdir(); (origin / "tools" / "a.py").write_text("print('peer')\n")
+        run(origin, "add", "."); run(origin, "commit", "-qm", "c")
+        self.sha = run(origin, "rev-parse", "HEAD")
+        mirrors = Path(self.temp.name) / "repos"
+        subprocess.run(["git", "clone", "-q", str(origin), str(mirrors / "samantha-core")], check=True)
+        self.env = patch.dict(os.environ, {"LOCALCI_S24_MIRRORS": str(mirrors)})
+        self.env.start(); self.addCleanup(self.env.stop)
+        self.gh.MIRRORS = mirrors
+
+    def call(self, *argv):
+        import io, contextlib as cl
+        out = io.StringIO()
+        with cl.redirect_stdout(out):
+            code = self.gh.main(list(argv))
+        return code, out.getvalue()
+
+    def test_ref_and_contents_are_served_from_the_mirror(self):
+        code, out = self.call("api", "repos/sfar-amine/samantha-core/git/ref/heads/runtime/x", "--jq", ".object.sha")
+        self.assertEqual((code, out.strip()), (0, self.sha))
+        code, out = self.call("api", f"repos/sfar-amine/samantha-core/contents/tools/a.py?ref={self.sha}", "--jq", ".content")
+        import base64
+        self.assertEqual(base64.b64decode(out), b"print('peer')\n")
+
+    def test_anything_else_is_refused(self):
+        for argv in (("pr", "view", "1"), ("api", "repos/sfar-amine/samantha-core/pulls/1"),
+                     ("api", "repos/sfar-amine/other/git/ref/heads/main"),
+                     ("api", f"repos/sfar-amine/samantha-core/contents/../x?ref={self.sha}"),
+                     ("api", "repos/sfar-amine/samantha-core/git/ref/heads/runtime/x", "--jq", ".ref")):
+            with self.assertRaises(SystemExit) as raised:
+                self.call(*argv)
+            self.assertEqual(raised.exception.code, 2)
+
 if __name__ == "__main__":
     unittest.main()

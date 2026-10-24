@@ -17,8 +17,16 @@ case "$name" in samantha-core|samantha-ui-playbooks|samantha-context-private) ;;
 owner="$(cd "$(dirname "$0")/.." && pwd)"
 ci="$HOME/.cache/localci-s24"; repo="$ci/repos/$name"; logs="$ci/logs"
 mkdir -p "$ci/repos" "$logs" "$ci/tmp" "$HOME/.openclaw/deploys"
+# Every Samantha repository is mirrored: workflows read their peer at a branch head (`gh api`, served
+# from these mirrors by tools/localci_s24_gh.py since the S24 has git access but no gh token).
+for peer in samantha-core samantha-ui-playbooks; do
+  [ -d "$ci/repos/$peer/.git" ] || git clone -q "git@github.com:sfar-amine/$peer.git" "$ci/repos/$peer"
+  git -C "$ci/repos/$peer" fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*'
+done
 [ -d "$repo/.git" ] || git clone -q "git@github.com:sfar-amine/$name.git" "$repo"
 git -C "$repo" fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*'
+mkdir -p "$ci/bin"
+printf '#!/bin/sh\nexec python3 /owner/tools/localci_s24_gh.py "$@"\n' > "$ci/bin/gh"; chmod +x "$ci/bin/gh"
 if [ "$pr" != - ]; then
   git -C "$repo" fetch -q origin "+refs/pull/$pr/head:refs/localci/pull/$pr/head"
   git -C "$repo" fetch -q origin "+refs/pull/$pr/merge:refs/localci/pull/$pr/merge" \
@@ -36,7 +44,7 @@ nice -n 10 proot-distro login debian --bind "$ci:/ci" --bind "$HOME/.openclaw/de
   env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root LANG=C.UTF-8 \
     LOCALCI_PROFILE=s24 LOCALCI_HEAVY_LOCK=/locks/companion-deploy.lock LOCALCI_TMP_ROOT=/ci/tmp \
     LOCALCI_NODE20_BIN=/opt/node20/bin LOCALCI_NODE22_BIN=/opt/node22/bin LOCALCI_NODE26_BIN=/opt/node26/bin \
-    LOCALCI_PYTHON312_BIN=/opt/python3.12/bin \
+    LOCALCI_PYTHON312_BIN=/opt/python3.12/bin LOCALCI_S24_STEP_BIN=/ci/bin LOCALCI_S24_MIRRORS=/ci/repos \
     GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*' "${body_env[@]}" \
     python3 /owner/tools/localci.py "/ci/repos/$name" "$sha" "$pr" "/ci/logs/$log" >/dev/null 2>"$logs/$log.stderr"
 code=$?

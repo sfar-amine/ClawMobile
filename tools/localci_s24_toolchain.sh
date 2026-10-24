@@ -2,12 +2,12 @@
 # Toolchains of the canonical local CI inside the S24 Debian (proot-distro), run as its root.
 # Idempotent; every download is checked against the publisher's SHA-256 list before use.
 # Installs: /opt/node20, /opt/node22, /opt/node26 (exact 26.11.1, as core ci.yml), /opt/python3.12,
-# and PyYAML for localci.py itself. Prints one TOOLCHAIN line per tool.
+# PyYAML for localci.py itself, git and file for the workflow steps. Prints one TOOLCHAIN line per tool.
 set -euo pipefail
 [ "$(uname -m)" = aarch64 ] || { echo "toolchain_arch_unsupported: $(uname -m)" >&2; exit 2; }
 export DEBIAN_FRONTEND=noninteractive
 need=()
-for pkg in ca-certificates curl xz-utils python3-yaml python3-venv; do
+for pkg in ca-certificates curl xz-utils python3-yaml python3-venv git file; do
   dpkg -s "$pkg" >/dev/null 2>&1 || need+=("$pkg")
 done
 if [ "${#need[@]}" -gt 0 ]; then
