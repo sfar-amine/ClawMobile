@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Offline fail-closed tests for canonical localci.py; never run on S24."""
+"""Offline fail-closed tests for canonical localci.py, including its S24 profile (synthetic, no device)."""
+import contextlib
 import os
 import shutil
 import subprocess
@@ -32,9 +33,16 @@ class LocalCiUnitTests(unittest.TestCase):
         with self.assertRaisesRegex(localci.LocalCIError, "SHA"):
             localci.run_ci("samantha-core", "a" * 8, "-", "/dev/null")
 
-    def test_s24_is_forbidden(self):
+    def test_s24_without_its_profile_is_refused_not_silently_allowed(self):
         with patch.dict(os.environ, {"PREFIX": "/data/data/com.termux/files/usr"}):
-            with self.assertRaisesRegex(localci.LocalCIError, "S24"):
+            os.environ.pop("LOCALCI_PROFILE", None)
+            with self.assertRaisesRegex(localci.LocalCIError, "localci-s24.sh"):
+                localci.run_ci("samantha-core", "a" * 40, "-", "/dev/null")
+
+    def test_s24_profile_requires_the_heavy_job_lock(self):
+        with patch.dict(os.environ, {"LOCALCI_PROFILE": "s24"}):
+            os.environ.pop("LOCALCI_HEAVY_LOCK", None)
+            with self.assertRaisesRegex(localci.LocalCIError, "LOCALCI_HEAVY_LOCK"):
                 localci.run_ci("samantha-core", "a" * 40, "-", "/dev/null")
 
     def test_unsupported_expression_fails_closed(self):
@@ -122,6 +130,63 @@ class LocalCiSyntheticReplayTests(unittest.TestCase):
         self.assertIn("LOCALCI_RESULT exit=0 sha=" + head, output)
         self.assertEqual(output.count("STEP_END "), 4)
         self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    def s24(self, **extra):
+        lock = Path(self.temp.name) / "companion-deploy.lock"
+        env = {"LOCALCI_PROFILE": "s24", "LOCALCI_HEAVY_LOCK": str(lock), **extra}
+        stack = contextlib.ExitStack()
+        stack.enter_context(patch.dict(os.environ, env))
+        real = shutil.which  # No gh on the S24: PR refs come from the wrapper's fetch.
+        stack.enter_context(patch.object(localci.shutil, "which", lambda name: None if name == "gh" else real(name)))
+        return lock, stack
+
+    def pull_refs(self, pr, head):
+        self.git("update-ref", f"refs/localci/pull/{pr}/head", head)
+        merge = subprocess.run(["git", "-C", str(self.repo), "commit-tree", f"{head}^{{tree}}", "-p", self.base_sha,
+                                "-p", head, "-m", "merge"], check=True, capture_output=True, text=True).stdout.strip()
+        self.git("update-ref", f"refs/localci/pull/{pr}/merge", merge)
+
+    def test_s24_profile_runs_with_private_home_no_credentials_and_wrapper_pr_refs(self):
+        head = self.commit(
+            "jobs:\n  contract:\n    steps:\n"
+            "      - run: test \"$HOME\" != /live-home && test -d \"$HOME\"\n"
+            "      - run: test -z \"${CLAW_TOKEN:-}${SAMANTHA_INTENT_INTERPRETER:-}${OPENCLAW_STATE:-}\"\n"
+            "      - run: python3 -c 'import json,os; e=json.load(open(os.environ[\"GITHUB_EVENT_PATH\"])); "
+            "assert e[\"pull_request\"][\"body\"]==\"## Résumé\\n\"'\n")
+        self.pull_refs(7, head)
+        body = Path(self.temp.name) / "body.md"
+        body.write_text("## Résumé\n", encoding="utf-8")
+        lock, env = self.s24(HOME="/live-home", CLAW_TOKEN="x", SAMANTHA_INTENT_INTERPRETER="1",
+                             OPENCLAW_STATE="y", LOCALCI_PR_BODY_FILE=str(body))
+        with env:
+            self.assertEqual(localci.run_ci(str(self.repo), head, "7", str(self.log)), 0)
+        output = self.log.read_text(encoding="utf-8")
+        self.assertIn("profile=s24", output)
+        self.assertIn(f"base={self.base_sha}", output)
+        self.assertIn("LOCALCI_RESULT exit=0 sha=" + head, output)
+
+    def test_s24_busy_lock_starts_nothing(self):
+        import fcntl
+        head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo no-effect\n")
+        self.pull_refs(7, head)
+        lock, env = self.s24()
+        holder = os.open(lock, os.O_RDWR | os.O_CREAT)
+        self.addCleanup(os.close, holder)
+        fcntl.flock(holder, fcntl.LOCK_EX)  # A deploy or QA campaign holds it.
+        with env, self.assertRaisesRegex(localci.LocalCIError, "heavy_job_busy"):
+            localci.run_ci(str(self.repo), head, "7", str(self.log))
+        self.assertFalse(self.log.exists())
+
+    def test_s24_pr_head_mismatch_and_missing_refs_refused(self):
+        head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo no-effect\n")
+        lock, env = self.s24()
+        with env, self.assertRaisesRegex(localci.LocalCIError, "S24 PR refs missing"):
+            localci.run_ci(str(self.repo), head, "7", str(self.log))
+        self.pull_refs(7, self.base_sha)
+        lock, env = self.s24()
+        with env, self.assertRaisesRegex(localci.LocalCIError, "GitHub PR head SHA mismatch"):
+            localci.run_ci(str(self.repo), head, "7", str(self.log))
+        self.assertFalse(self.log.exists())
 
     def test_sha_mismatch_refused_before_work(self):
         head = self.commit("jobs:\n  contract:\n    steps:\n      - run: echo no-effect\n")

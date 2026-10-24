@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "id": "c2-localci-s24-20261024",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "La CI canonique localci.py tourne aussi sur le S24 par un profil explicite (verrou de déploiement exclusif, priorité basse, HOME privé), un lanceur Termux et un outillage Debian vérifié.",
+  "reason": "Décision d'Amine du 24/10 (S24 35b224a6) : aucune dépendance au PC ; remplace « jamais de CI sur le S24 ».",
+  "files": [
+    "tools/localci.py",
+    "tools/test_localci.py",
+    "tools/localci-s24.sh",
+    "tools/localci_s24_toolchain.sh",
+    "AGENTS.md",
+    "docs/changes/c2-localci-s24-20261024.md",
+    "docs/changes/c2-localci-s24-20261024.json"
+  ],
+  "tests": [
+    {
+      "name": "tools/test_localci.py",
+      "status": "passed",
+      "evidence": "43/43 : Termux sans profil refusé ; profil sans verrou refusé ; verrou occupé = rien ne démarre ; HOME privé et variables Samantha absentes des étapes ; refs PR du lanceur, tête différente ou refs absentes refusées"
+    },
+    {
+      "name": "outillage Debian du S24",
+      "status": "passed",
+      "evidence": "node v20.20.2, v22.23.4, v26.11.1, Python 3.12.15, PyYAML 6.0.2, git 2.56.0, téléchargements vérifiés SHA-256"
+    }
+  ],
+  "documentation": [
+    "AGENTS.md",
+    "docs/changes/c2-localci-s24-20261024.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Outil d'ingénierie seulement ; aucune route runtime ni app."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même propriétaire unique de CI ; le verrou de déploiement existant sert de garde ; aucun service, store ni ordonnanceur."
+  },
+  "rollback": "Revert de la PR : le refus fixe sur Termux revient ; l'outillage Debian peut rester inutilisé."
+}

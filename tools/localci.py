@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Single owner of local CI, used off-phone for all Samantha repositories.
+"""Single owner of local CI for all Samantha repositories, off-phone or on the S24.
 
 Usage: python3 samantha-core/tools/localci.py <repo> <40-char-head-sha> <PR|-> <log>
 Requires PyYAML, git, bash, gh (for PRs) and workflow-declared toolchains.
 Overrides: LOCALCI_NODE20_BIN, LOCALCI_NODE22_BIN, LOCALCI_NODE26_BIN,
 LOCALCI_PYTHON312_BIN; each specifies a toolchain bin directory.
+On the S24 it runs through tools/localci-s24.sh (profile `s24`, Amine 24/10: no PC dependency):
+Debian toolchains, the deploy lock held exclusively (one heavy job at a time), low priority,
+steps with a private HOME and no Samantha credentials in their environment.
 """
 import argparse
 import hashlib
@@ -46,6 +49,48 @@ EXPR = re.compile(r"\$\{\{\s*(.*?)\s*\}\}")
 
 class LocalCIError(Exception):
     pass
+
+
+# Runtime credentials and live-service switches never reach a CI step on the S24.
+S24_STEP_ENV_DROP = re.compile(r"^(CLAW_|SAMANTHA_|OPENCLAW_|COMPANION_|GH_|GITHUB_TOKEN$|OPENAI_|GEMINI_|GOOGLE_|ANTHROPIC_)")
+
+
+def s24_profile():
+    """True on the S24 profile. Termux without the profile is refused, never silently allowed."""
+    termux = "/com.termux/" in str(Path.home()) or os.getenv("PREFIX", "").startswith("/data/data/com.termux")
+    profile = os.getenv("LOCALCI_PROFILE") == "s24"
+    if termux and not profile:
+        raise LocalCIError("S24 detected: run through tools/localci-s24.sh (S24 profile: Debian toolchains, "
+                           "one heavy job at a time, private HOME)")
+    return profile
+
+
+def s24_heavy_lock():
+    """The deploy lock, held exclusively: no deploy, QA campaign or second CI runs meanwhile."""
+    path = os.getenv("LOCALCI_HEAVY_LOCK")
+    if not path:
+        raise LocalCIError("S24 profile requires LOCALCI_HEAVY_LOCK (the companion deploy lock)")
+    import fcntl
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        raise LocalCIError(f"heavy_job_busy: a deploy, QA campaign or CI holds {path}; nothing started") from None
+    return fd
+
+
+def s24_pr_refs(repo, pr):
+    """PR head/base fetched by the S24 wrapper just before (refs/pull/N/{head,merge}), body from a file."""
+    try:
+        head = command(["git", "rev-parse", "--verify", f"refs/localci/pull/{pr}/head^{{commit}}"], repo)
+        base = command(["git", "rev-parse", "--verify", f"refs/localci/pull/{pr}/merge^1"], repo)
+    except LocalCIError:
+        raise LocalCIError("S24 PR refs missing: tools/localci-s24.sh fetches refs/pull/N/head and "
+                           "refs/pull/N/merge (a conflicting PR has no merge ref)") from None
+    body_file = os.getenv("LOCALCI_PR_BODY_FILE")
+    body = Path(body_file).read_text(encoding="utf-8") if body_file else ""
+    return {"headRefOid": head, "baseRefOid": base, "body": body, "number": int(pr)}
 
 
 def command(args, cwd):
@@ -260,20 +305,36 @@ def run_app_ci(repo, sha, pr, base, logpath):
 def run_ci(repo_arg, sha, pr, output):
     if not SHA.fullmatch(sha):
         raise LocalCIError("Full exact 40-character head SHA required")
-    if "/com.termux/" in str(Path.home()) or os.getenv("PREFIX", "").startswith("/data/data/com.termux"):
-        raise LocalCIError("Do not run CI on the production S24")
+    s24 = s24_profile()
+    lock = s24_heavy_lock() if s24 else None
+    try:
+        if s24:
+            try:
+                os.nice(10)  # The live assistant keeps the CPU first.
+            except OSError:
+                pass
+        return _run_ci(repo_arg, sha, pr, output, s24)
+    finally:
+        if lock is not None:
+            os.close(lock)
+
+
+def _run_ci(repo_arg, sha, pr, output, s24=False):
     repo = Path(repo_arg).expanduser().resolve()
     if repo.name not in WORKFLOWS or not (repo / ".git").exists():
         raise LocalCIError("Expected one of three local Samantha repository checkouts")
     if command(["git", "cat-file", "-t", sha], repo) != "commit":
         raise LocalCIError("Fetch exact GitHub SHA before running")
     if pr != "-":
-        if not pr.isdecimal() or not shutil.which("gh"):
+        if not pr.isdecimal() or not (shutil.which("gh") or s24):
             raise LocalCIError("gh CLI and numeric PR required to verify exact head")
-        # REST, not GraphQL: `gh pr view` is refused in agent containers (HTTP 403, 17/10).
-        raw = json.loads(command(["gh", "api", f"repos/{identity(repo)}/pulls/{pr}"], repo))
-        refs = {"headRefOid": (raw.get("head") or {}).get("sha"), "baseRefOid": (raw.get("base") or {}).get("sha"),
-                "body": raw.get("body") or "", "number": raw.get("number")}
+        if shutil.which("gh"):
+            # REST, not GraphQL: `gh pr view` is refused in agent containers (HTTP 403, 17/10).
+            raw = json.loads(command(["gh", "api", f"repos/{identity(repo)}/pulls/{pr}"], repo))
+            refs = {"headRefOid": (raw.get("head") or {}).get("sha"), "baseRefOid": (raw.get("base") or {}).get("sha"),
+                    "body": raw.get("body") or "", "number": raw.get("number")}
+        else:
+            refs = s24_pr_refs(repo, pr)
         if refs.get("headRefOid") != sha or not SHA.fullmatch(refs.get("baseRefOid") or ""):
             raise LocalCIError("GitHub PR head SHA mismatch")
         base = refs["baseRefOid"]
@@ -310,7 +371,8 @@ def run_ci(repo_arg, sha, pr, output):
         def note(text):
             print(text, file=log, flush=True)
             print(text, flush=True)
-        note(f"LOCALCI_START repo={repo.name} sha={sha} pr={pr} base={base} jobs={len(jobs)}")
+        note(f"LOCALCI_START repo={repo.name} sha={sha} pr={pr} base={base} jobs={len(jobs)}"
+             + (" profile=s24" if s24 else ""))
         for job_name, job in jobs.items():
             if not isinstance(job, dict) or not isinstance(job.get("steps"), list):
                 raise LocalCIError(f"Invalid job definition: {job_name}")
@@ -329,6 +391,11 @@ def run_ci(repo_arg, sha, pr, output):
                             "GITHUB_BASE_REF": base})
                 runner = space / ".localci"
                 runner.mkdir()
+                if s24:
+                    # Steps never see the live HOME (~/.openclaw, keys) nor runtime credentials.
+                    env = {k: v for k, v in env.items() if not S24_STEP_ENV_DROP.match(k)}
+                    (runner / "home").mkdir()
+                    env["HOME"] = str(runner / "home")
                 # GitHub Actions supplies the PR event file; local replay must
                 # reproduce that contract for mandatory PR-template checks.
                 event = {"pull_request": {
