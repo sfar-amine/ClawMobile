@@ -66,6 +66,55 @@ class IntentPortTests(unittest.TestCase):
             with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}), patch.object(m,'_intent_dialogue_backend',return_value=backend):
                 self.assertEqual(self.ports().execute('x',{},'o','FAST',{}),kept)
 
+    def test_s24_app_graph_alias_uses_app_interpreter_and_keeps_executor_surface(self):
+        fixture=json.loads((ROOT/'openclaw-plugin-mobile-ui/fixtures/foundations/app-intent-surface-s24-20261024.json').read_text())
+        backend=SimpleNamespace(interpret_turn=lambda text,state,ctx:{'text':text})
+        seen=[]
+        def admitted(event,ports,policy):
+            seen.append(ports)
+            self.assertTrue(callable(ports.interpret_turn))
+            return ports.interpret_turn('  exact message  ',{}, {})
+        coordinator=SimpleNamespace(handle_admitted_event=admitted)
+        with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}), patch.object(m,'_dialogue_coordinator',return_value=coordinator), patch.object(m,'_intent_dialogue_backend',return_value=backend) as factory:
+            out=m.run_dialogue('  exact message  ',mode='turn',ui_root=ROOT,surface=fixture['graphSurface'],caller='owner',timeout=15,event=fixture['event'])
+        self.assertEqual(out,{'text':'  exact message  '})
+        self.assertEqual(seen[0].surface,'claw_live')
+        self.assertEqual(factory.call_args.kwargs['surface'],'app')
+        for switch in ('0',''):
+            with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':switch}):
+                self.assertFalse(hasattr(self.ports('claw_live',dialogue_surface='app'),'interpret_turn'))
+        with patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1'}),patch.object(m,'_QA_INGRESS_CONTEXT',object()):
+            self.assertFalse(hasattr(self.ports('claw_live',dialogue_surface='app'),'interpret_turn'))
+        self.assertEqual(m._intent_surface('claw_live',{'surface':'unknown'}),'claw_live')
+        self.assertEqual(m._intent_surface('claw_live',fixture['event']),'app')
+
+    def test_app_cli_preserves_original_spaces_despite_graph_alias(self):
+        import base64,io
+        event=base64.b64encode(json.dumps({'surface':'app'}).encode()).decode()
+        argv=['model-fast-path.py','--dialogue','turn','--surface','claw_live','  exact message  ']
+        with patch.object(sys,'argv',argv),patch.dict(m.os.environ,{'SAMANTHA_INTENT_INTERPRETER':'1','CLAW_DIALOGUE_EVENT_B64':event}),patch.object(m,'run_dialogue',return_value={}) as run,patch.object(sys,'stdout',new_callable=io.StringIO):
+            self.assertEqual(m.main(),0)
+        self.assertEqual(run.call_args.args[0],'  exact message  ')
+
+    def test_partial_billing_interpretation_preserves_owner_card_and_partial_state(self):
+        presentation={'version':1,'locale':'fr','status':'info','title':'Factures','label':'Factures',
+            'primary':{'label':'Terminer','action':'done'},'effect':{'debited':'unknown','source':'receipt'},
+            'meta':{'capability':'billing.utility.fast_path'},'understood':{'capability':'billing.utility.fast_path','label':'Factures','slots':{}},'alternatives':[],
+            'rows':[['STEG','0,985 DT'],['Topnet','Espace client en maintenance']],
+            'spoken':'Consultation incomplète. Total global non établi.'}
+        graph={'selected':{'risk':'read','capability':'billing.utility.fast_path'},
+            'execution':{'state':'partial','result':{'status':'partial'}},'presentation':presentation}
+        out=m._rendered_semantic_execution({'status':'hit','text':'','resolution':graph,'decision':{'risk':'read'}})
+        self.assertEqual(out['status'],'hit')
+        self.assertEqual(out['execution_state'],'partial')
+        self.assertEqual(out['presentation'],presentation)
+        self.assertIn('Topnet',out['text'])
+        self.assertIn('Total global non établi',out['text'])
+        for risk in ['write','transaction',None]:
+            changed={**graph,'selected':{**graph['selected'],'risk':risk}}
+            raw={'status':'hit','text':'','resolution':changed}
+            self.assertEqual(m._rendered_semantic_execution(raw),raw)
+
     def test_enabled_data_refusal_never_calls_legacy_resolver(self):
         refusal={'status':'known_error','reason':'DATA_PROFILE_UNVERIFIED','execution_state':'not_started'}
         backend=SimpleNamespace(preview=lambda text,ctx:refusal)

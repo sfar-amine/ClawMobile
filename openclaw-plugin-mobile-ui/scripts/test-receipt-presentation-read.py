@@ -9,6 +9,22 @@ fast=load(root/'installer/termux-lite/model-fast-path.py','hs3fast')
 def metadata():
  return {'version':1,'locale':'fr','status':'error','label':'Demande','title':'Résultat à vérifier','rows':[],'spoken':'La demande n’a pas abouti.','primary':{'label':'Terminer','action':'done'},'effect':{'debited':'unknown','source':'receipt'},'meta':{'capability':None},'understood':{'capability':None,'label':'Demande','slots':{}},'alternatives':[],'failure':{'step':'Étape non établie','reason':'La cause n’est pas établie.'}}
 class ReaderTests(unittest.TestCase):
+ def test_real_billing_owner_projection_survives_transport(self):
+  fixture=json.loads((root/'openclaw-plugin-mobile-ui/fixtures/foundations/billing-partial-owner-s24-20261024.json').read_text())
+  got=reader.read(fixture)
+  self.assertEqual(got['presentation']['rows'],fixture['presentation']['rows'])
+  self.assertIn('0,985 DT',reader.display(got))
+  self.assertIn('Total global non établi',reader.display(got))
+  for bad in ([],None,{'capability':'other'}):
+   changed=json.loads(json.dumps(fixture));changed['presentation']['meta']=bad
+   self.assertIsNone(reader.read(changed))
+  changed=json.loads(json.dumps(fixture));changed['presentation']['rows'][0]=['Account','Contact 99 123 456']
+  self.assertIsNone(reader.read(changed))
+  changed=json.loads(json.dumps(fixture));changed['presentation']['rows'][1][1]='123456,789 DT'
+  self.assertIsNotNone(reader.read(changed))
+  changed['presentation']['rows'][1][1]='123456,789 DT owner@example.invalid'
+  self.assertIsNone(reader.read(changed))
+
  def test_valid_generated_contract_metadata_prefers_presentation(self):
   p=metadata();raw={'presentation':p,'text':'legacy'}
   self.assertEqual(fast._display_text(raw),p['title']+'\n'+p['spoken'])
