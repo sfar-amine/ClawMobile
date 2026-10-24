@@ -44,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Chantier 2 AI decision before deterministic recovery
+        run: python3 ../installer/termux-lite/test-immune-action.py
+
       - name: Build Termux runtime plugin
         run: npm run build
 

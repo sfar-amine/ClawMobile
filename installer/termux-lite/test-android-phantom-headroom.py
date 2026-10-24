@@ -56,7 +56,7 @@ class AndroidPhantomHeadroomTests(unittest.TestCase):
 
             prefix = MANAGER.read_text().split("log 'event=start", 1)[0]
             probe = home / "probe.sh"
-            probe.write_text(prefix + "\ncheck_android_phantom_headroom\n")
+            probe.write_text(prefix + "\n# Synthetic AI-selected owner operation; native admission tested separately.\nimmune_action(){ shift 2; \"$@\"; }; immune_observe(){ :; }\ncheck_android_phantom_headroom\n")
             probe.chmod(0o700)
 
             env = dict(os.environ)

@@ -54,6 +54,13 @@ def sample_evidence(s,health,decision):
 
 def rollback_for_sample(s,reason):
     if STOP.exists(): return
+    admission=runpy.run_path(str(Path(__file__).with_name('immune_action.py')))
+    return admission['run']('tier0','bounded-soak-rollback',
+        {'reason':reason,'sample':s.get('soak_last_health_sample',{})},
+        lambda: _rollback_selected(s,reason))
+
+def _rollback_selected(s,reason):
+    if STOP.exists(): return
     evidence=s.get('soak_last_health_sample',{})
     record={'event':'soak_rollback','reason':reason,**evidence}
     try:

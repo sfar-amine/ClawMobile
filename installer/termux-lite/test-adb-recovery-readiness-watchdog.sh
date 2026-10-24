@@ -6,6 +6,11 @@ T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 H="$T/home"
 mkdir -p "$H/.openclaw/watchdogs" "$H/.openclaw/health" "$H/.openclaw/releases/current/termux-lite" "$T/bin"
+# Explicit model-port fixture for these already-selected readiness actions.
+cat >"$H/.openclaw/releases/current/termux-lite/immune-action.sh" <<'AI_FIXTURE'
+immune_action(){ shift 2; "$@"; }
+immune_observe(){ :; }
+AI_FIXTURE
 printf up >"$H/.openclaw/watchdogs/adb-recovery.state"
 printf SERIAL1 >"$H/.openclaw/watchdogs/adb-expected-serial"
 

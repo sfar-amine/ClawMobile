@@ -28,6 +28,7 @@ class HealthDeployLockTests(unittest.TestCase):
             # Server down, no process: without the lock the manager starts a repair (start is stubbed).
             idle = "return 0" if idle_proven else "return 1"
             probe.write_text(prefix + f"\nhttp(){{ return 1; }}; proc(){{ return 1; }}; sleep(){{ :; }}; companion_idle_proven(){{ {idle}; }}; start(){{ echo STARTED >>\"$HOME/started\"; }}\n"
+                             "immune_action(){ shift 2; \"$@\"; }; immune_observe(){ :; }\n"
                              "check_http companion http://127.0.0.1:1/ 'nomatch-[x]' /bin/true 0 0\n")
             env = dict(os.environ, HOME=str(home), CLAW_RUNTIME_ROOT=str(ROOT))
             subprocess.run(["bash", str(probe)], env=env, check=False, capture_output=True, text=True, timeout=30)

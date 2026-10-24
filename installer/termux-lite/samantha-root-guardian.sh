@@ -24,7 +24,7 @@ process_uses_script(){
 }
 stop_supervisor(){ pat="$1"; pkill -TERM -f "$pat" 9>&- 2>/dev/null || true; waited=0; while proc "$pat" && [ "$waited" -lt 8 ]; do sleep 1 9>&-; waited=$((waited+1)); done; if proc "$pat"; then pkill -KILL -f "$pat" 9>&- 2>/dev/null || true; sleep 1 9>&-; fi; }
 log(){ printf "%s component=root-guardian %s\n" "$(date -Iseconds)" "$*" >>"$LOG"; }
-ensure_supervisor(){
+ensure_supervisor_effect(){
   name="$1"; pat="$2"; script="$3"; stderr="$4"
   if proc "$pat" && process_uses_script "$pat" "$script"; then return 0; fi
   if proc "$pat"; then
@@ -41,7 +41,19 @@ ensure_supervisor(){
     log "event=$name-start result=failed runtime_root=$ROOT"
   fi
 }
+# A healthy sample never calls a model. A missing/drifting supervisor is a
+# proposal to the existing engineering AI owner, not restart authority.
+ensure_supervisor(){
+  local name="$1" pat="$2" script="$3"
+  if proc "$pat" && process_uses_script "$pat" "$script"; then
+    immune_observe "$name" --healthy; return 0
+  fi
+  immune_action "$name" bounded-supervisor-restore ensure_supervisor_effect "$@" || true
+}
 refresh_root
+if [ -f "$ROOT/immune-action.sh" ]; then . "$ROOT/immune-action.sh"; else
+  immune_action(){ return 75; }; immune_observe(){ :; }
+fi
 exec 9>"$D/guardian.lock"; flock -n 9 || exit 0
 log "event=start result=ok runtime_root=$ROOT self_root=$SELF_ROOT"
 while :; do

@@ -125,6 +125,14 @@ def recover_incident(component,scope,source,reason="verified service recovery"):
  if row["state"]!="verifying" or i!=row["id"]: transition(i,"verifying",source,reason)
  return transition(i,"recovered",source,reason)
 
+def recover_by_id(i,source,reason):
+ row=show(i)['incident']
+ if not row:raise ValueError('unknown canonical incident')
+ if row['state']=='recovered':return row
+ if row['state']=='failed':return {'state':'verification_required','reason':'failed_incident_requires_requalification','id':i}
+ if row['state']!='verifying':transition(i,'verifying',source,reason)
+ return transition(i,'recovered',source,reason)
+
 # Components the worker repairs itself; others may be covered by a trusted engineering-repair profile.
 DIRECT_HANDLERS=("adb","gateway-secretref-exec","openclaw-agent-headless","remote_desktop")
 def handled(component,direct_only=False):
@@ -144,12 +152,14 @@ def main():
  e=s.add_parser("observe");e.add_argument("id");e.add_argument("kind");e.add_argument("--source",required=True);e.add_argument("--json",default="{}")
  r=s.add_parser("recover");r.add_argument("component");r.add_argument("scope");r.add_argument("--source",required=True);r.add_argument("--reason",default="verified service recovery")
  g=s.add_parser("show");g.add_argument("id")
+ z=s.add_parser('recover-id');z.add_argument('id');z.add_argument('--source',required=True);z.add_argument('--reason',required=True)
  h=s.add_parser("handled");h.add_argument("component");h.add_argument("--direct",action="store_true")
  a=p.parse_args()
  if a.cmd=="open": out=open_incident(a.component,a.scope,a.source,a.summary,a.correlation_id,a.observation_kind)
  elif a.cmd=="transition": out=transition(a.id,a.state,a.source,a.reason,a.human_boundary,a.retry_after)
  elif a.cmd=="observe": observe(a.id,a.source,a.kind,json.loads(a.json));out=show(a.id)
  elif a.cmd=="recover": out=recover_incident(a.component,a.scope,a.source,a.reason)
+ elif a.cmd=='recover-id':out=recover_by_id(a.id,a.source,a.reason)
  elif a.cmd=="handled": sys.exit(0 if handled(a.component,a.direct) else 1)
  else: out=show(a.id)
  print(json.dumps(out,ensure_ascii=False,indent=2))

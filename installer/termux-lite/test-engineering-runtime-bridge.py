@@ -19,10 +19,16 @@ class RuntimeBridgeTests(unittest.TestCase):
         (src/'incident-orchestrator-worker.sh').write_text('legacy worker')
         with self.assertRaisesRegex(RuntimeError,'engineering_bridge_incomplete'):m.validate_engineering_bridge(src)
         self.assertTrue(m.validate_engineering_bridge(ROOT))
-    def test_rdc_shadow_budget_preserves_third_provider_curtain(self):
+    def test_shadow_budget_preserves_bounded_sol_luna_continuation(self):
         text=(ROOT/'autonomous-engineering-shadow.sh').read_text()
-        self.assertIn('[ "$component" = remote_desktop ] && max_calls=4',text)
-        self.assertIn('existing four-call incident budget',text)
+        self.assertIn("max_calls=4",text)
+        self.assertIn("Sol -> Luna only",text)
+        self.assertIn('--max-calls "$max_calls"',text)
+    def test_runtime_model_and_repair_entrypoints_load_the_pinned_policy(self):
+        for name in ('engineering-repair.sh','autonomous-engineering-shadow.sh'):
+            text=(ROOT/name).read_text()
+            self.assertIn('.openclaw/runtime-ui-playbooks/current',text)
+            self.assertNotIn('.openclaw/workspace/ui-playbooks',text)
     def test_waiting_model_migrates_and_resumes_without_human_boundary(self):
         m=load('orch',ROOT/'incident-orchestrator.py');m.DB=self.home/'db.sqlite'
         row=m.open_incident('fixture','test','test','test')

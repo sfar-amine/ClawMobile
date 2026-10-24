@@ -274,11 +274,13 @@ class Main(unittest.TestCase):
     def test_health_manager_wiring(self):
         hm = (HERE / "samantha-health-manager.sh").read_text()
         self.assertIn('check_gateway_memory\n', hm.split("while :; do")[-1])
-        body = hm.split("check_gateway_memory(){", 1)[1].split("\n}\n", 1)[0]
+        body = hm.split("check_gateway_memory_effect(){", 1)[1].split("\n}\n", 1)[0]
         self.assertIn("put gateway_memory next $(( $(now)+60 ))", body)
-        self.assertIn("http://127.0.0.1:8765/v1/runtime/restart", body)
-        self.assertIn('"action": "restart_requested"', body)
-        self.assertIn("bounded-log.py", body)
+        self.assertIn("immune_action gateway_memory bounded-idle-gateway-restart gateway_memory_restart_selected", body)
+        selected = hm.split("gateway_memory_restart_selected(){", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("http://127.0.0.1:8765/v1/runtime/restart", selected)
+        self.assertIn('"action": "restart_requested"', selected)
+        self.assertIn("bounded-log.py", selected)
 
 
 if __name__ == "__main__":

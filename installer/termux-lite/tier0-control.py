@@ -82,6 +82,9 @@ def validate_engineering_bridge(source):
     required=['engineering-repair.sh','engineering-incident-result.py','incident-orchestrator.py']
     if any(not (root/name).is_file() for name in required):
         raise RuntimeError('engineering_bridge_incomplete')
+    if 'immune-action.sh' in (root/'samantha-health-manager.sh').read_text():
+        if any(not (root/name).is_file() for name in ('immune-action.sh','immune_action.py')):
+            raise RuntimeError('immune_ai_admission_incomplete')
     text=worker.read_text(); orchestrator=(root/'incident-orchestrator.py').read_text()
     watchdog=root/'remote-desktop-watchdog.sh'
     if watchdog.exists() and 'remote-desktop-control.py' in watchdog.read_text():
