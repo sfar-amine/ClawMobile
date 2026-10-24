@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# S24 entry of the canonical local CI (Amine 24/10: development, tests and delivery without a PC).
+# S24 diagnostic run of the canonical local CI (Amine 24/10, option 2: the merge proof is localci.py in the agent's cloud container; under PRoot the tests' time budgets do not hold).
 # Usage: tools/localci-s24.sh <repo-name> <40-char-head-sha> <PR|-> [pr-body-file]
 #
 # Termux side: fetches the exact head (and refs/pull/N/{head,merge}) with the S24's existing git

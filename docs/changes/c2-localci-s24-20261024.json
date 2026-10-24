@@ -5,8 +5,8 @@
   "kind": "maintenance",
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
-  "summary": "La CI canonique localci.py tourne aussi sur le S24 par un profil explicite (verrou de déploiement exclusif, priorité basse, HOME privé), un lanceur Termux et un outillage Debian vérifié.",
-  "reason": "Décision d'Amine du 24/10 (S24 35b224a6) : aucune dépendance au PC ; remplace « jamais de CI sur le S24 ».",
+  "summary": "CI sans PC : la preuve de fusion reste localci.py dans le conteneur cloud de l'agent ; sur le S24, un profil diagnostic explicite (verrou de déploiement exclusif, priorité basse, HOME privé), un lanceur Termux, un outillage Debian vérifié, et une preuve privée confinée par subreaper là où bwrap est refusé.",
+  "reason": "Décisions d'Amine du 24/10 : aucune dépendance au PC (S24 35b224a6), puis option 2 après qualification : CI canonique dans le conteneur cloud, S24 pour les recettes réelles et le diagnostic (PRoot 2 à 3 fois plus lent, budgets de test non tenus ; ni espaces de noms ni Landlock sur Android).",
   "files": [
     "tools/localci.py",
     "tools/test_localci.py",
@@ -54,6 +54,7 @@
     "Tête de PR lue par refs/pull/N/{head,merge} (pas l'API) ; une PR en conflit n'a pas de référence de fusion et est refusée.",
     "Les lectures du dépôt jumeau (gh api, git fetch https) sont servies par des miroirs git rafraîchis juste avant l'exécution.",
     "Les étapes playbooks qui lancent bwrap (évaluateur figé de l'intent lab) échouent sur le S24 : Android bloque les espaces de noms utilisateur sans root ; elles restent exécutées et rouges, jamais sautées. Le workflow core n'utilise pas bwrap.",
-    "Le confinement subreaper de la preuve privée borne la durée de vie des processus, pas leurs accès réseau ou fichiers."
+    "Le confinement subreaper de la preuve privée borne la durée de vie des processus, pas leurs accès réseau ou fichiers.",
+    "Sur le S24, la CI est un diagnostic : sous PRoot les budgets de temps vérifiés par les tests sautent de façon variable (étape 11 du core mesurée), et les étapes bwrap des playbooks ne peuvent pas y passer."
   ]
 }
