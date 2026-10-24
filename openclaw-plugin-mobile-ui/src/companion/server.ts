@@ -1,6 +1,6 @@
 import {readAutomationRuns,invalidateAutomationViews} from "./automationRunsPreparation";
 import { callOpenClawGateway, closeOpenClawGateway } from "./openclawAgentClient";
-import { INTERPRET_METHOD } from "../intentInterpreterPort";
+import { INTERPRET_METHOD, IMMUNE_PURPOSE } from "../intentInterpreterPort";
 import {discoverLifx,readLifx,setLifx} from "./lifxLocal";
 import {changeConversationArchive} from "./conversationArchive";
 import {serverLanguage,localizedRoute,localizeServerPresentation,ServerLanguage} from "./serverLocale";
@@ -293,7 +293,8 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     res.setHeader("Cache-Control","no-store");
     let body:any;
     try{body=await readJsonBody(req,128*1024);}catch{writeJson(res,400,{success:false,error:"INVALID_ARGUMENT"});return;}
-    try{writeJson(res,200,{success:true,result:await callOpenClawGateway(INTERPRET_METHOD,body,{timeoutMs:15_000})});}
+    const budget=body?.purpose===IMMUNE_PURPOSE ? Math.min(92_000,Math.max(1000,(typeof body.totalTimeoutMs==='number'&&Number.isFinite(body.totalTimeoutMs)?body.totalTimeoutMs:60_000)+2000)) : 15_000;
+    try{writeJson(res,200,{success:true,result:await callOpenClawGateway(INTERPRET_METHOD,body,{timeoutMs:budget})});}
     catch(error:any){writeJson(res,200,{success:false,error:String(error?.code||"gateway_dispatch_indeterminate")});}
     return;
   }

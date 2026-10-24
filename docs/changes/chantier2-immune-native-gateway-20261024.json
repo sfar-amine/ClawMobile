@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "chantier2-immune-native-gateway-20261024",
+  "origin": "chat",
+  "kind": "repair",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Reuse native warm credential owner for one governed Sol/Luna engineering completion",
+  "reason": "Real Luna qualification through current warm Gateway succeeds while isolated agent-exec rejects OAuth profiles. Existing completion owner supplies text only; Python governor keeps model choice and fallback.",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
+    "docs/runtime/config/samantha-intent-interpreter.json",
+    "docs/changes/chantier2-immune-native-gateway-20261024.json",
+    "docs/changes/chantier2-immune-native-gateway-20261024.md"
+  ],
+  "tests": [
+    {
+      "name": "Native completion owner C1/C2 contracts",
+      "status": "passed",
+      "evidence": "Plugin TypeScript build and existing test-intent-interpreter-port.cjs PASS, including exact C1 model refusal, C2 one-model OAuth-only completion, no internal fallback and bounded larger code output. Existing workflow includes this script. Full canonical exact-head CI required."
+    }
+  ],
+  "documentation": [
+    "docs/changes/chantier2-immune-native-gateway-20261024.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "Same internal loopback owner route, no new capability or user operation; C1 profile still Gemini/Luna."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing pool, task_checkpoint, RepairWorkflow and engineering maintenance owners only. No additional store, scheduler or retry engine."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Unchanged six primitive schemas and canonical read routing; registry metadata and generated documentation updated. tests.test_mcp_delivery_parity and tests.test_capability_graph must pass before publication."
+    ]
+  },
+  "rollback": "Deploy compatible paired Core and playbooks releases through existing owners. Preserve checkpoints, unknown effects and original incident IDs; do not enable unselected repair as fallback.",
+  "limitations": [
+    "Native Sol/C2 original interruption recipe and autonomous offphone code relay remain to qualify; PC unavailable."
+  ]
+}
