@@ -42,5 +42,10 @@
     "changed": false,
     "reason": "Même propriétaire unique de CI ; le verrou de déploiement existant sert de garde ; aucun service, store ni ordonnanceur."
   },
-  "rollback": "Revert de la PR : le refus fixe sur Termux revient ; l'outillage Debian peut rester inutilisé."
+  "rollback": "Revert de la PR : le refus fixe sur Termux revient ; l'outillage Debian peut rester inutilisé.",
+  "limitations": [
+    "PRoot n'est pas un bac à sable de sécurité : HOME privé et environnement vidé contre les accès accidentels seulement.",
+    "Tête de PR lue par refs/pull/N/{head,merge} (pas l'API) ; une PR en conflit n'a pas de référence de fusion et est refusée.",
+    "Les lectures du dépôt jumeau (gh api, git fetch https) sont servies par des miroirs git rafraîchis juste avant l'exécution."
+  ]
 }
