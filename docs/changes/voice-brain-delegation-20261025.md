@@ -30,21 +30,24 @@ Décision d'Amine du 25/10 : « il doit absolument tout déléguer au cerveau »
   - Hors route déterministe, la politique devient `tool_policy: required`, avec `voice_policy: brain_delegation`. La politique d'origine du Graph reste visible dans `model_tool_policy`. L'app ne libère donc plus l'audio de Gemini sans reçu Samantha.
   - Inchangés : la route déterministe, le geste de réalignement et la date/heure du téléphone.
   - `clawLiveCapability` ne réécrit plus un reçu du cerveau avec le gabarit des capacités (« J'ai compris… », « Ça n'a pas abouti… »).
-- **`voiceBrainDelegation.ts` et `server.ts`, `/claw-live/capability`** : ce que le coordinateur laisse non résolu (`continue`) est délégué au cerveau par le propriétaire existant de `ask_samantha`, c'est-à-dire `submitIntent` avec `voiceDelegation` et le registre des runs :
-  - même ticket d'admission, même `clientRunId` ;
-  - attente bornée à 30 s, comme `DELEGATION_BUDGET_MS` côté app ;
-  - au-delà, « Je te l'écris dans la discussion. » ;
-  - issue inconnue : jamais de relance ni de succès annoncé ;
-  - échec : phrase lisible, le détail technique reste dans la discussion.
+- **`voiceBrainDelegation.ts` et `server.ts`, `/claw-live/capability`** : pour un tour que le coordinateur laisse non résolu (`continue`), une résolution en lecture seule (5 s) décide de la suite.
+  - Une décision exécutable, de clarification ou d'arrêt garde l'exécuteur Graph existant, inchangé. Le parcours de paiement est inclus (capture réelle r11 `payment.owner_native`), de même qu'un résolveur indisponible.
+  - Seul un cadrage « modèle seul » (`REASON`, ou aucune décision avec `tool_policy: optional`) est délégué au cerveau, par le propriétaire existant de `ask_samantha` : `submitIntent` avec `voiceDelegation` et le registre des runs.
+    - même ticket d'admission, même `clientRunId` ;
+    - attente bornée à 30 s, comme `DELEGATION_BUDGET_MS` côté app ;
+    - au-delà, « Je te l'écris dans la discussion. » ;
+    - issue inconnue : jamais de relance ni de succès annoncé ;
+    - échec : phrase lisible, le détail technique reste dans la discussion.
 
   Aucun store, file, retry ni route parallèle.
 - **`compactOwnerAgentContext`, tour vocal délégué** : l'agent reçoit, à la suite du contexte canonique inchangé, `VOICE_TURN` (le tour vient de la voix et sera lu tel quel) et `VOICE_CONTEXT` (le fichier vocal canonique, borné à 7 000 caractères). Les règles restent à leur place canonique.
 
 ## Tests
-- `scripts/test-voice-brain-delegation.cjs` (21 cas, inscrit dans `ci.yml`), sur captures S24 réelles `fixtures/s24-2026-10-25-voice-brain` (SOUL, fichier vocal et règles, avec sha256, et résolutions `claw_live`) :
+- `scripts/test-voice-brain-delegation.cjs` (24 cas, inscrit dans `ci.yml`), sur captures S24 réelles `fixtures/s24-2026-10-25-voice-brain` (SOUL, fichier vocal et règles, avec sha256, et résolutions `claw_live`) et sur la capture de paiement r11 :
   - contrat Gemini ;
   - absences dans le prompt ;
   - décision, fermée par défaut ;
+  - aiguillage du non-résolu : le modèle seul va au cerveau ; le paiement, l'exécutable, la clarification, l'arrêt et le résolveur indisponible restent sur l'exécuteur ;
   - délégation au cerveau : terminé, en attente, refusé, inconnu, admission expirée, échec, texte long ;
   - non-réécriture du reçu ;
   - contexte de l'agent ;

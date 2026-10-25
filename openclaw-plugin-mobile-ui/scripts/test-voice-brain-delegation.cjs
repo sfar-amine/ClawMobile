@@ -160,13 +160,48 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    assert.ok(Buffer.byteLength(voice)<=65536);
    assert.equal(live.compactOwnerAgentContext({voiceDelegation:true,home}),'','never without owner authority');
   });
-  await test('wiring: /claw-live/capability hands unresolved turns to the brain, the agent client forwards voice delegation',()=>{
+  // --- Unresolved turn routing: executable decisions keep their executor, model-only framing goes to the brain ---
+  const payment=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/hs3-resolution-slots-shortlist.json'),'utf8')).resolutions.r11;
+  function router(resolutionValue){
+   const seen={executed:0,submitted:0};
+   return {seen,deps:{...clock(),resolve:async()=>{if(resolutionValue instanceof Error)throw resolutionValue;return JSON.parse(JSON.stringify(resolutionValue));},
+    execute:async()=>{seen.executed++;return {success:true,source:'capability'};},
+    submit:async()=>{seen.submitted++;return {success:true,accepted:true,runId:'rb',state:'done',result:'Réponse du cerveau.'};},status:async()=>{}}};
+  }
+  await test('a model-only turn (real S24 REASON) goes to the brain, never to a Graph execution',async()=>{
+   for(const text of ["Qu'est-ce que tu as ajusté récemment ?",'Bonjour Samantha']){
+    const {seen,deps}=router(resolution(text));const r=await brain.routeUnresolvedVoiceTurn(text,ctx(),deps);
+    assert.deepEqual(seen,{executed:0,submitted:1});assert.equal(r.source,'samantha_brain');
+   }
+   const noDecision=router({harness:{tool_policy:'optional',reason:'conversation_or_unknown'}});
+   await brain.routeUnresolvedVoiceTurn('raconte-moi une blague',ctx(),noDecision.deps);assert.deepEqual(noDecision.seen,{executed:0,submitted:1});
+   const required=router({harness:{tool_policy:'required'}});
+   await brain.routeUnresolvedVoiceTurn('mon solde',ctx(),required.deps);assert.deepEqual(required.seen,{executed:1,submitted:0});
+  });
+  await test('the payment path and every executable decision keep the existing executor (real S24 r11)',async()=>{
+   const pay={success:true,text:payment.text,capability:payment.capability,decision:payment.decision,harness:payment.harness};
+   assert.equal(pay.decision.type,'EXECUTE');assert.equal(pay.decision.risk,'transaction');
+   for(const value of [pay,{...pay,decision:{...pay.decision,type:'CLARIFY'}},{...pay,decision:{...pay.decision,type:'STOP'}},{success:true,decision:deterministic.decision_envelope}]){
+    const {seen,deps}=router(value);const r=await brain.routeUnresolvedVoiceTurn(payment.text,ctx(),deps);
+    assert.deepEqual(seen,{executed:1,submitted:0});assert.equal(r.source,'capability');
+   }
+  });
+  await test('an unavailable resolver keeps the existing executor and admission is checked before any effect',async()=>{
+   for(const value of [new Error('helper_failed'),{success:false,error:'helper_failed'},null,[]]){
+    const {seen,deps}=router(value);await brain.routeUnresolvedVoiceTurn('Bonjour',ctx(),deps);assert.deepEqual(seen,{executed:1,submitted:0});
+   }
+   const {seen,deps}=router(resolution("Qu'est-ce que tu as ajusté récemment ?"));
+   await assert.rejects(brain.routeUnresolvedVoiceTurn('x',ctx({assertCurrent:()=>{throw new Error('owner_admission_required');}}),deps),/owner_admission_required/);
+   assert.deepEqual(seen,{executed:0,submitted:0});
+  });
+  await test('wiring: /claw-live/capability routes unresolved turns, the agent client forwards voice delegation',()=>{
    const server=fs.readFileSync(path.join(__dirname,'../src/companion/server.ts'),'utf8');
    const start=server.indexOf('routePath === "/claw-live/capability"'),end=server.indexOf('routePath === "/owner-admission"',start);
    assert.ok(start>0&&end>start);const block=server.slice(start,end);
-   assert.match(block,/delegateVoiceTurnToBrain\(text, \{sessionId, clientRunId: String\(body\.clientRunId \|\| ""\), admission: admission\.ticket, assertCurrent\}/);
-   assert.match(block,/\{submit: submitIntent, status: getRunStatus\}/);
-   assert.ok(!/capabilityBridge\(text, \{execute:true/.test(block),'no second Graph execution of an unresolved voice turn');
+   assert.match(block,/routeUnresolvedVoiceTurn\(text, \{sessionId, clientRunId: String\(body\.clientRunId \|\| ""\), admission: admission\.ticket, assertCurrent\}/);
+   assert.match(block,/resolve: \(unresolved\) => capabilityBridge\(unresolved, \{execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5\}\)/);
+   assert.match(block,/execute: \(unresolved\) => capabilityBridge\(unresolved, \{execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35\}\)/);
+   assert.match(block,/submit: submitIntent, status: getRunStatus/);
    const agent=fs.readFileSync(path.join(__dirname,'../src/companion/openclawAgentClient.ts'),'utf8');
    assert.match(agent,/const canonical=compactOwnerAgentContext\(options\);/);
   });
