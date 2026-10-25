@@ -221,6 +221,8 @@ export class ClawLiveWarmCore {
     this.trace("t07",0,{cached:warmHit});
     ws.send(JSON.stringify({warmReady:{historyRequired,resumed:this.resumedLast,setupMs:this.lastSetupMs,state:"warm",
       protocolVersion:meta?.protocol===2?2:1,connectionEpoch:this.connectionGeneration,sessionEpoch:meta?.sessionEpoch,
+      // Live progress readback of a brain turn (speakProgress), version 1: an older app never sends it.
+      ...(meta?.protocol===2?{progressReadback:1}:{}),
       bargeIn:readBargeInProfile()}}));
   }
 

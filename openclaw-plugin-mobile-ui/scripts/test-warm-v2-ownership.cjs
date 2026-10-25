@@ -22,6 +22,8 @@ class Local extends EventEmitter {
  const a=new Local();await core.attach(a,meta);
  const ready=a.messages.find(v=>v.warmReady).warmReady;assert.equal(ready.protocolVersion,2);assert.equal(ready.sessionEpoch,'epoch-a');
  for(const field of Object.keys(contract.warmReady))assert(field in ready,`warmReady.${field}`);
+ // Live progress readback (25/10): announced to a v2 app only, so an older app never sends speakProgress.
+ assert.equal(ready.progressReadback,contract.optionalWarmReadyFields.progressReadback);
  const second=new Local();await core.attach(second,{...meta,sessionId:'other',sessionEpoch:'epoch-b'});
  assert.equal(second.closeCode,1008);assert.equal(core.status().clients,1);
  assert(!second.messages.some(v=>v.warmEvent));
@@ -40,6 +42,7 @@ class Local extends EventEmitter {
  assert.throws(()=>core.executeVoiceCapability({sessionEpoch:'epoch-a',connectionEpoch:ready.connectionEpoch,turnId:'voice-a'},'Bonjour',run),/not_owned/);
  const legacy=new Local();await core.attach(legacy,{locale:'fr',client:'samantha_android',sessionId:'legacy'});
  assert.equal(legacy.messages.find(v=>v.warmReady).warmReady.protocolVersion,1);
+ assert(!('progressReadback' in legacy.messages.find(v=>v.warmReady).warmReady));
  Provider.instances.at(-1).emit('message',Buffer.from('{"serverContent":{"turnComplete":true}}'));
  assert(legacy.messages.some(v=>v.serverContent));assert(!legacy.messages.some(v=>v.warmEvent));
  legacy.close();core.shutdown();

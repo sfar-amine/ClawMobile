@@ -8,6 +8,7 @@
   "controls": {
     "speakFirst": ["operationId", "sessionEpoch", "turnId"],
     "speakResult": ["operationId", "sessionEpoch", "turnId", "text"],
+    "speakProgress": ["operationId", "sessionEpoch", "turnId", "text"],
     "turnStart": ["operationId", "sessionEpoch", "turnId", "firstSample"],
     "turnEnd": ["operationId", "sessionEpoch", "turnId", "lastSampleExclusive"],
     "transcriptFinal": ["operationId", "sessionEpoch", "turnId", "source", "text"],
@@ -16,6 +17,15 @@
   },
   "optionalControlFields": {
     "transcriptFinal": ["noSpeech"]
+  },
+  "optionalWarmReadyFields": {
+    "progressReadback": 1
+  },
+  "speakProgress": {
+    "maxChars": 200,
+    "maxPerTurn": 6,
+    "generationPattern": "out-<turnId>-progress-<n>",
+    "refusalReasons": ["invalid_text", "progress_budget", "not_admissible"]
   },
   "audio": ["sessionEpoch", "turnId", "firstSample", "samples", "sampleRate", "data"],
   "correlation": {"values": ["exact", "stale_ignored", "ambiguous"], "unknown": "fatal"},
