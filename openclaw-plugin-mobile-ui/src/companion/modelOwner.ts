@@ -71,7 +71,7 @@ export function modelFlowSafeValue(value:any,depth=0):any{
  if(Array.isArray(value)&&value.length<=20)return value.map(row=>modelFlowSafeValue(row,depth+1));
  if(value&&typeof value==='object'&&!Array.isArray(value)){
   if(Object.keys(value).sort().join()==='fieldsHash,version'){
-   if(value.version!==1||!/^[a-f0-9]{64}$/.test(value.fieldsHash||''))throw flowError();
+   if(value.version!==1||typeof value.fieldsHash!=='string'||!/^[a-f0-9]{64}$/.test(value.fieldsHash))throw flowError();
    return {version:1,fieldsHash:value.fieldsHash};
   }
   if(Object.keys(value).every(key=>['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].includes(key)))
