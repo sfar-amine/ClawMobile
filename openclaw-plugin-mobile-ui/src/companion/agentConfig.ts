@@ -215,8 +215,9 @@ function selectedFlowModels(owner:any,flow:EditableModelFlow,defaults:any){
   const base=row.id.startsWith(row.provider+'/')?row.id:row.provider+'/'+row.id;
   if(!flowAgents(flow).every(id=>modelReferenceAllowed(configuredModelAllow(config,id),base)))return [];
   const thinking=thinkingFor(row,defaults);
-  return includedModelAccounts(base,owner.auth,owner.policy).map(account=>({id:row.id,provider:row.provider,ref:publicModelRef(account.reference),account:account.account,
-   accountLabel:row.provider+' · compte connecté',costPolicy:account.costPolicy,costProofSource:account.source,reasoning:row.reasoning===true,
+  const accounts=includedModelAccounts(base,owner.auth,owner.policy),order=accounts.map(account=>account.account).sort();
+  return accounts.map(account=>({id:row.id,provider:row.provider,ref:publicModelRef(account.reference),account:account.account,
+   accountLabel:row.provider+' · compte connecté'+(order.length>1?' '+(order.indexOf(account.account)+1):''),costPolicy:account.costPolicy,costProofSource:account.source,reasoning:row.reasoning===true,
    thinkingLevels:thinking.levels,thinkingDefault:thinking.default,thinkingSource:thinking.source,fastModeSupported:base==='openai/gpt-5.6-sol'}));
  });
  if(choices.length>256||new Set(choices.map(row=>row.ref)).size!==choices.length)throw nativeError('agent_models_unavailable',503);
