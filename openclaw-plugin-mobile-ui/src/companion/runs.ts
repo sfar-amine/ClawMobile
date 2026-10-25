@@ -902,7 +902,11 @@ async function getRunStatusUnstepped(runId: string, preloaded: StoredRun | null 
 
   const stored = preloaded;
   reconcileInactiveRuns(normalizedRunId);
-  if(stored&&!requiresLiveRefresh(stored))return statusFromStoredRun(stored);
+  if(stored&&!requiresLiveRefresh(stored)){
+    const status=statusFromStoredRun(stored);
+    const progress=await terminalDetailProgress(stored,status);
+    return progress?{...status,progress}:status;
+  }
   // Recent Gateway runs keep their normal live session/transcript refresh.
   // The inactivity single-flight has its own independent deadline.
   const deadline=stored?undefined:Date.now()+1500;
@@ -922,6 +926,38 @@ async function getRunStatusUnstepped(runId: string, preloaded: StoredRun | null 
   } catch (error: any) {
     return unknownRun(normalizedRunId, error?.message || "Run was not found.");
   }
+}
+
+/** Detail-only reconstruction of recorded terminal progress. It never settles/reopens a run or replaces its receipt.
+ * Same runs owner and Gateway readers; bounded process-local projection (64 entries,30s), no persisted source.
+ * A slow owner read finishes behind the 2.5s detail response and serves the next poll. Lists never call this reader. */
+const TERMINAL_PROGRESS_RESPONSE_MS=2500,TERMINAL_PROGRESS_OWNER_MS=5500,TERMINAL_PROGRESS_TTL_MS=30000;
+const terminalProgressCache=new Map<string,{at:number;value:Promise<CompanionRunProgress|undefined>}>();
+async function terminalDetailProgress(stored:StoredRun,status:CompanionRunStatus):Promise<CompanionRunProgress|undefined>{
+  if(stored.modality==='voice'||stored.executionSource==='capability_first'||!['done','failed'].includes(stored.state||'')||
+    stored.inactivityCorrectionReceipt||stored.error==='run_inactivity_expired'||!stored.text)return undefined;
+  const key=JSON.stringify([stored.runId,stored.sessionKey,stored.sessionId,stored.acceptedAt,stored.updatedAt,stored.state]);
+  let cached=terminalProgressCache.get(key);
+  if(!cached||Date.now()-cached.at>=TERMINAL_PROGRESS_TTL_MS){
+    const deadline=Date.now()+TERMINAL_PROGRESS_OWNER_MS;
+    const value=(async()=>{
+      const session=await findSessionInfo(stored.runId,stored,deadline);
+      if(!session||!/^[A-Za-z0-9_-]{1,128}$/.test(String(session.sessionId||'')))return undefined;
+      const [transcript,card]=await Promise.all([
+        readSessionTranscript(session.sessionId,stored.text,String(session.key||''),deadline,stored.acceptedAt).catch(()=>null),
+        readRunProgressCard(String(session.key||''),stored.acceptedAt).catch(()=>null),
+      ]);
+      // A same-text later turn must not contribute its steps to this terminal receipt.
+      const exact=transcript?.startedAt&&Math.abs(transcript.startedAt-stored.acceptedAt)<=30000;
+      const events=exact?transcript.progressEvents:[];
+      const ownCard=card&&stored.updatedAt&&card.updatedAt<=stored.updatedAt?card:null;
+      if(!events.length&&!ownCard)return undefined;
+      return withProgressCard(mergeProgress(status.progress,events),ownCard);
+    })().catch(()=>undefined);
+    cached={at:Date.now(),value};terminalProgressCache.set(key,cached);
+    if(terminalProgressCache.size>64)terminalProgressCache.delete(terminalProgressCache.keys().next().value!);
+  }
+  return beforeDeadline(cached.value,Date.now()+TERMINAL_PROGRESS_RESPONSE_MS,undefined);
 }
 
 function requiresLiveRefresh(stored:StoredRun):boolean {
@@ -1187,6 +1223,7 @@ async function readSessionTranscript(
   targetPrompt?: string,
   sessionKey?: string,
   deadline?: number,
+  targetAcceptedAt?: number,
 ): Promise<TranscriptSummary> {
   const filePath = path.join(openClawStateDir(), "agents", agentId(), "sessions", `${sessionId}.jsonl`);
   let raw: string;
@@ -1202,11 +1239,11 @@ async function readSessionTranscript(
       .map((message: any) => JSON.stringify({ type: "message", message, timestamp: message.timestamp }))
       .join("\n");
   }
-  return summarizeTranscript(raw, targetPrompt);
+  return summarizeTranscript(raw, targetPrompt, targetAcceptedAt);
 }
 
 /** Exported for the progress tests (real S24 chat.history captures); the runtime reads it through readSessionTranscript. */
-export function summarizeTranscript(raw: string, targetPrompt?: string): TranscriptSummary {
+export function summarizeTranscript(raw: string, targetPrompt?: string, targetAcceptedAt?: number): TranscriptSummary {
   let prompt = "";
   let result = "";
   let startedAt: number | undefined;
@@ -1260,7 +1297,7 @@ export function summarizeTranscript(raw: string, targetPrompt?: string): Transcr
       prompt = clean;
       startedAt = messageTimestamp(event);
       if (targetPrompt) {
-        if (clean === targetPrompt) {
+        if (clean === targetPrompt && (targetAcceptedAt===undefined || at!==undefined && Math.abs(at-targetAcceptedAt)<=30000)) {
           isTargetTurn = true;
           candidatePrompt = clean;
           candidateResult = "";

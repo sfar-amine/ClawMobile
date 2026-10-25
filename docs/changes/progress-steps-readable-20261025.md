@@ -39,3 +39,9 @@ Aucun changement requis : l'app affiche tel quel un libellé non technique (`Ste
 Revert de ce commit puis `companion-deploy.sh` du commit précédent.
 
 Reprise Codex : une lecture de contexte titrée reste masquée ; les titres contenant un identifiant d’outil, un chemin, un fichier ou une commande entre accents graves sont ignorés. Le texte de transport ne revient plus quand seule la réponse est en cours. Les résultats métier et le stockage du reçu restent inchangés.
+
+## Détail d’un run déjà terminé
+
+Le chemin rapide `statusFromStoredRun` n’enrichissait pas les événements : même après la correction de projection, le run réel ne montrait donc pas ses titres. `getRunStatus` reconstruit maintenant son avancement depuis la session exacte et le tour admis (texte + fenêtre temporelle), uniquement sur la lecture de détail. Une répétition ultérieure du même texte ne contribue pas ses étapes. Le résultat, l’état, les métadonnées et le reçu stockés restent inchangés ; aucun `saveStoredRun` n’est appelé par cette projection.
+
+La réponse attend au plus2,5s. Les lecteurs existants ont5,5s au total ; s’ils sont plus lents, leur résultat sert le prochain relevé via un cache de projection dans le propriétaire `runs` (64entrées,30s, single-flight). Les listes n’appellent pas ce lecteur ; aucun appel Gateway par ligne. Le test `test-run-progress-terminal.cjs`, inscrit en CI, parcourt `getRunStatus` avec un run terminal et la vraie capture17appels, vérifie session/tour, absence de mutation, cache, listes et délai avec une latence simulée2,8s.

@@ -257,7 +257,9 @@ jobs:
       - name: Avancement en direct rédigé pour Amine (carte de progression de l'agent) sur capture S24
         run: node scripts/test-run-progress-card.cjs
       - name: Étapes lisibles sans carte (titres de l'agent, une ligne de préparation, aucun nom d'outil) sur capture S24
-        run: node scripts/test-run-progress-titles.cjs
+        run: |
+          node scripts/test-run-progress-titles.cjs
+          node scripts/test-run-progress-terminal.cjs
       - name: HS3 closed presentation and existing run transport
         run: |
           python3 scripts/test-receipt-presentation-read.py

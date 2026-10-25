@@ -14,14 +14,15 @@
       "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-progress-titles/chat-history-run.json",
       ".github/workflows/ci.yml",
       "docs/changes/progress-steps-readable-20261025.md",
-      "openclaw-plugin-mobile-ui/scripts/test-submit-reconciliation.cjs"
+      "openclaw-plugin-mobile-ui/scripts/test-submit-reconciliation.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-run-progress-terminal.cjs"
     ]
   },
   "routes": [
     {
       "route": "GET /v1/runs/{id}",
       "change": "progress.steps and progress.text projection without a card: agent titles, one preparing line, no tool names",
-      "budget": "unchanged (projection on read, no extra Gateway call)",
+      "budget": "unchanged list budget; detail progress waits at most2500ms; same-owner background reads bounded5500ms and projection cache64entries/30s; no mutation",
       "capability": "unchanged"
     }
   ],
@@ -29,7 +30,8 @@
     "status": "pending_ci",
     "evidence": [
       "scripts/test-run-progress-titles.cjs (8) registered in .github/workflows/ci.yml; real S24 chat.history capture of run_1792920553461_9ffdf172",
-      "Additional authored boundary checks: titled context reads collapse; titles containing paths/files/tool identifiers are withheld; technical live text falls back to a public step even at terminal state. Stored results and clarification state are unchanged."
+      "Additional authored boundary checks: titled context reads collapse; titles containing paths/files/tool identifiers are withheld; technical live text falls back to a public step even at terminal state. Stored results and clarification state are unchanged.",
+      "test-run-progress-terminal.cjs: actual getRunStatus on stored terminal receipt plus real17-call capture; exact session/admission window; read-only projection, single-flight/cache, no list fanout,2.5s detail wait with2.8s simulated owner latency."
     ]
   },
   "capability_impact": {
