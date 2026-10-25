@@ -71,6 +71,14 @@ jobs:
           python3 -m pip install --disable-pip-version-check --target "$peer/.qa-fixture-deps" -r "$peer/qa_testing/requirements.txt"
           CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" node scripts/test-qa-contact-media-paired.cjs "$peer"
           CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" python3 ../installer/termux-lite/test-qa-contact-renderer.py "$peer"
+          # L1 validates only the authored plan, against its exact canonical contract source. No live request.
+          plan_peer="$peer/refonte-plan-source"
+          git init "$plan_peer"
+          git -C "$plan_peer" remote add origin https://github.com/sfar-amine/samantha-ui-playbooks.git
+          plan_sha=$(python3 -c 'import json; print(json.load(open("fixtures/refonte-parcours-unique/L1-scenarios.json"))["provenance"]["contractSource"]["commit"])')
+          git -C "$plan_peer" fetch --depth 1 origin "$plan_sha"
+          git -C "$plan_peer" checkout --detach FETCH_HEAD
+          CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" python3 ../installer/termux-lite/test-companion-acceptance-journey-plan.py "$plan_peer"
 
       - name: F1 web budget and context coverage match the current owners
         run: |
