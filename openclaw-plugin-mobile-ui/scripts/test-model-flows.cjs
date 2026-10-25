@@ -75,6 +75,10 @@ const clone=value=>JSON.parse(JSON.stringify(value));
   patchFail='unknown';const unknownBody={...brain,revision:hash,operationId:'unknown-effect',thinking:'low'};const uncertain=await api.changeAgentConfig(unknownBody);assert.equal(uncertain.state,'indeterminate');const count=effects;
   assert.equal((await api.changeAgentConfig(unknownBody)).state,'indeterminate');assert.equal(effects,count,'uncertain effect is never replayed');
   assert.ok((await require('../dist/companion/runs').readModelFlowConfigurationActivity()).some(row=>row.flow==='brain'),'uncertain outcome keeps new-session admission fenced');
+  afterPatchReadFail=false;
+  const runStatus=await require('../dist/companion/runs').getRunStatus(uncertain.receipt.runId);
+  const reconciled=await api.reconcileModelFlowRunStatus(runStatus);assert.equal(JSON.parse(reconciled.result).state,'completed');assert.equal(effects,count,'status readback reconciles the same receipt without repeating configuration');
+  assert.deepEqual(await require('../dist/companion/runs').readModelFlowConfigurationActivity(),[],'verified same-action readback releases admission');
   console.log('L5 real S24 projection; authored local owner effects: included billing admission, account redaction, primary biometric guard, exact CAS/replay/revert, contact isolation, summary preservation and uncertain-effect fence passed');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1});

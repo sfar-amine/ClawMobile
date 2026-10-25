@@ -244,6 +244,21 @@ function flowResult(status:any){
  if(status?.state==='done'&&typeof status.result==='string'&&status.result.length<=65536)try{const result=JSON.parse(status.result);if(result?.receipt?.version===2&&result.receipt.action==='agent.config'&&result.receipt.runId===status.runId)return result;}catch{}
  return {success:false,state:'indeterminate',receipt:null};
 }
+/** Readback of this owner's uncertain effect, invoked only by the existing run-status GET.
+ * This does not dispatch configuration or session writes and never retries the action. */
+export async function reconcileModelFlowRunStatus(status:any){
+ const result=flowResult(status),receipt=result.receipt;
+ if(status?.state!=='done'||result.state!=='indeterminate'||result.artifact?.dispatchAttempted!==true||!receipt||
+  receipt.runId!==status.runId||!modelFlowIds.has(receipt.flow)||!/^[a-f0-9]{64}$/.test(receipt.appliedHash||''))return status;
+ try{
+  const observed=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:3000});
+  if(flowHash(flowSnapshot(configObject(observed),receipt.flow))!==receipt.appliedHash)return status;
+  let continuity='pending';try{const event=await memoryRemember({surface:'app',kind:'completed_action',text:'Modèles par flux : configuration '+receipt.flow+' vérifiée ; reçu '+status.runId+'. Aucun droit ni contexte de contact modifié.'});if(event.state==='recorded')continuity='recorded';}catch{}
+  const verified={...result,success:true,state:'completed',artifact:{...result.artifact,configurationRevision:observed.hash,continuity,reconciled:true},receipt:{...receipt,state:'completed'}};
+  await settleSubmittedRun(status.runId,'done',JSON.stringify(verified));invalidateAgentConfigCache();invalidateSessionDefaults();
+  return {...status,result:JSON.stringify(verified)};
+ }catch{return status;}
+}
 async function readModelFlowConfig(flow:EditableModelFlow){
  const [owner,defaults,latest]=await Promise.all([readModelOwnerFresh(),sessionDefaults(),latestModelFlowConfiguration(flow)]);
  const config=configObject(owner.raw),current=configuredModelFlow(config,flow),model=current.model,primary=typeof model==='string'?model:model?.primary;
@@ -372,15 +387,17 @@ async function changeModelFlowConfigOnce(body:any){
  if(!reserved.created&&flowResult(reserved.status).state!=='failed')return flowResult(reserved.status);
  const preparedReceipt={version:2,action:'agent.config',flow,target,operationId:body.operationId,runId:reserved.status.runId,at:reserved.status.submittedAt,previous,appliedHash:flowHash(applied)};
  await checkpointModelFlowConfiguration(reserved.status.runId,{success:false,state:'prepared',receipt:preparedReceipt});
- let state='indeterminate',artifact:any;
+ let state='indeterminate',artifact:any,dispatchAttempted=false,preservedSessions=0;
  try{
   if(await protectedActivity())state='refused';
   else{
    const preservation=await preserveModelFlowSessions(flow,config,body.operationId);
    if(preservation?.state!=='verified')throw nativeError('model_flow_new_session_policy_unverified',409);
+   preservedSessions=preservation.preserved;
    const fresh=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:3000});if(fresh?.hash!==body.revision)throw nativeError('agent_config_revision_changed',409);
    const patch:any={};for(const path of flowPaths(flow)){const value=objectAt(next,path);setFlowPath(patch,path,value.present?(value as any).value:null);}for(const path of flowContainers(flow))if(!objectAt(next,path).present)setFlowPath(patch,path,null);
    await checkpointModelFlowConfiguration(reserved.status.runId,{success:false,state:'dispatching',receipt:preparedReceipt,artifact:{preservedSessions:preservation.preserved}});
+   dispatchAttempted=true;
    let dispatchError:any;try{await callOpenClawGateway('config.patch',{baseHash:body.revision,raw:JSON.stringify(patch),replacePaths:flowPaths(flow).map(row=>row.join('.'))});}catch(error){dispatchError=error;}
    const observed=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:4000});
    if(flowHash(flowSnapshot(configObject(observed),flow))===flowHash(applied)){
@@ -391,6 +408,7 @@ async function changeModelFlowConfigOnce(body:any){
    else if(dispatchError&&['ECONNREFUSED','ENOENT'].includes(String(dispatchError?.code||''))){state='failed';artifact={reason:'gateway_unreachable',effectNotStarted:true};}
   }
  }catch(error:any){if(error?.statusCode===409&&/^(agent_config_revision_changed|model_flow_[a-z_]+|conversation_[a-z_]+)$/.test(error?.message||'')){state='refused';artifact={reason:error.message};}}
+ if(state==='indeterminate')artifact={...artifact,dispatchAttempted,preservedSessions};
  const result={success:state==='completed',state,...(artifact?{artifact}:{}),receipt:{version:2,action:'agent.config',flow,target,operationId:body.operationId,runId:reserved.status.runId,state,at:reserved.status.submittedAt,previous,appliedHash:flowHash(applied)}};
  await settleSubmittedRun(reserved.status.runId,'done',JSON.stringify(result));
  const saved=await findSubmittedRunByClientRunId(clientId,{text:identity,sessionId});return saved?flowResult(saved):{success:false,state:'indeterminate',receipt:null};

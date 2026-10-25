@@ -18,7 +18,7 @@ import {capabilityDetail} from "./capabilityControl";
 import {updatesRead} from "./updatesControl";
 import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
 import {withAttachmentReferences} from "./runs";
-import {readAgentConfig,changeAgentConfig} from "./agentConfig";
+import {readAgentConfig,changeAgentConfig,reconcileModelFlowRunStatus} from "./agentConfig";
 import {engineeringRead} from "./engineeringRead";
 import {learningForget, learningList, learningNotThis} from "./learning";
 import {cancelControlRequest} from "./controlActions";
@@ -1588,7 +1588,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
   }
   if (method === "GET" && byClientRunMatch) {
     const clientRunId = decodeURIComponent(byClientRunMatch[1]);
-    const result = await getRunStatusByClientRunId(clientRunId);
+    const result = await reconcileModelFlowRunStatus(await getRunStatusByClientRunId(clientRunId));
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success || result.state !== "unknown" ? 200 : 404, result);
     return;
@@ -1596,7 +1596,7 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
 
   if (method === "GET" && routePath.startsWith("/runs/")) {
     const runId = decodeURIComponent(routePath.slice("/runs/".length));
-    const result = await getRunStatus(runId);
+    const result = await reconcileModelFlowRunStatus(await getRunStatus(runId));
     writeJson(res, result.success || result.state !== "unknown" ? 200 : 404, result);
     return;
   }
