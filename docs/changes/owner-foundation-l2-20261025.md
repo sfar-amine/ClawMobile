@@ -9,3 +9,5 @@ Tests : `test-owner-foundation.cjs` et `test-mcp-foundation.cjs`, ajoutés aupr�
 Retour arrière : désactiver le drapeau, Companion et playbooks précédents par companion-deploy.sh et activate-ui-playbooks.sh.
 
 Revue de la clé de cache : les champs sha256/révision de mémoire ont été déplacés après le corps. Ils changent toujours avec la mémoire, sans modifier les premiers tokens des règles et descriptions de skills stables ; test de deux révisions distinctes ajouté. Aucun cache hit fournisseur n’est revendiqué avant la recette.
+
+Intégration : merge normal de Core420 d33ac0ba, sans activation ni CI prématurée ; 422 final attendu avant le head de CI419. Le test existant owner-foundation vérifie aussi le chargeur d’environnement canonique avec un fichier entièrement rédigé pour le test : flag persistant0/1 et priorité de la valeur héritée. Aucun .env du runtime n’est lu. La procédure publique fermée figure dans les playbooks, docs/07-engineering/context-foundation.md ; elle impose un seul drapeau persistant et la vérification de ce seul nom dans Gateway/Companion.

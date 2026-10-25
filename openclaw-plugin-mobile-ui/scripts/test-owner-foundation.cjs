@@ -26,4 +26,15 @@ try{
  const hook=owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:path.join(os.homedir(),'.openclaw','workspace'),sessionKey:'agent:main:whatsapp:test'});assert.equal(hook.prependSystemContext,text);assert.equal(reads,before+1);
  process.env.SAMANTHA_CONTEXT_FOUNDATION='0';assert.equal(owner.ownerFoundationHook({}, {agentId:'main'}),undefined);
 }finally{cp.execFileSync=original;if(flag===undefined)delete process.env.SAMANTHA_CONTEXT_FOUNDATION;else process.env.SAMANTHA_CONTEXT_FOUNDATION=flag;}
+// The existing host loader owns persistence; no real environment/configuration is read.
+const envRoot=fs.mkdtempSync(path.join(os.tmpdir(),'foundation-host-env-'));
+try{
+ const envFile=path.join(envRoot,'owner.env');fs.writeFileSync(envFile,'PRIVATE_SENTINEL=authored-test-only\nSAMANTHA_CONTEXT_FOUNDATION=1\n',{mode:0o600});
+ const loader=path.resolve(__dirname,'../../installer/termux-lite/lib.sh');
+ const load=(inherited)=>cp.execFileSync('bash',['-c','source "$1"; clawmobile_load_openclaw_env; printf "%s" "$SAMANTHA_CONTEXT_FOUNDATION"','foundation-env-test',loader],
+  {encoding:'utf8',env:{PATH:process.env.PATH,OPENCLAW_ENV_FILE:envFile,...(inherited===undefined?{}:{SAMANTHA_CONTEXT_FOUNDATION:inherited})}});
+ assert.equal(load(undefined),'1');assert.equal(load('0'),'0','nonempty inherited rollback value takes precedence');
+ fs.writeFileSync(envFile,'PRIVATE_SENTINEL=authored-test-only\nSAMANTHA_CONTEXT_FOUNDATION=0\n');
+ assert.equal(load(undefined),'0');assert.equal(load('1'),'1','persisted flag alone does not prove that a running owner reloaded it');
+}finally{fs.rmSync(envRoot,{recursive:true,force:true});}
 console.log('PASS L2 cacheable shared owner foundation, strict bounded producer, contacts isolation, no duplicate Companion bootstrap');
