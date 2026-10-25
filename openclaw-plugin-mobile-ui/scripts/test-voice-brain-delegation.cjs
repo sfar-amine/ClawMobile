@@ -44,6 +44,8 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    assert.match(prompt,/never invoke confidentiality yourself/);
    assert.ok(prompt.includes('contains voice.verbatim, start your spoken answer with exactly that text, word for word'));
    assert.ok(!/Pure conversation|may be answered directly/.test(prompt),'the free-answer loophole is gone');
+   assert.ok(prompt.includes('Detect the language actually spoken by Amine on every turn: pass his words in that language, never translated'));
+   assert.ok(prompt.includes('The UI locale is French')&&prompt.includes('Never translate French speech into English'));
   });
   await test('android voice receives identity and speaking style only, never the agent harness or memory',()=>{
    assert.ok(prompt.includes('# SOUL.md — Samantha'));

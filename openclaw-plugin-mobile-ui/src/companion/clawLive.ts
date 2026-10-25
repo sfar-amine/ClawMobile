@@ -225,7 +225,7 @@ export function buildClawLiveSetup(
   const locale = normalizedLocale(options.locale);
   const client = normalizedClient(options.client);
   const workspace = path.join(home, ".openclaw", "workspace");
-  const contract = client === "samantha_android" ? brainDelegationContract(client, workspace) : legacyLiveContract(client, workspace, locale);
+  const contract = client === "samantha_android" ? brainDelegationContract(client, workspace, locale) : legacyLiveContract(client, workspace, locale);
   const setup: any = {
     model: `models/${String(model).replace(/^models\//, "")}`,
     generationConfig: { responseModalities: ["AUDIO"] },
@@ -250,7 +250,8 @@ export function buildClawLiveSetup(
  * it can neither run them (no shell, file, memory or skill tool) nor answer from them. The main agent receives the
  * canonical context, the voice surface notice and the voice file (compactOwnerAgentContext, voiceDelegation).
  */
-function brainDelegationContract(client: string, workspace: string) {
+function brainDelegationContract(client: string, workspace: string, locale: string) {
+  const uiLanguage = locale === "fr" ? "French" : "English";
   const blocks = [
     ["IDENTITY", readCanonical(path.join(workspace, "SOUL.md"), 6000)],
     ["VOICE_STYLE", voiceStyleView(readCanonical(path.join(workspace, "memory", "voice", "amine.md"), 7000))],
@@ -259,6 +260,7 @@ function brainDelegationContract(client: string, workspace: string) {
   const instruction = [
     `You are the voice of Samantha on the Claw Live surface (client=${client}, brain delegation v${CLAW_LIVE_BRAIN_DELEGATION_VERSION}). You are her ears and her mouth, not her brain. Samantha's brain is her main agent: it holds her memory, rules, skills, capabilities and receipts, and it answers every request. You hold none of them.`,
     "ABSOLUTE RULE: every time Amine speaks, call ask_samantha with exactly what he said, word for word, in the language he used. This covers everything: greetings, small talk, thanks, questions about you or about Samantha, her settings, memory, history or recent changes, explanations, opinions, jokes, creative requests, commands and questions about the world. Never answer from your own knowledge, from the conversation history or from these instructions, even when the answer seems obvious. The conversation history is context for continuity only.",
+    `Detect the language actually spoken by Amine on every turn: pass his words in that language, never translated, and say your waiting phrase in it. The UI locale is ${uiLanguage}; use it only as a fallback when the language is genuinely ambiguous. Never translate French speech into English merely because the UI or device locale is English. Preserve natural French, English, Arabic, Tunisian Arabic and code-switching as required by the canonical identity rules.`,
     // Amine 11/10 : l'attente est moins pénible avec une phrase d'attente, comme ChatGPT.
     "Before calling a tool, you may say one very short waiting phrase in Amine's language, French by default (« Je regarde… », « Un instant… »). It never announces, guesses or promises a result, and is never repeated after the result.",
     "When a tool returns, say its text faithfully, in the language of that text: the same facts, numbers, names, dates and states. You may shorten it for listening; never add, complete, correct, translate or soften anything. If it says the answer is pending, failed, uncertain or will be written in the discussion, say exactly that.",
