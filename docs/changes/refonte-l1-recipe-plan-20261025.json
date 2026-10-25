@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "id": "refonte-l1-recipe-plan-20261025",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "summary": "Préparer les douze scénarios L1 et leur validation statique dans le propriétaire de recette existant.",
+  "reason": "La mesure de référence doit conserver les sources, gardes et provenances de surface sans devenir un nouveau lanceur ou affirmer une recette directe.",
+  "files": [
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/test-companion-acceptance-journey-plan.py",
+    ".github/workflows/ci.yml",
+    "openclaw-plugin-mobile-ui/fixtures/refonte-parcours-unique/L1-scenarios.json",
+    "openclaw-plugin-mobile-ui/fixtures/refonte-parcours-unique/L1-scenarios.schema.json",
+    "docs/work/samantha-refonte/L1-recette-proprietaire-et-baseline.md",
+    "docs/changes/refonte-l1-recipe-plan-20261025.md",
+    "docs/changes/refonte-l1-recipe-plan-20261025.json"
+  ],
+  "tests": [
+    {
+      "name": "test-companion-acceptance-journey-plan.py",
+      "status": "passed",
+      "evidence": "5tests ciblés sur source contractuelle exacte, refus des écritures, doubles ID, faux binding et source périmée; aucun appel HTTP."
+    },
+    {
+      "name": "test-companion-acceptance-owner-transport.py",
+      "status": "passed",
+      "evidence": "3tests historiques de transport propriétaire PASS."
+    },
+    {
+      "name": "test-companion-acceptance-web-recipe.py",
+      "status": "failed",
+      "evidence": "Essai impossible à qualifier :14setUp en erreur web_budget_contract_unavailable car dist/companion/runWeb.js absent du worktree neuf. Aucune conclusion de régression; compilation TypeScript différée pour laisser la CI409 seule sur CPU."
+    }
+  ],
+  "documentation": [
+    "docs/work/samantha-refonte/L1-recette-proprietaire-et-baseline.md",
+    "docs/changes/refonte-l1-recipe-plan-20261025.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY: mode statique du propriétaire de recette, aucune route ni action métier."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Même propriétaire companion-acceptance, validateur QA existant et registre canonique, aucun nouveau mécanisme live.",
+    "documents": []
+  },
+  "rollback": "Retirer le mode explicite et ses fichiers de plan; aucune donnée runtime modifiée.",
+  "limitations": [
+    "Préparation non publiée; L0 reste une porte avant la baseline.",
+    "Aucune capture ni recette métier produite.",
+    "Le mode live et son jugement attendent les contrats de surface S24 vérifiés.",
+    "CI canonique exacte requise après publication."
+  ]
+}

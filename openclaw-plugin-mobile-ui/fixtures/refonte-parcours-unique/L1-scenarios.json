@@ -1,0 +1,281 @@
+{
+  "version": 1,
+  "lot": "L1",
+  "provenance": {
+    "kind": "authored_acceptance_plan",
+    "runtimeCapture": false,
+    "spec": "samantha-core:5f26dac0:docs/work/samantha-refonte/SPEC-refonte-parcours-unique-20261025.md",
+    "contractSource": {
+      "repository": "sfar-amine/samantha-ui-playbooks",
+      "commit": "caa36db020376e73c25f3187cf5b47288d44ee00",
+      "files": [
+        "capabilities/registry.json",
+        "capabilities/execution_graph.json",
+        "skill_intelligence/manifests/*.json"
+      ]
+    },
+    "authorization": "Amine, chat du 25/10/2026, Q1-Q7; aucune écriture autorisée par ce fichier."
+  },
+  "scenarios": [
+    {
+      "id": "orange-balance",
+      "surfaces": [
+        "app",
+        "whatsapp",
+        "voice"
+      ],
+      "phrase": "C’est quoi mon solde Orange ?",
+      "expected": {
+        "route": "tool",
+        "capability": "telecom.orange.consultation",
+        "domain": "maxit-tunisie",
+        "intent": "telecom.balance",
+        "params": {}
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "steg-invoice",
+      "surfaces": [
+        "app",
+        "whatsapp",
+        "voice"
+      ],
+      "phrase": "Montre le détail de ma facture STEG.",
+      "expected": {
+        "route": "tool",
+        "capability": "billing.utility.fast_path",
+        "domain": "steg",
+        "intent": "billing.invoices",
+        "params": {}
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "agenda-recap",
+      "surfaces": [
+        "app",
+        "whatsapp",
+        "voice"
+      ],
+      "phrase": "Crée un rendez-vous « Recette Samantha parcours unique » le 1 novembre 2026 de 14 h à 14 h 15.",
+      "expected": {
+        "route": "tool",
+        "capability": "agenda.google_whatsapp",
+        "domain": "agenda",
+        "intent": "agenda.event.create",
+        "params": {
+          "title": "Recette Samantha parcours unique",
+          "start_time": "2026-11-01T14:00",
+          "end_time": "2026-11-01T14:15"
+        },
+        "conditions": [
+          "confirmation_before_effect",
+          "future_date_required"
+        ]
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "whatsapp-recap",
+      "surfaces": [
+        "app",
+        "whatsapp",
+        "voice"
+      ],
+      "phrase": "Envoie-moi sur mon propre WhatsApp : « Recette Samantha parcours unique ». Prépare seulement le récapitulatif.",
+      "expected": {
+        "route": "tool",
+        "capability": "notification.whatsapp.owner",
+        "domain": "whatsapp",
+        "intent": "messaging.send",
+        "params": {
+          "message": "Recette Samantha parcours unique"
+        },
+        "bindings": {
+          "recipient": "owner_self"
+        },
+        "conditions": [
+          "confirmation_before_effect",
+          "owner_identity_resolved"
+        ]
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "pulse-read",
+      "surfaces": [
+        "app",
+        "whatsapp",
+        "voice"
+      ],
+      "phrase": "Affiche mes projets Pulse.",
+      "expected": {
+        "route": "tool",
+        "capability": "pulse.backend_first",
+        "domain": "pulse",
+        "intent": "project.search",
+        "params": {}
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "pc-status",
+      "surfaces": [
+        "app",
+        "whatsapp",
+        "voice"
+      ],
+      "phrase": "Quel est l’état de l’accès PC au S24 ?",
+      "expected": {
+        "route": "tool",
+        "capability": "device.laptop_termux_access",
+        "domain": "laptop-s24-termux",
+        "intent": "laptop.s24.status",
+        "params": {},
+        "conditions": [
+          "no_connection_mutation"
+        ]
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "open-question",
+      "surfaces": [
+        "app",
+        "whatsapp",
+        "voice"
+      ],
+      "phrase": "Explique simplement la différence entre un événement et une tâche.",
+      "expected": {
+        "route": "answer",
+        "conditions": [
+          "no_business_effect"
+        ]
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "ambiguous-reminder",
+      "surfaces": [
+        "app",
+        "whatsapp",
+        "voice"
+      ],
+      "phrase": "Rappelle-moi demain.",
+      "expected": {
+        "route": "question",
+        "conditions": [
+          "one_precise_question",
+          "no_business_effect"
+        ]
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "unknown-request",
+      "surfaces": [
+        "app",
+        "whatsapp",
+        "voice"
+      ],
+      "phrase": "Donne-moi le solde exact de mon compte chez le fournisseur imaginaire TestInconnuSamantha.",
+      "expected": {
+        "route": "answer",
+        "conditions": [
+          "honest_unavailability",
+          "no_business_effect"
+        ]
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "voice-greeting",
+      "surfaces": [
+        "voice"
+      ],
+      "phrase": "Bonjour Samantha",
+      "expected": {
+        "route": "reflex",
+        "conditions": [
+          "no_business_effect"
+        ]
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "voice-interruption",
+      "surfaces": [
+        "voice"
+      ],
+      "phrase": "Arrête",
+      "expected": {
+        "route": "reflex",
+        "conditions": [
+          "barge_in_during_wait",
+          "waiting_audio_stopped",
+          "no_business_effect"
+        ]
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    },
+    {
+      "id": "deferred-reply",
+      "surfaces": [
+        "app",
+        "whatsapp",
+        "voice"
+      ],
+      "phrase": "Vérifie l’état de toutes mes factures.",
+      "expected": {
+        "route": "tool",
+        "capability": "billing.utility.fast_path",
+        "domain": "utility-billing",
+        "intent": "billing.unpaid",
+        "params": {},
+        "conditions": [
+          "observed_over_budget",
+          "same_surface_and_thread",
+          "single_deferred_notice"
+        ]
+      },
+      "safety": {
+        "stopAtConfirmation": true,
+        "allowWrite": false
+      }
+    }
+  ]
+}
