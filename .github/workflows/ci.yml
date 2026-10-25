@@ -170,6 +170,7 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-tier0-lkg-hold.py
           python3 ../installer/termux-lite/test-tier0-distinct-health.py
+          python3 ../installer/termux-lite/test-tier0-activation-readiness.py
           python3 ../installer/termux-lite/test-incident-orchestrator.py
           python3 ../installer/termux-lite/test-incident-deterministic-recovery.py
           python3 ../installer/termux-lite/test-incident-ingress.py
@@ -325,6 +326,9 @@ jobs:
           node scripts/test-claw-live-warm-detach.cjs
           python3 scripts/test-voice-m1-corpus.py
           node scripts/test-voice-turn-protocol.cjs
+          node scripts/test-voice-async-readback.cjs
+          node scripts/test-voice-readback-persistence.cjs
+          node scripts/test-turn-budget.cjs
           node scripts/test-claw-live-token-failure.cjs
           node scripts/test-warm-v2-ownership.cjs
           node scripts/test-phone-datetime.cjs

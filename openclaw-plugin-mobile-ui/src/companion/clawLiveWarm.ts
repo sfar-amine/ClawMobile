@@ -1,3 +1,4 @@
+import {TURN_BUDGET_MS} from "./turnBudget";
 import http from "http";
 import fs from "fs";
 import os from "os";
@@ -217,12 +218,12 @@ export class ClawLiveWarmCore {
     if(meta?.protocol===2&&!this.protocols.has(ws))this.protocols.set(ws,new VoiceTurnProtocol(this.connectionGeneration,meta.sessionEpoch!,
       value=>{if(this.providerReady&&this.provider?.readyState===WebSocket.OPEN)this.provider.send(JSON.stringify(value));},
       value=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(value));},
-      (ev,id,x)=>this.observeTurn(ev,id,x),undefined,warmHit));
+      (ev,id,x)=>this.observeTurn(ev,id,x),undefined,warmHit,undefined,true));
     this.trace("t07",0,{cached:warmHit});
     ws.send(JSON.stringify({warmReady:{historyRequired,resumed:this.resumedLast,setupMs:this.lastSetupMs,state:"warm",
       protocolVersion:meta?.protocol===2?2:1,connectionEpoch:this.connectionGeneration,sessionEpoch:meta?.sessionEpoch,
       // Live progress readback of a brain turn (speakProgress), version 1: an older app never sends it.
-      ...(meta?.protocol===2?{progressReadback:1}:{}),
+      ...(meta?.protocol===2?{progressReadback:1,asyncToolReadback:1,turnBudgetMs:TURN_BUDGET_MS}:{}),
       bargeIn:readBargeInProfile()}}));
   }
 

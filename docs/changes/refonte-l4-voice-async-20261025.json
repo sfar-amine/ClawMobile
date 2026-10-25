@@ -1,0 +1,85 @@
+{
+  "version": 2,
+  "id": "refonte-l4-voice-async-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "L0 correction: deliver canonical voice receipts/progress without discarded virtual playback and retain one exact provider generation owner; L4 itself remains open.",
+  "routes": [
+    {
+      "route": "Existing v2 Warm socket controls and POST /sessions/{id}/voice-turns",
+      "change": "Asynchronous provider readback on the canonical execution; closed readback transcript prefix accepted.",
+      "budget": "Shared 30000ms delivery budget; real provider boundaries never guessed.",
+      "capability": "NO_CAPABILITY (voice surface lifecycle and transcript persistence)"
+    }
+  ],
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Restore paired standard Companion and APK through the existing owners.",
+  "kind": "repair",
+  "reason": "Existing native voice receipt delivery must preserve provider correlation and waiting progress.",
+  "canonical_ci": "pending_full_ci",
+  "acceptance": "pending_real_s24_recipe",
+  "merge_policy": "Canonical exact-head CI and native acceptance remain required; allowed is delivery-record structural eligibility only.",
+  "tests": [
+    {
+      "name": "Focused source regression checks",
+      "status": "passed",
+      "evidence": "Project TypeScript check PASS; asynchronous13, existing protocol37, brain28 and OptionA25 passed. HTTP readback persistence, shared budget, Warm and actual Warm-to-async constructor wiring passed. Final combined-head canonical CI and paired native recipe remain pending. S24 timing-only metadata provenance retained; no fabricated provider or deferred receipt capture."
+    }
+  ],
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-voice-asynchronous-readback.md",
+    "docs/changes/refonte-l4-voice-async-20261025.json",
+    "docs/changes/refonte-l4-voice-async-20261025.md",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json",
+    "openclaw-plugin-mobile-ui/fixtures/voice-async/PROVENANCE.md",
+    "openclaw-plugin-mobile-ui/fixtures/voice-async/s24-question-v1-metadata.json",
+    "openclaw-plugin-mobile-ui/scripts/test-turn-budget.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-async-readback.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-brain-delegation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-option-a.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-readback-persistence.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-warm-v2-ownership.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/turnBudget.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts"
+  ],
+  "documentation": [
+    "docs/changes/refonte-l4-voice-async-20261025.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "No capability, business action or MCP tool added."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Official asynchronous provider-call delivery within the existing Warm/VoiceTurnProtocol owner.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-voice-asynchronous-readback.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Public MCP tools and their schemas unchanged; existing owner protocol lifecycle only."
+    ]
+  }
+}
