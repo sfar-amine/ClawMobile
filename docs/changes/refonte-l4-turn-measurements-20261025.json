@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "id": "refonte-l4-turn-measurements-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Budget de livraison commun et observations réelles app/voix/WhatsApp dans les propriétaires existants, inconnus préservés.",
+  "scope": {
+    "files": [
+      "openclaw-plugin-mobile-ui/src/companion/turnBudget.ts",
+      "openclaw-plugin-mobile-ui/src/nativeTurnProgress.ts",
+      "openclaw-plugin-mobile-ui/src/nativeTurnProgressOwner.ts",
+      "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+      "openclaw-plugin-mobile-ui/src/companion/server.ts",
+      "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
+      "docs/changes/refonte-l4-turn-measurements-20261025.md"
+    ]
+  },
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/v1/runs/:id/measurement",
+      "budget_ms": 1500,
+      "capability": "NO_CAPABILITY",
+      "reason": "Télémétrie locale fermée des propriétaires existants, sans action métier exposée."
+    }
+  ],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "test-turn-measurement.cjs et test-native-turn-progress.cjs inscrits ci.yml ; fixtures S24 publiques/time-only ; exécution canonique attendue"
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "NO_CAPABILITY : télémétrie technique ; primitives MCP et actions métier inchangées."
+  },
+  "architecture_impact": {
+    "changed": true,
+    "adr": "docs/08-decisions/ADR-20261025-refonte-l4-budget-measurements.md",
+    "reason": "Propriétaires et registre réutilisés ; aucune nouvelle file/service."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "Six primitives existantes et schémas métier inchangés ; aucune nouvelle action."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Revert source puis propriétaires companion-deploy.sh/APK précédents ; observations facultatives ignorées."
+}

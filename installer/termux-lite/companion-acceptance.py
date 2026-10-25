@@ -60,6 +60,7 @@ READS = [
 ]
 # Mutations sent WITHOUT the owner header must be refused before any effect.
 OWNER_GUARDS = [
+    ("POST", "/runs/acceptance-probe/measurement"),
     ("POST", "/lighting/d073d5225b23/state"),
     ("POST", "/conversations/acceptance-probe/archive"),
     ("POST", "/conversations/acceptance-probe/unarchive"),

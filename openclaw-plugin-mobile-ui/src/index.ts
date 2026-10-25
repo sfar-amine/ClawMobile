@@ -1,3 +1,4 @@
+import {nativeTurnProgressHooks} from "./nativeTurnProgress";
 import {
   android_health,
   android_screenshot,
@@ -186,10 +187,16 @@ function register(api: any) {
   // mobile runtime implementation below.
 
   api.on("before_tool_call", agentCapabilityHook);
+  const nativeProgress=nativeTurnProgressHooks();
+  api.on("agent_end",nativeProgress.ended);
+  api.on("message_sent",nativeProgress.sent);
+  api.on("model_call_ended",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"model"));
+  api.on("after_tool_call",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"tool"));
 
   // SDK 2026.9.6 emits this accepted-turn observation without awaiting it.
   // Private QA owners admit an existing DRAFT before any staged bytes are read.
   api.on("message_received", async (event:any,ctx:any) => {
+    await nativeProgress.received(event,ctx);
     await handleQaContactMediaReceived(event,ctx);
   });
 

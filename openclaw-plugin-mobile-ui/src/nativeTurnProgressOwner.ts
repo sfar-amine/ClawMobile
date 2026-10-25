@@ -1,0 +1,56 @@
+/** Companion is the only run-registry writer and deadline owner. Gateway hooks send closed observations here. */
+import {TURN_BUDGET_MS} from './companion/turnBudget';
+import {createHash} from 'crypto';
+import {ownerWhatsAppNumbers} from './modelFastPath';
+import {callOpenClawGateway} from './companion/openclawAgentClient';
+import {recordNativeWhatsAppIngress,nativeTurnProgressState,reserveNativeProgressNotice,settleNativeProgressNotice,
+ observeNativeTurnEnd,observeNativeTurnDelivery,observeNativeTurnStage,activeObservedNativeWhatsAppRun} from './companion/runs';
+const SESSION=/^agent:main:whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
+type Deps={owners?:()=>Set<string>;send?:(params:any)=>Promise<any>;enabled?:()=>boolean;
+ timer?:(fn:()=>void,ms:number)=>ReturnType<typeof setTimeout>;clear?:(id:ReturnType<typeof setTimeout>)=>void};
+export function createNativeTurnProgressOwner(deps:Deps={}){
+ const owners=deps.owners||ownerWhatsAppNumbers,enabled=deps.enabled||(()=>process.env.SAMANTHA_BRAIN_ONLY==='1');
+ const send=deps.send||((params:any)=>callOpenClawGateway('send',params,{timeoutMs:5000,hardTimeoutMs:5000}));
+ const timer=deps.timer||setTimeout,clear=deps.clear||clearTimeout;
+ const deadlines=new Map<string,ReturnType<typeof setTimeout>>();
+ const peer=(key:string)=>{const m=SESSION.exec(key);if(!m)return null;const n=m[1].startsWith('+')?m[1]:'+'+m[1];return owners().has(n)?n:null;};
+ const stop=(id:string)=>{const job=deadlines.get(id);if(job){clear(job);deadlines.delete(id);}};
+ async function notify(id:string){
+  deadlines.delete(id);if(!enabled())return;const row=await nativeTurnProgressState(id);
+  if(!row||row.ended||row.state!=='running')return;const to=peer(row.sessionKey);if(!to||!await reserveNativeProgressNotice(id))return;
+  const current=await nativeTurnProgressState(id);if(!current||current.ended||current.state!=='running')return;
+  try{const result=await send({channel:'whatsapp',to,accountId:current.accountId||'default',message:'Je reviens vers toi.',
+   idempotencyKey:'samantha-progress-'+createHash('sha256').update(id).digest('hex')});
+   await settleNativeProgressNotice(id,typeof result?.messageId==='string'?'accepted':'uncertain');
+  }catch{await settleNativeProgressNotice(id,'uncertain');}
+ }
+ return {
+  /** Closed native metadata operations on the existing loopback measurement route, never business commands. */
+  async observe(id:string,body:any){
+   if(!enabled())throw Object.assign(Error('native_turn_observation_disabled'),{statusCode:409});
+   if(!body||typeof body!=='object'||Array.isArray(body)||!peer(body.sessionKey||''))throw Object.assign(Error('native_turn_owner_required'),{statusCode:403});
+   const allowed:Record<string,string[]>={native_ingress:['operation','sessionKey','accountId','observedMonoMs'],
+    native_stage:['operation','sessionKey','kind','durationMs','model','outcome'],native_end:['operation','sessionKey','model','success'],
+    native_delivery:['operation','sessionKey'],native_active:['operation','sessionKey','excludeRunId']};
+   const keys=allowed[body.operation];if(!keys||Object.keys(body).some(k=>!keys.includes(k)))throw Object.assign(Error('invalid_turn_measurement'),{statusCode:400});
+   if(body.operation==='native_active')return {success:true,state:'observed',active:await activeObservedNativeWhatsAppRun(body.sessionKey,{excludeRunId:body.excludeRunId})};
+   const row=await nativeTurnProgressState(id);if(row&&row.sessionKey!==body.sessionKey)throw Object.assign(Error('turn_measurement_identity_conflict'),{statusCode:409});
+   if(body.operation==='native_ingress'){
+    const observed=await recordNativeWhatsAppIngress(id,body.sessionKey,body.accountId,body.observedMonoMs);
+    if(observed&&!observed.ended&&observed.notice==='pending'&&!deadlines.has(id)&&deadlines.size<64){
+     const job=timer(()=>{void notify(id).catch(()=>{});},Math.max(0,TURN_BUDGET_MS-(Number(process.hrtime.bigint()/1000000n)-observed.startedMono)));job.unref?.();deadlines.set(id,job);
+    }
+   }else{
+    if(!row)throw Object.assign(Error('run_not_found'),{statusCode:404});
+    if(body.operation==='native_stage'){
+     if(!['model','tool'].includes(body.kind)||body.durationMs!==null&&(!Number.isSafeInteger(body.durationMs)||body.durationMs<0||body.durationMs>600000))throw Object.assign(Error('invalid_turn_measurement'),{statusCode:400});
+     await observeNativeTurnStage(id,body.kind,body.durationMs,body.model,body.sessionKey,body.outcome);
+    }else if(body.operation==='native_end'){
+     if(typeof body.success!=='boolean')throw Object.assign(Error('invalid_turn_measurement'),{statusCode:400});
+     stop(id);await observeNativeTurnEnd(id,body.model,body.success);
+    }else if(body.operation==='native_delivery')await observeNativeTurnDelivery(id);
+   }
+   return {success:true,state:'observed'};
+  },
+ };
+}

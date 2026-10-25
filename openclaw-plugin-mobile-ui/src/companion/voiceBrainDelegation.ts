@@ -1,3 +1,4 @@
+import {TURN_BUDGET_MS} from "./turnBudget";
 import type {AdmissionTicket} from "./ownerTurnAdmission";
 import type {CompanionRunStatus, IntentSubmitResponse} from "./types";
 
@@ -8,7 +9,7 @@ import type {CompanionRunStatus, IntentSubmitResponse} from "./types";
  * the turn's own admission ticket and clientRunId, then a bounded read of that run. A run still active at the budget
  * keeps going and lands in the discussion, as with ask_samantha (app DELEGATION_BUDGET_MS = 30 s).
  */
-export const VOICE_BRAIN_BUDGET_MS = 30_000;
+export const VOICE_BRAIN_BUDGET_MS = TURN_BUDGET_MS;
 export const VOICE_BRAIN_POLL_MS = 500;
 export const VOICE_BRAIN_SOURCE = "samantha_brain";
 const VERBATIM_MAX_CHARS = 600;
