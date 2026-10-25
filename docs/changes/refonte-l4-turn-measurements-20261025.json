@@ -27,7 +27,9 @@
   "tests": {
     "status": "pending_ci",
     "evidence": [
-      "test-turn-measurement.cjs et test-native-turn-progress.cjs inscrits ci.yml ; fixtures S24 publiques/time-only ; exécution canonique attendue"
+      "Build TypeScript et prepare-lite PASS sur le contenu source final.",
+      "test-turn-measurement.cjs PASS ; test-native-turn-progress.cjs PASS, y compris volume505→500 et lecture legacy unique sans fanout.",
+      "Scripts inscrits ci.yml ; CI canonique complète et recette S24 restent attendues."
     ]
   },
   "capability_impact": {
