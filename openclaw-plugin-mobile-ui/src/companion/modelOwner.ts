@@ -2,7 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import crypto from "crypto";
-import {accountAlias,publicModelRef} from "./accountIdentity";
+import {accountAlias,publicModelRef,ACCOUNT_ALIAS} from "./accountIdentity";
 import {callOpenClawGateway} from "./openclawAgentClient";
 
 // Process-local projection of the existing Gateway owners. No credential or
@@ -98,9 +98,9 @@ export function includedModelAccounts(reference:string,auth:any,policy:any):{ref
   // ChatGPT OAuth cannot select an API-key profile. The canonical subscription policy attests its executor.
   const subscription=provider==='openai'&&profile.type==='oauth'&&slots.some(slot=>slot.enabled===true&&slot.provider==='openai'&&slot.cost_policy==='subscription'&&slot.executor==='native_agent_exec'&&slot.qualification_ref);
   // API-key profiles are admitted only as the exact canonical free-only model/profile pair.
-  const free=slots.some(slot=>slot.enabled===true&&slot.cost_policy==='free_only'&&slot.model===pinned&&slot.qualification_ref);
+  const free=slots.some(slot=>slot.enabled===true&&slot.cost_policy==='free_only'&&publicModelRef(slot.model)===publicModelRef(pinned)&&slot.qualification_ref);
   if(!subscription&&!free)return [];
-  return [{reference:pinned,account:accountAlias(id),costPolicy:subscription?'subscription':'free_only',source:'canonical_model_policy_and_auth'}];
+  return [{reference:pinned,account:ACCOUNT_ALIAS.test(id)?id:accountAlias(id),costPolicy:subscription?'subscription':'free_only',source:'canonical_model_policy_and_auth'}];
  });
 }
 function projected(value:ModelOwnerRead):ModelOwnerSnapshot|null{
