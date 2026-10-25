@@ -92,9 +92,9 @@ export const C1_HYBRID_CONTEXT_BYTES=8000;
 
 /** Brain delegation contract of the Samantha Android voice (Amine 25/10/2026: « il doit absolument tout déléguer au
  * cerveau »). Gemini Live is the ears and the mouth; the main agent answers every request. */
-export const CLAW_LIVE_BRAIN_DELEGATION_VERSION=1;
+export const CLAW_LIVE_BRAIN_DELEGATION_VERSION=2;
 const VOICE_CONTEXT_CHARS=7000;
-const VOICE_TURN_NOTICE="Ce tour vient de Samantha Voix. L'interface vocale (Gemini Live) n'a ni mémoire, ni règles, ni outils propres : elle transmet mot pour mot ce qu'Amine a dit et lit ta réponse à voix haute, telle quelle. Rédige une réponse destinée à être dite, selon VOICE_CONTEXT.";
+const VOICE_TURN_NOTICE="Ce tour vient de Samantha Voix. L'interface vocale (Gemini Live) n'a ni mémoire, ni règles, ni outils propres : elle transmet mot pour mot ce qu'Amine a dit et lit ta réponse à voix haute, telle quelle. Amine attend en direct : rédige une réponse courte destinée à être dite, selon VOICE_CONTEXT, et si la demande demande plusieurs étapes, tiens son avancement à jour selon la règle d'avancement (étapes rédigées pour Amine).";
 
 /** Speaking style only (« Interaction vocale ») of the canonical voice file: how Samantha speaks, never a fact, a
  * decision or a history the voice interface could answer from. Absent section: nothing (the contract still applies). */
@@ -199,7 +199,9 @@ export async function clawLiveCapabilityTurn(
   if (!request || request.length > 12000) return { success: false, error: "request_required" };
   const id = isDialogueConversationId(body?.clarificationId) ? body.clarificationId : undefined;
   // W4: host-only session/run identities for a Web hand-off; the G6 voice gate is enforced before dispatch.
+  const coordinatorStarted = Date.now();
   const turn = await dialogue.turn(request, { id, originId: String(body?.originId || "claw-live").slice(0, 120), sessionId: body.sessionId, runId: body.originId, assertCurrent: body.assertCurrent });
+  const coordinatorMs = Math.max(0, Math.min(600_000, Date.now() - coordinatorStarted));
   if (turn.state === "needs_clarification") {
     return {
       success: true, state: "needs_clarification", source: "capability",
@@ -213,7 +215,11 @@ export async function clawLiveCapabilityTurn(
     return { success: turn.state === "done", state: turn.state, source: "capability", text: turn.text, decision: liveDecision(turn.decision), ...publicReceiptMetadata(readReceiptPresentation(turn)), ...(turn.web?{web:turn.web}:{}), execution: { state: turn.state === "done" ? "completed" : "failed",...(turn.web?{result:{web:turn.web}}:{}) } };
   }
   body.assertCurrent?.();
-  return execute(turn.text);
+  const executed = await execute(turn.text);
+  // Measured coordinator time joins the executor's own timing (voice turn log line); a non-object result is untouched.
+  if (!executed || typeof executed !== "object" || Array.isArray(executed)) return executed;
+  const timing = executed.timing && typeof executed.timing === "object" && !Array.isArray(executed.timing) ? executed.timing : {};
+  return { ...executed, timing: { ...timing, coordinatorMs } };
 }
 
 export function buildClawLiveSetup(
@@ -260,6 +266,8 @@ function brainDelegationContract(client: string, workspace: string, locale: stri
   const instruction = [
     `You are the voice of Samantha on the Claw Live surface (client=${client}, brain delegation v${CLAW_LIVE_BRAIN_DELEGATION_VERSION}). You are her ears and her mouth, not her brain. Samantha's brain is her main agent: it holds her memory, rules, skills, capabilities and receipts, and it answers every request. You hold none of them.`,
     "ABSOLUTE RULE: every time Amine speaks, call ask_samantha with exactly what he said, word for word, in the language he used. This covers everything: greetings, small talk, thanks, questions about you or about Samantha, her settings, memory, history or recent changes, explanations, opinions, jokes, creative requests, commands and questions about the world. Never answer from your own knowledge, from the conversation history or from these instructions, even when the answer seems obvious. The conversation history is context for continuity only.",
+    // Amine 25/10/2026: closed list of social reflexes, also recognised by the Companion (voiceReflex.ts).
+    "Only exception, social reflexes: when Amine only greets you, thanks you, says goodbye, asks whether you hear him or are there, asks you to wait, asks how you are, or asks you to repeat what you just said, and nothing else, answer yourself in one short natural sentence, without any tool and without any fact, number, state, memory, opinion or promise. To repeat, say your previous answer again word for word. « Oui », « non », « d'accord », a choice or any answer to a question are never reflexes: they go to ask_samantha.",
     `Detect the language actually spoken by Amine on every turn: pass his words in that language, never translated, and say your waiting phrase in it. The UI locale is ${uiLanguage}; use it only as a fallback when the language is genuinely ambiguous. Never translate French speech into English merely because the UI or device locale is English. Preserve natural French, English, Arabic, Tunisian Arabic and code-switching as required by the canonical identity rules.`,
     // Amine 11/10 : l'attente est moins pénible avec une phrase d'attente, comme ChatGPT.
     "Before calling a tool, you may say one very short waiting phrase in Amine's language, French by default (« Je regarde… », « Un instant… »). It never announces, guesses or promises a result, and is never repeated after the result.",

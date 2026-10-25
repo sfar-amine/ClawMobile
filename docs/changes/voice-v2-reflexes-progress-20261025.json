@@ -1,0 +1,51 @@
+{
+  "version": 2,
+  "id": "voice-v2-reflexes-progress-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Samantha Voix v2: brain turns are Companion-owned (immediate local waiting phrase), a closed list of social reflexes is answered by the voice itself, run steps come from the agent's user-oriented progress card, and every voice turn logs its measured durations.",
+  "scope": {
+    "files": [
+      "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+      "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
+      "openclaw-plugin-mobile-ui/src/companion/voiceReflex.ts",
+      "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
+      "openclaw-plugin-mobile-ui/src/companion/server.ts",
+      "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+      "openclaw-plugin-mobile-ui/src/companion/runProgress.ts",
+      "openclaw-plugin-mobile-ui/src/companion/types.ts",
+      "openclaw-plugin-mobile-ui/scripts/test-voice-brain-delegation.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-run-progress-card.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-claw-live.cjs",
+      "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-voice-brain/progress-card-get.json",
+      ".github/workflows/ci.yml",
+      "docs/changes/voice-v2-reflexes-progress-20261025.md",
+      "docs/08-decisions/ADR-20261025-voice-brain-delegation.md"
+    ]
+  },
+  "routes": [
+    {"route": "POST /v1/extensions/claw-live/decision", "change": "reflexes answered without Graph call (optional); model-only turns Companion-owned (voiceFastPath execute, owner samantha_brain)", "budget": "reflex: local only; otherwise unchanged (one resolver call)", "capability": "NO_CAPABILITY (voice surface owner route)"},
+    {"route": "POST /v1/extensions/claw-live/capability", "change": "timing and one bounded log line per turn", "budget": "unchanged", "capability": "NO_CAPABILITY (voice surface owner route)"},
+    {"route": "GET /v1/runs/{id}", "change": "live gateway run reads the session progress card (progressCard.get) with a 1.5 s single-flight cache and 1.5 s timeout", "budget": "+ at most one Gateway read per 1.5 s per session, never per list row", "capability": "unchanged"}
+  ],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "scripts/test-voice-brain-delegation.cjs (28) and scripts/test-run-progress-card.cjs (5) registered in .github/workflows/ci.yml"
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "No capability added or changed. Reflexes execute nothing; deterministic and executable voice routes, payment included, are unchanged."
+  },
+  "architecture_impact": {
+    "changed": true,
+    "adr": "docs/08-decisions/ADR-20261025-voice-brain-delegation.md",
+    "reason": "Voice turn ownership moves to the Companion for brain turns; the OpenClaw progress card becomes the source of run steps. Existing owners only: no new store, router, scheduler or retry."
+  },
+  "mcp_parity": {"status": "no_impact", "detail": "No MCP tool or adapter change."},
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Revert this commit and redeploy the Companion with companion-deploy.sh; no app change."
+}

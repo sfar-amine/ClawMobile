@@ -188,6 +188,8 @@ export type CompanionRunProgress = {
   events: CompanionRunProgressEvent[];
   /** HS5: real steps derived on read (runProgress.ts); absent for voice runs. */
   steps?: import("./runProgress").RunStep[];
+  /** Agent-authored, user-oriented progress card of this run's session (runs.ts readRunProgressCard). */
+  card?: import("./runs").RunProgressCard;
   failedStep?: string;
   cause?: string;
   effect?: {debited: "unknown"; source: "receipt"};

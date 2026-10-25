@@ -50,7 +50,7 @@ import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
-import { routeUnresolvedVoiceTurn } from "./voiceBrainDelegation";
+import { routeUnresolvedVoiceTurn, voiceTurnLogLine } from "./voiceBrainDelegation";
 import { dialogueConversationId } from "../dialogueSurface";
 import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
@@ -1002,7 +1002,9 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
         });
       },
     );
+    const turnStarted = Date.now();
     const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute, {assertCurrent});
+    console.log(voiceTurnLogLine(result, Date.now() - turnStarted));
     res.setHeader("Cache-Control", "no-store");
     writeJson(res, result.success === false ? 400 : 200, {...result,ownerAdmission:publicAdmission(admission)});
     return;

@@ -869,7 +869,7 @@ function withRunSteps(status: CompanionRunStatus, stored?: StoredRun | null): Co
     executionSource: stored.executionSource, state: status.state, error: stored.error,
     acceptedAt: stored.acceptedAt, updatedAt: stored.updatedAt ?? status.updatedAt, modality: stored.modality,
     decision: stored.decision, clarificationState: stored.clarificationState,
-    presentation: runPresentation(stored), events: status.progress?.events,
+    presentation: runPresentation(stored), events: status.progress?.events, card: status.progress?.card,
   });
   if (!derived) return status;
   const base = status.progress || {text: "", events: []};
@@ -967,16 +967,18 @@ async function enrichFromSessionFile(
   const sessionId = String(sessionInfo?.sessionId || "");
   if (!sessionId) return status;
 
-  const [transcript, trajectory] = await Promise.all([
+  const sessionKey = String(sessionInfo?.key || stored?.sessionKey || "");
+  const [transcript, trajectory, card] = await Promise.all([
     readSessionTranscript(sessionId, stored?.text, allowGatewayHistory ? String(sessionInfo?.key || "") : undefined, deadline).catch(() => null),
     readSessionTrajectory(sessionId, status.runId, stored?.text).catch(() => null),
+    readRunProgressCard(sessionKey, stored?.acceptedAt || status.submittedAt).catch(() => null),
   ]);
-  if (!transcript && !trajectory) return status;
+  if (!transcript && !trajectory) return card ? {...status, progress: withProgressCard(status.progress, card)} : status;
 
   const prompt = stored?.text || transcript?.prompt || trajectory?.prompt || status.prompt || "";
   const userText = stored?.userText || status.userText;
   const result = transcript?.result || trajectory?.result || status.result;
-  const progress = mergeProgress(status.progress, transcript?.progressEvents || [], trajectory?.progress);
+  const progress = withProgressCard(mergeProgress(status.progress, transcript?.progressEvents || [], trajectory?.progress), card);
   const state = resolveState(status.state, result, trajectory?.state, progress);
   const message = result || progress?.text || status.message;
   const startedAt = transcript?.startedAt || trajectory?.startedAt || status.startedAt;
@@ -1432,6 +1434,65 @@ function contentText(content: any): string {
     .filter(Boolean)
     .join("\n")
     .trim();
+}
+
+/**
+ * User-oriented live progress (Amine 25/10/2026): the agent's own OpenClaw progress card for this session, written for
+ * Amine by rule (no tool, file or model names). Read only for a live single-run status, through the existing Gateway
+ * transport, with a short single-flight cache so frequent polls never multiply Gateway calls. A card older than the run
+ * belongs to an earlier task of the same conversation and is ignored. Nothing is stored.
+ */
+const PROGRESS_CARD_TTL_MS = 1500;
+const PROGRESS_CARD_TIMEOUT_MS = 1500;
+const PROGRESS_CARD_MAX_STEPS = 12;
+const progressCardCache = new Map<string, {at: number; value: Promise<RunProgressCard | null>}>();
+export type RunProgressCard = {revision: number; updatedAt: number; steps: {label: string; state: "pending" | "running" | "done"}[]; note?: string};
+
+function cardText(value: unknown, max: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.replace(/<[^>]*>/g, " ").replace(/[*_`#>|]/g, "").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[\u0000-\u001f\u007f​-‏‪-‮⁦-⁩]/g, " ").replace(/\s+/g, " ").trim();
+  return text ? text.slice(0, max) : undefined;
+}
+
+export function projectProgressCard(raw: unknown): RunProgressCard | null {
+  const card = raw && typeof raw === "object" ? (raw as any).card ?? raw : null;
+  if (!card || typeof card !== "object" || Array.isArray(card)) return null;
+  const revision = Number(card.revision), updatedAt = Number(card.updatedAt);
+  if (!Number.isSafeInteger(revision) || revision < 1 || !Number.isFinite(updatedAt) || updatedAt <= 0) return null;
+  const steps = (Array.isArray(card.steps) ? card.steps : []).slice(0, PROGRESS_CARD_MAX_STEPS).flatMap((step: any) => {
+    const label = cardText(step?.step, 160);
+    const state = step?.status === "completed" ? "done" as const : step?.status === "in_progress" ? "running" as const
+      : step?.status === "pending" ? "pending" as const : null;
+    return label && state ? [{label, state}] : [];
+  });
+  const note = cardText(card.markdown, 200);
+  if (!steps.length && !note) return null;
+  return {revision, updatedAt, steps, ...(note ? {note} : {})};
+}
+
+export async function readRunProgressCard(sessionKey: string, runAcceptedAt: number | undefined,
+  read: (key: string) => Promise<unknown> = (key) => callOpenClawGateway("progressCard.get", {sessionKey: key}, {timeoutMs: PROGRESS_CARD_TIMEOUT_MS}),
+  now: () => number = Date.now): Promise<RunProgressCard | null> {
+  if (!/^agent:[A-Za-z0-9_-]{1,64}:[A-Za-z0-9:._-]{1,200}$/.test(sessionKey)) return null;
+  const cached = progressCardCache.get(sessionKey);
+  let pending: Promise<RunProgressCard | null>;
+  if (cached && now() - cached.at < PROGRESS_CARD_TTL_MS) pending = cached.value;
+  else {
+    pending = read(sessionKey).then(projectProgressCard, () => null);
+    progressCardCache.set(sessionKey, {at: now(), value: pending});
+    if (progressCardCache.size > 64) progressCardCache.delete(progressCardCache.keys().next().value!);
+  }
+  const card = await pending;
+  if (!card) return null;
+  return typeof runAcceptedAt === "number" && card.updatedAt < runAcceptedAt ? null : card;
+}
+
+/** The card's current step is the run's live text; its steps feed the HS5 steps (runProgress.ts). */
+export function withProgressCard(progress: CompanionRunProgress | undefined, card: RunProgressCard | null): CompanionRunProgress | undefined {
+  if (!card) return progress;
+  const current = card.steps.find(step => step.state === "running")?.label || card.note || card.steps.at(-1)?.label;
+  return {...(progress || {events: []}), text: current || progress?.text || "", updatedAt: card.updatedAt, card};
 }
 
 function mergeProgress(
