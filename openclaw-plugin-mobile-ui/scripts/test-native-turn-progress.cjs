@@ -50,9 +50,9 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   await assert.rejects(owner.observe('native-d',{operation:'native_end',sessionKey,success:true,content:'private'}),e=>e.statusCode===400);
   await hooks.received({runId:'native-old'},ctx('native-old'));now+=1200000;mono+=1200000;
   assert.equal(await runs.activeObservedNativeWhatsAppRun(sessionKey),null,'stale observation cannot select an abort candidate');
-  const gateway=require('../dist/companion/openclawAgentClient'),read=gateway.callOpenClawGateway;let reads=0;
-  gateway.callOpenClawGateway=async()=>{reads++;throw Error('metadata must never fan out to Gateway');};
-  try{assert.deepEqual(await runs.listRunSummaries({limit:10}),[]);await runs.awaitRunInactivity();assert.equal(reads,0);}
+  const gateway=require('../dist/companion/openclawAgentClient'),read=gateway.callOpenClawGateway;const reads=[];
+  gateway.callOpenClawGateway=async(method,params)=>{reads.push({method,params});return {sessions:[]};};
+  try{assert.deepEqual(await runs.listRunSummaries({limit:10}),[]);await runs.awaitRunInactivity();assert.equal(reads.length,1,'empty product history keeps its one canonical legacy page read, with no metadata-row fanout');assert.equal(reads[0].method,'sessions.list');}
   finally{gateway.callOpenClawGateway=read;}
   assert.deepEqual(changes,[],'native measurement rows never create product conversation events');
   // Authored volume from the owner's serialized new-schema row; no private S24 message is invented.

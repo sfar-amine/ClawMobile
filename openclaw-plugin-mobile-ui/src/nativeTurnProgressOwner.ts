@@ -1,18 +1,19 @@
 /** Companion is the only run-registry writer and deadline owner. Gateway hooks send closed observations here. */
 import {TURN_BUDGET_MS} from './companion/turnBudget';
 import {createHash} from 'crypto';
+import {setTimeout as scheduleDeadline,clearTimeout as clearDeadline} from 'timers';
 import {ownerWhatsAppNumbers} from './modelFastPath';
 import {callOpenClawGateway} from './companion/openclawAgentClient';
 import {recordNativeWhatsAppIngress,nativeTurnProgressState,reserveNativeProgressNotice,settleNativeProgressNotice,
  observeNativeTurnEnd,observeNativeTurnDelivery,observeNativeTurnStage,activeObservedNativeWhatsAppRun} from './companion/runs';
 const SESSION=/^agent:main:whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
 type Deps={owners?:()=>Set<string>;send?:(params:any)=>Promise<any>;enabled?:()=>boolean;
- timer?:(fn:()=>void,ms:number)=>ReturnType<typeof setTimeout>;clear?:(id:ReturnType<typeof setTimeout>)=>void};
+ timer?:(fn:()=>void,ms:number)=>ReturnType<typeof scheduleDeadline>;clear?:(id:ReturnType<typeof scheduleDeadline>)=>void};
 export function createNativeTurnProgressOwner(deps:Deps={}){
  const owners=deps.owners||ownerWhatsAppNumbers,enabled=deps.enabled||(()=>process.env.SAMANTHA_BRAIN_ONLY==='1');
  const send=deps.send||((params:any)=>callOpenClawGateway('send',params,{timeoutMs:5000,hardTimeoutMs:5000}));
- const timer=deps.timer||setTimeout,clear=deps.clear||clearTimeout;
- const deadlines=new Map<string,ReturnType<typeof setTimeout>>();
+ const timer=deps.timer||((fn:()=>void,ms:number)=>scheduleDeadline<[]>(fn,ms)),clear=deps.clear||clearDeadline;
+ const deadlines=new Map<string,ReturnType<typeof scheduleDeadline>>();
  const peer=(key:string)=>{const m=SESSION.exec(key);if(!m)return null;const n=m[1].startsWith('+')?m[1]:'+'+m[1];return owners().has(n)?n:null;};
  const stop=(id:string)=>{const job=deadlines.get(id);if(job){clear(job);deadlines.delete(id);}};
  async function notify(id:string){
