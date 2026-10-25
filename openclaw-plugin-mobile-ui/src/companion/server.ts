@@ -1,5 +1,5 @@
 import {readAutomationRuns,invalidateAutomationViews} from "./automationRunsPreparation";
-import { callOpenClawGateway, closeOpenClawGateway } from "./openclawAgentClient";
+import { callOpenClawGateway, closeOpenClawGateway,expectedCompanionSessionKey } from "./openclawAgentClient";
 import { INTERPRET_METHOD, IMMUNE_PURPOSE } from "../intentInterpreterPort";
 import {discoverLifx,readLifx,setLifx} from "./lifxLocal";
 import {changeConversationArchive} from "./conversationArchive";
@@ -14,7 +14,9 @@ import {writeAgentFile} from "./agentFileWritePlan";
 import {prewarmUsage,readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
-import {capabilityDetail,interruptConversationGeneration,activeConversationGenerations} from "./capabilityControl";
+import {capabilityDetail,interruptConversationGeneration,activeConversationGenerations,interruptNativeWhatsAppGeneration} from "./capabilityControl";
+import {TYPED_CONTROL_ADMISSION_METHOD} from '../capabilityAgentGuard';
+import {createHash} from 'node:crypto';
 import {updatesRead} from "./updatesControl";
 import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
 import {withAttachmentReferences} from "./runs";
@@ -548,6 +550,27 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       let id:string;try{id=decodeURIComponent(conversationInterrupt[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
       const raw=await readRawBody(req,2048);
       let body:any;try{body=JSON.parse(raw.toString('utf8'));}catch{throw Object.assign(new Error(),{statusCode:400});}
+      if(body?.sdk!==undefined){
+        const sdk=body.sdk;
+        if(Object.keys(body).length!==3||!sdk||typeof sdk!=='object'||Array.isArray(sdk)||Object.keys(sdk).length!==3||
+           typeof sdk.invocationId!=='string'||!/^[A-Za-z0-9_.:-]{1,200}$/.test(sdk.invocationId)||
+           typeof sdk.currentRunId!=='string'||!/^[A-Za-z0-9_.:-]{1,200}$/.test(sdk.currentRunId)||
+           typeof sdk.sessionKey!=='string'||sdk.sessionKey.length>512||sdk.currentRunId===body.runId||
+           (id!=='current'&&sdk.sessionKey!==expectedCompanionSessionKey(id)))throw new HttpError(403,'owner_admission_required');
+        const expected={invocationId:sdk.invocationId,operationId:body.operationId,paramsHash:createHash('sha256').update(raw).digest('hex')};
+        // The body is correlation only. The authenticated Gateway rereads a
+        // live SDK guard callback and immutable selection; no model/HTTP bool grants authority.
+        const assertCurrent=async()=>{
+          let proof:any;try{proof=await callOpenClawGateway(TYPED_CONTROL_ADMISSION_METHOD,expected,{timeoutMs:800,hardTimeoutMs:800});}
+          catch{throw new HttpError(403,'owner_admission_required');}
+          if(proof?.version!==1||proof.invocationId!==expected.invocationId||proof.operationId!==expected.operationId||
+             proof.paramsHash!==expected.paramsHash||typeof proof.expiresAt!=='number'||proof.expiresAt<=Date.now())throw new HttpError(403,'owner_admission_required');
+        };
+        const effectBody={operationId:body.operationId,runId:body.runId};
+        const result=id==='current'?await interruptNativeWhatsAppGeneration(sdk.sessionKey,sdk.currentRunId,effectBody,assertCurrent):
+          await interruptConversationGeneration(id,effectBody,assertCurrent);
+        res.setHeader('Cache-Control','no-store');writeJson(res,200,result);return;
+      }
       const admission=turnAdmission.verifyRequest({method,path:requestUrl.pathname,headers:req.headers,rawBody:raw,
         clientRunId:body?.operationId,sessionId:id});
       if(!admission.admitted){writeJson(res,403,{success:false,state:'refused',receipt:null,error:'owner_admission_required'});return;}

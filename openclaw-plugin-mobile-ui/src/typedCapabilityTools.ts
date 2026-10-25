@@ -3,9 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import {runtimeFile} from "./runtimeRoot";
-import {runCapabilityHelperProcess} from "./companion/capabilityBridge";
-import {consumeTypedInvocation} from "./capabilityAgentGuard";
-import {interruptConversationGeneration} from "./companion/capabilityControl";
+import {runCapabilityHelperProcess,capabilityBridge} from "./companion/capabilityBridge";
+import {consumeTypedInvocation,holdTypedControlInvocation} from "./capabilityAgentGuard";
+import {activeNativeWhatsAppGenerations} from "./companion/capabilityControl";
 import {expectedCompanionSessionKey} from "./companion/openclawAgentClient";
 import {createHash} from "node:crypto";
 
@@ -14,6 +14,7 @@ export type TypedToolContext = {
   messageChannel?: string; assertInvocationCurrent?: () => void;
 };
 type Action = {action: string; description: string; params: any; examples: string[]; risk: string; confirmationRequired: boolean;
+  canonicalStatus?: string; executionMode?: string; nativeOwner?: {owner:string;contract:string;reason:string};
   execution?: {kind: string; method: string; path: string; pathParams?: Record<string, any>; query?: string[]; budgetMs?: number; control?: string}};
 export type DomainTool = {name: string; domain: string; description: string; actions: Action[]};
 type Options = {home?: string; helperPath?: string; catalogue?: DomainTool[]};
@@ -55,11 +56,12 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
   if (context?.senderIsOwner !== true || context.agentId && context.agentId !== "main") return null;
   const tools: any[] = (options.catalogue || readTypedToolCatalogue(options.home)).map(tool => {
     const parameters = toolSchema(tool);
-    const actions = tool.actions.map(a => `${a.action}: ${a.description}${a.confirmationRequired ? " (récapitulatif puis confirmation)" : ""}`).join("\n");
+    const actions = tool.actions.map(a => `${a.action}: ${a.description}${a.canonicalStatus === "candidate" ? " (candidate non qualifiée ; ne pas annoncer disponible)" : ""}${a.nativeOwner ? " (propriétaire natif " + a.nativeOwner.owner + ", poursuivre son parcours existant)" : ""}${a.confirmationRequired ? " (récapitulatif puis confirmation)" : ""}`).join("\n");
     const examples = tool.actions.flatMap(a => a.examples || []).slice(0, 5).join(" ; ");
     const currentConversation = /^agent:main:companion-chat-([A-Za-z0-9-]{1,80})$/.exec(context.sessionKey || "")?.[1];
+    const nativeWhatsApp=context.messageChannel==='whatsapp'&&/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(context.sessionKey||'');
     return {name: tool.name,
-      description: `${tool.description}. Choisis l'action et ses paramètres typés. Aucune résolution du texte.${tool.domain === "app" && currentConversation ? " Conversation courante : " + currentConversation + ". Pour arrêter une génération, consulte active_generations et choisis son runId exact ; interrompre la génération n'annule pas les actions déjà envoyées." : ""}\n${actions}\nExemples de demandes : ${examples}. Les écritures métier exigent un récapitulatif puis un nouveau tour utilisateur ; confirm transmet uniquement l'identifiant et le payloadHash reçus, jamais de nouveaux paramètres. Reproduis la réponse prête du reçu sans inventer de fait.`,
+      description: `${tool.description}. Choisis l'action et ses paramètres typés. Aucune résolution du texte.${tool.domain === "app" && (currentConversation||nativeWhatsApp) ? " Conversation courante : " + (nativeWhatsApp?'current':currentConversation) + ". Pour arrêter une génération, consulte active_generations et choisis son runId exact ; interrompre la génération n'annule pas les actions déjà envoyées." : ""}\n${actions}\nExemples de demandes : ${examples}. Les écritures métier exigent un récapitulatif puis un nouveau tour utilisateur ; confirm transmet uniquement l'identifiant et le payloadHash reçus, jamais de nouveaux paramètres. Reproduis la réponse prête du reçu sans inventer de fait.`,
       schema: parameters, inputSchema: parameters, parameters,
       async execute(toolCallId: unknown, args: any) {
         try {
@@ -69,15 +71,43 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
               !args.params || typeof args.params !== "object" || Array.isArray(args.params)) throw Error("typed_input_invalid");
           const operation = ["confirm", "cancel"].includes(args.action) ? args.action : "call";
           const action = tool.actions.find(a => a.action === args.action);
+          if(operation==='call'&&nativeWhatsApp&&action?.action==='samantha.app.conversation.active_generations'){
+            if(Object.keys(args.params).length!==1||args.params.conversationId!=='current')throw Error('typed_target_not_current_conversation');
+            const result=await activeNativeWhatsAppGenerations(bound.conversationKey,bound.userRunId,()=>context.assertInvocationCurrent!());
+            return {content:[{type:'text',text:JSON.stringify({state:'COMPLETED',facts:result,answer:'Générations observées de cette conversation WhatsApp uniquement.'})}]};
+          }
+          if (operation === "call" && action?.nativeOwner && action.risk === "read") {
+            const resolved:any = await capabilityBridge("typed owner handoff", {execute:true,readOnly:true,caller:"owner",surface:"external_mcp",
+              requestId:bound.invocationId,typedSelection:{domain:tool.domain,action:args.action,params:args.params},
+              helperPath:options.helperPath,timeoutSeconds:6});
+            if (resolved?.decision?.type !== "EXECUTE" || resolved?.selected?.intent !== args.action ||
+                resolved?.selected?.target !== tool.domain) throw Error("typed_owner_unavailable");
+            if(resolved.execution?.state!=='native_handoff')return {content:[{type:'text',text:JSON.stringify({state:'unavailable',facts:null,
+              reason:resolved.execution?.state||'typed_owner_unavailable',answer:resolved.execution?.message||"Cette lecture n’a pas encore de résultat vérifié."})}]};
+            return {content:[{type:"text",text:JSON.stringify({state:"owner_handoff",facts:null,verified:false,
+              owner:resolved.selected.execution_contract?.native_owner_handoff,parameters:args.params,
+              answer:"Poursuis cette lecture avec le propriétaire navigateur existant et son contrat canonique. Aucun fait métier n’est encore vérifié. Conserve tout résultat partiel et les reçus ; ne promeus pas de rejeu HTTP direct."})}]};
+          }
           if (operation === "call" && action?.action === "samantha.app.conversation.interrupt" && action.execution?.control === "generation_only") {
             if (Object.keys(args.params).length !== 2 || Object.keys(args.params).some(k => !["conversationId", "runId"].includes(k)) ||
                 typeof args.params.conversationId !== "string" || args.params.runId === bound.userRunId ||
-                expectedCompanionSessionKey(args.params.conversationId) !== bound.conversationKey) throw Error("typed_target_not_current_conversation");
+                (nativeWhatsApp?args.params.conversationId!=='current':expectedCompanionSessionKey(args.params.conversationId) !== bound.conversationKey)) throw Error("typed_target_not_current_conversation");
             // Same user's Stop intention + exact target keeps its operation id
             // even if a model produces another tool call after a timeout.
             const operationId = "typed-stop-" + createHash("sha256").update(JSON.stringify([bound.userRunId, args.params.conversationId, args.params.runId])).digest("hex");
-            const result = await interruptConversationGeneration(args.params.conversationId,
-              {runId: args.params.runId, operationId}, () => context.assertInvocationCurrent!());
+            const body=JSON.stringify({operationId,runId:args.params.runId,sdk:{invocationId:bound.invocationId,
+              sessionKey:bound.conversationKey,currentRunId:bound.userRunId}});
+            const release=holdTypedControlInvocation(bound,args,context,body);
+            let result:any;
+            try{
+              const port=Number(process.env.CLAWMOBILE_COMPANION_PORT||8765);
+              if(!Number.isInteger(port)||port<1||port>65535)throw Error('typed_owner_unavailable');
+              context.assertInvocationCurrent!();
+              const response=await fetch('http://127.0.0.1:'+port+'/v1/conversations/'+encodeURIComponent(args.params.conversationId)+'/interrupt',
+                {method:'POST',headers:{'content-type':'application/json'},body,signal:AbortSignal.timeout(8500)});
+              const text=await response.text();if(text.length>131072)throw Error('typed_outcome_unverified');
+              result=JSON.parse(text);if(!response.ok)throw Error('typed_outcome_unverified');
+            }finally{release();}
             return {content: [{type: "text", text: JSON.stringify({state:result.state,receiptId:result.receipt?.runId,
               facts:result.artifact||{},answer:result.artifact?.message||"Le statut de l’arrêt reste incertain ; vérifie ce reçu avant tout nouvel essai.",receipt:result.receipt})}]};
           }

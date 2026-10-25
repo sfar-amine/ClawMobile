@@ -41,6 +41,16 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "agenda/README.md",
+            "agenda/playbook.md",
+            "agenda/SKILL.md",
+            "agenda/RECOVERY.md",
+            "agenda/SYNCHRONIZATION.md",
+            "agenda/SYNC_ACCEPTANCE.md"
+          ],
           "examples": [
             "ajoute un rendez-vous dans mon calendrier",
             "cree un evenement google agenda"
@@ -51,13 +61,45 @@
           "description": "consulter ton agenda",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "calendar_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "time_min": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": ".{10,50}(?:Z|[+-][0-9]{2}:[0-9]{2})"
+              },
+              "time_max": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": ".{10,50}(?:Z|[+-][0-9]{2}:[0-9]{2})"
+              }
+            },
+            "required": [
+              "calendar_id",
+              "time_min",
+              "time_max"
+            ],
             "additionalProperties": false
           },
           "risk": "read",
           "confirmationRequired": false,
-          "directExecution": false,
+          "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "agenda/README.md",
+            "agenda/playbook.md",
+            "agenda/SKILL.md",
+            "agenda/RECOVERY.md",
+            "agenda/SYNCHRONIZATION.md",
+            "agenda/SYNC_ACCEPTANCE.md"
+          ],
           "examples": [
             "mon agenda demain",
             "quels sont mes rendez-vous demain",
@@ -69,13 +111,71 @@
           "description": "déplacer ou modifier un rendez-vous",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "calendar_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "event_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "changes": {
+                "type": "object",
+                "properties": {
+                  "summary": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "start_time": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": ".{10,50}(?:Z|[+-][0-9]{2}:[0-9]{2})"
+                  },
+                  "end_time": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": ".{10,50}(?:Z|[+-][0-9]{2}:[0-9]{2})"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "calendar_id",
+              "event_id",
+              "changes"
+            ],
             "additionalProperties": false
           },
           "risk": "write",
           "confirmationRequired": true,
-          "directExecution": false,
+          "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "agenda/README.md",
+            "agenda/playbook.md",
+            "agenda/SKILL.md",
+            "agenda/RECOVERY.md",
+            "agenda/SYNCHRONIZATION.md",
+            "agenda/SYNC_ACCEPTANCE.md"
+          ],
           "examples": [
             "deplace mon rendez-vous",
             "modifie le rappel du calendrier"
@@ -86,13 +186,53 @@
           "description": "programmer un rappel de rendez-vous",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "account": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "calendar_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "event_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "timezone": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "previous_day": {
+                "type": "string",
+                "pattern": "(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+              }
+            },
+            "required": [
+              "account",
+              "calendar_id",
+              "event_id",
+              "timezone"
+            ],
             "additionalProperties": false
           },
           "risk": "external_send",
           "confirmationRequired": true,
-          "directExecution": false,
+          "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "agenda/README.md",
+            "agenda/playbook.md",
+            "agenda/SKILL.md",
+            "agenda/RECOVERY.md",
+            "agenda/SYNCHRONIZATION.md",
+            "agenda/SYNC_ACCEPTANCE.md"
+          ],
           "examples": [
             "rappelle moi mon rendez-vous",
             "rappel whatsapp la veille de mon evenement"
@@ -110,6 +250,16 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": false,
+          "canonicalStatus": "candidate",
+          "executionMode": "unqualified",
+          "ownerReferences": [
+            "agenda/README.md",
+            "agenda/playbook.md",
+            "agenda/SKILL.md",
+            "agenda/RECOVERY.md",
+            "agenda/SYNCHRONIZATION.md",
+            "agenda/SYNC_ACCEPTANCE.md"
+          ],
           "examples": [
             "synchronise google agenda et whatsapp",
             "repercute les changements du calendrier"
@@ -134,6 +284,12 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "device/laptop_access.py",
+            "capabilities/howto/device.laptop_termux_access.md"
+          ],
           "examples": [
             "je veux me connecter avec mon laptop sur s24 termux",
             "connecte mon pc au s24",
@@ -153,6 +309,12 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "device/laptop_access.py",
+            "capabilities/howto/device.laptop_termux_access.md"
+          ],
           "examples": [
             "crash diagnostic rapide",
             "diagnostic rapide de mon acces pc s24",
@@ -171,6 +333,12 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "device/laptop_access.py",
+            "capabilities/howto/device.laptop_termux_access.md"
+          ],
           "examples": [
             "deconnecte mon laptop du s24",
             "ferme l acces pc s24",
@@ -188,7 +356,13 @@
           },
           "risk": "read",
           "confirmationRequired": false,
-          "directExecution": false,
+          "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "device/laptop_access.py",
+            "capabilities/howto/device.laptop_termux_access.md"
+          ],
           "examples": [
             "etat acces pc s24",
             "etat laptop s24",
@@ -215,6 +389,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "mon solde maxit",
             "mon solde orange",
@@ -235,6 +418,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "tous les soldes maxit",
             "tous les soldes orange",
@@ -253,6 +445,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "tous mes compteurs orange",
             "forfait report recharge orange",
@@ -273,6 +474,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "credit recu par transfert orange",
             "solde credit transfere orange",
@@ -291,6 +501,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "internet restant orange",
             "combien de data il me reste orange"
@@ -308,6 +527,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "bonus sur recharge orange",
             "mon bonus forfait orange",
@@ -328,6 +556,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "bonus fidelite appels orange",
             "mon bonus fidelite orange"
@@ -345,6 +582,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "quel est mon numéro orange",
             "mon numero orange"
@@ -362,6 +608,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "quelle est mon offre orange",
             "mon offre maxit"
@@ -379,6 +634,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": false,
+          "canonicalStatus": "candidate",
+          "executionMode": "unqualified",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "mon forfait Orange",
             "mon forfait Maxit",
@@ -399,6 +663,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "mon report orange",
             "report du forfait orange",
@@ -417,6 +690,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "combien de sms il me reste orange",
             "sms restants orange",
@@ -435,6 +717,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "codes ussd orange",
             "codes de suivi maxit"
@@ -452,6 +743,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "minutes restantes orange",
             "combien d appels il me reste orange"
@@ -469,6 +769,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "mon solde de recharge maxit",
             "solde de recharge orange",
@@ -489,6 +798,15 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/maxit-tunisie/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/MAXIT_DIRECT.md",
+            "telecom/catalogue.json"
+          ],
           "examples": [
             "ma consommation maxit",
             "combien de data il me reste",
@@ -514,6 +832,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "nouveau certificat pulse téléchargé",
             "remplace le certificat pulse",
@@ -534,6 +859,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "statut des CRA",
             "qui n a pas soumis son CRA"
@@ -551,6 +883,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "mes evaluations",
             "evaluations par semestre"
@@ -568,6 +907,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "evaluations equipe",
             "evaluation collaborateur"
@@ -585,6 +931,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "chiffre affaire atterrissage",
             "CA par departement"
@@ -602,6 +955,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "mon solde de congé",
             "combien de jours de congé il me reste",
@@ -625,6 +985,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "qui est en congé aujourd hui dans l équipe",
             "congés équipe",
@@ -657,6 +1024,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "soumettre une demande de congé",
             "pose un congé",
@@ -687,6 +1061,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "affecte ce collaborateur a offre",
             "ajoute cette personne a offre",
@@ -983,6 +1364,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "crée une offre Pulse",
             "créer une offre pour un client",
@@ -1009,6 +1397,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "forecast offre",
             "forecast mensuel offre",
@@ -1045,6 +1440,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "forecaster l offre",
             "mets le forecast de l offre",
@@ -1075,6 +1477,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "retire ce collaborateur de offre",
             "enleve cette personne de offre",
@@ -1099,6 +1508,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "liste des offres",
             "portefeuille offres",
@@ -1111,13 +1527,33 @@
           "description": "changer le statut de l'offre",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "pattern": "[0-9]{1,12}"
+              },
+              "status_value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
+            },
+            "required": [
+              "offer_id",
+              "status_value"
+            ],
             "additionalProperties": false
           },
           "risk": "write",
           "confirmationRequired": true,
-          "directExecution": false,
+          "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "change le statut de offre",
             "passe offre au statut"
@@ -1142,6 +1578,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "détail offre",
             "détail* offre",
@@ -1169,6 +1612,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "donne moi l equipe associee a l offre",
             "donne moi les personnes associees a l offre",
@@ -1182,13 +1632,52 @@
           "description": "modifier les informations de l'offre",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "pattern": "[0-9]{1,12}"
+              },
+              "changes": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "value": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "offer_id",
+              "changes"
+            ],
             "additionalProperties": false
           },
           "risk": "write",
           "confirmationRequired": true,
-          "directExecution": false,
+          "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "modifie les informations de cette offre",
             "mets a jour cette offre",
@@ -1224,6 +1713,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "affecte ce collaborateur au projet",
             "ajoute cette personne au projet",
@@ -1259,6 +1755,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "consommé par collaborateur chaque mois du projet",
             "consommation mensuelle par collaborateur du projet",
@@ -1294,6 +1797,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "modifie ce champ du projet",
             "change ces informations du projet",
@@ -1324,6 +1834,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "forecast projet",
             "prévision projet",
@@ -1355,6 +1872,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "avancement mensuel réel versus forecast du projet",
             "jours homme par mois projet",
@@ -1405,6 +1929,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "ajoute cette personne et change la phase du projet",
             "modifie plusieurs informations du projet"
@@ -1442,6 +1973,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "mets la phase en debute",
             "mets la phase en non debute",
@@ -1469,6 +2007,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "phases du projet",
             "détail des phases",
@@ -1498,6 +2043,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "équipe du projet et leur consommation récente",
             "équipe du projet consommation récente",
@@ -1534,6 +2086,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "retire ce collaborateur du projet",
             "enleve cette personne du projet",
@@ -1577,6 +2136,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "forecast des ressources du projet",
             "forecast par collaborateur et semaine",
@@ -1644,6 +2210,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "forecast 2 jours homme pour cette personne en deuxième semaine de janvier",
             "mets 3 JH de forecast pour ce collaborateur cette semaine",
@@ -1657,13 +2230,32 @@
           "description": "voir le chiffre d'affaires du projet",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "pattern": "[0-9]{1,12}"
+              }
+            },
+            "required": [
+              "project_id"
+            ],
             "additionalProperties": false
           },
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": false,
+          "canonicalStatus": "ready",
+          "executionMode": "native_owner",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
+          "nativeOwner": {
+            "owner": "browser",
+            "contract": "web/pulse/runtime/contracts/routes/project_forecast_list.json",
+            "reason": "canonical_verified_browser_read_direct_replay_not_promoted"
+          },
           "examples": [
             "CA projet",
             "chiffre affaire projet",
@@ -1689,6 +2281,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "cherche projet pulse",
             "trouve projet zain",
@@ -1709,6 +2308,13 @@
           "risk": "write",
           "confirmationRequired": true,
           "directExecution": false,
+          "canonicalStatus": "candidate",
+          "executionMode": "unqualified",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "change le statut du projet",
             "passe le projet au statut"
@@ -1737,6 +2343,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "kpi du projet",
             "kpi projet",
@@ -1764,6 +2377,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/pulse/intents.md",
+            "web/pulse/routes.md",
+            "web/pulse/use-cases.md"
+          ],
           "examples": [
             "équipe du projet",
             "qui est affecté au projet",
@@ -1791,6 +2411,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/sonede/playbook.md",
+            "web/sonede/routes.md",
+            "billing/CONSULTATION.md"
+          ],
           "examples": [
             "facture sonede",
             "detail de ma facture sonede",
@@ -1809,6 +2436,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/sonede/playbook.md",
+            "web/sonede/routes.md",
+            "billing/CONSULTATION.md"
+          ],
           "examples": [
             "combien je dois a la sonede",
             "impayees sonede",
@@ -1836,6 +2470,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/steg/playbook.md",
+            "web/steg/routes.md",
+            "billing/CONSULTATION.md"
+          ],
           "examples": [
             "facture steg",
             "detail de ma facture steg",
@@ -1854,6 +2495,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/steg/playbook.md",
+            "web/steg/routes.md",
+            "billing/CONSULTATION.md"
+          ],
           "examples": [
             "combien je dois a la steg",
             "impayees steg",
@@ -1881,6 +2529,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/topnet/intents.md",
+            "web/topnet/routes.md",
+            "billing/CONSULTATION.md"
+          ],
           "examples": [
             "detail de ma facture topnet",
             "montre la facture topnet avant de payer"
@@ -1898,6 +2553,13 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "web/topnet/intents.md",
+            "web/topnet/routes.md",
+            "billing/CONSULTATION.md"
+          ],
           "examples": [
             "que dois je a topnet",
             "impayees topnet",
@@ -1925,6 +2587,12 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "telecom/ROUTING.md",
+            "telecom/catalogue-tt.json"
+          ],
           "examples": [
             "mon solde tunisie telecom",
             "mon solde tt"
@@ -1942,6 +2610,12 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "telecom/ROUTING.md",
+            "telecom/catalogue-tt.json"
+          ],
           "examples": [
             "tous mes compteurs tunisie telecom",
             "solde et bonus tt"
@@ -1959,6 +2633,12 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "telecom/ROUTING.md",
+            "telecom/catalogue-tt.json"
+          ],
           "examples": [
             "mon bonus corporate tunisie telecom",
             "bonus corporate tt"
@@ -1976,6 +2656,12 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "telecom/ROUTING.md",
+            "telecom/catalogue-tt.json"
+          ],
           "examples": [
             "combien internet tunisie telecom",
             "internet restant tt",
@@ -1994,6 +2680,12 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "telecom/ROUTING.md",
+            "telecom/catalogue-tt.json"
+          ],
           "examples": [
             "mon numéro tunisie telecom",
             "mon numero tt"
@@ -2011,6 +2703,12 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "telecom/ROUTING.md",
+            "telecom/catalogue-tt.json"
+          ],
           "examples": [
             "quelle est mon offre tunisie telecom",
             "mon offre tt"
@@ -2028,6 +2726,12 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "telecom/ROUTING.md",
+            "telecom/catalogue-tt.json"
+          ],
           "examples": [
             "mon solde principal tunisie telecom",
             "solde principal tt"
@@ -2045,6 +2749,12 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "telecom/ROUTING.md",
+            "telecom/catalogue-tt.json"
+          ],
           "examples": [
             "codes ussd tunisie telecom",
             "codes services tuntel"
@@ -2069,6 +2779,12 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "billing/CONSULTATION.md",
+            "billing/SKILL.md"
+          ],
           "examples": [
             "Ai je des factures en attente",
             "mes impayes",
@@ -2108,6 +2824,11 @@
           "risk": "external_send",
           "confirmationRequired": true,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "channels/whatsapp/playbook.md"
+          ],
           "examples": [
             "envoie un message whatsapp",
             "dis a sadok",
@@ -2133,6 +2854,16 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/zain-bahrain/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/ZAIN_BAHRAIN.md",
+            "telecom/catalogue-zain.json",
+            "telecom/zain-endpoints.json"
+          ],
           "examples": [
             "mon solde zain",
             "balance zain"
@@ -2150,6 +2881,16 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": false,
+          "canonicalStatus": "candidate",
+          "executionMode": "unqualified",
+          "ownerReferences": [
+            "mobile/zain-bahrain/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/ZAIN_BAHRAIN.md",
+            "telecom/catalogue-zain.json",
+            "telecom/zain-endpoints.json"
+          ],
           "examples": [
             "ma consommation zain",
             "usage zain"
@@ -2167,6 +2908,16 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/zain-bahrain/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/ZAIN_BAHRAIN.md",
+            "telecom/catalogue-zain.json",
+            "telecom/zain-endpoints.json"
+          ],
           "examples": [
             "ai je un bundle zain actif",
             "statut forfait zain"
@@ -2184,6 +2935,16 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": false,
+          "canonicalStatus": "candidate",
+          "executionMode": "unqualified",
+          "ownerReferences": [
+            "mobile/zain-bahrain/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/ZAIN_BAHRAIN.md",
+            "telecom/catalogue-zain.json",
+            "telecom/zain-endpoints.json"
+          ],
           "examples": [
             "data restante zain",
             "internet restant zain"
@@ -2201,6 +2962,16 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/zain-bahrain/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/ZAIN_BAHRAIN.md",
+            "telecom/catalogue-zain.json",
+            "telecom/zain-endpoints.json"
+          ],
           "examples": [
             "quelle ligne zain est selectionnee",
             "ma ligne zain"
@@ -2218,6 +2989,16 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": true,
+          "canonicalStatus": "ready",
+          "executionMode": "command",
+          "ownerReferences": [
+            "mobile/zain-bahrain/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/ZAIN_BAHRAIN.md",
+            "telecom/catalogue-zain.json",
+            "telecom/zain-endpoints.json"
+          ],
           "examples": [
             "statut de ma ligne zain",
             "validite ligne zain"
@@ -2235,6 +3016,16 @@
           "risk": "read",
           "confirmationRequired": false,
           "directExecution": false,
+          "canonicalStatus": "candidate",
+          "executionMode": "unqualified",
+          "ownerReferences": [
+            "mobile/zain-bahrain/playbook.md",
+            "telecom/README.md",
+            "telecom/ROUTING.md",
+            "telecom/ZAIN_BAHRAIN.md",
+            "telecom/catalogue-zain.json",
+            "telecom/zain-endpoints.json"
+          ],
           "examples": [
             "minutes restantes zain",
             "voix restante zain"
@@ -3576,8 +4367,21 @@
           "action": "offer.set_status",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "pattern": "[0-9]{1,12}"
+              },
+              "status_value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
+            },
+            "required": [
+              "offer_id",
+              "status_value"
+            ],
             "additionalProperties": false
           }
         },
@@ -3623,8 +4427,40 @@
           "action": "offer.update",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "pattern": "[0-9]{1,12}"
+              },
+              "changes": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "value": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "value"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "offer_id",
+              "changes"
+            ],
             "additionalProperties": false
           }
         },
@@ -3988,8 +4824,15 @@
           "action": "project.revenue",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "pattern": "[0-9]{1,12}"
+              }
+            },
+            "required": [
+              "project_id"
+            ],
             "additionalProperties": false
           }
         },
@@ -4395,8 +5238,30 @@
           "action": "agenda.event.read",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "calendar_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "time_min": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": ".{10,50}(?:Z|[+-][0-9]{2}:[0-9]{2})"
+              },
+              "time_max": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": ".{10,50}(?:Z|[+-][0-9]{2}:[0-9]{2})"
+              }
+            },
+            "required": [
+              "calendar_id",
+              "time_min",
+              "time_max"
+            ],
             "additionalProperties": false
           }
         },
@@ -4406,8 +5271,56 @@
           "action": "agenda.event.update",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "calendar_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "event_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "changes": {
+                "type": "object",
+                "properties": {
+                  "summary": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "start_time": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": ".{10,50}(?:Z|[+-][0-9]{2}:[0-9]{2})"
+                  },
+                  "end_time": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": ".{10,50}(?:Z|[+-][0-9]{2}:[0-9]{2})"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "calendar_id",
+              "event_id",
+              "changes"
+            ],
             "additionalProperties": false
           }
         },
@@ -4417,8 +5330,38 @@
           "action": "agenda.reminder.schedule",
           "params": {
             "type": "object",
-            "properties": {},
-            "required": [],
+            "properties": {
+              "account": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "calendar_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "event_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "timezone": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "previous_day": {
+                "type": "string",
+                "pattern": "(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+              }
+            },
+            "required": [
+              "account",
+              "calendar_id",
+              "event_id",
+              "timezone"
+            ],
             "additionalProperties": false
           }
         },
@@ -5910,5 +6853,5 @@
       ]
     }
   ],
-  "digest": "67ff3c0dde5160670cf5ba3158d1b7a68a4077ef5ae4c114c09d683e3defef70"
+  "digest": "58ca86f0eab27c3ba07300d2840d7c01d8546f90227fcaec6b6d2cd75cb002d2"
 }

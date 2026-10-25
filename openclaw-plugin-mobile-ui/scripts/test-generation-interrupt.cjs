@@ -70,7 +70,86 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
    assert.equal((await fetch(url,{method:'POST',headers:signed(stale,Date.now()-60000),body:stale})).status,403);assert.equal(sent,3);
    const other=JSON.stringify({operationId:'http-stop-foreign',runId:'foreign'});
    assert.equal((await fetch(url,{method:'POST',headers:signed(other),body:other})).status,403);assert.equal(sent,3);
+   const guard=require('../dist/capabilityAgentGuard');
+   const originalGateway=client.callOpenClawGateway;
+   let proofChecks=0,revokeAt=0,sdkRevoked=false;
+   client.callOpenClawGateway=async(method,params,options)=>{
+    if(method===guard.TYPED_CONTROL_ADMISSION_METHOD){proofChecks++;if(revokeAt===proofChecks)sdkRevoked=true;return guard.typedControlAdmission(params);}
+    return originalGateway(method,params,options);
+   };
+   const previousFlag=process.env.SAMANTHA_BRAIN_ONLY;process.env.SAMANTHA_BRAIN_ONLY='1';
+   const sdkRequest=(id,user)=>{
+    const args={action:'samantha.app.conversation.interrupt',params:{conversationId:'demo',runId:'run-target'}};
+    const sessionKey=client.expectedCompanionSessionKey('demo');
+    const context={senderIsOwner:true,agentId:'main',sessionKey,assertInvocationCurrent(){if(sdkRevoked)throw Error('SDK revoked');}};
+    assert.equal(guard.agentCapabilityHook({toolName:'samantha_app',params:args,toolCallId:id},
+      {requester:{senderIsOwner:true},agentId:'main',runId:user,sessionKey}).block,undefined);
+    const bound=guard.consumeTypedInvocation(id,'samantha_app',args,context);
+    const operationId='typed-stop-'+crypto.createHash('sha256').update(JSON.stringify([user,'demo','run-target'])).digest('hex');
+    const body=JSON.stringify({operationId,runId:'run-target',sdk:{invocationId:id,sessionKey,currentRunId:user}});
+    return {body,context,release:guard.holdTypedControlInvocation(bound,args,context,body)};
+   };
+   try{
+    const forged=JSON.stringify({operationId:'forged',runId:'run-target',sdk:{invocationId:'guessed',sessionKey:client.expectedCompanionSessionKey('demo'),currentRunId:'guessed-run'}});
+    assert.equal((await fetch(url,{method:'POST',headers:{'content-type':'application/json','x-clawmobile-owner-flow':'v1'},body:forged})).status,403);assert.equal(sent,3);
+    proofChecks=0;const live=sdkRequest('sdk-live','sdk-user-live');
+    const tampered=JSON.parse(live.body);tampered.runId='foreign';
+    assert.equal((await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(tampered)})).status,403);assert.equal(sent,3);
+    live.context.agentId='contacts';
+    assert.equal((await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:live.body})).status,403);assert.equal(sent,3);
+    live.context.agentId='main';
+    proofChecks=0;
+    const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:live.body});
+    assert.equal(response.status,200);assert.equal((await response.json()).artifact.generationState,'abort_acknowledged');assert(proofChecks>=2);assert.equal(sent,4);
+    live.release();assert.throws(()=>guard.typedControlAdmission({invocationId:'sdk-live',operationId:JSON.parse(live.body).operationId,paramsHash:crypto.createHash('sha256').update(live.body).digest('hex')}),/host_admission/);
+    for(const nth of [1,2,3]){
+     sdkRevoked=false;proofChecks=0;revokeAt=nth;const pending=sdkRequest('sdk-revoked-'+nth,'sdk-user-revoked-'+nth);
+     const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:pending.body});
+     const result=await response.json();assert.equal(sent,4,'revocation before official abort sends no effect');
+     if(nth<3)assert.equal(response.status,403);else assert.equal(result.state,'indeterminate','claimed receipt stays conservative');
+     pending.release();sdkRevoked=false;revokeAt=0;
+     if(nth===3){
+      const retry=sdkRequest('sdk-reread','sdk-user-revoked-'+nth);
+      const observed=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:retry.body});
+      assert.equal((await observed.json()).state,'indeterminate');assert.equal(sent,4,'uncertain receipt is observed without replay');retry.release();
+     }
+    }
+   }finally{client.callOpenClawGateway=originalGateway;if(previousFlag===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=previousFlag;}
   }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
-  console.log('generation-interrupt: PASS (exact native owner/session/run, canonical abort, receipt replay/uncertainty, bank guard, HTTP admission)');
+  // Native WA observations nominate identity only. The current SDK callback,
+  // canonical owner config and a fresh positive Gateway identity are all required.
+  const Module=require('node:module'),load=Module._load;
+  const waKey='agent:main:whatsapp:direct:+19995550123',nativeId='11111111-1111-4111-8111-111111111111',currentId='22222222-2222-4222-8222-222222222222';
+  let nativeObserved=true,nativeActive=true,nativeAborts=0,assertions=0;
+  await fs.writeFile(path.join(root,'openclaw.json'),JSON.stringify({commands:{ownerAllowFrom:['whatsapp:+19995550123']}}));
+  Module._load=function(request,parent,isMain){
+   if(request==='../nativeTurnProgress')return {activeObservedNativeWhatsAppRun:async(key,options)=>{
+    assert.equal(key,waKey);assert.equal(options.excludeRunId,currentId);
+    return nativeObserved?{runId:nativeId,sessionKey:waKey,clockEpoch:'observed-companion-epoch',deadlineAt:Date.now()+60000,state:'running',observationSource:'sdk_message_received'}:null;
+   }};
+   return load.call(this,request,parent,isMain);
+  };
+  client.callOpenClawGateway=async(method,params,options)=>{
+   assert(options.timeoutMs<=6000);
+   if(method==='sessions.list'){assert.equal(params.search,waKey);return {sessions:[{key:waKey,hasActiveRun:true,activeRunIds:nativeActive?[nativeId]:[currentId]}]};}
+   assert.equal(method,'chat.abort');assert.deepEqual(params,{sessionKey:waKey,agentId:'main',runId:nativeId,preserveSideRuns:true});
+   nativeAborts++;return {ok:true,aborted:true,runIds:[nativeId]};
+  };
+  const native=require('../dist/companion/capabilityControl');
+  const current=()=>{assertions++;},nativeBody={operationId:'native-wa-stop',runId:nativeId};
+  try{
+   await assert.rejects(()=>native.interruptNativeWhatsAppGeneration(waKey,currentId,nativeBody),/owner_admission_required/);
+   await assert.rejects(()=>native.interruptNativeWhatsAppGeneration('agent:contacts:whatsapp:direct:+19995550123',currentId,nativeBody,current),/owner_admission_required/);
+   await assert.rejects(()=>native.interruptNativeWhatsAppGeneration(waKey,currentId,nativeBody,()=>{throw Error('SDK revoked')}),/SDK revoked/);
+   await assert.rejects(()=>native.interruptNativeWhatsAppGeneration(waKey,currentId,{...nativeBody,runId:currentId},current),/invalid_generation/);
+   nativeObserved=false;await assert.rejects(()=>native.interruptNativeWhatsAppGeneration(waKey,currentId,nativeBody,current),/target_not_admitted/);
+   nativeObserved=true;nativeActive=false;await assert.rejects(()=>native.interruptNativeWhatsAppGeneration(waKey,currentId,nativeBody,current),/target_not_admitted/);
+   assert.equal(nativeAborts,0);nativeActive=true;
+   const receipt=await native.interruptNativeWhatsAppGeneration(waKey,currentId,nativeBody,current);
+   assert.equal(receipt.artifact.effects,'not_undone');assert.equal(nativeAborts,1);assert(assertions>=5);
+   nativeObserved=false;nativeActive=false;
+   assert.deepEqual(await native.interruptNativeWhatsAppGeneration(waKey,currentId,nativeBody,current),receipt);assert.equal(nativeAborts,1);
+  }finally{Module._load=load;}
+  console.log('generation-interrupt: PASS (exact native owner/session/run, canonical abort, receipt replay/uncertainty, bank guard, P1 HTTP and native WA SDK admission)');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 })().catch(error=>{console.error(error);process.exitCode=1});

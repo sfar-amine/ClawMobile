@@ -53,7 +53,7 @@ import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
 import { createCapabilityTool } from "./capabilityTool";
 import {brainOnlyEnabled} from "./brainOnly";
 import {createTypedCapabilityTools, readTypedToolCatalogue} from "./typedCapabilityTools";
-import { agentCapabilityHook } from "./capabilityAgentGuard";
+import { agentCapabilityHook,TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler } from "./capabilityAgentGuard";
 import { createContactTool } from "./contactTools";
 import { handleContactRoomBeforeDispatch } from "./contactRoomFastPath";
 import { handleQaContactMediaReceived } from "./qaContactMediaOwner";
@@ -188,6 +188,10 @@ function register(api: any) {
   // mobile runtime implementation below.
 
   api.on("before_tool_call", agentCapabilityHook);
+  // Same authenticated Gateway transport as the existing warm port. This method
+  // only checks a live SDK callback; Companion remains the sole runs.json writer.
+  api.registerGatewayMethod?.(TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler,
+    {scope:"operator.write",profileAccess:"independent"});
 
   // SDK 2026.9.6 emits this accepted-turn observation without awaiting it.
   // Private QA owners admit an existing DRAFT before any staged bytes are read.

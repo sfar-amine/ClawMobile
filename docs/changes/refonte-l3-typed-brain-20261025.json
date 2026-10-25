@@ -57,7 +57,7 @@
       "Focused suites run in Cloud; complete localci.py exact-head proof still required before integration.",
       "Typed tools and confirmation owners tested with canonical contracts; final business/network process simulated where stated. No live acceptance claimed.",
       "l3-core-focused.log SHA256 093b46bf4c654a0c252708f41f708952c564e9ec4f84177c1be2d213ffb03cee",
-      "Compatibility follow-up adds closed envelope validation and backend-to-CLI assertions; focused rerun and canonical CI required for its final head."
+      "Follow-up: TypeScript build and seven Core focused suites PASS; final stricter main/owner callback guard and HTTP tamper/revocation cases PASS through isolated source transpilation. Canonical full CI remains required for final heads."
     ]
   },
   "capability_impact": {

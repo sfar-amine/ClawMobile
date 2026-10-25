@@ -7,6 +7,9 @@
  * resolves once with the canonical Capability Graph, applies the E3 policy and executes exactly
  * that decision with the graph's existing read-only policy (`capability_first_required` otherwise).
  */
+import {createHash} from 'node:crypto';
+export const TYPED_CONTROL_ADMISSION_METHOD='samantha.typed-control.admission';
+const typedSeal=Symbol('typed-host-invocation');
 export type AgentCapabilityHookContext = { requester?: { senderIsOwner?: unknown }; runId?: string; sessionKey?: string; sessionId?: string; toolCallId?: string; agentId?: string };
 export type AgentCapabilityHookEvent = { toolName?: unknown; params?: unknown; toolCallId?: string };
 export type AgentCapabilityHookResult = { params?: Record<string, unknown>; block?: boolean; blockReason?: string };
@@ -15,7 +18,9 @@ export const AGENT_CAPABILITY_REFUSAL = "capability_first_required";
 
 // Current-invocation proof of the existing guard, not a business registry. A
 // tool cannot receive this through model arguments, persisted JSON or replay.
-const typedInvocations = new Map<string, {at: number; tool: string; runId: string; sessionKey: string; sessionId?: string; args: string}>();
+type TypedProof={at:number;tool:string;runId:string;sessionKey:string;sessionId?:string;args:string;
+  control?:{operationId:string;paramsHash:string;expiresAt:number;assertCurrent:()=>void}};
+const typedInvocations = new Map<string, TypedProof>();
 const typedId = /^[A-Za-z0-9_.:-]{1,200}$/;
 const typedName = /^samantha_[a-z0-9_]{1,100}$/;
 function invocationArgs(value: unknown, depth = 0): unknown {
@@ -44,7 +49,41 @@ export function consumeTypedInvocation(callId: unknown, tool: string, args: unkn
       context.sessionId && context.sessionId !== proof.sessionId || typeof context.assertInvocationCurrent !== "function" ||
       JSON.stringify(invocationArgs(args)) !== proof.args) throw Error("typed_host_admission_required");
   context.assertInvocationCurrent();
-  return {owner: true, conversationKey: proof.sessionKey, userRunId: proof.runId, invocationId: callId};
+  return {owner: true, conversationKey: proof.sessionKey, userRunId: proof.runId, invocationId: callId,[typedSeal]:proof};
+}
+
+/** Keep only this already-admitted SDK callback alive while Companion owns the effect/receipt. */
+export function holdTypedControlInvocation(bound:any,args:any,context:{senderIsOwner?:boolean;agentId?:string;sessionKey?:string;assertInvocationCurrent?:()=>void},rawBody:string){
+ const proof=bound?.[typedSeal] as TypedProof|undefined;
+ if(!proof||proof.tool!=='samantha_app'||typedInvocations.has(bound.invocationId)||context.senderIsOwner!==true||context.agentId!=='main'||
+    context.sessionKey!==proof.sessionKey||typeof context.assertInvocationCurrent!=='function'||
+    JSON.stringify(invocationArgs(args))!==proof.args||args?.action!=='samantha.app.conversation.interrupt')throw Error('typed_host_admission_required');
+ const body=JSON.parse(rawBody),sdk=body?.sdk;
+ const operationId='typed-stop-'+createHash('sha256').update(JSON.stringify([proof.runId,args.params.conversationId,args.params.runId])).digest('hex');
+ if(!body||Object.keys(body).length!==3||body.operationId!==operationId||body.runId!==args.params.runId||
+    !sdk||Object.keys(sdk).length!==3||sdk.invocationId!==bound.invocationId||sdk.sessionKey!==proof.sessionKey||sdk.currentRunId!==proof.runId)
+  throw Error('typed_host_admission_required');
+ context.assertInvocationCurrent();
+ const control={operationId,paramsHash:createHash('sha256').update(rawBody).digest('hex'),expiresAt:Math.min(proof.at+120000,Date.now()+30000),assertCurrent:()=>{
+   if(context.senderIsOwner!==true||context.agentId!=='main'||context.sessionKey!==proof.sessionKey)throw Error('typed_host_admission_required');
+   context.assertInvocationCurrent!();
+ }};
+ const held={...proof,control};typedInvocations.set(bound.invocationId,held);
+ return ()=>{if(typedInvocations.get(bound.invocationId)===held)typedInvocations.delete(bound.invocationId);};
+}
+
+export function typedControlAdmission(params:any){
+ if(process.env.SAMANTHA_BRAIN_ONLY!=='1'||!plainRecord(params)||Object.keys(params).length!==3||
+    typeof params.invocationId!=='string'||typeof params.operationId!=='string'||typeof params.paramsHash!=='string')throw Error('typed_host_admission_required');
+ const proof=typedInvocations.get(params.invocationId),control=proof?.control;
+ if(!control||Date.now()<proof!.at||Date.now()>=control.expiresAt||params.operationId!==control.operationId||params.paramsHash!==control.paramsHash)
+  throw Error('typed_host_admission_required');
+ control.assertCurrent();
+ return {version:1,invocationId:params.invocationId,operationId:control.operationId,paramsHash:control.paramsHash,expiresAt:control.expiresAt};
+}
+export async function typedControlAdmissionHandler({params,respond}:any){
+ try{return respond(true,typedControlAdmission(params));}
+ catch{return respond(false,undefined,{code:'FORBIDDEN',message:'current SDK invocation proof required'});}
 }
 
 function plainRecord(value: unknown): value is Record<string, unknown> {
