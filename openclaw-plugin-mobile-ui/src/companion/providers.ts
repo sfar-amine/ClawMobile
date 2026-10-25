@@ -33,8 +33,8 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null,latency:any=n
   return {model:primary??null,profile:account(raw),fallbacks:[...new Set(fallback.map(modelReference).filter(Boolean))],fallbackProfiles:fallback.map((ref:any)=>({model:modelReference(ref)??null,profile:account(ref)})),state:primary?'configured':'unavailable'};
  };
  const editable=(id:'brain'|'conversation_summary'|'whatsapp')=>{
-  const value=configuredModelFlow(config,id),active=process.env.SAMANTHA_BRAIN_ONLY==='1';
-  return {id,...chain(value.model),thinking:value.thinkingDefault??null,fastMode:typeof value.fastModeDefault==='boolean'?value.fastModeDefault:null,source:'gateway_config',inheritsFrom:value.inheritsFrom,origins:value.origins,mixedFields:value.mixedFields,...(value.inheritsFrom==='conversation'?{state:'runtime_inherited'}:{}),...(value.mixedFields.length?{state:'mixed'}:{}),editable:active&&!!snapshot,editableReason:active?(snapshot?null:'model_owner_unavailable'):'brain_only_not_active',writeFields:id==='conversation_summary'?['model']:['model','fallbacks','thinking','fastMode']};
+  const value=configuredModelFlow(config,id),active=true;
+  return {id,...chain(value.model),thinking:value.thinkingDefault??null,fastMode:typeof value.fastModeDefault==='boolean'?value.fastModeDefault:null,source:'gateway_config',inheritsFrom:value.inheritsFrom,origins:value.origins,mixedFields:value.mixedFields,...(value.inheritsFrom==='conversation'?{state:'runtime_inherited'}:{}),...(value.mixedFields.length?{state:'mixed'}:{}),editable:active&&!!snapshot,editableReason:snapshot?null:'model_owner_unavailable',writeFields:id==='conversation_summary'?['model']:['model','fallbacks','thinking','fastMode']};
  };
  const readonly=(id:string,value:any,source:string,reason='next_lot',extra:any={})=>({id,...chain(value),thinking:null,fastMode:null,source,inheritsFrom:null,editable:false,editableReason:reason,writeFields:[],...extra});
  const voice=config?.talk?.realtime,voiceMalformed=voice?.model!==undefined&&voice?.model!==null&&typeof voice.model!=='string';
@@ -45,7 +45,7 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null,latency:any=n
  const policy=snapshot?.policy;
  return [
   editable('brain'),
-  readonly('web_search',PUBLIC_WEB_MODEL,'code_constant','next_lot',{inheritsFrom:'brain'}),
+  readonly('web_search',PUBLIC_WEB_MODEL,'code_constant'),
   editable('conversation_summary'),
   readonly('memory_search',memoryModel,'gateway_config','next_lot',{provider:memoryProvider??null,state:memoryModel?'configured':memoryProvider?'provider_default':'unavailable'}),
   readonly('realtime_voice',voiceModel,typeof voice?.model==='string'?'gateway_config':'code_constant','next_lot',{provider:voice?.provider??'google'}),
@@ -53,7 +53,7 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null,latency:any=n
   readonly('dictation',null,'device','device_managed',{state:'device_managed'}),
   readonly('voice_memos','google/'+MEMO_STT_MODEL,'code_constant'),
   readonly('immune_system',policy?.primary??null,'model_policy',policy?'next_lot':'model_policy_unavailable',{fallbacks:policy?.fallback?[modelReference(policy.fallback)]:[],policySourceHash:policy?.sourceHash??null}),
-  readonly('engineering_learning',engineering??null,'gateway_config','next_lot',{inheritsFrom:'immune_system'}),
+  readonly('engineering_learning',engineering??null,'gateway_config'),
   editable('whatsapp'),
  ].map(role=>({...role,provider:'provider' in role?role.provider:typeof role.model==='string'?role.model.split('/')[0]:null,metrics:projectModelFlowMetrics(role.id,latency)}));
 }

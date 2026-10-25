@@ -54,6 +54,48 @@ export function modelReferenceAllowed(allow:string[],reference:string):boolean {
 export const MODEL_FLOW_IDS=['brain','web_search','conversation_summary','memory_search','realtime_voice','spoken_voice','dictation','voice_memos','immune_system','engineering_learning','whatsapp'] as const;
 export type ModelFlowId=typeof MODEL_FLOW_IDS[number];
 export const CONTACT_MODEL_AGENTS=['contacts','contacts-projet','contacts-pulse','contacts-projet-pulse'] as const;
+export type EditableModelFlow='brain'|'conversation_summary'|'whatsapp';
+export const MODEL_FLOW_PROVENANCE_PATH=['plugins','entries','openclaw-plugin-mobile-ui','config','modelFlowSelection'] as const;
+const flowError=()=>Object.assign(new Error('model_flow_provenance_unverified'),{statusCode:409});
+/** The R6-owned setting paths are also the source of its durable admission proof. */
+export function modelFlowSettingPaths(flow:EditableModelFlow):string[][]{
+ if(flow==='conversation_summary')return [['agents','defaults','compaction','model']];
+ const agents=flow==='brain'?['main']:[...CONTACT_MODEL_AGENTS];
+ return [...agents.flatMap(id=>['model','thinkingDefault','fastModeDefault'].map(field=>['agents','entries',id,field])),
+  ...(flow==='whatsapp'?[['plugins','entries','openclaw-plugin-mobile-ui','config','whatsappModelFlow']]:[])];
+}
+export function modelFlowSafeValue(value:any,depth=0):any{
+ if(depth>12)throw flowError();
+ if(typeof value==='string'){if(!identity(value))throw flowError();return value.includes('/')?publicModelRef(value):value;}
+ if(typeof value==='boolean')return value;
+ if(Array.isArray(value)&&value.length<=20)return value.map(row=>modelFlowSafeValue(row,depth+1));
+ if(value&&typeof value==='object'&&!Array.isArray(value)){
+  if(Object.keys(value).sort().join()==='fieldsHash,version'){
+   if(value.version!==1||!/^[a-f0-9]{64}$/.test(value.fieldsHash||''))throw flowError();
+   return {version:1,fieldsHash:value.fieldsHash};
+  }
+  if(Object.keys(value).every(key=>['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].includes(key)))
+   return Object.fromEntries(['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].filter(key=>key in value).map(key=>[key,key==='version'&&value[key]===1?1:modelFlowSafeValue(value[key],depth+1)]));
+ }
+ throw flowError();
+}
+export function modelFlowSettingSnapshot(config:any,flow:EditableModelFlow){
+ return modelFlowSettingPaths(flow).map(path=>{
+  let node=config;for(const key of path){if(!node||typeof node!=='object'||!Object.prototype.hasOwnProperty.call(node,key))return {path,present:false};node=node[key];}
+  return {path,present:true,value:modelFlowSafeValue(node)};
+ });
+}
+export function modelFlowSettingHash(config:any,flow:EditableModelFlow):string{return crypto.createHash('sha256').update(JSON.stringify(modelFlowSettingSnapshot(config,flow))).digest('hex');}
+/** Reads only R6 metadata in the canonical config. Absence is neutral; malformed proof fails closed. */
+export function verifiedModelFlowProvenance(config:any,flow:EditableModelFlow):boolean{
+ const value=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.modelFlowSelection;
+ if(value===undefined)return false;
+ if(!value||typeof value!=='object'||Array.isArray(value)||value.version!==1||Object.keys(value).sort().join()!=='flows,version'||!value.flows||typeof value.flows!=='object'||Array.isArray(value.flows)||Object.keys(value.flows).some(id=>!['brain','conversation_summary','whatsapp'].includes(id)))throw flowError();
+ for(const entry of Object.values(value.flows))modelFlowSafeValue(entry);
+ const proof=value.flows[flow];if(proof===undefined)return false;
+ if(proof.fieldsHash!==modelFlowSettingHash(config,flow))throw flowError();
+ return true;
+}
 /** A bounded read of the canonical policy, inside the existing model owner, not a new registry or cache. */
 export function readIncludedModelPolicy(){
  try{
@@ -103,6 +145,12 @@ export function includedModelAccounts(reference:string,auth:any,policy:any):{ref
   return [{reference:pinned,account:ACCOUNT_ALIAS.test(id)?id:accountAlias(id),costPolicy:subscription?'subscription':'free_only',source:'canonical_model_policy_and_auth'}];
  });
 }
+function publicFlowProvenance(value:any){
+ try{
+  if(!value||value.version!==1||Object.keys(value).sort().join()!=='flows,version'||!value.flows||typeof value.flows!=='object'||Array.isArray(value.flows)||Object.keys(value.flows).some(key=>!['brain','conversation_summary','whatsapp'].includes(key)))return {version:0,flows:{}};
+  return {version:1,flows:Object.fromEntries(Object.entries(value.flows).map(([key,proof])=>[key,modelFlowSafeValue(proof)]))};
+ }catch{return {version:0,flows:{}};}
+}
 function projected(value:ModelOwnerRead):ModelOwnerSnapshot|null{
  const config=value.raw?.config;
  if(!config||typeof config!=='object'||Array.isArray(config)||!Array.isArray(value.catalog?.models)||value.catalog.models.length>2000||value.auth?.unavailable||!Array.isArray(value.auth?.providers)||value.auth.providers.length>2000)return null;
@@ -125,7 +173,8 @@ function projected(value:ModelOwnerRead):ModelOwnerSnapshot|null{
   if(!provider||!status)return [];
   return [{provider,status,...(publicName(row.displayName)?{displayName:publicName(row.displayName)}:{}),...(Array.isArray(row.profiles)&&row.profiles.length<=2000?{profiles:row.profiles.flatMap((profile:any)=>{const rawId=typeof profile?.profileId==='string'&&profile.profileId.length<=200?profile.profileId:undefined,status=authState(profile?.status);return rawId&&status?[{profileId:accountAlias(rawId),status,...(['oauth','api_key','token'].includes(profile.type)?{type:profile.type}:{})}]:[];})}:{})}];
  });
- return {config:{agents:{entries:Object.fromEntries(["main","engineering-lite","gemini",...CONTACT_MODEL_AGENTS].flatMap(id=>config.agents?.entries?.[id]?[[id,agent(config.agents.entries[id])]]:[])),defaults:agent(config.agents?.defaults),...(Array.isArray(config.agents?.list)&&config.agents.list.length<=100?{list:config.agents.list.filter((row:any)=>['main',...CONTACT_MODEL_AGENTS].includes(row?.id)).slice(0,5).map((row:any)=>({id:row.id,...agent(row)}))}:{})},plugins:{entries:{...plugins,...(plugins['openclaw-plugin-mobile-ui']&&config.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.whatsappModelFlow?{'openclaw-plugin-mobile-ui':{...plugins['openclaw-plugin-mobile-ui'],config:{whatsappModelFlow:agent(config.plugins.entries['openclaw-plugin-mobile-ui'].config.whatsappModelFlow)}}}:{})}},tools:tools(config.tools),talk:{provider:providerRef(config.talk?.provider),providers:providerRef(config.talk?.provider)?{[config.talk.provider]:{voice:identity(config.talk?.providers?.[config.talk.provider]?.voice)}}:{},realtime:{provider:providerRef(config.talk?.realtime?.provider),model:config.talk?.realtime?.model==null?null:identity(config.talk.realtime.model)??false}},memory:{search:{provider:providerRef(config.memory?.search?.provider),model:config.memory?.search?.model==null?null:identity(config.memory.search.model)??false}}},catalog:{models,providerOutcomes:Array.isArray(value.catalog.providerOutcomes)&&value.catalog.providerOutcomes.length<=2000?value.catalog.providerOutcomes.flatMap((row:any)=>typeof row?.provider==='string'&&/^[A-Za-z0-9._+-]{1,200}$/.test(row.provider)&&['ready','needs_auth','unknown'].includes(row.status)?[{provider:row.provider,status:row.status}]:[]):[]},auth:{providers},revision:text(value.raw.hash)||null,updatedAt:Date.now(),policy:value.policy??null};
+ const rawPlugin=config.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config,pluginSettings={...(rawPlugin?.whatsappModelFlow?{whatsappModelFlow:agent(rawPlugin.whatsappModelFlow)}:{}),...(rawPlugin?.modelFlowSelection!==undefined?{modelFlowSelection:publicFlowProvenance(rawPlugin.modelFlowSelection)}:{})};
+ return {config:{agents:{entries:Object.fromEntries(["main","engineering-lite","gemini",...CONTACT_MODEL_AGENTS].flatMap(id=>config.agents?.entries?.[id]?[[id,agent(config.agents.entries[id])]]:[])),defaults:agent(config.agents?.defaults),...(Array.isArray(config.agents?.list)&&config.agents.list.length<=100?{list:config.agents.list.filter((row:any)=>['main',...CONTACT_MODEL_AGENTS].includes(row?.id)).slice(0,5).map((row:any)=>({id:row.id,...agent(row)}))}:{})},plugins:{entries:{...plugins,...(plugins['openclaw-plugin-mobile-ui']&&Object.keys(pluginSettings).length?{'openclaw-plugin-mobile-ui':{...plugins['openclaw-plugin-mobile-ui'],config:pluginSettings}}:{})}},tools:tools(config.tools),talk:{provider:providerRef(config.talk?.provider),providers:providerRef(config.talk?.provider)?{[config.talk.provider]:{voice:identity(config.talk?.providers?.[config.talk.provider]?.voice)}}:{},realtime:{provider:providerRef(config.talk?.realtime?.provider),model:config.talk?.realtime?.model==null?null:identity(config.talk.realtime.model)??false}},memory:{search:{provider:providerRef(config.memory?.search?.provider),model:config.memory?.search?.model==null?null:identity(config.memory.search.model)??false}}},catalog:{models,providerOutcomes:Array.isArray(value.catalog.providerOutcomes)&&value.catalog.providerOutcomes.length<=2000?value.catalog.providerOutcomes.flatMap((row:any)=>typeof row?.provider==='string'&&/^[A-Za-z0-9._+-]{1,200}$/.test(row.provider)&&['ready','needs_auth','unknown'].includes(row.status)?[{provider:row.provider,status:row.status}]:[]):[]},auth:{providers},revision:text(value.raw.hash)||null,updatedAt:Date.now(),policy:value.policy??null};
 }
 
 /** Explicit fresh owner read; concurrent consumers share only the in-flight read. */

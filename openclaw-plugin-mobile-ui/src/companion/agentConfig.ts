@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import {readModelOwnerFresh,configuredModelAllow,modelReferenceAllowed,configuredModelFlow,includedModelAccounts,CONTACT_MODEL_AGENTS,observeVerifiedModelOwnerConfig} from "./modelOwner";
+import {readModelOwnerFresh,configuredModelAllow,modelReferenceAllowed,configuredModelFlow,includedModelAccounts,CONTACT_MODEL_AGENTS,observeVerifiedModelOwnerConfig,modelFlowSettingPaths,modelFlowSettingHash,modelFlowSafeValue,MODEL_FLOW_PROVENANCE_PATH,verifiedModelFlowProvenance} from "./modelOwner";
 import {confirmations} from "./confirmations";
 import {callOpenClawGateway} from "./openclawAgentClient";
 import {readPaymentRequests,readOwnerConfirmations,getRunStatus,latestModelFlowConfiguration,checkpointModelFlowConfiguration} from "./runs";
@@ -133,7 +133,6 @@ export async function changeAgentConfig(body:any){
  try{return await work;}finally{if(pending.get(key)===work)pending.delete(key);}
 }
 async function changeAgentConfigOnce(body:any){
- if(flowEnabled())throw nativeError('model_flow_required',409);
  const required=['model','operationId','provider','revision','thinking'];
  if(!body||typeof body!=='object'||Array.isArray(body)||required.some(key=>!(key in body))||Object.keys(body).some(key=>![...required,'fallbacks','confirmationId'].includes(key))||
   !/^[-A-Za-z0-9_.:]{1,128}$/.test(body.operationId||'')||!identifier.test(body.provider||'')||!identifier.test(body.model||'')||
@@ -147,6 +146,7 @@ async function changeAgentConfigOnce(body:any){
  if(await protectedActivity())throw nativeError('protected_owner_activity',409);
  // Validate against the canonical current config/catalog before reserving an effect.
  const [{raw,catalog,auth},defaults]=await Promise.all([readModelOwnerFresh(),sessionDefaults()]);const config=configObject(raw);
+ if(config.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.modelFlowSelection!==undefined)throw nativeError('model_flow_required',409);
  if(raw.hash!==body.revision)throw nativeError('agent_config_revision_changed',409);
  if(!selection(config).writeAvailable)throw nativeError('agent_config_owner_shape_unsupported',409);
  // The app echoes `@acct-…` handles; the patch and every comparison use the canonical profile ids.
@@ -204,7 +204,6 @@ async function changeAgentConfigOnce(body:any){
 
 export type EditableModelFlow='brain'|'conversation_summary'|'whatsapp';
 const modelFlowIds=new Set<EditableModelFlow>(['brain','conversation_summary','whatsapp']);
-const flowEnabled=()=>process.env.SAMANTHA_BRAIN_ONLY==='1';
 function modelFlow(value:any):EditableModelFlow{if(!modelFlowIds.has(value))throw nativeError('invalid_model_flow');return value;}
 function flowAgents(flow:EditableModelFlow):string[]{return flow==='whatsapp'?['main',...CONTACT_MODEL_AGENTS]:['main'];}
 function selectedFlowModels(owner:any,flow:EditableModelFlow,defaults:any){
@@ -223,23 +222,17 @@ function selectedFlowModels(owner:any,flow:EditableModelFlow,defaults:any){
  if(choices.length>256||new Set(choices.map(row=>row.ref)).size!==choices.length)throw nativeError('agent_models_unavailable',503);
  return choices;
 }
-function flowPaths(flow:EditableModelFlow):string[][]{
- if(flow==='conversation_summary')return [['agents','defaults','compaction','model']];
- const agents=flow==='brain'?['main']:[...CONTACT_MODEL_AGENTS];
- return [...agents.flatMap(id=>['model','thinkingDefault','fastModeDefault'].map(field=>['agents','entries',id,field])),
-  ...(flow==='whatsapp'?[['plugins','entries','openclaw-plugin-mobile-ui','config','whatsappModelFlow']]:[])];
+const provenancePath=(flow:EditableModelFlow)=>[...MODEL_FLOW_PROVENANCE_PATH,'flows',flow];
+function flowPaths(flow:EditableModelFlow):string[][]{return [...modelFlowSettingPaths(flow),provenancePath(flow)];}
+function normalizeFlowProvenance(config:any){
+ const value=config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.modelFlowSelection;
+ if(value===undefined)return;
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['version','flows'].includes(key))||value.version!==undefined&&value.version!==1||!value.flows||typeof value.flows!=='object'||Array.isArray(value.flows)||Object.keys(value.flows).some(key=>!['brain','conversation_summary','whatsapp'].includes(key)))throw nativeError('model_flow_provenance_unverified',409);
+ if(Object.keys(value.flows).length===0)setFlowPath(config,[...MODEL_FLOW_PROVENANCE_PATH],undefined,false);
+ else {value.version=1;for(const proof of Object.values(value.flows))modelFlowSafeValue(proof);}
 }
 function objectAt(value:any,segments:string[]){let node=value;for(const key of segments){if(!node||typeof node!=='object'||Array.isArray(node)||!Object.prototype.hasOwnProperty.call(node,key))return {present:false};node=node[key];}return {present:true,value:node};}
-function publicFlowValue(value:any,depth=0):any{
- if(depth>12)throw nativeError('model_flow_snapshot_unsupported',409);
- if(typeof value==='string'){if(!identifier.test(value))throw nativeError('model_flow_snapshot_unsupported',409);return value.includes('/')?publicModelRef(value):value;}
- if(typeof value==='boolean')return value;
- if(Array.isArray(value)&&value.length<=20)return value.map(row=>publicFlowValue(row,depth+1));
- if(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(key=>['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].includes(key))){
-  return Object.fromEntries(['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].filter(key=>key in value).map(key=>[key,key==='version'&&value[key]===1?1:publicFlowValue(value[key],depth+1)]));
- }
- throw nativeError('model_flow_snapshot_unsupported',409);
-}
+const publicFlowValue=modelFlowSafeValue;
 function flowContainers(flow:EditableModelFlow):string[][]{return flow==='conversation_summary'?[['agents','defaults','compaction']]:flow==='whatsapp'?[['plugins','entries','openclaw-plugin-mobile-ui','config']]:[];}
 function flowSnapshot(config:any,flow:EditableModelFlow){return [...flowPaths(flow).map(path=>{const value=objectAt(config,path);return {path,present:value.present,...(value.present?{value:publicFlowValue((value as any).value)}:{})};}),...flowContainers(flow).map(path=>({path,present:objectAt(config,path).present,container:true}))];}
 function flowHash(value:any){return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');}
@@ -269,8 +262,8 @@ async function readModelFlowConfig(flow:EditableModelFlow){
  const choices=selectedFlowModels(owner,flow,defaults),snapshot=flowSnapshot(config,flow),revert=latest?.receipt?.appliedHash===flowHash(snapshot)?latest.receipt.runId:null;
  return {success:true,state:'ok',receipt:null,schemaVersion:2,flow,revision:owner.raw.hash,model:publicModelRef(primary),fallbacks:fallbacks.map((ref:string)=>publicModelRef(ref)),thinking:current.thinkingDefault??null,
   fastMode:typeof current.fastModeDefault==='boolean'?current.fastModeDefault:null,inheritsFrom:current.inheritsFrom,origins:current.origins,mixedFields:current.mixedFields,source:'gateway_config',models:choices,
-  writeFields:flow==='conversation_summary'?['model']:['model','thinking','fallbacks','fastMode'],writeAvailable:flowEnabled()&&choices.length>0,
-  previousReceiptRunId:revert,issues:[...(!flowEnabled()?['brain_only_not_active']:[]),...(!choices.length?['included_model_authentication_proof_unavailable']:[])],
+  writeFields:flow==='conversation_summary'?['model']:['model','thinking','fallbacks','fastMode'],writeAvailable:choices.length>0,
+  previousReceiptRunId:revert,issues:[...(!choices.length?['included_model_authentication_proof_unavailable']:[])],
   appliesTo:'new_sessions',metrics:projectModelFlowMetrics(flow,latency)};
 }
 
@@ -310,6 +303,7 @@ function restoreFlowValue(value:any,owner:any,models:any[]):any{
  if(typeof value==='string')return value.includes('/')?canonicalFlowReference(value,owner,models,true):value;
  if(typeof value==='boolean'||value===1)return value;
  if(Array.isArray(value))return value.map(row=>restoreFlowValue(row,owner,models));
+ if(value&&typeof value==='object'&&Object.keys(value).sort().join()==='fieldsHash,version')return modelFlowSafeValue(value);
  if(value&&typeof value==='object'&&Object.keys(value).every(key=>['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].includes(key)))return Object.fromEntries(Object.entries(value).map(([key,row])=>[key,restoreFlowValue(row,owner,models)]));
  throw nativeError('model_flow_receipt_invalid',409);
 }
@@ -338,7 +332,6 @@ function validateEffectiveFlow(config:any,flow:EditableModelFlow,owner:any,model
 }
 async function changeModelFlowConfigOnce(body:any){
  const flow=modelFlow(body?.flow);
- if(!flowEnabled())throw nativeError('model_flow_not_active',409);
  const mode=body.mode,common=['flow','mode','revision','operationId','confirmationId'];
  const fields=mode==='set'?(flow==='conversation_summary'?['model']:['model','thinking','fallbacks','fastMode']):mode==='revert'?['restoreRunId']:mode==='inherit'?[]:null;
  if(!fields||typeof body!=='object'||Array.isArray(body)||fields.some(key=>!(key in body))||Object.keys(body).some(key=>![...common,...fields].includes(key))||!/^[-A-Za-z0-9_.:]{1,128}$/.test(body.operationId||'')||!configHash.test(body.revision||''))throw nativeError('invalid_model_flow_config');
@@ -352,7 +345,7 @@ async function changeModelFlowConfigOnce(body:any){
  if(await protectedActivity())throw nativeError('protected_owner_activity',409);
  const [owner,defaults]=await Promise.all([readModelOwnerFresh(),sessionDefaults()]);const config=configObject(owner.raw);
  if(owner.raw.hash!==body.revision)throw nativeError('agent_config_revision_changed',409);
- if(!config.agents?.entries?.main||flow==='whatsapp'&&(!config.plugins?.entries?.['openclaw-plugin-mobile-ui']||CONTACT_MODEL_AGENTS.some(id=>!config.agents?.entries?.[id])))throw nativeError('model_flow_owner_shape_unsupported',409);
+ if(!config.agents?.entries?.main||!config.plugins?.entries?.['openclaw-plugin-mobile-ui']||config.plugins.entries['openclaw-plugin-mobile-ui'].enabled===false||flow==='whatsapp'&&CONTACT_MODEL_AGENTS.some(id=>!config.agents?.entries?.[id]))throw nativeError('model_flow_owner_shape_unsupported',409);
  const models=selectedFlowModels(owner,flow,defaults);if(!models.length)throw nativeError('included_model_policy_unavailable',409);
  const previous=flowSnapshot(config,flow),next=JSON.parse(JSON.stringify(config));
  if(mode==='set'){
@@ -371,10 +364,13 @@ async function changeModelFlowConfigOnce(body:any){
   const stored=flowResult(await getRunStatus(body.restoreRunId));
   if(stored.state!=='completed'||stored.receipt.flow!==flow||stored.receipt.appliedHash!==flowHash(previous))throw nativeError('model_flow_previous_version_changed',409);
   for(const row of flowPatchRows(flow,stored.receipt.previous)){
-   if(row.container){if(!row.present){const current=objectAt(next,row.path);if(current.present&&Object.keys((current as any).value||{}).length)throw nativeError('model_flow_parent_changed',409);setFlowPath(next,row.path,undefined,false);}}
+   if(row.container){normalizeFlowProvenance(next);if(!row.present){const current=objectAt(next,row.path);if(current.present&&Object.keys((current as any).value||{}).length){if(row.path.join('.')==='plugins.entries.openclaw-plugin-mobile-ui.config'&&Object.keys((current as any).value).every(key=>key==='modelFlowSelection'))continue;throw nativeError('model_flow_parent_changed',409);}setFlowPath(next,row.path,undefined,false);}}
    else setFlowPath(next,row.path,row.present?restoreFlowValue(row.value,owner,models):undefined,row.present);
   }
  }
+ if(mode!=='revert')setFlowPath(next,provenancePath(flow),{version:1,fieldsHash:modelFlowSettingHash(next,flow)});
+ normalizeFlowProvenance(next);
+ if(objectAt(next,[...MODEL_FLOW_PROVENANCE_PATH]).present)verifiedModelFlowProvenance(next,flow);
  validateEffectiveFlow(next,flow,owner,models);
  const applied=flowSnapshot(next,flow);
  if(Buffer.byteLength(JSON.stringify({previous,applied}))>48000)throw nativeError('model_flow_snapshot_too_large',409);
@@ -399,6 +395,7 @@ async function changeModelFlowConfigOnce(body:any){
    preservedSessions=preservation.preserved;
    const fresh=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:3000});if(fresh?.hash!==body.revision)throw nativeError('agent_config_revision_changed',409);
    const patch:any={};for(const path of flowPaths(flow)){const value=objectAt(next,path);setFlowPath(patch,path,value.present?(value as any).value:null);}for(const path of flowContainers(flow))if(!objectAt(next,path).present)setFlowPath(patch,path,null);
+   const admission=objectAt(next,[...MODEL_FLOW_PROVENANCE_PATH]);if(!admission.present)setFlowPath(patch,[...MODEL_FLOW_PROVENANCE_PATH],null);else setFlowPath(patch,[...MODEL_FLOW_PROVENANCE_PATH,'version'],1);
    await checkpointModelFlowConfiguration(reserved.status.runId,{success:false,state:'dispatching',receipt:preparedReceipt,artifact:{preservedSessions:preservation.preserved}});
    dispatchAttempted=true;
    let dispatchError:any;try{await callOpenClawGateway('config.patch',{baseHash:body.revision,raw:JSON.stringify(patch),replacePaths:flowPaths(flow).map(row=>row.join('.'))});}catch(error){dispatchError=error;}

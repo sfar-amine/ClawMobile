@@ -17,6 +17,7 @@ assert.equal(role('realtime_voice').model,'google/'+require('../dist/companion/c
 assert.equal(role('spoken_voice').model,'microsoft/fr-FR-DeniseNeural');assert.equal(role('dictation').state,'device_managed');
 assert.equal(role('memory_search').state,'provider_default');assert.equal(role('memory_search').provider,'gemini');assert.equal(role('memory_search').model,null,'no invented memory model when native source supplies provider only');
 assert.equal(role('web_search').model,require('../dist/companion/runWeb').PUBLIC_WEB_MODEL);
+assert.equal(role('web_search').inheritsFrom,null,'UI hierarchy does not imply runtime model inheritance');assert.equal(role('engineering_learning').inheritsFrom,null);
 assert.equal(role('voice_memos').model,'google/'+require('../dist/companion/memoSttBoundary').MEMO_STT_MODEL);
 assert.equal(role('immune_system').model,'openai/gpt-5.6-sol');assert.deepEqual(role('immune_system').fallbacks,['openai/gpt-5.6-luna']);assert.notEqual(role('immune_system').state,'deterministic');
 assert.ok(roles.every(row=>row.metrics.notThisRate===null&&row.metrics.latencyMedianMs===null),'missing per-flow measurements are never zero success samples');
