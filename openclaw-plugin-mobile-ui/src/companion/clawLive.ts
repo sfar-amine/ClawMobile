@@ -121,7 +121,17 @@ function canonicalUtf8(value:string,maxBytes:number) {
  */
 export function compactOwnerAgentContext(options:{authority?:"owner";home?:string;voiceDelegation?:true}={}) {
   if(options.authority!=="owner")return "";
-  if(ownerFoundationEnabled())return ownerFoundationContext(options)+(options.voiceDelegation===true?"\n\n"+VOICE_TURN_NOTICE:"");
+  if(ownerFoundationEnabled()){
+    const blocks=[ownerFoundationContext(options)];
+    if(options.voiceDelegation===true){
+      blocks.push("## VOICE_TURN\n"+VOICE_TURN_NOTICE);
+      // The common foundation replaces startup blocks, never the established surface-specific voice context.
+      const workspace=path.join(options.home||os.homedir(),".openclaw","workspace");
+      const voice=canonicalUtf8(readCanonical(path.join(workspace,"memory","voice","amine.md"),VOICE_CONTEXT_CHARS,{boundedOwner:true}),VOICE_CONTEXT_CHARS);
+      if(voice)blocks.push("## VOICE_CONTEXT\n"+voice);
+    }
+    return blocks.join("\n\n");
+  }
   const workspace=path.join(options.home||os.homedir(),".openclaw","workspace");
   const operating=readCanonical(path.join(workspace,"context","OPERATING_RULES.md"),64000,{boundedOwner:true});
   let prefix=canonicalPrefix(operating,12000);

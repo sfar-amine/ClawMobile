@@ -56,9 +56,9 @@
       "evidence": "Preuve root d6a952cb : suite owner-foundation passée avec options tsconfig du dépôt, deux révisions mémoire préservant le préfixe stable. Les autres tests source initiaux sont conservés ; ceci ne qualifie pas encore les nouvelles assertions loader ni le head intégré final."
     },
     {
-      "name": "Host loader assertion syntax and source integrity",
+      "name": "Canonical host loader focused assertions",
       "status": "passed",
-      "evidence": "node --check test-owner-foundation.cjs et git diff --check PASS. Cas temporaires0/1 et priorité héritée inscrits dans la suite existante ; exécution fonctionnelle finale attendue en CI intégrée. Aucun .env runtime ni secret lu."
+      "evidence": "Four assertions from the existing owner-foundation test block executed against the canonical shell loader with an authored temporary env file : persisted0/1 and inherited precedence PASS. Proof /workspace/refonte-evidence/l2-core-host-loader-focused.log. node --check and git diff integrity PASS. Voice-context regression case registered but not executed yet; final integrated TS/CI pending."
     }
   ],
   "capabilities": {

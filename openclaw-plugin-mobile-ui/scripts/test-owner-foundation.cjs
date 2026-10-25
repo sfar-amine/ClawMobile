@@ -24,6 +24,17 @@ try{
  assert.equal(owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:'/other'}),undefined);assert.equal(reads,before,'contacts and other workspaces never read private owner context');
  assert.equal(owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:path.join(os.homedir(),'.openclaw','workspace'),sessionKey:'agent:main:companion-chat-test'}),undefined,'Companion already uses the shared extraSystemPrompt producer');
  const hook=owner.ownerFoundationHook({}, {agentId:'main',workspaceDir:path.join(os.homedir(),'.openclaw','workspace'),sessionKey:'agent:main:whatsapp:test'});assert.equal(hook.prependSystemContext,text);assert.equal(reads,before+1);
+ const voiceRoot=fs.mkdtempSync(path.join(os.tmpdir(),'foundation-voice-context-'));
+ try{
+  const file=path.join(voiceRoot,'.openclaw/workspace/memory/voice/amine.md');fs.mkdirSync(path.dirname(file),{recursive:true});
+  fs.writeFileSync(file,'Authored surface-specific voice context sentinel.');
+  const compact=require('../dist/companion/clawLive').compactOwnerAgentContext;
+  const delegated=compact({authority:'owner',home:voiceRoot,voiceDelegation:true});
+  assert.ok(delegated.startsWith(text),'voice preserves the common stable foundation before its own surface context');
+  assert.ok(delegated.includes('## VOICE_CONTEXT\nAuthored surface-specific voice context sentinel.'));
+  assert.ok(delegated.includes('## VOICE_TURN'));
+  assert.ok(!compact({authority:'owner',home:voiceRoot}).includes('surface-specific voice context sentinel'),'other surfaces do not inherit voice-specific memory');
+ }finally{fs.rmSync(voiceRoot,{recursive:true,force:true});}
  process.env.SAMANTHA_CONTEXT_FOUNDATION='0';assert.equal(owner.ownerFoundationHook({}, {agentId:'main'}),undefined);
 }finally{cp.execFileSync=original;if(flag===undefined)delete process.env.SAMANTHA_CONTEXT_FOUNDATION;else process.env.SAMANTHA_CONTEXT_FOUNDATION=flag;}
 // The existing host loader owns persistence; no real environment/configuration is read.
