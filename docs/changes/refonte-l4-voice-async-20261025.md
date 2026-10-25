@@ -1,4 +1,4 @@
-# L4 — asynchronous voice receipt handoff (source preparation)
+# L0 correction — asynchronous voice receipt handoff (L4 remains open)
 
 The existing voice protocol now uses Gemini's documented NON_BLOCKING generator for `ask_samantha`: SILENT running acknowledgement, bounded progress and final canonical receipt on the same call id, INTERRUPT delivery. It quarantines old generation tails until actual provider `turnComplete`, without treating an audio interruption as a business cancellation. The standard blocking clarification tool stays unchanged.
 
@@ -6,4 +6,4 @@ The real S24 metadata fixture retains the observed 22 second post-receipt gap an
 
 No new route or capability: NO_CAPABILITY, existing voice surface lifecycle and transcript persistence. MCP primitives and transactional/human boundaries are unchanged. All new tests are registered in ci.yml. The existing 64-turn, 512-operation, six-progress-line and input/output limits remain.
 
-Status: single-source transpile check passed12 new and37 existing protocol cases. This is not project typecheck or canonical CI. HTTP persistence/shared-budget tests, canonical CI and paired S24 recipe remain pending. No deployment or final acceptance claimed. Restore via existing Companion owner and paired standard APK for rollback.
+Status: project TypeScript check,13async,37protocol,28brain and25OptionA cases passed, as did HTTP persistence, shared-budget and Warm/ownership tests (including actual Warm constructor async wiring). Final combined-head canonical CI and paired S24 recipe remain pending. Tier0 activation-readiness prerequisites and the verified L1 preparation base are composed in the same candidate; neither L1 baseline nor L4 completion is claimed. No deployment or final acceptance claimed. Restore via existing Companion owner and paired standard APK for rollback.

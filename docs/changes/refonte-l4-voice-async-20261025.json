@@ -3,7 +3,7 @@
   "id": "refonte-l4-voice-async-20261025",
   "date": "2026-10-25",
   "origin": "chat",
-  "summary": "Deliver the verified voice receipt through one correlated asynchronous Gemini call while preserving progress and actual generation boundaries.",
+  "summary": "L0 correction: deliver canonical voice receipts/progress without discarded virtual playback and retain one exact provider generation owner; L4 itself remains open.",
   "scope": {
     "files": [
       "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
@@ -15,7 +15,9 @@
       "openclaw-plugin-mobile-ui/scripts/test-voice-readback-persistence.cjs",
       ".github/workflows/ci.yml",
       "docs/08-decisions/ADR-20261025-voice-asynchronous-readback.md",
-      "openclaw-plugin-mobile-ui/scripts/test-turn-budget.cjs"
+      "openclaw-plugin-mobile-ui/scripts/test-turn-budget.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-warm-v2-ownership.cjs",
+      "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json"
     ]
   },
   "routes": [
@@ -29,7 +31,7 @@
   "tests": {
     "status": "pending_ci",
     "evidence": [
-      "12 asynchronous protocol regressions and37 existing protocol cases passed in a bounded single-source transpile check (not project typecheck/canonical CI). HTTP persistence, full project and shared-budget tests await the reserved CI window; all registered in ci.yml.",
+      "Project TypeScript check PASS; asynchronous13, existing protocol37, brain28 and OptionA25 passed. HTTP readback persistence, shared budget, Warm and actual Warm-to-async constructor wiring passed. Final combined-head canonical CI and paired native recipe remain pending.",
       "S24 timing-only metadata provenance retained; no fabricated provider or deferred receipt capture."
     ]
   },
