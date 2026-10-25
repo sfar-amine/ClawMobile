@@ -27,5 +27,7 @@ Résultat mesuré le 24/10 : 24 tours vocaux sur 30 n'ont pas atteint Samantha, 
 - **Attente.** Un tour cerveau est pris en charge par le Companion (`voiceFastPath`). L'app joue tout de suite sa phrase d'attente locale et le tour atteint le cerveau, quoi que fasse le modèle vocal.
 - **Avancement.** Les étapes et la phrase en cours viennent de la carte de progression de l'agent (`progress_card`, propriétaire OpenClaw existant), écrite pour Amine selon la règle canonique des playbooks.
 
+- **Avancement dit (contrôle `speakProgress`, protocole voix v2).** Pendant qu'un tour cerveau s'exécute, l'app peut faire dire par la voix une phrase de la carte de progression, mot pour mot, sur le même tour (génération `out-<tour>-progress-<n>`). Le Companion reste le seul juge : au plus 6 phrases de 200 caractères par tour, seulement si ce tour possède la sortie, que sa phrase précédente est finie, que son exécution est en cours et que personne ne parle. Sinon, un refus explicite pour ce tour (`progressRefused`), jamais une erreur de session. Pendant ces phrases, tout appel d'outil du modèle vocal est refusé : il n'y a jamais de seconde exécution. Le `warmReady` v2 annonce `progressReadback: 1`, et une ancienne app ne l'envoie jamais.
+
 ## Retour arrière
-Revert du commit, puis redéploiement du Companion par `companion-deploy.sh`. L'app n'est pas modifiée.
+Revert du commit, puis redéploiement du Companion par `companion-deploy.sh`. L'app n'est pas modifiée. Pour `speakProgress` seul : revert de son commit ; une app qui ne voit plus `progressReadback` dans `warmReady` n'envoie plus d'avancement.

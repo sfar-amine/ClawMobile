@@ -15,7 +15,7 @@ function finishAsr(s,text='Bonjour',id='voice-a'){s.p.receive(control('transcrip
 function error(s){return s.events.flatMap(x=>x.warmEvent?.payload?.protocolError?.code||[]);}
 (async()=>{
  await test('Android and Companion share every v2 envelope',()=>{const samples={
-  speakFirst:control('speakFirst','greeting'),speakResult:control('speakResult','readback-1',{text:'Pour la facture, elle est payée.'}),turnStart:control('turnStart','voice-a',{firstSample:0}),
+  speakFirst:control('speakFirst','greeting'),speakResult:control('speakResult','readback-1',{text:'Pour la facture, elle est payée.'}),speakProgress:control('speakProgress','voice-a',{text:'Je regarde la météo de Tunis pour demain.'}),turnStart:control('turnStart','voice-a',{firstSample:0}),
   turnEnd:control('turnEnd','voice-a',{lastSampleExclusive:320}),
   transcriptFinal:control('transcriptFinal','voice-a',{source:'android_speech_service',text:'Bonjour'}),
   interrupt:control('interrupt','voice-a',{outputGenerationId:'out-voice-a'})};
@@ -101,5 +101,74 @@ function error(s){return s.events.flatMap(x=>x.warmEvent?.payload?.protocolError
   assert.deepEqual([...observedCorrelations].sort(),[...contract.correlation.values].sort());
  });
  await test('a receipt reply without admitted execution is refused for its turn, never a session error (banc voix 18/10)',()=>{const s=setup();start(s);audio(s);end(s);finishAsr(s);s.p.provider({serverContent:{turnComplete:true}});s.p.receive({warmControl:{receiptReply:{turnId:'voice-a'}}});assert.deepEqual(error(s),[]);const refused=s.events.find(x=>x.warmEvent?.payload?.receiptRefused);assert.equal(refused.warmEvent.payload.receiptRefused.reason,'no_execution');assert.equal(refused.warmEvent.turnId,'voice-a');assert(!s.sent.some(x=>x.clientContent?.turns?.[0]?.parts?.[0]?.text?.includes('Verified receipt')));start(s,'voice-b',320);audio(s,'voice-b',320);assert.deepEqual(error(s),[]);assert(s.events.some(x=>x.warmEvent?.payload?.turnAdmitted&&x.warmEvent.turnId==='voice-b'));});
+ // Live progress of a brain turn (Amine 25/10/2026): user-oriented lines read verbatim while the execution runs.
+ const ASK='Quel temps fera-t-il demain à Tunis ?';
+ async function brainTurn(observer){const sent=[],events=[];const s={sent,events,p:new VoiceTurnProtocol(1,'session-1',v=>sent.push(v),v=>events.push(v),observer)};
+  start(s);audio(s);end(s);finishAsr(s,ASK);let complete;const exec=s.p.execute('voice-a',ASK,()=>new Promise(r=>complete=r));await Promise.resolve();await Promise.resolve();
+  s.p.provider({serverContent:{turnComplete:true}});return {s,exec,complete:v=>complete(v)};}
+ const progress=(s,n,text='Je regarde la météo de Tunis pour demain.',turn='voice-a')=>s.p.receive(control('speakProgress',turn,{operationId:'speakProgress-'+turn+'-'+n,text}));
+ const ack=(s,n,turn='voice-a')=>s.events.find(x=>x.warmAck?.operationId==='speakProgress-'+turn+'-'+n)?.warmAck.state;
+ const refusals=s=>s.events.flatMap(x=>x.warmEvent?.payload?.progressRefused?.reason||[]);
+ await test('progress is spoken verbatim on the same turn while its execution runs',async()=>{
+  const {s}=await brainTurn();const before=s.sent.length;progress(s,1);progress(s,1);
+  assert.equal(ack(s,1),'accepted');assert.equal(s.sent.length,before+1,'an exact replay is answered from the ledger, never spoken twice');
+  const said=s.sent.at(-1).clientContent.turns[0].parts[0].text;assert(said.startsWith('Read exactly'));assert(said.includes('Do not call any tool'));
+  assert(said.endsWith(JSON.stringify('Je regarde la météo de Tunis pour demain.')));
+  const resumed=s.events.find(x=>x.warmEvent?.payload?.outputResumed?.progress);assert.equal(resumed.warmEvent.turnId,'voice-a');assert.equal(resumed.warmEvent.outputGenerationId,'out-voice-a-progress-1');
+  s.p.provider({serverContent:{outputTranscription:{text:'Je regarde'},turnComplete:true}});
+  assert.equal(s.events.filter(x=>x.warmEvent?.payload?.serverContent).at(-1).warmEvent.outputGenerationId,'out-voice-a-progress-1');
+  progress(s,2,'J ai trouvé les prévisions, je les résume.');assert.equal(ack(s,2),'accepted');
+  assert(s.events.some(x=>x.warmEvent?.outputGenerationId==='out-voice-a-progress-2'));assert.deepEqual(error(s),[]);
+ });
+ await test('progress is refused for its turn, never a session error, outside a running brain execution',async()=>{
+  // No execution admitted for the turn.
+  const a=setup();start(a);audio(a);end(a);finishAsr(a,ASK);a.p.provider({serverContent:{turnComplete:true}});progress(a,1);assert.deepEqual(refusals(a),['not_admissible']);assert.equal(ack(a,1),'refused');
+  // The result is already there: the receipt reply speaks it, not a progress line.
+  const b=await brainTurn();b.complete({execution:{state:'completed'}});await b.exec;progress(b.s,1);assert.deepEqual(refusals(b.s),['not_admissible']);
+  // The turn's own output is still open (the waiting sentence has not ended).
+  const c=setup();start(c);audio(c);end(c);finishAsr(c,ASK);c.p.execute('voice-a',ASK,()=>new Promise(()=>{}));await Promise.resolve();progress(c,1);assert.deepEqual(refusals(c),['not_admissible']);
+  // Greeting and deferred readback turns never carry progress.
+  const d=setup();d.p.receive(control('speakFirst','greeting'));d.p.provider({serverContent:{turnComplete:true}});progress(d,1,'x','greeting');assert.deepEqual(refusals(d),['not_admissible']);
+  const e=setup();e.p.receive(control('speakResult','readback-1',{text:'Pour X, c est fait.'}));e.p.provider({serverContent:{turnComplete:true}});progress(e,1,'x','readback-1');assert.deepEqual(refusals(e),['not_admissible']);
+  // An interrupted turn stays silent.
+  const f=await brainTurn();f.s.p.receive(control('interrupt','voice-a',{outputGenerationId:'out-voice-a'}));progress(f.s,1);assert.deepEqual(refusals(f.s),['not_admissible']);
+  // Amine is speaking: his new turn owns the floor.
+  const g=await brainTurn();start(g.s,'voice-b',320);progress(g.s,1);assert.deepEqual(refusals(g.s),['not_admissible']);
+  for(const x of [a,b.s,c,d,e,f.s,g.s])assert.deepEqual(error(x),[]);
+ });
+ await test('progress text and count are bounded, as explicit refusals',async()=>{
+  const {s}=await brainTurn();progress(s,1,'   ');progress(s,2,'x'.repeat(201));assert.deepEqual(refusals(s),['invalid_text','invalid_text']);
+  for(let n=3;n<9;n++){progress(s,n,'Étape '+n);assert.equal(ack(s,n),'accepted');s.p.provider({serverContent:{turnComplete:true}});}
+  progress(s,9,'Étape 9');assert.deepEqual(refusals(s).slice(-1),['progress_budget']);assert.equal(ack(s,9),'refused');
+  assert.equal(s.events.filter(x=>x.warmEvent?.payload?.outputResumed?.progress).length,6);assert.deepEqual(error(s),[]);
+  progress(s,10,'x'.repeat(200));assert.deepEqual(refusals(s).slice(-1),['progress_budget']);
+  assert.deepEqual(contract.speakProgress.refusalReasons.sort(),['invalid_text','not_admissible','progress_budget']);
+  assert.equal(contract.speakProgress.maxChars,200);assert.equal(contract.speakProgress.maxPerTurn,6);
+ });
+ await test('a provider tool call during a progress line is refused, never a second execution',async()=>{
+  const {s}=await brainTurn();progress(s,1);const exposed=s.events.filter(x=>x.warmEvent?.payload?.toolCall).length;
+  s.p.provider({toolCall:{functionCalls:[{id:'again',name:'ask_samantha',args:{request:ASK}}]}});
+  assert.equal(s.events.filter(x=>x.warmEvent?.payload?.toolCall).length,exposed);
+  const refused=s.sent.at(-1).toolResponse.functionResponses[0];assert.equal(refused.id,'again');assert.equal(refused.response.reason,'progress_readback');assert.deepEqual(error(s),[]);
+ });
+ await test('the receipt reply still works once the last progress line has ended',async()=>{
+  const {s,exec,complete}=await brainTurn();progress(s,1);complete({execution:{state:'completed'},voice:{verbatim:'Demain à Tunis, 24 degrés et du soleil.'}});await exec;
+  s.p.receive({warmControl:{receiptReply:{turnId:'voice-a'}}});assert(s.events.some(x=>x.warmEvent?.payload?.receiptRefused?.reason==='output_open'));
+  s.p.provider({serverContent:{turnComplete:true}});s.p.receive({warmControl:{receiptReply:{turnId:'voice-a'}}});
+  const resumed=s.events.filter(x=>x.warmEvent?.payload?.outputResumed).at(-1);assert.equal(resumed.warmEvent.outputGenerationId,'out-voice-a-receipt');
+  assert(s.sent.at(-1).clientContent.turns[0].parts[0].text.includes('Demain à Tunis, 24 degrés et du soleil.'));assert.deepEqual(error(s),[]);
+ });
+ await test('new speech interrupts a progress line and silences the rest of that turn',async()=>{
+  const {s}=await brainTurn();progress(s,1);start(s,'voice-b',320);
+  assert(s.events.some(x=>x.warmEvent?.payload?.turnPending?.reason==='output_boundary'));
+  s.p.provider({serverContent:{interrupted:true}});assert(s.events.some(x=>x.warmEvent?.payload?.turnAdmitted?.turnId==='voice-b'));
+  progress(s,2);assert.deepEqual(refusals(s),['not_admissible']);s.p.receive({warmControl:{receiptReply:{turnId:'voice-a'}}});
+  assert(s.events.some(x=>x.warmEvent?.payload?.receiptRefused?.reason==='interrupted'));assert.deepEqual(error(s),[]);
+ });
+ await test('a progress line is measured as its own phase, not as the turn response time',async()=>{
+  const seen=[];const {s}=await brainTurn((event,turn,metadata)=>{if(event==='t30p')seen.push(metadata);});
+  progress(s,1);s.p.provider({serverContent:{modelTurn:{parts:[{inlineData:{mimeType:'audio/pcm;rate=24000',data:'AAAA'}}]}}});
+  assert.equal(seen.length,1);assert.equal(seen[0].phase,2);assert(!('gemini_ms' in seen[0]));assert(!('response_ms' in seen[0]));
+ });
  console.log(JSON.stringify({passed,failed:0,scope:'deterministic_protocol_not_acoustic',boundary:'android_on_device_final'}));
 })().catch(e=>{console.error(e);process.exitCode=1});
