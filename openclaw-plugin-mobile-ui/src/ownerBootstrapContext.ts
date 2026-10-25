@@ -18,7 +18,9 @@ export function ownerFoundationContext(options:{authority?:'owner';home?:string;
    row.path!==`skills/${row.name}/SKILL.md`)throw Error('owner_foundation_skill_invalid');
   return `${row.name}: ${row.description} (${row.path})`;
  }).join('\n');
- const text=`[SAMANTHA_FOUNDATION v1 sha256=${value.sha256} stable=${value.stable_sha256} revision=${value.revision}]\n${value.instruction}\n\n${value.content}\n\n## Skills à la demande\n${skills}`;
+ // Keep changing memory hashes and revision after the stable rules and skill index: provider prefix caches
+ // cannot reuse the otherwise identical foundation when the first token changes with every memory event.
+ const text=`[SAMANTHA_FOUNDATION v1 stable=${value.stable_sha256}]\n${value.instruction}\n\n## Skills à la demande\n${skills}\n\n${value.content}\n\n[SAMANTHA_MEMORY sha256=${value.sha256} revision=${value.revision}]`;
  if(Buffer.byteLength(text)>24000)throw Error('owner_foundation_budget_exceeded');
  return text;
 }

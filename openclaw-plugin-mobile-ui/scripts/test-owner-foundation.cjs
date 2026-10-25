@@ -7,6 +7,14 @@ const payload={version:1,sha256:'a'.repeat(64),stable_sha256:'b'.repeat(64),revi
 let reads=0;const read=()=>{reads++;return JSON.stringify(payload);};
 assert.equal(owner.ownerFoundationContext({read}),'');assert.equal(reads,0);
 const text=owner.ownerFoundationContext({authority:'owner',read});assert.ok(text.includes('SAMANTHA_FOUNDATION'));assert.ok(text.includes('revision=3239'));assert.ok(text.includes('skills/samantha-mobile/SKILL.md'));
+const memoryA={...payload, content:payload.content+'\nMemory snapshot A'};
+const memoryB={...payload, sha256:'c'.repeat(64), revision:3240, content:payload.content+'\nMemory snapshot B'};
+const first=owner.ownerFoundationContext({authority:'owner',read:()=>JSON.stringify(memoryA)});
+const next=owner.ownerFoundationContext({authority:'owner',read:()=>JSON.stringify(memoryB)});
+const stableEnd=first.indexOf('Memory snapshot A');assert.ok(stableEnd>0);
+assert.equal(first.slice(0,stableEnd),next.slice(0,stableEnd),'memory freshness changes must preserve the cacheable rules/skills prefix');
+assert.notEqual(first,next,'fresh memory and revision are still injected, never served stale');
+
 assert.throws(()=>owner.ownerFoundationContext({authority:'owner',read:()=>JSON.stringify({...payload,content:'x'.repeat(24001)})}),/budget/);
 assert.throws(()=>owner.ownerFoundationContext({authority:'owner',read:()=>JSON.stringify({...payload,skills:[{name:'samantha-mobile',description:'x',path:'../../private.md'}]})}),/skill/);
 const original=cp.execFileSync,flag=process.env.SAMANTHA_CONTEXT_FOUNDATION;

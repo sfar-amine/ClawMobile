@@ -7,3 +7,5 @@ Routes : `claw_context` existant ; NO_CAPABILITY, contexte propriétaire sans ac
 Tests : `test-owner-foundation.cjs` et `test-mcp-foundation.cjs`, ajoutés auprès du bootstrap canonique dans ci.yml ; métadonnées SDK/skills réellement capturées sur S24 et enveloppes de transport explicitement rédigées pour les cas unitaires. Les tests bootstrap existants sont conservés. CI complète et recette3surfaces restent à faire après les portes L0/L1.
 
 Retour arrière : désactiver le drapeau, Companion et playbooks précédents par companion-deploy.sh et activate-ui-playbooks.sh.
+
+Revue de la clé de cache : les champs sha256/révision de mémoire ont été déplacés après le corps. Ils changent toujours avec la mémoire, sans modifier les premiers tokens des règles et descriptions de skills stables ; test de deux révisions distinctes ajouté. Aucun cache hit fournisseur n’est revendiqué avant la recette.

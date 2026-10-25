@@ -30,7 +30,8 @@
     "status": "pending_ci",
     "evidence": [
       "test-owner-foundation.cjs and test-mcp-foundation.cjs registered with canonical bootstrap tests",
-      "S24 SDK2026.9.6 cacheable prefix and bootstrapcache64 captured, authored envelope cases labelled"
+      "S24 SDK2026.9.6 cacheable prefix and bootstrapcache64 captured, authored envelope cases labelled",
+      "Root focused owner-foundation suite passed in memory with the repository tsconfig options, including two changing memory revisions sharing the stable prefix; canonical CI remains pending on the final head."
     ]
   },
   "capability_impact": {
