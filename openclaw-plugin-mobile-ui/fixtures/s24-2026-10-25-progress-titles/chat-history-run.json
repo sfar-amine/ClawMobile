@@ -1,0 +1,454 @@
+{
+ "_capture": {
+  "source": "S24 openclaw gateway call chat.history --params {\"sessionKey\":\"agent:main:companion-chat-samantha-…\",\"limit\":200} --json (read-only), the Companion's own transcript fallback (runs.ts readSessionTranscript)",
+  "capturedAt": "2026-10-25T11:05:00+01:00",
+  "run": "run_1792920553461_9ffdf172 (« détail du blocage », 10:29, done)",
+  "openclawSession": "51cfbe68-a226-4c8e-83a7-63ce5a356ec1 (gpt-5.6-sol)",
+  "rawSha256": "a6be86d509361f305af4e543aadc1734da0aa8d02fa8d8975339be18686635de",
+  "sanitized": "messages of this run only (timestamps 1792920553000-1792920640000); owner prompt, assistant text, tool results, commands, queries and tool arguments redacted; tool names, agent titles (arguments.title), workspace-relative read paths, isError and timestamps verbatim; tool call ids pseudonymized call-NN consistently",
+  "crossCheck": "same 17 tool calls, titles and order as trajectory_runtime_events (openclaw-agent.sqlite, mode=ro) seq 5-48 for this run"
+ },
+ "messages": [
+  {
+   "role": "user",
+   "timestamp": 1792920554377,
+   "content": [
+    {
+     "type": "text",
+     "text": "<owner prompt redacted>"
+    }
+   ]
+  },
+  {
+   "role": "assistant",
+   "timestamp": 1792920573287,
+   "content": [
+    {
+     "type": "toolCall",
+     "id": "call-01",
+     "name": "exec",
+     "arguments": {
+      "title": "Charger le contexte du blocage",
+      "command": "<redacted>"
+     }
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920577803,
+   "toolName": "exec",
+   "toolCallId": "call-01",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "assistant",
+   "timestamp": 1792920577831,
+   "content": [
+    {
+     "type": "toolCall",
+     "id": "call-02",
+     "name": "read",
+     "arguments": {
+      "path": "context/OPERATING_RULES.md"
+     }
+    },
+    {
+     "type": "toolCall",
+     "id": "call-03",
+     "name": "read",
+     "arguments": {
+      "path": "ui-playbooks/docs/07-engineering/interaction-fast-path.md"
+     }
+    },
+    {
+     "type": "toolCall",
+     "id": "call-04",
+     "name": "read",
+     "arguments": {
+      "path": "context/rules/manifest.json"
+     }
+    },
+    {
+     "type": "toolCall",
+     "id": "call-05",
+     "name": "read",
+     "arguments": {
+      "path": "context/rules/engineering.md"
+     }
+    },
+    {
+     "type": "toolCall",
+     "id": "call-06",
+     "name": "read",
+     "arguments": {
+      "path": "context/rules/memory.md"
+     }
+    },
+    {
+     "type": "toolCall",
+     "id": "call-07",
+     "name": "read",
+     "arguments": {
+      "path": "context/HYBRID_CONTEXT.md"
+     }
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920580955,
+   "toolName": "read",
+   "toolCallId": "call-02",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920580992,
+   "toolName": "read",
+   "toolCallId": "call-03",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920581016,
+   "toolName": "read",
+   "toolCallId": "call-04",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920581030,
+   "toolName": "read",
+   "toolCallId": "call-05",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920581056,
+   "toolName": "read",
+   "toolCallId": "call-06",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920581087,
+   "toolName": "read",
+   "toolCallId": "call-07",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "assistant",
+   "timestamp": 1792920581140,
+   "content": [
+    {
+     "type": "toolCall",
+     "id": "call-08",
+     "name": "tool_search",
+     "arguments": {
+      "query": "<redacted>"
+     }
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920582953,
+   "toolName": "tool_search",
+   "toolCallId": "call-08",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "assistant",
+   "timestamp": 1792920582981,
+   "content": [
+    {
+     "type": "toolCall",
+     "id": "call-09",
+     "name": "tool_call",
+     "arguments": {
+      "args": "<redacted>",
+      "id": "<redacted>"
+     }
+    },
+    {
+     "type": "toolCall",
+     "id": "call-10",
+     "name": "exec",
+     "arguments": {
+      "title": "Lire le checkpoint Voix v2",
+      "command": "<redacted>"
+     }
+    },
+    {
+     "type": "toolCall",
+     "id": "call-11",
+     "name": "exec",
+     "arguments": {
+      "title": "Repérer les preuves CI récentes",
+      "command": "<redacted>"
+     }
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920588292,
+   "toolName": "tool_call",
+   "toolCallId": "call-09",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920588307,
+   "toolName": "exec",
+   "toolCallId": "call-10",
+   "isError": true,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920588312,
+   "toolName": "exec",
+   "toolCallId": "call-11",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "assistant",
+   "timestamp": 1792920588343,
+   "content": [
+    {
+     "type": "toolCall",
+     "id": "call-12",
+     "name": "exec",
+     "arguments": {
+      "title": "Localiser les outils de contexte et CI",
+      "command": "<redacted>"
+     }
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920591215,
+   "toolName": "exec",
+   "toolCallId": "call-12",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "assistant",
+   "timestamp": 1792920591252,
+   "content": [
+    {
+     "type": "toolCall",
+     "id": "call-13",
+     "name": "exec",
+     "arguments": {
+      "title": "Trouver les outils canoniques",
+      "command": "<redacted>"
+     }
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920602935,
+   "toolName": "exec",
+   "toolCallId": "call-13",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "assistant",
+   "timestamp": 1792920602960,
+   "content": [
+    {
+     "type": "toolCall",
+     "id": "call-14",
+     "name": "process",
+     "arguments": {
+      "action": "<redacted>",
+      "sessionId": "<redacted>"
+     }
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920614357,
+   "toolName": "process",
+   "toolCallId": "call-14",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "assistant",
+   "timestamp": 1792920614428,
+   "content": [
+    {
+     "type": "toolCall",
+     "id": "call-15",
+     "name": "exec",
+     "arguments": {
+      "title": "Lire le checkpoint exact Voix v2",
+      "command": "<redacted>"
+     }
+    },
+    {
+     "type": "toolCall",
+     "id": "call-16",
+     "name": "exec",
+     "arguments": {
+      "title": "Vérifier le statut actuel de la PR 407",
+      "command": "<redacted>"
+     }
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920618215,
+   "toolName": "exec",
+   "toolCallId": "call-15",
+   "isError": true,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920618226,
+   "toolName": "exec",
+   "toolCallId": "call-16",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "assistant",
+   "timestamp": 1792920618259,
+   "content": [
+    {
+     "type": "toolCall",
+     "id": "call-17",
+     "name": "exec",
+     "arguments": {
+      "title": "Lire le checkpoint exact Voix v2",
+      "command": "<redacted>"
+     }
+    }
+   ]
+  },
+  {
+   "role": "toolResult",
+   "timestamp": 1792920620320,
+   "toolName": "exec",
+   "toolCallId": "call-17",
+   "isError": false,
+   "content": [
+    {
+     "type": "text",
+     "text": "<tool result redacted>"
+    }
+   ]
+  },
+  {
+   "role": "assistant",
+   "timestamp": 1792920620375,
+   "content": [
+    {
+     "type": "text",
+     "text": "<assistant text redacted>"
+    }
+   ]
+  }
+ ]
+}

@@ -28,10 +28,16 @@ const MAX_CARD_STEPS = 12;
 
 const LABELS = {
   fr: {accepted: "Demande reçue", understood: "Demande comprise", clarify: "Précision demandée",
-    execute: "Exécution", answer: "Réponse de Samantha", expired: "Expiré après une inactivité vérifiée."},
+    execute: "Exécution", answer: "Réponse de Samantha", expired: "Expiré après une inactivité vérifiée.",
+    prepare: "Je prépare ta demande"},
   en: {accepted: "Request received", understood: "Request understood", clarify: "Clarification asked",
-    execute: "Execution", answer: "Samantha's answer", expired: "Expired after verified inactivity."},
+    execute: "Execution", answer: "Samantha's answer", expired: "Expired after verified inactivity.",
+    prepare: "Preparing your request"},
 };
+/** Technical event labels of the Gateway transport and of tool calls: never a public step (Amine 25/10/2026, point E). */
+const TECHNICAL_LABEL = /^(?:(?:Calling|Completed|Running|Using|Tool failed)\s+[A-Za-z0-9_.-]+\.?|Completed\.|Working(?:\.\.\.|…)|Thinking\.\.\.|Started OpenClaw session\.|Prepared context\.|Submitted prompt\.|Model response received\.|Saved run artifacts\.|Run finished\.|Run ended with an error\.|Client connection closed\.|OpenClaw submit failed\.)$/;
+const PRIVATE_TECHNICAL_TITLE = /(?:\b(?:exec|read|tool_search|tool_call|memory_search)\b|(?:^|\s)(?:~\/|\/|[A-Za-z]:\\)|\b[\w.-]+\.(?:md|json|py|sh|ts|sqlite)\b|`)/i;
+const TOOL_EVENT = /^tool\.(?:call|result|error)$/;
 const MAX_EVENT_STEPS = 8;
 const BUSINESS_STEP_LABELS: Record<string, {fr: string; en: string}> = {
   provider_selection: {fr: "Sélection des fournisseurs", en: "Provider selection"},
@@ -59,6 +65,59 @@ function publishedBusinessSteps(decision: Record<string, unknown> | undefined, l
     seen.add(value);
     return [{id: `business-${value}`, label: BUSINESS_STEP_LABELS[value][locale]}];
   });
+}
+
+/**
+ * Public steps of a Gateway run from its recorded events. A tool call is shown only by the title the agent wrote for it
+ * (`arguments.title`) and is done once its result is recorded (an errored call is « skipped », the run's own outcome
+ * stays on the answer step). Start-up reads of the context files collapse into one « preparing » line. Untitled tool
+ * calls (searches, memory, process polls) and technical transport labels are never shown. Other readable events
+ * (business labels) keep the historical rule: done, the last one running while the run is.
+ */
+function agentEventSteps(events: CompanionRunProgressEvent[], running: boolean, prepareLabel: string): RunStep[] {
+  const out: (RunStep & {callIds?: string[]})[] = [];
+  const byCall = new Map<string, RunStep & {callIds?: string[]}>();
+  const contextCalls = new Set<string>();
+  let prepare: (RunStep & {callIds?: string[]}) | undefined;
+  let titled = 0;
+  const ordered = events.filter(e => e && typeof e.label === "string").slice().sort((a, b) => Number(a.at || 0) - Number(b.at || 0));
+  for (const event of ordered) {
+    if (TOOL_EVENT.test(event.type)) {
+      const id = typeof event.callId === "string" && event.callId ? event.callId : undefined;
+      if (event.type === "tool.call") {
+        const title = safeLabel(event.title?.trim().replace(/\s+/g, " "));
+        if (event.context) {
+          if (!prepare) { prepare = {id: "prepare", label: prepareLabel, state: "running", at: at(event.at), callIds: []}; out.push(prepare); }
+          if (id) { contextCalls.add(id); prepare.callIds!.push(id); }
+        } else if (title && !TECHNICAL_LABEL.test(title) && !PRIVATE_TECHNICAL_TITLE.test(title)) {
+          const previous = out[out.length - 1];
+          // Identical consecutive steps (a retry under the same title) are one step, in the state of the last attempt.
+          if (previous && previous.label === title && previous.id.startsWith("agent-")) {
+            previous.state = "running"; if (id) { (previous.callIds ||= []).push(id); byCall.set(id, previous); }
+          } else {
+            const step = {id: `agent-${++titled}`, label: title, state: "running" as RunStepState, at: at(event.at), callIds: id ? [id] : []};
+            out.push(step); if (id) byCall.set(id, step);
+          }
+        }
+      } else if (id) {
+        const step = byCall.get(id);
+        if (step && step.callIds?.at(-1) === id) step.state = event.type === "tool.error" ? "skipped" : "done";
+        if (contextCalls.has(id)) { contextCalls.delete(id); if (prepare && contextCalls.size === 0) prepare.state = "done"; }
+      }
+      continue;
+    }
+    const label = safeLabel(event.label);
+    if (!label || TECHNICAL_LABEL.test(label)) continue;
+    const previous = out[out.length - 1];
+    if (previous && previous.label === label) continue;
+    out.push({id: `event-${event.seq ?? out.length + 1}`, label, state: "done", at: at(event.at)});
+  }
+  // Historical rule for readable non-tool events: the last one is running while the run is (nothing finished it).
+  const last = out[out.length - 1];
+  if (running && last && last.id.startsWith("event-")) last.state = "running";
+  // Preparation is over as soon as the agent moved on to a real step.
+  if (prepare && out[out.length - 1] !== prepare) prepare.state = "done";
+  return out.map(({callIds, ...step}) => step);
 }
 
 export function runProgressSteps(run: RunProgressSource): RunProgressSteps | undefined {
@@ -113,17 +172,17 @@ export function runProgressSteps(run: RunProgressSource): RunProgressSteps | und
     if (run.state === "done") steps.push({id: "answer", label: t.answer, state: "done", at: ended});
     if (run.state === "failed") { steps.push({id: "answer", label: t.answer, state: "failed", at: ended}); failedStep = failedStep || t.answer; }
   } else {
-    // Gateway runs: each recorded progress event is a real step; the last one is running while the run is.
-    const events = (run.events || []).filter(e => safeLabel(e?.label)).slice(-MAX_EVENT_STEPS);
+    // Gateway runs without a card (Amine 25/10/2026, point E): the agent's own tool titles, never a tool name, never the
+    // start-up context reads (at most one « preparing » line), identical consecutive steps merged, and a finished step
+    // never keeps the running icon.
     const running = run.state === "running" || run.state === "queued";
-    events.forEach((event, index) => {
-      const last = index === events.length - 1;
-      steps.push({id: `event-${event.seq ?? index + 1}`, label: event.label,
-        state: last && running ? "running" : "done", at: at(event.at)});
-    });
+    const eventSteps = agentEventSteps(run.events || [], running, t.prepare).slice(-MAX_EVENT_STEPS);
+    if (run.state === "done") for (const step of eventSteps) if (step.state === "running") step.state = "done";
+    if (run.state === "failed") for (const step of eventSteps) if (step.state === "running") step.state = "skipped";
+    steps.push(...eventSteps);
     if (run.state === "done") steps.push({id: "answer", label: t.answer, state: "done", at: ended});
     if (run.state === "failed") { steps.push({id: "answer", label: t.answer, state: "failed", at: ended}); failedStep = t.answer; }
-    if (running && events.length === 0) steps.push({id: "answer", label: t.answer, state: "running"});
+    if (running && !eventSteps.some(step => step.state === "running")) steps.push({id: "answer", label: t.answer, state: "running"});
   }
 
   const result: RunProgressSteps = {steps, effect: {debited: "unknown", source: "receipt"}};
@@ -133,4 +192,9 @@ export function runProgressSteps(run: RunProgressSource): RunProgressSteps | und
     if (cause) result.cause = cause;
   }
   return result;
+}
+
+/** A transport/tool label (« Calling exec. », « Completed read. », « Completed. ») that must not reach Amine as live text. */
+export function isTechnicalProgressLabel(label: unknown): boolean {
+  return typeof label !== "string" || !label.trim() || TECHNICAL_LABEL.test(label.trim());
 }

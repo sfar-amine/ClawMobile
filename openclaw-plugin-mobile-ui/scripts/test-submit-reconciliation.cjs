@@ -111,7 +111,7 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   assert.equal(directStatus.state, "done");
   assert.equal(directStatus.result, "CAPABILITY_FIRST_DIRECT_OK");
   assert.equal(directStatus.message, "CAPABILITY_FIRST_DIRECT_OK");
-  assert.equal(directStatus.progress.text, "Completed.");
+  assert.equal(directStatus.progress.text, "Exécution"); // L6: public progress never exposes transport text.
 
   const directRegistry = JSON.parse(fs.readFileSync(
     path.join(process.env.OPENCLAW_STATE_DIR, "clawmobile-companion", "runs.json"),
@@ -173,7 +173,7 @@ const { runSubmissionStatusCode } = require("../dist/companion/server.js");
   assert.equal(clarificationStored.state, "done");
   assert.equal(clarificationStored.result, "Tu veux consulter ou agir ?");
   assert.equal(clarificationStored.message, "Tu veux consulter ou agir ?");
-  assert.equal(clarificationStored.progress.text, "Completed.");
+  assert.equal(clarificationStored.progress.text, "Précision demandée"); // Question and pending clarification remain unchanged.
   const clarificationRegistry = JSON.parse(fs.readFileSync(
     path.join(process.env.OPENCLAW_STATE_DIR, "clawmobile-companion", "runs.json"),
     "utf8",

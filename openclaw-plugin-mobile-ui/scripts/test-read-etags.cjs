@@ -8,7 +8,10 @@ const budgets=Object.fromEntries(JSON.parse(cp.execFileSync('python3',['-c',"imp
  const registryPath=path.join(root,'clawmobile-companion/runs.json');await fs.writeFile(registryPath,JSON.stringify(registry.response));
  const native=JSON.parse(sync.readFileSync(path.join(dir,'i1/native-automations.json')));assert.equal(native._capture.sanitized,true);
  await fs.mkdir(path.join(root,'reporting'));await fs.writeFile(path.join(root,'reporting/__init__.py'),'');await fs.writeFile(path.join(root,'native.json'),JSON.stringify(native.response));
- await fs.writeFile(path.join(root,'reporting/control_snapshot.py'),`import time\nfrom pathlib import Path\ntime.sleep(${native._capture.latencyMs/1000})\nprint((Path(__file__).parent.parent/'native.json').read_text())\n`);
+ // Two distinct owner modes: this isolated fixture has no state/openclaw.sqlite,
+ // so the digest-only revision is unavailable immediately, while the snapshot
+ // keeps its captured2290ms latency. Never make the revision probe sleep as a collector.
+ await fs.writeFile(path.join(root,'reporting/control_snapshot.py'),`import json,sys,time\nfrom pathlib import Path\nr=Path(__file__).parent.parent\nrevision='--automation-revision' in sys.argv\nwith (r/'control-modes').open('a') as modes:modes.write(('revision' if revision else 'snapshot')+'\\n')\nif revision:\n print(json.dumps({'schemaVersion':1,'sourceRevision':None}));sys.exit(0)\ntime.sleep(${native._capture.latencyMs/1000})\nprint((r/'native.json').read_text())\n`);
  const methods={};for(const name of ['config.get','models.list','models.authStatus','sessions.list','usage.status','agents.files.list','agents.files.get'])methods[name]=captured(name);
  methods['config.get'].response=JSON.parse(sync.readFileSync(path.join(dir,'ui-recette/gateway.config.get.json'))).response;
  const usageTotals=JSON.parse(sync.readFileSync(path.join(dir,'p0-3/sessions.usage.json'))).response;
@@ -49,6 +52,9 @@ const budgets=Object.fromEntries(JSON.parse(cp.execFileSync('python3',['-c',"imp
   const descriptor=Object.getOwnPropertyDescriptor(performance,'now');let frozen=performance.now();Object.defineProperty(performance,'now',{configurable:true,value:()=>frozen});
   try{const a=await unchanged('/v1/control/automations?contract=2');frozen+=25;const aged=await request('/v1/control/automations?contract=2',{'If-None-Match':a.headers.etag});strong(aged);assert.notEqual(aged.headers.etag,a.headers.etag,'TTL change is a changed representation, never weakly ignored');}
   finally{if(descriptor)Object.defineProperty(performance,'now',descriptor);else delete performance.now;}
+  const controlModes=(await fs.readFile(path.join(root,'control-modes'),'utf8')).trim().split('\n');
+  assert.ok(controlModes.includes('revision'),'the digest-only owner mode is exercised');
+  assert.equal(controlModes.filter(mode=>mode==='snapshot').length,1,'prewarm serves exact200/304 without recollecting the snapshot');
   for(const url of ['/v1/agent/config','/v1/providers','/v1/usage','/v1/files?scope=agent','/v1/control/automations?contract=2','/v1/runs?contract=2&view=conversations']){
    for(const headers of [{Origin:'https://cross.invalid'},{Referer:'https://cross.invalid'},{'Sec-Fetch-Site':'cross-site'}]){const r=await request(url,{...headers,'If-None-Match':'*'});assert.equal(r.status,403,url);assert.equal(r.headers.etag,undefined);}
    const invalid=await request(url.startsWith('/v1/runs')?'/v1/runs?contract=2&view=conversations&limit=0':url+(url.includes('?')?'&':'?')+'unsupported=1',{'If-None-Match':'*'});assert.notEqual(invalid.status,304,url);
