@@ -45,9 +45,9 @@ const KEY='agent:main:companion-chat-samantha-1';
   const failed=runProgressSteps({executionSource:'gateway',state:'failed',acceptedAt:1000,updatedAt:3000,card});
   assert.deepEqual(failed.steps.map(s=>s.state),['done','done','failed','skipped','failed']);assert.equal(failed.failedStep,'Je compare avec le mois dernier');
  });
- await test('without a card, the existing tool-event steps are unchanged',()=>{
+ await test('without a card, a tool name never becomes a step (point E, test-run-progress-titles.cjs)',()=>{
   const steps=runProgressSteps({executionSource:'gateway',state:'running',acceptedAt:1000,events:[{type:'tool.call',label:'Calling read.',at:1100,seq:1}]});
-  assert.deepEqual(steps.steps.map(s=>s.label),['Demande reçue','Calling read.']);
+  assert.deepEqual(steps.steps.map(s=>s.label),['Demande reçue','Réponse de Samantha']);
   assert.equal(runs.withProgressCard(undefined,null),undefined);
  });
  console.log(JSON.stringify({passed,failed:0,fixture:'s24-2026-10-25-voice-brain/progress-card-get.json'}));
