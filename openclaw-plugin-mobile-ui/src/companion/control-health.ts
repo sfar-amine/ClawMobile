@@ -1,6 +1,8 @@
 import { open } from "fs/promises";
 import { constants } from "fs";
 import { createHash } from "crypto";
+import {turnMeasurementFacts} from "./runs";
+import {summarizeTurnMeasurements} from "./turnBudget";
 import { comprehensionRunFacts, type ComprehensionRunFact } from "./runs";
 
 const labels: Record<string, {fr: string; en: string}> = {
@@ -107,6 +109,23 @@ export function projectComprehension(input: {facts: ComprehensionRunFact[]; reta
   };
 }
 
+/** The existing retained run registry is the only source; missing observations are not successful samples. */
+export function projectTurnLatency(input: Awaited<ReturnType<typeof turnMeasurementFacts>> | null, now = Date.now()) {
+  if (!input) return {status: "unknown", source: "runs", windows: null};
+  const facts = input.facts.filter(f => Number.isFinite(f.acceptedAt) && f.acceptedAt > 0 && f.acceptedAt <= now);
+  return {source: "runs", status: facts.length ? "measured" : "unknown", retainedRuns: input.retainedRuns,
+    windows: Object.fromEntries(WINDOWS.map(([id, span]) => [id, {
+      retentionComplete: input.retainedRuns < input.retainedCap || input.oldestRunAt !== null && input.oldestRunAt <= now - span,
+      measurementCoverage: "observed_only",
+      surfaces: summarizeTurnMeasurements(facts.filter(f => f.acceptedAt >= now - span).map(f => f.measurement)),
+    }]))};
+}
+
+/** One bounded read for model-role projections; a surface never proves an internal model flow. */
+export async function readModelFlowTurnLatency() {
+  return projectTurnLatency(await turnMeasurementFacts().catch(()=>null));
+}
+
 export async function completeHealthSection(result: any, source: string, now = Date.now()) {
   const section = result?.sections?.health;
   if (!section?.data) return result;
@@ -120,7 +139,8 @@ export async function completeHealthSection(result: any, source: string, now = D
   } catch { /* Missing/invalid authority does not invent a health result. */ }
   section.data = projectHealthComponents(section.data, verdict, now);
   if (section.data && typeof section.data === "object" && !Array.isArray(section.data)) {
-    section.data = {...section.data, comprehension: projectComprehension(await comprehensionRunFacts().catch(() => null), now)};
+    section.data = {...section.data, comprehension: projectComprehension(await comprehensionRunFacts().catch(() => null), now),
+      turnLatency: projectTurnLatency(await turnMeasurementFacts().catch(() => null), now)};
   }
   section.dataRevision = createHash("sha256").update(JSON.stringify(["health-components-c12-v1", section.dataRevision, section.data])).digest("hex");
   return result;

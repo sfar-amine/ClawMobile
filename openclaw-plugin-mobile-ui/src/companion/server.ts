@@ -1,3 +1,4 @@
+import {createNativeTurnProgressOwner} from "../nativeTurnProgressOwner";
 import {readAutomationRuns,invalidateAutomationViews} from "./automationRunsPreparation";
 import { callOpenClawGateway, closeOpenClawGateway } from "./openclawAgentClient";
 import { INTERPRET_METHOD, IMMUNE_PURPOSE } from "../intentInterpreterPort";
@@ -57,7 +58,7 @@ import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from ".
 import { clawLiveCapability, clawLiveDecision } from "./clawLiveUnderstanding";
 import { startVoiceRelay, stopVoiceRelay, voiceRelayHealth } from "./voiceRelay";
 import { deleteNostrContact, fetchNostrInbox, getNostrStatus, listNostrContacts, sendNostrAgentMessage, setupNostrIdentity, shareSkillViaNostr, upsertNostrContact } from "./nostr";
-import { archiveSession, deleteSession, deleteRun, getRunStatus, getRunStatusByClientRunId, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
+import { archiveSession, deleteSession, deleteRun, getRunStatus, getRunStatusByClientRunId, listRuns, listRunSummaries, getConversationTurns, saveVoiceTurn, recordTurnMeasurement, conversationSummariesPage, conversationTurnsPage, subscribeConversationChanges } from "./runs";
 import { getWorkspaceSkill, listWorkspaceSkills, previewWorkspaceSkill, routeWorkspaceSkills, runWorkspaceFastPath, runWorkspaceSkill } from "./skills";
 import { acceptSkillImport, createSkillSharePackage, listPendingSkillImports, rejectSkillImport, storePendingSkillImport } from "./skillSharing";
 import type { CompanionHealth, CompanionRunStatus, IntentAttachment, RunCreateRequest, TerminalCommandRequest, TerminalCommandResponse, TerminalSessionRequest, TerminalSessionResponse } from "./types";
@@ -83,6 +84,8 @@ type TerminalShellSession = {
   running: boolean;
   updatedAt: number;
 };
+
+const nativeTurnProgressOwner=createNativeTurnProgressOwner();
 
 /** Une relecture refusée (source absente, active, déjà remplacée…) n'a rien soumis : 404/409 plutôt que 503. */
 export function replayRefusalStatusCode(result: { success?: boolean; submissionState?: string; message?: string }) {
@@ -1555,6 +1558,33 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     writeJson(res, 200, {
       runs: summary ? await listRunSummaries({ limit }) : await listRuns({ limit }),
     });
+    return;
+  }
+
+  const measurementMatch = routePath.match(/^\/runs\/([^/]+)\/measurement$/);
+  if (measurementMatch) {
+    if (!isLoopback || req.headers.origin || req.headers.referer || req.headers["sec-fetch-site"] ||
+        req.headers["x-clawmobile-owner-flow"] !== "v1") {
+      writeJson(res, 403, {success: false, error: "native_loopback_owner_required"}); return;
+    }
+    if (method !== "POST") {writeJson(res, 405, {success: false, error: "method_not_allowed"}); return;}
+    try {
+      const body = await readJsonBody<any>(req, 4096);
+      let result;
+      if(body?.operation) result=await nativeTurnProgressOwner.observe(decodeURIComponent(measurementMatch[1]),body);
+      else {
+        if (!body || typeof body !== "object" || Array.isArray(body) ||
+            Object.keys(body).length !== 2 || typeof body.sessionId !== "string" || !body.measurement)
+          throw Object.assign(new Error("invalid_turn_measurement"), {statusCode: 400});
+        result = await recordTurnMeasurement(decodeURIComponent(measurementMatch[1]), body.sessionId, body.measurement);
+      }
+      res.setHeader("Cache-Control", "no-store"); writeJson(res, 200, result);
+    } catch (e: any) {
+      const status = [400, 403, 404, 409].includes(e?.statusCode) ? e.statusCode : 503;
+      const error = ["invalid_turn_measurement", "run_not_found", "turn_measurement_identity_conflict",
+        "turn_measurement_already_final", "turn_measurement_not_final", "native_turn_observation_disabled", "native_turn_owner_required"].includes(e?.message) ? e.message : "turn_measurement_unavailable";
+      writeJson(res, status, {success: false, error});
+    }
     return;
   }
 
