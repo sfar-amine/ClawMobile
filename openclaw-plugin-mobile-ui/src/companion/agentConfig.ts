@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import {readModelOwnerFresh,configuredModelAllow,modelReferenceAllowed,configuredModelFlow,includedModelAccounts,CONTACT_MODEL_AGENTS} from "./modelOwner";
+import {readModelOwnerFresh,configuredModelAllow,modelReferenceAllowed,configuredModelFlow,includedModelAccounts,CONTACT_MODEL_AGENTS,observeVerifiedModelOwnerConfig} from "./modelOwner";
 import {confirmations} from "./confirmations";
 import {callOpenClawGateway} from "./openclawAgentClient";
 import {readPaymentRequests,readOwnerConfirmations,getRunStatus,latestModelFlowConfiguration,checkpointModelFlowConfiguration} from "./runs";
@@ -208,15 +208,17 @@ function flowAgents(flow:EditableModelFlow):string[]{return flow==='whatsapp'?['
 function selectedFlowModels(owner:any,flow:EditableModelFlow,defaults:any){
  const config=configObject(owner.raw),rows=owner.catalog?.models;
  if(!Array.isArray(rows)||rows.length>2000)throw nativeError('agent_models_unavailable',503);
- return rows.flatMap((row:any)=>{
+ const choices=rows.flatMap((row:any)=>{
   if(!identifier.test(row?.id||'')||!identifier.test(row?.provider||'')||row.available!==true||config.plugins?.entries?.[row.provider]?.enabled===false)return [];
   const base=row.id.startsWith(row.provider+'/')?row.id:row.provider+'/'+row.id;
   if(!flowAgents(flow).every(id=>modelReferenceAllowed(configuredModelAllow(config,id),base)))return [];
   const thinking=thinkingFor(row,defaults);
   return includedModelAccounts(base,owner.auth,owner.policy).map(account=>({id:row.id,provider:row.provider,ref:publicModelRef(account.reference),account:account.account,
    accountLabel:row.provider+' · compte connecté',costPolicy:account.costPolicy,costProofSource:account.source,reasoning:row.reasoning===true,
-   thinkingLevels:thinking.levels,thinkingDefault:thinking.default,thinkingSource:thinking.source,fastModeSupported:row.provider==='openai'}));
+   thinkingLevels:thinking.levels,thinkingDefault:thinking.default,thinkingSource:thinking.source,fastModeSupported:row.provider==='openai'&&/^openai\/gpt-5\.6-(sol|terra|luna)$/.test(base)}));
  });
+ if(choices.length>256||new Set(choices.map(row=>row.ref)).size!==choices.length)throw nativeError('agent_models_unavailable',503);
+ return choices;
 }
 function flowPaths(flow:EditableModelFlow):string[][]{
  if(flow==='conversation_summary')return [['agents','defaults','compaction','model']];
@@ -373,7 +375,7 @@ async function changeModelFlowConfigOnce(body:any){
  try{
   if(await protectedActivity())state='refused';
   else{
-   const preservation=flow==='conversation_summary'?{state:'verified',preserved:0}:await preserveModelFlowSessions(flow,config,body.operationId);
+   const preservation=await preserveModelFlowSessions(flow,config,body.operationId);
    if(preservation?.state!=='verified')throw nativeError('model_flow_new_session_policy_unverified',409);
    const fresh=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:3000});if(fresh?.hash!==body.revision)throw nativeError('agent_config_revision_changed',409);
    const patch:any={};for(const path of flowPaths(flow)){const value=objectAt(next,path);setFlowPath(patch,path,value.present?(value as any).value:null);}for(const path of flowContainers(flow))if(!objectAt(next,path).present)setFlowPath(patch,path,null);
@@ -381,13 +383,13 @@ async function changeModelFlowConfigOnce(body:any){
    let dispatchError:any;try{await callOpenClawGateway('config.patch',{baseHash:body.revision,raw:JSON.stringify(patch),replacePaths:flowPaths(flow).map(row=>row.join('.'))});}catch(error){dispatchError=error;}
    const observed=await callOpenClawGateway('config.get',{}, {hardTimeoutMs:4000});
    if(flowHash(flowSnapshot(configObject(observed),flow))===flowHash(applied)){
-    state='completed';invalidateAgentConfigCache();invalidateSessionDefaults();
+    state='completed';invalidateAgentConfigCache();invalidateSessionDefaults();observeVerifiedModelOwnerConfig({...owner,raw:observed});
     let continuity='pending';try{const event=await memoryRemember({surface:'app',kind:'completed_action',text:'Modèles par flux : configuration '+flow+' vérifiée ; reçu '+reserved.status.runId+'. Aucun droit ni contexte de contact modifié.'});if(event.state==='recorded')continuity='recorded';}catch{}
     artifact={configurationRevision:observed.hash,flow,preservedSessions:preservation.preserved,continuity};
    }else if(dispatchError&&/baseHash|hash mismatch|config.*changed|revision.*conflict/i.test(String(dispatchError?.message||''))){state='refused';artifact={reason:'agent_config_revision_changed'};}
    else if(dispatchError&&['ECONNREFUSED','ENOENT'].includes(String(dispatchError?.code||''))){state='failed';artifact={reason:'gateway_unreachable',effectNotStarted:true};}
   }
- }catch(error:any){if(error?.statusCode===409&&error?.message==='agent_config_revision_changed'){state='refused';artifact={reason:error.message};}}
+ }catch(error:any){if(error?.statusCode===409&&/^(agent_config_revision_changed|model_flow_[a-z_]+|conversation_[a-z_]+)$/.test(error?.message||'')){state='refused';artifact={reason:error.message};}}
  const result={success:state==='completed',state,...(artifact?{artifact}:{}),receipt:{version:2,action:'agent.config',flow,target,operationId:body.operationId,runId:reserved.status.runId,state,at:reserved.status.submittedAt,previous,appliedHash:flowHash(applied)}};
  await settleSubmittedRun(reserved.status.runId,'done',JSON.stringify(result));
  const saved=await findSubmittedRunByClientRunId(clientId,{text:identity,sessionId});return saved?flowResult(saved):{success:false,state:'indeterminate',receipt:null};

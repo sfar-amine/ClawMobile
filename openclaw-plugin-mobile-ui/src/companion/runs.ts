@@ -813,7 +813,12 @@ export async function checkpointModelFlowConfiguration(runId:string,value:any):P
 /** Read-only admission observation for the existing session/model owner; no new lock or lease store. */
 export async function readModelFlowConfigurationActivity(){
  const rows=await readStoredRuns(false);
- return rows.filter(run=>run.sessionId==='native-owner-actions'&&run.decision?.capability==='agent.config'&&['brain','conversation_summary','whatsapp'].includes(String(run.decision?.modelFlow))&&run.state!=='done'&&run.state!=='failed')
+ return rows.filter(run=>{
+  if(run.sessionId!=='native-owner-actions'||run.decision?.capability!=='agent.config'||!['brain','conversation_summary','whatsapp'].includes(String(run.decision?.modelFlow)))return false;
+  if(run.state!=='done'&&run.state!=='failed')return true;
+  if(typeof run.result!=='string'||run.result.length>65536)return true;
+  try{return !['completed','refused','failed'].includes(JSON.parse(run.result)?.state);}catch{return true;}
+ })
   .map(run=>({runId:run.runId,operationId:run.clientRunId,flow:run.decision?.modelFlow,state:run.state??'unknown',acceptedAt:run.acceptedAt}));
 }
 
