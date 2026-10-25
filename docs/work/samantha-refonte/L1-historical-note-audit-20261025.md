@@ -1,0 +1,7 @@
+# Audit historique des fiches L1
+
+PR418 a été intégrée en 74b2da20a214f2d27dc561d404947e0b6bee4928 sur runtime/samantha-companion-private. Son head 5d64ce661459f0ecf30b2a3b44665c9da0cebf4b a passé la CI canonique hors téléphone (trois jobs, 157 étapes), preuve l1-core418-5d64ce66-v2-localci.log, SHA256 a0f134e5c08d27d6f12363c91ee3e3cb0cc63dc7bf0eb3cd9687ebe4282a75d4. La première panne Q13 reste conservée. Cette preuve concerne les tests au head cité, pas une recette S24 ou une baseline L1.
+
+La fiche JSON version 2 d’origine utilise une structure non conforme au validateur canonique playbooks skill_intelligence.delivery_contract (scope/files, tests objet, noms d’évaluations et merge_eligibility). Elle n’a donc jamais été attestée ici comme strictement valide par ce validateur. Le champ version 2 ne suffisait pas. L’historique de 418 n’est ni réécrit ni forcé ; son intégration n’est pas présentée comme une validation rétrospective de la fiche.
+
+La correction du contrat des fiches se fait dans les PR de source ouvertes, avec scope correspondant au diff propre de chaque PR et preuves réellement passées. La fiche app 417 est corrigée sur sa propre branche avant l’intégration future de 421, selon le feu du responsable ; son code reste gelé. Les tests CI passés ne remplacent pas le run mal compris réel, le geste unique not-this et le delta du compteur Compréhension. L1 reste sans recette réelle/clôture à ce stade.
