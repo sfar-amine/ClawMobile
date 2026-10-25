@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Offline fail-closed tests for canonical localci.py, including its S24 profile (synthetic, no device)."""
+"""Canonical CI contracts: synthetic workflows plus the real pinned PB schema (read-only Git fetch, no device)."""
 import contextlib
+import atexit
+import json
 import os
 import re
 import shutil
@@ -11,6 +13,48 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import localci
+
+
+# One real immutable PB checkout for the schema integration tests. No schema
+# source or fake validator is embedded in these fixtures; no runtime effects.
+_delivery_owner_temp = None
+
+def pinned_delivery_owner():
+    global _delivery_owner_temp
+    if _delivery_owner_temp is None:
+        _delivery_owner_temp = tempfile.TemporaryDirectory(prefix="localci-contract-test-")
+        atexit.register(_delivery_owner_temp.cleanup)
+        owner = Path(_delivery_owner_temp.name) / "samantha-ui-playbooks"
+        localci._checkout_delivery_owner(owner)
+    return Path(_delivery_owner_temp.name) / "samantha-ui-playbooks"
+
+
+def fixture_delivery_record(case):
+    folder = case.repo / "docs/changes"; folder.mkdir(parents=True, exist_ok=True)
+    case.note = folder / "synthetic-delivery.json"
+    doc = folder / "synthetic-delivery.md"
+    doc.write_text("Synthetic delivery fixture only; no physical test or production qualification is claimed. Range base: " + case.base_sha + "\n")
+    case.git("add", ".")
+    files = set(case.git("diff", "--cached", "--name-only", case.base_sha).splitlines())
+    files.add("docs/changes/synthetic-delivery.json")
+    note = {"version":2,"id":"synthetic-delivery","origin":"chat","kind":"maintenance",
+            "summary":"Synthetic fixture for CI admission tests", "reason":"Exercise the real pinned common delivery contract",
+            "rollback":"Remove the isolated synthetic test checkout", "merge_eligibility":"allowed","deployment_state":"not_applied",
+            "files":sorted(files),"tests":[{"name":"synthetic fixture","status":"passed","evidence":"Authored test metadata; not a real production assertion"}],
+            "documentation":["docs/changes/synthetic-delivery.md"],"capabilities":{"impact":"none","reason":"Synthetic source admission fixture only"},
+            "architecture":{"changed":False,"reason":"No runtime change in this test fixture"}}
+    case.note.write_text(json.dumps(note))
+    case.git("add", ".")
+    case.git("commit", "-qm", "synthetic documented change")
+    case.head=case.git("rev-parse", "HEAD")
+
+
+def use_real_delivery_owner(case):
+    owner = pinned_delivery_owner()
+    gate = patch.object(localci, "validate_core_delivery", side_effect=lambda repo,base,head:
+                        localci._validate_at_delivery_owner(owner,repo,base,head))
+    gate.start();case.addCleanup(gate.stop)
+
 
 class LocalCiUnitTests(unittest.TestCase):
     def test_android_failure_reports_survive_disposable_checkout_without_following_links(self):
@@ -270,6 +314,8 @@ PYOWNER
         self.git("add", ".")
         self.git("commit", "-qm", "versioned Android owner")
         self.head = self.git("rev-parse", "HEAD")
+        fixture_delivery_record(self)
+        use_real_delivery_owner(self)
 
     def run_owner(self, mode="good"):
         with self.fake_gh(self.head), patch.dict(os.environ, {
@@ -283,6 +329,13 @@ PYOWNER
         self.assertIn("LOCALCI_RESULT exit=0 sha=" + self.head, output)
         self.assertTrue(self.log.with_name("out-android").joinpath("build.json").is_file())
         self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+    def test_invalid_delivery_note_prevents_android_build(self):
+        value=json.loads(self.note.read_text());value['merge_eligibility']='requires_canonical_ci';self.note.write_text(json.dumps(value))
+        self.git("add",".");self.git("commit","-qm","invalid documentary eligibility");self.head=self.git("rev-parse","HEAD")
+        with self.assertRaisesRegex(localci.LocalCIError,"merge_eligibility_required"):self.run_owner()
+        self.assertFalse(self.log.with_name("out-android").exists())
+        self.assertEqual(len(self.git("worktree","list").splitlines()),1)
 
     def test_invalid_receipts_fail_closed(self):
         for mode in ("sha", "failures", "errors", "skipped", "empty", "boolean", "checksum", "versions", "malformed", "missing"):
@@ -343,6 +396,66 @@ PYOWNER
         with self.assertRaisesRegex(localci.LocalCIError, "already exists"):
             self.run_owner()
 
+
+
+
+class LocalCiCoreDeliveryTests(unittest.TestCase):
+    """Real pinned schema on tiny Core workflows; no SDK/build/model/device."""
+    fake_gh = LocalCiSyntheticReplayTests.fake_gh
+
+    def setUp(self):
+        LocalCiSyntheticReplayTests.setUp(self)
+        old=self.repo;self.repo=old.with_name("samantha-core");old.rename(self.repo)
+        self.git("remote","set-url","origin","https://github.com/example/samantha-core.git")
+        gh=self.bin/"gh";gh.write_text(gh.read_text().replace("samantha-context-private","samantha-core"))
+        (self.repo/".github/workflows/context-contract.yml").unlink()
+        self.marker=self.repo.parent/"workflow-started"
+        self.workflow=self.repo/".github/workflows/ci.yml"
+        self.workflow.write_text("jobs:\n  source:\n    steps:\n      - run: touch " + str(self.marker) + "\n")
+        fixture_delivery_record(self)
+        use_real_delivery_owner(self)
+
+    def replay(self):
+        with self.fake_gh(self.head):
+            return localci.run_ci(str(self.repo),self.head,"5",str(self.log))
+
+    def change_note(self, edit):
+        value=json.loads(self.note.read_text());edit(value);self.note.write_text(json.dumps(value))
+        self.git("add",".");self.git("commit","-qm","changed note");self.head=self.git("rev-parse","HEAD")
+
+    def test_valid_v2_uses_real_pinned_owner_then_runs_workflow(self):
+        self.assertEqual(self.replay(),0);self.assertTrue(self.marker.exists())
+        self.assertIn(localci.DELIVERY_OWNER_SHA,self.log.read_text())
+        self.assertIn('"strict_v2": true',self.log.read_text())
+
+    def test_v1_is_refused_without_a_policy_file_in_core_base(self):
+        self.change_note(lambda n:n.update(version=1))
+        with self.assertRaisesRegex(localci.LocalCIError,"change_record_v2_required"):self.replay()
+        self.assertFalse(self.marker.exists());self.assertEqual(len(self.git("worktree","list").splitlines()),1)
+
+    def test_old_object_shape_does_not_become_valid_from_its_v2_label(self):
+        def old_shape(n):n['scope']={'files':n.pop('files')}
+        self.change_note(old_shape)
+        with self.assertRaisesRegex(localci.LocalCIError,"missing_file_scope"):self.replay()
+        self.assertFalse(self.marker.exists())
+
+    def test_inherited_legacy_note_is_not_revalidated(self):
+        legacy=self.repo/"docs/changes/historical.json";legacy.write_text('{"historical":"not a current change"}')
+        self.git("add",".");self.git("commit","-qm","inherited history");self.base_sha=self.git("rev-parse","HEAD")
+        self.workflow.write_text(self.workflow.read_text()+"      - run: echo current\n")
+        fixture_delivery_record(self)
+        self.assertEqual(self.replay(),0)
+
+    def test_pr_package_and_pythonpath_cannot_replace_the_pinned_validator(self):
+        hostile=self.repo.parent/"hostile/skill_intelligence";hostile.mkdir(parents=True)
+        (hostile/"__init__.py").write_text("")
+        (hostile/"delivery_contract.py").write_text("raise RuntimeError('foreign validator loaded')")
+        with patch.dict(os.environ,{"PYTHONPATH":str(hostile.parent)}):self.assertEqual(self.replay(),0)
+
+    def test_missing_changed_note_blocks_before_worktree_or_workflow(self):
+        self.note.unlink();self.git("add",".");self.git("commit","-qm","missing note");self.head=self.git("rev-parse","HEAD")
+        with self.assertRaisesRegex(localci.LocalCIError,"change_documentation_required"):self.replay()
+        self.assertFalse(self.marker.exists());self.assertEqual(len(self.git("worktree","list").splitlines()),1)
 
 
 class LocalCiPrivateProofTests(LocalCiSyntheticReplayTests):

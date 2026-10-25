@@ -1,0 +1,106 @@
+{
+  "version": 2,
+  "id": "owner-foundation-l2-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Share the bounded playbooks owner foundation across native cacheable SDK bootstrap, Companion app/voice context and MCP, preserving Contacts isolation.",
+  "reason": "Injecter le socle commun et préserver son préfixe stable sans startup rereads, avec les mêmes barrières mémoire et isolation Contacts. Intégration et CI complètes restent attendues avant activation.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-owner-foundation.md",
+    "docs/08-decisions/ADR-20261025-tier0-readiness-before-soak.md",
+    "docs/08-decisions/ADR-20261025-voice-asynchronous-readback.md",
+    "docs/changes/owner-foundation-l2-20261025.json",
+    "docs/changes/owner-foundation-l2-20261025.md",
+    "docs/changes/refonte-l4-voice-async-20261025.json",
+    "docs/changes/refonte-l4-voice-async-20261025.md",
+    "docs/changes/tier0-readiness-before-soak-20261025.json",
+    "docs/changes/tier0-readiness-before-soak-20261025.md",
+    "installer/termux-lite/health-verdict.py",
+    "installer/termux-lite/install-tier0-control.py",
+    "installer/termux-lite/test-tier0-activation-readiness.py",
+    "installer/termux-lite/tier0-control.py",
+    "installer/termux-lite/tier0-watchdog.py",
+    "openclaw-plugin-mobile-ui/fixtures/foundations/s24-tier0-activation-20261025.PROVENANCE.md",
+    "openclaw-plugin-mobile-ui/fixtures/foundations/s24-tier0-activation-20261025.json",
+    "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-foundation/sdk-context.json",
+    "openclaw-plugin-mobile-ui/fixtures/voice-async/PROVENANCE.md",
+    "openclaw-plugin-mobile-ui/fixtures/voice-async/s24-question-v1-metadata.json",
+    "openclaw-plugin-mobile-ui/scripts/test-mcp-foundation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-turn-budget.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-async-readback.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-brain-delegation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-option-a.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-readback-persistence.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-warm-v2-ownership.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/turnBudget.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/ownerBootstrapContext.ts"
+  ],
+  "documentation": [
+    "docs/changes/owner-foundation-l2-20261025.md",
+    "docs/08-decisions/ADR-20261025-owner-foundation.md"
+  ],
+  "tests": [
+    {
+      "name": "Focused foundation context contract",
+      "status": "passed",
+      "evidence": "Preuve root d6a952cb : suite owner-foundation passée avec options tsconfig du dépôt, deux révisions mémoire préservant le préfixe stable. Les autres tests source initiaux sont conservés ; ceci ne qualifie pas encore les nouvelles assertions loader ni le head intégré final."
+    },
+    {
+      "name": "Canonical host loader focused assertions",
+      "status": "passed",
+      "evidence": "Four assertions from the existing owner-foundation test block executed against the canonical shell loader with an authored temporary env file : persisted0/1 and inherited precedence PASS. Proof /workspace/refonte-evidence/l2-core-host-loader-focused.log. node --check and git diff integrity PASS. Voice-context regression case registered but not executed yet; final integrated TS/CI pending."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "NO_CAPABILITY : observation/instrumentation interne des propriétaires existants ; aucune nouvelle action métier, permission ni voie de paiement."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Extension des propriétaires existants ; aucun store, routeur, ordonnanceur ou service parallèle.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-owner-foundation.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "updated",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Comparaison des primitives et de leurs entrées : contexte fondation optionnel seulement si indiqué, aucun changement d’autorité. Adaptateurs/fixtures et tests jumelés inscrits dans leur CI. Aucune parité live ni CI intégrée finale revendiquée."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Disable host flag and restore previous paired pins with owner deployment scripts.",
+  "routes": [
+    {
+      "route": "claw_context",
+      "change": "single bounded foundation read with delivered-byte hash",
+      "budget": "<=6000estimated UTF8/4 tokens; producer subprocess1500ms bound",
+      "capability": "NO_CAPABILITY: context read only"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import {nativeTurnProgressHooks} from "./nativeTurnProgress";
+import {ownerFoundationHook} from "./ownerBootstrapContext";
 import {
   android_health,
   android_screenshot,
@@ -192,6 +193,7 @@ function register(api: any) {
   api.on("message_sent",nativeProgress.sent);
   api.on("model_call_ended",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"model"));
   api.on("after_tool_call",(event:any,ctx:any)=>nativeProgress.stage(event,ctx,"tool"));
+  api.on("before_prompt_build", ownerFoundationHook);
 
   // SDK 2026.9.6 emits this accepted-turn observation without awaiting it.
   // Private QA owners admit an existing DRAFT before any staged bytes are read.
