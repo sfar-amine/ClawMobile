@@ -63,4 +63,12 @@ test('technical transport labels never become steps nor live text',()=>{
  for(const l of ['Calling exec.','Completed read.','Tool failed exec.','Completed.','Working...','Started OpenClaw session.',''])assert.ok(isTechnicalProgressLabel(l),l);
  for(const l of ['Lire le checkpoint Voix v2','Je prépare ta demande'])assert.ok(!isTechnicalProgressLabel(l),l);
 });
+test('the live text follows the running step only while the run works, never over a readable or terminal text',()=>{
+ const running=steps(1792920591300);
+ assert.equal(runs.liveProgressText('running','Calling exec.',running),'Trouver les outils canoniques');
+ assert.equal(runs.liveProgressText('running','Je compare avec le mois dernier',running),'Je compare avec le mois dernier');
+ // A done run with a pending clarification keeps its terminal text (test-submit-reconciliation.cjs).
+ assert.equal(runs.liveProgressText('done','Completed.',[{id:'clarify',label:'Précision demandée',state:'running'}]),'Completed.');
+ assert.equal(runs.liveProgressText('running','Calling exec.',steps(1792920603000)),'Calling exec.','only the answer runs: nothing to substitute');
+});
 console.log(JSON.stringify({passed,failed:0,fixture:'s24-2026-10-25-progress-titles/chat-history-run.json'}));

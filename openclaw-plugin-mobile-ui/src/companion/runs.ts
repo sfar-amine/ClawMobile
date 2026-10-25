@@ -873,9 +873,14 @@ function withRunSteps(status: CompanionRunStatus, stored?: StoredRun | null): Co
   });
   if (!derived) return status;
   const base = status.progress || {text: "", events: []};
-  // The live text follows the public step in progress rather than a transport label (« Calling exec. »).
-  const live = derived.steps.filter(step => step.state === "running" && step.id !== "answer").at(-1)?.label;
-  return {...status, progress: {...base, ...derived, ...(live && isTechnicalProgressLabel(base.text) ? {text: live} : {})}};
+  return {...status, progress: {...base, ...derived, text: liveProgressText(status.state, base.text, derived.steps)}};
+}
+
+/** While the run works, the live text follows the public step in progress rather than a transport label
+ * (« Calling exec. »). A terminal run keeps its own text (a pending clarification is not live progress). */
+export function liveProgressText(state: string, text: string, steps: {id: string; label: string; state: string}[]): string {
+  if ((state !== "running" && state !== "queued") || !isTechnicalProgressLabel(text)) return text;
+  return steps.filter(step => step.state === "running" && step.id !== "answer").at(-1)?.label ?? text;
 }
 
 export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {

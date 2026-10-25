@@ -16,7 +16,7 @@ Sans carte, les étapes d'une course Gateway suivent ces règles.
 4. **Jamais de nom d'outil.**
    - Les appels sans titre (`tool_search`, `tool_call`, `memory_search`, `process`, lectures hors contexte) ne s'affichent pas.
    - Les libellés techniques du transport (« Calling exec. », « Completed. », etc.) non plus.
-   - Le texte en direct (`progress.text`) suit l'étape en cours au lieu d'un libellé technique.
+   - Le texte en direct (`progress.text`) suit l'étape en cours au lieu d'un libellé technique, seulement pendant que le run travaille : un run terminé garde son texte (une précision en attente n'est pas un avancement).
 5. **États cohérents** :
    - une étape est en cours jusqu'à son résultat, puis terminée ;
    - un appel en erreur est « non abouti » (`skipped`), et l'issue de la course reste portée par l'étape « Réponse de Samantha » ;
@@ -29,7 +29,7 @@ Les événements lisibles non outils (libellés métier) gardent la règle histo
 `GET /v1/runs/{id}` : même lecture, projection seulement, aucun appel Gateway en plus. Aucune capacité ajoutée ou modifiée. Paiement inchangé.
 
 ## Tests
-- `scripts/test-run-progress-titles.cjs` (6 cas, inscrit en CI), sur la capture S24 réelle de la course (`fixtures/s24-2026-10-25-progress-titles/chat-history-run.json`, nettoyée ; provenance et empreinte dans le fichier).
+- `scripts/test-run-progress-titles.cjs` (7 cas, inscrit en CI), sur la capture S24 réelle de la course (`fixtures/s24-2026-10-25-progress-titles/chat-history-run.json`, nettoyée ; provenance et empreinte dans le fichier).
 - `test-run-progress-card.cjs` : le cas « sans carte » attend désormais l'absence de nom d'outil. `test-run-progress.cjs` et `test-companion-runs.cjs` sont inchangés et verts.
 
 ## Côté app

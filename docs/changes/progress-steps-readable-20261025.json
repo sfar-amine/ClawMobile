@@ -27,7 +27,7 @@
   "tests": {
     "status": "pending_ci",
     "evidence": [
-      "scripts/test-run-progress-titles.cjs (6) registered in .github/workflows/ci.yml; real S24 chat.history capture of run_1792920553461_9ffdf172"
+      "scripts/test-run-progress-titles.cjs (7) registered in .github/workflows/ci.yml; real S24 chat.history capture of run_1792920553461_9ffdf172"
     ]
   },
   "capability_impact": {
