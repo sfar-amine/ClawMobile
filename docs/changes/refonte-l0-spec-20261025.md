@@ -1,6 +1,6 @@
 # L0 — activation et spécification parcours unique
 
-Mandat explicite d’Amine du25/10 : livraison autonome jusqu’à recette S24, Amine en second rideau. Cette PR reprend le correctif d’activation411 et y intègre la spécification complète depuis5f26dac0, jamais seule.
+Mandat explicite d’Amine du25/10 : livraison autonome jusqu’à recette S24, Amine en second rideau. Cette PR reprend L6 (PR409), y corrige les fuites de titres techniques et intègre la spécification complète depuis5f26dac0, jamais seule. PR411 a été fusionnée entre-temps par une session concurrente en c0927161 : son code est repris par merge de la base et ne fait pas l’objet d’une nouvelle livraison prétendue.
 
 Le S24 confirme Companion3bed0f05, reçu companion-20261025T123328 accepté ; PB courant698322f7 incluant312, workspace68fd7b02. La distinction pin/workspace explique pourquoi un commit fraîchement fusionné peut manquer localement. Le correctif reste dans activate-ui-playbooks.sh.
 

@@ -3,7 +3,7 @@
   "id": "refonte-l0-spec-20261025",
   "date": "2026-10-25",
   "origin": "chat",
-  "summary": "Intègre la spécification autorisée de parcours unique avec le correctif L0 du propriétaire activation ; consigne le tri vérifié des anciennes PR.",
+  "summary": "Intègre la spécification autorisée avec le code L6 d’avancement lisible et le tri vérifié des anciennes PR ; correctif activation411 déjà intégré par une session concurrente.",
   "scope": {
     "files": [
       "docs/work/samantha-refonte/README.md",
@@ -16,7 +16,7 @@
   "tests": {
     "status": "pending_ci",
     "evidence": [
-      "installer/termux-lite/test-activate-ui-playbooks.sh, déjà inscrit en CI ; CI complète obligatoire sur head final"
+      "L6 build et suites progression/titres/cartes/réconciliation/runs PASS ; test activation existant PASS ; CI complète obligatoire sur le head final"
     ]
   },
   "capability_impact": {
