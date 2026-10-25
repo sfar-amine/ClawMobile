@@ -3,18 +3,79 @@
   "id": "refonte-l4-turn-measurements-20261025",
   "date": "2026-10-25",
   "origin": "chat",
+  "kind": "maintenance",
   "summary": "Budget de livraison commun et observations réelles app/voix/WhatsApp dans les propriétaires existants, inconnus préservés.",
-  "scope": {
-    "files": [
-      "openclaw-plugin-mobile-ui/src/companion/turnBudget.ts",
-      "openclaw-plugin-mobile-ui/src/nativeTurnProgress.ts",
-      "openclaw-plugin-mobile-ui/src/nativeTurnProgressOwner.ts",
-      "openclaw-plugin-mobile-ui/src/companion/runs.ts",
-      "openclaw-plugin-mobile-ui/src/companion/server.ts",
-      "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
-      "docs/changes/refonte-l4-turn-measurements-20261025.md"
+  "reason": "Mesurer la livraison réellement observée et appliquer le budget commun sans rejouer un effet. CI canonique complète et recette restent des portes obligatoires après les intégrations.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-refonte-l4-budget-measurements.md",
+    "docs/changes/refonte-l4-turn-measurements-20261025.json",
+    "docs/changes/refonte-l4-turn-measurements-20261025.md",
+    "installer/termux-lite/companion-acceptance.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/sdk-source-metadata.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/voice-qa2-observation.json",
+    "openclaw-plugin-mobile-ui/scripts/test-native-turn-progress.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-turn-measurement.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/turnBudget.ts",
+    "openclaw-plugin-mobile-ui/src/companion/types.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/nativeTurnProgress.ts",
+    "openclaw-plugin-mobile-ui/src/nativeTurnProgressOwner.ts"
+  ],
+  "documentation": [
+    "docs/changes/refonte-l4-turn-measurements-20261025.md",
+    "docs/08-decisions/ADR-20261025-refonte-l4-budget-measurements.md"
+  ],
+  "tests": [
+    {
+      "name": "L4 focused TypeScript and observation suites",
+      "status": "passed",
+      "evidence": "Sur le contenu propre L4 de285d461f : npm run build, test-turn-measurement.cjs et test-native-turn-progress.cjs PASS ; preuve /workspace/refonte-evidence/l4-core-focused-285d461f.log. Volumétrie505→500, notification unique, incertitude et race fin/livraison. Depuis, merge normal de la base canonique74b2 ; aucun build intégré final ni CI complète revendiqué."
+    },
+    {
+      "name": "Integrated source diff integrity",
+      "status": "passed",
+      "evidence": "git diff --check PASS après merge normal de74b2, base ancêtre ; validation stricte des fiches et couverture vérifiées séparément avant CI. Aucun comportement supplémentaire qualifié par ce contrôle."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "NO_CAPABILITY : observation/instrumentation interne des propriétaires existants ; aucune nouvelle action métier, permission ni voie de paiement."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Extension des propriétaires existants ; aucun store, routeur, ordonnanceur ou service parallèle.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-refonte-l4-budget-measurements.md"
     ]
   },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Comparaison des primitives et de leurs entrées : contexte fondation optionnel seulement si indiqué, aucun changement d’autorité. Adaptateurs/fixtures et tests jumelés inscrits dans leur CI. Aucune parité live ni CI intégrée finale revendiquée."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert source puis propriétaires companion-deploy.sh/APK précédents ; observations facultatives ignorées.",
   "routes": [
     {
       "method": "POST",
@@ -23,30 +84,5 @@
       "capability": "NO_CAPABILITY",
       "reason": "Télémétrie locale fermée des propriétaires existants, sans action métier exposée."
     }
-  ],
-  "tests": {
-    "status": "pending_ci",
-    "evidence": [
-      "Build TypeScript et prepare-lite PASS sur le contenu source final.",
-      "test-turn-measurement.cjs PASS ; test-native-turn-progress.cjs PASS, y compris volume505→500 et lecture legacy unique sans fanout.",
-      "Scripts inscrits ci.yml ; CI canonique complète et recette S24 restent attendues."
-    ]
-  },
-  "capability_impact": {
-    "changed": false,
-    "ids": [],
-    "detail": "NO_CAPABILITY : télémétrie technique ; primitives MCP et actions métier inchangées."
-  },
-  "architecture_impact": {
-    "changed": true,
-    "adr": "docs/08-decisions/ADR-20261025-refonte-l4-budget-measurements.md",
-    "reason": "Propriétaires et registre réutilisés ; aucune nouvelle file/service."
-  },
-  "mcp_parity": {
-    "status": "no_impact",
-    "detail": "Six primitives existantes et schémas métier inchangés ; aucune nouvelle action."
-  },
-  "merge_eligibility": "requires_canonical_ci",
-  "deployment_state": "not_applied",
-  "rollback": "Revert source puis propriétaires companion-deploy.sh/APK précédents ; observations facultatives ignorées."
+  ]
 }
