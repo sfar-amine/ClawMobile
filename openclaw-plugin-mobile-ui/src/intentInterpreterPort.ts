@@ -22,6 +22,10 @@ const TECHNICAL_CODES = new Set([
   "LLM_RUNTIME_UNAVAILABLE",
   "LLM_COMPLETION_OUTPUT_REJECTED",
 ]);
+// OpenClaw's own set of completed stop reasons (runtime-llm finalizePluginLlmCompletion). A provider
+// error (S24 25/10: gpt-5.6-sol "429 usage_limit_reached") resolves with empty text and another stop
+// reason; it is a provider failure, not an unparsable decision.
+const COMPLETED_STOPS = new Set(["stop", "length", "toolUse"]);
 const LIMITS = Object.freeze({
   systemChars: 64_000,
   // The playbooks owner bounds the whole interpretation prompt to 80 000 chars / 96 000 bytes.
@@ -119,8 +123,12 @@ async function attempt(complete: LlmComplete, model: string, req: InterpretReque
       purpose: req.purpose ?? "samantha.intent.interpret",
       signal: controller.signal,
     });
-    const decision = parseDecision(result?.text, immune ? 64_000 : LIMITS.outputChars);
     const ms = now() - started;
+    const empty = typeof result?.text !== "string" || !result.text.trim();
+    if (empty && !COMPLETED_STOPS.has(String(result?.stopReason ?? "stop"))) {
+      return { attempt: { model, outcome: "technical", code: "LLM_COMPLETION_FAILED", ms } as InterpretAttempt };
+    }
+    const decision = parseDecision(result?.text, immune ? 64_000 : LIMITS.outputChars);
     if (!decision) return { attempt: { model, outcome: "technical", code: "INVALID_DECISION_OUTPUT", ms } as InterpretAttempt };
     return { attempt: { model, outcome: "ok", ms } as InterpretAttempt, result, decision };
   } catch (error: any) {

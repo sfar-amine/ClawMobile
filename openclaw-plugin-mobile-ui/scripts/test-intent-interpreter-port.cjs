@@ -49,6 +49,16 @@ function fake(script) {
     assert.equal(out.ok, true);
     assert.equal(out.fallbackReason, "INVALID_DECISION_OUTPUT");
   }
+  // A provider error resolves with empty text and a non-completed stop reason (S24 25/10 18:24Z,
+  // gpt-5.6-sol 429 usage_limit_reached, zero usage): a provider failure, not an invalid decision.
+  {
+    const f = fake([{ text: "", stopReason: "error", provider: "google", model: "gemini-3.5-flash-lite" }, { text: JSON.stringify(decision) }]);
+    const out = await port.interpret(f.complete, req);
+    assert.equal(out.ok, true);
+    assert.equal(out.fallbackReason, "LLM_COMPLETION_FAILED");
+    const empty = fake([{ text: "", stopReason: "stop" }, { text: JSON.stringify(decision) }]);
+    assert.equal((await port.interpret(empty.complete, req)).fallbackReason, "INVALID_DECISION_OUTPUT");
+  }
   // An authorization refusal never reaches Luna.
   {
     const f = fake([failure("LLM_COMPLETION_NOT_AUTHORIZED")]);
@@ -114,6 +124,9 @@ function fake(script) {
     assert.equal((await port.interpret(f.complete,engineering)).ok,true);
     assert.equal(f.calls.length,1);assert.equal(f.calls[0].requiredAuthMode,'oauth');
     assert.equal(f.calls[0].agentId,undefined);assert.equal(f.calls[0].tools,undefined);
+    const limited=fake([{text:'',stopReason:'error',provider:'openai',model:model.split('/')[1]}]);
+    const quota=await port.interpret(limited.complete,engineering);
+    assert.equal(quota.ok,false);assert.equal(quota.code,'LLM_COMPLETION_FAILED');assert.equal(limited.calls.length,1);
     const down=fake([failure('LLM_COMPLETION_FAILED')]);
     assert.equal((await port.interpret(down.complete,engineering)).ok,false);assert.equal(down.calls.length,1);
   }
