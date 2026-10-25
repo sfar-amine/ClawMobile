@@ -5,6 +5,8 @@ import {callOpenClawGateway} from "./openclawAgentClient";
 import {readPaymentRequests,readOwnerConfirmations,getRunStatus,latestModelFlowConfiguration,checkpointModelFlowConfiguration} from "./runs";
 import {memoryRemember} from "./memoryControl";
 import {preserveModelFlowSessions} from "./conversationMetadata";
+import {readModelFlowTurnLatency} from "./control-health";
+import {projectModelFlowMetrics} from "./providers";
 import {findSubmittedRunByClientRunId,reserveSubmittedRun,settleSubmittedRun} from "./runs";
 import {accountView,knownProfiles,publicModelRef,resolveModelRef} from "./accountIdentity";
 import {invalidateSessionDefaults,observeSessionDefaults,peekSessionDefaults} from "./conversationOwnerIndex";
@@ -260,7 +262,7 @@ export async function reconcileModelFlowRunStatus(status:any){
  }catch{return status;}
 }
 async function readModelFlowConfig(flow:EditableModelFlow){
- const [owner,defaults,latest]=await Promise.all([readModelOwnerFresh(),sessionDefaults(),latestModelFlowConfiguration(flow)]);
+ const [owner,defaults,latest,latency]=await Promise.all([readModelOwnerFresh(),sessionDefaults(),latestModelFlowConfiguration(flow),readModelFlowTurnLatency()]);
  const config=configObject(owner.raw),current=configuredModelFlow(config,flow),model=current.model,primary=typeof model==='string'?model:model?.primary;
  const fallbacks=model&&typeof model==='object'&&Array.isArray(model.fallbacks)?model.fallbacks:[];
  const choices=selectedFlowModels(owner,flow,defaults),snapshot=flowSnapshot(config,flow),revert=latest?.receipt?.appliedHash===flowHash(snapshot)?latest.receipt.runId:null;
@@ -268,7 +270,7 @@ async function readModelFlowConfig(flow:EditableModelFlow){
   fastMode:typeof current.fastModeDefault==='boolean'?current.fastModeDefault:null,inheritsFrom:current.inheritsFrom,origins:current.origins,mixedFields:current.mixedFields,source:'gateway_config',models:choices,
   writeFields:flow==='conversation_summary'?['model']:['model','thinking','fallbacks','fastMode'],writeAvailable:flowEnabled()&&choices.length>0,
   previousReceiptRunId:revert,issues:[...(!flowEnabled()?['brain_only_not_active']:[]),...(!choices.length?['included_model_authentication_proof_unavailable']:[])],
-  appliesTo:'new_sessions',metrics:{windowDays:7,notThisRate:null,latencyMedianMs:null,state:'unavailable'}};
+  appliesTo:'new_sessions',metrics:projectModelFlowMetrics(flow,latency)};
 }
 
 function setFlowPath(config:any,path:string[],value:any,present=true){

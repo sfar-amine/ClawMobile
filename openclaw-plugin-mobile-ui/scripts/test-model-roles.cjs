@@ -28,4 +28,8 @@ assert.deepEqual(configuredModelAllow({agents:{entries:{main:{modelPolicy:{allow
 assert.equal(modelReferenceAllowed(['github-copilot/*'],'github-copilot/gpt-4.1'),true);assert.equal(modelReferenceAllowed(['github-copilot/*'],'google/gemini'),false);
 assert.equal(projectModelRoles({config:{talk:{realtime:{model:{malformed:true}}}}}).find(row=>row.id==='realtime_voice').state,'unavailable');
 const mixed=JSON.parse(before);mixed.agents.entries.contacts.model.primary='openai/gpt-5.6-luna';assert.equal(projectModelRoles({config:mixed}).find(row=>row.id==='whatsapp').state,'mixed');
+const inheritedSummary=JSON.parse(before);delete inheritedSummary.agents.defaults.compaction.model;
+const summary=projectModelRoles({config:inheritedSummary}).find(row=>row.id==='conversation_summary');assert.equal(summary.model,null);assert.equal(summary.inheritsFrom,'conversation');assert.equal(summary.state,'runtime_inherited','native compaction without override follows each current conversation model, not a global default');
+const measured=projectModelRoles(snapshot,{windows:{'7d':{retentionComplete:true,surfaces:[{surface:'whatsapp',usefulSamples:2,medianUsefulMs:4321}]}}});
+assert.equal(measured.find(row=>row.id==='whatsapp').metrics.latencyMedianMs,4321);assert.equal(measured.find(row=>row.id==='whatsapp').metrics.notThisRate,null);assert.equal(measured.find(row=>row.id==='brain').metrics.latencyMedianMs,null,'surface does not attribute another flow');
 console.log('L5 eleven real S24 model flows: owners/constants, bounded account aliases, actual inheritance/mixed contacts, no fake memory model or immune deterministic route, immutable projection and unknown metric coverage passed');
