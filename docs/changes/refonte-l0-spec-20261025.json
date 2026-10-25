@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "id": "refonte-l0-spec-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Intègre la spécification autorisée de parcours unique avec le correctif L0 du propriétaire activation ; consigne le tri vérifié des anciennes PR.",
+  "scope": {
+    "files": [
+      "docs/work/samantha-refonte/README.md",
+      "docs/work/samantha-refonte/SPEC-refonte-parcours-unique-20261025.md",
+      "docs/work/samantha-refonte/TRIAGE-chantier1-20261025.md",
+      "docs/changes/refonte-l0-spec-20261025.md"
+    ]
+  },
+  "routes": [],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "installer/termux-lite/test-activate-ui-playbooks.sh, déjà inscrit en CI ; CI complète obligatoire sur head final"
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "Outil de livraison existant, aucune route produit : sans objet pour une capability."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "adr": null,
+    "reason": "Ce lot importe la cible sans l’activer ; ADR requis dans les lots L2,L3,L4."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "claw_context/resolve/execute/exec/status/artifact_read inchangés par ce correctif de livraison."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Companion par companion-deploy.sh du SHA précédent ; ancien pin playbooks conservé."
+}
