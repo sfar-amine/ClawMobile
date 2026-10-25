@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "id": "progress-steps-readable-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Without a progress card, Gateway run steps show the agent's own tool titles, collapse start-up context reads into one preparing line, merge identical consecutive steps, never show a tool name or transport label, and never keep a finished step running.",
+  "scope": {
+    "files": [
+      "openclaw-plugin-mobile-ui/src/companion/runProgress.ts",
+      "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+      "openclaw-plugin-mobile-ui/src/companion/types.ts",
+      "openclaw-plugin-mobile-ui/scripts/test-run-progress-titles.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-run-progress-card.cjs",
+      "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-progress-titles/chat-history-run.json",
+      ".github/workflows/ci.yml",
+      "docs/changes/progress-steps-readable-20261025.md"
+    ]
+  },
+  "routes": [
+    {
+      "route": "GET /v1/runs/{id}",
+      "change": "progress.steps and progress.text projection without a card: agent titles, one preparing line, no tool names",
+      "budget": "unchanged (projection on read, no extra Gateway call)",
+      "capability": "unchanged"
+    }
+  ],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "scripts/test-run-progress-titles.cjs (6) registered in .github/workflows/ci.yml; real S24 chat.history capture of run_1792920553461_9ffdf172"
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "Read projection only; no capability added or changed; payment untouched."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "adr": null,
+    "reason": "Same owner (runProgress.ts derived on read); no new store, router, scheduler or retry. Complements the card projection of ADR-20261025-voice-brain-delegation revision v2."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "No MCP tool or adapter change."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Revert this commit and redeploy the Companion with companion-deploy.sh."
+}

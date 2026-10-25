@@ -1,6 +1,6 @@
 import {readRunWebResult, type RunWebResult} from "./runWeb";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
-import {runProgressSteps} from "./runProgress";
+import {isTechnicalProgressLabel, runProgressSteps} from "./runProgress";
 import {readReceiptPresentation,fallbackReceiptPresentation,publicReceiptMetadata,publicDecision,type ReceiptPresentation} from "./receiptPresentation";
 import {projectRunPayment} from "./runPaymentPresentation";
 import { structuredNotification } from "./notificationText";
@@ -873,7 +873,9 @@ function withRunSteps(status: CompanionRunStatus, stored?: StoredRun | null): Co
   });
   if (!derived) return status;
   const base = status.progress || {text: "", events: []};
-  return {...status, progress: {...base, ...derived}};
+  // The live text follows the public step in progress rather than a transport label (« Calling exec. »).
+  const live = derived.steps.filter(step => step.state === "running" && step.id !== "answer").at(-1)?.label;
+  return {...status, progress: {...base, ...derived, ...(live && isTechnicalProgressLabel(base.text) ? {text: live} : {})}};
 }
 
 export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {
@@ -1198,7 +1200,8 @@ async function readSessionTranscript(
   return summarizeTranscript(raw, targetPrompt);
 }
 
-function summarizeTranscript(raw: string, targetPrompt?: string): TranscriptSummary {
+/** Exported for the progress tests (real S24 chat.history captures); the runtime reads it through readSessionTranscript. */
+export function summarizeTranscript(raw: string, targetPrompt?: string): TranscriptSummary {
   let prompt = "";
   let result = "";
   let startedAt: number | undefined;
@@ -1512,9 +1515,13 @@ function mergeProgress(
     text: latest.label,
     detail: latest.detail,
     updatedAt: latest.at || trajectoryProgress?.updatedAt || fallback?.updatedAt,
-    events: events.slice(-12),
+    // Enough history for the agent's titled steps of a long run (point E); runProgress shows at most 8 of them.
+    events: events.slice(-48),
   };
 }
+
+/** Start-up reads of the canonical context files (rules, memory view, voice notes): one « preparing » line at most. */
+const STARTUP_CONTEXT_PATH = /(?:^|\/)(?:context\/(?:OPERATING_RULES|HYBRID_CONTEXT|INDEX)\.md|context\/rules\/[^/]+\.(?:md|json)|interaction-fast-path\.md|AGENTS\.md|SOUL\.md|IDENTITY\.md|USER\.md|memory\/voice\/amine\.md)$/;
 
 function dedupeProgressEvents(events: CompanionRunProgressEvent[]) {
   const seen = new Set<string>();
@@ -1522,7 +1529,7 @@ function dedupeProgressEvents(events: CompanionRunProgressEvent[]) {
     .filter((event) => event && event.label)
     .sort((left, right) => Number(left.at || 0) - Number(right.at || 0))
     .filter((event) => {
-      const key = `${event.type}|${event.label}|${event.detail || ""}|${event.at || ""}`;
+      const key = `${event.type}|${event.label}|${event.detail || ""}|${event.at || ""}|${event.callId || ""}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -1536,11 +1543,16 @@ function toolCallEventsFromMessage(event: any): CompanionRunProgressEvent[] {
     .filter((part: any) => part?.type === "toolCall" && typeof part?.name === "string")
     .map((part: any) => {
       const toolName = String(part.name);
+      const args = part?.arguments && typeof part.arguments === "object" && !Array.isArray(part.arguments) ? part.arguments : {};
+      const title = typeof args.title === "string" && args.title.trim() && args.title.length <= 160 ? args.title.trim() : undefined;
       return {
         type: "tool.call",
         label: `Calling ${toolName}.`,
         detail: toolArgumentsSummary(part),
         at: messageTimestamp(event, true),
+        ...(typeof part.id === "string" && part.id ? {callId: part.id} : {}),
+        ...(title ? {title} : {}),
+        ...(toolName === "read" && typeof args.path === "string" && STARTUP_CONTEXT_PATH.test(args.path) ? {context: true} : {}),
       };
     });
 }
@@ -1549,11 +1561,13 @@ function toolResultEventFromMessage(event: any): CompanionRunProgressEvent | nul
   const toolName = typeof event?.message?.toolName === "string" ? event.message.toolName : "";
   if (!toolName) return null;
   const failed = event?.message?.isError === true || toolResultLooksFailed(event?.message);
+  const callId = typeof event?.message?.toolCallId === "string" && event.message.toolCallId ? event.message.toolCallId : undefined;
   return {
     type: failed ? "tool.error" : "tool.result",
     label: `${failed ? "Tool failed" : "Completed"} ${toolName}.`,
     detail: toolResultSummary(event?.message),
     at: messageTimestamp(event, true),
+    ...(callId ? {callId} : {}),
   };
 }
 

@@ -201,6 +201,12 @@ export type CompanionRunProgressEvent = {
   detail?: string;
   at?: number;
   seq?: number;
+  /** Tool call/result correlation of a transcript event (never shown). */
+  callId?: string;
+  /** Title the agent wrote for this tool call (`arguments.title`), user-oriented; the only label shown for a tool call. */
+  title?: string;
+  /** A start-up read of the canonical context files (rules, memory view): shown at most as one « preparing » line. */
+  context?: boolean;
 };
 
 export type RuntimeCommandResponse = {
