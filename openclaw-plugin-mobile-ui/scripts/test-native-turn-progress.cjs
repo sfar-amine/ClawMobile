@@ -15,6 +15,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
  let fail=false;const owner=createNativeTurnProgressOwner({enabled:()=>true,owners:()=>new Set([own]),
   timer:(fn,delay)=>{const t={fn,delay,unref(){}};scheduled.push(t);return t;},clear:t=>{t.cancelled=true;},
   send:async p=>{sent.push(p);if(fail)throw Error('uncertain transport');return {messageId:'authored-send-receipt'};}});
+ const changes=[],subscription=runs.subscribeConversationChanges(event=>changes.push(event));
  const posts=[];const hooks=nativeTurnProgressHooks({enabled:()=>true,owners:()=>new Set([own]),post:async(id,body)=>{posts.push(body);return owner.observe(id,body);}});
  const ctx=runId=>({runId,sessionKey,channelId:'whatsapp',agentId:'main',accountId:'default'});
  const wait=async(test)=>{const end=realNow()+1500;while(!await test()){assert.ok(realNow()<end,'bounded test observation');await new Promise(r=>setTimeout(r,5));}};
@@ -47,6 +48,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   await hooks.ended({success:true},ctx('native-d'));assert.equal(logs.length,2,'delivery/end race produces exactly one measurement');
   await assert.rejects(owner.observe('native-d',{operation:'native_end',sessionKey:'agent:contacts:whatsapp:direct:'+own,success:true}),e=>e.statusCode===403);
   await assert.rejects(owner.observe('native-d',{operation:'native_end',sessionKey,success:true,content:'private'}),e=>e.statusCode===400);
- }finally{Date.now=realNow;process.hrtime.bigint=realMono;console.log=realLog;await fs.rm(root,{recursive:true,force:true});}
+  await hooks.received({runId:'native-old'},ctx('native-old'));now+=1200000;mono+=1200000;
+  assert.equal(await runs.activeObservedNativeWhatsAppRun(sessionKey),null,'stale observation cannot select an abort candidate');
+  const gateway=require('../dist/companion/openclawAgentClient'),read=gateway.callOpenClawGateway;let reads=0;
+  gateway.callOpenClawGateway=async()=>{reads++;throw Error('metadata must never fan out to Gateway');};
+  try{assert.deepEqual(await runs.listRunSummaries({limit:10}),[]);await runs.awaitRunInactivity();assert.equal(reads,0);}
+  finally{gateway.callOpenClawGateway=read;}
+  assert.deepEqual(changes,[],'native measurement rows never create product conversation events');
+
+ }finally{subscription.close();Date.now=realNow;process.hrtime.bigint=realMono;console.log=realLog;await fs.rm(root,{recursive:true,force:true});}
  console.log('PASS native owner deadline, exact SDK correlation, unique canonical notice and delivery/end race');
 })().catch(e=>{console.error(e);process.exitCode=1;});

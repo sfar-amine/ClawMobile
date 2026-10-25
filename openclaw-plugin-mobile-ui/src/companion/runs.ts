@@ -2213,7 +2213,7 @@ function reconcileInactiveRuns(targetRunId?:string):void {
 async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadline: number): Promise<void> {
   await registryWrite;
   const initial = await registryOrEmpty(), now = runInactivityClock.now();
-  const eligible = (run: StoredRun, registry: CompanionRunRegistry) => run.modality !== "voice" &&
+  const eligible = (run: StoredRun, registry: CompanionRunRegistry) => !run.measurementOnly && run.modality !== "voice" &&
     (!run.memo || run.memo.phase === "dispatched") &&
     !run.result && (!run.state || run.state === "running" || run.error === "run_inactivity_expired") &&
     run.acceptedAt >= 1000000000000 && (run.error === "run_inactivity_expired" || !!run.inactivityCorrectionReceipt || now - (run.updatedAt || run.acceptedAt) >= RUN_INACTIVITY_MS) &&
@@ -2787,7 +2787,7 @@ const changeEpoch=randomUUID();let changeSequence=0;
 const changeRing:ConversationChange[]=[];
 const changeListeners=new Set<(event:ConversationChange)=>void>();
 function publishConversationChanges(before:StoredRun[],after:StoredRun[],oldArchived:string[],newArchived:string[]){
-  const left=new Map(before.map(r=>[r.runId,r])),right=new Map(after.map(r=>[r.runId,r]));
+  const left=new Map(before.filter(r=>!r.measurementOnly).map(r=>[r.runId,r])),right=new Map(after.filter(r=>!r.measurementOnly).map(r=>[r.runId,r]));
   const sessions=new Set<string>();
   for(const id of new Set([...left.keys(),...right.keys()])){
     const a=left.get(id),b=right.get(id);

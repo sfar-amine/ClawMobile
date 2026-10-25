@@ -47,9 +47,9 @@ const budget = require('../dist/companion/turnBudget.js');
     await assert.rejects(runs.recordTurnMeasurement(id,'measure-session',{...app,surface:'whatsapp'}), e=>e.statusCode===409);
     server=http.createServer((req,res)=>{route(req,res).catch(()=>{res.statusCode=500;res.end('{}');});});
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-    const request=(body,headers={})=>new Promise((resolve,reject)=>{
+    const request=(body,headers={},pathId=id)=>new Promise((resolve,reject)=>{
       const encoded=JSON.stringify(body);const req=http.request({host:'127.0.0.1',port:server.address().port,
-        path:'/v1/runs/'+id+'/measurement',method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(encoded),...headers}},res=>{
+        path:'/v1/runs/'+pathId+'/measurement',method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(encoded),...headers}},res=>{
         let raw='';res.on('data',c=>raw+=c);res.on('end',()=>resolve({status:res.statusCode,body:JSON.parse(raw)}));});req.on('error',reject);req.end(encoded);
     });
     const body={sessionId:'measure-session',measurement:app}, owner={'X-Clawmobile-Owner-Flow':'v1'};
@@ -69,6 +69,22 @@ const budget = require('../dist/companion/turnBudget.js');
     const projected=health.projectTurnLatency(await runs.turnMeasurementFacts());
     assert.equal(projected.windows['24h'].surfaces[0].usefulSamples,1);
     assert.equal(projected.windows['24h'].surfaces[0].firstSignSamples,0,'unknown sign is never counted as a <1s success');
+    const nativeBody={operation:'native_active',sessionKey:'agent:main:whatsapp:direct:+15550123456'};
+    assert.equal((await request(nativeBody,owner,'native-http')).status,409,'host feature gate is enforced on the actual route');
+    process.env.SAMANTHA_BRAIN_ONLY='1';
+    await fs.writeFile(path.join(root,'openclaw.json'),JSON.stringify({commands:{ownerAllowFrom:['whatsapp:+15550123456']}}));
+    const native={operation:'native_ingress',sessionKey:nativeBody.sessionKey,accountId:'default',observedMonoMs:Number(process.hrtime.bigint()/1000000n)};
+    assert.equal((await request({...native,ownerAdmitted:true},owner,'native-http')).status,400,'telemetry cannot submit admission bits');
+    assert.equal((await request(native,owner,'native-http')).status,200,'native observations reach the same owner route');
+    const previousPort=process.env.CLAWMOBILE_COMPANION_PORT;process.env.CLAWMOBILE_COMPANION_PORT=String(server.address().port);
+    try{
+      const active=await require('../dist/nativeTurnProgress').activeObservedNativeWhatsAppRun(nativeBody.sessionKey);
+      assert.equal(active.runId,'native-http');assert.equal(active.observationSource,'sdk_message_received');assert.equal(active.ownerAdmitted,undefined);
+      assert.equal(await require('../dist/nativeTurnProgress').activeObservedNativeWhatsAppRun(nativeBody.sessionKey,{excludeRunId:'native-http'}),null);
+    }finally{if(previousPort===undefined)delete process.env.CLAWMOBILE_COMPANION_PORT;else process.env.CLAWMOBILE_COMPANION_PORT=previousPort;}
+    assert.equal((await request({operation:'native_end',sessionKey:nativeBody.sessionKey,success:true},owner,'native-http')).status,200);
+    delete process.env.SAMANTHA_BRAIN_ONLY;
+
   } finally {
     console.log=originalLog;if(server)await new Promise(r=>server.close(r));await fs.rm(root,{recursive:true,force:true});
   }
