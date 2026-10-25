@@ -118,6 +118,24 @@ class WatchdogReload(unittest.TestCase):
         with patch.object(self.m,'watchdog_has_children',return_value=True),patch.object(self.m.os,'kill') as kill:
             with self.assertRaisesRegex(RuntimeError,'watchdog_busy_no_reload'):self.m.reload_watchdog({71:'old-start'})
             kill.assert_not_called()
+    def proc(self,rows):
+        root=Path(tempfile.mkdtemp());self.addCleanup(lambda:__import__('shutil').rmtree(root,ignore_errors=True))
+        for pid,comm,state,ppid in rows:
+            (root/str(pid)).mkdir();(root/str(pid)/'stat').write_text(f'{pid} ({comm}) {state} {ppid} 1 1 0 -1')
+        return root
+    def test_exited_defunct_child_is_not_an_in_flight_effect(self):
+        # S24 25/10 19:12: resident watchdog 18631 (up 7 days) kept `[tier0-bootstrap] <defunct>` for 3h23.
+        proc=self.proc([(18631,'python3','S',1),(7913,'tier0-bootstrap','Z',18631)])
+        with patch.object(self.m,'watchdog_identity',return_value='old-start'):
+            self.assertFalse(self.m.watchdog_has_children({18631:'old-start'},proc))
+    def test_running_child_still_blocks_reload(self):
+        proc=self.proc([(18631,'python3','S',1),(7913,'tier0-bootstrap','Z',18631),(7920,'tier0-bootstrap','S',18631)])
+        with patch.object(self.m,'watchdog_identity',return_value='old-start'):
+            self.assertTrue(self.m.watchdog_has_children({18631:'old-start'},proc))
+    def test_child_of_recycled_watchdog_pid_does_not_block(self):
+        proc=self.proc([(18631,'python3','S',1),(7920,'sh','R',18631)])
+        with patch.object(self.m,'watchdog_identity',return_value='new-start'):
+            self.assertFalse(self.m.watchdog_has_children({18631:'old-start'},proc))
     def test_verified_old_interpreter_is_stopped_once_without_killing_reused_pid(self):
         values=iter(['old-start',None,None]);native=lambda _pid:next(values,None)
         with patch.object(self.m,'watchdog_has_children',return_value=False),patch.object(self.m,'watchdog_identity',side_effect=native),patch.object(self.m.os,'kill') as kill:

@@ -47,12 +47,15 @@ def watchdogs_before_update():
             if identity is not None:result[int(p.name)]=identity
     return result
 
-def watchdog_has_children(captured):
+def watchdog_has_children(captured,proc=Path('/proc')):
     # Do not turn an in-flight decision/effect into an uncertain replay by killing its owner.
-    for p in Path('/proc').iterdir():
+    # A zombie (state Z) has already exited and only awaits reaping: no effect is in flight. The S24 resident
+    # watchdog Popen()s bootstrap without waiting, so its exited children stay defunct until it is replaced.
+    for p in proc.iterdir():
         if not p.name.isdigit():continue
         try:
-            fields=(p/'stat').read_text().rsplit(')',1)[1].split();parent=int(fields[1])
+            fields=(p/'stat').read_text().rsplit(')',1)[1].split();state,parent=fields[0],int(fields[1])
+            if state=='Z':continue
             if parent in captured and watchdog_identity(parent)==captured[parent]:return True
         except (OSError,ValueError,IndexError):continue
     return False
