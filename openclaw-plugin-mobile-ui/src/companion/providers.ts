@@ -1,4 +1,8 @@
-import {peekModelOwner,readModelOwnerCached,ModelOwnerSnapshot,configuredModelAllow} from './modelOwner';
+import {CLAW_LIVE_MODEL} from './clawLive';
+import {MEMO_STT_MODEL} from './memoSttBoundary';
+import {PUBLIC_WEB_MODEL} from './runWeb';
+import {publicModelRef} from './accountIdentity';
+import {peekModelOwner,readModelOwnerCached,ModelOwnerSnapshot,configuredModelAllow,configuredModelFlow} from './modelOwner';
 import {isoTimestamp,peekUsage,publicId,publicModelId,publicText,readUsage,UsageView} from './usage';
 const modelReference=(v:any)=>publicModelId(typeof v==='string'?v.split('@')[0]:v);
 const configured=(snapshot:ModelOwnerSnapshot|null)=>{
@@ -14,29 +18,38 @@ const configured=(snapshot:ModelOwnerSnapshot|null)=>{
 /** R1: bounded read-only usage projection of the same model/config owner. Unknown paths stay unknown. */
 export function projectModelRoles(snapshot:ModelOwnerSnapshot|null){
  const config=snapshot?.config;
+ const account=(value:any)=>typeof value==='string'&&value.includes('@')?publicModelRef(value)!.split('@')[1]:null;
  const chain=(value:any)=>{
-  const primary=modelReference(typeof value==='string'?value:value?.primary);
-  const fallback=Array.isArray(value?.fallbacks)?value.fallbacks.slice(0,20).map(modelReference).filter(Boolean):[];
-  return {model:primary??null,fallbacks:[...new Set(fallback)],state:primary?'configured':'unavailable'};
+  const raw=typeof value==='string'?value:value?.primary,primary=modelReference(raw);
+  const fallback=Array.isArray(value?.fallbacks)?value.fallbacks.slice(0,20):[];
+  return {model:primary??null,profile:account(raw),fallbacks:[...new Set(fallback.map(modelReference).filter(Boolean))],fallbackProfiles:fallback.map((ref:any)=>({model:modelReference(ref)??null,profile:account(ref)})),state:primary?'configured':'unavailable'};
  };
- const main=config?.agents?.entries?.main?.model??config?.agents?.list?.find((row:any)=>row.id==='main')?.model??config?.agents?.defaults?.model;
- const entry=(id:string)=>config?.agents?.entries?.[id]?.model??config?.agents?.list?.find((row:any)=>row.id===id)?.model;
- const scalar=(value:any)=>{const provider=publicId(value?.provider);const projected=chain(typeof value?.model==='string'?((provider&&!value.model.includes('/'))?provider+'/'+value.model:value.model):null);return {...projected,provider:provider??null,...(provider&&value?.model==null?{state:'provider_default'}:{})};};
+ const editable=(id:'brain'|'conversation_summary'|'whatsapp')=>{
+  const value=configuredModelFlow(config,id),active=process.env.SAMANTHA_BRAIN_ONLY==='1';
+  return {id,...chain(value.model),thinking:value.thinkingDefault??null,fastMode:typeof value.fastModeDefault==='boolean'?value.fastModeDefault:null,source:'gateway_config',inheritsFrom:value.inheritsFrom,origins:value.origins,mixedFields:value.mixedFields,...(value.mixedFields.length?{state:'mixed'}:{}),editable:active&&!!snapshot,editableReason:active?(snapshot?null:'model_owner_unavailable'):'brain_only_not_active',writeFields:id==='conversation_summary'?['model']:['model','fallbacks','thinking','fastMode']};
+ };
+ const readonly=(id:string,value:any,source:string,reason='next_lot',extra:any={})=>({id,...chain(value),thinking:null,fastMode:null,source,inheritsFrom:null,editable:false,editableReason:reason,writeFields:[],...extra});
+ const voice=config?.talk?.realtime,voiceMalformed=voice?.model!==undefined&&voice?.model!==null&&typeof voice.model!=='string';
+ const voiceModel=voiceMalformed?null:typeof voice?.model==='string'?(voice.model.includes('/')?voice.model:(voice.provider||'google')+'/'+voice.model):'google/'+CLAW_LIVE_MODEL;
  const spokenProvider=publicId(config?.talk?.provider),spokenVoice=publicModelId(config?.talk?.providers?.[spokenProvider??'']?.voice);
- const roles=[
-  {id:'conversation',...chain(main)},
-  {id:'realtime_voice',...scalar(config?.talk?.realtime)},
-  {id:'spoken_voice',...chain(spokenProvider&&spokenVoice?spokenProvider+'/'+spokenVoice:null)},
-  {id:'conversation_summary',...chain(config?.agents?.defaults?.compaction?.model)},
-  {id:'memory_search',...scalar(config?.memory?.search)},
-  {id:'engineering_learning',...chain(entry('engineering-lite'))},
-  {id:'gemini_agent',...chain(entry('gemini'))},
-  {id:'routing',model:null,fallbacks:[],state:'deterministic'},
-  {id:'immune_system',model:null,fallbacks:[],state:'deterministic',verdictState:'unavailable'},
-  {id:'copilot',model:null,fallbacks:[],state:snapshot?.auth?.providers?.some((row:any)=>row.provider==='github-copilot'&&['ok','static','expiring'].includes(row.status))?'connected_not_used':'unavailable'},
- ];
- return roles.map(role=>({...role,source:role.state==='deterministic'?'canonical_capability_contract':['configured','provider_default'].includes(role.state)?'gateway_config':role.state==='connected_not_used'?'gateway_auth':'unavailable'}));
+ const memory=config?.memory?.search,memoryProvider=publicId(memory?.provider),memoryModel=typeof memory?.model==='string'?(memory.model.includes('/')?memory.model:(memoryProvider?memoryProvider+'/':'')+memory.model):null;
+ const engineering=config?.agents?.entries?.['engineering-lite']?.model;
+ const policy=snapshot?.policy;
+ return [
+  editable('brain'),
+  readonly('web_search',PUBLIC_WEB_MODEL,'code_constant','next_lot',{inheritsFrom:'brain'}),
+  editable('conversation_summary'),
+  readonly('memory_search',memoryModel,'gateway_config','next_lot',{provider:memoryProvider??null,state:memoryModel?'configured':memoryProvider?'provider_default':'unavailable'}),
+  readonly('realtime_voice',voiceModel,typeof voice?.model==='string'?'gateway_config':'code_constant','next_lot',{provider:voice?.provider??'google'}),
+  readonly('spoken_voice',spokenProvider&&spokenVoice?spokenProvider+'/'+spokenVoice:null,'gateway_config'),
+  readonly('dictation',null,'device','device_managed',{state:'device_managed'}),
+  readonly('voice_memos','google/'+MEMO_STT_MODEL,'code_constant'),
+  readonly('immune_system',policy?.primary??null,'model_policy',policy?'next_lot':'model_policy_unavailable',{fallbacks:policy?.fallback?[modelReference(policy.fallback)]:[],policySourceHash:policy?.sourceHash??null}),
+  readonly('engineering_learning',engineering??null,'gateway_config','next_lot',{inheritsFrom:'immune_system'}),
+  editable('whatsapp'),
+ ].map(role=>({...role,provider:'provider' in role?role.provider:typeof role.model==='string'?role.model.split('/')[0]:null,metrics:{windowDays:7,notThisRate:null,latencyMedianMs:null,state:'unavailable'}}));
 }
+
 const authState=(status:any):'ready'|'needs_auth'|'unknown'=>['ok','static','expiring'].includes(status)?'ready':['missing','expired','invalid','unauthorized','needs_auth'].includes(status)?'needs_auth':'unknown';
 export function projectProviders(snapshot:ModelOwnerSnapshot|null,usage:UsageView|null,fresh=true){
  const configuredModels=configured(snapshot),rows=Array.isArray(snapshot?.catalog?.models)?snapshot!.catalog.models:[];

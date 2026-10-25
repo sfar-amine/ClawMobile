@@ -41,6 +41,9 @@ READS = [
     ("/updates", 4.0),
     ("/control/memory?limit=20", 3.0),
     ("/agent/config", 9.0),
+    ("/agent/config?flow=brain", 9.0),
+    ("/agent/config?flow=conversation_summary", 9.0),
+    ("/agent/config?flow=whatsapp", 9.0),
     ("/laptop-access/computers", 6.0),
     # P1 : état d'enrôlement de l'admission native (lecture d'un fichier local, aucune clé privée).
     ("/owner-admission", 0.5),

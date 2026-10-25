@@ -593,14 +593,20 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     res.setHeader("Cache-Control","no-store");
     if(!['GET','POST'].includes(method)){writeJson(res,405,{success:false,state:"refused",receipt:null,error:"method_not_allowed"});return;}
     try{
-      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
-      const value=method==='GET'?await readAgentConfig():await changeAgentConfig(await readJsonBody(req,2048));
+      let flow:any;
+      if(method==='GET'){
+        for(const [key] of requestUrl.searchParams)if(key!=='flow'||requestUrl.searchParams.getAll(key).length!==1)throw Object.assign(new Error(),{statusCode:400});
+        if(requestUrl.searchParams.has('flow')){flow=requestUrl.searchParams.get('flow');if(!['brain','conversation_summary','whatsapp'].includes(flow))throw Object.assign(new Error(),{statusCode:400});}
+      }else if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      const value=method==='GET'?await readAgentConfig(flow):await changeAgentConfig(await readJsonBody(req,2048));
       writeJson(res,value.state==='refused'?409:200,value);
     }catch(error:any){
       const challenge=error?.confirmation;
-      if(error?.statusCode===403&&error?.message==='confirmation_required'&&challenge?.scope==='agent.config.expand_fallbacks'&&challenge.reference==='main'&&/^[a-f0-9]{64}$/.test(challenge.payloadHash)){
+      if(error?.statusCode===403&&error?.message==='confirmation_required'&&challenge?.scope==='agent.config.expand_fallbacks'&&(challenge.reference==='main'||/^flow:(brain|conversation_summary|whatsapp)$/.test(challenge.reference))&&/^[a-f0-9]{64}$/.test(challenge.payloadHash)){
         writeJson(res,403,{success:false,state:'refused',receipt:null,error:'confirmation_required',scope:challenge.scope,reference:challenge.reference,payloadHash:challenge.payloadHash});
-      }else{const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable'});}
+      }else{const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;
+        const modelFlowReason=typeof error?.message==='string'&&/^(?:model_flow_(?:required|not_active|model_not_included|account_unavailable|options_unsupported|previous_version_changed|parent_changed|owner_shape_unsupported|snapshot_too_large|receipt_invalid)|included_model_policy_unavailable)$/.test(error.message)?error.message:undefined;
+        writeJson(res,status,{success:false,state:status===503?'failed':'refused',receipt:null,error:modelFlowReason??(status===400?'invalid_agent_config':status===403?'confirmation_scope_mismatch':status===409?'protected_or_conflicting_configuration':'agent_config_unavailable')});}
     }
     return;
   }

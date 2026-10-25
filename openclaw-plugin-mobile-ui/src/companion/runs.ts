@@ -803,6 +803,30 @@ export async function markRunNotThis(runId: string, correction: RunCorrection): 
   return checked;
 }
 
+/** L5 preparation lives in this existing run journal before any configuration/session mutation. */
+export async function checkpointModelFlowConfiguration(runId:string,value:any):Promise<void>{
+ const run=await findStoredRun(runId,false);
+ if(!run||run.sessionId!=='native-owner-actions'||run.decision?.capability!=='agent.config'||!['brain','conversation_summary','whatsapp'].includes(String(run.decision?.modelFlow)))throw Object.assign(new Error('model_flow_operation_unavailable'),{statusCode:409});
+ const encoded=JSON.stringify(value);if(Buffer.byteLength(encoded)>65536)throw Object.assign(new Error('model_flow_snapshot_too_large'),{statusCode:409});
+ await saveStoredRun({...run,state:'running',result:encoded,updatedAt:Date.now()});
+}
+/** Read-only admission observation for the existing session/model owner; no new lock or lease store. */
+export async function readModelFlowConfigurationActivity(){
+ const rows=await readStoredRuns(false);
+ return rows.filter(run=>run.sessionId==='native-owner-actions'&&run.decision?.capability==='agent.config'&&['brain','conversation_summary','whatsapp'].includes(String(run.decision?.modelFlow))&&run.state!=='done'&&run.state!=='failed')
+  .map(run=>({runId:run.runId,operationId:run.clientRunId,flow:run.decision?.modelFlow,state:run.state??'unknown',acceptedAt:run.acceptedAt}));
+}
+
+/** L5: newest retained successful R6 flow receipt, read once from this existing run owner. */
+export async function latestModelFlowConfiguration(flow:'brain'|'conversation_summary'|'whatsapp'):Promise<any|null>{
+ const rows=await readStoredRuns(false);
+ for(const row of rows){
+  if(row.sessionId!=='native-owner-actions'||row.state!=='done'||typeof row.result!=='string'||row.result.length>65536)continue;
+  try{const result=JSON.parse(row.result);if(result?.receipt?.version===2&&result.receipt.action==='agent.config'&&result.receipt.flow===flow&&result.receipt.runId===row.runId&&result.state==='completed')return result;}catch{}
+ }
+ return null;
+}
+
 /** 38 M1 : projection minimale des reçus de runs existants (aucun texte). */
 export type ComprehensionRunFact = {acceptedAt: number; decisionType?: string; decisionRisk?: string;
   learned: boolean; clarificationAnswer: boolean; notThisAt?: number; agent: boolean};

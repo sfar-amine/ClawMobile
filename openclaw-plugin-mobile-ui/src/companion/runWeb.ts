@@ -1,3 +1,4 @@
+export const PUBLIC_WEB_MODEL = "google/gemini-3.5-flash-lite";
 import {isIP} from "node:net";
 
 /** Closed, optional projection inside the existing run; never an execution instruction. */
@@ -8,7 +9,7 @@ export type RunWebResult = {
   outcome: "complete" | "partial" | "insufficient_sources" | "failed" | "cancelled";
   provider: "parallel-free";
   providerAuth: "anonymous";
-  model: null | "google/gemini-3.5-flash-lite";
+  model: null | typeof PUBLIC_WEB_MODEL;
   profile: null | "google:claw-gemini-free";
   sources: Array<{id: string; title: string; url: string; finalUrl?: string;
     searchRetrievedAt: string; fetchedAt?: string; publishedAt: string | null;
@@ -74,7 +75,7 @@ export function readRunWebResult(value: unknown): RunWebResult | undefined {
       !["search", "answer"].includes(value.operation) || !OUTCOMES.has(value.outcome) ||
       value.provider !== "parallel-free" || value.providerAuth !== "anonymous" ||
       value.responseLanguage !== undefined && !["fr","en","ar","aeb"].includes(value.responseLanguage) ||
-      !(value.model === null && value.profile === null || value.model === "google/gemini-3.5-flash-lite" && value.profile === "google:claw-gemini-free") ||
+      !(value.model === null && value.profile === null || value.model === PUBLIC_WEB_MODEL && value.profile === "google:claw-gemini-free") ||
       !Array.isArray(value.sources) || value.sources.length > 5 || !Array.isArray(value.claims) || value.claims.length > 12 ||
       !Array.isArray(value.citations) || value.citations.length > 60 || !object(value.metrics) ||
       !Array.isArray(value.degradations) || value.degradations.length > 16 || !value.degradations.every(code)) return;

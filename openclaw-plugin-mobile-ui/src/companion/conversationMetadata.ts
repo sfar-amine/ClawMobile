@@ -1,6 +1,6 @@
 import {conversationContext} from "./conversationContext";
 import {observeConversationOwnerRow,observeSessionDefaults,readConversationOwnerRow} from "./conversationOwnerIndex";
-import {configuredModelAllow,readModelOwnerFresh,peekModelOwner,readModelOwnerCached} from "./modelOwner";
+import {configuredModelAllow,modelReferenceAllowed,readModelOwnerFresh,peekModelOwner,readModelOwnerCached} from "./modelOwner";
 import {accountAlias,accountView,knownProfiles,publicModelRef,resolveModelRef} from "./accountIdentity";
 import {createHash} from "crypto";
 import {callOpenClawGateway,expectedCompanionSessionKey} from "./openclawAgentClient";
@@ -53,7 +53,7 @@ function modelCatalogFrom({raw:configRaw,catalog,auth}:any){
  for(const row of catalog.models){
   if(typeof row?.provider!=='string'||typeof row?.id!=='string')continue;
   const id=ref(row.provider,row.id),base=id.split('@')[0];
-  if(!modelPattern.test(id)||!allow.includes(base)||row.available!==true||config.plugins?.entries?.[row.provider]?.enabled===false||!usable(row.provider))continue;
+  if(!modelPattern.test(id)||!modelReferenceAllowed(allow,base)||row.available!==true||config.plugins?.entries?.[row.provider]?.enabled===false||!usable(row.provider))continue;
   models.push(id);
   for(const profile of auth.providers.find((x:any)=>x.provider===row.provider)?.profiles||[]){
    const explicit=base+'@'+profile.profileId;
@@ -185,4 +185,9 @@ async function changeOnce(id:string,body:any){
  const result={success:state==='completed',state,...(errorCode?{error:errorCode}:{}),...(httpStatus?{httpStatus}:{}),...(state==='completed'?{artifact:{sessionId:id}}:{}),receipt:{version:1,action,target,operationId:body.operationId,runId:reserved.status.runId,state,at:reserved.status.submittedAt}};
  await settleSubmittedRun(reserved.status.runId,'done',JSON.stringify(result));
  return await storedNativeOperationResult(reserved.status.runId)||{success:false,state:'indeterminate',receipt:null};
+}
+/** Replaced by the qualified native session-extension integration before L5 activation.
+ * Refuse explicitly: preserving old conversations must never be an assumed no-op. */
+export async function preserveModelFlowSessions(_flow:'brain'|'whatsapp',_beforeConfig:any,_operationId:string):Promise<{state:'verified';preserved:number}>{
+ throw nativeError('model_flow_preservation_unqualified',409);
 }
