@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "owner-foundation-l2-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Share the bounded playbooks owner foundation across native cacheable SDK bootstrap, Companion app/voice context and MCP, preserving Contacts isolation.",
+  "scope": {
+    "files": [
+      "openclaw-plugin-mobile-ui/src/ownerBootstrapContext.ts",
+      "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+      "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+      "openclaw-plugin-mobile-ui/src/index.ts",
+      "openclaw-plugin-mobile-ui/scripts/test-owner-foundation.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-mcp-foundation.cjs",
+      "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-foundation/sdk-context.json",
+      ".github/workflows/ci.yml",
+      "docs/08-decisions/ADR-20261025-owner-foundation.md",
+      "docs/changes/owner-foundation-l2-20261025.md"
+    ]
+  },
+  "routes": [
+    {
+      "route": "claw_context",
+      "change": "single bounded foundation read with delivered-byte hash",
+      "budget": "<=6000estimated UTF8/4 tokens; producer subprocess1500ms bound",
+      "capability": "NO_CAPABILITY: context read only"
+    }
+  ],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "test-owner-foundation.cjs and test-mcp-foundation.cjs registered with canonical bootstrap tests",
+      "S24 SDK2026.9.6 cacheable prefix and bootstrapcache64 captured, authored envelope cases labelled"
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "Context injection and read projection only; payment untouched."
+  },
+  "architecture_impact": {
+    "changed": true,
+    "adr": "docs/08-decisions/ADR-20261025-owner-foundation.md",
+    "reason": "Same playbooks producer and existing SDK/bootstrap/extraSystemPrompt owners, no new store or router."
+  },
+  "mcp_parity": {
+    "status": "updated",
+    "detail": "claw_context foundation required read and exact delivered-byte hash; other primitives unchanged."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Disable host flag and restore previous paired pins with owner deployment scripts."
+}

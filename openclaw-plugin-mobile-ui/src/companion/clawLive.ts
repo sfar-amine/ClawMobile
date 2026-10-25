@@ -1,3 +1,4 @@
+import {ownerFoundationContext,ownerFoundationEnabled} from "../ownerBootstrapContext";
 import {runtimeFile} from "../runtimeRoot";
 import { execFile } from "child_process";
 import fs from "fs";
@@ -120,6 +121,7 @@ function canonicalUtf8(value:string,maxBytes:number) {
  */
 export function compactOwnerAgentContext(options:{authority?:"owner";home?:string;voiceDelegation?:true}={}) {
   if(options.authority!=="owner")return "";
+  if(ownerFoundationEnabled())return ownerFoundationContext(options)+(options.voiceDelegation===true?"\n\n"+VOICE_TURN_NOTICE:"");
   const workspace=path.join(options.home||os.homedir(),".openclaw","workspace");
   const operating=readCanonical(path.join(workspace,"context","OPERATING_RULES.md"),64000,{boundedOwner:true});
   let prefix=canonicalPrefix(operating,12000);
