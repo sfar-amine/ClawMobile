@@ -25,7 +25,7 @@ class ActivationReadiness(unittest.TestCase):
         self.args=SimpleNamespace(release_id=self.target.name)
         patch.object(self.c.runtime_mode,'current_mode',return_value='normal').start()
         patch.object(self.c,'verify_release',return_value=self.meta).start()
-        self.activate=patch.object(self.c,'activate_current').start()
+        self.activate_patch=patch.object(self.c,'activate_current');self.activate=self.activate_patch.start()
         patch.object(self.c.time,'time',side_effect=lambda:self.clock).start()
         patch.object(self.c.time,'monotonic',side_effect=lambda:self.clock).start()
         patch.object(self.c.time,'sleep',side_effect=lambda dt:setattr(self,'clock',self.clock+dt)).start()
@@ -80,6 +80,18 @@ class ActivationReadiness(unittest.TestCase):
         pending=self.c.cmd_promote(self.args);self.health();self.c.STOP.write_text('{"enabled":true}')
         with self.assertRaisesRegex(SystemExit,'emergency_stop_active'):self.c.finish_promotion(self.args,pending)
         self.assertEqual(json.loads(self.c.STATE.read_text())['soak_state'],'activating')
+    def test_detached_activation_closes_transient_lock_authority_but_preserves_parent(self):
+        self.activate_patch.stop() # Exercise the real owner, not the bootstrap stub used by other lifecycle cases.
+        boot=self.c.TIER0/'bin/tier0-bootstrap.sh';boot.parent.mkdir();boot.write_text('#!/bin/sh\n')
+        with patch.dict(os.environ,{'SAMANTHA_DEPLOY_LOCK_FD':'9','SAMANTHA_DEPLOY_LOCK_WAIT_S':'0','TIER0_TEST_KEEP':'kept'}),patch.object(self.c.subprocess,'Popen') as child:
+            self.c.activate_current()
+            args,options=child.call_args
+            self.assertTrue(options['close_fds']);self.assertTrue(options['start_new_session'])
+            self.assertNotIn('SAMANTHA_DEPLOY_LOCK_FD',options['env'])
+            self.assertNotIn('SAMANTHA_DEPLOY_LOCK_WAIT_S',options['env'])
+            self.assertEqual(options['env']['TIER0_TEST_KEEP'],'kept')
+            self.assertEqual(options.get('pass_fds',()),())
+            self.assertEqual(os.environ['SAMANTHA_DEPLOY_LOCK_FD'],'9')
     def test_main_releases_control_lock_before_readiness_wait(self):
         def prepare(_args):
             with open(self.c.TIER0/'control.lock','a') as independent:

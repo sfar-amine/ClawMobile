@@ -29,7 +29,8 @@
     "evidence": [
       "14new pure tests +15control +9distinct-health +10LKG +16health-verdict passed,64total, no S24 mutation.",
       "Real S24 timing/component/code metadata fixture; crash and two distinct samples explicitly unproven.",
-      "New tests registered in ci.yml; combined-head canonical CI still pending."
+      "New tests registered in ci.yml; combined-head canonical CI still pending.",
+      "Subsequent focused15-case suite PASS: detached Popen receives neither transient deployment-lock marker nor FDs, retains unrelated environment and leaves parent authority unchanged. Final exact-head canonical CI still required."
     ]
   },
   "capability_impact": {

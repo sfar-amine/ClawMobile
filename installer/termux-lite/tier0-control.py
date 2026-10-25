@@ -65,11 +65,18 @@ def activate_current(delay_s=3):
     if not boot.is_file():
         return
     bash=shutil.which('bash') or '/data/data/com.termux/files/usr/bin/bash'
+    # A detached service does not inherit the caller's transient deployment-lock authority. Python closes its FDs;
+    # leaving the numeric marker would falsely tell later repair_lease callers to require a now-nonexistent FD.
+    child_env=dict(os.environ)
+    child_env.pop('SAMANTHA_DEPLOY_LOCK_FD',None)
+    child_env.pop('SAMANTHA_DEPLOY_LOCK_WAIT_S',None)
     subprocess.Popen(
         [bash,'-c','sleep "$1"; exec "$2" --restart-core','tier0-activate',str(int(delay_s)),str(boot)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
+        close_fds=True,
+        env=child_env,
     )
 
 def load_state():
