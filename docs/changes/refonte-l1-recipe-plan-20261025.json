@@ -30,8 +30,8 @@
     },
     {
       "name": "test-companion-acceptance-web-recipe.py",
-      "status": "failed",
-      "evidence": "Essai impossible à qualifier :14setUp en erreur web_budget_contract_unavailable car dist/companion/runWeb.js absent du worktree neuf. Aucune conclusion de régression; compilation TypeScript différée pour laisser la CI409 seule sur CPU."
+      "status": "passed",
+      "evidence": "14tests historiques PASS après compilation TypeScript du head cbdbc3e1 (npm run build exit0). Log l1-core-web-after-build.log SHA2564e13974b42e4f2036f7c6172580c3dadf92f6e24d8ebf737295d12c02eca17c6. Échec initial pour dist absent conservé dans l1-core-web-prerequisite-failure.log."
     }
   ],
   "documentation": [
