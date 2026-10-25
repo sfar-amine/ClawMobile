@@ -495,11 +495,17 @@ export async function dialoguePreview(request: string, clientId?: string, runner
   return { outcome: "TECHNICAL_FAILURE", reasonCode: "coordinator_unavailable" };
 }
 
-function typedMcpSelection(args: Record<string, unknown>): Record<string, unknown> | undefined {
-  if (args.typed === undefined) return undefined;
+export function typedMcpSelection(args: Record<string, unknown>): Record<string, unknown> | undefined {
+  // The already published connector exposes decision:{} but may cache an older tools/list without typed.
+  // This closed envelope transports selection only: it never grants authority or user confirmation.
+  const envelope = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision) &&
+    (args.decision as any).kind === "samantha.typed-selection.v1" ? args.decision as Record<string, unknown> : undefined;
+  if (args.typed === undefined && !envelope) return undefined;
   if (process.env.SAMANTHA_BRAIN_ONLY !== "1") throw new Error("typed_path_not_active");
-  if (["decision", "client_context", "service_scope", "target_hint"].some(key => args[key] !== undefined)) throw new Error("typed_input_conflict");
-  const value = args.typed as any;
+  if ((envelope && (Object.keys(envelope).length !== 2 || !Object.prototype.hasOwnProperty.call(envelope, "selection") || args.typed !== undefined)) ||
+      ["client_context", "service_scope", "target_hint"].some(key => args[key] !== undefined) ||
+      (!envelope && args.decision !== undefined)) throw new Error("typed_input_conflict");
+  const value = (envelope ? envelope.selection : args.typed) as any;
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== 3 ||
       Object.keys(value).some(k => !["domain", "action", "params"].includes(k)) ||
       !/^[a-z][a-z0-9_.-]{0,127}$/.test(value.domain) || !/^[a-z][a-z0-9_.-]{0,127}$/.test(value.action) ||
@@ -559,7 +565,7 @@ async function executeCapability(
       reason: "coordinator_unavailable", outcome: "TECHNICAL_FAILURE" };
   }
   const method = profile === "chat-owner" ? "mcp_capability_execute_owner" : "mcp_capability_execute_readonly";
-  const suppliedDecision = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision)
+  const suppliedDecision = !typedSelection && args.decision && typeof args.decision === "object" && !Array.isArray(args.decision)
     ? args.decision as Record<string, unknown>
     : undefined;
   let resolved: any = undefined;
@@ -855,12 +861,12 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
     case "claw_context":
       return contextBundle(args,clientId);
     case "claw_resolve":
-      if (args.typed !== undefined) typedMcpSelection(args);
+      typedMcpSelection(args);
       if(args.service_scope!==undefined&&!Object.prototype.hasOwnProperty.call(args,"client_context"))return mcpInputFailure("client_context_required_for_service_scope");
       if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,false,message);
       return { state: "resolved", result: await resolveCapability(args, clientId, requestId) };
     case "claw_execute":
-      if (args.typed !== undefined) typedMcpSelection(args);
+      typedMcpSelection(args);
       if(args.service_scope!==undefined&&!Object.prototype.hasOwnProperty.call(args,"client_context"))return mcpInputFailure("client_context_required_for_service_scope");
       if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,true,message);
       return executeCapability(requestId, clientId, profile, args);

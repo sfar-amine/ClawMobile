@@ -72,6 +72,26 @@ async function main() {
     assert.deepEqual(result.selection,selection);assert(!result.argv.includes('--decision-b64'));
     assert(result.argv.includes('--selection-stdin'));
   }
+  const mcp=require('../dist/companion/mcpBridge');
+  const previousFlag=process.env.SAMANTHA_BRAIN_ONLY;
+  process.env.SAMANTHA_BRAIN_ONLY='1';
+  const envelope={kind:'samantha.typed-selection.v1',selection};
+  assert.deepEqual(mcp.typedMcpSelection({decision:envelope}),selection);
+  assert.deepEqual(mcp.typedMcpSelection({typed:selection}),selection);
+  for(const conflict of [{typed:selection},{target_hint:'owner'},{client_context:{}},{service_scope:{}}])
+    assert.throws(()=>mcp.typedMcpSelection({decision:envelope,...conflict}),/typed_input_conflict/);
+  for(const bad of [{...envelope,owner:true},{...envelope,selection:{...selection,owner:true}},
+    {...envelope,selection:{...selection,params:null}}])
+    assert.throws(()=>mcp.typedMcpSelection({decision:bad}),/typed_input/);
+  process.env.CLAW_CAPABILITY_HELPER=bridgeHelper;
+  const preview=await mcp.handleMcpRelayRequest({requestId:'mcp-typed-preview',clientId:'typed-test',
+    profile:'chat-owner-shadow',tool:'claw_resolve',arguments:{request:'Ce texte ne doit pas être résolu',decision:envelope}});
+  assert.equal(preview.state,'resolved');assert.equal(preview.result.mode,'typed-resolve');
+  assert.deepEqual(preview.result.selection,selection);
+  delete process.env.CLAW_CAPABILITY_HELPER;
+  process.env.SAMANTHA_BRAIN_ONLY='0';
+  assert.throws(()=>mcp.typedMcpSelection({decision:envelope}),/typed_path_not_active/);
+  if(previousFlag===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=previousFlag;
   console.log('typed-capability-tools: PASS (pinned canonical projection, exact host invocation, owner isolation, no replay, canonical app invocation)');
 }
 main().catch(error=>{console.error(error);process.exitCode=1}).finally(()=>fs.rmSync(root,{recursive:true,force:true}));

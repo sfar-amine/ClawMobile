@@ -56,7 +56,8 @@
     "evidence": [
       "Focused suites run in Cloud; complete localci.py exact-head proof still required before integration.",
       "Typed tools and confirmation owners tested with canonical contracts; final business/network process simulated where stated. No live acceptance claimed.",
-      "l3-core-focused.log SHA256 093b46bf4c654a0c252708f41f708952c564e9ec4f84177c1be2d213ffb03cee"
+      "l3-core-focused.log SHA256 093b46bf4c654a0c252708f41f708952c564e9ec4f84177c1be2d213ffb03cee",
+      "Compatibility follow-up adds closed envelope validation and backend-to-CLI assertions; focused rerun and canonical CI required for its final head."
     ]
   },
   "capability_impact": {
@@ -74,7 +75,7 @@
   },
   "mcp_parity": {
     "status": "updated_pending_live",
-    "detail": "claw_resolve/claw_execute accept typed selection; other primitives unchanged. External narratives cannot confirm writes. Paired live acceptance pending."
+    "detail": "Canonical typed selection plus closed decision compatibility envelope for cached claw_execute wrappers; same Graph, no authority grant. Cached claw_resolve requires tools/list refresh. External narratives cannot confirm writes. Wrapper/live acceptance pending."
   },
   "merge_eligibility": "requires_canonical_ci",
   "deployment_state": "not_applied",

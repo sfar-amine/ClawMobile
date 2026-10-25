@@ -239,7 +239,13 @@ function registerTools(server, auth, invoke) {
       action_key: z.string().regex(ACTION_ID_RE),
       step_key: z.string().regex(STEP_ID_RE).optional(),
       target_hint: z.string().max(128).optional(),
-      decision: z.record(z.string(), z.unknown()).optional(),
+      decision: z.union([
+        z.object({kind: z.literal("samantha.typed-selection.v1"), selection: z.object({
+          domain: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/), action: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/),
+          params: z.record(z.string(), z.unknown()),
+        }).strict()}).strict(),
+        z.record(z.string(), z.unknown()),
+      ]).optional().describe("Existing prepared decision, or closed compatibility envelope {kind:'samantha.typed-selection.v1',selection:{domain,action,params}} for connectors whose cached schema lacks typed. Selection grants no authority or user confirmation; do not mix with typed/client_context/service_scope/target_hint."),
     },
     annotations: { readOnlyHint: !ownerProfile, idempotentHint: true, openWorldHint: ownerProfile },
   }, run("claw_execute"));
