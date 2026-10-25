@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "capturedAt": "2026-10-25T01:15:00+01:00",
+  "device": "S24 (Termux), Claw MCP claw_exec, read-only",
+  "files": {
+    "s24-workspace/SOUL.md": {"source": "~/.openclaw/workspace/SOUL.md", "sha256": "c01432925b4f6c74b26d3833758cca7f637c88b5938622d571f43307bf395a9f", "sanitized": "verbatim: persona and rules only, no secret or personal data"},
+    "s24-workspace/memory/voice/amine.md": {"source": "~/.openclaw/workspace/memory/voice/amine.md", "sha256": "e1e5e771512810ce515a85eccf539f72b2d874b96df85591ce71680ebb27b3b2", "sanitized": "verbatim: voice style, calibration, validated voice rules and a technical history, no secret or personal data"},
+    "s24-workspace/context/OPERATING_RULES.md": {"source": "~/.openclaw/workspace/context/OPERATING_RULES.md", "sha256": "e596366dca687ad726070ea3b33731430fdd5dabcb64a68b456173a2c6f6cdb3", "sanitized": "verbatim: operating rules, no secret or personal data"},
+    "resolve-claw_live.json": {"source": "claw-capability.py resolve --surface claw_live --caller owner", "sanitized": "field projection"}
+  },
+  "notUsed": "USER.md and HYBRID_CONTEXT.md hold personal context: tests write synthetic markers instead of a capture."
+}

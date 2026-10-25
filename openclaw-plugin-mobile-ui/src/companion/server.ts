@@ -50,6 +50,7 @@ import {readRunApproval,decideRunApproval} from './agentApprovals';
 import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalStop, probeChatGptVoiceActive, resumeVoiceRecovery, startVoiceRecoveryWatchdog, suspendVoiceRecovery } from "./voiceRecovery";
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
+import { routeUnresolvedVoiceTurn } from "./voiceBrainDelegation";
 import { dialogueConversationId } from "../dialogueSurface";
 import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
@@ -986,11 +987,19 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     }
     // The same ephemeral ticket guards resolution, prepared execution and the final bridge.
     // A stored clarification never grants admission to a following request.
+    // Brain delegation (Amine 25/10/2026): a turn the coordinator leaves unresolved keeps the existing Graph executor
+    // when the Graph resolves it to an executable, clarifying or stopping decision (payment path included). A model-only
+    // turn goes to Samantha's main agent (same owner as ask_samantha / POST /runs), never a Graph execution of a
+    // conversational sentence nor a free answer of the voice interface.
     const execute = (request: string) => clawLiveCapabilityTurn(
       {request, clarificationId, originId: body.clientRunId,sessionId, assertCurrent},
       (text) => {
         assertCurrent();
-        return capabilityBridge(text, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35});
+        return routeUnresolvedVoiceTurn(text, {sessionId, clientRunId: String(body.clientRunId || ""), admission: admission.ticket, assertCurrent}, {
+          resolve: (unresolved) => capabilityBridge(unresolved, {execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5}),
+          execute: (unresolved) => capabilityBridge(unresolved, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35}),
+          submit: submitIntent, status: getRunStatus,
+        });
       },
     );
     const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute, {assertCurrent});

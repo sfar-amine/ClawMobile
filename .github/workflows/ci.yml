@@ -252,6 +252,8 @@ jobs:
         run: node scripts/test-voice-understanding.cjs
       - name: Voice option A canonical admission
         run: node scripts/test-voice-option-a.cjs
+      - name: Samantha Voix délègue tout au cerveau (contrat Gemini Live, décision, secours, contexte agent) sur fixtures S24
+        run: node scripts/test-voice-brain-delegation.cjs
       - name: HS3 closed presentation and existing run transport
         run: |
           python3 scripts/test-receipt-presentation-read.py

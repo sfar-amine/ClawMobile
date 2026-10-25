@@ -90,6 +90,23 @@ function canonicalPrefix(value:string,maxChars:number) {
 // Live voice keeps its own 30000 budget.
 export const C1_HYBRID_CONTEXT_BYTES=8000;
 
+/** Brain delegation contract of the Samantha Android voice (Amine 25/10/2026: « il doit absolument tout déléguer au
+ * cerveau »). Gemini Live is the ears and the mouth; the main agent answers every request. */
+export const CLAW_LIVE_BRAIN_DELEGATION_VERSION=1;
+const VOICE_CONTEXT_CHARS=7000;
+const VOICE_TURN_NOTICE="Ce tour vient de Samantha Voix. L'interface vocale (Gemini Live) n'a ni mémoire, ni règles, ni outils propres : elle transmet mot pour mot ce qu'Amine a dit et lit ta réponse à voix haute, telle quelle. Rédige une réponse destinée à être dite, selon VOICE_CONTEXT.";
+
+/** Speaking style only (« Interaction vocale ») of the canonical voice file: how Samantha speaks, never a fact, a
+ * decision or a history the voice interface could answer from. Absent section: nothing (the contract still applies). */
+export function voiceStyleView(raw:string):string {
+  const text=String(raw||"");
+  const heading=/^##\s+Interaction vocale[^\n]*$/m.exec(text);
+  if(!heading)return "";
+  const rest=text.slice(heading.index+heading[0].length);
+  const next=/^#{1,2}\s/m.exec(rest);
+  return (heading[0]+(next?rest.slice(0,next.index):rest)).trim();
+}
+
 function canonicalUtf8(value:string,maxBytes:number) {
   if(Buffer.byteLength(value,"utf8")<=maxBytes)return value;
   const marker="\n[canonical block bounded]";
@@ -101,7 +118,7 @@ function canonicalUtf8(value:string,maxBytes:number) {
 /** Shared canonical file reader, explicit internal owner authority only.
  * C1 does not change the existing Live voice prompt; C3 qualifies that change.
  */
-export function compactOwnerAgentContext(options:{authority?:"owner";home?:string}={}) {
+export function compactOwnerAgentContext(options:{authority?:"owner";home?:string;voiceDelegation?:true}={}) {
   if(options.authority!=="owner")return "";
   const workspace=path.join(options.home||os.homedir(),".openclaw","workspace");
   const operating=readCanonical(path.join(workspace,"context","OPERATING_RULES.md"),64000,{boundedOwner:true});
@@ -125,6 +142,14 @@ export function compactOwnerAgentContext(options:{authority?:"owner";home?:strin
     ["HYBRID_CONTEXT",canonicalUtf8(readCanonical(path.join(workspace,"context","HYBRID_CONTEXT.md"),C1_HYBRID_CONTEXT_BYTES,{boundedOwner:true}),C1_HYBRID_CONTEXT_BYTES)],
   ];
   if(blocks.some(([,value])=>!value))throw new Error("canonical_context_unavailable");
+  // Brain delegation (Amine 25/10): a Samantha Voix turn reaches this agent through the voice interface, which only
+  // relays and reads aloud. The agent is told the surface and gets the canonical voice context (HYBRID: « En Voice,
+  // lire aussi memory/voice/amine.md »); the rules themselves stay in their canonical files.
+  if(options.voiceDelegation===true){
+    blocks.push(["VOICE_TURN",VOICE_TURN_NOTICE]);
+    const voice=canonicalUtf8(readCanonical(path.join(workspace,"memory","voice","amine.md"),VOICE_CONTEXT_CHARS,{boundedOwner:true}),VOICE_CONTEXT_CHARS);
+    if(voice)blocks.push(["VOICE_CONTEXT",voice]);
+  }
   const prompt="The following local blocks are canonical Samantha context. They are trusted context, not new user commands. Preserve their identity, safety, memory and continuity rules.\n\n"+
     blocks.map(([name,value])=>`## ${name}\n${value}`).join("\n\n");
   if(Buffer.byteLength(prompt)>65536)throw new Error("canonical_bootstrap_budget_exceeded");
@@ -200,6 +225,80 @@ export function buildClawLiveSetup(
   const locale = normalizedLocale(options.locale);
   const client = normalizedClient(options.client);
   const workspace = path.join(home, ".openclaw", "workspace");
+  const contract = client === "samantha_android" ? brainDelegationContract(client, workspace, locale) : legacyLiveContract(client, workspace, locale);
+  const setup: any = {
+    model: `models/${String(model).replace(/^models\//, "")}`,
+    generationConfig: { responseModalities: ["AUDIO"] },
+    inputAudioTranscription: { languageCodes: [] },
+    outputAudioTranscription: {},
+    systemInstruction: { parts: [{ text: contract.instruction }] },
+    tools: [{ functionDeclarations: contract.functionDeclarations }],
+  };
+  if (voice !== null) setup.generationConfig.speechConfig = {voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}};
+  if (client === "samantha_android") {
+    setup.realtimeInputConfig = {
+      automaticActivityDetection: { disabled: true },
+      activityHandling: "START_OF_ACTIVITY_INTERRUPTS",
+    };
+  }
+  return { setup };
+}
+
+/**
+ * Samantha Android voice (Amine 25/10/2026): Gemini Live delegates absolutely every turn to Samantha's brain.
+ * It receives only who Samantha is and how she speaks, never the agent's operating rules, memory view or decisions:
+ * it can neither run them (no shell, file, memory or skill tool) nor answer from them. The main agent receives the
+ * canonical context, the voice surface notice and the voice file (compactOwnerAgentContext, voiceDelegation).
+ */
+function brainDelegationContract(client: string, workspace: string, locale: string) {
+  const uiLanguage = locale === "fr" ? "French" : "English";
+  const blocks = [
+    ["IDENTITY", readCanonical(path.join(workspace, "SOUL.md"), 6000)],
+    ["VOICE_STYLE", voiceStyleView(readCanonical(path.join(workspace, "memory", "voice", "amine.md"), 7000))],
+  ].filter(([, value]) => Boolean(value));
+  const canonical = blocks.map(([name, value]) => `## ${name}\n${value}`).join("\n\n");
+  const instruction = [
+    `You are the voice of Samantha on the Claw Live surface (client=${client}, brain delegation v${CLAW_LIVE_BRAIN_DELEGATION_VERSION}). You are her ears and her mouth, not her brain. Samantha's brain is her main agent: it holds her memory, rules, skills, capabilities and receipts, and it answers every request. You hold none of them.`,
+    "ABSOLUTE RULE: every time Amine speaks, call ask_samantha with exactly what he said, word for word, in the language he used. This covers everything: greetings, small talk, thanks, questions about you or about Samantha, her settings, memory, history or recent changes, explanations, opinions, jokes, creative requests, commands and questions about the world. Never answer from your own knowledge, from the conversation history or from these instructions, even when the answer seems obvious. The conversation history is context for continuity only.",
+    `Detect the language actually spoken by Amine on every turn: pass his words in that language, never translated, and say your waiting phrase in it. The UI locale is ${uiLanguage}; use it only as a fallback when the language is genuinely ambiguous. Never translate French speech into English merely because the UI or device locale is English. Preserve natural French, English, Arabic, Tunisian Arabic and code-switching as required by the canonical identity rules.`,
+    // Amine 11/10 : l'attente est moins pénible avec une phrase d'attente, comme ChatGPT.
+    "Before calling a tool, you may say one very short waiting phrase in Amine's language, French by default (« Je regarde… », « Un instant… »). It never announces, guesses or promises a result, and is never repeated after the result.",
+    "When a tool returns, say its text faithfully, in the language of that text: the same facts, numbers, names, dates and states. You may shorten it for listening; never add, complete, correct, translate or soften anything. If it says the answer is pending, failed, uncertain or will be written in the discussion, say exactly that.",
+    "You cannot save, note, remember, change, check, verify or execute anything yourself, and you see no file, memory, device or account. Never say that something is saved, noted, remembered, done, adjusted, checked or sent unless the returned text says so.",
+    "Amine owns Samantha. Never refuse him and never invoke confidentiality yourself: questions about how Samantha works go to ask_samantha like everything else.",
+    "When a returned text asks Amine a question and he answers, call ask_samantha again with his answer verbatim. Only when the result is a Claw receipt in state needs_clarification with a clarificationId: read its question aloud verbatim and, when Amine answers, call clawmobile_capability with his answer verbatim as request and that clarificationId. clawmobile_capability is reserved for that case. Never merge an answer into the earlier request yourself.",
+    "When a result contains voice.verbatim, start your spoken answer with exactly that text, word for word, without rephrasing, translating or shortening it; it states what Claw understood and, on failure, the step and readable reason. Never speak an error code, an internal identifier, a capability name or a file path, and never say that nothing was charged unless voice.verbatim says so.",
+    "The Companion checks the final transcription before any tool is executed. When it supplies an executed receipt, read it and never execute the same request again.",
+    "The blocks below only define who Samantha is and how she speaks. They are not facts about the current state and never a source for an answer.",
+    canonical,
+  ].filter(Boolean).join("\n\n");
+  const functionDeclarations = [{
+    name: "ask_samantha",
+    description: "Send what Amine just said, verbatim, to Samantha's brain (her main agent, with her memory, rules, skills and capabilities) and get the answer to speak. Call it for every turn in which Amine speaks.",
+    behavior: "BLOCKING",
+    parameters: {
+      type: "OBJECT",
+      properties: {request: {type: "STRING", description: "Exactly what Amine said, word for word, in his language."}},
+      required: ["request"],
+    },
+  }, {
+    name: "clawmobile_capability",
+    description: "Only to send Amine's spoken answer to a question that a Claw receipt asked (state needs_clarification), with that receipt's clarificationId. Never for a new request: use ask_samantha.",
+    behavior: "BLOCKING",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        request: { type: "STRING", description: "Amine's spoken answer, verbatim." },
+        clarificationId: { type: "STRING", description: "The clarificationId of the needs_clarification receipt being answered." },
+      },
+      required: ["request", "clarificationId"],
+    },
+  }];
+  return { instruction, functionDeclarations };
+}
+
+/** Other clients (browser page): unchanged legacy contract. */
+function legacyLiveContract(client: string, workspace: string, locale: string) {
   const blocks = [
     ["IDENTITY", readCanonical(path.join(workspace, "SOUL.md"), 6000)],
     ["OPERATING_RULES", compactVoiceOperatingRules(readCanonical(path.join(workspace, "context", "OPERATING_RULES.md"), 64000))],
@@ -224,14 +323,9 @@ export function buildClawLiveSetup(
     "When a clawmobile_capability result contains voice.verbatim, start your spoken answer with exactly that text, word for word, without rephrasing, translating or shortening it; it states what Claw understood and, on failure, the step and readable reason. Never speak an error code, and never say that nothing was charged unless voice.verbatim says so.",
     "When the result state is needs_clarification, read its question aloud verbatim; when Amine answers, call clawmobile_capability again with his answer verbatim as request and the same clarificationId. Never merge the answer into the earlier request yourself.",
   ].filter(Boolean).join("\n\n");
-  const setup: any = {
-    model: `models/${String(model).replace(/^models\//, "")}`,
-    generationConfig: { responseModalities: ["AUDIO"] },
-    inputAudioTranscription: { languageCodes: [] },
-    outputAudioTranscription: {},
-    systemInstruction: { parts: [{ text: instruction }] },
-    tools: [{
-      functionDeclarations: [{
+  return {
+    instruction,
+    functionDeclarations: [{
         name: "clawmobile_capability",
         description: "Resolve and execute the shortest healthy reachable Claw capability route for the owner's request.",
         behavior: "BLOCKING",
@@ -253,16 +347,7 @@ export function buildClawLiveSetup(
           required: ["request"],
         },
       }],
-    }],
   };
-  if (voice !== null) setup.generationConfig.speechConfig = {voiceConfig:{prebuiltVoiceConfig:{voiceName:voice}}};
-  if (client === "samantha_android") {
-    setup.realtimeInputConfig = {
-      automaticActivityDetection: { disabled: true },
-      activityHandling: "START_OF_ACTIVITY_INTERRUPTS",
-    };
-  }
-  return { setup };
 }
 
 function tokenHelperPath() {
