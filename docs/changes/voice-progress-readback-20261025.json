@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "id": "voice-progress-readback-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Samantha Voix v2: a new speakProgress control lets the app have the voice read, verbatim and on the same turn, up to 6 user-oriented progress lines while a brain execution runs; refusals are per turn, provider tools are refused during a progress line, and warmReady announces progressReadback.",
+  "scope": {
+    "files": [
+      "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+      "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+      "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json",
+      "openclaw-plugin-mobile-ui/scripts/test-voice-turn-protocol.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-warm-v2-ownership.cjs",
+      "docs/changes/voice-progress-readback-20261025.md",
+      "docs/08-decisions/ADR-20261025-voice-brain-delegation.md"
+    ]
+  },
+  "routes": [
+    {
+      "route": "WS /v1/extensions/claw-live/warm (control speakProgress)",
+      "change": "new v2 control: verbatim progress line on the owning brain turn while its execution runs",
+      "budget": "no Gateway call, no storage; at most 6 lines of 200 characters per turn",
+      "capability": "NO_CAPABILITY (voice surface owner route)"
+    }
+  ],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "scripts/test-voice-turn-protocol.cjs (37, 7 new) and scripts/test-warm-v2-ownership.cjs, already registered in .github/workflows/ci.yml (job mobile-ui-plugin)"
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "No capability added or changed. A progress line executes nothing; payment and deterministic routes are unchanged."
+  },
+  "architecture_impact": {
+    "changed": true,
+    "adr": "docs/08-decisions/ADR-20261025-voice-brain-delegation.md",
+    "reason": "Revision v2 of the voice ADR: the voice protocol gains a bounded progress readback inside the existing turn owner. No new store, router, scheduler or retry."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "No MCP tool or adapter change."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Revert this commit and redeploy the Companion with companion-deploy.sh; the app stops sending progress when warmReady no longer announces progressReadback."
+}
