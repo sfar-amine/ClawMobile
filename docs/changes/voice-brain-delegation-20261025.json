@@ -22,9 +22,12 @@
     {"route": "POST /v1/extensions/claw-live/capability", "change": "coordinator-unresolved turns: a read-only resolution keeps executable, clarifying and stopping decisions (payment included) on the existing Graph executor; model-only framing (REASON) is delegated to the main agent (submitIntent voiceDelegation) with a 30 s bounded read", "budget": "resolution 5 s + brain wait 30 s, inside the app 45 s read timeout; executor path unchanged (35 s)", "capability": "NO_CAPABILITY (voice surface owner route)"}
   ],
   "tests": {
-    "status": "pending_ci",
+    "status": "passed_s24_diagnostic",
     "evidence": [
-      "scripts/test-voice-brain-delegation.cjs registered in .github/workflows/ci.yml"
+      "scripts/test-voice-brain-delegation.cjs (24 cases) registered in .github/workflows/ci.yml; scripts/test-claw-live.cjs updated to the Android brain delegation contract",
+      "S24 native diagnostic, private HOME: 85 CI node tests importing the touched modules, 82 pass at 8b32b3d1; test-claw-live fixed at de0240f8; test-run-web (700 ms budget) and test-server-localization (240 s timeout) fail identically at base d322f2ce",
+      "tools/localci-s24.sh on PR #406 head 8b32b3d1: steps 1-10 green, step 11 red as on the deployed baseline 8b531a78 (S24 diagnostic, not a merge proof)",
+      "Canonical cloud localci.py not runnable in this session: registry.npmjs.org refused by the session network policy (HTTP 403)"
     ]
   },
   "capability_impact": {

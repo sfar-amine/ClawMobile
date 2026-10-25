@@ -52,7 +52,12 @@ Décision d'Amine du 25/10 : « il doit absolument tout déléguer au cerveau »
   - non-réécriture du reçu ;
   - contexte de l'agent ;
   - câblage.
-- Non-régression des tests voix existants : `test-voice-option-a`, `test-voice-operating-rules`, `test-voice-understanding`, `test-voice-choices`, `test-e3-surfaces`, `test-voice-turn-protocol`, `test-canonical-agent-bootstrap`.
+- `test-claw-live.cjs` est aligné sur le contrat Android : identité seule, `ask_samantha` en premier, règle de langue conservée. La couverture du bootstrap canonique complet reste sur le client historique.
+- Non-régression, diagnostic S24 natif avec un HOME privé : les 85 tests node de la CI qui importent les modules touchés.
+  - 82 passent dès `8b32b3d1`, puis `test-claw-live` passe à `de0240f8`.
+  - `test-run-web` (budget de 700 ms) et `test-server-localization` (délai de 240 s) échouent de la même façon sur la base `d322f2ce`. Ce sont des limites de l'environnement S24, pas une régression.
+- `tools/localci-s24.sh`, PR #406 : étapes 1 à 10 vertes, étape 11 rouge comme sur la base déployée `8b531a78`. C'est un diagnostic.
+- **Exception** : la CI canonique cloud (`localci.py`) n'a pas pu tourner, car `registry.npmjs.org` est refusé par la politique réseau de la session (HTTP 403). La fusion et le déploiement reposent sur le mandat d'Amine du 25/10 (« fais le nécessaire jusqu'à déploiement… carte blanche »), avec les preuves ci-dessus. Le rejeu canonique reste à faire.
 
 ## Limites connues
 - **Silence pendant l'attente du cerveau.** L'app coupe la phrase d'attente de Gemini à l'appel d'outil. L'attente est donc silencieuse, avec l'état « traitement » à l'écran. Un clip d'attente pour `ask_samantha` demande un lot APK.
