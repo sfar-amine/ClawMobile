@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "id": "canonical-ci-delivery-v2-gate-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Canonical Core and Android CI invoke the original pinned playbooks v2 delivery contract before compilation.",
+  "reason": "Observed Core and Android records could carry a version2 label while using an invalid scope, tests or eligibility shape; compilation alone did not reject them.",
+  "files": [
+    "tools/localci.py",
+    "tools/test_localci.py",
+    "docs/changes/canonical-ci-delivery-v2-gate-20261025.json",
+    "docs/changes/canonical-ci-delivery-v2-gate-20261025.md"
+  ],
+  "tests": [
+    {
+      "name": "tools/test_localci.py complete owner regression",
+      "status": "passed",
+      "evidence": "56 tests passed in37.137s; canonical-v2-guard-full-v2.log. Includes actual pinned PB schema, Core/App before-build refusal, explicit v2 without base policy, inherited history isolation, hostile PYTHONPATH and unchanged lifetime/APK receipt checks. No device effects."
+    }
+  ],
+  "documentation": [
+    "docs/changes/canonical-ci-delivery-v2-gate-20261025.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "CI-only validation at the existing owner; no runtime route or capability changes."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Delegates to the existing immutable shared delivery contract from the existing canonical CI owner; no new schema or execution component."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: no MCP schema, adapter, endpoint, data admission or runtime behavior changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the composed final GitHub head remains required.",
+    "Schema correctness is distinct from semantic review, deployment and direct S24 acceptance."
+  ],
+  "rollback": "Revert this scoped commit normally and requalify the canonical CI owner; no S24 configuration or deployment is changed by this patch."
+}
