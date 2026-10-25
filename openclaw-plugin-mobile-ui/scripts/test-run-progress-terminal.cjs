@@ -9,7 +9,14 @@ const key='agent:main:companion-chat-terminal-recipe';
 const registry=path.join(root,'clawmobile-companion/runs.json');fs.mkdirSync(path.dirname(registry),{recursive:true});
 let sessions=0,histories=0,cards=0,mode='normal';
 client.callOpenClawGateway=async(method,params,options)=>{
- if(method==='sessions.list'){sessions++;return {sessions:[{key:mode==='wrong-session'?key+'-other':key,sessionId:'s24-real-capture',status:'completed'}]};}
+ if(method==='sessions.list'){
+  sessions++;
+  // Realistic retained volume: the historical target is absent from a generic newest100 page.
+  const newer=Array.from({length:150},(_,i)=>({key:key+'-newer-'+i,sessionId:'newer-'+i,status:'completed'}));
+  if(params.search==='companion-')return {sessions:newer.slice(0,params.limit)};
+  assert.equal(params.search,key,'terminal details must query their exact owner session');assert.equal(params.limit,20);
+  return {sessions:[{key:mode==='wrong-session'?key+'-other':key,sessionId:'s24-real-capture',status:'completed'}]};
+ }
  if(method==='progressCard.get'){cards++;return {card:null};}
  assert.equal(method,'chat.history');assert.equal(params.sessionKey,key);assert.equal(params.limit,200);assert.ok(options.timeoutMs<=5500);histories++;
  if(mode==='slow')await new Promise(r=>setTimeout(r,2800));

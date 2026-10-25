@@ -941,7 +941,8 @@ async function terminalDetailProgress(stored:StoredRun,status:CompanionRunStatus
   if(!cached||Date.now()-cached.at>=TERMINAL_PROGRESS_TTL_MS){
     const deadline=Date.now()+TERMINAL_PROGRESS_OWNER_MS;
     const value=(async()=>{
-      const session=await findSessionInfo(stored.runId,stored,deadline);
+      const expected=stored.sessionKey||expectedCompanionSessionKey(stored.sessionId);
+      const session=findSessionForStoredRun(await readSessionsIndex(deadline,expected),stored);
       if(!session||!/^[A-Za-z0-9_-]{1,128}$/.test(String(session.sessionId||'')))return undefined;
       const [transcript,card]=await Promise.all([
         readSessionTranscript(session.sessionId,stored.text,String(session.key||''),deadline,stored.acceptedAt).catch(()=>null),
@@ -1196,7 +1197,7 @@ function normalizedStoredSessionKey(sessionId: string, sessionKey?: string) {
   return `agent:${agentId()}:${value}`;
 }
 
-async function readSessionsIndex(deadline?: number): Promise<any[]> {
+async function readSessionsIndex(deadline?: number, exactKey?: string): Promise<any[]> {
   const filePath = path.join(openClawStateDir(), "agents", agentId(), "sessions", "sessions.json");
   let data: any;
   try {
@@ -1206,7 +1207,7 @@ async function readSessionsIndex(deadline?: number): Promise<any[]> {
     // OpenClaw SQLite migration removed the legacy index. Use the owner Gateway API.
     const remaining = deadline === undefined ? undefined : deadline - Date.now();
     if (remaining !== undefined && remaining <= 0) return [];
-    data = await callOpenClawGateway("sessions.list", { search: "companion-", limit: 100 },
+    data = await callOpenClawGateway("sessions.list", { search: exactKey || "companion-", limit: exactKey ? 20 : 100 },
       remaining === undefined ? {} : {timeoutMs: remaining, hardTimeoutMs: remaining});
   }
   if (Array.isArray(data?.sessions)) return data.sessions;
