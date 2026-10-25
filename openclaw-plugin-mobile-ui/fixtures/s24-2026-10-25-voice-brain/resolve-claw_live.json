@@ -1,0 +1,13 @@
+{
+  "_capture": {
+    "source": "S24 ~/.openclaw/releases/current/termux-lite/claw-capability.py resolve --surface claw_live --caller owner (read-only, no execution)",
+    "capturedAt": "2026-10-25T01:20:00+01:00",
+    "runtime": "samantha-core d322f2ce (deployed), ui-playbooks 68fd7b02",
+    "sanitized": true,
+    "note": "Projection of the real envelope: surface, caller, success, capability, decision, harness and selected fields only."
+  },
+  "cases": [
+    {"request": "Qu'est-ce que tu as ajusté récemment ?", "resolution": {"surface": "claw_live", "caller": "owner", "success": null, "capability": null, "decision": {"version": 2, "type": "REASON", "capability": null, "risk": "read", "confirmationRequired": false}, "harness": {"version": 1, "tool_policy": "optional", "allow_model_only": true, "evidence_required": false, "reason": "model_only_framing", "confidence": 0.46}, "selected": null}},
+    {"request": "Bonjour Samantha", "resolution": {"surface": "claw_live", "caller": "owner", "success": null, "capability": "samantha.app.catalog", "decision": {"version": 2, "type": "REASON", "capability": "samantha.app.catalog", "risk": "read_only", "confirmationRequired": false}, "harness": {"version": 1, "tool_policy": "required", "allow_model_only": false, "evidence_required": true, "reason": "capability_match", "confidence": 0.94}, "selected": {"capability": "samantha.app.catalog", "deterministic": false, "model_required": false}}}
+  ]
+}

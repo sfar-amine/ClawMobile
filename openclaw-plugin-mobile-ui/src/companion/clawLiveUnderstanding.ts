@@ -7,6 +7,7 @@ import {
 import { captureVoiceRound, type RoundCaptureResult, type RoundCaptureRunner } from "./voiceRoundLearning";
 import {publicDecision} from "./receiptPresentation";
 import {phoneDateTimeDecision} from "./phoneDateTime";
+import {VOICE_BRAIN_SOURCE} from "./voiceBrainDelegation";
 
 /**
  * Ephemeral « Compris / Ce n'est pas ça » state of the single Claw Live owner (one voice owner at
@@ -116,7 +117,21 @@ export async function clawLiveDecision(owner: Owner, request: string, resolve: (
   const phoneAnswer=phoneDateTimeDecision(request,phoneDateTime);
   if(phoneAnswer)return{...phoneAnswer,voiceFastPath:{version:1,execute:true}};
   const result = await (owner.measureVoiceDecision ? owner.measureVoiceDecision(request, resolve) : resolve());
-  return {...result, voiceFastPath: {version: 1, execute: deterministicLiveDecision(result)}};
+  const execute = deterministicLiveDecision(result);
+  return {...(execute ? result : withVoiceBrainPolicy(result)), voiceFastPath: {version: 1, execute}};
+}
+
+/**
+ * Brain delegation (Amine 25/10/2026): the voice interface never speaks an answer of its own. Outside a deterministic
+ * route, every turn is evidence-required, so the app releases Gemini audio only after a Samantha receipt (ask_samantha,
+ * or the canonical rescue through /claw-live/capability). The Graph's own policy stays visible as model_tool_policy.
+ */
+export function withVoiceBrainPolicy(result: Record<string, any>): Record<string, any> {
+  const source = result && typeof result === "object" && !Array.isArray(result) ? result : {};
+  const harness = source.harness && typeof source.harness === "object" && !Array.isArray(source.harness) ? source.harness : {};
+  const original = typeof harness.tool_policy === "string" ? harness.tool_policy : null;
+  return {...source, harness: {...harness, tool_policy: "required", voice_policy: "brain_delegation",
+    ...(original !== null && original !== "required" ? {model_tool_policy: original} : {})}};
 }
 
 /** /claw-live/capability: V1/V3 imposed text on every receipt, V2 realignment + Round Learning. */
@@ -161,7 +176,8 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
       if (payload) learning = stillCurrent() ? await capture(payload) : {state:"skipped",reason:"owner_admission_expired"};
     }
     if (stillCurrent()) state.remember(voiceTurnContext(result, request, { locale:receiptLocale, now: now(), scope: String(body?.voiceTurn?.sessionEpoch || "") }), request);
-    const speech=responseLanguage==='tn'?{}:voiceReceiptProjection(result, receiptLocale);
+    // A brain-delegated receipt carries its own speech (the agent's answer); the capability template never rewrites it.
+    const speech=responseLanguage==='tn'||result?.source===VOICE_BRAIN_SOURCE?{}:voiceReceiptProjection(result, receiptLocale);
     return { ...result, ...speech, ...(learning ? { realignment_learning: learning } : {}), ...(choice ? { realignment_choice: choice.capability } : {}) };
   });
 }
