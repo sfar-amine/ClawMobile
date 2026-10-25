@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict');
+const {TURN_BUDGET_MS,remainingTurnBudgetMs,validateTurnMeasurement,turnMeasurementLogLine,summarizeTurnMeasurements}=require('../dist/companion/turnBudget');
+assert.equal(TURN_BUDGET_MS,30000);
+assert.equal(remainingTurnBudgetMs(1000,11000),20000);assert.equal(remainingTurnBudgetMs(1000,31001),0);
+for(const args of [[NaN,1],[1,Infinity],[2,1]])assert.equal(remainingTurnBudgetMs(...args),0);
+const row={version:1,surface:'voice',route:'question',model:'openai/gpt-5.6-sol',firstSignMs:null,decisionMs:200,toolMs:null,usefulMs:6000,totalMs:7000};
+assert.deepEqual(validateTurnMeasurement(row),row);assert.equal(validateTurnMeasurement({...row,request:'private'}),undefined);
+for(const patch of [{firstSignMs:7000},{usefulMs:8000},{totalMs:-1},{toolMs:'0'},{model:'private text with spaces'}])assert.equal(validateTurnMeasurement({...row,...patch}),undefined);
+assert.match(turnMeasurementLogLine(row),/first_sign_ms=-/);assert(!turnMeasurementLogLine(row).includes('first_sign_ms=0'));
+assert.throws(()=>turnMeasurementLogLine({...row,request:'private'}),/invalid_turn_measurement/);
+const summary=summarizeTurnMeasurements([row,{...row,usefulMs:4000,firstSignMs:800}, {...row,firstSignMs:null,usefulMs:null}, {request:'private'}]);
+const voice=summary.find(x=>x.surface==='voice');assert.equal(voice.turns,3);assert.equal(voice.medianUsefulMs,5000);assert.equal(voice.firstSignSamples,1);assert.equal(voice.firstSignUnder1s,1);
+assert.equal(summary.find(x=>x.surface==='app').medianUsefulMs,null);
+console.log('PASS shared turn budget, closed timing metadata and honest missing observations');
