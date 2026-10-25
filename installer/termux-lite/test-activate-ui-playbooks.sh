@@ -63,4 +63,17 @@ prev=$(readlink "$HOME/.openclaw/runtime-ui-playbooks/previous"); rm -f "$prev/b
 bash "$here/activate-ui-playbooks.sh" --rollback >/dev/null
 [ -L "$prev/billing/direct-runtime/node_modules" ]
 [ "$(tail -n 1 "$tmp/compile.log")" = "$(basename "$prev")" ] || { echo "views not recompiled after rollback" >&2; exit 1; }
-echo '{"ok":true,"linked":true,"unresolvedRefused":true,"retention":true,"rollbackLinked":true,"viewsRecompiled":true}'
+# A commit merged on origin but not fetched yet is fetched, then activated (S24 25/10, fresh merge 698322f7).
+git clone -q --bare "$CLAW_UI_PLAYBOOKS_WORKSPACE" "$tmp/origin.git"
+git remote add origin "$tmp/origin.git" 2>/dev/null || git remote set-url origin "$tmp/origin.git"
+git clone -q "$tmp/origin.git" "$tmp/upstream" && (cd "$tmp/upstream" && git config user.email t@t && git config user.name t \
+  && echo merged > merged.txt && git add merged.txt && git commit -qm merged && git push -q origin HEAD)
+fresh=$(git -C "$tmp/upstream" rev-parse HEAD)
+! git cat-file -e "$fresh^{commit}" 2>/dev/null || { echo "fixture already has the fresh commit" >&2; exit 1; }
+bash "$here/activate-ui-playbooks.sh" "$fresh" > "$tmp/out-fresh" 2>&1 || { cat "$tmp/out-fresh" >&2; exit 1; }
+grep -q "ACTIVATED $fresh" "$tmp/out-fresh"
+# An unknown commit still fails, without switching the current snapshot.
+before=$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")
+if bash "$here/activate-ui-playbooks.sh" 0123456789abcdef0123456789abcdef01234567 > "$tmp/out-unknown" 2>&1; then echo "unknown commit was activated" >&2; exit 1; fi
+[ "$(readlink "$HOME/.openclaw/runtime-ui-playbooks/current")" = "$before" ]
+echo '{"ok":true,"linked":true,"unresolvedRefused":true,"retention":true,"rollbackLinked":true,"viewsRecompiled":true,"freshCommitFetched":true}'

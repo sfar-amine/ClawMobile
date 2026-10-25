@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "id": "activate-playbooks-fetch-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "activate-ui-playbooks.sh fetches a target commit missing from the S24 playbooks workspace (by SHA, then default refs) before verifying it; unknown commits still fail without switching the active snapshot.",
+  "scope": {
+    "files": [
+      "installer/termux-lite/activate-ui-playbooks.sh",
+      "installer/termux-lite/test-activate-ui-playbooks.sh",
+      "docs/changes/activate-playbooks-fetch-20261025.md"
+    ]
+  },
+  "routes": [],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "installer/termux-lite/test-activate-ui-playbooks.sh (fresh commit fetched, unknown commit refused), registered in .github/workflows/ci.yml; mutation without the fix fails"
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "Deployment tooling only."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "adr": null,
+    "reason": "Same owner script; no new component."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "No MCP change."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Revert this commit and redeploy the Companion tools with companion-deploy.sh."
+}

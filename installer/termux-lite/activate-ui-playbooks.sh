@@ -38,7 +38,12 @@ if [ "${1:-}" = "--rollback" ]; then
   echo "ROLLED_BACK current=$(basename "$prev")"; exit 0
 fi
 [ -n "${1:-}" ] || { echo "usage: $0 <commit>|--rollback" >&2; exit 2; }
-sha=$(git -C "$W" rev-parse --verify "$1^{commit}")
+# A commit merged moments ago is not in the workspace yet (S24 25/10: « fatal: Needed a single revision » on a fresh
+# merge): fetch it from origin, by SHA first, then the default refs, before giving up.
+sha=$(git -C "$W" rev-parse -q --verify "$1^{commit}" 2>/dev/null) || {
+  git -C "$W" fetch -q origin "$1" 2>/dev/null || git -C "$W" fetch -q origin 2>/dev/null || true
+  sha=$(git -C "$W" rev-parse --verify "$1^{commit}")
+}
 [ -d "$D/$sha" ] || git -C "$W" worktree add -q --detach "$D/$sha" "$sha"
 link_deps "$D/$sha" || exit 3
 (cd "$D/$sha" && PYTHONPATH=. python3 -B -m unittest -q tests.test_capability_decision_contract tests.test_composed_reads)
