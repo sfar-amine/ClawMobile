@@ -135,6 +135,80 @@
             "type": "boolean"
           }
         }
+      },
+      "modelFlowSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "flows"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "const": 1
+          },
+          "flows": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "brain": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "version",
+                  "fieldsHash"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "const": 1
+                  },
+                  "fieldsHash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                }
+              },
+              "conversation_summary": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "version",
+                  "fieldsHash"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "const": 1
+                  },
+                  "fieldsHash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                }
+              },
+              "whatsapp": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "version",
+                  "fieldsHash"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "const": 1
+                  },
+                  "fieldsHash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

@@ -54,7 +54,7 @@ function modelCatalogFrom({raw:configRaw,catalog,auth,policy}:any){
   if(typeof row?.provider!=='string'||typeof row?.id!=='string')continue;
   const id=ref(row.provider,row.id),base=id.split('@')[0];
   if(!modelPattern.test(id)||!modelReferenceAllowed(allow,base)||row.available!==true||config.plugins?.entries?.[row.provider]?.enabled===false||!usable(row.provider))continue;
-  if(process.env.SAMANTHA_BRAIN_ONLY==='1'){
+  if(config?.plugins?.entries?.['openclaw-plugin-mobile-ui']?.config?.modelFlowSelection!==undefined){
    models.push(...includedModelAccounts(base,auth,policy).map(account=>account.reference));
    if(models.length>256)throw nativeError('conversation_model_catalog_unavailable',503);
    continue;

@@ -37,7 +37,7 @@
     {
       "name": "model-flows-targeted",
       "status": "passed",
-      "evidence": "npm ci, npm run build et scripts test-model-flows/model-roles/agent-config PASS, logs l5-core-build-v2.log et l5-core-test-*-v2.log ; arbre testé avant correction de libellés d’héritage et changements documentaires, ciblé final requis, détails et limites dans la note Markdown."
+      "evidence": "npm ci, npm run build et scripts test-model-flows/model-roles/agent-config PASS, logs l5-core-build-v2.log et l5-core-test-*-v2.log ; arbre testé avant correction de libellés d’héritage et changements documentaires, union provenance R6 non testée par ces logs, ciblé final requis, détails et limites dans la note Markdown."
     },
     {
       "name": "static-contracts",

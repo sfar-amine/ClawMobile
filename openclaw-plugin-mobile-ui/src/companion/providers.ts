@@ -33,8 +33,8 @@ export function projectModelRoles(snapshot:ModelOwnerSnapshot|null,latency:any=n
   return {model:primary??null,profile:account(raw),fallbacks:[...new Set(fallback.map(modelReference).filter(Boolean))],fallbackProfiles:fallback.map((ref:any)=>({model:modelReference(ref)??null,profile:account(ref)})),state:primary?'configured':'unavailable'};
  };
  const editable=(id:'brain'|'conversation_summary'|'whatsapp')=>{
-  const value=configuredModelFlow(config,id),active=process.env.SAMANTHA_BRAIN_ONLY==='1';
-  return {id,...chain(value.model),thinking:value.thinkingDefault??null,fastMode:typeof value.fastModeDefault==='boolean'?value.fastModeDefault:null,source:'gateway_config',inheritsFrom:value.inheritsFrom,origins:value.origins,mixedFields:value.mixedFields,...(value.inheritsFrom==='conversation'?{state:'runtime_inherited'}:{}),...(value.mixedFields.length?{state:'mixed'}:{}),editable:active&&!!snapshot,editableReason:active?(snapshot?null:'model_owner_unavailable'):'brain_only_not_active',writeFields:id==='conversation_summary'?['model']:['model','fallbacks','thinking','fastMode']};
+  const value=configuredModelFlow(config,id),active=true;
+  return {id,...chain(value.model),thinking:value.thinkingDefault??null,fastMode:typeof value.fastModeDefault==='boolean'?value.fastModeDefault:null,source:'gateway_config',inheritsFrom:value.inheritsFrom,origins:value.origins,mixedFields:value.mixedFields,...(value.inheritsFrom==='conversation'?{state:'runtime_inherited'}:{}),...(value.mixedFields.length?{state:'mixed'}:{}),editable:active&&!!snapshot,editableReason:snapshot?null:'model_owner_unavailable',writeFields:id==='conversation_summary'?['model']:['model','fallbacks','thinking','fastMode']};
  };
  const readonly=(id:string,value:any,source:string,reason='next_lot',extra:any={})=>({id,...chain(value),thinking:null,fastMode:null,source,inheritsFrom:null,editable:false,editableReason:reason,writeFields:[],...extra});
  const voice=config?.talk?.realtime,voiceMalformed=voice?.model!==undefined&&voice?.model!==null&&typeof voice.model!=='string';
