@@ -4,7 +4,7 @@ import { createOfficialGatewayOwner } from "./officialGatewayOwner";
 import {opendirSync,readFileSync} from "fs";
 import {compactOwnerAgentContext} from "./clawLive";
 import {turnAdmission,type AdmissionTicket} from "./ownerTurnAdmission";
-import {submitOwnerTurn} from "./ownerTurnGateway";
+import {submitOwnerTurn, type OwnerTurnObserver} from "./ownerTurnGateway";
 import type {ResponseLanguage} from "./receiptPresentation";
 
 export type OpenClawAgentSubmitResult = {
@@ -37,10 +37,10 @@ export async function submitToOpenClawAgent(
   text: string,
   runId: string,
   sessionId = "default",
-  options: {authority?:"owner"; admission?:AdmissionTicket; clientRunId?:string; voiceDelegation?:true; responseLanguage?:ResponseLanguage} = {},
+  options: {authority?:"owner"; admission?:AdmissionTicket; clientRunId?:string; voiceDelegation?:true; responseLanguage?:ResponseLanguage; observer?:OwnerTurnObserver} = {},
 ): Promise<OpenClawAgentSubmitResult> {
-  const waitedForFinal = shouldWaitForFinal();
-  const timeoutMs = configuredTimeoutMs(waitedForFinal);
+  const waitedForFinal = options.observer !== undefined || shouldWaitForFinal();
+  const timeoutMs = options.observer ? DEFAULT_FINAL_TIMEOUT_MS : configuredTimeoutMs(waitedForFinal);
   const normalizedSessionId = normalizeCompanionSessionId(sessionId);
   const sessionKey = companionSessionKey(normalizedSessionId);
   const agentId = options.voiceDelegation === true ? "main" : (process.env.CLAWMOBILE_AGENT_ID || "").trim();
@@ -65,10 +65,11 @@ export async function submitToOpenClawAgent(
   const admitted = options.admission !== undefined &&
     turnAdmission.isCurrent(options.admission, {clientRunId: options.clientRunId, sessionId: normalizedSessionId});
   if (options.voiceDelegation === true && !admitted) throw new Error("voice_owner_admission_required");
+  if (options.observer && !admitted) throw new Error("owner_observation_admission_required");
   let raw: any;
   let ownerTransport: OpenClawAgentSubmitResult["ownerTransport"] = "write_cli";
   if (admitted) {
-    raw = await submitOwnerTurn(params, {expectFinal: waitedForFinal, timeoutMs, admission: options.admission!, binding: {clientRunId: options.clientRunId, sessionId: normalizedSessionId}});
+    raw = await submitOwnerTurn(params, {expectFinal: waitedForFinal, timeoutMs, admission: options.admission!, binding: {clientRunId: options.clientRunId, sessionId: normalizedSessionId}, observer: options.observer});
     ownerTransport = "admin_admitted";
 
   }
