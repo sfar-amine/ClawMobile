@@ -116,22 +116,26 @@ function fake(script) {
     assert.equal(replies[0][2].code, "UNAVAILABLE");
     assert.equal(replies[1][2].code, "INVALID_REQUEST");
   }
-  // The credential-owner port also serves C2 Sol/Luna. C1 still rejects Sol above.
+  // The credential-owner port also serves C2 Sol -> Luna -> Gemini free. C1 still rejects Sol above.
+  assert.deepEqual([...port.IMMUNE_MODELS],['openai/gpt-5.6-sol',LUNA,GEMINI]);
   for(const model of port.IMMUNE_MODELS){
+    const google=model===GEMINI;
     const engineering=port.validateRequest({systemPrompt:'public code fixture',message:'diagnose',purpose:port.IMMUNE_PURPOSE,model,totalTimeoutMs:90000});
     assert.ok(engineering);assert.equal(engineering.totalTimeoutMs,90000);
-    const f=fake([{text:JSON.stringify({files:[{content:'x'.repeat(9000)}]}),provider:'openai',model:model.split('/')[1]}]);
+    const f=fake([{text:JSON.stringify({files:[{content:'x'.repeat(9000)}]}),provider:google?'google':'openai',model:model.split('@')[0].split('/')[1]}]);
     assert.equal((await port.interpret(f.complete,engineering)).ok,true);
-    assert.equal(f.calls.length,1);assert.equal(f.calls[0].requiredAuthMode,'oauth');
+    assert.equal(f.calls.length,1);assert.equal(f.calls[0].model,model);
+    assert.equal(f.calls[0].requiredAuthMode,google?undefined:'oauth');
     assert.equal(f.calls[0].agentId,undefined);assert.equal(f.calls[0].tools,undefined);
-    const limited=fake([{text:'',stopReason:'error',provider:'openai',model:model.split('/')[1]}]);
+    const limited=fake([{text:'',stopReason:'error',provider:google?'google':'openai',model:model.split('@')[0].split('/')[1]}]);
     const quota=await port.interpret(limited.complete,engineering);
     assert.equal(quota.ok,false);assert.equal(quota.code,'LLM_COMPLETION_FAILED');assert.equal(limited.calls.length,1);
     const down=fake([failure('LLM_COMPLETION_FAILED')]);
     assert.equal((await port.interpret(down.complete,engineering)).ok,false);assert.equal(down.calls.length,1);
   }
   assert.equal(port.validateRequest({systemPrompt:'x',message:'y',purpose:port.IMMUNE_PURPOSE}),null);
-  assert.equal(port.validateRequest({systemPrompt:'x',message:'y',purpose:port.IMMUNE_PURPOSE,model:GEMINI}),null);
+  assert.equal(port.validateRequest({systemPrompt:'x',message:'y',purpose:port.IMMUNE_PURPOSE,model:GEMINI.split('@')[0]}),null);
+  assert.equal(port.validateRequest({systemPrompt:'x',message:'y',purpose:port.IMMUNE_PURPOSE,model:'google/gemini-3.5-pro'}),null);
   // Exact native completion allowlist; no agent or auth-profile override.
   // OpenClaw 2026.9.6 matches the allowlist on provider/model only (the resolved ref carries no
   // "@profile"); a suffixed entry never matches and refuses every Gemini call. The free profile

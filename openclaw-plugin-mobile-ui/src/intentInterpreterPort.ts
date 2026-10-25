@@ -10,10 +10,12 @@ export const INTERPRETER_PRIMARY = "google/gemini-3.5-flash-lite@google:claw-gem
 export const INTERPRETER_FALLBACK = "openai/gpt-5.6-luna";
 export const INTERPRETER_MODELS = Object.freeze([INTERPRETER_PRIMARY, INTERPRETER_FALLBACK]);
 export const INTERPRET_METHOD = "samantha.intent.interpret";
-// Same credential owner, separate closed engineering contract. Selection and
-// Sol -> Luna fallback belong to the existing Python governor, never this port.
+// Same credential owner, separate closed engineering contract. Selection and the
+// Sol -> Luna -> Gemini free fallback belong to the existing Python governor, never this port.
+// Gemini is last so an exhausted OpenAI subscription quota (recurring, decision 25/10) never
+// leaves the immune admission without a decider.
 export const IMMUNE_PURPOSE = "samantha.engineering.immune";
-export const IMMUNE_MODELS = Object.freeze(["openai/gpt-5.6-sol", INTERPRETER_FALLBACK]);
+export const IMMUNE_MODELS = Object.freeze(["openai/gpt-5.6-sol", INTERPRETER_FALLBACK, INTERPRETER_PRIMARY]);
 
 // Codes thrown by OpenClaw's api.runtime.llm.complete (2026.9.6).
 const TECHNICAL_CODES = new Set([
@@ -115,7 +117,8 @@ async function attempt(complete: LlmComplete, model: string, req: InterpretReque
       systemPrompt: req.systemPrompt,
       messages: [{ role: "user", content: req.message }],
       ...(req.responseSchema ? { responseFormat: { type: "json_schema", json_schema: { name: "decision", schema: req.responseSchema, strict: true } } } : {}),
-      ...(immune || model === INTERPRETER_FALLBACK ? { requiredAuthMode: "oauth" } : {}),
+      // OpenAI models run on the subscription OAuth only; Gemini stays pinned to its free profile.
+      ...(model !== INTERPRETER_PRIMARY && (immune || model === INTERPRETER_FALLBACK) ? { requiredAuthMode: "oauth" } : {}),
       // Gemini Flash Lite answers fastest without thinking; Luna keeps a minimal effort.
       reasoning: model === INTERPRETER_PRIMARY ? "off" : "minimal",
       temperature: 0,
