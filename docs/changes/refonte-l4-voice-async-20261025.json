@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "id": "refonte-l4-voice-async-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "L0 correction: deliver canonical voice receipts/progress without discarded virtual playback and retain one exact provider generation owner; L4 itself remains open.",
+  "scope": {
+    "files": [
+      "openclaw-plugin-mobile-ui/src/companion/voiceTurnProtocol.ts",
+      "openclaw-plugin-mobile-ui/src/companion/clawLive.ts",
+      "openclaw-plugin-mobile-ui/src/companion/clawLiveWarm.ts",
+      "openclaw-plugin-mobile-ui/src/companion/turnBudget.ts",
+      "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+      "openclaw-plugin-mobile-ui/scripts/test-voice-async-readback.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-voice-readback-persistence.cjs",
+      ".github/workflows/ci.yml",
+      "docs/08-decisions/ADR-20261025-voice-asynchronous-readback.md",
+      "openclaw-plugin-mobile-ui/scripts/test-turn-budget.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-warm-v2-ownership.cjs",
+      "openclaw-plugin-mobile-ui/fixtures/protocol/voice-v2-app-companion.json"
+    ]
+  },
+  "routes": [
+    {
+      "route": "Existing v2 Warm socket controls and POST /sessions/{id}/voice-turns",
+      "change": "Asynchronous provider readback on the canonical execution; closed readback transcript prefix accepted.",
+      "budget": "Shared 30000ms delivery budget; real provider boundaries never guessed.",
+      "capability": "NO_CAPABILITY (voice surface lifecycle and transcript persistence)"
+    }
+  ],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "Project TypeScript check PASS; asynchronous13, existing protocol37, brain28 and OptionA25 passed. HTTP readback persistence, shared budget, Warm and actual Warm-to-async constructor wiring passed. Final combined-head canonical CI and paired native recipe remain pending.",
+      "S24 timing-only metadata provenance retained; no fabricated provider or deferred receipt capture."
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "No capability, business action or MCP tool added."
+  },
+  "architecture_impact": {
+    "changed": true,
+    "reason": "Official asynchronous provider-call delivery within the existing Warm/VoiceTurnProtocol owner.",
+    "adr": "docs/08-decisions/ADR-20261025-voice-asynchronous-readback.md"
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "All six primitives and business routes unchanged."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Restore paired standard Companion and APK through the existing owners."
+}

@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "id": "tier0-readiness-before-soak-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Load the complete AI-gated watchdog and require fresh selected-runtime critical readiness before arming the unchanged Tier0 soak.",
+  "scope": {
+    "files": [
+      "installer/termux-lite/install-tier0-control.py",
+      "installer/termux-lite/tier0-control.py",
+      "installer/termux-lite/tier0-watchdog.py",
+      "installer/termux-lite/health-verdict.py",
+      "installer/termux-lite/test-tier0-activation-readiness.py",
+      "openclaw-plugin-mobile-ui/fixtures/foundations/s24-tier0-activation-20261025.json",
+      ".github/workflows/ci.yml",
+      "docs/08-decisions/ADR-20261025-tier0-readiness-before-soak.md"
+    ]
+  },
+  "routes": [
+    {
+      "route": "Existing Tier0 installer/promotion and native health snapshot",
+      "change": "Complete dependency install, identity-checked resident reload, fresh selected-runtime readiness before soak.",
+      "budget": "Existing readiness window120s; freshness<=30s; soak300s and manifest grace unchanged.",
+      "capability": "NO_CAPABILITY (deployment/supervision lifecycle)"
+    }
+  ],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "14new pure tests +15control +9distinct-health +10LKG +16health-verdict passed,64total, no S24 mutation.",
+      "Real S24 timing/component/code metadata fixture; crash and two distinct samples explicitly unproven.",
+      "New tests registered in ci.yml; combined-head canonical CI still pending.",
+      "Subsequent focused15-case suite PASS: detached Popen receives neither transient deployment-lock marker nor FDs, retains unrelated environment and leaves parent authority unchanged. Final exact-head canonical CI still required."
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "No public route/action/MCP tool added."
+  },
+  "architecture_impact": {
+    "changed": true,
+    "adr": "docs/08-decisions/ADR-20261025-tier0-readiness-before-soak.md",
+    "reason": "Activation phase inside existing Tier0 owner; no new store/daemon/scheduler/router."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "All public primitives unchanged."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Existing Companion/Tier0 deployment owner after canonical status check; no gate or soak relaxation."
+}

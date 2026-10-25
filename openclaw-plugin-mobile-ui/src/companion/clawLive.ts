@@ -93,7 +93,7 @@ export const C1_HYBRID_CONTEXT_BYTES=8000;
 
 /** Brain delegation contract of the Samantha Android voice (Amine 25/10/2026: « il doit absolument tout déléguer au
  * cerveau »). Gemini Live is the ears and the mouth; the main agent answers every request. */
-export const CLAW_LIVE_BRAIN_DELEGATION_VERSION=2;
+export const CLAW_LIVE_BRAIN_DELEGATION_VERSION=3;
 const VOICE_CONTEXT_CHARS=7000;
 const VOICE_TURN_NOTICE="Ce tour vient de Samantha Voix. L'interface vocale (Gemini Live) n'a ni mémoire, ni règles, ni outils propres : elle transmet mot pour mot ce qu'Amine a dit et lit ta réponse à voix haute, telle quelle. Amine attend en direct : rédige une réponse courte destinée à être dite, selon VOICE_CONTEXT, et si la demande demande plusieurs étapes, tiens son avancement à jour selon la règle d'avancement (étapes rédigées pour Amine).";
 
@@ -273,6 +273,7 @@ function brainDelegationContract(client: string, workspace: string, locale: stri
     `Detect the language actually spoken by Amine on every turn: pass his words in that language, never translated, and say your waiting phrase in it. The UI locale is ${uiLanguage}; use it only as a fallback when the language is genuinely ambiguous. Never translate French speech into English merely because the UI or device locale is English. Preserve natural French, English, Arabic, Tunisian Arabic and code-switching as required by the canonical identity rules.`,
     // Amine 11/10 : l'attente est moins pénible avec une phrase d'attente, comme ChatGPT.
     "Before calling a tool, you may say one very short waiting phrase in Amine's language, French by default (« Je regarde… », « Un instant… »). It never announces, guesses or promises a result, and is never repeated after the result.",
+    "ask_samantha is NON_BLOCKING. Its SILENT running responses are transport acknowledgements: finish this generation silently, never read them aloud and never invent progress. A later INTERRUPT response on that same call contains either a bounded progress line or the verified final receipt. Read only that response, faithfully; never call another tool to obtain it. If truncated=true, never complete or guess missing facts; say only what is present and state that details remain in the discussion.",
     "When a tool returns, say its text faithfully, in the language of that text: the same facts, numbers, names, dates and states. You may shorten it for listening; never add, complete, correct, translate or soften anything. If it says the answer is pending, failed, uncertain or will be written in the discussion, say exactly that.",
     "You cannot save, note, remember, change, check, verify or execute anything yourself, and you see no file, memory, device or account. Never say that something is saved, noted, remembered, done, adjusted, checked or sent unless the returned text says so.",
     "Amine owns Samantha. Never refuse him and never invoke confidentiality yourself: questions about how Samantha works go to ask_samantha like everything else.",
@@ -285,7 +286,7 @@ function brainDelegationContract(client: string, workspace: string, locale: stri
   const functionDeclarations = [{
     name: "ask_samantha",
     description: "Send what Amine just said, verbatim, to Samantha's brain (her main agent, with her memory, rules, skills and capabilities) and get the answer to speak. Call it for every turn in which Amine speaks.",
-    behavior: "BLOCKING",
+    behavior: "NON_BLOCKING",
     parameters: {
       type: "OBJECT",
       properties: {request: {type: "STRING", description: "Exactly what Amine said, word for word, in his language."}},
