@@ -36,6 +36,7 @@ const LABELS = {
 };
 /** Technical event labels of the Gateway transport and of tool calls: never a public step (Amine 25/10/2026, point E). */
 const TECHNICAL_LABEL = /^(?:(?:Calling|Completed|Running|Using|Tool failed)\s+[A-Za-z0-9_.-]+\.?|Completed\.|Working(?:\.\.\.|…)|Thinking\.\.\.|Started OpenClaw session\.|Prepared context\.|Submitted prompt\.|Model response received\.|Saved run artifacts\.|Run finished\.|Run ended with an error\.|Client connection closed\.|OpenClaw submit failed\.)$/;
+const PRIVATE_TECHNICAL_TITLE = /(?:\b(?:exec|read|tool_search|tool_call|memory_search)\b|(?:^|\s)(?:~\/|\/|[A-Za-z]:\\)|\b[\w.-]+\.(?:md|json|py|sh|ts|sqlite)\b|`)/i;
 const TOOL_EVENT = /^tool\.(?:call|result|error)$/;
 const MAX_EVENT_STEPS = 8;
 const BUSINESS_STEP_LABELS: Record<string, {fr: string; en: string}> = {
@@ -85,7 +86,10 @@ function agentEventSteps(events: CompanionRunProgressEvent[], running: boolean, 
       const id = typeof event.callId === "string" && event.callId ? event.callId : undefined;
       if (event.type === "tool.call") {
         const title = safeLabel(event.title?.trim().replace(/\s+/g, " "));
-        if (title && !TECHNICAL_LABEL.test(title)) {
+        if (event.context) {
+          if (!prepare) { prepare = {id: "prepare", label: prepareLabel, state: "running", at: at(event.at), callIds: []}; out.push(prepare); }
+          if (id) { contextCalls.add(id); prepare.callIds!.push(id); }
+        } else if (title && !TECHNICAL_LABEL.test(title) && !PRIVATE_TECHNICAL_TITLE.test(title)) {
           const previous = out[out.length - 1];
           // Identical consecutive steps (a retry under the same title) are one step, in the state of the last attempt.
           if (previous && previous.label === title && previous.id.startsWith("agent-")) {
@@ -94,9 +98,6 @@ function agentEventSteps(events: CompanionRunProgressEvent[], running: boolean, 
             const step = {id: `agent-${++titled}`, label: title, state: "running" as RunStepState, at: at(event.at), callIds: id ? [id] : []};
             out.push(step); if (id) byCall.set(id, step);
           }
-        } else if (event.context) {
-          if (!prepare) { prepare = {id: "prepare", label: prepareLabel, state: "running", at: at(event.at), callIds: []}; out.push(prepare); }
-          if (id) { contextCalls.add(id); prepare.callIds!.push(id); }
         }
       } else if (id) {
         const step = byCall.get(id);

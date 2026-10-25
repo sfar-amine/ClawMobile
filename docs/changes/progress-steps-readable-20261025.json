@@ -13,7 +13,8 @@
       "openclaw-plugin-mobile-ui/scripts/test-run-progress-card.cjs",
       "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-progress-titles/chat-history-run.json",
       ".github/workflows/ci.yml",
-      "docs/changes/progress-steps-readable-20261025.md"
+      "docs/changes/progress-steps-readable-20261025.md",
+      "openclaw-plugin-mobile-ui/scripts/test-submit-reconciliation.cjs"
     ]
   },
   "routes": [
@@ -27,7 +28,8 @@
   "tests": {
     "status": "pending_ci",
     "evidence": [
-      "scripts/test-run-progress-titles.cjs (7) registered in .github/workflows/ci.yml; real S24 chat.history capture of run_1792920553461_9ffdf172"
+      "scripts/test-run-progress-titles.cjs (8) registered in .github/workflows/ci.yml; real S24 chat.history capture of run_1792920553461_9ffdf172",
+      "Additional authored boundary checks: titled context reads collapse; titles containing paths/files/tool identifiers are withheld; technical live text falls back to a public step even at terminal state. Stored results and clarification state are unchanged."
     ]
   },
   "capability_impact": {

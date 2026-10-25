@@ -876,11 +876,11 @@ function withRunSteps(status: CompanionRunStatus, stored?: StoredRun | null): Co
   return {...status, progress: {...base, ...derived, text: liveProgressText(status.state, base.text, derived.steps)}};
 }
 
-/** While the run works, the live text follows the public step in progress rather than a transport label
- * (« Calling exec. »). A terminal run keeps its own text (a pending clarification is not live progress). */
+/** Technical transport text is never public: follow the current public step (including a clarification or the answer).
+ * A readable terminal or business text is preserved. */
 export function liveProgressText(state: string, text: string, steps: {id: string; label: string; state: string}[]): string {
-  if ((state !== "running" && state !== "queued") || !isTechnicalProgressLabel(text)) return text;
-  return steps.filter(step => step.state === "running" && step.id !== "answer").at(-1)?.label ?? text;
+  if (!isTechnicalProgressLabel(text)) return text;
+  return steps.filter(step => step.state === "running").at(-1)?.label ?? steps.at(-1)?.label ?? "";
 }
 
 export async function getRunStatus(runId: string): Promise<CompanionRunStatus> {

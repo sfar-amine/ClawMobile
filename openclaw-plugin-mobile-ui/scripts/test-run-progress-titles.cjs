@@ -63,12 +63,21 @@ test('technical transport labels never become steps nor live text',()=>{
  for(const l of ['Calling exec.','Completed read.','Tool failed exec.','Completed.','Working...','Started OpenClaw session.',''])assert.ok(isTechnicalProgressLabel(l),l);
  for(const l of ['Lire le checkpoint Voix v2','Je prépare ta demande'])assert.ok(!isTechnicalProgressLabel(l),l);
 });
-test('the live text follows the running step only while the run works, never over a readable or terminal text',()=>{
+test('technical live text follows the public step while readable business text is preserved',()=>{
  const running=steps(1792920591300);
  assert.equal(runs.liveProgressText('running','Calling exec.',running),'Trouver les outils canoniques');
  assert.equal(runs.liveProgressText('running','Je compare avec le mois dernier',running),'Je compare avec le mois dernier');
- // A done run with a pending clarification keeps its terminal text (test-submit-reconciliation.cjs).
- assert.equal(runs.liveProgressText('done','Completed.',[{id:'clarify',label:'Précision demandée',state:'running'}]),'Completed.');
- assert.equal(runs.liveProgressText('running','Calling exec.',steps(1792920603000)),'Calling exec.','only the answer runs: nothing to substitute');
+ // A done run with a pending clarification exposes the public label; its actual question is unchanged.
+ assert.equal(runs.liveProgressText('done','Completed.',[{id:'clarify',label:'Précision demandée',state:'running'}]),'Précision demandée');
+ assert.equal(runs.liveProgressText('running','Calling exec.',steps(1792920603000)),'Réponse de Samantha','the answer is public progress when no titled step is running');
+});
+test('a title cannot reveal a startup path, tool name, command or file',()=>{
+ const ev=[{type:'tool.call',label:'Calling read.',title:'Lire OPERATING_RULES.md',context:true,callId:'ctx',at:1},
+  {type:'tool.result',label:'Completed read.',callId:'ctx',at:2},
+  ...['Appeler tool_search','Lire /private/state.json','Lancer `python3`'].map((title,i)=>({type:'tool.call',label:'Calling exec.',title,callId:'private'+i,at:3+i}))];
+ const s=runProgressSteps({executionSource:'gateway',state:'done',acceptedAt:0,updatedAt:9,events:ev}).steps;
+ assert.deepEqual(view(s),['accepted:done:Demande reçue','prepare:done:Je prépare ta demande','answer:done:Réponse de Samantha']);
+ assert.equal(runs.liveProgressText('done','Completed.',s),'Réponse de Samantha');
+ assert.equal(runs.liveProgressText('failed','Tool failed exec.',[]),'');
 });
 console.log(JSON.stringify({passed,failed:0,fixture:'s24-2026-10-25-progress-titles/chat-history-run.json'}));
