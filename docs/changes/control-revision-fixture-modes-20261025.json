@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "id": "control-revision-fixture-modes-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Align the exact-read fixture with distinct digest-only revision and captured snapshot modes while retaining timeout fallback coverage and all existing latency and ETag assertions.",
+  "scope": {
+    "files": [
+      "openclaw-plugin-mobile-ui/scripts/test-read-etags.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-control-automations-latency.cjs",
+      "docs/changes/control-revision-fixture-modes-20261025.md",
+      "docs/changes/control-revision-fixture-modes-20261025.json"
+    ]
+  },
+  "routes": [
+    {
+      "route": "GET /v1/control/automations?contract=2",
+      "change": "Fixture only; production unchanged",
+      "budget": "1000ms existing exact-read budget unchanged; captured2290ms collector and600ms revision deadline unchanged",
+      "capability": "NO_CAPABILITY: tests only, no new route or action"
+    }
+  ],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "Both existing suites remain registered in .github/workflows/ci.yml; no step skipped.",
+      "New explicit800ms revision probe asserts fallback to one fresh normal collector, without deferred or stale response.",
+      "Actual S24 revision metadata exit0/schema1/464.81ms; actual isolated no-DB playbooks owner schema1/null/72.42ms. No raw database data captured.",
+      "Focused original exact-read suite PASS after fixture alignment: six routes, exact200/304/200 and all budgets unchanged; Control43/42ms (budget1000ms).",
+      "Focused existing automation-latency suite plus new800ms negative revision case PASS: cold268.18ms, cached182.21ms; captured SQLite/freshness/invalidations retained."
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "No production or capability change."
+  },
+  "architecture_impact": {
+    "changed": false,
+    "adr": null,
+    "reason": "Existing test stand-in and existing negative-boundary suite only; no new owner or runtime component."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "claw_context, claw_resolve, claw_execute, claw_exec, claw_status and claw_artifact_read unchanged."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Revert this test-only commit; no runtime deployment required."
+}

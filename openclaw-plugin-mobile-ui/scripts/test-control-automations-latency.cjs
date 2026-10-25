@@ -98,6 +98,16 @@ print(json.dumps({'schemaVersion':2,'sections':{'automations':{'schemaVersion':2
   const unavailable=await get();assert.notEqual(unavailable.body.computation?.deliveryMode,'deferred');assert.equal(unavailable.body.sections.automations.data.items[0].id,'gateway');
   await fs.unlink(source);
   const missing=await get();assert.notEqual(missing.body.computation?.deliveryMode,'deferred');assert.equal(missing.body.sections.automations.data.items[0].id,'gateway');
+  // Negative boundary: an explicitly authored800ms revision exceeds the existing600ms
+  // owner deadline. Force a fresh read: it must use the normal collector, not stay
+  // deferred or silently serve a stale cache. Captured collector/probe cases above remain.
+  const beforeSlow=(await fs.readFile(path.join(root,'calls'),'utf8')).trim().split('\n').length;
+  process.env.R5_PROBE_MS='800';
+  const slowProbe=await get('&force=1');
+  assert.equal(slowProbe.status,200);assert.notEqual(slowProbe.body.computation?.deliveryMode,'deferred');
+  assert.equal(slowProbe.body.sections.automations.data.items[0].id,'gateway');
+  assert.equal((await fs.readFile(path.join(root,'calls'),'utf8')).trim().split('\n').length,beforeSlow+1,'timed-out revision falls back to one normal collector');
+  process.env.R5_PROBE_MS=String(probeMs);
   assert.ok(!JSON.stringify(warm.body).includes('synthetic-private-fixture'));
   console.log(JSON.stringify({test:'control-automations-latency',baselineMs:+baseline.toFixed(2),coldMs:+cold.ms.toFixed(2),cachedMs:+warm.ms.toFixed(2),referenceMs:+referenceMs.toFixed(2),relativeBudgetMs:+routeBudgetMs.toFixed(2),referenceSamplesMs:referenceSamples.map(x=>+x.toFixed(2)),source:'S24 PR82 real STRICT SQLite capture; recorded 2475ms collector and 128ms cold probe replayed',passed:true}));
  }finally{
