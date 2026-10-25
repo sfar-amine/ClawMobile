@@ -55,6 +55,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=req
   try{assert.deepEqual(await runs.listRunSummaries({limit:10}),[]);await runs.awaitRunInactivity();assert.equal(reads,0);}
   finally{gateway.callOpenClawGateway=read;}
   assert.deepEqual(changes,[],'native measurement rows never create product conversation events');
+  // Authored volume from the owner's serialized new-schema row; no private S24 message is invented.
+  const registryPath=path.join(root,'clawmobile-companion/runs.json'),ledger=JSON.parse(await fs.readFile(registryPath,'utf8'));
+  const seed=ledger.runs.find(r=>r.runId==='native-old');
+  ledger.runs=Array.from({length:505},(_,i)=>({...seed,runId:'native-volume-'+i,acceptedAt:now-i,updatedAt:now-i}));
+  await fs.writeFile(registryPath,JSON.stringify(ledger));
+  await runs.recordNativeWhatsAppIngress('native-volume-new',sessionKey,'default',mono);
+  assert.equal((await runs.turnMeasurementFacts()).retainedRuns,500,'native rows must not survive registry eviction in an unbounded memory copy');
+
 
  }finally{subscription.close();Date.now=realNow;process.hrtime.bigint=realMono;console.log=realLog;await fs.rm(root,{recursive:true,force:true});}
  console.log('PASS native owner deadline, exact SDK correlation, unique canonical notice and delivery/end race');

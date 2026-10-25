@@ -837,7 +837,7 @@ export async function recordNativeWhatsAppIngress(runId:string,sessionKey:string
       nativeTurn:{version:1,deadlineAt:now+TURN_BUDGET_MS-(mono-observedMonoMs!),clockEpoch:NATIVE_CLOCK_EPOCH,startedMono:observedMonoMs!,notice:"pending",route:null,
         decisionMs:null,toolMs:null,...(accountId?{accountId}:{})}};
     await writeCompanionRunRegistry([row,...registry.runs],registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
-    submittedRuns.set(runId,row);return row.nativeTurn;
+    return row.nativeTurn;
   });
 }
 export async function nativeTurnProgressState(runId:string){
@@ -862,14 +862,14 @@ export async function reserveNativeProgressNotice(runId:string){
       row.nativeTurn.clockEpoch!==NATIVE_CLOCK_EPOCH||nativeMono()-row.nativeTurn.startedMono<TURN_BUDGET_MS)return false;
     const updated={...row,nativeTurn:{...row.nativeTurn,notice:"attempted" as const}};
     await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
-    submittedRuns.set(runId,updated);return true;
+    return true;
   });
 }
 export async function settleNativeProgressNotice(runId:string,state:"accepted"|"uncertain"){
   await mutateRegistry(async()=>{const registry=await registryOrEmpty(),row=registry.runs.find(r=>r.runId===runId&&r.measurementOnly);
     if(!row?.nativeTurn||row.nativeTurn.notice!=="attempted")return;
     const updated={...row,nativeTurn:{...row.nativeTurn,notice:state}};
-    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);submittedRuns.set(runId,updated);
+    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
   });
 }
 /** Native SDK stage metadata uses the same atomic writer as finalization and progress reservation. */
@@ -885,7 +885,7 @@ export async function observeNativeTurnStage(runId:string,kind:"model"|"tool",du
       const sum=(native[key]??0)+durationMs;native[key]=sum<=600000?sum:null;
     }
     const updated:StoredRun={...row,nativeTurn:native};
-    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);submittedRuns.set(runId,updated);
+    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
   });
 }
 async function finalizeNativeMeasurement(runId:string){
@@ -900,20 +900,20 @@ async function finalizeNativeMeasurement(runId:string){
 export async function observeNativeTurnEnd(runId:string,model?:string,success=true){
   await mutateRegistry(async()=>{const registry=await registryOrEmpty(),row=registry.runs.find(r=>r.runId===runId&&r.measurementOnly);
     if(!row?.nativeTurn||row.nativeTurn.ended)return;
-    const active=submittedRuns.get(runId);const current=active?.nativeTurn&&active.sessionKey===row.sessionKey?active.nativeTurn:row.nativeTurn;
+    const current=row.nativeTurn;
     const updated:StoredRun={...row,state:success?"done":"failed",updatedAt:Date.now(),nativeTurn:{...current,ended:true,
       ...(model&&/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(model)?{model}:{}),
       notice:row.nativeTurn.notice==="pending"?"cancelled":row.nativeTurn.notice}};
-    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);submittedRuns.set(runId,updated);
+    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
   });
   return finalizeNativeMeasurement(runId);
 }
 export async function observeNativeTurnDelivery(runId:string){
   await mutateRegistry(async()=>{const registry=await registryOrEmpty(),row=registry.runs.find(r=>r.runId===runId&&r.measurementOnly);
     if(!row?.nativeTurn||row.nativeTurn.deliveredMono!==undefined)return;
-    const active=submittedRuns.get(runId);const current=active?.nativeTurn&&active.sessionKey===row.sessionKey?active.nativeTurn:row.nativeTurn;
+    const current=row.nativeTurn;
     const updated:StoredRun={...row,nativeTurn:{...current,deliveredMono:nativeMono()}};
-    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);submittedRuns.set(runId,updated);
+    await writeCompanionRunRegistry(registry.runs.map(r=>r.runId===runId?updated:r),registry.archivedSessionIds,registry.paymentRequests,registry.ownerConfirmations,registry.runDeletions);
   });
   return finalizeNativeMeasurement(runId);
 }
@@ -940,7 +940,7 @@ export async function recordTurnMeasurement(runId: string, sessionId: string, ra
     if (!terminal) throw Object.assign(new Error("turn_measurement_not_final"), {statusCode: 409});
     const updated: StoredRun = {...row, turnMeasurement: measurement};
     await writeCompanionRunRegistry(registry.runs.map(run => run.runId === runId ? updated : run), registry.archivedSessionIds, registry.paymentRequests, registry.ownerConfirmations, registry.runDeletions);
-    submittedRuns.set(runId, updated);
+    if(!row.measurementOnly)submittedRuns.set(runId, updated);
     // Metadata is durable before projection to the existing bounded process log. Idempotent reports never log twice.
     try {console.log(turnMeasurementLogLine(measurement));} catch {}
     return {success: true, state: "recorded", measurement};
