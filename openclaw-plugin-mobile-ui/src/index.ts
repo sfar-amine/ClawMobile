@@ -51,6 +51,8 @@ import { clawmobile_batch_execute } from "./tools/batch";
 import { handleOwnerBeforeDispatch, handleOwnerFastPath } from "./modelFastPath";
 import { handlePulseRoomBeforeDispatch } from "./pulseRoomFastPath";
 import { createCapabilityTool } from "./capabilityTool";
+import {brainOnlyEnabled} from "./brainOnly";
+import {createTypedCapabilityTools, readTypedToolCatalogue} from "./typedCapabilityTools";
 import { agentCapabilityHook } from "./capabilityAgentGuard";
 import { createContactTool } from "./contactTools";
 import { handleContactRoomBeforeDispatch } from "./contactRoomFastPath";
@@ -226,10 +228,12 @@ function register(api: any) {
 
   // The factory receives OpenClaw's trusted current-turn context. The first
   // execute argument is a tool-call id, not an authorization context.
-  api.registerTool(
-    (ctx: any) => createCapabilityTool(ctx),
-    { name: "clawmobile_capability" },
-  );
+  if (brainOnlyEnabled()) {
+    api.registerTool({contextVersion: 2, create: (ctx: any) => createTypedCapabilityTools(ctx)},
+      {names: [...readTypedToolCatalogue().map(tool => tool.name), "samantha_catalogue"]});
+  } else {
+    api.registerTool((ctx: any) => createCapabilityTool(ctx), {name: "clawmobile_capability"});
+  }
   api.registerTool((ctx: any) => createContactTool("transmettre_a_amine", ctx), { name: "transmettre_a_amine" });
   api.registerTool((ctx: any) => createContactTool("noter_contact", ctx), { name: "noter_contact" });
 

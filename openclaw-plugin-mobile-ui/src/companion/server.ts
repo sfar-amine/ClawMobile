@@ -14,7 +14,7 @@ import {writeAgentFile} from "./agentFileWritePlan";
 import {prewarmUsage,readUsage,readUsageDetails} from './usage';
 import {readProviders} from './providers';
 import {memoryRead,memoryForget,memoryImport} from "./memoryControl";
-import {capabilityDetail} from "./capabilityControl";
+import {capabilityDetail,interruptConversationGeneration,activeConversationGenerations} from "./capabilityControl";
 import {updatesRead} from "./updatesControl";
 import {saveAttachments,purgeAttachments,attachmentContent,attachmentDigest} from "./attachmentStorage";
 import {withAttachmentReferences} from "./runs";
@@ -51,6 +51,7 @@ import { consumeRecoveryPending, getVoiceRecoveryStatus, markVoiceIntentionalSto
 import { abandonStaleRemoteBridgeReceipts, getRemoteBridgeRequest, remoteBridgeHealth, submitRemoteBridgeRequest } from "./remoteBridge";
 import { capabilityBridge } from "./capabilityBridge";
 import { routeUnresolvedVoiceTurn, voiceTurnLogLine } from "./voiceBrainDelegation";
+import {brainOnlyEnabled} from "../brainOnly";
 import { dialogueConversationId } from "../dialogueSurface";
 import { clawLiveCapabilityTurn, createClawLiveToken, clawLivePageHtml, clawLiveVoices, validatedClawLiveVoice } from "./clawLive";
 import { attachClawLiveWarmUpgrade, clawLiveWarmCore, clawLiveWarmMeta } from "./clawLiveWarm";
@@ -518,6 +519,45 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
       const status=[400,404,409,429].includes(error?.statusCode)?error.statusCode:503;
       writeJson(res,status,{success:false,state:status===503?'unavailable':'refused',receipt:null,error:
         status===400?'invalid_conversation_archive':status===404?'conversation_not_found':status===409&&error?.message==='protected_owner_activity'?'protected_owner_activity':status===409?'operation_conflict':status===429?'conversation_archive_busy':error?.message==='archive_capacity_exceeded'?'archive_capacity_exceeded':'conversation_owner_unavailable'});
+    }
+    return;
+  }
+
+  const activeGenerations=/^\/conversations\/([^/]+)\/active-generations$/.exec(routePath);
+  if(activeGenerations){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']){
+      writeJson(res,403,{success:false,error:'native_owner_flow_required'});return;
+    }
+    if(method!=='GET'){res.setHeader('Allow','GET');writeJson(res,405,{success:false,error:'method_not_allowed'});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(activeGenerations[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      res.setHeader('Cache-Control','no-store');writeJson(res,200,await activeConversationGenerations(id));
+    }catch(error:any){writeJson(res,error?.statusCode===400?400:503,{success:false,state:'unavailable',items:[]});}
+    return;
+  }
+
+  const conversationInterrupt=/^\/conversations\/([^/]+)\/interrupt$/.exec(routePath);
+  if(conversationInterrupt){
+    if(!isLoopback||req.headers.origin||req.headers.referer||req.headers['sec-fetch-site']){
+      writeJson(res,403,{success:false,state:'refused',receipt:null,error:'owner_admission_required'});return;
+    }
+    if(method!=='POST'){res.setHeader('Allow','POST');writeJson(res,405,{success:false,error:'method_not_allowed'});return;}
+    try{
+      if(requestUrl.search)throw Object.assign(new Error(),{statusCode:400});
+      let id:string;try{id=decodeURIComponent(conversationInterrupt[1]);}catch{throw Object.assign(new Error(),{statusCode:400});}
+      const raw=await readRawBody(req,2048);
+      let body:any;try{body=JSON.parse(raw.toString('utf8'));}catch{throw Object.assign(new Error(),{statusCode:400});}
+      const admission=turnAdmission.verifyRequest({method,path:requestUrl.pathname,headers:req.headers,rawBody:raw,
+        clientRunId:body?.operationId,sessionId:id});
+      if(!admission.admitted){writeJson(res,403,{success:false,state:'refused',receipt:null,error:'owner_admission_required'});return;}
+      const assertCurrent=()=>{if(!turnAdmission.isCurrent(admission.ticket,{clientRunId:body.operationId,sessionId:id}))throw new HttpError(403,'owner_admission_required');};
+      const result=await interruptConversationGeneration(id,body,assertCurrent);
+      res.setHeader('Cache-Control','no-store');writeJson(res,200,result);
+    }catch(error:any){
+      const status=[400,403,409].includes(error?.statusCode)?error.statusCode:503;
+      writeJson(res,status,{success:false,state:status===503?'unverified':'refused',receipt:null,
+        error:status===400?'invalid_generation_interrupt':status===403?'generation_target_not_admitted':status===409?'protected_owner_activity':'generation_interrupt_unverified'});
     }
     return;
   }
@@ -991,16 +1031,16 @@ export async function route(req: http.IncomingMessage, res: http.ServerResponse)
     // when the Graph resolves it to an executable, clarifying or stopping decision (payment path included). A model-only
     // turn goes to Samantha's main agent (same owner as ask_samantha / POST /runs), never a Graph execution of a
     // conversational sentence nor a free answer of the voice interface.
-    const execute = (request: string) => clawLiveCapabilityTurn(
-      {request, clarificationId, originId: body.clientRunId,sessionId, assertCurrent},
-      (text) => {
-        assertCurrent();
-        return routeUnresolvedVoiceTurn(text, {sessionId, clientRunId: String(body.clientRunId || ""), admission: admission.ticket, assertCurrent}, {
-          resolve: (unresolved) => capabilityBridge(unresolved, {execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5}),
-          execute: (unresolved) => capabilityBridge(unresolved, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35}),
-          submit: submitIntent, status: getRunStatus,
-        });
-      },
+    const brainOrLegacy = (text: string) => {
+      assertCurrent();
+      return routeUnresolvedVoiceTurn(text, {sessionId, clientRunId: String(body.clientRunId || ""), admission: admission.ticket, assertCurrent}, {
+        resolve: (unresolved) => capabilityBridge(unresolved, {execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5}),
+        execute: (unresolved) => capabilityBridge(unresolved, {execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35}),
+        submit: submitIntent, status: getRunStatus,
+      });
+    };
+    const execute = (request: string) => brainOnlyEnabled() ? brainOrLegacy(request) : clawLiveCapabilityTurn(
+      {request, clarificationId, originId: body.clientRunId,sessionId, assertCurrent}, brainOrLegacy,
     );
     const turnStarted = Date.now();
     const result: any = await clawLiveCapability(clawLiveWarmCore, body, execute, {assertCurrent});

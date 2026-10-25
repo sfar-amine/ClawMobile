@@ -6,6 +6,7 @@
 // provider/runtime failure, rejected or unparsable output. An authorization or policy
 // refusal is never a technical failure and never reaches Luna (decision 3173).
 
+import {brainOnlyEnabled} from "./brainOnly";
 export const INTERPRETER_PRIMARY = "google/gemini-3.5-flash-lite@google:claw-gemini-free";
 export const INTERPRETER_FALLBACK = "openai/gpt-5.6-luna";
 export const INTERPRETER_MODELS = Object.freeze([INTERPRETER_PRIMARY, INTERPRETER_FALLBACK]);
@@ -171,6 +172,10 @@ export async function interpret(complete: LlmComplete, req: InterpretRequest,
 /** Gateway method body: validated request in, structured decision or stable code out. */
 export function createInterpretHandler(getComplete: () => LlmComplete | undefined) {
   return async ({ params, respond, signal }: any) => {
+    // The shared engineering completion owner survives the C1 interpreter's
+    // retirement. No owner request may invoke its old semantic purpose.
+    if (brainOnlyEnabled() && params?.purpose !== IMMUNE_PURPOSE)
+      return respond(false, undefined, {code: "INVALID_REQUEST", message: "dedicated intent interpreter retired"});
     const req = validateRequest(params);
     if (!req) return respond(false, undefined, { code: "INVALID_REQUEST", message: "invalid interpretation request" });
     const complete = getComplete();

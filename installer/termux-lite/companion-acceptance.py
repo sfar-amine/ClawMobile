@@ -67,6 +67,7 @@ OWNER_GUARDS = [
     ("POST", "/control/requests/REQ-0/cancel"),
     ("POST", "/agent/config"),
     ("POST", "/conversations/x/metadata"),
+    ("POST", "/conversations/x/interrupt"),
     ("POST", "/skills/learn"),
     ("POST", "/control/memory/import/preview"),
     ("POST", "/control/memory/import"),

@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { admittedAtMs, dialogueTurn, transportEventRef } from "./dialogueSurface";
 import { PUBLIC_WEB_BUDGET_MS } from "./companion/runWeb";
+import {brainOnlyEnabled} from "./brainOnly";
 
 export const INTENT_INPUT_PROTOCOL = "mcp-input.v1";
 export const INTENT_READ_PROTOCOL = "mcp-read.v1";
@@ -415,6 +416,7 @@ export async function handleOwnerBeforeDispatch(
   if (channel !== "whatsapp" || !match || event?.isGroup === true) return { handled: false };
   const number = match[1].startsWith("+") ? match[1] : "+" + match[1];
   if (!owners().has(number)) return { handled: false };
+  if (brainOnlyEnabled()) return {handled: false};
   const out = await handleOwnerFastPath(
     // content is the sender's text; body may carry the channel envelope.
     { content: event?.content || event?.body, senderIsOwner: true, isGroup: false, sessionKey, timestamp: event?.timestamp },
@@ -436,6 +438,7 @@ export async function handleOwnerFastPath(
   runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
 ): Promise<{ handled: boolean; reply?: { text: string } }> {
   if (!isOwnerFastPathEligible(event, ctx)) return { handled: false };
+  if (brainOnlyEnabled()) return {handled: false};
   const message = (event.bodyForAgent ?? event.content ?? "").trim();
   const graphSurface = surfaceFor(ctx);
   const reply = await dialogueTurn(runner, {

@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "id": "refonte-l3-typed-brain-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Bascule hôte du cerveau seul décideur, outils typés issus des contrats canoniques et contrôle exact de génération avec admission courante.",
+  "scope": {
+    "files": [
+      ".github/workflows/ci.yml",
+      "cloud/voice-relay/src/mcp.mjs",
+      "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+      "docs/changes/refonte-l3-typed-brain-20261025.json",
+      "docs/changes/refonte-l3-typed-brain-20261025.md",
+      "docs/work/samantha-refonte/README.md",
+      "installer/termux-lite/claw-capability.py",
+      "installer/termux-lite/companion-acceptance.py",
+      "installer/termux-lite/model-fast-path.py",
+      "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/README.md",
+      "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/compiled-agent-tools.json",
+      "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+      "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-generation-interrupt.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+      "openclaw-plugin-mobile-ui/src/brainOnly.ts",
+      "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+      "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+      "openclaw-plugin-mobile-ui/src/companion/capabilityControl.ts",
+      "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
+      "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+      "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+      "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+      "openclaw-plugin-mobile-ui/src/companion/server.ts",
+      "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
+      "openclaw-plugin-mobile-ui/src/index.ts",
+      "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+      "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+      "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+    ]
+  },
+  "routes": [
+    {
+      "route": "POST /v1/conversations/{id}/interrupt",
+      "budget": "6000 ms",
+      "capability": "samantha.app.conversation.interrupt",
+      "change": "P1 signed native proof; exact previous owner run; official chat.abort; no rollback claim for business effects"
+    },
+    {
+      "route": "GET /v1/conversations/{id}/active-generations",
+      "budget": "1000 ms",
+      "capability": "samantha.app.conversation.active_generations",
+      "change": "bounded local owner-run metadata only"
+    }
+  ],
+  "tests": {
+    "status": "pending_ci",
+    "evidence": [
+      "Focused suites run in Cloud; complete localci.py exact-head proof still required before integration.",
+      "Typed tools and confirmation owners tested with canonical contracts; final business/network process simulated where stated. No live acceptance claimed.",
+      "l3-core-focused.log SHA256 093b46bf4c654a0c252708f41f708952c564e9ec4f84177c1be2d213ffb03cee"
+    ]
+  },
+  "capability_impact": {
+    "changed": true,
+    "ids": [
+      "samantha.app.conversation.interrupt",
+      "samantha.app.conversation.active_generations"
+    ],
+    "detail": "Two canonical generation controls; all domain tools derive existing registry and manifest actions. No payment or Contacts permission expanded."
+  },
+  "architecture_impact": {
+    "changed": true,
+    "adr": "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "reason": "Principal brain chooses semantics; existing Graph/dialogue/confirmation/run owners validate and execute typed identities."
+  },
+  "mcp_parity": {
+    "status": "updated_pending_live",
+    "detail": "claw_resolve/claw_execute accept typed selection; other primitives unchanged. External narratives cannot confirm writes. Paired live acceptance pending."
+  },
+  "merge_eligibility": "requires_canonical_ci",
+  "deployment_state": "not_applied",
+  "rollback": "Disable SAMANTHA_BRAIN_ONLY; restore prior paired Companion/playbooks through existing owner deployment scripts."
+}

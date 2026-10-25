@@ -1,0 +1,40 @@
+# ADR — Cerveau seul décideur et outils typés (L3)
+
+Date : 25 octobre 2026. Statut : implémentation derrière interrupteur hôte ; recette et activation non réalisées.
+Décisions : S24 EVT-3228 (3fcf038f), EVT-3229 (0a436deb), EVT-3230 (3852c560), EVT-3222. Spécification de référence : samantha-core, branche claude/refonte-spec-20261025, da5927cf.
+
+## Décision et propriétaires
+
+`SAMANTHA_BRAIN_ONLY=1` est lu uniquement dans l’environnement de l’hôte. L’app, WhatsApp owner et la voix ne passent plus par un tri préalable. La liste fermée de réflexes sociaux est conservée. Les gestes explicites gardent leur propriétaire. Le cerveau choisit une réponse, une question ou un outil ; il ne fournit jamais route, entrypoint, caller ou autorisation.
+
+Les outils sont une projection du registre capabilities et des 11 manifestes, construite par `CapabilityGraph.compile_views` dans le répertoire de vues existant. Aucun catalogue manuel ni nouveau store : les noms du manifeste plugin et la fixture source sont générés de cette projection. Un outil par domaine et un outil app ; `samantha_catalogue` lit la projection du même registre pour la découverte uniquement. Les actions non prêtes ou sans propriétaire direct ne deviennent pas exécutables par magie. Les routes sans entrypoint restent explicitement indisponibles ; le cerveau peut utiliser un outil natif déjà autorisé. Les paiements ne sont pas exposés par ces outils migrés.
+
+L’outil reçoit action/params fermés par les contrats existants. Le Graph fait `plan_admitted`, choisit une route technique disponible, construit le `DecisionEnvelope` V2 et exécute cette décision. Aucun `resolve(text)`, aucune extraction lexicale de paramètres et aucun réaiguillage après dérive de révision. Les GET app utilisent exclusivement l’URL loopback et la méthode déclarées dans le registre : ni URL ni en-tête ne viennent du modèle ; redirections et mutations sont refusées. Les faits du reçu sont bornés à 32 Kio dans le dialogue, avec troncature annoncée si nécessaire.
+
+## Autorité et confirmation
+
+L’autorité vient de la factory SDK (`senderIsOwner`, agent main, session exacte, `assertInvocationCurrent`) et du hook `before_tool_call` (`runId`, `toolCallId`, requester owner). Le guard existant lie ces données à une invocation consommée une seule fois (256 entrées, 120 s maximum). C’est une preuve éphémère de l’invocation courante, pas un registre métier. Collision, contexte absent, session différente, mutation des arguments, expiration et révocation ferment l’accès. Aucun champ du modèle ne porte cette preuve ; le helper reçoit les métadonnées hôte sur son pipe privé existant.
+
+Le dialogue, les transitions CAS, le récapitulatif complet et `PulseConfirmationGrant` restent les propriétaires existants. Toute écriture métier attend un récapitulatif puis un autre run utilisateur. Deux appels d’outils dans le même run ne peuvent pas s’auto-confirmer. La confirmation transmet l’identifiant du but et l’empreinte complète déjà produite par le propriétaire ; la décision et ses paramètres restent figés. Un changement du hash, de la session ou du contrat bloque. Les agents Contacts ne reçoivent aucun descripteur Samantha et le guard les refuse, même si un nom d’outil est deviné.
+
+## Interruption d’une génération
+
+Deux capabilities sont ajoutées au registre : lecture des générations actives d’une conversation et interruption d’un run exact. Ce contrôle choisi par le cerveau ne vaut jamais annulation d’une écriture métier. Le propriétaire officiel OpenClaw 2026.9.6 `chat.abort` a été lu sur le S24 : il prend sessionKey/runId et retourne ok/aborted/runIds ; le wrapper refuse tout abort global.
+
+Le nouveau POST `/v1/conversations/{id}/interrupt` exige la preuve P1 native signée sur méthode, chemin et octets du corps, avec clientRunId=operationId et sessionId=id ; un en-tête owner-flow constant ne donne aucun droit. Le ticket est revérifié avant l’envoi. L’outil principal utilise sa preuve SDK courante, vérifie que la conversation est celle de son contexte et exige un run précédent exact. La cible doit aussi être ownerAdmitted/admin_admitted et observée par L0bis Core #422 (`activeObservedGatewayRun`, époque courante sans perte d’événement). Une version partiellement appariée, une session Contacts, une observation périmée ou un paiement actif sont refusés.
+
+Le reçu et l’idempotence viennent de `nativeOperation` et du registre runs existants. Un délai inconnu reste indeterminate sans rejeu. L’ACK prouve uniquement l’arrêt demandé/confirmé de la génération : les effets déjà envoyés ne sont pas annulés, et leurs reçus doivent être vérifiés. Aucune fausse clôture REQ ne sert d’abort. WhatsApp natif sans run owner stocké reste refusé. Si le tour Stop attend la même file que l’ancien tour, cet enjeu reste une qualification réelle ouverte : aucun second interprète n’est ajouté pour prétendre le résoudre.
+
+## Parité et migration
+
+Les schémas MCP existants `claw_resolve` et `claw_execute` acceptent `typed={domain,action,params}`. Ce mode ne se mélange pas avec decision, target_hint, client_context ni service_scope. Le bridge garde action_key/step_key, reçus et fences existants. Les lectures utilisent la même admission Graph ; les écritures externes restent fermées sans preuve de confirmation native ultérieure. Aucun récit externe ne devient une approbation. `claw_context`, `claw_exec`, `claw_status` et `claw_artifact_read` gardent leur contrat, sauf la capacité nouvellement déclarée dans le contexte.
+
+Le port partagé C2 Sol/Luna est conservé. Sous le drapeau, le purpose dédié d’interprétation owner est refusé ; le purpose d’ingénierie immune garde son propriétaire. Les salles Pulse natives et les Contacts conservent leurs entrées hors périmètre. L’ancien chemin reste sous le drapeau éteint uniquement pour le retour arrière ; sa suppression est une PR suivante, après recette verte.
+
+## Réponse prête et portes ouvertes
+
+La réponse prête du reçu est rendue telle quelle. Les hooks SDK lus (`after_tool_call`, `tool_result_persist`, `before_agent_finalize`) ne démontrent pas une fin de tour fournissant la réponse sans deuxième appel de modèle. Conformément à l’exception technique de la spécification, le second tour demeure tant que ce mécanisme n’est pas qualifié ; aucune propriété returnDirect n’est inventée et aucun zéro-second-tour n’est revendiqué.
+
+Avant activation : L1 référence et L2 injection/cache verts, Core422 apparié, compilation des vues PB réussie et noms d’outils autorisés côté main, CI canonique des deux heads et de leur union. Puis recettes réelles sur les trois surfaces : décision unique, confirmations et refus adverses, réponse métier exacte, interruption et distinction des effets, parité MCP. Source et tests ne valent pas recette S24. Aucun lot n’est clôturé ici.
+
+Retour arrière : drapeau hôte éteint, anciens pin playbooks et Companion par les scripts propriétaires. Aucun secret ni état de paiement n’est modifié.

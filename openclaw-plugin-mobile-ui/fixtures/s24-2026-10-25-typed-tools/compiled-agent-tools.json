@@ -1,0 +1,5914 @@
+{
+  "version": 1,
+  "capabilityRevision": "b4fd973a39f62807",
+  "tools": [
+    {
+      "name": "samantha_agenda",
+      "domain": "agenda",
+      "description": "Samantha Agenda",
+      "actions": [
+        {
+          "action": "agenda.event.create",
+          "description": "ajouter un rendez-vous à ton agenda",
+          "params": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "start_time": {
+                "type": "string",
+                "maxLength": 12000,
+                "description": "AAAA-MM-JJTHH:MM, heure locale de Tunis"
+              },
+              "end_time": {
+                "type": "string",
+                "maxLength": 12000,
+                "description": "AAAA-MM-JJTHH:MM, heure locale de Tunis ; absent = une heure après le début"
+              },
+              "location": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "start_time",
+              "title"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "ajoute un rendez-vous dans mon calendrier",
+            "cree un evenement google agenda"
+          ]
+        },
+        {
+          "action": "agenda.event.read",
+          "description": "consulter ton agenda",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": false,
+          "examples": [
+            "mon agenda demain",
+            "quels sont mes rendez-vous demain",
+            "que j ai dans mon calendrier"
+          ]
+        },
+        {
+          "action": "agenda.event.update",
+          "description": "déplacer ou modifier un rendez-vous",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": false,
+          "examples": [
+            "deplace mon rendez-vous",
+            "modifie le rappel du calendrier"
+          ]
+        },
+        {
+          "action": "agenda.reminder.schedule",
+          "description": "programmer un rappel de rendez-vous",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "external_send",
+          "confirmationRequired": true,
+          "directExecution": false,
+          "examples": [
+            "rappelle moi mon rendez-vous",
+            "rappel whatsapp la veille de mon evenement"
+          ]
+        },
+        {
+          "action": "agenda.sync",
+          "description": "synchroniser Google Agenda",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": false,
+          "examples": [
+            "synchronise google agenda et whatsapp",
+            "repercute les changements du calendrier"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_laptop_s24_termux",
+      "domain": "laptop-s24-termux",
+      "description": "Laptop to S24 Termux access",
+      "actions": [
+        {
+          "action": "laptop.s24.connect",
+          "description": "connecter ton PC au S24",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "je veux me connecter avec mon laptop sur s24 termux",
+            "connecte mon pc au s24",
+            "remet tail et ssh",
+            "remets tailscale et ssh"
+          ]
+        },
+        {
+          "action": "laptop.s24.diagnose",
+          "description": "diagnostiquer l'accès PC au S24",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "crash diagnostic rapide",
+            "diagnostic rapide de mon acces pc s24",
+            "repare vite mon acces laptop s24"
+          ]
+        },
+        {
+          "action": "laptop.s24.disconnect",
+          "description": "déconnecter ton PC du S24",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "deconnecte mon laptop du s24",
+            "ferme l acces pc s24",
+            "coupe tailscale pour mon acces pc"
+          ]
+        },
+        {
+          "action": "laptop.s24.status",
+          "description": "voir l'état de l'accès PC au S24",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": false,
+          "examples": [
+            "etat acces pc s24",
+            "etat laptop s24",
+            "statut acces pc s24",
+            "status laptop s24"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_maxit_tunisie",
+      "domain": "maxit-tunisie",
+      "description": "Maxit Tunisia",
+      "actions": [
+        {
+          "action": "telecom.balance",
+          "description": "consulter ton solde Maxit",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "mon solde maxit",
+            "mon solde orange",
+            "solde general Orange",
+            "credit restant Maxit",
+            "what is my Orange balance"
+          ]
+        },
+        {
+          "action": "telecom.balances",
+          "description": "consulter tous tes soldes Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "tous les soldes maxit",
+            "tous les soldes orange",
+            "tous mes soldes orange"
+          ]
+        },
+        {
+          "action": "telecom.orange.balances",
+          "description": "consulter tous tes compteurs Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "tous mes compteurs orange",
+            "forfait report recharge orange",
+            "compteurs forfait report recharge Orange",
+            "recap des compteurs Maxit",
+            "all my Orange counters"
+          ]
+        },
+        {
+          "action": "telecom.orange.credit_transfert",
+          "description": "consulter le crédit reçu par transfert Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "credit recu par transfert orange",
+            "solde credit transfere orange",
+            "combien de credit transfere il me reste"
+          ]
+        },
+        {
+          "action": "telecom.orange.data",
+          "description": "consulter ton internet restant Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "internet restant orange",
+            "combien de data il me reste orange"
+          ]
+        },
+        {
+          "action": "telecom.orange.forfait_bonus",
+          "description": "consulter ton bonus de recharge Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "bonus sur recharge orange",
+            "mon bonus forfait orange",
+            "bonus forfait Maxit",
+            "bonus recharge Orange",
+            "Orange recharge bonus"
+          ]
+        },
+        {
+          "action": "telecom.orange.loyalty_calls",
+          "description": "consulter ton bonus fidélité appels Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "bonus fidelite appels orange",
+            "mon bonus fidelite orange"
+          ]
+        },
+        {
+          "action": "telecom.orange.number",
+          "description": "connaître ton numéro Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "quel est mon numéro orange",
+            "mon numero orange"
+          ]
+        },
+        {
+          "action": "telecom.orange.offer",
+          "description": "consulter ton offre Maxit",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "quelle est mon offre orange",
+            "mon offre maxit"
+          ]
+        },
+        {
+          "action": "telecom.orange.plan",
+          "description": "consulter ton offre active et tes consommations Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": false,
+          "examples": [
+            "mon forfait Orange",
+            "mon forfait Maxit",
+            "état de mon forfait Orange",
+            "détails de mon forfait Orange",
+            "my Orange mobile plan status"
+          ]
+        },
+        {
+          "action": "telecom.orange.report",
+          "description": "consulter ton report Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "mon report orange",
+            "report du forfait orange",
+            "combien de report il me reste orange"
+          ]
+        },
+        {
+          "action": "telecom.orange.sms",
+          "description": "consulter tes SMS restants Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "combien de sms il me reste orange",
+            "sms restants orange",
+            "forfait sms orange"
+          ]
+        },
+        {
+          "action": "telecom.orange.tracking_codes",
+          "description": "voir les codes USSD Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "codes ussd orange",
+            "codes de suivi maxit"
+          ]
+        },
+        {
+          "action": "telecom.orange.voice",
+          "description": "consulter tes minutes restantes Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "minutes restantes orange",
+            "combien d appels il me reste orange"
+          ]
+        },
+        {
+          "action": "telecom.recharge_balance",
+          "description": "consulter ton solde de recharge Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "mon solde de recharge maxit",
+            "solde de recharge orange",
+            "credit de recharge Orange",
+            "solde recharge Maxit",
+            "Orange recharge balance"
+          ]
+        },
+        {
+          "action": "telecom.usage",
+          "description": "consulter ta consommation Orange",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "ma consommation maxit",
+            "combien de data il me reste",
+            "suivi conso"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_pulse",
+      "domain": "pulse",
+      "description": "Pulse",
+      "actions": [
+        {
+          "action": "certificate.rotate",
+          "description": "installer le nouveau certificat Pulse",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "nouveau certificat pulse téléchargé",
+            "remplace le certificat pulse",
+            "mets à jour le certificat pulse",
+            "change le certificat pulse",
+            "rotation certificat pulse"
+          ]
+        },
+        {
+          "action": "cra.status",
+          "description": "voir l'état des CRA",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "statut des CRA",
+            "qui n a pas soumis son CRA"
+          ]
+        },
+        {
+          "action": "evaluations.mine",
+          "description": "voir tes évaluations",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "mes evaluations",
+            "evaluations par semestre"
+          ]
+        },
+        {
+          "action": "evaluations.team",
+          "description": "voir les évaluations de l'équipe",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "evaluations equipe",
+            "evaluation collaborateur"
+          ]
+        },
+        {
+          "action": "finance.ca",
+          "description": "voir le chiffre d'affaires et l'atterrissage",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "chiffre affaire atterrissage",
+            "CA par departement"
+          ]
+        },
+        {
+          "action": "leave.balance",
+          "description": "consulter ton solde de congé",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "mon solde de congé",
+            "combien de jours de congé il me reste",
+            "my leave balance"
+          ]
+        },
+        {
+          "action": "leave.calendar",
+          "description": "voir qui est en congé dans l'équipe",
+          "params": {
+            "type": "object",
+            "properties": {
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "qui est en congé aujourd hui dans l équipe",
+            "congés équipe",
+            "congés équipe sur plusieurs mois",
+            "qui est en conge pulse",
+            "conges en octobre"
+          ]
+        },
+        {
+          "action": "leave.request",
+          "description": "soumettre une demande de congé",
+          "params": {
+            "type": "object",
+            "properties": {
+              "start_at": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "end_at": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "end_at",
+              "start_at"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "soumettre une demande de congé",
+            "pose un congé",
+            "request leave"
+          ]
+        },
+        {
+          "action": "offer.assign_collaborator",
+          "description": "affecter un collaborateur à l'offre",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "offer_id",
+              "person"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "affecte ce collaborateur a offre",
+            "ajoute cette personne a offre",
+            "ajoute amal a l offre"
+          ]
+        },
+        {
+          "action": "offer.create",
+          "description": "créer une offre Pulse",
+          "params": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 240,
+                "description": "Offer label without an invented suffix; native owner adds [Offre] once."
+              },
+              "client": {
+                "type": "string",
+                "maxLength": 512,
+                "description": "Client label to resolve uniquely from the fresh native form; not an invented ID."
+              },
+              "billing_client": {
+                "type": "string",
+                "maxLength": 512,
+                "description": "Billing client label; omit to preserve the native default of the selected client."
+              },
+              "currency": {
+                "type": "string",
+                "maxLength": 512,
+                "description": "Requested currency label/code; native owner resolves actual options."
+              },
+              "phase_name": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "RefClient": {
+                "type": "string",
+                "maxLength": 128,
+                "entity_id": true
+              },
+              "RefClientFacturation": {
+                "type": "string",
+                "maxLength": 128,
+                "entity_id": true
+              },
+              "RefDeviseBudget": {
+                "type": "string",
+                "maxLength": 128,
+                "entity_id": true
+              },
+              "jh": {
+                "type": "string",
+                "pattern": "[0-9]{1,10}(?:[.,][0-9]{1,2})?",
+                "maxLength": 13,
+                "description": "Requested positive person-days, decimal string; native owner validates/calculates exact hundredths."
+              },
+              "revenue": {
+                "type": "string",
+                "pattern": "[0-9]{1,10}(?:[.,][0-9]{1,2})?",
+                "maxLength": 13,
+                "description": "Requested estimated revenue, decimal string; do not derive a user-provided value from another field."
+              },
+              "tjm": {
+                "type": "string",
+                "pattern": "[0-9]{1,10}(?:[.,][0-9]{1,2})?",
+                "maxLength": 13,
+                "description": "Requested daily rate, decimal string; native owner calculates revenue from JH × TJM."
+              },
+              "start": {
+                "type": "string",
+                "maxLength": 10,
+                "pattern": "(?:today|20[0-9]{2}-[0-9]{2}(?:-[0-9]{2})?|[0-9]{2}/[0-9]{2}/20[0-9]{2})",
+                "description": "Requested forecast start; today uses host reference date in Africa/Tunis, never model time."
+              },
+              "end": {
+                "type": "string",
+                "maxLength": 10,
+                "pattern": "(?:20[0-9]{2}-[0-9]{2}-[0-9]{2}|[0-9]{2}/[0-9]{2}/20[0-9]{2})"
+              },
+              "months": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 36,
+                "description": "Forecast duration in months; native owner checks actual supported calendar."
+              },
+              "mode": {
+                "type": "string",
+                "maxLength": 256,
+                "enum": [
+                  "equal",
+                  "jh",
+                  "percent"
+                ],
+                "description": "Explicit forecast allocation: equal shares, monthly JH, or noncumulative percentages."
+              },
+              "split": {
+                "type": "array",
+                "maxItems": 36,
+                "items": {
+                  "type": "string",
+                  "pattern": "[0-9]{1,10}(?:[.,][0-9]{1,2})?",
+                  "maxLength": 13
+                },
+                "description": "Ordered monthly JH or percentage values for the selected mode; native owner verifies exact sum."
+              },
+              "pricing": {
+                "type": "string",
+                "maxLength": 256,
+                "enum": [
+                  "use_tjm",
+                  "use_revenue"
+                ]
+              },
+              "phase_status": {
+                "type": "string",
+                "maxLength": 256,
+                "enum": [
+                  "1",
+                  "2"
+                ]
+              },
+              "phase_order": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999
+              },
+              "included_budget": {
+                "type": "boolean",
+                "description": "Requested inclusion in project budget; native edit form proof is still required before any qualified composite effect."
+              },
+              "only_pulse": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ],
+                "description": "Read-only native condition; false is unsupported, never force a server control."
+              },
+              "profiles": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "maxLength": 256
+                    },
+                    "rate": {
+                      "type": "string",
+                      "pattern": "[0-9]{1,10}(?:[.,][0-9]{1,2})?",
+                      "maxLength": 13
+                    }
+                  },
+                  "required": [
+                    "label"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Optional complete requested profile list; native owner resolves labels/rates. Omission keeps native defaults, empty list is explicit. Correction replaces the whole list with one valid source span."
+              },
+              "requested_team": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "Retain requested people; this owner does not perform their assignment."
+              },
+              "team_handling": {
+                "type": "string",
+                "maxLength": 256,
+                "enum": [
+                  "separate",
+                  "cancel"
+                ],
+                "description": "Native scope choice for named team; separate requires explicit authorization, cancel has no write."
+              },
+              "RefPaysFiliale": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefDepartement": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefDivision": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefPersonnelResCom": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefPays": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefTechniqueVente": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefSourceLead": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefPersonnelResTech": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefNatureOffre": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefTypeContrat": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefEtat": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefPrioriteAffaire": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefDeviseSousTraitance": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefRaisonPerte": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "Note": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "Tag": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "NomSourceLead": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "Couleur": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "MontantFrais": {
+                "type": "string",
+                "maxLength": 13,
+                "pattern": "(?:[0-9]{1,10}(?:[.,][0-9]{1,2})?)?"
+              },
+              "MontantSousTraitance": {
+                "type": "string",
+                "maxLength": 13,
+                "pattern": "(?:[0-9]{1,10}(?:[.,][0-9]{1,2})?)?"
+              },
+              "AvecPrestataireExterne": {
+                "type": "boolean"
+              },
+              "EstFraisRefacturable": {
+                "type": "boolean"
+              },
+              "EnSousTraitance": {
+                "type": "boolean"
+              },
+              "MustWin": {
+                "type": "boolean"
+              },
+              "EstLeadCloture": {
+                "type": "boolean"
+              },
+              "EstOuverteSaisieCRA": {
+                "type": "boolean"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "crée une offre Pulse",
+            "créer une offre pour un client",
+            "cree une offre Migration sur Pulse",
+            "create an offer in Pulse"
+          ]
+        },
+        {
+          "action": "offer.forecast",
+          "description": "voir le forecast de l'offre",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "offer_id"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "forecast offre",
+            "forecast mensuel offre",
+            "atterrissage pipe offre",
+            "jh et ca pondéré offre"
+          ]
+        },
+        {
+          "action": "offer.forecast.set",
+          "description": "forecaster une offre",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "month",
+              "offer_id",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "forecaster l offre",
+            "mets le forecast de l offre",
+            "modifie le forecast de l offre"
+          ]
+        },
+        {
+          "action": "offer.remove_collaborator",
+          "description": "retirer un collaborateur de l'offre",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "offer_id",
+              "person"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "retire ce collaborateur de offre",
+            "enleve cette personne de offre",
+            "retire amal de l offre",
+            "enleve amal de l offre"
+          ]
+        },
+        {
+          "action": "offer.search",
+          "description": "chercher une offre Pulse",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_query": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "liste des offres",
+            "portefeuille offres",
+            "toutes les offres",
+            "cherche une offre"
+          ]
+        },
+        {
+          "action": "offer.set_status",
+          "description": "changer le statut de l'offre",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": false,
+          "examples": [
+            "change le statut de offre",
+            "passe offre au statut"
+          ]
+        },
+        {
+          "action": "offer.snapshot",
+          "description": "voir le détail de l'offre",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_query": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "offer_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "détail offre",
+            "détail* offre",
+            "kpi offre",
+            "budget offre",
+            "closing offre"
+          ]
+        },
+        {
+          "action": "offer.team",
+          "description": "voir l’équipe de l’offre",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "offer_id"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "donne moi l equipe associee a l offre",
+            "donne moi les personnes associees a l offre",
+            "equipe de l offre",
+            "who is assigned to offer",
+            "show offer team"
+          ]
+        },
+        {
+          "action": "offer.update",
+          "description": "modifier les informations de l'offre",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": false,
+          "examples": [
+            "modifie les informations de cette offre",
+            "mets a jour cette offre",
+            "modifie l'offre",
+            "mets à jour l'offre"
+          ]
+        },
+        {
+          "action": "project.assign_collaborator",
+          "description": "affecter un collaborateur au projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "person",
+              "project_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "affecte ce collaborateur au projet",
+            "ajoute cette personne au projet",
+            "ajoute amal au projet",
+            "affecte amal au projet",
+            "ajoute amal du projet consulting"
+          ]
+        },
+        {
+          "action": "project.collaborator_monthly_consumption",
+          "description": "voir la consommation mensuelle par collaborateur du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "consommé par collaborateur chaque mois du projet",
+            "consommation mensuelle par collaborateur du projet",
+            "jh consommés par collaborateur chaque mois du projet",
+            "détail des consommations par personne et par mois du projet",
+            "combien a consommé chaque collaborateur par mois sur le projet"
+          ]
+        },
+        {
+          "action": "project.edit",
+          "description": "modifier un champ du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "field": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "new_value": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "modifie ce champ du projet",
+            "change ces informations du projet",
+            "modifie le projet",
+            "mets à jour le projet"
+          ]
+        },
+        {
+          "action": "project.forecast",
+          "description": "voir le forecast du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "forecast projet",
+            "prévision projet",
+            "forecast mensuel projet",
+            "forecast du projet",
+            "montre moi forecast projet"
+          ]
+        },
+        {
+          "action": "project.monthly_performance",
+          "description": "comparer l'avancement mensuel réel au forecast du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "avancement mensuel réel versus forecast du projet",
+            "jours homme par mois projet",
+            "avancement par mois",
+            "réel versus forecast du mois",
+            "avancement mensuel réel versus forecast projet"
+          ]
+        },
+        {
+          "action": "project.mutate",
+          "description": "faire plusieurs changements sur le projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "phase": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "phase_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "person",
+              "phase",
+              "project_query",
+              "state"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "ajoute cette personne et change la phase du projet",
+            "modifie plusieurs informations du projet"
+          ]
+        },
+        {
+          "action": "project.phase.set_status",
+          "description": "changer le statut d'une phase du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "phase": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "phase_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query",
+              "state"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "mets la phase en debute",
+            "mets la phase en non debute",
+            "modifie la phase du projet",
+            "change la phase du projet en débuté",
+            "ouvre le projet phase 5"
+          ]
+        },
+        {
+          "action": "project.phases",
+          "description": "voir les phases du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_id"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "phases du projet",
+            "détail des phases",
+            "statut des phases projet"
+          ]
+        },
+        {
+          "action": "project.recent_consumption",
+          "description": "voir la consommation récente de l'équipe du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "équipe du projet et leur consommation récente",
+            "équipe du projet consommation récente",
+            "consommation récente de l équipe du projet",
+            "consommation équipe cinq dernières semaines",
+            "jours homme des cinq dernières semaines"
+          ]
+        },
+        {
+          "action": "project.remove_collaborator",
+          "description": "retirer un collaborateur du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "person",
+              "project_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "retire ce collaborateur du projet",
+            "enleve cette personne du projet",
+            "retire amal du projet",
+            "enleve amal du projet",
+            "supprime amal au projet consulting"
+          ]
+        },
+        {
+          "action": "project.resource_forecast",
+          "description": "voir le forecast des ressources du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "yyyy": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "m": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "n": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_id"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "forecast des ressources du projet",
+            "forecast par collaborateur et semaine",
+            "combien de JH sont prévus pour cette personne",
+            "prévision JH ressource semaine",
+            "détail du forecast par profil"
+          ]
+        },
+        {
+          "action": "project.resource_forecast.set",
+          "description": "planifier des jours-homme pour une personne",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "week_index": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "clear": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "scope": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "phase_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "profile": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "category": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "forecast 2 jours homme pour cette personne en deuxième semaine de janvier",
+            "mets 3 JH de forecast pour ce collaborateur cette semaine",
+            "change le forecast hebdomadaire de cette ressource",
+            "forecast jours homme semaine",
+            "forecast 2 jours homme pour Amine Sfar dans la deuxième semaine de janvier"
+          ]
+        },
+        {
+          "action": "project.revenue",
+          "description": "voir le chiffre d'affaires du projet",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": false,
+          "examples": [
+            "CA projet",
+            "chiffre affaire projet",
+            "chiffre d affaire projet",
+            "CA mensuel projet",
+            "CA par mois projet"
+          ]
+        },
+        {
+          "action": "project.search",
+          "description": "chercher un projet Pulse",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "cherche projet pulse",
+            "trouve projet zain",
+            "projet par id",
+            "liste mes projets",
+            "portefeuille projets"
+          ]
+        },
+        {
+          "action": "project.set_status",
+          "description": "changer le statut du projet",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": true,
+          "directExecution": false,
+          "examples": [
+            "change le statut du projet",
+            "passe le projet au statut"
+          ]
+        },
+        {
+          "action": "project.snapshot",
+          "description": "voir les indicateurs du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "kpi du projet",
+            "kpi projet",
+            "kpi projet pulse",
+            "donne moi les kpi du projet",
+            "raf projet"
+          ]
+        },
+        {
+          "action": "project.team",
+          "description": "voir l'équipe du projet",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "équipe du projet",
+            "qui est affecté au projet",
+            "collaborateurs du projet",
+            "qui travaille sur le projet",
+            "qui est dans l équipe projet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_sonede",
+      "domain": "sonede",
+      "description": "SONEDE",
+      "actions": [
+        {
+          "action": "billing.invoices",
+          "description": "voir le détail de tes factures SONEDE",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "facture sonede",
+            "detail de ma facture sonede",
+            "montre la facture sonede avant de payer"
+          ]
+        },
+        {
+          "action": "billing.unpaid",
+          "description": "consulter ce que tu dois à la SONEDE",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "combien je dois a la sonede",
+            "impayees sonede",
+            "consulte les impayes sonede",
+            "show the unpaid amount for sonede",
+            "9adech n5alles lel sonede"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_steg",
+      "domain": "steg",
+      "description": "STEG",
+      "actions": [
+        {
+          "action": "billing.invoices",
+          "description": "voir le détail de tes factures STEG",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "facture steg",
+            "detail de ma facture steg",
+            "montre la facture steg avant de payer"
+          ]
+        },
+        {
+          "action": "billing.unpaid",
+          "description": "consulter ce que tu dois à la STEG",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "combien je dois a la steg",
+            "impayees steg",
+            "consulte les impayes steg",
+            "show the unpaid amount for steg",
+            "9adech n5alles lel steg"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_topnet",
+      "domain": "topnet",
+      "description": "Topnet",
+      "actions": [
+        {
+          "action": "billing.invoices",
+          "description": "voir le détail de tes factures Topnet",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "detail de ma facture topnet",
+            "montre la facture topnet avant de payer"
+          ]
+        },
+        {
+          "action": "billing.unpaid",
+          "description": "consulter ce que tu dois à Topnet",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "que dois je a topnet",
+            "impayees topnet",
+            "montant a payer topnet",
+            "consulte les impayes topnet",
+            "show the unpaid amount for topnet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_tunisie_telecom",
+      "domain": "tunisie-telecom",
+      "description": "Tunisie Telecom",
+      "actions": [
+        {
+          "action": "telecom.balance",
+          "description": "consulter ton solde Tunisie Telecom",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "mon solde tunisie telecom",
+            "mon solde tt"
+          ]
+        },
+        {
+          "action": "telecom.tt.balances",
+          "description": "consulter tous tes compteurs Tunisie Telecom",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "tous mes compteurs tunisie telecom",
+            "solde et bonus tt"
+          ]
+        },
+        {
+          "action": "telecom.tt.corporate_bonus",
+          "description": "consulter ton bonus corporate Tunisie Telecom",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "mon bonus corporate tunisie telecom",
+            "bonus corporate tt"
+          ]
+        },
+        {
+          "action": "telecom.tt.data",
+          "description": "consulter ton internet restant Tunisie Telecom",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "combien internet tunisie telecom",
+            "internet restant tt",
+            "combien de data il me reste tunisie telecom"
+          ]
+        },
+        {
+          "action": "telecom.tt.number",
+          "description": "connaître ton numéro Tunisie Telecom",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "mon numéro tunisie telecom",
+            "mon numero tt"
+          ]
+        },
+        {
+          "action": "telecom.tt.offer",
+          "description": "consulter ton offre Tunisie Telecom",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "quelle est mon offre tunisie telecom",
+            "mon offre tt"
+          ]
+        },
+        {
+          "action": "telecom.tt.principal",
+          "description": "consulter ton solde principal Tunisie Telecom",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "mon solde principal tunisie telecom",
+            "solde principal tt"
+          ]
+        },
+        {
+          "action": "telecom.tt.tracking_codes",
+          "description": "voir les codes USSD Tunisie Telecom",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "codes ussd tunisie telecom",
+            "codes services tuntel"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_utility_billing",
+      "domain": "utility-billing",
+      "description": "Utility Billing Summary",
+      "actions": [
+        {
+          "action": "billing.unpaid",
+          "description": "consulter toutes tes factures en attente (STEG, SONEDE, Topnet)",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "Ai je des factures en attente",
+            "mes impayes",
+            "factures a payer steg sonede topnet",
+            "etat de mes factures",
+            "état de mes factures"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_whatsapp",
+      "domain": "whatsapp",
+      "description": "WhatsApp",
+      "actions": [
+        {
+          "action": "messaging.send",
+          "description": "envoyer un message WhatsApp",
+          "params": {
+            "type": "object",
+            "properties": {
+              "recipient": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "message",
+              "recipient"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "external_send",
+          "confirmationRequired": true,
+          "directExecution": true,
+          "examples": [
+            "envoie un message whatsapp",
+            "dis a sadok",
+            "ecris a"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_zain_bahrain",
+      "domain": "zain-bahrain",
+      "description": "Zain Bahrain",
+      "actions": [
+        {
+          "action": "telecom.balance",
+          "description": "consulter ton solde Zain",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "mon solde zain",
+            "balance zain"
+          ]
+        },
+        {
+          "action": "telecom.usage",
+          "description": "consulter ta consommation Zain",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": false,
+          "examples": [
+            "ma consommation zain",
+            "usage zain"
+          ]
+        },
+        {
+          "action": "telecom.zain.bundle_status",
+          "description": "vérifier si un forfait Zain est actif",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "ai je un bundle zain actif",
+            "statut forfait zain"
+          ]
+        },
+        {
+          "action": "telecom.zain.data",
+          "description": "consulter ta data restante Zain",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": false,
+          "examples": [
+            "data restante zain",
+            "internet restant zain"
+          ]
+        },
+        {
+          "action": "telecom.zain.line_identity",
+          "description": "voir quelle ligne Zain est sélectionnée",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "quelle ligne zain est selectionnee",
+            "ma ligne zain"
+          ]
+        },
+        {
+          "action": "telecom.zain.line_status",
+          "description": "voir l'état de ta ligne Zain",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "statut de ma ligne zain",
+            "validite ligne zain"
+          ]
+        },
+        {
+          "action": "telecom.zain.voice",
+          "description": "consulter tes minutes restantes Zain",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": false,
+          "examples": [
+            "minutes restantes zain",
+            "voix restante zain"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "samantha_app",
+      "domain": "app",
+      "description": "Consulter Samantha et son état",
+      "actions": [
+        {
+          "action": "samantha.app.conversation.status",
+          "description": "État de la conversation",
+          "params": {
+            "type": "object",
+            "properties": {
+              "conversationId": {
+                "type": "string",
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9_.:-]{1,160}$"
+              }
+            },
+            "required": [
+              "conversationId"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "état de cette conversation",
+            "quel modèle utilise ce fil",
+            "contexte restant dans cette conversation"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/conversations/{conversationId}/metadata",
+            "pathParams": {
+              "conversationId": {
+                "pattern": "^[A-Za-z0-9_.:-]{1,160}$"
+              }
+            },
+            "query": [],
+            "body": null,
+            "budgetMs": 6000
+          }
+        },
+        {
+          "action": "samantha.app.usage",
+          "description": "Consommation des fournisseurs",
+          "params": {
+            "type": "object",
+            "properties": {
+              "details": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "où en est mon quota",
+            "il me reste combien sur Copilot",
+            "consommation des modèles"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/usage",
+            "pathParams": {},
+            "query": [
+              "details"
+            ],
+            "body": null,
+            "budgetMs": 6000
+          }
+        },
+        {
+          "action": "samantha.app.providers",
+          "description": "Fournisseurs et modèles",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "quels fournisseurs sont prêts",
+            "état des fournisseurs de modèles",
+            "quels modèles sont disponibles"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/providers",
+            "pathParams": {},
+            "query": [],
+            "body": null,
+            "budgetMs": 6000
+          }
+        },
+        {
+          "action": "samantha.app.control.deploys",
+          "description": "Déploiements Companion et app",
+          "params": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "montre les déploiements",
+            "derniers déploiements de Samantha",
+            "vérifie le dernier déploiement"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/control/deploys",
+            "pathParams": {},
+            "query": [
+              "limit"
+            ],
+            "body": null,
+            "budgetMs": 500
+          }
+        },
+        {
+          "action": "samantha.app.nightly_acceptance",
+          "description": "Recette nocturne",
+          "params": {
+            "type": "object",
+            "properties": {
+              "contract": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "état de la recette nocturne",
+            "la recette nocturne a-t-elle dérivé"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/control/health",
+            "pathParams": {},
+            "query": [
+              "contract"
+            ],
+            "body": null,
+            "budgetMs": 2000
+          }
+        },
+        {
+          "action": "samantha.app.catalog",
+          "description": "Samantha action catalogue",
+          "params": {
+            "type": "object",
+            "properties": {
+              "locale": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "montre le catalogue des actions Samantha",
+            "affiche les raccourcis Samantha"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/catalog",
+            "pathParams": {},
+            "query": [
+              "locale"
+            ],
+            "body": null,
+            "budgetMs": 300
+          }
+        },
+        {
+          "action": "samantha.app.updates.status",
+          "description": "Versions et notes de mise à jour",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "quelles mises à jour sont disponibles",
+            "notes de version de Samantha",
+            "quelle version de Samantha est installée"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/updates",
+            "pathParams": {},
+            "query": [],
+            "body": null,
+            "budgetMs": 4000
+          }
+        },
+        {
+          "action": "samantha.app.learning.list",
+          "description": "Apprentissages de Samantha",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "limit": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "view": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "montre ce que samantha a appris",
+            "liste des apprentissages de samantha",
+            "quelles formulations samantha a apprises"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/learning/associations",
+            "pathParams": {},
+            "query": [
+              "offset",
+              "limit",
+              "view"
+            ],
+            "body": null,
+            "budgetMs": 500
+          }
+        },
+        {
+          "action": "samantha.app.lighting.read",
+          "description": "État de la lampe",
+          "params": {
+            "type": "object",
+            "properties": {
+              "device_id": {
+                "type": "string",
+                "maxLength": 160,
+                "pattern": "^[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "device_id"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "état de la lampe",
+            "est-ce que la lampe est allumée"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/lighting/{device_id}/state",
+            "pathParams": {
+              "device_id": {
+                "pattern": "^[0-9a-f]{12}$"
+              }
+            },
+            "query": [],
+            "body": null,
+            "budgetMs": 3000
+          }
+        },
+        {
+          "action": "samantha.app.lighting.diagnostics",
+          "description": "Connexion de la lampe",
+          "params": {
+            "type": "object",
+            "properties": {
+              "device_id": {
+                "type": "string",
+                "maxLength": 160,
+                "pattern": "^[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "device_id"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "diagnostic de la lampe",
+            "pourquoi Lif8x ne répond pas"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/lighting/{device_id}/diagnostics",
+            "pathParams": {
+              "device_id": {
+                "pattern": "^[0-9a-f]{12}$"
+              }
+            },
+            "query": [],
+            "body": null,
+            "budgetMs": 3000
+          }
+        },
+        {
+          "action": "samantha.app.lighting.discover",
+          "description": "Découvrir les lampes LIFX",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "cherche les lampes LIFX"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/lighting/discover",
+            "pathParams": {},
+            "query": [],
+            "body": null,
+            "budgetMs": 3000
+          }
+        },
+        {
+          "action": "samantha.app.conversation.interrupt",
+          "description": "Arrêter la génération en cours dans une conversation",
+          "params": {
+            "type": "object",
+            "properties": {
+              "conversationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$",
+                "maxLength": 80
+              },
+              "runId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.:-]{1,160}$",
+                "maxLength": 160
+              }
+            },
+            "required": [
+              "conversationId",
+              "runId"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "write",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "Arrête cette réponse",
+            "Stop, laisse tomber"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "POST",
+            "path": "/v1/conversations/{conversationId}/interrupt",
+            "pathParams": {
+              "conversationId": {
+                "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+              }
+            },
+            "query": [],
+            "body": [
+              "operationId",
+              "runId"
+            ],
+            "budgetMs": 6000,
+            "control": "generation_only",
+            "parameters_schema": {
+              "type": "object",
+              "properties": {
+                "conversationId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$",
+                  "maxLength": 80
+                },
+                "runId": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_.:-]{1,160}$",
+                  "maxLength": 160
+                }
+              },
+              "required": [
+                "conversationId",
+                "runId"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        {
+          "action": "samantha.app.conversation.active_generations",
+          "description": "Réponses en cours dans une conversation",
+          "params": {
+            "type": "object",
+            "properties": {
+              "conversationId": {
+                "type": "string",
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+              }
+            },
+            "required": [
+              "conversationId"
+            ],
+            "additionalProperties": false
+          },
+          "risk": "read",
+          "confirmationRequired": false,
+          "directExecution": true,
+          "examples": [
+            "Quelles réponses sont en cours dans cette conversation ?"
+          ],
+          "execution": {
+            "kind": "companion_route",
+            "method": "GET",
+            "path": "/v1/conversations/{conversationId}/active-generations",
+            "pathParams": {
+              "conversationId": {
+                "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+              }
+            },
+            "query": [],
+            "body": null,
+            "budgetMs": 1000
+          }
+        }
+      ]
+    }
+  ],
+  "catalogue": [
+    {
+      "id": "notification.whatsapp.owner",
+      "name": "WhatsApp owner outbound",
+      "status": "e2e_validated",
+      "description": "Envoyer un message WhatsApp explicitement demande par le proprietaire.",
+      "examples": [
+        "envoie ce message sur WhatsApp",
+        "dis a X que je serai en retard"
+      ],
+      "aliases": [
+        "whatsapp",
+        "message whatsapp",
+        "notifier whatsapp",
+        "alerte whatsapp",
+        "owner alert",
+        "outbound whatsapp"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_whatsapp",
+          "domain": "whatsapp",
+          "action": "messaging.send",
+          "params": {
+            "type": "object",
+            "properties": {
+              "recipient": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "message": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "message",
+              "recipient"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "messaging.whatsapp.owner_context",
+      "name": "WhatsApp owner conversation context",
+      "status": "implemented",
+      "description": "Lire ou synthetiser les conversations WhatsApp deja ingerees par OpenClaw et les resumes compacts autorises, sans envoyer de message.",
+      "examples": [
+        "lis mes messages WhatsApp",
+        "quelles sont mes conversations WhatsApp recentes",
+        "resume mes derniers echanges WhatsApp",
+        "qui m a ecrit sur WhatsApp",
+        "donne moi le contexte WhatsApp recent"
+      ],
+      "aliases": [
+        "whatsapp conversations",
+        "whatsapp messages",
+        "messages whatsapp",
+        "conversations whatsapp",
+        "whatsapp recent",
+        "whatsapp inbox"
+      ],
+      "calls": []
+    },
+    {
+      "id": "notification.email.smtp",
+      "name": "Independent SMTP email",
+      "status": "e2e_validated",
+      "description": "Independent SMTP email",
+      "examples": [],
+      "aliases": [
+        "email",
+        "mail",
+        "smtp",
+        "envoyer email",
+        "envoyer mail",
+        "notification email"
+      ],
+      "calls": []
+    },
+    {
+      "id": "notification.incident.router",
+      "name": "Durable incident notification router",
+      "status": "e2e_validated",
+      "description": "Durable incident notification router",
+      "examples": [],
+      "aliases": [
+        "incident notification",
+        "incident notifier",
+        "notification fallback",
+        "alerte incident"
+      ],
+      "calls": []
+    },
+    {
+      "id": "device.remote_desktop",
+      "name": "Remote Desktop Commander S24 access",
+      "status": "e2e_validated",
+      "description": "Remote Desktop Commander S24 access",
+      "examples": [],
+      "aliases": [
+        "remote desktop",
+        "desktop commander",
+        "termux files",
+        "s24 filesystem"
+      ],
+      "calls": []
+    },
+    {
+      "id": "device.laptop_termux_access",
+      "name": "Laptop ↔ S24 Termux access",
+      "status": "e2e_validated",
+      "description": "Ouvrir, diagnostiquer rapidement ou fermer l accès Tailscale+SSH du laptop vers le Termux du S24.",
+      "examples": [
+        "je veux me connecter avec mon laptop sur s24 termux",
+        "remet tail et ssh",
+        "crash diagnostic rapide",
+        "deconnecte mon laptop du s24",
+        "etat acces pc s24"
+      ],
+      "aliases": [
+        "laptop s24",
+        "pc s24",
+        "tail ssh",
+        "tailscale ssh",
+        "termux ssh",
+        "crash diagnostic rapide",
+        "etat acces pc s24"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_laptop_s24_termux",
+          "domain": "laptop-s24-termux",
+          "action": "laptop.s24.connect",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_laptop_s24_termux",
+          "domain": "laptop-s24-termux",
+          "action": "laptop.s24.diagnose",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_laptop_s24_termux",
+          "domain": "laptop-s24-termux",
+          "action": "laptop.s24.disconnect",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_laptop_s24_termux",
+          "domain": "laptop-s24-termux",
+          "action": "laptop.s24.status",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "device.remote_bridge",
+      "name": "ChatGPT ↔ S24 Claw Remote Bridge",
+      "status": "e2e_validated",
+      "description": "ChatGPT ↔ S24 Claw Remote Bridge",
+      "examples": [],
+      "aliases": [
+        "claw bridge",
+        "remote bridge",
+        "slack bridge",
+        "chatgpt s24 rpc",
+        "desktop commander replacement"
+      ],
+      "calls": []
+    },
+    {
+      "id": "device.adb",
+      "name": "Canonical ADB/ClawMobile Android control",
+      "status": "e2e_validated",
+      "description": "Controler le S24 via le chemin Android/ADB canonique quand une route native assistant ne suffit pas.",
+      "examples": [
+        "etat ADB",
+        "controle via ADB",
+        "debug Android avec ADB"
+      ],
+      "aliases": [
+        "adb",
+        "clawmobile",
+        "android ui",
+        "s24 ui",
+        "controle adb"
+      ],
+      "calls": []
+    },
+    {
+      "id": "device.adb.recovery_readiness",
+      "name": "ADB Wireless Debugging recovery readiness",
+      "status": "e2e_validated",
+      "description": "ADB Wireless Debugging recovery readiness",
+      "examples": [],
+      "aliases": [
+        "adb recovery readiness",
+        "wireless debugging recovery",
+        "adb backup endpoint",
+        "adb resilience"
+      ],
+      "calls": []
+    },
+    {
+      "id": "device.network_safety",
+      "name": "Temporary Android network mutation safety",
+      "status": "e2e_validated",
+      "description": "Temporary Android network mutation safety",
+      "examples": [],
+      "aliases": [
+        "network safety",
+        "proxy guard",
+        "temporary network mutation",
+        "android proxy safety"
+      ],
+      "calls": []
+    },
+    {
+      "id": "browser.chrome_cdp",
+      "name": "Authenticated local Chrome via CDP",
+      "status": "operational",
+      "description": "Authenticated local Chrome via CDP",
+      "examples": [],
+      "aliases": [
+        "chrome cdp",
+        "devtools",
+        "authenticated chrome",
+        "browser session",
+        "dom"
+      ],
+      "calls": []
+    },
+    {
+      "id": "git.ui_playbooks",
+      "name": "Samantha UI playbooks Git synchronization",
+      "status": "operational",
+      "description": "Samantha UI playbooks Git synchronization",
+      "examples": [],
+      "aliases": [
+        "git",
+        "github",
+        "documentation git",
+        "playbooks repo",
+        "sync docs"
+      ],
+      "calls": []
+    },
+    {
+      "id": "memory.cross_surface",
+      "name": "Cross-surface semantic memory",
+      "status": "e2e_validated",
+      "description": "Lire et synthétiser la mémoire canonique cross-surface de Claw, notamment les récapitulatifs d'une journée passée, les actions, décisions, incidents et travaux en cours.",
+      "examples": [
+        "récapitulatif complet de la journée du 5 octobre 2026",
+        "fais moi le récap de ma journée",
+        "qu'est-ce qui s'est passé hier",
+        "actions décisions incidents travaux en cours",
+        "daily recap"
+      ],
+      "aliases": [
+        "cross surface memory",
+        "hybrid context",
+        "context event",
+        "memoire chat work openclaw",
+        "recapitulatif de la journee",
+        "récapitulatif de la journée",
+        "recap de la journee",
+        "récap de la journée",
+        "daily recap",
+        "historique journee"
+      ],
+      "calls": []
+    },
+    {
+      "id": "scheduler.openclaw",
+      "name": "OpenClaw scheduled automation",
+      "status": "operational",
+      "description": "OpenClaw scheduled automation",
+      "examples": [],
+      "aliases": [
+        "scheduler",
+        "schedule job",
+        "scheduled job",
+        "cron",
+        "automation periodique",
+        "tache planifiee"
+      ],
+      "calls": []
+    },
+    {
+      "id": "bootstrap.termux_boot",
+      "name": "Persistent Android boot bootstrap",
+      "status": "implemented",
+      "description": "Persistent Android boot bootstrap",
+      "examples": [],
+      "aliases": [
+        "reboot",
+        "boot",
+        "startup",
+        "termux boot",
+        "persistent bootstrap"
+      ],
+      "calls": []
+    },
+    {
+      "id": "pulse.backend_first",
+      "name": "Pulse backend-first runtime",
+      "status": "e2e_validated",
+      "description": "Pulse backend-first runtime",
+      "examples": [],
+      "aliases": [
+        "pulse",
+        "pulse backend",
+        "pulse get html",
+        "pulse direct route",
+        "pulse cdp"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "certificate.rotate",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "cra.status",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "evaluations.mine",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "evaluations.team",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "finance.ca",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "leave.balance",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "leave.calendar",
+          "params": {
+            "type": "object",
+            "properties": {
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "leave.request",
+          "params": {
+            "type": "object",
+            "properties": {
+              "start_at": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "end_at": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "end_at",
+              "start_at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "offer.assign_collaborator",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "offer_id",
+              "person"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "offer.create",
+          "params": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 240,
+                "description": "Offer label without an invented suffix; native owner adds [Offre] once."
+              },
+              "client": {
+                "type": "string",
+                "maxLength": 512,
+                "description": "Client label to resolve uniquely from the fresh native form; not an invented ID."
+              },
+              "billing_client": {
+                "type": "string",
+                "maxLength": 512,
+                "description": "Billing client label; omit to preserve the native default of the selected client."
+              },
+              "currency": {
+                "type": "string",
+                "maxLength": 512,
+                "description": "Requested currency label/code; native owner resolves actual options."
+              },
+              "phase_name": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "RefClient": {
+                "type": "string",
+                "maxLength": 128,
+                "entity_id": true
+              },
+              "RefClientFacturation": {
+                "type": "string",
+                "maxLength": 128,
+                "entity_id": true
+              },
+              "RefDeviseBudget": {
+                "type": "string",
+                "maxLength": 128,
+                "entity_id": true
+              },
+              "jh": {
+                "type": "string",
+                "pattern": "[0-9]{1,10}(?:[.,][0-9]{1,2})?",
+                "maxLength": 13,
+                "description": "Requested positive person-days, decimal string; native owner validates/calculates exact hundredths."
+              },
+              "revenue": {
+                "type": "string",
+                "pattern": "[0-9]{1,10}(?:[.,][0-9]{1,2})?",
+                "maxLength": 13,
+                "description": "Requested estimated revenue, decimal string; do not derive a user-provided value from another field."
+              },
+              "tjm": {
+                "type": "string",
+                "pattern": "[0-9]{1,10}(?:[.,][0-9]{1,2})?",
+                "maxLength": 13,
+                "description": "Requested daily rate, decimal string; native owner calculates revenue from JH × TJM."
+              },
+              "start": {
+                "type": "string",
+                "maxLength": 10,
+                "pattern": "(?:today|20[0-9]{2}-[0-9]{2}(?:-[0-9]{2})?|[0-9]{2}/[0-9]{2}/20[0-9]{2})",
+                "description": "Requested forecast start; today uses host reference date in Africa/Tunis, never model time."
+              },
+              "end": {
+                "type": "string",
+                "maxLength": 10,
+                "pattern": "(?:20[0-9]{2}-[0-9]{2}-[0-9]{2}|[0-9]{2}/[0-9]{2}/20[0-9]{2})"
+              },
+              "months": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 36,
+                "description": "Forecast duration in months; native owner checks actual supported calendar."
+              },
+              "mode": {
+                "type": "string",
+                "maxLength": 256,
+                "enum": [
+                  "equal",
+                  "jh",
+                  "percent"
+                ],
+                "description": "Explicit forecast allocation: equal shares, monthly JH, or noncumulative percentages."
+              },
+              "split": {
+                "type": "array",
+                "maxItems": 36,
+                "items": {
+                  "type": "string",
+                  "pattern": "[0-9]{1,10}(?:[.,][0-9]{1,2})?",
+                  "maxLength": 13
+                },
+                "description": "Ordered monthly JH or percentage values for the selected mode; native owner verifies exact sum."
+              },
+              "pricing": {
+                "type": "string",
+                "maxLength": 256,
+                "enum": [
+                  "use_tjm",
+                  "use_revenue"
+                ]
+              },
+              "phase_status": {
+                "type": "string",
+                "maxLength": 256,
+                "enum": [
+                  "1",
+                  "2"
+                ]
+              },
+              "phase_order": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999
+              },
+              "included_budget": {
+                "type": "boolean",
+                "description": "Requested inclusion in project budget; native edit form proof is still required before any qualified composite effect."
+              },
+              "only_pulse": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ],
+                "description": "Read-only native condition; false is unsupported, never force a server control."
+              },
+              "profiles": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "maxLength": 256
+                    },
+                    "rate": {
+                      "type": "string",
+                      "pattern": "[0-9]{1,10}(?:[.,][0-9]{1,2})?",
+                      "maxLength": 13
+                    }
+                  },
+                  "required": [
+                    "label"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Optional complete requested profile list; native owner resolves labels/rates. Omission keeps native defaults, empty list is explicit. Correction replaces the whole list with one valid source span."
+              },
+              "requested_team": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "Retain requested people; this owner does not perform their assignment."
+              },
+              "team_handling": {
+                "type": "string",
+                "maxLength": 256,
+                "enum": [
+                  "separate",
+                  "cancel"
+                ],
+                "description": "Native scope choice for named team; separate requires explicit authorization, cancel has no write."
+              },
+              "RefPaysFiliale": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefDepartement": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefDivision": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefPersonnelResCom": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefPays": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefTechniqueVente": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefSourceLead": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefPersonnelResTech": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefNatureOffre": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefTypeContrat": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefEtat": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefPrioriteAffaire": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefDeviseSousTraitance": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "RefRaisonPerte": {
+                "type": "string",
+                "maxLength": 256,
+                "entity_id_if_numeric": true
+              },
+              "Note": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "Tag": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "NomSourceLead": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "Couleur": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "MontantFrais": {
+                "type": "string",
+                "maxLength": 13,
+                "pattern": "(?:[0-9]{1,10}(?:[.,][0-9]{1,2})?)?"
+              },
+              "MontantSousTraitance": {
+                "type": "string",
+                "maxLength": 13,
+                "pattern": "(?:[0-9]{1,10}(?:[.,][0-9]{1,2})?)?"
+              },
+              "AvecPrestataireExterne": {
+                "type": "boolean"
+              },
+              "EstFraisRefacturable": {
+                "type": "boolean"
+              },
+              "EnSousTraitance": {
+                "type": "boolean"
+              },
+              "MustWin": {
+                "type": "boolean"
+              },
+              "EstLeadCloture": {
+                "type": "boolean"
+              },
+              "EstOuverteSaisieCRA": {
+                "type": "boolean"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "offer.forecast",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "offer_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "offer.forecast.set",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "month",
+              "offer_id",
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "offer.remove_collaborator",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "offer_id",
+              "person"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "offer.search",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_query": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "offer.set_status",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "offer.snapshot",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_query": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "offer_query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "offer.team",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offer_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "offer_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "offer.update",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.assign_collaborator",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "person",
+              "project_query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.collaborator_monthly_consumption",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.edit",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "field": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "new_value": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.forecast",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.monthly_performance",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.mutate",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "phase": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "phase_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "person",
+              "phase",
+              "project_query",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.phase.set_status",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "phase": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "state": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "phase_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query",
+              "state"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.phases",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.recent_consumption",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.remove_collaborator",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person_id": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "person",
+              "project_query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.resource_forecast",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "yyyy": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "m": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "n": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.resource_forecast.set",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "week_index": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "clear": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "scope": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "person_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "phase_id": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "profile": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "category": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.revenue",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.search",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.set_status",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.snapshot",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "month": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_pulse",
+          "domain": "pulse",
+          "action": "project.team",
+          "params": {
+            "type": "object",
+            "properties": {
+              "project_query": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "project_query"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "skill.intelligence",
+      "name": "Claw Skill Intelligence",
+      "status": "e2e_validated",
+      "description": "Claw Skill Intelligence",
+      "examples": [],
+      "aliases": [
+        "skill registry",
+        "skill intelligence",
+        "known transfer discovery",
+        "route selector",
+        "route health",
+        "continuous route improvement"
+      ],
+      "calls": []
+    },
+    {
+      "id": "scheduler.job_registry",
+      "name": "Claw Job Registry and durable Run Ledger",
+      "status": "e2e_validated",
+      "description": "Claw Job Registry and durable Run Ledger",
+      "examples": [],
+      "aliases": [
+        "job registry",
+        "run ledger",
+        "scheduling intelligence",
+        "durable job",
+        "job lifecycle"
+      ],
+      "calls": []
+    },
+    {
+      "id": "notification.lifecycle",
+      "name": "Scheduled job notification lifecycle",
+      "status": "e2e_validated",
+      "description": "Scheduled job notification lifecycle",
+      "examples": [],
+      "aliases": [
+        "notification lifecycle",
+        "fanout notification",
+        "prestart notification",
+        "job notification"
+      ],
+      "calls": []
+    },
+    {
+      "id": "skills.family_transfer",
+      "name": "Family Skills and Transfer Mode contracts",
+      "status": "e2e_validated",
+      "description": "Family Skills and Transfer Mode contracts",
+      "examples": [],
+      "aliases": [
+        "family skills",
+        "transfer mode",
+        "skill family",
+        "similar apps"
+      ],
+      "calls": []
+    },
+    {
+      "id": "runtime.inventory",
+      "name": "S24/OpenClaw Runtime Inventory",
+      "status": "e2e_validated",
+      "description": "Observer en lecture seule les composants et versions de l installation Samantha; distinguer presence, provenance et qualifications restantes, sans installer ni reparer.",
+      "examples": [
+        "état de l'installation Samantha",
+        "diagnostic installation",
+        "installation status"
+      ],
+      "aliases": [
+        "runtime inventory",
+        "installed apps",
+        "installed plugins",
+        "app inventory",
+        "plugin inventory",
+        "what is installed",
+        "état de l'installation",
+        "état de l'installation Samantha",
+        "diagnostic installation",
+        "installation status"
+      ],
+      "calls": []
+    },
+    {
+      "id": "engineering.autonomous",
+      "name": "Claw Autonomous Engineering kernel",
+      "status": "implemented",
+      "description": "Claw Autonomous Engineering kernel",
+      "examples": [],
+      "aliases": [
+        "autonomous engineering",
+        "auto repair",
+        "self heal engineering",
+        "repair kernel",
+        "rebirth",
+        "self repair"
+      ],
+      "calls": []
+    },
+    {
+      "id": "billing.utility.fast_path",
+      "name": "Utility Billing deterministic fast path",
+      "status": "e2e_validated",
+      "description": "Consulter en lecture seule l etat des factures et impayes STEG, SONEDE et Topnet via les routes directes validees.",
+      "examples": [
+        "etat de mes factures",
+        "mes factures",
+        "factures en attente",
+        "fais moi un recap de mes factures",
+        "my bills"
+      ],
+      "aliases": [
+        "factures en attente",
+        "impayes",
+        "billing summary",
+        "steg sonede topnet",
+        "mes factures",
+        "etat de mes factures",
+        "état de mes factures",
+        "recapitulatif de mes factures",
+        "récapitulatif de mes factures",
+        "my bills"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_sonede",
+          "domain": "sonede",
+          "action": "billing.invoices",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_sonede",
+          "domain": "sonede",
+          "action": "billing.unpaid",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_steg",
+          "domain": "steg",
+          "action": "billing.invoices",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_steg",
+          "domain": "steg",
+          "action": "billing.unpaid",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_topnet",
+          "domain": "topnet",
+          "action": "billing.invoices",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_topnet",
+          "domain": "topnet",
+          "action": "billing.unpaid",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_utility_billing",
+          "domain": "utility-billing",
+          "action": "billing.unpaid",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "retrieval.private",
+      "name": "Claw Private Retrieval Engine",
+      "status": "implemented",
+      "description": "Claw Private Retrieval Engine",
+      "examples": [],
+      "aliases": [
+        "private retrieval",
+        "authenticated retrieval",
+        "retrieval engine",
+        "fast web extraction"
+      ],
+      "calls": []
+    },
+    {
+      "id": "gateway.secretref.exec",
+      "name": "Secure Gateway SecretRef execution",
+      "status": "e2e_validated",
+      "description": "Secure Gateway SecretRef execution",
+      "examples": [],
+      "aliases": [
+        "gateway secretref",
+        "secure gateway exec",
+        "secret egress"
+      ],
+      "calls": []
+    },
+    {
+      "id": "openclaw.agent.headless",
+      "name": "Isolated OpenClaw headless agent execution",
+      "status": "e2e_validated",
+      "description": "Isolated OpenClaw headless agent execution",
+      "examples": [],
+      "aliases": [
+        "agent exec",
+        "headless agent",
+        "openclaw headless"
+      ],
+      "calls": []
+    },
+    {
+      "id": "health.immune.verdict",
+      "name": "Canonical immune-system health verdict",
+      "status": "e2e_validated",
+      "description": "Lire le verdict de sante et les couches du systeme immunitaire Claw.",
+      "examples": [
+        "etat systeme",
+        "sante de Claw",
+        "verdict immunitaire"
+      ],
+      "aliases": [
+        "immune health",
+        "health verdict",
+        "system immune status",
+        "sante systeme immunitaire"
+      ],
+      "calls": []
+    },
+    {
+      "id": "billing.authentication",
+      "name": "Hybrid billing authentication with explicit Chrome recovery",
+      "status": "e2e_validated",
+      "description": "Hybrid billing authentication with explicit Chrome recovery",
+      "examples": [],
+      "aliases": [
+        "billing auth",
+        "connexion fournisseurs",
+        "authentification factures"
+      ],
+      "calls": []
+    },
+    {
+      "id": "agenda.google_whatsapp",
+      "name": "Google Agenda and WhatsApp personal reminders",
+      "status": "operational",
+      "description": "Lire, creer et mettre a jour les evenements Agenda et rappels associes.",
+      "examples": [
+        "mon agenda demain",
+        "cree un rendez vous",
+        "deplace mon rendez vous"
+      ],
+      "aliases": [
+        "google agenda",
+        "calendrier",
+        "rendez-vous",
+        "rappelle-moi",
+        "rappelle moi",
+        "rappel whatsapp",
+        "notification avant evenement"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_agenda",
+          "domain": "agenda",
+          "action": "agenda.event.create",
+          "params": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "maxLength": 12000
+              },
+              "start_time": {
+                "type": "string",
+                "maxLength": 12000,
+                "description": "AAAA-MM-JJTHH:MM, heure locale de Tunis"
+              },
+              "end_time": {
+                "type": "string",
+                "maxLength": 12000,
+                "description": "AAAA-MM-JJTHH:MM, heure locale de Tunis ; absent = une heure après le début"
+              },
+              "location": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": [
+              "start_time",
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_agenda",
+          "domain": "agenda",
+          "action": "agenda.event.read",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_agenda",
+          "domain": "agenda",
+          "action": "agenda.event.update",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_agenda",
+          "domain": "agenda",
+          "action": "agenda.reminder.schedule",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_agenda",
+          "domain": "agenda",
+          "action": "agenda.sync",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "telecom.orange.consultation",
+      "name": "Orange Tunisia deterministic read workflows",
+      "status": "e2e_validated",
+      "description": "Consulter les soldes, data, voix, numéro, offre ou forfait complet Orange/Maxit.",
+      "examples": [
+        "mon solde Orange",
+        "combien de data il me reste",
+        "quel est mon numero Orange",
+        "mon forfait Orange",
+        "codes de suivi de solde Orange"
+      ],
+      "aliases": [
+        "maxit",
+        "orange solde",
+        "orange ussd",
+        "telecom recharge balance"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.balance",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.balances",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.balances",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.credit_transfert",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.data",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.forfait_bonus",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.loyalty_calls",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.number",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.offer",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.plan",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.report",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.sms",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.tracking_codes",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.orange.voice",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.recharge_balance",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_maxit_tunisie",
+          "domain": "maxit-tunisie",
+          "action": "telecom.usage",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "telecom.zain_bahrain.consultation",
+      "name": "Zain Bahrain structured read consultations",
+      "status": "e2e_validated",
+      "description": "Consulter solde, validite de ligne et bundle Zain Bahrain.",
+      "examples": [
+        "mon solde Zain",
+        "statut de ma ligne Zain",
+        "mon bundle Zain"
+      ],
+      "aliases": [
+        "zain",
+        "zain bahrain",
+        "solde zain",
+        "statut ligne zain",
+        "bundle zain"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_zain_bahrain",
+          "domain": "zain-bahrain",
+          "action": "telecom.balance",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_zain_bahrain",
+          "domain": "zain-bahrain",
+          "action": "telecom.usage",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_zain_bahrain",
+          "domain": "zain-bahrain",
+          "action": "telecom.zain.bundle_status",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_zain_bahrain",
+          "domain": "zain-bahrain",
+          "action": "telecom.zain.data",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_zain_bahrain",
+          "domain": "zain-bahrain",
+          "action": "telecom.zain.line_identity",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_zain_bahrain",
+          "domain": "zain-bahrain",
+          "action": "telecom.zain.line_status",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_zain_bahrain",
+          "domain": "zain-bahrain",
+          "action": "telecom.zain.voice",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "android.termux_api.read",
+      "name": "Claw read-only Termux API compatibility transport",
+      "status": "e2e_validated",
+      "description": "Claw read-only Termux API compatibility transport",
+      "examples": [],
+      "aliases": [
+        "termux api battery",
+        "termux api read",
+        "api pending jobs"
+      ],
+      "calls": []
+    },
+    {
+      "id": "tasks.personal_followup",
+      "name": "Personal task follow-up and daily WhatsApp briefing",
+      "status": "operational",
+      "description": "Personal task follow-up and daily WhatsApp briefing",
+      "examples": [],
+      "aliases": [
+        "todo",
+        "to do",
+        "suivi des taches",
+        "c est fait",
+        "rappels personnels"
+      ],
+      "calls": []
+    },
+    {
+      "id": "tasks.google_native",
+      "name": "Native Google Tasks owner reads",
+      "status": "implemented",
+      "description": "Lire les tâches Google du propriétaire par un parcours déterministe.",
+      "examples": [
+        "mes tâches",
+        "my tasks",
+        "liste mes tâches"
+      ],
+      "aliases": [
+        "mes tâches",
+        "my tasks",
+        "liste mes tâches",
+        "montre-moi mes tâches",
+        "show my tasks"
+      ],
+      "calls": []
+    },
+    {
+      "id": "tasks.google_native.write",
+      "name": "Native Google Tasks owner mutations",
+      "status": "implemented",
+      "description": "Créer ou compléter une tâche Google du propriétaire avec relecture.",
+      "examples": [
+        "ajoute préparer le point à mes tâches Google",
+        "add prepare the report to my Google Tasks",
+        "marque cette tâche comme terminée"
+      ],
+      "aliases": [
+        "à mes tâches google",
+        "to my google tasks",
+        "ajoute à mes tâches google",
+        "add to my google tasks",
+        "crée une tâche google",
+        "termine la tâche google",
+        "complete google task",
+        "marque cette tâche comme terminée"
+      ],
+      "calls": []
+    },
+    {
+      "id": "engineering.foreground_handoff",
+      "name": "Foreground incident handoff and bounded verification",
+      "status": "implemented",
+      "description": "Foreground incident handoff and bounded verification",
+      "examples": [],
+      "aliases": [
+        "foreground handoff",
+        "suivi incident",
+        "attendre systeme immunitaire",
+        "retour du systeme immunitaire"
+      ],
+      "calls": []
+    },
+    {
+      "id": "telecom.tunisie_telecom.consultation",
+      "name": "Tunisie Telecom silent native consultations",
+      "status": "e2e_validated",
+      "description": "Consulter les compteurs et informations Tunisie Telecom.",
+      "examples": [
+        "mon solde Tunisie Telecom",
+        "mes compteurs TT"
+      ],
+      "aliases": [
+        "tunisie telecom",
+        "tuntel",
+        "mytt",
+        "solde tt",
+        "internet tt"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_tunisie_telecom",
+          "domain": "tunisie-telecom",
+          "action": "telecom.balance",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_tunisie_telecom",
+          "domain": "tunisie-telecom",
+          "action": "telecom.tt.balances",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_tunisie_telecom",
+          "domain": "tunisie-telecom",
+          "action": "telecom.tt.corporate_bonus",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_tunisie_telecom",
+          "domain": "tunisie-telecom",
+          "action": "telecom.tt.data",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_tunisie_telecom",
+          "domain": "tunisie-telecom",
+          "action": "telecom.tt.number",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_tunisie_telecom",
+          "domain": "tunisie-telecom",
+          "action": "telecom.tt.offer",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_tunisie_telecom",
+          "domain": "tunisie-telecom",
+          "action": "telecom.tt.principal",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        {
+          "tool": "samantha_tunisie_telecom",
+          "domain": "tunisie-telecom",
+          "action": "telecom.tt.tracking_codes",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "agenda.google_whatsapp.sync",
+      "name": "Linked Google Calendar to WhatsApp synchronization",
+      "status": "operational",
+      "description": "Linked Google Calendar to WhatsApp synchronization",
+      "examples": [],
+      "aliases": [
+        "synchronisation agenda whatsapp",
+        "synchro calendrier",
+        "modifications google agenda"
+      ],
+      "calls": []
+    },
+    {
+      "id": "applications.authentication.direct",
+      "name": "Direct local HTTPS account authentication",
+      "status": "e2e_validated",
+      "description": "Direct local HTTPS account authentication",
+      "examples": [],
+      "aliases": [
+        "authentification sans Chrome",
+        "connexion HTTPS directe",
+        "authentification Pulse",
+        "connexion Pulse sans navigateur"
+      ],
+      "calls": []
+    },
+    {
+      "id": "engineering.delivery",
+      "name": "Verified private engineering delivery",
+      "status": "implemented",
+      "description": "Verified private engineering delivery",
+      "examples": [],
+      "aliases": [
+        "livraison autonome",
+        "engineering delivery",
+        "publication code documentation",
+        "livraison technique"
+      ],
+      "calls": []
+    },
+    {
+      "id": "reporting.immune.daily",
+      "name": "Claw — Bilan quotidien par email",
+      "status": "implemented",
+      "description": "Claw — Bilan quotidien par email",
+      "examples": [],
+      "aliases": [
+        "bilan claw",
+        "bilan quotidien",
+        "bilan immunitaire",
+        "rapport quotidien claw",
+        "qos systeme immunitaire"
+      ],
+      "calls": []
+    },
+    {
+      "id": "engineering.daily_log_audit",
+      "name": "Daily Log Audit closed loop",
+      "status": "implemented",
+      "description": "Daily Log Audit closed loop",
+      "examples": [],
+      "aliases": [
+        "audit automatique des logs",
+        "daily log audit",
+        "audit claw-live",
+        "rca quotidienne"
+      ],
+      "calls": []
+    },
+    {
+      "id": "immune.supervision.recovery",
+      "name": "Recovery of absent supervisors from existing maintenance",
+      "status": "e2e_validated",
+      "description": "Recovery of absent supervisors from existing maintenance",
+      "examples": [],
+      "aliases": [
+        "reprise superviseurs",
+        "surveiller systeme immunitaire",
+        "root guardian absent"
+      ],
+      "calls": []
+    },
+    {
+      "id": "health.transaction.runtime",
+      "name": "Cross-cutting transaction health",
+      "status": "e2e_validated",
+      "description": "Cross-cutting transaction health",
+      "examples": [],
+      "aliases": [
+        "transaction health",
+        "processing health",
+        "runtime transaction monitoring",
+        "inbound processing health"
+      ],
+      "calls": []
+    },
+    {
+      "id": "identity.people_directory",
+      "name": "People Directory",
+      "status": "e2e_validated",
+      "description": "Rechercher et resoudre un contact du carnet Android.",
+      "examples": [
+        "cherche Amine Sadfi",
+        "trouve le numero de X"
+      ],
+      "aliases": [
+        "people directory",
+        "carnet contacts",
+        "recherche contact",
+        "resolve person",
+        "chercher contact"
+      ],
+      "calls": []
+    },
+    {
+      "id": "messaging.whatsapp.trusted_contact",
+      "name": "WhatsApp trusted-contact onboarding",
+      "status": "e2e_validated",
+      "description": "WhatsApp trusted-contact onboarding",
+      "examples": [],
+      "aliases": [
+        "liste de confiance whatsapp",
+        "trusted contact",
+        "ajouter contact whatsapp",
+        "autoriser contact samantha"
+      ],
+      "calls": []
+    },
+    {
+      "id": "engineering.control_plane",
+      "name": "Autonomous engineering Tier-0 control plane",
+      "status": "implemented",
+      "description": "Autonomous engineering Tier-0 control plane",
+      "examples": [],
+      "aliases": [
+        "tier0",
+        "emergency stop",
+        "last known good",
+        "kill switch"
+      ],
+      "calls": []
+    },
+    {
+      "id": "engineering.release_control",
+      "name": "Claw multi-repository release control",
+      "status": "implemented",
+      "description": "Claw multi-repository release control",
+      "examples": [],
+      "aliases": [
+        "release manifest",
+        "multi repo release",
+        "supply chain attestation"
+      ],
+      "calls": []
+    },
+    {
+      "id": "memory.disaster_recovery",
+      "name": "Cross-surface memory disaster recovery",
+      "status": "implemented",
+      "description": "Cross-surface memory disaster recovery",
+      "examples": [],
+      "aliases": [
+        "memory backup",
+        "memory restore",
+        "context backup"
+      ],
+      "calls": []
+    },
+    {
+      "id": "engineering.learning_gate",
+      "name": "Capability-scoped Round Learning Gate",
+      "status": "e2e_validated",
+      "description": "Capture courte des corrections et detours sous forme de metadonnees structurees; traitement differe par le pipeline existant, aucun changement de regle ou action metier.",
+      "examples": [
+        "round learning gate",
+        "capture round learning",
+        "capitaliser une correction"
+      ],
+      "aliases": [
+        "learning gate",
+        "round learning",
+        "fast path learning",
+        "post-incident learning",
+        "capitalisation learning",
+        "retour experience engineering"
+      ],
+      "calls": []
+    },
+    {
+      "id": "inference.model_efficiency",
+      "name": "Claw model inference efficiency",
+      "status": "e2e_validated",
+      "description": "Claw model inference efficiency",
+      "examples": [],
+      "aliases": [
+        "model efficiency",
+        "token optimization",
+        "inference optimization",
+        "gemini free channel",
+        "pre-model fast path"
+      ],
+      "calls": []
+    },
+    {
+      "id": "device.assistance",
+      "name": "S24 device assistance",
+      "status": "implemented",
+      "description": "Controler ou lire les reglages et fonctions ordinaires du Galaxy S24, y compris batterie, applications, volume, luminosite et actions appareil.",
+      "examples": [
+        "active le wifi",
+        "quel est mon niveau de batterie",
+        "baisse le volume",
+        "ouvre Maxit",
+        "my battery level"
+      ],
+      "aliases": [
+        "device assistance",
+        "controle telephone",
+        "reglages telephone",
+        "wifi",
+        "bluetooth",
+        "lampe torche",
+        "volume",
+        "luminosite",
+        "ouvrir application",
+        "ouvre une application"
+      ],
+      "calls": []
+    },
+    {
+      "id": "device.modes_routines",
+      "name": "Samsung Modes & Routines",
+      "status": "implemented",
+      "description": "Declencher ou gerer les Modes & Routines Samsung connus sur le Galaxy.",
+      "examples": [
+        "active le mode sommeil",
+        "lance ma routine conduite",
+        "active economie energie"
+      ],
+      "aliases": [
+        "modes routines",
+        "routine samsung",
+        "mode sommeil",
+        "mode conduite",
+        "economie energie"
+      ],
+      "calls": []
+    },
+    {
+      "id": "inference.surface_awareness",
+      "name": "Cross-surface capability awareness",
+      "status": "e2e_validated",
+      "description": "Savoir ce que Claw peut accomplir depuis GPT, Gemini, Bixby ou WhatsApp et choisir le chemin valide le plus court.",
+      "examples": [
+        "que peux tu faire",
+        "quelle route utilise pour orange",
+        "gemini peut il faire ca",
+        "bixby peut il deleguer a claw"
+      ],
+      "aliases": [
+        "capability graph",
+        "surface awareness",
+        "executor graph",
+        "gemini bixby gpt capabilities",
+        "route la plus courte"
+      ],
+      "calls": []
+    },
+    {
+      "id": "claw.situations",
+      "name": "Situation Engine Claw",
+      "status": "implemented",
+      "description": "Situation Engine Claw",
+      "examples": [],
+      "aliases": [
+        "situations",
+        "situation engine",
+        "situation ouverte",
+        "actions amine",
+        "human actions",
+        "panne intermittente"
+      ],
+      "calls": []
+    },
+    {
+      "id": "home.hon.dishwasher",
+      "name": "hOn / Hoover dishwasher control and telemetry",
+      "status": "implemented",
+      "description": "hOn / Hoover dishwasher control and telemetry",
+      "examples": [],
+      "aliases": [
+        "hOn",
+        "Hoover dishwasher",
+        "lave-vaisselle",
+        "dishwasher",
+        "etat lave vaisselle",
+        "progression lavage",
+        "lancer lavage",
+        "temps restant lave vaisselle",
+        "fin du lave vaisselle",
+        "programme lave vaisselle"
+      ],
+      "calls": []
+    },
+    {
+      "id": "device.native_recovery",
+      "name": "Samantha Native Recovery Sentinel",
+      "status": "implemented",
+      "description": "Recover the S24 Termux runtime through the existing Tier0 path when the Termux execution failure domain is unavailable.",
+      "examples": [
+        "recover termux",
+        "native recovery",
+        "rdc and slack are both down"
+      ],
+      "aliases": [
+        "native recovery",
+        "samantha sentinel",
+        "out of band recovery",
+        "termux recovery"
+      ],
+      "calls": []
+    },
+    {
+      "id": "gateway.mcp.external",
+      "name": "Claw external MCP gateway",
+      "status": "e2e_validated",
+      "description": "Expose the canonical Claw capability layer to authorized external MCP clients without duplicating business logic.",
+      "examples": [
+        "connect Claude to Claw",
+        "use Claw from Grok",
+        "external MCP capabilities"
+      ],
+      "aliases": [
+        "MCP gateway",
+        "Claude Claw connector",
+        "Grok Claw connector",
+        "external MCP",
+        "remote MCP Claw"
+      ],
+      "calls": []
+    },
+    {
+      "id": "qa.test_campaign",
+      "name": "Tests applicatifs web et Android",
+      "status": "implemented",
+      "description": "Préparer, exécuter et consulter des campagnes web ou Android S24 depuis des cas Excel ou un smoke, avec descriptif, vérifications UX/UI, preuves et diagnostic technique. Retrouver les documents et résultats de cette capability.",
+      "examples": [
+        "donne moi la documentation des tests automatiques",
+        "liste les campagnes de tests",
+        "lance un smoke test",
+        "teste une application Android",
+        "teste un site web avec les test cases Excel"
+      ],
+      "aliases": [
+        "qa.test_campaign",
+        "tests automatiques",
+        "tests applicatifs",
+        "campagne de tests",
+        "campagne de test",
+        "smoke test",
+        "test ux ui",
+        "test cases excel",
+        "rapport de tests automatiques",
+        "documentation tests automatiques"
+      ],
+      "calls": []
+    },
+    {
+      "id": "spotify.control",
+      "name": "Spotify deterministic control",
+      "status": "implemented",
+      "description": "Contrôler Spotify sur le S24 en local-first: état, transport, seek et restart du player actif via Android MediaSession/MediaController Binder; Web seulement pour catalogue/données distantes; demander une clarification avant lecture si plusieurs titres plausibles existent.",
+      "examples": [
+        "pause spotify",
+        "qu est ce qui joue sur spotify",
+        "mets Halo sur Spotify",
+        "mets Californication de Red Hot Chili Peppers sur Spotify",
+        "playlist spotify"
+      ],
+      "aliases": [
+        "spotify",
+        "musique spotify",
+        "lecture spotify",
+        "joue spotify",
+        "chanson spotify",
+        "playlist spotify",
+        "spotify connect",
+        "reprends spotify depuis le debut",
+        "recommence chanson spotify",
+        "mets de la musique"
+      ],
+      "calls": []
+    },
+    {
+      "id": "samantha.app.conversation.status",
+      "name": "État de la conversation",
+      "status": "implemented",
+      "description": "État de la conversation. Les options et le contexte viennent de la session Gateway.",
+      "examples": [
+        "état de cette conversation",
+        "quel modèle utilise ce fil",
+        "contexte restant dans cette conversation"
+      ],
+      "aliases": [
+        "état de cette conversation",
+        "quel modèle utilise ce fil",
+        "contexte restant dans cette conversation"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.conversation.status",
+          "params": {
+            "type": "object",
+            "properties": {
+              "conversationId": {
+                "type": "string",
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9_.:-]{1,160}$"
+              }
+            },
+            "required": [
+              "conversationId"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.usage",
+      "name": "Consommation des fournisseurs",
+      "status": "implemented",
+      "description": "Dire où en sont les quotas des fournisseurs de modèles.",
+      "examples": [
+        "où en est mon quota",
+        "il me reste combien sur Copilot",
+        "consommation des modèles"
+      ],
+      "aliases": [
+        "consommation",
+        "quota",
+        "crédit modèle",
+        "usage",
+        "il me reste combien sur copilot",
+        "quota restant",
+        "copilot"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.usage",
+          "params": {
+            "type": "object",
+            "properties": {
+              "details": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.providers",
+      "name": "Fournisseurs et modèles",
+      "status": "implemented",
+      "description": "Dire quels fournisseurs de modèles sont prêts et quels modèles sont configurés.",
+      "examples": [
+        "quels fournisseurs sont prêts",
+        "état des fournisseurs de modèles",
+        "quels modèles sont disponibles"
+      ],
+      "aliases": [
+        "fournisseurs",
+        "fournisseurs de modèles",
+        "modèles disponibles",
+        "modèles sont disponibles",
+        "providers"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.providers",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.voice.decision.record",
+      "name": "Enregistrer une décision vocale",
+      "status": "implemented",
+      "description": "Enregistrer une décision explicitement prise par le propriétaire à la voix, la remplacer ou la retirer (réversible, sans biométrie ni confirmation).",
+      "examples": [
+        "note que je préfère les réponses courtes",
+        "enregistre cette décision vocale",
+        "remplace cette décision vocale",
+        "oublie cette décision",
+        "retiens que je préfère les réunions le matin"
+      ],
+      "aliases": [
+        "note que je préfère les réponses courtes",
+        "enregistre cette décision vocale",
+        "remplace cette décision vocale",
+        "oublie cette décision",
+        "retiens que je préfère",
+        "remplace cette décision par"
+      ],
+      "calls": []
+    },
+    {
+      "id": "samantha.app.control.deploys",
+      "name": "Déploiements Companion et app",
+      "status": "implemented",
+      "description": "Lire les métadonnées des déploiements de Samantha et leurs contrôles en échec.",
+      "examples": [
+        "montre les déploiements",
+        "derniers déploiements de Samantha",
+        "vérifie le dernier déploiement"
+      ],
+      "aliases": [
+        "montre les déploiements",
+        "derniers déploiements de Samantha",
+        "vérifie le dernier déploiement"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.control.deploys",
+          "params": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.nightly_acceptance",
+      "name": "Recette nocturne",
+      "status": "implemented",
+      "description": "Lire la santé de la recette nocturne et les dérives de budgets déjà mesurées.",
+      "examples": [
+        "état de la recette nocturne",
+        "la recette nocturne a-t-elle dérivé"
+      ],
+      "aliases": [
+        "recette nocturne",
+        "dérive de la recette nocturne",
+        "contrôle nocturne"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.nightly_acceptance",
+          "params": {
+            "type": "object",
+            "properties": {
+              "contract": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.catalog",
+      "name": "Samantha action catalogue",
+      "status": "implemented",
+      "description": "Lire le catalogue des actions Samantha par thème.",
+      "examples": [
+        "montre le catalogue des actions Samantha",
+        "affiche les raccourcis Samantha"
+      ],
+      "aliases": [
+        "catalogue actions Samantha",
+        "catalogue des actions",
+        "raccourcis Samantha"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.catalog",
+          "params": {
+            "type": "object",
+            "properties": {
+              "locale": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.updates.status",
+      "name": "Versions et notes de mise à jour",
+      "status": "implemented",
+      "description": "Lire les versions installées et les notes candidates vérifiées ; une source inconnue reste explicitement inconnue.",
+      "examples": [
+        "quelles mises à jour sont disponibles",
+        "notes de version de Samantha",
+        "quelle version de Samantha est installée"
+      ],
+      "aliases": [
+        "quelles mises à jour sont disponibles",
+        "notes de version de Samantha",
+        "quelle version de Samantha est installée"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.updates.status",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.learning.list",
+      "name": "Apprentissages de Samantha",
+      "status": "implemented",
+      "description": "Lire les associations apprises (candidats, retenues, contre-exemples, valeurs par défaut) : gabarits seulement, aucun chiffre ni numéro ; les associations de paiement gardent confirmation et biométrie.",
+      "examples": [
+        "montre ce que samantha a appris",
+        "liste des apprentissages de samantha",
+        "quelles formulations samantha a apprises"
+      ],
+      "aliases": [
+        "montre ce que samantha a appris",
+        "liste des apprentissages de samantha",
+        "quelles formulations samantha a apprises"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.learning.list",
+          "params": {
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "limit": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "view": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.lighting.on",
+      "name": "Allumer la lampe",
+      "status": "implemented",
+      "description": "Allumer la lampe, exécution exclusivement locale, résultat vérifié.",
+      "examples": [
+        "allume la lampe",
+        "allume Lif8x"
+      ],
+      "aliases": [
+        "allume la lampe",
+        "allume Lif8x"
+      ],
+      "calls": []
+    },
+    {
+      "id": "samantha.app.lighting.off",
+      "name": "Éteindre la lampe",
+      "status": "implemented",
+      "description": "Éteindre la lampe, exécution exclusivement locale, résultat vérifié.",
+      "examples": [
+        "éteins la lampe",
+        "éteins Lif8x"
+      ],
+      "aliases": [
+        "éteins la lampe",
+        "éteins Lif8x"
+      ],
+      "calls": []
+    },
+    {
+      "id": "samantha.app.lighting.brightness",
+      "name": "Luminosité de la lampe",
+      "status": "implemented",
+      "description": "Luminosité de la lampe, exécution exclusivement locale, résultat vérifié.",
+      "examples": [
+        "mets la luminosité de la lampe à 30 %",
+        "baisse un peu la lampe",
+        "change la luminosité de Lif8x",
+        "mets la lampe à 50 %"
+      ],
+      "aliases": [
+        "mets la luminosité de la lampe à 30 %",
+        "baisse un peu la lampe",
+        "change la luminosité de Lif8x",
+        "mets la lampe à 50 %"
+      ],
+      "calls": []
+    },
+    {
+      "id": "samantha.app.lighting.white",
+      "name": "Blanc de la lampe",
+      "status": "implemented",
+      "description": "Blanc de la lampe, exécution exclusivement locale, résultat vérifié.",
+      "examples": [
+        "mets le blanc de la lampe à 3000 kelvins",
+        "change le blanc de Lif8x"
+      ],
+      "aliases": [
+        "mets le blanc de la lampe à 3000 kelvins",
+        "change le blanc de Lif8x"
+      ],
+      "calls": []
+    },
+    {
+      "id": "samantha.app.lighting.color",
+      "name": "Couleur de la lampe",
+      "status": "implemented",
+      "description": "Couleur de la lampe, exécution exclusivement locale, résultat vérifié.",
+      "examples": [
+        "mets la lampe en bleu",
+        "change la couleur de Lif8x"
+      ],
+      "aliases": [
+        "mets la lampe en bleu",
+        "change la couleur de Lif8x"
+      ],
+      "calls": []
+    },
+    {
+      "id": "samantha.app.lighting.set",
+      "name": "Réglage structuré de la lampe",
+      "status": "implemented",
+      "description": "Réglage structuré de la lampe, exécution exclusivement locale, résultat vérifié.",
+      "examples": [
+        "samantha.app.lighting.set {\"device_id\":\"d073d5225b23\"}"
+      ],
+      "aliases": [
+        "réglage structuré de la lampe"
+      ],
+      "calls": []
+    },
+    {
+      "id": "samantha.app.lighting.read",
+      "name": "État de la lampe",
+      "status": "implemented",
+      "description": "État de la lampe, exécution exclusivement locale, résultat vérifié.",
+      "examples": [
+        "état de la lampe",
+        "est-ce que la lampe est allumée"
+      ],
+      "aliases": [
+        "état de la lampe",
+        "est-ce que la lampe est allumée"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.lighting.read",
+          "params": {
+            "type": "object",
+            "properties": {
+              "device_id": {
+                "type": "string",
+                "maxLength": 160,
+                "pattern": "^[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "device_id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.lighting.diagnostics",
+      "name": "Connexion de la lampe",
+      "status": "implemented",
+      "description": "Connexion de la lampe, exécution exclusivement locale, résultat vérifié.",
+      "examples": [
+        "diagnostic de la lampe",
+        "pourquoi Lif8x ne répond pas"
+      ],
+      "aliases": [
+        "diagnostic de la lampe",
+        "pourquoi Lif8x ne répond pas"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.lighting.diagnostics",
+          "params": {
+            "type": "object",
+            "properties": {
+              "device_id": {
+                "type": "string",
+                "maxLength": 160,
+                "pattern": "^[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "device_id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.lighting.discover",
+      "name": "Découvrir les lampes LIFX",
+      "status": "implemented",
+      "description": "Découvrir les lampes LIFX, exécution exclusivement locale, résultat vérifié.",
+      "examples": [
+        "cherche les lampes LIFX"
+      ],
+      "aliases": [
+        "cherche les lampes LIFX"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.lighting.discover",
+          "params": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.web.search",
+      "name": "Sources Internet (liste brute)",
+      "status": "implemented",
+      "description": "Sources Internet (liste brute)",
+      "examples": [
+        "Recherche sur Internet les annonces Samsung, sources seulement",
+        "Search the web for Samsung announcements, sources only"
+      ],
+      "aliases": [
+        "Recherche sur Internet les annonces Samsung, sources seulement",
+        "Search the web for Samsung announcements, sources only"
+      ],
+      "calls": []
+    },
+    {
+      "id": "samantha.app.web.answer",
+      "name": "Réponse Internet sourcée",
+      "status": "implemented",
+      "description": "Réponse Internet sourcée",
+      "examples": [
+        "Recherche sur Internet les annonces Samsung",
+        "Recherche sur Internet les annonces Samsung et résume",
+        "Search the web for Samsung announcements",
+        "Search the web for Samsung announcements and summarize"
+      ],
+      "aliases": [
+        "Recherche sur Internet les annonces Samsung",
+        "Recherche sur Internet les annonces Samsung et résume",
+        "Search the web for Samsung announcements",
+        "Search the web for Samsung announcements and summarize"
+      ],
+      "calls": []
+    },
+    {
+      "id": "samantha.app.conversation.interrupt",
+      "name": "Arrêter la génération en cours dans une conversation",
+      "status": "implemented",
+      "description": "Demander au propriétaire Gateway chat.abort d’arrêter un run exact de la conversation courante. Aucun effet métier déjà envoyé n’est annulé.",
+      "examples": [
+        "Arrête cette réponse",
+        "Stop, laisse tomber"
+      ],
+      "aliases": [
+        "arrête cette réponse",
+        "stop laisse tomber",
+        "interromps la réflexion"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.conversation.interrupt",
+          "params": {
+            "type": "object",
+            "properties": {
+              "conversationId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$",
+                "maxLength": 80
+              },
+              "runId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.:-]{1,160}$",
+                "maxLength": 160
+              }
+            },
+            "required": [
+              "conversationId",
+              "runId"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "samantha.app.conversation.active_generations",
+      "name": "Réponses en cours dans une conversation",
+      "status": "implemented",
+      "description": "Lire les identifiants exacts des générations owner observées dans cette conversation, avant de choisir une interruption.",
+      "examples": [
+        "Quelles réponses sont en cours dans cette conversation ?"
+      ],
+      "aliases": [
+        "réponses en cours",
+        "réflexions en cours"
+      ],
+      "calls": [
+        {
+          "tool": "samantha_app",
+          "domain": "app",
+          "action": "samantha.app.conversation.active_generations",
+          "params": {
+            "type": "object",
+            "properties": {
+              "conversationId": {
+                "type": "string",
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+              }
+            },
+            "required": [
+              "conversationId"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ]
+    }
+  ],
+  "digest": "67ff3c0dde5160670cf5ba3158d1b7a68a4077ef5ae4c114c09d683e3defef70"
+}

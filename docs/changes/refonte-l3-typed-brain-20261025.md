@@ -1,0 +1,11 @@
+# L3 — Cerveau principal et outils typés, bascule hôte
+
+Les demandes owner arrivent au cerveau sans tri préalable sous SAMANTHA_BRAIN_ONLY. Les outils proviennent du registre et des manifestes ; Graph, dialogue CAS, confirmations et reçus existants sont réutilisés. Les lectures app et les outils métier passent par une décision V2 typée, sans résoudre le texte une seconde fois. Contacts/Pulse restent isolés, paiements inchangés, port C2 conservé.
+
+Le contrôle d’interruption emploie chat.abort officiel pour un run exact observé. L’appel HTTP exige une signature P1 courante, l’outil une preuve SDK courante ; l’ancienne admission du run cible ne suffit pas. Un arrêt de génération ne prouve pas l’annulation d’un effet métier. La lecture des générations actives ne retourne aucun texte. Budgets : lecture active 1 s, interruption 6 s, outil métier 30 s hors transport. Les récapitulatifs et la confirmation unique restent obligatoires pour les écritures métier.
+
+Preuves ciblées : tests PB de décision figée/confirmation/replay et GET canonique ; tests Core de hook/factory owner, non-réentrance, isolement, voix et WhatsApp sans interprète, conservation C2, interruption signée/idempotente et refus bancaires. Les nouvelles suites sont inscrites aux workflows. La projection fixture est dérivée des contrats canoniques du pin S24 698322f7 plus les deux nouvelles déclarations de cette PR ; elle n’est pas une nouvelle recette réussie. Le contrat SDK a été lu sur le S24.
+
+Parité MCP : typed additive sur resolve/execute, même Graph et mêmes reçus/idempotence ; aucune confirmation par récit externe. Les autres primitives restent inchangées. La fin directe post-outil sans second appel de modèle n’est pas démontrée sur le SDK et reste une limite explicitement permise par la spécification technique.
+
+Dépendance : Core422 pour l’observation active exacte. Aucun drapeau activé, aucun déploiement, aucun PASS LIVE revendiqué. CI canonique complète, versions appariées et recettes L1/L2/L3 restent des portes ouvertes. Le chemin legacy ne sera supprimé qu’après recette verte, dans une PR suivante. Retour arrière : drapeau éteint puis restauration via companion-deploy.sh et activate-ui-playbooks.sh.
