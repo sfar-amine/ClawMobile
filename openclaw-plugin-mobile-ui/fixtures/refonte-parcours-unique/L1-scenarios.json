@@ -7,7 +7,7 @@
     "spec": "samantha-core:5f26dac0:docs/work/samantha-refonte/SPEC-refonte-parcours-unique-20261025.md",
     "contractSource": {
       "repository": "sfar-amine/samantha-ui-playbooks",
-      "commit": "caa36db020376e73c25f3187cf5b47288d44ee00",
+      "commit": "698322f70d454151b802e3c5850db82f4a38d046",
       "files": [
         "capabilities/registry.json",
         "capabilities/execution_graph.json",

@@ -21,7 +21,7 @@
     {
       "name": "test-companion-acceptance-journey-plan.py",
       "status": "passed",
-      "evidence": "5tests ciblés sur source contractuelle exacte, refus des écritures, doubles ID, faux binding et source périmée; aucun appel HTTP."
+      "evidence": "5tests ciblés sur la source contractuelle courante PB698322f7, refus des écritures, doubles ID, faux binding, types et source périmée; aucun appel HTTP."
     },
     {
       "name": "test-companion-acceptance-owner-transport.py",
@@ -31,7 +31,7 @@
     {
       "name": "test-companion-acceptance-web-recipe.py",
       "status": "passed",
-      "evidence": "14tests historiques PASS après compilation TypeScript du head cbdbc3e1 (npm run build exit0). Log l1-core-web-after-build.log SHA2564e13974b42e4f2036f7c6172580c3dadf92f6e24d8ebf737295d12c02eca17c6. Échec initial pour dist absent conservé dans l1-core-web-prerequisite-failure.log."
+      "evidence": "Qualification historique :14tests PASS après compilation TypeScript du head cbdbc3e1. Pas un PASS du head republié sur d87bd249. Log l1-core-web-after-build.log SHA2564e13974b42e4f2036f7c6172580c3dadf92f6e24d8ebf737295d12c02eca17c6 ; échec initial pour dist absent conservé."
     }
   ],
   "documentation": [
@@ -50,7 +50,7 @@
   },
   "rollback": "Retirer le mode explicite et ses fichiers de plan; aucune donnée runtime modifiée.",
   "limitations": [
-    "Préparation non publiée; L0 reste une porte avant la baseline.",
+    "PR de source en brouillon; L0 reste une porte avant la baseline.",
     "Aucune capture ni recette métier produite.",
     "Le mode live et son jugement attendent les contrats de surface S24 vérifiés.",
     "CI canonique exacte requise après publication."
