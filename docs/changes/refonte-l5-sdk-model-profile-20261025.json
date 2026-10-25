@@ -1,0 +1,105 @@
+{
+  "version": 2,
+  "id": "refonte-l5-sdk-model-profile-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Consomme le profil R6 natif par conversation avant ladder/auth/effort/vitesse et compaction ; préservation SQLite, provenance durable et compatibilité SDK épinglée.",
+  "reason": "Un changement global ne doit pas modifier les conversations existantes ; un hook trop tardif ou ignoré ne qualifie aucun réglage.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-refonte-l5-session-model-profile.md",
+    "docs/changes/refonte-l5-sdk-model-profile-20261025.json",
+    "docs/changes/refonte-l5-sdk-model-profile-20261025.md",
+    "installer/termux-lite/gateway-start.sh",
+    "installer/termux-lite/openclaw-compat/model-flow-selection.json",
+    "installer/termux-lite/openclaw-compat/whatsapp-network-recovery.py",
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-model-flow-compaction.cjs",
+    "installer/termux-lite/test-model-flow-selection.py",
+    "installer/termux-lite/test-model-flow-setup.cjs",
+    "installer/termux-lite/test-runtime-sync.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/LICENSE.openclaw",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/PROVENANCE.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/cli-backend.types-B-oosdMB.d.ts.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/compact-lmmQAHsq.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/context-engine-maintenance-VqmqPz8h.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/embedded-agent-BaH7wGBd.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/hook-runner-global-CDmmGFJp.d.ts",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/hooks-CKanWLsK.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/host-hook-state-DEUXoydK.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/index-DUVQdPAn.d.ts.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/model-ref-profile-BIKs-96s.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/plugin-entry-CACNQ1z6.d.ts.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/run-entry-Bg2j-prG.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/runtime-api-CkahAQr_.d.ts.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/runtime-api-DpOeiZhR.d.ts.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/session-accessor.sqlite-entry-UCl9kr-O.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/session-accessor.sqlite-transcript-write-B3rTdvkb.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/session-store-runtime-CFwDfZAM.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/setup-B7DuERIi.mjs",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-model-flow-sdk/type-contract-pins.json",
+    "openclaw-plugin-mobile-ui/scripts/test-conversation-model-profile.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/conversationMetadata.ts",
+    "openclaw-plugin-mobile-ui/src/companion/conversationModelProfile.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts"
+  ],
+  "tests": [
+    {
+      "name": "SDK exact patchset, setup and compaction",
+      "status": "passed",
+      "evidence": "test-model-flow-selection.py 4tests PASS ; test-model-flow-setup.cjs PASS ; test-model-flow-compaction.cjs PASS, contrôles hors téléphone sur sources SDK natives capturées."
+    }
+  ],
+  "documentation": [
+    "docs/changes/refonte-l5-sdk-model-profile-20261025.md",
+    "docs/08-decisions/ADR-20261025-refonte-l5-session-model-profile.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY : réglages internes R6 existants, aucun endpoint ou droit nouveau."
+  },
+  "architecture": {
+    "changed": true,
+    "documents": [
+      "docs/08-decisions/ADR-20261025-refonte-l5-session-model-profile.md"
+    ],
+    "reason": "Réutilise le propriétaire metadata SQLite et runner de hooks existants, extension de consommation SDK appariée avant modèle."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Aucune surface MCP, schéma Claw ou adaptateur modifié ; même propriétaire R6, contexte et metadata SDK, aucune permission nouvelle."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Restaurer et vérifier par R6 les valeurs et leur provenance avant retrait du SDK consommateur ; companion-deploy.sh SHA précédent, patchset rollback exact, aucune suppression de pins/reçus.",
+  "pending": [
+    "Union provenance config R6 par flux",
+    "Build TS et suites profils/R6",
+    "CI canonique head exact",
+    "Activation versions appariées",
+    "Recette native nouvelles/anciennes conversations et trois flux, puis restauration prouvée",
+    "Suite runtime-sync avec les deux nouveaux cas modèle seul/refus"
+  ],
+  "eligibility_scope": "structural_only_draft_requires_canonical_ci_and_live_acceptance",
+  "canonical_ci": "pending_full_ci"
+}

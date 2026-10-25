@@ -194,5 +194,5 @@ async function changeOnce(id:string,body:any){
 /** Replaced by the qualified native session-extension integration before L5 activation.
  * Refuse explicitly: preserving old conversations must never be an assumed no-op. */
 export async function preserveModelFlowSessions(_flow:'brain'|'whatsapp'|'conversation_summary',_beforeConfig:any,_operationId:string):Promise<{state:'verified';preserved:number}>{
- throw nativeError('model_flow_preservation_unqualified',409);
+ return (await import("./conversationModelProfile")).preserveConversationModelProfiles(_flow,_beforeConfig,_operationId);
 }

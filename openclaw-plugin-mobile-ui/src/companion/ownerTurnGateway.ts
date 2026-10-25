@@ -87,6 +87,26 @@ export async function loadInstalledGatewaySdk(binary = process.env.CLAWMOBILE_OP
 }
 
 let loader: OwnerTurnSdkLoader = () => loadInstalledGatewaySdk();
+
+/** Lazy access to the same pinned SDK session metadata owner. No config/credential copy or new store. */
+export async function loadInstalledSessionStoreSdk(binary = process.env.CLAWMOBILE_OPENCLAW_BIN || "openclaw"): Promise<any> {
+  let entry: string;
+  try { entry = require.resolve("openclaw/plugin-sdk/session-store-runtime"); }
+  catch {
+    const {root} = await installedPackageRoot(binary);
+    entry = createRequire(path.join(root, "package.json")).resolve("openclaw/plugin-sdk/session-store-runtime");
+  }
+  const pkg = await packageRoot(entry);
+  if (pkg.version !== SUPPORTED_OPENCLAW) throw unavailable("owner_transport_version_unsupported");
+  const resolve = createRequire(path.join(pkg.root, "package.json"));
+  const [sessions, config, contract] = await Promise.all([nativeImport(pathToFileURL(entry).href),
+    nativeImport(pathToFileURL(resolve.resolve("openclaw/plugin-sdk/config-runtime")).href),
+    nativeImport(pathToFileURL(path.join(pkg.root,"dist/setup-B7DuERIi.mjs")).href)]);
+  for (const key of ["getSessionEntry", "listSessionEntries", "patchSessionEntry"])
+    if (typeof sessions[key] !== "function") throw unavailable("owner_session_metadata_unavailable");
+  if (typeof config.getRuntimeConfig !== "function") throw unavailable("owner_session_metadata_unavailable");
+  return {...sessions, getRuntimeConfig: config.getRuntimeConfig, modelProfileContractVersion: contract.MODEL_PROFILE_CONTRACT_VERSION??0};
+}
 let loading: Promise<GatewaySdk> | undefined;
 /** Tests uniquement. */
 export function setOwnerTurnSdkLoader(next: OwnerTurnSdkLoader) { loader = next; loading = undefined; }
