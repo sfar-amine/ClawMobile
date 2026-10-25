@@ -9,6 +9,7 @@ const {createContactTool,contactToolCaller}=require('../dist/contactTools.js');
  process.env.SAMANTHA_PEOPLE_TRUSTED=helper;process.env.CAPTURE=capture;
  const ctx={agentId:'contacts',sessionKey:'agent:contacts:whatsapp:direct:+21612345678',messageId:'m1'};
  assert.deepEqual(contactToolCaller(ctx),{agent:'contacts',e164:'+21612345678'});
+ const schemaTool=createContactTool('transmettre_a_amine',ctx);assert.deepEqual(schemaTool.parameters,schemaTool.inputSchema);assert.deepEqual(schemaTool.parameters,schemaTool.schema);assert.equal(schemaTool.parameters.additionalProperties,false);
  let out=await createContactTool('transmettre_a_amine',ctx).execute('call',{text:'Bonjour Amine'});
  assert.equal(JSON.parse(out.content[0].text).success,true);let sent=JSON.parse(fs.readFileSync(capture));
  assert.equal(sent.e164,'+21612345678');assert.equal(sent.action,'transmettre_a_amine');assert.equal(Object.hasOwn(sent,'contactId'),false);

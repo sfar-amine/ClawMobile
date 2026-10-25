@@ -1,0 +1,85 @@
+{
+  "version": 2,
+  "id": "refonte-l0bis-gateway-observation-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "Suivi du request Gateway admis par réponse finale/événements bornés, réconciliation sans rejeu et schéma SDK contacts.",
+  "reason": "Le suivi répété de tours admis recharge le Gateway ; un ACK ou une perte de transport ne prouve ni fin ni absence d’effet.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "docs/08-decisions/ADR-20261025-gateway-admitted-run-observation.md",
+    "docs/changes/refonte-l0bis-gateway-observation-20261025.md",
+    "docs/work/samantha-refonte/SPEC-refonte-parcours-unique-20261025.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-gateway-observation/native-timing.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-gateway-observation/sdk-contract.json",
+    "openclaw-plugin-mobile-ui/scripts/test-gateway-run-observation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-owner-turn-admission.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-contact-tools.cjs",
+    "openclaw-plugin-mobile-ui/src/companion/conversationOwnerIndex.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/openclawAgentClient.ts",
+    "openclaw-plugin-mobile-ui/src/companion/ownerTurnGateway.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/contactTools.ts"
+  ],
+  "tests": [
+    {
+      "name": "preliminary targeted build and suites",
+      "status": "passed",
+      "evidence": "Fenêtre CI dédiée : build TS PASS, test-gateway-run-observation PASS, test-owner-turn-admission 83 cas PASS, test-whatsapp-contact-tools PASS. Exécutés avant les derniers cas de borne/échec stockage : la preuve du head final reste à produire."
+    },
+    {
+      "name": "final-source static checks",
+      "status": "passed",
+      "evidence": "git diff --check ; node --check scripts/test-gateway-run-observation.cjs ; node --check scripts/test-owner-turn-admission.cjs. Ne vaut pas CI canonique ni recette S24."
+    }
+  ],
+  "documentation": [
+    "docs/changes/refonte-l0bis-gateway-observation-20261025.md",
+    "docs/08-decisions/ADR-20261025-gateway-admitted-run-observation.md",
+    "docs/work/samantha-refonte/SPEC-refonte-parcours-unique-20261025.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "NO_CAPABILITY : projection interne des routes de runs/conversations existantes, aucune action ni permission nouvelle."
+  },
+  "architecture": {
+    "changed": true,
+    "documents": [
+      "docs/08-decisions/ADR-20261025-gateway-admitted-run-observation.md"
+    ],
+    "reason": "Le même transport SDK P1 demeure ouvert jusqu’au résultat terminal ; mêmes registre et SSE, bornes et perte explicites."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Aucune surface MCP ni permission modifiée ; mêmes projections de runs et mêmes gardes. Aucun nouveau schéma MCP, adaptateur ou route ; le changement parameters concerne les deux outils contacts existants du SDK."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "companion-deploy.sh du SHA précédent ; ne jamais rejouer un effet incertain.",
+  "pending": [
+    "CI canonique du head final",
+    "activation par propriétaire existant",
+    "recette S24 du tour exact avec preuve terminale et mesures séparées"
+  ],
+  "eligibility_scope": "structural_only_draft_requires_canonical_ci_and_live_acceptance",
+  "canonical_ci": "pending_full_ci"
+}
