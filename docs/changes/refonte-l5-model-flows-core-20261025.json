@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "id": "refonte-l5-model-flows-core-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Prépare R6/R21 pour onze flux et trois réglages scoped, comptes inclus attestés, CAS, biométrie, reçus réversibles et préservation native fail-closed sous porte L3.",
+  "scope": {
+    "files": [
+      ".github/workflows/ci.yml",
+      "docs/work/samantha-refonte/L5-model-flows-owner.md",
+      "installer/termux-lite/companion-acceptance.py",
+      "openclaw-plugin-mobile-ui/fixtures/refonte-model-flows/s24-model-owner-whitelist-20261025.json",
+      "openclaw-plugin-mobile-ui/fixtures/refonte-model-flows/s24-policy-voice-memory-whitelist-20261025.json",
+      "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+      "openclaw-plugin-mobile-ui/scripts/test-model-flows.cjs",
+      "openclaw-plugin-mobile-ui/scripts/test-model-roles.cjs",
+      "openclaw-plugin-mobile-ui/src/companion/agentConfig.ts",
+      "openclaw-plugin-mobile-ui/src/companion/conversationMetadata.ts",
+      "openclaw-plugin-mobile-ui/src/companion/modelOwner.ts",
+      "openclaw-plugin-mobile-ui/src/companion/providers.ts",
+      "openclaw-plugin-mobile-ui/src/companion/runWeb.ts",
+      "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+      "openclaw-plugin-mobile-ui/src/companion/server.ts"
+    ]
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/v1/agent/config?flow=brain|conversation_summary|whatsapp",
+      "budget_ms": 9000
+    },
+    {
+      "method": "POST",
+      "path": "/v1/agent/config",
+      "budget_ms": 40000
+    },
+    {
+      "method": "GET",
+      "path": "/v1/providers",
+      "budget_ms": 10000
+    }
+  ],
+  "tests": {
+    "status": "targeted_pending",
+    "evidence": [
+      "JS syntaxe et Python compile PASS ; aucun build TS/CI canonique exécuté pour ce head ; créneau centralisé demandé"
+    ]
+  },
+  "capability_impact": {
+    "changed": false,
+    "ids": [],
+    "detail": "GET/POST R6 déjà NO_CAPABILITY dans registry698322f7, mêmes méthodes/route, écran propriétaire uniquement ; aucune admission agent/voix."
+  },
+  "architecture_impact": {
+    "changed": true,
+    "adr": null,
+    "reason": "Préservation sessions via propriétaire natif requise ; ADR compat SDK à joindre avant activation. Aucun nouveau store."
+  },
+  "mcp_parity": {
+    "status": "no_impact",
+    "detail": "Aucun outil/MCP, endpoint ou schéma Claw changé ; R6 reste écran owner sans admission agent."
+  },
+  "merge_eligibility": "requires_canonical_ci_and_native_session_qualification",
+  "deployment_state": "not_applied",
+  "rollback": "Companion par companion-deploy.sh SHA précédent ; rollback compat SDK par propriétaire existing check/apply/rollback/runtime-sync. Aucun effacement de reçu."
+}

@@ -215,7 +215,7 @@ function selectedFlowModels(owner:any,flow:EditableModelFlow,defaults:any){
   const thinking=thinkingFor(row,defaults);
   return includedModelAccounts(base,owner.auth,owner.policy).map(account=>({id:row.id,provider:row.provider,ref:publicModelRef(account.reference),account:account.account,
    accountLabel:row.provider+' · compte connecté',costPolicy:account.costPolicy,costProofSource:account.source,reasoning:row.reasoning===true,
-   thinkingLevels:thinking.levels,thinkingDefault:thinking.default,thinkingSource:thinking.source,fastModeSupported:row.provider==='openai'&&/^openai\/gpt-5\.6-(sol|terra|luna)$/.test(base)}));
+   thinkingLevels:thinking.levels,thinkingDefault:thinking.default,thinkingSource:thinking.source,fastModeSupported:base==='openai/gpt-5.6-sol'}));
  });
  if(choices.length>256||new Set(choices.map(row=>row.ref)).size!==choices.length)throw nativeError('agent_models_unavailable',503);
  return choices;
@@ -227,12 +227,13 @@ function flowPaths(flow:EditableModelFlow):string[][]{
   ...(flow==='whatsapp'?[['plugins','entries','openclaw-plugin-mobile-ui','config','whatsappModelFlow']]:[])];
 }
 function objectAt(value:any,segments:string[]){let node=value;for(const key of segments){if(!node||typeof node!=='object'||Array.isArray(node)||!Object.prototype.hasOwnProperty.call(node,key))return {present:false};node=node[key];}return {present:true,value:node};}
-function publicFlowValue(value:any):any{
+function publicFlowValue(value:any,depth=0):any{
+ if(depth>12)throw nativeError('model_flow_snapshot_unsupported',409);
  if(typeof value==='string'){if(!identifier.test(value))throw nativeError('model_flow_snapshot_unsupported',409);return value.includes('/')?publicModelRef(value):value;}
  if(typeof value==='boolean')return value;
- if(Array.isArray(value)&&value.length<=20)return value.map(publicFlowValue);
+ if(Array.isArray(value)&&value.length<=20)return value.map(row=>publicFlowValue(row,depth+1));
  if(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(key=>['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].includes(key))){
-  return Object.fromEntries(['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].filter(key=>key in value).map(key=>[key,key==='version'&&value[key]===1?1:publicFlowValue(value[key])]));
+  return Object.fromEntries(['version','model','primary','fallbacks','thinkingDefault','fastModeDefault'].filter(key=>key in value).map(key=>[key,key==='version'&&value[key]===1?1:publicFlowValue(value[key],depth+1)]));
  }
  throw nativeError('model_flow_snapshot_unsupported',409);
 }
@@ -256,7 +257,7 @@ async function readModelFlowConfig(flow:EditableModelFlow){
 }
 
 function setFlowPath(config:any,path:string[],value:any,present=true){
- let node=config;for(const part of path.slice(0,-1)){if(!node[part]||typeof node[part]!=='object'||Array.isArray(node[part]))node[part]={};node=node[part];}
+ let node=config;for(const part of path.slice(0,-1)){if(!node[part]||typeof node[part]!=='object'||Array.isArray(node[part])){if(!present)return;node[part]={};}node=node[part];}
  if(present)node[path.at(-1)!]=value;else delete node[path.at(-1)!];
 }
 function flowPatchRows(flow:EditableModelFlow,snapshot:any){

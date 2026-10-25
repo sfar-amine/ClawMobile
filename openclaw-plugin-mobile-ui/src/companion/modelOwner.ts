@@ -79,7 +79,7 @@ export function configuredModelFlow(config:any,flow:'brain'|'conversation_summar
  for(const [field,publicField] of [['model','model'],['thinkingDefault','thinking'],['fastModeDefault','fastMode']]){
   if(own[field]!==undefined){selected[field]=own[field];origins[publicField]='flow';continue;}
   const values=contacts.map(row=>row[field]),present=values.filter(value=>value!==undefined);
-  if(present.length===contacts.length&&new Set(values.map(value=>JSON.stringify(value))).size===1){selected[field]=values[0];origins[publicField]='whatsapp_agents';}
+  if(present.length===contacts.length&&new Set(values.map(value=>JSON.stringify(value))).size===1){selected[field]=values[0];origins[publicField]='whatsapp_agents';if(JSON.stringify(values[0])!==JSON.stringify((base as any)[field]))mixedFields.push(publicField);}
   else {selected[field]=(base as any)[field];origins[publicField]='brain';if(present.length)mixedFields.push(publicField);}
  }
  return {...selected,inheritsFrom:Object.values(origins).every(value=>value==='brain')?'brain':null,explicit:own,origins,mixedFields};
