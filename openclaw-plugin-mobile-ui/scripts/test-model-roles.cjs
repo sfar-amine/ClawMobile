@@ -4,7 +4,7 @@ const {configuredModelAllow,modelReferenceAllowed,MODEL_FLOW_IDS}=require('../di
 const capture=require('../fixtures/refonte-model-flows/s24-model-owner-whitelist-20261025.json');
 const voice=require('../fixtures/refonte-model-flows/s24-policy-voice-memory-whitelist-20261025.json');
 assert.equal(capture.provenance.runtimeCapture,true);assert.equal(voice.provenance.runtimeCapture,true);
-const config={agents:{entries:capture.agents,defaults:capture.defaults},talk:{provider:voice.talk.provider,providers:{[voice.talk.provider]:{voice:voice.talk.voice}},realtime:voice.talk.realtime},memory:{search:voice.memorySearch}};
+const config={agents:{entries:capture.agents,defaults:{...capture.defaults,compaction:capture.compaction}},talk:{provider:voice.talk.provider,providers:{[voice.talk.provider]:{voice:voice.talk.voice}},realtime:voice.talk.realtime},memory:{search:voice.memorySearch}};
 const before=JSON.stringify(config);
 const snapshot={config,auth:{providers:[]},catalog:{models:[]},revision:null,updatedAt:0,policy:{primary:voice.modelPolicy.primary,fallback:voice.modelPolicy.fallback,sourceHash:'a'.repeat(64)}};
 const roles=projectModelRoles(snapshot),role=id=>roles.find(row=>row.id===id);

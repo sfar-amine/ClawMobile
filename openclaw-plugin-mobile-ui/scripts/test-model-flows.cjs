@@ -15,7 +15,7 @@ const clone=value=>JSON.parse(JSON.stringify(value));
  const policy={authentication:'subscription_only',primary:policyCapture.modelPolicy.primary,fallback:policyCapture.modelPolicy.fallback,
   model_slots:Object.fromEntries(Object.entries(policyCapture.modelPolicy.slots).map(([key,row])=>[key,{enabled:row.enabled,provider:row.provider,model:privateRefs(row.model??null),cost_policy:row.costPolicy,executor:row.executor,qualification_ref:row.qualificationRef}]))};
  await fs.writeFile(path.join(root,'skill_intelligence/model_policy.json'),JSON.stringify(policy));
- let config={agents:{entries:privateRefs(captured.agents),defaults:privateRefs(captured.defaults)},plugins:{entries:{'openclaw-plugin-mobile-ui':{enabled:true},openai:{enabled:true},google:{enabled:true},'github-copilot':{enabled:true}}},
+ let config={agents:{entries:privateRefs(captured.agents),defaults:{...privateRefs(captured.defaults),compaction:privateRefs(captured.compaction)}},plugins:{entries:{'openclaw-plugin-mobile-ui':{enabled:true},openai:{enabled:true},google:{enabled:true},'github-copilot':{enabled:true}}},
   channels:{privateFixture:'untouched'},payments:{privateFixture:'untouched'}};
  for(const id of ['main','contacts','contacts-projet','contacts-pulse','contacts-projet-pulse'])Object.assign(config.agents.entries[id],{identity:{name:id},workspace:'authored:'+id,tools:{deny:['fixture-private-tool']},skills:['fixture-isolation']});
  let hash='a'.repeat(64),effects=0,patchFail=null,afterPatchReadFail=false,preserved=[];
