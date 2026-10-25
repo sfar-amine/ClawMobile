@@ -72,11 +72,23 @@ export type UnresolvedVoiceDeps = VoiceBrainDeps & {
 
 /** /claw-live/capability, coordinator `continue`: executable turns keep their executor, model-only turns go to the brain. */
 export async function routeUnresolvedVoiceTurn(request: string, ctx: VoiceBrainContext, deps: UnresolvedVoiceDeps) {
+  const now = deps.now || (() => Date.now());
+  const started = now();
   let resolution: unknown = null;
   try { resolution = await deps.resolve(request); } catch { resolution = null; }
+  const resolveMs = elapsed(started, now());
   ctx.assertCurrent();
-  if (!brainTerritory(resolution)) return deps.execute(request);
-  return delegateVoiceTurnToBrain(request, ctx, deps);
+  if (!brainTerritory(resolution)) return withTiming(await deps.execute(request), {route: "capability", resolveMs});
+  const result = await delegateVoiceTurnToBrain(request, ctx, deps);
+  return withTiming(result, {route: "brain", resolveMs});
+}
+
+/** Measured durations only (no text, no identifier): read by the voice turn log line and the receipt. */
+export type VoiceTiming = {route?: "brain" | "capability"; coordinatorMs?: number; resolveMs?: number; brainMs?: number};
+function elapsed(start: number, end: number) { return Math.max(0, Math.min(600_000, Math.round(end - start))); }
+export function withTiming<T extends Record<string, unknown>>(result: T, timing: VoiceTiming): T & {timing: VoiceTiming} {
+  const previous = isObject(result?.timing) ? result.timing as VoiceTiming : {};
+  return {...result, timing: {...previous, ...timing}};
 }
 
 export async function delegateVoiceTurnToBrain(request: string, ctx: VoiceBrainContext, deps: VoiceBrainDeps) {
@@ -88,7 +100,9 @@ export async function delegateVoiceTurnToBrain(request: string, ctx: VoiceBrainC
   if (!text) return receipt("failed", NOT_SUBMITTED_TEXT, {reason: "request_required", execution: {state: "not_submitted"}});
   // Admission is revalidated before the effect; an expired ticket refuses the turn without submitting anything.
   ctx.assertCurrent();
-  const deadline = now() + budget;
+  const started = now();
+  const deadline = started + budget;
+  const timed = <T extends Record<string, unknown>>(value: T) => withTiming(value, {brainMs: elapsed(started, now())});
   let submitted: IntentSubmitResponse;
   try {
     submitted = await deps.submit(text, ctx.sessionId, [], {
@@ -96,10 +110,10 @@ export async function delegateVoiceTurnToBrain(request: string, ctx: VoiceBrainC
     });
   } catch {
     // Acceptance cannot be ruled out: never claim, never resubmit.
-    return receipt("unknown", UNKNOWN_TEXT, {reason: "submission_outcome_unknown"});
+    return timed(receipt("unknown", UNKNOWN_TEXT, {reason: "submission_outcome_unknown"}));
   }
   if (!submitted || submitted.success === false && submitted.accepted !== true || submitted.submissionState === "not_submitted") {
-    return receipt("failed", NOT_SUBMITTED_TEXT, {reason: code(submitted?.message) || "not_submitted", execution: {state: "not_submitted"}});
+    return timed(receipt("failed", NOT_SUBMITTED_TEXT, {reason: code(submitted?.message) || "not_submitted", execution: {state: "not_submitted"}}));
   }
   const runId = String(submitted.runId || "");
   const refs = {runId, sessionId: ctx.sessionId, clientRunId: ctx.clientRunId};
@@ -112,9 +126,19 @@ export async function delegateVoiceTurnToBrain(request: string, ctx: VoiceBrainC
     state = status.state;
     result = status.result ?? status.message;
   }
-  if (state === "done") return receipt("done", spoken(result, EMPTY_TEXT), refs);
+  if (state === "done") return timed(receipt("done", spoken(result, EMPTY_TEXT), refs));
   // A failed run's own text may be technical; the voice says a readable state and the detail stays in the discussion.
-  if (state === "failed") return receipt("failed", FAILED_TEXT, refs);
-  if (state === "running") return receipt("pending", PENDING_TEXT, refs);
-  return receipt("unknown", UNKNOWN_TEXT, refs);
+  if (state === "failed") return timed(receipt("failed", FAILED_TEXT, refs));
+  if (state === "running") return timed(receipt("pending", PENDING_TEXT, refs));
+  return timed(receipt("unknown", UNKNOWN_TEXT, refs));
+}
+
+/** One bounded log line per Samantha Voix capability turn: route and durations only, never the request or the answer. */
+export function voiceTurnLogLine(result: unknown, totalMs: number): string {
+  const r = isObject(result) ? result : {};
+  const t = isObject(r.timing) ? r.timing as VoiceTiming : {};
+  const num = (v: unknown) => typeof v === "number" && Number.isFinite(v) ? String(Math.round(v)) : "-";
+  const state = typeof r.state === "string" && /^[a-z_]{1,32}$/.test(r.state) ? r.state : "-";
+  const route = t.route || (r.source === VOICE_BRAIN_SOURCE ? "brain" : "coordinator");
+  return `[voice-turn] route=${route} state=${state} coordinator_ms=${num(t.coordinatorMs)} resolve_ms=${num(t.resolveMs)} brain_ms=${num(t.brainMs)} total_ms=${num(totalMs)}`;
 }

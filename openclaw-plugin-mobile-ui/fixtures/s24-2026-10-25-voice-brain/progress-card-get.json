@@ -1,0 +1,21 @@
+{
+  "_capture": {
+    "source": "S24 openclaw gateway call progressCard.get --params {\"sessionKey\":\"agent:main:node-…\"} --json (read-only)",
+    "capturedAt": "2026-10-25T09:46:00+01:00",
+    "openclaw": "2026.9.6 (eb377ac)",
+    "sanitized": true,
+    "note": "Only stored card on the S24 (written by the agent in September). Session key shortened; content verbatim."
+  },
+  "response": {
+    "card": {
+      "sessionKey": "agent:main:node-f3b1690db672",
+      "revision": 2,
+      "updatedAt": 1790209039115,
+      "markdown": "**Vérification terminée** — états recoupés en direct.",
+      "steps": [
+        {"step": "Recueillir les états actuels", "status": "completed"},
+        {"step": "Recouper et résumer", "status": "completed"}
+      ]
+    }
+  }
+}

@@ -22,5 +22,10 @@ Résultat mesuré le 24/10 : 24 tours vocaux sur 30 n'ont pas atteint Samantha, 
 - Aucun nouveau composant, store, routeur ou retry. Les propriétaires existants sont réutilisés.
 - Les routes déterministes (lectures opérateur, date et heure, réalignement) sont inchangées.
 
+## Révision v2 (25/10/2026, 09:44, décision d'Amine « On fait tout »)
+- **Réflexes.** Une liste fermée, décidée par le code (`voiceReflex.ts`), est la seule exception à « tout déléguer » : salutation, remerciement, au revoir, présence, attente, répétition, « ça va ». Ces réflexes ne portent aucun fait et n'exécutent rien. Une réponse à une question, un choix, `oui`/`non`/`d'accord` vont toujours au cerveau.
+- **Attente.** Un tour cerveau est pris en charge par le Companion (`voiceFastPath`). L'app joue tout de suite sa phrase d'attente locale et le tour atteint le cerveau, quoi que fasse le modèle vocal.
+- **Avancement.** Les étapes et la phrase en cours viennent de la carte de progression de l'agent (`progress_card`, propriétaire OpenClaw existant), écrite pour Amine selon la règle canonique des playbooks.
+
 ## Retour arrière
 Revert du commit, puis redéploiement du Companion par `companion-deploy.sh`. L'app n'est pas modifiée.

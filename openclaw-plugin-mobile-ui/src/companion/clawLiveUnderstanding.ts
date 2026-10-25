@@ -7,7 +7,8 @@ import {
 import { captureVoiceRound, type RoundCaptureResult, type RoundCaptureRunner } from "./voiceRoundLearning";
 import {publicDecision} from "./receiptPresentation";
 import {phoneDateTimeDecision} from "./phoneDateTime";
-import {VOICE_BRAIN_SOURCE} from "./voiceBrainDelegation";
+import {VOICE_BRAIN_SOURCE, brainTerritory} from "./voiceBrainDelegation";
+import {voiceReflex, voiceReflexDecision} from "./voiceReflex";
 
 /**
  * Ephemeral « Compris / Ce n'est pas ça » state of the single Claw Live owner (one voice owner at
@@ -116,9 +117,17 @@ export async function clawLiveDecision(owner: Owner, request: string, resolve: (
   if (realignmentChoice(request, owner.understanding.pendingAnswer())) return { ...realignmentDecision(), state: "voice_realignment_choice" };
   const phoneAnswer=phoneDateTimeDecision(request,phoneDateTime);
   if(phoneAnswer)return{...phoneAnswer,voiceFastPath:{version:1,execute:true}};
+  // Closed list of social reflexes, decided by code: the voice interface answers them itself, with no Graph call.
+  const reflex = voiceReflex(request);
+  if (reflex) return {...voiceReflexDecision(reflex), voiceFastPath: {version: 1, execute: false}};
   const result = await (owner.measureVoiceDecision ? owner.measureVoiceDecision(request, resolve) : resolve());
   const execute = deterministicLiveDecision(result);
-  return {...(execute ? result : withVoiceBrainPolicy(result)), voiceFastPath: {version: 1, execute}};
+  if (execute) return {...result, voiceFastPath: {version: 1, execute}};
+  // Brain turn (Amine 25/10/2026): the Companion owns the execution, so the app plays its local waiting phrase at once
+  // and the turn reaches Samantha's brain whatever the voice model does (/claw-live/capability → main agent).
+  if (brainTerritory(result)) return {...withVoiceBrainPolicy(result), success: true,
+    voiceFastPath: {version: 1, execute: true, owner: VOICE_BRAIN_SOURCE}};
+  return {...withVoiceBrainPolicy(result), voiceFastPath: {version: 1, execute: false}};
 }
 
 /**

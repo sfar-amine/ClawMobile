@@ -22,7 +22,9 @@ export type RunProgressSource = {
   clarificationState?: "pending" | "resolved" | "abandoned";
   presentation?: ReceiptPresentation;
   events?: CompanionRunProgressEvent[];
+  card?: {steps: {label: string; state: "pending" | "running" | "done"}[]};
 };
+const MAX_CARD_STEPS = 12;
 
 const LABELS = {
   fr: {accepted: "Demande reçue", understood: "Demande comprise", clarify: "Précision demandée",
@@ -97,6 +99,19 @@ export function runProgressSteps(run: RunProgressSource): RunProgressSteps | und
         : pay && ["awaiting_owner", "executing", "requires_bank_action"].includes(pay) ? "running" : terminalState(run.state);
       steps.push({id: "execute", label: t.execute, state: s, at: s === "done" || s === "failed" ? ended : undefined});
       if (s === "failed") failedStep = p?.failure?.step || t.execute;
+  } else if (run.card?.steps?.length) {
+    // Gateway runs with the agent's progress card: its steps are written for Amine (user-oriented progress rule) and
+    // replace the technical tool events. A terminal run closes the card's open steps without inventing any result.
+    const terminal = terminalState(run.state);
+    run.card.steps.filter(step => safeLabel(step?.label)).slice(0, MAX_CARD_STEPS).forEach((step, index) => {
+      const state: RunStepState = terminal === "done" ? (step.state === "pending" ? "skipped" : "done")
+        : terminal === "failed" ? (step.state === "done" ? "done" : step.state === "running" ? "failed" : "skipped")
+        : step.state;
+      steps.push({id: `card-${index + 1}`, label: step.label, state});
+      if (state === "failed" && !failedStep) failedStep = step.label;
+    });
+    if (run.state === "done") steps.push({id: "answer", label: t.answer, state: "done", at: ended});
+    if (run.state === "failed") { steps.push({id: "answer", label: t.answer, state: "failed", at: ended}); failedStep = failedStep || t.answer; }
   } else {
     // Gateway runs: each recorded progress event is a real step; the last one is running while the run is.
     const events = (run.events || []).filter(e => safeLabel(e?.label)).slice(-MAX_EVENT_STEPS);

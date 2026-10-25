@@ -37,8 +37,10 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    const cap=tools[1];assert.deepEqual(cap.parameters.required,['request','clarificationId']);assert.match(cap.description,/^Only to send/);assert.match(cap.description,/Never for a new request/);
   });
   await test('android instruction delegates every turn and forbids answering alone',()=>{
-   assert.match(prompt,/brain delegation v1/);
+   assert.match(prompt,/brain delegation v2/);
    assert.match(prompt,/ABSOLUTE RULE: every time Amine speaks, call ask_samantha/);
+   assert.match(prompt,/Only exception, social reflexes: .*without any tool and without any fact, number, state, memory, opinion or promise/);
+   assert.match(prompt,/« Oui », « non », « d'accord », a choice or any answer to a question are never reflexes: they go to ask_samantha/);
    assert.match(prompt,/Never answer from your own knowledge, from the conversation history or from these instructions/);
    assert.match(prompt,/Never say that something is saved, noted, remembered, done, adjusted, checked or sent unless the returned text says so/);
    assert.match(prompt,/never invoke confidentiality yourself/);
@@ -69,16 +71,36 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    assert.equal(live.voiceStyleView('# Contexte\n## Autre\nx'),'');assert.equal(live.voiceStyleView(''),'');
   });
 
-  // --- /claw-live/decision: the voice never releases an answer of its own ---
-  await test('a model-only Graph policy becomes evidence-required for the voice (real S24 resolution)',async()=>{
+  // --- /claw-live/decision: the voice never releases an answer of its own, outside the closed reflex list ---
+  await test('a model-only turn (real S24 resolution) is Companion-owned: immediate local waiting phrase, brain answer',async()=>{
    const text="Qu'est-ce que tu as ajusté récemment ?";const raw=resolution(text);
    const d=await clawLiveDecision(owner(),text,async()=>JSON.parse(JSON.stringify(raw)));
    assert.equal(d.harness.tool_policy,'required');assert.equal(d.harness.voice_policy,'brain_delegation');assert.equal(d.harness.model_tool_policy,'optional');
-   assert.equal(d.harness.reason,'model_only_framing');assert.equal(d.decision.type,'REASON');assert.deepEqual(d.voiceFastPath,{version:1,execute:false});
+   assert.equal(d.harness.reason,'model_only_framing');assert.equal(d.decision.type,'REASON');
+   // Android VoiceOptionAPolicy.deterministic(): success === true and voiceFastPath {version:1, execute:true} play the waiting clip.
+   assert.equal(d.success,true);assert.deepEqual(d.voiceFastPath,{version:1,execute:true,owner:'samantha_brain'});
   });
-  await test('an already required policy stays required without a model policy trace',async()=>{
-   const d=await clawLiveDecision(owner(),'Bonjour Samantha',async()=>JSON.parse(JSON.stringify(resolution('Bonjour Samantha'))));
+  await test('a REASON decision with a Graph capability is Companion-owned too (real S24 resolution)',async()=>{
+   const d=await clawLiveDecision(owner(),'Montre-moi ce que tu sais faire',async()=>JSON.parse(JSON.stringify(resolution('Bonjour Samantha'))));
    assert.equal(d.harness.tool_policy,'required');assert.equal(d.harness.voice_policy,'brain_delegation');assert.equal(Object.hasOwn(d.harness,'model_tool_policy'),false);
+   assert.deepEqual(d.voiceFastPath,{version:1,execute:true,owner:'samantha_brain'});
+  });
+  await test('a non-deterministic executable decision keeps the voice tool path (payment r11 untouched)',async()=>{
+   const pay=JSON.parse(fs.readFileSync(path.join(__dirname,'../fixtures/s24-2026-10-11/hs3-resolution-slots-shortlist.json'),'utf8')).resolutions.r11;
+   const d=await clawLiveDecision(owner(),pay.text,async()=>({success:true,decision:pay.decision,harness:pay.harness}));
+   assert.equal(d.harness.tool_policy,'required');assert.deepEqual(d.voiceFastPath,{version:1,execute:false});
+  });
+  await test('social reflexes are decided by code, answered by the voice itself, with no resolver call',async()=>{
+   const {voiceReflex}=require('../dist/companion/voiceReflex');
+   for(const [text,kind] of [['Bonjour Samantha','greeting'],['Merci beaucoup !','thanks'],['Sam, tu m’entends ?','presence'],['Répète s’il te plaît','repeat'],
+     ['Attends une seconde','wait'],['Au revoir Samantha','goodbye'],['Bonsoir, ça va ?','greeting'],['merci, au revoir','thanks'],['Aslema','greeting'],['Thank you','thanks']]){
+    assert.equal(voiceReflex(text),kind,text);
+    let resolves=0;const d=await clawLiveDecision(owner(),text,async()=>{resolves++;return {};});
+    assert.equal(resolves,0,text);assert.equal(d.harness.tool_policy,'optional');assert.equal(d.harness.voice_policy,'reflex');assert.deepEqual(d.voiceFastPath,{version:1,execute:false});
+   }
+   for(const text of ['oui','non',"d'accord",'ok','ok merci','la première','bonjour quel est mon solde orange','merci de vérifier mes factures',
+     'répète mes rendez-vous','tu peux me rappeler demain','attends que je te dise','comment va mon compte','',null,'x'.repeat(200)])
+    assert.equal(voiceReflex(text),null,String(text));
   });
   await test('a deterministic route is untouched and still executes without a model',async()=>{
    const canonical={success:true,decision:deterministic.decision_envelope,harness:{tool_policy:'required'}};
@@ -107,6 +129,13 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    assert.equal(options.admission,ticket,'the turn admission ticket itself, never a new authority');
    assert.equal(r.success,true);assert.equal(r.state,'done');assert.equal(r.source,'samantha_brain');assert.equal(r.text,"Rien n'a changé depuis hier.");
    assert.equal(r.voice.verbatim,"Rien n'a changé depuis hier.");assert.equal(r.runId,'run_1');assert.deepEqual(r.execution,{state:'completed'});
+   assert.equal(r.timing.brainMs,1500,'three polls of 500 ms on the fake clock');
+  });
+  await test('the voice turn log line carries route and durations only, never the request or the answer',()=>{
+   const line=brain.voiceTurnLogLine({state:'done',source:'samantha_brain',text:'Secret answer',timing:{route:'brain',coordinatorMs:812,resolveMs:301,brainMs:2400}},3600);
+   assert.equal(line,'[voice-turn] route=brain state=done coordinator_ms=812 resolve_ms=301 brain_ms=2400 total_ms=3600');
+   assert.equal(brain.voiceTurnLogLine(null,5),'[voice-turn] route=coordinator state=- coordinator_ms=- resolve_ms=- brain_ms=- total_ms=5');
+   assert.ok(!brain.voiceTurnLogLine({state:'Bonjour Amine !'},1).includes('Bonjour'));
   });
   await test('a run still active at the budget is announced as pending, never claimed',async()=>{
    const c=clock();let polls=0;
@@ -180,6 +209,15 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    const required=router({harness:{tool_policy:'required'}});
    await brain.routeUnresolvedVoiceTurn('mon solde',ctx(),required.deps);assert.deepEqual(required.seen,{executed:1,submitted:0});
   });
+  await test('routing records its route and measured durations (resolution, brain)',async()=>{
+   let t=0;const deps={now:()=>t,sleep:async(ms)=>{t+=ms;},resolve:async()=>{t+=300;return resolution("Qu'est-ce que tu as ajusté récemment ?");},
+    execute:async()=>({success:true,source:'capability'}),
+    submit:async()=>{t+=1200;return {success:true,accepted:true,runId:'rt',state:'done',result:'Rien.'};},status:async()=>{}};
+   const r=await brain.routeUnresolvedVoiceTurn('x',ctx(),deps);
+   assert.deepEqual(r.timing,{route:'brain',resolveMs:300,brainMs:1200});
+   const c=await brain.routeUnresolvedVoiceTurn('x',ctx(),{...deps,resolve:async()=>({harness:{tool_policy:'required'}})});
+   assert.equal(c.timing.route,'capability');assert.equal(c.source,'capability');
+  });
   await test('the payment path and every executable decision keep the existing executor (real S24 r11)',async()=>{
    const pay={success:true,text:payment.text,capability:payment.capability,decision:payment.decision,harness:payment.harness};
    assert.equal(pay.decision.type,'EXECUTE');assert.equal(pay.decision.risk,'transaction');
@@ -204,6 +242,7 @@ const resolution=(request)=>resolutions.cases.find(c=>c.request===request).resol
    assert.match(block,/resolve: \(unresolved\) => capabilityBridge\(unresolved, \{execute:false,surface:"claw_live",caller:"owner",timeoutSeconds:5\}\)/);
    assert.match(block,/execute: \(unresolved\) => capabilityBridge\(unresolved, \{execute:true,surface:"claw_live",caller:"owner",timeoutSeconds:35\}\)/);
    assert.match(block,/submit: submitIntent, status: getRunStatus/);
+   assert.match(block,/console\.log\(voiceTurnLogLine\(result, Date\.now\(\) - turnStarted\)\);/);
    const agent=fs.readFileSync(path.join(__dirname,'../src/companion/openclawAgentClient.ts'),'utf8');
    assert.match(agent,/const canonical=compactOwnerAgentContext\(options\);/);
   });
