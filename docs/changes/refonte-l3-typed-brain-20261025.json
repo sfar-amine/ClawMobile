@@ -3,38 +3,92 @@
   "id": "refonte-l3-typed-brain-20261025",
   "date": "2026-10-25",
   "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "canonical_ci": "pending_full_ci",
+  "live_recipe": "not_run",
   "summary": "Bascule hôte du cerveau seul décideur, outils typés issus des contrats canoniques et contrôle exact de génération avec admission courante.",
-  "scope": {
-    "files": [
-      ".github/workflows/ci.yml",
-      "cloud/voice-relay/src/mcp.mjs",
-      "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
-      "docs/changes/refonte-l3-typed-brain-20261025.json",
-      "docs/changes/refonte-l3-typed-brain-20261025.md",
-      "docs/work/samantha-refonte/README.md",
-      "installer/termux-lite/claw-capability.py",
-      "installer/termux-lite/companion-acceptance.py",
-      "installer/termux-lite/model-fast-path.py",
-      "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/README.md",
-      "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/compiled-agent-tools.json",
-      "openclaw-plugin-mobile-ui/openclaw.plugin.json",
-      "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
-      "openclaw-plugin-mobile-ui/scripts/test-generation-interrupt.cjs",
-      "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
-      "openclaw-plugin-mobile-ui/src/brainOnly.ts",
-      "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
-      "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
-      "openclaw-plugin-mobile-ui/src/companion/capabilityControl.ts",
-      "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
-      "openclaw-plugin-mobile-ui/src/companion/intent.ts",
-      "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
-      "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
-      "openclaw-plugin-mobile-ui/src/companion/server.ts",
-      "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
-      "openclaw-plugin-mobile-ui/src/index.ts",
-      "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
-      "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
-      "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  "reason": "Owner principal brain chooses semantics; typed mechanical admission reuses existing Graph/dialogue/confirmation owners and current SDK authority. Source draft only; structural eligibility never means CI or live acceptance.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "cloud/voice-relay/src/mcp.mjs",
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/refonte-l3-typed-brain-20261025.json",
+    "docs/changes/refonte-l3-typed-brain-20261025.md",
+    "docs/work/samantha-refonte/README.md",
+    "installer/termux-lite/claw-capability.py",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/model-fast-path.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/compiled-agent-tools.json",
+    "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+    "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-generation-interrupt.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "openclaw-plugin-mobile-ui/src/brainOnly.ts",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityControl.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  ],
+  "tests": [
+    {
+      "name": "L3 seven focused Core runtime suites",
+      "status": "passed",
+      "evidence": "l3-followup-core-focused.log: seven exit0,1.91s; build l3-followup-build.log passed before last strict main/owner callback recheck."
+    },
+    {
+      "name": "SDK control tamper and revocation exact-source checks",
+      "status": "passed",
+      "evidence": "Final guard source isolated transpilation plus generation-interrupt suite PASS: body change, Contacts mutation, no authority, revocation at three points and uncertain receipt without replay. Final whole-project typecheck pending central slot."
+    }
+  ],
+  "documentation": [
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/refonte-l3-typed-brain-20261025.md",
+    "docs/work/samantha-refonte/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Canonical registry belongs to samantha-ui-playbooks. Core implements the paired PB314 declarations samantha.app.conversation.active_generations and samantha.app.conversation.interrupt without duplicating its registry; scoped SDK callback RPC is internal, not a separate user capability."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Single semantic decider with existing owner adapters, current callback admission and sole Companion runs.json writer. No parallel router/store/scheduler.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "updated",
+      "claw_resolve": "updated",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "updated",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Core424/PB314 source paths and backend-to-CLI typed tests; no public MCP tool added.",
+      "claw_execute cached compatibility via closed decision envelope; claw_resolve requires tools/list refresh to expose typed.",
+      "External MCP writes cannot fabricate native later-user confirmation; wrapper/live qualification remains pending."
     ]
   },
   "routes": [
@@ -51,33 +105,5 @@
       "change": "bounded local owner-run metadata only"
     }
   ],
-  "tests": {
-    "status": "pending_ci",
-    "evidence": [
-      "Focused suites run in Cloud; complete localci.py exact-head proof still required before integration.",
-      "Typed tools and confirmation owners tested with canonical contracts; final business/network process simulated where stated. No live acceptance claimed.",
-      "l3-core-focused.log SHA256 093b46bf4c654a0c252708f41f708952c564e9ec4f84177c1be2d213ffb03cee",
-      "Follow-up: TypeScript build and seven Core focused suites PASS; final stricter main/owner callback guard and HTTP tamper/revocation cases PASS through isolated source transpilation. Canonical full CI remains required for final heads."
-    ]
-  },
-  "capability_impact": {
-    "changed": true,
-    "ids": [
-      "samantha.app.conversation.interrupt",
-      "samantha.app.conversation.active_generations"
-    ],
-    "detail": "Two canonical generation controls; all domain tools derive existing registry and manifest actions. No payment or Contacts permission expanded."
-  },
-  "architecture_impact": {
-    "changed": true,
-    "adr": "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
-    "reason": "Principal brain chooses semantics; existing Graph/dialogue/confirmation/run owners validate and execute typed identities."
-  },
-  "mcp_parity": {
-    "status": "updated_pending_live",
-    "detail": "Canonical typed selection plus closed decision compatibility envelope for cached claw_execute wrappers; same Graph, no authority grant. Cached claw_resolve requires tools/list refresh. External narratives cannot confirm writes. Wrapper/live acceptance pending."
-  },
-  "merge_eligibility": "requires_canonical_ci",
-  "deployment_state": "not_applied",
   "rollback": "Disable SAMANTHA_BRAIN_ONLY; restore prior paired Companion/playbooks through existing owner deployment scripts."
 }
