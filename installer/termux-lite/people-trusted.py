@@ -683,6 +683,14 @@ class Refused(Exception):
 def fail(code, status=400): raise Refused(code, status)
 def digest(value): return hashlib.sha256(value.encode('utf-8')).hexdigest()
 def canonical(value): return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+def merge_diff(old, new):
+    """RFC 7396 patch turning old into new, as the Gateway's config.patch applies it."""
+    if not isinstance(old, dict) or not isinstance(new, dict): return new
+    out={key: None for key in old if key not in new}
+    for key,value in new.items():
+        if key not in old: out[key]=value
+        elif old[key]!=value: out[key]=merge_diff(old[key], value)
+    return out
 def contact_id(number): return 'wa-' + digest(number)[:16]
 def utc(timestamp): return datetime.fromtimestamp(timestamp, timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
 def stamp(value):
@@ -1223,14 +1231,13 @@ class Contacts:
         if native_event.conversation_key!='pulse-room:'+agent+':'+native_event.contact_id+':agent:'+agent+':whatsapp:direct:'+number:
             denied()
         metadata=self.metadata(number)
-        if (not metadata or metadata['state']!='active' or metadata['scope']!='standard' or
-                metadata['scopeText'] is not None or metadata.get('rooms')!=variants[agent] or
-                metadata.get(CONTACT_MEMORY_FIELD) is not None or
+        # Amine 26/10 (S24 3289): the Pulse room alone grants Pulse in this room. The contact's
+        # conversation scope and its compacted memory only shape the model agent, never this path.
+        if (not metadata or metadata['state']!='active' or metadata.get('rooms')!=variants[agent] or
                 metadata['expiresAt'] is not None and stamp(metadata['expiresAt'])<=self.clock()):
             denied()
         rule=direct.get(number,{})
-        # A restriction or contactMemory is never silently stripped into a grant.
-        if not isinstance(rule,dict) or set(rule)-{'systemPrompt'} or self.policy(rule)!=('standard',None):
+        if not isinstance(rule,dict) or set(rule)-{'systemPrompt'} or self.policy(rule)[0]!=metadata['scope']:
             denied()
         bindings=config.get('bindings')
         if not isinstance(bindings,list) or len(bindings)>5000: denied()
@@ -1667,8 +1674,9 @@ class Contacts:
         patch={'channels':{'whatsapp':{}}}; replacements=[]
         if a!=olda: patch['channels']['whatsapp']['allowFrom']=a;replacements.append('channels.whatsapp.allowFrom')
         if d!=oldd:
-            # Replace exact direct map under CAS: JSON merge cannot remove a property safely.
-            patch['channels']['whatsapp']['direct']=d;replacements.append('channels.whatsapp.direct')
+            # The Gateway merges objects (replacePaths only replaces arrays): a removed
+            # rule or field must be an explicit null, under the same CAS baseHash.
+            patch['channels']['whatsapp']['direct']=merge_diff(oldd,d)
         if after.get('bindings')!=before.get('bindings'): patch['bindings']=after.get('bindings') or [];replacements.append('bindings')
         after_agents=(after.get('agents') or {}).get('entries') or {}
         if after_agents!=before_agents:
