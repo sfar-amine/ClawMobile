@@ -52,6 +52,7 @@
     "openclaw-plugin-mobile-ui/scripts/test-native-turn-provenance.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-sdk-steering-loop.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-voice-relay-brain-only.cjs",
     "openclaw-plugin-mobile-ui/src/brainOnly.ts",
     "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
     "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
@@ -64,6 +65,7 @@
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
     "openclaw-plugin-mobile-ui/src/companion/server.ts",
     "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts",
     "openclaw-plugin-mobile-ui/src/index.ts",
     "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
     "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
@@ -101,6 +103,11 @@
       "name": "Native dispatch identity, public input/adoption binding and reversible existing compat owner",
       "status": "passed",
       "evidence": "l3-compat-focused-v1.log : npm project TypeScript build +8Node suites +5Python compatibility cases all PASS in10.93s. Real complete captured dispatcher/mapper reproduce missing UUID, keep one UUID across refresh/direct/followup, preserve protected clock and identity, reject forged hook annotations, publish original inputs and adoption only after native commit. Owner tests cover alias/pending/end ordering and immutable freshness; patcher tests pin all3modules, refuse unknown version/hash before writing, apply/check/idempotence/rollback and checkout-owned gateway rollback. Existing runtime-sync suite adds2cases for native patch restart/refusal; full canonical CI remains pending, no native S24 change/model call."
+    },
+    {
+      "name": "Authenticated cloud voice relay uses main without pre-brain interpretation",
+      "status": "pending",
+      "evidence": "test-voice-relay-brain-only.cjs registered in canonical CI; isolated source branch from3661, targeted build/test and final canonical CI pending."
     }
   ],
   "documentation": [
@@ -160,6 +167,12 @@
       "budget": "1500 ms SDK observation transport",
       "capability": "NO_CAPABILITY: internal native SDK UUID metadata, not a user command or abort authority",
       "change": "L3 same L4 owner: native_ingress/native_end/native_adoption/native_active; native callback after confirmed transcript commit, pending observations merged in existing bounded ledger, no content/budget/notice/metric/abort authority"
+    },
+    {
+      "route": "Existing authenticated cloud POST /voice → device WS request",
+      "budget": "30000 ms under SAMANTHA_BRAIN_ONLY",
+      "capability": "NO_CAPABILITY: existing authenticated transport delegates full text to main; tools retain canonical capability/P1 admission",
+      "change": "Existing Gateway agent/session/idempotency and conversations owner reused. No P1 ticket fabricated from relay bearer. Canonical SDK terminal renderer; uncertainty never retries."
     }
   ],
   "rollback": "Disable SAMANTHA_BRAIN_ONLY; restore prior paired Companion/playbooks through existing owner deployment scripts."

@@ -266,6 +266,7 @@ jobs:
 
       - name: Run Claw relay reconnect contract
         run: |
+          node scripts/test-voice-relay-brain-only.cjs
           node scripts/test-voice-relay.cjs
           node scripts/test-voice-relay-reconnect.cjs
 
