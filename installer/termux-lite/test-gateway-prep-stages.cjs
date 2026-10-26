@@ -110,6 +110,10 @@ async function systemPrompt({failRuntime = false, settled = false} = {}) {
   const step = (name, ms, result) => (...args) => {effects.push(name); clock += ms; return result;};
   const sandbox = {
     Set, Promise,
+    // Exact function arguments evaluate env/argv before invoking inert owners.
+    // Never expose the host process, environment, cwd, credentials or commands.
+    process: Object.freeze({env: Object.freeze({}),
+      argv: Object.freeze(['fixture-node', '/fixture/public-sdk.mjs'])}),
     resolveEmbeddedSandboxInfoExecPolicy: step('policy', 1, {}),
     buildEmbeddedSandboxInfo: step('sandbox', 1, {enabled: false}),
     isReasoningTagProvider: step('reasoning', 2, false),
