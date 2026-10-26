@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "id": "control-cache-completion-fixture-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "maintenance",
+  "summary": "Observe collector completion before asserting an automation cache hit; retain unchanged route budgets and real S24 captures.",
+  "reason": "Raw integrated D8 failed because an HTTP reader shared the final SQLite revision before cache publication and correctly received coalesced. Controlled promises reproduce this ordering; elapsed collector time is not a completion barrier.",
+  "files": [
+    "openclaw-plugin-mobile-ui/scripts/test-control-automations-latency.cjs",
+    "docs/changes/control-cache-completion-fixture-20261026.md",
+    "docs/changes/control-cache-completion-fixture-20261026.json"
+  ],
+  "documentation": ["docs/changes/control-cache-completion-fixture-20261026.md"],
+  "tests": [
+    {
+      "name": "Controlled final revision and cache publication regression",
+      "status": "passed",
+      "evidence": "Actual ControlReadPool with authored collector/revision promises: joined=coalesced, next read=cache, generations=1. No timers, Gateway, model or S24 calls. Private proof control-cache-completion-repro-v1.log."
+    },
+    {
+      "name": "Existing automation latency suite with unchanged S24 fixture",
+      "status": "passed",
+      "evidence": "Node26.11.1, scripts/test-control-automations-latency.cjs including the controlled regression and observed completion barrier PASS. Baseline2555.21ms, cold305.02ms, cache212.21ms, existing relative budget445.38ms. Proof control-cache-fixture-focused-v2.log. Runtime control.ts byte-identical to D8, SHA2569ca038bfd5904e0dd2141a11df1c6dac3574b24f012c94f0def43137a7630cd8."
+    }
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "NO_CAPABILITY: tests and documentation only; no route, action, permission, scheduler, store or retry mechanism added."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing ControlReadPool and registered latency test reused; production code and deadlines unchanged.",
+    "documents": []
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": ["Only the existing local Control latency test and change notes differ; MCP schemas, adapters and runtime are byte-identical."]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Revert this tests/documentation PR; no runtime behavior changed.",
+  "routes": [],
+  "pending_validation": ["Canonical exact-head CI before merge; no deployment or native acceptance claimed."]
+}
