@@ -87,7 +87,8 @@ class GatewayPrepStages(unittest.TestCase):
 
     def test_transient_set_does_not_enable_other_patch_sets_or_product_switches(self):
         for item in MANIFEST['files']:
-            self.assertIn(Path(item['path']).name, ('openclaw-tools-thu-J91q.mjs', 'tools-CvXdkvXK.mjs'))
+            self.assertIn(Path(item['path']).name, ('openclaw-tools-thu-J91q.mjs', 'tools-CvXdkvXK.mjs',
+                                                  'builtin-openclaw-q1hiFm14.mjs'))
             for before, after in item['replacements']:
                 added = after.replace(before, '') if before in after else after
                 self.assertNotIn('console.', added)
@@ -96,6 +97,14 @@ class GatewayPrepStages(unittest.TestCase):
                 self.assertNotIn('setTimeout', added)
         for name in ('gateway-start.sh', 'runtime-sync.sh', 'companion-deploy.sh'):
             self.assertNotIn('--patch-set gateway-prep-stages', (HERE / name).read_text())
+        ours = {item['path'] for item in MANIFEST['files']}
+        for path in OWNER.parent.glob('*.json'):
+            if path.name != 'gateway-prep-stages.json':
+                other = json.loads(path.read_text())
+                self.assertFalse(ours.intersection(item['path'] for item in other.get('files', [])))
+        provenance = json.loads((FIXTURE / 'provenance.json').read_text())
+        tracker = (FIXTURE / 'stage-timing-BUG4Fnsv.mjs').read_bytes()
+        self.assertEqual(hashlib.sha256(tracker).hexdigest(), provenance['trackerPublicSourceSha256'])
         timings = json.loads((FIXTURE / 'native-timings.json').read_text())
         self.assertEqual(timings['factorySummary']['totalMs'], 16)
         self.assertFalse(timings['L0bisClosed'])

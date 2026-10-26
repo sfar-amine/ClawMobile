@@ -102,4 +102,98 @@ inner({loaded: false, fail: true});
 inner({loaded: true, noState: true});
 inner({loaded: true, callback: false});
 inner({loaded: false, callback: false});
-console.log(JSON.stringify({ok: true, staged, scopes: 9, modelCalls: 0, authReads: 0}));
+
+async function systemPrompt({failRuntime = false, settled = false} = {}) {
+  let clock = 0;
+  const effects = [];
+  const step = (name, ms, result) => (...args) => {effects.push(name); clock += ms; return result;};
+  const sandbox = {
+    Set, Promise,
+    resolveEmbeddedSandboxInfoExecPolicy: step('policy', 1, {}),
+    buildEmbeddedSandboxInfo: step('sandbox', 1, {enabled: false}),
+    isReasoningTagProvider: step('reasoning', 2, false),
+    buildToolSchemaDirectoryPrompt: step('tool-directory', 4, undefined),
+    resolveAgentRuntimePrompt: async () => {
+      effects.push('runtime-context'); clock += 11;
+      if (failRuntime) throw Error('fixture runtime failure');
+      return {runtimeInfo: {agentId: 'main', sessionKey: 'fixture'}};
+    },
+    resolveAgentPromptSurfaceForSessionKey: () => 'full',
+    toolPolicyRestrictsTools: () => false,
+    resolveOpenClawReferencePaths: step('references', 7, {}),
+    resolveProviderSystemPromptContribution: step('provider-contribution', 3, undefined),
+    prepareAgentMemoryPrompt: step('memory', 9, undefined),
+    prepareWatchedSessionsPrompt: step('watched', 2, undefined),
+    prepareProjectMemoryBootstrap: step('project-memory', 5, []),
+    buildProjectMemoryWriteInstruction: () => undefined,
+    buildModelToolsUnavailablePrompt: () => undefined,
+    isAcpRuntimeSpawnAvailable: () => false,
+    listRegisteredPluginAgentPromptGuidance: () => [],
+    buildBootstrapPromptWarningNotice: () => undefined,
+    buildAttemptSystemPrompt: step('assembly', 13, {systemPrompt: 'fixture-system'}),
+    buildBootstrapTruncationReportMeta: () => ({}),
+    resolveSandboxRuntimeStatus: () => ({mode: 'off', sandboxed: false}),
+    buildSystemPromptReport: step('report', 17, {ok: true}),
+  };
+  vm.createContext(sandbox);
+  const trackerSource = fs.readFileSync(path.join(__dirname,
+    '../../openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/stage-timing-BUG4Fnsv.mjs'), 'utf8');
+  vm.runInContext(trackerSource.slice(0, trackerSource.indexOf('\n//#endregion')), sandbox);
+  const tracker = sandbox.createStageTimingTracker(() => clock);
+  tracker.mark('tool-preparation');
+  // Only import.meta.url is replaced by an inert public module URL for vm.Script;
+  // the original and patched function bodies otherwise run unchanged. A separate
+  // Node --check parses each full real ESM module with its original import.meta.
+  vm.runInContext(region('builtin-openclaw-q1hiFm14.mjs', 'prepareEmbeddedAttemptSystemPrompt')
+    .replaceAll('import.meta.url', JSON.stringify('file:///fixture/public-sdk.mjs')), sandbox);
+  const params = {
+    attempt: {operation: settled ? 'settled-tool-finalization' : undefined,
+      provider: 'fixture', modelId: 'fixture', model: {api: 'fixture'}, config: {},
+      sessionKey: 'fixture', promptMode: 'full', preparedModelRuntime: {
+        activeProjectKeys: ['fixture'], projectKey: 'fixture'}},
+    setup: {sessionAgentId: 'main', sandboxSessionKey: 'fixture',
+      effectiveWorkspace: '/fixture', effectiveCwd: '/fixture',
+      getProviderRuntimeHandle: () => ({}), prepStages: tracker},
+    effectiveTools: [], capabilityToolNames: [], toolSearchDirectoryEnabled: true,
+    toolSearchCatalogRef: {current: {entries: [{}]}}, toolSearchRuntimeConfig: {},
+    bootstrap: {workspaceNotes: [], contextFiles: [], bootstrapInjectionStats: [],
+      bootstrapPromptWarning: {lines: []}}, modelToolsEnabled: true,
+  };
+  if (failRuntime) {
+    await assert.rejects(() => sandbox.prepareEmbeddedAttemptSystemPrompt(params), /fixture runtime failure/);
+    assert(!tracker.snapshot().stages.some((entry) => entry.name === 'system-prompt'));
+    assert.deepEqual(effects, ['policy', 'sandbox', 'reasoning', 'tool-directory', 'runtime-context']);
+    return;
+  }
+  const result = await sandbox.prepareEmbeddedAttemptSystemPrompt(params);
+  const stages = Array.from(tracker.snapshot().stages);
+  const parent = stages.find((entry) => entry.name === 'system-prompt');
+  assert(parent, 'aggregate parent must still exist');
+  if (settled) {
+    assert.equal(result.systemPromptText, '');
+    assert.equal(parent.durationMs, 0);
+    assert.equal(stages.length, 2);
+    assert.deepEqual(effects, []);
+    return;
+  }
+  assert.equal(result.systemPromptText, 'fixture-system');
+  assert.equal(JSON.stringify(result.systemPromptReport), '{"ok":true}');
+  assert.deepEqual(effects, ['policy', 'sandbox', 'reasoning', 'tool-directory', 'runtime-context',
+    'references', 'provider-contribution', 'memory', 'watched', 'project-memory', 'assembly', 'report']);
+  assert.equal(parent.durationMs, 85, 'explicit spans must NOT advance parent checkpoint');
+  assert.equal(parent.elapsedMs, 85);
+  assert.equal(tracker.snapshot().totalMs, 85);
+  const children = stages.filter((entry) => entry.name.startsWith('system-prompt:'));
+  assert.deepEqual(children.map((entry) => [entry.name, entry.durationMs]), staged ? [
+    ['system-prompt:tool-directory', 4], ['system-prompt:runtime-context', 11],
+    ['system-prompt:references', 7], ['system-prompt:provider-contribution', 3],
+    ['system-prompt:memory-context', 11], ['system-prompt:project-memory', 5],
+    ['system-prompt:assembly', 13], ['system-prompt:report', 17]] : []);
+}
+
+(async () => {
+  await systemPrompt();
+  await systemPrompt({failRuntime: true});
+  await systemPrompt({settled: true});
+  console.log(JSON.stringify({ok: true, staged, scopes: 12, modelCalls: 0, authReads: 0}));
+})().catch((error) => {console.error(error); process.exitCode = 1;});

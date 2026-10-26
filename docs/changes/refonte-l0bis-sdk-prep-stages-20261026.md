@@ -7,7 +7,10 @@ auth lookup, résolution des owners ou chargement du registre. Cacher les outils
 de chaque tour ou remplacer le préchauffage n'est donc pas justifié.
 
 Le patch ajoute11checkpoints fermés au callback `recordToolPrepStage` existant,
-dans deux modules publics2026.9.6 dont les hashes sont identiques au S24. Il
+et huit sous-spans system-prompt via measure/measureSync, dans trois modules
+publics2026.9.6 dont les hashes sont identiques au S24. L'aggregate system-prompt
+original reste comparable : ces spans explicites n'avancent pas son checkpoint.
+Il
 réutilise le propriétaire de compatibilité verrouillé, atomique et réversible
 avec un ensemble séparé `gateway-prep-stages`. Aucun hook de démarrage ne l'active
 automatiquement ; root peut appliquer seulement cette instrumentation après CI,
@@ -18,7 +21,8 @@ La fixture contient les programmes publics complets et des mesures nettoyées,
 sans transcript/config/auth/journal brut. Le nouveau test inscrit en CI couvre
 version/hash/symlink, refus avant toute écriture, idempotence et rollback, puis
 les mêmes fonctions originales/patched avec des propriétaires inertes : retours,
-effets, erreurs, callback optionnel et branches registre réutilisé/chargé. La
+effets, erreurs, callback optionnel, branches registre réutilisé/chargé et
+conservation de l'aggregate parent avec le tracker SDK exact. La
 vérification ciblée et la CI canonique combinée restent à exécuter.
 
 **NO_CAPABILITY** : ensemble ponctuel du propriétaire privé existant, aucune

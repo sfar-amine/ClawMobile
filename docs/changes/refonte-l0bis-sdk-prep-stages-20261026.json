@@ -4,8 +4,8 @@
   "date": "2026-10-26",
   "origin": "chat",
   "kind": "repair",
-  "summary": "Split the proven slow plugin preparation span through the existing SDK stage callback and independently reversible compatibility owner.",
-  "reason": "Exact public native run: plugin-tools11154ms but53factories total16ms. No source evidence yet selects config, auth lookup, registry resolution or load as the cause; caching authority-bound factories would be speculative.",
+  "summary": "Split proven slow plugin and system-prompt preparation through existing SDK callbacks/explicit spans and an independently reversible compatibility owner.",
+  "reason": "Exact public native run: plugin-tools11154ms but53factories total16ms, system-prompt3496ms. Native source needs closed sub-owner attribution before a performance fix; explicit prompt spans preserve the original aggregate checkpoint.",
   "rollback": "Use the same pinned whatsapp-network-recovery.py --patch-set gateway-prep-stages --rollback, restart through the existing Gateway owner, verify both original hashes and new ready PID. No runtime config rollback or business-data deletion.",
   "files": [
     ".github/workflows/ci.yml",
@@ -20,7 +20,9 @@
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/native-timings.json",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/openclaw-tools-thu-J91q.mjs.gz",
     "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/provenance.json",
-    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/tools-CvXdkvXK.mjs.gz"
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/tools-CvXdkvXK.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/builtin-openclaw-q1hiFm14.mjs.gz",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages/stage-timing-BUG4Fnsv.mjs"
   ],
   "documentation": [
     "docs/work/samantha-refonte/L0bis-sdk-prep-stage-splits-20261026.md",
@@ -31,7 +33,7 @@
     {
       "name": "Pinned public native SDK transaction and exact resolver VM behavior",
       "status": "pending",
-      "evidence": "test-gateway-prep-stages.py is registered in the same CI; targeted execution awaits the coordinator lane, then full canonical qualification on final combined head. No S24 apply or gain claimed."
+      "evidence": "test-gateway-prep-stages.py registered in the same CI; captured original/patched resolver and system-prompt functions run in VM with inert owners and the exact public stage tracker. Parent aggregate85ms stays85ms despite81ms of explicit child spans. Targeted execution awaits coordinator lane then final combined canonical qualification; no native gain claimed."
     }
   ],
   "capabilities": {
@@ -41,7 +43,7 @@
   },
   "architecture": {
     "changed": false,
-    "reason": "Reuse recordToolPrepStage, existing tracker/logging and existing hash-gated atomic compatibility transaction. No new registry/cache/router/daemon/profiler/timer or retry."
+    "reason": "Reuse recordToolPrepStage, prepStages.measure/measureSync, existing tracker/logging and hash-gated atomic compatibility transaction. No new registry/cache/router/daemon/profiler/timer or retry."
   },
   "mcp_owner_parity": {
     "tools": {
