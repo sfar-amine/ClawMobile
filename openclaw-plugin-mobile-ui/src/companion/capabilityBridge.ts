@@ -2,10 +2,19 @@ import {runtimeFile} from "../runtimeRoot";
 import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import {PUBLIC_WEB_BUDGET_MS} from "./runWeb";
 
-const execFileAsync = promisify(execFile);
+/** REQ-3278 (S24 26/10): the Termux glibc shim replaces execFile without its promisify form, so the promise had no
+ * `.child`: the private input was never written and the orphaned rejection restarted the Gateway. The callback form
+ * returns the child on every Node build (same cause as gemini-public-synthesis.mjs, 17/10). */
+function execFileWithChild(file: string, args: string[], options: Parameters<typeof execFile>[2]) {
+  let child!: ReturnType<typeof execFile>;
+  const promise = new Promise<{stdout:string;stderr:string}>((resolve, reject) => {
+    child = execFile(file, args, {...options, encoding:"utf8"}, (error, stdout, stderr) =>
+      error ? reject(Object.assign(error, {stdout, stderr})) : resolve({stdout, stderr}));
+  });
+  return {promise, child};
+}
 
 /** Existing helper transport, with optional bounded read cancellation. A process group includes Python/Graph children. */
 export async function runCapabilityHelperProcess(args: string[], options: {
@@ -18,11 +27,10 @@ export async function runCapabilityHelperProcess(args: string[], options: {
   // Also establish the group in the Python leader: hosted launchers may strip Node's detached flag.
   const groupLeader = "import os,sys; os.getpgrp()==os.getpid() or os.setsid(); os.execv(sys.executable,[sys.executable,*sys.argv[1:]])";
   const commandArgs = options.killGroup ? ["-c",groupLeader,...args] : args;
-  const promise = execFileAsync("python3", commandArgs, {
+  const {promise, child} = execFileWithChild("python3", commandArgs, {
     timeout:options.killGroup?0:options.timeoutMs,maxBuffer:options.maxBuffer,env:options.env,
     ...(options.killGroup?{detached:true,killSignal:"SIGTERM" as const}:options.signal?{signal:options.signal}:{}),
   });
-  const child = promise.child;
   if(options.privateInput!==undefined){
     child.stdin?.on('error',()=>{});
     child.stdin?.end(options.privateInput);
