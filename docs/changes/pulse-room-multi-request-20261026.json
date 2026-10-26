@@ -3,7 +3,7 @@
   "id": "pulse-room-multi-request-20261026",
   "date": "2026-10-26",
   "origin": "chat",
-  "kind": "feature",
+  "kind": "repair",
   "summary": "A Pulse room message that enumerates several requests (« 1. … 2. … ») is split by the host and run one request after the other, each as its own admitted event; a question stops the run and the dialogue coordinator keeps the rest until the answer (Amine 26/10: « il faut gérer ce genre de demande automatiquement »).",
   "reason": "S24 26/10 15:37:50Z: Sadok sent « 1. État su projet zain phase 5\\n2. Passe la phase réalisation du projet 20495 a non débuté ». The whole message went to the interpreter as one request and the room answered « Cette demande ne définit pas une commande Pulse admise ».",
   "files": [
