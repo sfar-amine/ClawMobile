@@ -129,7 +129,9 @@ fi
 # Prepare the official read-only tool catalogue once after a real restart and native readiness. The Gateway/SDK
 # retains its own registry/module caches; no model turn, tool.execute, schema injection or parallel cache/poller.
 # A performance preparation failure is explicit but never starts a new recovery/rollback cycle or retries a request.
-if [ "$gateway" = restarted ]; then
+# The inherited-EX CLI restart owner prepares before returning; retain this
+# fallback only for the existing HTTP restart path, so each restart warms once.
+if [ "$gateway" = restarted ] && [ -z "${SAMANTHA_DEPLOY_LOCK_FD:-}" ]; then
   timeout --kill-after=1 25 node "$PLUGIN/dist/companion/openclawGatewayClient.js" --prepare-main-tools >&2 ||
     echo '{"component":"runtime-preparation","state":"unverified","reason":"tools_catalog_unavailable"}' >&2
 fi

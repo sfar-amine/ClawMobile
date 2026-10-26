@@ -552,6 +552,13 @@ export async function restartRuntime(): Promise<RuntimeCommandResponse> {
     }
 
     const started = await startRuntimeInternal(true);
+    if(deployRestartOwner && started.success && started.gateway.reachable) {
+      // Only this short-lived CLI owns this socket. Keep the same EX repair
+      // lease until the existing SDK metadata warm finishes, never use or
+      // close the Companion's shared client. No user/model turn or retry.
+      const preparation=await prepareMainToolCatalog();
+      process.stderr.write(JSON.stringify({component:"runtime-preparation",service_state:"started",...preparation})+"\n");
+    }
     return {
       ...started,
       message: started.success
