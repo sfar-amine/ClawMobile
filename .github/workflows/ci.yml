@@ -223,6 +223,7 @@ jobs:
       - name: Interpreted durable read paired with immutable PB310 admission owner (offline)
         run: |
           node scripts/test-capability-bridge.cjs
+          node scripts/test-helper-process-termux-shim.cjs
           peer=$(mktemp -d "${TMPDIR:-/tmp}/intent-durable-pb310.XXXXXX")
           trap 'rm -rf -- "$peer"' EXIT
           git init "$peer"
