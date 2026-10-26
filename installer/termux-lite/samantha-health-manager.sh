@@ -413,15 +413,15 @@ except Exception:print("UNAVAILABLE 0 0")
 }
 check_supervisor(){
  if proc "$2" && supervisor_on_current_root "$2" "$3"; then healthy "$1"; return; fi
- immune_action "$1" bounded-supervisor-restore check_supervisor_effect "$@" || true
+ IMMUNE_OBSERVATION="$(immune_supervisor_facts "$1" "$2" "$3" 2>/dev/null)" immune_action "$1" bounded-supervisor-restore check_supervisor_effect "$@" || true
 }
 repair_http_under_lease(){
  if http "$2"; then healthy "$1"; return; fi
- immune_action "$1" bounded-http-service-restore repair_http_effect_under_lease "$@" || true
+ IMMUNE_OBSERVATION="$1 HTTP probe failed: $2 did not answer within 3 s (curl -fsS). The bounded operation restarts only this service under the existing lease and budget, then probes it again." immune_action "$1" bounded-http-service-restore repair_http_effect_under_lease "$@" || true
 }
 check_adb(){
  if adb_ok; then check_adb_effect; return; fi
- immune_action adb bounded-trusted-adb-reconnect check_adb_effect || true
+ IMMUNE_OBSERVATION="adb -s 127.0.0.1:5556 get-state did not return device within 3 s. The bounded operation reconnects only the trusted local ADB endpoint, then checks get-state again." immune_action adb bounded-trusted-adb-reconnect check_adb_effect || true
 }
 check_whatsapp(){
  # Readiness is observed by the existing owner; only its mutating recovery branch
@@ -432,7 +432,7 @@ check_gateway_memory(){ check_gateway_memory_effect; }
 
 check_sshd(){
  if ssh_ok; then healthy sshd; return; fi
- immune_action sshd bounded-sshd-restore check_sshd_effect || true
+ IMMUNE_OBSERVATION="sshd probe failed: the local SSH server did not answer. The bounded operation restarts only sshd under the existing budget, then probes it again." immune_action sshd bounded-sshd-restore check_sshd_effect || true
 }
 check_slack_bridge(){
  local readiness
@@ -441,7 +441,7 @@ check_slack_bridge(){
    check_slack_bridge_effect; return
  fi
  if [ "$readiness" -eq 2 ] && ! proc '[c]law-slack-bridge.mjs'; then check_slack_bridge_effect; return; fi
- immune_action slack_bridge bounded-slack-bridge-restore check_slack_bridge_effect || true
+ IMMUNE_OBSERVATION="slack_bridge readiness probe exit=$readiness (0 ready, 2 down, 3 degraded); bridge process present=$(proc '[c]law-slack-bridge.mjs' && echo yes || echo no). The bounded operation restarts only the Slack bridge on the current release, then probes readiness again." immune_action slack_bridge bounded-slack-bridge-restore check_slack_bridge_effect || true
 }
 
 log 'event=start result=ok state=persistent_backoff'
