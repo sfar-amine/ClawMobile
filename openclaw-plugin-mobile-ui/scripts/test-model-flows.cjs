@@ -83,7 +83,7 @@ const clone=value=>JSON.parse(JSON.stringify(value));
   for(const id of owner.CONTACT_MODEL_AGENTS){const expected=waBefore[id];expected.model={primary:config.agents.entries[id].model.primary,fallbacks:[]};assert.deepEqual(config.agents.entries[id],expected,'contact identity/workspace/tools/memory policy do not move');}
   assert.equal(config.plugins.entries['openclaw-plugin-mobile-ui'].config.whatsappModelFlow.version,1);
   await assert.rejects(api.changeAgentConfig({...waBody,operationId:'stale-wa'}),e=>e.statusCode===409&&e.message==='agent_config_revision_changed');
-  const summary=await api.readAgentConfig('conversation_summary');assert.deepEqual(summary.writeFields,['model']);assert.equal(summary.thinking,null);assert.equal(summary.fastMode,null);
+  const summary=await api.readAgentConfig('conversation_summary');assert.deepEqual(summary.writeFields,['model']);assert.equal(summary.thinking,null);assert.equal(summary.fastMode,null);assert.equal(summary.fastModeSetting,null,'summary has no native speed setting, including inheritance');
   const summaryResult=await api.changeAgentConfig({flow:'conversation_summary',mode:'set',revision:hash,operationId:'summary',model:read.model});assert.equal(summaryResult.state,'completed');assert.equal(preserved.at(-1).flow,'conversation_summary');
   const others=clone(config.plugins.entries['openclaw-plugin-mobile-ui'].config.modelFlowSelection.flows);
   const independent=await api.changeAgentConfig({flow:'brain',mode:'revert',revision:hash,operationId:'independent-brain-revert',restoreRunId:restored.receipt.runId});assert.equal(independent.state,'completed');

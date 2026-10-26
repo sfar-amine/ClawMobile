@@ -262,7 +262,7 @@ async function readModelFlowConfig(flow:EditableModelFlow){
  const choices=selectedFlowModels(owner,flow,defaults),snapshot=flowSnapshot(config,flow),revert=latest?.receipt?.appliedHash===flowHash(snapshot)?latest.receipt.runId:null;
  let restorable=true;try{assertFlowRestorable(snapshot,owner,choices);}catch{restorable=false;}
  return {success:true,state:'ok',receipt:null,schemaVersion:2,flow,revision:owner.raw.hash,model:publicModelRef(primary),fallbacks:fallbacks.map((ref:string)=>publicModelRef(ref)),thinking:current.thinkingDefault??null,
-  fastMode:typeof current.fastModeDefault==='boolean'?current.fastModeDefault:null,fastModeSetting:current.fastModeDefault==='auto'?'auto':typeof current.fastModeDefault==='boolean'?(current.fastModeDefault?'on':'off'):'inherited',inheritsFrom:current.inheritsFrom,origins:current.origins,mixedFields:current.mixedFields,source:'gateway_config',models:choices,
+  fastMode:typeof current.fastModeDefault==='boolean'?current.fastModeDefault:null,fastModeSetting:flow==='conversation_summary'?null:current.fastModeDefault==='auto'?'auto':typeof current.fastModeDefault==='boolean'?(current.fastModeDefault?'on':'off'):'inherited',inheritsFrom:current.inheritsFrom,origins:current.origins,mixedFields:current.mixedFields,source:'gateway_config',models:choices,
   writeFields:flow==='conversation_summary'?['model']:['model','thinking','fallbacks','fastMode'],writeAvailable:choices.length>0&&restorable,
   previousReceiptRunId:revert,issues:[...(!choices.length?['included_model_authentication_proof_unavailable']:[]),...(!restorable?['model_flow_previous_version_unavailable']:[])],
   appliesTo:'new_sessions',metrics:projectModelFlowMetrics(flow,latency)};
