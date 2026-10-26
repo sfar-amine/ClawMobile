@@ -120,6 +120,7 @@ jobs:
           python3 ../installer/termux-lite/test-qa-restart-protection.py
           node scripts/test-qa-runtime-repair-lease.cjs
           node scripts/test-qa-deploy-gateway-restart.cjs
+          node scripts/test-gateway-tools-metadata-preparation.cjs
           node scripts/test-gateway-maintenance-recovery.cjs
           python3 ../installer/termux-lite/test-health-deploy-lock.py
       - name: I5 bounded restart escalation, Tier0 rollback and notification dedupe
@@ -378,7 +379,7 @@ jobs:
       - name: Test laptop owner pairing and biometric scope
         run: node scripts/test-laptop-access.cjs
       - name: P1 admission native des tours owner (preuve Keystore, anti-rejeu, connexion admin dédiée, révocation)
-        run: node scripts/test-owner-turn-admission.cjs
+        run: node scripts/test-owner-turn-admission.cjs && node scripts/test-gateway-run-observation.cjs
       - name: P1 recette — alerte transport owner indisponible et gardes d'admission
         run: python3 ../installer/termux-lite/test-companion-acceptance-owner-transport.py
       - name: Run read-only notification source contract

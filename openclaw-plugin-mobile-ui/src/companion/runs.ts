@@ -1,3 +1,4 @@
+import type {OwnerTurnObserver} from "./ownerTurnGateway";
 import {readRunWebResult, type RunWebResult} from "./runWeb";
 import {MEMO_STT_QUALIFICATION} from "./memoSttBoundary";
 import {isTechnicalProgressLabel, runProgressSteps} from "./runProgress";
@@ -20,7 +21,10 @@ import { intentCanvas } from "./canvas";
 import { callOpenClawGateway, expectedCompanionSessionKey, normalizeCompanionSessionId, type OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunProgress, CompanionRunProgressEvent, CompanionRunStatus, CompanionRunTokenUsage, IntentAttachment, ReplayLink } from "./types";
 
+type GatewayObservation = {version:1; epoch:string; state:"following"|"reconcile"|"settled"; deadlineAt:number; reconciled?:true};
 type StoredRun = {
+  gatewayObservation?: GatewayObservation;
+  gatewayProgress?: CompanionRunProgress;
   web?: RunWebResult;
   memo?: {attachmentId: string; ownerEpoch: string; phase: "transcribing" | "transcription_pending" | "ready" | "dispatched"; attempts: number; nextAttemptAt?: number};
   presentation?: ReceiptPresentation;
@@ -150,6 +154,8 @@ type TranscriptSummary = {
 
 const submittedRuns = new Map<string, StoredRun>();
 const MEMO_OWNER_EPOCH = randomUUID();
+const GATEWAY_OBSERVER_EPOCH = randomUUID();
+const GATEWAY_FOLLOW_MS = 120000;
 const CLIENT_RUN_ID_RE = /^[A-Za-z0-9._:-]{1,160}$/;
 const MAX_PERSISTED_RUNS = 500;
 const MAX_PERSISTED_RUN_BYTES = 8 * 1024 * 1024;
@@ -437,6 +443,162 @@ export async function rememberSubmittedRun(
   await saveStoredRun(stored).catch(() => undefined);
 }
 
+/** Volatile observation metadata lives with its existing durable run, never a new execution store. */
+function readGatewayObservation(v:any):GatewayObservation|undefined {
+  if(v?.version!==1||typeof v.epoch!=="string"||!/^[a-f0-9-]{36}$/.test(v.epoch)||
+    !["following","reconcile","settled"].includes(v.state)||!Number.isFinite(v.deadlineAt))return undefined;
+  return {version:1,epoch:v.epoch,state:v.state,deadlineAt:v.deadlineAt,...(v.reconciled===true?{reconciled:true as const}:{})};
+}
+function readGatewayProgress(v:any):CompanionRunProgress|undefined {
+  if(!v||!Array.isArray(v.events))return undefined;
+  const events=v.events.slice(-48).filter((e:any)=>e&&["tool.call","tool.result","tool.error"].includes(e.type)&&
+    typeof e.callId==="string"&&/^[A-Za-z0-9_.:-]{1,160}$/.test(e.callId)&&
+    typeof e.label==="string"&&e.label.length<=160&&!isTechnicalProgressLabel(e.label));
+  const rawCard=v.card;
+  const card=rawCard?projectProgressCard({...rawCard,steps:Array.isArray(rawCard.steps)?rawCard.steps.map((step:any)=>({step:step.label,
+    status:step.state==="done"?"completed":step.state==="running"?"in_progress":"pending"})):[]}):null;
+  return events.length||card?{text:"",events,...(card?{card}:{})}:undefined;
+}
+function observedRunStatus(stored:StoredRun):CompanionRunStatus {
+  return {...statusFromStoredRun(stored),...(stored.gatewayProgress?{progress:stored.gatewayProgress}:{})};
+}
+async function updateObservedRun(runId:string,change:(stored:StoredRun)=>StoredRun|undefined) {
+  return mutateRegistry(async()=>{
+    const registry=await registryOrEmpty();
+    if(registry.runDeletions.some(r=>r.runId===runId))return undefined;
+    const stored=registry.runs.find(r=>r.runId===runId)||submittedRuns.get(runId);
+    if(!stored)return undefined;
+    const next=change(stored);if(!next)return undefined;
+    submittedRuns.set(runId,next);
+    await writeCompanionRunRegistry(retainStoredRuns([next,...registry.runs.filter(r=>r.runId!==runId)]),registry.archivedSessionIds);
+    return next;
+  });
+}
+/** The Gateway agent terminal RPC (SDK expectFinal) contains AgentRunResult, not a narrative acknowledgement. */
+export function gatewayTerminalResult(value:any,runId:string):{state:"done"|"failed";text:string}|null {
+  if(!value||value.runId!==runId||!["ok","error","timeout"].includes(value.status))return null;
+  if(value.status!=="ok")return {state:"failed",text:"Samantha n'a pas pu terminer cette demande. Son résultat doit être vérifié avant tout nouvel essai."};
+  const result=value.result,meta=result?.meta;
+  if(!result||typeof result!=="object"||Array.isArray(result)||meta?.error||meta?.aborted||meta?.stopReason==="timeout"||meta?.stopReason==="error"||
+    (Array.isArray(result.payloads)&&result.payloads.some((p:any)=>p?.isError===true)))return null;
+  const visible=(text:unknown):text is string=>typeof text==="string"&&text.trim().length>0&&!text.includes("NO_REPLY");
+  let text=visible(meta?.finalAssistantVisibleText)?meta.finalAssistantVisibleText:"";
+  if(!text&&Array.isArray(result.payloads)&&result.payloads.length<=32)
+    text=result.payloads.filter((p:any)=>p&&p.visible!==false&&p.isError!==true&&p.phase!=="commentary"&&
+      p.channel!=="commentary"&&p.isReasoning!==true&&p.isCommentary!==true&&p.isCompactionNotice!==true&&
+      p.isFallbackNotice!==true&&p.isStatusNotice!==true&&visible(p.text)).map((p:any)=>p.text.trim()).join("\n");
+  return text.trim()&&text.length<=32768?{state:"done",text}:null;
+}
+/** Internal authority proof for an exact existing app/voice run; no Gateway read, prompt, or inferred WA ownership. */
+export async function activeObservedGatewayRun(runId:string,sessionKey:string):Promise<boolean> {
+  await registryWrite;
+  const row=await findStoredRun(runId,false);
+  return !!row&&row.ownerAdmitted===true&&row.ownerTransport==="admin_admitted"&&row.executionSource==="gateway"&&
+    row.sessionKey===sessionKey&&row.state==="running"&&row.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&
+    row.gatewayObservation.state==="following"&&Date.now()<row.gatewayObservation.deadlineAt;
+}
+/** Same admitted run and session throughout. Incoming JSON/HTTP cannot create this callback. */
+export async function observeGatewayRun(runId:string,sessionKey:string):Promise<OwnerTurnObserver> {
+  const started=await updateObservedRun(runId,stored=>{
+    if(stored.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&stored.gatewayObservation.state==="following")throw Error("gateway_observation_already_following");
+    const active=[...submittedRuns.values()].filter(r=>r.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&
+      r.gatewayObservation.state==="following"&&!["done","failed"].includes(r.state||"")&&Date.now()<r.gatewayObservation.deadlineAt).length;
+    if(active>=8)throw Error("gateway_observation_capacity");
+    if(!stored.ownerAdmitted||stored.executionSource!=="gateway"||stored.sessionKey!==sessionKey||["done","failed"].includes(stored.state||""))return undefined;
+    return {...stored,gatewayObservation:{version:1,epoch:GATEWAY_OBSERVER_EPOCH,state:"following",deadlineAt:Date.now()+GATEWAY_FOLLOW_MS}};
+  });
+  if(!started?.gatewayObservation||started.gatewayObservation.epoch!==GATEWAY_OBSERVER_EPOCH)throw Error("gateway_observation_not_admitted");
+  let sequence=0,closed=false,queued=0,cardQueued=false,chain=Promise.resolve();
+  // A provider burst cannot create an unbounded promise/write queue. Dropped progress is never terminal proof.
+  const enqueue=(work:()=>Promise<void>)=>{
+    if(queued>=48)return;
+    queued++;
+    chain=chain.then(work).catch(()=>{}).finally(()=>{queued--;});
+  };
+  const bound=(r:StoredRun)=>r.sessionKey===sessionKey&&r.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&r.gatewayObservation.state==="following";
+  const lost=async(requestSent:boolean)=>{
+    closed=true;await chain;
+    await updateObservedRun(runId,r=>bound(r)?{...r,state:requestSent?"unknown":r.state,...(requestSent?{error:"Le résultat de cette demande reste à vérifier ; aucune relance automatique."}:{}),...(requestSent?{ownerTransport:"admin_admitted" as const}:{}),
+      gatewayObservation:{...r.gatewayObservation!,state:"reconcile"}}:undefined);
+  };
+  return {
+    sent(){enqueue(async()=>{await updateObservedRun(runId,r=>bound(r)?{...r,ownerTransport:"admin_admitted"}:undefined);});},
+    event(frame:any){
+      if(closed||frame?.event!=="agent")return;
+      const p=frame.payload;
+      if(p?.runId!==runId||p.sessionKey!==sessionKey||!Number.isSafeInteger(p.seq)||p.seq<=sequence)return;
+      sequence=p.seq;
+      // A card is refreshed only after its actual writer completed, never once per status poll.
+      const data=p.data,id=data?.toolCallId;
+      if(p.stream==="tool"&&data?.name==="progress_card"&&data?.phase==="result") {
+        if(cardQueued||queued>=48)return;
+        cardQueued=true;
+        enqueue(async()=>{try {
+          progressCardCache.delete(sessionKey);
+          const card=await readRunProgressCard(sessionKey,started.acceptedAt);
+          if(card)await updateObservedRun(runId,r=>bound(r)?{...r,gatewayProgress:withProgressCard(r.gatewayProgress,card)}:undefined);
+        } finally {cardQueued=false;}});
+        return;
+      }
+      // Only titled tool boundaries are progress. Assistant deltas never become facts or terminal success.
+      const title=cardText(data?.args?.title,160);
+      if(p.stream!=="tool"||!["start","result"].includes(data?.phase)||typeof id!=="string"||
+        !/^[A-Za-z0-9_.:-]{1,160}$/.test(id)||data.phase==="start"&&(!title||isTechnicalProgressLabel(title)))return;
+      enqueue(async()=>{await updateObservedRun(runId,r=>{
+        if(!bound(r))return undefined;
+        const events=r.gatewayProgress?.events||[],old=events.find(e=>e.callId===id);
+        const label=title||old?.label;if(!label)return undefined;
+        return {...r,gatewayProgress:{...r.gatewayProgress,text:"",events:[...events,{type:data.phase==="start"?"tool.call":data.isError?"tool.error":"tool.result",callId:id,label,title:label,at:Date.now(),...(data.isError?{isError:true}:{})}].slice(-48)}};
+      });});
+    },
+    async final(value:unknown){
+      closed=true;await chain;
+      const terminal=gatewayTerminalResult(value,runId);
+      if(!terminal){await lost(true);return;}
+      await updateObservedRun(runId,r=>r.sessionKey===sessionKey&&r.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&
+        ["following","reconcile"].includes(r.gatewayObservation.state)&&!["done","failed"].includes(r.state||"")?{...r,state:terminal.state,result:terminal.state==="done"?terminal.text:undefined,error:terminal.state==="failed"?terminal.text:undefined,updatedAt:Date.now(),ownerTransport:"admin_admitted",
+        gatewayObservation:{...r.gatewayObservation!,state:"settled"}}:undefined);
+    },lost,
+  };
+}
+async function reconcileObservedRun(stored:StoredRun):Promise<CompanionRunStatus> {
+  let flight=listEnrichments.get(stored.runId);
+  if(flight)return beforeDeadline(flight,Date.now()+1500,observedRunStatus(stored));
+  const observed=stored.gatewayObservation!;
+  if(observed.epoch===GATEWAY_OBSERVER_EPOCH&&observed.reconciled)return observedRunStatus(stored);
+  // Persist the claim before yielding; repeated polls and restart recovery cannot fan out.
+  const claimed=await updateObservedRun(stored.runId,r=>{
+    if(r.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&r.gatewayObservation.reconciled)return undefined;
+    return {...r,state:["done","failed"].includes(r.state||"")?r.state:"unknown",
+      error:r.error||"Le résultat de cette demande reste à vérifier ; aucune relance automatique.",
+      gatewayObservation:{...r.gatewayObservation!,epoch:GATEWAY_OBSERVER_EPOCH,state:"reconcile",reconciled:true}};
+  });
+  if(!claimed)return observedRunStatus((await findStoredRun(stored.runId,false))||stored);
+  flight=(async()=>{
+    const deadline=Date.now()+LIST_OWNER_READ_MS;
+    const sessions=await readSessionsIndex(deadline,claimed.sessionKey);
+    const session=findSessionForStoredRun(sessions,claimed);
+    if(!session)return observedRunStatus(claimed);
+    const remaining=deadline-Date.now();
+    if(remaining<=0)return observedRunStatus(claimed);
+    const history=await callOpenClawGateway("chat.history",{sessionKey:claimed.sessionKey,limit:200},{timeoutMs:remaining,hardTimeoutMs:remaining});
+    // Reuse the existing conservative owner proof, including unique prompt, freshness and completed tools.
+    const proof=ownerTurnEvidence(history?.messages,claimed.text,Date.now());
+    if(!proof||proof.outstandingTool||Math.abs(proof.startedAt-claimed.acceptedAt)>30000)return observedRunStatus(claimed);
+    const registry=await registryOrEmpty();
+    if(registry.runs.filter(r=>r.modality!=="voice"&&r.sessionKey===claimed.sessionKey&&r.text===claimed.text).length!==1)return observedRunStatus(claimed);
+    const terminal=terminalConversationResult(proof.messages.map(message=>JSON.stringify({type:"message",message})).join("\n"),claimed.text);
+    if(!terminal||terminal.result.length>32768||terminal.result.includes("NO_REPLY")||
+      !terminal.endedAt||terminal.endedAt<proof.startedAt||terminal.endedAt>Date.now())return observedRunStatus(claimed);
+    const settled=await updateObservedRun(claimed.runId,r=>runIdentity(r)===runIdentity(claimed)&&r.gatewayObservation?.state==="reconcile"?
+      {...r,state:"done",result:terminal.result,error:undefined,updatedAt:terminal.endedAt||proof.lastAt,
+        gatewayObservation:{...r.gatewayObservation,state:"settled"}}:undefined);
+    return observedRunStatus(settled||claimed);
+  })().catch(()=>observedRunStatus(claimed)).finally(()=>listEnrichments.delete(stored.runId));
+  listEnrichments.set(stored.runId,flight);
+  return beforeDeadline(flight,Date.now()+1500,observedRunStatus(claimed));
+}
+
 export async function settleSubmittedRun(
   runId: string,
   state: "done" | "failed" | "unknown",
@@ -488,6 +650,7 @@ export async function markSubmittedRunFailed(runId: string, message: string) {
     ...existing,
     state: "failed",
     error: message,
+    ...(existing.gatewayObservation ? {gatewayObservation:{...existing.gatewayObservation,state:"settled" as const}} : {}),
     updatedAt: Date.now(),
   };
   submittedRuns.set(runId, stored);
@@ -901,6 +1064,15 @@ async function getRunStatusUnstepped(runId: string, preloaded: StoredRun | null 
     return unknownRun(normalizedRunId, "Run deleted from companion history.");
 
   const stored = preloaded;
+  if (stored?.gatewayObservation) {
+    const observation=stored.gatewayObservation;
+    if (observation.state==="settled" || observation.epoch===GATEWAY_OBSERVER_EPOCH &&
+        observation.state==="following" && Date.now()<observation.deadlineAt)
+      return observedRunStatus(stored);
+    // A transport loss, expired observation or Companion restart gets one read reconciliation,
+    // never a second agent request and never a read per UI/voice poll.
+    return reconcileObservedRun(stored);
+  }
   reconcileInactiveRuns(normalizedRunId);
   if(stored&&!requiresLiveRefresh(stored)){
     const status=statusFromStoredRun(stored);
@@ -962,6 +1134,7 @@ async function terminalDetailProgress(stored:StoredRun,status:CompanionRunStatus
 }
 
 function requiresLiveRefresh(stored:StoredRun):boolean {
+  if (stored.gatewayObservation) return false;
   return stored.modality!=="voice"&&stored.executionSource!=="capability_first"&&
     stored.error!=="run_inactivity_expired"&&!stored.inactivityCorrectionReceipt&&
     stored.state!=="failed"&&!stored.result;
@@ -2061,7 +2234,7 @@ function reconcileInactiveRuns(targetRunId?:string):void {
 async function reconcileInactiveRunsOnce(targetRunId: string | undefined, deadline: number): Promise<void> {
   await registryWrite;
   const initial = await registryOrEmpty(), now = runInactivityClock.now();
-  const eligible = (run: StoredRun, registry: CompanionRunRegistry) => run.modality !== "voice" &&
+  const eligible = (run: StoredRun, registry: CompanionRunRegistry) => run.modality !== "voice" && !run.gatewayObservation &&
     (!run.memo || run.memo.phase === "dispatched") &&
     !run.result && (!run.state || run.state === "running" || run.error === "run_inactivity_expired") &&
     run.acceptedAt >= 1000000000000 && (run.error === "run_inactivity_expired" || !!run.inactivityCorrectionReceipt || now - (run.updatedAt || run.acceptedAt) >= RUN_INACTIVITY_MS) &&
@@ -2272,6 +2445,8 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       supersededBy: validReplayLink(run.supersededBy),
       ownerAdmitted: run.ownerAdmitted === true ? true as const : undefined,
       ownerTransport: OWNER_TRANSPORTS.has(String(run.ownerTransport || "")) ? run.ownerTransport : undefined,
+      gatewayObservation: readGatewayObservation(run.gatewayObservation),
+      gatewayProgress: readGatewayProgress(run.gatewayProgress),
       reasonClass: publicReasonClass(run.reasonClass),
     }));
   // HS3: a run that handed off to a payment request shows that request's state (read-time projection only).
@@ -2362,7 +2537,8 @@ export async function getConversationTurns(sessionId: string) {
   requireConversationId(sessionId);
   await registryWrite;
   const stored=(await readStoredRuns()).filter(run=>run.sessionId===sessionId).slice(0,40).reverse();
-  const unresolved=stored.filter(run=>run.modality!=="voice"&&run.executionSource!=="capability_first"&&!run.result&&(run.state!=="failed"||run.error==="run_inactivity_expired"));
+  if(stored.some(run=>run.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&run.gatewayObservation.state==="following"&&Date.now()<run.gatewayObservation.deadlineAt))return stored.map(observedRunStatus);
+  const unresolved=stored.filter(run=>!run.gatewayObservation&&run.modality!=="voice"&&run.executionSource!=="capability_first"&&!run.result&&(run.state!=="failed"||run.error==="run_inactivity_expired"));
   if(!unresolved.length)return stored.map(statusFromStoredRun);
   const history=await callOpenClawGateway("chat.history",{sessionKey:expectedCompanionSessionKey(sessionId),limit:200});
   const raw=(Array.isArray(history?.messages)?history.messages:[]).map((message:any)=>JSON.stringify({type:"message",message,timestamp:message.timestamp})).join("\n");
@@ -2581,7 +2757,8 @@ export async function conversationSummariesPage(options:PageOptions={}){
   const archiveScope=options.archived===true;
   const runs=await retainedRuns(archiveScope);const grouped=new Map<string,StoredRun[]>();
   // Background single-flight refresh; pagination never waits on a Gateway process.
-  const ownerIndex=runs.length?conversationOwnerIndex():{rows:new Map<string,any>(),state:'pending'};
+  const following=runs.some(run=>run.gatewayObservation?.epoch===GATEWAY_OBSERVER_EPOCH&&run.gatewayObservation.state==="following"&&Date.now()<run.gatewayObservation.deadlineAt);
+  const ownerIndex=runs.length?conversationOwnerIndex({refresh:!following}):{rows:new Map<string,any>(),state:'pending'};
   const metadata=ownerIndex.rows;
   for(const run of runs){const rows=grouped.get(run.sessionId)||[];rows.push(run);grouped.set(run.sessionId,rows);}
   const items=[...grouped.entries()].filter(([,rows])=>!query||rows.some(r=>(r.userText||r.text||"").toLocaleLowerCase().includes(query.toLocaleLowerCase())||(r.result||"").toLocaleLowerCase().includes(query.toLocaleLowerCase())))
