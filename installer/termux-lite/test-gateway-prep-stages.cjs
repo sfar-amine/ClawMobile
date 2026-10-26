@@ -9,8 +9,9 @@ const root = process.argv[2];
 assert(root, 'fixture root required');
 function region(file, name) {
   const text = fs.readFileSync(path.join(root, 'dist', file), 'utf8');
-  const start = text.indexOf(`function ${name}(`);
+  let start = text.indexOf(`function ${name}(`);
   assert(start >= 0);
+  if (text.slice(start - 6, start) === 'async ') start -= 6;
   const end = text.indexOf('\n//#endregion', start);
   assert(end > start);
   return text.slice(start, end);
