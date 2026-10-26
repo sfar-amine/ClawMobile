@@ -237,8 +237,15 @@ wait_calm(){ limit="$1"; max="$2"; waited=0; ok=0
     if calm "$max"; then ok=$((ok+1)); [ "$ok" -ge 3 ] && return 0; else ok=0; fi
     sleep 10; waited=$((waited+10))
   done; return 1; }
-# Gateway-backed reads answer again (not 503) before they are judged.
-gateway_ready(){ for _ in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:8765/v1/control/health?contract=2 2>/dev/null); [ "$code" = 200 ] && return 0; sleep 4; done; return 1; }
+# Gateway-backed reads answer again (not 503) before they are judged. S24 26/10 11:33: /control/health answered
+# 200 while the Gateway was still starting (startup-sidecars-pending until 11:34:59); /agent/config, metadata,
+# WhatsApp and automations answered 503 and the deploy rolled back. Ready means a Gateway-backed read answers too.
+GATEWAY_READY_TRIES="${COMPANION_DEPLOY_GATEWAY_READY_TRIES:-45}"
+case "$GATEWAY_READY_TRIES" in ''|*[!0-9]*) GATEWAY_READY_TRIES=45;; esac
+gateway_ready(){ for _ in $(seq 1 "$GATEWAY_READY_TRIES"); do
+  control=$(curl -s -o /dev/null -w '%{http_code}' -m 10 'http://127.0.0.1:8765/v1/control/health?contract=2' 2>/dev/null)
+  agent=$(curl -s -o /dev/null -w '%{http_code}' -m 10 'http://127.0.0.1:8765/v1/agent/config' 2>/dev/null)
+  [ "$control" = 200 ] && [ "$agent" = 200 ] && return 0; sleep 4; done; return 1; }
 WAIT_CALM_S="${COMPANION_DEPLOY_WAIT_CALM_S:-0}"
 [ "$WAIT_CALM_S" -gt 0 ] && wait_calm "$WAIT_CALM_S" "$MAX_LOAD" >/dev/null 2>&1 || true
 
