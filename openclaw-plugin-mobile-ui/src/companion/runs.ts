@@ -93,12 +93,24 @@ export function publicReasonClass(value: unknown): string | undefined {
  * No Error/message, request, result, attachment path or arbitrary metadata may enter this projection.
  */
 function runDiagnostic(
-  level: "warn" | "error",
-  code: "memo_attachment_cleanup_unavailable" | "invalid_run_deletion_receipts_ignored" | "submitted_run_failed" | "gateway_observation_settlement_delayed",
+  level: "info" | "warn" | "error",
+  code: "memo_attachment_cleanup_unavailable" | "invalid_run_deletion_receipts_ignored" | "submitted_run_failed" | "gateway_observation_settlement_delayed" | "turn_measurement_recorded",
   run?: Pick<StoredRun, "runId" | "clientRunId" | "reasonClass">,
   count?: number,
   timings?: {commitMs:number;progressWaitMs:number;settlementWaitMs:number},
+  measurement?: TurnMeasurement,
 ) {
+  // A successful turn is another closed projection of this same sink, never a free log call.
+  // Revalidate at the output boundary; no user text, identifiers or arbitrary metadata enters [turn].
+  let turnLine: string | undefined;
+  if (code === "turn_measurement_recorded") {
+    if (level !== "info") return;
+    const verified = validateTurnMeasurement(measurement);
+    if (!verified) return;
+    // Model metadata is an identifier, not a place to echo an accidentally supplied credential.
+    if (verified.model && /^(?:sk-|gh[pousr]_|github_pat_|bearer|AIza)/i.test(verified.model)) delete verified.model;
+    turnLine = turnMeasurementLogLine(verified);
+  } else if (level === "info") return;
   const fields: Record<string, string | number> = {};
   for (const key of ["runId", "clientRunId"] as const) {
     const value = run?.[key];
@@ -115,7 +127,7 @@ function runDiagnostic(
   // Fixed component, level, bounded correlation fields and code. Never interpolate free strings.
   // A broken diagnostic sink cannot change the result of the existing registry mutation.
   const suffix = Object.entries(fields).map(([key, value]) => key + "=" + value).join(" ");
-  try { console.log("component=runs level=" + level + " event=" + code + (suffix ? " " + suffix : "")); } catch {}
+  try { console.log(turnLine ?? ("component=runs level=" + level + " event=" + code + (suffix ? " " + suffix : ""))); } catch {}
 }
 
 /** 38 A2 « Ce n'est pas ça » (D3) : trace bornée sur le run existant, sans texte ni montant. */
@@ -1243,7 +1255,7 @@ export async function recordTurnMeasurement(runId: string, sessionId: string, ra
     await writeCompanionRunRegistry(registry.runs.map(run => run.runId === runId ? updated : run), registry.archivedSessionIds, registry.paymentRequests, registry.ownerConfirmations, registry.runDeletions);
     if(!row.measurementOnly)submittedRuns.set(runId, updated);
     // Metadata is durable before projection to the existing bounded process log. Idempotent reports never log twice.
-    try {console.log(turnMeasurementLogLine(measurement));} catch {}
+    runDiagnostic("info", "turn_measurement_recorded", undefined, undefined, undefined, measurement);
     return {success: true, state: "recorded", measurement};
   });
 }

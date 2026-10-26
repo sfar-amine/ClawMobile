@@ -34,3 +34,5 @@ Le compte d’envoi est le AccountId natif de sessionCtx, transporté dans la m�
 ## Séparer réception terminale et persistance
 
 L’instrumentation terminale qualifiée de L0bis est intégrée à ce lot, pas déployée séparément. GatewayObservation existant porte requestSentAt/terminalReceivedAt/progressDrainedAt/settlementStartedAt en heure civile, progressWaitMs/settlementWaitMs en durées monotones. Six nombres fermés seulement, pas de texte ni de nouvelle route ; le sink borné existant signale une attente>1s au commit, sans seconde écriture. updatedAt du registre ne devient pas une mesure de premier rendu UI ni de temps modèle.
+
+La ligne[turn] est une projection fermée de runDiagnostic, propriétaire F3 déjà existant du sink processus. Le code turn_measurement_recorded est le seul événement info admis dans ce propriétaire, avec revalidation des seuls champs de mesure bornés ; aucune prose ou corrélation privée n’y est ajoutée. L’unique appel console reste à l’intérieur de runDiagnostic, contrôlé par le garde AST inchangé. Une panne du sink n’altère jamais le reçu déjà persisté ni n’induit un rejeu.
