@@ -294,6 +294,12 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
     }
   }
 
+  if(raw?.foundation?.read_required===true){
+    const content=JSON.stringify(raw.foundation);
+    reads.push({key:'context/FOUNDATION',sha256:crypto.createHash('sha256').update(content).digest('hex'),content});
+    const {content:_content,skills:_skills,sources:_sources,instruction:_instruction,...metadata}=raw.foundation;
+    raw.foundation=metadata;
+  }
   // Building a response does not attest its delivery or the client's integration.
   // A lost response is replayable from the same explicit base; no new cursor
   // store, thread identifier, or acknowledgement endpoint is needed.

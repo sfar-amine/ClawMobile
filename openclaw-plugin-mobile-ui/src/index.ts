@@ -1,3 +1,4 @@
+import {ownerFoundationHook} from "./ownerBootstrapContext";
 import {
   android_health,
   android_screenshot,
@@ -192,6 +193,7 @@ function register(api: any) {
   // only checks a live SDK callback; Companion remains the sole runs.json writer.
   api.registerGatewayMethod?.(TYPED_CONTROL_ADMISSION_METHOD,typedControlAdmissionHandler,
     {scope:"operator.write",profileAccess:"independent"});
+  api.on("before_prompt_build", ownerFoundationHook);
 
   // SDK 2026.9.6 emits this accepted-turn observation without awaiting it.
   // Private QA owners admit an existing DRAFT before any staged bytes are read.

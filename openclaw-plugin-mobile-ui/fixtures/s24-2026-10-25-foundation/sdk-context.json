@@ -1,0 +1,105 @@
+{
+  "provenance": "S24 read-only SDK/program and bootstrap metadata observed2026-10-25T12:03:18Z; no owner conversation or credentials",
+  "openclaw": "2026.9.6",
+  "main": {
+    "bootstrapMaxChars": 8000,
+    "bootstrapTotalMaxChars": 14000,
+    "contextInjection": "continuation-skip"
+  },
+  "skills": [
+    {
+      "name": "clawmobile-capabilities",
+      "sha256": "7c935d3e1f3a12adcb8080195b56b5846a9082047a4167fd006257d4dbd1b337"
+    },
+    {
+      "name": "clawmobile-policy",
+      "sha256": "36cde1c620f765d89fff960f2b84da5e108bcb2a922faced6d139acb56705413"
+    },
+    {
+      "name": "clawmobile-trace-induction",
+      "sha256": "39ca028b9bf2e1e25751229807d5e3330fe467e997062338c06d41c7af2a7f29"
+    },
+    {
+      "name": "orange-telecom",
+      "sha256": "478e069fad04d21dcca57c06157c9e5ff3e73ee8599791601641ba3c3fa77133"
+    },
+    {
+      "name": "samantha-agenda",
+      "sha256": "d3f2b362cea0700b8f879cf77bc121ac8aab8042bb5613054801753503cd5421"
+    },
+    {
+      "name": "samantha-factures",
+      "sha256": "f0ea7084ce24c1dd4144092263f221023fbc5b768ac4b16ab8395974f267c9d9"
+    },
+    {
+      "name": "samantha-tests-applicatifs",
+      "sha256": "13491e89951c0cc53db4a674602cc328ff4cbef5806309cacb7859128734b69c"
+    }
+  ],
+  "hooks": {
+    "sha256": "d066e0a30921eb05d79f7ef6b7f425b7e1628b912634b660b13ac324e6bb7c1d",
+    "matches": [
+      {
+        "line": 147,
+        "text": "type PluginHookBeforePromptBuildResult = {"
+      },
+      {
+        "line": 160,
+        "text": "  prependSystemContext?: string;"
+      },
+      {
+        "line": 165,
+        "text": "  appendSystemContext?: string;"
+      },
+      {
+        "line": 1500,
+        "text": "  before_prompt_build: (event: PluginHookBeforePromptBuildEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforePromptBuildResult | void> | PluginHookBeforePromptBuildResult | void;"
+      },
+      {
+        "line": 1501,
+        "text": "  before_agent_reply: (event: PluginHookBeforeAgentReplyEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforeAgentReplyResult | void> | PluginHookBeforeAgentReplyResult | void;"
+      },
+      {
+        "line": 1506,
+        "text": "  before_agent_finalize: (event: PluginHookBeforeAgentFinalizeEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforeAgentFinalizeResult | void> | PluginHookBeforeAgentFinalizeResult | void;"
+      },
+      {
+        "line": 1520,
+        "text": "  after_tool_call: (event: PluginHookAfterToolCallEvent, ctx: PluginHookToolContext) => Promise<void> | void;"
+      },
+      {
+        "line": 1521,
+        "text": "  tool_result_persist: (event: PluginHookToolResultPersistEvent, ctx: PluginHookToolResultPersistContext) => PluginHookToolResultPersistResult | void;"
+      },
+      {
+        "line": 1763,
+        "text": "  runBeforePromptBuild: (event: PluginHookBeforePromptBuildEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforePromptBuildResult | undefined>;"
+      },
+      {
+        "line": 1768,
+        "text": "  }) => Promise<PluginHookBeforePromptBuildResult | undefined>;"
+      }
+    ]
+  },
+  "cache": {
+    "sha256": "e8e47f961b451a3a7ad879ab625d91f3ba6ab3855b17c30bb74fc3e391452fb8",
+    "matches": [
+      {
+        "line": 9,
+        "text": "const MAX_BOOTSTRAP_SNAPSHOTS = 64;"
+      },
+      {
+        "line": 19,
+        "text": "async function getOrLoadBootstrapFiles(params) {"
+      },
+      {
+        "line": 20,
+        "text": "\tpruneMapToMaxSize(cache, MAX_BOOTSTRAP_SNAPSHOTS);"
+      },
+      {
+        "line": 32,
+        "text": "\tpruneMapToMaxSize(cache, MAX_BOOTSTRAP_SNAPSHOTS);"
+      }
+    ]
+  }
+}

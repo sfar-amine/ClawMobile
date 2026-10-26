@@ -124,6 +124,17 @@ class RuntimeSync(unittest.TestCase):
                         RUNTIME_SYNC_COMPANION_URL=f"http://127.0.0.1:{self.server.server_address[1]}",
                         RUNTIME_SYNC_GATEWAY_HEALTHZ_URL=f"http://127.0.0.1:{self.server.server_address[1]}/healthz")
         self.env.pop("OPENCLAW_STATE_DIR", None)
+        # Invocation-boundary double: the separate Node test exercises the real metadata projection/closed RPC.
+        node = self.tmp / 'bin/node'
+        node.write_text('#!/usr/bin/env python3\nimport json,os,pathlib,sys\n'
+            'assert len(sys.argv)==3 and sys.argv[2]=="--prepare-main-tools"\n'
+            'h=pathlib.Path.home()\n'
+            'with (h/"preparation.log").open("a") as f:f.write("tools.catalog:main\\n")\n'
+            'if os.environ.get("STUB_PREP_ORDER"): \n with (h/"tier0.log").open("a") as f:f.write("tools-prepare\\n")\n'
+            'failed=os.environ.get("STUB_PREP_FAIL")=="1"\n'
+            'print(json.dumps({"state":"unverified" if failed else "ready","agentId":"main","elapsed_ms":1200,"budget_ms":20000,"groups":2,"tools":96}))\n'
+            'sys.exit(75 if failed else 0)\n')
+        node.chmod(0o700)
 
     def sync(self, commit=None, check=False, inherited=None, **env):
         args = ["--check"] if check else []
@@ -134,6 +145,26 @@ class RuntimeSync(unittest.TestCase):
     def tier0_log(self):
         path = self.home / "tier0.log"
         return path.read_text().splitlines() if path.exists() else []
+
+    def test_metadata_preparation_is_once_after_restart_and_readiness_before_promotion(self):
+        Companion.healthz_logged=True
+        rc,out,err=self.sync(STUB_PREP_ORDER='1')
+        self.assertEqual(rc,0,err)
+        timeline=self.tier0_log()
+        self.assertLess(timeline.index('gateway-ready'),timeline.index('tools-prepare'))
+        self.assertLess(timeline.index('tools-prepare'),timeline.index('--apply'))
+        log=self.home/'preparation.log';self.assertEqual(log.read_text().splitlines(),['tools.catalog:main'])
+        self.assertEqual(self.sync(check=True)[0],0)
+        self.assertEqual(self.sync()[0],0) # Unchanged warm Gateway is not prepared again.
+        self.assertEqual(log.read_text().splitlines(),['tools.catalog:main'])
+        self.assertNotIn('PRIVATE_SENTINEL',err)
+
+    def test_failed_metadata_preparation_does_not_retry_or_restart_an_already_ready_gateway(self):
+        rc,out,err=self.sync(STUB_PREP_FAIL='1')
+        self.assertEqual(rc,0,err);self.assertEqual(out['gateway'],'restarted')
+        self.assertEqual((self.home/'preparation.log').read_text().splitlines(),['tools.catalog:main'])
+        self.assertIn('tools_catalog_unavailable',err)
+        self.assertEqual(sum(row=='gateway-restart' for row in self.tier0_log()),1)
 
     def test_context_coverage_mismatch_is_runtime_drift(self):
         self.assertEqual(self.sync()[0],0)
@@ -171,6 +202,7 @@ class RuntimeSync(unittest.TestCase):
         # Invocation-boundary double only; the separate Node test runs actual
         # Gateway stop/start over a TCP fixture with this same real flock proof.
         node.write_text('#!/usr/bin/env python3\nimport json,os,subprocess,sys\n'
+            'if len(sys.argv)==3 and sys.argv[2]=="--prepare-main-tools":print(json.dumps({"state":"ready","groups":2,"tools":96}));sys.exit(0)\n'
             'assert len(sys.argv)==4 and sys.argv[2]=="--deploy-restart"\n'
             'fd=int(os.environ["SAMANTHA_DEPLOY_LOCK_FD"])\n'
             'p=subprocess.run([sys.executable,sys.argv[3],"--repair-lease","--require-existing-exclusive"],'

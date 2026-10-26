@@ -1,0 +1,53 @@
+{
+  "qualification": "Existing SDK metadata only; no new run, preload, provider call or S24 mutation",
+  "sdk_version": "2026.9.6",
+  "observations": [
+    {
+      "run": "run_1792934450703_597aff20",
+      "pid": 22381,
+      "prep_total_ms": 13870,
+      "core_stage_ms": 8510,
+      "core_detail_total_ms": 8509,
+      "plugin_tools_ms": 8298,
+      "other_tool_stages_ms": 211,
+      "bootstrap_ms": 1064,
+      "system_prompt_ms": 3133,
+      "creative_pdf_web_factory_ms": 12,
+      "brain_tool_calls": 0
+    },
+    {
+      "run": "run_1792935319413_895d9c81",
+      "pid": 12558,
+      "prep_total_ms": 12232,
+      "core_stage_ms": 6855,
+      "core_detail_total_ms": 6855,
+      "plugin_tools_ms": 6742,
+      "other_tool_stages_ms": 113,
+      "bootstrap_ms": 124,
+      "system_prompt_ms": 4323,
+      "creative_pdf_web_factory_ms": 8,
+      "brain_tool_calls": 0
+    }
+  ],
+  "warm_same_process_comparison_captured": false,
+  "single_plugin_blame_proven": false,
+  "official_metadata_preload": {
+    "method": "tools.catalog",
+    "params": {
+      "agentId": "main",
+      "includePlugins": true
+    },
+    "scope": "operator.read",
+    "executed": false,
+    "handler_calls": [
+      "ensureStandalonePluginToolRegistryLoaded",
+      "resolvePluginTools"
+    ],
+    "handler_agent_or_tool_execution": false
+  },
+  "cache_owners": {
+    "bootstrap_snapshots_max": 64,
+    "plugin_registry_cache_max": 128,
+    "parallel_cache_added": false
+  }
+}

@@ -6,7 +6,7 @@ import {transcribeMemoAttachment} from "./memoSttOwner";
 import { getGatewayStatus } from "./openclawGatewayClient";
 import { describeOpenClawResult, expectedCompanionSessionKey, normalizeCompanionSessionId, submitToOpenClawAgent } from "./openclawAgentClient";
 import { intentCanvas } from "./canvas";
-import { appendReplayContext, appendVoiceConversationContext, findClarificationProjectionRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, projectClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch, deferMemoTranscription, publicReasonClass } from "./runs";
+import { appendReplayContext, appendVoiceConversationContext, findClarificationProjectionRun, prepareReplay, type PreparedReplay, findSubmittedRunByClientRunId, projectClarificationRun, markSubmittedRunFailed, rememberSubmittedRun, reserveSubmittedRun, settleSubmittedRun, claimMemoTranscript, claimMemoDispatch, deferMemoTranscription, publicReasonClass, observeGatewayRun } from "./runs";
 import { buildAutoSkillContextForIntent } from "./skills";
 import type { OpenClawAgentSubmitResult } from "./openclawAgentClient";
 import type { CompanionRunStatus, IntentAttachment, IntentSubmitResponse } from "./types";
@@ -417,21 +417,27 @@ async function submitIntentInBackground(
   voiceDelegation?: true,
   responseLanguage?: ResponseLanguage,
 ) {
+  let observer: Awaited<ReturnType<typeof observeGatewayRun>> | undefined;
   try {
     if (admission !== undefined && !currentMemoOwner(admission, clientRunId, sessionId)) {
       await markSubmittedRunFailed(runId, "Validation du propriétaire expirée."); return;
     }
-    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId, voiceDelegation, responseLanguage});
+    if(admission)observer=await observeGatewayRun(runId,expectedCompanionSessionKey(sessionId,voiceDelegation?"main":undefined));
+    const openclaw = await submitToOpenClawAgent(text, runId, sessionId, {authority, admission, clientRunId, voiceDelegation, responseLanguage, observer});
     if (admission) console.log(`[companion] P1 turn ${runId}: transport=${openclaw.ownerTransport}`);
+    if(observer)return; // The terminal RPC and events already updated this exact run.
     await rememberSubmittedRun(text, {
       ...openclaw,
       runId,
       sessionId,
     }, { userText, attachments, ownerAdmitted: admission !== undefined });
   } catch (error: any) {
+    if(error?.message==="gateway_observation_already_following")return; // Existing admitted work wins over duplicate background entry.
+    if(observer && error?.requestSent===true)return; // Observation lost: reconcile status, never claim failure or replay.
     await markSubmittedRunFailed(
       runId,
-      `OpenClaw gateway accepted the connection but did not run the intent: ${error?.message || error}`,
+      error?.message==="gateway_observation_capacity" ? "Samantha traite déjà plusieurs demandes. Cette demande n’a pas été envoyée." :
+        `OpenClaw gateway accepted the connection but did not run the intent: ${error?.message || error}`,
     );
   }
 }
