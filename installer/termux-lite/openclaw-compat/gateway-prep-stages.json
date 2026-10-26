@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "package_version": "2026.9.6",
+  "purpose": "Transient numeric stage splits in the existing recordToolPrepStage tracker; no new logger, profiler, cache, model call, routing or authority. Independent of native-turn-provenance and foundation/BRAIN_ONLY activation. Explicit owner only; never enabled by startup or deployment hooks.",
+  "files": [
+    {
+      "root": "openclaw",
+      "path": "dist/openclaw-tools-thu-J91q.mjs",
+      "original": "313924b5de456a7eb532e4e1921af14092f15b63aa7cfa63b4bbf9f03ef8eb5a",
+      "patched": "fa5ed7e15d5eb62dcc080b1f8acd78f14ad456d3142b62d4b7bb48e5aaf968da",
+      "replacements": [
+        [
+          "\tconst authProfileStore = params.options?.authProfileStore;",
+          "\tparams.options?.recordToolPrepStage?.(\"plugin-tools:input-context\");\n\tconst authProfileStore = params.options?.authProfileStore;"
+        ],
+        [
+          "\tconst availabilityRuntimeLookup = authProfileStore ? createRuntimeProviderAuthLookup({",
+          "\tparams.options?.recordToolPrepStage?.(\"plugin-tools:delivery-context\");\n\tconst availabilityRuntimeLookup = authProfileStore ? createRuntimeProviderAuthLookup({"
+        ],
+        [
+          "\tconst hasAuthForProvider = authProfileStore ? (providerId) => hasProviderAuthForTool({",
+          "\tparams.options?.recordToolPrepStage?.(\"plugin-tools:auth-lookup\");\n\tconst hasAuthForProvider = authProfileStore ? (providerId) => hasProviderAuthForTool({"
+        ],
+        [
+          "\tconst pluginTools = resolvePluginTools({\n\t\t...pluginToolInputs,",
+          "\tparams.options?.recordToolPrepStage?.(\"plugin-tools:prepared-context\");\n\tconst pluginTools = resolvePluginTools({\n\t\trecordToolPrepStage: params.options?.recordToolPrepStage,\n\t\t...pluginToolInputs,"
+        ],
+        [
+          "\tfor (const tool of pluginTools) existingToolNames.add(tool.name);",
+          "\tparams.options?.recordToolPrepStage?.(\"plugin-tools:resolved\");\n\tfor (const tool of pluginTools) existingToolNames.add(tool.name);"
+        ]
+      ]
+    },
+    {
+      "root": "openclaw",
+      "path": "dist/tools-CvXdkvXK.mjs",
+      "original": "a31975686eddc6a779865ff896b145b3b41bd7c659ac21761448da6861b0d926",
+      "patched": "c1793daf1edf51efd09fc7c0114ae19d85c8809c70132b8c76e74854d4b29b2d",
+      "replacements": [
+        [
+          "function resolvePluginTools(params) {\n\tconst loadState = resolvePluginToolLoadState(params);",
+          "function resolvePluginTools(params) {\n\tconst loadState = resolvePluginToolLoadState(params);\n\tparams.recordToolPrepStage?.(\"plugin-tools:load-state\");"
+        ],
+        [
+          "\tconst findRuntimeOwner = runtimeRegistry ? createRuntimePluginManifestLookup(runtimeRegistry, snapshot.plugins) : void 0;",
+          "\tconst findRuntimeOwner = runtimeRegistry ? createRuntimePluginManifestLookup(runtimeRegistry, snapshot.plugins) : void 0;\n\tparams.recordToolPrepStage?.(\"plugin-tools:registry-context\");"
+        ],
+        [
+          "\tif (missingPluginIds.length > 0) {\n\t\tconst registry = loadPluginRegistryHandle({",
+          "\tparams.recordToolPrepStage?.(\"plugin-tools:runtime-owners\");\n\tif (missingPluginIds.length > 0) {\n\t\tconst registry = loadPluginRegistryHandle({"
+        ],
+        [
+          "\tfor (const registry of new Set(Array.from(toolOwners.values(), (owner) => owner.registry))) for (const entry of registry.tools) {",
+          "\tparams.recordToolPrepStage?.(missingPluginIds.length > 0 ? \"plugin-tools:registry-loaded\" : \"plugin-tools:registry-reused\");\n\tfor (const registry of new Set(Array.from(toolOwners.values(), (owner) => owner.registry))) for (const entry of registry.tools) {"
+        ],
+        [
+          "\tconst factories = createPluginToolFactoryResolver((message) => context.logger.error(message));",
+          "\tparams.recordToolPrepStage?.(\"plugin-tools:registrations\");\n\tconst factories = createPluginToolFactoryResolver((message) => context.logger.error(message));"
+        ],
+        [
+          "\tfactories.report();\n\treturn tools;",
+          "\tfactories.report();\n\tparams.recordToolPrepStage?.(\"plugin-tools:factories\");\n\treturn tools;"
+        ]
+      ]
+    }
+  ]
+}
