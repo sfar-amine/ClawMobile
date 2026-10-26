@@ -9,7 +9,7 @@
   "canonical_ci": "pending_full_ci",
   "live_recipe": "not_run",
   "summary": "La voix relay authentifiée délègue les messages entiers au même main sous brainOnly, avant toute interprétation.",
-  "reason": "Le canal cloud/WS existant restait atteignable via Dialogue/Graph avant le cerveau. Réutilisation Gateway, session et idempotence, sans fabriquer ticket P1 ni admission depuis bearer.",
+  "reason": "Le canal cloud/WS existant restait atteignable via Dialogue/Graph avant le cerveau. Réutilisation Gateway, session et idempotence, sans fabriquer ticket P1 ni admission depuis bearer. Existing capsule continuation requires output needs_clarification: reuse only its post-brain question projection, never route input. Capsule now preserves unknown/scope receipts under HTTP502 instead of generic unavailability.",
   "files": [
     ".github/workflows/ci.yml",
     "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
@@ -18,7 +18,9 @@
     "openclaw-plugin-mobile-ui/src/companion/voiceRelay.ts",
     "openclaw-plugin-mobile-ui/scripts/test-voice-relay-brain-only.cjs",
     "cloud/voice-relay/src/index.mjs",
-    "cloud/voice-relay/test-voice-brain-budget.mjs"
+    "cloud/voice-relay/test-voice-brain-budget.mjs",
+    "integrations/bixby-claw/code/AskClaw.js",
+    "integrations/bixby-claw/code/ContinueClaw.js"
   ],
   "tests": [
     {

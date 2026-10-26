@@ -482,7 +482,11 @@ async function runAgentTurn(
     const terminal = typeof raw?.runId === "string" && raw.runId
       ? gatewayTerminalResult(raw, raw.runId) : null;
     if (!terminal || terminal.state !== "done") throw new Error("voice_brain_empty_receipt");
-    return {state: "done" as const, text: terminal.text};
+    // Output projection only: the main brain already chose and spoke the question.
+    // Reuse the capsule's existing clarification protocol; never classify the input here.
+    const explicit = explicitClarificationQuestion(raw);
+    return explicit ? {state: "needs_clarification" as const, question: explicit}
+      : classifyAgentTurn({text: terminal.text});
   }
   return classifyAgentTurn(raw);
 }

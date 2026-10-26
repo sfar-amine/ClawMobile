@@ -42,6 +42,14 @@ client.callOpenClawGateway = async (method, params, options) => {calls.push({met
     assert.equal(result.state, 'done'); assert.equal(calls.at(-1).params.message, reply);
     assert.equal(calls.at(-1).params.sessionKey, call.params.sessionKey);
   }
+  answer = async () => terminal('Quelle offre veux-tu consulter ?');
+  const question = await relay.voiceRelayTurnForTest('main-question',text);
+  assert.equal(question.state,'needs_clarification'); assert.equal(question.question,'Quelle offre veux-tu consulter ?');
+  const questionSession=calls.at(-1).params.sessionKey;
+  answer = async () => terminal('Voici les données vérifiées.');
+  const continued = await relay.voiceRelayTurnForTest('main-answer','',question.conversationId,'20447');
+  assert.equal(continued.state,'done'); assert.equal(calls.at(-1).params.sessionKey,questionSession);
+  assert.equal(calls.at(-1).params.message,'20447');
   // Existing native tool authority is not reconstructed from the authenticated relay bearer/prompt.
   const {createTypedCapabilityTools} = require('../dist/typedCapabilityTools');
   const {agentCapabilityHook} = require('../dist/capabilityAgentGuard');
@@ -80,5 +88,23 @@ client.callOpenClawGateway = async (method, params, options) => {calls.push({met
   const expired = await relay.voiceRelayTurnForTest('abandoned', '', first.conversationId, 'Oui');
   assert.equal(expired.error, 'conversation_expired'); assert.equal(calls.length,before);
   assert.equal(sideCalls, 0, 'no Dialogue/Graph/interpreter/realignment calls');
+  // Execute the existing capsule handlers locally: HTTP502 keeps uncertainty truthful,
+  // and a question from main enters its existing continuation instead of losing context.
+  const vm=require('node:vm');
+  for(const file of ['AskClaw.js','ContinueClaw.js']) {
+    let payload={status:502,parsed:{success:false,state:'unknown',retrySafe:false}};
+    const module={exports:null};
+    const source=fs.readFileSync(path.join(__dirname,'../../integrations/bixby-claw/code',file),'utf8')
+      .replace(/^import .*$/mg,'').replace('export default function','module.exports = function');
+    vm.runInNewContext(source,{module,http:{postUrl:()=>payload},config:{get:()=> 'https://relay.example'},
+      secret:{get:()=> 'local-test-token-more-than-24chars'},fail:{checkedError:(_msg,kind,data)=>Object.assign(Error(kind),{kind,data})},console:{error(){}}});
+    const args=file==='AskClaw.js'?{request:text}:{conversationId:'brain-test',answer:'20447'};
+    assert.equal(module.exports(args),'Le résultat de la demande reste à vérifier. Je ne la relance pas.');
+    payload={status:502,parsed:{success:false,error:'missing_scope'}};
+    assert.equal(module.exports(args),"L'accès autorisé à cette entrée vocale ne permet pas cette demande.");
+    payload={status:200,parsed:{success:true,state:'needs_clarification',question:'Quelle offre ?',conversationId:'brain-test'}};
+    assert.throws(()=>module.exports(args),e=>e.kind==='NeedsClarification'&&
+      (file==='AskClaw.js'?e.data.conversationId==='brain-test':e.data.nextQuestion==='Quelle offre ?'));
+  }
   console.log('voice-relay-brain-only: PASS (full message/main, continuity/idempotency, scoped denial, uncertain/late/abandoned, no pre-brain sidecalls; local SDK contract, not live P1)');
 })().catch(e => {console.error(e);process.exitCode=1;});

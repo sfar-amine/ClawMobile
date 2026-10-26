@@ -37,6 +37,12 @@ function finish(parsed) {
   }
 
   if (parsed && parsed.success === false) {
+    if (parsed.state === 'unknown') {
+      return "Le résultat de la demande reste à vérifier. Je ne la relance pas."
+    }
+    if (parsed.error === 'missing_scope' || parsed.error === 'voice_owner_admission_required' || parsed.error === 'owner_admission_required') {
+      return "L'accès autorisé à cette entrée vocale ne permet pas cette demande."
+    }
     if (parsed.error === 'conversation_expired') {
       return "La conversation a expiré. Relance ta demande à Claw."
     }
@@ -99,7 +105,7 @@ export default function ({ request }) {
     if (parsed && parsed.error === 'conversation_expired') {
       return "La conversation a expiré. Relance ta demande à Claw."
     }
-    return "Claw est momentanément indisponible."
+    return parsed.success === false ? finish(parsed) : "Claw est momentanément indisponible."
   }
 
   return finish(parsed)
