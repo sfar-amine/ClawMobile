@@ -7,6 +7,7 @@
 // refusal is never a technical failure and never reaches Luna (decision 3173).
 
 import {brainOnlyEnabled} from "./brainOnly";
+import {requireNativePulseInterpretation} from './capabilityAgentGuard';
 export const INTERPRETER_PRIMARY = "google/gemini-3.5-flash-lite@google:claw-gemini-free";
 export const INTERPRETER_FALLBACK = "openai/gpt-5.6-luna";
 export const INTERPRETER_MODELS = Object.freeze([INTERPRETER_PRIMARY, INTERPRETER_FALLBACK]);
@@ -14,6 +15,7 @@ export const INTERPRET_METHOD = "samantha.intent.interpret";
 // Same credential owner, separate closed engineering contract. Selection and
 // Sol -> Luna fallback belong to the existing Python governor, never this port.
 export const IMMUNE_PURPOSE = "samantha.engineering.immune";
+export const NATIVE_PULSE_PURPOSE = "samantha.native-pulse.interpret";
 export const IMMUNE_MODELS = Object.freeze(["openai/gpt-5.6-sol", INTERPRETER_FALLBACK]);
 
 // Codes thrown by OpenClaw's api.runtime.llm.complete (2026.9.6).
@@ -172,12 +174,19 @@ export async function interpret(complete: LlmComplete, req: InterpretRequest,
 /** Gateway method body: validated request in, structured decision or stable code out. */
 export function createInterpretHandler(getComplete: () => LlmComplete | undefined) {
   return async ({ params, respond, signal }: any) => {
-    // The shared engineering completion owner survives the C1 interpreter's
-    // retirement. No owner request may invoke its old semantic purpose.
-    if (brainOnlyEnabled() && params?.purpose !== IMMUNE_PURPOSE)
-      return respond(false, undefined, {code: "INVALID_REQUEST", message: "dedicated intent interpreter retired"});
     const req = validateRequest(params);
     if (!req) return respond(false, undefined, { code: "INVALID_REQUEST", message: "invalid interpretation request" });
+    // The shared engineering completion owner survives the C1 interpreter's
+    // retirement. No owner request may invoke its old semantic purpose.
+    if(params?.purpose===NATIVE_PULSE_PURPOSE){
+      // Native professional DATA01 currently admits this one included profile.
+      // The existing governor owns any future extension; a purpose cannot mint a model fallback.
+      if(params?.model!==INTERPRETER_PRIMARY)return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse model not admitted'});
+      try{await requireNativePulseInterpretation(params);}
+      catch{return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse admission required'});}
+    }
+    if (brainOnlyEnabled() && params?.purpose !== IMMUNE_PURPOSE && params?.purpose !== NATIVE_PULSE_PURPOSE)
+      return respond(false, undefined, {code: "INVALID_REQUEST", message: "dedicated intent interpreter retired"});
     const complete = getComplete();
     if (!complete) return respond(false, undefined, { code: "UNAVAILABLE", message: "llm runtime unavailable" });
     const result = await interpret(complete, req, { signal });

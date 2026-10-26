@@ -51,6 +51,11 @@
       "name": "SDK control tamper and revocation exact-source checks",
       "status": "passed",
       "evidence": "Final guard source isolated transpilation plus generation-interrupt suite PASS: body change, Contacts mutation, no authority, revocation at three points and uncertain receipt without replay. Final whole-project typecheck pending central slot."
+    },
+    {
+      "name": "Scoped Native Pulse port and owner isolation after retirement",
+      "status": "passed",
+      "evidence": "l3-resume-pulse-build.log project TypeScript PASS; brain-only-entry, native-pulse-handoff34/34 and intent-interpreter-port PASS. Current sealed contact admitted; forged JSON/correlat/model/text/ref/catalogue, revocation and released lease cause zero provider calls. Authored public identities use independently derived canonical Python refs. No S24/model call; final merged-head canonical CI remains pending."
     }
   ],
   "documentation": [
