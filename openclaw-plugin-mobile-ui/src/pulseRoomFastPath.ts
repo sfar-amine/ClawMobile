@@ -19,7 +19,10 @@ import { runModelFastPath, type FastPathResult, type RunnerOptions } from "./mod
 export const PULSE_ROOM_AGENTS = new Set(["contacts-pulse", "contacts-projet-pulse"]);
 const MAX_MESSAGE_CHARS = 4000;
 export const PULSE_ROOM_REFUSAL = "Ici je ne traite que Pulse : projets, offres, congés de l'équipe et solde de congés. Pour le reste, vois directement avec Amine.";
-const LEAVE_REQUEST_REFUSAL = "Une demande de congé se fait uniquement par Amine.";
+// Amine 26/10: a constraint, not a refusal. The room acts with Amine's Pulse account, so a leave
+// request posted here would be recorded as Amine's leave.
+export const LEAVE_REQUEST_REFUSAL = "Les demandes de congé ne sont pas prises en compte ici : cette pièce utilise le compte Pulse d’Amine, donc un congé posé ici serait enregistré au nom d’Amine. Pose ta demande de congé directement dans Pulse, avec ton propre compte.";
+export const PULSE_ROOM_NOT_UNDERSTOOD = "Je n’ai pas compris cette demande Pulse. Précise ce que tu veux créer, modifier ou consulter (projet, offre, phase), ou essaie de la reformuler.";
 export const PULSE_ROOM_HELP = "Je n'ai pas compris la demande Pulse et je ne réponds qu'avec les données de Pulse. Donne le numéro ou le nom du projet ou de l'offre, et ce que tu veux : état, équipe, consommation, forecast, congés de l'équipe.";
 const PULSE_UNAVAILABLE = "Pulse est indisponible pour le moment. Réessaie dans un instant.";
 const TEXT_ONLY = "Ici je ne lis que les messages écrits. Écris ta demande Pulse (projet, offre, congés de l'équipe).";
@@ -185,7 +188,7 @@ function roomReply(reply: DialogueReply, nativePulse: boolean): RoomOut {
   if (!reply.handled) return nativePulse?{handled:true,reply:{text:nativeFailureText(reply.reasonCode)}}:{ handled: false };
   const text = String(reply.text || "").trim();
   switch (reply.outcome) {
-    case "OUTSIDE_SCOPE": return nativePulse?{handled:true,reply:{text:"Cette demande ne définit pas une commande Pulse admise. Précise le projet, la phase et l’état souhaité."}}:refusal("outside");
+    case "OUTSIDE_SCOPE": return nativePulse?{handled:true,reply:{text:PULSE_ROOM_NOT_UNDERSTOOD}}:refusal("outside");
     case "DENIED":
       if(nativePulse&&hasFailurePhrase(reply.reasonCode))return {handled:true,reply:{text:nativeFailureText(reply.reasonCode)}};
       return refusal(reply.reasonCode === "scope_leave_request" ? "leave_request" : "outside");
