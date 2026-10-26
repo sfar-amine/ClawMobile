@@ -29,11 +29,12 @@ export function createNativeTurnProgressOwner(deps:Deps={}){
   /** Closed native metadata operations on the existing loopback measurement route, never business commands. */
   async observe(id:string,body:any){
    if(!enabled())throw Object.assign(Error('native_turn_observation_disabled'),{statusCode:409});
-   if(!body||typeof body!=='object'||Array.isArray(body)||!peer(body.sessionKey||''))throw Object.assign(Error('native_turn_owner_required'),{statusCode:403});
+   if(!body||typeof body!=='object'||Array.isArray(body)||typeof body.sessionKey!=='string'||!peer(body.sessionKey))throw Object.assign(Error('native_turn_owner_required'),{statusCode:403});
    const allowed:Record<string,string[]>={native_ingress:['operation','sessionKey','accountId','observedMonoMs'],
     native_stage:['operation','sessionKey','kind','durationMs','model','outcome'],native_end:['operation','sessionKey','model','success'],
     native_delivery:['operation','sessionKey'],native_active:['operation','sessionKey','excludeRunId']};
-   const keys=allowed[body.operation];if(!keys||Object.keys(body).some(k=>!keys.includes(k)))throw Object.assign(Error('invalid_turn_measurement'),{statusCode:400});
+   const keys=typeof body.operation==='string'&&Object.prototype.hasOwnProperty.call(allowed,body.operation)?allowed[body.operation]:undefined;if(!keys||Object.keys(body).some(k=>!keys.includes(k)))throw Object.assign(Error('invalid_turn_measurement'),{statusCode:400});
+   if(body.operation==='native_active'&&body.excludeRunId!==undefined&&(typeof body.excludeRunId!=='string'||!/^[-A-Za-z0-9_.:]{1,160}$/.test(body.excludeRunId)))throw Object.assign(Error('invalid_turn_measurement'),{statusCode:400});
    if(body.operation==='native_active')return {success:true,state:'observed',active:await activeObservedNativeWhatsAppRun(body.sessionKey,{excludeRunId:body.excludeRunId})};
    const row=await nativeTurnProgressState(id);if(row&&row.sessionKey!==body.sessionKey)throw Object.assign(Error('turn_measurement_identity_conflict'),{statusCode:409});
    if(body.operation==='native_ingress'){

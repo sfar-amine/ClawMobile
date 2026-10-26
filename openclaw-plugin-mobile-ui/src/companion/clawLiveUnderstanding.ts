@@ -9,6 +9,7 @@ import {publicDecision} from "./receiptPresentation";
 import {phoneDateTimeDecision} from "./phoneDateTime";
 import {VOICE_BRAIN_SOURCE, brainTerritory} from "./voiceBrainDelegation";
 import {voiceReflex, voiceReflexDecision} from "./voiceReflex";
+import {brainOnlyEnabled} from "../brainOnly";
 
 /**
  * Ephemeral « Compris / Ce n'est pas ça » state of the single Claw Live owner (one voice owner at
@@ -111,6 +112,13 @@ function realignmentReceipt(context: VoiceTurnContext, learning: RoundCaptureRes
 
 /** /claw-live/decision: a listed gesture in the window short-circuits to an evidence-required turn. */
 export async function clawLiveDecision(owner: Owner, request: string, resolve: () => Promise<Record<string, any>>, phoneDateTime?:unknown) {
+  if (brainOnlyEnabled()) {
+    const reflex = voiceReflex(request);
+    if (reflex) return {...voiceReflexDecision(reflex), voiceFastPath: {version: 1, execute: false}};
+    return {success: true, source: VOICE_BRAIN_SOURCE,
+      harness: {version: 1, tool_policy: "required", evidence_required: true, allow_model_only: false},
+      voiceFastPath: {version: 1, execute: true, owner: VOICE_BRAIN_SOURCE}};
+  }
   if (owner.understanding.gestureTarget(request)) return realignmentDecision();
   owner.understanding.noteTurn(request);
   // « La première » after a realignment must reach the capability route, not a free model answer.
@@ -154,6 +162,7 @@ export async function clawLiveCapability(owner: Owner, body: any, execute: Execu
     const current = () => { deps.assertCurrent?.(); return run(); };
     return body?.voiceTurn ? owner.executeVoiceCapability(body.voiceTurn, request, current) : current();
   };
+  if (brainOnlyEnabled()) return admit(() => execute(request));
 
   const target = state.gestureTarget(request);
   if (target) {

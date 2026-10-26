@@ -41,7 +41,7 @@ export async function storedNativeOperationResult(runId:string){
 export async function nativeOperation(operationId:string,action:string,target:string,effect:()=>Promise<"completed"|"accepted"|{state:"completed"|"accepted"|"refused";artifact:Record<string,unknown>}>,admission?:RunReservationAdmission){
  const identity=JSON.stringify({action,target});
  const reserved=await reserveSubmittedRun(identity,"native-owner-actions","native-operation-"+operationId,
-  {requestText:identity,executionSource:"capability_first",decision:{version:2,type:"EXECUTE",capability:action},admission});
+  {requestText:identity,executionSource:"capability_first",internalOperation:true,decision:{version:2,type:"EXECUTE",capability:action},admission});
  const unknown={success:false,state:"indeterminate",receipt:null};
  if(!reserved.created)return await storedNativeOperationResult(reserved.status.runId).catch(()=>null)||unknown;
  let state:string;let artifact:Record<string,unknown>|undefined;

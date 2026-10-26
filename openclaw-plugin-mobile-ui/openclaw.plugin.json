@@ -49,7 +49,20 @@
       "tx_clipboard_get",
       "tx_clipboard_set",
       "tx_battery_status",
-      "android_shell"
+      "android_shell",
+      "samantha_agenda",
+      "samantha_laptop_s24_termux",
+      "samantha_maxit_tunisie",
+      "samantha_pulse",
+      "samantha_sonede",
+      "samantha_steg",
+      "samantha_topnet",
+      "samantha_tunisie_telecom",
+      "samantha_utility_billing",
+      "samantha_whatsapp",
+      "samantha_zain_bahrain",
+      "samantha_app",
+      "samantha_catalogue"
     ]
   },
   "configSchema": {

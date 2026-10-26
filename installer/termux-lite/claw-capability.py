@@ -207,8 +207,35 @@ def main() -> int:
     c = sub.add_parser("compile")
     c.add_argument("--output-dir", default=str(HOME / ".openclaw/capability-views"))
 
+    tt = sub.add_parser("typed-tool")
+    tt.add_argument("--host-input-stdin", action="store_true", required=True)
+    tt.add_argument("--timeout", type=int, default=30)
+    for mode in ("typed-resolve", "typed-execute"):
+        typed = sub.add_parser(mode)
+        typed.add_argument("text")
+        typed.add_argument("--selection-stdin", action="store_true", required=True)
+        typed.add_argument("--surface", default="external_mcp")
+        typed.add_argument("--caller", default="other")
+        typed.add_argument("--request-id", required=True)
+        typed.add_argument("--timeout", type=int, default=30)
+
     started=time.monotonic()
     args = parser.parse_args()
+    if args.cmd in {"typed-resolve", "typed-execute"}:
+        payload = sys.stdin.read(32769)
+        if len(payload.encode()) > 32768:
+            raise SystemExit("typed_private_input_too_large")
+        return call([args.cmd, args.text, "--selection-stdin", "--surface", args.surface, "--caller", args.caller,
+            "--request-id", args.request_id, "--timeout", str(max(2, min(args.timeout, 120)))],
+            timeout_s=max(2, min(args.timeout, 120)) + 5, input_text=payload)
+    if args.cmd == "typed-tool":
+        # Only the host tool guard writes this pipe. No command text, route,
+        # caller override or proof can be supplied as a model-facing argument.
+        payload = sys.stdin.read(65537)
+        if len(payload.encode()) > 65536:
+            raise SystemExit("typed_private_input_too_large")
+        return call(["typed-tool", "--host-input-stdin", "--timeout", str(max(2, min(args.timeout, 120)))],
+                    timeout_s=max(2, min(args.timeout, 120)) + 5, input_text=payload)
     context_args=[]
     context_timeout=None
     if args.cmd in {"execute","execute-decision","agent-execute"}:

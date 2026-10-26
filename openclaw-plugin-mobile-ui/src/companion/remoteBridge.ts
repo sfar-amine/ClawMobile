@@ -736,6 +736,7 @@ async function runCapabilityAtSurface(
     timeoutSeconds: 30,
     targetHint,
     decision,
+    ...(params.typedSelection ? {typedSelection: params.typedSelection as Record<string, unknown>, requestId} : {}),
     ...(params.dialogueReadHandoff!==undefined?{dialogueReadHandoff:params.dialogueReadHandoff as Record<string,unknown>}:{}),
     ...(isWeb ? {requestId:String(decision!.requestId),runId:requestId,sessionId:trustedSessionId,remainingBudgetMs:remaining,deadlineEpochMs:bounds.deadlineEpochMs} : {}),
   });

@@ -1,6 +1,7 @@
 import {TURN_BUDGET_MS} from "./turnBudget";
 import type {AdmissionTicket} from "./ownerTurnAdmission";
 import type {CompanionRunStatus, IntentSubmitResponse} from "./types";
+import {brainOnlyEnabled} from "../brainOnly";
 
 /**
  * Brain delegation of a model-only Samantha Voix turn the dialogue coordinator left unresolved (Amine 25/10/2026: « il
@@ -73,6 +74,10 @@ export type UnresolvedVoiceDeps = VoiceBrainDeps & {
 
 /** /claw-live/capability, coordinator `continue`: executable turns keep their executor, model-only turns go to the brain. */
 export async function routeUnresolvedVoiceTurn(request: string, ctx: VoiceBrainContext, deps: UnresolvedVoiceDeps) {
+  if (brainOnlyEnabled()) {
+    ctx.assertCurrent();
+    return withTiming(await delegateVoiceTurnToBrain(request, ctx, deps), {route: "brain", resolveMs: 0});
+  }
   const now = deps.now || (() => Date.now());
   const started = now();
   let resolution: unknown = null;

@@ -9,6 +9,8 @@ import os from "node:os";
 import path from "node:path";
 import { admittedAtMs, dialogueTurn, transportEventRef } from "./dialogueSurface";
 import { PUBLIC_WEB_BUDGET_MS } from "./companion/runWeb";
+import {brainOnlyEnabled} from "./brainOnly";
+import {holdNativePulseInterpretation} from './capabilityAgentGuard';
 
 export const INTENT_INPUT_PROTOCOL = "mcp-input.v1";
 export const INTENT_READ_PROTOCOL = "mcp-read.v1";
@@ -303,7 +305,9 @@ export async function runModelFastPath(
       if(options.nativePulse)argv.unshift("--native-pulse-mode",options.nativePulseMode||"turn");
       if (options.intentReadOnly) argv.unshift("--intent-read-only");
       const timeoutSeconds = Math.max(2, Math.min(options.timeoutSeconds || 30, 120));
-      const raw: any = await runCapabilityHelperProcess(
+      const nativeLease=options.nativePulse?await holdNativePulseInterpretation(options.nativePulse,options.dialogue!.event!,message):null;
+      let raw:any;
+      try{raw = await runCapabilityHelperProcess(
         [helper, ...argv],
         {
           timeoutMs: Math.min(fastPathProcessTimeoutMs(timeoutSeconds, !!options.checkOnly),remaining ?? Infinity,qaRemaining),
@@ -318,6 +322,7 @@ export async function runModelFastPath(
             SAMANTHA_QA_INPUT_FD:options.qaContext?'0':undefined,
             SAMANTHA_INTENT_INPUT_FD:options.intentContext?'0':undefined,
             SAMANTHA_NATIVE_PULSE_FD:options.nativePulse?'0':undefined,
+            SAMANTHA_NATIVE_PULSE_MODEL_INVOCATION:nativeLease?.invocationId,
             // Doc 71: one entry. Every dialogue turn (app, WhatsApp, voice, MCP) reaches
             // the same interpreter when the host enables it; helper executions do not.
             SAMANTHA_INTENT_INTERPRETER:options.nativePulse?"1":(options.intentContext||dialogue)?process.env.SAMANTHA_INTENT_INTERPRETER:undefined,
@@ -333,7 +338,7 @@ export async function runModelFastPath(
             } : {}),
           },
         },
-      );
+      );}finally{nativeLease?.release();}
       const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
       const parsed = JSON.parse(stdout || "{}");
       if(qaDeadline!==undefined&&performance.now()>=qaDeadline)return {status:"error",reason:"qa_ingress_deadline_exceeded"};
@@ -415,6 +420,7 @@ export async function handleOwnerBeforeDispatch(
   if (channel !== "whatsapp" || !match || event?.isGroup === true) return { handled: false };
   const number = match[1].startsWith("+") ? match[1] : "+" + match[1];
   if (!owners().has(number)) return { handled: false };
+  if (brainOnlyEnabled()) return {handled: false};
   const out = await handleOwnerFastPath(
     // content is the sender's text; body may carry the channel envelope.
     { content: event?.content || event?.body, senderIsOwner: true, isGroup: false, sessionKey, timestamp: event?.timestamp },
@@ -436,6 +442,7 @@ export async function handleOwnerFastPath(
   runner: (message: string, options?: RunnerOptions) => Promise<FastPathResult> = runModelFastPath,
 ): Promise<{ handled: boolean; reply?: { text: string } }> {
   if (!isOwnerFastPathEligible(event, ctx)) return { handled: false };
+  if (brainOnlyEnabled()) return {handled: false};
   const message = (event.bodyForAgent ?? event.content ?? "").trim();
   const graphSurface = surfaceFor(ctx);
   const reply = await dialogueTurn(runner, {

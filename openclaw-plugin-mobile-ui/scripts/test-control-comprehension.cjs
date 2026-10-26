@@ -44,6 +44,23 @@ function expected(rows,span){const w=rows.filter(r=>r.acceptedAt>=now-span),d=w.
     assert.equal(s.descriptions[0].fr,'Une transaction a été corrigée par « Ce n’est pas ça » cette semaine.');
     assert.deepEqual(projectComprehension(null,now),{status:'unknown',source:'runs',windows:null,reasons:['comprehension_source_unavailable']});
     assert.equal(projectComprehension({facts:[],retainedCap:500},now).status,'unknown');
+    // Authored provenance cases on the real S24-shaped projection; no text/name heuristic grants eligibility.
+    const legacy={acceptedAt:now-1000,decisionType:'EXECUTE',decisionQualified:true,learned:false,clarificationAnswer:false,agent:false};
+    const main={acceptedAt:now-1000,semanticOwner:'main',executionSource:'gateway',ownerAdmitted:true,
+      ownerTransport:'admin_admitted',gatewayObserved:true,state:'done',hasResult:true,decisionQualified:false,
+      learned:false,clarificationAnswer:false,agent:true,notThisAt:now-500};
+    const rejected=[{...main,semanticOwner:undefined},{...main,ownerAdmitted:undefined},{...main,ownerTransport:'client'},
+      {...main,gatewayObserved:false},{...main,state:'uncertain'},{...main,hasResult:false},
+      {...main,internalOperation:true},{...legacy,internalOperation:true},{...legacy,decisionQualified:false}];
+    const cohort=projectComprehension({facts:[legacy,main,...rejected],retainedCap:500},now);
+    const cw=cohort.windows['24h'];
+    assert.deepEqual([cw.decidedRuns,cw.legacyDecidedRuns,cw.mainRuns,cw.semanticRuns,cw.notThis,cw.notThisRate],[1,1,1,2,1,0.5]);
+    assert.equal(cw.clarifyRate,0);assert.equal(cw.clarificationCoverage,'qualified_legacy_decisions_only');
+    assert.equal(cw.comprehensionCoverage,'qualified_legacy_decisions_and_attested_main_results');
+    assert.equal(projectComprehension({facts:[main],retainedCap:500},now).status,'healthy');
+    const mainWithDecision=projectComprehension({facts:[{...main,decisionQualified:true,decisionType:'EXECUTE'}],retainedCap:500},now).windows['24h'];
+    assert.deepEqual([mainWithDecision.semanticRuns,mainWithDecision.decidedRuns,mainWithDecision.notThisRate],[1,0,1]);
+    assert.equal(projectComprehension({facts:rejected,retainedCap:500},now).status,'unknown');
     // Registre au plafond (500 runs) plus récent que la fenêtre : fenêtre 7 j marquée partielle. Budget de projection.
     const many=Array.from({length:500},(_,i)=>({runId:'v'+i,acceptedAt:now-i*300000,state:'done',executionSource:'capability_first',decision:{type:i%5?'EXECUTE':'CLARIFY',risk:'read',capability:'x',plan:{}}}));
     await writeRuns(root,many);

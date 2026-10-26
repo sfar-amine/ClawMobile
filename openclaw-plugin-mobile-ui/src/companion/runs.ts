@@ -25,6 +25,9 @@ import {TURN_BUDGET_MS, validateTurnMeasurement, turnMeasurementLogLine, type Tu
 
 type GatewayObservation = {version:1; epoch:string; state:"following"|"reconcile"|"settled"; deadlineAt:number; reconciled?:true};
 type StoredRun = {
+  /** Host provenance only: never accepted from a client body or model arguments. */
+  semanticOwner?: "main";
+  internalOperation?: true;
   gatewayObservation?: GatewayObservation;
   gatewayProgress?: CompanionRunProgress;
   /** Host-owned surface for native turns; absence on retained text runs means app. */
@@ -236,6 +239,8 @@ export async function reserveSubmittedRun(
     memoAttachmentId?: string;
     replayOf?: {sessionId: string; runId: string};
     ownerAdmitted?: boolean;
+    semanticOwner?: "main";
+    internalOperation?: true;
   } = {},
 ): Promise<{ created: boolean; status: CompanionRunStatus }> {
   const clientId = requireClientRunId(clientRunId);
@@ -274,6 +279,8 @@ export async function reserveSubmittedRun(
       requestHash,
       memo: options.memoAttachmentId ? {attachmentId: options.memoAttachmentId, ownerEpoch: MEMO_OWNER_EPOCH, phase: "transcribing", attempts: 1} : undefined,
       executionSource: options.executionSource || "gateway",
+      ...(options.semanticOwner === "main" && options.ownerAdmitted === true && options.executionSource === "gateway" ? {semanticOwner:"main" as const} : {}),
+      ...(options.internalOperation === true ? {internalOperation:true as const} : {}),
       presentation: options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined,
       decision: options.decision && typeof options.decision === "object" ? options.decision : undefined,
       clarificationState: String(options.decision?.type || "") === "CLARIFY" ? "pending" : undefined,
@@ -397,7 +404,7 @@ async function resumeDueMemo(runId: string): Promise<boolean> {
 
 export async function claimMemoDispatch(runId: string, text: string, executionSource: "gateway" | "capability_first",
   decision?: Record<string, unknown>, parentClarificationRunId?: string, authorized?: () => boolean, ownerAdmitted = false,
-  dialogueGoalRef?: string): Promise<boolean> {
+  dialogueGoalRef?: string, semanticOwner?: "main"): Promise<boolean> {
   return mutateRegistry(async () => {
     const registry = await registryOrEmpty();
     const row = registry.runs.find(run => run.runId === runId);
@@ -405,6 +412,7 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
         registry.runDeletions.some(r => r.runId === runId)) return false;
     const now = Date.now();
     const claimed: StoredRun = {...row, attachments: undefined, executionSource, decision, parentClarificationRunId, dialogueGoalRef: dialogueGoalRefOf(dialogueGoalRef), ownerAdmitted: ownerAdmitted === true ? true as const : undefined,
+      ...(semanticOwner === "main" && ownerAdmitted && executionSource === "gateway" ? {semanticOwner:"main" as const} : {}),
       memo: {...row.memo, phase: "dispatched", ownerEpoch: MEMO_OWNER_EPOCH}, updatedAt: now,
       clarificationState: decision?.type === "CLARIFY" ? "pending" : undefined,
       clarificationExpiresAt: decision?.type === "CLARIFY" ? now + CLARIFICATION_PROJECTION_MS : undefined};
@@ -421,13 +429,14 @@ export async function claimMemoDispatch(runId: string, text: string, executionSo
 export async function rememberSubmittedRun(
   text: string,
   result: OpenClawAgentSubmitResult,
-  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; dialogueGoalRef?: string; ownerAdmitted?: boolean } = {},
+  options: { userText?: string; attachments?: IntentAttachment[]; executionSource?: "gateway" | "capability_first"; decision?: Record<string, unknown>; parentClarificationRunId?: string; dialogueGoalRef?: string; ownerAdmitted?: boolean; semanticOwner?: "main" } = {},
 ) {
   const existing = submittedRuns.get(result.runId)
     || (await findStoredRun(result.runId).catch(() => null));
   const stored = {
     ...existing,
     executionSource: options.executionSource || existing?.executionSource || "gateway",
+    ...(options.semanticOwner === "main" && options.ownerAdmitted === true && (options.executionSource || existing?.executionSource || "gateway") === "gateway" ? {semanticOwner:"main" as const} : {}),
     presentation: existing?.presentation || (options.executionSource === "capability_first" ? fallbackReceiptPresentation() : undefined),
     runId: result.runId,
     sessionId: result.sessionId,
@@ -989,8 +998,8 @@ function nativeTurnMetadata(v:any):StoredRun["nativeTurn"]{
 }
 export async function recordNativeWhatsAppIngress(runId:string,sessionKey:string,accountId?:string,observedMonoMs?:number){
   const mono=nativeMono();
-  if(!/^[A-Za-z0-9_.:-]{1,160}$/.test(runId)||!/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(sessionKey)||
-    accountId!==undefined&&!/^[A-Za-z0-9_.-]{1,80}$/.test(accountId)||!Number.isSafeInteger(observedMonoMs)||observedMonoMs! > mono||mono-observedMonoMs! > 10000)
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(runId)||!/^agent:main:whatsapp:direct:\+?[1-9][0-9]{7,14}$/.test(sessionKey)||
+    accountId!==undefined&&(typeof accountId!=="string"||!/^[A-Za-z0-9_.-]{1,80}$/.test(accountId))||!Number.isSafeInteger(observedMonoMs)||observedMonoMs! < 0||observedMonoMs! > mono||mono-observedMonoMs! > 10000)
     throw Object.assign(Error("invalid_turn_measurement"),{statusCode:400});
   return mutateRegistry(async()=>{
     const registry=await registryOrEmpty(),existing=registry.runs.find(r=>r.runId===runId);
@@ -1008,7 +1017,8 @@ export async function nativeTurnProgressState(runId:string){
   return row?.nativeTurn?{runId,sessionId:row.sessionId,sessionKey:row.sessionKey!,state:row.state,ended:row.nativeTurn.ended,
     clockEpoch:row.nativeTurn.clockEpoch,deadlineAt:row.nativeTurn.deadlineAt,notice:row.nativeTurn.notice,accountId:row.nativeTurn.accountId}:null;
 }
-/** Positive observation only: one exact-session live turn in this owner's clock epoch, never the latest turn. */
+/** deadlineAt is 10-minute observation freshness, separate from the stored 30-second delivery budget.
+ * Positive observation only: one exact-session live turn in this owner's clock epoch, never the latest turn. */
 export async function activeObservedNativeWhatsAppRun(sessionKey:string,options:{excludeRunId?:string}={}){
   const now=nativeMono();
   const candidates=(await registryOrEmpty()).runs.filter(r=>r.measurementOnly&&r.sessionKey===sessionKey&&r.runId!==options.excludeRunId&&
@@ -1016,7 +1026,7 @@ export async function activeObservedNativeWhatsAppRun(sessionKey:string,options:
     now>=r.nativeTurn.startedMono&&now-r.nativeTurn.startedMono<=600000);
   if(candidates.length!==1)return null;
   const row=candidates[0];return {runId:row.runId,sessionKey:row.sessionKey!,clockEpoch:row.nativeTurn!.clockEpoch,
-    deadlineAt:row.nativeTurn!.deadlineAt,state:"running" as const,observationSource:"sdk_message_received" as const};
+    deadlineAt:Date.now()+Math.max(0,600000-(now-row.nativeTurn!.startedMono)),state:"running" as const,observationSource:"sdk_message_received" as const};
 }
 export async function reserveNativeProgressNotice(runId:string){
   return mutateRegistry(async()=>{
@@ -1119,12 +1129,17 @@ export async function turnMeasurementFacts() {
 
 /** 38 M1 : projection minimale des reçus de runs existants (aucun texte). */
 export type ComprehensionRunFact = {acceptedAt: number; decisionType?: string; decisionRisk?: string;
-  learned: boolean; clarificationAnswer: boolean; notThisAt?: number; agent: boolean};
+  learned: boolean; clarificationAnswer: boolean; notThisAt?: number; agent: boolean;
+  semanticOwner?:"main";internalOperation?:true;executionSource?:"gateway"|"capability_first";
+  ownerAdmitted?:true;ownerTransport?:StoredRun["ownerTransport"];gatewayObserved:boolean;state?:StoredRun["state"];hasResult:boolean;decisionQualified:boolean};
 export async function comprehensionRunFacts(): Promise<{facts: ComprehensionRunFact[]; retainedCap: number}> {
   const facts = (await readStoredRuns(false)).map(run => {
     const decision: any = run.decision;
     return {
       acceptedAt: run.acceptedAt,
+      semanticOwner:run.semanticOwner,internalOperation:run.internalOperation,executionSource:run.executionSource,
+      ownerAdmitted:run.ownerAdmitted,ownerTransport:run.ownerTransport,gatewayObserved:!!readGatewayObservation(run.gatewayObservation),
+      state:run.state,hasResult:typeof run.result==="string"&&run.result.trim().length>0,decisionQualified:!!publicDecision(run.decision),
       decisionType: typeof decision?.type === "string" ? String(decision.type) : undefined,
       decisionRisk: typeof decision?.risk === "string" ? String(decision.risk) : undefined,
       learned: typeof decision?.plan?.learned_association === "string" || typeof decision?.learnedAssociation === "string",
@@ -2549,6 +2564,8 @@ async function readCompanionRunRegistry(): Promise<CompanionRunRegistry> {
       turnSurface: ["app","whatsapp","voice"].includes(run.turnSurface) ? run.turnSurface : undefined,
       measurementOnly: run.measurementOnly===true ? true : undefined,
       nativeTurn: nativeTurnMetadata(run.nativeTurn),
+      semanticOwner:run.semanticOwner==="main"&&run.ownerAdmitted===true&&run.executionSource==="gateway"?"main":undefined,
+      internalOperation:run.internalOperation===true?true:undefined,
       inactivityCorrectionReceipt: validInactivityReceipt(run.inactivityCorrectionReceipt, run.runId),
       presentation: readReceiptPresentation(run.presentation),
       provenance: capabilityProvenance(run.provenance),
@@ -2868,7 +2885,7 @@ async function retainedRuns(archiveScope:boolean|null=false):Promise<StoredRun[]
   reconcileInactiveRuns();
   await registryWrite;
   const registry=await registryOrEmpty(),archived=new Set(registry.archivedSessionIds);
-  return registry.runs.filter(x=>archiveScope===null||archived.has(x.sessionId)===archiveScope).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
+  return registry.runs.filter(x=>!x.measurementOnly&&(archiveScope===null||archived.has(x.sessionId)===archiveScope)).sort((a,b)=>b.acceptedAt-a.acceptedAt||a.runId.localeCompare(b.runId));
 }
 
 /** The Companion's own retained view of one conversation (no Gateway read). */
