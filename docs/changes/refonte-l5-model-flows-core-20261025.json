@@ -48,6 +48,11 @@
       "name": "current-base-native-account-identity",
       "status": "passed",
       "evidence": "26/10 : npm run build && test-model-flows.cjs && test-conversation-model-profile.cjs exit0 après fusion425de267f64 ; journal durable l5-union-account-focused-20261026.log. Nouveau primaire avec suffixe natif @ complet exige la biométrie même si préfixe identique, profils/pins451 et CAS couverts. Aucun modèle natif ni CI complète revendiqués."
+    },
+    {
+      "name": "R6-checkpoint-reconciliation-and-summary-contract",
+      "status": "passed",
+      "evidence": "26/10 : build TS + test-model-flows.cjs + test-conversation-model-profile.cjs exit0 sur source184206b0 ; log l5-concurrency-checkpoint-focused-20261026.log. Checkpoint running/dispatching, ledger propriétaire exact, absence de retry, prepared/non-match/faux propriétaire et résumé fastModeSetting:null couverts. CI complète et recette native non revendiquées."
     }
   ],
   "capabilities": {
