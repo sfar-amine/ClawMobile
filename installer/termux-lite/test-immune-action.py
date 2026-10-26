@@ -68,6 +68,27 @@ class AdmissionTests(unittest.TestCase):
             self.assertEqual((Path(td)/'callback-pid').read_text().strip(),actor)
             self.assertIn('--effect-owner-pid '+actor,(Path(td)/'allow-args').read_text())
 
+    def test_shell_forwards_caller_probe_facts_to_the_model(self):
+        # S24 26/10: 18 Sol decisions answered "undetermined" on the bare default
+        # observation; the caller's own probe facts must reach the decision.
+        with tempfile.TemporaryDirectory() as td:
+            script=Path(td)/'facts.sh'
+            script.write_text('. '+repr(str(HERE/'immune-action.sh'))+'\n'+
+                'immune_python(){ if [ "$1" = allow ]; then printf "%s\\n" "$@" >>"$HOME/allow-args"; '+
+                'printf "%s\\n" \'{"state":"selected"}\'; fi; }\n'+
+                'IMMUNE_OBSERVATION="$(immune_supervisor_facts fixture_watchdog \'[n]o-such-supervisor-xyz.sh\' /rel/no-such-supervisor-xyz.sh)" '+
+                'immune_action fixture_watchdog bounded-supervisor-restore true\n'+
+                'printf "%s\\n" --- >>"$HOME/allow-args"\n'+
+                'immune_action fixture bounded-restore true\n')
+            result=subprocess.run(['bash',str(script)],env=dict(os.environ,HOME=td),capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            observed,bare=(Path(td)/'allow-args').read_text().split('---\n')
+            args=observed.splitlines()
+            facts=args[args.index('--observation')+1]
+            self.assertIn('fixture_watchdog supervisor is not running',facts)
+            self.assertIn('/rel/no-such-supervisor-xyz.sh',facts)
+            self.assertNotIn('--observation',bare)
+
     def test_all_existing_mutating_recovery_owners_keep_ai_boundary(self):
         required={
             'samantha-health-manager.sh':['immune_action "$1" bounded-http-service-restore','immune_action adb','immune_action sshd','immune_action slack_bridge','immune_action android_phantom_headroom','immune_action gateway_memory'],

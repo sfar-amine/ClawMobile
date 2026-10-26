@@ -48,7 +48,7 @@ ensure_supervisor(){
   if proc "$pat" && process_uses_script "$pat" "$script"; then
     immune_observe "$name" --healthy; return 0
   fi
-  immune_action "$name" bounded-supervisor-restore ensure_supervisor_effect "$@" || true
+  IMMUNE_OBSERVATION="$(immune_supervisor_facts "$name" "$pat" "$script" 2>/dev/null)" immune_action "$name" bounded-supervisor-restore ensure_supervisor_effect "$@" || true
 }
 refresh_root
 if [ -f "$ROOT/immune-action.sh" ]; then . "$ROOT/immune-action.sh"; else
