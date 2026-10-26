@@ -21,6 +21,7 @@
     "openclaw-plugin-mobile-ui/scripts/test-control-comprehension.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-native-turn-progress.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-native-turn-provenance.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-run-diagnostics.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-turn-measurement.cjs",
     "openclaw-plugin-mobile-ui/src/companion/control-health.ts",
     "openclaw-plugin-mobile-ui/src/companion/runs.ts",
@@ -56,6 +57,11 @@
       "name": "Integrated actual native ingress/adoption, account-bound notices and terminal timing",
       "status": "passed",
       "evidence": "Source975d174a integrates42421a5dd14 and perfcd428c6e by normal merges. TypeScript build and6 Node suites PASS withNode26.12.1 (measurement, native progress/adoption/delivery races, observation, captured provenance/account, Gateway timing, owner admission84). The single passage then stopped on an incorrect command name test-conversations-v2; no product failure. Correct remaining suites executed once with canonicalNode26.11.1: conversation-pages500runs/50sessions and control-comprehension PASS; Python compatibility7tests PASS including pinned predecessor upgrade/rollback and actual-Git changed-manifest rollback guard. First log l4-adoption-perf-focused-20261026.log SHA256f09194c380ad9f34aed6b6b34c0a7d5796dc756a8cbcf80df175ccea197e09e4; complement log l4-adoption-perf-focused-v2-20261026.log SHA256f062388bddde22783e18078fb2fcd6c7ebbf7083c367ae3b85c28fe759da6cf4. No full canonical exact-head CI or native activation claimed."
+    },
+    {
+      "name": "Canonical closed run-diagnostic owner regression after full CI refusal",
+      "status": "passed",
+      "evidence": "Full CI425745504fe refused at stage60 because recordTurnMeasurement introduced a console.log outside runDiagnostic. The direct call is removed; fixed code turn_measurement_recorded is projected by the same runDiagnostic, one console only, unchanged AST ownership guard. Successful turn payload is revalidated, arbitrary fields/prose refuse, secret-looking model identifiers are omitted; persistence/idempotence and failed-sink behavior verified. One focused passage on CPU2,3 with canonical Node26.11.1: TypeScript plus run-owner-diagnostics14/14, turn-measurement, native-turn-progress and gateway-run-observation PASS. Log l4-diagnostic-fix-focused-20261026.log SHA2563bcda4136ef95b3098c6034a13750f3f6e13b1d3f951627d1530ccebd70886c2. This does not convert refused full7455 into PASS; a new exact-head canonical full is required."
     }
   ],
   "capabilities": {
