@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,7 +15,16 @@ HERE = Path(__file__).parent
 OWNER = HERE / 'openclaw-compat/whatsapp-network-recovery.py'
 MANIFEST = json.loads(OWNER.with_name('gateway-prep-stages.json').read_text())
 FIXTURE = HERE.parent.parent / 'openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-gateway-prep-stages'
-NODE = os.environ.get('LOCALCI_NODE26_BIN', 'node')
+def node_binary(override):
+    # localci.py owns setup-node and documents *_BIN as a bin DIRECTORY.
+    # Keep direct executable support for standalone targeted checks only.
+    if not override:
+        return 'node'
+    candidate = Path(override)
+    return str(candidate / 'node') if candidate.is_dir() else str(candidate)
+
+
+NODE = node_binary(os.environ.get('LOCALCI_NODE26_BIN'))
 
 
 class GatewayPrepStages(unittest.TestCase):
@@ -84,6 +94,19 @@ class GatewayPrepStages(unittest.TestCase):
             result = subprocess.run([NODE, '--check', str(self.root / item['path'])],
                                     capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_canonical_bin_directory_and_targeted_executable_invoke_same_node(self):
+        selected = Path(shutil.which(NODE) or NODE).resolve(strict=True)
+        self.assertTrue(selected.is_file())
+        versions = []
+        for override in (str(selected.parent), str(selected)):
+            executable = node_binary(override)
+            self.assertTrue(Path(executable).samefile(selected))
+            result = subprocess.run([executable, '--version'], capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertRegex(result.stdout.strip(), r'^v26\.[0-9]+\.[0-9]+$')
+            versions.append(result.stdout)
+        self.assertEqual(versions[0], versions[1])
 
     def test_transient_set_does_not_enable_other_patch_sets_or_product_switches(self):
         for item in MANIFEST['files']:

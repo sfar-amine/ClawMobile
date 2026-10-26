@@ -131,6 +131,10 @@ propriétaires inertes (seule import.meta.url reçoit une URL fixture publique).
 Le tracker public exact vérifie qu'une aggregate artificielle de75ms reste75ms
 avant/après, même avec71ms de sous-spans explicites. Les appels, résultats et
 erreurs restent identiques, y compris exception runtime et finalisation spéciale.
+Le choix Node respecte le contrat du propriétaire `localci.py` :
+`LOCALCI_NODE26_BIN` est un répertoire bin, auquel le test ajoute `node` ; un
+exécutable direct reste admis pour les ciblés. Un test invoque réellement la même
+version Node26 par ces deux formes, sans modifier le runner ni son environnement.
 
 Le ciblé exact2f80fdaf a passé ses5tests en1.526s avec Node26.11.1 ;
 la CI canonique de l’arbre combiné final reste requise, et aucun gain ou PASS S24
