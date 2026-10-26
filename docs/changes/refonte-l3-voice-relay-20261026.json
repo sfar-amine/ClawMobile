@@ -24,9 +24,9 @@
   ],
   "tests": [
     {
-      "name": "Voice relay main/continuity/authority/budget contract",
-      "status": "pending",
-      "evidence": "test-voice-relay-brain-only.cjs registered in canonical CI; targeted build and source tests pending central lane. test-voice-brain-budget.mjs virtual29/30s/no uncertain replay is registered in same CI."
+      "name": "Exact voice relay TypeScript and six source contracts",
+      "status": "passed",
+      "evidence": "Source65310125bf52750055e49ea1f7a7bd73e069dca0, qualified cloud container,10.943s: real tsc -p tsconfig.json; test-voice-relay-brain-only.cjs, test-voice-relay.cjs, test-voice-relay-reconnect.cjs, Worker test-voice-brain-budget.mjs, test.mjs, test-long-action.mjs. Log l3-voice-relay-65310125-container-v1.log SHA256 d5f5710371592cf727ee7436a754a8d2d2ffd5d1e1423ce502daf788b1ce25cb; source stable. MOCK/virtual-time only, not native P1 or deployment; exact integrated full remains pending."
     }
   ],
   "documentation": [
@@ -47,7 +47,7 @@
   "mcp_owner_parity": {
     "impact": "none",
     "evidence": [
-      "The authenticated mcp_request branch is untouched; no tool/schema/adapter/backend route is added or changed. Relay bearer is never promoted to MCP/P1 authority."
+      "The authenticated mcp_request branch is untouched; no tool/schema/adapter/backend route is added or changed. The relay transport never grants MCP/P1 authority."
     ]
   },
   "routes": [

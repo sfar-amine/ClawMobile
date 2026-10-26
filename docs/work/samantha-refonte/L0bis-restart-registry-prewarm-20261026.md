@@ -12,7 +12,7 @@ The CLI stdout restart protocol remains {success:true|false}. A separate closed 
 
 The existing CI-registered metadata tests preserve request/closed output/budget/failure contracts. The real Linux inherited-flock restart test now injects only an inert catalogue adapter into the short-lived CLI and requires exactly one tools.catalog main call followed by one close. Actual lock inheritance, stop/start and TCP fixture remain exercised; missing deploy authority must not prepare. Existing runtime-sync tests retain HTTP fallback ordering and one-warm/no-retry contracts.
 
-Fixture openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-registry-startup/native-timings.json contains the closed native19boundaries, provenance and exact source hash. It is not a post-change gain. Canonical CI, publication, activation and isolated final S24 acceptance are pending. No new capability/public route/configuration/MCP contract: NO_CAPABILITY. Payments unchanged.
+Fixture openclaw-plugin-mobile-ui/fixtures/s24-2026-10-26-registry-startup/native-timings.json contains the closed native19boundaries, provenance and exact source hash. It is not a post-change gain. Targeted source77e081cd checks passed (real tsc, lock/TCP restart, six metadata contracts, three runtime-sync cases, three CI-registration guards; log l0bis-warm77-container-v1.log). Canonical full CI of the integrated head, publication, activation and isolated final S24 acceptance are pending. No new capability/public route/configuration/MCP contract: NO_CAPABILITY. Payments unchanged.
 
 ## Rollback
 

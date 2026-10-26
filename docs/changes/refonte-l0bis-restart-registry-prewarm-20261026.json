@@ -44,9 +44,9 @@
   ],
   "tests": [
     {
-      "name": "Real inherited EX restart plus closed metadata preparation and runtime-sync fallback ordering",
-      "status": "pending",
-      "evidence": "Existing CI-registered Node and Python tests extended; not yet executed on this source."
+      "name": "Exact restart-owned metadata preparation and runtime-sync contracts",
+      "status": "passed",
+      "evidence": "Source77e081cdd573daaa762121baa4109b42fc5ba581, qualified cloud container,15.433s: real tsc; test-qa-deploy-gateway-restart.cjs, test-gateway-tools-metadata-preparation.cjs (6 contracts), test-runtime-sync.py (3 selected lifecycle cases), actual test-ci-registration.py (3 guards). Log l0bis-warm77-container-v1.log SHA256 e28b19a55101b1d59f9aa5489016b907c80bd9fc39ce832cd302fb72108099fa; source stable. Linux lock/TCP fixture and local fake catalog only; no S24 gain or activation claimed; integrated canonical full pending."
     }
   ],
   "capabilities": {
