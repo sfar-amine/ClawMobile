@@ -384,6 +384,7 @@ jobs:
         run: node scripts/test-automation-detail.cjs
       - name: Test laptop owner pairing and biometric scope
         run: node scripts/test-laptop-access.cjs
+      # L0bis: observation regression also covers the native D1 timing anchors, blocked owner read and independent monotonic waits.
       - name: P1 admission native des tours owner (preuve Keystore, anti-rejeu, connexion admin dédiée, révocation)
         run: node scripts/test-owner-turn-admission.cjs && node scripts/test-gateway-run-observation.cjs
       - name: P1 recette — alerte transport owner indisponible et gardes d'admission

@@ -1,0 +1,50 @@
+{
+  "runtimeCapture": true,
+  "captureDate": "2026-10-26",
+  "coreCommit": "9527b700d4dc0ca16a5b8f7f8e77af7797c190c2",
+  "appSourceCommit": "d683d305d3fcd1916cb2aae5df0c12e676a1c850",
+  "runId": "run_1793009573078_f84f3919",
+  "scenario": "read_only_app_greeting",
+  "ownerAdmitted": true,
+  "ownerTransport": "admin_admitted",
+  "gatewayObservationState": "settled",
+  "model": "gpt-5.6-sol",
+  "trajectoryComplete": true,
+  "trajectoryEventCount": 8,
+  "toolCallCount": 0,
+  "metrics": {
+    "acceptedAt": 1793009573078,
+    "sessionStartedAt": 1793009583113,
+    "promptSubmittedAt": 1793009583375,
+    "providerPromptObservedAt": 1793009584128,
+    "modelCompletedAt": 1793009585615,
+    "sessionEndedAt": 1793009585730,
+    "terminalRpcLoggedAt": 1793009585924,
+    "registryUpdatedAt": 1793009599828,
+    "usefulUiMs": null
+  },
+  "interpretation": {
+    "modelDuration": "Provider-observed to completed is1487ms; prompt-submitted to completed is2240ms. They are distinct anchors.",
+    "postTerminalGap": "13904ms between Gateway terminal log and persisted updatedAt, cause not established by this capture.",
+    "ui": "Response observed in native UI later; first visible answer time not captured."
+  },
+  "concurrentGatewayWindow": {
+    "completeWindow": true,
+    "bytesRead": 4194304,
+    "methodCounts": {
+      "agent": 2,
+      "sessions.list": 14,
+      "chat.history": 0,
+      "progressCard.get": 1
+    },
+    "scope": "Global Gateway RPC log window; other callers are not silently attributed to the Companion observer.",
+    "knownOtherClient": {
+      "client": "openclaw-android",
+      "version": "2026.8.2",
+      "mode": "ui",
+      "connectionPrefix": "b5475eed",
+      "observedMethod": "chat.metadata"
+    },
+    "unattributed": "Fast sessions.list responses omit connection IDs in the compact log; their caller is not proven by adjacency."
+  }
+}
