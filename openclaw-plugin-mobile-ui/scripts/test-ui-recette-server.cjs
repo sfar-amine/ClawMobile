@@ -23,7 +23,7 @@ const RAW_PROFILE=/@(?:openai|google|github-copilot|custom-po-zapro-su):/;
  const ownerPage={...companionSessions,count:companionSessions.sessions.length,totalCount:companionSessions.sessions.length};
  let config=structuredClone(gwConfig.config),hash=gwConfig.hash,patches=[],sessionPatches=[],counts={},now=Date.now(),ownerFail=false;
  const realNow=Date.now;Date.now=()=>now;
- const merge=(into,patch)=>{for(const [key,value] of Object.entries(patch)){if(value&&typeof value==='object'&&!Array.isArray(value)){into[key]||={};merge(into[key],value);}else into[key]=value;}};
+ const merge=(into,patch)=>{for(const [key,value] of Object.entries(patch)){if(value&&typeof value==='object'&&!Array.isArray(value)){into[key]||={};merge(into[key],value);}else if(value===null)delete into[key];else into[key]=value;}};
  const client=require('../dist/companion/openclawAgentClient');
  client.callOpenClawGateway=async(method,params)=>{
   counts[method]=(counts[method]||0)+1;

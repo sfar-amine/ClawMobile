@@ -15,3 +15,4 @@ At 14:16 UTC, Sadok received « L’accès actuel à la pièce Pulse n’est pas
 - Scope, scope prompt and compacted memory no longer block access: they only shape the model agent, which the native path never runs.
 - The Gateway prompt must still match the stored scope, and an unknown prompt is still refused.
 - Paired test (playbooks `tests/test_native_room_context.py`, run against this head): Sadok's real shape is admitted, and the old core refuses it.
+- The other test fakes (`test-whatsapp-allowlist-paired`, `test-whatsapp-rooms-paired`, `test-ui-recette-server`) apply the same merge semantics.

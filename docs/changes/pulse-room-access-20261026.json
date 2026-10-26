@@ -9,6 +9,9 @@
   "files": [
     "installer/termux-lite/people-trusted.py",
     "installer/termux-lite/test-whatsapp-allowlist.py",
+    "openclaw-plugin-mobile-ui/scripts/test-ui-recette-server.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-rooms-paired.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-whatsapp-allowlist-paired.cjs",
     "docs/changes/pulse-room-access-20261026.json",
     "docs/changes/pulse-room-access-20261026.md"
   ],
@@ -27,6 +30,11 @@
       "name": "samantha-ui-playbooks tests/test_native_room_context.py (paired, C17_CORE_ROOT=this head)",
       "status": "passed",
       "evidence": "15 tests with branch fix/pulse-room-admits-scope-memory: a consistent custom scope with its Gateway prompt and Sadok's real compacted-memory shape are admitted; an inconsistent scope (metadata custom, no prompt), an unknown prompt, revocation, expiry, owner and binding changes are still refused. With core 14de96dd the new test fails with NATIVE_ROOM_ACCESS_UNVERIFIED."
+    },
+    {
+      "name": "paired R17 fixtures",
+      "status": "passed",
+      "evidence": "test-whatsapp-allowlist-paired, test-whatsapp-rooms-paired and test-ui-recette-server fakes now apply the Gateway merge semantics (null removes); all three pass. The first canonical CI run of e46ca320 failed in test-whatsapp-allowlist-paired (remove indeterminate) because its fake still replaced the map wholesale."
     }
   ],
   "documentation": [
