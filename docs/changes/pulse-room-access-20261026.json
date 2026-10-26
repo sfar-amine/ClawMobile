@@ -1,0 +1,71 @@
+{
+  "version": 2,
+  "id": "pulse-room-access-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "The Pulse room admits its contact on the room grant alone (Amine 26/10, S24 3289), and the WhatsApp allowlist owner sends direct-rule changes as an RFC 7396 merge patch so lowering a scope or removing a contact really removes its prompt.",
+  "reason": "S24 26/10 14:25:59Z, operation sadok-scope-standard-20261026 (Amine: remove Sadok's Zain Bahrain custom scope): the owner sent the whole channels.whatsapp.direct map under replacePaths, but the Gateway's config.patch (OpenClaw 2026.9.6 applyMergePatch) merges objects and replacePaths only replaces arrays. The Gateway logged « config.patch noop (no changed paths) », verification failed, the receipt was indeterminate and the contact kept its custom prompt and metadata (effect verified absent). Any scope lowering, suspension or removal that drops a direct rule had the same defect; the test Gateway replaced the map wholesale and hid it. Separately, _native_pulse_context_read refused any Pulse room contact with a custom conversation scope, a scope prompt or a compacted contactMemory (Sadok on 26/10 14:16Z: NATIVE_ROOM_ACCESS_UNVERIFIED, reply « L’accès actuel à la pièce Pulse n’est pas établi »). Amine decided that whoever has the Pulse room can do everything in Pulse through it, without global owner privileges; the conversation scope and memory only shape the model agent, which the native path never runs.",
+  "files": [
+    "installer/termux-lite/people-trusted.py",
+    "installer/termux-lite/test-whatsapp-allowlist.py",
+    "docs/changes/pulse-room-access-20261026.json",
+    "docs/changes/pulse-room-access-20261026.md"
+  ],
+  "tests": [
+    {
+      "name": "installer/termux-lite/test-whatsapp-allowlist.py",
+      "status": "passed",
+      "evidence": "48 tests. The fake Gateway now applies the real merge semantics (objects merge, null removes). New test: custom -> standard keeps the rule's other field, removes only systemPrompt, sends {number:{systemPrompt:null}} without replacePaths on the map, receipt updated. Without the fix 4 tests fail (scope lowering and both delete paths), as on the S24."
+    },
+    {
+      "name": "people owner suites",
+      "status": "passed",
+      "evidence": "test-people-trusted, test-whatsapp-contact-memory, test-whatsapp-allowlist-manager, test-k2-owner-message, test-qa-room-access, test-qa-attachment-pipe, test-health-qa-queue, test-native-room-owner-readers pass. test-native-pulse-private-input passes."
+    },
+    {
+      "name": "samantha-ui-playbooks tests/test_native_room_context.py (paired, C17_CORE_ROOT=this head)",
+      "status": "passed",
+      "evidence": "15 tests with branch fix/pulse-room-admits-scope-memory: a consistent custom scope with its Gateway prompt and Sadok's real compacted-memory shape are admitted; an inconsistent scope (metadata custom, no prompt), an unknown prompt, revocation, expiry, owner and binding changes are still refused. With core 14de96dd the new test fails with NATIVE_ROOM_ACCESS_UNVERIFIED."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-room-access-20261026.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Pulse room authorization follows Amine's decision; no capability, route or pulse_room scope boundary changes; no owner privilege is delegated."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "The existing owner and Gateway config.patch are kept; the patch now matches the Gateway's documented merge semantics."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: no MCP schema, adapter or protocol changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Paired playbooks change (stable code identity + test) must be activated with this deploy.",
+    "Live proof: after deploy and activation, Sadok's scope lowered with a new operation and a real WhatsApp message admitted in the Pulse room."
+  ],
+  "rollback": "Revert this commit; the Pulse room again requires a standard scope without memory, and direct-rule removals return to the previous ineffective encoding."
+}

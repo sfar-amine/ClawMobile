@@ -1231,14 +1231,13 @@ class Contacts:
         if native_event.conversation_key!='pulse-room:'+agent+':'+native_event.contact_id+':agent:'+agent+':whatsapp:direct:'+number:
             denied()
         metadata=self.metadata(number)
-        if (not metadata or metadata['state']!='active' or metadata['scope']!='standard' or
-                metadata['scopeText'] is not None or metadata.get('rooms')!=variants[agent] or
-                metadata.get(CONTACT_MEMORY_FIELD) is not None or
+        # Amine 26/10 (S24 3289): the Pulse room alone grants Pulse in this room. The contact's
+        # conversation scope and its compacted memory only shape the model agent, never this path.
+        if (not metadata or metadata['state']!='active' or metadata.get('rooms')!=variants[agent] or
                 metadata['expiresAt'] is not None and stamp(metadata['expiresAt'])<=self.clock()):
             denied()
         rule=direct.get(number,{})
-        # A restriction or contactMemory is never silently stripped into a grant.
-        if not isinstance(rule,dict) or set(rule)-{'systemPrompt'} or self.policy(rule)!=('standard',None):
+        if not isinstance(rule,dict) or set(rule)-{'systemPrompt'} or self.policy(rule)[0]!=metadata['scope']:
             denied()
         bindings=config.get('bindings')
         if not isinstance(bindings,list) or len(bindings)>5000: denied()
