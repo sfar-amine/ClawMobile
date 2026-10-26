@@ -18,6 +18,14 @@ const calls = [];
 
 async function invoke(tool, args, auth, meta) {
   calls.push({ tool, args, auth, meta });
+  // Authored adapter result, not a claim of native context injection or model consumption.
+  if (tool === "claw_context" && args.query === "Foundation single-body fixture") return {
+    state: "context", bundle: { foundation: { version: 1, read_required: true, stable_sha256: "a".repeat(64), revision: 3251,
+      skills: [{ name: "samantha-memory", path: "skills/samantha-memory/SKILL.md" }] },
+      cursor_advanced: false, context_consumption: { state: "not_attested", implicit_client_cursor: false } },
+    required_reads: [{ key: "context/FOUNDATION", content: "Authored foundation body, one complete copy." }],
+    _claw_access: { owner: true, profile: "forged" },
+  };
   return { state: "ok", tool, client: auth.clientId, args };
 }
 
@@ -241,6 +249,18 @@ result=await post({jsonrpc:'2.0',id:702,method:'tools/call',params:{name:'claw_c
 assert.equal(result.body.result.isError,true);assert.equal(calls.length,contextCallsBefore+1);
 result=await post({jsonrpc:'2.0',id:703,method:'tools/call',params:{name:'claw_context',arguments:{query:'Fixture',scopes:['memory']}}},'wrong-'+ 'z'.repeat(40));
 assert.equal(result.status,401);assert.equal(calls.length,contextCallsBefore+1);
+
+const foundationCall=await post({jsonrpc:'2.0',id:704,method:'tools/call',params:{name:'claw_context',arguments:{query:'Foundation single-body fixture'}}});
+assert.equal(foundationCall.status,200);
+assert.equal(foundationCall.body.result.structuredContent,undefined,'the foundation is not duplicated in the emitted MCP result');
+assert.equal(foundationCall.body.result.content.length,1);
+const foundationBody=JSON.parse(foundationCall.body.result.content[0].text);
+assert.equal(foundationBody.required_reads[0].content,'Authored foundation body, one complete copy.');
+assert.equal(foundationBody.bundle.foundation.skills.length,1);
+assert.equal(foundationBody.bundle.context_consumption.state,'not_attested');
+assert.equal(foundationBody._claw_access.owner,false,'access is still derived from the authenticated client');
+assert.equal(foundationBody._claw_access.profile,'chat-owner-shadow');
+assert.equal(JSON.stringify(foundationCall.body.result).split('Authored foundation body, one complete copy.').length-1,1);
 
 // M2 claw_remember: owner-only catalog entry, closed kinds, stable action identity, no surface argument.
 const rememberTool = ownerList.body.result.tools.find((tool) => tool.name === "claw_remember");
