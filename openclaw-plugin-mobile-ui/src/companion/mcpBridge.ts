@@ -294,13 +294,24 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
     }
   }
 
+  if(raw?.foundation?.read_required===true){
+    if(typeof raw.foundation.content!=='string'||!raw.foundation.content.trim())throw new Error('foundation_mcp_content_required');
+    // Deliver the source text once, without JSON-inside-JSON escaping. The stable digest,
+    // memory revision and complete skill index remain beside it in the existing bundle.
+    const content=raw.foundation.content;
+    reads.push({key:'context/FOUNDATION',sha256:crypto.createHash('sha256').update(content).digest('hex'),content});
+    // Per-file diagnostic digests are already bound by foundation.sha256; the consumer uses
+    // stable_sha256 plus the canonical memory baseline for freshness, not seven startup reads.
+    const {content:_content,sources:_sources,...metadata}=raw.foundation;
+    raw.foundation=metadata;
+  }
   // Building a response does not attest its delivery or the client's integration.
   // A lost response is replayable from the same explicit base; no new cursor
   // store, thread identifier, or acknowledgement endpoint is needed.
   raw.cursor_advanced=false;
   if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=false;
   raw.context_consumption={state:'not_attested',basis:'caller_supplied_state',implicit_client_cursor:false};
-  return {
+  const response = {
     state: "context",
     bundle: sanitizeRequestContext(raw),
     required_reads: reads,
@@ -308,6 +319,11 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
       ? "Read and integrate every required_reads item before reusing its hash/baseline."
       : "No additional contract read is required for this delta.",
   };
+  // The owner relay appends bounded access metadata. Reserve it explicitly, never trim a rule
+  // or thread to fit the transport. Legacy context responses keep their established contract.
+  if(raw?.foundation?.read_required===true&&Buffer.byteLength(JSON.stringify(response),'utf8')+256>24000)
+    throw new Error('foundation_mcp_response_budget_exceeded');
+  return response;
 }
 
 // Versioned opt-in transport, not a second interpreter, dialogue owner or authorization API.
@@ -495,8 +511,30 @@ export async function dialoguePreview(request: string, clientId?: string, runner
   return { outcome: "TECHNICAL_FAILURE", reasonCode: "coordinator_unavailable" };
 }
 
-async function resolveCapability(args: Record<string, unknown>, clientId?: string) {
+export function typedMcpSelection(args: Record<string, unknown>): Record<string, unknown> | undefined {
+  // The already published connector exposes decision:{} but may cache an older tools/list without typed.
+  // This closed envelope transports selection only: it never grants authority or user confirmation.
+  const envelope = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision) &&
+    (args.decision as any).kind === "samantha.typed-selection.v1" ? args.decision as Record<string, unknown> : undefined;
+  if (args.typed === undefined && !envelope) return undefined;
+  if (process.env.SAMANTHA_BRAIN_ONLY !== "1") throw new Error("typed_path_not_active");
+  if ((envelope && (Object.keys(envelope).length !== 2 || !Object.prototype.hasOwnProperty.call(envelope, "selection") || args.typed !== undefined)) ||
+      ["client_context", "service_scope", "target_hint"].some(key => args[key] !== undefined) ||
+      (!envelope && args.decision !== undefined)) throw new Error("typed_input_conflict");
+  const value = (envelope ? envelope.selection : args.typed) as any;
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== 3 ||
+      Object.keys(value).some(k => !["domain", "action", "params"].includes(k)) ||
+      !/^[a-z][a-z0-9_.-]{0,127}$/.test(value.domain) || !/^[a-z][a-z0-9_.-]{0,127}$/.test(value.action) ||
+      !value.params || typeof value.params !== "object" || Array.isArray(value.params) || Buffer.byteLength(JSON.stringify(value)) > 32768)
+    throw new Error("typed_input_invalid");
+  return JSON.parse(JSON.stringify(value));
+}
+
+async function resolveCapability(args: Record<string, unknown>, clientId?: string, requestId?: string) {
   const request = requiredString(args.request, "request", 12000);
+  const typedSelection = typedMcpSelection(args);
+  if (typedSelection) return capabilityBridge(request, {execute: false, surface: "external_mcp", caller: "owner",
+    timeoutSeconds: 20, typedSelection, requestId: requestId || "typed-preview"});
   const targetHint = optionalString(args.target_hint, "target_hint", 128, /^[A-Za-z0-9._-]+$/);
   const [resolved, dialogue] = await Promise.all([capabilityBridge(request, {
     execute: false,
@@ -516,6 +554,7 @@ async function executeCapability(
 ) {
   const webBounds={startedMonotonic:performance.now(),deadlineEpochMs:Date.now()+PUBLIC_WEB_BUDGET_MS};
   const request = requiredString(args.request, "request", 12000);
+  const typedSelection = typedMcpSelection(args);
   const actionKey = requiredString(args.action_key, "action_key", 40, ACTION_ID_RE);
   const stepKey = optionalString(args.step_key, "step_key", 24, STEP_ID_RE) || "execute";
   const targetHint = optionalString(args.target_hint, "target_hint", 128, /^[A-Za-z0-9._-]+$/);
@@ -531,7 +570,7 @@ async function executeCapability(
     return { state: "refused", request_id: requestId, task_id: taskId, retry_allowed: false, reason: lock.reason,
       outcome: "MAINTENANCE", text: lock.reason === "maintenance" ? MCP_MAINTENANCE_TEXT : MCP_MARKER_INVALID_TEXT };
   }
-  const gate = await dialoguePreview(request, clientId);
+  const gate = typedSelection ? {outcome: "UNRESOLVED", reasonCode: undefined} : await dialoguePreview(request, clientId);
   if (gate.outcome === "MAINTENANCE") {
     return { state: "refused", request_id: requestId, task_id: taskId, retry_allowed: false, reason: "maintenance",
       text: (gate as any).text || MCP_MAINTENANCE_TEXT, outcome: "MAINTENANCE" };
@@ -542,7 +581,7 @@ async function executeCapability(
       reason: "coordinator_unavailable", outcome: "TECHNICAL_FAILURE" };
   }
   const method = profile === "chat-owner" ? "mcp_capability_execute_owner" : "mcp_capability_execute_readonly";
-  const suppliedDecision = args.decision && typeof args.decision === "object" && !Array.isArray(args.decision)
+  const suppliedDecision = !typedSelection && args.decision && typeof args.decision === "object" && !Array.isArray(args.decision)
     ? args.decision as Record<string, unknown>
     : undefined;
   let resolved: any = undefined;
@@ -560,6 +599,7 @@ async function executeCapability(
   } else {
     resolved = await capabilityBridge(request, {
       execute: false, surface: "external_mcp", caller: "owner", timeoutSeconds: 20, targetHint,requestId,checkBudgetMs:Math.max(1,Math.min(10000,webBounds.deadlineEpochMs-Date.now())),
+      ...(typedSelection ? {typedSelection} : {}),
     });
     preparedDecision = resolved?.decision && typeof resolved.decision === "object" ? resolved.decision : undefined;
     if(resolved?.success===false){
@@ -573,6 +613,7 @@ async function executeCapability(
   const durable = continuumDecision?.mode === "durable";
   const params = {
     request, targetHint: targetHint || "",
+    ...(typedSelection ? {typedSelection} : {}),
     ...(preparedDecision ? { decision: preparedDecision } : {}),
   };
 
@@ -836,10 +877,12 @@ export async function handleMcpRelayRequest(message: McpRelayMessage) {
     case "claw_context":
       return contextBundle(args,clientId);
     case "claw_resolve":
+      typedMcpSelection(args);
       if(args.service_scope!==undefined&&!Object.prototype.hasOwnProperty.call(args,"client_context"))return mcpInputFailure("client_context_required_for_service_scope");
       if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,false,message);
-      return { state: "resolved", result: await resolveCapability(args, clientId) };
+      return { state: "resolved", result: await resolveCapability(args, clientId, requestId) };
     case "claw_execute":
+      typedMcpSelection(args);
       if(args.service_scope!==undefined&&!Object.prototype.hasOwnProperty.call(args,"client_context"))return mcpInputFailure("client_context_required_for_service_scope");
       if(Object.prototype.hasOwnProperty.call(args,"client_context"))return migratedMcpInput(requestId,clientId,profile,args,true,message);
       return executeCapability(requestId, clientId, profile, args);

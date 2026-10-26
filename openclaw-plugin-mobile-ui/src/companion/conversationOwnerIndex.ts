@@ -49,8 +49,8 @@ function bounded(next:typeof rows){
 export function observeConversationOwnerRow(value:any){
  const owner=row(value);rows=new Map(rows);rows.set(owner.key,owner);versions.set(owner.key,++epoch);rows=bounded(rows);observed=true;
 }
-export function conversationOwnerIndex(){
- if(!flight&&Date.now()>=nextRefreshAt){
+export function conversationOwnerIndex(options:{refresh?:boolean}={}){
+ if(options.refresh!==false&&!flight&&Date.now()>=nextRefreshAt){
   nextRefreshAt=Date.now()+TTL_MS;
   const startedEpoch=epoch,startedDirty=new Map(dirty);
   flight=(async()=>{

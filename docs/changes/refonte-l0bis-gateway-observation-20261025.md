@@ -1,0 +1,11 @@
+# L0bis — Suivi Gateway sans sondage répété du tour admis
+
+Le Companion conserve le request SDK `agent` existant jusqu’à sa réponse finale, avec l’admission P1 et la même clé d’idempotence. Les lectures des runs et conversations suivis servent le registre local ; leurs événements titrés alimentent le SSE existant. Les fragments assistant ne deviennent pas des preuves d’exécution. Une perte reste inconnue, suivie d’une seule réconciliation bornée/fraîche par époque, sans rejeu. Les limites sont de 8 suivis actifs, 120 s, 48 événements et 48 écritures en file. L’ADR précise la limite des tâches longues ou des fins impossibles à prouver.
+
+Les outils contacts publient le même schéma sous `parameters`, `inputSchema` et `schema`, ce qui corrige le contrat SDK signalé au chargement sans changer leur garde ni leur exécuteur. La spécification reprend les deux ajouts Claude `ba72f461` et `da5927cf` et distingue le client SDK nommé `cli` d’un processus shell. Les gains de latence, le préchauffage, la purge et le streaming restent des pistes à qualifier, sans preuve ou autorisation inventée.
+
+Aucune route/capability nouvelle : GET `/v1/runs`, GET `/v1/runs/:id` et les pages de conversations conservent leurs contrats. NO_CAPABILITY : mécanisme interne de projection/suivi, sans nouvelle action accessible. Les surfaces MCP demeurent inchangées ; aucun nouvel outil MCP ni permission. Paiements et confirmations humaines intacts.
+
+Tests ciblés déjà exécutés avant l’ajout final de la borne de file : build TypeScript PASS ; observation Gateway PASS ; admission P1 PASS (83 cas) ; outils contacts PASS. La CI canonique du head final doit rejouer toutes les étapes, y compris les cas de rafale/capacité ajoutés. Source réelle : fixture S24 native nettoyée et contrat SDK installé 2026.9.6 ; les frames unitaires construites sont marquées comme telles.
+
+Activation et recette S24 non réalisées dans cette PR draft. Le reçu devra nommer SHA/remote, relever un seul request `agent`, les lectures Gateway et la réponse terminale du même run ; comparer admission/préparation/modèle/audio séparément. Aucun gain en secondes revendiqué par les tests unitaires. Retour arrière par `companion-deploy.sh` du SHA précédent, sans rejeu d’effet incertain.

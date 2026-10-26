@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "capture": {
+    "runtimeCapture": true,
+    "sanitized": true,
+    "source": "S24 qa413-question-v1-model-metadata.json / runs.json; exact run match, public authored question, no prompt/output text",
+    "device": "S24",
+    "date": "2026-10-25",
+    "core": "3bed0f05f33be999706e3cd978ef819f7414bc10",
+    "qualification": "controlled native PCM, not physical acoustics"
+  },
+  "runId": "run_1792934450703_597aff20",
+  "voiceRunId": "voice-8a300a84-655b-4f1a-aa17-5230a3b0372c",
+  "ownerAdmitted": true,
+  "ownerTransport": "admin_admitted",
+  "metrics": {
+    "pcm_end": 1792934446.1,
+    "vad_end": 1792934446.077,
+    "waiting_local": 1792934446.992,
+    "waiting_audible": 1792934447.041,
+    "first_sign_after_pcm_ms": 941,
+    "relaunches": [
+      1792934457.386,
+      1792934469.672
+    ],
+    "brain_run_accepted": 1792934450.703,
+    "brain_session_started": 1792934472.501,
+    "brain_model_completed": 1792934476.883,
+    "brain_done": 1792934477.266,
+    "receipt_first_audio": 1792934500.258,
+    "useful_audio_after_pcm_ms": 54158
+  },
+  "brain": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "api": "openai-chatgpt-responses",
+    "status": "success",
+    "tool_calls": 0,
+    "input_tokens": 18432,
+    "output_tokens": 61,
+    "cache_read": 0
+  },
+  "sdkContract": {
+    "openclaw": "2026.9.6",
+    "sources": [
+      "client-CpsABkfT.mjs:pending.expectFinal ignores status accepted",
+      "agent-turn-service-BfYSuxip.mjs:terminal emitFinal includes runId/status/result",
+      "agent-events-BOSJcayE.mjs:runId/sessionKey/seq/stream/data"
+    ],
+    "eventFrames": "Test frames are authored from installed SDK code; not a captured WebSocket conversation."
+  }
+}

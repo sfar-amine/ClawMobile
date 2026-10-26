@@ -6,14 +6,19 @@
 // provider/runtime failure, rejected or unparsable output. An authorization or policy
 // refusal is never a technical failure and never reaches Luna (decision 3173).
 
+import {brainOnlyEnabled} from "./brainOnly";
+import {requireNativePulseInterpretation} from './capabilityAgentGuard';
 export const INTERPRETER_PRIMARY = "google/gemini-3.5-flash-lite@google:claw-gemini-free";
 export const INTERPRETER_FALLBACK = "openai/gpt-5.6-luna";
 export const INTERPRETER_MODELS = Object.freeze([INTERPRETER_PRIMARY, INTERPRETER_FALLBACK]);
 export const INTERPRET_METHOD = "samantha.intent.interpret";
-// Same credential owner, separate closed engineering contract. Selection and
-// Sol -> Luna fallback belong to the existing Python governor, never this port.
+// Same credential owner, separate closed engineering contract. Selection and the
+// Sol -> Luna -> Gemini free fallback belong to the existing Python governor, never this port.
+// Gemini is last so an exhausted OpenAI subscription quota (recurring, decision 25/10) never
+// leaves the immune admission without a decider.
 export const IMMUNE_PURPOSE = "samantha.engineering.immune";
-export const IMMUNE_MODELS = Object.freeze(["openai/gpt-5.6-sol", INTERPRETER_FALLBACK]);
+export const NATIVE_PULSE_PURPOSE = "samantha.native-pulse.interpret";
+export const IMMUNE_MODELS = Object.freeze(["openai/gpt-5.6-sol", INTERPRETER_FALLBACK, INTERPRETER_PRIMARY]);
 
 // Codes thrown by OpenClaw's api.runtime.llm.complete (2026.9.6).
 const TECHNICAL_CODES = new Set([
@@ -22,6 +27,10 @@ const TECHNICAL_CODES = new Set([
   "LLM_RUNTIME_UNAVAILABLE",
   "LLM_COMPLETION_OUTPUT_REJECTED",
 ]);
+// OpenClaw's own set of completed stop reasons (runtime-llm finalizePluginLlmCompletion). A provider
+// error (S24 25/10: gpt-5.6-sol "429 usage_limit_reached") resolves with empty text and another stop
+// reason; it is a provider failure, not an unparsable decision.
+const COMPLETED_STOPS = new Set(["stop", "length", "toolUse"]);
 const LIMITS = Object.freeze({
   systemChars: 64_000,
   // The playbooks owner bounds the whole interpretation prompt to 80 000 chars / 96 000 bytes.
@@ -111,7 +120,8 @@ async function attempt(complete: LlmComplete, model: string, req: InterpretReque
       systemPrompt: req.systemPrompt,
       messages: [{ role: "user", content: req.message }],
       ...(req.responseSchema ? { responseFormat: { type: "json_schema", json_schema: { name: "decision", schema: req.responseSchema, strict: true } } } : {}),
-      ...(immune || model === INTERPRETER_FALLBACK ? { requiredAuthMode: "oauth" } : {}),
+      // OpenAI models run on the subscription OAuth only; Gemini stays pinned to its free profile.
+      ...(model !== INTERPRETER_PRIMARY && (immune || model === INTERPRETER_FALLBACK) ? { requiredAuthMode: "oauth" } : {}),
       // Gemini Flash Lite answers fastest without thinking; Luna keeps a minimal effort.
       reasoning: model === INTERPRETER_PRIMARY ? "off" : "minimal",
       temperature: 0,
@@ -119,8 +129,12 @@ async function attempt(complete: LlmComplete, model: string, req: InterpretReque
       purpose: req.purpose ?? "samantha.intent.interpret",
       signal: controller.signal,
     });
-    const decision = parseDecision(result?.text, immune ? 64_000 : LIMITS.outputChars);
     const ms = now() - started;
+    const empty = typeof result?.text !== "string" || !result.text.trim();
+    if (empty && !COMPLETED_STOPS.has(String(result?.stopReason ?? "stop"))) {
+      return { attempt: { model, outcome: "technical", code: "LLM_COMPLETION_FAILED", ms } as InterpretAttempt };
+    }
+    const decision = parseDecision(result?.text, immune ? 64_000 : LIMITS.outputChars);
     if (!decision) return { attempt: { model, outcome: "technical", code: "INVALID_DECISION_OUTPUT", ms } as InterpretAttempt };
     return { attempt: { model, outcome: "ok", ms } as InterpretAttempt, result, decision };
   } catch (error: any) {
@@ -173,6 +187,17 @@ export function createInterpretHandler(getComplete: () => LlmComplete | undefine
   return async ({ params, respond, signal }: any) => {
     const req = validateRequest(params);
     if (!req) return respond(false, undefined, { code: "INVALID_REQUEST", message: "invalid interpretation request" });
+    // The shared engineering completion owner survives the C1 interpreter's
+    // retirement. No owner request may invoke its old semantic purpose.
+    if(params?.purpose===NATIVE_PULSE_PURPOSE){
+      // Native professional DATA01 currently admits this one included profile.
+      // The existing governor owns any future extension; a purpose cannot mint a model fallback.
+      if(params?.model!==INTERPRETER_PRIMARY)return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse model not admitted'});
+      try{await requireNativePulseInterpretation(params);}
+      catch{return respond(false,undefined,{code:'INVALID_REQUEST',message:'native Pulse admission required'});}
+    }
+    if (brainOnlyEnabled() && params?.purpose !== IMMUNE_PURPOSE && params?.purpose !== NATIVE_PULSE_PURPOSE)
+      return respond(false, undefined, {code: "INVALID_REQUEST", message: "dedicated intent interpreter retired"});
     const complete = getComplete();
     if (!complete) return respond(false, undefined, { code: "UNAVAILABLE", message: "llm runtime unavailable" });
     const result = await interpret(complete, req, { signal });

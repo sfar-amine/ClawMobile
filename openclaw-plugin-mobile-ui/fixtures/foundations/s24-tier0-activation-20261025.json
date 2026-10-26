@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "qualification": "read-only metadata observations; no runtime repair performed by source agent",
+  "candidate": "20261025T155446-d3beb769",
+  "source_commit": "d87bd2494f079a4dc6753b619550d4f76ab600db",
+  "promoted_at": 1792940087.987291,
+  "soak_grace_until_epoch": 1792940117,
+  "startup_grace_seconds": 30,
+  "soak_seconds": 300,
+  "guardian_start_log_at": 1792940095,
+  "health_manager_start_requested_at": 1792940112,
+  "health_manager_start_ok_at": 1792940114,
+  "last_health_generated_at": 1792940125,
+  "last_health_mtime": 1792940132.9569976,
+  "last_health_states": {
+    "immune.root_guardian": "healthy",
+    "immune.health_manager": "healthy",
+    "immune.incident_orchestrator": "down",
+    "gateway": "healthy",
+    "companion": "healthy",
+    "transactions.runtime": "healthy"
+  },
+  "orchestrator_start_requested_at": 1792940132,
+  "orchestrator_start_ok_at": 1792940134,
+  "rollback_guardian_start_log_at": 1792940152,
+  "rollback_reason": "soak_health_regression",
+  "resident_watchdog": {
+    "pid": 18631,
+    "started_at": 1792337057.74,
+    "installed_source_mtime": 1792831081.86599,
+    "installed_sha256": "9f87fe0e357b51c0ee6b643eff4a30e453182cd83ae55ce5c20886d02d7bccf7",
+    "ai_gate_commit": "5140aa1655d4b93b6cbd60d08234247f864ddaa0",
+    "ai_gate_added_at": "2026-10-23T22:41:20Z"
+  },
+  "tier0_bin_immune_action_exists": false,
+  "candidate_immune_action_exists": true,
+  "candidate_immune_action_sha256": "b39259d54a9ede1e996ccaf533f26a0c38a7cfaef255bca78e582f1bce28ae65",
+  "post_rollback_health_generated_at": 1792940628,
+  "post_rollback_all_six_critical_healthy": true,
+  "two_distinct_pre_rollback_samples_captured": false,
+  "worker_crash_proven": false
+}

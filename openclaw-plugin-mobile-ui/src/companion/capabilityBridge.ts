@@ -73,6 +73,7 @@ export async function capabilityBridge(
     helperPath?: string;
     decision?: Record<string, unknown>;
     dialogueReadHandoff?: Record<string, unknown>;
+    typedSelection?: Record<string, unknown>;
   } = {},
 ): Promise<Record<string, unknown>> {
   const text = options.dialogueReadHandoff!==undefined?String(request||""):String(request || "").trim();
@@ -100,12 +101,17 @@ export async function capabilityBridge(
   for (const helper of candidates) {
     try {
       const prepared = execute && options.decision && typeof options.decision === "object";
-      const argv = prepared
+      const typed = options.typedSelection;
+      if (typed && (!options.requestId || Buffer.byteLength(JSON.stringify(typed)) > 32768)) return {success: false, error: "typed_input_invalid"};
+      const argv = typed
+        ? [helper, execute ? "typed-execute" : "typed-resolve", text, "--selection-stdin", "--surface", surface,
+           "--caller", caller, "--request-id", options.requestId!, "--timeout", String(timeout)]
+        : prepared
         ? [helper, "execute-decision", text, "--decision-b64", Buffer.from(JSON.stringify(options.decision), "utf8").toString("base64"), "--timeout", String(timeout)]
         : [helper, execute ? "execute" : "resolve", text, "--surface", surface, "--caller", caller];
       if (!prepared && targetHint) argv.push("--target", targetHint);
       if (!prepared && execute) argv.push("--timeout", String(timeout));
-      if (execute && options.readOnly === true) argv.push("--read-only");
+      if (execute && options.readOnly === true && !typed) argv.push("--read-only");
       if(options.dialogueReadHandoff!==undefined){
         if(!prepared||options.readOnly!==true||caller!=="owner"||!options.dialogueReadHandoff||Array.isArray(options.dialogueReadHandoff)||typeof options.dialogueReadHandoff!=="object"||Buffer.byteLength(JSON.stringify(options.dialogueReadHandoff))>2048)return {success:false,error:"intent_read_handoff_invalid"};
         argv.push("--dialogue-read-handoff",JSON.stringify(options.dialogueReadHandoff));
@@ -120,6 +126,7 @@ export async function capabilityBridge(
         timeoutMs: remaining===undefined?(timeout+8)*1000:remaining,
         maxBuffer: bounded?128*1024:2*1024*1024,
         env: { ...process.env },signal:options.signal,killGroup:bounded||checkBounded,
+        ...(typed ? {privateInput: JSON.stringify(typed)} : {}),
       });
       const stdout = typeof raw === "string" ? raw : String(raw?.stdout ?? "");
       const parsed = JSON.parse(stdout || "{}");

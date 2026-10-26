@@ -1,0 +1,24 @@
+{
+  "case": "qa413-question-atomic-v1",
+  "qualification": "controlled native PCM; separate from physical acoustic proof",
+  "voice_receipt": "voice-8a300a84-655b-4f1a-aa17-5230a3b0372c",
+  "brain_run": "run_1792934450703_597aff20",
+  "metrics": {
+    "pcm_end": 1792934446.1,
+    "vad_end": 1792934446.077,
+    "waiting_local": 1792934446.992,
+    "waiting_audible": 1792934447.041,
+    "first_sign_after_pcm_ms": 941,
+    "relaunches": [
+      1792934457.386,
+      1792934469.672
+    ],
+    "brain_run_accepted": 1792934450.703,
+    "brain_session_started": 1792934472.501,
+    "brain_model_completed": 1792934476.883,
+    "brain_done": 1792934477.266,
+    "receipt_first_audio": 1792934500.258,
+    "useful_audio_after_pcm_ms": 54158
+  },
+  "provider_generation_events_captured": false
+}

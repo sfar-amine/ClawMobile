@@ -124,6 +124,14 @@ if [ "$gateway" = restarted ] || [ "$(release_commit)" != "$commit" ]; then
   [ "$ready" = 1 ] || fail gateway_not_ready
 fi
 
+# Prepare the official read-only tool catalogue once after a real restart and native readiness. The Gateway/SDK
+# retains its own registry/module caches; no model turn, tool.execute, schema injection or parallel cache/poller.
+# A performance preparation failure is explicit but never starts a new recovery/rollback cycle or retries a request.
+if [ "$gateway" = restarted ]; then
+  timeout --kill-after=1 25 node "$PLUGIN/dist/companion/openclawGatewayClient.js" --prepare-main-tools >&2 ||
+    echo '{"component":"runtime-preparation","state":"unverified","reason":"tools_catalog_unavailable"}' >&2
+fi
+
 # 3. Tier0 release (serves model-fast-path.py to the Gateway). Same commit already current: nothing to do.
 if [ "$(release_commit)" != "$commit" ]; then
   python3 "$SRC/install-tier0-control.py" --apply >&2 || fail release_failed

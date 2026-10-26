@@ -1145,6 +1145,9 @@ class LocalFilesystemForwardTests(unittest.TestCase):
             item = patch.object(guard, name, side_effect=function); item.start(); self.addCleanup(item.stop)
         item = patch.object(guard.time, "time", side_effect=lambda: self.clock)
         item.start(); self.addCleanup(item.stop)
+        # Fixture PID liveness, never the host's: PID 4242 may be a real process on the CI machine.
+        item = patch.object(guard.os, "kill", side_effect=self.kill)
+        item.start(); self.addCleanup(item.stop)
         self.prefix = Path(self.tmp.name) / "termux-prefix"
         self.parent = self.prefix / "tmp"
         self.parent.mkdir(parents=True, mode=0o700)
@@ -1153,6 +1156,10 @@ class LocalFilesystemForwardTests(unittest.TestCase):
         self.env = patch.dict(os.environ, {"PREFIX": str(self.prefix)})
         self.env.start()
         self.addCleanup(self.env.stop)
+
+    def kill(self, pid, sig):
+        if pid not in self.identities:
+            raise ProcessLookupError("fixture owner absent")
 
     def assert_lock_held(self):
         fd = os.open(self.root / "guard.lock", os.O_RDWR)

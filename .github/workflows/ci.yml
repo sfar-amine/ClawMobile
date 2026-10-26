@@ -71,6 +71,14 @@ jobs:
           python3 -m pip install --disable-pip-version-check --target "$peer/.qa-fixture-deps" -r "$peer/qa_testing/requirements.txt"
           CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" node scripts/test-qa-contact-media-paired.cjs "$peer"
           CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" python3 ../installer/termux-lite/test-qa-contact-renderer.py "$peer"
+          # L1 validates only the authored plan, against its exact canonical contract source. No live request.
+          plan_peer="$peer/refonte-plan-source"
+          git init "$plan_peer"
+          git -C "$plan_peer" remote add origin https://github.com/sfar-amine/samantha-ui-playbooks.git
+          plan_sha=$(python3 -c 'import json; print(json.load(open("fixtures/refonte-parcours-unique/L1-scenarios.json"))["provenance"]["contractSource"]["commit"])')
+          git -C "$plan_peer" fetch --depth 1 origin "$plan_sha"
+          git -C "$plan_peer" checkout --detach FETCH_HEAD
+          CLAW_QA_PYTHON_LIB="$peer/.qa-fixture-deps" python3 ../installer/termux-lite/test-companion-acceptance-journey-plan.py "$plan_peer"
 
       - name: F1 web budget and context coverage match the current owners
         run: |
@@ -115,6 +123,7 @@ jobs:
           python3 ../installer/termux-lite/test-qa-restart-protection.py
           node scripts/test-qa-runtime-repair-lease.cjs
           node scripts/test-qa-deploy-gateway-restart.cjs
+          node scripts/test-gateway-tools-metadata-preparation.cjs
           node scripts/test-gateway-maintenance-recovery.cjs
           python3 ../installer/termux-lite/test-health-deploy-lock.py
       - name: I5 bounded restart escalation, Tier0 rollback and notification dedupe
@@ -165,6 +174,7 @@ jobs:
         run: |
           python3 ../installer/termux-lite/test-tier0-lkg-hold.py
           python3 ../installer/termux-lite/test-tier0-distinct-health.py
+          python3 ../installer/termux-lite/test-tier0-activation-readiness.py
           python3 ../installer/termux-lite/test-incident-orchestrator.py
           python3 ../installer/termux-lite/test-incident-deterministic-recovery.py
           python3 ../installer/termux-lite/test-incident-ingress.py
@@ -191,7 +201,10 @@ jobs:
       - name: Context ingest is idempotent across pending to processed race
         run: python3 ../installer/termux-lite/test-context-ingest-race.py
       - name: Test canonical app and authenticated Bixby bootstrap
-        run: node scripts/test-canonical-agent-bootstrap.cjs
+        run: |
+          node scripts/test-canonical-agent-bootstrap.cjs
+          node scripts/test-owner-foundation.cjs
+          node scripts/test-mcp-foundation.cjs
       - name: N4 request language transport
         run: node scripts/test-request-language-transport.cjs
 
@@ -320,6 +333,9 @@ jobs:
           node scripts/test-claw-live-warm-detach.cjs
           python3 scripts/test-voice-m1-corpus.py
           node scripts/test-voice-turn-protocol.cjs
+          node scripts/test-voice-async-readback.cjs
+          node scripts/test-voice-readback-persistence.cjs
+          node scripts/test-turn-budget.cjs
           node scripts/test-claw-live-token-failure.cjs
           node scripts/test-warm-v2-ownership.cjs
           node scripts/test-phone-datetime.cjs
@@ -371,7 +387,7 @@ jobs:
       - name: Test laptop owner pairing and biometric scope
         run: node scripts/test-laptop-access.cjs
       - name: P1 admission native des tours owner (preuve Keystore, anti-rejeu, connexion admin dédiée, révocation)
-        run: node scripts/test-owner-turn-admission.cjs
+        run: node scripts/test-owner-turn-admission.cjs && node scripts/test-gateway-run-observation.cjs
       - name: P1 recette — alerte transport owner indisponible et gardes d'admission
         run: python3 ../installer/termux-lite/test-companion-acceptance-owner-transport.py
       - name: Run read-only notification source contract
@@ -549,6 +565,11 @@ jobs:
         run: |
           node scripts/test-capability-tool.cjs
           node scripts/test-capability-admission.cjs
+          node scripts/test-typed-capability-tools.cjs
+          node scripts/test-brain-only-entry.cjs
+          node scripts/test-generation-interrupt.cjs
+          node scripts/test-native-turn-observation.cjs
+          node scripts/test-main-comprehension-provenance.cjs
 
       - name: E3 agent cannot run operator or transaction capabilities outside the harness
         run: |

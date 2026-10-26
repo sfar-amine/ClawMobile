@@ -1,0 +1,132 @@
+{
+  "version": 2,
+  "id": "refonte-l3-typed-brain-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "kind": "maintenance",
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "canonical_ci": "pending_full_ci",
+  "live_recipe": "not_run",
+  "summary": "Bascule hôte du cerveau seul décideur, outils typés issus des contrats canoniques et contrôle exact de génération avec admission courante.",
+  "reason": "Owner principal brain chooses semantics; typed mechanical admission reuses existing Graph/dialogue/confirmation owners and current SDK authority. Source draft only; structural eligibility never means CI or live acceptance.",
+  "files": [
+    ".github/workflows/ci.yml",
+    "cloud/voice-relay/src/mcp.mjs",
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/refonte-l3-typed-brain-20261025.json",
+    "docs/changes/refonte-l3-typed-brain-20261025.md",
+    "docs/work/samantha-refonte/README.md",
+    "installer/termux-lite/claw-capability.py",
+    "installer/termux-lite/companion-acceptance.py",
+    "installer/termux-lite/model-fast-path.py",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-turn-measurement/sdk-source-metadata.json",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/README.md",
+    "openclaw-plugin-mobile-ui/fixtures/s24-2026-10-25-typed-tools/compiled-agent-tools.json",
+    "openclaw-plugin-mobile-ui/openclaw.plugin.json",
+    "openclaw-plugin-mobile-ui/scripts/test-brain-only-entry.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-generation-interrupt.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-main-comprehension-provenance.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-turn-observation.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "openclaw-plugin-mobile-ui/src/brainOnly.ts",
+    "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/capabilityControl.ts",
+    "openclaw-plugin-mobile-ui/src/companion/clawLiveUnderstanding.ts",
+    "openclaw-plugin-mobile-ui/src/companion/intent.ts",
+    "openclaw-plugin-mobile-ui/src/companion/mcpBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/nativeOperation.ts",
+    "openclaw-plugin-mobile-ui/src/companion/remoteBridge.ts",
+    "openclaw-plugin-mobile-ui/src/companion/runs.ts",
+    "openclaw-plugin-mobile-ui/src/companion/server.ts",
+    "openclaw-plugin-mobile-ui/src/companion/voiceBrainDelegation.ts",
+    "openclaw-plugin-mobile-ui/src/index.ts",
+    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/src/modelFastPath.ts",
+    "openclaw-plugin-mobile-ui/src/nativeTurnProgress.ts",
+    "openclaw-plugin-mobile-ui/src/nativeTurnProgressOwner.ts",
+    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts"
+  ],
+  "tests": [
+    {
+      "name": "L3 seven focused Core runtime suites",
+      "status": "passed",
+      "evidence": "l3-followup-core-focused.log: seven exit0,1.91s; build l3-followup-build.log passed before last strict main/owner callback recheck."
+    },
+    {
+      "name": "SDK control tamper and revocation exact-source checks",
+      "status": "passed",
+      "evidence": "Final guard source isolated transpilation plus generation-interrupt suite PASS: body change, Contacts mutation, no authority, revocation at three points and uncertain receipt without replay. Final whole-project typecheck pending central slot."
+    },
+    {
+      "name": "Scoped Native Pulse port and owner isolation after retirement",
+      "status": "passed",
+      "evidence": "l3-resume-pulse-build.log project TypeScript PASS; brain-only-entry, native-pulse-handoff34/34 and intent-interpreter-port PASS. Current sealed contact admitted; forged JSON/correlat/model/text/ref/catalogue, revocation and released lease cause zero provider calls. Authored public identities use independently derived canonical Python refs. No S24/model call; final merged-head canonical CI remains pending."
+    },
+    {
+      "name": "L3 native WhatsApp UUID observation and comprehension provenance",
+      "status": "passed",
+      "evidence": "l3-wa-comprehension-build.log project TypeScript PASS; l3-wa-comprehension-focused.log native-turn-observation/generation-interrupt/brain-only-entry/typed-tools PASS. Main comprehension fixture epoch was first invalid then corrected to authored UUID, l3-main-comprehension-focused-v2.log PASS. Same existing run owner, no model/S24 call. Full canonical final-head CI/live Stop before agent_end remain pending."
+    }
+  ],
+  "documentation": [
+    "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md",
+    "docs/changes/refonte-l3-typed-brain-20261025.md",
+    "docs/work/samantha-refonte/README.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "Canonical registry belongs to samantha-ui-playbooks. Core implements the paired PB314 declarations samantha.app.conversation.active_generations and samantha.app.conversation.interrupt without duplicating its registry; scoped SDK callback RPC is internal, not a separate user capability. The measurement route carries internal SDK identity observations only (NO_CAPABILITY), never user/model abort authority."
+  },
+  "architecture": {
+    "changed": true,
+    "reason": "Single semantic decider with existing owner adapters, current callback admission and sole Companion runs.json writer. No parallel router/store/scheduler.",
+    "documents": [
+      "docs/08-decisions/ADR-20261025-brain-only-typed-tools.md"
+    ]
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "updated",
+      "claw_resolve": "updated",
+      "claw_execute": "updated",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "updated",
+      "adapters": "updated",
+      "documentation": "updated",
+      "tests": "updated",
+      "runtime": "updated"
+    },
+    "evidence": [
+      "Core424/PB314 source paths and backend-to-CLI typed tests; no public MCP tool added.",
+      "claw_execute cached compatibility via closed decision envelope; claw_resolve requires tools/list refresh to expose typed.",
+      "External MCP writes cannot fabricate native later-user confirmation; wrapper/live qualification remains pending."
+    ]
+  },
+  "routes": [
+    {
+      "route": "POST /v1/conversations/{id}/interrupt",
+      "budget": "6000 ms",
+      "capability": "samantha.app.conversation.interrupt",
+      "change": "P1 signed native proof; exact previous owner run; official chat.abort; no rollback claim for business effects"
+    },
+    {
+      "route": "GET /v1/conversations/{id}/active-generations",
+      "budget": "1000 ms",
+      "capability": "samantha.app.conversation.active_generations",
+      "change": "bounded local owner-run metadata only"
+    },
+    {
+      "route": "POST /v1/runs/{id}/measurement",
+      "budget": "1500 ms SDK observation transport",
+      "capability": "NO_CAPABILITY: internal native SDK UUID metadata, not a user command or abort authority",
+      "change": "L3 minimum of existing L4 owner contract: native_ingress/native_end/native_active only; exact configured owner, loopback no browser headers, no message content, budget, deferred notice or metrics"
+    }
+  ],
+  "rollback": "Disable SAMANTHA_BRAIN_ONLY; restore prior paired Companion/playbooks through existing owner deployment scripts."
+}

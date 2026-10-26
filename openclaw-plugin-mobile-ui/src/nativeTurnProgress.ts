@@ -2,7 +2,7 @@
 import http from 'http';
 import {ownerWhatsAppNumbers} from './modelFastPath';
 const SESSION=/^agent:main:whatsapp:direct:(\+?[1-9][0-9]{7,14})$/;
-const RUN=/^[A-Za-z0-9_.:-]{1,160}$/;
+const RUN=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 type Context={runId?:string;sessionKey?:string;channelId?:string;channel?:string;messageProvider?:string;agentId?:string;
  modelProviderId?:string;modelId?:string;accountId?:string};
 function postObservation(runId:string,body:unknown):Promise<any>{
@@ -16,9 +16,11 @@ function postObservation(runId:string,body:unknown):Promise<any>{
  });
 }
 function nativePeer(ctx:Context,owners:()=>Set<string>){
- if((ctx.channelId||ctx.channel||ctx.messageProvider)!=='whatsapp'||ctx.agentId&&ctx.agentId!=='main')return false;
+ // AgentContext.channelId is the target/chat ID, while MessageContext.channelId is the channel.
+ if((ctx.channel||ctx.messageProvider||ctx.channelId)!=='whatsapp'||ctx.agentId&&ctx.agentId!=='main')return false;
  const match=SESSION.exec(ctx.sessionKey||'');return !!match&&owners().has(match[1].startsWith('+')?match[1]:'+'+match[1]);
 }
+/** L3 causal provenance with L4 stage/delivery observations; the same Companion owner persists both. */
 export function nativeTurnProgressHooks(deps:{owners?:()=>Set<string>;post?:(id:string,body:any)=>Promise<any>;enabled?:()=>boolean}={}){
  const owners=deps.owners||ownerWhatsAppNumbers,post=deps.post||postObservation,enabled=deps.enabled||(()=>process.env.SAMANTHA_BRAIN_ONLY==='1');
  const valid=(event:any,ctx:Context)=>enabled()&&nativePeer(ctx,owners)&&RUN.test(ctx.runId||event?.runId||'')&&
@@ -50,7 +52,7 @@ export function nativeTurnProgressHooks(deps:{owners?:()=>Set<string>;post?:(id:
 export type NativeObservedRun={runId:string;sessionKey:string;clockEpoch:string;deadlineAt:number;state:"running";observationSource:"sdk_message_received"};
 /** Read-only adapter to the same owner. Not an abort authority or a candidate-selection heuristic. */
 export async function activeObservedNativeWhatsAppRun(sessionKey:string,options:{excludeRunId?:string}={}):Promise<NativeObservedRun|null>{
- const id=options.excludeRunId||'native-observation';if(!RUN.test(id)||!SESSION.test(sessionKey))return null;
+ const id=options.excludeRunId||'native-observation';if(options.excludeRunId!==undefined&&!RUN.test(options.excludeRunId)||!SESSION.test(sessionKey))return null;
  try{
   const response=await postObservation(id,{operation:'native_active',sessionKey,excludeRunId:options.excludeRunId}),v=response?.active;
   if(!v||typeof v.runId!=='string'||!RUN.test(v.runId)||v.sessionKey!==sessionKey||v.state!=='running'||

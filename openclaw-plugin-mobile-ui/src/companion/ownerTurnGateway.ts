@@ -24,6 +24,13 @@ type GatewaySdk = {
   resolveGatewayPort: (config: any, env?: any) => number;
   resolveConfiguredSecretInputWithFallback: (options: any) => Promise<any>;
 };
+/** Process-local callbacks bound by the runs owner; never accepted from an HTTP body. */
+export type OwnerTurnObserver = {
+  sent(): void;
+  event(frame: unknown): void;
+  final(value: unknown): Promise<void>;
+  lost(requestSent: boolean): Promise<void>;
+};
 export type OwnerTurnSdkLoader = () => Promise<GatewaySdk>;
 
 async function packageRoot(start: string) {
@@ -112,7 +119,7 @@ let loading: Promise<GatewaySdk> | undefined;
 export function setOwnerTurnSdkLoader(next: OwnerTurnSdkLoader) { loader = next; loading = undefined; }
 
 /** Soumet un tour admis owner. Seul appelant : openclawAgentClient, après `turnAdmission.isCurrent`. */
-export async function submitOwnerTurn(params: Record<string, any>, options: {expectFinal?: boolean; timeoutMs: number; admission: AdmissionTicket; binding: {clientRunId?: string; sessionId: string}}) {
+export async function submitOwnerTurn(params: Record<string, any>, options: {expectFinal?: boolean; timeoutMs: number; admission: AdmissionTicket; binding: {clientRunId?: string; sessionId: string}; observer?: OwnerTurnObserver}) {
   if (!params || typeof params !== "object" || Array.isArray(params) || typeof params.idempotencyKey !== "string" ||
     typeof params.sessionKey !== "string" || typeof params.message !== "string") throw unavailable("owner_turn_invalid");
   const timeoutMs = options.timeoutMs;
@@ -168,6 +175,7 @@ export async function submitOwnerTurn(params: Record<string, any>, options: {exp
       clientName: "cli", mode: "cli", role: "operator", deviceIdentity: null, sharedStateMode: "read-only",
       scopes: [...OWNER_TURN_SCOPES], minProtocol: 4, maxProtocol: 4,
       hostDeps: {beforeConnect: assertCurrent},
+      onEvent: (frame: unknown) => { if (!done && requestSent) options.observer?.event(frame); },
       onConnectError: fail, onReconnectPaused: () => fail(unavailable("owner_transport_unavailable")),
       onClose: () => fail(unavailable("owner_transport_unavailable")),
       onHelloOk: (hello: any) => {
@@ -179,7 +187,7 @@ export async function submitOwnerTurn(params: Record<string, any>, options: {exp
           dispatched = true;
           // The pinned public client sends synchronously: no await between this check and socket.send.
           const pending = client.request(OWNER_TURN_METHOD, params, {expectFinal: options.expectFinal === true, timeoutMs,
-            signal: abort.signal, onSent: () => {requestSent = true;}});
+            signal: abort.signal, onSent: () => {requestSent = true; options.observer?.sent();}});
           Promise.resolve(pending).then(value => {if (!done) {done = true; resolveResult(value);}}, fail);
         } catch (error) {fail(error);}
       },
@@ -187,9 +195,13 @@ export async function submitOwnerTurn(params: Record<string, any>, options: {exp
     timer = setTimeout(() => {abort.abort(); fail(unavailable("owner_transport_timeout"));}, timeoutMs + 5_000);
     const readiness = await sdk.startGatewayClientWhenEventLoopReady(client, {clientOptions: {}, signal: abort.signal, timeoutMs});
     if (!readiness.ready) fail(unavailable("owner_transport_unavailable"));
-    return await result;
+    const value = await result;
+    if (options.observer) await options.observer.final(value);
+    return value;
   } catch (error) {
     fail(error);
+    if (options.observer) {try {await options.observer.lost(requestSent);} catch { /* Storage/projection failure cannot make a sent effect safe to retry. */ }}
+    if (requestSent) throw Object.assign(new Error("owner_turn_indeterminate"), {code:"owner_turn_indeterminate", requestSent:true});
     return await result;
   } finally {
     done = true;

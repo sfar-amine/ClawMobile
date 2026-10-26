@@ -777,9 +777,45 @@ function gatewayPidPath() {
   return path.join(ensureLogsDir(), GATEWAY_PID_FILE);
 }
 
+/** Metadata preparation belongs to the existing Gateway startup lifecycle, never a user/model turn. */
+export const MAIN_TOOLS_PREPARE_BUDGET_MS=20_000;
+type CatalogReader=(method:string,params:Record<string,unknown>,options:{timeoutMs:number;hardTimeoutMs:number})=>Promise<any>;
+export async function prepareMainToolCatalog(reader?:CatalogReader,clock:()=>number=()=>performance.now()) {
+  const started=clock();let close:(()=>void)|undefined;
+  const elapsed=()=>Math.max(0,Math.round(clock()-started));
+  const unverified=(reason:string)=>({state:"unverified",agentId:"main",elapsed_ms:elapsed(),
+    budget_ms:MAIN_TOOLS_PREPARE_BUDGET_MS,reason});
+  try {
+    if(!reader) {
+      // Public, version-pinned SDK adapter and transport already own config/auth/connection/fallback policy.
+      // This default is used only by the short-lived private CLI action; its own socket is then closed.
+      const owner=await import("./openclawAgentClient");reader=owner.callOpenClawGateway;close=owner.closeOpenClawGateway;
+    }
+    const result=await reader("tools.catalog",{agentId:"main",includePlugins:true},
+      {timeoutMs:MAIN_TOOLS_PREPARE_BUDGET_MS,hardTimeoutMs:MAIN_TOOLS_PREPARE_BUDGET_MS});
+    if(elapsed()>MAIN_TOOLS_PREPARE_BUDGET_MS)return unverified("tools_catalog_budget_exceeded");
+    if(!result||result.agentId!=="main"||!Array.isArray(result.groups)||result.groups.length>256)
+      return unverified("tools_catalog_invalid");
+    let tools=0;
+    for(const group of result.groups) {
+      if(!group||!Array.isArray(group.tools)||group.tools.length>4096)return unverified("tools_catalog_invalid");
+      tools+=group.tools.length;if(tools>4096)return unverified("tools_catalog_invalid");
+    }
+    // Never copy descriptions, schemas, tool arguments, prompt text or arbitrary SDK fields to logs/user surfaces.
+    return {state:"ready",agentId:"main",elapsed_ms:elapsed(),budget_ms:MAIN_TOOLS_PREPARE_BUDGET_MS,
+      groups:result.groups.length,tools};
+  } catch {return unverified("tools_catalog_unavailable");}
+  finally {close?.();}
+}
+
 // Fixed private deploy action; no public tool, HTTP option or caller command.
 if(require.main===module){
-  if(!deployRestartOwner){process.stdout.write('{"success":false}\n');process.exitCode=2;}
+  if(process.argv.length===3&&process.argv[2]==="--prepare-main-tools") {
+    void prepareMainToolCatalog().then(result=>{
+      process.stdout.write(JSON.stringify(result)+"\n");if(result.state!=="ready")process.exitCode=75;
+    }).catch(()=>{process.stdout.write('{"state":"unverified","reason":"tools_catalog_unavailable"}\n');process.exitCode=75;});
+  }
+  else if(!deployRestartOwner){process.stdout.write('{"success":false}\n');process.exitCode=2;}
   else void restartRuntime().then(result=>{
     process.stdout.write(JSON.stringify({success:result.success})+"\n");
     if(!result.success)process.exitCode=75;

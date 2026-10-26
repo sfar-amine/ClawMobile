@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "id": "refonte-l0bis-tools-metadata-20261025",
+  "date": "2026-10-25",
+  "origin": "chat",
+  "summary": "Warm the existing SDK-owned plugin metadata catalogue once after a real Gateway restart; no model or tool execution and no unmeasured latency claim.",
+  "routes": [
+    {
+      "route": "Existing tools.catalog Gateway method, operator.read; private runtime startup CLI action",
+      "change": "One metadata read after restart/readiness, projected to counts/timing only.",
+      "budget": "Cold metadata budget20000ms; outer25000ms process bound; user turn budget unchanged.",
+      "capability": "NO_CAPABILITY (internal startup metadata preparation)"
+    }
+  ],
+  "tests": [
+    {
+      "name": "Focused offphone metadata/startup regression checks",
+      "status": "passed",
+      "evidence": "Project TypeScript PASS;6metadata Node contracts PASS;22runtime-sync tests PASS. Canonical final-head CI remains pending. Native receipt retained separately, with no claimed latency gain."
+    }
+  ],
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "rollback": "Remove prewarm invocation via existing deployment owner; no business/runtime data migration.",
+  "kind": "repair",
+  "reason": "Observed SDK plugin metadata preparation precedes the model even with zero executed tools; reuse its official read-only catalogue owner once after restart.",
+  "canonical_ci": "pending_full_ci",
+  "acceptance": "pending_post_activation_timing",
+  "merge_policy": "Structural delivery eligibility only; canonical exact-head CI and native recipe are still required.",
+  "files": [
+    "installer/termux-lite/runtime-sync.sh",
+    "installer/termux-lite/test-runtime-sync.py",
+    "openclaw-plugin-mobile-ui/src/companion/openclawGatewayClient.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-gateway-tools-metadata-preparation.cjs",
+    "openclaw-plugin-mobile-ui/fixtures/foundations/s24-plugin-preparation-20261025.json",
+    ".github/workflows/ci.yml",
+    "docs/work/samantha-refonte/ERRATUM-voix-ancres-QA413-20261025.md",
+    "openclaw-plugin-mobile-ui/fixtures/foundations/s24-tools-catalog-native-20261025.json",
+    "openclaw-plugin-mobile-ui/fixtures/foundations/s24-tools-catalog-native-20261025.PROVENANCE.md",
+    "openclaw-plugin-mobile-ui/fixtures/foundations/s24-plugin-preparation-20261025.PROVENANCE.md",
+    "docs/changes/refonte-l0bis-tools-metadata-20261025.md",
+    "docs/changes/refonte-l0bis-tools-metadata-20261025.json"
+  ],
+  "documentation": [
+    "docs/changes/refonte-l0bis-tools-metadata-20261025.md",
+    "openclaw-plugin-mobile-ui/fixtures/foundations/s24-tools-catalog-native-20261025.PROVENANCE.md",
+    "docs/work/samantha-refonte/ERRATUM-voix-ancres-QA413-20261025.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "ids": [],
+    "reason": "No public capability or MCP schema added; existing operator.read catalogue only."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Existing runtime-sync startup owner, Gateway client and SDK registry/module caches only; no new runtime owner/store/cache/daemon/poller."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Internal startup CLI only; existing public MCP owner primitives and schemas unchanged."
+    ]
+  }
+}

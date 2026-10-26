@@ -106,7 +106,7 @@ function toolAllowed(profile, tool) {
   return true;
 }
 
-function toolResult(value, auth) {
+function toolResult(value, auth, tool) {
   const base = value && typeof value === "object" ? value : { value };
   const normalized = {
     ...base,
@@ -117,10 +117,13 @@ function toolResult(value, auth) {
       read_only: auth?.profile !== "chat-owner",
     },
   };
-  return {
-    content: [{ type: "text", text: JSON.stringify(normalized) }],
-    structuredContent: normalized,
-  };
+  const content = [{ type: "text", text: JSON.stringify(normalized) }];
+  // L2 has no outputSchema: its complete required text remains readable by every MCP client.
+  // Avoid sending that owner foundation again as structuredContent; the official client already
+  // parses a single JSON text block. Other tools and legacy context keep their established shape.
+  if (tool === "claw_context" && normalized.bundle?.foundation?.version === 1 &&
+      normalized.bundle.foundation.read_required === true) return { content };
+  return { content, structuredContent: normalized };
 }
 
 function toolError(error) {
@@ -187,7 +190,7 @@ function registerTools(server, auth, invoke) {
         requestId,
         mcpRequestId: extra?.requestId ?? null,
       });
-      return toolResult(value, auth);
+      return toolResult(value, auth, tool);
     } catch (error) {
       return toolError(error);
     }
@@ -215,6 +218,8 @@ function registerTools(server, auth, invoke) {
     description: "Resolve a request against the canonical Claw Capability Harness without executing it. Use only for discovery or material ambiguity; clear known requests should call claw_execute directly.",
     inputSchema: {
       request: z.string().min(1).max(12000),
+      typed: z.object({domain: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/), action: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/),
+        params: z.record(z.string(), z.unknown())}).strict().optional().describe("Brain-selected canonical domain/action/typed parameters, without resolving request text again. Cannot be mixed with client_context, service_scope, decision or target_hint."),
       client_context: clientContextSchema.optional(),
       service_scope: serviceScopeSchema.optional(),
       target_hint: z.string().max(128).optional(),
@@ -230,12 +235,20 @@ function registerTools(server, auth, invoke) {
       : "Execute a known Claw route in shadow/read-only mode: only deterministic read routes without confirmation are admitted. Reuse action_key for retries; use a new stable step_key only for a materially new clarification/refinement step.",
     inputSchema: {
       request: z.string().min(1).max(12000),
+      typed: z.object({domain: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/), action: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/),
+        params: z.record(z.string(), z.unknown())}).strict().optional().describe("Typed canonical read. Writes retain native recap and confirmation; external narrative never grants user consent."),
       client_context: clientContextSchema.optional(),
       service_scope: serviceScopeSchema.optional(),
       action_key: z.string().regex(ACTION_ID_RE),
       step_key: z.string().regex(STEP_ID_RE).optional(),
       target_hint: z.string().max(128).optional(),
-      decision: z.record(z.string(), z.unknown()).optional(),
+      decision: z.union([
+        z.object({kind: z.literal("samantha.typed-selection.v1"), selection: z.object({
+          domain: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/), action: z.string().regex(/^[a-z][a-z0-9_.-]{0,127}$/),
+          params: z.record(z.string(), z.unknown()),
+        }).strict()}).strict(),
+        z.record(z.string(), z.unknown()),
+      ]).optional().describe("Existing prepared decision, or closed compatibility envelope {kind:'samantha.typed-selection.v1',selection:{domain,action,params}} for connectors whose cached schema lacks typed. Selection grants no authority or user confirmation; do not mix with typed/client_context/service_scope/target_hint."),
     },
     annotations: { readOnlyHint: !ownerProfile, idempotentHint: true, openWorldHint: ownerProfile },
   }, run("claw_execute"));

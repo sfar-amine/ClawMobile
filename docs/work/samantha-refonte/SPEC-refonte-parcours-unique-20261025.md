@@ -89,6 +89,32 @@ La cible : entrée (texte, WhatsApp, voix avec sa seule couche propre) → cerve
 | L5 Modèles par flux | écran hiérarchisé avec héritage, garde-fous et reçus | L3 | core, app, playbooks |
 | L6 Avancement sans carte | titres écrits par l'agent, plus aucun nom d'outil | #407 | core, app |
 
+### Schéma de la cible
+
+```text
+Texte de l'app     WhatsApp d'Amine     Voix
+      |                  |               |
+      |                  |        Couche voix : Gemini Live + réflexes
+      v                  v               v
+Socle injecté ---> CERVEAU PRINCIPAL, seul décideur <--- Skills à la demande
+(règles, identité,    une décision par demande        (ingénierie, mobile,
+ mémoire, ≤ 6 000                                       routes… lus si utiles)
+ jetons, en cache)
+        | outil                 | ambigu                | sinon
+        v                       v                       v
+Outils typés par domaine    Question précise      Réponse directe
+(samantha_<domaine> ~10,                          (raisonnement, recherche,
+ catalogue de 91 à la                              mémoire, sans action)
+ demande, outils natifs)
+        v
+Routes déterministes : droits, confirmation unique, exécution,
+vérification, reçu, réponse prête renvoyée telle quelle
+        v
+Réponse à Amine (avancement rédigé pour lui ; voix : lecture du reçu)
+        v
+Mémoire S24 synchronisée
+```
+
 ## Fonctionnel L1 — Mesure de référence et recette finale
 
 Pas de banc d'essai (décision d'Amine, 25/10 12:34) : chaque lot se clôt par une recette finale menée par Codex en direct sur le S24, puis Amine vérifie en second rideau.
@@ -583,3 +609,46 @@ Les sept points sont tranchés ; Codex avance sans autre validation.
 - [Anthropic — Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) ([résumé lu](https://agentic-ai.readthedocs.io/en/latest/ContextEngineering/anthropic/)) : socle minimal, lecture au moment voulu, compaction.
 - [OpenAI — Voice agents](https://developers.openai.com/api/docs/guides/voice-agents) : voix en duplex avec délégation au serveur, mesure de l'attente utile.
 - [Atlan — What are Agent Skills](https://atlan.com/know/ai-agent/ai-agent-skills/what-are-agent-skills/) : standard ouvert du 18/12/2025, divulgation progressive.
+
+## Annexe — Diagnostic de latence du 25/10 (15:20)
+
+Mesuré sur le S24 après le déploiement de 3bed0f05. La question simple en voix met environ 30 s, et le modèle n'en est pas la cause.
+
+- Lignes `[voice-turn]` de 14:21 à 15:01 : `brain_ms` de 15 à 29 s, alors que la course de l'agent elle-même dure 2,5 à 7 s (un seul tour de modèle, aucun outil, aucune relecture).
+- Course `run_1792934450703_597aff20` (14:20:50), d'après le journal OpenClaw (`$TMPDIR/openclaw/openclaw-2026-10-25.log`) :
+    - tri par l'interprète (`samantha.intent.interpret`, Gemini) : 1,8 s ;
+    - soumission par le client WebSocket public du SDK (`agent`, `ownerTransport=admin_admitted`) : environ 1,2 s ; `clientName=cli` nomme son identité protocolaire, pas un processus CLI shell ;
+    - attente avant la préparation : environ 6 s, avec le fil principal occupé (`sessions.list` de 2,5 à 3,9 s pendant le tour, maintenance SQLite des sessions de 5,6 s puis 10,4 s, une maintenance rejetée « inputs changed before commit », base `openclaw-agent.sqlite` de 54 Mo) ;
+    - préparation de la course (`[trace:embedded-run] prep stages`) : 13,9 s, dont `core-plugin-tools` 8,5 s (`openclaw-tools:plugin-tools` 8,3 s), `system-prompt` 3,1 s, `bootstrap-context` 1,1 s ;
+    - modèle : environ 4 s.
+- Les deux autres courses tracées montrent le même profil : `plugin-tools` 6,7 et 8,4 s, `system-prompt` 2,3 et 4,3 s.
+- Avertissements au chargement des outils du plugin : `transmettre_a_amine` et `noter_contact` « missing parameters object ».
+
+**Conséquence** : environ 20 s sur 30 se perdent avant que le modèle commence, sur toutes les surfaces. Ce point passe avant L2 (lot L0bis) :
+1. rendre les fabriques d'outils du plugin quasi gratuites par course (cache par processus, travail repoussé dans `execute`), puis vérifier quel plugin coûte les 8 s ;
+2. trouver ce qui coûte 2 à 4 s dans `system-prompt` ;
+3. arrêter d'appeler `sessions.list` et `chat.history` en boucle pendant un tour, et sortir la maintenance SQLite des sessions du chemin chaud ;
+4. conserver la connexion SDK admise pendant le tour et exploiter sa réponse finale et ses événements ; tout éventuel partage de connexion doit préserver le ticket P1 lié au tour, les scopes et l’absence de rejeu. L’interprète disparaît avec L3.
+
+Mesurer chaque correctif seul, par les mêmes lignes `prep stages` et `[voice-turn]`.
+
+### Tour chaud du 25/10 à 14:58 (16,5 s), et pistes chiffrées
+
+Chronologie (journal OpenClaw, course `run_1792936701821_c2487ece`) :
+- 0 à 3,3 s : coordinateur, puis interprète Gemini (1,35 s), puis soumission (`agent` accepté en 76 ms) ;
+- 3,9 à 11,3 s : **attente avant le démarrage**. Pendant ce temps, le fil principal du Gateway traite `sessions.list` (2,0 s, phase `materialize` 1,8 s), `chat.history` (jusqu'à 1,8 s), `progressCard.get` (1,0 s) et une écriture SQLite lente (2,8 s) ; ces appels viennent du suivi par sondage pendant le tour ;
+- 11,3 à 14,9 s : modèle (premier texte après environ 1,6 s) ;
+- 14,9 à 16,5 s : détection de la fin par un nouveau `sessions.list` (1,7 s).
+- La session vocale réutilisée porte environ 44 600 jetons d'historique.
+
+Pistes, par gain attendu :
+1. **Ne plus sonder le Gateway pendant un tour** : détecter le début, l'avancement et la fin par les événements qu'il pousse déjà (`agent` lifecycle et assistant, `sessions.changed`, `session.message`). L'app lit le Companion, qui sert depuis son cache. Hypothèse de gain à mesurer : 5 à 8 s par tour.
+2. **Gateway chaud** : qualifier le coût à froid et le chargement anticipé sans réponse utilisateur ni exécution métier ; tout tour de préchauffage modèle doit avoir son admission et sa consommation gratuite attestées. Éviter les redémarrages sans nécessité opérationnelle. Un tour froid paie 12 à 14 s de préparation (`plugin-tools` 8,5 s, `system-prompt` 3 s). Hypothèse de gain à mesurer : environ 12 s sur le premier tour.
+3. **Sessions légères** : une session vocale courte par conversation, la continuité venant de la mémoire S24 ; examiner la rétention existante (`pruneAfter: 7d` et `preserveRecent: 14d`) avant toute purge physique ; confier la maintenance au propriétaire existant, hors chemin chaud. Cette piste ne vaut pas autorisation de supprimer des sessions ni de créer un ordonnanceur. Hypothèse de gain à mesurer : 2 à 3 s et un premier mot plus rapide.
+4. **Supprimer l'interprète et le double tri** (L3) : environ 1,5 s.
+5. **Faire parler la voix dès la première phrase** du cerveau (flux `assistant` déjà émis) au lieu d'attendre le reçu complet. Hypothèse de gain perçu à mesurer : 1 à 2 s.
+6. **Moins d'outils catalogués par course** (96 aujourd'hui : désactiver ce qui ne sert pas, par exemple les générateurs d'images, de vidéo et de musique). Gain faible, surtout à froid.
+
+Cible à vérifier après correctifs isolés : tour chaud de 5 à 7 s, puis seuil Q2 sous 6 s en médiane. Les gains ci-dessus ne sont ni additionnables ni acquis. Un tour froid doit être mesuré séparément ; aucun gain de préchauffage n’est attesté à ce stade.
+
+**Précisions de preuve L0bis** : le tour `run_1792934450703_597aff20` a zéro `tool.call` et un seul appel modèle (4,382 s) ; six lectures de fichiers par le modèle ne peuvent donc pas expliquer sa préparation de 13,870 s. L’attente admission→`session.started` (21,798 s), le temps cerveau côté Companion (29,311 s) et la livraison audio après réponse backend (22,873 s) sont trois segments distincts. Le suivi événementiel doit prouver une réduction des lectures Gateway et du segment visé, sans revendiquer les gains du chargement des outils ou de la voix. Les fragments `assistant` servent au plus à une parole provisoire : seul le résultat terminal du propriétaire peut établir un reçu d’action ; confirmations, sorties d’outils et effets incertains restent gardés.

@@ -55,7 +55,7 @@ gatewayTransport.setOwnerTurnSdkLoader(async()=>{
  return fakePublicSdk(async(method,opts,params,extra)=>{
   sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,progress:extra.progress,opts,extraKeys:Object.keys(extra).sort(),message:params.message,signal:extra.signal});
   if(sdkMode==='fail')throw Object.assign(new Error('boom'),{gatewayCode:'UNAVAILABLE'});
-  return {runId:params.idempotencyKey,status:'accepted'};
+  return opts.expectFinal?{runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Réponse finale synthétique.'}],meta:{stopReason:'stop'}}}:{runId:params.idempotencyKey,status:'accepted'};
  });
 });
 const {turnAdmission,createTurnAdmission,admissionMessage,enrollmentMessage,enrollmentPresentation,recentAdmissionRefusals,ADMISSION_WINDOW_MS,NONCE_CAPACITY,sha256Hex}=require('../dist/companion/ownerTurnAdmission');
@@ -149,7 +149,7 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    for(const line of ['scopes: extra?.scopes,','signal: extra?.signal,','expectFinal: extra?.expectFinal ?? Boolean(opts.expectFinal),','clientName: extra?.clientName ?? GATEWAY_CLIENT_NAMES.CLI,'])assert.ok(sig.runtime_excerpt.includes(line),line);
    assert.ok(sig.call_excerpt.includes('if (Array.isArray(opts.scopes)) return await callGatewayWithScopes(opts, opts.scopes);'));
    assert.ok(hit.signal instanceof AbortSignal);assert.ok(hit.extraKeys.includes('clientOptions'));
-   assert.deepEqual(hit.opts,{json:true,timeout:'15000',expectFinal:false});count('sdk_signature_contract');}
+   assert.deepEqual(hit.opts,{json:true,timeout:'120000',expectFinal:true});count('sdk_signature_contract');}
   {let run;for(let i=0;i<50&&!(run=(await request('GET','/v1/runs/'+r.runId)).body).ownerTransport;i++)await new Promise(x=>setTimeout(x,20));
    assert.equal(run.ownerTransport,'admin_admitted');assert.equal(run.ownerAdmitted,true);
    const listed=(await request('GET','/v1/runs?limit=50')).body.runs.find(x=>x.runId===r.runId);assert.equal(listed.ownerTransport,'admin_admitted');count('run_owner_transport');}
@@ -208,8 +208,8 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
   gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,o,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,id:params.idempotencyKey});throw new Error('after dispatch');}));
   r=await submit();await settled(r.runId);await new Promise(x=>setTimeout(x,200));
   assert.equal(readLines(cliLog).filter(x=>x.id===r.runId).length,0,'pas de repli après envoi');
-  const failed=(await request('GET','/v1/runs/'+r.runId)).body;assert.equal(failed.state,'failed');count('no_replay_after_dispatch');
-  gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,message:params.message});await new Promise(x=>setTimeout(x,30));return {runId:params.idempotencyKey,status:'accepted'};}));
+  const failed=(await request('GET','/v1/runs/'+r.runId)).body;assert.equal(failed.state,'unknown');assert.equal(failed.ownerTransport,'admin_admitted');count('no_replay_after_dispatch');
+  gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',method,scopes:extra.scopes,sessionKey:params.sessionKey,id:params.idempotencyKey,message:params.message});await new Promise(x=>setTimeout(x,30));return opts.expectFinal?{runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Réponse finale synthétique.'}],meta:{stopReason:'stop'}}}:{runId:params.idempotencyKey,status:'accepted'};}));
 
   // --- 6. Concurrence : tours admis et non admis simultanés, sans croisement de connexion.
   {const jobs=[];for(let i=0;i<8;i++){jobs.push(submit({sessionId:'own-'+i}).then(x=>({x,owner:true})));jobs.push(submit({sessionId:'pub-'+i,sign:false}).then(x=>({x,owner:false})));}
@@ -263,7 +263,7 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    for(const opts of [{},{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true},{admission:admitted.ticket,clientRunId:'other-client',voiceDelegation:true}]) {
     await assert.rejects(()=>client.submitToOpenClawAgent('Mémoire','voice-refused-'+crypto.randomUUID(),'other-session',{voiceDelegation:true,...opts}),/voice_owner_admission_required/);count('voice_ticket_bound');
    }
-   let delegated;gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params)=>{delegated=params;return {runId:params.idempotencyKey,status:'accepted'};}));
+   let delegated;gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(async(method,opts,params)=>{delegated=params;return opts.expectFinal?{runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Réponse finale synthétique.'}],meta:{stopReason:'stop'}}}:{runId:params.idempotencyKey,status:'accepted'};}));
    process.env.CLAWMOBILE_AGENT_ID='other-agent';const result=await client.submitToOpenClawAgent('Souviens-toi du rendez-vous','voice-main-run','voice-parity',{admission:admitted.ticket,clientRunId:cid,voiceDelegation:true});process.env.CLAWMOBILE_AGENT_ID='main';
    assert.equal(result.ownerTransport,'admin_admitted');assert.equal(delegated.agentId,'main');assert.equal(delegated.sessionKey,'companion-chat-voice-parity');assert(delegated.message.endsWith('Souviens-toi du rendez-vous'));count('voice_main_same_conversation');
    gatewayTransport.setOwnerTurnSdkLoader(async()=>{throw Object.assign(new Error('missing'),{code:'owner_transport_unavailable'});});
@@ -281,7 +281,7 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    const ticket=turnAdmission.verifyRequest({method:'POST',path:'/v1/runs',headers:proof({body:'{}',clientRunId,sessionId}),rawBody,clientRunId,sessionId});assert.equal(ticket.admitted,true);
    let entered,release;const loadingStarted=new Promise(r=>entered=r),loadingGate=new Promise(r=>release=r);
    const before=sdkCalls.length;
-   gatewayTransport.setOwnerTurnSdkLoader(async()=>{entered();await loadingGate;return fakePublicSdk(async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',id:params.idempotencyKey});return {runId:params.idempotencyKey,status:'accepted'};});});
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>{entered();await loadingGate;return fakePublicSdk(async(method,opts,params,extra)=>{sdkCalls.push({transport:'admin',id:params.idempotencyKey});return opts.expectFinal?{runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Réponse finale synthétique.'}],meta:{stopReason:'stop'}}}:{runId:params.idempotencyKey,status:'accepted'};});});
    const pending=require('../dist/companion/openclawAgentClient').submitToOpenClawAgent('tour','p1-sdk-race-run',sessionId,{admission:ticket.ticket,clientRunId});
    await loadingStarted;turnAdmission.revoke();release();
    await assert.rejects(pending,e=>e.code==='owner_turn_admission_expired');
@@ -307,6 +307,23 @@ async function submit({text='Envoie le rapport',sessionId='p1-session',clientRun
    try{await rejectBefore({secret:async()=>{admissionClockOffset=61000;return {value:'synthetic-only'}}},'owner_turn_admission_expired');}finally{admissionClockOffset=0;}count('public_expiry_during_bootstrap');
    let calls=0;const hooks={deferHello:true};const sdk=fakePublicSdk(()=>{calls++;return {status:'accepted'}},hooks);gatewayTransport.setOwnerTurnSdkLoader(async()=>sdk);
    const x=admitted(),pending=gatewayTransport.submitOwnerTurn(x.params,x.options);for(let i=0;i<20&&!sdk.getClient();i++)await new Promise(r=>setTimeout(r,5));sdk.getClient().hello();sdk.getClient().hello();await pending;assert.equal(calls,1);assert.ok(hooks.stops);count('public_one_request_and_close');
+   const events=[];let sends=0;const observed=admitted();
+   const observation={sent:()=>events.push('sent'),event:frame=>events.push(frame.event),final:async value=>events.push(value.status),lost:async sent=>events.push('lost:'+sent)};
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk((method,opts,params,extra)=>{
+    sends++;assert.equal(opts.expectFinal,true);extra.clientOptions.onEvent({event:'agent',payload:{runId:params.idempotencyKey}});
+    return {runId:params.idempotencyKey,status:'ok',result:{payloads:[{text:'Public fixture reply.'}]}};
+   }));
+   await gatewayTransport.submitOwnerTurn(observed.params,{...observed.options,expectFinal:true,observer:observation});
+   assert.deepEqual(events,['sent','agent','ok']);assert.equal(sends,1);count('public_observed_same_admitted_request');
+   events.length=0;const lost=admitted();
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(()=>{sends++;throw Error('synthetic post-send loss')}));
+   await assert.rejects(gatewayTransport.submitOwnerTurn(lost.params,{...lost.options,expectFinal:true,observer:observation}),e=>e.requestSent===true);
+   assert.deepEqual(events,['sent','lost:true']);assert.equal(sends,2,'transport loss never replays agent');count('public_observed_loss_no_replay');
+   const storageFailure=admitted();
+   gatewayTransport.setOwnerTurnSdkLoader(async()=>fakePublicSdk(()=>{sends++;return {status:'ok'}}));
+   await assert.rejects(gatewayTransport.submitOwnerTurn(storageFailure.params,{...storageFailure.options,expectFinal:true,
+    observer:{sent(){},event(){},final:async()=>{throw Error('projection unavailable')},lost:async()=>{throw Error('registry unavailable')}}}),e=>e.requestSent===true&&e.code==='owner_turn_indeterminate');
+   assert.equal(sends,3);count('public_projection_failure_stays_indeterminate');
   }
 
   // Synthetic write executor: never executes a real capability. It denies caller=other.

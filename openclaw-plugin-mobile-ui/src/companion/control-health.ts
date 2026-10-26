@@ -82,24 +82,31 @@ export function projectComprehension(input: {facts: ComprehensionRunFact[]; reta
   for (const [id, span] of WINDOWS) {
     const start = now - span;
     const inWindow = facts.filter(f => f.acceptedAt >= start);
-    const decided = inWindow.filter(f => typeof f.decisionType === "string");
+    // Parent ownership is persisted only by the admitted main owner, never inferred from client text or names.
+    const main = inWindow.filter(f => !f.internalOperation && f.semanticOwner === "main" &&
+      f.executionSource === "gateway" && f.ownerAdmitted === true && f.ownerTransport === "admin_admitted" &&
+      f.gatewayObserved === true && f.state === "done" && f.hasResult === true);
+    const decided = inWindow.filter(f => !f.internalOperation && f.decisionQualified === true && !main.includes(f));
+    const semantic = [...decided, ...main];
     const clarify = decided.filter(f => f.decisionType === "CLARIFY").length;
-    const notThis = decided.filter(f => typeof f.notThisAt === "number").length;
+    const notThis = semantic.filter(f => typeof f.notThisAt === "number").length;
     const learned = decided.filter(f => f.decisionType === "EXECUTE" && f.learned).length;
     windows[id] = {
-      runs: inWindow.length, decidedRuns: decided.length, agentRuns: inWindow.filter(f => f.agent).length,
+      runs: inWindow.length, decidedRuns: decided.length, legacyDecidedRuns: decided.length, mainRuns: main.length, semanticRuns: semantic.length,
+      comprehensionCoverage: "qualified_legacy_decisions_and_attested_main_results",
+      clarificationCoverage: "qualified_legacy_decisions_only", agentRuns: inWindow.filter(f => f.agent).length,
       clarify, notThis, learnedDirect: learned, clarificationAnswers: decided.filter(f => f.clarificationAnswer).length,
-      clarifyRate: rate(clarify, decided.length), notThisRate: rate(notThis, decided.length), learnedDirectRate: rate(learned, decided.length),
+      clarifyRate: rate(clarify, decided.length), notThisRate: rate(notThis, semantic.length), learnedDirectRate: rate(learned, decided.length),
       // Le registre garde au plus `retainedCap` runs : une fenêtre plus ancienne que le plus vieux run retenu est partielle.
       complete: facts.length < input.retainedCap || (oldest !== null && oldest <= start),
     };
   }
   const week = windows["7d"];
   const reasons: string[] = [];
-  if (facts.some(f => f.acceptedAt >= now - 7 * 86_400_000 && typeof f.notThisAt === "number" && f.decisionRisk === "transaction")) reasons.push("transaction_corrected");
+  if (facts.some(f => f.acceptedAt >= now - 7 * 86_400_000 && typeof f.notThisAt === "number" && f.decisionQualified === true && !f.internalOperation && f.decisionRisk === "transaction")) reasons.push("transaction_corrected");
   if (week.clarifyRate !== null && week.clarifyRate > 0.3) reasons.push("clarify_rate_above_30pct");
   return {
-    status: week.decidedRuns === 0 ? "unknown" : reasons.length ? "attention" : "healthy",
+    status: week.semanticRuns === 0 ? "unknown" : reasons.length ? "attention" : "healthy",
     label: {fr: "Compréhension", en: "Understanding"},
     source: "runs", retainedRuns: facts.length, oldestRunAt: oldest === null ? null : new Date(oldest).toISOString(),
     windows, reasons,
