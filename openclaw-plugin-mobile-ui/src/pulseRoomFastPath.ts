@@ -21,8 +21,8 @@ const MAX_MESSAGE_CHARS = 4000;
 export const PULSE_ROOM_REFUSAL = "Ici je ne traite que Pulse : projets, offres, congés de l'équipe et solde de congés. Pour le reste, vois directement avec Amine.";
 // Amine 26/10: a constraint, not a refusal. The room acts with Amine's Pulse account, so a leave
 // request posted here would be recorded as Amine's leave.
-export const LEAVE_REQUEST_REFUSAL = "Les demandes de congé ne sont pas prises en compte ici : cette pièce utilise le compte Pulse d’Amine, donc un congé posé ici serait enregistré au nom d’Amine. Pose ta demande de congé directement dans Pulse, avec ton propre compte.";
-export const PULSE_ROOM_NOT_UNDERSTOOD = "Je n’ai pas compris cette demande Pulse. Précise ce que tu veux créer, modifier ou consulter (projet, offre, phase), ou essaie de la reformuler.";
+export const LEAVE_REQUEST_REFUSAL = "Désolé, je ne peux pas prendre en compte les demandes de congé : j’utilise le compte Pulse d’Amine, donc un congé posé ici serait enregistré au nom d’Amine. Merci de poser ta demande de congé directement dans Pulse, avec ton propre compte.";
+export const PULSE_ROOM_NOT_UNDERSTOOD = "Je n’ai pas compris ta demande Pulse. Peux-tu préciser, stp, ce que tu veux créer, modifier ou consulter (projet, offre, phase) ? Tu peux aussi essayer de la reformuler. Merci !";
 export const PULSE_ROOM_HELP = "Je n'ai pas compris la demande Pulse et je ne réponds qu'avec les données de Pulse. Donne le numéro ou le nom du projet ou de l'offre, et ce que tu veux : état, équipe, consommation, forecast, congés de l'équipe.";
 const PULSE_UNAVAILABLE = "Pulse est indisponible pour le moment. Réessaie dans un instant.";
 const TEXT_ONLY = "Ici je ne lis que les messages écrits. Écris ta demande Pulse (projet, offre, congés de l'équipe).";

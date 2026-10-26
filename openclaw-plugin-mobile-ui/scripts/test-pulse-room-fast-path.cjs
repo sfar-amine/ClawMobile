@@ -169,7 +169,7 @@ async function main() {
   r=runner(()=>({outcome:'OUTSIDE_SCOPE',reasonCode:'scope_outside',handled:true}));
   assert.equal((await mod.handlePulseRoomFastPath(ev('fais quelque chose'),ctx(),r)).reply.text,mod.PULSE_ROOM_NOT_UNDERSTOOD);
   assert.match(mod.PULSE_ROOM_NOT_UNDERSTOOD,/créer, modifier ou consulter/);
-  assert.match(mod.LEAVE_REQUEST_REFUSAL,/compte Pulse d’Amine/);
+  assert.match(mod.LEAVE_REQUEST_REFUSAL,/compte Pulse d’Amine/);assert.doesNotMatch(mod.LEAVE_REQUEST_REFUSAL,/pièce/);
   // Native room: every request of the message gets its own admission (eventRef and text bound), turn and hand-off.
   r=runner((m,o)=>o.dialogue.mode==='turn'?{outcome:'READY',handled:true,pendingHandoff:{goalRef:'g-'+o.dialogue.event.eventRef,klass:'FAST'}}
     :{outcome:'COMPLETED',text:'fait : '+m,handled:true});
