@@ -35,8 +35,8 @@
     },
     {
       "name": "Final canonical PB8bbd room-policy paired contract",
-      "status": "pending",
-      "evidence": "PB8bbd00ccb848d0b52773f2fa1b8d16fc87b83136 includes canonical #326: decision ec0ec646/EVT3305 makes a complete admitted Pulse room write READY directly. Earlier c8deb paired refusal retained in core428-c8deb45f-pb8bbd-paired-v1.log; fixture updated only for the canonical request-event policy, same native grants/one-shot transport/refusal/replay guards. New missing-value question followed by same-goal answer case; exact targeted replay pending."
+      "status": "passed",
+      "evidence": "Exact Core16a7c38467a6235d2562416b6b809283c8e05ec1/PB8bbd00ccb848d0b52773f2fa1b8d16fc87b83136, clean stable sources:49/49 PASS12.009s in qualified cloud container; log core428-16a7c384-pb8bbd-paired-v3.log SHA256 ce394af399f88cf45da136dbe888b33c1e70923a2cc7c1d06577e7d9029f46b4. Canonical #326/decision ec0ec646 room policy: complete request→handoff→completed/replay same event, missing-value question causes zero effect then same-goal answer runs once; pre-effect refusal/replay and global-context deferred sibling retained. Zero provider/network/business effects. Tsc passed on product-identical c8deb. Earlier historical-contract refusal and missing parse5 preparation refusal conserved; no runtime guard relaxed. Final pin PB7615bc96958818b86083e639a89cf4ba0523d818 is code/test/registry-identical to8bbd: diff contains only CAPABILITIES.md regenerated plus its change JSON/MD. Evidence core428-pb7615-docs-equivalence-20261026.json; no repeated product test needed for docs. Exact final canonical full remains required."
     }
   ],
   "documentation": [
