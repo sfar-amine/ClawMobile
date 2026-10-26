@@ -4,35 +4,26 @@
   "date": "2026-10-26",
   "origin": "chat",
   "kind": "repair",
-  "summary": "Le cerveau scoped Pulse reçoit le message entier ; les outils projettent seulement les droits de pièce déjà accordés, et le parcours legacy conserve les identités et le contexte des demandes en attente.",
-  "reason": "Alignement cerveau seul décideur et fermeture des écarts de continuité constatés dans l’union canonique441 ; aucune extension de droits ou de fournisseur DATA01 implicite.",
+  "summary": "Le parcours cerveau unique concerne Amine ; le service professionnel des contacts Pulse conserve son IA Gemini déjà admise et transmet les contraintes globales avec des reprises durables identifiées.",
+  "reason": "Confrontation SPEC owner/WhatsApp d’Amine et réparation des écarts441 : fragments sans contexte global, identité de reprise recréée, perte en interruption et poursuite après effet incertain. Admission C2/DATA01 et origine d’effet du coordinateur inchangées.",
   "files": [
-    "installer/termux-lite/people-trusted.py",
-    "installer/termux-lite/project-room.py",
-    "installer/termux-lite/pulse-room.py",
-    "installer/termux-lite/test-pulse-room.py",
+    "installer/termux-lite/model-fast-path.py",
     "openclaw-plugin-mobile-ui/src/capabilityAgentGuard.ts",
     "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
-    "openclaw-plugin-mobile-ui/src/intentInterpreterPort.ts",
+    "openclaw-plugin-mobile-ui/src/nativePulseAdmission.ts",
     "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
-    "openclaw-plugin-mobile-ui/src/typedCapabilityTools.ts",
     "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
-    "openclaw-plugin-mobile-ui/scripts/test-typed-capability-tools.cjs",
+    "openclaw-plugin-mobile-ui/scripts/test-native-pulse-handoff.cjs",
     "openclaw-plugin-mobile-ui/scripts/test-intent-interpreter-port.cjs",
     "docs/changes/pulse-scoped-brain-continuity-20261026.md",
-    "docs/changes/pulse-scoped-brain-continuity-20261026.json",
-    "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md"
+    "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md",
+    "docs/changes/pulse-scoped-brain-continuity-20261026.json"
   ],
   "tests": [
     {
-      "name": "Core441 focused TS / room / typed tools / Python owners",
+      "name": "Owner scope / professional Pulse continuity focused source",
       "status": "passed",
-      "evidence": "CI core441-brain-pulse-focused-v1.log : TS + deux suites Node +3Python PASS,10.709s, diff et fichiers WIP identiques avant/après ; aucun fournisseur/S24."
-    },
-    {
-      "name": "Native Pulse dedicated purpose retired in brain-only mode",
-      "status": "passed",
-      "evidence": "CI core441-native-purpose-retired-focused-v1.log : script port existant PASS0.48s, refus avant getComplete, aucune inférence."
+      "evidence": "CI core441-owner-scope-restored-focused-v1.log : TS +4scripts existants (room, intent port, NativePulse39/39 mocks, typedowner isolation), PASS8.218s ; WIP source/diff hashes identiques avant/après. Garde acteurSDK propriétaire, contexte lié/forgé/absent, refs longues/stables, reprises de la queue existante, stop erreur/inconnu/replay et purpose professionnel conservé sous flagowner."
     }
   ],
   "documentation": [
@@ -41,11 +32,11 @@
   ],
   "capabilities": {
     "impact": "none",
-    "reason": "NO_CAPABILITY : mêmes actions/registre/Pulse permissions3291 ; projection host de l’acteur existant, aucun endpoint MCP/capacité créé."
+    "reason": "NO_CAPABILITY : aucun nouveau droit, outil, route ou endpoint ; mêmes Pulse/C2 et catalogue MCP, aucune DATA01/Purpose nouvelle."
   },
   "architecture": {
     "changed": true,
-    "reason": "ADR docs/08-decisions/ADR-20261026-pulse-scoped-brain.md ; cerveau scoped, preuves NativePulse/C2 existantes et queue coordinateur existante, aucun autre mécanisme.",
+    "reason": "Borne de portée owner et continuité chez les seuls propriétaires existants ; aucune nouvelle file/planification/retry et aucune nouvelle autorité contact.",
     "documents": [
       "docs/08-decisions/ADR-20261026-pulse-scoped-brain.md"
     ]
@@ -67,15 +58,15 @@
       "runtime": "verified_no_impact"
     },
     "evidence": [
-      "Même catalogue canonique et mêmes schémas/actions MCP ; la projection scoped contact ne peut mint owner/global. L’admission et le transport typed interne sont appariés aux mêmes owners, à requalifier sur union."
+      "Catalogues, signatures et autorisations MCP inchangés. Le gardeSDK exclut Amine du service contact avant toute interprétation ; modèle/contact ne peut fournir une autorité par texte. La queue appartient au même dialogue CAS."
     ]
   },
   "merge_eligibility": "allowed",
   "deployment_state": "not_applied",
   "limitations": [
-    "Aucune activation native ni fournisseur qualifié par ces ciblés.",
-    "Appariement PB queue/scoped typed puis CI canonique exacte requis.",
-    "DATA01 du candidat réellement utilisé à raccorder avant activation ; aucun profil arbitraire admis."
+    "Les contrôles TS/Node sont des fixtures authored et mocks ; aucun fournisseur ni effet professionnel réel.",
+    "Le propriétaire PB apparié doit qualifier la persistance CAS/WholeProjection/context puis nouvelle CI canonique exacte de l’union.",
+    "Aucune activation ou recette S24 n’est attestée par cette fiche."
   ],
-  "rollback": "SAMANTHA_BRAIN_ONLY=false et mêmes propriétaires provision/rules restaurent le bootstrap legacy ; reçus et queue conservés, aucun effet incertain rejoué."
+  "rollback": "Revert du correctif apparié Core/PB après rapprochement des reçus ; conserver queue/reçus, ne jamais rejouer un effet incertain. Le flag cerveau propriétaire ne change pas les admissions professionnelles contact."
 }

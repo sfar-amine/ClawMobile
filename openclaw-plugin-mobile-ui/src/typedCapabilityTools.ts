@@ -4,8 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import {runtimeFile} from "./runtimeRoot";
 import {runCapabilityHelperProcess,capabilityBridge} from "./companion/capabilityBridge";
-import {consumeTypedInvocation,holdTypedControlInvocation,scopedPulseActor} from "./capabilityAgentGuard";
-import {admitNativePulseContact} from './nativePulseAdmission';
+import {consumeTypedInvocation,holdTypedControlInvocation} from "./capabilityAgentGuard";
 import {activeNativeWhatsAppGenerations} from "./companion/capabilityControl";
 import {expectedCompanionSessionKey} from "./companion/openclawAgentClient";
 import {createHash} from "node:crypto";
@@ -54,12 +53,8 @@ function toolSchema(tool: DomainTool) {
 export function createTypedCapabilityTools(context: TypedToolContext, options: Options = {}) {
   // Contacts do not even see these descriptors. Recheck identity and liveness
   // during execution; a factory snapshot is never permission for a later turn.
-  const pulseActor=scopedPulseActor(context);
-  if (!pulseActor&&(context?.senderIsOwner !== true || context.agentId && context.agentId !== "main")) return null;
-  const catalogue=(options.catalogue || readTypedToolCatalogue(options.home))
-    .filter(tool=>!pulseActor||tool.domain==='pulse'&&tool.name==='samantha_pulse')
-    .map(tool=>pulseActor?{...tool,actions:tool.actions.filter(action=>!['leave.request','certificate.rotate'].includes(action.action))}:tool);
-  const tools: any[] = catalogue.map(tool => {
+  if (context?.senderIsOwner !== true || context.agentId && context.agentId !== "main") return null;
+  const tools: any[] = (options.catalogue || readTypedToolCatalogue(options.home)).map(tool => {
     const parameters = toolSchema(tool);
     const actions = tool.actions.map(a => `${a.action}: ${a.description}${a.canonicalStatus === "candidate" ? " (candidate non qualifiée ; ne pas annoncer disponible)" : ""}${a.nativeOwner ? " (propriétaire natif " + a.nativeOwner.owner + ", poursuivre son parcours existant)" : ""}${a.confirmationRequired ? " (récapitulatif puis confirmation)" : ""}`).join("\n");
     const examples = tool.actions.flatMap(a => a.examples || []).slice(0, 5).join(" ; ");
@@ -76,14 +71,12 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
               !args.params || typeof args.params !== "object" || Array.isArray(args.params)) throw Error("typed_input_invalid");
           const operation = ["confirm", "cancel"].includes(args.action) ? args.action : "call";
           const action = tool.actions.find(a => a.action === args.action);
-          if(pulseActor&&(!scopedPulseActor(context)||context.messageChannel!=='whatsapp'||tool.domain!=='pulse'||
-            tool.name!=='samantha_pulse'||operation==='call'&&!action))throw Error('typed_actor_scope_required');
           if(operation==='call'&&nativeWhatsApp&&action?.action==='samantha.app.conversation.active_generations'){
             if(Object.keys(args.params).length!==1||args.params.conversationId!=='current')throw Error('typed_target_not_current_conversation');
             const result=await activeNativeWhatsAppGenerations(bound.conversationKey,bound.userRunId,()=>context.assertInvocationCurrent!());
             return {content:[{type:'text',text:JSON.stringify({state:'COMPLETED',facts:result,answer:'Générations observées de cette conversation WhatsApp uniquement.'})}]};
           }
-          if (!pulseActor&&operation === "call" && action?.nativeOwner && action.risk === "read") {
+          if (operation === "call" && action?.nativeOwner && action.risk === "read") {
             const resolved:any = await capabilityBridge("typed owner handoff", {execute:true,readOnly:true,caller:"owner",surface:"external_mcp",
               requestId:bound.invocationId,typedSelection:{domain:tool.domain,action:args.action,params:args.params},
               helperPath:options.helperPath,timeoutSeconds:6});
@@ -122,25 +115,13 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
             ? {operation, domain: tool.domain, action: args.action, params: args.params}
             : {operation, domain: tool.domain, confirmationId: args.params.confirmationId, payloadHash: args.params.payloadHash};
           const whatsapp = context.messageChannel === "whatsapp";
-          let nativePulse;
-          if(pulseActor){
-            context.assertInvocationCurrent!();
-            const eventRef='typed-pulse:'+createHash('sha256').update(JSON.stringify([bound.userRunId,bound.invocationId])).digest('hex');
-            const admission=await admitNativePulseContact({sessionKey:bound.conversationKey,eventRef,
-              text:JSON.stringify(command),isGroup:false});
-            nativePulse=await admission.packet({surface:'pulse_room',conversationKey:admission.conversationKey,
-              eventRef},JSON.stringify(command));
-            context.assertInvocationCurrent!();
-          }
           const privateInput = JSON.stringify({command, host: {...bound,
-            ...(nativePulse?{nativePulse,conversationKey:nativePulse.conversation_key}:{}),
             surface: whatsapp ? "whatsapp" : "app", graphSurface: whatsapp ? "whatsapp" : "claw_live"}});
           if (Buffer.byteLength(privateInput) > 32768) throw Error("typed_input_too_large");
           context.assertInvocationCurrent!();
           const raw = await runCapabilityHelperProcess([options.helperPath || runtimeFile("claw-capability.py", options.home),
             "typed-tool", "--host-input-stdin", "--timeout", "30"],
-            {timeoutMs: 38000, maxBuffer: 128 * 1024,
-              env: {...process.env,SAMANTHA_NATIVE_PULSE_FD:nativePulse?'0':undefined}, privateInput});
+            {timeoutMs: 38000, maxBuffer: 128 * 1024, env: {...process.env}, privateInput});
           const result = JSON.parse(typeof raw === "string" ? raw : String(raw?.stdout || "{}"));
           return {content: [{type: "text", text: JSON.stringify(result)}]};
         } catch (error: any) {
@@ -152,9 +133,6 @@ export function createTypedCapabilityTools(context: TypedToolContext, options: O
       },
     };
   });
-  // No owner catalogue, app/system/payment descriptors or workspace discovery
-  // are ever projected into the contact actor's tool context.
-  if(pulseActor)return tools;
   const schema = {type: "object", properties: {query: {type: "string", minLength: 1, maxLength: 200}},
     required: ["query"], additionalProperties: false};
   tools.push({name: "samantha_catalogue", description: "Rechercher les capacités du registre canonique et leurs signatures. Découverte uniquement : aucune action n'est choisie ni exécutée.",

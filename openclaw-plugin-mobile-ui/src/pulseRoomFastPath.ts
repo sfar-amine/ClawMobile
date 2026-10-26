@@ -2,8 +2,7 @@ import crypto from "node:crypto";
 import {FAILURE_PHRASES,hasFailurePhrase} from "./companion/receiptPresentation";
 import { contactRoomSession } from "./contactRoomProfile";
 import {admitNativePulseContact} from "./nativePulseAdmission";
-import {brainOnlyEnabled} from "./brainOnly";
-import { admittedAtMs, dialogueTurn, dialogueHandoff, isQuestionReply, MAX_SPLIT_REQUESTS, splitRequests, transportEventRef,
+import { admittedAtMs, dialogueTurn, dialogueHandoff, dialogueChildRequest, isQuestionReply, MAX_SPLIT_REQUESTS, splitRequests, transportEventRef,
   type DialogueReply, type DialogueRequest, type DialogueRequestContext } from "./dialogueSurface";
 import { runModelFastPath, type FastPathResult, type RunnerOptions } from "./modelFastPath";
 
@@ -73,7 +72,8 @@ function refusal(verdict: "leave_request" | "outside") {
 }
 
 type BeforeDispatchEvent = { messageId?: string; content?: string; body?: string; channel?: string; sessionKey?: string; isGroup?: boolean; timestamp?: number };
-type BeforeDispatchContext = { messageId?: string; channelId?: string; sessionKey?: string };
+type BeforeDispatchContext = {messageId?:string;channelId?:string;sessionKey?:string;agentId?:string;
+  requester?:{senderIsOwner?:unknown}};
 
 /**
  * S24 12/10: the Gateway fires `inbound_claim` only for plugin-owned conversation bindings, so an ordinary
@@ -85,6 +85,10 @@ export async function handlePulseRoomBeforeDispatch(
   ctx: BeforeDispatchContext,
   runner: Runner = runModelFastPath,
 ): Promise<{ handled: boolean; text?: string }> {
+  // Scope comes from the SDK actor, never a phone number or the message text.
+  // The owner's L3 path cannot invoke the contact's professional AI even if
+  // a stale binding supplied a contact-room session key.
+  if(ctx?.requester?.senderIsOwner===true||ctx?.agentId==='main')return {handled:false};
   const sessionKey = String(ctx?.sessionKey ?? event?.sessionKey ?? "");
   const out = await handlePulseRoomFastPath(
     // content is the sender's text; body may carry the channel envelope (« [WhatsApp …] … : »), used only as a fallback.
@@ -102,10 +106,6 @@ export async function handlePulseRoomFastPath(
 ): Promise<{ handled: boolean; reply?: { text: string } }> {
   const contactId = pulseRoomContact(event, ctx);
   if (!contactId) return { handled: false };
-  // The host transports the original message unchanged. In this mode the
-  // scoped agent alone decides how many actions it contains, including any
-  // global condition, negation or pending request. No semantic pre-dispatch.
-  if (brainOnlyEnabled()) return {handled: false};
   const agent = roomAgent(event, ctx);
   const modelOr = (text: string) => (agent === "contacts-projet-pulse" ? { handled: false } : { handled: true as const, reply: { text } });
   if ((event.media?.length ?? 0) > 0 || (event.originalMedia?.length ?? 0) > 0) return modelOr(TEXT_ONLY);
@@ -132,10 +132,7 @@ type RoomTurn = { agent: string; contactId: string; sessionKey: string; isGroup:
 type RoomRequest = {text:string;eventRef:string;parentEventRef?:string;ordinal?:number;requestContext?:DialogueRequestContext};
 type RoomOut = { handled: boolean; reply?: { text: string } };
 const MAX_ROOM_REQUESTS = 20;
-export function pulseChildRequest(parentEventRef:string,text:string,ordinal:number):DialogueRequest {
-  return {text,parentEventRef,ordinal,eventRef:'pulse-sub:'+crypto.createHash('sha256')
-    .update(JSON.stringify([parentEventRef,ordinal,text])).digest('hex')};
-}
+export const pulseChildRequest=dialogueChildRequest;
 function preservedRequests(reply:DialogueReply):{requests:DialogueRequest[];context?:DialogueRequestContext} {
   const context=reply.requestContext;
   if(!context||Object.keys(context).sort().join(',')!=='originalText,parentEventRef'||
@@ -193,7 +190,8 @@ async function roomTurn(runner: Runner, room: RoomTurn, request: RoomRequest, qu
   const message = request.text.trim();
   let nativePulse;
   if(PULSE_ROOM_AGENTS.has(agent)&&process.env.SAMANTHA_NATIVE_PULSE_HANDOFF==='1'){
-    try{nativePulse=await admitNativePulseContact({sessionKey,eventRef:request.eventRef,text:request.text,isGroup:room.isGroup});}
+    try{nativePulse=await admitNativePulseContact({sessionKey,eventRef:request.eventRef,text:request.text,isGroup:room.isGroup,
+      ...(request.requestContext?{requestContext:request.requestContext}:{})});}
     catch{return {out:{handled:true,reply:{text:'L’accès à la pièce Pulse n’est pas confirmé. Rien n’a été exécuté.'}},
       question:false,completed:false,queuedCount:0,resumeRequests:[]};}
   }

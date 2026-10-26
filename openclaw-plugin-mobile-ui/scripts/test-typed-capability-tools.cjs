@@ -92,43 +92,6 @@ async function main() {
   process.env.SAMANTHA_BRAIN_ONLY='0';
   assert.throws(()=>mcp.typedMcpSelection({decision:envelope}),/typed_path_not_active/);
   if(previousFlag===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=previousFlag;
-  // A Pulse contact projects only its already granted room, with a current SDK proof and fresh People reads.
-  process.env.SAMANTHA_BRAIN_ONLY='1';
-  const contacts=require('../dist/companion/whatsappAllowlist');
-  const savedRead=contacts.allowlistRead;
-  const contactNumber='+21610000003',contactId='wa-'+require('crypto').createHash('sha256').update(contactNumber).digest('hex').slice(0,16);
-  let reads=0,revoked=false;
-  contacts.allowlistRead=async(kind,id)=>{reads++;return {success:true,contactId:id,e164:contactNumber,owner:false,state:revoked?'suspended':'active',rooms:['pulse'],expiresAt:null};};
-  const pulseCtx={senderIsOwner:false,agentId:'contacts-pulse',sessionKey:'agent:contacts-pulse:whatsapp:direct:'+contactNumber,
-    sessionId:'scoped-session',messageChannel:'whatsapp',assertInvocationCurrent(){if(pulseCtx.stale)throw Error('stale');}};
-  const pulseTools=tools.createTypedCapabilityTools(pulseCtx,{home:root,helperPath:helper});
-  assert.deepEqual(pulseTools.map(t=>t.name),['samantha_pulse']);
-  assert(!JSON.stringify(pulseTools[0].parameters).includes('certificate.rotate'));
-  assert(!JSON.stringify(pulseTools[0].parameters).includes('leave.request'));
-  const pulseArgs={action:'project.phases',params:{project_id:'20495'}};
-  const bindPulse=(args,callId,changes={})=>guard.agentCapabilityHook({toolName:'samantha_pulse',params:args,toolCallId:callId},
-    {requester:{senderIsOwner:false},agentId:'contacts-pulse',runId:'native-user-run',sessionKey:pulseCtx.sessionKey,sessionId:pulseCtx.sessionId,...changes});
-  assert.equal(bindPulse(pulseArgs,'pulse-one').block,undefined);
-  const pulseResult=JSON.parse((await pulseTools[0].execute('pulse-one',pulseArgs)).content[0].text);
-  assert.equal(pulseResult.received.host.owner,false);
-  assert.equal(pulseResult.received.host.actor,undefined,'no serializable authority actor is accepted');
-  assert.equal(pulseResult.received.host.nativePulse.contact_id,contactId);
-  assert.equal(pulseResult.received.host.conversationKey,pulseResult.received.host.nativePulse.conversation_key);
-  assert.match(pulseResult.received.host.nativePulse.event_ref,/^typed-pulse:[a-f0-9]{64}$/);
-  assert(reads>=2,'native authority is refreshed before effect');
-  assert.equal((await pulseTools[0].execute('pulse-one',pulseArgs)).isError,true,'host admission is one shot');
-  for(const changes of [{agentId:'main'},{agentId:'contacts'},{sessionKey:pulseCtx.sessionKey.replace('contacts-pulse','contacts-projet')},{requester:{senderIsOwner:true}}])
-    assert.equal(bindPulse(pulseArgs,'pulse-foreign-'+JSON.stringify(changes).length,changes).block,true);
-  assert.equal(guard.agentCapabilityHook({toolName:'samantha_app',params:pulseArgs,toolCallId:'pulse-app'},
-    {requester:{senderIsOwner:false},agentId:'contacts-pulse',runId:'native-user-run',sessionKey:pulseCtx.sessionKey}).block,true);
-  revoked=true;bindPulse(pulseArgs,'pulse-revoked');
-  assert.equal((await pulseTools[0].execute('pulse-revoked',pulseArgs)).isError,true,'People revocation refuses before helper effect');revoked=false;
-  pulseCtx.stale=true;bindPulse(pulseArgs,'pulse-stale');
-  assert.equal((await pulseTools[0].execute('pulse-stale',pulseArgs)).isError,true);pulseCtx.stale=false;
-  process.env.SAMANTHA_BRAIN_ONLY='0';
-  assert.equal(tools.createTypedCapabilityTools(pulseCtx,{home:root}),null,'legacy baseline does not project typed tools');
-  contacts.allowlistRead=savedRead;
-  if(previousFlag===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=previousFlag;
   console.log('typed-capability-tools: PASS (pinned canonical projection, exact host invocation, owner isolation, no replay, canonical app invocation)');
 }
 main().catch(error=>{console.error(error);process.exitCode=1}).finally(()=>fs.rmSync(root,{recursive:true,force:true}));

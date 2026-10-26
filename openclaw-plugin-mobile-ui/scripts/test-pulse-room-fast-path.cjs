@@ -175,13 +175,19 @@ async function main() {
   // After crash/replay, only a fresh coordinator projection may resume; the parent response is not redispatched.
   r=runner(()=>({outcome:'COMPLETED',text:'déjà fait',handled:true,replayed:true,resumeRequests:[second],requestContext:{parentEventRef:parent,originalText:sadok}}));
   await mod.handlePulseRoomFastPath(ev(sadok),ctx({runId:parent}),r);assert.equal(r.calls.length,1);
+  // The specification's single-brain switch is OWNER-only. Contacts keep their already-admitted professional AI.
   const before=process.env.SAMANTHA_BRAIN_ONLY;process.env.SAMANTHA_BRAIN_ONLY='1';
   try{
-    for(const message of [sadok,'1. Ne modifie rien, explique seulement.\n2. Passe la phase réalisation à terminée', 'réponds à la demande en attente']){
-      r=runner(()=>{throw Error('brain-only must not enter dedicated interpreter or legacy queue');});
-      const original=ev(message);assert.deepEqual(await mod.handlePulseRoomFastPath(original,ctx(),r),{handled:false});
-      assert.equal(original.content,message);assert.equal(r.calls.length,0);
+    r=runner(()=>({outcome:'COMPLETED',text:'réponse professionnelle attestée',handled:true}));
+    const direct={messageId:'native-owner-excluded',content:sadok,channel:'whatsapp',sessionKey:KEY};
+    for(const host of [{requester:{senderIsOwner:true}},{agentId:'main'}]){
+      assert.deepEqual(await mod.handlePulseRoomBeforeDispatch(direct,{sessionKey:KEY,...host},r),{handled:false});
+      assert.equal(r.calls.length,0,'owner SDK actor never invokes the professional interpreter');
     }
+    const original=ev('état du projet 20495');
+    assert.equal((await mod.handlePulseRoomFastPath(original,ctx(),r)).handled,true);
+    assert.equal(r.calls.length,1,'owner flag does not bypass the contact professional service');
+    assert.equal(original.content,'état du projet 20495');assert.equal(r.calls[0].dialogue.policy.modelAllowed,false);
   }finally{if(before===undefined)delete process.env.SAMANTHA_BRAIN_ONLY;else process.env.SAMANTHA_BRAIN_ONLY=before;}
 
   // C16 native codes retain their owner cause in the actual room renderer.

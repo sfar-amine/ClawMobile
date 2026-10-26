@@ -8,8 +8,7 @@
  * that decision with the graph's existing read-only policy (`capability_first_required` otherwise).
  */
 import {createHash,randomUUID} from 'node:crypto';
-import {contactRoomSession} from './contactRoomProfile';
-import {brainOnlyEnabled} from './brainOnly';
+import {dialogueRequestText} from './dialogueSurface';
 export const TYPED_CONTROL_ADMISSION_METHOD='samantha.typed-control.admission';
 const typedSeal=Symbol('typed-host-invocation');
 export type AgentCapabilityHookContext = { requester?: { senderIsOwner?: unknown }; runId?: string; sessionKey?: string; sessionId?: string; toolCallId?: string; agentId?: string };
@@ -21,7 +20,6 @@ export const AGENT_CAPABILITY_REFUSAL = "capability_first_required";
 // Current-invocation proof of the existing guard, not a business registry. A
 // tool cannot receive this through model arguments, persisted JSON or replay.
 type TypedProof={at:number;tool:string;runId:string;sessionKey:string;sessionId?:string;args:string;
-  actor?:'native_pulse_contact';agentId?:string;
   control?:{operationId:string;paramsHash:string;expiresAt:number;assertCurrent:()=>void};
   nativePulse?:{admission:import('./nativePulseAdmission').NativePulseContact;event:Record<string,unknown>;expiresAt:number}};
 const typedInvocations = new Map<string, TypedProof>();
@@ -43,28 +41,17 @@ function invocationArgs(value: unknown, depth = 0): unknown {
   return result;
 }
 export function consumeTypedInvocation(callId: unknown, tool: string, args: unknown, context: {
-  senderIsOwner?: boolean;agentId?:string; sessionKey?: string; sessionId?: string; assertInvocationCurrent?: () => void;
+  senderIsOwner?: boolean; sessionKey?: string; sessionId?: string; assertInvocationCurrent?: () => void;
 }) {
   if (typeof callId !== "string") throw Error("typed_host_admission_required");
   const proof = typedInvocations.get(callId);
   typedInvocations.delete(callId); // One execute only, including a refused invocation.
-  const pulse=proof?.actor==='native_pulse_contact'&&scopedPulseActor(context);
-  if (!proof || Date.now() < proof.at || Date.now() - proof.at > 120000 || proof.tool !== tool ||
-      (proof.actor==='native_pulse_contact'?(!pulse||proof.agentId!==context.agentId||tool!=='samantha_pulse'):context.senderIsOwner!==true) ||
+  if (!proof || Date.now() < proof.at || Date.now() - proof.at > 120000 || proof.tool !== tool || context.senderIsOwner !== true ||
       !context.sessionKey || context.sessionKey !== proof.sessionKey ||
       context.sessionId && context.sessionId !== proof.sessionId || typeof context.assertInvocationCurrent !== "function" ||
       JSON.stringify(invocationArgs(args)) !== proof.args) throw Error("typed_host_admission_required");
   context.assertInvocationCurrent();
-  return {owner:proof.actor!=='native_pulse_contact',
-    conversationKey: proof.sessionKey, userRunId: proof.runId, invocationId: callId,[typedSeal]:proof};
-}
-
-/** Host identity narrows a room already granted by People; it never grants it. */
-export function scopedPulseActor(context:{senderIsOwner?:unknown;agentId?:unknown;sessionKey?:unknown}) {
- if(!brainOnlyEnabled()||context.senderIsOwner!==false||typeof context.agentId!=='string'||
-   !['contacts-pulse','contacts-projet-pulse'].includes(context.agentId))return null;
- const profile=contactRoomSession(context.sessionKey);
- return profile&&profile.agent===context.agentId&&profile.rooms.has('pulse')?profile:null;
+  return {owner: true, conversationKey: proof.sessionKey, userRunId: proof.runId, invocationId: callId,[typedSeal]:proof};
 }
 
 /** Keep only this already-admitted SDK callback alive while Companion owns the effect/receipt. */
@@ -109,7 +96,8 @@ export async function holdNativePulseInterpretation(admission:import('./nativePu
  for(const [key,proof] of typedInvocations)if(at-proof.at>120000)typedInvocations.delete(key);
  if(typedInvocations.size>=256)throw Error('native_pulse_admission_required');
  const id='native-pulse-'+randomUUID(),held:TypedProof={at,tool:'native-pulse-interpretation',runId:admission.eventRef,
-  sessionKey:admission.sessionKey,args:'',nativePulse:{admission,event:{surface:event.surface,conversationKey:event.conversationKey,eventRef:event.eventRef},
+  sessionKey:admission.sessionKey,args:'',nativePulse:{admission,event:{surface:event.surface,conversationKey:event.conversationKey,eventRef:event.eventRef,
+   ...(admission.requestContext?{requestContext:admission.requestContext}:{})},
    expiresAt:Math.min(packet.valid_until,at+30000)}};
  typedInvocations.set(id,held);
  return {invocationId:id,release:()=>{if(typedInvocations.get(id)===held)typedInvocations.delete(id);}};
@@ -126,7 +114,7 @@ export async function requireNativePulseInterpretation(params:any){
  const event='evt-'+hash(['dialogue-event-v1','pulse_room',conversation,native.admission.eventRef.trim()],32);
  // The model view deliberately omits host identities. Its message ref is
  // bound here; Python's sealed professional owner separately checks the full projection.
- if(request.message?.ref!==event||request.message?.text!==native.admission.originalText||request.message?.provenance!=='server_verified'||
+ if(request.message?.ref!==event||request.message?.text!==dialogueRequestText(native.admission.originalText,native.admission.requestContext)||request.message?.provenance!=='server_verified'||
     !Array.isArray(request.catalogue?.domains)||request.catalogue.domains.length!==1||request.catalogue.domains[0]?.domain_id!=='pulse')
   throw Error('native_pulse_admission_required');
 }
@@ -170,12 +158,10 @@ export function agentCapabilityHook(
     if (typedName.test(toolName)) {
       const callId = ownData(event, "toolCallId") ?? ownData(context, "toolCallId");
       const runId = ownData(context, "runId"), sessionKey = ownData(context, "sessionKey");
-      const owner=ownData(ownData(context,'requester'),'senderIsOwner');
-      const pulse=scopedPulseActor({senderIsOwner:owner,agentId:ownData(context,'agentId'),sessionKey});
-      if ((pulse?toolName!=='samantha_pulse':owner!==true) ||
+      if (ownData(ownData(context, "requester"), "senderIsOwner") !== true ||
           typeof callId !== "string" || !typedId.test(callId) || typeof runId !== "string" || !typedId.test(runId) ||
           typeof sessionKey !== "string" || !sessionKey || sessionKey.length > 512 ||
-          !pulse&&ownData(context, "agentId") && ownData(context, "agentId") !== "main") return refused();
+          ownData(context, "agentId") && ownData(context, "agentId") !== "main") return refused();
       const at = Date.now();
       for (const [id, proof] of typedInvocations) if (at - proof.at > 120000) typedInvocations.delete(id);
       if (typedInvocations.has(callId)) { typedInvocations.delete(callId); return refused(); }
@@ -185,7 +171,7 @@ export function agentCapabilityHook(
       if (encoded.length > 32768) return refused();
       typedInvocations.set(callId, {at, tool: toolName, runId, sessionKey,
         sessionId: typeof ownData(context, "sessionId") === "string" ? ownData(context, "sessionId") as string : undefined,
-        args: encoded,...(pulse?{actor:'native_pulse_contact' as const,agentId:pulse.agent}:{})});
+        args: encoded});
       return {params};
     }
     if (toolName !== "clawmobile_capability") return undefined;

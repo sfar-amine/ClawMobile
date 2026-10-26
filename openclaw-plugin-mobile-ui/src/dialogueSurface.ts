@@ -43,6 +43,15 @@ export type DialogueReply = {
 
 export type DialogueRequest = {text: string; eventRef: string; parentEventRef: string; ordinal: number};
 export type DialogueRequestContext = {parentEventRef: string; originalText: string};
+export function dialogueChildRequest(parentEventRef:string,text:string,ordinal:number):DialogueRequest {
+  return {text,parentEventRef,ordinal,eventRef:'pulse-sub:'+crypto.createHash('sha256')
+    .update(JSON.stringify([parentEventRef,ordinal,text])).digest('hex')};
+}
+/** Same quoted view as the canonical coordinator; all bytes remain source-attested user data. */
+export function dialogueRequestText(text:string,context?:Readonly<DialogueRequestContext>){
+  return context?'Message original (contexte et contraintes à conserver) :\n'+context.originalText+
+    '\n\nDemande actuellement traitée :\n'+text:text;
+}
 
 export type DialogueRunner = (message: string, options?: RunnerOptions) => Promise<FastPathResult>;
 
