@@ -118,6 +118,39 @@ async function main() {
   r = runner(() => ({ outcome: "MAINTENANCE", text: "Samantha est en maintenance pour quelques minutes.", handled: true }));
   assert.match((await mod.handlePulseRoomFastPath(ev("état de l'offre 20447"), ctx(), r)).reply.text, /maintenance/);
 
+  // Amine 26/10 « il faut gérer ce genre de demande automatiquement »: Sadok's real message (S24 15:37:50Z) is two
+  // requests, run one after the other as two admitted events of the same conversation.
+  const sadok = "1. État su projet zain phase 5\n2. Passe la phase réalisation du projet 20495 a non débuté";
+  const split = require("../dist/dialogueSurface.js").splitRequests;
+  assert.deepEqual(split(sadok), ["État su projet zain phase 5", "Passe la phase réalisation du projet 20495 a non débuté"]);
+  assert.deepEqual(split("- offre 20447\n  et son forecast\n- congés de l'équipe"), ["offre 20447\net son forecast", "congés de l'équipe"]);
+  for (const one of ["nom projet zain_phase_5.1\nclient zain bahrain", "Voici :\n1. a\n2. b", "1. une seule demande",
+    "état du projet 20495", "réunion à\n10:30 demain", Array.from({ length: 11 }, (_, n) => `${n + 1}. x`).join("\n")])
+    assert.equal(split(one).length, 1, one);
+  r = runner((m) => m.startsWith("État") ? { outcome: "COMPLETED", text: "ZAIN BAHRAIN - PHASE 5 : Réalisation débutée.", handled: true }
+    : { outcome: "COMPLETED", text: "Phase Réalisation du projet 20495 : Non débuté.", handled: true });
+  assert.deepEqual(await mod.handlePulseRoomFastPath(ev(sadok), ctx({ runId: "AC0815" }), r), { handled: true, reply: { text:
+    "1) ZAIN BAHRAIN - PHASE 5 : Réalisation débutée.\n\n2) Phase Réalisation du projet 20495 : Non débuté." } });
+  assert.deepEqual(r.calls.map((c) => [c.message, c.dialogue.event.eventRef, c.dialogue.event.queuedRequests]), [
+    ["État su projet zain phase 5", "AC0815#1", ["Passe la phase réalisation du projet 20495 a non débuté"]],
+    ["Passe la phase réalisation du projet 20495 a non débuté", "AC0815#2", undefined]]);
+  assert.equal(r.calls[0].dialogue.event.conversationKey, r.calls[1].dialogue.event.conversationKey);
+  // A question stops the run; the coordinator keeps the next request and hands it back with the answer turn.
+  r = runner((m, o, n) => n === 1 ? { outcome: "NEEDS_CHOICE", text: "Quel projet Zain ?", handled: true, queuedCount: 1, question: { version: 1, kind: "choice" } }
+    : n === 2 ? { outcome: "COMPLETED", text: "ZAIN BAHRAIN - PHASE 5 : en cours.", handled: true, resumeRequests: ["Passe la phase réalisation du projet 20495 a non débuté"] }
+    : { outcome: "COMPLETED", text: "Phase Réalisation du projet 20495 : Non débuté.", handled: true });
+  assert.deepEqual(await mod.handlePulseRoomFastPath(ev(sadok), ctx({ runId: "AC0816" }), r), { handled: true, reply: { text:
+    "Quel projet Zain ?\n\nJ’ai gardé l’autre demande de ton message : je la traite dès ta réponse." } });
+  assert.equal(r.calls.length, 1);
+  assert.deepEqual(await mod.handlePulseRoomFastPath(ev("Zain Bahrain"), ctx({ runId: "AC0817" }), r), { handled: true, reply: { text:
+    "1) ZAIN BAHRAIN - PHASE 5 : en cours.\n\n2) Phase Réalisation du projet 20495 : Non débuté." } });
+  assert.deepEqual(r.calls.slice(1).map((c) => [c.message, c.dialogue.event.eventRef]), [
+    ["Zain Bahrain", "AC0817"], ["Passe la phase réalisation du projet 20495 a non débuté", "AC0817#r1"]]);
+  // An older coordinator that keeps nothing: the contact is told the rest was not run.
+  r = runner(() => ({ outcome: "NEEDS_INPUT", text: "Quel projet ?", handled: true, question: { version: 1, kind: "input" } }));
+  assert.match((await mod.handlePulseRoomFastPath(ev(sadok), ctx({ runId: "AC0818" }), r)).reply.text, /n’ont pas été traitées/);
+  assert.equal(r.calls.length, 1);
+
   // C16 native codes retain their owner cause in the actual room renderer.
   // The authority port is MOCK_ONLY; no provider or business call is made.
   const allowlist=require('../dist/companion/whatsappAllowlist');
@@ -132,6 +165,14 @@ async function main() {
     assert.equal(out.reply.text,render.FAILURE_PHRASES.fr[code]);
     assert(!out.reply.text.includes('UNTRUSTED_CANARY'));assert.equal(r.calls.length,1);
   }
+  // Native room: every request of the message gets its own admission (eventRef and text bound), turn and hand-off.
+  r=runner((m,o)=>o.dialogue.mode==='turn'?{outcome:'READY',handled:true,pendingHandoff:{goalRef:'g-'+o.dialogue.event.eventRef,klass:'FAST'}}
+    :{outcome:'COMPLETED',text:'fait : '+m,handled:true});
+  const native=await mod.handlePulseRoomFastPath(ev(sadok),ctx({runId:'AC0819'}),r);
+  assert.equal(native.reply.text,'1) fait : État su projet zain phase 5\n\n2) fait : Passe la phase réalisation du projet 20495 a non débuté');
+  for(const c of r.calls){assert.equal(c.nativePulse.eventRef,c.dialogue.event.eventRef);assert.equal(c.nativePulse.originalText,c.message);}
+  assert.deepEqual(r.calls.map(c=>[c.dialogue.mode,c.dialogue.event.eventRef]),[['turn','AC0819#1'],['handoff','AC0819#1'],['turn','AC0819#2'],['handoff','AC0819#2']]);
+  assert.notEqual(r.calls[0].nativePulse,r.calls[2].nativePulse);
   delete process.env.SAMANTHA_NATIVE_PULSE_HANDOFF;
 
   console.log("pulse room fast path OK");

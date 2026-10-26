@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "id": "pulse-room-multi-request-20261026",
+  "date": "2026-10-26",
+  "origin": "chat",
+  "kind": "repair",
+  "summary": "A Pulse room message that enumerates several requests (« 1. … 2. … ») is split by the host and run one request after the other, each as its own admitted event; a question stops the run and the dialogue coordinator keeps the rest until the answer (Amine 26/10: « il faut gérer ce genre de demande automatiquement »).",
+  "reason": "S24 26/10 15:37:50Z: Sadok sent « 1. État su projet zain phase 5\\n2. Passe la phase réalisation du projet 20495 a non débuté ». The whole message went to the interpreter as one request and the room answered « Cette demande ne définit pas une commande Pulse admise ».",
+  "files": [
+    "openclaw-plugin-mobile-ui/src/dialogueSurface.ts",
+    "openclaw-plugin-mobile-ui/src/pulseRoomFastPath.ts",
+    "openclaw-plugin-mobile-ui/scripts/test-pulse-room-fast-path.cjs",
+    "docs/changes/pulse-room-multi-request-20261026.json",
+    "docs/changes/pulse-room-multi-request-20261026.md"
+  ],
+  "tests": [
+    {
+      "name": "scripts/test-pulse-room-fast-path.cjs",
+      "status": "passed",
+      "evidence": "Sadok's real message is split into two requests run as events <messageId>#1 and #2 of the same conversation, the first carrying the second as queuedRequests; non-enumerated texts (« nom projet …\\nclient … », an intro line, one item, 11 items, a time) stay one request; a question stops the run and tells the contact the other request is kept; the answer turn runs the resumeRequests as <messageId>#r1; an older coordinator that keeps nothing makes the room say the rest was not run; in the native room each request gets its own admission (eventRef and text bound), turn and hand-off. Existing cases unchanged."
+    }
+  ],
+  "documentation": [
+    "docs/changes/pulse-room-multi-request-20261026.md"
+  ],
+  "capabilities": {
+    "impact": "none",
+    "reason": "No capability, route or scope change. Each request goes through the same native admission, coordinator scope policy and hand-off as a one-request message."
+  },
+  "architecture": {
+    "changed": false,
+    "reason": "Stateless host loop in the existing room adapter; waiting requests live only in the coordinator's conversation state (samantha-ui-playbooks change of the same name). No second router, store, timer or retry."
+  },
+  "mcp_owner_parity": {
+    "tools": {
+      "claw_context": "verified_no_impact",
+      "claw_resolve": "verified_no_impact",
+      "claw_execute": "verified_no_impact",
+      "claw_exec": "verified_no_impact",
+      "claw_status": "verified_no_impact",
+      "claw_artifact_read": "verified_no_impact"
+    },
+    "attached": {
+      "schemas": "verified_no_impact",
+      "adapters": "verified_no_impact",
+      "documentation": "verified_no_impact",
+      "tests": "verified_no_impact",
+      "runtime": "verified_no_impact"
+    },
+    "evidence": [
+      "Read-only assessment: only the WhatsApp Pulse room adapter changes; no MCP schema, adapter, endpoint or runtime protocol changed."
+    ]
+  },
+  "merge_eligibility": "allowed",
+  "deployment_state": "not_applied",
+  "limitations": [
+    "Full canonical CI on the final GitHub head remains required.",
+    "Queueing behind a question needs the paired playbooks coordinator; before its activation the room says the other requests were not run.",
+    "Requests run sequentially in one WhatsApp turn: the reply arrives after the last one (about 30 s each today).",
+    "Live proof: Sadok's two-line message answered for both requests in the Pulse room."
+  ],
+  "rollback": "Revert this commit; an enumerated message is again one request."
+}
