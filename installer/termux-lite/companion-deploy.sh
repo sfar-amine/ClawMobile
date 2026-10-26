@@ -301,6 +301,14 @@ sync_runtime(){ [ -x "$ROOT/runtime-sync.sh" ] || { echo '{"ok":true,"skipped":"
 
 rollback(){
   reason="$1"; acc="${2:-}"
+  # A candidate can install a model profile consumer before its Tier0 release is promoted.
+  # Undo its exact set while this checkout still owns the manifest; the previous release may not.
+  if [ -f "$ROOT/openclaw-compat/model-flow-selection.json" ] &&
+     { ! git cat-file -e "$previous:installer/termux-lite/openclaw-compat/model-flow-selection.json" 2>/dev/null ||
+       [ "$(git rev-parse "$previous:installer/termux-lite/openclaw-compat/model-flow-selection.json" 2>/dev/null)" != "$(git hash-object "$ROOT/openclaw-compat/model-flow-selection.json")" ]; }; then
+    python3 "$ROOT/openclaw-compat/whatsapp-network-recovery.py" --patch-set model-flow-selection --rollback >>"$log" 2>&1 ||
+      { write rollback_failed "$full" "$previous" "model_flow_selection_rollback_failed"; exit 6; }
+  fi
   # A candidate can extend a known patch set. Undo its exact manifest before the previous checkout
   # reapplies its own version; the old owner must never see an unknown newer patched hash.
   if [ -f "$ROOT/openclaw-compat/native-turn-provenance.json" ] &&
