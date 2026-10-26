@@ -245,11 +245,11 @@ EOF
 if [ -f "$RUNTIME_DIR/immune-action.sh" ]; then . "$RUNTIME_DIR/immune-action.sh"; else
  immune_action(){ return 75; }; immune_observe(){ :; }
 fi
-recover_adb(){ immune_action adb bounded-trusted-adb-recovery recover_adb_effect "$@"; }
-readiness_try_repair(){ immune_action device.adb.recovery_readiness bounded-wireless-readiness-repair readiness_try_repair_effect "$@"; }
+recover_adb(){ IMMUNE_OBSERVATION="adb 127.0.0.1:$STABLE_PORT is not in device state. The bounded operation restarts the ADB server, reconnects the stable port, then retries only the last trusted endpoint and the mDNS endpoint of the expected serial." immune_action adb bounded-trusted-adb-recovery recover_adb_effect "$@"; }
+readiness_try_repair(){ IMMUNE_OBSERVATION="ADB recovery readiness is degraded: reason=${1:-unknown}. The bounded operation repairs only the wireless debugging recovery path, then rechecks readiness." immune_action device.adb.recovery_readiness bounded-wireless-readiness-repair readiness_try_repair_effect "$@"; }
 readiness_arm_primary(){
  readiness_arm_due || return 1
- immune_action device.adb.recovery_readiness bounded-wireless-readiness-arm readiness_arm_primary_effect "$@"
+ IMMUNE_OBSERVATION="ADB recovery readiness is not armed: reason=${1:-unknown}. The bounded operation arms only wireless debugging as the recovery path while primary ADB is used, then rechecks readiness." immune_action device.adb.recovery_readiness bounded-wireless-readiness-arm readiness_arm_primary_effect "$@"
 }
 prev="$(cat "$STATE" 2>/dev/null || printf unknown)"
 recovery_tries=0
