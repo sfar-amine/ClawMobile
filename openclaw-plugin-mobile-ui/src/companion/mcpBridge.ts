@@ -295,9 +295,14 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
   }
 
   if(raw?.foundation?.read_required===true){
-    const content=JSON.stringify(raw.foundation);
+    if(typeof raw.foundation.content!=='string'||!raw.foundation.content.trim())throw new Error('foundation_mcp_content_required');
+    // Deliver the source text once, without JSON-inside-JSON escaping. The stable digest,
+    // memory revision and complete skill index remain beside it in the existing bundle.
+    const content=raw.foundation.content;
     reads.push({key:'context/FOUNDATION',sha256:crypto.createHash('sha256').update(content).digest('hex'),content});
-    const {content:_content,skills:_skills,sources:_sources,instruction:_instruction,...metadata}=raw.foundation;
+    // Per-file diagnostic digests are already bound by foundation.sha256; the consumer uses
+    // stable_sha256 plus the canonical memory baseline for freshness, not seven startup reads.
+    const {content:_content,sources:_sources,...metadata}=raw.foundation;
     raw.foundation=metadata;
   }
   // Building a response does not attest its delivery or the client's integration.
@@ -306,7 +311,7 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
   raw.cursor_advanced=false;
   if(raw.cursor&&typeof raw.cursor==='object')raw.cursor.advanced=false;
   raw.context_consumption={state:'not_attested',basis:'caller_supplied_state',implicit_client_cursor:false};
-  return {
+  const response = {
     state: "context",
     bundle: sanitizeRequestContext(raw),
     required_reads: reads,
@@ -314,6 +319,11 @@ async function contextBundle(args: Record<string, unknown>,clientId:string) {
       ? "Read and integrate every required_reads item before reusing its hash/baseline."
       : "No additional contract read is required for this delta.",
   };
+  // The owner relay appends bounded access metadata. Reserve it explicitly, never trim a rule
+  // or thread to fit the transport. Legacy context responses keep their established contract.
+  if(raw?.foundation?.read_required===true&&Buffer.byteLength(JSON.stringify(response),'utf8')+256>24000)
+    throw new Error('foundation_mcp_response_budget_exceeded');
+  return response;
 }
 
 // Versioned opt-in transport, not a second interpreter, dialogue owner or authorization API.
